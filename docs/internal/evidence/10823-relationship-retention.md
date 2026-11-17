@@ -13,15 +13,17 @@ Performance Evidence: every figure below comes from one throwaway PostgreSQL
 first runs, 26 to 56 for the re-runs), the real migrated schema, synthetic rows.
 A 50-generation batch (about 2,650 rows) commits in 24 to 43 ms at p50 when a
 generation's rows sit together or interleave by id, and in 48 to 104 ms when they
-are scattered at random; the p95 follows host load (28 to 312 ms). The census is
-one pass over each table's generation ids: 0.2 to 0.3 s warm (0.5 to 1.2 s on a
-first pass) on 3.6 million evidence rows with no orphans, 2.4 to 8.5 s with 2
-million orphan rows among 5.6 million. Re-runs under heavier load took up to 16
-times as long as the first runs of the same corpus, so read the timings as best
-cases. WAL per deleted row does not move with load: 0.3 KB when a generation's
-rows sit together, and 0.07 to 4.3 KB when they are scattered at random,
-depending on the table size and on whether the pass follows a checkpoint.
-Nothing was measured on a production corpus or against a replica.
+are scattered at random. Its p95 ranged from 28 to 312 ms between runs, and two
+runs per layout cannot separate layout from host load. The census is one pass
+over each table's generation ids: 0.2 to 0.3 s warm (0.5 to 1.2 s on a first
+pass) on 3.6 million evidence rows with no orphans, 2.4 to 8.5 s with 2 million
+orphan rows among 5.6 million. The re-runs on the busier host were slower: a
+no-orphan census pass took up to 17 times as long (823 ms against 49 ms), so read
+every timing as a best case. WAL per deleted row was steadier: 281 to 305 B in 11
+of the 12 passes whose rows sat together or interleaved by id (one pass wrote
+475 B, and I could not say why), and 0.07 to 4.3 KB for rows scattered at random,
+depending on the table size and on whether a checkpoint came first. Nothing was
+measured on a production corpus or against a replica.
 
 Observability Evidence: four instruments (`eshu_dp_relationship_retention_orphan_generations`,
 `..._rows_swept_total`, `..._generations_skipped_total`, `..._capped_total`), two
@@ -99,12 +101,13 @@ table.
   planner preferred it there; the census statements are therefore not plan-pinned.
 - The 60 s census timeout has about seven times the headroom of the slowest first
   run (8.5 s, S5 random). The S1 re-runs (committed probe, host load average 26
-  to 56) took 2 to 16 times as long as the first S1 run: no-orphan census-only
-  passes 97 to 823 ms against 49 to 55 ms, orphan-abundant passes 172 to
-  1,091 ms against 162 to 235 ms, and the no-orphan evidence statement 57 to
-  509 ms against 35.7 ms. On a busy host the headroom may be a few times, not
-  seven. Past roughly 40 million evidence rows with the slow plan it would fail
-  the pass, and nothing would be swept; there is no knob for it.
+  to 56) were slower than the first S1 run on the same live rows: no-orphan
+  census-only passes took 97 to 823 ms against 49 to 55 ms (2 to 17 times), and
+  the no-orphan evidence statement 57 to 509 ms against 35.7 ms. With orphans in
+  the together layout the passes took 209 to 531 ms against 162 to 235 ms. A busy
+  host eats into the margin. Past roughly 40 million evidence rows with the slow
+  plan (a linear extrapolation from 5.6 million) it would fail the pass, and
+  nothing would be swept; there is no knob for it.
 - The sql.go comment quoted the design's 0.7 to 1.0 s on 3.3 million evidence
   rows. This run measured 0.2 to 0.3 s warm and 0.5 to 1.2 s on a first pass on 3.6 million rows,
   so the design figure sits between the cold and warm runs. The comment now
@@ -155,14 +158,17 @@ of 26 to 56 (first pass, then second):
 | random | 68.3 / 103.9 ms | 278.9 / 312.1 ms | 408.1 / 322.5 ms | 5.3 / 5.2 s | 1,220 / 71 B | 13,925 / 454 |
 
 The same together corpus measured a p50 of 25.6 ms and a p95 of 30.8 ms in the
-first run and 39.9 ms and 240.1 ms in the re-run, so host load alone moves the p50
-by about 1.6 times and the p95 by up to eight. The batch times cannot separate a
-layout effect from load. The WAL per row does not depend on load, and it is the
-layout signal: together and by id match, random does not.
+first run and 39.9 ms and 240.1 ms in the re-run, 1.6 and 7.8 times as long. The
+host was busier during the re-run, but the runs differ in more than load, so the
+batch times cannot separate a layout effect from load or from the run: do not
+tune on a p95 taken on this laptop. The WAL per row is the steadier signal:
+together and by id match from run to run (one 475 B pass aside), and random does
+not.
 
 A hub batch of 50 generations of 1,000 rows (50,000 rows, 4.5% of the S1 table,
-0.9% of S5) kept a Bitmap Heap Scan on the generation index: 39 ms and 32 ms (S1,
-the two by-id runs), 291 ms (S5 random). No flip to a sequential scan was seen.
+0.9% of S5) kept a Bitmap Heap Scan on the generation index in every run: 32 to
+113 ms at S1 (five runs), 291 ms at S5 random. No flip to a sequential scan was
+seen.
 The #10820 purge note measured a flip at 1.43% of a 1.4 million row table for
 its layout; if a batch does flip, it costs a table scan and still deletes that
 share of the table.
@@ -268,8 +274,8 @@ skipped-retry wrap survived until
 ## Not checked
 
 - No quiet-host run: every timing is from a shared laptop at host load averages
-  of 19 to 56, and the same corpus varied by up to 16 times between a first run
-  and a re-run. The WAL figures do not move with load; the timings do.
+  of 19 to 56, and a no-orphan census pass took up to 17 times as long in a
+  re-run as in the first run. WAL per row was steadier (see the WAL section).
 - No production-shaped corpus: the rows are synthetic, ids are short, and the
   cluster is a single laptop-class node under load with `fsync=off`.
 - No replica, so no replica lag, and no `wal_level=logical` or compression run.

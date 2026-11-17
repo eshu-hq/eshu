@@ -4,7 +4,8 @@ The reducer's generation-retention runner removes the relationship evidence of
 generations nothing keeps alive (#10823). Relationship evidence
 (`relationship_evidence_facts`), candidates (`relationship_candidates`) and
 generation rows (`relationship_generations`) are written per generation and
-were never deleted, so they grew with every re-index. Each pass takes a
+were deleted only when a repository retired (the #10820 purge), so the rows of a
+superseded generation grew with every re-index. Each pass takes a
 read-only census of the orphans and, only when the sweep is enabled, deletes
 them in small committed batches after the prune transaction has ended.
 
@@ -58,10 +59,11 @@ service context for a current pointer.
   0.3 s warm (0.5 to 1.2 s on a first pass) on 3.6 million evidence rows with no
   orphans, 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the slow
   end when the planner reads the evidence table with a parallel sequential scan.
-  Those are timings from a development laptop; a busy host was up to 16 times
-  slower. The census runs under a 60 s statement timeout. A timeout fails the
-  pass (`relationship_orphan_sweep`) and nothing is swept, so run `VACUUM` after
-  a large drain to keep the cheaper index-only scan.
+  Those are timings from a shared development laptop; a re-run on a busier host
+  took a no-orphan pass up to 17 times as long. The census runs under a 60 s
+  statement timeout. A timeout fails the pass (`relationship_orphan_sweep`) and
+  nothing is swept, so run `VACUUM` after a large drain to keep the cheaper
+  index-only scan.
 
 ## Operator gate before enabling deletes
 

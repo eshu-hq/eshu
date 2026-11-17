@@ -58,15 +58,15 @@ const LockClass = 10823
 // Measured on a local PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md):
 // a batch of 50 generations of 53 rows is about 2,650 rows and commits in 24 to
 // 43 ms at p50 when a generation's rows sit together or interleave by id, and in
-// 48 to 104 ms when they are scattered at random; the p95 follows host load (28
-// to 312 ms on a shared laptop). Its WAL does not move with load and depends on
-// how the rows sit in the heap: about 0.3 KB per row when a generation's rows
-// are together, about 1.7 KB when they are scattered across a large table, and
-// up to 4.3 KB for a pass that starts right after a checkpoint (every first
-// touch of a page writes a full page image). A batch is bounded in generations,
-// not rows: a hub generation with many evidence rows makes it larger, so the row
-// cap is checked between batches and the first batch always runs. There is no
-// knob: a different size needs a new measurement in the evidence note.
+// 48 to 104 ms when they are scattered at random; its p95 ranged from 28 to
+// 312 ms between runs on a shared laptop. Its WAL depends on how the rows sit in
+// the heap: about 0.3 KB per row when a generation's rows are together, about
+// 1.7 KB when they are scattered across a large table, and up to 4.3 KB for a
+// pass that starts right after a checkpoint (every first touch of a page writes
+// a full page image). A batch is bounded in generations, not rows: a hub
+// generation with many evidence rows makes it larger, so the row cap is checked
+// between batches and the first batch always runs. There is no knob: a different
+// size needs a new measurement in the evidence note.
 const BatchGenerations = 50
 
 // CensusListLimit is the most distinct orphan generations the census lists
@@ -98,9 +98,9 @@ const lockTimeoutSetting = "500ms"
 // slow end when the planner read the evidence table with a parallel sequential
 // scan (docs/internal/evidence/10823-relationship-retention.md). A census that
 // outlives this bound fails the pass and is retried at the next poll. The bound
-// has about seven times the headroom of the slowest first run (8.5 s); re-runs
-// under heavier host load were up to 16 times slower than a first run, so on a
-// busy host the headroom is a few times. It must stay positive.
+// has about seven times the headroom of the slowest first run (8.5 s); a re-run
+// on a busier host took a no-orphan pass up to 17 times as long as the first
+// run, so a busy host eats into that margin. It must stay positive.
 const censusStatementTimeoutSetting = "60s"
 
 // setLockTimeoutQuery and setStatementTimeoutQuery are SET LOCAL: they end with
