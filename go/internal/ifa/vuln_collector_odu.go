@@ -19,13 +19,21 @@ import (
 // (eshu-hq/eshu#10734). They exist only in the cassette-backed catalog,
 // CatalogAt and CatalogByNameAt.
 //
-// Every record in that recording is synthetic: the CVE ids are invented
-// (CVE-2026-90001 to CVE-2026-90005 and CVE-2025-90006), the products belong to
-// the made-up vendor ifa-vendor, and every feed host is a reserved example.test
-// name. No real NVD, CISA KEV or FIRST EPSS record is present. The
-// www.cisa.gov and www.first.org links on the KEV and EPSS snapshots are the
-// source-terms attribution links the collector always writes, and nvd@nist.gov
-// is NVD's source identifier; neither is evidence of real data.
+// The recording holds two kinds of record. Five scopes are synthetic: the CVE
+// ids are invented (CVE-2026-90001 to CVE-2026-90005 and CVE-2025-90006), the
+// products belong to the made-up vendor ifa-vendor, and every feed host is a
+// reserved example.test name. Four more scopes carry three real public records
+// an operator captured once through the collector's own clients
+// (eshu-hq/eshu-collector-vulnerability-intelligence#126): CVE-2020-10181 and
+// CVE-2020-8644 from NVD with their CISA KEV entries and FIRST EPSS scores, and
+// the Rejected CVE-2017-20051 from NVD. The collector repository keeps the raw
+// responses and their source, retrieval date and license terms under
+// testdata/ifa/public. No Odù below selects a real-record scope yet; the
+// contract tests that read the whole cassette (schema, stable keys, host
+// mapping, digests) cover them. Feed URLs in the recording are still reserved
+// example.test names. The www.cisa.gov and www.first.org links on the KEV and
+// EPSS snapshots are the source-terms attribution links the collector always
+// writes, and nvd@nist.gov is NVD's source identifier.
 const (
 	// VulnCollectorOduName is the NVD product-path Odù: one recorded window, KEV
 	// and EPSS, and a planted SBOM component with the exact CPE of the window's
@@ -46,22 +54,33 @@ const (
 
 // vulnCollectorCassetteRelPath is the recording of the real vulnerability
 // collector's output. The collector satellite records it by running its own
-// claim path against local fixture upstreams that serve synthetic records, and
-// writes it with `make ifa-cassette`; a sha256 sidecar and the satellite's
+// claim path against local fixture upstreams that serve synthetic records and
+// three real public ones, and writes it with `make ifa-cassette`; a sha256 sidecar and the satellite's
 // drift gate pin it.
 const vulnCollectorCassetteRelPath = "testdata/cassettes/vulnerabilityintelligence/vuln-collector-nvd.json"
 
-// The five scopes the recording holds. The first window carries five CVEs, one
-// of each shape the Odùs need (an exact CPE, a wildcard CPE with a version
-// range, a rejected CVE, a vector-only CVSS record and a label-only one). The
-// second window re-issues the first CVE as rejected. The old window carries one
-// CVE the others do not, the stand-in for a baseline copy.
+// The five synthetic scopes the recording holds. The first window carries five
+// CVEs, one of each shape the Odùs need (an exact CPE, a wildcard CPE with a
+// version range, a rejected CVE, a vector-only CVSS record and a label-only
+// one). The second window re-issues the first CVE as rejected. The old window
+// carries one CVE the others do not, the stand-in for a baseline copy.
 const (
 	vulnWindow1Scope = "vuln-intel://nvd/_window/1793491200000000-1794096000000000"
 	vulnWindow2Scope = "vuln-intel://nvd/_window/1794096000000000-1794700800000000"
 	vulnWindowXScope = "vuln-intel://nvd/_window/1740787200000000-1741392000000000"
 	vulnKEVScope     = "vuln-intel://cisa/kev"
 	vulnEPSSScope    = "vuln-intel://first/epss"
+)
+
+// The four scopes that carry the real public records. The analyzed window holds
+// CVE-2020-10181 (an exact CPE) and CVE-2020-8644 (a version-range CPE); the
+// rejected window holds CVE-2017-20051; the KEV and EPSS scopes name the two
+// analyzed records.
+const (
+	vulnPublicAnalyzedWindowScope = "vuln-intel://nvd/_window/1781395200000000-1782000000000000"
+	vulnPublicRejectedWindowScope = "vuln-intel://nvd/_window/1790467200000000-1791072000000000"
+	vulnPublicKEVScope            = "vuln-intel://cisa/kev-public"
+	vulnPublicEPSSScope           = "vuln-intel://first/epss-public"
 )
 
 // The CPEs the Odùs plant on their SBOM component. Each names a product one of

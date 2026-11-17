@@ -54,9 +54,11 @@ const hex64 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 const recordedVulnerabilityCassette = "../../../testdata/cassettes/vulnerabilityintelligence/vuln-collector-nvd.json"
 
 // recordedSourceSnapshotCount is the number of source snapshots the recorder
-// emits: three nvd windows, one cisa_kev, and one first_epss. A change here
-// means the cassette was re-recorded with a different shape on purpose.
-const recordedSourceSnapshotCount = 5
+// emits: five nvd windows (three synthetic, two over real public records), two
+// cisa_kev (one synthetic, one real) and two first_epss (one synthetic, one
+// real). A change here means the cassette was re-recorded with a different
+// shape on purpose.
+const recordedSourceSnapshotCount = 9
 
 var responseDigestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 
@@ -114,7 +116,7 @@ func TestRecordedVulnerabilityCassetteCarriesResponseDigestOnEverySnapshot(t *te
 		t.Fatal("no vulnerability.source_snapshot facts found; this check passed vacuously")
 	}
 	if count != recordedSourceSnapshotCount {
-		t.Errorf("source snapshots = %d, want %d (3 nvd, 1 cisa_kev, 1 first_epss)", count, recordedSourceSnapshotCount)
+		t.Errorf("source snapshots = %d, want %d (5 nvd, 2 cisa_kev, 2 first_epss)", count, recordedSourceSnapshotCount)
 	}
 	for _, problem := range problems {
 		t.Error(problem)
