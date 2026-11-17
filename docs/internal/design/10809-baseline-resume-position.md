@@ -26,7 +26,16 @@ no stamp (an older collector, or a manifest entry with no `lastModified`) skips
 the guard and commits as before, and it never clears a stored identity: the
 position and chunk identity advance, but the stored sha and stamp stay, so a
 later candidate stamped with an older seed is still refused. The sha and stamp
-move together, only on a stamped write at an equal or greater position.
+always move together. A strictly newer stamp moves them at any position
+(#10746): a newer-seed candidate behind the stored position has committed its
+facts, so the stored identity adopts it while the position, chunk identity, and
+counters stay where they were, and a later older-seed candidate at or past the
+position is refused instead of being accepted against an identity that never
+saw the newer seed. Any other candidate moves the pair only at an equal or
+greater position. The other option the issue named, refusing a behind-position
+newer seed under a distinct failure class, was not taken: it adds a class to
+the closed set the status leaf, the OpenAPI enum, and the metrics docs pin, and
+the refused claim retries against a position only the other commit order moves.
 
 A refused claim fails retryable under its own class `nvd_baseline_seed_rollback`.
 The generation dead letter is recorded under `commit_failure`, and after
@@ -34,7 +43,7 @@ The generation dead letter is recorded under `commit_failure`, and after
 that never catches up ends dead-lettered rather than retrying forever. The
 planner re-mints the same position after a refused claim and waits the 30 minute
 retry wait. The forward-rotation counter (reported only when the stored seed
-identity actually moves, that is the candidate is at or past the stored
+identity actually moves: a strictly newer stamp under another sha, at any
 position) and the committed-chunk INFO line fire only after the commit lands.
 
 ## The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
