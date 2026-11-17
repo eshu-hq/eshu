@@ -50,7 +50,7 @@ func (f *failingPlanWrite) ExecContext(ctx context.Context, query string, args .
 // the plan write wraps the driver error instead of flattening it into text. The
 // retried attempt commits the work items with their plan rows, and the counter
 // adds the plans once, for the attempt that committed. A failure the classifier
-// does not retry (a missing table, which is what a binary older than migration 303
+// does not retry (a missing table, which is what a binary older than migration 312
 // meets) fails on the first attempt, and a cycle that never clears fails after
 // workflowGuardedRunCreateMaxAttempts attempts. In both failing cases nothing is
 // committed, nothing is counted, and the driver error is still visible to

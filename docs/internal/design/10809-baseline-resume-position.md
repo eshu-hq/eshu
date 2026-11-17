@@ -111,7 +111,7 @@ commit policy (`NVDBaselineCommitPolicy`) decides from them:
   the lane stalls on the year. `year_complete` is sticky in the store. No
   verdict, complete or not, may move behind the chunk start.
 
-## Per-year plan row (#10828, migration 303)
+## Per-year plan row (#10828, migration 312)
 
 The planner's two per-year inputs, `NVDBaselineLastPlanned` and
 `NVDBaselineInFlightYears`, need a durable source that is not the checkpoint
@@ -167,8 +167,8 @@ only access path), and nothing on the checkpoint row.
   commit. The coordinator logs the same split at INFO.
 - Rollout and rollback. The migration creates a new table nothing else
   references, so the schema rollback is `DROP TABLE
-  vulnerability_nvd_baseline_plans`. A binary older than 303 never touches it. A
-  303 binary against a pre-303 schema fails a baseline admission loudly
+  vulnerability_nvd_baseline_plans`. A binary older than 309 never touches it. A
+  309 binary against a pre-309 schema fails a baseline admission loudly
   (undefined table) and never touches the table for any other admission. Nothing
   reads the rows and the planner mints no baseline chunk in production until
   #10746, so no row is written today.

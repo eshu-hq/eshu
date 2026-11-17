@@ -1,7 +1,7 @@
 # #10828 NVD baseline per-year plan row: evidence
 
 The guarded workflow admission now writes one row per baseline year into the new
-table `vulnerability_nvd_baseline_plans` (migration 303), in the same
+table `vulnerability_nvd_baseline_plans` (migration 312), in the same
 transaction as the work items it admits. Binding ruling: 2026-11-17, sections 3
 and 4 (the table, the writer, the clock, the read key). This note is the tracked
 record the performance and telemetry gates ask for. Design:
@@ -75,10 +75,12 @@ cost or a timing.
 - No secondary index is added. The primary key is the only access path of both
   statements; `TableIsABarePrimaryKeyTable` fails if one appears.
 
-### DDL lock evidence for migration 303
+### DDL lock evidence for migration 312
 
 PostgreSQL 18.6, a scratch schema holding stand-ins for `workflow_work_items`
-and `workflow_runs`, and the real `303_vulnerability_nvd_baseline_plans.sql`.
+and `workflow_runs`, and the real `312_vulnerability_nvd_baseline_plans.sql`.
+The measurement was taken while the file was numbered 303. The renumber changed
+only its comments, so the statement and its locks are the same.
 
 - First application while another session held `ACCESS EXCLUSIVE` on both
   workflow tables, with `lock_timeout = 300ms`: the migration completed in
@@ -286,7 +288,7 @@ was written for it, and the row names that test.
   chunks twice. That is a configuration hazard for the #10746 wiring, not a
   property of the row.
 - Rows are never deleted by this change. Retention is #10831.
-- A 303 binary against a schema older than 303 fails a baseline admission with
+- A 309 binary against a schema older than 309 fails a baseline admission with
   an undefined-table error and leaves every other admission untouched. The
   retry half is a committed hermetic test: an injected 42P01 in the plan write is
   not retried, one transaction is begun, and nothing is committed or counted
