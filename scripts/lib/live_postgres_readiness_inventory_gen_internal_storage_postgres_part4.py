@@ -118,6 +118,17 @@ TABLE = {
         "go/internal/storage/postgres/repository_catalog_projection_live_test.go": (
             "TestLoadRepositoryCatalogProjectionMatchesWholePayloadDecode",
         ),
+        "go/internal/storage/postgres/repository_retirements_census_live_test.go": (
+            "TestRetirementPurgeCensus2eTablesLive",
+            "TestRetirementCensusCascadeChildrenAreForeignKeyed",
+            "TestRetirementConfigArtifactVersionRowIsRecreatedAtCommitLive",
+        ),
+        "go/internal/storage/postgres/repository_retirements_census_lock_live_test.go": (
+            "TestRetirementPurgeRelationshipGenerationsLockOrderLive",
+            "TestRetirementPurgeInfraAdvisoryLockOrderLive",
+            "TestRetirementPurgeConfigArtifactAdvisoryLockOrderLive",
+            "TestRetirementPurgeServiceMaterializationLockOrderLive",
+        ),
         "go/internal/storage/postgres/repository_retirements_derived_explain_live_test.go": (
             "TestRetirementDerivedStatementPlansLive",
         ),
@@ -135,6 +146,10 @@ TABLE = {
             "TestRetirementRefusesStaleDerivedAckAfterFenceLive",
             "TestRetirementDerivedScopeFenceAndPurgeAreIdempotentLive",
             "TestDerivedCommitAndMaintenanceLeaderDoNotDeadlockLive",
+        ),
+        "go/internal/storage/postgres/repository_retirements_purge_lockbusy_live_test.go": (
+            "TestRetirementPurgeDeriveLockBusyLive",
+            "TestPurgeDeriveLockBudgetRestoresLockTimeoutLive",
         ),
         "go/internal/storage/postgres/retirement_table_census_live_test.go": (
             "TestRetirementTableCensusClassifiesEveryScopeKeyedTable",

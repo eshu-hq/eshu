@@ -67,6 +67,22 @@ func LockRepositoriesForGenerations(ctx context.Context, tx db.Executor, generat
 	return nil
 }
 
+// LockRepository takes one repository's derive lock for the rest of tx, the
+// same key every derive and LockRepositoriesForGenerations use. Repository
+// retirement (#10820) calls it inside its purge transaction BEFORE it deletes
+// the repository's content_entities rows, in the same order retention takes it:
+// a derive holds this lock while it reads content_entities and writes the
+// mirror, so the purge waits for an in-flight derive to commit and then deletes
+// what that derive wrote, instead of racing it and leaving mirror rows behind.
+// Taking it after the content delete would hold content rows while waiting on
+// a lock a retention batch holds before it needs those rows.
+func LockRepository(ctx context.Context, tx db.Executor, repoID string) error {
+	if _, err := tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
+		return fmt.Errorf("lock infra inventory repository: %w", err)
+	}
+	return nil
+}
+
 // orphanReposForGenerations lists the repositories with content_entity facts
 // in generationIDs: the exact set the orphan delete is scoped to. It runs in
 // the caller's transaction, right before the delete, so both statements see

@@ -35,12 +35,20 @@ with `retirement_id`, `repository_id`, `scope_id`, and `outcome`:
   scope- and repo-keyed leftover rows, and fact-key sidecars are deleted;
   the scope delete cascades generations and their fact rows. Tenant and
   role grants for the repository are deliberately dropped and are not
-  restored on re-admission; grant again.
+  restored on re-admission; grant again. Three groups of rows survive
+  retirement: the config-artifact version and state rows (kept on purpose: the
+  version is a monotonic fence counter and the config-artifact walker converges
+  the repository to an empty derive), the projected-edge ledgers that a graph
+  retraction reads (tracked by #10822), and the append-only resolved
+  relationship rows, which leave the generation-joined readers but stay on disk
+  (tracked by #10823).
 - `blocked` — a designed purge exit that wrote nothing, with
   `blocked_reason`, `blocked_detail`, and `blocking_statuses` inline.
   `terminal_not_reached` names live generations only a new fence can move;
   re-POST (same key resumes) after fencing again. `scope_lock_busy` names
-  reducer-retention contention; retry the fenced row.
+  reducer-retention contention; retry the fenced row. `derive_lock_busy` names
+  a config-artifact or infra derive that held its advisory lock past the
+  purge's 10-second wait; retry the fenced row.
 - `refused` — the fence or the mark stopped the request before any purge;
   see [Admin Route Failures](admin-failures.md).
 - `failed` — a step error: the purge attempt rolled back and the tombstone

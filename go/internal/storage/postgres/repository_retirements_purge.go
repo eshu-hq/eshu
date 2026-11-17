@@ -38,13 +38,21 @@ const PurgeMaxRepositories = RetirementFenceMaxRepositories
 // Purge blocked reasons. terminal_not_reached is the designed observable
 // exit: a generation went live after the fence (or the fence never ran),
 // and only a new fence can move it. scope_lock_busy is ordinary
-// contention: the reducer retention pass holds a scope lock, and the next
-// runner pass retries the same fenced row.
+// contention: the reducer retention pass holds a scope lock, and the
+// operator's re-POST retries the same fenced row (PurgeRetired has no runner
+// caller today; the only caller is the admin retirement trigger).
+// derive_lock_busy is the same kind of exit for the two derive advisory locks
+// (#10820): a derive held one past the purge's 10 s per-lock budget, nothing
+// was written, and the re-POST retries.
 const (
 	// PurgeReasonTerminalNotReached reports generations still live.
 	PurgeReasonTerminalNotReached = "terminal_not_reached"
 	// PurgeReasonScopeLockBusy reports a NOWAIT scope-lock miss.
 	PurgeReasonScopeLockBusy = "scope_lock_busy"
+	// PurgeReasonDeriveLockBusy reports a derive advisory lock still held past
+	// the purge's 10 s budget (#10820). Nothing was written; retry the
+	// fenced row.
+	PurgeReasonDeriveLockBusy = "derive_lock_busy"
 )
 
 // PurgeRequest is the operator's purge input: 1 to 25 repositories whose
@@ -170,6 +178,7 @@ func (p RetirementPurger) purgeOne(
 	opts PurgeOptions,
 	repoID string,
 ) (string, *PurgeBlocked, error) {
+	purgeStarted := time.Now()
 	tx, err := p.beginner.Begin(ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("retirement purge begin: %w", err)
@@ -234,7 +243,23 @@ func (p RetirementPurger) purgeOne(
 			Statuses: readback,
 		}, nil
 	}
-	ledger, err := deletePurgeLeftovers(ctx, tx, repoID, scopeIDs)
+	ledger, deriveLockWait, err := deletePurgeLeftovers(ctx, tx, repoID, scopeIDs)
+	var lockBusy *deriveLockBusyError
+	if errors.As(err, &lockBusy) {
+		opts.Logger.WarnContext(ctx, "repository retirement blocked: derive lock busy",
+			slog.String("outcome", PurgeReasonDeriveLockBusy),
+			slog.String("repo_id", repoID),
+			slog.String("retirement_id", record.RetirementID),
+			slog.String("lock", lockBusy.lock),
+			slog.Int64("derive_lock_wait_ms", lockBusy.wait.Milliseconds()),
+			telemetry.PhaseAttr(telemetry.PhaseEmission),
+		)
+		return "", &PurgeBlocked{
+			RepoID: repoID, RetirementID: record.RetirementID,
+			Reason: PurgeReasonDeriveLockBusy,
+			Detail: "a derive holds the " + lockBusy.lock + " advisory lock; retry the fenced row",
+		}, nil
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -273,6 +298,11 @@ func (p RetirementPurger) purgeOne(
 		return "", nil, fmt.Errorf("retirement purge delete impact pass state: %w", err)
 	}
 	ledger["supply_chain_impact_scope_pass_state"] = passState
+	// The #10820 tables whose rows the cascade or the writer order puts after
+	// the scope delete: see deletePurgeAfterCascade.
+	if err := deletePurgeAfterCascade(ctx, tx, scopeIDs, ledger); err != nil {
+		return "", nil, err
+	}
 	if err := completePurgeTombstone(ctx, tx, record.RetirementID, ledger); err != nil {
 		return "", nil, err
 	}
@@ -289,6 +319,8 @@ func (p RetirementPurger) purgeOne(
 		slog.String("retirement_id", record.RetirementID),
 		slog.Int64("scopes_deleted", scopes),
 		slog.Int("derived_scopes_deleted", len(derived)),
+		slog.Int64("derive_lock_wait_ms", deriveLockWait.Milliseconds()),
+		slog.Int64("purge_duration_ms", time.Since(purgeStarted).Milliseconds()),
 		telemetry.PhaseAttr(telemetry.PhaseEmission),
 	)
 	return repoID, nil, nil
@@ -346,52 +378,6 @@ func lockPurgeScopes(ctx context.Context, tx db.Transaction, repoID string) ([]s
 	return scopeIDs, false, nil
 }
 
-// deletePurgeLeftovers deletes the no-FK keyed leftover rows and returns
-// the deleted-row ledger. Grant rows cascade with the scope delete, so the
-// ledger pre-counts them here; everything else reports its own delete
-// count. The impact write-admission delete belongs here, before the scope
-// cascade, to match the impact writer's lock order (see
-// purgeDeleteWriteAdmissionQuery); the pass-state delete is the opposite
-// and stays after the cascade in purgeOne.
-func deletePurgeLeftovers(
-	ctx context.Context,
-	tx db.Transaction,
-	repoID string,
-	scopeIDs []string,
-) (map[string]int64, error) {
-	ledger := make(map[string]int64)
-	grants, err := scanGrantCounts(ctx, tx, scopeIDs)
-	if err != nil {
-		return nil, err
-	}
-	for table, count := range grants {
-		ledger[table] = count
-	}
-	for _, keyed := range []struct {
-		table string
-		query string
-		args  []any
-	}{
-		{"repository_reindex_requests", purgeDeleteReindexRequestsQuery, []any{scopeIDs}},
-		{"repository_selection_observations", purgeDeleteSelectionObservationsQuery, []any{scopeIDs}},
-		{"content_files", purgeDeleteContentFilesQuery, []any{repoID}},
-		{"content_entities", purgeDeleteContentEntitiesQuery, []any{repoID}},
-		{"content_file_references", purgeDeleteContentReferencesQuery, []any{repoID}},
-		{"repository_refs", purgeDeleteRepositoryRefsQuery, []any{repoID}},
-		{"shared_projection_intents", purgeDeleteSharedIntentsQuery, []any{repoID, scopeIDs}},
-		{"shared_projection_unroutable_intents", purgeDeleteUnroutableIntentsQuery, []any{repoID, scopeIDs}},
-		{"collector_generation_dead_letters", purgeDeleteDeadLettersQuery, []any{scopeIDs}},
-		{"supply_chain_impact_write_admission", purgeDeleteWriteAdmissionQuery, []any{scopeIDs}},
-	} {
-		deleted, err := execCount(ctx, tx, keyed.query, keyed.args...)
-		if err != nil {
-			return ledger, fmt.Errorf("retirement purge delete %s: %w", keyed.table, err)
-		}
-		ledger[keyed.table] = deleted
-	}
-	return ledger, nil
-}
-
 // listPurgeGenerationIDs returns the parallel (scope, generation) pairs
 // covering every generation of the purge scopes, in scope then generation
 // order. The terminal gate already passed, so these are all terminal; the
@@ -416,32 +402,6 @@ func listPurgeGenerationIDs(
 		generationIDs = append(generationIDs, generationID)
 	}
 	return genScopeIDs, generationIDs, rows.Err()
-}
-
-// scanGrantCounts pre-counts the four scope-FK grant tables the scope
-// delete cascades, in one bounded statement.
-func scanGrantCounts(ctx context.Context, tx db.Transaction, scopeIDs []string) (map[string]int64, error) {
-	rows, err := tx.QueryContext(ctx, purgeGrantCountsQuery, scopeIDs)
-	if err != nil {
-		return nil, fmt.Errorf("retirement purge grant counts: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("retirement purge grant counts read: %w", err)
-		}
-		return nil, fmt.Errorf("retirement purge grant counts: no row returned")
-	}
-	var scope, repository, roleScope, roleRepository int64
-	if err := rows.Scan(&scope, &repository, &roleScope, &roleRepository); err != nil {
-		return nil, fmt.Errorf("retirement purge grant counts scan: %w", err)
-	}
-	return map[string]int64{
-		"tenant_scope_grants":              scope,
-		"tenant_repository_grants":         repository,
-		"identity_role_scope_targets":      roleScope,
-		"identity_role_repository_targets": roleRepository,
-	}, rows.Err()
 }
 
 // completePurgeTombstone writes the tombstone: complete/done, the

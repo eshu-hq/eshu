@@ -26,6 +26,7 @@ at c88c3806a); migrations 178 to 206 were read from source.
 | `3` | Cascades from the scope row | Phase 3 `DELETE FROM ingestion_scopes` |
 | `3+count` | Cascades at phase 3 and the tombstone reports the count | Phase 3, pre-counted inside the transaction |
 | `reaped` | An existing reaper removes it once the scope row is gone | Named reaper |
+| `deferred` | The table is owed a purge step that tracked work blocks (#10820). The census row lists no remove step and its reason names the blocker, the evidence note, and the open issue that tracks the blocker (`TestCensusDeferredRowsNameTheirBlockingQuestion`) | Nobody until that issue lands; the rows survive retirement |
 | `kept` | Stays, with a reason | Nobody |
 | `not_a_key` | The column name matches the pattern but holds no scope or repo identity (`scope_kind`, `scope_class`, and the like) | Nobody |
 | `foreign_target` | The retired id is only the target of the row: `target_repo_id` without `source_repo_id`, mirroring incoming graph edges | Nobody; kept until the owner re-resolves |
@@ -133,30 +134,30 @@ which is why 2e follows 2c.
 | Table | Key | Today's deleter | Disposition |
 | --- | --- | --- | --- |
 | `content_files`, `content_entities`, `content_file_references` | `repo_id` | Retention prune steps, keyed by the pruned generations' file and entity facts (2d, `generation_retention_sql.go:292-390`). Migration 169's `content_files.generation_id` is advisory and retention does not read it (`169:12-15`). | `2e` leftover sweep (`migrations/004:57-60`) |
-| `infra_resource_entities` | `repo_id`, `scope_id` | Retention orphan delete (`inventory.DeleteOrphanedRows`) | `2e` leftover sweep |
-| `infra_resource_entity_dirty_repos` | `repo_id` | `infra/inventory/fence.go:91`, one repo | `2e` |
+| `infra_resource_entities` | `repo_id`, `scope_id` | Retention orphan delete (`inventory.DeleteOrphanedRows`) | `2e` leftover sweep (#10820): after the infra advisory lock, before the `content_entities` delete |
+| `infra_resource_entity_dirty_repos` | `repo_id` | `infra/inventory/fence.go:91`, one repo | `2e` leftover sweep (#10820): after the `content_entities` delete, whose row trigger (`109`) re-marks the repository for a session that is not derive-aware |
 | `repository_refs` | `repo_id` | None found for a whole repo | `2e` (`004:46-55`) |
 | `repository_selection_observations` | `scope_id` | Expired rows and abandoned selectors' rows (`membership/observations_sweep.go:46-61`), not a whole scope | `2e` |
 | `repository_reindex_requests` | `scope_id` | Phase 1 7e. A refinalize whose read predates phase 1 can re-create it (`rebuild/reset/delta_active.go:101-115`) | `2e` |
-| `code_function_fingerprint`, `code_fingerprint_band` | `repo_id` | `content_writer_sql.go:211-228`, by `repo_id` and `entity_id` on a rewrite, never a whole repository | `2e` |
-| `function_summaries`, `function_sources`, `function_graph_ids` | `repo` | By repo on rewrite (`summary_store.go:74`) | `2e`; whether `repo` equals the canonical repo id is NOT_CHECKED (`summary_store.go:319`) |
-| `projected_source_edge` | `scope_id`, `evidence_source` | `projected_source_edge_store.go:61`, per scope and source | `2e`, after 2c: retract reads it to enumerate source uids |
-| `code_interproc_projected_edge`, `code_taint_evidence_projected_node` | `scope_id`, `evidence_source` | `code/taint/interprocedural_edge.go:78`, `code/taint/projected_node.go:71` | `2e`, after 2c, same reason |
-| `reducer_readiness_waits` | `scope_id` | None | `2e` |
+| `code_function_fingerprint`, `code_fingerprint_band` | `repo_id` | `content_writer_sql.go:211-228`, by `repo_id` and `entity_id` on a rewrite, never a whole repository | `2e` leftover sweep (#10820), after the `content_entities` delete |
+| `function_summaries`, `function_sources`, `function_graph_ids` | `repo` | By repo on rewrite (`summary_store.go:74`) | `2e` leftover sweep (#10820). `repo` is the collector repository id: the function id prefix is `repoMetadata.ID` (`collector/repo/git/snapshot_native.go`), the same key as `content_files.repo_id` |
+| `projected_source_edge` | `scope_id`, `evidence_source` | `projected_source_edge_store.go:61`, per scope and source | `deferred` (#10820, tracked by #10822): the ledger is the only enumeration of the graph source uids a retraction must remove, and the narrowed purge does no graph retraction. Deleting it now strands the edges it names. See [10820 evidence](../evidence/10820-census-2e-purge.md) |
+| `code_interproc_projected_edge`, `code_taint_evidence_projected_node` | `scope_id`, `evidence_source` | `code/taint/interprocedural_edge.go:78`, `code/taint/projected_node.go:71` | `deferred` (#10820, tracked by #10822), same reason. See [10820 evidence](../evidence/10820-census-2e-purge.md) |
+| `reducer_readiness_waits` | `scope_id` | None | `2e` leftover sweep (#10820), by `scope_id` |
 | `collector_generation_dead_letters` | `scope_id`, `partition_key` | None | `2e`; a replay is refused by the commit gate, so the row has no use |
-| `projection_decisions` | `repository_id` | None | `2e` |
-| `package_manifest_consumption_key_dirty_scopes` | `scope_id` | `consumption/statements.go:53-60`, run at `consumption/rebuild.go:100`, after a backfill pass | `2e` |
-| `supply_chain_impact_canonical_winners` | `winner_scope_id`, `repository_id` | `RebuildAllWinners` reconciles to the active fact set | `2e` by `winner_scope_id`; how often the rebuild runs is NOT_CHECKED |
+| `projection_decisions` | `repository_id` | None | `2e` leftover sweep (#10820), by `repository_id`, after its `projection_decision_evidence` rows |
+| `package_manifest_consumption_key_dirty_scopes` | `scope_id` | `consumption/statements.go:53-60`, run at `consumption/rebuild.go:100`, after a backfill pass | `2e` (#10820), after the `ingestion_scopes` delete; the cascade can mark it again through the `139` trigger, though the sidecar prune currently suppresses that |
+| `supply_chain_impact_canonical_winners` | `winner_scope_id`, `repository_id` | `RebuildAllWinners` reconciles to the active fact set | `reaped` (#10820): the `272` trigger `ingestion_scopes_winners_dirty_capture_delete` logs the scope on the purge delete and the keyed resweep removes the winners that lost their source; `TestSupplyChainImpactWinnersResweepRetirementFenceThenPurgeLive` proves it |
 | `supply_chain_impact_write_admission` | `scope_id` (`154`, no FK) | Read only by the suppression-diff baseline probe of the same scope (`suppression_fanout_wire.go`) | `2e`, deleted in the leftover sweep BEFORE the `ingestion_scopes` delete (#10800): the impact writer upserts this row before its fact insert takes the `scope_generations` KEY SHARE, so the purge takes the admission row first and the generation row second, the same order. After the cascade it would deadlock with an in-flight writer. Stale rows were inert (global fencing-token sequence) but unbounded |
 | `supply_chain_impact_scope_pass_state` | `scope_id` (`284`, no FK) | None | `2e`, deleted after the `ingestion_scopes` delete (#10794), not in the leftover sweep: the impact writer takes `scope_generations` KEY SHARE through its fact insert before it upserts this row last, so the purge keeps that lock order. A surviving partial row would hold the stuck-partial degraded reason forever and seed a readmitted scope's `partial_since` |
-| `crossplane_satisfied_by_redrive_state` | `xrd_scope_id` (`076:39-50`) | None | `2e`. A leftover queued row finds no XRD keys and completes itself (`crossplane/sweep.go:205-216`), so it is residue, not a loop. |
-| `crossplane_satisfied_by_redrive_target_ledger` | `target_scope_id` (`076:105-111`) | None | `2e`. Leaving it is wrong: the redrive's `NOT EXISTS` fence (`crossplane/query.go:77-83`) would skip a re-added repository, because git scope ids are derived from the remote URL. |
-| `relationship_evidence_facts`, `relationship_candidates`, `resolved_relationships` | `generation_id` (no FK), `source_repo_id`, `target_repo_id` (`010:31-79`) | None. Retention never touches `relationship_*` | `2b` by `source_repo_id`, `2d` by each batch's generation ids, then `2e` for the rest; see [Relationship tables](#relationship-tables). Rows where the retired repo is only the target, under other scopes' generations, are `foreign_target`. |
-| `relationship_generations` | `scope` (the ingestion `scope_id`), `generation_id` (`010:19-29`) | None; `rebuild/reset/reset.go:226` only marks rows superseded | `2e` by `scope = ANY($scopes)`, after the three tables above |
-| `config_artifact_content_versions`, `config_artifact_repo_state` | `repo_id` (`170:54-77`) | None. The `content_files` trigger (`186`) inserts or bumps version rows, and migration 187 seeds them | `2e` by `repo_id`, both tables in one statement, after the `content_files` sweep (see [Config artifact tables](#config-artifact-tables)) |
-| `config_artifact_paths` | `repo_id` (`170:83-94`) | None | `2e` by `repo_id` |
-| `content_file_ref_deltas`, `content_file_ref_delta_bases` | `repo_id` (`197:43-66`) | None; not wired yet | `2e` by `repo_id` |
-| `service_materialization_generations` | `scope_id` (`126:22-23`) | None | `2e` by `scope_id`; `service_evidence_snapshots` cascades. Legacy rows with a NULL `scope_id` are NOT_CHECKED. |
+| `crossplane_satisfied_by_redrive_state` | `xrd_scope_id` (`076:39-50`) | None | `2e` leftover sweep (#10820), by `xrd_scope_id`. A leftover queued row finds no XRD keys and completes itself (`crossplane/sweep.go:205-216`), so it was residue, not a loop. The writers are single autocommit statements, so the delete cannot cycle with them. |
+| `crossplane_satisfied_by_redrive_target_ledger` | `target_scope_id` (`076:105-111`) | None | `2e` leftover sweep (#10820), by `target_scope_id`. Leaving it is wrong: the redrive's `NOT EXISTS` fence (`crossplane/query.go:77-83`) would skip a re-added repository, because git scope ids are derived from the remote URL. |
+| `relationship_evidence_facts`, `relationship_candidates`, `resolved_relationships` | `generation_id` (no FK), `source_repo_id`, `target_repo_id` (`010:31-79`) | None. Retention never touches `relationship_*` | `2e` (#10820) for the evidence and candidate tables, by `generation_id` over the retired scopes' generations (`scope_generations` and `relationship_generations`), before the `ingestion_scopes` delete. `resolved_relationships` is `deferred` (#10823): it is append-only by contract (`TestResolvedRelationshipsStayAppendOnly`, the #8283 fingerprint), so the purge leaves it; deleting `relationship_generations` drops its rows out of the fingerprint and every generation-joined reader, but `repositoryDependencyCount` reads it by `source_repo_id` with no generation join (#10824). Rows the repository sourced under another repository's generation, and target-only rows, are not matched: see [10820 evidence](../evidence/10820-census-2e-purge.md) |
+| `relationship_generations` | `scope` (the ingestion `scope_id`), `generation_id` (`010:19-29`) | None; `rebuild/reset/reset.go:226` only marks rows superseded | `2e` (#10820) by `scope = ANY($scopes)`, after the `ingestion_scopes` delete and after the three tables above. The claim variant of the activation locks the claimant `fact_work_items` row before it writes these rows; the cascade has locked those rows, so the order matches (`TestRetirementPurgeRelationshipGenerationsLockOrderLive`) |
+| `config_artifact_content_versions`, `config_artifact_repo_state` | `repo_id` (`170:54-77`) | None. The `content_files` trigger (`186`) inserts or bumps version rows, and migration 187 seeds them | `kept` (#10820 ruling): the purge deletes neither row. The `186` constraint trigger bumps the version at COMMIT, so a derive that read before the purge is stale and the walker converges the state to an empty derive; a delete would orphan a late write and restart the counter at 1. See [Config artifact tables](#config-artifact-tables) and [10820 evidence](../evidence/10820-census-2e-purge.md) |
+| `config_artifact_paths` | `repo_id` (`170:83-94`) | None | `2e` leftover sweep (#10820), by `repo_id`, after the config-artifact advisory lock and before the `content_files` delete |
+| `content_file_ref_deltas`, `content_file_ref_delta_bases` | `repo_id` (`197:43-66`) | None; not wired yet | `2e` leftover sweep (#10820), by `repo_id` |
+| `service_materialization_generations` | `scope_id` (`126:22-23`) | None | `2e` leftover sweep (#10820), by `scope_id`; `service_evidence_snapshots` cascades and is pre-counted into the ledger. Legacy rows with a NULL `scope_id` carry no attribution and are not matched. |
 
 ### Relationship Tables
 
@@ -201,8 +202,17 @@ honour it (`docs/internal/design/7126-ingest-time-config-artifacts-protocol.md:3
 versions delete must be the same statement that deletes the state row. The
 `content_files` trigger shipped in migration 186. It bumps the version row on a
 `content_files` delete, and inserts one at version 1 when the row is missing
-(`186:119`). So the 2e versions statement commits after the last `content_files`
-delete, and retirement leaves the trigger enabled. `config_artifact_fence_pending`
+(`186:119`). So a versions statement cannot be ordered after the last `content_files` delete
+inside the purge transaction: the constraint trigger is deferred to COMMIT and
+re-creates the row after every statement (#10820 reproduced this live), so a
+purge delete cannot stick. The #10820 ruling is not to delete either table: both
+are `kept`. The purge's `content_files` delete bumps the existing version N to
+N+1 at commit, so a derive that read before the purge is stale and the walker,
+whose universe is the versions table, re-derives the repository to zero rows. A
+version delete would let a derive write that lands after the purge stay
+orphaned and would restart the counter at 1 on readmission, where it can equal
+the orphan state's version. The state row stays with the version row, as 7126
+requires. `config_artifact_paths` is purged. `config_artifact_fence_pending`
 (`186`) is emptied by the same trigger at commit: `reaped`.
 `config_artifact_backfill_markers` and `config_artifact_reconcile_cursor` have no
 matching column and need no entry.

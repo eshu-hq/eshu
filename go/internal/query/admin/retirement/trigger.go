@@ -106,7 +106,7 @@ type RepoOutcome struct {
 	// Outcome is one of the TriggerOutcome* values.
 	Outcome string
 	// BlockedReason, BlockedDetail, and BlockedStatuses carry the purge's
-	// designed exit (terminal_not_reached or scope_lock_busy); empty
+	// designed exit (terminal_not_reached, scope_lock_busy, or derive_lock_busy); empty
 	// otherwise.
 	BlockedReason   string
 	BlockedDetail   string

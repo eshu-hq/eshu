@@ -30,7 +30,7 @@ recover-generations.
 Per marked repository the trigger emits `accepted` when the tombstone
 mark commits and exactly one terminal outcome after the fence and purge
 steps: `completed`, `blocked` (a designed purge exit that wrote nothing —
-`terminal_not_reached` or `scope_lock_busy` — with the fenced tombstone
+`terminal_not_reached`, `scope_lock_busy`, or `derive_lock_busy` — with the fenced tombstone
 left open for a later pass), `refused` (a mark conflict or fence refusal,
 before any purge), or `failed`. A repository the call never marked —
 a validation refusal, or the unattempted remainder of an interrupted
