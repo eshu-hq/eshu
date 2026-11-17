@@ -140,30 +140,30 @@ func winnersExplainSettleLocks(t *testing.T, ctx context.Context, database *sql.
 	if lockAt < 0 || sortAt < 0 || lockAt > sortAt {
 		t.Fatalf("applied drain does not lock above the key-order sort:\n%s", text)
 	}
-	// The Sort Key line must carry the full conflict key in order; a
+	// Some Sort Key line must carry the full conflict key in order; a
 	// permuted or dropped column fails here even though every name still
-	// appears somewhere in the plan.
+	// appears somewhere in the plan. Any matching line counts: the outer
+	// GROUP BY may add its own Sort node ahead of the locking sort.
 	wantOrder := []string{"kind", "package_id", "repository_id", "subject_digest", "c0", "advisory_id", "scope_id", "generation_id", "seq"}
-	var sortLine string
+	matched := false
 	for _, line := range strings.Split(text, "\n") {
-		if strings.Contains(line, "Sort Key:") {
-			sortLine = line
-			break
+		if !strings.Contains(line, "Sort Key:") {
+			continue
+		}
+		var gotOrder []string
+		for _, part := range strings.Split(line[strings.Index(line, "Sort Key:")+len("Sort Key:"):], ",") {
+			col := strings.TrimSpace(part)
+			if dot := strings.LastIndex(col, "."); dot >= 0 {
+				col = col[dot+1:]
+			}
+			gotOrder = append(gotOrder, col)
+		}
+		if strings.Join(gotOrder, ",") == strings.Join(wantOrder, ",") {
+			matched = true
 		}
 	}
-	if sortLine == "" {
-		t.Fatalf("applied drain plan has no Sort Key line:\n%s", text)
-	}
-	var gotOrder []string
-	for _, part := range strings.Split(sortLine[strings.Index(sortLine, "Sort Key:")+len("Sort Key:"):], ",") {
-		col := strings.TrimSpace(part)
-		if dot := strings.LastIndex(col, "."); dot >= 0 {
-			col = col[dot+1:]
-		}
-		gotOrder = append(gotOrder, col)
-	}
-	if strings.Join(gotOrder, ",") != strings.Join(wantOrder, ",") {
-		t.Fatalf("applied drain sort key order = %v, want %v:\n%s", gotOrder, wantOrder, text)
+	if !matched {
+		t.Fatalf("no Sort Key line carries the full conflict key in order %v:\n%s", wantOrder, text)
 	}
 }
 

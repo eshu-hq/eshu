@@ -40,10 +40,12 @@ func TestWinnersDirtyStratifiedEnvelopesStayStratified(t *testing.T) {
 
 // TestWinnersDirtyContentionRatiosStayStratified pins the backstop shape for
 // eshu-hq/eshu#10827: the 2-writer ratio cap is tighter than the 4-writer
-// cap, so a unified ratio still fails here, not in CI. The values sit beyond
-// serialization (3.0/3.5): calibrated on three local runs (ratios ~1.5/~1.7)
-// and the slowest CI runner observed (inferred ~2.1/~2.9), they deflake host
-// oversubscription noise while a beyond-serialization collapse still fails.
+// cap, so a unified ratio still fails here, not in CI. The caps (3.0/3.5)
+// sit beyond full serialization at 2 writers (2x) and inside it at 4 (4x):
+// calibrated on three local runs (ratios ~1.5/~1.7) and the slowest CI
+// runner observed (inferred ~2.1/~2.9), they deflake host oversubscription
+// noise while global superlinear contention growth on the gate's disjoint
+// key sets still fails.
 func TestWinnersDirtyContentionRatiosStayStratified(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +207,7 @@ func TestWinnersConvertRemainderIsKeyOrderedUpsert(t *testing.T) {
 		"ON CONFLICT",
 		"DO UPDATE",
 		"dirty_version",
-		"ORDER BY",
+		"ORDER BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id",
 	} {
 		if !strings.Contains(convertWinnersKeyedScopeRemainderSQL, want) {
 			t.Errorf("convert scope remainder statement does not contain %q", want)

@@ -4,7 +4,8 @@ Refs #10827. Design ruling: `RULING: CONDITIONAL SHIP on (b)+(c)`
 (arbiter, re-shim round): K-ordered versioned upsert with a
 writer-count-stratified p95 envelope, plus a follow-up hot-key write
 coalescing design issue (#10837, non-blocking). No shipped retry; the
-zero-deadlock bar is not weakened.
+zero-deadlock bar is not weakened per statement (the multi-batch
+transaction residual is #10851, ruled 2026-11-17).
 
 ## What changed
 
@@ -14,8 +15,8 @@ re-marked 162 hot pairs ~150 times (25,000 rows per 5 minutes against a
 ~1,200/min drain). Each recompute unit now owns one row: re-marks bump
 `dirty_version` under two partial unique indexes (fact five-tuple, scope
 pair), and the settle drain deletes only admitted rows whose version still
-matches, with all multi-row accessors taking row locks in one global key
-order. Migrations 303-308 (column, dedup, two CONCURRENTLY index builds,
+matches, with every multi-row statement taking row locks in one global
+key order. Migrations 303-308 (column, dedup, two CONCURRENTLY index builds,
 272/272a trigger upserts). The gate encodes the stratified envelope and
 pins the ruled values.
 
@@ -62,9 +63,10 @@ p50, tick, and 3M+ figures are one-off pre-ship shim measurements (local
 PostgreSQL 18, seeded backlog) with no committed harness; the shipped
 gates re-measure the writer and settle shapes at gate scale. Unmeasured
 hot-path additions beyond the gated capture shape: the retract
-statement's sort and count CTEs, trigger ORDER BYs, and the Go
-sort/dedup before capture; #10842's bench scope should name the retract
-shape alongside the capture shape.
+statement's sort and count CTEs, trigger ORDER BYs, the Go sort/dedup
+before capture, the convert GROUP BY aggregation, and the audit queue
+ORDER BY (the last two bounded by the admission window); #10842's bench
+scope should name the retract and convert shapes alongside capture.
 
 ## No-Regression Evidence:
 
@@ -85,7 +87,10 @@ versions the same way. Telemetry wording updated to version-sums with no
 new metrics. One attribution change ships with the dedup: source is
 first-marker-wins, so a trigger re-mark of an already-queued key bumps
 the version without changing the row's source, and the maintainer's
-per-source counts credit the owner that queued the unit. The NVD trip
+per-source counts credit the owner that queued the unit. The convert
+path picks MIN(source) when one remainder arrives under two scope-row
+sources, so that converted row always credits activation over operator;
+totals are conserved. The NVD trip
 tally keeps bucketing by first-mark captured_at: a re-mark of a unit
 first marked over two hours before its drain adds nothing to recent
 buckets, where the append-only log stamped every mark fresh. Accepted:
