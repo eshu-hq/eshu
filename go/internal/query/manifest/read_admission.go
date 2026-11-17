@@ -70,9 +70,10 @@ const ManifestDependenciesReadAdmissionContractVersion = "v0"
 //     satisfies this port with its own wiring; this pin carries the read
 //     shape only.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route, or
-// caller depends on it yet — so rollback moves no traffic and changes no
-// data.
+// Rollback: revert this pin plus the handler Store field swap. The
+// manifest leg admits through the pin-typed Store field — rollback
+// restores the narrow ManifestDependencyStore type and moves no
+// traffic beyond the handler seam.
 type ManifestDependenciesReadAdmission interface {
 	ListRepositoryManifestDependencyFacts(
 		ctx context.Context,

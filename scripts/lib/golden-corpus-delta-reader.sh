@@ -110,25 +110,31 @@ WHERE scope_id = '${golden_delta_reader_scope_id}' AND is_delta = $1;"
 }
 
 # golden_delta_reader_drop_dead_shallow_lock <collector_pid> removes the
-# fixture clone's .git/shallow.lock when the leg's own collector is proven
-# dead (#10270). A depth fetch takes shallow.lock before reading the pack,
-# and the harness kill after the generation commits lands mid-fetch, so the
-# lock outlives its holder; the next leg's collector then fails every fetch
+# fixture clone's .git/shallow.lock and .git/refs/heads/main.lock when the
+# leg's own collector is proven dead (#10270, #10022 delta-reader leg). A
+# depth fetch takes shallow.lock before reading the pack, and checkout -B
+# takes refs/heads/main.lock before updating the ref; the harness kill after
+# the generation commits can land mid-fetch or mid-checkout, and the SIGKILLed
+# git leaves its lock behind, so the next leg's collector fails every sync
 # until the collector-side 5-minute stale age elapses -- past the 90s settle
 # deadline. kill+wait on our own child is stronger proof of owner death than
 # lock mtime, so even a fresh lock is removed. While the pid is still alive
-# the lock may belong to a live fetch and is left alone: a young lock can
-# belong to a live fetch, and deleting it risks shallow-state corruption.
+# either lock may belong to a live sync and both are left alone: a young lock
+# can belong to a live fetch or checkout, and deleting a live refs lock risks
+# ref corruption, not just shallow-state corruption.
 golden_delta_reader_drop_dead_shallow_lock() {
 	local collector_pid="$1" lock
-	lock="$(golden_delta_reader_repos_dir)/${golden_delta_reader_slug}/.git/shallow.lock"
-	[[ -e "${lock}" ]] || return 0
 	if kill -0 "${collector_pid}" 2>/dev/null; then
-		log "delta-reader: leaving ${lock}: collector ${collector_pid} is still alive"
+		log "delta-reader: leaving stale git locks: collector ${collector_pid} is still alive"
 		return 0
 	fi
-	rm -f "${lock}" || die "delta-reader: removing stale ${lock} failed"
-	log "delta-reader: removed ${lock} left by the stopped collector"
+	for lock in \
+		"$(golden_delta_reader_repos_dir)/${golden_delta_reader_slug}/.git/shallow.lock" \
+		"$(golden_delta_reader_repos_dir)/${golden_delta_reader_slug}/.git/refs/heads/main.lock"; do
+		[[ -e "${lock}" ]] || continue
+		rm -f "${lock}" || die "delta-reader: removing stale ${lock} failed"
+		log "delta-reader: removed ${lock} left by the stopped collector"
+	done
 }
 
 # golden_delta_reader_sync <want_is_delta> <label> runs one collector-git

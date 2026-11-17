@@ -190,6 +190,10 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 	"Impact.PathProbe":           "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/handler.go); production always uses the package default",
 	"SemanticSearch.LocalHybrid": "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go)",
 	"LocalIdentity.SignInPolicy": "wired later by wireAPI (router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store, built after this constructor returns); LocalIdentityHandler documents nil SignInPolicy as fail-open",
+	"Visualization.Reads":        "static default: nil keeps the standing static deriver (see reads in go/internal/query/visualization/handler.go); the cmd wiring builds an empty Handler and every existing caller keeps deriving unchanged while the dest side cites the pin",
+	"ExtractionReadiness.Reads":  "static default: nil keeps the standing static satisfier over the extraction catalog (see reads in go/internal/query/collector_extraction_readiness.go); the cmd wiring sets only Profile and every existing caller keeps serving the real catalog unchanged",
+	"FactSchemaVersions.Reads":   "static default: nil keeps the standing static satisfier over the facts registry (see reads in go/internal/query/fact_schema_version.go); the cmd wiring sets only Profile and every existing caller keeps serving the real registry unchanged",
+	"SurfaceInventory.Reads":     "static default: nil keeps the standing static satisfier over the embedded inventory (see reads in go/internal/query/surface_inventory.go); the cmd wiring sets only Profile and every existing caller keeps serving the real inventory unchanged",
 	"TagHistory.Cursors":         "wired later by wireAPI once providerSecretKeyring exists (router.TagHistory.Cursors = providerSecretKeyring, #6564); nil is the documented no-DEK deployment, where grant-filtered paging fails closed and unscoped paging is unaffected",
 }
 

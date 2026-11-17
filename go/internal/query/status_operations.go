@@ -85,7 +85,12 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusServiceUnavailable, "status reader not configured")
 		return
 	}
-	if h.LiveActivity == nil {
+	// The live-activity leg admits through the D6 StatusExtraReadAdmission
+	// pin: the composed admission carries the handler's narrow reader and
+	// the leg calls the pin's embedded LiveActivityReader port. A nil
+	// embed keeps the standing 503 — the leg never invents activity.
+	extra := h.extraAdmission()
+	if extra == nil || extra.LiveActivityReader == nil {
 		WriteError(w, http.StatusServiceUnavailable, "live activity reader not configured")
 		return
 	}
@@ -112,7 +117,7 @@ func (h *StatusHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		truncated bool
 	)
 	if !access.Empty() {
-		activity, truncated, err = h.LiveActivity.ReadLiveActivity(
+		activity, truncated, err = extra.ReadLiveActivity(
 			r.Context(), limit, !access.Scoped(), access.GrantedRepositoryIDs(), access.GrantedScopeIDs(),
 		)
 		if err != nil {

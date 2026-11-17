@@ -88,9 +88,11 @@ const StatusExtraReadAdmissionContractVersion = "v0"
 //     on the SupplyChain finding/reconciliation legs this pin does
 //     not touch.
 //
-// Rollback: revert this pin. The seam is unwired — no handler,
-// route, or caller depends on it yet — so rollback moves no traffic
-// and changes no data.
+// Rollback: revert this pin plus the leg routing and the composer. The
+// operations and index-status legs admit their live-activity and
+// retirements reads through the pin via the handler composer —
+// rollback restores the direct narrow reads and moves no traffic
+// beyond the handler seams.
 type StatusExtraReadAdmission interface {
 	LiveActivityReader
 	status.IndexRetirementReader

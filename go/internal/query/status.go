@@ -66,8 +66,18 @@ type StatusHandler struct {
 	// repository_retirements block (#7766). Nil omits both retirement
 	// blocks and skips the by-state graph read, keeping the historical
 	// payload exactly.
-	Retirements     status.IndexRetirementReader
-	GovernanceAudit GovernanceAuditSummaryReader
+	Retirements status.IndexRetirementReader
+	// GovernanceAudit serves the governance-route audit-summary leg
+	// through the versioned #9669 D6 admission contract, never a
+	// direct audit-summary handle. The pin re-declares exactly the
+	// Summary read, so every GovernanceAuditSummaryReader satisfier
+	// (including the Postgres audit reader behind the cmd wiring)
+	// wires unchanged while the dest side cites the pin. The
+	// satellite W8a lane terminates this leg through this pin (not
+	// the eshu-api#71/G4 residual relay): the core tree serves the
+	// Summary port, and the residual path covers nothing this leg
+	// admits through.
+	GovernanceAudit StatusGovernanceReadAdmission
 	Profile         QueryProfile
 	Governance      GovernanceStatusConfig
 	// LiveActivity reads the bounded in-flight work-item read model for GET
@@ -330,7 +340,13 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 	// (#8395): a partial state breakdown is worse than an error. A
 	// failed tombstone aggregate likewise fails the read rather than
 	// omitting retirements silently.
-	if h.Retirements != nil {
+	// The retirements leg admits through the D6 StatusExtraReadAdmission
+	// pin: the composed admission carries the handler's narrow reader and
+	// the leg calls the pin's embedded IndexRetirementReader port. A nil
+	// embed omits both retirement blocks, keeping the historical payload
+	// exactly — the leg never invents a tombstone aggregate.
+	extra := h.extraAdmission()
+	if extra != nil && extra.IndexRetirementReader != nil {
 		byState, err := indexStatusRepositoryCountByState(r.Context(), h.Neo4j)
 		if err != nil {
 			if WriteGraphReadError(w, r, err, indexStatusCapability) {
@@ -340,7 +356,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		payload["repository_count_by_state"] = byState
-		summary, err := h.Retirements.ReadRetirementSummary(r.Context())
+		summary, err := extra.ReadRetirementSummary(r.Context())
 		if err != nil {
 			tracing.WriteServerFailure(w, r, err, http.StatusInternalServerError, indexStatusReadFailedMessage)
 			return

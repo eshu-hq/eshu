@@ -31,10 +31,26 @@ const surfaceInventoryUnavailableMessage = "surface inventory unavailable"
 // the three surfaces in parity.
 type SurfaceInventoryHandler struct {
 	Profile QueryProfile
+	// Reads serves the generated inventory through the versioned #9669
+	// G2 admission contract, never a direct load of the embedded
+	// artifact. A nil Reads keeps the standing static satisfier, so the
+	// cmd wiring (which sets only Profile) and every existing caller
+	// keep serving the real inventory unchanged while the dest side
+	// cites the pin.
+	Reads SurfaceInventoryReadAdmission
 
 	once      sync.Once
 	inventory capabilitycatalog.SurfaceInventory
 	loadErr   error
+}
+
+// reads resolves the pin the list leg admits through: the injected
+// admission when set, the static satisfier otherwise.
+func (h *SurfaceInventoryHandler) reads() SurfaceInventoryReadAdmission {
+	if h != nil && h.Reads != nil {
+		return h.Reads
+	}
+	return surfaceInventoryStaticReader{}
 }
 
 func (h *SurfaceInventoryHandler) profile() QueryProfile {
@@ -48,7 +64,7 @@ func (h *SurfaceInventoryHandler) profile() QueryProfile {
 // lifetime.
 func (h *SurfaceInventoryHandler) load() (capabilitycatalog.SurfaceInventory, error) {
 	h.once.Do(func() {
-		h.inventory, h.loadErr = capabilitycatalog.LoadSurfaceInventory()
+		h.inventory, h.loadErr = h.reads().LoadSurfaceInventory()
 	})
 	return h.inventory, h.loadErr
 }

@@ -18,7 +18,23 @@ import (
 // Handler exposes pure visualization-packet derivation routes. It reads only
 // the source response supplied by the caller and never queries graph,
 // content, or reducer state.
-type Handler struct{}
+type Handler struct {
+	// Reads serves the packet derivation through the versioned #9669 G2
+	// admission contract, never direct calls into the static packet
+	// builders. A nil Reads keeps the standing static deriver, so the
+	// cmd wiring (which builds an empty Handler) and every existing
+	// caller keep deriving unchanged while the dest side cites the pin.
+	Reads VisualizationReadAdmission
+}
+
+// reads resolves the pin the derive leg admits through: the injected
+// admission when set, the static deriver otherwise.
+func (h *Handler) reads() VisualizationReadAdmission {
+	if h != nil && h.Reads != nil {
+		return h.Reads
+	}
+	return visualizationStaticDeriver{}
+}
 
 type visualizationDeriveRequest struct {
 	View           View                         `json:"view"`
@@ -41,7 +57,7 @@ func (h *Handler) derive(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	packet, err := deriveVisualizationPacket(req)
+	packet, err := h.deriveVisualizationPacket(req)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -51,7 +67,12 @@ func (h *Handler) derive(w http.ResponseWriter, r *http.Request) {
 	}, visualizationPacketDerivationTruth(req.SourceTruth))
 }
 
-func deriveVisualizationPacket(req visualizationDeriveRequest) (Packet, error) {
+// deriveVisualizationPacket dispatches the derive through the G2
+// VisualizationReadAdmission pin: each view admits through exactly the
+// pinned static builder. The dispatch stays a method so the injected
+// admission (or the static deriver default) backs every view.
+func (h *Handler) deriveVisualizationPacket(req visualizationDeriveRequest) (Packet, error) {
+	reads := h.reads()
 	view := View(strings.TrimSpace(string(req.View)))
 	switch view {
 	case ViewServiceStory:
@@ -62,19 +83,19 @@ func deriveVisualizationPacket(req visualizationDeriveRequest) (Packet, error) {
 		if source == nil {
 			source = map[string]any{}
 		}
-		return BuildServiceStoryPacket(source, req.SourceTruth), nil
+		return reads.BuildServiceStoryPacket(source, req.SourceTruth), nil
 	case ViewEvidenceCitation:
 		var source evidence.EvidenceCitationResponse
 		if err := decodeVisualizationSource(req.SourceResponse, &source); err != nil {
 			return Packet{}, err
 		}
-		return BuildEvidenceCitationPacket(source, req.SourceTruth), nil
+		return reads.BuildEvidenceCitationPacket(source, req.SourceTruth), nil
 	case ViewIncidentContext:
 		var source model.IncidentContextResponse
 		if err := decodeVisualizationSource(req.SourceResponse, &source); err != nil {
 			return Packet{}, err
 		}
-		return BuildIncidentContextPacket(source, req.SourceTruth), nil
+		return reads.BuildIncidentContextPacket(source, req.SourceTruth), nil
 	case "":
 		return Packet{}, fmt.Errorf("view is required")
 	default:

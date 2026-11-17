@@ -30,7 +30,13 @@ const (
 // delta-overlay snapshot the reducer uses, and never asserts resolved
 // versions or cross-repository ownership.
 type Handler struct {
-	Store       ManifestDependencyStore
+	// Store serves the manifest dependency read through the versioned
+	// #9669 G2 admission contract, never the ManifestDependencyStore
+	// handle directly. The pin re-declares exactly the list read, and
+	// the production Postgres adapter satisfies it, so the cmd wiring
+	// (which passes the Postgres adapter) keeps compiling unchanged
+	// while the dest side cites the pin.
+	Store       ManifestDependenciesReadAdmission
 	Profile     querycontract.QueryProfile
 	Instruments *telemetry.Instruments
 }

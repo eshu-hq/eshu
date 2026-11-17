@@ -67,9 +67,12 @@ const StatusGovernanceReadAdmissionContractVersion = "v0"
 //   - No suppression leg exists on this route; the suppressions mutation
 //     row stays the Decision 2 survivor, never a read termination here.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route, or
-// caller depends on it yet — so rollback moves no traffic and changes no
-// data.
+// Rollback: revert this pin plus the StatusHandler field swap. The
+// governance leg admits its Summary read through the pin-typed
+// GovernanceAudit field — rollback restores the narrow field type
+// and moves no traffic beyond the handler seam. The satellite W8a
+// lane terminates this leg through this pin, not the eshu-api#71/G4
+// residual relay.
 type StatusGovernanceReadAdmission interface {
 	Summary(context.Context) (governanceaudit.Summary, error)
 }

@@ -31,7 +31,9 @@ const AdminIdentityReadAdmissionContractVersion = "v0"
 // D-wave ruling on #9669). The satellite records this pin in a
 // follow-up; a satellite PR consuming an unminted pin is invalid.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route,
-// or caller depends on it yet — so rollback moves no traffic and
-// changes no data.
+// Rollback: revert this pin plus the ReadHandler field swap and the
+// Postgres adapter. The handler fields carry the pin (alias of
+// ReadStore) and the query-package constructor binds the Postgres
+// store behind it — rollback restores the narrow field types and
+// moves no traffic beyond the handler seam.
 type AdminIdentityReadAdmission = ReadStore
