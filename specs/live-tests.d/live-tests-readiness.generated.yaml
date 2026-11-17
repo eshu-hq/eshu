@@ -29,6 +29,11 @@ tests:
     class: postgres_ci
     reason: "#9146 real coordinator Service and PostgreSQL inbox/admission proof for a 100-delivery claim group, late arrival, independent coordinators, and partial ACK recovery"
     runner: live-postgres-readiness
+  - file: go/internal/query/active_generation_dependency_count_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10824 disposable PostgreSQL proof that the repository dependency count joins the active relationship generation: rows in a superseded, pending, or deleted generation do not count, a non-dependency relationship type does not count, the count is the distinct union of active generations across scopes and a per-scope mutant is caught, and EXPLAIN (ANALYZE, BUFFERS) over 210,000 populated resolved rows must stay index-led on resolved_relationships; disposable bootstrapped database per test"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/activation_wake_interleave_live_test.go
     tag: ~
     class: postgres_ci

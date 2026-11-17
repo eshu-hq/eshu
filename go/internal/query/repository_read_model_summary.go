@@ -210,22 +210,41 @@ func (cr *ContentReader) repositoryPlatformMaterializationCount(ctx context.Cont
 	return count, nil
 }
 
+// repositoryDependencyCountSQL counts the distinct dependency targets of one
+// source repository from the active relationship generation only.
+// resolved_relationships is append-only, so rows of a superseded, pending, or
+// purged generation stay on disk; joining relationship_generations on
+// status = 'active' is the same current-truth predicate the repository
+// relationship and deployment-evidence read models use (#10824). A generation
+// whose relationship_generations row is deleted has nothing to join, so its
+// resolved rows count as zero; no code deletes those rows yet (#10820 adds the
+// purge). resolved_relationships stays index-led through
+// resolved_relationships_source_repo_idx on (source_repo_id, generation_id,
+// relationship_type). The generation side is not index-led for a hub: the
+// planner may scan relationship_generations in full, so its cost grows with
+// generation history, the same as the other readers (#10825).
+// It is a const so the live plan proof explains the exact shipped statement.
+const repositoryDependencyCountSQL = `
+	SELECT count(DISTINCT r.target_repo_id)
+	FROM resolved_relationships AS r
+	JOIN relationship_generations AS g
+	  ON g.generation_id = r.generation_id
+	WHERE g.status = 'active'
+	  AND r.source_repo_id = $1
+	  AND r.relationship_type IN (
+		'DEPENDS_ON',
+		'USES_MODULE',
+		'DEPLOYS_FROM',
+		'DISCOVERS_CONFIG_IN',
+		'PROVISIONS_DEPENDENCY_FOR',
+		'READS_CONFIG_FROM',
+		'RUNS_ON'
+	  )
+`
+
 func (cr *ContentReader) repositoryDependencyCount(ctx context.Context, repoID string) (int, error) {
 	var count int
-	err := cr.db.QueryRowContext(ctx, `
-		SELECT count(DISTINCT target_repo_id)
-		FROM resolved_relationships
-		WHERE source_repo_id = $1
-		  AND relationship_type IN (
-			'DEPENDS_ON',
-			'USES_MODULE',
-			'DEPLOYS_FROM',
-			'DISCOVERS_CONFIG_IN',
-			'PROVISIONS_DEPENDENCY_FOR',
-			'READS_CONFIG_FROM',
-			'RUNS_ON'
-		  )
-	`, repoID).Scan(&count)
+	err := cr.db.QueryRowContext(ctx, repositoryDependencyCountSQL, repoID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("query repository dependency count: %w", err)
 	}
