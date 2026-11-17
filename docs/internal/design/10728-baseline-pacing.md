@@ -257,18 +257,25 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 
 Known limits to close before the baseline enable lane (#10746) turns on.
 These come from the #10760 review findings F8 and F10. The follow-ups are
-tracked as #10767 (inflow measure, F8) and #10768 (durable latch, F10), and
-both must land before #10746 turns the lane on. F10 is closed in the store
-and fold by #10768 (below). #10746 wires the recorders and the plan-time
-latch load into the service.
+tracked as #10767 (inflow measure, F8, closed below) and #10768 (durable
+latch, F10), and both must land before #10746 turns the lane on. F10 is
+closed in the store and fold by #10768 (below). #10746 wires the recorders
+and the plan-time latch load into the service.
 
-- Inflow, not backlog (F8, #10767). The sampler counts CVE-% rows still
-  queued, but the winners maintainer drains the log with `DELETE`
-  (`deleteWinnersKeyedAppliedDirtySQL`), so a healthy maintainer hides
-  inflow and the trip opens late. The lane needs a true inflow measure
-  (a `seq` watermark carried between samples, or a capture-side counter)
-  and must count the `kind = 'scope'` rows a baseline commit appends, which
-  carry a NULL `advisory_id` by migration 272's shape constraint.
+- Inflow, not backlog (F8), closed by #10767. The sampler reads hourly
+  inflow: the CVE-% rows still queued plus the CVE-% rows the winners
+  maintainer already drained, which its two DELETE statements add to
+  `supply_chain_impact_winners_dirty_tally` by capture minute in the same
+  statement (migration 299). The ruled definition holds unchanged (CVE-%
+  fact rows, over-counting on purpose). NVD `kind = 'scope'` rows, which
+  carry a NULL `advisory_id` by migration 272's shape constraint, are
+  counted one per row by scope family in a separate
+  `NVDScopeRowsPerHour` field and are not folded into the 15k comparison
+  (decided in #10767, with the reasoning and what would reopen it in
+  `docs/internal/evidence/10767-trip-inflow.md`; weighting by fan-out stays a
+  separate ruling). A raw sequence high-water
+  delta was rejected: it counts every source, and the measured all-source
+  inflow (M6) is 60k to 109k rows an hour against the 15k threshold.
 - Durable latch (F10, #10768). Done in the store and fold; the service
   wiring is still #10746. See "Durable latch contract" below. `Observe`
   itself counts samples, not elapsed time (the sample timestamp is not
@@ -389,19 +396,19 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   A binary rollback is safe on its own: the older binary never reads the
   table and runs with the in-memory latch as before. A newer binary that loses
   the table fails closed (every load errors, planning holds), so a premature
-  drop stops the lane and corrupts nothing. Re-check the migration number at
-  merge time: origin/main now tops out at 297
-  (`297_vulnerability_nvd_baseline_checkpoints.sql`, merged), so 298 is the
-  next free number and this branch adds it with no collision. Sibling lane
-  #10767 adds 299 and edits the same golden files. The second lane to land
-  must regenerate, not hand-resolve, `goldenBootstrapDefinitionsDigest` and
-  `goldenBootstrapDefinitionsCount` in
-  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the
-  count becomes 325 with both 298 and 299), append to
-  `migration_checksum_manifest_test.go`, and extend
+  drop stops the lane and corrupts nothing. The migration number was
+  re-checked at merge time. Main topped out at 297
+  (`297_vulnerability_nvd_baseline_checkpoints.sql`) when this branch took 298.
+  Sibling lane #10767 added 299 and edits the same golden files; main reached
+  298 when this lane merged, and #10767 was rebased over it, taking 299. The
+  second lane's rebase recomputed, rather than hand-resolved,
+  `goldenBootstrapDefinitionsDigest` and `goldenBootstrapDefinitionsCount` in
+  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the count
+  is 325 with both 298 and 299), appended to
+  `migration_checksum_manifest_test.go`, and extended
   `orderedBootstrapDefinitionNamesLatest` in
-  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298
-  before 299.
+  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298 before
+  299.
 
 ## 6. Idempotency argument
 

@@ -28,6 +28,12 @@ import (
 // baseline candidate.
 const nvdBaselineScopePrefix = scopeIDPrefix + SourceNVD + "/_baseline/"
 
+// NVDScopePrefix is the prefix every NVD scope id carries, the window and the
+// baseline families alike (vuln-intel://nvd/...). The NVD baseline trip line
+// uses it to recognize the scope rows an NVD pointer flip appends to the
+// winners dirty log, which carry no advisory id (eshu-hq/eshu#10767).
+const NVDScopePrefix = scopeIDPrefix + SourceNVD + "/"
+
 // nvdBaselineFirstYear is the first NVD year feed: CVE ids below 2002 have
 // no year file, so the planner can never mint a chunk for them.
 const nvdBaselineFirstYear = 2002

@@ -27,6 +27,29 @@ func TestCensusClassifiesVulnerabilityTargetRefreshProgress(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesWinnersDirtyTally pins the #10767 drain tally's row:
+// nvd_scope_rows matches the live census's %scope% column filter but is a
+// count of drained NVD pointer-flip rows, not a scope or repository
+// identity, so the table is not_a_key (design 7766) with no purge step. The
+// maintainer prunes its own buckets after three hours.
+func TestCensusClassifiesWinnersDirtyTally(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_winners_dirty_tally")
+	if !ok {
+		t.Fatal("supply_chain_impact_winners_dirty_tally has no census row; the live census fails on its nvd_scope_rows column")
+	}
+	if entry.Disposition != "not_a_key" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want not_a_key with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "nvd_scope_rows" {
+		t.Fatalf("key columns = %v, want [nvd_scope_rows], the column the live filter matched", entry.KeyColumns)
+	}
+	if !strings.Contains(entry.Reason, "count") {
+		t.Fatalf("reason %q must say nvd_scope_rows is a count, not a scope key", entry.Reason)
+	}
+}
+
 // TestRetireTableDispositionsAreWellFormed pins the census table's shape:
 // every row names its table, carries a valid disposition code with only
 // known purge steps, and cites its deleter or keep reason. The live test
