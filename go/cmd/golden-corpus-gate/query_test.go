@@ -11,6 +11,10 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu-sdk/apicontract"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestQueryClientChecksHTTPShapes(t *testing.T) {
@@ -107,6 +111,22 @@ func TestQueryClientChecksPostEnvelopeShapes(t *testing.T) {
 	}
 	if r.Failed() {
 		t.Fatalf("expected POST envelope query shape to pass; findings: %+v", r.Findings)
+	}
+}
+
+// TestEnvelopeMIMETypeMatchesSDKContract pins the gate's envelope media type
+// to the SDK apicontract module AND to the independent in-tree server
+// literal: the Accept header the gate sends must stay byte-identical to
+// both. Comparing only the gate alias against the SDK constant is a
+// tautology (the alias is defined from the SDK value), so the
+// querycontract literal is the oracle that fails on SDK drift.
+func TestEnvelopeMIMETypeMatchesSDKContract(t *testing.T) {
+	t.Parallel()
+	if EnvelopeMIMEType != apicontract.EnvelopeMIMEType {
+		t.Fatalf("EnvelopeMIMEType = %q, want SDK apicontract %q", EnvelopeMIMEType, apicontract.EnvelopeMIMEType)
+	}
+	if apicontract.EnvelopeMIMEType != querycontract.EnvelopeMIMEType {
+		t.Fatalf("SDK apicontract %q != in-tree querycontract %q: SDK drifted from the server contract", apicontract.EnvelopeMIMEType, querycontract.EnvelopeMIMEType)
 	}
 }
 

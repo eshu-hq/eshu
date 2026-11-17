@@ -157,6 +157,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.19.0
 	github.com/crewjam/saml v0.5.1
 	github.com/dekobon/tree-sitter-groovy v0.2.2
+	github.com/eshu-hq/eshu-sdk/apicontract v0.1.0-rc.1
 	github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4
 	github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261117021456-ec5cfef48073
 	github.com/eshu-hq/eshu-workflow v0.2.0
