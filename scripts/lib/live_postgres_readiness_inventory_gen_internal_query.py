@@ -7,6 +7,11 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query": {
+        "go/internal/query/active_generation_dependency_count_live_test.go": (
+            "TestRepositoryDependencyCountActiveGenerationLive",
+            "TestRepositoryDependencyCountPlanLive",
+            "TestRepositoryDependencyCountAcrossScopesLive",
+        ),
         "go/internal/query/advisory_catalog_ghsa_newest_copy_live_test.go": (
             "TestSupplyChainAdvisoryCatalogServesNewestGHSACopyLive",
             "TestSupplyChainAdvisoryCatalogKeepsSupersededPackagesForPackagelessWinnerLive",

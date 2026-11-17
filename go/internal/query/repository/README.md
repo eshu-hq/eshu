@@ -42,7 +42,12 @@ carry the same nine keys.
 workload names (story and entity still do, for identity and display); names do
 not establish materialization. A failed graph count aborts the
 context response rather than reporting an inferred zero or name count. File,
-platform, and dependency counts retain their existing read-model paths.
+platform, and dependency counts retain their existing read-model paths. The
+Postgres dependency count reads only the active relationship generation: it
+joins `relationship_generations` on `status = 'active'`, so rows left behind by
+a superseded or pending generation do not count (#10824). Once the retirement
+purge (#10820) lands, a deleted generation counts zero too; today a retired
+repository's generation stays active, so it still counts.
 
 Repository context uses the optional count-only Postgres read port for platform
 and dependency counts. It does not load workload names. A missing or failed

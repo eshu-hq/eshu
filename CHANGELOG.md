@@ -9,6 +9,18 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Repository dependency count reads only the active relationship generation
+
+- **Superseded generations no longer inflate `dependency_count`**
+  ([#10824](https://github.com/eshu-hq/eshu/issues/10824)). The Postgres
+  repository dependency count read `resolved_relationships` by source
+  repository with no join to `relationship_generations`, so it counted rows from
+  superseded and pending generations. It now joins the active generation the
+  way the other resolved-relationship readers do, and the access path on
+  `resolved_relationships` stays index-led. Once the retirement purge (#10820)
+  lands, a deleted generation counts zero; today a retired repository's
+  generation stays active.
+
 ### A rejected-only product finding no longer scores CVSS from the rejected record
 
 - **Retracted record lends no severity on the product path**
