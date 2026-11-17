@@ -55,6 +55,8 @@ func (f *liveFixture) probeHubDrain(ctx context.Context, t *testing.T) {
 		Deletes: true, RowCap: probeHubSliceRows, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
 	before := f.probeWALNow(ctx, t)
+	beforeIO := f.probeIONow(ctx, t)
+	probeLogSlowStatements(t, &opts, time.Second)
 	started := time.Now()
 	result, err := relationshipretention.Sweep(ctx, f.database, opts)
 	wall := time.Since(started)
@@ -70,9 +72,9 @@ func (f *liveFixture) probeHubDrain(ctx context.Context, t *testing.T) {
 	t.Logf("hub drain: %d rows, %d generations, %d batches, capped=%q, wall %s (census %s), skipped %v",
 		rows, result.GenerationsSwept, result.Batches, result.Capped, wall.Round(time.Millisecond),
 		result.Census.Duration.Round(time.Millisecond), result.Skipped)
-	t.Logf("hub drain WAL: lsn diff %s bytes (%s per row), records +%d, fpi +%d; batch durations ms %v",
+	t.Logf("hub drain WAL: lsn diff %s bytes (%s per row), records +%d, fpi +%d; batch durations ms %v; %s",
 		walBytes, probeBytesPerRow(walBytes, rows), after.records-before.records, after.images-before.images,
-		probeBatchDurations(logs.String()))
+		probeBatchDurations(logs.String()), probeIOSince(beforeIO, f.probeIONow(ctx, t)))
 }
 
 // probeHubBatch seeds the hub generation, logs the plans of the first bounded

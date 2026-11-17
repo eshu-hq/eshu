@@ -284,6 +284,29 @@ func (f *liveFixture) probeWALNow(ctx context.Context, t *testing.T) probeWAL {
 	return wal
 }
 
+// probeIO is the client backends' cumulative I/O wait from pg_stat_io, in
+// milliseconds: reads, writes (a backend writing a dirty buffer it has to evict
+// before it can use the page) and relation extends. It needs track_io_timing, which
+// the probe's disposable server sets; with it off every figure reads 0. A slow
+// batch whose I/O wait stayed near zero was waiting for the CPU, not for the disk.
+type probeIO struct{ read, write, extend float64 }
+
+func (f *liveFixture) probeIONow(ctx context.Context, t *testing.T) probeIO {
+	t.Helper()
+	var io probeIO
+	if err := f.db.QueryRowContext(ctx, `SELECT coalesce(sum(read_time), 0), coalesce(sum(write_time), 0), coalesce(sum(extend_time), 0)
+FROM pg_stat_io WHERE backend_type = 'client backend'`).Scan(&io.read, &io.write, &io.extend); err != nil {
+		t.Fatalf("pg_stat_io: %v", err)
+	}
+	return io
+}
+
+// probeIOSince formats the I/O wait accumulated since before.
+func probeIOSince(before, after probeIO) string {
+	return fmt.Sprintf("client backend I/O wait: read +%.0f ms, write +%.0f ms, extend +%.0f ms",
+		after.read-before.read, after.write-before.write, after.extend-before.extend)
+}
+
 // probeBatchDurations reads the committed batches' durations from the sweep's
 // JSON log lines.
 func probeBatchDurations(logs string) []float64 {
@@ -315,6 +338,7 @@ func (f *liveFixture) probeSweepPasses(ctx context.Context, t *testing.T) {
 			f.probeExec(ctx, t, `CHECKPOINT`)
 		}
 		before := f.probeWALNow(ctx, t)
+		beforeIO := f.probeIONow(ctx, t)
 		var logs bytes.Buffer
 		opts := relationshipretention.Options{
 			Deletes: true, RowCap: probeRowCap, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
@@ -335,9 +359,9 @@ func (f *liveFixture) probeSweepPasses(ctx context.Context, t *testing.T) {
 		t.Logf("pass %d (checkpoint first: %v): %d rows, %d generations, %d batches, capped=%q, wall %s, census %s, sweep %s, skipped %v",
 			pass, pass == 1, rows, result.GenerationsSwept, result.Batches, result.Capped, wall.Round(time.Millisecond),
 			result.Census.Duration.Round(time.Millisecond), result.SweepDuration.Round(time.Millisecond), result.Skipped)
-		t.Logf("pass %d WAL: lsn diff %s bytes (%s per row), pg_stat_wal records +%d, fpi +%d, bytes %s -> %s",
+		t.Logf("pass %d WAL: lsn diff %s bytes (%s per row), pg_stat_wal records +%d, fpi +%d, bytes %s -> %s; %s",
 			pass, walBytes, probeBytesPerRow(walBytes, rows), after.records-before.records,
-			after.images-before.images, before.bytes, after.bytes)
+			after.images-before.images, before.bytes, after.bytes, probeIOSince(beforeIO, f.probeIONow(ctx, t)))
 		if durations := probeBatchDurations(logs.String()); len(durations) > 0 {
 			t.Logf("pass %d batch durations ms: n=%d p50=%.1f p95=%.1f max=%.1f", pass, len(durations),
 				durations[len(durations)/2], durations[int(float64(len(durations))*0.95)], durations[len(durations)-1])
