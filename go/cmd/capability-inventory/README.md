@@ -26,6 +26,12 @@ Run from the `go` module directory:
 # need the satellite base URL and an admin/all-scope bearer token.
 export ESHU_API_BASE_URL=https://api.example.invalid ESHU_API_KEY=...
 
+# Without a live satellite, prefix the same commands with the stub harness:
+# it serves the in-tree assembly behind the RequireAuth-shaped gate (the
+# same offline double the package tests use) and passes a live
+# ESHU_API_BASE_URL through untouched.
+# scripts/lib/capability-stub-satellite.sh go run ./cmd/capability-inventory -mode verify
+
 # Print reconciliation findings and the entry count.
 go run ./cmd/capability-inventory -mode report
 

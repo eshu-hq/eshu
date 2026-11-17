@@ -23,7 +23,10 @@
 #   - Go code formatting changes (caught by lint/gofumpt separately).
 #
 # When this gate fails on a PR:
-#   1. Run: cd go && go run ./cmd/capability-inventory -mode generate
+#   1. Run: cd go && ../scripts/lib/capability-stub-satellite.sh \
+#        go run ./cmd/capability-inventory -mode generate
+#      (or export ESHU_API_BASE_URL plus an admin/all-scope ESHU_API_KEY for
+#      a live satellite and run the bare `go run` instead)
 #   2. Commit the regenerated artifacts.
 #   3. If the matrix or overlay changed, ensure every tool in
 #      ReadOnlyTools() is accounted for and vice versa.
@@ -281,12 +284,26 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      # verify/report/generate need the satellite's served OpenAPI document
+      # plus an admin/all-scope bearer (Refs eshu-hq/eshu#9669, row 7), which
+      # this static job does not have. The stub harness points both at the
+      # offline double — the in-tree assembly behind the RequireAuth-shaped
+      # gate, the same double the capinv tests serve — and passes a live
+      # ESHU_API_BASE_URL through untouched, so the fetch path is identical
+      # either way.
+      # The verify step below depends on the stub harness, so its
+      # behavioral test runs first and fails the job fast when the double
+      # itself (not the inventory) is broken.
+      - name: Test the stub-satellite harness
+        shell: bash
+        run: bash scripts/test-capability-stub-satellite.sh
+
       - name: Run capability inventory verify
         working-directory: go
         shell: bash
         run: |
           set -o pipefail
-          go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
+          ../scripts/lib/capability-stub-satellite.sh go run ./cmd/capability-inventory -mode verify 2>&1 | tee /tmp/capability-verify.log
 
       - name: Check MCP resource-only demo client
         run: python3 scripts/test-verify-demo-compose-answers-call-mcp-tool.py
