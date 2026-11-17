@@ -294,3 +294,13 @@ and a fresh arbiter review in-lane is required before any removal PR.
   + unwired seams, 51-route satellite closures/carve-outs, test-file
   retargets, cutover-good ruling, and fresh in-lane review all still
   outstanding. NOT merge-ready.
+- Declared core-owned survivor (owner decision 2026-11-16, recorded on
+  eshu-hq/eshu-api#101): `GET /api/v0/auth/sessions` stays core-owned
+  permanently and is carved out of the native-termination requirement.
+  Basis: the D8 contract (`api/d8.go`, `contracts/d8-session-resolver.md`)
+  states the destination holds no session state and all reads run
+  core-side via tier-C write-through dispatch; natively terminating it
+  would re-own state-owning reads satellite-side. This row rides tier-C
+  dispatch by design, is NOT a relay-leg blocker, and needs no
+  satellite wave. G2 snapshot unaffected (row stays tier-C; relay+absent
+  remain 0).
