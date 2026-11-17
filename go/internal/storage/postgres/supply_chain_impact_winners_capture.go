@@ -75,8 +75,9 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 // log's fact conflict key (package_id, repository_id, subject_digest, c0,
 // advisory_id) with exact duplicates removed. The writer upsert takes row
 // locks in this same order (#10827), so sorting here keeps concurrent
-// multi-row writers from forming a lock-order cycle; the dedup keeps one
-// statement from marking one unit twice.
+// multi-row statements from contending out of order; the dedup keeps one
+// statement from marking one unit twice. The order binds one statement,
+// not the whole writer transaction (#10851).
 func sortDedupWinnersDirtyIdentifiers(ids []supplychaincore.WinnersDirtyIdentifier) []supplychaincore.WinnersDirtyIdentifier {
 	if len(ids) == 0 {
 		return nil

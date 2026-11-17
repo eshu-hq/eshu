@@ -266,9 +266,11 @@ pruned AS (
 // R2 (#10827): both drains are single-statement lock-then-deletes. The locked
 // CTE keeps only rows whose log version still equals the admitted version and
 // locks them in the global key order (winnersDirtyKeyOrderClause) with
-// FOR UPDATE, so concurrent re-marks stay queued and no two accessors can
-// form a lock-order cycle. The tally sums dirty_version: one deleted row
-// counts every mark it collapsed.
+// FOR UPDATE, so concurrent re-marks stay queued. Ordering is per-statement:
+// this tick converts, then deletes, and a writer pass captures, publishes,
+// then retracts, so cross-batch inversion can still roll one victim back
+// (#10851). The tally sums dirty_version: one deleted row counts every mark
+// it collapsed.
 func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, sql.NullTime, error) {
 	deleteSQL := deleteWinnersKeyedAppliedDirtySQL
 	if fallback {
@@ -360,8 +362,8 @@ func (t winnersCaptureTally) total() int64 {
 	return n
 }
 
-// triggerSources returns the consumed rows of the sources a database trigger
-// owns, the only ones the maintainer counts at consume.
+// triggerSources returns the consumed marks (version sums) of the sources a
+// database trigger owns, the only ones the maintainer counts at consume.
 func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCaptured {
 	return supplychaincore.WinnersTriggerCaptured{
 		Activation: t[telemetry.SupplyChainImpactWinnersSourceActivation],

@@ -423,8 +423,8 @@ FROM supply_chain_impact_winners_dirty_log
 // pending recompute unit: a re-mark of a queued key bumps only
 // dirty_version, keeping the first mark's captured_at. The SELECT feeds rows
 // in conflict-key order (matching the Go sort in CaptureWinnersDirtyFacts),
-// so concurrent multi-row writers take row locks in one total order and
-// cannot form a lock-order cycle.
+// so this statement takes row locks in the one total order; ordering across
+// the several batches of one transaction is #10851.
 const captureWinnersDirtyFactsSQL = `
 INSERT INTO supply_chain_impact_winners_dirty_log
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)

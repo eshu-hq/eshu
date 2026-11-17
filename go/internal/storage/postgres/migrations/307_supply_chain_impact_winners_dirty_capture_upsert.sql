@@ -31,18 +31,20 @@ BEGIN
     ELSE
         v_source := 'activation';
     END IF;
-    IF TG_OP = 'UPDATE' AND OLD.active_generation_id IS NOT NULL THEN
-        INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, scope_id, generation_id)
-        VALUES ('scope', v_source, OLD.scope_id, OLD.active_generation_id)
-        ON CONFLICT (scope_id, generation_id) WHERE kind = 'scope'
-        DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1;
-    END IF;
-    IF NEW.active_generation_id IS NOT NULL THEN
-        INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, scope_id, generation_id)
-        VALUES ('scope', v_source, NEW.scope_id, NEW.active_generation_id)
-        ON CONFLICT (scope_id, generation_id) WHERE kind = 'scope'
-        DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1;
-    END IF;
+    -- One statement over both keys, in scope-key order: two statements would
+    -- take the OLD row lock before the NEW one even when NEW sorts first.
+    INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, scope_id, generation_id)
+    SELECT 'scope', v_source, k.scope_id, k.generation_id
+    FROM (
+        SELECT OLD.scope_id AS scope_id, OLD.active_generation_id AS generation_id
+        WHERE TG_OP = 'UPDATE' AND OLD.active_generation_id IS NOT NULL
+        UNION ALL
+        SELECT NEW.scope_id, NEW.active_generation_id
+        WHERE NEW.active_generation_id IS NOT NULL
+    ) AS k
+    ORDER BY k.scope_id, k.generation_id
+    ON CONFLICT (scope_id, generation_id) WHERE kind = 'scope'
+    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1;
     RETURN NEW;
 END;
 $function$;

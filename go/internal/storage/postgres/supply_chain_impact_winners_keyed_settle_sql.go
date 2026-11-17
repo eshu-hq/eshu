@@ -8,15 +8,19 @@ package postgres
 //
 // The dirty log carries dirty_version (one row per pending recompute unit;
 // every re-mark of a queued key bumps the version instead of appending a
-// row). Every multi-row accessor takes row locks in one total order over the
-// conflict key — kind first, then the fact five-tuple, then the scope pair,
-// with seq as the final tiebreak so pre-dedup duplicate keys still lock
-// deterministically — so no two accessors (writer upserts, convert, settle
-// drains alike) can form a lock-order cycle. The naive versioned pattern
-// deadlocked UPSERT-vs-DELETE at ~2.8e-6 per transaction under wave load;
-// the order plus the single-statement lock-then-delete below is what removes
-// the cycle instead of retrying through it (no shipped deadlock retry
-// anywhere; a retry firing in the gate is a fail).
+// row). Every multi-row statement takes row locks in one total order over
+// the conflict key — kind first, then the fact five-tuple, then the scope
+// pair, with seq as the final tiebreak so pre-dedup duplicate keys still
+// lock deterministically — so no two statements contend out of order. The
+// order is per-statement, not per-transaction: a writer pass and a settle
+// tick each run several ordered batches, and cross-batch inversion can
+// still deadlock one victim into a rollback (#10851 tracks the
+// transaction-global fix and its interleave gate). The naive versioned
+// pattern deadlocked UPSERT-vs-DELETE at ~2.8e-6 per transaction under wave
+// load; per-statement order plus the single-statement lock-then-delete
+// below removes that within-statement cycle instead of retrying through it
+// (no shipped deadlock retry anywhere; a retry firing in the gate is a
+// fail).
 //
 // winnersDirtyKeyOrderClause renders that order for one alias. The writer
 // upserts (fact capture, retract, triggers, audit queue) ORDER BY the same
@@ -46,9 +50,13 @@ func winnersDirtyKeyOrderClause(alias string) string {
 }
 
 // convertWinnersKeyedScopeRemainderSQL turns the unapplied remainder of a
-// partially applied scope row into fact dirty rows (same source), so the
-// scope row can leave the log and the next tick resumes from named keys, not
-// from re-expanding the whole generation and re-applying its prefix.
+// partially applied scope row into fact dirty rows, so the scope row can
+// leave the log and the next tick resumes from named keys, not from
+// re-expanding the whole generation and re-applying its prefix. One
+// identifier can be the remainder of two scope rows with different sources;
+// the SELECT groups by the conflict key (MIN(source) picks deterministically)
+// because one statement may propose each key only once — two proposed rows
+// for one key make Postgres refuse the whole upsert.
 // A scope row with no applied identifier is left alone (nothing to resume from;
 // it re-expands next tick), and a fully applied one converts nothing.
 //
@@ -65,7 +73,7 @@ func winnersDirtyKeyOrderClause(alias string) string {
 // sort without inserting. The shipped statement concatenates this arm, so
 // the explained join cannot drift from the join the tick runs.
 var convertWinnersKeyedScopeRemainderSelectSQL = `
-SELECT DISTINCT 'fact', c.source, si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
+SELECT 'fact', MIN(c.source), si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 FROM ` + winnersKeyedConsumedTable + ` AS c
 JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
   ON si.scope_id = c.scope_id AND si.generation_id = c.generation_id
@@ -76,6 +84,7 @@ WHERE c.kind = 'scope'
       WHERE applied.scope_id = c.scope_id AND applied.generation_id = c.generation_id
         AND ` + winnersKeyedChunkIdentMatch("applied") + `
   )
+GROUP BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 ORDER BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 `
 

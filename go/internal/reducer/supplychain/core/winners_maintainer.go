@@ -92,7 +92,8 @@ type SupplyChainImpactWinnersResweep struct {
 	// on the full path.
 	Identifiers int64
 	Keys        int64
-	// TriggerCaptured is the consumed dirty-log rows by the capture sources
+	// TriggerCaptured is the consumed dirty-log marks (version sums, #10827)
+	// by the capture sources
 	// whose owner is a database trigger (activation, operator, scanner). A
 	// trigger cannot emit a Go metric, so the maintainer counts them when it
 	// consumes them. fact_upsert and fact_retract are counted by their writers
@@ -119,9 +120,10 @@ type SupplyChainImpactWinnersResweep struct {
 	Watermark time.Time
 }
 
-// WinnersTriggerCaptured is the dirty-log rows one keyed tick consumed, by the
-// capture sources a database trigger owns (#9805). It is a plain struct so a
-// resweep result stays comparable.
+// WinnersTriggerCaptured is the dirty-log marks one keyed tick consumed
+// (dirty_version sums since #10827: one consumed row counts every mark it
+// collapsed), by the capture sources a database trigger owns (#9805). It is
+// a plain struct so a resweep result stays comparable.
 type WinnersTriggerCaptured struct {
 	Activation int64
 	Operator   int64

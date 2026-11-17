@@ -145,6 +145,19 @@ var (
 	errSettleScanType        = errors.New("settle scan unsupported destination")
 )
 
+// TestWinnersDirtyKeyOrderClauseIsExact pins the rendered lock order byte
+// for byte: permuting or dropping one sort column must fail here, not pass
+// a substring census.
+func TestWinnersDirtyKeyOrderClauseIsExact(t *testing.T) {
+	t.Parallel()
+
+	want := "c.kind, c.package_id, c.repository_id, c.subject_digest, c.c0, " +
+		"c.advisory_id, c.scope_id, c.generation_id, c.seq"
+	if got := winnersDirtyKeyOrderClause("c"); got != want {
+		t.Errorf("winnersDirtyKeyOrderClause(c) = %q, want %q", got, want)
+	}
+}
+
 // TestWinnersDrainStatementsLockKeysInOrder pins arbiter verdict R2 for
 // eshu-hq/eshu#10827: every multi-row dirty-log accessor takes locks in one
 // total order over the conflict key. Both drain statements lock the admitted
@@ -197,6 +210,15 @@ func TestWinnersConvertRemainderIsKeyOrderedUpsert(t *testing.T) {
 		if !strings.Contains(convertWinnersKeyedScopeRemainderSQL, want) {
 			t.Errorf("convert scope remainder statement does not contain %q", want)
 		}
+	}
+	// One statement may propose each conflict key only once: the SELECT arm
+	// must collapse one identifier arriving under two scope-row sources by
+	// grouping on the key, never DISTINCT over (source, key).
+	if !strings.Contains(convertWinnersKeyedScopeRemainderSelectSQL, "GROUP BY si.package_id") {
+		t.Error("convert SELECT arm does not group by the conflict key; a mixed-source remainder would propose one key twice")
+	}
+	if strings.Contains(convertWinnersKeyedScopeRemainderSelectSQL, "DISTINCT") {
+		t.Error("convert SELECT arm still carries DISTINCT; grouping by the conflict key owns dedup")
 	}
 }
 

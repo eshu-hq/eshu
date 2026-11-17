@@ -9,18 +9,19 @@ import (
 	"time"
 )
 
-// Lane A of eshu-hq/eshu#10827 (arbiter verdict R2: Global Key-Ordered
-// Versioned Upsert). The dirty log collapses repeated marks of one recompute
-// unit at write time: every multi-row writer upserts in key order and bumps
-// only dirty_version, so a re-mark never piles a second row behind the first.
+// Writer-side proofs for eshu-hq/eshu#10827 (arbiter verdict R2: Global
+// Key-Ordered Versioned Upsert). The dirty log collapses repeated marks of
+// one recompute unit at write time: every multi-row writer upserts in key
+// order and bumps only dirty_version, so a re-mark never piles a second row
+// behind the first.
 //
 // These two tests are the writer-side half of the verdict's failing-first
 // order. Test (1) proves a re-mark of an in-flight key survives as one row
 // with a bumped version and a preserved first-mark timestamp (the
-// compare-and-delete settle of lane B relies on exactly this shape).
-// Test (2) proves 150 production-path marks of one key collapse to one row.
-// The deterministic deadlock interleave (test 3) and the settle half ride
-// lane B; the existing live suites below stay the fence.
+// compare-and-delete settle relies on exactly this shape). Test (2) proves
+// 150 production-path marks of one key collapse to one row. The
+// deterministic deadlock interleave (test 3) and the settle half live in
+// the deadlock gate file; the existing live suites below stay the fence.
 
 // dirtyFactRow reads one fact-kind dirty row for the package key.
 func dirtyFactRow(h *keyedHarness, pkg, c0 string) (seq, version int64, captured time.Time) {

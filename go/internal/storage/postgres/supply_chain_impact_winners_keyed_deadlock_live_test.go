@@ -20,8 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
-// R2 schema shim for the #10827 settle gate. Lane A migrations 301-303 own
-// the shipped path (dirty_version column, dedup, the two partial unique
+// R2 schema shim for the #10827 settle gate. Migrations 303-306 own the
+// shipped path (dirty_version column, dedup, the two partial unique
 // indexes); every statement below is IF NOT EXISTS with the shipped
 // definitions, so it is a no-op once those migrations have applied and the
 // gate proves the same behavior before they land.
@@ -42,23 +42,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS supply_chain_impact_winners_dirty_log_scope_ke
     WHERE kind = 'scope'
 `
 
-// winnersDeadlockWriterUpsertSQL is the R2 writer contract the gate hammers
-// the settle with: K-ordered upserts that bump only dirty_version. It mirrors
-// the shipped capture shape (lane A): one row per key per statement, locks
-// taken in the global conflict-key order, first-mark captured_at preserved on
-// conflict. The input arrays are passed in reverse key order on purpose, so
-// the gate proves the statement's ORDER BY — not the caller's input order —
-// governs lock acquisition.
-const winnersDeadlockWriterUpsertSQL = `
-INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
-SELECT 'fact', 'fact_upsert', u.package_id, u.repository_id, u.subject_digest, u.c0, u.advisory_id
-FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
-     AS u(package_id, repository_id, subject_digest, c0, advisory_id)
-ORDER BY u.package_id, u.repository_id, u.subject_digest, u.c0, u.advisory_id
-ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
-`
+// The gate writers hammer the shipped capture statement itself
+// (captureWinnersDirtyFactsSQL), never a copy: a shipped-shape change must
+// move this gate with it. Input arrays are passed in reverse key order on
+// purpose, so the gate proves the statement's ORDER BY — not the caller's
+// input order — governs lock acquisition. Writers in both gates below are
+// autocommit single statements: they prove per-statement lock order and
+// cannot falsify the multi-batch transaction-level claim (#10851).
 
 // winnersDeadlockSeedSQL plants distinct fact keys for the gate.
 const winnersDeadlockSeedSQL = `
@@ -150,10 +140,83 @@ func winnersExplainSettleLocks(t *testing.T, ctx context.Context, database *sql.
 	if lockAt < 0 || sortAt < 0 || lockAt > sortAt {
 		t.Fatalf("applied drain does not lock above the key-order sort:\n%s", text)
 	}
-	for _, key := range []string{"kind", "package_id", "scope_id", "generation_id"} {
-		if !strings.Contains(text, key) {
-			t.Fatalf("applied drain sort key does not order by %q:\n%s", key, text)
+	// The Sort Key line must carry the full conflict key in order; a
+	// permuted or dropped column fails here even though every name still
+	// appears somewhere in the plan.
+	wantOrder := []string{"kind", "package_id", "repository_id", "subject_digest", "c0", "advisory_id", "scope_id", "generation_id", "seq"}
+	var sortLine string
+	for _, line := range strings.Split(text, "\n") {
+		if strings.Contains(line, "Sort Key:") {
+			sortLine = line
+			break
 		}
+	}
+	if sortLine == "" {
+		t.Fatalf("applied drain plan has no Sort Key line:\n%s", text)
+	}
+	var gotOrder []string
+	for _, part := range strings.Split(sortLine[strings.Index(sortLine, "Sort Key:")+len("Sort Key:"):], ",") {
+		col := strings.TrimSpace(part)
+		if dot := strings.LastIndex(col, "."); dot >= 0 {
+			col = col[dot+1:]
+		}
+		gotOrder = append(gotOrder, col)
+	}
+	if strings.Join(gotOrder, ",") != strings.Join(wantOrder, ",") {
+		t.Fatalf("applied drain sort key order = %v, want %v:\n%s", gotOrder, wantOrder, text)
+	}
+}
+
+// TestSupplyChainImpactWinnersDirtyConvertMixedSourceLive pins the convert statement's
+// one-proposal-per-key shape: the same unapplied identifier as the remainder
+// of two partially applied scope rows with different sources must convert
+// to exactly one fact row. A SELECT DISTINCT over (source, key) proposes
+// the key twice and Postgres refuses the whole upsert ("ON CONFLICT DO
+// UPDATE command cannot affect row a second time"), failing every tick on
+// the same admission window.
+func TestSupplyChainImpactWinnersDirtyConvertMixedSourceLive(t *testing.T) {
+	ctx, database := winnersSettleGateDB(t)
+
+	tx, err := (SQLDB{DB: database}).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin convert transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, stmt := range []string{
+		createWinnersKeyedConsumedSQL,
+		createWinnersKeyedChunkIdentsSQL,
+		`CREATE TEMP TABLE winners_keyed_scope_idents (
+			scope_id text, generation_id text, package_id text, repository_id text,
+			subject_digest text, c0 text, advisory_id text
+		) ON COMMIT DROP`,
+		`INSERT INTO winners_keyed_consumed
+			(seq, kind, source, scope_id, generation_id, captured_at, dirty_version)
+		VALUES (1, 'scope', 'activation', 'scope-a', 'gen-1', now(), 1),
+		       (2, 'scope', 'operator', 'scope-b', 'gen-1', now(), 1)`,
+		// Each scope has one applied identifier (in the chunk) and shares
+		// the same unapplied remainder identifier.
+		`INSERT INTO winners_keyed_scope_idents VALUES
+			('scope-a', 'gen-1', 'pkg:applied', 'repo://x', '', 'CVE-1', 'CVE-1'),
+			('scope-a', 'gen-1', 'pkg:shared', 'repo://x', '', 'CVE-2', 'CVE-2'),
+			('scope-b', 'gen-1', 'pkg:applied', 'repo://x', '', 'CVE-1', 'CVE-1'),
+			('scope-b', 'gen-1', 'pkg:shared', 'repo://x', '', 'CVE-2', 'CVE-2')`,
+		`INSERT INTO winners_keyed_chunk_idents VALUES ('pkg:applied', 'repo://x', '', 'CVE-1', 'CVE-1')`,
+	} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("stage convert fixture: %v", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, convertWinnersKeyedScopeRemainderSQL); err != nil {
+		t.Fatalf("convert mixed-source remainder: %v", err)
+	}
+	n, err := scanWinnersInt64(ctx, tx, `
+SELECT count(*) FROM supply_chain_impact_winners_dirty_log
+WHERE kind = 'fact' AND package_id = 'pkg:shared'`, "count converted rows")
+	if err != nil {
+		t.Fatalf("count converted rows: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("converted fact rows for shared identifier = %d, want exactly 1", n)
 	}
 }
 
@@ -279,7 +342,7 @@ func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T
 			defer workers.Done()
 			<-start
 			for i := 0; i < 10; i++ {
-				if _, err := database.ExecContext(ctx, winnersDeadlockWriterUpsertSQL,
+				if _, err := database.ExecContext(ctx, captureWinnersDirtyFactsSQL,
 					reversed, reposArr, digestArr, cveArr, cveArr); err != nil {
 					if isDeadlock(err) {
 						t.Errorf("writer hit a lock-order cycle (40P01): %v", err)
@@ -335,7 +398,7 @@ func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T
 
 // winnersDirtyTwoWriterP95Envelope and winnersDirtyFourWriterP95Baseline are
 // the arbiter-ruled STRATIFIED p95 reference for the #10827 R2 capture upsert:
-// one 60-key K-ordered writer statement (winnersDeadlockWriterUpsertSQL, the
+// one 60-key K-ordered writer statement (captureWinnersDirtyFactsSQL, the
 // shipped capture shape), writers-only, warm plan and cache. The 2-writer
 // stratum measured 3.41ms and the 4-writer stratum ~3.89ms on the shim host.
 // The two numbers stay separate constants on purpose: a single raised cap
@@ -357,12 +420,14 @@ const (
 // contention regression hide under 4-writer headroom. Calibration, three
 // local runs: control p95 ~1.39ms, ratios ~1.5 at 2 writers and ~1.6-1.7 at
 // 4. The slowest CI runner observed (run 44070281709, p95 3.885/5.255ms)
-// infers ~2.1 at 2 writers and ~2.9 at 4 under p50-scaled control: worse
-// than full serialization (2x/4x), i.e. pure host oversubscription noise, so
-// no fixed ratio can both pass that host and catch serialization collapse.
-// The ratios therefore sit beyond serialization (3.0/3.5): they catch
-// beyond-serialization collapse anywhere, while lock order stays with the
-// deadlock assertions above. Uniform statement-cost drift is currently
+// infers ~2.1 at 2 writers and ~2.9 at 4 under p50-scaled control. Full
+// serialization is 2x at 2 writers and 4x at 4, so the 2-writer inference
+// already exceeds it — host oversubscription noise no fixed ratio can both
+// pass and use to catch serialization collapse. The caps (3.0/3.5) sit
+// beyond serialization at 2 writers and inside it at 4: they catch global
+// superlinear contention growth on the gate's disjoint private key sets,
+// while lock order stays with the deadlock assertions above. Shared
+// hot-key serialization latency and uniform statement-cost drift are both
 // unwatched: no benchmark runs this statement shape, and the bench
 // regression check is advisory. That backstop is tracked in #10842.
 const (
@@ -442,11 +507,11 @@ FROM generate_series(0, 3) AS w, generate_series(0, 59) AS g
 // deadlock test above covers both the shared-key interleave and the
 // writer-vs-settle interleave. Each contended stratum fails only when its
 // p95 breaks the shim-host reference AND its same-run contention ratio
-// breaks the backstop (max 3.0x at 2 writers, 3.5x at 4): on reference
-// hardware the absolute arm rules exactly as before, while on slower shared
-// runners the ratio arm deflakes host oversubscription noise. Uniform
-// statement-cost drift is owned by the benchstat gate, which runs the same
-// statement shape on pinned hardware.
+// breaks the backstop (max 3.0x at 2 writers, 3.5x at 4): the conjunction
+// passes absolute-only excursions on every host, so uniform statement-cost
+// drift passes here too; it is unwatched pending the #10842 bench backstop.
+// On slower shared runners the ratio arm deflakes host oversubscription
+// noise.
 func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T) {
 	ctx, database := winnersSettleGateDB(t)
 
@@ -500,7 +565,7 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 				local := make([]time.Duration, 0, iters)
 				for i := -2; i < iters; i++ {
 					begin := time.Now()
-					_, err := database.ExecContext(ctx, winnersDeadlockWriterUpsertSQL,
+					_, err := database.ExecContext(ctx, captureWinnersDirtyFactsSQL,
 						pkgs, reposArr, digestArr, cveArr, cveArr)
 					elapsed := time.Since(begin)
 					if err != nil {

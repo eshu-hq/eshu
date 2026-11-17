@@ -277,7 +277,7 @@ import (
 // (the 272 capture triggers as key-ordered upserts) and
 // 308_supply_chain_impact_winners_scanner_capture_upsert.sql (the 272a
 // scanner capture triggers as key-ordered upserts, public-only).
-const goldenBootstrapDefinitionsDigest = "51530ed712d72d31c378f453f9de82fe3786b98c53d79d27072d7bf4b518638f"
+const goldenBootstrapDefinitionsDigest = "a98667a823f0d9f0fa5d1bcb42071e449ea91b90a5bdf00836a8c8bf595e32e4"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or

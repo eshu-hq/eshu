@@ -412,7 +412,7 @@ var migrationShippedChecksums = map[string]string{
 	"304_supply_chain_impact_winners_dirty_dedup.sql":              "497fd0a96766375e389353282f89b52aad1b8411d8ebdfb724380cfba02a5dd1",
 	"305_supply_chain_impact_winners_dirty_log_fact_key_uniq.sql":  "3652f1574fe9427597bc87166f880746b0f71cf1ae0c5125705a6581353b4b1c",
 	"306_supply_chain_impact_winners_dirty_log_scope_key_uniq.sql": "0ed47112a3fa22db2a746caa535312bbbcb1f0aa0ce54e5acf1851324f299250",
-	"307_supply_chain_impact_winners_dirty_capture_upsert.sql":     "622270edfb3c12ece77dadeef04e053a90566cd697c22a3f7fa8107a69f65ee7",
+	"307_supply_chain_impact_winners_dirty_capture_upsert.sql":     "4c045b1366f782a783efebc4206b98e4564602bf0ee75ced6eb7ae3668583316",
 	"308_supply_chain_impact_winners_scanner_capture_upsert.sql":   "4f8fc65e03c4344886e4e4fede0aabd5140208373dee57d1c2e8a0a29407610e",
 }
 
