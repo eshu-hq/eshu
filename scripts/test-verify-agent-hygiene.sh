@@ -233,7 +233,8 @@ if rg -Fq '\.agent-kit-version' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'cursor-hook\.py' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'test-cursor-hooks\.sh' "$repo_root/.pre-commit-config.yaml" \
   && rg -Fq 'cursor_hook_family\.py' "$repo_root/.pre-commit-config.yaml" \
-  && rg -Fq 'test-cursor-hooks-helper-cases\.sh' "$repo_root/.pre-commit-config.yaml"; then
+  && rg -Fq 'test-cursor-hooks-helper-cases\.sh' "$repo_root/.pre-commit-config.yaml" \
+  && rg -Fq 'install-eshu-agent-kit\.sh' "$repo_root/.pre-commit-config.yaml"; then
   ok "agent-canon pre-commit hook watches its skill and verifier inputs"
 else
   no "agent-canon pre-commit hook must watch its skill and verifier inputs"
@@ -247,7 +248,8 @@ if rg -Fq '.agent-kit-version' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq 'scripts/goal-role-router.py' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq 'scripts/test-goal-role-router.py' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
   && rg -Fq 'scripts/verify-agent-canon.sh' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
-  && rg -Fq 'scripts/test-verify-agent-hygiene.sh' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d"; then
+  && rg -Fq 'scripts/test-verify-agent-hygiene.sh' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d" \
+  && rg -Fq 'scripts/ci/install-eshu-agent-kit.sh' -g 'gates-*.yaml' "$repo_root/specs/ci-gates.d"; then
   ok "agent-canon registry watches all policy and verifier inputs"
 else
   no "agent-canon registry must watch all policy and verifier inputs"
