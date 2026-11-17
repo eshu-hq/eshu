@@ -9,124 +9,146 @@ the corpus) is settled YES by that ruling. Parent transport design:
 Measurements:
 [10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
 
-Completion time (corrected under #10811): about 63 days at one chunk per 30
-minutes, not the 151 hours first stated (section 2, "Scale check"). Baseline
-completion takes weeks at the current cadence and is not a pre-enable condition:
-enabling does not wait for the whole corpus, and the lane drains behind the trip
-line. Pacing (per-chunk cap and cadence) is the lever, not correctness.
+Pace and resume (revised under #10816 to the arbiter's pace ruling of
+2026-11-16,
+[10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md)):
+record-atomic 16 MiB chunks resumed by (stamp, CVE ID), newest year first, a
+drain-gated adaptive pace, and a seed rollback refused at commit. The whole
+baseline takes about 35 hours at the adaptive floor and 8.3 days at the
+unchanged pace, with 2026 and 2025 in about 8 hours (section 2). These rules are
+ruled design with owning issues (collector #199, eshu #10809, #10810, #10732 and
+the pace item), not shipped code. Baseline completion is still not a pre-enable
+condition: enabling does not wait for the whole corpus, and the lane drains
+behind the trip line.
 
 Refs #10728. Part of #9209.
 
-## Hard constraints (from the ruling, decisions 2-4)
+## Hard constraints (from the ruling, decisions 2-4, as amended)
 
 - Baseline claims **never arm or advance** the `nvd/_window` cursor CAS.
-- Per-chunk caps: **10,000 facts / 2 MiB**, same as window claims.
+- Per-chunk caps: window claims keep **10,000 facts / 2 MiB**; a baseline chunk
+  is record-atomic, **16 MiB at most**, and paged (section 2).
 - Same `nvd_envelope` and stable keys as the window path.
-- Deterministic year order.
+- Deterministic year order: newest first (section 1).
 - Resumable checkpoint **distinct** from `nvd/_window`.
 - QA trip line: kill switch off on **>15k NVD-proxy dirty rows/h in 2
   consecutive hourly samples** or **oldest dirty >96h**; re-enable <48h, 6
   hourly samples; #10706 p95 <= 15s / watermark <= 60s stay soak bars. No
   pausing or serializing OSV/GHSA.
-- Pacing: no faster than **one chunk per planner run** until disposable-DB
-  proof justifies otherwise.
+- Pacing: 30 minutes a chunk by default; the drain-gated adaptive pace of
+  section 4 may go faster only while the trip-latch samples stay quiet, never
+  below the configured `min_chunk_interval`, which is 30 minutes when blank.
 
 ## 1. Year order
 
-Ascending, 2002 through 2026, one pass, no revisits. The 25 year files span
-2002 to 2026 (measurements M3,
-`10671-nvd-feed-measurements.md`, section "M3. Year-feed footprint and
-generation times"). Ascending order is the only order
-that keeps the resume stamp monotone (section 3): the checkpoint
-`(year, lastModified)` advances lexicographically, so a crash replays from a
-prefix that is always older than uncommitted work.
+Newest first (ruled 2026-11-16, decision 7): the configured `last_year`
+(required) down to 2002, one pass, no revisits. The 25 year files span 2002 to
+2026 (measurements M3, `10671-nvd-feed-measurements.md`, section "M3. Year-feed
+footprint and generation times"). Each year is an independent lane: one chunk in
+flight per year, so per-year order is preserved; a year whose last claim did not
+advance waits 30 minutes and does not block other years; `max_in_flight_years`
+defaults to 1, with a ceiling of 4, and rises above 1 only after the canary
+shows cycle time and inflow headroom. Year files share no CVE id (B2 of the
+superseded measurements), so concurrent years touch disjoint rows. The resume
+position is per year (section 3), so no global monotone stamp is needed across
+years. Newest first puts 2026 and 2025 (32.1% of records, 19.6% of facts) in
+about 8 hours at the adaptive floor; "most queried years" is a proxy from record
+share, because no query data exists.
 
-Within a year, records emit in ascending `(lastModified, cveId)` order. This
-mirrors the satellite's emitted-prefix order, ascending `lastModified` with
-CVE ID tiebreak (`nvdWindowSplitOrder` in `nvd_window_split.go`, in
+Within a year, records emit in ascending (`lastModified` floored to the UTC
+millisecond, canonical CVE ID by byte order). This mirrors the satellite's
+emitted-prefix order, ascending `lastModified` with CVE ID tiebreak
+(`nvdWindowSplitOrder` in `nvd_window_split.go`, in
 `eshu-collector-vulnerability-intelligence`), so the baseline chunker and the
-window-path splitter agree on what a "group" is.
+window-path splitter agree on order. They differ on cut points: the window path
+cuts at whole `lastModified` groups, and the baseline cuts between records
+(section 2).
 
 Year files are rewritten only when a record changes (M4,
 `10671-nvd-feed-measurements.md`, section "M4. Do year files regenerate on
 change?"); the baseline streams them and never holds the 2.7 GiB decompressed
-set whole (parent design section 5, `10671-nvd-feed-transport-fallback.md`,
-the "Year-feed footprint" row of the Limits table).
+set whole (parent design section 5, `10671-nvd-feed-transport-fallback.md`, the
+"Year-feed footprint" row of the Limits table).
 
-## 2. Chunk boundaries within caps
+## 2. Chunk boundaries and the measured corpus
 
-Each baseline chunk is a prefix of the remaining ordered stream cut at whole
-`lastModified`-group boundaries such that the chunk holds at most 10,000
-facts and 2 MiB. The caps are the existing satellite constants
-`nvdMaxOutputFacts = 10000` and `nvdMaxOutputBytes = 2 << 20`
-(the `nvdMaxOutputFacts` and `nvdMaxOutputBytes` constants in
-`nvd_output_budget.go`); the byte measure is marshalled size plus one
-separator byte per fact (`nvdFactBudgetBytes` in `nvd_output_budget.go`), so the baseline
-chunker and the window path agree on what fits.
+Chunk (ruled 2026-11-16 in
+[10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md),
+decisions 1 to 3; work items K1 and C1, not shipped). A baseline chunk is the
+longest prefix of records, in (`lastModified` floored to the UTC millisecond,
+canonical CVE ID by byte order) order from the resume position (section 3), that
+fits the chunk budget. The budget is collector instance config
+`nvd_baseline_chunk_budget_bytes`: 16 MiB default and **16 MiB ceiling**
+(16,777,216 bytes), range 2,097,152 to 16,777,216, and out of range is
+`invalid_config`. The byte measure is marshalled size plus one separator byte
+per fact (`nvdFactBudgetBytes` in `nvd_output_budget.go`). A cut may fall inside
+an instant, a lone record over the budget is emitted alone, and caps cut but
+never refuse, so `nvd_feed_group_oversize` leaves the baseline path (this
+replaces ADR-0004 item 2 for the baseline only). The window path stays
+group-atomic at 10,000 facts and 2 MiB.
 
-Group atomicity follows the window path: groups are maximal runs of equal
-stamps in emitted-prefix order (`nvdWindowGroupEnd` in
-`nvd_window_split.go`), the prefix accumulates whole groups ascending
-(`selectNVDWindowPrefix` in `nvd_window_split.go`), and a window whose first
-group alone exceeds the caps is detected, not split
-(`nvdFeedWindowSlice.firstGroupOversize` in `nvd_feed_slice.go`,
-`errNVDFeedGroupOversize` in `nvd_feed_errors.go`).
+The whole chunk is one paged generation: 5 pages at the default page bound, and
+the collector clamps the effective budget to 48 x the page bound so a lowered
+`result_page_bound_bytes` cannot cross the host's 64-page ceiling. The
+10,000-fact and 2 MiB limits are collector constants (`nvd_output_budget.go`),
+not host limits: the host enforces a per-call stdout limit
+(`stdout_limit_bytes`, default 4 MiB) and at most 64 pages a claim, and neither
+the host nor the SDK validator caps fact count.
 
-Dispositions at a boundary:
+Why 16 MiB and not 32 MiB (coordinator adjustment, 2026-11-16). The arbiter
+ruled a 32 MiB ceiling from retained heap. The measured collector child RSS
+against the 256 MiB budget the collector repo tests is 109 MiB at 8 MiB, 184 MiB
+at 16 MiB, and 279 MiB (first page) and 319 MiB (continuation) at 32 MiB
+([collector issue
+#203](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/203)).
+The pace is set by the interval, so a chunk above 16 MiB buys no speed. Raising
+the ceiling waits for the memory work in #203.
 
-- Prefix fits, remainder exists: commit the prefix; the remainder replans
-  from the next group stamp (same rule as the window path, parent design
-  section 3, `10671-nvd-feed-transport-fallback.md`, "3. Overflow", first
-  paragraph).
-- First group exceeds the caps: the chunk routes to the API walk with class
-  `nvd_feed_group_oversize` (`nvdFeedClassGroupOversize` in
-  `nvd_feed_selector.go`, handled in `collectNVDFeed` in
-  `nvd_feed_collect.go`), exactly as the window path does (parent
-  design, `10671-nvd-feed-transport-fallback.md`, "3. Overflow", second
-  paragraph). It never loops
-  silently and never sheds. The Modified-feed sample suggested this route was
-  unreachable for fact count (densest single record 2,048 facts, M5,
-  `10671-nvd-feed-measurements.md`). The year files disprove it for groups:
-  1,402 records at one stamp fold to 17,478 facts in the 2025 file and 1,581 to
-  14,156 in the 2026 file, so the lane cannot leave 2025 until a group drains
-  across chunks (collector #199, eshu #10809; defect 1 of
-  [the 2026-11-16 ruling](../arbiter/10671-collector-118-107-ruling-2026-11-16.md)).
+Measured corpus. This replaces the earlier extrapolation (about 3.01M facts and
+about 151 hours, from the Modified-feed mean of M5) and its first correction
+under #10811 (1,256 budget bytes a fact and about 63 days, which differs from
+the measured figure only by id lengths). The tables, the byte breakdown and the
+limits are in M11 of
+[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
 
-Scale check (corrected under #10811). This section first extrapolated 425,770
-records at 7.07 facts per record (M5) to about 3.01M facts, about 301 claims at
-the 10,000-fact cap, and about 151 hours at one chunk per 30-minute planner run.
-Two inputs were wrong: the mean came from a Modified-feed sample, and the byte
-cap binds before the fact cap. The arbiter measured the real figures (defect 4 of
-[the 2026-11-16 ruling](../arbiter/10671-collector-118-107-ruling-2026-11-16.md)):
+| Quantity | Measured |
+|---|---|
+| Records and facts | 425,782 records, 5,039,862 facts (about 11.8 a record) |
+| Budget bytes a fact (`nvdFactBudgetBytes`) | 1,270.9 |
+| Chunks at the shipped caps (2 MiB, 10,000 facts, group-atomic) | 3,124, plus 2 groups refused for ever; 3,124 x 30 min = 65 days |
+| Chunks at 16 MiB, record-atomic | 397 (mean 12,695 facts, max 14,855 facts, max 2,917 records) |
+| The two stalling groups | 2025 file, `2026-10-18T21:10:00.120`: 1,402 records, 17,478 facts; 2026 file, `2026-10-26T21:10:00.170`: 1,581 records, 14,156 facts |
 
-| Quantity | Old figure | Measured figure |
-|---|---|---|
-| Facts in the corpus | about 3.01M | 5,039,862 |
-| Budget bytes per fact (`nvdFactBudgetBytes`) | not measured | 1,256 |
-| Facts per chunk at the binding cap | 10,000 (fact cap) | about 1,670 (2 MiB byte cap) |
-| Chunks (claims) | about 301 | about 3,000 |
-| Wall time at one chunk per 30 minutes | about 151 hours | about 63 days |
+Method: a scratch test ran the shipped `scanNVDFeed`, `nvdFeedRecordStamp`,
+`NVDRecordEnvelopes` and `nvdFactBudgetBytes` over the 25 cached year files
+(2026-11-15), and chunk counts cut the (stamp, CVE ID) ordered record list at
+each budget.
 
-Method: fold the cached year files with the satellite's folding, count the
-facts, then divide by the byte-cap chunk size. The byte cap is 2 MiB, so a chunk
-holds about 2,097,152 / 1,256 = 1,669 facts, below the 10,000-fact cap. Then
-5,039,862 / 1,670 is about 3,018 chunks, and 3,018 x 30 minutes is about
-1,509 hours, or about 63 days. The 5,039,862 count over the 425,782 year-file
-records is about 11.8 facts per record, which is why the Modified-feed mean of
-7.07 understated the load.
+Time to each milestone, by pace (ruling section (a); method in M11):
 
-The figure moves with its inputs. A larger per-chunk byte cap or a shorter
-cadence shortens it in proportion, and a different folding changes the fact count
-and the bytes per fact. The cadence floor is the 30-minute planner run (section
-4), so shortening the lane takes a higher per-chunk cap or a faster cadence under
-its own proof. Neither is part of this record.
+| Milestone | Unchanged 30 min | Open-loop 15 min | Adaptive, 5 min floor |
+|---|---|---|---|
+| 2026 + 2025 (79 chunks) | 39.5 h | 19.8 h | 8.4 h |
+| 2026 to 2023 (139 chunks) | 69.5 h | 34.8 h | 13.4 h |
+| All 25 years (397 chunks) | 8.3 days | 4.1 days | 34.9 h |
+
+The target is the adaptive column: the whole baseline in under 36 hours and 2026
+and 2025 in under 9 hours. The 15-minute column is about 50,800 facts an hour,
+under the 60,000 an hour the trip line supports (15,000 dirty rows an hour at
+the one measured ratio of 0.25 rows a fact, from 80 planted facts in
+[10729-baseline-disposable-proof.md](../evidence/10729-baseline-disposable-proof.md)
+section 2). The adaptive column assumes each chunk's collect, commit, projection
+and reducer pass finishes inside 5 minutes, which is not measured; if it is
+longer, the lane is cycle-bound, not unsafe.
 
 ## 3. Resumable checkpoint, distinct from `nvd/_window`
 
-The baseline checkpoint is `(baseline_run_id, year, resume_last_modified,
-year_sha256)` in its own store (new table or keyspace; implementation lane
-chooses, following the `NVDWindowCursorStore` pattern (read query
-`nvdWindowCursorReadQuery` in
+The baseline checkpoint is keyed `(baseline_run_id, year)`; its resume position
+is `(resume_unix_micro, resume_cve_id)` beside `year_sha256` (ruled: migration
+300 adds `resume_cve_id`, `year_generated_unix_micro`, `last_scope_id`,
+`last_generation_id`, `records_done` and `records_total`), in its own store (new
+table or keyspace; implementation lane chooses, following the
+`NVDWindowCursorStore` pattern (read query `nvdWindowCursorReadQuery` in
 `go/internal/storage/postgres/vulnerability/nvd_window_cursor.go`).
 It is **not** a row in `vulnerability_nvd_window_cursors` (DDL
 `vulnerabilityNVDWindowCursorSchemaSQL` in that file, migration
@@ -149,83 +171,142 @@ rejects non-window ids in `ParseNVDWindowScope` in
 `go/internal/vulnsource/nvd_window_scope.go`), not a cursor
 corruption.
 
-Resume rule: after a crash, the next baseline claim re-reads the checkpoint
-and restarts at the recorded `(year, resume_last_modified)` group stamp.
-Committed prefix groups replay idempotently under stable keys (section 6);
-uncommitted groups were never checkpointed, so they re-emit whole.
+Resume rule: after a crash, the next baseline claim re-reads the checkpoint and
+restarts at the recorded `(year, resume_unix_micro, resume_cve_id)`, an inclusive
+lower bound, not a pointer to a record. The scope id is
+`vuln-intel://nvd/_baseline/<run>/<year>/<start_unix_us>` when the id is empty
+and `.../<start_unix_us>/<from_cve_id>` otherwise, so one position has exactly
+one scope id (an empty id is never a trailing segment). The canonical id is
+trimmed, upper-cased, `[A-Z0-9-]{1,64}`; a record id outside that is
+`nvd_feed_decode`. The compare-and-advance is a row comparison on
+(`resume_unix_micro`, `resume_cve_id`). Committed prefix records replay
+idempotently under stable keys (section 6); uncommitted records were never
+checkpointed, so they re-emit.
 
 ### 3.1 The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
 
 The satellite stamps one `nvd_baseline_advance_to_unix_us` per chunk beside
 `nvd_baseline_year_sha256`, `nvd_baseline_year_complete`, and
-`nvd_baseline_should_advance`. The host commit policy
-(`NVDBaselineCommitPolicy`) decides from it; the chunker in the collector
-(collector#100) must produce it to this contract:
+`nvd_baseline_should_advance`. The ruled design adds
+`nvd_baseline_advance_to_cve_id` (string, conditional, read by core) and
+`nvd_baseline_year_generated_unix_us` (int64, always, read by core). The host
+commit policy (`NVDBaselineCommitPolicy`) decides from them; the chunker in the
+collector must produce them to this contract (the shared vector lands in
+eshu-sdk first, ruling section (c)):
 
-- **Meaning.** `advance_to` is the **exclusive next-group stamp**: the
-  `lastModified` of the first group the chunk did **not** emit, as Unix
-  microseconds of a whole UTC millisecond. It is not "the last committed
-  stamp". The next plan starts at it, and the planner's start is inclusive,
-  so a group is never skipped and never split. A group is every record that
-  shares one displayed-millisecond `lastModified`; the chunker closes a
-  chunk only on a group boundary.
-- **Precision.** Whole UTC milliseconds, the same form as the scope id and
-  the claim's `ModifiedStart`. The host floors a finer value
+- **Meaning.** `advance_to` names the **first record the chunk did not emit**,
+  as (`lastModified` floored to a whole UTC millisecond, as Unix microseconds,
+  and canonical CVE ID). It is not "the last committed record". The next plan
+  starts at it, and the planner's start is an inclusive lower bound, so a record
+  is never skipped and never doubled. A chunk may end inside an instant, so a
+  same-stamp group can drain across chunks.
+- **Precision.** Whole UTC milliseconds, the same form as the scope id and the
+  claim's `ModifiedStart`. The host floors a finer value
   (`NormalizeNVDWindowTime`) before it compares or stores it, so a stamp with
-  sub-millisecond digits (collector#123 reads one millisecond back and may
-  surface them) cannot make the stored resume, the planned start, and the
-  scope id disagree. Flooring only re-reads, which replays idempotently.
+  sub-millisecond digits (collector#123) cannot make the stored resume, the
+  planned start, and the scope id disagree. Flooring only re-reads, which
+  replays idempotently.
 - **Progress.** An incomplete verdict (`year_complete` false) must move
-  **strictly past** the chunk start. A verdict that does not is held as
-  `not_covered`: the facts commit, the checkpoint stays, and the planner
-  re-mints the same scope on every pace interval. A chunker that cannot
-  move past its start (a single group larger than the per-claim caps) must
-  fail loudly instead of stamping a non-advance.
-- **Completion.** A complete verdict (`year_complete` true) is accepted at
-  `advance_to >= chunk start`. The last chunk of a year can end exactly at
-  the stream tail with `complete=false`; the next chunk resumes there, finds
-  nothing left, and has no later stamp to name, so it stamps
-  `complete=true` with `advance_to` equal to its own start. That verdict
-  must land `year_complete` or the lane stalls on the year. For a complete
-  verdict any `advance_to >= chunk start` is accepted, and the resume is
-  unused once the year is complete. `year_complete` is sticky in the store. No verdict, complete or not, may move behind the
-  chunk start.
+  **strictly forward** in (stamp, CVE ID) order. A verdict that does not is held
+  as `not_covered`: the facts commit, the checkpoint stays, and the planner
+  re-mints the same scope on every pace interval. There is no single-group
+  refusal: a lone record over the budget is emitted alone, so a chunk always has
+  a first record to move past.
+- **Completion.** A complete verdict (`year_complete` true) may equal its start.
+  The last chunk of a year can end exactly at the stream tail with
+  `complete=false`; the next chunk resumes there, finds nothing left, and stamps
+  `complete=true` with `advance_to` equal to its own start. That verdict must
+  land `year_complete` or the lane stalls on the year. `year_complete` is sticky
+  in the store. No verdict may move behind the chunk start; (T, "") orders
+  before (T, id).
 
-## 4. Planner-cadence interaction
+### 3.2 Seed rotation: forward resumes, rollback refuses at commit
 
-The window planner is pure planning math with no I/O and no locks
-(per the planner doc comment in
-`go/internal/coordinator/vulnerability/nvd_window_planner.go`): one
-bounded window per call, windows tile, next start is the committed cursor
-(`planNVDWindow` in that file). The baseline lane mirrors this shape with
-its own planner over the checkpoint instead of the cursor: one chunk per
-call, next start is the checkpointed group stamp, at most one chunk per
-planner run (ruling decision 2), which the parent design budgets as at most
-10,000 facts per 30 minutes (`10671-nvd-feed-transport-fallback.md`, the
-"Windows per planner run" row of the Limits table). The 2 MiB byte cap binds
-first on the measured corpus, at about 1,670 facts per chunk (section 2). The pace knob clamps at
-that floor: a configured `min_chunk_interval` below 30 minutes paces at 30
-minutes instead of speeding the lane, so the knob can only slow the lane,
-never remove the bound (eshu-hq/eshu#10762).
+The refresher re-pins year files daily and a year takes days to replay, so the
+seed rotates mid-year. The plan-time digest-equality hold (the "seed stale"
+hold) is removed rather than amended: the coordinator cannot evaluate it,
+because it has no path to the seed manifest (the volume is read-write-once
+beside the extension host, ADR-0006) and the SDK claim carries only the scope.
+The ruled replacement is a refusal at commit (ruling decision 6):
 
-Cadence is per-target config (`refresh_interval`, field of
-`vulnerabilityTargetConfiguration` in
-`go/internal/coordinator/vulnerability/intelligence_scheduler.go`;
-targets planned inside their interval skip in
-`selectDueVulnerabilityTargets` in `intelligence_refresh_cadence.go`, called from
-`PlanVulnerabilityIntelligenceWork` in `intelligence_scheduler.go`), so the one-chunk-per-run bound must be
-enforced **in the baseline loop** (skip while a chunk for the current stamp
-is already claimed or in flight), not assumed from the tick. Lease fencing
-covers the overrun case: a feed attempt that outlives its lease is fenced by
-the claim-row lock and the `fencing_token` filter (parent design section 7,
-`10671-nvd-feed-transport-fallback.md`, "7. Claims, queue, and cutover back"),
-and the commit-transaction
-writer model means a fenced claim's state write rolls back with its
-generation (the `CommitExecutor` interface in `go/internal/collector/generation_state.go`).
+- The collector stamps `nvd_baseline_year_generated_unix_us`, the manifest's
+  `lastModified` for the year, beside the sha.
+- The checkpoint writer, inside the commit transaction, first runs a guarded
+  `UPDATE ... WHERE year_generated_unix_micro > $new OR (= $new AND year_sha256
+  <> $sha)`. One row affected returns an error that rolls back the whole
+  generation (`generation_state.go`), with class `nvd_baseline_seed_rollback`.
+- A forward rotation resumes. A record's stamp only moves later, so no record
+  can move from ahead of the position to behind it. A record changed after a
+  chunk read it is the window path's job (ruling decision 4 of #10728).
+- The design holds no pin, so it agrees with the V_Y rule: every claim reads the
+  current pin and `nvd_feed_year_stale` works unchanged. #10746 loses its
+  seed-manifest input; years come from config (`last_year`, required; first year
+  2002).
+
+## 4. Pace and planner-cadence interaction
+
+The window planner is pure planning math with no I/O and no locks (per the
+planner doc comment in
+`go/internal/coordinator/vulnerability/nvd_window_planner.go`): one bounded
+window per call, windows tile, next start is the committed cursor
+(`planNVDWindow` in that file). The baseline lane mirrors this shape with its
+own planner over the checkpoint instead of the cursor: one chunk per call for
+each year, and the next start is the checkpointed (stamp, CVE ID) position
+(section 3).
+
+The pace below is ruled design (2026-11-16,
+[10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md),
+decision 8; work item C2), not shipped code. It replaces the fixed 30-minute
+cadence and the "one chunk per planner run" bound.
+
+- **Compiled default.** 30 minutes is `nvdBaselineDefaultPaceInterval` in the
+  pure planner, budgeted as 10,000 facts per 30 minutes against the dirty-row
+  trip line (`10671-nvd-feed-transport-fallback.md`, the "Windows per planner
+  run" row of the Limits table). It is not a coordinator cadence (reconcile
+  defaults to 30 s) and it reads no queue depth.
+- **Drain gate.** A year's next chunk is minted when the trip latch is shut, the
+  year's previous chunk has drained, and the pace interval has passed. Drained
+  means its work item is closed, its generation is active, and its
+  `supply_chain_impact` reducer item is done, read by key from the checkpoint's
+  `last_scope_id` and `last_generation_id`. This is enforced in the baseline
+  loop, not assumed from the tick, because cadence is per-target config
+  (`refresh_interval`, field of `vulnerabilityTargetConfiguration` in
+  `go/internal/coordinator/vulnerability/intelligence_scheduler.go`; targets
+  planned inside their interval skip in `selectDueVulnerabilityTargets` in
+  `intelligence_refresh_cadence.go`).
+- **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
+  `streak` counts consecutive hourly trip-latch samples with CVE-keyed inflow at
+  or under 7,500 an hour and oldest dirty age at or under 96 hours; any other
+  sample resets it to 0. Migration 301 adds `soft_quiet_streak` to the latch row
+  (section 5, "Durable latch contract"). The rate at most doubles once an hour
+  and only after an hour at or under half the trip rate, so if inflow scales
+  with rate one step cannot cross the trip rate; a hot hour resets the pace to
+  30 minutes before the two-hour latch can open.
+- **The floor is `min_chunk_interval`.** Blank means 30 minutes, so the pace
+  stays as it is today until an operator lowers it. The compiled minimum for the
+  knob drops from 30 to 5 minutes. This supersedes the earlier clamp that paced
+  a lower value at 30 minutes (eshu-hq/eshu#10762).
+- **Slow start.** The chunks an hour go 2, 4 and 8 over the first three hours,
+  then 12 an hour: 3 h + (397 - 14) / 12 = 34.9 h for the corpus.
+- **No blanket fast pace.** A fixed 5-minute interval with no feedback is
+  rejected: the planted worst case is 152,000 facts an hour, about 38,000 dirty
+  rows an hour, over the trip rate. Only measured inflow justifies that speed.
+  The downstream cycle (collect, commit, projection, reducer inside 5 minutes)
+  is unmeasured, so the default stays 30 minutes.
+- **One chunk of a year at a time.** The next start is unknown until the
+  previous chunk commits.
+
+Lease fencing covers the overrun case: a feed attempt that outlives its lease is
+fenced by the claim-row lock and the `fencing_token` filter (parent design
+section 7, `10671-nvd-feed-transport-fallback.md`, "7. Claims, queue, and
+cutover back"), and the commit-transaction writer model means a fenced claim's
+state write rolls back with its generation (the `CommitExecutor` interface in
+`go/internal/collector/generation_state.go`).
 
 The window stream is unaffected: it keeps planning from the cursor
-(`deriveNVDWindowTarget` in `nvd_window_derivation.go`, one deterministic scope per tick), and
-cutover back after catch-up needs no flag (parent design section 7).
+(`deriveNVDWindowTarget` in `nvd_window_derivation.go`, one deterministic scope
+per tick), and cutover back after catch-up needs no flag (parent design section
+7).
 
 No-Regression Evidence: the #10762 commit-policy change removes the
 baseline pre-check from `applyCommitPolicy`, so the wired-or-builtin
@@ -318,128 +399,14 @@ and the plan-time latch load into the service.
 
 ### Durable latch contract (#10768)
 
-The trip latch is a row per baseline run in
-`vulnerability_nvd_baseline_trip_latches` (migration 298): every field of
-`NVDBaselineTripState`, `sampled_at` (the last sample folded in), and a
-`revision` that counts applied writes. Code: `NVDBaselineTripLatchStore` in
-`go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch.go` and
-the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
-(`LoadNVDBaselineTripLatch`, `ObserveNVDBaselineTrip`,
-`CloseNVDBaselineTrip`).
+The latch row, its guarded write, the fail-closed load, the gap and replay
+handling, the clock bound, the loop owner, the contract #10746 must keep and the
+rollback story are in
+[10728-baseline-trip-latch-contract.md](10728-baseline-trip-latch-contract.md),
+moved there unchanged under #10816 to keep this record under the Markdown line
+cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
+(migration 301).
 
-- Guarded write. One statement per write, never read-then-write. The update
-  applies only when `revision` still equals the value the writer loaded and
-  `sampled_at` is not older than the stored one; zero rows affected is a
-  skipped stale write, not an error. The first write is an
-  `INSERT ... ON CONFLICT DO NOTHING` for a writer that saw no row. A
-  `sampled_at` compare alone is not enough: the latch is a read-modify-write
-  fold, so a writer that loaded state at T and folds the T+2h sample would
-  overwrite another writer's T+1h fold, and an hourly sample could resurrect
-  a trip an operator `Close` just cleared (Close records no sample). The
-  revision closes both; the time predicate refuses a replayed older sample
-  even when the revision matches.
-- Fail closed. `LoadNVDBaselineTripLatch` returns `Open` for an unreadable
-  store, a nil store, a blank run id, and a run with no row yet. A missing row
-  holds planning until the first hourly sample writes it, so a restart that
-  lost the row never reads as "never tripped". A run that already committed
-  baseline chunks (non-empty `ReadNVDBaselineCheckpoints`) whose row is
-  missing folds its first sample onto an open trip that needs six fresh quiet
-  hours, never onto a clean slate. The error return and the open verdict are
-  both set, so a caller that drops the error still holds.
-- Gaps and replays. Samples stand for hours. A sample more than 90 minutes
-  after the stored one (`NVDBaselineTripMaxSampleGap`: one hour plus 30
-  minutes of tick jitter) is a missed hour: the hot streak and the quiet
-  streak restart and re-enable eligibility is withdrawn before the sample is
-  folded, and an open trip stays open. A sample less than 45 minutes after the
-  stored one (`NVDBaselineTripMinSampleSpacing`) or at or before it is
-  refused without a write, so a re-sample after a restart cannot score one
-  hour twice toward re-enable. The thresholds are this change's decision, not
-  the ruling's; they are constants.
-- Clock bound. A sample time more than `NVDBaselineTripMaxSampleSkew` (2
-  minutes) past the `now` passed to `ObserveNVDBaselineTrip` is refused with
-  the `future_sample` outcome, an error, an open verdict, and no store read or
-  write. Without the bound, one future-dated sample is persisted as
-  `sampled_at` and every later real sample reads as stale until real time
-  catches up, so the detector goes deaf. The bound is only as good as
-  the independence of `now`: it is normally the database clock, and stamping
-  the sample from that same clock is also safe, but a replica that stamps the
-  sample and passes its own local clock as `now` would pass its own check
-  after a clock step. A zero `now` is an error. A row already poisoned (stored sample
-  time past `now` plus the allowance) is reported as `stored_ahead` with an
-  error and no write instead of answering stale forever; the recovery is to
-  delete the row, which re-folds onto an open trip through `runStarted` and so
-  needs six fresh quiet hours.
-- Who owns the hourly loop. The coordinator process that plans baseline
-  chunks (the vulnerability-intelligence scheduler lane, wired by #10746)
-  owns the hourly sample-and-save loop: it already holds the database and the
-  planner, so the load and the fold sit in one process. The window collector
-  and the commit path never write the latch. Interleaving does not need a lease:
-  with several coordinator replicas each running the loop, the revision guard
-  lets exactly one write per revision apply, and a second replica's sample
-  inside 45 minutes is refused as too soon. Clock steps are a separate
-  hazard the revision guard does not cover; the clock bound above covers them
-  only when `now` is the database clock. A lease or single-flight remains an
-  optimization against duplicate probe work (one aggregate query per hour),
-  and #10746 may add one.
-- Contract #10746 must keep. (1) Load the latch at the start of every plan
-  tick, not once per process, and set the whole `NVDBaselineTripLoad` on
-  `IntelligencePlanRequest.NVDBaselineTrip`; any error holds. A request that
-  never carries a load has the zero value, which the planner holds with the
-  closed reason `baseline_trip_unloaded` (an open, absent, or unreadable
-  latch holds as `baseline_trip_open`), so skipping the load or dropping its
-  error fails closed instead of planning into the load that tripped. (2) Start the hourly loop
-  independently of planning: a new run has no row, so planning holds until the
-  first sample lands, and a loop gated on planning would never start. (3) Pass
-  `runStarted` from a non-empty checkpoint read. (4) Pass the database clock (one `SELECT now()` per tick) as
-  `now` (stamping the sample from that same database clock is also safe;
-  a replica's local clock for both is not); record `future_sample` and
-  `stored_ahead` so a skewed replica or a poisoned row is visible to an
-  operator. (5) Route the operator re-enable through
-  `CloseNVDBaselineTrip`; on `ErrNVDBaselineTripLatchConflict` retry. (6)
-  Record `RecordNVDBaselineTripLatch` with each returned outcome and the trip
-  transitions from the `Before` and `After` states of each observation. (7)
-  Hold planning when `stored_ahead` is recorded. `LoadNVDBaselineTripLatch`
-  takes no clock, so the planner reads a poisoned row as an ordinary loaded
-  latch and `ObserveNVDBaselineTrip` is the only place the condition is seen;
-  the loop must stop planning for that run until the row is deleted, or the
-  lane would keep planning off a latch that can no longer count. Load's
-  signature does not change.
-- Conservative semantics, by design. (a) A hot sample that loses its write to
-  an operator `Close` is dropped, not retried, so the next sample lands about
-  two hours after the stored time, reads as a missed hour, and restarts the
-  hot and quiet streaks; a hot hour can be forgotten, never invented. (b) With several replicas each
-  sampling, the 45 minute minimum spacing admits samples closer than an hour
-  when ticks jitter, so quiet hours toward re-enable can accrue slightly faster
-  than wall-clock hours (at worst one sample per 45 minutes). The re-enable
-  count is still a count of distinct sample times at least 45 minutes apart,
-  and the operator `Close` stays the final decision.
-- #10746 observability notes. The recorders in this change count outcomes but
-  log nothing. #10746 must (a) emit a WARN log on `read_failed` and
-  `write_failed` (the counter alone does not say which run or which error),
-  and (b) carry the latch outcome on the plan span next to the closed hold
-  reason, so an operator reading one plan span can tell an open trip from an
-  unreadable latch. The hold reasons `baseline_trip_open` and
-  `baseline_trip_unloaded` already ride the plan span through
-  `appendNVDBaselineTarget` (`nvd_baseline_hold_reason`); only the latch
-  outcome attribute is left for #10746.
-- Rollback. The migration only creates a new table nothing references, so
-  the schema rollback is `DROP TABLE vulnerability_nvd_baseline_trip_latches`.
-  A binary rollback is safe on its own: the older binary never reads the
-  table and runs with the in-memory latch as before. A newer binary that loses
-  the table fails closed (every load errors, planning holds), so a premature
-  drop stops the lane and corrupts nothing. The migration number was
-  re-checked at merge time. Main topped out at 297
-  (`297_vulnerability_nvd_baseline_checkpoints.sql`) when this branch took 298.
-  Sibling lane #10767 added 299 and edits the same golden files; main reached
-  298 when this lane merged, and #10767 was rebased over it, taking 299. The
-  second lane's rebase recomputed, rather than hand-resolved,
-  `goldenBootstrapDefinitionsDigest` and `goldenBootstrapDefinitionsCount` in
-  `go/internal/storage/postgres/migrations/embed_invariant_test.go` (the count
-  is 325 with both 298 and 299), appended to
-  `migration_checksum_manifest_test.go`, and extended
-  `orderedBootstrapDefinitionNamesLatest` in
-  `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298 before
-  299.
 
 ## 6. Idempotency argument
 
@@ -476,23 +443,38 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
 
 ## NOT_CHECKED (must be measured before any QA baseline run)
 
-- Per-fact byte size spread and folded facts per record by year. The corpus
-  totals are measured (section 2, "Scale check": 5,039,862 facts at 1,256
-  budget bytes each); the per-record maximum in bytes is not.
-- Dirty-log rows per committed NVD fact (unmeasured; M6,
+- Folded facts per record by year. The corpus totals and byte breakdown are
+  measured (section 2 and M11), and the largest record is CVE-2021-3942 at
+  6,983,745 bytes.
+- Dirty-log rows per committed NVD fact in QA. One measurement exists, 0.25 rows
+  a fact on 80 planted facts
+  ([10729-baseline-disposable-proof.md](../evidence/10729-baseline-disposable-proof.md)
+  section 2); the live ratio is unmeasured (M6,
   `10671-nvd-feed-measurements.md`, section "M6. The dirty log and who feeds
   it", first paragraph).
+- Chunk cycle time (collect, commit, projection, reducer) under 5 minutes,
+  commit time for a 12,700-fact generation, and the evidence-truncation ratio
+  for a 2,900-record scope: settled by the QA canary (eshu#10817).
+- Collector child RSS at the 16 MiB ceiling beyond collector issue #203's
+  measurement, and at 24 and 32 MiB after that issue's memory work.
 - Per-year record counts (M3 measures sizes only).
 - Whether the satellite runtime on the QA path carries the intended
-  `nvd_feed_transport` value (M10 caveat,
-  `10671-nvd-feed-measurements.md`, section "NOT_CHECKED", fifth bullet).
+  `nvd_feed_transport` value (M10 caveat, `10671-nvd-feed-measurements.md`,
+  section "NOT_CHECKED", fifth bullet).
 
 ## Implementation lanes (not this record)
 
-- Satellite: baseline chunker over the year-set seed store (collector#100
-  seed + manifest + guard), chunk-scope minting, checkpoint write.
-- Core: baseline checkpoint store (section 3 shape), baseline commit policy
-  (refuse any baseline generation that arms a window-cursor writer),
-  trip-line counters and telemetry.
-- Proof gates per the ruling: disposable-DB run, R6-style idempotency, the
-  "how much of NVD held" count query inside a 15s statement timeout.
+Merge order from the ruling: S1, then C1, then K1; C2 after C1; #10746 after C2.
+
+- S1, eshu-sdk: the verdict-key vector with the position cases (ruling section
+  (c)).
+- C1, core (eshu #10809, #10810, #10732): scope grammar, planner and checkpoint
+  with the resume position and the seed-rollback refusal, migration 300.
+- K1, collector #199: the record-atomic chunker, paged chunk, chunk budget
+  config, verdict stamps.
+- C2, core pace: the drain gate, the adaptive interval, migration 301,
+  telemetry.
+- #10746: the enable lane over the above, without a seed-manifest input.
+- Proof gates per the ruling: disposable-DB run, R6-style idempotency, the "how
+  much of NVD held" count query inside a 15s statement timeout, and the QA
+  canary (eshu#10817).
