@@ -366,7 +366,9 @@ rebased tree (each `old` text occurs once in its file) and run at head
 `bdc6d22fd1`, before the comment-only commit that follows it. The statement texts
 hash the same at both, and the last survival check ran on the tree with that
 commit's comment edits. 51 are red on a failing assertion and 6 are survival
-checks that stay green (below). Two needed a second run to count.
+checks that stay green (below). Three more, on the reducer's default wiring, ran on
+the tree of the commit that adds that test case, and all three are red. Two of the
+first 57 needed a second run to count.
 `b-cut-counts-busy` first failed to build (`declared and not used`), was rewritten
 as `if cut && false` and came back red. `pl-cand-no-index` first came back red
 only because the plan test's five-minute fixture deadline ran out on a loaded host
@@ -382,6 +384,7 @@ only because the plan test's five-minute fixture deadline ran out on a loaded ho
 | Row limit (3) | evidence delete with `LIMIT $2 * 100000`; candidates delete with the same; the evidence one again with the SQL text pin not selected, so the live test alone kills it |
 | Batch (12) | deletes take the batch, not the claimed ids; generation row deleted first; settle read skipped; swept ignores what is left; busy ignores what is left; an empty batch commits; the limit argument ignored; a cut never set, set for evidence only, set for candidates only; continued generations dropped; a cut counted as busy |
 | Pass (4) | an uncommitted batch counted; continued generations not re-queued; the budget never checked while continuing; the log line drops `batch_continued` |
+| Reducer default wiring (3) | the relationship sweep on by default; its row cap default plus one; another policy field (`BatchRowLimit`) drifted. Each fails the override that `TestProductionWiringConsumesCapabilityDefaults` now declares for the relationship row cap |
 | Defaults and cadence (4) | default batch size unbounded (red in the leaf suite, and again in the reducer suite as a second mutant); default batch size plus one; the capped flag not reset after a clean pass |
 
 Survival checks, green on purpose or by finding (6):
