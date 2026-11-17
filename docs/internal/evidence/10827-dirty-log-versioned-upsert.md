@@ -55,7 +55,7 @@ rows): single-writer p50 ~1.0ms; 2 concurrent writers p95 2.00-2.20ms
 (inside the 3.41ms envelope); 4 concurrent writers p95 2.42-3.89ms
 (stratified baseline 3.89ms, writers-only control 3.81ms proves hot-row lock
 waiting, not drain cost). Tick admit plus compare-and-delete of 5,000 rows
-~5.5ms. Full 3M+ mark replays: zero deadlocks, exact conservation (marks
+~5.5ms. Full 3M+ mark replays: zero deadlocks (gate-shape autocommit replay, not production multi-batch transactions; residual #10851), exact conservation (marks
 equal drained version sums plus residual), log depth equal to distinct
 pending units at every sample and zero between waves, winners table
 byte-identical to a full recompute, audit repairs zero. Provenance: the
@@ -64,8 +64,9 @@ PostgreSQL 18, seeded backlog) with no committed harness; the shipped
 gates re-measure the writer and settle shapes at gate scale. Unmeasured
 hot-path additions beyond the gated capture shape: the retract
 statement's sort and count CTEs, trigger ORDER BYs, the Go sort/dedup
-before capture, the convert GROUP BY aggregation, and the audit queue
-ORDER BY (the last two bounded by the admission window); #10842's bench
+before capture, the convert GROUP BY aggregation (bounded by the
+admission window), and the audit queue ORDER BY (bounded by the
+divergent-key count, whole-table in the worst case); #10842's bench
 scope should name the retract and convert shapes alongside capture.
 
 ## No-Regression Evidence:

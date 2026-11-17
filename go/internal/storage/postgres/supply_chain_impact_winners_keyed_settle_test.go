@@ -45,7 +45,7 @@ func TestWinnersDirtyStratifiedEnvelopesStayStratified(t *testing.T) {
 // calibrated on three local runs (ratios ~1.5/~1.7) and the slowest CI
 // runner observed (inferred ~2.1/~2.9), they deflake host oversubscription
 // noise while global superlinear contention growth on the gate's disjoint
-// key sets still fails.
+// key sets still breaks the backstop arm.
 func TestWinnersDirtyContentionRatiosStayStratified(t *testing.T) {
 	t.Parallel()
 
@@ -216,6 +216,9 @@ func TestWinnersConvertRemainderIsKeyOrderedUpsert(t *testing.T) {
 	// One statement may propose each conflict key only once: the SELECT arm
 	// must collapse one identifier arriving under two scope-row sources by
 	// grouping on the key, never DISTINCT over (source, key).
+	if !strings.Contains(convertWinnersKeyedScopeRemainderSelectSQL, "MIN(c.source)") {
+		t.Error("convert SELECT arm does not pick the converted source deterministically via MIN(c.source)")
+	}
 	if !strings.Contains(convertWinnersKeyedScopeRemainderSelectSQL, "GROUP BY si.package_id") {
 		t.Error("convert SELECT arm does not group by the conflict key; a mixed-source remainder would propose one key twice")
 	}

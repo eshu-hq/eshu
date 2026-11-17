@@ -424,8 +424,9 @@ const (
 // serialization is 2x at 2 writers and 4x at 4, so the 2-writer inference
 // already exceeds it — host oversubscription noise no fixed ratio can both
 // pass and use to catch serialization collapse. The caps (3.0/3.5) sit
-// beyond serialization at 2 writers and inside it at 4: they catch global
-// superlinear contention growth on the gate's disjoint private key sets,
+// beyond serialization at 2 writers and inside it at 4: global
+// superlinear contention growth on the gate's disjoint private key sets
+// breaks the backstop arm,
 // while lock order stays with the deadlock assertions above. Shared
 // hot-key serialization latency and uniform statement-cost drift are both
 // unwatched: no benchmark runs this statement shape, and the bench
