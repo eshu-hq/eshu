@@ -8,7 +8,8 @@
 # Offline: every case feeds recorded `npm audit --json` reports (the real
 # report for this lockfile lives in tests/fixtures/npm-audit/) through the
 # wrapper's fixture mode, or runs live mode against a stub `npm` on PATH.
-# Two mutants (expiry check removed, production-clean check removed) must
+# Mutants (expiry check, production-clean check, the GHSA-id half of the
+# allowlist match, the unattributed-advisory guard in each report) must each
 # turn at least one case red, which proves the cases bite.
 set -euo pipefail
 
@@ -45,6 +46,12 @@ seed "${real_all}" "${tmp}/critical.json" critpkg critical GHSA-gggg-hhhh-iiii
 seed "${real_prod}" "${tmp}/prod-listed.json" picomatch high GHSA-fc5q-39xc-vjpf
 mutate "${real_all}" "${tmp}/moderate-only.json" "r.vulnerabilities={minimatch:r.vulnerabilities.minimatch}"
 mutate "${real_all}" "${tmp}/sev-raised.json" "const v=r.vulnerabilities.picomatch;v.severity='critical';v.via[0].severity='critical'"
+# A second, different high advisory on the allowlisted package: the package half
+# of the match still holds, only the GHSA id differs.
+mutate "${real_all}" "${tmp}/wrong-ghsa.json" "r.vulnerabilities.picomatch.via.push({source:2,name:'picomatch',dependency:'picomatch',title:'seeded',url:'https://github.com/advisories/GHSA-zzzz-xxxx-yyyy',severity:'high',cwe:[],cvss:{score:0,vectorString:null},range:'*'})"
+# A high node whose via list holds no advisory object: nothing to attribute it to.
+mutate "${real_all}" "${tmp}/ghost.json" "r.vulnerabilities.ghost={name:'ghost',severity:'high',isDirect:true,via:[],effects:[],range:'*',nodes:['node_modules/ghost'],fixAvailable:false}"
+mutate "${real_prod}" "${tmp}/prod-ghost.json" "r.vulnerabilities.ghost={name:'ghost',severity:'high',isDirect:true,via:[],effects:[],range:'*',nodes:['node_modules/ghost'],fixAvailable:false}"
 printf '{"version":1,"entries":[]}\n' >"${tmp}/allow-empty.json"
 printf '{"error":{"code":"ENOAUDIT","summary":"audit endpoint returned an error","detail":"x"}}\n' >"${tmp}/npm-error.json"
 printf '{"auditReportVersion":2,"vulnerabilities":' >"${tmp}/broken.json"
@@ -104,6 +111,9 @@ extra_suite() {
   run_case "severity above the recorded one fails" fail "${s}" "${tmp}/sev-raised.json" "${real_prod}" "${spec}" 2026-11-17
   run_case "high advisory with empty allowlist fails" fail "${s}" "${real_all}" "${real_prod}" "${tmp}/allow-empty.json" 2026-11-17
   run_case "id match without package match fails" fail "${s}" "${real_all}" "${real_prod}" "${tmp}/allow-wrong-pkg.json" 2026-11-17
+  run_case "same package with a different GHSA id fails" fail "${s}" "${tmp}/wrong-ghsa.json" "${real_prod}" "${spec}" 2026-11-17
+  run_case "high node with no traceable advisory fails" fail "${s}" "${tmp}/ghost.json" "${real_prod}" "${spec}" 2026-11-17
+  run_case "production high node with no traceable advisory fails" fail "${s}" "${real_all}" "${tmp}/prod-ghost.json" "${spec}" 2026-11-17
   run_case "entry without expiry fails" fail "${s}" "${real_all}" "${real_prod}" "${tmp}/allow-no-expiry.json" 2026-11-17
   run_case "entry with an unknown key fails" fail "${s}" "${real_all}" "${real_prod}" "${tmp}/allow-extra-key.json" 2026-11-17
   run_case "entry with an impossible date fails" fail "${s}" "${real_all}" "${real_prod}" "${tmp}/allow-bad-date.json" 2026-11-17
@@ -213,13 +223,13 @@ else
 fi
 
 # --- mutants --------------------------------------------------------------------
-mutant() { # mutant TAG - copy the gate, delete the tagged line(s), expect red
-  local tag="$1" dir="${tmp}/mut-$1"
+mutant() { # mutant TAG [SED_EXPR] - copy the gate, delete the tagged line(s) or apply SED_EXPR, expect red
+  local tag="$1" expr="${2:-/gate:$1/d}" dir="${tmp}/mut-$1"
   mkdir -p "${dir}/scripts"
   cp "${repo_root}/scripts/verify-npm-audit.sh" "${dir}/scripts/"
-  sed "/gate:${tag}/d" "${repo_root}/scripts/npm-audit-gate.mjs" >"${dir}/scripts/npm-audit-gate.mjs"
+  sed -E "${expr}" "${repo_root}/scripts/npm-audit-gate.mjs" >"${dir}/scripts/npm-audit-gate.mjs"
   if cmp -s "${repo_root}/scripts/npm-audit-gate.mjs" "${dir}/scripts/npm-audit-gate.mjs"; then
-    fails=$((fails + 1)); echo "FAIL mutant ${tag}: no 'gate:${tag}' line found to remove"
+    fails=$((fails + 1)); echo "FAIL mutant ${tag}: the mutation changed nothing"
     return 0
   fi
   local before="${fails}"
@@ -237,6 +247,11 @@ mutant() { # mutant TAG - copy the gate, delete the tagged line(s), expect red
 }
 mutant expiry
 mutant prod-clean
+# The GHSA-id half of the allowlist match (package-only matching).
+mutant ghsa-id 's/(e|x)\.ghsa === a\.id && //'
+# The unattributed-advisory guard, in the all report and in the production report.
+mutant unattributed-all '/for \(const name of all\.unattributed\)/{N;d;}'
+mutant unattributed-prod '/for \(const name of prod\.unattributed\)/{N;d;}'
 
 if [[ "${fails}" -ne 0 ]]; then
   echo "test-verify-npm-audit: ${fails} failure(s)" >&2
