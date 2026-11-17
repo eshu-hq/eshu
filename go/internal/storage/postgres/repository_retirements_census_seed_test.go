@@ -122,24 +122,34 @@ func seedCensus2eRows(t *testing.T, ctx context.Context, database *sql.DB, parti
 	}
 }
 
-// seedCensusSentinel writes a second partition with one scope and the same
-// #10820 rows; the purge of the first partition must leave every row alone.
-func seedCensusSentinel(t *testing.T, ctx context.Context, database *sql.DB) (string, []string) {
+// censusNeighborPartition and censusNeighborScopes are the prefix neighbor the
+// census proof leaves untouched: its partition key and scope ids extend the
+// retired repository's ("PARTITION:purge-live", "purge-live-main",
+// "purge-live-ref") by a suffix, so any purge or count predicate that matches
+// by prefix instead of exactly would reach it.
+const censusNeighborPartition = "PARTITION:purge-live-2"
+
+var censusNeighborScopes = []string{"purge-live-main-2", "purge-live-ref-2"}
+
+// seedCensusNeighbor writes the prefix neighbor with two scopes and the same
+// #10820 rows as the retired repository; the purge of the retired repository
+// must leave every row alone. It returns the neighbor's partition and scope ids.
+func seedCensusNeighbor(t *testing.T, ctx context.Context, database *sql.DB) (string, []string) {
 	t.Helper()
-	partition, scopeID := "PARTITION:sentinel", "sentinel-main"
-	if _, err := database.ExecContext(ctx, `INSERT INTO ingestion_scopes
-		(scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
-		 observed_at, ingested_at, status, active_generation_id, payload)
-		VALUES ($1, 'repository', 'git', 'key-sentinel', 'git_collector', $2, NOW(), NOW(), 'active', NULL, '{}'::jsonb)`,
-		scopeID, partition); err != nil {
-		t.Fatalf("seed sentinel scope: %v", err)
+	for _, scopeID := range censusNeighborScopes {
+		if _, err := database.ExecContext(ctx, `INSERT INTO ingestion_scopes
+			(scope_id, scope_kind, source_system, source_key, collector_kind, partition_key,
+			 observed_at, ingested_at, status, active_generation_id, payload)
+			VALUES ($1, 'repository', 'git', $2, 'git_collector', $3, NOW(), NOW(), 'active', NULL, '{}'::jsonb)`,
+			scopeID, "key-"+scopeID, censusNeighborPartition); err != nil {
+			t.Fatalf("seed neighbor scope %s: %v", scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO scope_generations
+			(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
+			VALUES ($1, $2, 'push', NOW(), NOW(), 'active', '{}'::jsonb)`, scopeID+"-gen-old", scopeID); err != nil {
+			t.Fatalf("seed neighbor generation %s: %v", scopeID, err)
+		}
 	}
-	if _, err := database.ExecContext(ctx, `INSERT INTO scope_generations
-		(generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload)
-		VALUES ($1, $2, 'push', NOW(), NOW(), 'active', '{}'::jsonb)`, scopeID+"-gen-old", scopeID); err != nil {
-		t.Fatalf("seed sentinel generation: %v", err)
-	}
-	scopes := []string{scopeID}
-	seedCensus2eRows(t, ctx, database, partition, scopes)
-	return partition, scopes
+	seedCensus2eRows(t, ctx, database, censusNeighborPartition, censusNeighborScopes)
+	return censusNeighborPartition, censusNeighborScopes
 }

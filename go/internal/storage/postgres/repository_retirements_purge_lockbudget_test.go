@@ -6,6 +6,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -100,5 +101,54 @@ func TestPurgeRetiredReportsDeriveLockBusy(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestPurgeRetiredDoesNotCallOtherLockErrorsBusy proves only a lock timeout
+// (55P03) is the designed derive_lock_busy exit. Any other error on a derive
+// lock (a deadlock, a cancelled statement, a plain failure) is a failed purge:
+// it returns an error, reports no blocked repository, rolls back, and logs no
+// derive_lock_busy line, so a real fault is never filed as ordinary contention.
+func TestPurgeRetiredDoesNotCallOtherLockErrorsBusy(t *testing.T) {
+	t.Parallel()
+
+	failures := map[string]error{
+		"deadlock_detected":  &pgconn.PgError{Code: "40P01", Message: "deadlock detected"},
+		"query_canceled":     &pgconn.PgError{Code: "57014", Message: "canceling statement due to user request"},
+		"non_postgres_error": errors.New("connection reset by peer"),
+	}
+	for _, lockKey := range []string{"infra_resource_entities:", "config_artifact_paths:"} {
+		for name, failure := range failures {
+			lockKey, name, failure := lockKey, name, failure
+			t.Run(lockKey+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				_, execs := purgeExecOrder(t)
+				idx := execIndexContaining(execs, lockKey)
+				if idx < 0 {
+					t.Fatalf("no exec takes %s", lockKey)
+				}
+				database, tx := stagePurgeScriptedDB()
+				tx.execErrors = map[int]error{idx: failure}
+				var logs bytes.Buffer
+				purger := NewRetirementPurger(database, database)
+				purger.Options.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+				result, err := purger.PurgeRetired(context.Background(), purgeTestRequest())
+				if err == nil {
+					t.Fatalf("PurgeRetired = %+v, want the %s failure returned as an error", result, name)
+				}
+				if !errors.Is(err, failure) {
+					t.Fatalf("error = %v, want it to wrap %v", err, failure)
+				}
+				if len(result.Blocked) != 0 || len(result.Completed) != 0 {
+					t.Fatalf("result = %+v, want no blocked or completed repository on a failed purge", result)
+				}
+				if tx.committed || !tx.rolledBack {
+					t.Fatalf("committed=%v rolledBack=%v, want a rollback with nothing committed", tx.committed, tx.rolledBack)
+				}
+				if strings.Contains(logs.String(), "derive_lock_busy") {
+					t.Fatalf("a non-timeout lock error was logged as derive_lock_busy:\n%s", logs.String())
+				}
+			})
+		}
 	}
 }

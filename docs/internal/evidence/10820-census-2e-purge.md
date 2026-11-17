@@ -19,6 +19,25 @@ transaction, throwaway database, real migrated schema).
 | `service_materialization_generations` | `scope_id = ANY($1)` | `Seq Scan` over 300,000 rows, 100 matched (see residual 5) | 110 ms cold |
 | cascade pre-count incl. `service_evidence_snapshots` | grant counts plus snapshots by generation | parallel `Seq Scan` on the service table, index-only on `service_evidence_snapshots_diff_idx` | 20 ms |
 
+**The evidence and candidate plan flips with selectivity.** The
+`(generation_id, relationship_type)` indexes serve those two deletes only when
+the retired generations are a small share of the table. Re-measured on PG 18.6
+(throwaway database, the migrated table and index shape, rolled-back
+`EXPLAIN (ANALYZE, BUFFERS)`) on 1,400,000 evidence rows in 2,800 generations of
+500 rows: one generation (0.036% of the table) uses
+`relationship_evidence_generation_idx` through a Bitmap Heap Scan, 500 rows in
+2.4 ms; 40 generations (20,000 rows, 1.43%) flip to a `Seq Scan` over the whole
+table feeding a `Hash Join`, 555 ms and 794 ms on two runs on a development
+laptop. The independent review measured the same flip at 176 ms on a
+1.396M-row table, so the absolute time varies by machine and cache state; the
+plan shape does not. The cost grows with table size, not with rows deleted, and
+it runs while the purge holds the tombstone, scope-row and advisory locks. It is
+a rare operator path dominated by the rows deleted, and it was not measured at
+the retirement scale of about 3,280 generations per repository on a production-
+sized table, so that stays NOT_CHECKED. The first table row above (20
+generations, 400 of 1,200,000 rows, 6.5 ms) is the low-selectivity side only.
+The `purge_duration_ms` log field shows this statement when it dominates.
+
 The remaining statements (`reducer_readiness_waits`,
 `crossplane_satisfied_by_redrive_state`, the redrive target ledger,
 `relationship_generations`, `config_artifact_paths`, both `content_file_ref_*`
@@ -37,13 +56,37 @@ repository's rows.
   holds the same lock for its whole write, so a purge that starts behind a
   derive waits for the derive to commit. The wait is bounded (arbiter ruling):
   the purge sets a 10 s transaction-local `lock_timeout` (the config derive
-  deadline) before the two locks, restores the captured value once both are held
+  deadline) before the two locks (the budget is per lock wait, see "Aggregate
+  lock budget" below), restores the captured value once both are held
   so later deletes keep their prior wait behavior, and on SQLSTATE 55P03 returns
   the designed blocked exit `derive_lock_busy` with a WARN log. Nothing is
   written before that point (only the tombstone claim, the `NOWAIT` scope lock
   and reads), so the rollback is clean and the fenced tombstone stays open for a
   retry. This is a bounded wait with a retry, not serialization: no worker
   count, batch size, or writer changes.
+- Aggregate lock budget. PostgreSQL applies `lock_timeout` to each lock wait, not
+  to the transaction. Checked on PG 18.6 with two parked sessions (key 1 held
+  for 7 s, key 2 for 40 s, `lock_timeout = '10s'`): the waiter got key 1 after
+  about 6 s and then timed out on key 2 after another 10 s, 16 s in all. So one
+  repository can wait up to 2 x 10 s (infra lock, then config-artifact lock)
+  before `derive_lock_busy`, and the repositories of one request are purged one
+  after another with no shared budget. One synchronous request carries up to 25
+  repositories (`PurgeMaxRepositories`): 25 x 10 s = 250 s of lock waiting if
+  every repository times out on the first lock, and up to 25 x 20 s = 500 s if
+  every repository waits nearly 10 s on the first lock and times out on the
+  second. The API server's write deadline is 6 minutes, 360 s
+  (`cmd/api/main.go:188`: `DefaultRefinalizeDrainTimeout` 5 min plus the 1 min
+  response margin). The 250 s case leaves about 110 s for the fence and the purge
+  work of the repositories that did not block; the 500 s case does not fit. That
+  margin is thin for a request that is also fencing and deleting, and it is not
+  measured; it is reachable only when many repositories are retired while
+  derives are running on all of them. What the client sees past the deadline was
+  not traced: the purge's tombstone claim is idempotent, so a re-POST resumes
+  (`purgeOne` returns the completed repository without re-deleting), but the
+  first response would be lost. The 10 s was not changed here. If the operator
+  path needs a hard bound, the options are a request-level lock budget shared
+  across the repositories, a lower per-lock value, or a smaller repository cap
+  for a purge request; that is a decision for the owner, not this change.
 - Statement order and lock-order proof, each against real PostgreSQL by a
   parked-writer probe (`runPurgeBehindWriter`): the writer holds its first lock,
   the purge starts and is observed blocked behind it through `pg_blocking_pids`,
@@ -63,8 +106,10 @@ repository's rows.
     (`TestRetirementPurgeConfigArtifactAdvisoryLockOrderLive`,
     `TestRetirementPurgeServiceMaterializationLockOrderLive`).
 - Row counts and neighbors: `TestRetirementPurgeCensus2eTablesLive` seeds every
-  table for the retired repository and for a second repository, purges the
-  first, and requires zero rows for it, the sentinel's rows unchanged, and the
+  table for the retired repository and for a prefix neighbor
+  (`PARTITION:purge-live-2`, scopes `purge-live-main-2` and `purge-live-ref-2`,
+  so a prefix match would reach it), purges the first, and requires zero rows
+  for it, the neighbor's rows unchanged, every count matched by exact id, and the
   tombstone ledger count per table. With the infra dirty-mark delete moved before
   the `content_entities` delete (run as a session that is not derive-aware) the
   test fails with `infra_resource_entity_dirty_repos: 1 rows survive the purge`,
@@ -178,11 +223,20 @@ No `source_repo_id` predicate is added now:
   resolved rows (append-only) and graph edges stay, would leave a served
   relationship with no backing evidence, which is worse than consistent but
   frozen.
-- The residual is self-limiting: nothing re-emits evidence sourced by the
-  retired repository once it has no active generation. The cleanup belongs with
-  the cross-repository work in #10822. Deferred backfill writes under the source
-  repository's active generation and skips a source with none, so it cannot add
-  rows for a retired repository.
+- The residual is bounded by retention only once the runner (#10822) and its
+  backfill open-tombstone filter (slice S2b) land. Until then the rows can keep
+  being emitted during the retirement window and are not purged by this change.
+  By source read (the #10822 design review, not proven live):
+  `LatestGenerationCTE` (`backfill/generation_cte.go`) resolves a scope to its
+  active generation, else the newest generation of any status, and the retirement
+  fence nulls the active pointer, so per-commit and deferred backfill can still
+  see the retiring repository's newest superseded generation and emit evidence
+  sourced from it. The "skips a source with none" branch only fires for a scope
+  with no generation at all, and no open-tombstone filter exists in
+  `storage/postgres/backfill` on this branch. After the purge deletes the scope's
+  generations nothing can re-emit, so the window is the fence-to-purge interval.
+  The cleanup belongs with the cross-repository work in #10822. This change does
+  not alter the delete behavior.
 
 ### Known residuals, recorded
 
@@ -198,6 +252,15 @@ No `source_repo_id` predicate is added now:
   the table passes roughly 5 million rows, add a `(scope_id)` index with EXPLAIN
   proof then. Legacy rows with a NULL `scope_id` carry no attribution
   (migration 127) and are not matched.
+- `projection_decisions` and `projection_decision_evidence` have no production
+  writer in this tree. `DecisionStore` is constructed only by the admin reader
+  (`query/admin/store/postgres.go:34`), and `BuildProjectionDecision`
+  (`projector/decisions.go`) has no non-test caller; the reducer's
+  `UpsertDecision` calls write the separate `admission_decisions` tables. The key
+  form (`repository_id` as the collector repo id) is therefore inferred from the
+  test-only constructor, not confirmed against a production writer. The deletes
+  are kept: they are indexed, and match nothing when the tables are empty. The
+  census Reasons say the same.
 - A `relationship_generations` writer that takes its rows before the work row
   (the plain activation, not the claim variant) takes them in the opposite
   order. The fence leaves no in-flight consumer rows for a fenced scope, so the
@@ -207,7 +270,8 @@ No `source_repo_id` predicate is added now:
 
 No metric or span is added; the existing purge emits counters and one INFO
 completion log, and no per-step timing. The one new runtime behavior that can
-stall is the advisory-lock wait, now bounded at 10 s. The completion log
+stall is the advisory-lock wait, now bounded at 10 s per lock (see
+"Aggregate lock budget" for the per-request total). The completion log
 `repository retirement purged` gains `derive_lock_wait_ms`, the elapsed time of
 the two lock acquisitions, and `purge_duration_ms`, the whole purge transaction
 for the repository (`TestPurgeRetiredLogsTheDeriveLockWait`), so a scan that

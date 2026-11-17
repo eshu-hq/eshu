@@ -15,9 +15,13 @@ import (
 	"testing"
 )
 
-// censusLiveCheck counts one census table for a partition. $1 is the
-// partition (repo id), $1 the scope ids, $3 the scope-id prefix that names the
-// generation ids (relationship and service rows carry no scope column).
+// censusLiveCheck counts one census table for a partition. $1 is the partition
+// (repo id) or, for a query that names ANY($1) or unnest($1, the scope ids.
+// Every count matches the seeded ids exactly, never by prefix: the neighbor
+// partition and scopes extend the target's by a suffix, so a LIKE prefix would
+// count the neighbor's rows as the target's. Relationship and service rows
+// carry no scope column, so their seeded ids (scope id plus a fixed suffix) are
+// the only link.
 type censusLiveCheck struct {
 	table string
 	query string
@@ -28,14 +32,14 @@ type censusLiveCheck struct {
 var censusLiveChecks = []censusLiveCheck{
 	{"reducer_readiness_waits", `SELECT count(*) FROM reducer_readiness_waits WHERE scope_id = ANY($1)`, 2},
 	{"projection_decisions", `SELECT count(*) FROM projection_decisions WHERE repository_id = $1`, 2},
-	{"projection_decision_evidence", `SELECT count(*) FROM projection_decision_evidence WHERE decision_id LIKE $1 || '%'`, 2},
+	{"projection_decision_evidence", `SELECT count(*) FROM projection_decision_evidence WHERE decision_id IN ($1 || '-d1', $1 || '-d2')`, 2},
 	{"crossplane_satisfied_by_redrive_state", `SELECT count(*) FROM crossplane_satisfied_by_redrive_state WHERE xrd_scope_id = ANY($1)`, 2},
 	{"crossplane_satisfied_by_redrive_target_ledger", `SELECT count(*) FROM crossplane_satisfied_by_redrive_target_ledger WHERE target_scope_id = ANY($1)`, 2},
 	{"relationship_generations", `SELECT count(*) FROM relationship_generations WHERE scope = ANY($1)`, 2},
-	{"relationship_evidence_facts", `SELECT count(*) FROM relationship_evidence_facts WHERE evidence_id LIKE ANY(SELECT s || '-ev%' FROM unnest($1::text[]) s)`, 4},
-	{"relationship_candidates", `SELECT count(*) FROM relationship_candidates WHERE candidate_id LIKE ANY(SELECT s || '-cand' FROM unnest($1::text[]) s)`, 2},
+	{"relationship_evidence_facts", `SELECT count(*) FROM relationship_evidence_facts WHERE evidence_id IN (SELECT s || '-ev' || n FROM unnest($1::text[]) s, unnest(ARRAY['1','2']) n)`, 4},
+	{"relationship_candidates", `SELECT count(*) FROM relationship_candidates WHERE candidate_id IN (SELECT s || '-cand' FROM unnest($1::text[]) s)`, 2},
 	{"service_materialization_generations", `SELECT count(*) FROM service_materialization_generations WHERE scope_id = ANY($1)`, 2},
-	{"service_evidence_snapshots", `SELECT count(*) FROM service_evidence_snapshots WHERE generation_id LIKE ANY(SELECT s || '-svc' FROM unnest($1::text[]) s)`, 4},
+	{"service_evidence_snapshots", `SELECT count(*) FROM service_evidence_snapshots WHERE generation_id IN (SELECT s || '-svc' FROM unnest($1::text[]) s)`, 4},
 	{"config_artifact_paths", `SELECT count(*) FROM config_artifact_paths WHERE repo_id = $1`, 1},
 	{"content_file_ref_deltas", `SELECT count(*) FROM content_file_ref_deltas WHERE repo_id = $1`, 1},
 	{"content_file_ref_delta_bases", `SELECT count(*) FROM content_file_ref_delta_bases WHERE repo_id = $1`, 1},
@@ -68,7 +72,7 @@ func TestRetirementPurgeCensus2eTablesLive(t *testing.T) {
 	partition := "PARTITION:purge-live"
 	scopeIDs := seedPurgeLiveScope(t, ctx, database, partition)
 	seedCensus2eRows(t, ctx, database, partition, scopeIDs)
-	sentinelPartition, sentinelScopes := seedCensusSentinel(t, ctx, database)
+	sentinelPartition, sentinelScopes := seedCensusNeighbor(t, ctx, database)
 
 	sentinelBefore := make(map[string]int64)
 	for _, check := range censusLiveChecks {

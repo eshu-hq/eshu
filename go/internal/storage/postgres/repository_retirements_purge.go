@@ -38,10 +38,12 @@ const PurgeMaxRepositories = RetirementFenceMaxRepositories
 // Purge blocked reasons. terminal_not_reached is the designed observable
 // exit: a generation went live after the fence (or the fence never ran),
 // and only a new fence can move it. scope_lock_busy is ordinary
-// contention: the reducer retention pass holds a scope lock, and the next
-// runner pass retries the same fenced row. derive_lock_busy is the same
-// kind of exit for the two derive advisory locks (#10820): a derive held one
-// past the purge's 10 s budget, nothing was written, and the next pass retries.
+// contention: the reducer retention pass holds a scope lock, and the
+// operator's re-POST retries the same fenced row (PurgeRetired has no runner
+// caller today; the only caller is the admin retirement trigger).
+// derive_lock_busy is the same kind of exit for the two derive advisory locks
+// (#10820): a derive held one past the purge's 10 s per-lock budget, nothing
+// was written, and the re-POST retries.
 const (
 	// PurgeReasonTerminalNotReached reports generations still live.
 	PurgeReasonTerminalNotReached = "terminal_not_reached"
