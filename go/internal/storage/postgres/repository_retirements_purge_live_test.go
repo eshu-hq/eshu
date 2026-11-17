@@ -8,13 +8,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // seedPurgeLiveScope writes one fenced repository partition: two scopes with
 // superseded and failed generations, a superseded work row per generation,
 // repo-keyed content rows, refs, scope-keyed reindex and observation rows,
 // one shared intent, one unroutable intent, one dead letter, and one stuck
-// partial impact pass-state row (#10794) per scope,
+// partial impact pass-state row (#10794) and one impact write-admission
+// row (#10800) per scope,
 // and one grant row in each of the four scope-FK grant tables. It returns
 // the partition key and scope ids.
 func seedPurgeLiveScope(t *testing.T, ctx context.Context, database *sql.DB, partition string) []string {
@@ -71,6 +73,11 @@ func seedPurgeLiveScope(t *testing.T, ctx context.Context, database *sql.DB, par
 			(scope_id, fencing_token, partial_evidence, partial_causes, partial_since, last_pass_at, updated_at)
 			VALUES ($1, 1, true, '{evidence_budget}', NOW() - interval '2 days', NOW(), NOW())`, scopeID); err != nil {
 			t.Fatalf("seed impact pass state %s: %v", scopeID, err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO supply_chain_impact_write_admission
+			(scope_id, generation_id, fencing_token, updated_at)
+			VALUES ($1, $2, 1, NOW())`, scopeID, scopeID+"-gen-old"); err != nil {
+			t.Fatalf("seed impact write admission %s: %v", scopeID, err)
 		}
 		if _, err := database.ExecContext(ctx, `INSERT INTO collector_generation_dead_letters
 			(generation_id, scope_id, collector_kind, source_system, scope_kind,
@@ -215,6 +222,7 @@ func TestRetirementPurgeLive(t *testing.T) {
 		{"shared_projection_unroutable_intents", `SELECT count(*) FROM shared_projection_unroutable_intents WHERE scope_id = ANY($1)`},
 		{"collector_generation_dead_letters", `SELECT count(*) FROM collector_generation_dead_letters WHERE scope_id = ANY($1)`},
 		{"supply_chain_impact_scope_pass_state", `SELECT count(*) FROM supply_chain_impact_scope_pass_state WHERE scope_id = ANY($1)`},
+		{"supply_chain_impact_write_admission", `SELECT count(*) FROM supply_chain_impact_write_admission WHERE scope_id = ANY($1)`},
 		{"tenant_scope_grants", `SELECT count(*) FROM tenant_scope_grants WHERE scope_id = ANY($1)`},
 		{"tenant_repository_grants", `SELECT count(*) FROM tenant_repository_grants WHERE scope_id = ANY($1)`},
 		{"identity_role_scope_targets", `SELECT count(*) FROM identity_role_scope_targets WHERE scope_id = ANY($1)`},
@@ -226,6 +234,7 @@ func TestRetirementPurgeLive(t *testing.T) {
 			check.table == "shared_projection_intents" || check.table == "shared_projection_unroutable_intents" ||
 			check.table == "collector_generation_dead_letters" ||
 			check.table == "supply_chain_impact_scope_pass_state" ||
+			check.table == "supply_chain_impact_write_admission" ||
 			check.table == "tenant_scope_grants" || check.table == "tenant_repository_grants" ||
 			check.table == "identity_role_scope_targets" || check.table == "identity_role_repository_targets") {
 			arg = scopeIDs
@@ -262,7 +271,7 @@ func TestRetirementPurgeLive(t *testing.T) {
 		"content_file_references": 1, "repository_refs": 1,
 		"repository_reindex_requests": 2, "repository_selection_observations": 2,
 		"shared_projection_intents": 2, "shared_projection_unroutable_intents": 2,
-		"collector_generation_dead_letters": 2, "supply_chain_impact_scope_pass_state": 2,
+		"collector_generation_dead_letters": 2, "supply_chain_impact_scope_pass_state": 2, "supply_chain_impact_write_admission": 2,
 		"tenant_scope_grants": 1, "tenant_repository_grants": 1,
 		"identity_role_scope_targets": 1, "identity_role_repository_targets": 1,
 	} {
@@ -333,5 +342,108 @@ func TestRetirementPurgeTerminalNotReachedLive(t *testing.T) {
 	}
 	if open == nil || open.State != RetirementStatePending || open.Phase != RetirementPhaseFenced {
 		t.Fatalf("tombstone = %+v, want the open pending/fenced row", open)
+	}
+}
+
+// TestRetirementPurgeAdmissionLockOrderLive proves the #10800 lock order
+// against real Postgres. The impact writer upserts its admission row and only
+// then takes the KEY SHARE on the scope_generations row (the fact insert's
+// foreign key check); the core package pins that writer order in
+// TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts
+// (writer_retract_test.go). The writer here holds the admission row, the purge
+// starts and must block on that row, and the writer then takes its
+// generation KEY SHARE. With the admission delete before the scope cascade
+// the purge has locked nothing the writer needs, so the writer proceeds and
+// the purge finishes after the writer commits. With the delete after the
+// cascade the purge would already hold the generation row, and the writer's
+// KEY SHARE would deadlock with the purge's wait on the admission row.
+func TestRetirementPurgeAdmissionLockOrderLive(t *testing.T) {
+	database, ctx := openIsolatedLiveDB(t, "retire_purge_lock",
+		"set ESHU_POSTGRES_DSN to run the retirement purge lock-order Postgres proof")
+	partition := "PARTITION:purge-live"
+	scopeIDs := seedPurgeLiveScope(t, ctx, database, partition)
+	store := NewRetirementStore(SQLDB{DB: database})
+	if _, err := store.InsertPending(ctx, RetirementRequest{
+		RetirementID: "rr_purge_lock", RepoID: partition, ScopeID: scopeIDs[0],
+		ReasonCode: RetirementReasonOperatorRetired, ActorClass: "operator",
+		IdempotencyKeyHash: "purge-lock-key",
+	}); err != nil {
+		t.Fatalf("InsertPending: %v", err)
+	}
+
+	writer, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin writer: %v", err)
+	}
+	defer func() { _ = writer.Rollback() }()
+	var writerPID int64
+	if err := writer.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&writerPID); err != nil {
+		t.Fatalf("read writer backend pid: %v", err)
+	}
+	generationID := scopeIDs[0] + "-gen-old"
+	if _, err := writer.ExecContext(ctx, `INSERT INTO supply_chain_impact_write_admission
+		(scope_id, generation_id, fencing_token, updated_at) VALUES ($1, $2, 2, NOW())
+		ON CONFLICT (scope_id, generation_id) DO UPDATE SET fencing_token = EXCLUDED.fencing_token`,
+		scopeIDs[0], generationID); err != nil {
+		t.Fatalf("writer admission upsert: %v", err)
+	}
+
+	type purgeOutcome struct {
+		result PurgeResult
+		err    error
+	}
+	done := make(chan purgeOutcome, 1)
+	go func() {
+		purger := NewRetirementPurger(SQLDB{DB: database}, SQLDB{DB: database})
+		result, err := purger.PurgeRetired(ctx, PurgeRequest{RepoIDs: []string{partition}})
+		done <- purgeOutcome{result: result, err: err}
+	}()
+
+	// Wait until a backend is parked behind THIS writer's admission row lock.
+	// pg_blocking_pids names the writer's pid itself, so another live test
+	// sharing the server cannot end the wait early.
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		blocked := liveCount(t, ctx, database, `SELECT count(*) FROM pg_stat_activity
+			WHERE $1 = ANY(pg_blocking_pids(pid))`, writerPID)
+		if blocked > 0 {
+			break
+		}
+		select {
+		case early := <-done:
+			t.Fatalf("purge finished before blocking on the writer's admission row: %+v, %v", early.result, early.err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("purge never blocked on the writer's admission row")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	// The writer's fact insert takes this lock through the generation foreign
+	// key. A wrong-order purge already holds the generation row here and the
+	// statement deadlocks.
+	if _, err := writer.ExecContext(ctx,
+		`SELECT 1 FROM scope_generations WHERE generation_id = $1 FOR KEY SHARE`, generationID); err != nil {
+		t.Fatalf("writer generation KEY SHARE: %v (purge and writer took the rows in opposite orders)", err)
+	}
+	if err := writer.Commit(); err != nil {
+		t.Fatalf("writer commit: %v", err)
+	}
+
+	select {
+	case outcome := <-done:
+		if outcome.err != nil {
+			t.Fatalf("PurgeRetired: %v", outcome.err)
+		}
+		if len(outcome.result.Completed) != 1 || len(outcome.result.Blocked) != 0 {
+			t.Fatalf("result = %+v, want one completion and no blocks", outcome.result)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("purge did not finish after the writer committed")
+	}
+	if count := liveCount(t, ctx, database,
+		`SELECT count(*) FROM supply_chain_impact_write_admission WHERE scope_id = ANY($1)`, scopeIDs); count != 0 {
+		t.Fatalf("write admission rows = %d, want 0 after purge", count)
 	}
 }
