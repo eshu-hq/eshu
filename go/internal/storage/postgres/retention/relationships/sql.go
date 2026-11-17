@@ -55,9 +55,13 @@ const (
 const LockClass = 10823
 
 // BatchGenerations is the most generations one batch transaction removes.
-// Measured on a seeded corpus (design for #10823): a 50-generation batch is
-// about 1,700 rows, p50 8.7 ms and p95 91.7 ms, and writes about 1.43 MB of
-// WAL (about 1.7 KB per row, scattered deletes write full page images). A
+// Measured on a local PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md):
+// a batch of 50 generations of 53 rows is about 2,650 rows and commits in 24 to
+// 31 ms at p50 and 28 to 39 ms at p95, up to 133 ms at p95 when the rows are
+// scattered. Its WAL depends on how the rows sit in the heap: about 0.3 KB per
+// row when a generation's rows are together, about 1.7 KB when they are
+// scattered across a large table, and up to 4.3 KB for a pass that starts right
+// after a checkpoint (every first touch of a page writes a full page image). A
 // batch is bounded in generations, not rows: a hub generation with many
 // evidence rows makes it larger, so the row cap is checked between batches and
 // the first batch always runs. There is no knob: a different size needs a new
@@ -72,9 +76,11 @@ const BatchGenerations = 50
 const CensusListLimit = 5000
 
 // DefaultRowCap is the rows one sweep pass deletes when the caller passes none:
-// about 100,000 rows, or about 170 MB of WAL at the measured 1.7 KB per row,
-// bounding a drain to roughly 1 GB of WAL per hour per reducer replica at the
-// capped cadence. The first batch of a pass always runs.
+// about 100,000 rows. At the 1.7 KB per row planning figure for scattered rows
+// that is about 170 MB of WAL per pass, and a drain at the capped cadence is
+// about 1 GB of WAL per hour per reducer replica; rows that sit together cost
+// about a sixth of that, and a pass right after a checkpoint up to 2.5 times
+// more. The first batch of a pass always runs.
 const DefaultRowCap int64 = 100_000
 
 // lockTimeoutSetting bounds how long one batch waits for a row lock another
@@ -84,10 +90,15 @@ const DefaultRowCap int64 = 100_000
 // retries it. It must stay positive: lock_timeout = 0 disables the timeout.
 const lockTimeoutSetting = "500ms"
 
-// censusStatementTimeoutSetting bounds the census transaction. The steady
-// state (no orphans) reads one index of every relationship table (0.7 to 1.0 s
-// on 3.3 million evidence rows after VACUUM); a census that outlives this
-// bound fails the pass and is retried at the next poll. It must stay positive.
+// censusStatementTimeoutSetting bounds the census transaction. The census reads
+// every generation id of each relationship table once: 0.2 to 0.5 s warm (1.2 s
+// cold) with no orphans on 3.6 million evidence rows after VACUUM, and 2.4 to
+// 8.5 s with 2 million orphan rows among 5.6 million, the slow end when the
+// planner read the evidence table with a parallel sequential scan
+// (docs/internal/evidence/10823-relationship-retention.md).
+// A census that outlives this bound fails the pass and is retried at the next
+// poll, so the bound has about seven times the headroom of the slowest run. It
+// must stay positive.
 const censusStatementTimeoutSetting = "60s"
 
 // setLockTimeoutQuery and setStatementTimeoutQuery are SET LOCAL: they end with
@@ -195,12 +206,11 @@ WHERE rg.generation_id = ANY($1::text[])
 // table so the gauge can say where the backlog sits. They apply the same three
 // predicates the deletes do, but the deletes stay the authority: a generation
 // that stops being an orphan between the census and a batch is skipped as
-// ineligible. The scope_generations anti-join runs under the DISTINCT so it
-// stays one hash anti join over an index-only scan of the generation index
-// (0.7 to 1.0 s on 3.3 million evidence rows after VACUUM, measured in the
-// design); the two other predicates then run on distinct ids only. The
-// visibility map matters: run VACUUM after bulk deletes or the index-only scan
-// turns into heap fetches.
+// ineligible. The scope_generations anti-join runs under the DISTINCT, so the
+// two other predicates run on distinct ids only. The planner reads the
+// generation ids with an index-only scan of the generation index while the
+// visibility map is current and with a parallel sequential scan when it is not;
+// both read each id once. Run VACUUM after bulk deletes to keep the first.
 const censusEvidenceQuery = `-- relationship retention: census evidence
 SELECT d.generation_id
 FROM (

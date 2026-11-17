@@ -317,6 +317,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.producer_activation_settle",
 		"reducer.status_summary.pass",
 		"generation_retention.expired_report",
+		"generation_retention.relationship_sweep",
 		"bootstrap.collector_cycle",
 		"collector.claimed_run",
 		"collector.snapshot_stage",

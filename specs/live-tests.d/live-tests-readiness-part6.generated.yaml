@@ -124,6 +124,11 @@ tests:
     class: postgres_ci
     reason: "#10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements read evidence, candidates and generations through their generation index or primary key and never sequentially scan the table they delete from, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/relationships/prune_claimed_live_test.go
     tag: ~
     class: postgres_ci

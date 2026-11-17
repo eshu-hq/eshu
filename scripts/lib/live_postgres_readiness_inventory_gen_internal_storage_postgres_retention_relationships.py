@@ -16,6 +16,9 @@ TABLE = {
             "TestDeleteStatementsGuardThemselvesLive",
             "TestSweepStopsAtTheRowCapLive",
         ),
+        "go/internal/storage/postgres/retention/relationships/plan_live_test.go": (
+            "TestRelationshipRetentionStatementsAreIndexServedLive",
+        ),
         "go/internal/storage/postgres/retention/relationships/prune_claimed_live_test.go": (
             "TestClaimedWorkKeepsTheGenerationOutOfPruneAndSweepLive",
         ),

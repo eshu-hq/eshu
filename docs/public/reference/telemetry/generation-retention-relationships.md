@@ -54,6 +54,13 @@ service context for a current pointer.
   a pass that skipped a batch on `lock_timeout`.
 - The census lists at most 5,000 orphan generations per table; the rest are
   listed by later passes. The sweep re-lists from the lowest id each pass.
+- The census reads every generation id of each relationship table once: 0.2 to
+  0.5 s on 3.6 million evidence rows with no orphans, 2.4 to 8.5 s with 2
+  million orphan rows among 5.6 million, the slow end when the planner reads the
+  evidence table with a parallel sequential scan. It runs under a 60 s
+  statement timeout. A timeout fails the pass (`relationship_orphan_sweep`) and
+  nothing is swept, so run `VACUUM` after a large drain to keep the cheaper
+  index-only scan.
 
 ## Operator gate before enabling deletes
 
@@ -63,7 +70,12 @@ service context for a current pointer.
 2. Estimate the write-ahead log (WAL) the drain will produce: orphan rows
    times 1.7 KB times reducer replicas. The default cap of 100,000 rows is
    about 170 MB of WAL per pass, and about 1 GB per hour per reducer replica
-   when capped passes re-run every sixth of a 1h poll interval.
+   when capped passes re-run every sixth of a 1h poll interval. That is a
+   planning figure for rows scattered across a large table. A local PostgreSQL
+   18 run measured 0.3 KB per row when a generation's rows sit together and
+   up to 4.3 KB per row for a pass that starts right after a checkpoint, when
+   every first touch of a page writes a full page image. `wal_compression`
+   shrinks the images.
 3. If that is too much for the replicas' WAL budget, lower
    `ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ROW_CAP` or lengthen the poll
    interval, then enable the flag.
