@@ -53,6 +53,9 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 	if !strings.Contains(convertPlan, "winners_keyed_scope_idents_scope_idx") {
 		t.Error("convert plan never reaches the scope expansion through winners_keyed_scope_idents_scope_idx: the expansion join is not index-bounded")
 	}
+	// Negative assertions below assume the PostgreSQL 18 EXPLAIN text
+	// rendering ("Join Filter: (...)"); the positive index-name
+	// assertions above remain the contract if that rendering drifts.
 	if strings.Contains(convertPlan, "Join Filter: ((chunk.package_id = si.package_id)") {
 		t.Error("convert plan filters chunk membership per row instead of probing the chunk index: the statistics-blind nested loop is back")
 	}
