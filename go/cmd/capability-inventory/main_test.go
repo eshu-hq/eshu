@@ -85,6 +85,26 @@ func TestVerifyAgainstRealSpecs(t *testing.T) {
 	}
 }
 
+// TestVerifyFailsClosedWithoutSatelliteInputs pins the fail-closed gate:
+// verify with no satellite base URL (and then with no bearer) must refuse
+// instead of running blind. Not parallel: see TestVerifyAgainstRealSpecs
+// for the env pin.
+func TestVerifyFailsClosedWithoutSatelliteInputs(t *testing.T) {
+	t.Setenv("ESHU_API_BASE_URL", "")
+	t.Setenv("ESHU_API_KEY", "")
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"-mode", "verify", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "satellite API base URL") {
+		t.Fatalf("verify without ESHU_API_BASE_URL = %v, want missing-base-URL error", err)
+	}
+	server := newFullSurfaceSatellite(t)
+	t.Setenv("ESHU_API_BASE_URL", server.URL)
+	err = run([]string{"-mode", "verify", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "bearer token") {
+		t.Fatalf("verify without bearer = %v, want missing-token error", err)
+	}
+}
+
 // TestReportListsEntries exercises report mode.
 func TestReportListsEntries(t *testing.T) {
 	// Not parallel: see TestVerifyAgainstRealSpecs for the env pin.
