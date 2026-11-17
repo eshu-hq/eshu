@@ -111,7 +111,11 @@ Code relationship rows explain confidence with `resolution_method`. Repository
 and correlation relationship rows use `confidence_basis` instead, with values
 such as `evidence_constant`, `evidence_aggregate`, or `assertion_override`.
 Use `get_relationship_evidence` when a repository context row has `resolved_id`
-and you need the full evidence preview.
+and you need the full evidence preview. A `resolved_id` is readable only while
+retention keeps its relationship generation. After retention removes the
+generation, the tool answers not found, including for a `resolved_id` read from
+a graph edge, so re-read the repository or service context for a current
+pointer.
 
 Relationship tools reserve `min_confidence` for the HTTP/MCP confidence-floor
 contract. Omit it to preserve ambiguous, stale, conflicting, and

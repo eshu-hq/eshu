@@ -36,6 +36,15 @@ transitively.
   (`TestGenerationRetentionRunnerSweepsSupersededOncePerPollInterval` and the
   off-by-default test). Never enable the flag until the issue's gate-(b)
   dead-tuple/bloat evidence lands.
+- `RunOnce` runs the relationship sweep (#10823) last, after the superseded
+  sweep. The census runs whenever the sweep is due; `Request.Deletes` follows
+  `Policy.RelationshipRetentionSweepEnabled` (off by default, pinned by
+  `TestRelationshipSweepDeletesAreOffByDefault`). Only a plain capped pass
+  shortens the next wait to a sixth of the poll interval, in both the due
+  check and `Run`'s idle wait; a failed, clean or lock-timeout pass keeps the
+  full interval (`TestRelationshipSweepAcceleratesOnlyAfterACappedPass`). Keep
+  `RelationshipSkipLockTimeout` equal to the storage leaf's reason (the
+  `cmd/reducer` adapter test pins it).
 
 ## Gates that will fire on your change
 

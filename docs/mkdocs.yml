@@ -364,6 +364,7 @@ nav:
       - Advisory Group Projection: reference/telemetry/advisory-group-projection.md
       - Package Manifest Backfill Page Timing: reference/telemetry/package-manifest-backfill.md
       - Generation Retention Search Index Pre-Delete: reference/telemetry/generation-retention-search-index.md
+      - Generation Retention Relationships: reference/telemetry/generation-retention-relationships.md
       - Workflow Work Item Retention: reference/telemetry/workflow-work-item-retention.md
       - Metrics: reference/telemetry/metrics.md
       - Ingestion And Collector Metrics: reference/telemetry/metrics-ingestion-collectors.md

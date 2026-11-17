@@ -26,4 +26,17 @@
 // in committed batches while their facts stay held, reported on the
 // superseded rows-swept counter, its two phases, per-batch and per-run log
 // lines; a sweep failure is counted but does not fail the pass.
+//
+// When [Runner.RelationshipSweeper] is set, [Runner.RunOnce] finally runs the
+// relationship retention census and sweep (#10823) after the superseded sweep,
+// outside the prune transaction. The read-only census, and the orphan gauge it
+// sets, run every time the sweep is due; the deletes of relationship evidence,
+// candidate and generation rows run only when
+// [Policy.RelationshipRetentionSweepEnabled] holds (off by default), bounded by
+// [Policy.RelationshipRetentionRowCap] and a quarter of the poll interval.
+// The sweep is due once per poll interval, or once per sixth of it after a pass
+// the row cap, deadline or census list limit stopped; a failed pass, a clean
+// pass and a pass that skipped a batch on a lock timeout keep the full
+// interval, and [Runner.Run] shortens its idle wait the same way. A sweep
+// failure is counted but does not fail the pass.
 package retention

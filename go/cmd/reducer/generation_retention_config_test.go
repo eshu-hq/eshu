@@ -136,13 +136,13 @@ func TestLoadGenerationRetentionConfigAllowsLocalDisable(t *testing.T) {
 }
 
 func TestGenerationRetentionRunnerForConfig(t *testing.T) {
-	disabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{}, nil)
+	disabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{}, nil, nil)
 	require.Nil(t, disabled)
 
 	enabled := generationRetentionRunnerFor(&fakeReducerDB{}, generationRetentionConfig{
 		Enabled: true,
 		Runner:  loadGenerationRetentionConfig(func(string) string { return "" }).Runner,
-	}, nil)
+	}, nil, nil)
 	require.NotNil(t, enabled)
 	require.Equal(t, time.Hour, enabled.Config.PollInterval)
 }
@@ -163,6 +163,6 @@ func TestGenerationRetentionRunnerForWiresOrphanSweeper(t *testing.T) {
 		Enabled: true,
 		Runner:  loadGenerationRetentionConfig(func(string) string { return "" }).Runner,
 	}
-	require.Nil(t, generationRetentionRunnerFor(&fakeReducerDB{}, cfg, nil).OrphanSweeper)
-	require.NotNil(t, generationRetentionRunnerFor(&fakeReducerBeginnerDB{}, cfg, nil).OrphanSweeper)
+	require.Nil(t, generationRetentionRunnerFor(&fakeReducerDB{}, cfg, nil, nil).OrphanSweeper)
+	require.NotNil(t, generationRetentionRunnerFor(&fakeReducerBeginnerDB{}, cfg, nil, nil).OrphanSweeper)
 }

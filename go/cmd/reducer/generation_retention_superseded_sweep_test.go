@@ -41,8 +41,8 @@ func TestGenerationRetentionRunnerForWiresSupersededSweeper(t *testing.T) {
 		Enabled: true,
 		Runner:  loadGenerationRetentionConfig(func(string) string { return "" }).Runner,
 	}
-	require.Nil(t, generationRetentionRunnerFor(&fakeReducerDB{}, cfg, nil).SupersededSweeper)
-	wired := generationRetentionRunnerFor(&fakeReducerBeginnerDB{}, cfg, nil)
+	require.Nil(t, generationRetentionRunnerFor(&fakeReducerDB{}, cfg, nil, nil).SupersededSweeper)
+	wired := generationRetentionRunnerFor(&fakeReducerBeginnerDB{}, cfg, nil, nil)
 	require.NotNil(t, wired.SupersededSweeper)
 	require.NotNil(t, wired.OrphanSweeper)
 }

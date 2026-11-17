@@ -167,7 +167,7 @@ preview also carries `truncated`, `evidence_shipped`, and `evidence_omitted`,
 `evidence_graph` carries `nodes_truncated` and `nodes_omitted`, and a dropped
 list is named by a `*_shipped_at` pointer or only in `truth.omissions`. On all three tools, deployment artifact rows keep
 `id`, `relationship_type`, and `resolved_id`; `get_relationship_evidence` by
-`resolved_id` returns the rest, including confidence. Pass `evidence_detail: full` for every
+`resolved_id` returns the rest, including confidence, until retention removes that `resolved_id`'s relationship generation (then it answers not found, as for a `resolved_id` read from a graph edge). Pass `evidence_detail: full` for every
 row. On a large service `full` can exceed the response budget and fail with
 `mcp_response_over_budget`. The HTTP routes default to `full`. See
 [Context Evidence Budget](http-api/context-evidence-budget.md).

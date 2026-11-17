@@ -476,6 +476,14 @@ are read-invisible; they are derived from facts the hold keeps anyway.
   demand, never eager). See [Generation Retention Search Index
   Pre-Delete](../reference/telemetry/generation-retention-search-index.md#superseded-sweep-flagged-8231).
 
+## Symptom: relationship tables keep growing
+
+`relationship_evidence_facts`, `relationship_candidates` or `relationship_generations` grow with every re-index. Retention removes a generation's rows once no scope generation, active generation row or scope pointer names it (#10823). Deletes are off: `ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ENABLED` defaults to `false` and the census always runs.
+
+- **Census:** `eshu_dp_relationship_retention_orphan_generations{table}` (saturates at 5,000). Take exact counts, estimate WAL (orphan rows x 1.7 KB x replicas) and lower `..._ROW_CAP` if needed before enabling.
+- **Stop:** unset the flag and roll the reducer; an interrupted batch rolls back whole. A removed `resolved_id` answers the existing 404.
+- **Detail:** [Generation Retention Relationships](../reference/telemetry/generation-retention-relationships.md).
+
 ## Escalation and proof
 
 - For freshness causality across many scopes, the console **Freshness** dashboard

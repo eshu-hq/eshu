@@ -30,6 +30,12 @@ side-runner startup loop in the reducer root.
   index superseded sweep port; `Runner.SupersededSweeper` runs after the
   orphan sweep when `Policy.SearchIndexSupersededSweepEnabled` is set (off
   by default)
+- `RelationshipSweeper`, `RelationshipSweepRequest`, `RelationshipSweepResult`,
+  `RelationshipSkipLockTimeout` — the #10823 relationship retention census and
+  sweep port (`relationship_sweep.go`); `Runner.RelationshipSweeper` runs last,
+  takes the census whenever it is due and deletes only when
+  `Policy.RelationshipRetentionSweepEnabled` is set (off by default), within
+  `Policy.RelationshipRetentionRowCap` rows
 
 See `doc.go` for the full contract.
 
@@ -61,8 +67,16 @@ Never `internal/reducer`.
   `eshu_dp_search_index_superseded_rows_swept_total{table}` (#8231 flagged
   superseded sweep; tables add `eshu_search_index_stats`; phases
   `census_search_index_superseded` and `sweep_search_index_superseded`;
-  failure reason `search_index_superseded_sweep`)
-- Spans: none; the drain runs inline in the side-runner goroutine
+  failure reason `search_index_superseded_sweep`),
+  `eshu_dp_relationship_retention_orphan_generations{table}`,
+  `eshu_dp_relationship_retention_rows_swept_total{table}`,
+  `eshu_dp_relationship_retention_generations_skipped_total{reason}` and
+  `eshu_dp_relationship_retention_capped_total{cap}` (#10823 relationship
+  census and sweep; phases `census_relationship_orphans` and
+  `sweep_relationship_orphans`; failure reason `relationship_orphan_sweep`)
+- Spans: none here; the drain runs inline in the side-runner goroutine, and
+  the relationship sweep's pass span `generation_retention.relationship_sweep`
+  is opened by the storage leaf (`storage/postgres/retention/relationships`)
 - Logs: `generation retention cycle completed` (pruned/skipped totals,
   ledger share, lock hold, `search_index_batches`); WARN when the ledger delete differs from
   its pre-count; WARN `generation retention fact key delete differs from
@@ -78,7 +92,11 @@ Never `internal/reducer`.
   per-batch `generation retention search index superseded batch committed`
   (scope_id, generation_id, table, batch_rows_deleted), and ERROR
   `generation retention search index superseded sweep failed` (all #8231,
-  only when the sweep is enabled)
+  only when the sweep is enabled); `generation retention relationship sweep
+  completed` (deletes_enabled, orphan_generations, census_saturated,
+  rows_swept, generations_swept, skipped, batches, capped) and ERROR
+  `generation retention relationship sweep failed` (#10823; the per-batch
+  lines come from the storage leaf)
 
 ## Gotchas / invariants
 

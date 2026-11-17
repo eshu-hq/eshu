@@ -64,6 +64,10 @@ control-plane assertion.
 Use this route when a client needs to explain why an edge exists without
 embedding full evidence payloads in every graph response.
 
+A `resolved_id` is readable only while retention keeps its relationship generation. Once retention
+removes that generation, every `resolved_id` it produced, including one read from a graph edge, returns
+the same `404` as an unknown id; re-read the repository or service context. See the [runbook](../../operate/3am-operator-runbook.md#symptom-relationship-tables-keep-growing).
+
 ## Admission Decisions
 
 `GET /api/v0/evidence/admission-decisions`
