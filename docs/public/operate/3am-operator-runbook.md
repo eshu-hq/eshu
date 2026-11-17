@@ -480,7 +480,8 @@ are read-invisible; they are derived from facts the hold keeps anyway.
 
 `relationship_evidence_facts`, `relationship_candidates` or `relationship_generations` grow with every re-index. Retention removes a generation's rows once no scope generation, active generation row or scope pointer names it (#10823). Deletes are off: `ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ENABLED` defaults to `false` and the census always runs.
 
-- **Census:** `eshu_dp_relationship_retention_orphan_generations{table}` (saturates at 5,000). Take exact counts, estimate WAL (orphan rows x 1.7 KB x replicas; measured 0.3 KB per row when a generation's rows sit together, up to 4.3 KB right after a checkpoint) and lower `..._ROW_CAP` if needed before enabling.
+- **Census:** `eshu_dp_relationship_retention_orphan_generations{table}` (saturates at 5,000). Take exact counts, estimate WAL (orphan rows x 1.7 KB; replicas split the drain, so they raise the rate, not the total; measured 0.3 KB per row when a generation's rows sit together, up to 4.3 KB right after a checkpoint) and lower `..._ROW_CAP` if needed before enabling.
+- **Deadlock check:** read `pg_stat_database.deadlocks` before and after a drain; the delta must be 0. The sweep never waits for a row lock, so it is no link in a row-lock cycle with a purge; a non-zero delta points at some other statement.
 - **Stop:** unset the flag and roll the reducer; an interrupted batch rolls back whole. A removed `resolved_id` answers the existing 404.
 - **Detail:** [Generation Retention Relationships](../reference/telemetry/generation-retention-relationships.md).
 

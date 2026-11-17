@@ -48,12 +48,21 @@ service context for a current pointer.
   setting), after the search index sweeps. A failed pass is recorded and logged
   and does not fail the retention pass.
 - A pass deletes at most the row cap, and stops after a quarter of the poll
-  interval. Batches hold at most 50 generations. The first batch always runs,
-  so one pass can exceed the cap by up to one batch.
+  interval. A batch holds at most 50 generations and deletes at most 20,050
+  rows (each of its two row-picking deletes stops at 10,000), so a generation
+  larger than that is drained by successive batches inside the same pass, each
+  its own transaction. The first batch always runs, so one pass can exceed the
+  cap by up to one batch.
 - After a pass that stopped on the row cap, the deadline or the census list
   limit, the runner re-runs after a sixth of the poll interval so a backlog
   drains in hours. It never re-runs early after a failed pass, a clean pass, or
-  a pass that skipped a batch on `lock_timeout`.
+  a pass that skipped a batch on `lock_timeout`, and any later pass clears the
+  shortened cadence (a failed pass after a capped one waits the full interval).
+  While the latest pass was capped, the same sixth also bounds the retention
+  prune's own idle wait and its skipped-retry wait, so a relationship backlog
+  makes the prune poll more often too; the search index sweeps keep their own
+  once-per-poll due checks. A prune that fails waits the full poll interval,
+  even straight after a capped relationship pass.
 - The census lists at most 5,000 orphan generations per table; the rest are
   listed by later passes. The sweep re-lists from the lowest id each pass.
 - The census reads every generation id of each relationship table once: 0.2 to
@@ -75,19 +84,31 @@ service context for a current pointer.
    `eshu_dp_relationship_retention_orphan_generations{table}`. A reading of
    5,000 means "at least 5,000"; take the exact counts with the query below.
 2. Estimate the write-ahead log (WAL) the drain will produce: orphan rows
-   times 1.7 KB times reducer replicas. The default cap of 100,000 rows is
-   about 170 MB of WAL per pass, and about 1 GB per hour per reducer replica
-   when capped passes re-run every sixth of a 1h poll interval. That is a
-   planning figure for rows scattered across a large table. A local PostgreSQL
-   18 run measured 0.3 KB per row when a generation's rows sit together and
-   up to 4.3 KB per row for a pass that starts right after a checkpoint, when
-   every first touch of a page writes a full page image. `wal_compression`
-   shrinks the images.
+   times the per-row figure below. Reducer replicas do not multiply it. They
+   share the backlog through the per-generation advisory try locks (a
+   generation one replica holds, the others skip), so more replicas drain it
+   sooner at a higher WAL rate, with the same total. The default cap of 100,000
+   rows is about 170 MB of WAL per pass at the 1.7 KB per row planning figure,
+   and about 1 GB per hour from one replica when capped passes re-run every
+   sixth of a 1h poll interval (each replica adds its own passes to that rate).
+   The planning figure is for rows scattered across a large table. A local
+   PostgreSQL 18 run measured 0.3 KB per row when a generation's rows sit
+   together and up to 4.3 KB per row for a pass that starts right after a
+   checkpoint, when every first touch of a page writes a full page image.
+   The 1.7 KB and 4.3 KB figures predate the row lock record each delete now
+   writes (about 55 B more per row, 3%, measured on a smaller corpus) and were not
+   repeated at their size. `wal_compression` shrinks the images.
 3. If that is too much for the replicas' WAL budget, lower
    `ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ROW_CAP` or lengthen the poll
    interval, then enable the flag.
 4. Watch `eshu_dp_relationship_retention_rows_swept_total` and the orphan gauge
    fall, and replica lag stay inside its budget.
+5. Read `pg_stat_database.deadlocks` for the database before the drain and after
+   it. The delta over the drain window must be 0. In both arrival orders the
+   purge succeeds and never sees `40P01`; the sweeper never waits on a row lock,
+   skips the held generation as `lock_busy`, and commits the other generations of
+   the batch. A non-zero delta means some other statement is in a lock cycle with
+   a writer, and the drain is not done until it is found.
 
 Run this read-only count on a replica or inside a read-only transaction. It
 reads the same predicates the sweep uses, and the statement timeout keeps a
@@ -122,7 +143,7 @@ ROLLBACK;
 |---|---|
 | `eshu_dp_relationship_retention_orphan_generations{table}` | Gauge of orphan generations at the last census, per table. Saturates at 5,000. A failed census leaves it at the last value. |
 | `eshu_dp_relationship_retention_rows_swept_total{table}` | Rows deleted per table. Stays 0 while deletes are off. |
-| `eshu_dp_relationship_retention_generations_skipped_total{reason}` | Generations left for a later pass: `lock_busy`, `lock_timeout`, `ineligible`. A `lock_timeout` count covers a whole batch of up to 50 generations. |
+| `eshu_dp_relationship_retention_generations_skipped_total{reason}` | Generations left for a later pass: `lock_busy` (another sweeper holds the generation, an activation holds its generation row, or a purge or writer holds some of its evidence or candidate rows; the batch skipped it without waiting), `lock_timeout` (a table lock, such as DDL, held the batch; the count covers a whole batch of up to 50 generations), `ineligible`. |
 | `eshu_dp_relationship_retention_capped_total{cap}` | Passes that stopped with orphans left: `rows`, `deadline`, `list`. |
 | `eshu_dp_generation_retention_phase_duration_seconds{phase}` | Phases `census_relationship_orphans` (every run) and `sweep_relationship_orphans` (only when batches ran). |
 | `eshu_dp_generation_retention_failures_total{reason="relationship_orphan_sweep"}` | A census or batch failed (log `failure_class=generation_retention_relationship_sweep_error`). |
@@ -131,34 +152,59 @@ Metric labels carry table names, reasons and caps only. No scope or generation
 identifier is ever a label.
 
 **Span.** One `generation_retention.relationship_sweep` span per pass, with a
-`generation_retention.relationship_batch` event per committed batch (batch
-generations, rows per table, duration). The span carries `deletes_enabled`,
-`orphan_generations_listed`, `census_saturated`, `generations_swept`,
+`generation_retention.relationship_batch` event per committed batch (the
+generations it finished, rows per table, duration). The span carries `deletes_enabled`,
+`orphan_generations_listed`, `census_saturated`, `generations_swept` (the
+generations the committed batches left with no evidence, candidate or generation
+row, which includes one whose rows another replica removed after the census),
 `batches` and `capped`.
 
 **Logs.** One `generation retention relationship batch committed` line per
-committed batch (`batch_generations`, rows per table, `batch_rows_deleted`,
-`duration_ms`). One `generation retention relationship batch left for a later
-pass` line for a batch that swept nothing, with the `lock_busy`,
-`lock_timeout` and `ineligible` counts (a `WARN` when a lock timeout ended
-it). One `generation retention relationship sweep completed` line per pass
+committed batch (`batch_generations`, the generations it finished; rows per
+table; `batch_rows_deleted`; `batch_continued`, the generations its row limit cut
+and the pass runs again; `duration_ms`). A batch that deleted rows but could not
+finish a generation still commits those rows, so `batch_generations` can be 0
+while `batch_rows_deleted` is not: a large generation reads as a run of batches
+that finish none and continue one, then one that finishes it. One `generation retention relationship batch
+left for a later pass` line for a batch that deleted nothing and finished
+nothing, with the `lock_busy`, `lock_timeout` and `ineligible` counts (a `WARN`
+when a lock timeout ended it). One `generation retention relationship sweep completed` line per pass
 (`deletes_enabled`, `orphan_generations`, `census_saturated`, `rows_swept`,
 `generations_swept`, `skipped`, `batches`, `capped`, `census_seconds`,
 `sweep_seconds`). Lines carry counts and times, never identifiers.
 
 ## Locks and repository purges
 
-Each batch is one transaction. It sets a transaction-local `lock_timeout` of
-500 ms, takes a per-generation advisory try lock (lock class `10823`, so two
-sweepers never take the same generation), re-checks the orphan rules and
-locks the generation rows with `FOR UPDATE SKIP LOCKED`, then deletes evidence,
-candidates and the generation row last. A repository purge also deletes the
-evidence, candidates and generation rows of the repository's scopes, in that
-order. When a purge holds rows a batch needs, the batch waits at most 500 ms,
-rolls back and counts as `lock_timeout`. That is below the 1 s default
-`deadlock_timeout`, so with the default the batch always gives way first: the
-purge is never the deadlock victim and neither side sees a deadlock. A later
-pass picks the generations up again.
+Each batch is one transaction, and it never waits for a row lock. It sets a
+transaction-local `lock_timeout` of 500 ms, takes a per-generation advisory try
+lock (lock class `10823`, so two sweepers never take the same generation),
+re-checks the orphan rules and locks the generation rows with
+`FOR UPDATE SKIP LOCKED`, then selects the evidence rows and the candidate rows
+of the claimed generations `FOR UPDATE SKIP LOCKED` and deletes exactly those
+rows, and deletes the generation row last, only for a generation with no
+evidence and no candidate row left. Each of the two selects stops after 10,000
+rows it locked (a row it skipped does not count). A read at the end names the
+claimed generations that still have a row. If neither select stopped at its
+limit, another session holds what is left: they count as `lock_busy`, keep their
+generation row, and a later pass retries them while the rest of the batch
+commits. If one did, the generation is only larger than the batch, and the same
+pass runs it again before it moves on, within the same row cap and deadline.
+
+A repository purge deletes the evidence, candidates and generation rows of the
+repository's scopes in the same table order, so the delete order is the same,
+but the lock orders cross: the batch holds the generation row first, the purge
+reaches it last. A lock timeout cannot break that cycle, because it only ends
+the waiter that carries it, and the purge's own deadlock check (1 s by default)
+can fire first and make the purge the victim; that happened 700 and 800 ms after
+the purge queued in an earlier design that relied on the timeout. The batch is
+wait-free instead. In both arrival orders the purge succeeds and never sees a
+`40P01`; the batch never waits on a row lock, skips the held generation as
+`lock_busy`, and commits the other generations of its batch. The only wait left
+is the purge waiting for the batch, which ends when the batch commits or rolls
+back, and a batch holds at most about 20,000 row locks, so the purge of a very
+large generation waits for one bounded chunk, never for the whole generation. The 500 ms `lock_timeout` stays as a backstop for the one wait the batch
+cannot skip, a table lock held by DDL: that batch rolls back and counts
+`lock_timeout`.
 
 ## Space, bloat and stopping
 

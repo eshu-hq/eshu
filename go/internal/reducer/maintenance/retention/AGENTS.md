@@ -40,9 +40,15 @@ transitively.
   sweep. The census runs whenever the sweep is due; `Request.Deletes` follows
   `Policy.RelationshipRetentionSweepEnabled` (off by default, pinned by
   `TestRelationshipSweepDeletesAreOffByDefault`). Only a plain capped pass
-  shortens the next wait to a sixth of the poll interval, in both the due
-  check and `Run`'s idle wait; a failed, clean or lock-timeout pass keeps the
-  full interval (`TestRelationshipSweepAcceleratesOnlyAfterACappedPass`). Keep
+  shortens the next wait to a sixth of the poll interval, in the sweep's due
+  check and in `Run`'s idle and skipped-retry waits (the retention prune's own
+  waits, `shortenForRelationshipBacklog`; the search index sweeps keep their
+  own once-per-poll checks); a failed, clean or lock-timeout pass keeps the
+  full interval (`TestRelationshipSweepAcceleratesOnlyAfterACappedPass`), and the
+  flag is cleared at the start of every due pass, so a failed pass after a capped
+  one returns to the poll interval
+  (`TestRelationshipSweepCadenceFollowsOnlyTheLatestPass`). A `RunOnce` error
+  waits the full poll interval with no shortening even after a capped pass. Keep
   `RelationshipSkipLockTimeout` equal to the storage leaf's reason (the
   `cmd/reducer` adapter test pins it).
 
