@@ -74,8 +74,11 @@ new index. Nothing in production fills the planner's request fields until the
   release its slot while its data was in flight, and the older replay live test
   failed. So the leg also requires that the newest generation has no live
   projector item (pending, claimed, running, or retrying), read by its own CTE
-  on the same index as the projector leg. The outcomes the ruling lists for a
-  replay are unchanged; only the mechanism differs.
+  on the same index as the projector leg. A dead-lettered, failed, or absent
+  projector item is not live, so a generation whose item is gone still reads
+  `failed` (`TestNVDBaselineAbsentProjectorItemStillReadsFailedLive`). The
+  outcomes the ruling lists for a replay are unchanged; only the mechanism
+  differs.
 
 ## The probe adds no index (EXPLAIN proof)
 
@@ -149,13 +152,18 @@ planner actually uses.
 
 ## Mutation check
 
-A harness applied 150 hand-made mutants to the production code one at a time at
-commit 7c031ba45e. A mutant applies only when its target text occurs exactly
-once. For each one it ran the tests of the package and read the result: a mutant
-is killed when a test fails and survives when none does. They cover the drain
-probe's query and phase derivation, its timeout and typed errors, the slot rule,
-the pace, the held-years gauge, the pending-successor leg, and the
-failed-successor leg. 144 were killed on the first pass and six were not:
+A scratch harness kept outside this repository applied 150 hand-made mutants to
+the production code one at a time at the commit "Read a failed successor of a
+superseded NVD baseline chunk as downstream failed". A mutant applies only when
+its target text occurs exactly once. For each one it ran the tests of the
+package and read the result: a mutant is killed when a test fails and survives
+when none does. They cover the drain probe's query and phase derivation, its
+timeout and typed errors, the slot rule, the pace, the held-years gauge, the
+pending-successor leg, and the failed-successor leg. 144 were killed on the
+first pass and six were not. A later review added one more hand-made mutant
+(X10), which also survived, so the table lists seven. The harness and its
+mutant list are not in the repository, so this branch cannot rerun the pass; the
+table is the record of the mutants that survived.
 
 | Mutant | Why it was not killed | Outcome |
 |---|---|---|
@@ -165,12 +173,15 @@ failed-successor leg. 144 were killed on the first pass and six were not:
 | The drain gate's default for an unknown phase released the slot (SL14) | A real gap: nothing reached that return. | `TestNVDBaselineYearLaneGateHoldsASlotForAnUnknownPhase` kills it |
 | The retry-wait count read as the drain-unloaded count (HY3) | A real gap: the end-to-end test held one year under each reason. | `TestWorkPlannerRecordsHeldYearsEveryPlan` now holds 1, 2, and 3 years and kills it |
 | A held year can still mint (SL15) | Invalid: the edit left a variable unused, so the package did not compile. | Repaired and killed |
+| The newest generation's projector leg read an absent item as live: the `COALESCE` default flipped from false to true (X10, from the later review) | A real gap: a dead-lettered item was tested and a deleted one was not, so the flip passed the whole storage and coordinator vulnerability test runs. | `TestNVDBaselineAbsentProjectorItemStillReadsFailedLive` kills it: the chunk reads `projecting` instead of `failed` |
 
-With the two tests added after the pass (the commit that follows 7c031ba45e),
-148 of 150 are killed and the other two are equivalent. The mutants the
-failed-successor ruling asked for all fail tests: the no-pending condition
-dropped (`TestNVDBaselineDrainProbeDerivesThePhaseOfTheLastChunk`), the
-no-active condition dropped (same), the status-only leg without "newest"
+With the tests added after the first pass (the commit "Pin the held-years counts
+by reason and the drain gate's default for an unknown phase", then
+`TestNVDBaselineAbsentProjectorItemStillReadsFailedLive`), 149 of 151 are killed
+and the other two are equivalent. The mutants the failed-successor ruling asked
+for all fail tests: the no-pending condition dropped
+(`TestNVDBaselineDrainProbeDerivesThePhaseOfTheLastChunk`), the no-active
+condition dropped (same), the status-only leg without "newest"
 (`TestNVDBaselineOnlyTheNewestGenerationDecidesFailedLive`), the liveness
 conjunct dropped (`TestNVDBaselineFailedSuccessorOfASupersededChunkLive` and the
 replay live test), and the liveness conjunct flipped (those and the phase
