@@ -180,7 +180,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	// and read through the active-scan index.
 	var over bool
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildIdents, func() error {
-		for _, stmt := range []string{buildWinnersKeyedScopeIdentsSQL, buildWinnersKeyedIdentsSQL, analyzeWinnersKeyedIdentsSQL} {
+		for _, stmt := range winnersKeyedBuildIdentsStmts {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed identifiers: %w", err)
 			}
@@ -358,27 +358,6 @@ func (s SupplyChainImpactWinnersStore) overKeyedCap(ctx context.Context, tx db.T
 	return stored > 0 && float64(idents) > fraction*float64(stored), nil
 }
 
-// winnersCaptureTally is the consumed dirty-log rows by capture source.
-type winnersCaptureTally map[string]int64
-
-func (t winnersCaptureTally) total() int64 {
-	var n int64
-	for _, v := range t {
-		n += v
-	}
-	return n
-}
-
-// triggerSources returns the consumed rows of the sources a database trigger
-// owns, the only ones the maintainer counts at consume.
-func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCaptured {
-	return supplychaincore.WinnersTriggerCaptured{
-		Activation: t[telemetry.SupplyChainImpactWinnersSourceActivation],
-		Operator:   t[telemetry.SupplyChainImpactWinnersSourceOperator],
-		Scanner:    t[telemetry.SupplyChainImpactWinnersSourceScanner],
-	}
-}
-
 // admitWinnersDirtyWindow copies the oldest limit dirty-log rows into the
 // consumed temp table and returns how many it admitted. The rows stay in the
 // log until settleWinnersKeyedDirtyLog deletes the applied ones.
@@ -388,6 +367,12 @@ func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64
 	}
 	if _, err := tx.ExecContext(ctx, admitWinnersKeyedWindowSQL, limit); err != nil {
 		return 0, fmt.Errorf("admit supply chain impact winners dirty window: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, indexWinnersKeyedConsumedSeqSQL); err != nil {
+		return 0, fmt.Errorf("index supply chain impact winners consumed rows: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedConsumedSQL); err != nil {
+		return 0, fmt.Errorf("analyze supply chain impact winners consumed rows: %w", err)
 	}
 	return scanWinnersInt64(ctx, tx, countWinnersKeyedConsumedSQL, "count admitted dirty rows")
 }
