@@ -266,9 +266,9 @@ Every figure and its method:
 2. **Core second.** Core does not read the vector today (#10732 is open and core
    pins a commit before it). Core accepts three- and four-segment scopes and the
    optional keys, so it is safe with an old collector.
-3. **Collector third**, pinned through
-   `testdata/ifa/eshu-core-protocol-pin.json` to the core commit that reads the
-   position. A new collector against an old core would cut inside a group that
+3. **Collector third**, pinned through the collector repository's core
+   protocol pin file (in its IFA test data) to the core commit that reads
+   the position. A new collector against an old core would cut inside a group that
    core cannot resume in, and stall.
 4. **Host config**: none required. Enable preflight:
    `ESHU_WORKFLOW_CLAIM_PLANE_URL` unset, because that route caps a commit at 4
