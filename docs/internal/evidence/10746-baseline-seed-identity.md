@@ -57,8 +57,8 @@ that the chunk identity follows only a write at or past the stored position.
 Six SQL mutants each fail a live test: position-only identity, a probe that
 keeps its position clause, a split sha and stamp pair, a chunk identity that
 follows the newer stamp, a misplaced parenthesis that lets an unstamped
-candidate clear the identity, and a strict `>` on the position arm. Three of
-them also fail the hermetic unit assertions.
+candidate clear the identity, and a strict `>` on the position arm. The first
+four also fail the hermetic unit assertions; the last two need the database.
 
 ## Observability Evidence
 
