@@ -89,6 +89,77 @@ func TestRelationshipSweepAcceleratesOnlyAfterACappedPass(t *testing.T) {
 	}
 }
 
+// sweepPass is one scripted relationship sweep: the result it returns and the
+// error it fails with. A failing pass still returns its result, as a pass whose
+// census succeeded before a batch failed does.
+type sweepPass struct {
+	result RelationshipSweepResult
+	err    error
+}
+
+// scriptedRelationshipSweeper answers each call from the next scripted pass, so
+// a test can walk the runner through a sequence of passes with one Runner.
+type scriptedRelationshipSweeper struct {
+	passes []sweepPass
+	calls  int
+}
+
+func (s *scriptedRelationshipSweeper) SweepRelationships(context.Context, RelationshipSweepRequest) (RelationshipSweepResult, error) {
+	if s.calls >= len(s.passes) {
+		return RelationshipSweepResult{}, errors.New("more sweeps than the test scripted")
+	}
+	pass := s.passes[s.calls]
+	s.calls++
+	return pass.result, pass.err
+}
+
+// TestRelationshipSweepCadenceFollowsOnlyTheLatestPass drives one runner through
+// two passes. The single-pass table above always starts from a fresh runner, so
+// it cannot see state a capped pass leaves behind: a failed pass that follows
+// one must still wait the full poll interval, not the sixth the capped pass
+// earned. The wait after each pass is the cadence; the fake clock advances by
+// exactly that wait, so each wake-up finds the sweep due only if the interval it
+// was shortened to has passed.
+func TestRelationshipSweepCadenceFollowsOnlyTheLatestPass(t *testing.T) {
+	poll := 6 * time.Hour
+	capped := sweepPass{result: RelationshipSweepResult{Capped: "rows"}}
+	failed := sweepPass{result: RelationshipSweepResult{Capped: "rows"}, err: errors.New("batch failed")}
+	clean := sweepPass{result: RelationshipSweepResult{GenerationsSwept: 12}}
+	contended := sweepPass{result: RelationshipSweepResult{Capped: "rows", Skipped: map[string]int{"lock_timeout": 3}}}
+	for _, tc := range []struct {
+		name   string
+		passes []sweepPass
+		want   []time.Duration
+	}{
+		{"capped then capped keeps draining fast", []sweepPass{capped, capped}, []time.Duration{time.Hour, time.Hour}},
+		{"capped then failed returns to the poll interval", []sweepPass{capped, failed}, []time.Duration{time.Hour, poll}},
+		{"capped then clean returns to the poll interval", []sweepPass{capped, clean}, []time.Duration{time.Hour, poll}},
+		{"capped then a lock timeout returns to the poll interval", []sweepPass{capped, contended}, []time.Duration{time.Hour, poll}},
+		{"failed then capped accelerates again", []sweepPass{failed, capped}, []time.Duration{poll, time.Hour}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC)
+			sweeper := &scriptedRelationshipSweeper{passes: tc.passes}
+			var waits []time.Duration
+			runner := &Runner{
+				Pruner: &fakeGenerationRetentionPruner{}, RelationshipSweeper: sweeper,
+				Config: Config{PollInterval: poll}, Now: func() time.Time { return now },
+				Wait: func(_ context.Context, d time.Duration) error {
+					waits = append(waits, d)
+					now = now.Add(d)
+					if len(waits) == len(tc.passes) {
+						return context.Canceled
+					}
+					return nil
+				},
+			}
+			require.NoError(t, runner.Run(context.Background()))
+			require.Equal(t, tc.want, waits)
+			require.Equal(t, len(tc.passes), sweeper.calls, "every wake-up found the sweep due")
+		})
+	}
+}
+
 // TestRelationshipBacklogBoundsButNeverLengthensASkippedRetry pins the other
 // wait a relationship backlog shortens. A pass whose prune skipped generations
 // retries on a doubling backoff that grows to the poll interval. After a capped
