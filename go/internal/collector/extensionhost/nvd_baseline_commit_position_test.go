@@ -97,8 +97,8 @@ func TestNVDBaselineCommitPolicyRequiresStrictPositionAdvance(t *testing.T) {
 				t.Fatalf("armed = %v, want %v (args %v)", armed, tc.armed, args)
 			}
 			if args != nil {
-				if args[2] != tc.advance || args[3] != tc.cveID {
-					t.Fatalf("resume = (%v, %v), want the committed position (%d, %q)", args[2], args[3], tc.advance, tc.cveID)
+				if args[2] != tc.advance || args[6] != tc.cveID {
+					t.Fatalf("resume = (%v, %v), want the committed position (%d, %q)", args[2], args[6], tc.advance, tc.cveID)
 				}
 			}
 		})
@@ -115,11 +115,11 @@ func TestNVDBaselineCommitPolicyReadsSeedGenerationAndStaysSafeWithAnOldCollecto
 	payload := positionPayload(testNVDBaselineChunkStartMicros+1000, "", false)
 	payload[nvdBaselineYearGeneratedPayloadKey] = int64(1761000000000000)
 	args := baselineWriterArgsFor(t, testNVDBaselineScopeForCommit, payload)
-	if args == nil || args[5] != int64(1761000000000000) {
-		t.Fatalf("stamped verdict args = %v, want the seed generation at arg 5", args)
+	if args == nil || args[7] != int64(1761000000000000) {
+		t.Fatalf("stamped verdict args = %v, want the seed generation at arg 7", args)
 	}
 	old := baselineWriterArgsFor(t, testNVDBaselineScopeForCommit, testNVDBaselineVerdictPayload())
-	if old == nil || old[3] != "" || old[5] != int64(0) {
+	if old == nil || old[6] != "" || old[7] != int64(0) {
 		t.Fatalf("old-collector verdict args = %v, want empty CVE ID and stamp 0", old)
 	}
 	for name, bad := range map[string]any{"negative": int64(-5), "string": "now", "float64 round trip ok": float64(1761000000000000)} {

@@ -92,8 +92,8 @@ func TestBaselineCommitCompleteVerdictAtChunkStartArmsTheCheckpoint(t *testing.T
 	if args[2] != testNVDBaselineChunkStartMicros {
 		t.Fatalf("resume arg = %v, want the chunk start %d", args[2], testNVDBaselineChunkStartMicros)
 	}
-	if args[6] != true {
-		t.Fatalf("complete arg = %v, want true", args[6])
+	if args[4] != true {
+		t.Fatalf("complete arg = %v, want true", args[4])
 	}
 }
 
