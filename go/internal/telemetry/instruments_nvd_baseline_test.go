@@ -168,3 +168,48 @@ func TestNVDBaselineSeedRotationAndProgressSignals(t *testing.T) {
 	nilInstruments.RecordNVDBaselineProgress(ctx, 1, 1, 1, 1)
 	(&Instruments{}).RecordNVDBaselineProgress(ctx, 1, 1, 1, 1)
 }
+
+// TestNVDBaselineSettlementEvictionSignal pins the #10746 counter: it is
+// registered, records one point per eviction with no label (no work item or
+// run id can become a label value), and nil instruments or a nil counter skip
+// the signal.
+func TestNVDBaselineSettlementEvictionSignal(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := testBaselineInstruments(t)
+	if instruments.NVDBaselineSettlementEvictions == nil {
+		t.Fatal("NVDBaselineSettlementEvictions = nil, want the counter registered")
+	}
+	ctx := context.Background()
+	instruments.RecordNVDBaselineSettlementEviction(ctx)
+	instruments.RecordNVDBaselineSettlementEviction(ctx)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	var total int64
+	points := 0
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || m.Name != "eshu_dp_nvd_baseline_settlement_evictions_total" {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				points++
+				total += point.Value
+				if point.Attributes.Len() != 0 {
+					t.Fatalf("eviction counter carries attributes %v, want none", point.Attributes)
+				}
+			}
+		}
+	}
+	if total != 2 || points != 1 {
+		t.Fatalf("eviction counter = %d over %d points, want 2 over one unlabeled point", total, points)
+	}
+
+	var nilInstruments *Instruments
+	nilInstruments.RecordNVDBaselineSettlementEviction(ctx)
+	(&Instruments{}).RecordNVDBaselineSettlementEviction(ctx)
+}

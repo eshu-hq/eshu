@@ -45,6 +45,21 @@ planner re-mints the same position after a refused claim and waits the 30 minute
 retry wait. The forward-rotation counter (reported only when the stored seed
 identity actually moves: a strictly newer stamp under another sha, at any
 position) and the committed-chunk INFO line fire only after the commit lands.
+Both ride a stash of at most 64 settlements per host process, written in the
+commit transaction and read by the post-commit hook. A full stash evicts its
+oldest entry to take a new one (the earliest stash time; equal times fall to the
+smaller work item id, so the choice never depends on map order), and that is
+never silent (#10746): each eviction counts on
+`eshu_dp_nvd_baseline_settlement_evictions_total`, which carries no label, and
+logs WARN `nvd baseline settlement evicted at capacity, post-commit signals for
+that chunk may be lost` naming the dropped work item. The stash cannot tell a
+stale entry (a commit that never landed) from a chunk that committed and is
+waiting for its hook, so the signal says "may". The evicted chunk's facts and
+checkpoint are unaffected. If it had committed, only its forward-rotation count
+and committed-chunk line are lost, so after a rise in the counter read the
+stored seed identity, not the rotation counter, to see which seed a year is on.
+Both signals are reported after the stash lock is released, because every commit
+worker shares it.
 
 ## The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
 

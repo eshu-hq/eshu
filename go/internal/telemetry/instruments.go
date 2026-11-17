@@ -744,6 +744,12 @@ type Instruments struct {
 	// (a newer seed, the lane resumes) or rollback (an older seed, the whole
 	// generation rolls back). Labels stay direction-only.
 	NVDBaselineSeedRotations metric.Int64Counter
+	// NVDBaselineSettlementEvictions counts chunk settlements the extension
+	// host's bounded post-commit stash dropped to make room (#10746). The
+	// chunk's commit is unaffected; if it had committed, its forward-rotation
+	// count and committed-chunk log line are the only things lost. Unlabeled:
+	// no work item or run id becomes a label value.
+	NVDBaselineSettlementEvictions metric.Int64Counter
 	// NVDBaselineYearsComplete, NVDBaselineYearsTotal,
 	// NVDBaselineRecordsDone, and NVDBaselineRecordsTotal record the latest
 	// planned run-wide baseline progress (#10809): years replayed whole of
