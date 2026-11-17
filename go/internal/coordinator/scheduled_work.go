@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/schedule"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -155,9 +156,26 @@ func (s Service) createWorkflowWork(
 	if denied > 0 {
 		run = filterWorkflowRunRequestedScopeSet(run, authorizedItems)
 	}
-	admission, result, err := s.admitWorkflowWork(ctx, run, authorizedItems, advance)
+	// The NVD baseline per-year plan rows are written by the store in the same
+	// transaction as the work items, for the baseline chunks the insert accepts
+	// (#10828). Deriving the plans here, from the authorized items, gives the
+	// in-tree instance and a vulnerability activation one shared path: a chunk
+	// a tenant grant denied never reaches the store, so it never gets a row.
+	plans := vulnerability.NVDBaselinePlans(authorizedItems)
+	admission, result, err := s.admitWorkflowWork(ctx, run, authorizedItems, advance, plans)
 	if err != nil {
 		return workAdmission{}, err
+	}
+	if len(plans) > 0 && s.Logger != nil {
+		s.Logger.Info(
+			"workflow coordinator admitted NVD baseline chunks",
+			"collector_kind", instance.CollectorKind,
+			"collector_instance_id", instance.InstanceID,
+			"trigger_kind", run.TriggerKind,
+			"baseline_plans", len(plans),
+			"baseline_plans_recorded", admission.BaselinePlansRecorded,
+			"baseline_plans_not_inserted", len(plans)-admission.BaselinePlansRecorded,
+		)
 	}
 	// The two shortfalls are different events and are logged as such. A target
 	// the open-target guard dropped is already being collected by an open run,

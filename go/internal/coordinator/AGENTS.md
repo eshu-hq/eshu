@@ -338,6 +338,18 @@ because schedulers stop at the first error. One predicate enforces it:
   never a silent clock fallback. Keep `Metrics` fakes in step when you add a
   `Record*` method (#9776).
 
+- **NVD baseline plan rows** → `createWorkflowWork` (`scheduled_work.go`) derives
+  the per-year plans from the authorized items with
+  `vulnerability.NVDBaselinePlans` and `admitWorkflowWork` hands them to the
+  optional `BaselinePlanStore` (`owned_target_slot_progress.go`), so the in-tree
+  instance and a vulnerability activation share one path and a chunk a tenant
+  grant denied never gets a row. A baseline admission against a store without the
+  interface is a loud error: a chunk admitted without its row would leave the
+  planner nothing to pace from. Admit through `createWorkflowWork`, never a store
+  method directly (`baseline_plan_admission_test.go` pins both sites). The store
+  writes the row, only for an inserted chunk, in the admission transaction
+  (#10828).
+
 - **Plan keys for a periodic scheduled planner** → call
   `s.scanInterval(instance)` then `scheduledPlanKey(instance, observedAt,
   interval)` from `scheduled_work.go`; never add a per-kind copy of the
