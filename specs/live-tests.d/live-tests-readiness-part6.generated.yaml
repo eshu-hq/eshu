@@ -332,7 +332,7 @@ tests:
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_identity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10810 disposable PostgreSQL proof that an unstamped baseline advance never clears a stored seed identity, that the stamp and sha travel together at an equal position, that a forward-rotation report requires the write the position check accepts, and that the resume_cve_id column compares in the C collation"
+    reason: "#10810 and #10746 disposable PostgreSQL proof that an unstamped baseline advance never clears a stored seed identity, that the stamp and sha travel together, that a newer seed adopts its identity at any position (behind the stored position only the identity moves) so a later older-seed advance is refused, including when the two commits race on the row lock, that a forward-rotation report matches the identity move across the position by stamp by sha matrix, and that the resume_cve_id column compares in the C collation"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_live_test.go
     tag: ~
