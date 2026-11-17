@@ -67,4 +67,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// touches the versioned log's conflict arbiter anymore.
 	"supply_chain_impact_winners_staging_capture",
 	"supply_chain_impact_winners_scanner_staging_capture",
+	// Migration 312 (#10828) adds the per-year NVD baseline plan row the
+	// admission transaction writes for each inserted baseline chunk. 311 is
+	// #10837 direction C's scanner staging capture.
+	"vulnerability_nvd_baseline_plans",
 }

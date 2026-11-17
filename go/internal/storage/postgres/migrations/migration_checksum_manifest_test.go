@@ -421,6 +421,9 @@ var migrationShippedChecksums = map[string]string{
 	"309_supply_chain_impact_winners_dirty_staging.sql":           "963ee79c83d78425336901d89f1de03af88eaf060a6eb541e692d5c0908c6aec",
 	"310_supply_chain_impact_winners_staging_capture.sql":         "5a2c3a4ab72315528c184382a6d0937ce8f8facf6efcfb21e3c598c703d6d3f2",
 	"311_supply_chain_impact_winners_scanner_staging_capture.sql": "5b5602347f33b713035f71cf99147ebd7c4f728b2c4abe7cbd15cdd025eae558",
+	// #10828: the NVD baseline per-year plan row table (migration 312; 311
+	// is #10837 direction C's scanner staging capture).
+	"312_vulnerability_nvd_baseline_plans.sql": "940c733be9bddf69e1fd474c359e0513335671eb9d96e11af5cc2df171a3b8ab",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
