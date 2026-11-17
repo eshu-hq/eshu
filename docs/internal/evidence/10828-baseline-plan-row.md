@@ -25,10 +25,14 @@ yet, so the table stays empty in every deployment until #10746 lands.
   so the plan row lock is what serializes them; the writer sorts its rows by
   `(baseline_run_id, year)` so both take row locks in one order.
 - Worker counts, leases, batching, and retries are unchanged. The admission is
-  still one transaction with a whole-transaction retry of up to 3 attempts on
-  SQLSTATE `40001` and `40P01`. The plan write's errors wrap the driver error,
-  so a deadlock in it is retried like any other statement of the transaction,
-  and the counter is added only for the attempt that commits.
+  still one transaction with a whole-transaction retry (up to
+  `workflowGuardedRunCreateMaxAttempts` attempts, on SQLSTATE `40001` and
+  `40P01`). The plan write's errors wrap the driver error, so a deadlock in it is
+  retried like any other statement of the transaction, and the counter is added
+  only for the attempt that commits.
+  `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules` pins that, and
+  pins that a failure the classifier does not retry (a missing table) ends on the
+  first attempt.
 - Hot path: an admission with no baseline chunk issues the same statements as
   before. `NVDBaselinePlans` returns nothing for any other work item, so the
   coordinator takes the same store call it took before (the plain guarded
@@ -46,11 +50,14 @@ yet, so the table stays empty in every deployment until #10746 lands.
 ### Plan shape on a populated fixture
 
 Disposable PostgreSQL 18.6, `TestNVDBaselinePlanQueriesAreKeyedOnAPopulatedFixtureLive`.
-The fixture is 150,025 work items (60,000 of the `vulnerability_intelligence`
-kind) and 100,025 plan rows over 4,000 runs, with a 25-year target run whose
-years cover every queue status, a deleted item, and a different collector kind
-that reuses a plan row's scope id. The assertion reads index names and
-`Index Cond`, never a cost or a timing.
+The fixture comes from the test's own constants: `explainWorkItemRows` work items
+spread over three collector kinds (`vulnerability_intelligence`, `git`,
+`oci_registry`), and `explainPlanRuns` runs of 25 plan rows each. A 25-year target
+run is added on top, whose years cover every queue status, a deleted item, and a
+different collector kind that reuses a plan row's scope id. The test logs the
+totals (`fixture: N work items, M plan rows`); the run recorded here logged
+150,025 and 100,025. The assertion reads index names and `Index Cond`, never a
+cost or a timing.
 
 - Read (`NVDBaselinePlanReadQuery`): 2 plan nodes and 100 shared buffer touches.
   The plan rows come from `vulnerability_nvd_baseline_plans_pkey`, and each
@@ -171,9 +178,12 @@ the full migration set.
 Each mutant was applied to the production source, the named tests (for W, the
 build) failed, and the source was restored. The IDs are the working labels of
 the proof runs: M is the plan writer and reader, S the root store (hermetic), T
-telemetry, C the coordinator, L the live admission proofs, and W the command
-wiring. M1 and C5 were first applied by deleting code and failed to compile;
-their rows are the compiling forms.
+telemetry, C the coordinator, L the live admission proofs, W the command wiring,
+and X a later sensitivity pass over the tests that had no red-first assertion
+failure. M1 and C5 were first applied by deleting code and failed to compile;
+their rows are the compiling forms. X5b survived every test that existed when it
+was first applied; `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules`
+was written for it, and the row names that test.
 
 | ID | Mutation | Killed by |
 |---|---|---|
@@ -211,6 +221,27 @@ their rows are the compiling forms.
 | LG | a second advisory lock in the plan write | live lock-differential subtest |
 | LH | a `SHARE ROW EXCLUSIVE` table lock in the plan write | live lock-differential subtest |
 | W1 | rename the store method behind `coordinator.BaselinePlanStore` | `go build ./cmd/workflow-coordinator/...` fails at the assertion in `workflow_control_store_wiring.go`; with that assertion removed, the same rename builds clean |
+| X1 | skip the plan write (an early return ahead of the upsert) | `TestWorkflowControlStoreRecordsBaselinePlansInsideTheAdmission` |
+| X2a | write rows on the terminal-run skip (hermetic form of LD) | `TestWorkflowControlStoreWritesNoPlanWhenNothingWasInserted/terminal_run_replay` |
+| X2b | write rows when the guard drops every chunk (hermetic form of LE) | `TestWorkflowControlStoreWritesNoPlanWhenNothingWasInserted/guard_dropped_every_chunk` |
+| X2c | write rows when the insert dropped every chunk | `TestWorkflowControlStoreWritesNoPlanWhenNothingWasInserted/insert_dropped_every_chunk` |
+| X3 | the store derives plans itself when an entry point carries none | `TestWorkflowControlStorePlainEntryPointsWriteNoPlanRows` (both subtests) |
+| X3L | the same mutant, live | live `the plain and slot-progress entry points write no plan row` |
+| X4 | the writer issues a statement for an empty batch | `TestRecordNVDBaselinePlansWithNoPlansWritesNothing` |
+| X5a | the plan statement error loses its wrap in the vulnerability store (`%v` for `%w`) | `TestRecordNVDBaselinePlansWrapsTheStatementError` |
+| X5b | the same, in the root store's plan write | first applied: survived every existing test. Now `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules`, every subtest but the no-failure one |
+| X6a | the read keeps the stored time zone instead of UTC | `TestReadNVDBaselinePlansMapsRowsByYear` |
+| X6b | the read keys the map by the wrong year | `TestReadNVDBaselinePlansMapsRowsByYear` |
+| X7a | a nil `Instruments` is dereferenced | `TestNVDBaselinePlanRowsIsNilSafe` |
+| X7b | a nil counter is dereferenced | `TestNVDBaselinePlanRowsIsNilSafe` |
+| X8 | the derivation de-duplicates a (run, year) | `TestNVDBaselinePlansDoesNotDeduplicate` |
+| X9 | every admission takes the plan-carrying path | `TestCreateWorkflowWorkWithoutBaselineChunksKeepsThePlainPath`, and the older plain-path admission tests |
+| X10 | an admission site calls the store directly | `TestBothAdmissionSitesShareOneAdmissionFunction` |
+| X11 | count the plan rows before the error check | `TestWorkflowControlStoreCountsBaselinePlanRowsAfterCommit/rollback_counts_nothing` |
+| X12 | a secondary index on the plan table | live `TableIsABarePrimaryKeyTable` |
+| X13 | the retry classifier retries every driver error | `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules/an_undefined_table_is_not_retried` |
+| X14 | the retry classifier drops `40001` | `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules/one_serialization_failure_then_a_retry` |
+| X15 | the guarded admission never retries | the retry subtests of `TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules` |
 
 ## Observability Evidence:
 
@@ -256,8 +287,12 @@ their rows are the compiling forms.
   property of the row.
 - Rows are never deleted by this change. Retention is #10831.
 - A 303 binary against a schema older than 303 fails a baseline admission with
-  an undefined-table error and leaves every other admission untouched. This was
-  observed once with a throwaway live test that dropped the plan table: SQLSTATE
-  42P01 from the plan write, one transaction begun, no rows left in
+  an undefined-table error and leaves every other admission untouched. The
+  retry half is a committed hermetic test: an injected 42P01 in the plan write is
+  not retried, one transaction is begun, and nothing is committed or counted
+  (`TestWorkflowControlStorePlanWriteFailuresFollowTheRetryRules`). The server
+  half was observed once with a throwaway live test that dropped the plan table:
+  SQLSTATE 42P01 from the plan write, one transaction begun, no rows left in
   `workflow_runs` or `workflow_work_items`, and a plain admission and a
-  slot-progress admission both committed. It is not a committed test.
+  slot-progress admission both committed. That live observation is not a
+  committed test.
