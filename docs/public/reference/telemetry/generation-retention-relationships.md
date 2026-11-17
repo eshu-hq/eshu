@@ -42,10 +42,11 @@ service context for a current pointer.
 
 ## Cadence and bounds
 
-- The runner takes the census and, when enabled, sweeps at most once per poll
-  interval (`ESHU_GENERATION_RETENTION_POLL_INTERVAL`, `1h` by default), after
-  the search index sweeps. A failed pass is recorded and logged and does not
-  fail the retention pass.
+- The runner takes the census and, when enabled, sweeps at most once per
+  retention poll interval (`1h` by default; the
+  [Resolution Engine](../../services/resolution-engine.md) page lists the
+  setting), after the search index sweeps. A failed pass is recorded and logged
+  and does not fail the retention pass.
 - A pass deletes at most the row cap, and stops after a quarter of the poll
   interval. Batches hold at most 50 generations. The first batch always runs,
   so one pass can exceed the cap by up to one batch.
