@@ -58,9 +58,10 @@ service context for a current pointer.
   0.3 s warm (0.5 to 1.2 s on a first pass) on 3.6 million evidence rows with no
   orphans, 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the slow
   end when the planner reads the evidence table with a parallel sequential scan.
-  It runs under a 60 s statement timeout. A timeout fails the pass
-  (`relationship_orphan_sweep`) and nothing is swept, so run `VACUUM` after a
-  large drain to keep the cheaper index-only scan.
+  Those are timings from a development laptop; a busy host was up to 16 times
+  slower. The census runs under a 60 s statement timeout. A timeout fails the
+  pass (`relationship_orphan_sweep`) and nothing is swept, so run `VACUUM` after
+  a large drain to keep the cheaper index-only scan.
 
 ## Operator gate before enabling deletes
 

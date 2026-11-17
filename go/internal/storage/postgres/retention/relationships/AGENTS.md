@@ -40,7 +40,10 @@
 - The advisory lock class literal in the SQL must equal `LockClass`; the
   module-wide scan in `freshness/links/lockclass_scan_test.go` reads the literal.
 - `BatchGenerations`, `DefaultRowCap` and `CensusListLimit` change only with a
-  new measurement in the evidence note. Do not add an environment knob here.
+  new measurement in the evidence note. Take it with
+  `TestRelationshipRetentionScaleProbe` (`scale_probe_test.go`, opt-in through
+  `ESHU_RELATIONSHIP_RETENTION_PROBE`; the note's Setup section has the command).
+  Do not add an environment knob here.
 - Never import the parent `postgres` package from non-test code.
 
 ## Verification
