@@ -195,7 +195,11 @@ func TestBoundedFailureClassesMatchTheCollectorWriters(t *testing.T) {
 		string(sdk.FailureAuthDenied), string(sdk.FailureNotFound), string(sdk.FailureRateLimited),
 		string(sdk.FailureRetryable), string(sdk.FailureTerminal),
 	}
-	hostWriter := declared(t, "collector/extensionhost", namePrefix("FailureClass"), nil)
+	// FailureClassNVDBaselineSeedRollback aliases the vulnerability store's
+	// constant, so it has no literal in the extensionhost source.
+	hostWriter := declared(t, "collector/extensionhost", namePrefix("FailureClass"), map[string]string{
+		"FailureClassNVDBaselineSeedRollback": extensionhost.FailureClassNVDBaselineSeedRollback,
+	})
 	host := minusClasses(hostWriter, []string{extensionhost.FailureClassIdentityMismatch})
 	common := sortedUnique(append(slices.Clone(providerFive),
 		collector.FailureClassAttemptBudgetExhausted, extensionhost.FailureClassIdentityMismatch,
