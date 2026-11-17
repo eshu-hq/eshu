@@ -153,7 +153,7 @@ func TestPurgeDeriveLockBudgetRestoresLockTimeoutLive(t *testing.T) {
 	if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '7s'`); err != nil {
 		t.Fatalf("set prior lock_timeout: %v", err)
 	}
-	if _, err := lockPurgeDerivedModels(ctx, tx, "PARTITION:restore"); err != nil {
+	if _, err := lockPurgeDerivedModels(ctx, tx, "PARTITION:restore", newDeriveLockBudget(time.Now)); err != nil {
 		t.Fatalf("lockPurgeDerivedModels: %v", err)
 	}
 	rows, err := tx.QueryContext(ctx, `SHOW lock_timeout`)

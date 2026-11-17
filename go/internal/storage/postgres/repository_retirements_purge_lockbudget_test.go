@@ -27,9 +27,13 @@ func execIndexContaining(execs []fakeExecCall, fragment string) int {
 }
 
 // TestPurgeRetiredBoundsTheDeriveLockWait pins the #10820 wait budget: the purge
-// sets a 10 s transaction-local lock_timeout before it takes the two derive
-// advisory locks and restores the prior value once both are held, so the later
-// deletes keep today's wait behavior and the advisory wait is bounded.
+// sets a transaction-local lock_timeout before each of the two derive advisory
+// locks (a full 10 s here, where the request budget is untouched) and restores
+// the prior value once both are held, so the later deletes keep today's wait
+// behavior and the advisory wait is bounded. Only the first set saves the
+// transaction's prior lock_timeout; the second is a plain set_config, or it
+// would save the first budget as the "prior" value and the restore would leave
+// that budget on the deletes.
 func TestPurgeRetiredBoundsTheDeriveLockWait(t *testing.T) {
 	t.Parallel()
 
@@ -46,6 +50,22 @@ func TestPurgeRetiredBoundsTheDeriveLockWait(t *testing.T) {
 	}
 	infra := execIndexContaining(execs, "infra_resource_entities:")
 	config := execIndexContaining(execs, "config_artifact_paths:")
+	rebound := -1
+	for i, call := range execs {
+		if i > infra && i < config && strings.Contains(call.query, "lock_timeout") && len(call.args) == 1 {
+			rebound = i
+			break
+		}
+	}
+	if rebound < 0 || execs[rebound].args[0] != "10000ms" {
+		t.Fatalf("no exec sets a 10000ms lock_timeout between the infra lock (%d) and the config lock (%d):\n%v", infra, config, execs)
+	}
+	if !strings.Contains(execs[bound].query, "eshu.purge_prior_lock_timeout") {
+		t.Errorf("the first set does not save the prior lock_timeout:\n%s", execs[bound].query)
+	}
+	if strings.Contains(execs[rebound].query, "eshu.purge_prior_lock_timeout") {
+		t.Errorf("the second set overwrites the saved prior lock_timeout with the first budget:\n%s", execs[rebound].query)
+	}
 	restore := -1
 	for i, call := range execs {
 		if i > config && strings.Contains(call.query, "lock_timeout") && len(call.args) == 0 {
@@ -54,9 +74,9 @@ func TestPurgeRetiredBoundsTheDeriveLockWait(t *testing.T) {
 		}
 	}
 	contentDelete := execIndexContaining(execs, "DELETE FROM content_files")
-	if bound >= infra || infra >= config || config >= restore || restore >= contentDelete {
-		t.Fatalf("want set budget (%d) < infra lock (%d) < config lock (%d) < restore (%d) < first content delete (%d)",
-			bound, infra, config, restore, contentDelete)
+	if bound >= infra || infra >= rebound || rebound >= config || config >= restore || restore >= contentDelete {
+		t.Fatalf("want set budget (%d) < infra lock (%d) < second set (%d) < config lock (%d) < restore (%d) < first content delete (%d)",
+			bound, infra, rebound, config, restore, contentDelete)
 	}
 }
 

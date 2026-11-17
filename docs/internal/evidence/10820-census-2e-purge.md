@@ -16,7 +16,7 @@ transaction, throwaway database, real migrated schema).
 | `relationship_candidates` | same | `relationship_candidates_generation_idx`, 200 of 600,000 rows | 3.0 ms |
 | `projection_decision_evidence` | `decision_id IN (decisions of the repository)` | nested loop, `projection_decisions_repo_run_idx` then `projection_decision_evidence_decision_idx`, 200 of 600,000 rows | 3.7 ms |
 | `projection_decisions` | `repository_id = $1` | `projection_decisions_repo_run_idx`, 100 of 300,000 rows | 0.5 ms |
-| `service_materialization_generations` | `scope_id = ANY($1)` | `Seq Scan` over 300,000 rows, 100 matched (see residual 5) | 110 ms cold |
+| `service_materialization_generations` | `scope_id = ANY($1)` | `Seq Scan` over 300,000 rows, 100 matched (see Known residuals) | 110 ms cold |
 | cascade pre-count incl. `service_evidence_snapshots` | grant counts plus snapshots by generation | parallel `Seq Scan` on the service table, index-only on `service_evidence_snapshots_diff_idx` | 20 ms |
 
 **The evidence and candidate plan flips with selectivity.** The
@@ -36,7 +36,8 @@ a rare operator path dominated by the rows deleted, and it was not measured at
 the retirement scale of about 3,280 generations per repository on a production-
 sized table, so that stays NOT_CHECKED. The first table row above (20
 generations, 400 of 1,200,000 rows, 6.5 ms) is the low-selectivity side only.
-The `purge_duration_ms` log field shows this statement when it dominates.
+The `purge_duration_ms` log field covers the whole purge transaction, so it
+cannot attribute time to this statement.
 
 The remaining statements (`reducer_readiness_waits`,
 `crossplane_satisfied_by_redrive_state`, the redrive target ledger,
@@ -55,38 +56,122 @@ repository's rows.
   inventory repository lock and the config-artifact repository lock. A derive
   holds the same lock for its whole write, so a purge that starts behind a
   derive waits for the derive to commit. The wait is bounded (arbiter ruling):
-  the purge sets a 10 s transaction-local `lock_timeout` (the config derive
-  deadline) before the two locks (the budget is per lock wait, see "Aggregate
-  lock budget" below), restores the captured value once both are held
-  so later deletes keep their prior wait behavior, and on SQLSTATE 55P03 returns
-  the designed blocked exit `derive_lock_busy` with a WARN log. Nothing is
-  written before that point (only the tombstone claim, the `NOWAIT` scope lock
-  and reads), so the rollback is clean and the fenced tombstone stays open for a
-  retry. This is a bounded wait with a retry, not serialization: no worker
-  count, batch size, or writer changes.
-- Aggregate lock budget. PostgreSQL applies `lock_timeout` to each lock wait, not
-  to the transaction. Checked on PG 18.6 with two parked sessions (key 1 held
-  for 7 s, key 2 for 40 s, `lock_timeout = '10s'`): the waiter got key 1 after
-  about 6 s and then timed out on key 2 after another 10 s, 16 s in all. So one
-  repository can wait up to 2 x 10 s (infra lock, then config-artifact lock)
-  before `derive_lock_busy`, and the repositories of one request are purged one
-  after another with no shared budget. One synchronous request carries up to 25
-  repositories (`PurgeMaxRepositories`): 25 x 10 s = 250 s of lock waiting if
-  every repository times out on the first lock, and up to 25 x 20 s = 500 s if
-  every repository waits nearly 10 s on the first lock and times out on the
-  second. The API server's write deadline is 6 minutes, 360 s
-  (`cmd/api/main.go:188`: `DefaultRefinalizeDrainTimeout` 5 min plus the 1 min
-  response margin). The 250 s case leaves about 110 s for the fence and the purge
-  work of the repositories that did not block; the 500 s case does not fit. That
-  margin is thin for a request that is also fencing and deleting, and it is not
-  measured; it is reachable only when many repositories are retired while
-  derives are running on all of them. What the client sees past the deadline was
-  not traced: the purge's tombstone claim is idempotent, so a re-POST resumes
-  (`purgeOne` returns the completed repository without re-deleting), but the
-  first response would be lost. The 10 s was not changed here. If the operator
-  path needs a hard bound, the options are a request-level lock budget shared
-  across the repositories, a lower per-lock value, or a smaller repository cap
-  for a purge request; that is a decision for the owner, not this change.
+  before each of the two locks the purge sets a transaction-local `lock_timeout`
+  of at most 10 s (the config derive deadline) and at most what is left of a
+  30 s budget for the whole `PurgeRetired` call, never below 100 ms (see
+  "Aggregate lock budget" below). It restores the captured value once both
+  locks are held so later deletes keep their prior wait behavior, and on
+  SQLSTATE 55P03 returns the designed blocked exit `derive_lock_busy` with a
+  WARN log. Nothing is written before that point (only the tombstone claim, the
+  `NOWAIT` scope lock and reads), so the rollback is clean and the fenced
+  tombstone stays open for a retry. This is a bounded wait with a retry, not
+  serialization: no worker count, batch size, or writer changes.
+- No-Regression Evidence (request-level derive-lock budget):
+  the baseline is the per-lock bound alone (`f241feb8b1`, merged in #10841) and
+  the after is the 30 s request budget, both on PostgreSQL 18.6. Input: one
+  request over five fenced repositories with parked advisory-lock holders on the
+  infra lock of four, plus a fake-clock pattern over 25 repositories. Baseline:
+  the live request took 40.23 s, four 10 s waits. After: 30.20 s to 31.00 s over
+  four runs, three waits of about 10 s and then about 0.1 s, and 34.675 s for the
+  25-repository worst pattern against about 500 s without a request budget.
+  Terminal rows: the fifth repository completed, nothing was written for the four
+  blocked (each tombstone stays pending and fenced, its scope and content rows
+  stay), and a re-POST purged the four in under 0.3 s once the holders ended.
+  Safe because a blocked repository rolls back before any delete, the blocked
+  exit is the existing `derive_lock_busy`, and no worker count, batch size,
+  lease or retry changes. The measurements and mutants are in the two bullets
+  below.
+- Aggregate lock budget. PostgreSQL applies `lock_timeout` to each lock
+  acquisition attempt, not to the transaction, and a value of zero disables it.
+  Checked on PG 18.6 with two parked sessions (key 1 held for 7 s, key 2 for
+  40 s, `lock_timeout = '10s'`): the waiter got key 1 after about 6 s and then
+  timed out on key 2 after another 10 s, 16 s in all. The purge therefore
+  budgets the wait per request as well as per lock. Each lock wait is at most
+  10 s. One `PurgeRetired` call spends at most 30 s in total waiting on derive
+  locks across its repositories: each lock statement's `lock_timeout` is the
+  smaller of 10 s and what is left of the 30 s, and never less than 100 ms.
+  Once the 30 s is spent, a repository whose locks are free still purges, and
+  one whose lock is held reports `derive_lock_busy` after 100 ms. Because the
+  100 ms floor is below PostgreSQL's 1 s `deadlock_timeout` (checked on PG 18.6
+  with two advisory-lock sessions), a lock-order cycle at the floor ends as
+  `derive_lock_busy` (55P03) instead of a deadlock error (40P01), which is safe
+  because nothing has been written and a re-POST retries, so an operator who
+  sees repeated `derive_lock_timeout_ms=100` with a long-held lock should look
+  at the holders. Worst case for a 25-repository request: 30 s + 50 x 100 ms =
+  35 s of lock waiting.
+  Without the request budget it was 25 x 2 x 10 s = 500 s. The 30 s is the
+  margin the fence deadline leaves inside the API server's write deadline: the
+  fence may run 5 min 30 s (`retirementFenceDeadline`) and the write deadline
+  is 6 min (`cmd/api/main.go:188`). The purge's delete work has no deadline of
+  its own, so a worst-case fence followed by a large purge can still outlast
+  the write deadline; that predates this change. Past the deadline the handler
+  keeps running (Go's `WriteTimeout` does not cancel the handler or its
+  context): the remaining repositories are purged, counted and audited, and
+  only the response is lost. A later purge of a completed tombstone returns it
+  as completed without deleting again (`purgeOne`); the mark and fence steps of
+  a re-POST after a lost response were not traced here. The staged runner
+  (#10822) moves the purge out of the request.
+- Request budget proof. On a fake clock
+  (`repository_retirements_purge_requestbudget_test.go`), five repositories with
+  the first four held and the fifth free read `lock_timeout` settings of 10 s,
+  10 s, 10 s, 100 ms, 100 ms, 100 ms and 30.1 s of lock waiting, four
+  `derive_lock_busy` blocks and the fifth completed
+  (`TestPurgeRetiredShrinksTheDeriveLockWaitToTheFloor`). The worst pattern over
+  25 repositories (the infra lock acquired 1 ms before its timeout, the
+  config-artifact lock held) totals 34.675 s, inside the 35 s bound
+  (`TestPurgeRetiredBoundsTheRequestDeriveLockWait`). A second request on the same
+  purger starts with a full 10 s
+  (`TestPurgeRetiredStartsEachRequestWithAFullDeriveLockBudget`), and the budget's
+  edges are table-tested (`TestDeriveLockBudgetStaysBetweenFloorAndPerLockBudget`,
+  `TestDeriveLockBudgetSpendsTheElapsedLockWait`). A lock statement costs the
+  budget the time it took, not the timeout it was given: four repositories with
+  free locks leave a held lock after them a full 10 s, with `derive_lock_timeout_ms`
+  10000 (`TestPurgeRetiredChargesOnlyTheElapsedLockWait`), and fifteen repositories
+  that each take the infra lock after 2 s spend the 30 s, so the sixteenth is set
+  to the floor, with every setting along the way listed
+  (`TestPurgeRetiredChargesASlowLockAcquireItsElapsedTime`). Live on PostgreSQL 18.6, one
+  request over five fenced repositories with parked holders on the infra lock of
+  four (`TestRetirementPurgeRequestDeriveLockBudgetLive`), two runs blocked the
+  four after 10.03 s, 10.01 s, 10.00 s and 0.10 s, then 10.02 s, 10.00 s, 10.00 s
+  and 0.11 s. `derive_lock_timeout_ms` read 10000, 10000, 9997, 100 and then
+  10000, 10000, 9994, 100, and the whole request took 30.26 s and 30.31 s. A
+  third run on the final tree, with the host busy, took 31.00 s (10.53 s, 10.02 s,
+  10.01 s, 0.11 s). A fourth run, with the live check tightened as described
+  below, read 10000, 10000, 9993, 100 and took 30.20 s (10.02 s, 10.01 s, 10.00 s,
+  0.10 s). The same test on the purge with only the per-lock bound
+  (`f241feb8b1`) took 40.23 s, every wait 10 s. The
+  fifth repository completed, nothing was written for the blocked four, the
+  pooled connection's `lock_timeout` was unchanged, and a re-POST purged the four
+  in under 0.3 s once the holders ended. Each mutant below was applied, run,
+  reverted, and the files compared byte for byte with the originals.
+  - No 100 ms floor: an exhausted budget renders `lock_timeout` as 0, which
+    PostgreSQL reads as no timeout. Fails
+    `TestDeriveLockBudgetStaysBetweenFloorAndPerLockBudget` (`"0", want
+    "100ms"`) and the two request tests. Not run live, where a parked holder
+    would wait forever.
+  - Elapsed wait not subtracted: fails the fake-clock tests (the 25-repository
+    pattern totals 8 m 19.975 s, the 500 s this budget removes) and the live
+    test (four 10 s waits, 40.13 s).
+  - Only timed-out waits charged, not a lock acquired late: fails only the
+    worst-pattern test (1 m 4.375 s against the 35 s bound).
+  - No 10 s cap: fails five tests, the first lock getting the whole 30 s.
+  - The second lock's `set_config` re-saving the prior value: the restore then
+    leaves the first wait on the later deletes. Fails the live restore check
+    (`lock_timeout after the locks = "10s", want the prior 7s restored`) and
+    `TestPurgeRetiredBoundsTheDeriveLockWait`.
+  - One budget shared across requests: fails the full-budget check (`the second
+    request's first lock_timeout = 100ms`).
+  - Charging the `lock_timeout` that was set instead of the time the statement
+    took (`budget.remaining -= timeout`): the request-budget tests as first
+    written all passed, because their fake lock was free, held to the timeout, or
+    released 1 ms before it. A free lock then costs 10 s and starves the
+    repositories after it. Now fails
+    `TestPurgeRetiredChargesOnlyTheElapsedLockWait` (settings 4 to 9 read 100 ms),
+    `TestPurgeRetiredChargesASlowLockAcquireItsElapsedTime` (2 completed, 14
+    blocked) and the live test (`derive_lock_timeout_ms = [10000 10000 10000
+    100]`). The live check requires the third setting to be under 10000 because
+    each of the first two waits runs past 10 s, so exactly 10000 can only mean
+    the timeout was charged instead of the elapsed time.
 - Statement order and lock-order proof, each against real PostgreSQL by a
   parked-writer probe (`runPurgeBehindWriter`): the writer holds its first lock,
   the purge starts and is observed blocked behind it through `pg_blocking_pids`,
@@ -242,16 +327,20 @@ No `source_repo_id` predicate is added now:
 
 - `service_materialization_generations` has no index that serves `scope_id` (the
   only one is partial on `status = 'active'`, and the delete must match
-  superseded rows), so its delete and the cascade pre-count scan the table. Cost
-  is linear in table size: 110 ms cold at 300,000 rows. The table has no
+  superseded rows), so its delete and the cascade pre-count each scan the table.
+  Cost is linear in table size: 110 ms cold at 300,000 rows, which extrapolates
+  to about 1.8 s per scan at 5 million rows (not measured). The table has no
   retention, and its production row count was not measured. The path is a rare
   operator action (at most 25 repositories per request, one delete and one
   pre-count each), and the index doctrine asks for hot-path evidence before
   adding write cost to every service materialization commit, so no migration is
-  added. Trip-wire: if `purge_duration_ms` shows this statement dominating, or
-  the table passes roughly 5 million rows, add a `(scope_id)` index with EXPLAIN
-  proof then. Legacy rows with a NULL `scope_id` carry no attribution
-  (migration 127) and are not matched.
+  added. Trip-wire: the table's row count is read in the #10822 read-only probe
+  run that precedes S5, in every environment the binary runs in. Above 5 million
+  rows, or if `pg_stat_statements` shows this delete averaging over 1 s, a
+  `(scope_id)` index is proposed with EXPLAIN proof and takes a migration number
+  by ruling. `purge_duration_ms` covers the whole purge transaction and cannot
+  attribute time to this statement. Legacy rows with a NULL `scope_id` carry no
+  attribution (migration 127) and are not matched.
 - `projection_decisions` and `projection_decision_evidence` have no production
   writer in this tree. `DecisionStore` is constructed only by the admin reader
   (`query/admin/store/postgres.go:34`), and `BuildProjectionDecision`
@@ -270,21 +359,40 @@ No `source_repo_id` predicate is added now:
 
 No metric or span is added; the existing purge emits counters and one INFO
 completion log, and no per-step timing. The one new runtime behavior that can
-stall is the advisory-lock wait, now bounded at 10 s per lock (see
-"Aggregate lock budget" for the per-request total). The completion log
+stall is the advisory-lock wait, now bounded at 10 s per lock and 30 s per
+request, then 100 ms attempts (see "Aggregate lock budget"). The completion log
 `repository retirement purged` gains `derive_lock_wait_ms`, the elapsed time of
 the two lock acquisitions, and `purge_duration_ms`, the whole purge transaction
-for the repository (`TestPurgeRetiredLogsTheDeriveLockWait`), so a scan that
-grows with a table and a purge that queued behind a derive are both visible. A
-purge that times out on a derive lock logs
+for the repository (`TestPurgeRetiredLogsTheDeriveLockWait`). A purge that
+queued behind a derive shows in `derive_lock_wait_ms`; a slow delete shows only
+inside `purge_duration_ms`, because neither field attributes time to one delete
+statement. A purge that times out on a derive lock logs
 `repository retirement blocked: derive lock busy` at WARN with `repo_id`,
-`retirement_id`, `lock`, and `derive_lock_wait_ms`, and the request reports the
-repository as blocked with reason `derive_lock_busy`
-(`TestPurgeRetiredReportsDeriveLockBusy`; live parked-holder probe
-`TestRetirementPurgeDeriveLockBusyLive`, and
-`TestPurgeDeriveLockBudgetRestoresLockTimeoutLive` for the restore). Each
+`retirement_id`, `lock`, `derive_lock_wait_ms`, and `derive_lock_timeout_ms`,
+the `lock_timeout` that lock statement ran with. An operator reads the two
+together: 10000 means the repository waited out a full lock wait on a live
+derive; a smaller value means earlier repositories in the same request had used
+up the 30 s, and 100 means it was spent, so the repository got one short attempt
+and the re-POST retries it. The request reports the repository as blocked with
+reason `derive_lock_busy` (`TestPurgeRetiredReportsDeriveLockBusy`; live
+parked-holder probe `TestRetirementPurgeDeriveLockBusyLive`, and
+`TestPurgeDeriveLockBudgetRestoresLockTimeoutLive` for the restore; the request
+budget and the new log field are pinned by
+`TestPurgeRetiredShrinksTheDeriveLockWaitToTheFloor` and
+`TestRetirementPurgeRequestDeriveLockBudgetLive`). Each
 deleted count joins the tombstone `rows_deleted` ledger under its table name, as
 every other purged table does. A purge error surfaces through the existing
 failure path with `retirement purge delete <table>`, and a lock error with
 `retirement purge: lock ... repository`.
 `docs/public/reference/telemetry/retirement-purge.md` lists the log fields.
+
+Observability Evidence (request-level derive-lock budget): the request budget
+adds one log field and no metric or span. `derive_lock_timeout_ms` on the
+`derive_lock_busy` WARN is the `lock_timeout` the timed-out statement ran with,
+so an operator can tell a 100 ms attempt on a spent budget from a 10 s wait on a
+live derive. Repeated `derive_lock_timeout_ms=100` with a long-held lock means
+the holders are the place to look; the floor is below PostgreSQL's 1 s
+`deadlock_timeout`, so even a lock-order cycle reads this way.
+`TestPurgeRetiredChargesOnlyTheElapsedLockWait` pins the 10000 reading after free
+locks, and `TestRetirementPurgeRequestDeriveLockBudgetLive` read 10000, 10000,
+9993, 100 from a real request.

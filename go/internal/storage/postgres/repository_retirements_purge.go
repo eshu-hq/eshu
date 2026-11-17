@@ -42,16 +42,17 @@ const PurgeMaxRepositories = RetirementFenceMaxRepositories
 // operator's re-POST retries the same fenced row (PurgeRetired has no runner
 // caller today; the only caller is the admin retirement trigger).
 // derive_lock_busy is the same kind of exit for the two derive advisory locks
-// (#10820): a derive held one past the purge's 10 s per-lock budget, nothing
-// was written, and the re-POST retries.
+// (#10820): a derive held one past the purge's wait for it (10 s per lock and
+// 30 s per request, then 100 ms attempts), nothing was written, and the re-POST
+// retries.
 const (
 	// PurgeReasonTerminalNotReached reports generations still live.
 	PurgeReasonTerminalNotReached = "terminal_not_reached"
 	// PurgeReasonScopeLockBusy reports a NOWAIT scope-lock miss.
 	PurgeReasonScopeLockBusy = "scope_lock_busy"
 	// PurgeReasonDeriveLockBusy reports a derive advisory lock still held past
-	// the purge's 10 s budget (#10820). Nothing was written; retry the
-	// fenced row.
+	// the purge's wait for it: 10 s per lock, 30 s across one request, then
+	// 100 ms attempts (#10820). Nothing was written; retry the fenced row.
 	PurgeReasonDeriveLockBusy = "derive_lock_busy"
 )
 
@@ -85,7 +86,9 @@ type PurgeResult struct {
 // PurgeOptions tunes the purge. Zero values select the designed defaults.
 type PurgeOptions struct {
 	Logger *slog.Logger
-	Now    func() time.Time
+	// Now is the clock the request's derive-lock budget spends against; tests
+	// inject a fake one.
+	Now func() time.Time
 }
 
 func (o PurgeOptions) withDefaults() PurgeOptions {
@@ -122,7 +125,9 @@ func NewRetirementPurger(queryer db.Queryer, beginner db.Beginner) RetirementPur
 // PurgeRetired purges every fenced repository in the request, one
 // transaction each. A blocked repository lands in Result.Blocked; only a
 // malformed request, a wrong-phase tombstone, or a failed transaction
-// returns an error.
+// returns an error. The repositories share one budget for derive-lock waiting
+// (purgeRequestDeriveLockBudget), so a request waits at most 30 s on those
+// locks plus a floor attempt per lock statement once the budget is spent.
 func (p RetirementPurger) PurgeRetired(ctx context.Context, req PurgeRequest) (PurgeResult, error) {
 	opts := p.Options.withDefaults()
 	repoIDs, err := validatedPurgeRepos(req)
@@ -132,9 +137,12 @@ func (p RetirementPurger) PurgeRetired(ctx context.Context, req PurgeRequest) (P
 	if p.beginner == nil {
 		return PurgeResult{}, fmt.Errorf("retirement purge: beginner is required")
 	}
+	// The budget belongs to this call: the purger is shared by concurrent
+	// requests, so it must not live on the purger.
+	budget := newDeriveLockBudget(opts.Now)
 	var result PurgeResult
 	for _, repoID := range repoIDs {
-		completed, blocked, err := p.purgeOne(ctx, opts, repoID)
+		completed, blocked, err := p.purgeOne(ctx, opts, budget, repoID)
 		if err != nil {
 			return PurgeResult{}, err
 		}
@@ -176,6 +184,7 @@ func validatedPurgeRepos(req PurgeRequest) ([]string, error) {
 func (p RetirementPurger) purgeOne(
 	ctx context.Context,
 	opts PurgeOptions,
+	budget *deriveLockBudget,
 	repoID string,
 ) (string, *PurgeBlocked, error) {
 	purgeStarted := time.Now()
@@ -243,7 +252,7 @@ func (p RetirementPurger) purgeOne(
 			Statuses: readback,
 		}, nil
 	}
-	ledger, deriveLockWait, err := deletePurgeLeftovers(ctx, tx, repoID, scopeIDs)
+	ledger, deriveLockWait, err := deletePurgeLeftovers(ctx, tx, repoID, scopeIDs, budget)
 	var lockBusy *deriveLockBusyError
 	if errors.As(err, &lockBusy) {
 		opts.Logger.WarnContext(ctx, "repository retirement blocked: derive lock busy",
@@ -252,6 +261,7 @@ func (p RetirementPurger) purgeOne(
 			slog.String("retirement_id", record.RetirementID),
 			slog.String("lock", lockBusy.lock),
 			slog.Int64("derive_lock_wait_ms", lockBusy.wait.Milliseconds()),
+			slog.Int64("derive_lock_timeout_ms", lockBusy.timeout.Milliseconds()),
 			telemetry.PhaseAttr(telemetry.PhaseEmission),
 		)
 		return "", &PurgeBlocked{
