@@ -52,7 +52,7 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsAdvancingSlotProgress(
 	items []workflow.WorkItem,
 	advance workflow.OwnedTargetSlotAdvance,
 ) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
-	return s.createRunWithWorkItemsIfNoOpenTargets(ctx, run, items, &advance)
+	return s.createRunWithWorkItemsIfNoOpenTargets(ctx, run, items, &advance, nil)
 }
 
 // AdvanceOwnedTargetSlotProgress moves the picked slots when the planner has no

@@ -359,6 +359,16 @@ tests:
     class: postgres_ci
     reason: "#10814 disposable PostgreSQL EXPLAIN proof that the NVD baseline drain probe adds no index: on a fixture of more than 50,000 fact_work_items and as many workflow_work_items over thousands of scope generations (queue rows written by the real projector, reducer, and workflow enqueue paths, skewed statuses, ANALYZE), the shipped probe query reads scope_generations, fact_work_items, and workflow_work_items only through keyed index scans for every chunk state under custom and forced generic plans, the workflow leg carries collector_kind in a single index search, and the buffer cost stays bounded"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_plan_explain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10828 disposable PostgreSQL EXPLAIN proof on a populated fixture (150,000 work items, 100,000 plan rows): the keyed plan read reaches the plan rows by primary key and probes workflow_work_items through the collector_kind plus scope_id index with no sequential scan, and the plan upsert resolves its conflict on the primary key"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10828 disposable PostgreSQL proof of the NVD baseline per-year plan table (migration 312): the upsert is last-writer-wins and stamps one database-clock time per statement that is later than the transaction start, the keyed read reports in_flight for exactly the queue's open statuses and only for the vulnerability_intelligence collector kind, and the table is a bare primary-key table with no secondary index"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~
     class: postgres_ci

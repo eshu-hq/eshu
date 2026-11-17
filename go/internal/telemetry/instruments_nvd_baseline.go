@@ -45,6 +45,31 @@ const (
 	NVDBaselineOutcomeOther = "other"
 )
 
+// Closed plan-row outcomes (eshu-hq/eshu#10828): the outcome label of
+// eshu_dp_nvd_baseline_plan_rows_total, counted once per guarded admission by
+// the workflow store after the commit.
+const (
+	// NVDBaselinePlanRowRecorded: the admission inserted the chunk's work item
+	// and wrote its per-year plan row in the same transaction.
+	NVDBaselinePlanRowRecorded = "recorded"
+	// NVDBaselinePlanRowNotInserted: the admission was handed a plan for a
+	// chunk whose work item it did not insert, because the open-target guard,
+	// the terminal-run skip, or the insert dropped it. No plan row is written:
+	// a row without its work item would read as a chunk in flight that does
+	// not exist.
+	NVDBaselinePlanRowNotInserted = "not_inserted"
+)
+
+var nvdBaselinePlanRowOutcomes = [...]string{
+	NVDBaselinePlanRowRecorded,
+	NVDBaselinePlanRowNotInserted,
+}
+
+// NVDBaselinePlanRowOutcomes returns the closed, ordered plan-row outcome set.
+func NVDBaselinePlanRowOutcomes() []string {
+	return slices.Clone(nvdBaselinePlanRowOutcomes[:])
+}
+
 // NVDBaselineTripTransitions is the closed transition set of the baseline
 // trip line (eshu-hq/eshu#10728, ruling decision 3).
 const (
@@ -140,6 +165,24 @@ func (inst *Instruments) RecordNVDBaselinePlan(ctx context.Context, outcome stri
 		return
 	}
 	inst.NVDBaselinePlans.Add(ctx, 1, metric.WithAttributes(AttrOutcome(NVDBaselineOutcome(outcome))))
+}
+
+// RecordNVDBaselinePlanRows counts the plan rows one guarded admission wrote
+// (recorded) and the plans it was handed for chunks it did not insert
+// (not_inserted). Each count is added whole, so one admission is one call, and
+// a zero or negative count adds no series. Labels stay outcome-only: no run,
+// year, or scope becomes a label. Nil instruments or a nil counter skip the
+// signal.
+func (inst *Instruments) RecordNVDBaselinePlanRows(ctx context.Context, recorded, notInserted int64) {
+	if inst == nil || inst.NVDBaselinePlanRows == nil {
+		return
+	}
+	if recorded > 0 {
+		inst.NVDBaselinePlanRows.Add(ctx, recorded, metric.WithAttributes(AttrOutcome(NVDBaselinePlanRowRecorded)))
+	}
+	if notInserted > 0 {
+		inst.NVDBaselinePlanRows.Add(ctx, notInserted, metric.WithAttributes(AttrOutcome(NVDBaselinePlanRowNotInserted)))
+	}
 }
 
 // RecordNVDBaselineTripTransition counts one trip-line transition:
@@ -353,10 +396,11 @@ func (inst *Instruments) RecordNVDBaselineDirtySample(ctx context.Context, proxy
 }
 
 // registerNVDBaseline registers the NVD baseline signals (#10728): the
-// commit-policy advance counter, the plan verdict counter, the trip-line
-// transition counter, the seed-rotation and settlement-eviction counters, and
-// the dirty-probe and progress gauges. Labels stay closed and
-// bounded: no scope, stamp, sha, or run value ever becomes a label.
+// commit-policy advance counter, the plan verdict counter, the plan-row
+// counter (#10828), the trip-line transition counter, the seed-rotation and
+// settlement-eviction counters, and the dirty-probe and progress gauges.
+// Labels stay closed and bounded: no scope, stamp, sha, or run value ever
+// becomes a label.
 func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	var err error
 	inst.NVDBaselineAdvances, err = meter.Int64Counter(
@@ -372,6 +416,13 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselinePlans counter: %w", err)
+	}
+	inst.NVDBaselinePlanRows, err = meter.Int64Counter(
+		"eshu_dp_nvd_baseline_plan_rows_total",
+		metric.WithDescription("Total per-year NVD baseline plan rows the guarded workflow admission handled (#10828): recorded (the chunk's work item was inserted and its plan row written in the same transaction), not_inserted (a plan was handed to the admission for a chunk whose work item the open-target guard, a terminal-run skip, or the insert dropped; no row is written)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselinePlanRows counter: %w", err)
 	}
 	inst.NVDBaselineTripTransitions, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_trip_transitions_total",
