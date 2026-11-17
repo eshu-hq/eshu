@@ -17,17 +17,16 @@ import (
 const terminalFailureGaugeName = "eshu_runtime_coordinator_collector_terminal_failure_instances"
 
 // failureClassBoundDocs are the operator docs that state the failure_class
-// label bound in prose; the paths are relative to this package directory.
-// composition marks the doc that also spells out how the bounded classes split
-// (shared by every kind, written by the extension host, added by first-party
-// kinds), so a doc that states only the totals is not forced to restate the
-// split.
-var failureClassBoundDocs = []struct {
-	path        string
-	composition bool
-}{
-	{"../../../../docs/public/reference/telemetry/metrics.md", true},
-	{"../../../../docs/public/observability/telemetry-coverage-runtime-surfaces.md", false},
+// label bound in prose, keyed by path relative to this package directory. The
+// test reads each one, so both are lockstep test inputs
+// (specs/ci-docs-lockstep-paths.txt): editing either doc alone must still run
+// this test. The value marks the doc that also spells out how the bounded
+// classes split (shared by every kind, written by the extension host, added by
+// first-party kinds), so a doc that states only the totals is not forced to
+// restate the split.
+var failureClassBoundDocs = map[string]bool{
+	"../../../../docs/public/reference/telemetry/metrics.md":                       true,
+	"../../../../docs/public/observability/telemetry-coverage-runtime-surfaces.md": false,
 }
 
 // kindOwnFailureClassCount counts the distinct classes that first-party kinds
@@ -128,34 +127,34 @@ func TestTerminalFailureDocCountsMatchTheCode(t *testing.T) {
 			own, true, "the distinct kindFailureClasses outside the common and host sets",
 		},
 	}
-	for _, doc := range failureClassBoundDocs {
-		raw, err := os.ReadFile(doc.path)
+	for docPath, composition := range failureClassBoundDocs {
+		raw, err := os.ReadFile(docPath)
 		if err != nil {
-			t.Fatalf("read %s: %v", doc.path, err)
+			t.Fatalf("read %s: %v", docPath, err)
 		}
 		units := failureClassBoundUnits(string(raw))
 		if len(units) == 0 {
 			t.Errorf("%s has no paragraph or table row that names %s and counts its bounded classes; "+
-				"restore the statement or update this test", doc.path, terminalFailureGaugeName)
+				"restore the statement or update this test", docPath, terminalFailureGaugeName)
 			continue
 		}
 		for _, unit := range units {
 			for _, check := range checks {
-				if check.splitOnly && !doc.composition {
+				if check.splitOnly && !composition {
 					continue
 				}
 				matches := check.pattern.FindAllStringSubmatch(unit, -1)
 				if len(matches) == 0 {
-					t.Errorf("%s does not state the %s (pattern %s); want %d", doc.path, check.name, check.pattern, check.want)
+					t.Errorf("%s does not state the %s (pattern %s); want %d", docPath, check.name, check.pattern, check.want)
 					continue
 				}
 				for _, match := range matches {
 					got, err := strconv.Atoi(match[1])
 					if err != nil {
-						t.Fatalf("%s: %q is not a count: %v", doc.path, match[1], err)
+						t.Fatalf("%s: %q is not a count: %v", docPath, match[1], err)
 					}
 					if got != check.want {
-						t.Errorf("%s says %d for the %s, want %d (%s)", doc.path, got, check.name, check.want, check.explanation)
+						t.Errorf("%s says %d for the %s, want %d (%s)", docPath, got, check.name, check.want, check.explanation)
 					}
 				}
 			}
