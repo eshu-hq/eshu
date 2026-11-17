@@ -37,6 +37,21 @@ func TestWinnersDrainStatementsKeepTheNVDTripTally(t *testing.T) {
 	}
 }
 
+// TestWinnersConvertSelectDerivesFromShippedConvert pins that the read-only
+// SELECT arm the plan proofs EXPLAIN is a byte-suffix of the shipped convert
+// INSERT, so the explained join is the join the tick runs, not a hand copy
+// that can drift.
+func TestWinnersConvertSelectDerivesFromShippedConvert(t *testing.T) {
+	t.Parallel()
+
+	if !strings.HasSuffix(convertWinnersKeyedScopeRemainderSQL, convertWinnersKeyedScopeRemainderSelectSQL) {
+		t.Error("convert SELECT arm is not a byte-suffix of the shipped convert INSERT: the plan proof would explain a different join")
+	}
+	if !strings.HasPrefix(strings.TrimSpace(convertWinnersKeyedScopeRemainderSQL), "INSERT INTO supply_chain_impact_winners_dirty_log") {
+		t.Error("shipped convert does not start with the dirty-log INSERT prefix")
+	}
+}
+
 // TestWinnersCaptureStatementsDoNotTouchTheTally pins the hot-path claim of
 // #10767: the tally is written at drain time only, so no capture statement
 // the dirty log has in this package names it.

@@ -50,6 +50,18 @@ ORDER BY seq
 LIMIT $1
 `
 
+// indexWinnersKeyedConsumedSeqSQL speeds the applied delete's dirty-log join
+// (d.seq = c.seq): without it the delete probes the admitted window with a
+// statistics-blind sequential scan per dirty-log row. Session-local to the
+// tick transaction, like the table.
+const indexWinnersKeyedConsumedSeqSQL = `
+CREATE INDEX winners_keyed_consumed_seq_idx ON winners_keyed_consumed (seq)
+`
+
+// analyzeWinnersKeyedConsumedSQL gives the planner the real admitted-window
+// count before the expansion and the delete plan on it.
+const analyzeWinnersKeyedConsumedSQL = `ANALYZE ` + winnersKeyedConsumedTable
+
 // countWinnersKeyedConsumedSQL counts the admitted window's rows.
 const countWinnersKeyedConsumedSQL = `
 SELECT count(*) FROM ` + winnersKeyedConsumedTable + `
@@ -144,6 +156,18 @@ JOIN fact_records AS fact
 WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
   AND fact.is_tombstone = FALSE`
 
+// indexWinnersKeyedScopeIdentsSQL speeds the identifier build and the settle
+// joins on (scope_id, generation_id): without it every consumer of the
+// scope expansion probes those 42k-class rows with a statistics-blind
+// sequential scan. Session-local to the tick transaction, like the table.
+const indexWinnersKeyedScopeIdentsSQL = `
+CREATE INDEX winners_keyed_scope_idents_scope_idx ON winners_keyed_scope_idents (scope_id, generation_id)
+`
+
+// analyzeWinnersKeyedScopeIdentsSQL gives the planner the real expansion size
+// before the identifier table and every settle statement plan on it.
+const analyzeWinnersKeyedScopeIdentsSQL = `ANALYZE ` + winnersKeyedScopeIdentsTable
+
 // buildWinnersKeyedIdentsSQL builds the distinct identifier set of a keyed tick
 // with the age of the oldest consumed row behind each identifier (#10706
 // oldest-first chunk): fact rows directly, scope-expanded identifiers through
@@ -167,6 +191,19 @@ GROUP BY package_id, repository_id, subject_digest, c0, advisory_id`
 // scan from a default estimate.
 const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 
+// winnersKeyedBuildIdentsStmts is the ordered build_idents phase: the scope
+// expansion is created, indexed, and analyzed before the identifier table
+// reads it, so the identifier join and every later consumer plan on real
+// statistics. runKeyedOrFull and the explain export both run this list, so
+// the explained plans are the plans the tick gets.
+var winnersKeyedBuildIdentsStmts = []string{
+	buildWinnersKeyedScopeIdentsSQL,
+	indexWinnersKeyedScopeIdentsSQL,
+	analyzeWinnersKeyedScopeIdentsSQL,
+	buildWinnersKeyedIdentsSQL,
+	analyzeWinnersKeyedIdentsSQL,
+}
+
 // SQL of the chunked consume (#9805). The arbiter ruling behind this lane is
 // chunk-build-sufficient: the keyed apply scales per changed/deleted row in
 // the identifier set (no full-table rewrite in keyed apply), so bounding the
@@ -185,50 +222,6 @@ const analyzeWinnersKeyedIdentsSQL = `ANALYZE ` + winnersKeyedIdentsTable
 // replaced probed per package triple over the triple-only package-lookup
 // index; migration 293 retired that index, so per-triple probing has no
 // access path anymore.
-
-// selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples
-// oldest first (#10706), $1 of them: MIN(captured_at), tie-break MIN(seq),
-// then the five-tuple for determinism. The caller asks for one past the
-// bound, so a full page proves the set continues past this chunk. The first
-// identifier always completes, so even a bound of one drains.
-const selectWinnersKeyedChunkIdentsSQL = `
-SELECT package_id, repository_id, subject_digest, c0, advisory_id
-FROM ` + winnersKeyedIdentsTable + `
-ORDER BY age_captured_at, age_seq, package_id, repository_id, subject_digest, c0, advisory_id
-LIMIT $1
-`
-
-// createWinnersKeyedChunkIdentsSQL and insertWinnersKeyedChunkIdentSQL record
-// the identifiers this chunk applies, for the identifier-table restriction
-// and the applied-row delete below.
-const createWinnersKeyedChunkIdentsSQL = `
-CREATE TEMP TABLE winners_keyed_chunk_idents (
-    package_id text, repository_id text, subject_digest text, c0 text, advisory_id text
-) ON COMMIT DROP
-`
-
-const insertWinnersKeyedChunkIdentSQL = `
-INSERT INTO ` + winnersKeyedChunkIdentsTable + ` VALUES ($1, $2, $3, $4, $5)
-`
-
-// restrictWinnersKeyedIdentsToChunkSQL drops the identifiers this chunk does
-// not apply, so the probe and the apply recompute (and delete stored winners)
-// only inside the chunk. The dropped identifiers are not lost: their dirty
-// rows were never deleted, or were converted to fact rows below.
-var restrictWinnersKeyedIdentsToChunkSQL = `
-DELETE FROM ` + winnersKeyedIdentsTable + ` AS ident
-WHERE NOT ` + winnersKeyedChunkIdentMatch("ident") + `
-`
-
-// winnersKeyedChunkIdentMatch reports, for a row carrying the five identifier
-// columns under alias, whether the chunk applies its identifier.
-func winnersKeyedChunkIdentMatch(alias string) string {
-	return `EXISTS (
-    SELECT 1 FROM ` + winnersKeyedChunkIdentsTable + ` AS chunk
-    WHERE (chunk.package_id, chunk.repository_id, chunk.subject_digest, chunk.c0, chunk.advisory_id)
-        = (` + alias + `.package_id, ` + alias + `.repository_id, ` + alias + `.subject_digest, ` + alias + `.c0, ` + alias + `.advisory_id)
-)`
-}
 
 // buildWinnersKeyedActiveFactsSQL builds the keyed active_facts: the active
 // findings of exactly the identifiers in the identifier table.
@@ -386,15 +379,11 @@ deleted AS (
 )
 `
 
-// convertWinnersKeyedScopeRemainderSQL turns the unapplied remainder of a
-// partially applied scope row into fact dirty rows (same source), so the
-// scope row can leave the log and the next tick resumes from named keys,
-// not from re-expanding the whole generation and re-applying its prefix.
-// A scope row with no applied identifier is left alone (nothing to resume from;
-// it re-expands next tick), and a fully applied one converts nothing.
-var convertWinnersKeyedScopeRemainderSQL = `
-INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+// convertWinnersKeyedScopeRemainderSelectSQL is the read-only SELECT arm of
+// the scope-remainder convert below: the unapplied identifiers of partially
+// applied scope rows. Plan proofs EXPLAIN this arm instead of the INSERT, so
+// they measure the expansion-fan-out join without inserting.
+var convertWinnersKeyedScopeRemainderSelectSQL = `
 SELECT DISTINCT 'fact', c.source, si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 FROM ` + winnersKeyedConsumedTable + ` AS c
 JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
@@ -407,6 +396,16 @@ WHERE c.kind = 'scope'
         AND ` + winnersKeyedChunkIdentMatch("applied") + `
   )
 `
+
+// convertWinnersKeyedScopeRemainderSQL turns the unapplied remainder of a
+// partially applied scope row into fact dirty rows (same source), so the
+// scope row can leave the log and the next tick resumes from named keys,
+// not from re-expanding the whole generation and re-applying its prefix.
+// A scope row with no applied identifier is left alone (nothing to resume from;
+// it re-expands next tick), and a fully applied one converts nothing.
+var convertWinnersKeyedScopeRemainderSQL = `
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)` + convertWinnersKeyedScopeRemainderSelectSQL
 
 // deleteWinnersKeyedAppliedDirtySQL deletes exactly the admitted dirty rows
 // this chunk applied, by seq, and tallies them by capture source: a fact row

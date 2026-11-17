@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"time"
 
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/vulnsource"
 )
 
@@ -67,6 +69,64 @@ type winnersChunkOutcome struct {
 	truncated   bool
 }
 
+// selectWinnersKeyedChunkIdentsSQL lists the identifier set's five-tuples
+// oldest first (#10706), $1 of them: MIN(captured_at), tie-break MIN(seq),
+// then the five-tuple for determinism. The caller asks for one past the
+// bound, so a full page proves the set continues past this chunk. The first
+// identifier always completes, so even a bound of one drains.
+const selectWinnersKeyedChunkIdentsSQL = `
+SELECT package_id, repository_id, subject_digest, c0, advisory_id
+FROM ` + winnersKeyedIdentsTable + `
+ORDER BY age_captured_at, age_seq, package_id, repository_id, subject_digest, c0, advisory_id
+LIMIT $1
+`
+
+// createWinnersKeyedChunkIdentsSQL and insertWinnersKeyedChunkIdentSQL record
+// the identifiers this chunk applies, for the identifier-table restriction
+// and the applied-row delete below.
+const createWinnersKeyedChunkIdentsSQL = `
+CREATE TEMP TABLE winners_keyed_chunk_idents (
+    package_id text, repository_id text, subject_digest text, c0 text, advisory_id text
+) ON COMMIT DROP
+`
+
+const insertWinnersKeyedChunkIdentSQL = `
+INSERT INTO ` + winnersKeyedChunkIdentsTable + ` VALUES ($1, $2, $3, $4, $5)
+`
+
+// indexWinnersKeyedChunkIdentsSQL turns the chunk-identifier probes of the
+// scope-remainder convert and the applied delete into index probes: without
+// it each of the expansion's 42k-class rows checks chunk membership with a
+// sequential scan, the statistics-blind nested loop the capacity lane (#10839)
+// bounds. Unique because the chunk is filled from the distinct identifier
+// table. Session-local to the tick transaction, like the table.
+const indexWinnersKeyedChunkIdentsSQL = `
+CREATE UNIQUE INDEX winners_keyed_chunk_idents_all_idx ON winners_keyed_chunk_idents (package_id, repository_id, subject_digest, c0, advisory_id)
+`
+
+// analyzeWinnersKeyedChunkIdentsSQL gives the planner the real chunk size
+// before the convert and the applied delete plan on it.
+const analyzeWinnersKeyedChunkIdentsSQL = `ANALYZE ` + winnersKeyedChunkIdentsTable
+
+// restrictWinnersKeyedIdentsToChunkSQL drops the identifiers this chunk does
+// not apply, so the probe and the apply recompute (and delete stored winners)
+// only inside the chunk. The dropped identifiers are not lost: their dirty
+// rows were never deleted, or were converted to fact rows below.
+var restrictWinnersKeyedIdentsToChunkSQL = `
+DELETE FROM ` + winnersKeyedIdentsTable + ` AS ident
+WHERE NOT ` + winnersKeyedChunkIdentMatch("ident") + `
+`
+
+// winnersKeyedChunkIdentMatch reports, for a row carrying the five identifier
+// columns under alias, whether the chunk applies its identifier.
+func winnersKeyedChunkIdentMatch(alias string) string {
+	return `EXISTS (
+    SELECT 1 FROM ` + winnersKeyedChunkIdentsTable + ` AS chunk
+    WHERE (chunk.package_id, chunk.repository_id, chunk.subject_digest, chunk.c0, chunk.advisory_id)
+        = (` + alias + `.package_id, ` + alias + `.repository_id, ` + alias + `.subject_digest, ` + alias + `.c0, ` + alias + `.advisory_id)
+)`
+}
+
 // buildWinnersKeyedChunk admits the chunk: the oldest identifiers of the
 // post-expansion identifier set by producing dirty row (#10706
 // oldest-first), one statement each into the chunk table, then restricts
@@ -117,6 +177,12 @@ func buildWinnersKeyedChunk(
 		}
 	}
 	outcome.identifiers = int64(len(idents))
+	if _, err := tx.ExecContext(ctx, indexWinnersKeyedChunkIdentsSQL); err != nil {
+		return outcome, fmt.Errorf("index supply chain impact winners chunk identifiers: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedChunkIdentsSQL); err != nil {
+		return outcome, fmt.Errorf("analyze supply chain impact winners chunk identifiers: %w", err)
+	}
 	if outcome.truncated {
 		if _, err := tx.ExecContext(ctx, restrictWinnersKeyedIdentsToChunkSQL); err != nil {
 			return outcome, fmt.Errorf("restrict supply chain impact winners identifiers to chunk: %w", err)
@@ -181,6 +247,27 @@ pruned AS (
     WHERE bucket < clock_timestamp() - interval '3 hours'
 )
 `
+
+// winnersCaptureTally is the consumed dirty-log rows by capture source.
+type winnersCaptureTally map[string]int64
+
+func (t winnersCaptureTally) total() int64 {
+	var n int64
+	for _, v := range t {
+		n += v
+	}
+	return n
+}
+
+// triggerSources returns the consumed rows of the sources a database trigger
+// owns, the only ones the maintainer counts at consume.
+func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCaptured {
+	return supplychaincore.WinnersTriggerCaptured{
+		Activation: t[telemetry.SupplyChainImpactWinnersSourceActivation],
+		Operator:   t[telemetry.SupplyChainImpactWinnersSourceOperator],
+		Scanner:    t[telemetry.SupplyChainImpactWinnersSourceScanner],
+	}
+}
 
 // settleWinnersKeyedDirtyLog makes the dirty log match what the chunk
 // applied, inside the tick transaction: it converts a partially applied
