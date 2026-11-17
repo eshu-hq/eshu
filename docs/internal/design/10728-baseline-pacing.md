@@ -15,15 +15,15 @@ Pace and resume (revised under #10816 to the arbiter's pace ruling of
 record-atomic 16 MiB chunks resumed by (stamp, CVE ID), newest year first, a
 drain-gated adaptive pace, and a seed rollback refused at commit. The whole
 baseline takes about 35 hours at the adaptive floor and 8.3 days at the
-unchanged pace, with 2026 and 2025 in about 8 hours (section 2). These rules are
-ruled design with owning issues. The core half of C1 (eshu #10809 and #10810)
-has shipped: the resume position, the seed-rollback refusal at commit, and
-newest-first year lanes, described in
-[10809-baseline-resume-position.md](10809-baseline-resume-position.md). The
-collector chunker and stamps (collector #199) and the drain-gated adaptive pace
-(C2, #10814) are still designed, not shipped. Baseline completion is still not a pre-enable
-condition: enabling does not wait for the whole corpus, and the lane drains
-behind the trip line.
+unchanged pace, with 2026 and 2025 in about 8 hours (section 2). Shipped: the
+core half of C1 (eshu #10809, #10810; resume position, seed-rollback refusal,
+newest-first year lanes, see
+[10809-baseline-resume-position.md](10809-baseline-resume-position.md)) and the
+planner half of C2 (#10814; drain gate, stale-latch hold, adaptive pace). Still
+designed: the collector chunker and stamps (collector #199) and the planner's
+service wiring (#10746). Baseline completion is still not a pre-enable
+condition: enabling does not wait for the whole corpus; the lane drains behind
+the trip line.
 
 Refs #10728. Part of #9209.
 
@@ -270,41 +270,41 @@ own planner over the checkpoint instead of the cursor: one chunk per call for
 each year, and the next start is the checkpointed (stamp, CVE ID) position
 (section 3).
 
-The pace below is ruled design (2026-11-16,
+The planner shipped this pace (#10814; ruling 2026-11-16,
 [10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md),
-decision 8; work item C2), not shipped code. It replaces the fixed 30-minute
-cadence and the "one chunk per planner run" bound.
+decision 8; work item C2). It replaces the fixed 30-minute cadence and the "one
+chunk per planner run" bound.
 
 - **Compiled default.** 30 minutes is `nvdBaselineDefaultPaceInterval` in the
   pure planner, budgeted as 10,000 facts per 30 minutes against the dirty-row
   trip line (`10671-nvd-feed-transport-fallback.md`, the "Windows per planner
   run" row of the Limits table). It is not a coordinator cadence (reconcile
   defaults to 30 s) and it reads no queue depth.
-- **Drain gate.** A year's next chunk is minted when the trip latch is shut, the
+- **Drain gate.** A year's next chunk is minted when the trip latch is shut and
+  fresh (a sample over 90 minutes old holds as `baseline_trip_stale`), the
   year's previous chunk has drained, and the pace interval has passed. Drained
-  means its work item is closed, its generation is active, and its
-  `supply_chain_impact` reducer item is done, read by key from the checkpoint's
-  `last_scope_id` and `last_generation_id`. This is enforced in the baseline
-  loop, not assumed from the tick, because cadence is per-target config
-  (`refresh_interval`, field of `vulnerabilityTargetConfiguration` in
-  `go/internal/coordinator/vulnerability/intelligence_scheduler.go`; targets
-  planned inside their interval skip in `selectDueVulnerabilityTargets` in
-  `intelligence_refresh_cadence.go`).
+  means its collector claim is closed, its generation is active (or superseded
+  by the active one), and its `supply_chain_impact` reducer item is done, read
+  by key from the checkpoint's `last_scope_id` and `last_generation_id` by
+  `NVDBaselineDrainProbe` (no new index; EXPLAIN proof in
+  [10814-baseline-drain-probe.md](../evidence/10814-baseline-drain-probe.md)).
+  This is enforced in the baseline loop, not assumed from the tick, because
+  cadence is per-target config (`refresh_interval` in `intelligence_scheduler.go`).
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
   `streak` counts consecutive hourly trip-latch samples with CVE-keyed inflow at
   or under 7,500 an hour and oldest dirty age at or under 96 hours; any other
   sample resets it to 0. Shipped as `soft_quiet_streak` (#10814, migration 302):
   folded in `NVDBaselineTripState.Observe`, written by the latch's revision
-  compare-and-swap (section 5), not capped (the planner saturates the exponent).
-  An open trip, a missed hour and `Close` reset it; a refused or too-soon sample
-  leaves it. The rate at most doubles once an hour and only after an hour at or
-  under half the trip rate, so if inflow scales with rate one step cannot cross
-  the trip rate; a hot hour resets the pace to 30 minutes before the two-hour
-  latch can open.
-- **The floor is `min_chunk_interval`.** Blank means 30 minutes, so the pace
-  stays as it is today until an operator lowers it. The compiled minimum for the
-  knob drops from 30 to 5 minutes. This supersedes the earlier clamp that paced
-  a lower value at 30 minutes (eshu-hq/eshu#10762).
+  compare-and-swap (section 5), not capped (`nvdBaselinePaceInterval` saturates
+  the exponent). An open trip, a missed hour and `Close` reset it; a refused or
+  too-soon sample leaves it. The rate at most doubles once an hour and only
+  after an hour at or under half the trip rate, so if inflow scales with rate
+  one step cannot cross the trip rate; a hot hour resets the pace to 30 minutes
+  before the two-hour latch can open.
+- **The floor is `min_chunk_interval`.** Blank, zero, or negative means 30
+  minutes. A value over zero and under 5 minutes clamps to 5, one of 5 minutes
+  or more is used as given, an unparsable one is a `baseline_config_error`. It
+  supersedes the earlier 30-minute clamp (eshu-hq/eshu#10762).
 - **Slow start.** The chunks an hour go 2, 4 and 8 over the first three hours,
   then 12 an hour: 3 h + (397 - 14) / 12 = 34.9 h for the corpus.
 - **No blanket fast pace.** A fixed 5-minute interval with no feedback is
@@ -492,8 +492,8 @@ Merge order from the ruling: S1, then C1, then K1; C2 after C1; #10746 after C2.
   Shipped for #10809 and #10810.
 - K1, collector #199: the record-atomic chunker, paged chunk, chunk budget
   config, verdict stamps.
-- C2, core pace: the drain gate, the adaptive interval, a migration after 301,
-  telemetry.
+- C2, core pace (#10814): the latch streak (migration 302), then the planner's
+  drain gate, stale hold, adaptive pace, and telemetry. Shipped.
 - #10746: the enable lane over the above, without a seed-manifest input.
 - Proof gates per the ruling: disposable-DB run, R6-style idempotency, the "how
   much of NVD held" count query inside a 15s statement timeout, and the QA
