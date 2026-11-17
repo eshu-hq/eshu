@@ -55,6 +55,18 @@ const FailureClassOperatorRetiredUnclaimed = "operator_retired_unclaimed"
 // row text, so failure-reporting selects stay safe to expose.
 const FailureOperationOperatorRetire = "operator_retire"
 
+// FailureClassRunAgeBoundExceeded labels workflow work items the run-age
+// bound expired: pending or claimed rows of a non-terminal run older than
+// the configured max open-run age (eshu-hq/eshu#10791). It lives in the
+// workflow package because the writer is the storage layer on a
+// coordinator maintenance pass, not a collector runner.
+const FailureClassRunAgeBoundExceeded = "run_age_bound_exceeded"
+
+// FailureOperationRunAgeExpire is the bounded claim-stage token recorded
+// on rows the run-age bound expires. It carries only the operation, never
+// provider or row text, so failure-reporting selects stay safe to expose.
+const FailureOperationRunAgeExpire = "run_age_expire"
+
 func DefaultClaimLeaseTTL() time.Duration {
 	return defaultClaimLeaseTTL
 }
@@ -73,6 +85,14 @@ func DefaultExpiredClaimLimit() int {
 
 func DefaultExpiredClaimRequeueDelay() time.Duration {
 	return defaultExpiredClaimRequeueDelay
+}
+
+// DefaultMaxOpenRunAge bounds how long a non-terminal workflow run may stay
+// open before the run-age bound expires its pending and claimed items
+// (eshu-hq/eshu#10791). A day bounds the worst case without churning
+// healthy long-tail runs.
+func DefaultMaxOpenRunAge() time.Duration {
+	return 24 * time.Hour
 }
 
 // DefaultClaimMaxAttempts returns the bounded retry budget collector runners

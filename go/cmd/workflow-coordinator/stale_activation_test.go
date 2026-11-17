@@ -59,6 +59,9 @@ func (f *staleSkipFakeMetrics) RecordOwnedTargetRotation(_ context.Context, _ co
 func (f *staleSkipFakeMetrics) RecordOwnedTargetSlotSelection(_ context.Context, _ coordinator.OwnedTargetSlotObservation) {
 }
 
+func (f *staleSkipFakeMetrics) RecordStaleRunExpiry(_ context.Context, _ coordinator.StaleRunExpiryObservation) {
+}
+
 func writeStaleRegistryHome(t *testing.T) string {
 	t.Helper()
 

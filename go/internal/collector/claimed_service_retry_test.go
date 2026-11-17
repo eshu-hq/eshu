@@ -12,8 +12,9 @@ import (
 
 // TestClaimRetryDelayAndBudgetContract pins the exported retry arithmetic
 // ClaimedService and the extension host's source-state recorder share
-// (#9420): the applied delay is the larger of poll interval and request, and
-// the budget trips once AttemptCount reaches a positive MaxAttempts.
+// (#9420): the applied delay is the larger of poll interval and request,
+// capped at one hour (#10791), and the budget trips once AttemptCount
+// reaches a positive MaxAttempts.
 func TestClaimRetryDelayAndBudgetContract(t *testing.T) {
 	t.Parallel()
 

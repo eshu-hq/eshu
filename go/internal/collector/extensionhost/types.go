@@ -101,9 +101,9 @@ type ResultRecord struct {
 	// RetryAfter is the retry delay the extension requested, after the
 	// MaxRetryAfterDelay cap; zero unless the result is retryable. It is
 	// recorded before ClaimedService decides: ClaimedService applies
-	// max(PollInterval, RetryAfter) while attempts remain and no delay once
-	// the attempt budget is spent, so this is the request, not the applied
-	// delay.
+	// min(max(PollInterval, RetryAfter), 1h) while attempts remain and no
+	// delay once the attempt budget is spent (#10791), so this is the
+	// request, not the applied delay.
 	RetryAfter time.Duration
 	// RetryAfterRequestedSeconds is the largest retry_after_seconds the
 	// extension requested, before the cap.

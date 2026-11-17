@@ -95,6 +95,12 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	if err := s.runSemanticProviderClaims(ctx); err != nil {
 		return fmt.Errorf("drain semantic provider claims: %w", err)
 	}
+	// Expire stale open runs before reconciling them so a wedged run's
+	// freshly terminal rows let the same pass's reconcile close the run
+	// and release its targets' open-target guard (eshu-hq/eshu#10791).
+	if err := s.runExpireStaleOpenRuns(ctx); err != nil {
+		return fmt.Errorf("expire stale open runs: %w", err)
+	}
 	if err := s.runWorkflowReconciliation(ctx); err != nil {
 		return fmt.Errorf("reconcile workflow runs: %w", err)
 	}
@@ -233,6 +239,36 @@ func (s Service) runReapExpiredClaims(ctx context.Context) error {
 		Duration:   time.Since(startedAt),
 		ReapedRows: len(claims),
 	})
+	return nil
+}
+
+func (s Service) runExpireStaleOpenRuns(ctx context.Context) error {
+	startedAt := time.Now()
+	expired, err := s.Store.ExpireStaleOpenRuns(ctx, s.now().UTC(), s.Config.MaxOpenRunAge)
+	if err != nil {
+		s.recordStaleRunExpiry(ctx, StaleRunExpiryObservation{
+			Outcome:  staleRunExpiryOutcomeError,
+			Duration: time.Since(startedAt),
+		})
+		return err
+	}
+	runs := make(map[string]struct{}, len(expired))
+	for _, item := range expired {
+		runs[item.RunID] = struct{}{}
+	}
+	s.recordStaleRunExpiry(ctx, StaleRunExpiryObservation{
+		Outcome:      staleRunExpiryOutcomeSuccess,
+		Duration:     time.Since(startedAt),
+		ExpiredRuns:  len(runs),
+		ExpiredItems: len(expired),
+	})
+	if len(expired) > 0 && s.Logger != nil {
+		s.Logger.Warn(
+			"expired stale open runs past the max open run age",
+			"expired_runs", len(runs),
+			"expired_items", len(expired),
+		)
+	}
 	return nil
 }
 

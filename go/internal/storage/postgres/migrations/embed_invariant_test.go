@@ -259,14 +259,16 @@ import (
 // 298_vulnerability_nvd_baseline_trip_latches.sql (the durable per-run
 // NVD baseline trip latch); #10767 adds
 // 299_supply_chain_impact_winners_dirty_tally.sql (the drained NVD-proxy
-// dirty-row tally the baseline trip sampler reads as hourly inflow).
-const goldenBootstrapDefinitionsDigest = "067623ad69c5e1f4bd55af181fcf414f0ef9bc3f24ff8a4950c60d8518f7cd4b"
+// dirty-row tally the baseline trip sampler reads as hourly inflow);
+// #10791 adds 300_workflow_items_open_updated_idx.sql (the open-items
+// updated index serving the run-age bound expiry candidate walk).
+const goldenBootstrapDefinitionsDigest = "aee5f6fdbbcc9a38be031be18ea24e5e18d31e67705ecf1aba3c1ef83e093bb2"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 325
+const goldenBootstrapDefinitionsCount = 326
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

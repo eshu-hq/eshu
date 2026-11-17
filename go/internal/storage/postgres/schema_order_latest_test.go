@@ -32,4 +32,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 299 (#10767) adds the drain tally the NVD baseline trip
 	// sampler reads inflow from, since the dirty log is drained on read.
 	"supply_chain_impact_winners_dirty_tally",
+	// Migration 300 (#10791) adds the open-items updated index the run-age
+	// bound expiry candidate walk reads newest first; 299 went to #10767,
+	// which rolled first.
+	"workflow_items_open_updated_idx",
 }

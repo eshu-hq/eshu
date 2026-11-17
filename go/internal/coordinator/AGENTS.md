@@ -5,7 +5,8 @@
 1. `go/internal/coordinator/README.md` — ownership boundary, loop structure,
    dark/active branching, exported surface, and metric inventory
 2. `go/internal/coordinator/service.go` — `Service.Run`, `runReconcile`,
-   `runReapExpiredClaims`, `runWorkflowReconciliation`, and `tickerChan`
+   `runReapExpiredClaims`, `runExpireStaleOpenRuns`, `runWorkflowReconciliation`,
+   and `tickerChan`
 3. `go/internal/coordinator/config.go` — `LoadConfig`, `LoadConfigObserved`
    (reports producer-grant decisions; keep it observation-only so a denial
    still skips or fails startup exactly as before), `Config.Validate`, env

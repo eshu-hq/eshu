@@ -390,6 +390,10 @@ var migrationShippedChecksums = map[string]string{
 	// #10767: the drained NVD-proxy dirty-row tally the baseline trip sampler
 	// adds to the rows still queued, so it reads hourly inflow (migration 299).
 	"299_supply_chain_impact_winners_dirty_tally.sql": "b4b4f1292871adaaafed765d0046e4cc56402280c7024212175dfe7695147701",
+	// #10791: the open-items updated index serving the run-age bound
+	// expiry candidate walk (migration 300; 299 went to #10767, which
+	// rolled first; EXPLAIN pin tracked in #10802).
+	"300_workflow_items_open_updated_idx.sql": "039ffd9df326c42133b4cbd1372301291fda0f208f2a79704342635f7df972b6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

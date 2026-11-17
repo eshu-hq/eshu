@@ -258,6 +258,13 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 
 	dispatchMutation, grantedLease, err := s.grantDispatchLease(ctx, item, claim)
 	if err != nil {
+		// Track B1 (eshu-hq/eshu#10791): mirror the collect/commit outer
+		// budget checks so an exhausted dispatch failure records the
+		// terminal outcome instead of fail_retryable.
+		if s.attemptBudgetExhausted(item) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
+			return s.failTerminal(ctx, dispatchMutation, "collect_failure", FailureClassAttemptBudgetExhausted, budgetExhaustedCause{s.budgetExhaustedError(ctx, item, err)})
+		}
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, dispatchMutation, item, "collect_failure", err)
 	}
@@ -272,13 +279,20 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		}
 		if s.attemptBudgetExhausted(item) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, "collect_failure", FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+			return s.failTerminal(ctx, mutation, "collect_failure", FailureClassAttemptBudgetExhausted, budgetExhaustedCause{s.budgetExhaustedError(ctx, item, err)})
 		}
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "collect_failure", err)
 	}
 	if !ok {
 		stopHeartbeat()
+		// Track B1 (eshu-hq/eshu#10791): the release path bypasses the
+		// budget checks on the failure paths, so an exhausted item would
+		// recycle to pending forever. Terminal it here instead.
+		if s.attemptBudgetExhausted(item) {
+			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
+			return s.failTerminal(ctx, mutation, "collect_failure", FailureClassAttemptBudgetExhausted, budgetExhaustedCause{s.budgetExhaustedError(ctx, item, errNoCollectibleGeneration)})
+		}
 		if err := s.ControlStore.ReleaseClaim(ctx, mutation); err != nil {
 			return fmt.Errorf("release claimed %s work item: %w", s.claimedKindLabel(), err)
 		}
@@ -336,7 +350,7 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		}
 		if s.attemptBudgetExhausted(item) {
 			runOutcome = telemetry.CollectorRunOutcomeFailTerminal
-			return s.failTerminal(ctx, mutation, "commit_failure", FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+			return s.failTerminal(ctx, mutation, "commit_failure", FailureClassAttemptBudgetExhausted, budgetExhaustedCause{s.budgetExhaustedError(ctx, item, err)})
 		}
 		runOutcome = telemetry.CollectorRunOutcomeFailRetryable
 		return s.failRetryable(ctx, mutation, item, "commit_failure", err)

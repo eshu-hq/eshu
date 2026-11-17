@@ -48,8 +48,8 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - `ResultRecord.RetryAfter`, the retry-after gauge, and the
   `extension_status.retry_after_seconds` log key are the extension's capped
   request, recorded before `ClaimedService` decides. Never document them as the
-  applied or honored delay: `ClaimedService` applies `max(PollInterval,
-  request)`, and none once the attempt budget is spent.
+  applied or honored delay: `ClaimedService` applies `min(max(PollInterval,
+  request), 1h)` (#10791), and none once the attempt budget is spent.
 - `Config.ClaimOutcomeRecorder` (#9420) gets exactly one `RecordClaimOutcome`
   per `NextClaimed` exit, called before `recordResult` so the `ResultRecord`
   reflects a `source_state_record` failure. Only completed outcomes are

@@ -51,15 +51,20 @@ var extensionFailureClassPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,95
 //     class for pending rows with no claim on a deconfigured instance
 //     (FailureClassOperatorRetiredUnclaimed, workflow/defaults.go, written
 //     by storage/postgres RetireUnclaimedWorkItems, #10532).
+//   - run_age_bound_exceeded: the run-age bound expiry class for pending or
+//     claimed rows of a non-terminal run older than the bound
+//     (FailureClassRunAgeBoundExceeded, workflow/defaults.go, written by
+//     storage/postgres ExpireStaleOpenRuns, #10791).
 //
 // The security-alert read (#8803) pins the nine claim-runner classes for
 // that one kind in securityAlertTerminalFailureClasses; the tenth here is the
-// reaper class and the eleventh the retire-unclaimed class, both of which
-// that surface reports as unclassified.
+// reaper class, the eleventh the retire-unclaimed class, and the twelfth the
+// run-age-bound class, all of which that surface reports as unclassified.
 var commonFailureClasses = []string{
 	"auth_denied", "not_found", "rate_limited", "terminal", "retryable",
 	"attempt_budget_exhausted", "identity_mismatch", "collect_failure", "commit_failure",
 	"expired_lease_budget_exhausted", "operator_retired_unclaimed",
+	"run_age_bound_exceeded",
 }
 
 // registryFailureClasses are the bounded classes collector.RegistryFailure

@@ -14,14 +14,22 @@ type retryAfterFailure interface {
 	RetryAfterDelay() time.Duration
 }
 
+// maxClaimRetryDelay caps one attempt's invisibility at an hour. An
+// uncapped provider Retry-After lets 10 attempts span days while looking
+// busy (eshu-hq/eshu#10791); the cap bounds the worst case, winning over the
+// poll-interval floor when the poll interval itself exceeds an hour
+// (visibility can only move earlier, never later).
+const maxClaimRetryDelay = time.Hour
+
 // ClaimRetryDelay is the delay ClaimedService applies before a retryable
 // claim is visible again: the larger of its poll interval and the provider's
-// requested delay (zero when none was requested). It is exported so a
-// component that reports the retry time, such as the extension host's
-// vulnerability source-state recorder (#9420), uses the same arithmetic and
-// cannot drift from the queue.
+// requested delay (zero when none was requested), capped at maxClaimRetryDelay
+// (which binds above one hour even when the poll interval is larger).
+// It is exported so a component that reports the retry time, such as the
+// extension host's vulnerability source-state recorder (#9420), uses the same
+// arithmetic and cannot drift from the queue.
 func ClaimRetryDelay(pollInterval, requested time.Duration) time.Duration {
-	return max(pollInterval, requested)
+	return min(max(pollInterval, requested), maxClaimRetryDelay)
 }
 
 // ClaimAttemptBudgetExhausted reports whether a retryable failure on item is
