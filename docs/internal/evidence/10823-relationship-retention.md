@@ -329,7 +329,7 @@ named in the table are in the leaf package.
 | A generation stops being an orphan after the census: a scope generation row appears, its relationship generation turns active, or a scope pointer names it | Skipped as `ineligible`, nothing swept, every row intact. Each of the three predicates dropped from classify turns this red. |
 | The production activation arrives while a batch holds the generation row (hook after the evidence delete) | It queues behind the row; the batch commits whole; the activation then re-creates the row, empty. Without `FOR UPDATE` in classify it never waits (red). |
 | An activation commits after classify took its snapshot and before it locks the row (`TestActivationCommittedBetweenSnapshotAndRowLockIsNotClaimedLive`; the shipped statement staged by one inserted advisory-lock wait) | The generation comes back unclaimed; a whole pass counts it `lock_busy`, never swept (`TestPassOverAnActivationRaceNeverCountsTheGenerationSweptLive`). Without `rg.status <> 'active'` in the locked CTE it is claimed (red). PostgreSQL keeps the row lock on the newest version even when the re-check drops the row, so a lock probe cannot show this; the claimed flag is the contract. |
-| Activation race, rounds started together and staggered | See the activation-race runs in the final live run below: every outcome is consistent (children intact when the activation updated the row, none when it re-created it, never half). |
+| Activation race, rounds started together and staggered (`TestActivationRaceKeepsEveryOutcomeConsistentLive`) | 60 rounds, each started together with the activation delayed 0 to 11 ms (`i % 12`) behind the sweep, so it lands across the sweep's statements. Every outcome is consistent: children intact when the activation updated the row, none when it re-created it, never half. The split varies by run (8 updated and 52 re-created in one full run at `d1ede6a599`, 7 and 53 in another). |
 | Claim-fenced activation of an orphan id | A work item for it cannot exist (foreign key 23503), so the fenced activation returns `ErrExecutionClaimRejected` and touches nothing; the sweep then removes the rows. A claimed intent resolves with `ResolveClaimed`; the unfenced path runs only for an intent with no claim (`ClaimedAt` nil), and is the only caller of the re-creating activation. |
 | A holder owns every candidate row of an orphan generation while the real #10820 purge is parked mid-flight (it deleted the evidence rows and waits on the candidates) (`TestSweepYieldsToAPurgeInFlightLive`) | The batch skips that generation as `lock_busy` without waiting (`lock_timeout` 0), leaves every row, and sweeps the disjoint generation in the next batch; the purge completes once the holder lets go. |
 | Purge arrives while the batch holds the generation row (`TestPurgeArrivingWhileTheBatchHoldsTheGenerationRowLive`: the batch resumes 0, 300, 700, 800 and 1200 ms after the purge queued behind it) | At every delay the purge completes and the repository is retired, neither side sees `40P01`, and the batch counts the generation `lock_busy` (`lock_timeout` 0, nothing committed). On the first design the same table gave a purge `40P01` at 700 and 800 ms and a batch `lock_timeout` at the others. |
@@ -457,8 +457,19 @@ at an earlier head. They were not re-run (see Not checked).
   status, `scope_generations` and pointer predicates and the settle read's
   generation branch are held by SQL text pins alone (mutation runs above).
 - The cadence, rollout, telemetry and served-contract mutants (29) ran at an
-  earlier head and were not re-run at this one. The production files they edit are
-  unchanged since `fff6b876a7` apart from comments and one environment registry
-  description string (`git diff fff6b876a7 HEAD` on those files); the tests that
-  kill them are unchanged or only gained cases (two reducer test files and one
-  line in the telemetry contract test), and they pass at this head.
+  earlier head and were not re-run at this one. The files they edit
+  (`go/internal/reducer/maintenance/retention/relationship_sweep.go` and
+  `runner.go`, `go/cmd/reducer/generation_retention_wiring.go` and the three
+  read-model files in `go/internal/query` that join `relationship_generations`)
+  are byte-identical to `fff6b876a7` (`git diff --quiet fff6b876a7 HEAD` on those
+  files exits 0); the comment and registry description edits since then are in
+  other files. The tests that kill them are unchanged or only gained cases (two
+  reducer test files and one line in the telemetry contract test), and they pass
+  at this head.
+- Under heavy host load the delay-table live test
+  (`TestPurgeArrivingWhileTheBatchHoldsTheGenerationRowLive`, five disposable
+  databases) can fail in teardown, not in an assertion: the shared helper's 15 s
+  deadline for dropping a disposable database ran out in one of two full runs at
+  `d1ede6a599`, at load averages of 32 to 56 (the 334-migration bootstrap of its
+  databases took 13 to 208 s there, 1.1 to 2.3 s in the calm run). It passes alone
+  in 13 s, so read a teardown timeout in a CI rerun as host load first.
