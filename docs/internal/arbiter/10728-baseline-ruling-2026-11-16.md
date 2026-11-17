@@ -49,6 +49,14 @@ records last modified before the first window emit no facts from the seed.
   decompressed) and M5 (mean 7.07 facts/record over 12,818 records)
   give 425,770 x 7.07 ~= 3.01M facts, ~301 claims at the 10,000-fact cap
   (design section 5, "Limits" table), ~150h at one chunk per 30min planner run.
+  **Superseded by measurement (#10811):** 5,039,862 facts at 1,256 budget bytes
+  each, byte cap binding at ~1,670 facts per chunk, so ~3,000 chunks and ~63 days
+  at one chunk per 30 minutes. Method and the sensitivity to the per-chunk cap and
+  cadence are in
+  [10728-baseline-pacing.md](../design/10728-baseline-pacing.md) section 2. The
+  decision below does not change: baseline completion takes weeks at the current
+  cadence and is not a pre-enable condition; pacing is the lever, not
+  correctness.
 - Dirty-log/reducer risk is real but unmeasured, hence gated not assumed:
   M6 (1,080,966 dirty rows, 1.0-1.8k/min OSV/GHSA-keyed inflow from
   reducer finding upserts, not raw facts); design section 6 "Write budget"
