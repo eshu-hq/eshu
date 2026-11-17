@@ -66,9 +66,9 @@ pass and is counted as a failure.
 
 - `BatchGenerations` = 50 (about 2,650 rows in the measured corpus).
   `BatchRows` = 10,000 per picking delete, so a batch deletes at most 20,050 rows
-  however large one generation is: before that bound a single generation of
-  125,000 evidence rows ran as one batch of 125,000 rows. The evidence note holds
-  the timings and the WAL per row.
+  however large one generation is: before that bound the probe's hub generation
+  (120,000 evidence and 2,000 candidate rows) ran as one batch of 124,598 rows with
+  its 49 neighbours. The evidence note holds the timings and the WAL per row.
 - `DefaultRowCap` = 100,000 rows per pass (about 170 MB of WAL at the 1.7 KB per
   row planning figure); the first batch always runs, so one batch can exceed it.
   Replicas split a backlog through the advisory try locks, so more replicas raise

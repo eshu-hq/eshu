@@ -62,9 +62,10 @@ const LockClass = 10823
 // PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md): a batch
 // of 50 generations of 53 rows is about 2,650 rows. On a calm host (load average
 // about 20) it commits in 52 to 57 ms at p50 and 109 to 127 ms at p95 when a
-// generation's rows sit together, and in 435 ms at p50 and 1.06 s at p95 on a
-// first pass over rows scattered at random; a host at load average 73 to 85 ran
-// the same statements 10 to 70 times slower, so these are best-case figures. The
+// generation's rows sit together. Over rows scattered at random, in a busier
+// window (load average 24 to 50), the first pass took 435 ms at p50 and 1.06 s at
+// p95, and a window at load averages of 55 to 85 ran the same statements 27 to 63
+// times slower, so these are best-case figures. The
 // runs set fsync=off and synchronous_commit=off, which remove the commit's wait for
 // a WAL flush: they change how long a commit takes, not how much WAL a batch
 // writes, and a production commit also waits for the flush. WAL depends on how the
@@ -80,9 +81,10 @@ const BatchGenerations = 50
 // candidates) takes, so a batch deletes at most 2*BatchRows+BatchGenerations rows
 // however large a generation is. A generation with more rows than that is drained
 // by successive batches inside the same pass, each its own transaction. Without it
-// a batch was bounded in generations only, and one generation of 125,000 evidence
-// rows held every one of its row locks for the whole batch (the evidence note
-// records how long): a #10820 purge of that repository waits for the batch, so the
+// a batch was bounded in generations only: the probe's hub generation (120,000
+// evidence and 2,000 candidate rows) ran as one 124,598-row batch with its 49
+// neighbours and held every row lock until the batch committed (the evidence note
+// records how long). A #10820 purge of that repository waits for the batch, so the
 // bound is on how long it can wait.
 const BatchRows = 10_000
 

@@ -92,23 +92,25 @@ service context for a current pointer.
    and about 1 GB per hour from one replica when capped passes re-run every
    sixth of a 1h poll interval (each replica adds its own passes to that rate).
    The planning figure is for rows scattered across a large table. A local
-   PostgreSQL 18 run measured 0.3 KB per row when a generation's rows sit
+   PostgreSQL 18 run measured 0.34 KB per row when a generation's rows sit
    together and up to 4.3 KB per row for a pass that starts right after a
    checkpoint, when every first touch of a page writes a full page image.
    The 1.7 KB and 4.3 KB figures predate the row lock record each delete now
-   writes (about 55 B more per row, 3%, measured on a smaller corpus) and were not
-   repeated at their size. `wal_compression` shrinks the images.
+   writes (about 55 B more per row, 3% of 1.7 KB, measured on a smaller corpus)
+   and were not repeated at their size. `wal_compression` shrinks the images.
 3. If that is too much for the replicas' WAL budget, lower
    `ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ROW_CAP` or lengthen the poll
    interval, then enable the flag.
 4. Watch `eshu_dp_relationship_retention_rows_swept_total` and the orphan gauge
    fall, and replica lag stay inside its budget.
 5. Read `pg_stat_database.deadlocks` for the database before the drain and after
-   it. The delta over the drain window must be 0. In both arrival orders the
-   purge succeeds and never sees `40P01`; the sweeper never waits on a row lock,
-   skips the held generation as `lock_busy`, and commits the other generations of
-   the batch. A non-zero delta means some other statement is in a lock cycle with
-   a writer, and the drain is not done until it is found.
+   it. The delta over the drain window must be 0. In both arrival orders against
+   a repository purge, the purge succeeds and never sees `40P01`. When the purge
+   holds rows first, the sweeper never waits on a row lock, skips the held
+   generation as `lock_busy`, and commits the other generations of the batch.
+   When the sweeper holds them first, the purge waits for that one bounded batch
+   and finds nothing left to delete. A non-zero delta means some other statement
+   is in a lock cycle with a writer, and the drain is not done until it is found.
 
 Run this read-only count on a replica or inside a read-only transaction. It
 reads the same predicates the sweep uses, and the statement timeout keeps a
@@ -198,13 +200,16 @@ the waiter that carries it, and the purge's own deadlock check (1 s by default)
 can fire first and make the purge the victim; that happened 700 and 800 ms after
 the purge queued in an earlier design that relied on the timeout. The batch is
 wait-free instead. In both arrival orders the purge succeeds and never sees a
-`40P01`; the batch never waits on a row lock, skips the held generation as
-`lock_busy`, and commits the other generations of its batch. The only wait left
-is the purge waiting for the batch, which ends when the batch commits or rolls
-back, and a batch holds at most about 20,000 row locks, so the purge of a very
-large generation waits for one bounded chunk, never for the whole generation. The 500 ms `lock_timeout` stays as a backstop for the one wait the batch
-cannot skip, a table lock held by DDL: that batch rolls back and counts
-`lock_timeout`.
+`40P01`. When the purge holds rows first, the batch never waits on a row lock,
+skips the held generation as `lock_busy`, and commits the other generations of
+its batch. When the batch holds them first, the purge waits for that batch, which
+ends when it commits or rolls back, and finds nothing left to delete. A batch
+holds at most about 20,000 row locks, so each wait of the purge is bounded by one
+batch, never by the whole generation. Live tests prove both orders; the operator
+gate above adds the `pg_stat_database.deadlocks` delta.
+
+The 500 ms `lock_timeout` stays as a backstop for the one wait the batch cannot
+skip, a table lock held by DDL: that batch rolls back and counts `lock_timeout`.
 
 ## Space, bloat and stopping
 
