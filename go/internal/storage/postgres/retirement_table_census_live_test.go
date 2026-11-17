@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10794 retirement table census on a disposable PostgreSQL 18 schema: every scope- or repo-keyed table resolves to a census row and the seeded source_repo_id probe is reported, so a new scope-keyed migration cannot merge unclassified; each test builds its own isolated schema
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 import (
 	"testing"
 )

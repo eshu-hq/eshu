@@ -92,6 +92,16 @@ const (
 	// guard), or orphaned sidecar rows would survive the retirement.
 	purgeDeleteScopesQuery = `DELETE FROM ingestion_scopes WHERE scope_id = ANY($1)`
 
+	// purgeDeleteScopePassStateQuery drops the #10389 per-scope pass-state
+	// rows (migration 284, no FK). It runs after the scope delete: the
+	// impact writer holds the fact insert's KEY SHARE on scope_generations
+	// before it upserts this row last, so deleting here keeps the purge's
+	// lock order equal to the writer's (scope_generations, then pass state)
+	// and no cycle can form.
+	//
+	// #nosec G101 -- SQL DML whose const name contains "Pass"; the value is a fully-parameterized query, not a credential literal
+	purgeDeleteScopePassStateQuery = `DELETE FROM supply_chain_impact_scope_pass_state WHERE scope_id = ANY($1)`
+
 	// purgeCompleteTombstoneQuery writes the tombstone: the terminal
 	// complete/done state, the retirement timestamp, and the deleted-row
 	// ledger merged over any prior counts. The state predicate makes a
