@@ -115,7 +115,7 @@ fi
 # mtime, so even a FRESH lock (one the 5m stale age would keep) is removed.
 # A lock whose holder may still be alive is left alone: a young lock can
 # belong to a live fetch, and deleting it risks shallow-state corruption.
-# Both cases seed a just-created lock and differ only in holder liveness. The
+# Both cases seed just-created locks and differ only in holder liveness. The
 # subshell keeps the stubbed log/die and the probe ESHU_REPOS_DIR from
 # leaking into the rest of this mirror.
 delta_reader_cleanup_probe="$(mktemp -d)"
@@ -128,25 +128,30 @@ delta_reader_cleanup_probe="$(mktemp -d)"
 	command -v golden_delta_reader_drop_dead_shallow_lock >/dev/null 2>&1 \
 		|| fail "golden_delta_reader_sync must clean the dead collector's shallow.lock (#10270)"
 	delta_reader_probe_git="$(golden_delta_reader_repos_dir)/${golden_delta_reader_slug}/.git"
-	mkdir -p "${delta_reader_probe_git}"
-	# Case 1: fresh lock + proven-dead collector -> the leg proceeds (the
-	# lock is gone so the next sync's fetch can take it).
+	mkdir -p "${delta_reader_probe_git}/refs/heads"
+	# Case 1: fresh locks + proven-dead collector -> the leg proceeds (both
+	# locks are gone so the next sync's fetch and checkout can take them).
+	# The refs lock covers the SIGKILLed checkout -B that wedged pair 2 of
+	# run 43994260222: fetch succeeded every cycle while checkout failed on
+	# a stale refs/heads/main.lock for the whole 90s settle window.
 	: >"${delta_reader_probe_git}/shallow.lock"
+	: >"${delta_reader_probe_git}/refs/heads/main.lock"
 	sleep 1 & delta_reader_dead_collector=$!
 	wait "${delta_reader_dead_collector}" 2>/dev/null || true
 	golden_delta_reader_drop_dead_shallow_lock "${delta_reader_dead_collector}"
-	[[ ! -e "${delta_reader_probe_git}/shallow.lock" ]] \
-		|| fail "fresh shallow.lock must be removed once kill+wait proves the collector dead (#10270)"
-	# Case 2: fresh lock + live holder -> the lock is left alone. The
+	[[ ! -e "${delta_reader_probe_git}/shallow.lock" && ! -e "${delta_reader_probe_git}/refs/heads/main.lock" ]] \
+		|| fail "fresh shallow.lock and refs/heads/main.lock must be removed once kill+wait proves the collector dead (#10270)"
+	# Case 2: fresh locks + live holder -> the locks are left alone. The
 	# sleeper is stopped before any assertion so no live holder outlives
 	# this block on either outcome.
 	: >"${delta_reader_probe_git}/shallow.lock"
+	: >"${delta_reader_probe_git}/refs/heads/main.lock"
 	sleep 30 & delta_reader_live_collector=$!
 	golden_delta_reader_drop_dead_shallow_lock "${delta_reader_live_collector}"
 	kill "${delta_reader_live_collector}" >/dev/null 2>&1 || true
 	wait "${delta_reader_live_collector}" 2>/dev/null || true
-	[[ -e "${delta_reader_probe_git}/shallow.lock" ]] \
-		|| fail "shallow.lock must be left alone while its holder may still be alive (#10270)"
+	[[ -e "${delta_reader_probe_git}/shallow.lock" && -e "${delta_reader_probe_git}/refs/heads/main.lock" ]] \
+		|| fail "shallow.lock and refs/heads/main.lock must be left alone while their holder may still be alive (#10270)"
 )
 rm -rf "${delta_reader_cleanup_probe}"
 # The success path of the sync (kill, wait, generation committed) must run
