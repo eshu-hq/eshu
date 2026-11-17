@@ -110,3 +110,68 @@ commit policy (`NVDBaselineCommitPolicy`) decides from them:
   `complete=true` at its own start. That verdict must land `year_complete` or
   the lane stalls on the year. `year_complete` is sticky in the store. No
   verdict, complete or not, may move behind the chunk start.
+
+## Per-year plan row (#10828, migration 303)
+
+The planner's two per-year inputs, `NVDBaselineLastPlanned` and
+`NVDBaselineInFlightYears`, need a durable source that is not the checkpoint
+row. The checkpoint commits with a chunk's facts, so it can only say what a
+finished chunk covered. A chunk that is planned, claimed, or failed moves no
+checkpoint, and that is the state the pace wait, the retry wait, and the
+one-chunk-per-year rule read. Binding ruling: 2026-11-17, sections 3 and 4.
+
+`vulnerability_nvd_baseline_plans` holds one row per `(baseline_run_id, year)`:
+`last_planned_scope_id` and `last_planned_at`. No foreign key (work-item
+retention deletes terminal items), no secondary index (the primary key is the
+only access path), and nothing on the checkpoint row.
+
+- Writer. `NVDBaselinePlans` (coordinator `vulnerability` package) derives the
+  plans from the items that survived tenant authorization, inside the shared
+  `createWorkflowWork` step, so the in-tree instance and a vulnerability
+  activation cannot differ. `WorkflowControlStore.CreateRunWithWorkItemsRecordingBaselinePlans`
+  upserts them in the admission transaction, after the work-item insert and the
+  slot move and before commit. Only a chunk the insert accepted gets a row: a
+  terminal-run skip, the open-target guard, or a primary-key conflict drops the
+  chunk and writes nothing, and the row never names a work item that does not
+  exist. The store re-checks every plan against the admitted items and the scope
+  id first, and refuses the admission (before it opens a transaction) when a plan
+  disagrees with its scope or two plans name one year. If the rows written differ
+  from the chunks accepted, the transaction aborts.
+- Last writer wins. The pointer always names the chunk the latest admission
+  inserted. The upsert has no `WHERE` guard: a compare on time or position could
+  leave an older scope id in place after a newer insert, and `DO NOTHING` would
+  freeze a year on its first chunk.
+- Clock. `last_planned_at` is `clock_timestamp()`, taken once per statement under
+  the per-instance advisory lock, never `now()`. `now()` is the transaction start,
+  which can predate a previous lock holder's stamp and would move the pace wait
+  backwards. A future-dated stamp from a stepped clock is the planner slice's
+  concern, as it is for the trip latch.
+- Locks. No new lock and none held across planning. The write reuses the advisory
+  lock admission already takes for `(collector_kind, collector_instance_id)`.
+  Two instances that share one baseline run id are not serialized by it (the key
+  carries the instance), so the plan row lock is the serializer between them. The
+  writer sorts its rows by `(baseline_run_id, year)` so two such admissions take
+  row locks in one order and cannot deadlock; the plan write is the last
+  statement before commit, so the contended row is held for the shortest time.
+- Reader. `ReadNVDBaselinePlans(ctx, runID)` returns the year plans of a run and,
+  in one statement and one snapshot, whether each year's last planned scope still
+  has a work item in the open statuses (`pending`, `claimed`,
+  `failed_retryable`, `expired`). The probe is keyed by `(collector_kind,
+  scope_id)`: the `collector_kind` equality is load-bearing, because no index
+  leads with `scope_id` and without it the planner picks the broad queue-depth
+  index. A read failure is returned, never an empty map. A completed or
+  terminally failed item, or one retention deleted, is not in flight; the row then
+  only paces the year.
+- Telemetry. `eshu_dp_nvd_baseline_plan_rows_total` (label `outcome`=recorded or
+  not_inserted), one point per admission that carried baseline chunks, after the
+  commit. The coordinator logs the same split at INFO.
+- Rollout and rollback. The migration creates a new table nothing else
+  references, so the schema rollback is `DROP TABLE
+  vulnerability_nvd_baseline_plans`. A binary older than 303 never touches it. A
+  303 binary against a pre-303 schema fails a baseline admission loudly
+  (undefined table) and never touches the table for any other admission. Nothing
+  reads the rows and the planner mints no baseline chunk in production until
+  #10746, so no row is written today.
+- Not here. The planner wiring and the per-tick read (#10746), the adaptive
+  interval (#10814), and row retention (#10831). Evidence:
+  `docs/internal/evidence/10828-baseline-plan-row.md`.
