@@ -29,6 +29,11 @@ workflows:
   - tests/lint-fixture/**
   - scripts/test-eslint-config.sh
   - scripts/verify-eslint-config.sh
+  - scripts/verify-npm-audit.sh
+  - scripts/test-verify-npm-audit.sh
+  - scripts/npm-audit-gate.mjs
+  - specs/npm-audit-allowlist.v1.json
+  - tests/fixtures/npm-audit/**
   - scripts/test-verify-frontend-format-changed.sh
   - scripts/verify-frontend-format-changed.sh
   - scripts/ci/install-apt-packages.sh

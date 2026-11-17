@@ -3,6 +3,11 @@
 `specs/` holds machine-readable contracts that are consumed by tests and
 documentation.
 
+- `npm-audit-allowlist.v1.json` lists the dated, single-advisory exceptions to
+  the frontend `npm audit` high/critical gate (#10854). Each entry names the
+  GHSA id, package, severity, reason, issue, `added` and `expires` dates (at most
+  31 days apart). Enforced by `scripts/verify-npm-audit.sh`; it fails closed on
+  expiry, a stale entry, or any production-dependency advisory.
 - `capability-matrix.v1.yaml` plus `capability-matrix/*.yaml` define
   user-facing capability behavior by runtime profile.
 - `capability-catalog.v1.yaml` is the editorial overlay for the capability

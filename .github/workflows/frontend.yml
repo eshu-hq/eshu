@@ -378,5 +378,7 @@ jobs:
         run: npm ci
       - name: Report all advisories (non-blocking)
         run: npm audit || true
-      - name: Fail on high/critical advisories
-        run: npm audit --audit-level=high
+      # #10854: high/critical advisories block, except the dated allowlist in
+      # specs/npm-audit-allowlist.v1.json (fails closed; see the script header).
+      - name: Fail on high/critical advisories (dated allowlist)
+        run: bash scripts/verify-npm-audit.sh

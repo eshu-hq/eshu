@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "ghsa": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "severity": "high",
+      "reason": "ReDoS through single-branch repeated extglobs in picomatch <= 4.0.7. No patched version is published (first_patched_version is null; npm latest is 4.0.7). Reached only through dev tooling (vite, vitest, tinyglobby, eslint resolver); npm audit --omit=dev is clean.",
+      "issue": "#10854",
+      "added": "2026-11-17",
+      "expires": "2026-12-17"
+    }
+  ]
+}

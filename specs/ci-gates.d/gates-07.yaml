@@ -140,15 +140,20 @@ gates:
     name: npm audit (fail on high/critical)
     category: frontend
     layer: hygiene
-    purpose: "Fails the build if npm audit finds any high- or critical-severity dependency vulnerability."
+    purpose: "Fails the build if npm audit finds a high- or critical-severity dependency vulnerability, except advisories on the dated allowlist (#10854)."
     tier: pre-push
     blocking: true
     triggers:
       - "package.json"
       - "package-lock.json"
+      - "specs/npm-audit-allowlist.v1.json"
+      - "scripts/verify-npm-audit.sh"
+      - "scripts/npm-audit-gate.mjs"
+      - "scripts/test-verify-npm-audit.sh"
+      - "tests/fixtures/npm-audit/**"
     local:
-      command: "npm audit --audit-level=high"
-      test_command: ""
+      command: "bash scripts/verify-npm-audit.sh"
+      test_command: "bash scripts/test-verify-npm-audit.sh"
     ci:
       workflow: frontend.yml
       job: "npm audit (fail on high/critical)"

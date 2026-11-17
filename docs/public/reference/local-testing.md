@@ -177,6 +177,13 @@ make frontend-preflight      # or: bash scripts/dev/frontend-preflight.sh
 These gates need Node and installed dependencies; if `node_modules` is missing
 the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
 
+The npm audit gate runs `bash scripts/verify-npm-audit.sh`. It blocks on any
+high or critical advisory except the dated entries in
+`specs/npm-audit-allowlist.v1.json`, which fail closed: an entry that expires,
+goes stale, or shows up in the `--omit=dev` report turns the gate red. Renew or
+remove an entry in a reviewed PR. Its self-test is
+`bash scripts/test-verify-npm-audit.sh`.
+
 For dependency or deploy changes, a security preflight mirrors the
 credential-free `security-scan.yml` jobs (#4217) — changed-package gosec,
 govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed path:
