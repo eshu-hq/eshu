@@ -31,7 +31,7 @@ import (
 // satellite repo pins the same digest, so a vector change fails both suites
 // until each side re-reads it. Bumping the SDK pin moves the vector, and the
 // digest moves with it.
-const nvdVerdictKeysVectorSHA256 = "6a489baa68ec96eb01034536a78a8b3643c2ce31f8fe84cb73e2367830bdd073"
+const nvdVerdictKeysVectorSHA256 = "fdb456f8bac262f62374514e041663d8a771e3f5993c9a63fc759815c9b670f9"
 
 type nvdVerdictVector struct {
 	SnapshotFactKind string                  `json:"snapshot_fact_kind"`
@@ -62,12 +62,14 @@ type nvdVerdictVectorCase struct {
 // reader reaches and the values the armed writer carries (0, 0 and false
 // when nothing is armed).
 type nvdVerdictExpected struct {
-	Outcome      string `json:"outcome"`
-	Reason       string `json:"reason"`
-	Class        string `json:"class"`
-	AdvanceTo    int64  `json:"advance_to"`
-	Head         int64  `json:"head"`
-	YearComplete bool   `json:"year_complete"`
+	Outcome        string `json:"outcome"`
+	Reason         string `json:"reason"`
+	Class          string `json:"class"`
+	AdvanceTo      int64  `json:"advance_to"`
+	Head           int64  `json:"head"`
+	YearComplete   bool   `json:"year_complete"`
+	AdvanceToCVEID string `json:"advance_to_cve_id"`
+	YearGenerated  int64  `json:"year_generated_unix_us"`
 }
 
 // loadNVDVerdictVector decodes the vector after checking its digest. Payload
@@ -108,10 +110,12 @@ func TestNVDVerdictKeyConstantsMatchSharedVector(t *testing.T) {
 			"time_anomaly_reason": nvdWindowAnomalyPayloadKey,
 		}},
 		{"baseline", vector.Baseline, map[string]string{
-			"advance_to":     nvdBaselineAdvanceToPayloadKey,
-			"year_sha256":    nvdBaselineYearSHAPayloadKey,
-			"year_complete":  nvdBaselineYearCompletePayloadKey,
-			"should_advance": nvdBaselineShouldAdvancePayloadKey,
+			"advance_to":        nvdBaselineAdvanceToPayloadKey,
+			"year_sha256":       nvdBaselineYearSHAPayloadKey,
+			"year_complete":     nvdBaselineYearCompletePayloadKey,
+			"should_advance":    nvdBaselineShouldAdvancePayloadKey,
+			"advance_to_cve_id": nvdBaselineAdvanceToCVEIDPayloadKey,
+			"year_generated":    nvdBaselineYearGeneratedPayloadKey,
 		}},
 	}
 	for _, tc := range sections {
@@ -187,11 +191,11 @@ func TestNVDWindowVerdictReplaysSharedVector(t *testing.T) {
 	}
 }
 
-// TestNVDBaselineVerdictReplaysSharedVector runs every baseline case through
+// TestNVDBaselineVerdictVectorReplaysThroughCommitPolicy runs every baseline case through
 // the commit policy and requires the decision to match the case's expect
 // block: armed checkpoint values on advanced, the bounded not-covered reason
 // on not_covered, the failure class on refused, and silence on held.
-func TestNVDBaselineVerdictReplaysSharedVector(t *testing.T) {
+func TestNVDBaselineVerdictVectorReplaysThroughCommitPolicy(t *testing.T) {
 	t.Parallel()
 
 	vector := loadNVDVerdictVector(t)
@@ -255,14 +259,17 @@ func assertBaselineDecisionMatchesVector(
 		if len(records) != 0 {
 			t.Fatalf("baseline case %q logged %v, vector expects a silent advance", vc.Name, records)
 		}
-		recorder := &recordingCommitExecutor{}
+		recorder := &affectedCommitExecutor{}
 		if err := decision.StateWriter(context.Background(), recorder); err != nil {
 			t.Fatalf("StateWriter() error = %v", err)
 		}
-		if len(recorder.args) != 1 || len(recorder.args[0]) < 5 {
+		if len(recorder.args) < 1 || len(recorder.args[len(recorder.args)-1]) < 8 {
 			t.Fatalf("StateWriter() args = %v, want one checkpoint statement", recorder.args)
 		}
-		args := recorder.args[0]
+		args := recorder.args[len(recorder.args)-1]
+		if args[6] != expect.AdvanceToCVEID || args[7] != expect.YearGenerated {
+			t.Fatalf("baseline case %q armed cve=%v generated=%v, vector expects %q and %d", vc.Name, args[6], args[7], expect.AdvanceToCVEID, expect.YearGenerated)
+		}
 		if args[2] != expect.AdvanceTo || args[4] != expect.YearComplete {
 			t.Fatalf("baseline case %q armed resume=%v complete=%v, vector expects %d and %v",
 				vc.Name, args[2], args[4], expect.AdvanceTo, expect.YearComplete)
