@@ -369,6 +369,11 @@ tests:
     class: postgres_ci
     reason: "#10814 disposable PostgreSQL proof that the NVD baseline drain probe reads where a committed chunk sits in the real pipeline: the collector claim, the projector item and generation activation, and the supply_chain_impact reducer item are each written by the production code (commit, projector enqueue and Ack, reducer enqueue through Project, reducer claim and Ack), the reducer item is keyed by the chunk's own scope and generation, done is derived from the active generation pointer, a same-scope successor is followed, dead letters and their replays move the phase, and a blocked read fails closed at its statement timeout"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_pending_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL proof that the NVD baseline drain probe holds a drained chunk as projecting while its scope has a pending same-scope generation, reporting that generation's commit time as the not-done age (the oldest when several are pending), that a pending generation of another scope holds nothing, that a successor whose projection dead-letters is marked failed by the projector queue and stops holding, and that a read timeout under a millisecond still stops a blocked read at the server instead of disabling the timeout"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_plan_live_test.go
     tag: ~
     class: postgres_ci
