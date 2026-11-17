@@ -278,26 +278,27 @@ chunk per planner run" bound.
   run" row of the Limits table). It is not a coordinator cadence (reconcile
   defaults to 30 s) and it reads no queue depth.
 - **Drain gate.** A year's next chunk is minted when the trip latch is shut and
-  fresh (a sample over 90 minutes old holds as `baseline_trip_stale`), the
-  year's previous chunk has drained, and the pace interval has passed. Drained
-  means its collector claim is closed, its generation is active (or superseded
-  by the active one), and its `supply_chain_impact` reducer item is done, read
-  by key from the checkpoint's `last_scope_id` and `last_generation_id` by
+  fresh (a sample over 90 minutes old, or dated over 2 minutes ahead, holds as
+  `baseline_trip_stale`), the year's previous chunk has drained, and the pace
+  interval has passed. Drained means its collector claim is closed, its
+  generation is active (or superseded by the active one) with none pending in
+  the scope, and its `supply_chain_impact` reducer item is done, read by key
+  from the checkpoint's `last_scope_id` and `last_generation_id` by
   `NVDBaselineDrainProbe` (no new index; EXPLAIN proof in
   [10814-baseline-drain-probe.md](../evidence/10814-baseline-drain-probe.md)).
-  This is enforced in the baseline loop, not assumed from the tick, because
-  cadence is per-target config (`refresh_interval` in `intelligence_scheduler.go`).
+  The baseline loop enforces this, not the tick, because cadence is per-target
+  config (`refresh_interval` in `intelligence_scheduler.go`).
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
   `streak` counts consecutive hourly trip-latch samples with CVE-keyed inflow at
   or under 7,500 an hour and oldest dirty age at or under 96 hours; any other
-  sample resets it to 0. Shipped as `soft_quiet_streak` (#10814, migration 302):
-  folded in `NVDBaselineTripState.Observe`, written by the latch's revision
-  compare-and-swap (section 5), not capped (`nvdBaselinePaceInterval` saturates
-  the exponent). An open trip, a missed hour and `Close` reset it; a refused or
-  too-soon sample leaves it. The rate at most doubles once an hour and only
-  after an hour at or under half the trip rate, so if inflow scales with rate
-  one step cannot cross the trip rate; a hot hour resets the pace to 30 minutes
-  before the two-hour latch can open.
+  sample resets it to 0. Shipped as `soft_quiet_streak` (#10814, migration 302),
+  folded in `NVDBaselineTripState.Observe` and written by the latch's revision
+  compare-and-swap (section 5); it is not capped (`nvdBaselinePaceInterval`
+  saturates the exponent), an open trip, a missed hour and `Close` reset it, and
+  a refused or too-soon sample leaves it. The rate at most doubles once an hour
+  and only after an hour at or under half the trip rate, so if inflow scales
+  with rate one step cannot cross the trip rate; a hot hour resets the pace to
+  30 minutes before the two-hour latch can open.
 - **The floor is `min_chunk_interval`.** Blank, zero, or negative means 30
   minutes. A value over zero and under 5 minutes clamps to 5, one of 5 minutes
   or more is used as given, an unparsable one is a `baseline_config_error`. It
@@ -309,15 +310,13 @@ chunk per planner run" bound.
   rows an hour, over the trip rate. Only measured inflow justifies that speed.
   The downstream cycle (collect, commit, projection, reducer inside 5 minutes)
   is unmeasured, so the default stays 30 minutes.
-- **One chunk of a year at a time.** The next start is unknown until the
-  previous chunk commits.
+- **One chunk of a year at a time.** The next start waits on the last commit.
 - **Slot rule: the pace is run-wide.** `max_in_flight_years` slots bound the
   whole run: one slot mints at most one chunk per interval (12 in six hours at
   30 minutes), where C1 paced each year alone. A year holds a slot while its
   claim is open, its last chunk is draining or unprobed, or its advancing last
-  plan is inside the interval. A non-advancing chunk releases its slot, so the
-  trip latch backstops a systemic fault. Rule, bound and tests: the coordinator
-  README.
+  plan is inside the interval; a non-advancing chunk releases it, so the trip
+  latch backstops a systemic fault. Rule, bound and tests: the coordinator README.
 
 Lease fencing covers the overrun case: a feed attempt that outlives its lease is
 fenced by the claim-row lock and the `fencing_token` filter (parent design
@@ -477,6 +476,7 @@ cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
 - Collector child RSS at the 16 MiB ceiling beyond collector issue #203's
   measurement, and at 24 and 32 MiB after that issue's memory work.
 - Per-year record counts (M3 measures sizes only).
+- Blank-key checkpoint rows: the #10817 preflight counts them in QA.
 - Whether the satellite runtime on the QA path carries the intended
   `nvd_feed_transport` value (M10 caveat, `10671-nvd-feed-measurements.md`,
   section "NOT_CHECKED", fifth bullet).

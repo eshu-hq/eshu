@@ -206,5 +206,7 @@ streak's replay matrix is keyed on: `applied`, `applied_after_gap`, `stale`,
 `too_soon`, `lost_race`, `write_failed`. The planner slice (#10814) adds
 `eshu_dp_nvd_baseline_pace_interval_seconds` for the interval the planner
 applied and counts `baseline_trip_stale` on
-`eshu_dp_nvd_baseline_plan_holds_total{reason}`; the inflow gauge named in the
-ruling is not built.
+`eshu_dp_nvd_baseline_plan_holds_total{reason}`. The ruling's soft-inflow and ETA
+gauges are not built here: `eshu_dp_nvd_baseline_dirty_proxy_rows_per_hour` is the
+inflow figure, and #10746 records it from the hourly sampler and builds the ETA
+from the sampler's history.
