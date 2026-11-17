@@ -168,11 +168,12 @@ the full migration set.
 
 ## Mutants killed
 
-Each mutant was applied to the production source, the named tests failed, and
-the source was restored. The IDs are the working labels of the proof runs: M is
-the plan writer and reader, S the root store (hermetic), T telemetry, C the
-coordinator, and L the live admission proofs. M1 and C5 were first applied by
-deleting code and failed to compile; their rows are the compiling forms.
+Each mutant was applied to the production source, the named tests (for W, the
+build) failed, and the source was restored. The IDs are the working labels of
+the proof runs: M is the plan writer and reader, S the root store (hermetic), T
+telemetry, C the coordinator, L the live admission proofs, and W the command
+wiring. M1 and C5 were first applied by deleting code and failed to compile;
+their rows are the compiling forms.
 
 | ID | Mutation | Killed by |
 |---|---|---|
@@ -209,6 +210,7 @@ deleting code and failed to compile; their rows are the compiling forms.
 | LF | no sort in the writer | live locking test, opposite-order subtest (3 begins, not 2) |
 | LG | a second advisory lock in the plan write | live lock-differential subtest |
 | LH | a `SHARE ROW EXCLUSIVE` table lock in the plan write | live lock-differential subtest |
+| W1 | rename the store method behind `coordinator.BaselinePlanStore` | `go build ./cmd/workflow-coordinator/...` fails at the assertion in `workflow_control_store_wiring.go`; with that assertion removed, the same rename builds clean |
 
 ## Observability Evidence:
 
@@ -225,7 +227,9 @@ deleting code and failed to compile; their rows are the compiling forms.
   `create guarded workflow run: record nvd baseline plans: ...` and fails the
   admission, so the coordinator's existing admission error log carries it. A
   store without the write fails the admission with
-  `workflow coordinator store cannot record NVD baseline plans`.
+  `workflow coordinator store cannot record NVD baseline plans`. The production
+  store is asserted to implement that interface at build time, so only another
+  `coordinator.Store` can reach this error.
 - Operator reading: `recorded` without `not_inserted` is a healthy baseline.
   A rising `not_inserted` means the planner keeps minting a chunk for a year that
   already has an open one; it is never a lost plan row, because a row is written
@@ -252,4 +256,8 @@ deleting code and failed to compile; their rows are the compiling forms.
   property of the row.
 - Rows are never deleted by this change. Retention is #10831.
 - A 303 binary against a schema older than 303 fails a baseline admission with
-  an undefined-table error and leaves every other admission untouched.
+  an undefined-table error and leaves every other admission untouched. This was
+  observed once with a throwaway live test that dropped the plan table: SQLSTATE
+  42P01 from the plan write, one transaction begun, no rows left in
+  `workflow_runs` or `workflow_work_items`, and a plain admission and a
+  slot-progress admission both committed. It is not a committed test.
