@@ -190,6 +190,34 @@ func TestRelationshipRetentionSweeperHandsTheRowCapToTheLeaf(t *testing.T) {
 	require.Equal(t, 1, result.Batches, "the first batch crosses the cap, the second never starts")
 }
 
+// TestRelationshipRetentionSweeperHandsTheDeadlineToTheLeaf pins the wall
+// budget wiring: a deadline that has passed by the time the first batch commits
+// stops the pass before a second one, with Capped=deadline (the first batch
+// always runs), and a request without a deadline sweeps every batch.
+func TestRelationshipRetentionSweeperHandsTheDeadlineToTheLeaf(t *testing.T) {
+	orphans := make([]string, 0, relationshipretention.BatchGenerations+1)
+	for i := 0; i <= relationshipretention.BatchGenerations; i++ {
+		orphans = append(orphans, fmt.Sprintf("gen-%03d", i))
+	}
+	for _, tc := range []struct {
+		name        string
+		deadline    time.Duration
+		wantCapped  string
+		wantBatches int
+	}{
+		{"a deadline that passes after the first batch", time.Nanosecond, relationshipretention.CapDeadline, 1},
+		{"no deadline", 0, "", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := relationshipRetentionSweeper{database: &relationshipSweepFakeDB{orphans: orphans}}.SweepRelationships(
+				context.Background(), retention.RelationshipSweepRequest{Deadline: tc.deadline, Deletes: true})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantCapped, result.Capped)
+			require.Equal(t, tc.wantBatches, result.Batches)
+		})
+	}
+}
+
 // TestRelationshipRetentionSweeperKeysMatchTheRunner pins the strings the
 // runner reads off the adapter's result: the reducer retention package owns the
 // lock-timeout and cap spellings that decide the accelerated re-run, so a

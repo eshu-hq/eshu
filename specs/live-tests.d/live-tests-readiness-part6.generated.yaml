@@ -114,6 +114,31 @@ tests:
     class: postgres_ci
     reason: "#10820 disposable PostgreSQL 18 proof of the request-level derive advisory-lock budget: one purge request with parked holders on four repositories blocks the first three after about 10 s each and the fourth within 1 s once the 30 s budget is spent, a fifth repository with free locks completes, nothing is written for the blocked ones, the pooled lock_timeout is restored, and a re-POST purges the four once the holders end"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/eligibility_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof of the relationship retention sweep eligibility matrix E1 to E8 through the real batch statements: only generations with no scope_generations row, no scope active pointer and no active generation row lose their evidence, candidate and generation rows (a no-generation-row evidence generation included); a generation row another session holds is skipped with every child row intact and swept once released; resolved rows are never touched; the census counts distinct generations per table; a second pass is a no-op; a fault between statements leaves the generation whole"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/prune_claimed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof, with the real generation retention prune, that a superseded generation with a claimed work item stays out of both the prune (live work) and the relationship sweep (its scope generation row still exists), and that once the work item finishes and the prune deletes the scope generation row the sweep removes the generation's evidence, candidate and generation rows"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/purge_interplay_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 deadlock probes of the relationship retention sweep against the real #10820 repository purge, in both arrival orders: a purge parked mid-flight (holding evidence row locks, waiting on a candidate row) makes the batch wait 500 ms and yield with a lock timeout while a disjoint batch still sweeps and the purge completes; a batch parked after classification (holding the generation row) makes the arriving purge wait on it, and the batch's own lock timeout, not the deadlock detector, breaks the cycle so neither side sees a 40P01"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/state_change_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that a relationship generation which stops being an orphan between the census and its batch is skipped as ineligible with every row intact (a scope generation row appears, the generation row turns active, a scope pointer names it), that the production relationship activation blocks behind the batch's generation row lock instead of racing the deletes and re-creates the generation only after the batch commits, that a repeated activation race never leaves an active generation row without the children its own statement kept, and that the claim-fenced activation cannot revive an id that has no scope generation"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/work/items/cancel_live_test.go
     tag: ~
     class: postgres_ci

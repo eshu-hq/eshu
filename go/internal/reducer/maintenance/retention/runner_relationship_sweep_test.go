@@ -89,6 +89,51 @@ func TestRelationshipSweepAcceleratesOnlyAfterACappedPass(t *testing.T) {
 	}
 }
 
+// TestRelationshipBacklogBoundsButNeverLengthensASkippedRetry pins the other
+// wait a relationship backlog shortens. A pass whose prune skipped generations
+// retries on a doubling backoff that grows to the poll interval. After a capped
+// relationship pass that backoff stops at a sixth of the poll interval, and it
+// is never stretched up to it: the early retries keep the one-minute base and
+// the late ones stop at an hour instead of six. The clean pass is the control
+// that leaves the whole backoff alone.
+func TestRelationshipBacklogBoundsButNeverLengthensASkippedRetry(t *testing.T) {
+	const retries = 12
+	poll := 6 * time.Hour
+	for _, tc := range []struct {
+		name    string
+		sweeper *fakeRelationshipSweeper
+		bound   time.Duration
+	}{
+		{"after a capped pass", &fakeRelationshipSweeper{results: []RelationshipSweepResult{{Capped: "rows"}}}, time.Hour},
+		{"after a clean pass", &fakeRelationshipSweeper{}, poll},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pruner := &fakeGenerationRetentionPruner{}
+			for i := 0; i < retries; i++ {
+				pruner.results = append(pruner.results, Result{Skipped: map[string]int{"live_work": 1}})
+			}
+			var waits []time.Duration
+			runner := &Runner{
+				Pruner: pruner, RelationshipSweeper: tc.sweeper, Config: Config{PollInterval: poll},
+				Wait: func(_ context.Context, d time.Duration) error {
+					waits = append(waits, d)
+					if len(waits) == retries {
+						return context.Canceled
+					}
+					return nil
+				},
+			}
+			require.NoError(t, runner.Run(context.Background()))
+			require.Len(t, waits, retries)
+			for i, got := range waits {
+				require.Equal(t, min(generationRetentionSkippedRetryInterval(poll, i+1), tc.bound), got, "retry %d", i+1)
+			}
+			require.Equal(t, defaultGenerationRetentionSkippedRetryBaseInterval, waits[0], "the first retry keeps the base interval")
+			require.Equal(t, tc.bound, waits[retries-1], "the last retry stops at the bound")
+		})
+	}
+}
+
 // TestRelationshipSweepIsDueAfterAcceleratedIntervalOnlyWhenCapped pins the due
 // check that backs the shorter wait: a capped pass is due again a sixth of the
 // interval later, every other pass only after the full interval. Without it the

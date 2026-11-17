@@ -31,13 +31,14 @@ from live_postgres_readiness_inventory_gen_internal_storage_postgres_infra_inven
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_maintenance import TABLE as _TABLE_23
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_membership import TABLE as _TABLE_24
 from live_postgres_readiness_inventory_gen_internal_storage_postgres_poison import TABLE as _TABLE_25
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_retention_work_items import TABLE as _TABLE_26
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_search_index_retention import TABLE as _TABLE_27
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_status_summary import TABLE as _TABLE_28
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_tfstate import TABLE as _TABLE_29
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_vulnerability import TABLE as _TABLE_30
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook import TABLE as _TABLE_31
-from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook_actions import TABLE as _TABLE_32
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_retention_relationships import TABLE as _TABLE_26
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_retention_work_items import TABLE as _TABLE_27
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_search_index_retention import TABLE as _TABLE_28
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_status_summary import TABLE as _TABLE_29
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_tfstate import TABLE as _TABLE_30
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_vulnerability import TABLE as _TABLE_31
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook import TABLE as _TABLE_32
+from live_postgres_readiness_inventory_gen_internal_storage_postgres_webhook_actions import TABLE as _TABLE_33
 
 
 PACKAGES = {}
@@ -75,6 +76,7 @@ for _table in (
     _TABLE_30,
     _TABLE_31,
     _TABLE_32,
+    _TABLE_33,
 ):
     for _package, _files in _table.items():
         PACKAGES.setdefault(_package, {}).update(_files)
