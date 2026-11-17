@@ -248,7 +248,8 @@ func NVDBaselinePlanHoldReasons() []string {
 // keeps the two spellings tied together.
 const (
 	// NVDBaselineHeldYearDownstreamFailed: the year's last chunk dead-lettered
-	// in the projector or reducer. The year releases its slot until a replay.
+	// in the projector or reducer, or its scope's newest generation failed with
+	// nothing active or pending. The year releases its slot until a replay.
 	NVDBaselineHeldYearDownstreamFailed = "downstream_failed"
 	// NVDBaselineHeldYearDrainUnloaded: the drain probe could not prove the
 	// year's last chunk, so the year keeps its slot and does not plan.
@@ -452,7 +453,7 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselineHeldYears, err = meter.Int64Gauge(
 		"eshu_dp_nvd_baseline_held_years",
-		metric.WithDescription("Latest count of NVD baseline years the planner holds by stored state, by closed reason (#10814): downstream_failed (the year's last chunk dead-lettered in the projector or reducer; it releases its slot until a replay), drain_unloaded (the drain probe could not prove the year's last chunk; it keeps its slot), retry_wait (the year's last claim did not advance its checkpoint and under 30 minutes have passed; it releases its slot). Recorded every plan including zero, so a recovered year clears; skipped for a disabled derivation or a config-error plan, which compute no year counts"),
+		metric.WithDescription("Latest count of NVD baseline years the planner holds by stored state, by closed reason (#10814): downstream_failed (the year's last chunk dead-lettered in the projector or reducer, or its scope's newest generation failed; it releases its slot until a replay), drain_unloaded (the drain probe could not prove the year's last chunk; it keeps its slot), retry_wait (the year's last claim did not advance its checkpoint and under 30 minutes have passed; it releases its slot). Recorded every plan including zero, so a recovered year clears; skipped for a disabled derivation or a config-error plan, which compute no year counts"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineHeldYears gauge: %w", err)

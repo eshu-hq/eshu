@@ -364,6 +364,11 @@ tests:
     class: postgres_ci
     reason: "#10814 disposable PostgreSQL proof that the coordinator's drain loader runs on the real probe through the adapter the parent service wires: every pipeline phase reaches the loader as the matching planner phase by value, and a key with no generation behind it leaves its year unloaded with a typed error instead of a phase"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_failed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL proof that the NVD baseline drain probe reads a chunk as failed when its named generation was superseded, the scope has nothing active or pending, and the scope's newest generation failed in the real projector queue, that the production replay puts it back to projecting and finishing the successor reads drained with the successor effective, and that only the newest generation decides"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_live_test.go
     tag: ~
     class: postgres_ci
