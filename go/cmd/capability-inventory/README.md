@@ -7,8 +7,9 @@ API, MCP, and the console.
 
 It also generates and verifies the **surface inventory**: every platform surface
 across six categories (command binaries, collector families, reducer domains, API
-routes, MCP tools, console pages) enumerated from live code, specs, and the
-source tree, reconciled against `specs/surface-inventory.v1.yaml`. The drift gate
+routes, MCP tools, console pages) enumerated from live code, specs, the
+source tree, and the satellite's served OpenAPI document (API routes, fetched
+with the admin/all-scope bearer token), reconciled against `specs/surface-inventory.v1.yaml`. The drift gate
 fails CI when a surface is added or removed in code without regenerating the
 committed `internal/capabilitycatalog/data/surface-inventory.generated.json`.
 Collector rows also carry a `collector_contract` manifest that maps emitted fact
@@ -20,6 +21,11 @@ when a live collector fact kind is not covered by that manifest.
 Run from the `go` module directory:
 
 ```bash
+# The surface inventory reads API routes from the satellite's served OpenAPI
+# document, which sits behind RequireAuth: report, generate, and verify modes
+# need the satellite base URL and an admin/all-scope bearer token.
+export ESHU_API_BASE_URL=https://api.example.invalid ESHU_API_KEY=...
+
 # Print reconciliation findings and the entry count.
 go run ./cmd/capability-inventory -mode report
 
@@ -76,17 +82,18 @@ go run ./cmd/capability-inventory -mode graph-read-probe
 | `-root` | `..` | path to the repository root (surface enumeration, remote-validation mode) |
 | `-remote-validation-baseline` | `../specs/remote-validation-baseline.txt` | path to the remote_validation burn-down baseline (remote-validation mode) |
 | `-update` | `false` | regenerate the remote-validation baseline instead of checking it (remote-validation mode) |
-| `-api-base-url` | `ESHU_API_BASE_URL` | branch-built API base URL (graph-read-probe mode) |
+| `-api-base-url` | `ESHU_API_BASE_URL` | branch-built API base URL (graph-read-probe mode; also the satellite surface inventory source for report, generate, and verify modes) |
 | `-mcp-url` | `ESHU_MCP_URL` | exact branch-built MCP HTTP endpoint URL (graph-read-probe mode) |
 | `-user-token-env` | `ESHU_MCP_TOKEN` | env-var name holding the user bearer token (graph-read-probe mode) |
-| `-admin-token-env` | `ESHU_API_KEY` | env-var name holding the admin/all-scope credential required by direct Cypher surfaces (graph-read-probe mode) |
+| `-admin-token-env` | `ESHU_API_KEY` | env-var name holding the admin/all-scope credential required by direct Cypher surfaces (graph-read-probe mode; also the satellite openapi.json bearer for report, generate, and verify modes) |
 
 ## Invariants
 
 - The binary is a thin driver: all reconciliation lives in
   `internal/capabilitycatalog`. `main.go` collects the MCP registry through
-  `mcp.ReadOnlyTools` and the live surfaces through `scope`, `reducer`, `query`,
-  and the source tree, builds, and dispatches on `-mode`.
+  `mcp.ReadOnlyTools` and the live surfaces through `scope`, `reducer`, the
+  satellite's served OpenAPI document (API routes), and the source tree,
+  builds, and dispatches on `-mode`.
 - `verify` is the CI gate. It fails when catalog or surface reconciliation
   findings exist or when either embedded artifact differs from a fresh
   regeneration. For collector surfaces, surface findings include missing
@@ -123,7 +130,9 @@ go run ./cmd/capability-inventory -mode graph-read-probe
   ceiling and never requires a human to hand-edit the file.
 - `graph-read-probe` derives the complete API/MCP name set from the satellite
   at probe time, not from in-tree packages: API routes come from the served
-  OpenAPI document (`GET /api/v0/openapi.json` on the eshu-api surface) and
+  OpenAPI document (`GET /api/v0/openapi.json` on the eshu-api surface,
+  fetched with the admin/all-scope bearer token since the route sits behind
+  RequireAuth like every satellite `/api/*` route) and
   MCP tools come from the satellite's `tools/list`, plus the five known
   directly registered HTTP surfaces. It classifies every served identity:
   safe read/validation fixtures are synthesized from the served OpenAPI and
