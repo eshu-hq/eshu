@@ -359,6 +359,16 @@ tests:
     class: postgres_ci
     reason: "#10746 disposable PostgreSQL proof of the forward-rotation probe race: a probe that matches no row takes no lock, so a commit forced between the probe and the upsert changes the stored identity while the forward rotation goes uncounted (no row yet, a row with no stamp, the stored sha under a newer stamp), a probe that matches holds the row lock so a concurrent writer waits, and the upsert guard still refuses an older seed after a missed probe"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL proof that the NVD baseline drain probe reads where a committed chunk sits in the real pipeline: the collector claim, the projector item and generation activation, and the supply_chain_impact reducer item are each written by the production code (commit, projector enqueue and Ack, reducer enqueue through Project, reducer claim and Ack), the reducer item is keyed by the chunk's own scope and generation, done is derived from the active generation pointer, a same-scope successor is followed, dead letters and their replays move the phase, and a blocked read fails closed at its statement timeout"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL EXPLAIN proof that the NVD baseline drain probe adds no index: on a fixture of more than 50,000 fact_work_items and as many workflow_work_items over thousands of scope generations (queue rows written by the real projector, reducer, and workflow enqueue paths, skewed statuses, ANALYZE), the shipped probe query reads scope_generations, fact_work_items, and workflow_work_items only through keyed index scans for every chunk state under custom and forced generic plans, the workflow leg carries collector_kind in a single index search, and the buffer cost stays bounded"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~
     class: postgres_ci
