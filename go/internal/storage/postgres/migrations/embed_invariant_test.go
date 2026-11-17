@@ -264,14 +264,16 @@ import (
 // updated index serving the run-age bound expiry candidate walk).
 // #10809/#10810 add 301_vulnerability_nvd_baseline_resume_position.sql (the
 // baseline resume CVE ID, seed generation stamp, and chunk identity columns;
-// 300 is #10791's open work-items index).
-const goldenBootstrapDefinitionsDigest = "a3b266132a45ab0fab1dcd625ba72872b27cc9ec5ef7f8ca4394cd4b5aa9cbad"
+// 300 is #10791's open work-items index). #10814 adds
+// 302_vulnerability_nvd_baseline_trip_latch_streak.sql (the pace streak
+// column on the baseline trip latch; 301 is #10809/#10810's).
+const goldenBootstrapDefinitionsDigest = "01c70cb6dc837ff5ae3e30bffe43d6d32c6813fadcd54e6ea29f2c8a921df9e8"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 327
+const goldenBootstrapDefinitionsCount = 328
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
