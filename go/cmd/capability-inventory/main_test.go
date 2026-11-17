@@ -5,6 +5,8 @@ package main
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,8 +16,39 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
+
+// fullSurfaceStubToken is the admin/all-scope bearer token the full-surface
+// stub satellite expects on GET /api/v0/openapi.json, mirroring the
+// satellite RequireAuth gate.
+const fullSurfaceStubToken = "admin-all-scope-token"
+
+// newFullSurfaceSatellite serves the in-tree OpenAPI assembly as the offline
+// double for the satellite document. The route sets are equal by the D13
+// row-7 full-surface proof (every CUTOVER row resolves in both documents),
+// so the drift gate keeps comparing the committed artifact against the full
+// live set without a network dependency. The spec path requires the
+// admin/all-scope bearer token, mirroring the satellite; anything else 401s.
+func newFullSurfaceSatellite(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v0/openapi.json" {
+			t.Errorf("stub satellite got unexpected %s %s", request.Method, request.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if request.Header.Get("Authorization") != "Bearer "+fullSurfaceStubToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(openapi.Spec()))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
 
 // repoRootDir resolves the repository root from this test file.
 func repoRootDir(t *testing.T) string {
@@ -37,7 +70,11 @@ func repoSpecsDir(t *testing.T) string {
 // artifact must reconcile with zero findings and match a fresh regeneration from
 // the real specs and live MCP registry.
 func TestVerifyAgainstRealSpecs(t *testing.T) {
-	t.Parallel()
+	// Not parallel: the run reads the satellite bearer from the process
+	// environment, so it pins the env for the duration of the test.
+	server := newFullSurfaceSatellite(t)
+	t.Setenv("ESHU_API_BASE_URL", server.URL)
+	t.Setenv("ESHU_API_KEY", fullSurfaceStubToken)
 	var stdout, stderr bytes.Buffer
 	err := run([]string{"-mode", "verify", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr)
 	if err != nil {
@@ -50,7 +87,10 @@ func TestVerifyAgainstRealSpecs(t *testing.T) {
 
 // TestReportListsEntries exercises report mode.
 func TestReportListsEntries(t *testing.T) {
-	t.Parallel()
+	// Not parallel: see TestVerifyAgainstRealSpecs for the env pin.
+	server := newFullSurfaceSatellite(t)
+	t.Setenv("ESHU_API_BASE_URL", server.URL)
+	t.Setenv("ESHU_API_KEY", fullSurfaceStubToken)
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{"-mode", "report", "-specs", repoSpecsDir(t), "-root", repoRootDir(t)}, &stdout, &stderr); err != nil {
 		t.Fatalf("report failed: %v", err)
@@ -184,7 +224,8 @@ func cloneLiveSurfaces(live capabilitycatalog.LiveSurfaces) capabilitycatalog.Li
 // and the real overlay, with zero reconciliation findings.
 func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	t.Parallel()
-	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t))
+	server := newFullSurfaceSatellite(t)
+	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t), server.Client(), server.URL, fullSurfaceStubToken)
 	if err != nil {
 		t.Fatalf("buildSurfaceInventory: %v", err)
 	}
@@ -200,15 +241,24 @@ func TestSurfaceInventoryDriftAgainstRealCode(t *testing.T) {
 	}
 }
 
-// TestEnumerateAPIRoutesListsMethodPathPairs pins the offline surface
-// inventory's route source to the served OpenAPI assembly: one sorted,
+// TestEnumerateAPIRoutesListsMethodPathPairs pins the surface inventory's
+// route source to the served satellite OpenAPI document: one sorted,
 // deduplicated "METHOD /path" entry per operation, including the pinned read
 // routes. The drift gate compares this set against the committed artifact;
 // this test pins the wiring shape so a sourcing regression fails here first
 // with a focused message.
 func TestEnumerateAPIRoutesListsMethodPathPairs(t *testing.T) {
 	t.Parallel()
-	routes, err := enumerateAPIRoutes()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") != "Bearer "+specToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(probeStubOpenAPISpec))
+	}))
+	defer server.Close()
+	routes, err := enumerateAPIRoutes(server.Client(), server.URL, specToken)
 	if err != nil {
 		t.Fatalf("enumerateAPIRoutes() error = %v", err)
 	}
@@ -241,7 +291,8 @@ func TestEnumerateAPIRoutesListsMethodPathPairs(t *testing.T) {
 func TestGoldenCorpusMockCommandsRemainFixtureOnly(t *testing.T) {
 	t.Parallel()
 
-	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t))
+	server := newFullSurfaceSatellite(t)
+	inv, findings, err := buildSurfaceInventory(repoSpecsDir(t), repoRootDir(t), server.Client(), server.URL, fullSurfaceStubToken)
 	if err != nil {
 		t.Fatalf("buildSurfaceInventory: %v", err)
 	}
@@ -389,7 +440,8 @@ func TestEnumerateConsolePagesAcrossSplitRouter(t *testing.T) {
 func TestSurfaceInventoryGateCatchesSilentDrift(t *testing.T) {
 	t.Parallel()
 	root, specs := repoRootDir(t), repoSpecsDir(t)
-	live, err := liveSurfaces(root)
+	server := newFullSurfaceSatellite(t)
+	live, err := liveSurfaces(root, server.Client(), server.URL, fullSurfaceStubToken)
 	if err != nil {
 		t.Fatalf("liveSurfaces: %v", err)
 	}

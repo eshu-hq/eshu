@@ -9,8 +9,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
@@ -53,10 +55,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 	root := flags.String("root", defaultRoot, "path to the repository root (surface enumeration, remote-validation mode)")
 	remoteValidationBaseline := flags.String("remote-validation-baseline", defaultRemoteValidationBaseline, "path to the remote_validation burn-down baseline (remote-validation mode)")
 	remoteValidationUpdate := flags.Bool("update", false, "regenerate the remote-validation baseline from the current tree instead of checking it (remote-validation mode)")
-	apiBaseURL := flags.String("api-base-url", os.Getenv("ESHU_API_BASE_URL"), "API base URL (graph-read-probe mode)")
+	apiBaseURL := flags.String("api-base-url", os.Getenv("ESHU_API_BASE_URL"), "API base URL (graph-read-probe mode; also the satellite surface inventory source for report, generate, and verify modes)")
 	mcpURL := flags.String("mcp-url", os.Getenv("ESHU_MCP_URL"), "exact MCP HTTP endpoint URL (graph-read-probe mode)")
 	userTokenEnv := flags.String("user-token-env", "ESHU_MCP_TOKEN", "environment variable containing a user bearer token (graph-read-probe mode)")
-	adminTokenEnv := flags.String("admin-token-env", "ESHU_API_KEY", "environment variable containing an admin/all-scope bearer token (graph-read-probe mode)")
+	adminTokenEnv := flags.String("admin-token-env", "ESHU_API_KEY", "environment variable containing an admin/all-scope bearer token (graph-read-probe mode; also the satellite openapi.json bearer for report, generate, and verify modes)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -89,7 +91,27 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return checkProductClaimsMode(stdout, catalog, *docsDir, ledgerPath, *root)
 	}
 
-	surfaceInventory, surfaceFindings, err := buildSurfaceInventory(*specsDir, *root)
+	// The surface inventory reads API routes from the satellite's served
+	// OpenAPI document, which sits behind RequireAuth: the fetch carries
+	// the admin/all-scope bearer token, with the same bounded client the
+	// graph-read probe uses (fail-fast redirects, 20s timeout).
+	if *mode != "report" && *mode != "generate" && *mode != "verify" {
+		return fmt.Errorf("unsupported mode %q", *mode)
+	}
+	if *apiBaseURL == "" {
+		return fmt.Errorf("surface inventory requires satellite API base URL (-api-base-url or ESHU_API_BASE_URL)")
+	}
+	apiToken := strings.TrimSpace(os.Getenv(*adminTokenEnv))
+	if apiToken == "" {
+		return fmt.Errorf("surface inventory requires admin/all-scope bearer token in %s", *adminTokenEnv)
+	}
+	surfaceClient := &http.Client{
+		Timeout: 20 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	surfaceInventory, surfaceFindings, err := buildSurfaceInventory(*specsDir, *root, surfaceClient, *apiBaseURL, apiToken)
 	if err != nil {
 		return err
 	}

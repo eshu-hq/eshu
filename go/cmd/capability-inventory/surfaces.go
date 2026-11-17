@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,12 +30,14 @@ const defaultSurfaceArtifactOut = "internal/capabilitycatalog/data/surface-inven
 // liveSurfaces enumerates every platform surface from live code, specs, and the
 // source tree rooted at root (the repository root). The collector, reducer
 // domain, and MCP tool sets come from in-code registries; command binaries and
-// console pages are read from the source tree; API routes are parsed from the
-// OpenAPI spec assembly the eshu-api surface serves (see openapi_source.go).
-// This is the authoritative live set the surface inventory drift gate
-// reconciles against, so a surface added or removed in code without updating
-// the committed artifact is caught.
-func liveSurfaces(root string) (capabilitycatalog.LiveSurfaces, error) {
+// console pages are read from the source tree; API routes are fetched from the
+// OpenAPI document the eshu-api surface serves (see openapi_source.go). The
+// satellite route requires RequireAuth, so the fetch carries the
+// admin/all-scope bearer token alongside the satellite base URL. This is the
+// authoritative live set the surface inventory drift gate reconciles against,
+// so a surface added or removed in code without updating the committed
+// artifact is caught.
+func liveSurfaces(root string, client *http.Client, apiBaseURL, apiToken string) (capabilitycatalog.LiveSurfaces, error) {
 	commands, err := enumerateCommandBinaries(filepath.Join(root, "go", "cmd"))
 	if err != nil {
 		return capabilitycatalog.LiveSurfaces{}, err
@@ -43,7 +46,7 @@ func liveSurfaces(root string) (capabilitycatalog.LiveSurfaces, error) {
 	if err != nil {
 		return capabilitycatalog.LiveSurfaces{}, err
 	}
-	routes, err := enumerateAPIRoutes()
+	routes, err := enumerateAPIRoutes(client, apiBaseURL, apiToken)
 	if err != nil {
 		return capabilitycatalog.LiveSurfaces{}, err
 	}
@@ -152,19 +155,43 @@ func enumerateConsolePages(root string) ([]string, error) {
 	return names, nil
 }
 
-// enumerateAPIRoutes parses the OpenAPI spec assembly the eshu-api surface
+// enumerateAPIRoutes fetches the OpenAPI document the eshu-api surface
 // serves (see openapi_source.go) and returns one surface per method+path
 // operation (for example "GET /api/v0/capabilities"). Recording the method,
 // not just the path key, means adding a second operation such as
 // "POST /api/v0/foo" beside an existing "GET /api/v0/foo" changes the
 // inventory, so method-level API surface changes cannot bypass the drift
-// gate. The spec is the single declaration of the HTTP surface.
-func enumerateAPIRoutes() ([]string, error) {
-	document, err := localOpenAPISpecDocument()
+// gate. The served document is the single declaration of the HTTP surface.
+// The satellite serves its liveness probe outside the assembled document
+// (mux-level, dest-owned shape, like the doc-UI shells), so GET /health is
+// carried explicitly here: the pre-satellite inventory tracked it from the
+// core document, and the drift gate requires the re-pointed source to stay
+// a superset, never fewer routes.
+func enumerateAPIRoutes(client *http.Client, apiBaseURL, apiToken string) ([]string, error) {
+	document, err := fetchSatelliteOpenAPISpec(client, apiBaseURL, apiToken)
 	if err != nil {
 		return nil, err
 	}
-	return openAPIRoutes(document), nil
+	routes := openAPIRoutes(document)
+	routes = append(routes, "GET /health")
+	sort.Strings(routes)
+	return compactStrings(routes), nil
+}
+
+// compactStrings drops adjacent duplicates from a sorted slice, keeping the
+// inventory a set: the explicit liveness-probe entry must not double when a
+// served document carries it as a path.
+func compactStrings(names []string) []string {
+	if len(names) == 0 {
+		return names
+	}
+	out := names[:1]
+	for _, name := range names[1:] {
+		if name != out[len(out)-1] {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // enumerateCollectors returns every collector family from the scope registry.
@@ -292,8 +319,8 @@ func compactFactKinds(kinds []string) []string {
 // buildSurfaceInventory enumerates live surfaces under root, loads the editorial
 // overlay from specsDir, and reconciles them into the surface inventory plus
 // findings.
-func buildSurfaceInventory(specsDir, root string) (capabilitycatalog.SurfaceInventory, []capabilitycatalog.Finding, error) {
-	live, err := liveSurfaces(root)
+func buildSurfaceInventory(specsDir, root string, client *http.Client, apiBaseURL, apiToken string) (capabilitycatalog.SurfaceInventory, []capabilitycatalog.Finding, error) {
+	live, err := liveSurfaces(root, client, apiBaseURL, apiToken)
 	if err != nil {
 		return capabilitycatalog.SurfaceInventory{}, nil, err
 	}
