@@ -23,8 +23,8 @@ func selector(name string) string { return selectorPrefix + name + "}}" }
 // the pinned set are probed by design: this inventory discovers the live
 // surface. The unknown-tool guard below is defense-in-depth for callers that
 // build from any other target set.
-func buildCurrentProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken string) ([]graphReadProbe, error) {
-	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
+func buildCurrentProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken, adminToken string) ([]graphReadProbe, error) {
+	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken, adminToken)
 	if err != nil {
 		return nil, err
 	}
@@ -296,9 +296,15 @@ func classifyMCPExecution(name string) (bool, string) {
 }
 
 func apiProbeAuth(path string) graphReadProbeAuth {
-	if path == "/health" || path == "/api/v0/openapi.json" || path == "/api/v0/docs" || path == "/api/v0/redoc" ||
+	if path == "/health" || path == "/api/v0/docs" || path == "/api/v0/redoc" ||
 		path == "/api/v0/auth/github/login" || path == "/api/v0/auth/github/callback" || path == "/api/v0/auth/setup-state" {
 		return "public"
+	}
+	// The served document sits behind RequireAuth like every satellite
+	// /api/* route: the openapi.json probe executes with the
+	// admin/all-scope bearer token.
+	if path == "/api/v0/openapi.json" {
+		return graphReadProbeAdminAuth
 	}
 	if strings.HasPrefix(path, "/api/v0/admin/") || path == "/api/v0/code/cypher" || path == "/api/v0/code/visualize" {
 		return graphReadProbeAdminAuth

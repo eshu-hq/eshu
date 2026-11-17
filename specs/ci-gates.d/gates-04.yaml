@@ -80,6 +80,8 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/product-claims.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/capability-stub-satellite.sh"
+      - "go/cmd/capability-inventory/stub_satellite.go"
       - "scripts/lib/go-toolchain.sh"
       - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
@@ -97,6 +99,8 @@ gates:
     ci_only_reason: ""
     # Note: capability-surface-inventory hook also runs this surface check at
     # commit time; hook_id is on capability-surface-inventory gate below.
+    # The surface arm provisions the satellite inputs itself (stub harness or
+    # live ESHU_API_BASE_URL passthrough), so this command carries no env.
 
   # Owner rows for the `Verify ReadOnlyTools count` and `Full MCP test suite`
   # jobs of mcp-schema-drift.yml. Both had no row, so a failing MCP test never
@@ -191,9 +195,11 @@ gates:
       - "specs/capability-matrix.v1.yaml"
       - "specs/capability-matrix/**"
       - "specs/surface-inventory.v1.yaml"
+      - "scripts/lib/capability-stub-satellite.sh"
+      - "go/cmd/capability-inventory/stub_satellite.go"
       - "scripts/ci/go-mod-download-retry.sh"
     local:
-      command: "cd go && go run ./cmd/capability-inventory -mode verify"
+      command: "cd go && bash ../scripts/lib/capability-stub-satellite.sh go run ./cmd/capability-inventory -mode verify"
       pre_push: floor
       test_command: ""
     ci:
@@ -554,6 +560,8 @@ gates:
       - "go/internal/query/**"
       - "go/internal/facts/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/lib/capability-stub-satellite.sh"
+      - "go/cmd/capability-inventory/stub_satellite.go"
       - "scripts/lib/go-toolchain.sh"
       - "scripts/lib/precommit-go-filecap.sh"
       - "scripts/lib/cgo-cflags.sh"
@@ -570,12 +578,20 @@ gates:
     # go/internal/scope/collector_kind.go — the generator never imports
     # go/internal/collector, which stays a trigger so collector PRs still
     # re-verify the surface contract they feed, but is not a declared input);
-    # reducer domains from reducer.AllDomains; API routes from
-    # query.OpenAPISpec; collector fact kinds from go/internal/facts (an
-    # unmapped kind fails verify); the overlay/spec shaping from the two spec
-    # rows. Reconciler-logic changes inside go/internal/capabilitycatalog rely
-    # on CI: the mcp-schema-drift fragment names no path filter, so full mode
-    # always runs this gate's CI job.
+    # reducer domains from reducer.AllDomains; API routes from the
+    # satellite's served OpenAPI document (GET /api/v0/openapi.json behind
+    # RequireAuth, fetched with the admin/all-scope bearer; GET /health rides
+    # explicitly beside it because the satellite serves liveness outside the
+    # assembled document). Where no live satellite is configured the gates
+    # serve the same fragments from the in-tree assembly
+    # (go/internal/query/openapi, the source the satellite assembles) behind
+    # the RequireAuth-shaped stub in go/cmd/capability-inventory/stub_satellite.go,
+    # so go/internal/query/** stays a generator input through the double;
+    # collector fact kinds from go/internal/facts (an unmapped kind fails
+    # verify); the overlay/spec shaping from the two spec rows. Reconciler-
+    # logic changes inside go/internal/capabilitycatalog rely on CI: the
+    # mcp-schema-drift fragment names no path filter, so full mode always runs
+    # this gate's CI job.
     generator_inputs:
       - "go/cmd/**"
       - "go/internal/mcp/**"
@@ -586,6 +602,7 @@ gates:
       - "go/internal/reducer/**"
       - "go/internal/query/**"
       - "go/internal/facts/**"
+      - "go/cmd/capability-inventory/stub_satellite.go"
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
     local:

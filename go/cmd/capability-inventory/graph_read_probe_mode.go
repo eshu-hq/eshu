@@ -45,9 +45,11 @@ type graphReadProbe struct {
 // serve the pinned API/MCP surfaces the probe fixtures depend on, before any
 // probe runs. It fetches for standalone callers; the probe runner validates
 // the same set it builds from (see runGraphReadProbe) so validation and
-// execution cannot disagree across fetches.
-func validateGraphReadProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken string) error {
-	targets, _, _, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
+// execution cannot disagree across fetches. The served document sits behind
+// RequireAuth, so the spec fetch carries the admin/all-scope bearer token
+// while tools/list keeps the user token.
+func validateGraphReadProbeRegistry(client *http.Client, apiBaseURL, mcpURL, userToken, adminToken string) error {
+	targets, _, _, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken, adminToken)
 	if err != nil {
 		return err
 	}
@@ -83,9 +85,11 @@ func validatePinnedProbeTargets(targets []string) error {
 
 // currentAPIAndMCPSurfaces lists the satellite's executable probe targets
 // alongside the fetched documents the registry build needs: API routes from
-// the served OpenAPI document, MCP tools from tools/list.
-func currentAPIAndMCPSurfaces(client *http.Client, apiBaseURL, mcpURL, userToken string) ([]string, map[string]any, map[string]satelliteMCPTool, error) {
-	document, err := fetchSatelliteOpenAPISpec(client, apiBaseURL)
+// the served OpenAPI document (authed with the admin/all-scope bearer token,
+// since the route sits behind RequireAuth), MCP tools from tools/list (authed
+// with the user token).
+func currentAPIAndMCPSurfaces(client *http.Client, apiBaseURL, mcpURL, userToken, adminToken string) ([]string, map[string]any, map[string]satelliteMCPTool, error) {
+	document, err := fetchSatelliteOpenAPISpec(client, apiBaseURL, adminToken)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -167,7 +171,7 @@ func runGraphReadProbe(
 	// Single fetch for the whole run: the registry is validated and built
 	// from the same target set, so a satellite change cannot slip between a
 	// validation fetch and an execution fetch.
-	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken)
+	targets, document, tools, err := currentAPIAndMCPSurfaces(client, apiBaseURL, mcpURL, userToken, adminToken)
 	if err != nil {
 		return err
 	}

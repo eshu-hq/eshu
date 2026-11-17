@@ -253,8 +253,16 @@ case "${cmd}" in
 		gosec_arm_changed
 		;;
 	surface)
-		( cd "${go_dir}" && go run ./cmd/capability-inventory -mode verify >/dev/null ) \
-			|| die "capability surface inventory is stale — run: cd go && go run ./cmd/capability-inventory -mode generate"
+		# verify/report/generate need the satellite's served OpenAPI document
+		# plus an admin bearer (Refs eshu-hq/eshu#9669, row 7), which a
+		# commit-time hook does not have. The harness points both at the
+		# offline double — the in-tree assembly behind the RequireAuth-shaped
+		# gate — and passes a live ESHU_API_BASE_URL through untouched, so
+		# the fetch path is identical either way. Regeneration still needs
+		# the same inputs (see the failure hint).
+		( cd "${go_dir}" && bash "${script_root}/scripts/lib/capability-stub-satellite.sh" \
+			go run ./cmd/capability-inventory -mode verify >/dev/null ) \
+			|| die "capability surface inventory is stale — run: cd go && ../scripts/lib/capability-stub-satellite.sh go run ./cmd/capability-inventory -mode generate"
 		;;
 	perf-evidence)
 		# The hot-path performance-evidence gate (test.yml "Verify hot-path

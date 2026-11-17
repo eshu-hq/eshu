@@ -14,23 +14,16 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 )
 
 // OpenAPI/MCP-tool sourcing for capability-inventory (Refs eshu-hq/eshu#9669,
-// row 7). The graph-read probe registry is built from the satellite, not
-// from in-tree packages: API routes come from the served OpenAPI document
-// (GET /api/v0/openapi.json on the eshu-api surface) and MCP tools come from
-// the satellite MCP endpoint (tools/list). Probe execution already ran
-// against the satellite; now the registry it executes does too.
-//
-// The surface inventory (enumerateAPIRoutes, offline CI modes) still reads
-// the current tree through localOpenAPISpecDocument until the satellite owns
-// the contract: the query/openapi leaf is pure spec-assembly data with no
-// handler, store, session, or auth imports, so it keeps the drift gate
-// code-anchored without pinning serving behavior. When the contract moves,
-// point enumerateAPIRoutes at fetchSatelliteOpenAPISpec and drop this seam.
+// row 7). The graph-read probe registry and the surface inventory are built
+// from the satellite, not from in-tree packages: API routes come from the
+// served OpenAPI document (GET /api/v0/openapi.json on the eshu-api surface,
+// behind RequireAuth like every satellite /api/* route, so the fetch carries
+// the admin/all-scope bearer token) and MCP tools come from the satellite MCP
+// endpoint (tools/list). Owner decision eshu-hq/eshu-api#101: authed fetcher
+// plus the full served surface; no posture downgrade, no public doc.
 const (
 	// satelliteFetchTimeout bounds one satellite document fetch, matching
 	// the bounded discovery timeouts used by the probe selectors.
@@ -53,10 +46,12 @@ type satelliteMCPTool struct {
 }
 
 // fetchSatelliteOpenAPISpec reads the served OpenAPI document from the
-// eshu-api surface. The route bypasses authentication by design (public doc
-// route), so no token is attached. Errors are sanitized: they never carry
-// the base URL, a token, or the response body.
-func fetchSatelliteOpenAPISpec(client *http.Client, apiBaseURL string) (map[string]any, error) {
+// eshu-api surface. The route sits behind RequireAuth, so the caller
+// attaches the admin/all-scope bearer token; a foreign or missing
+// credential answers 401 and surfaces as an HTTP status error. Errors
+// are sanitized: they never carry the base URL, a token, or the
+// response body.
+func fetchSatelliteOpenAPISpec(client *http.Client, apiBaseURL, apiToken string) (map[string]any, error) {
 	if client == nil {
 		return nil, fmt.Errorf("satellite OpenAPI HTTP client is required")
 	}
@@ -74,6 +69,7 @@ func fetchSatelliteOpenAPISpec(client *http.Client, apiBaseURL string) (map[stri
 	if err != nil {
 		return nil, fmt.Errorf("build satellite openapi request failed")
 	}
+	request.Header.Set("Authorization", "Bearer "+apiToken)
 	request.Header.Set("Accept", "application/json")
 	response, err := client.Do(request) // #nosec G704 -- request targets the operator-supplied Eshu API base URL for this diagnostic probe CLI, not user- or network-taint input
 	if err != nil {
@@ -174,19 +170,4 @@ func openAPIRoutes(document map[string]any) []string {
 	}
 	sort.Strings(names)
 	return names
-}
-
-// localOpenAPISpecDocument parses the in-tree OpenAPI spec assembly for the
-// offline surface inventory. The query/openapi leaf holds only the served
-// contract's authoring fragments (no handlers, stores, sessions, or auth),
-// so the surface drift gate stays anchored to the current tree without
-// importing go/internal/query. This is the interim seam: when the eshu-api
-// satellite owns the contract, enumerateAPIRoutes switches to
-// fetchSatelliteOpenAPISpec and this function goes away with the leaf.
-func localOpenAPISpecDocument() (map[string]any, error) {
-	var document map[string]any
-	if err := json.Unmarshal([]byte(openapi.Spec()), &document); err != nil {
-		return nil, fmt.Errorf("parse current OpenAPI fixtures: %w", err)
-	}
-	return document, nil
 }

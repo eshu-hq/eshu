@@ -11,10 +11,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 	"github.com/eshu-hq/eshu/go/internal/mcp"
 )
 
@@ -162,12 +162,19 @@ const probeRegistryStubTools = `{"jsonrpc":"2.0","id":1,"result":{"tools":[
 // newProbeRegistrySatellite serves the canned eshu-api surface the registry
 // tests build against: the OpenAPI document at /api/v0/openapi.json and the
 // MCP tools/list payload for every POST. One server plays both roles because
-// the two fetches key on path and method, never on host.
+// the two fetches key on path and method, never on host. The spec path sits
+// behind a RequireAuth-shaped gate (admin/all-scope bearer only, 401
+// otherwise), mirroring the satellite; tools/list stays open like the
+// existing stub.
 func newProbeRegistrySatellite(t *testing.T) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if request.URL.Path == "/api/v0/openapi.json" {
+			if request.Header.Get("Authorization") != "Bearer admin-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
 			_, _ = w.Write([]byte(probeRegistryStubSpec))
 			return
 		}
@@ -192,7 +199,9 @@ func probeRegistrySatelliteClient(t *testing.T) (*http.Client, string, string) {
 
 // TestProbeRegistryStubMatchesLocalContract guards the frozen stub satellite
 // against rot: every route and tool the registry tests assert on must exist
-// in the in-repo contract sources the satellite serves from.
+// in the committed surface inventory the satellite serves from (the new
+// contract source since the D13 row-7 re-point; the committed artifact is
+// generated from the satellite document plus the explicit liveness probe).
 func TestProbeRegistryStubMatchesLocalContract(t *testing.T) {
 	t.Parallel()
 
@@ -202,16 +211,21 @@ func TestProbeRegistryStubMatchesLocalContract(t *testing.T) {
 	if err := json.Unmarshal([]byte(probeRegistryStubSpec), &stubSpec); err != nil {
 		t.Fatalf("parse probeRegistryStubSpec: %v", err)
 	}
-	local, err := localOpenAPISpecDocument()
+	inventory, err := capabilitycatalog.LoadSurfaceInventory()
 	if err != nil {
-		t.Fatalf("localOpenAPISpecDocument() error = %v", err)
+		t.Fatalf("LoadSurfaceInventory() error = %v", err)
 	}
-	localRoutes := openAPIRoutes(local)
+	committed := map[string]bool{}
+	for _, record := range inventory.Surfaces {
+		if record.Category == capabilitycatalog.SurfaceAPIRoute {
+			committed[record.Name] = true
+		}
+	}
 	for path, operations := range stubSpec.Paths {
 		for method := range operations {
 			route := strings.ToUpper(method) + " " + path
-			if !slices.Contains(localRoutes, route) {
-				t.Errorf("stub route %q missing from the local OpenAPI contract", route)
+			if !committed[route] {
+				t.Errorf("stub route %q missing from the committed surface inventory", route)
 			}
 		}
 	}
@@ -241,7 +255,7 @@ func TestProbeRegistryStubMatchesLocalContract(t *testing.T) {
 
 func TestValidateGraphReadProbeRegistryAcceptsCurrentSurfaces(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	if err := validateGraphReadProbeRegistry(client, apiURL, mcpURL, "user-token"); err != nil {
+	if err := validateGraphReadProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token"); err != nil {
 		t.Fatalf("validateGraphReadProbeRegistry() error = %v", err)
 	}
 }
@@ -257,7 +271,7 @@ func TestValidateGraphReadProbeRegistryFailsClosedOnMissingSurface(t *testing.T)
 	}))
 	defer thin.Close()
 
-	err := validateGraphReadProbeRegistry(thin.Client(), thin.URL, thin.URL, "user-token")
+	err := validateGraphReadProbeRegistry(thin.Client(), thin.URL, thin.URL, "user-token", "admin-token")
 	if err == nil || !strings.Contains(err.Error(), "the satellite does not serve") {
 		t.Fatalf("validateGraphReadProbeRegistry() error = %v, want fail-closed on the missing cypher surface", err)
 	}
@@ -265,7 +279,7 @@ func TestValidateGraphReadProbeRegistryFailsClosedOnMissingSurface(t *testing.T)
 
 func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -286,7 +300,7 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 
 func TestCurrentProbeRegistrySynthesizesAWSRuntimeDriftAnyOfScope(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -302,7 +316,7 @@ func TestCurrentProbeRegistrySynthesizesAWSRuntimeDriftAnyOfScope(t *testing.T) 
 
 func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -412,15 +426,17 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 	const adminToken = "admin-secret"
 	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		wantToken := userToken
-		if request.URL.Path == "/health" || request.URL.Path == "/api/v0/openapi.json" ||
+		if request.URL.Path == "/health" ||
 			request.URL.Path == "/api/v0/docs" || request.URL.Path == "/api/v0/redoc" ||
 			request.URL.Path == "/api/v0/auth/setup-state" || strings.HasPrefix(request.URL.Path, "/api/v0/auth/github/") {
 			wantToken = ""
 		}
 		if request.URL.Path == "/api/v0/openapi.json" {
-			wantHeader := ""
+			// The served document sits behind RequireAuth: the registry
+			// fetch carries the admin/all-scope bearer token.
+			wantHeader := "Bearer " + adminToken
 			if request.Header.Get("Authorization") != wantHeader {
-				t.Errorf("API auth = %q, want no Authorization for the public doc route", request.Header.Get("Authorization"))
+				t.Errorf("API auth = %q, want admin bearer for the authed doc route", request.Header.Get("Authorization"))
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(probeRunStubSpec))
@@ -502,7 +518,7 @@ func TestRunGraphReadProbeUsesDeclaredArgumentsAuthAndExplicitSelectorFailure(t 
 
 func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
@@ -551,7 +567,7 @@ func TestRunGraphReadProbeFailsClosedOnUnsupportedSurface(t *testing.T) {
 // the stub satellite, not in-tree packages (Refs eshu-hq/eshu#9669, row 7).
 func TestGraphReadProbeTagHistoryFixtureUsesOCIRegistrySelector(t *testing.T) {
 	client, apiURL, mcpURL := probeRegistrySatelliteClient(t)
-	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token")
+	registry, err := buildCurrentProbeRegistry(client, apiURL, mcpURL, "user-token", "admin-token")
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}

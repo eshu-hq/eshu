@@ -7,9 +7,14 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
+
+// specToken is the admin/all-scope bearer token the stub satellite expects
+// on GET /api/v0/openapi.json, mirroring the satellite's RequireAuth gate.
+const specToken = "admin-all-scope-token"
 
 const probeStubOpenAPISpec = `{
   "openapi": "3.0.0",
@@ -26,8 +31,8 @@ func TestFetchSatelliteOpenAPISpecReturnsDocument(t *testing.T) {
 		if request.URL.Path != "/api/v0/openapi.json" {
 			t.Errorf("spec path = %q, want /api/v0/openapi.json", request.URL.Path)
 		}
-		if request.Header.Get("Authorization") != "" {
-			t.Errorf("spec request carried Authorization %q, want none (public doc route)", request.Header.Get("Authorization"))
+		if got := request.Header.Get("Authorization"); got != "Bearer "+specToken {
+			t.Errorf("spec auth = %q, want admin Bearer [REDACTED]", got)
 		}
 		gotAccept = request.Header.Get("Accept")
 		w.Header().Set("Content-Type", "application/json")
@@ -35,7 +40,7 @@ func TestFetchSatelliteOpenAPISpecReturnsDocument(t *testing.T) {
 	}))
 	defer server.Close()
 
-	document, err := fetchSatelliteOpenAPISpec(server.Client(), server.URL)
+	document, err := fetchSatelliteOpenAPISpec(server.Client(), server.URL, specToken)
 	if err != nil {
 		t.Fatalf("fetchSatelliteOpenAPISpec() error = %v", err)
 	}
@@ -52,7 +57,7 @@ func TestFetchSatelliteOpenAPISpecFailsClosed(t *testing.T) {
 	t.Parallel()
 	notFound := httptest.NewServer(http.NotFoundHandler())
 	defer notFound.Close()
-	if _, err := fetchSatelliteOpenAPISpec(notFound.Client(), notFound.URL); err == nil ||
+	if _, err := fetchSatelliteOpenAPISpec(notFound.Client(), notFound.URL, specToken); err == nil ||
 		!strings.Contains(err.Error(), "satellite openapi HTTP status 404") {
 		t.Fatalf("404 error = %v, want satellite openapi HTTP status 404", err)
 	}
@@ -61,7 +66,7 @@ func TestFetchSatelliteOpenAPISpecFailsClosed(t *testing.T) {
 		_, _ = w.Write([]byte(`{invalid`))
 	}))
 	defer badBody.Close()
-	if _, err := fetchSatelliteOpenAPISpec(badBody.Client(), badBody.URL); err == nil ||
+	if _, err := fetchSatelliteOpenAPISpec(badBody.Client(), badBody.URL, specToken); err == nil ||
 		!strings.Contains(err.Error(), "decode satellite openapi") {
 		t.Fatalf("malformed error = %v, want decode satellite openapi", err)
 	}
@@ -70,16 +75,16 @@ func TestFetchSatelliteOpenAPISpecFailsClosed(t *testing.T) {
 		_, _ = w.Write([]byte(`["not","an","object"]`))
 	}))
 	defer scalar.Close()
-	if _, err := fetchSatelliteOpenAPISpec(scalar.Client(), scalar.URL); err == nil ||
+	if _, err := fetchSatelliteOpenAPISpec(scalar.Client(), scalar.URL, specToken); err == nil ||
 		!strings.Contains(err.Error(), "not a JSON object") {
 		t.Fatalf("scalar error = %v, want not-a-object rejection", err)
 	}
 
-	if _, err := fetchSatelliteOpenAPISpec(notFound.Client(), "://bad-url"); err == nil ||
+	if _, err := fetchSatelliteOpenAPISpec(notFound.Client(), "://bad-url", specToken); err == nil ||
 		!strings.Contains(err.Error(), "invalid API base URL") {
 		t.Fatalf("bad URL error = %v, want invalid API base URL", err)
 	}
-	if _, err := fetchSatelliteOpenAPISpec(nil, notFound.URL); err == nil {
+	if _, err := fetchSatelliteOpenAPISpec(nil, notFound.URL, specToken); err == nil {
 		t.Fatal("nil client error = nil, want failure")
 	}
 }
@@ -90,7 +95,7 @@ func TestFetchSatelliteOpenAPISpecSanitizesTransportErrors(t *testing.T) {
 	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 		return nil, errors.New(privateCause)
 	})}
-	_, err := fetchSatelliteOpenAPISpec(client, "https://private.example.invalid")
+	_, err := fetchSatelliteOpenAPISpec(client, "https://private.example.invalid", "secret-marker")
 	if err == nil {
 		t.Fatal("fetchSatelliteOpenAPISpec() error = nil, want sanitized transport failure")
 	}
@@ -179,18 +184,43 @@ func TestFetchSatelliteMCPToolsSanitizesTransportErrors(t *testing.T) {
 	}
 }
 
-func TestLocalOpenAPISpecDocumentParsesLiveSpec(t *testing.T) {
+// TestFetchSatelliteOpenAPISpecServesPinnedSurfaces pins the authed
+// fetcher against a stub satellite behind a RequireAuth-shaped gate:
+// the stub 401s a foreign or missing bearer and serves the canned
+// document to the admin/all-scope token, and the fetched document
+// carries the pinned read routes the drift gate compares on.
+func TestFetchSatelliteOpenAPISpecServesPinnedSurfaces(t *testing.T) {
 	t.Parallel()
-	document, err := localOpenAPISpecDocument()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v0/openapi.json" {
+			t.Errorf("spec path = %q, want /api/v0/openapi.json", request.URL.Path)
+		}
+		if got := request.Header.Get("Authorization"); got != "Bearer "+specToken {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(probeStubOpenAPISpec))
+	}))
+	defer server.Close()
+
+	if _, err := fetchSatelliteOpenAPISpec(server.Client(), server.URL, "foreign-token"); err == nil ||
+		!strings.Contains(err.Error(), "satellite openapi HTTP status 401") {
+		t.Fatalf("foreign token error = %v, want satellite openapi HTTP status 401", err)
+	}
+	if _, err := fetchSatelliteOpenAPISpec(server.Client(), server.URL, ""); err == nil ||
+		!strings.Contains(err.Error(), "satellite openapi HTTP status 401") {
+		t.Fatalf("missing token error = %v, want satellite openapi HTTP status 401", err)
+	}
+
+	document, err := fetchSatelliteOpenAPISpec(server.Client(), server.URL, specToken)
 	if err != nil {
-		t.Fatalf("localOpenAPISpecDocument() error = %v", err)
+		t.Fatalf("fetchSatelliteOpenAPISpec() error = %v", err)
 	}
-	paths, _ := document["paths"].(map[string]any)
-	if len(paths) == 0 {
-		t.Fatal("local spec holds zero paths, want the live assembled set")
-	}
-	repositories, _ := paths["/api/v0/repositories"].(map[string]any)
-	if _, ok := repositories["get"]; !ok {
-		t.Fatalf("repositories path = %#v, want a get operation", repositories)
+	routes := openAPIRoutes(document)
+	for _, want := range []string{"GET /api/v0/repositories", "POST /api/v0/code/cypher"} {
+		if !slices.Contains(routes, want) {
+			t.Fatalf("routes missing pinned probe surface %q: %v", want, routes)
+		}
 	}
 }
