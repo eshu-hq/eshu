@@ -66,3 +66,9 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   Figures reach `ResultRecord` only for a validated SDK result whose FINAL
   assembled state is not complete or unchanged, never a host
   verdict, and ride on the existing result log line; do not add a log line.
+- The NVD window and baseline verdict keys are pinned by one vector shared
+  with the satellite repo: `fixturepack.NVDVerdictKeysGolden()` from the pinned
+  eshu-sdk/factschema. `nvd_verdict_keys_vector_test.go` replays every case
+  through the real readers and holds the vector's SHA-256, which the satellite
+  repo pins too. Rename a key constant or change a verdict rule only with the
+  vector, and bump the SDK pin and the digest on both sides in step (#10732).
