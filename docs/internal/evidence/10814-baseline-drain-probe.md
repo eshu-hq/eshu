@@ -54,10 +54,12 @@ new index. Nothing in production fills the planner's request fields until the
   (`TestNVDBaselinePendingSuccessorHoldsADrainedChunkLive`).
 - **A failed successor.** The sequence is reachable through the real writers: a
   re-commit supersedes the generation the checkpoint names, then dead-letters in
-  the projector, which marks it `failed` and clears the scope's active pointer.
-  Nothing is active or pending, the probe finds no effective generation, and its
-  projector leg matches nothing, so the chunk read `projecting` for ever and a
-  one-slot run stalled under a wait reason with no failure signal. The newest
+  the projector, which marks it `failed`. The scope's active pointer was
+  already NULL because nothing was active: the failure writer nulls it only when
+  the failed generation was the active one. With nothing active or pending, the
+  probe finds no effective generation, and its projector leg matches nothing, so
+  the chunk read `projecting` for ever and a one-slot run stalled under a wait
+  reason with no failure signal. The newest
   leg reads the scope's newest generation, and the chunk reads `failed` when the
   scope has no active generation, no pending generation, and that newest
   generation is `failed`
