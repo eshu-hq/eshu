@@ -55,12 +55,12 @@ service context for a current pointer.
 - The census lists at most 5,000 orphan generations per table; the rest are
   listed by later passes. The sweep re-lists from the lowest id each pass.
 - The census reads every generation id of each relationship table once: 0.2 to
-  0.5 s on 3.6 million evidence rows with no orphans, 2.4 to 8.5 s with 2
-  million orphan rows among 5.6 million, the slow end when the planner reads the
-  evidence table with a parallel sequential scan. It runs under a 60 s
-  statement timeout. A timeout fails the pass (`relationship_orphan_sweep`) and
-  nothing is swept, so run `VACUUM` after a large drain to keep the cheaper
-  index-only scan.
+  0.3 s warm (0.5 to 1.2 s on a first pass) on 3.6 million evidence rows with no
+  orphans, 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the slow
+  end when the planner reads the evidence table with a parallel sequential scan.
+  It runs under a 60 s statement timeout. A timeout fails the pass
+  (`relationship_orphan_sweep`) and nothing is swept, so run `VACUUM` after a
+  large drain to keep the cheaper index-only scan.
 
 ## Operator gate before enabling deletes
 
@@ -147,10 +147,11 @@ sweepers never take the same generation), re-checks the orphan rules and
 locks the generation rows with `FOR UPDATE SKIP LOCKED`, then deletes evidence,
 candidates and the generation row last. A repository purge also deletes the
 evidence, candidates and generation rows of the repository's scopes, in that
-order. When a purge holds rows a batch needs, the batch waits at most 500 ms
-(below the 1 s default `deadlock_timeout`), rolls back and counts as
-`lock_timeout`; the purge is never the one that fails, and neither side sees a
-deadlock. A later pass picks the generations up again.
+order. When a purge holds rows a batch needs, the batch waits at most 500 ms,
+rolls back and counts as `lock_timeout`. That is below the 1 s default
+`deadlock_timeout`, so with the default the batch always gives way first: the
+purge is never the deadlock victim and neither side sees a deadlock. A later
+pass picks the generations up again.
 
 ## Space, bloat and stopping
 

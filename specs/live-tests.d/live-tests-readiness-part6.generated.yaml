@@ -139,6 +139,11 @@ tests:
     class: postgres_ci
     reason: "#10823 disposable PostgreSQL 18 deadlock probes of the relationship retention sweep against the real #10820 repository purge, in both arrival orders: a purge parked mid-flight (holding evidence row locks, waiting on a candidate row) makes the batch wait 500 ms and yield with a lock timeout while a disjoint batch still sweeps and the purge completes; a batch parked after classification (holding the generation row) makes the arriving purge wait on it, and the batch's own lock timeout, not the deadlock detector, breaks the cycle so neither side sees a 40P01"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/served_contract_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 served-contract proof: the real evidence drilldown handler over the real ContentReader read model answers 200 for the resolved_id of a retained generation and, after a sweep, the existing 404 (relationship evidence not found) for the resolved_id of the swept generation, whose resolved_relationships rows this slice leaves in place; the swept id answered 200 before the sweep, so the 404 is the sweep's doing and not a seeding mistake"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/relationships/state_change_live_test.go
     tag: ~
     class: postgres_ci

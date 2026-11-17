@@ -26,6 +26,9 @@ TABLE = {
             "TestSweepYieldsToAPurgeInFlightLive",
             "TestPurgeArrivingMidBatchDoesNotDeadlockLive",
         ),
+        "go/internal/storage/postgres/retention/relationships/served_contract_live_test.go": (
+            "TestSweptResolvedIDAnswersTheExistingNotFoundLive",
+        ),
         "go/internal/storage/postgres/retention/relationships/state_change_live_test.go": (
             "TestStateChangeAfterTheCensusIsIneligibleLive",
             "TestActivationBlocksBehindTheBatchRowLockLive",

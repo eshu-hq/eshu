@@ -57,15 +57,17 @@ const LockClass = 10823
 // BatchGenerations is the most generations one batch transaction removes.
 // Measured on a local PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md):
 // a batch of 50 generations of 53 rows is about 2,650 rows and commits in 24 to
-// 31 ms at p50 and 28 to 39 ms at p95, up to 133 ms at p95 when the rows are
-// scattered. Its WAL depends on how the rows sit in the heap: about 0.3 KB per
-// row when a generation's rows are together, about 1.7 KB when they are
-// scattered across a large table, and up to 4.3 KB for a pass that starts right
-// after a checkpoint (every first touch of a page writes a full page image). A
-// batch is bounded in generations, not rows: a hub generation with many
-// evidence rows makes it larger, so the row cap is checked between batches and
-// the first batch always runs. There is no knob: a different size needs a new
-// measurement in the evidence note.
+// 31 ms at p50 and 28 to 39 ms at p95 when a generation's rows sit together,
+// and in up to 72 ms at p50 when they are scattered at random. Two runs of one
+// layout on the loaded host gave a 37 ms and a 133 ms p95, so one run's tail is
+// noisy. Its WAL depends on how the rows sit in the heap: about 0.3 KB per row
+// when a generation's rows are together, about 1.7 KB when they are scattered
+// across a large table, and up to 4.3 KB for a pass that starts right after a
+// checkpoint (every first touch of a page writes a full page image). A batch is
+// bounded in generations, not rows: a hub generation with many evidence rows
+// makes it larger, so the row cap is checked between batches and the first
+// batch always runs. There is no knob: a different size needs a new measurement
+// in the evidence note.
 const BatchGenerations = 50
 
 // CensusListLimit is the most distinct orphan generations the census lists
@@ -91,14 +93,14 @@ const DefaultRowCap int64 = 100_000
 const lockTimeoutSetting = "500ms"
 
 // censusStatementTimeoutSetting bounds the census transaction. The census reads
-// every generation id of each relationship table once: 0.2 to 0.5 s warm (1.2 s
-// cold) with no orphans on 3.6 million evidence rows after VACUUM, and 2.4 to
-// 8.5 s with 2 million orphan rows among 5.6 million, the slow end when the
-// planner read the evidence table with a parallel sequential scan
-// (docs/internal/evidence/10823-relationship-retention.md).
-// A census that outlives this bound fails the pass and is retried at the next
-// poll, so the bound has about seven times the headroom of the slowest run. It
-// must stay positive.
+// every generation id of each relationship table once: 0.2 to 0.3 s warm (0.5 to
+// 1.2 s on a first pass) with no orphans on 3.6 million evidence rows after
+// VACUUM, and 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the
+// slow end when the planner read the evidence table with a parallel sequential
+// scan (docs/internal/evidence/10823-relationship-retention.md). A census that
+// outlives this bound fails the pass and is retried at the next poll, so the
+// bound has about seven times the headroom of the slowest run. It must stay
+// positive.
 const censusStatementTimeoutSetting = "60s"
 
 // setLockTimeoutQuery and setStatementTimeoutQuery are SET LOCAL: they end with

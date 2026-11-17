@@ -11,8 +11,10 @@ guidance, the lock probes, and the mutation runs.
 Performance Evidence: every figure below comes from one throwaway PostgreSQL
 18.6 server on a loaded local development machine (host load average 19 to 30),
 the real migrated schema, synthetic rows. A 50-generation batch (about 2,650
-rows) commits in 24 to 72 ms at p50. The census is one pass over each table's
-generation ids: 0.2 to 0.5 s on 3.6 million evidence rows with no orphans, 2.4
+rows) commits in 24 to 31 ms at p50 when a generation's rows sit together and in up
+to 72 ms when they are scattered at random. The census is one pass over each table's
+generation ids: 0.2 to 0.3 s warm (0.5 to 1.2 s on a first pass) on 3.6 million
+evidence rows with no orphans, 2.4
 to 8.5 s with 2 million orphan rows among 5.6 million. WAL per deleted row is
 0.3 KB when a generation's rows sit together and 1.7 KB to 4.3 KB when they are
 scattered. Nothing was measured on a production corpus or against a replica.
@@ -76,7 +78,7 @@ table.
   Past roughly 40 million evidence rows with the slow plan it would fail the
   pass, and nothing would be swept; there is no knob for it.
 - The sql.go comment quoted the design's 0.7 to 1.0 s on 3.3 million evidence
-  rows. This run measured 0.2 to 0.5 s warm and 1.2 s cold on 3.6 million rows,
+  rows. This run measured 0.2 to 0.3 s warm and 0.5 to 1.2 s on a first pass on 3.6 million rows,
   so the design figure sits between the cold and warm runs. The comment now
   cites these runs.
 
@@ -103,16 +105,21 @@ Committed batch durations over the 38 batches of a 100,700-row pass:
 |---|---|---|---|
 | S1 together | 25.6 / 25.8 ms | 30.8 / 28.5 ms | 32.4 / 32.0 ms |
 | S5 together | 31.0 / 27.4 ms | 39.3 / 33.7 ms | 47.1 / 35.0 ms |
-| S1 scattered by id | 41.1 / 28.4 ms | 133.0 / 110.4 ms | 250.2 / 300.5 ms |
+| S1 scattered by id, first run | 23.5 / 24.5 ms | 37.0 / 30.4 ms | 48.1 / 33.1 ms |
+| S1 scattered by id, second run | 41.1 / 28.4 ms | 133.0 / 110.4 ms | 250.2 / 300.5 ms |
 | S5 random | 72.2 / 48.2 ms | 97.3 / 59.5 ms | 98.5 / 60.0 ms |
 
-(Each cell is the first pass, then the second.) A whole 100,700-row pass took
-1.2 s at S1, 2.7 to 3.0 s at S5 (1.7 s of it the census), and 9.8 to 10.6 s in
-the S5 random layout (7.9 s of it the census).
+(Each cell is the first pass, then the second.) The two by-id runs are the same
+layout and differ by up to 1.7 times at p50 and 3.6 times at p95, so one run's
+tail on this loaded host is noise, not a layout effect; the p95 figures need a quiet
+machine before anyone tunes on them. A whole 100,700-row pass took
+1.1 to 1.2 s at S1 (1.8 and 2.3 s in the noisy second by-id run), 2.7 to 3.0 s at
+S5 (1.7 to 1.8 s of it the census), and 9.8 to 10.6 s in the S5 random layout
+(7.9 s of it the census).
 
 A hub batch of 50 generations of 1,000 rows (50,000 rows, 4.5% of the S1 table,
-0.9% of S5) kept a Bitmap Heap Scan on the generation index: 39 ms (S1 together),
-32 ms (S1 scattered), 291 ms (S5 random). No flip to a sequential scan was seen.
+0.9% of S5) kept a Bitmap Heap Scan on the generation index: 39 ms and 32 ms (S1,
+the two by-id runs), 291 ms (S5 random). No flip to a sequential scan was seen.
 The #10820 purge note measured a flip at 1.43% of a 1.4 million row table for
 its layout; if a batch does flip, it costs a table scan and still deletes that
 share of the table.
@@ -138,11 +145,13 @@ a full page image; pass 2 follows directly.
 |---|---|---|---|---|
 | S1 together | 1 | 28.3 MB | 281 B | 1,900 |
 | S5 together | 1 / 2 | 28.3 / 28.9 MB | 281 / 287 B | 2,461 / 3,233 |
-| S1 scattered by id | 1 / 2 | 28.3 / 28.9 MB | 281 / 287 B | 2,613 / 1,407 |
+| S1 scattered by id, first run | 1 / 2 | 28.3 / 30.7 MB | 281 / 305 B | 2,468 / 2,693 |
+| S1 scattered by id, second run | 1 / 2 | 28.3 / 28.9 MB | 281 / 287 B | 2,613 / 1,407 |
 | S5 random | 1 / 2 | 436.0 / 170.9 MB | 4,329 / 1,697 B | 46,312 / 18,612 |
 
-An S1 together run whose second pass ran after a checkpoint the server started
-itself measured 47.9 MB (475 B per row). The cost depends on how many distinct
+An S1 together run's second pass measured 47.9 MB (475 B per row, 4,588 full page
+images against 1,900 in its first pass). A checkpoint landing during the pass
+would explain the extra images, but that run did not record one. The cost depends on how many distinct
 pages the swept rows touch, not on the row count: rows that sit together share
 pages (about 0.3 KB per row), rows scattered over a large table pay about a page
 each (1.7 KB per row, 4.3 KB right after a checkpoint). The design's planning
@@ -169,6 +178,17 @@ page images. Replica lag was not measured: the cluster has no replica.
 | Purge arrives while a batch holds the generation row (cycle) | The batch ended on its own `lock_timeout` before the deadlock detector; the purge completed; neither side saw 40P01. With `lock_timeout` at 5 s the purge is the deadlock victim (`retirement purge delete relationship_generations: deadlock detected`). With it at 0 the sweep waits without bound (20 s context expired). |
 | Claimed work item on an old superseded generation, real prune | Prune and sweep both keep it (the scope generation row exists). After the work item succeeds the prune deletes the scope generation row and only then does the sweep remove the relationship rows; a newer retained generation is untouched. |
 
+## Served contract
+
+`TestSweptResolvedIDAnswersTheExistingNotFoundLive` runs the real evidence
+drilldown handler over the real `ContentReader` read model. Three `resolved_id`
+values (one of a retained generation, two of a generation the sweep removes)
+answer 200 with the row before the sweep. After it, the retained id still
+answers 200 and both swept ids answer exactly what an id that never existed
+answers: 404 `{"detail":"relationship evidence not found","error":"Not Found"}`.
+The swept generation's `resolved_relationships` rows are still there (two), so
+the 404 comes from the read model's inner join to `relationship_generations`.
+
 ## Mutation runs
 
 Each mutant edits one statement or line, runs the focused tests with `-p 1`, and
@@ -180,6 +200,7 @@ test.
 | Classify and delete predicates (storage leaf) | drop `scope_generations`, `active` or pointer predicate from every statement (3); from classify alone (3, now caught by a live test, not only by the SQL text pin); evidence delete without pointer; evidence delete without `active`; candidates delete without `scope_generations`; generations delete without status; classify without `FOR UPDATE`; no `SKIP LOCKED`; deletes take the batch, not the claimed ids; batch split across transactions; batch bound removed |
 | Locks | `lock_timeout` 0; `lock_timeout` 5 s; generation row deleted first |
 | Plans | the three deletes made unable to use their index |
+| Served contract | the read model's inner join to `relationship_generations` turned into an outer join (`query/evidence_read_model.go`, restored) |
 | Cadence (reducer retention) | accelerate after a failure; after a lock timeout; after a clean pass; never shorten the idle wait; shorten replaces the wait; idle wait unwrapped; skipped-retry wait unwrapped; due check on the poll interval only; deadline not a quarter of the poll interval |
 | Rollout | request always deletes; request drops the row cap; census skipped when deletes are off; config default on; config never reads the flag; adapter drops or forces `Deletes`; adapter drops the row cap; adapter drops the deadline; wiring skips the sweeper |
 | Telemetry | gauge not recorded on failure; gauge skips zero; failure reason renamed; failure class dropped; census phase not recorded; sweep phase mislabelled; rows, skips and cap counters not recorded |
