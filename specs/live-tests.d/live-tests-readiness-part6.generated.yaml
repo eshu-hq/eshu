@@ -344,6 +344,11 @@ tests:
     class: postgres_ci
     reason: "#10809 and #10810 disposable PostgreSQL proof that the NVD baseline checkpoint orders its resume position as the row (stamp, CVE ID) in byte order in either commit order, and that the commit-transaction advance refuses a seed rollback (older stamp, or equal stamp under another sha) so the whole generation rolls back, including a rollback racing a newer commit that holds the row lock, while a forward rotation and a collector with no stamp resume"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_probe_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10746 disposable PostgreSQL proof of the forward-rotation probe race: a probe that matches no row takes no lock, so a commit forced between the probe and the upsert changes the stored identity while the forward rotation goes uncounted (no row yet, a row with no stamp, the stored sha under a newer stamp), a probe that matches holds the row lock so a concurrent writer waits, and the upsert guard still refuses an older seed after a missed probe"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~
     class: postgres_ci

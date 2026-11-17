@@ -224,6 +224,59 @@ func TestNVDBaselineSettlementEvictionBreaksTiesByWorkItemID(t *testing.T) {
 	}
 }
 
+// TestNVDBaselineSettlementEvictionTakesTheEarliestStashNotTheSmallestID pins
+// the victim rule itself: the oldest settlement is the earliest stash, and the
+// work item id only breaks a tie. Ids stashed in descending order against an
+// ascending clock put the earliest stash on the largest id, so a rule that
+// dropped the smallest id (which the ascending-order test and the tie-break
+// test both agree with) would evict work-item-000 here instead.
+func TestNVDBaselineSettlementEvictionTakesTheEarliestStashNotTheSmallestID(t *testing.T) {
+	t.Parallel()
+
+	policy, reader, logs := baselineSeedPolicy(t)
+	policy.clock = settlementClock()
+	for i := maxBaselineSettlements - 1; i >= 0; i-- {
+		stashSettlement(t, policy, fmt.Sprintf("work-item-%03d", i))
+	}
+	stashSettlement(t, policy, "work-item-overflow")
+
+	if got := settlementEvictions(t, reader); got != 1 {
+		t.Fatalf("evictions = %d, want 1", got)
+	}
+	records := settlementLogRecords(t, logs, settlementEvictionMessage)
+	if len(records) != 1 {
+		t.Fatalf("eviction WARN count = %d, want 1; logs: %s", len(records), logs.String())
+	}
+	if records[0]["work_item_id"] != "work-item-063" {
+		t.Fatalf("evicted %v, want work-item-063, the earliest stash (work-item-000 was stashed last)", records[0]["work_item_id"])
+	}
+}
+
+// TestNVDBaselineSettlementEvictionCountsWithoutALogger pins that the counter
+// does not depend on the logger: a policy built with instruments and no logger
+// counts every eviction, and the missing logger only skips the WARN.
+func TestNVDBaselineSettlementEvictionCountsWithoutALogger(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	policy, err := NewNVDBaselineCommitPolicy("scorecard-instance", instruments, nil)
+	if err != nil {
+		t.Fatalf("NewNVDBaselineCommitPolicy() error = %v", err)
+	}
+	policy.clock = settlementClock()
+	for i := 0; i <= maxBaselineSettlements; i++ {
+		stashSettlement(t, policy, fmt.Sprintf("work-item-%03d", i))
+	}
+	if got := settlementEvictions(t, reader); got != 1 {
+		t.Fatalf("evictions = %d with no logger, want 1: the counter must not depend on the logger", got)
+	}
+}
+
 // reentrantWarnHandler re-enters a callback on every WARN, as a slow or
 // synchronous log sink might, then writes through.
 type reentrantWarnHandler struct {

@@ -41,10 +41,10 @@ kind owns. On an extension-hosted instance, any other pattern-matching class
 reads `extension_defined`. Either way a provider message never reaches the
 field.
 
-Every kind reports the extension host's own classes (`invalid_claim`,
-`invalid_result`, `launch_failure`, `source_state_record`, `status_record`),
-because a component extension can be configured with a first-party kind such
-as `jira` and the host then writes those classes for it.
+Every kind reports the classes the extension host itself writes (the rows
+marked "from the extension host" in the table below), because a component
+extension can be configured with a first-party kind such as `jira` and the host
+then writes those classes for it.
 
 An instance is extension-hosted when the generic component planner claims its
 stored configuration (the same check the coordinator uses to hand an instance

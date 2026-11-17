@@ -23,8 +23,12 @@ shared host. `go test -p 1 ./internal/collector/extensionhost/ -run '^$' -bench
 -benchmem -benchtime=100000x -count=7` on darwin/arm64, Apple M5 Max, go1.26.11,
 with other agents running on the host (load average 17 to 48). Base is
 `origin/main` `ea7e3f91e9`, measured by putting its `nvd_baseline_settle.go` back
-for the run. The benchmarks call `stash`, whose return values the base ignores,
-so both versions run the same file. Median with the range of 7 runs:
+and moving `nvd_baseline_settle_eviction_test.go` aside for the run, because
+that file calls `reportSettlementEviction`, which the base does not have, so the
+base run covers the two stash benchmarks only. They call `stash` as a statement,
+so one benchmark file compiles against the base, where `stash` returns nothing,
+and against the new code, where it returns the evicted row. Median with the
+range of 7 runs:
 
 | Benchmark | Base | After, first run | After, second run |
 | --- | --- | --- | --- |
@@ -54,11 +58,22 @@ handler that re-enters the stash from the WARN and requires the writer to finish
 within 5 seconds, so a report moved under the lock deadlocks and fails.
 `TestNVDBaselineSettlementEvictionCountsExactlyUnderConcurrentStashes` stashes
 200 distinct work items from 200 goroutines and requires 136 evictions, 136
-distinct WARN records, and a stash of exactly 64 rows afterwards. Both pass under
-`go test -race`. Eight mutants each fail a test: evicting the newest entry,
+distinct WARN records, and a stash of exactly 64 rows afterwards. Both pass
+under `go test -race`. Ten mutants each fail a test: evicting the newest entry,
 logging the incoming id, reporting under the lock, dropping the counter,
 treating a re-stash of a held key as an eviction, a capacity off by one, a
-tie-break left to map order, and a labelled counter.
+tie-break left to map order, a labelled counter, a victim picked by the smallest
+work item id alone, and a counter skipped when no logger is wired. The last two
+survived the earlier eviction tests. Their one descending-id test ran against a
+constant clock, so every stash time tied and the smallest id won, which is also
+what a victim chosen by id alone does. None of them built the policy with
+instruments and no logger.
+`TestNVDBaselineSettlementEvictionTakesTheEarliestStashNotTheSmallestID` stashes
+the ids in descending order, so the earliest stash holds the largest id, and
+requires that one to be evicted.
+`TestNVDBaselineSettlementEvictionCountsWithoutALogger` builds the policy with
+instruments and no logger and requires the counter. Both fail under their mutant
+with `go test -race` and pass on the shipped code.
 
 ## Observability Evidence
 

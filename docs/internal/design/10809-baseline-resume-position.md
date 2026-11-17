@@ -33,14 +33,16 @@ counters stay where they were, and a later older-seed candidate at or past the
 position is refused instead of being accepted against an identity that never
 saw the newer seed. Any other candidate moves the pair only at an equal or
 greater position. The stored seed stamp never decreases; after any stamped
-commit it is the newest stamp a committed chunk carried. After a behind-position
-adoption the stored identity is not the seed of `last_generation_id`: the
-identity names the newest seed committed, the chunk identity names the chunk
-that last moved the position. The other option the issue named, refusing a
-behind-position newer seed under a distinct failure class, was not taken: it
-adds a class to the closed set the status leaf, the OpenAPI enum, and the
-metrics docs pin, and the refused claim retries against a position only the
-other commit order moves.
+checkpoint commit it is the newest stamp a committed checkpoint advance carried.
+The guard orders checkpoint advances only: a held or not-covered chunk commits
+its facts and never writes the checkpoint, so the stored identity does not learn
+the seed that chunk read. After a behind-position adoption the stored identity
+is not the seed of `last_generation_id`: the identity names the newest seed
+committed, the chunk identity names the chunk that last moved the position. The
+other option the issue named, refusing a behind-position newer seed under a
+distinct failure class, was not taken: it adds a class to the closed set the
+status leaf, the OpenAPI enum, and the metrics docs pin, and the refused claim
+retries against a position only the other commit order moves.
 
 A refused claim fails retryable under its own class `nvd_baseline_seed_rollback`.
 The generation dead letter is recorded under `commit_failure`, and after
