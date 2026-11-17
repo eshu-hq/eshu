@@ -738,7 +738,21 @@ type Instruments struct {
 	NVDBaselineDirtyProxyRate metric.Float64Gauge
 	// NVDBaselineOldestDirtyAge records the latest sampled oldest pending
 	// dirty age in seconds (#10728).
-	NVDBaselineOldestDirtyAge        metric.Float64Gauge
+	NVDBaselineOldestDirtyAge metric.Float64Gauge
+	// NVDBaselineSeedRotations counts NVD baseline seed rotations seen in the
+	// checkpoint commit transaction (#10810), labeled by direction: forward
+	// (a newer seed, the lane resumes) or rollback (an older seed, the whole
+	// generation rolls back). Labels stay direction-only.
+	NVDBaselineSeedRotations metric.Int64Counter
+	// NVDBaselineYearsComplete, NVDBaselineYearsTotal,
+	// NVDBaselineRecordsDone, and NVDBaselineRecordsTotal record the latest
+	// planned run-wide baseline progress (#10809): years replayed whole of
+	// the years the run covers, and records done of the records the started
+	// years hold. Values, never labels, carry the figures.
+	NVDBaselineYearsComplete         metric.Int64Gauge
+	NVDBaselineYearsTotal            metric.Int64Gauge
+	NVDBaselineRecordsDone           metric.Int64Gauge
+	NVDBaselineRecordsTotal          metric.Int64Gauge
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter

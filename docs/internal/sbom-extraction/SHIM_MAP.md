@@ -18,7 +18,7 @@ no recorded pin. Newer tags MUST NOT be substituted without that reviewed
 update):
 
 - `github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4`
-- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261116162518-9b74e9c38319`
+- `github.com/eshu-hq/eshu-sdk/factschema v0.1.0-rc.19.0.20261117021456-ec5cfef48073`
 
 Pin history: proxy-verified 2026-10-24 at collector/factschema
 `v0.1.0-rc.1`; in-tree moved to standalone modules at collector `rc.3` +
@@ -81,7 +81,13 @@ eshu-hq/eshu-sdk#93 merged at `9b74e9c`, zip
 `h1:GCyRfkQdpAYfVvtqEAB3Z7rFL9iTR96ZBG6vnLstrtY=`, origin commit
 `9b74e9c3831992055f43f907716d7f6d5a287cb6`, proxy-verified 2026-11-16 via
 `go mod download -json`; the bump adds only the vector and its tests under
-`fixturepack`, no payload schema or fact kind). This is a pseudo-version pin:
+`fixturepack`, no payload schema or fact kind), then to
+`rc.19.0.20261117021456-ec5cfef48073` for the position and seed-stamp cases of
+the same vector (eshu-hq/eshu#10809, #10810; eshu-sdk main commit `ec5cfef`,
+zip `h1:nj4s7vqxdmy/xWfM7lTTIvCvFBJj+If/709uiIHFg8U=`, origin commit
+`ec5cfef48073df34ae1835f3e4a0c9f21228335f`, proxy-verified 2026-11-16 via
+`go mod download -json`; the vector grows to 31 baseline cases, no payload
+schema or fact kind). This is a pseudo-version pin:
 no `rc.20` tag exists yet. The owner cuts that tag as a release step, and a separate retarget change
 (eshu-hq/eshu#10759) then replaces this pin with it.
 The extracted port

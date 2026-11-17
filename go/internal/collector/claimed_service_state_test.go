@@ -6,6 +6,8 @@ package collector
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -114,6 +116,37 @@ func TestClaimedServiceFailsClaimWhenCommitterCannotPersistGenerationState(t *te
 	}
 	if !strings.Contains(failure.FailureClass, "commit_failure") {
 		t.Errorf("failure class = %q, want commit_failure", failure.FailureClass)
+	}
+}
+
+// classedStateError carries its own failure class the way the NVD baseline
+// seed rollback error does (storage vulnerability, eshu-hq/eshu#10810).
+type classedStateError struct{}
+
+func (classedStateError) Error() string        { return "state writer refused" }
+func (classedStateError) FailureClass() string { return "nvd_baseline_seed_rollback" }
+
+// TestClaimedServiceRecordsTheStateWriterFailureClass proves a writer error
+// that carries its own class reaches the claim failure row with that class
+// instead of the generic commit_failure, through the wrapping the commit path
+// applies, and the claim fails retryable so the next plan re-mints the chunk.
+func TestClaimedServiceRecordsTheStateWriterFailureClass(t *testing.T) {
+	t.Parallel()
+
+	store, err := runStateClaim(t, &stateCommitter{}, func(context.Context, CommitExecutor) error {
+		return fmt.Errorf("write collector generation state: %w", classedStateError{})
+	})
+	if err != nil && !errors.Is(err, errRetryableClaimRecorded) {
+		t.Fatalf("Run() error = %v, want nil or the recorded-retry sentinel", err)
+	}
+	if store.terminalFailCalls != 0 || store.retryableFailCalls != 1 {
+		t.Fatalf("claim failures = %d retryable, %d terminal, want one retryable", store.retryableFailCalls, store.terminalFailCalls)
+	}
+	if got := store.lastRetryableFail.FailureClass; got != "nvd_baseline_seed_rollback" {
+		t.Fatalf("failure class = %q, want nvd_baseline_seed_rollback", got)
+	}
+	if store.completeCalls != 0 {
+		t.Fatalf("complete calls = %d, want 0: a rolled-back generation never completes the claim", store.completeCalls)
 	}
 }
 

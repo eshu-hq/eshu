@@ -16,8 +16,12 @@ record-atomic 16 MiB chunks resumed by (stamp, CVE ID), newest year first, a
 drain-gated adaptive pace, and a seed rollback refused at commit. The whole
 baseline takes about 35 hours at the adaptive floor and 8.3 days at the
 unchanged pace, with 2026 and 2025 in about 8 hours (section 2). These rules are
-ruled design with owning issues (collector #199, eshu #10809, #10810, #10732 and
-the pace item), not shipped code. Baseline completion is still not a pre-enable
+ruled design with owning issues. The core half of C1 (eshu #10809 and #10810)
+has shipped: the resume position, the seed-rollback refusal at commit, and
+newest-first year lanes, described in
+[10809-baseline-resume-position.md](10809-baseline-resume-position.md). The
+collector chunker and stamps (collector #199) and the drain-gated adaptive pace
+(C2, #10814) are still designed, not shipped. Baseline completion is still not a pre-enable
 condition: enabling does not wait for the whole corpus, and the lane drains
 behind the trip line.
 
@@ -51,7 +55,14 @@ defaults to 1, with a ceiling of 4, and rises above 1 only after the canary
 shows cycle time and inflow headroom. Year files share no CVE id (B2 of the
 superseded measurements), so concurrent years touch disjoint rows. The resume
 position is per year (section 3), so no global monotone stamp is needed across
-years. Newest first puts 2026 and 2025 (32.1% of records, 19.6% of facts) in
+years. Shipped (C1): `deriveNVDBaselineLanes` in
+`go/internal/coordinator/vulnerability/nvd_baseline_planner.go` plans these
+lanes, with `max_in_flight_years` clamped to 1 to 4 and a negative value a config
+error. It reads the per-year state from two request inputs,
+`NVDBaselineInFlightYears` and `NVDBaselineLastPlanned` (scope id and planned
+time per year), and the `baseline_retry_wait` hold means every plannable year is
+inside its 30-minute wait. No production caller fills those inputs before the
+#10746 enable lane. Newest first puts 2026 and 2025 (32.1% of records, 19.6% of facts) in
 about 8 hours at the adaptive floor; "most queried years" is a proxy from record
 share, because no query data exists.
 
@@ -144,9 +155,11 @@ longer, the lane is cycle-bound, not unsafe.
 ## 3. Resumable checkpoint, distinct from `nvd/_window`
 
 The baseline checkpoint is keyed `(baseline_run_id, year)`; its resume position
-is `(resume_unix_micro, resume_cve_id)` beside `year_sha256` (ruled: migration
-300 adds `resume_cve_id`, `year_generated_unix_micro`, `last_scope_id`,
-`last_generation_id`, `records_done` and `records_total`), in its own store (new
+is `(resume_unix_micro, resume_cve_id)` beside `year_sha256` (shipped in C1:
+migration 301, `301_vulnerability_nvd_baseline_resume_position.sql`, adds
+`resume_cve_id`, `year_generated_unix_micro`, `last_scope_id`,
+`last_generation_id`, `records_done` and `records_total`; the ruling named 300,
+but #10804 took it), in its own store (new
 table or keyspace; implementation lane chooses, following the
 `NVDWindowCursorStore` pattern (read query `nvdWindowCursorReadQuery` in
 `go/internal/storage/postgres/vulnerability/nvd_window_cursor.go`).
@@ -181,7 +194,10 @@ trimmed, upper-cased, `[A-Z0-9-]{1,64}`; a record id outside that is
 `nvd_feed_decode`. The compare-and-advance is a row comparison on
 (`resume_unix_micro`, `resume_cve_id`). Committed prefix records replay
 idempotently under stable keys (section 6); uncommitted records were never
-checkpointed, so they re-emit.
+checkpointed, so they re-emit. Shipped in C1: the scope grammar in
+`go/internal/vulnsource/nvd_baseline_scope.go`, the row-comparison advance in
+`go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint.go`, and the
+commit policy's strict-forward rule.
 
 ### 3.1 The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
 
@@ -223,7 +239,7 @@ eshu-sdk first, ruling section (c)):
 ### 3.2 Seed rotation: forward resumes, rollback refuses at commit
 
 The refresher re-pins year files daily and a year takes days to replay, so the
-seed rotates mid-year. The plan-time digest-equality hold (the "seed stale"
+seed rotates mid-year. Shipped in C1 (the collector stamp is #199). The plan-time digest-equality hold (the "seed stale"
 hold) is removed rather than amended: the coordinator cannot evaluate it,
 because it has no path to the seed manifest (the volume is read-write-once
 beside the extension host, ADR-0006) and the SDK claim carries only the scope.
@@ -277,7 +293,7 @@ cadence and the "one chunk per planner run" bound.
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
   `streak` counts consecutive hourly trip-latch samples with CVE-keyed inflow at
   or under 7,500 an hour and oldest dirty age at or under 96 hours; any other
-  sample resets it to 0. Migration 301 adds `soft_quiet_streak` to the latch row
+  sample resets it to 0. A migration after 301 adds `soft_quiet_streak` to the latch row
   (section 5, "Durable latch contract"). The rate at most doubles once an hour
   and only after an hour at or under half the trip rate, so if inflow scales
   with rate one step cannot cross the trip rate; a hot hour resets the pace to
@@ -405,7 +421,7 @@ rollback story are in
 [10728-baseline-trip-latch-contract.md](10728-baseline-trip-latch-contract.md),
 moved there unchanged under #10816 to keep this record under the Markdown line
 cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
-(migration 301).
+(a migration after 301, which C1 took).
 
 
 ## 6. Idempotency argument
@@ -469,10 +485,11 @@ Merge order from the ruling: S1, then C1, then K1; C2 after C1; #10746 after C2.
 - S1, eshu-sdk: the verdict-key vector with the position cases (ruling section
   (c)).
 - C1, core (eshu #10809, #10810, #10732): scope grammar, planner and checkpoint
-  with the resume position and the seed-rollback refusal, migration 300.
+  with the resume position and the seed-rollback refusal, migration 301.
+  Shipped for #10809 and #10810.
 - K1, collector #199: the record-atomic chunker, paged chunk, chunk budget
   config, verdict stamps.
-- C2, core pace: the drain gate, the adaptive interval, migration 301,
+- C2, core pace: the drain gate, the adaptive interval, a migration after 301,
   telemetry.
 - #10746: the enable lane over the above, without a seed-manifest input.
 - Proof gates per the ruling: disposable-DB run, R6-style idempotency, the "how

@@ -394,6 +394,10 @@ var migrationShippedChecksums = map[string]string{
 	// expiry candidate walk (migration 300; 299 went to #10767, which
 	// rolled first; EXPLAIN pin tracked in #10802).
 	"300_workflow_items_open_updated_idx.sql": "039ffd9df326c42133b4cbd1372301291fda0f208f2a79704342635f7df972b6",
+	// #10809/#10810: the NVD baseline resume position (CVE ID half), seed
+	// generation stamp, and chunk identity columns on the baseline checkpoints
+	// (migration 301; 300 is #10791's open work-items index).
+	"301_vulnerability_nvd_baseline_resume_position.sql": "f7b4d39baa6d460bd2dd33134082bd84dc99632c75dbe44be917f66e2d63aa92",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

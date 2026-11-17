@@ -28,7 +28,27 @@ const (
 	nvdBaselineYearSHAPayloadKey       = "nvd_baseline_year_sha256"
 	nvdBaselineYearCompletePayloadKey  = "nvd_baseline_year_complete"
 	nvdBaselineShouldAdvancePayloadKey = "nvd_baseline_should_advance"
+	// nvdBaselineAdvanceToCVEIDPayloadKey is the CVE ID half of the resume
+	// position advance_to names (eshu-hq/eshu#10809): the first record not
+	// emitted, in canonical form. Absent or empty means the start of the
+	// advance_to instant, which is also what a collector that predates the key
+	// stamps, so the commit stays safe against an old collector.
+	nvdBaselineAdvanceToCVEIDPayloadKey = "nvd_baseline_advance_to_cve_id"
+	// nvdBaselineYearGeneratedPayloadKey is the seed manifest's lastModified
+	// for the year in Unix microseconds, stamped beside the sha
+	// (eshu-hq/eshu#10810). The checkpoint writer orders seed rotation by it
+	// inside the commit transaction. Absent means the collector does not
+	// stamp it and the rollback guard stays out of the way. Both new keys
+	// mirror the shared verdict vector in eshu-sdk (eshu-hq/eshu-sdk#97); the
+	// pin bump that replays it lands separately.
+	nvdBaselineYearGeneratedPayloadKey = "nvd_baseline_year_generated_unix_us"
 )
+
+// FailureClassNVDBaselineSeedRollback marks a baseline generation whose commit
+// transaction found the stored seed newer than the chunk's (#10810). The
+// whole generation rolls back, the claim fails retryable with this class
+// instead of commit_failure, and the next plan re-mints the same position.
+const FailureClassNVDBaselineSeedRollback = vulnerabilitystore.FailureClassNVDBaselineSeedRollback
 
 // FailureClassNVDBaselineWindowWriterArmed marks a baseline generation
 // that would have armed the NVD window cursor writer (#10728). The claim
@@ -49,17 +69,23 @@ const FailureClassNVDBaselineWindowWriterArmed = "nvd_baseline_window_writer_arm
 //   - no snapshot, no baseline keys, or should-advance false: held, the
 //     facts commit and the checkpoint holds;
 //   - a verdict whose stamped identity covers nothing new (blank or
-//     malformed seed sha, an advance behind the chunk start, or an
-//     incomplete advance that does not move past it): not-covered, the
-//     facts commit and the checkpoint holds. A complete verdict may
-//     land exactly on the chunk start (see nvdBaselineAdvanceCovers);
+//     malformed seed sha, a malformed resume CVE ID or seed stamp, a
+//     position behind the chunk start, or an incomplete advance that does
+//     not move strictly past it): not-covered, the facts commit and the
+//     checkpoint holds. The position is the pair (advance_to, advance_to
+//     CVE ID) compared as a row, so a chunk that cuts inside one instant
+//     advances by its CVE ID. A complete verdict may land exactly on the
+//     chunk start (see nvdBaselinePositionCovers);
 //   - a consistent verdict: advanced, the checkpoint writer is armed to
 //     the committed chunk end, floored to a whole UTC millisecond.
 //
 // The host cannot re-resolve the seed manifest (it holds no seed handle
-// by design, mirroring the window host holding no storage handle), so the
-// seed-vs-manifest comparison stays a plan-time check (the stale-seed
-// hold): the commit path fails closed on shape and coverage only.
+// by design, mirroring the window host holding no storage handle), so seed
+// rotation is ordered where the stored seed is visible: the checkpoint
+// writer compares the stamped seed generation with the stored one inside the
+// commit transaction. A newer seed resumes (forward rotation); an older one,
+// or the same stamp under another sha, fails the claim with class
+// nvd_baseline_seed_rollback and rolls back the whole generation (#10810).
 //
 // It is safe for concurrent use: it holds only immutable configuration,
 // and the checkpoint store's compare-and-advance orders concurrent commits.
@@ -68,6 +94,9 @@ type NVDBaselineCommitPolicy struct {
 	instruments         *telemetry.Instruments
 	logger              *slog.Logger
 	clock               func() time.Time
+	// settlements holds each armed chunk's facts for the INFO line and the
+	// forward-rotation count until the commit lands.
+	settlements *baselineSettlements
 }
 
 var _ ClaimCommitPolicy = (*NVDBaselineCommitPolicy)(nil)
@@ -86,6 +115,7 @@ func NewNVDBaselineCommitPolicy(collectorInstanceID string, instruments *telemet
 		instruments:         instruments,
 		logger:              logger,
 		clock:               time.Now,
+		settlements:         newBaselineSettlements(),
 	}, nil
 }
 
@@ -96,10 +126,13 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 	observedAt time.Time,
 	envelopes []facts.Envelope,
 ) (ClaimCommitDecision, error) {
-	runID, year, chunkStart, ok := vulnsource.ParseNVDBaselineScope(item.ScopeID)
+	runID, year, chunkStart, chunkFromCVEID, ok := vulnsource.ParseNVDBaselineScope(item.ScopeID)
 	if !ok {
 		return ClaimCommitDecision{}, nil
 	}
+	// A retry of this item starts a new decision: drop what an earlier
+	// attempt that never committed left behind.
+	p.settlements.discard(item)
 	ctx := context.Background()
 	record := func(outcome string) {
 		p.instruments.RecordNVDBaselineAdvance(ctx, outcome)
@@ -137,6 +170,21 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 	advanceTo, advanceOK := payloadMicros(payload, nvdBaselineAdvanceToPayloadKey)
 	sha, _ := payload[nvdBaselineYearSHAPayloadKey].(string)
 	complete, _ := payload[nvdBaselineYearCompletePayloadKey].(bool)
+	advanceID := ""
+	if raw, found := payload[nvdBaselineAdvanceToCVEIDPayloadKey]; found && raw != nil {
+		id, isString := raw.(string)
+		if !isString {
+			// A non-string id is a malformed position; the sentinel is not
+			// canonical, so the reason check below names it.
+			id = "?"
+		}
+		advanceID = id
+	}
+	generated, generatedOK := int64(0), true
+	if _, found := payload[nvdBaselineYearGeneratedPayloadKey]; found {
+		generated, generatedOK = payloadMicros(payload, nvdBaselineYearGeneratedPayloadKey)
+	}
+	rawAdvanceTo := advanceTo
 	if advanceOK && advanceTo > 0 {
 		// Whole UTC milliseconds, the NVD wire form the scope id and the
 		// claim start also carry. A sub-millisecond stamp (collector#123
@@ -144,7 +192,9 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 		// stored resume can only re-read, never skip.
 		advanceTo = vulnsource.NormalizeNVDWindowTime(time.UnixMicro(advanceTo)).UnixMicro()
 	}
-	if reason := nvdBaselineNotCoveredReason(advanceOK, advanceTo, sha, chunkStart.UnixMicro(), complete); reason != "" {
+	start := nvdBaselinePosition{unixMicro: chunkStart.UnixMicro(), cveID: chunkFromCVEID}
+	end := nvdBaselinePosition{unixMicro: advanceTo, cveID: advanceID}
+	if reason := nvdBaselineNotCoveredReason(advanceOK, end, rawAdvanceTo, sha, generated, generatedOK, start, complete); reason != "" {
 		if p.logger != nil {
 			p.logger.Warn(nvdBaselineNotCoveredLogMessage,
 				"reason", reason,
@@ -160,10 +210,21 @@ func (p *NVDBaselineCommitPolicy) CommitPolicy(
 		observedAt = p.clock().UTC()
 	}
 	record(telemetry.NVDBaselineOutcomeAdvanced)
+	advance := vulnerabilitystore.NVDBaselineAdvance{
+		BaselineRunID:          runID,
+		Year:                   year,
+		ResumeUnixMicro:        advanceTo,
+		ResumeCVEID:            advanceID,
+		YearSHA256:             strings.TrimSpace(sha),
+		YearGeneratedUnixMicro: generated,
+		YearComplete:           complete,
+		ScopeID:                item.ScopeID,
+		GenerationID:           strings.TrimSpace(item.GenerationID),
+		ObservedAt:             observedAt.UTC(),
+	}
 	return ClaimCommitDecision{
-		Handled: true,
-		StateWriter: vulnerabilitystore.NVDBaselineCheckpointWriter(
-			runID, year, advanceTo, strings.TrimSpace(sha), complete, observedAt.UTC()),
+		Handled:     true,
+		StateWriter: p.checkpointWriter(item, advance, len(envelopes)),
 	}, nil
 }
 
@@ -181,45 +242,89 @@ const (
 	// nvdBaselineNotCoveredReasonSHAMalformed: the seed sha is blank or, after
 	// trimming surrounding whitespace, not 64 lowercase hex characters.
 	nvdBaselineNotCoveredReasonSHAMalformed = "sha_malformed"
-	// nvdBaselineNotCoveredReasonAdvanceBehindStart: advance_to is behind the
-	// chunk start (any verdict).
+	// nvdBaselineNotCoveredReasonPositionMalformed: the advance_to CVE ID is
+	// not canonical, or names a CVE ID inside an advance_to that is not a
+	// whole UTC millisecond (the CVE ID half is only meaningful on the whole
+	// instant the scope id carries).
+	nvdBaselineNotCoveredReasonPositionMalformed = "position_malformed"
+	// nvdBaselineNotCoveredReasonGeneratedMalformed: the seed generation stamp
+	// is present but not a non-negative number.
+	nvdBaselineNotCoveredReasonGeneratedMalformed = "generated_malformed"
+	// nvdBaselineNotCoveredReasonAdvanceBehindStart: the resume position is
+	// behind the chunk start (any verdict).
 	nvdBaselineNotCoveredReasonAdvanceBehindStart = "advance_behind_start"
 	// nvdBaselineNotCoveredReasonAdvanceNotPastStart: an incomplete verdict
-	// whose floored advance_to equals the chunk start.
+	// whose position equals the chunk start.
 	nvdBaselineNotCoveredReasonAdvanceNotPastStart = "advance_not_past_start"
 )
 
-// nvdBaselineNotCoveredReason names why a stamped verdict covers nothing
-// new, or returns "" when it is consistent. advanceTo is the already
-// floored stamp. It mirrors nvdBaselineAdvanceCovers, split by cause so the
-// not_covered counter has a diagnosable log beside it.
-func nvdBaselineNotCoveredReason(advanceOK bool, advanceTo int64, sha string, chunkStartMicro int64, complete bool) string {
+// nvdBaselinePosition is a resume position: the whole-millisecond stamp in
+// Unix microseconds and the canonical CVE ID, empty for the start of the
+// instant. Positions order as the row (unixMicro, cveID) in byte order, the
+// order the collector cuts a chunk in and the checkpoint stores.
+type nvdBaselinePosition struct {
+	unixMicro int64
+	cveID     string
+}
+
+// compare orders two positions: negative when p is before other, zero when
+// equal, positive when after.
+func (p nvdBaselinePosition) compare(other nvdBaselinePosition) int {
 	switch {
-	case !advanceOK || advanceTo <= 0:
+	case p.unixMicro < other.unixMicro:
+		return -1
+	case p.unixMicro > other.unixMicro:
+		return 1
+	}
+	return strings.Compare(p.cveID, other.cveID)
+}
+
+// nvdBaselineNotCoveredReason names why a stamped verdict covers nothing
+// new, or returns "" when it is consistent. end is the already floored
+// position and rawAdvanceTo the stamp as the satellite sent it. It mirrors
+// nvdBaselinePositionCovers, split by cause so the not_covered counter has a
+// diagnosable log beside it.
+func nvdBaselineNotCoveredReason(
+	advanceOK bool,
+	end nvdBaselinePosition,
+	rawAdvanceTo int64,
+	sha string,
+	generated int64,
+	generatedOK bool,
+	start nvdBaselinePosition,
+	complete bool,
+) string {
+	switch {
+	case !advanceOK || end.unixMicro <= 0:
 		return nvdBaselineNotCoveredReasonAdvanceMissing
 	case !isBaselineYearSHA(sha):
 		return nvdBaselineNotCoveredReasonSHAMalformed
-	case advanceTo < chunkStartMicro:
+	case end.cveID != "" && (!vulnsource.IsCanonicalNVDBaselineCVEID(end.cveID) || rawAdvanceTo != end.unixMicro):
+		return nvdBaselineNotCoveredReasonPositionMalformed
+	case !generatedOK || generated < 0:
+		return nvdBaselineNotCoveredReasonGeneratedMalformed
+	case end.compare(start) < 0:
 		return nvdBaselineNotCoveredReasonAdvanceBehindStart
-	case !nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro, complete):
+	case !nvdBaselinePositionCovers(end, start, complete):
 		return nvdBaselineNotCoveredReasonAdvanceNotPastStart
 	}
 	return ""
 }
 
-// nvdBaselineAdvanceCovers applies the advance_to contract: advance_to is
-// the whole-millisecond, exclusive next-group stamp the next chunk starts
-// from, so an incomplete verdict must move strictly past the chunk start;
-// anything else would re-mint the same scope forever. A complete verdict
-// may land exactly on the start: a chunk that resumes at the stream tail
-// finds nothing left and has no later stamp to name, but still carries the
-// one fact the planner needs (the year is whole). No verdict may move
-// behind the start (#10761).
-func nvdBaselineAdvanceCovers(advanceTo, chunkStartMicro int64, complete bool) bool {
-	if advanceTo > chunkStartMicro {
+// nvdBaselinePositionCovers applies the advance_to contract: the position is
+// an inclusive lower bound naming the first record not emitted, so an
+// incomplete verdict must move strictly past the chunk start in (stamp, CVE
+// ID) order; anything else would re-mint the same scope forever. A complete
+// verdict may land exactly on the start: a chunk that resumes at the stream
+// tail finds nothing left and has no later position to name, but still
+// carries the one fact the planner needs (the year is whole). No verdict may
+// move behind the start (#10761, #10809).
+func nvdBaselinePositionCovers(end, start nvdBaselinePosition, complete bool) bool {
+	order := end.compare(start)
+	if order > 0 {
 		return true
 	}
-	return complete && advanceTo == chunkStartMicro
+	return complete && order == 0
 }
 
 // baselineWindowVerdictWouldArm reports whether the snapshot payload

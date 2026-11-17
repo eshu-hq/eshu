@@ -309,10 +309,20 @@ tests:
     class: postgres_ci
     reason: "#10037 disposable PostgreSQL proof that the GHSA rolling cursor advances only through the commit-transaction compare-and-advance per advisory-type stream: a missing row reads unset, a first advance stores, a stale candidate holds, sequential commits settle at the max in either order (open overlapping transactions would block on the row lock), a rolled-back transaction leaves the cursor, and the two streams stay independent"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_identity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10810 disposable PostgreSQL proof that an unstamped baseline advance never clears a stored seed identity, that the stamp and sha travel together at an equal position, that a forward-rotation report requires the write the position check accepts, and that the resume_cve_id column compares in the C collation"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#10761 disposable PostgreSQL proof that the NVD baseline checkpoint advances only through the commit-transaction compare-and-advance: a stale resume leaves resume and sha untouched, an equal resume takes the newer sha, completion is sticky, updated_at never rewinds, and concurrent or overlapping advances serialize on the keyed row to the max resume"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_position_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10809 and #10810 disposable PostgreSQL proof that the NVD baseline checkpoint orders its resume position as the row (stamp, CVE ID) in byte order in either commit order, and that the commit-transaction advance refuses a seed rollback (older stamp, or equal stamp under another sha) so the whole generation rolls back, including a rollback racing a newer commit that holds the row lock, while a forward rotation and a collector with no stamp resume"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~

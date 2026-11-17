@@ -19,8 +19,12 @@ import (
 // per plan call by the coordinator derivation; the trip set is the
 // transition label of eshu_dp_nvd_baseline_trip_transitions_total.
 const (
-	// NVDBaselineOutcomeAdvanced: the chunk advanced the checkpoint in its
-	// commit transaction.
+	// NVDBaselineOutcomeAdvanced: the commit policy accepted the verdict and
+	// armed the checkpoint writer. It is recorded at the decision, before the
+	// commit transaction runs, so the writer can still refuse a seed rollback
+	// (counted on the seed rotation counter's rollback direction) and a failed
+	// commit leaves the checkpoint where it was; the committed-chunk INFO line
+	// is the signal that the advance landed.
 	NVDBaselineOutcomeAdvanced = "advanced"
 	// NVDBaselineOutcomeHeld: no verdict or a hold verdict — facts commit,
 	// the checkpoint holds, the next plan replays the chunk.
@@ -58,6 +62,28 @@ const (
 	// (eshu-hq/eshu#10760); the trip stays open.
 	NVDBaselineTripCloseRefused = "close_refused"
 )
+
+// NVDBaselineSeedRotationDirections is the closed direction set of
+// eshu_dp_nvd_baseline_seed_rotations_total (eshu-hq/eshu#10810).
+const (
+	// NVDBaselineSeedRotationForward: the committed chunk read a newer seed
+	// than the stored one, so the lane resumed across the rotation.
+	NVDBaselineSeedRotationForward = "forward"
+	// NVDBaselineSeedRotationRollback: the candidate read an older seed than
+	// the stored one, so the commit transaction refused it and the whole
+	// generation rolled back.
+	NVDBaselineSeedRotationRollback = "rollback"
+)
+
+var nvdBaselineSeedRotationDirections = [...]string{
+	NVDBaselineSeedRotationForward,
+	NVDBaselineSeedRotationRollback,
+}
+
+// NVDBaselineSeedRotationDirectionSet returns the closed, ordered direction set.
+func NVDBaselineSeedRotationDirectionSet() []string {
+	return slices.Clone(nvdBaselineSeedRotationDirections[:])
+}
 
 var nvdBaselineOutcomes = [...]string{
 	NVDBaselineOutcomeAdvanced,
@@ -133,6 +159,44 @@ func (inst *Instruments) RecordNVDBaselineTripTransition(ctx context.Context, tr
 	))
 }
 
+// RecordNVDBaselineSeedRotation counts one seed rotation seen by the baseline
+// checkpoint commit: forward or rollback. A direction outside the closed set
+// is dropped, so a typo never mints a label. Nil instruments or a nil counter
+// skip the signal.
+func (inst *Instruments) RecordNVDBaselineSeedRotation(ctx context.Context, direction string) {
+	if inst == nil || inst.NVDBaselineSeedRotations == nil {
+		return
+	}
+	if !slices.Contains(nvdBaselineSeedRotationDirections[:], direction) {
+		return
+	}
+	inst.NVDBaselineSeedRotations.Add(ctx, 1, metric.WithAttributes(attribute.String("direction", direction)))
+}
+
+// RecordNVDBaselineProgress records the latest run-wide baseline progress
+// planned from the stored checkpoints: years replayed whole of the years the
+// run covers, and records done of the records the started years hold. Values,
+// never labels, carry the figures; negative inputs clamp to zero. Nil
+// instruments or nil gauges skip the signal.
+func (inst *Instruments) RecordNVDBaselineProgress(ctx context.Context, yearsComplete, yearsTotal, recordsDone, recordsTotal int64) {
+	if inst == nil {
+		return
+	}
+	record := func(gauge metric.Int64Gauge, value int64) {
+		if gauge == nil {
+			return
+		}
+		if value < 0 {
+			value = 0
+		}
+		gauge.Record(ctx, value)
+	}
+	record(inst.NVDBaselineYearsComplete, yearsComplete)
+	record(inst.NVDBaselineYearsTotal, yearsTotal)
+	record(inst.NVDBaselineRecordsDone, recordsDone)
+	record(inst.NVDBaselineRecordsTotal, recordsTotal)
+}
+
 // RecordNVDBaselineDirtySample records the latest trip-line probe: the
 // trailing-hour NVD-proxy dirty rate and the oldest pending dirty age in
 // seconds. Values, never labels, carry the figures. Nil instruments or
@@ -193,6 +257,41 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineOldestDirtyAge gauge: %w", err)
+	}
+	inst.NVDBaselineSeedRotations, err = meter.Int64Counter(
+		"eshu_dp_nvd_baseline_seed_rotations_total",
+		metric.WithDescription("Total NVD baseline seed rotations seen in the checkpoint commit transaction (#10810): forward (the chunk read a newer seed than the stored one; the lane resumes) and rollback (the chunk read an older seed; the commit refuses and the whole generation rolls back with class nvd_baseline_seed_rollback)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineSeedRotations counter: %w", err)
+	}
+	inst.NVDBaselineYearsComplete, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_years_complete",
+		metric.WithDescription("Latest planned count of baseline years replayed whole in the run (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineYearsComplete gauge: %w", err)
+	}
+	inst.NVDBaselineYearsTotal, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_years_total",
+		metric.WithDescription("Latest planned count of years the baseline run covers, first year 2002 through the configured last_year (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineYearsTotal gauge: %w", err)
+	}
+	inst.NVDBaselineRecordsDone, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_records_done",
+		metric.WithDescription("Latest planned sum of records committed across the baseline run's started years; 0 until the collector reports its record counts (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineRecordsDone gauge: %w", err)
+	}
+	inst.NVDBaselineRecordsTotal, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_records_total",
+		metric.WithDescription("Latest planned sum of records the baseline run's started years hold; 0 until the collector reports its record counts (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineRecordsTotal gauge: %w", err)
 	}
 	return registerNVDBaselineTripLatch(meter, inst)
 }

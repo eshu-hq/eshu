@@ -109,3 +109,62 @@ func TestRecordNVDBaselineHelpersAreNilSafe(t *testing.T) {
 	nilInstruments.RecordNVDBaselineTripTransition(ctx, "opened")
 	nilInstruments.RecordNVDBaselineDirtySample(ctx, 0, 0)
 }
+
+// TestNVDBaselineSeedRotationAndProgressSignals pins the #10809/#10810
+// signals: the seed-rotation counter takes only its closed direction set (a
+// typo never mints a label), the progress gauges record values, and nil
+// instruments skip every signal.
+func TestNVDBaselineSeedRotationAndProgressSignals(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := testBaselineInstruments(t)
+	ctx := context.Background()
+	instruments.RecordNVDBaselineSeedRotation(ctx, NVDBaselineSeedRotationForward)
+	instruments.RecordNVDBaselineSeedRotation(ctx, NVDBaselineSeedRotationRollback)
+	instruments.RecordNVDBaselineSeedRotation(ctx, "sideways")
+	instruments.RecordNVDBaselineProgress(ctx, 3, 25, 1200, -5)
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	directions := map[string]int64{}
+	gauges := map[string]int64{}
+	for _, scopeMetrics := range rm.ScopeMetrics {
+		for _, m := range scopeMetrics.Metrics {
+			switch data := m.Data.(type) {
+			case metricdata.Sum[int64]:
+				if m.Name != "eshu_dp_nvd_baseline_seed_rotations_total" {
+					continue
+				}
+				for _, point := range data.DataPoints {
+					value, _ := point.Attributes.Value("direction")
+					directions[value.AsString()] += point.Value
+				}
+			case metricdata.Gauge[int64]:
+				for _, point := range data.DataPoints {
+					gauges[m.Name] = point.Value
+				}
+			}
+		}
+	}
+	if len(directions) != 2 || directions["forward"] != 1 || directions["rollback"] != 1 {
+		t.Fatalf("seed rotation points = %v, want exactly forward=1 and rollback=1 (an unknown direction is dropped)", directions)
+	}
+	want := map[string]int64{
+		"eshu_dp_nvd_baseline_years_complete": 3,
+		"eshu_dp_nvd_baseline_years_total":    25,
+		"eshu_dp_nvd_baseline_records_done":   1200,
+		"eshu_dp_nvd_baseline_records_total":  0,
+	}
+	for name, value := range want {
+		if got, ok := gauges[name]; !ok || got != value {
+			t.Fatalf("gauge %s = (%d, %v), want %d", name, got, ok, value)
+		}
+	}
+
+	var nilInstruments *Instruments
+	nilInstruments.RecordNVDBaselineSeedRotation(ctx, NVDBaselineSeedRotationForward)
+	nilInstruments.RecordNVDBaselineProgress(ctx, 1, 1, 1, 1)
+	(&Instruments{}).RecordNVDBaselineProgress(ctx, 1, 1, 1, 1)
+}

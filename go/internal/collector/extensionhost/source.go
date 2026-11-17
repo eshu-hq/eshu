@@ -119,6 +119,13 @@ func (s *Source) NextClaimed(
 	item workflow.WorkItem,
 ) (collector.CollectedGeneration, bool, error) {
 	attemptedAt := s.clock().UTC()
+	// A claim starts a new attempt: drop a post-commit settlement an earlier
+	// attempt of this item stashed but never committed, so the commit hook of
+	// this attempt (which runs for an unchanged result too, with no policy
+	// decision) cannot settle it as a commit that did not happen.
+	if settler, ok := s.commitPolicy.(ClaimCommitSettler); ok {
+		settler.DiscardClaimSettlement(item)
+	}
 	var relay claimRelay
 	collected, ok, result, origin, err := s.nextClaimed(ctx, item, &relay)
 	collected, ok, origin, err = s.recordClaimOutcome(ctx, item, attemptedAt, collected, ok, result, origin, err)

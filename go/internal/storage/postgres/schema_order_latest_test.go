@@ -36,4 +36,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// bound expiry candidate walk reads newest first; 299 went to #10767,
 	// which rolled first.
 	"workflow_items_open_updated_idx",
+	// Migration 301 (#10809, #10810) adds the baseline resume CVE ID, the
+	// seed generation stamp, and the chunk identity columns to the baseline
+	// checkpoints. 300 is #10791's open work-items index.
+	"vulnerability_nvd_baseline_resume_position",
 }

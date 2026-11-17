@@ -144,6 +144,10 @@ var extensionHostFailureClasses = []string{
 	// carrying a window advance verdict fails retryable and commits
 	// nothing, so the cursor CAS never sees a baseline candidate.
 	"nvd_baseline_window_writer_armed",
+	// NVD baseline seed rollback (#10809): the commit transaction refuses a
+	// baseline checkpoint write whose seed generation is older than the
+	// stored one, fails the claim retryable, and rolls the generation back.
+	"nvd_baseline_seed_rollback",
 }
 
 // firstPartyKinds is every collector kind the platform ships, derived from the
