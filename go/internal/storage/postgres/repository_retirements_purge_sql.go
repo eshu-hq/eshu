@@ -35,13 +35,17 @@ const (
 		GROUP BY status ORDER BY status`
 
 	// purgeGrantCountsQuery pre-counts the four grant tables the scope
-	// delete cascades, so the tombstone ledger reports what the cascade
-	// dropped. A cascade reports no counts of its own.
+	// delete cascades, plus the service evidence snapshots the leftover
+	// service_materialization_generations delete cascades (#10820), so the
+	// tombstone ledger reports what a cascade dropped. A cascade reports no
+	// counts of its own.
 	purgeGrantCountsQuery = `SELECT
 		(SELECT count(*) FROM tenant_scope_grants WHERE scope_id = ANY($1)),
 		(SELECT count(*) FROM tenant_repository_grants WHERE scope_id = ANY($1)),
 		(SELECT count(*) FROM identity_role_scope_targets WHERE scope_id = ANY($1)),
-		(SELECT count(*) FROM identity_role_repository_targets WHERE scope_id = ANY($1))`
+		(SELECT count(*) FROM identity_role_repository_targets WHERE scope_id = ANY($1)),
+		(SELECT count(*) FROM service_evidence_snapshots WHERE generation_id IN
+			(SELECT generation_id FROM service_materialization_generations WHERE scope_id = ANY($1)))`
 
 	// purgeDeleteReindexRequestsQuery drops the scope-keyed reindex rows.
 	// The fence already deleted them; the purge re-issues the delete so a
@@ -86,6 +90,53 @@ const (
 	// generation: a cycle only the deadlock detector could break.
 	purgeDeleteWriteAdmissionQuery = `DELETE FROM supply_chain_impact_write_admission
 		WHERE scope_id = ANY($1)`
+
+	// The #10820 leftover statements. Each table is plain TEXT-keyed with no
+	// foreign key, so the scope cascade never reaches it. The census rows
+	// (reducer/retirement/census.go) and docs/internal/evidence/10820-census-2e-purge.md
+	// carry the per-table writer, key and lock-order evidence; the positions
+	// that matter are:
+	//
+	//   - before the content deletes: the infra and config-artifact advisory
+	//     locks (purgeLockInfraRepositoryQuery's helpers), in retention's order;
+	//   - after the content_entities delete: infra_resource_entity_dirty_repos,
+	//     because the content delete re-marks the repository;
+	//   - after the ingestion_scopes delete: relationship_generations (the
+	//     writer locks its fact_work_items row first, which the cascade
+	//     locks) and the consumption dirty-scope mark (defensive: the
+	//     cascade's fact_records trigger would re-mark it, though the sidecar
+	//     prune earlier in the transaction currently suppresses that).
+	purgeDeleteReadinessWaitsQuery = `DELETE FROM reducer_readiness_waits WHERE scope_id = ANY($1)`
+	// purgeDeleteProjectionDecisionEvidenceQuery runs before its parent: the
+	// evidence rows carry no repository column, only the decision id.
+	purgeDeleteProjectionDecisionEvidenceQuery = `DELETE FROM projection_decision_evidence
+		WHERE decision_id IN (SELECT decision_id FROM projection_decisions WHERE repository_id = $1)`
+	purgeDeleteProjectionDecisionsQuery     = `DELETE FROM projection_decisions WHERE repository_id = $1`
+	purgeDeleteCrossplaneRedriveStateQuery  = `DELETE FROM crossplane_satisfied_by_redrive_state WHERE xrd_scope_id = ANY($1)`
+	purgeDeleteCrossplaneRedriveLedgerQuery = `DELETE FROM crossplane_satisfied_by_redrive_target_ledger WHERE target_scope_id = ANY($1)`
+	purgeDeleteServiceMaterializationQuery  = `DELETE FROM service_materialization_generations WHERE scope_id = ANY($1)`
+	purgeDeleteFingerprintsQuery            = `DELETE FROM code_function_fingerprint WHERE repo_id = $1`
+	purgeDeleteFingerprintBandsQuery        = `DELETE FROM code_fingerprint_band WHERE repo_id = $1`
+	purgeDeleteFunctionSummariesQuery       = `DELETE FROM function_summaries WHERE repo = $1`
+	purgeDeleteFunctionSourcesQuery         = `DELETE FROM function_sources WHERE repo = $1`
+	purgeDeleteFunctionGraphIDsQuery        = `DELETE FROM function_graph_ids WHERE repo = $1`
+	purgeDeleteContentRefDeltasQuery        = `DELETE FROM content_file_ref_deltas WHERE repo_id = $1`
+	purgeDeleteContentRefDeltaBasesQuery    = `DELETE FROM content_file_ref_delta_bases WHERE repo_id = $1`
+	purgeDeleteConfigArtifactPathsQuery     = `DELETE FROM config_artifact_paths WHERE repo_id = $1`
+	purgeDeleteInfraEntitiesQuery           = `DELETE FROM infra_resource_entities WHERE repo_id = $1`
+	purgeDeleteInfraDirtyReposQuery         = `DELETE FROM infra_resource_entity_dirty_repos WHERE repo_id = $1`
+	purgeDeleteConsumptionDirtyScopesQuery  = `DELETE FROM package_manifest_consumption_key_dirty_scopes WHERE scope_id = ANY($1)`
+	purgeDeleteRelationshipGenerationsQuery = `DELETE FROM relationship_generations WHERE scope = ANY($1)`
+
+	// purgeRelationshipGenerationIDsSQL selects the generation ids of the purge
+	// scopes from both maps: scope_generations (every generation the scope
+	// ever had, still present before the cascade) and relationship_generations
+	// (the generations cross-repo resolution activated). The relationship
+	// tables carry no scope column, so the generation id is their only link.
+	purgeRelationshipGenerationIDsSQL = `(SELECT generation_id FROM scope_generations WHERE scope_id = ANY($1)
+			UNION SELECT generation_id FROM relationship_generations WHERE scope = ANY($1))`
+	purgeDeleteRelationshipEvidenceQuery   = `DELETE FROM relationship_evidence_facts WHERE generation_id IN ` + purgeRelationshipGenerationIDsSQL
+	purgeDeleteRelationshipCandidatesQuery = `DELETE FROM relationship_candidates WHERE generation_id IN ` + purgeRelationshipGenerationIDsSQL
 
 	// purgeScopeGenerationIDsQuery lists every generation of the purge
 	// scopes so the key sidecar prune covers exactly the facts the scope

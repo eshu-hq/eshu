@@ -218,7 +218,7 @@ func stagePurgeWithDerivedScope(derivedFacts int64) (*fakeTransactionalDB, *fake
 			{rows: [][]any{{"rr_derived", derivedTestRepoID, "git-scope", "pending", "fenced"}}},
 			{rows: [][]any{{"git-scope"}, {derivedTestScopeID}}},
 			{rows: [][]any{}},
-			{rows: [][]any{{int64(0), int64(0), int64(0), int64(0)}}},
+			{rows: [][]any{{int64(0), int64(0), int64(0), int64(0), int64(0)}}},
 			{rows: [][]any{{derivedFacts}}},
 			{rows: [][]any{{"git-scope", "gen-1"}, {derivedTestScopeID, derivedTestGenerationID}}},
 		},

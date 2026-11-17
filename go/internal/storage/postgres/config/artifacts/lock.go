@@ -40,3 +40,12 @@ func lockRepository(ctx context.Context, tx db.Executor, repoID string) error {
 	}
 	return nil
 }
+
+// LockRepository takes one repository's config-artifact lock for the rest of
+// tx, through the same lockRepository every derive uses. Repository retirement
+// (#10820) calls it as the first purge statement that touches this read model,
+// so the purge waits for an in-flight derive's write transaction instead of
+// deleting config_artifact_paths rows that transaction then rewrites.
+func LockRepository(ctx context.Context, tx db.Executor, repoID string) error {
+	return lockRepository(ctx, tx, repoID)
+}
