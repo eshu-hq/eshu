@@ -140,15 +140,20 @@ gates:
     name: npm audit (fail on high/critical)
     category: frontend
     layer: hygiene
-    purpose: "Fails the build if npm audit finds any high- or critical-severity dependency vulnerability."
+    purpose: "Fails the build if npm audit finds any high- or critical-severity dependency vulnerability outside the single tracked GHSA-fc5q-39xc-vjpf exception (#10856)."
     tier: pre-push
     blocking: true
     triggers:
       - "package.json"
       - "package-lock.json"
+      - "apps/console/package.json"
+      - "apps/console/package-lock.json"
+      - ".github/workflows/frontend.yml"
+      - "scripts/verify-npm-audit-exceptions.sh"
+      - "scripts/test-verify-npm-audit-exceptions.sh"
     local:
-      command: "npm audit --audit-level=high"
-      test_command: ""
+      command: "bash scripts/verify-npm-audit-exceptions.sh && bash scripts/verify-npm-audit-exceptions.sh apps/console"
+      test_command: "bash scripts/test-verify-npm-audit-exceptions.sh"
     ci:
       workflow: frontend.yml
       job: "npm audit (fail on high/critical)"

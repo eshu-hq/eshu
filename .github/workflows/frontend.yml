@@ -378,5 +378,16 @@ jobs:
         run: npm ci
       - name: Report all advisories (non-blocking)
         run: npm audit || true
-      - name: Fail on high/critical advisories
-        run: npm audit --audit-level=high
+      # Single-GHSA exception (arbiter-ruled, tracked in #10856): picomatch
+      # GHSA-fc5q-39xc-vjpf has no patched release upstream, so the plain
+      # audit gate cannot go green. The wrapper below fails on ANY
+      # high/critical advisory except exactly that GHSA (fail-closed,
+      # including advisory objects without a URL). Remove the wrapper and
+      # restore `npm audit --audit-level=high` once any removal condition
+      # in #10856 holds (patched picomatch, toolchain drops picomatch).
+      - name: Fail on high/critical advisories except GHSA-fc5q-39xc-vjpf
+        shell: bash
+        run: scripts/verify-npm-audit-exceptions.sh
+      - name: Fail on high/critical advisories except GHSA-fc5q-39xc-vjpf (apps/console)
+        shell: bash
+        run: scripts/verify-npm-audit-exceptions.sh apps/console
