@@ -397,7 +397,7 @@ var migrationShippedChecksums = map[string]string{
 	// #10809/#10810: the NVD baseline resume position (CVE ID half), seed
 	// generation stamp, and chunk identity columns on the baseline checkpoints
 	// (migration 301; 300 is #10791's open work-items index).
-	"301_vulnerability_nvd_baseline_resume_position.sql": "bf0d3af64f0ef2882454c326b1f969aa95f83bfc84d46413f074834eda1d97fa",
+	"301_vulnerability_nvd_baseline_resume_position.sql": "f7b4d39baa6d460bd2dd33134082bd84dc99632c75dbe44be917f66e2d63aa92",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

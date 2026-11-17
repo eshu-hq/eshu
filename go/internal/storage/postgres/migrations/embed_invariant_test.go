@@ -265,7 +265,7 @@ import (
 // #10809/#10810 add 301_vulnerability_nvd_baseline_resume_position.sql (the
 // baseline resume CVE ID, seed generation stamp, and chunk identity columns;
 // 300 is #10791's open work-items index).
-const goldenBootstrapDefinitionsDigest = "9926f9860a5455814285c5c7699eb3c5bb3cbd7419356f2e9c861e457e95aa3a"
+const goldenBootstrapDefinitionsDigest = "a3b266132a45ab0fab1dcd625ba72872b27cc9ec5ef7f8ca4394cd4b5aa9cbad"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
