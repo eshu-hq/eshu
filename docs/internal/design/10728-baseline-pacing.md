@@ -9,6 +9,12 @@ the corpus) is settled YES by that ruling. Parent transport design:
 Measurements:
 [10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
 
+Completion time (corrected under #10811): about 63 days at one chunk per 30
+minutes, not the 151 hours first stated (section 2, "Scale check"). Baseline
+completion takes weeks at the current cadence and is not a pre-enable condition:
+enabling does not wait for the whole corpus, and the lane drains behind the trip
+line. Pacing (per-chunk cap and cadence) is the lever, not correctness.
+
 Refs #10728. Part of #9209.
 
 ## Hard constraints (from the ruling, decisions 2-4)
@@ -78,18 +84,42 @@ Dispositions at a boundary:
   `nvd_feed_collect.go`), exactly as the window path does (parent
   design, `10671-nvd-feed-transport-fallback.md`, "3. Overflow", second
   paragraph). It never loops
-  silently and never sheds. On the measured sample this route is unreachable
-  for fact count: the densest single record emits 2,048 facts (M5,
-  `10671-nvd-feed-measurements.md`, section "M5. Facts per record and the
-  backfill arithmetic"), under the 10,000 cap. The byte
-  side is NOT_CHECKED (per-fact byte sizes unmeasured).
+  silently and never sheds. The Modified-feed sample suggested this route was
+  unreachable for fact count (densest single record 2,048 facts, M5,
+  `10671-nvd-feed-measurements.md`). The year files disprove it for groups:
+  1,402 records at one stamp fold to 17,478 facts in the 2025 file and 1,581 to
+  14,156 in the 2026 file, so the lane cannot leave 2025 until a group drains
+  across chunks (collector #199, eshu #10809; defect 1 of
+  [the 2026-11-16 ruling](../arbiter/10671-collector-118-107-ruling-2026-11-16.md)).
 
-Scale check from first-hand inputs (proof script `/tmp/10728_baseline_pacing_proof.py`,
-`PROOF OK` 2026-11-16): 425,770 records (the ruling's Evidence section, API
-probe bullet) at the measured mean 7.07 facts/record (M5) give ~3.01M facts,
-~301-302 claims at the fact cap, ~151h at one chunk per 30-minute planner run
-(the ruling's Evidence "Scale" bullet says ~301 claims, ~150h). The
-arithmetic reproduces the ruling.
+Scale check (corrected under #10811). This section first extrapolated 425,770
+records at 7.07 facts per record (M5) to about 3.01M facts, about 301 claims at
+the 10,000-fact cap, and about 151 hours at one chunk per 30-minute planner run.
+Two inputs were wrong: the mean came from a Modified-feed sample, and the byte
+cap binds before the fact cap. The arbiter measured the real figures (defect 4 of
+[the 2026-11-16 ruling](../arbiter/10671-collector-118-107-ruling-2026-11-16.md)):
+
+| Quantity | Old figure | Measured figure |
+|---|---|---|
+| Facts in the corpus | about 3.01M | 5,039,862 |
+| Budget bytes per fact (`nvdFactBudgetBytes`) | not measured | 1,256 |
+| Facts per chunk at the binding cap | 10,000 (fact cap) | about 1,670 (2 MiB byte cap) |
+| Chunks (claims) | about 301 | about 3,000 |
+| Wall time at one chunk per 30 minutes | about 151 hours | about 63 days |
+
+Method: fold the cached year files with the satellite's folding, count the
+facts, then divide by the byte-cap chunk size. The byte cap is 2 MiB, so a chunk
+holds about 2,097,152 / 1,256 = 1,669 facts, below the 10,000-fact cap. Then
+5,039,862 / 1,670 is about 3,018 chunks, and 3,018 x 30 minutes is about
+1,509 hours, or about 63 days. The 5,039,862 count over the 425,782 year-file
+records is about 11.8 facts per record, which is why the Modified-feed mean of
+7.07 understated the load.
+
+The figure moves with its inputs. A larger per-chunk byte cap or a shorter
+cadence shortens it in proportion, and a different folding changes the fact count
+and the bytes per fact. The cadence floor is the 30-minute planner run (section
+4), so shortening the lane takes a higher per-chunk cap or a faster cadence under
+its own proof. Neither is part of this record.
 
 ## 3. Resumable checkpoint, distinct from `nvd/_window`
 
@@ -172,7 +202,8 @@ its own planner over the checkpoint instead of the cursor: one chunk per
 call, next start is the checkpointed group stamp, at most one chunk per
 planner run (ruling decision 2), which the parent design budgets as at most
 10,000 facts per 30 minutes (`10671-nvd-feed-transport-fallback.md`, the
-"Windows per planner run" row of the Limits table). The pace knob clamps at
+"Windows per planner run" row of the Limits table). The 2 MiB byte cap binds
+first on the measured corpus, at about 1,670 facts per chunk (section 2). The pace knob clamps at
 that floor: a configured `min_chunk_interval` below 30 minutes paces at 30
 minutes instead of speeding the lane, so the knob can only slow the lane,
 never remove the bound (eshu-hq/eshu#10762).
@@ -445,8 +476,9 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
 
 ## NOT_CHECKED (must be measured before any QA baseline run)
 
-- Per-fact byte sizes and folded facts per record under the satellite
-  (upper-bound M5 only; proof script flags the byte side NOT_CHECKED).
+- Per-fact byte size spread and folded facts per record by year. The corpus
+  totals are measured (section 2, "Scale check": 5,039,862 facts at 1,256
+  budget bytes each); the per-record maximum in bytes is not.
 - Dirty-log rows per committed NVD fact (unmeasured; M6,
   `10671-nvd-feed-measurements.md`, section "M6. The dirty log and who feeds
   it", first paragraph).
