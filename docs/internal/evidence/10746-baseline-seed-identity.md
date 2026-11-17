@@ -64,9 +64,14 @@ four also fail the hermetic unit assertions; the last two need the database.
 
 Observability Evidence: no new signal is needed, and the existing ones stay
 accurate. `eshu_dp_nvd_baseline_seed_rotations_total{direction="forward"}` now
-also counts a behind-position adoption, after the commit lands, because the
-probe reports exactly the write that moves the stored identity. A refused older
-seed after an adoption still counts `direction="rollback"`, logs WARN
+also counts a behind-position adoption, after the commit lands. The probe never
+reports a rotation that did not happen. It misses one case: when the checkpoint
+row did not exist when the probe ran and a concurrent first insert commits
+before the upsert, the upsert adopts the newer identity and no forward rotation
+is counted. That race predates this change and loses a count, never a guard. It
+is a reading of READ COMMITTED behavior, not a reproduced result: the live race
+test seeds the row first, so it does not cover this case. A refused older seed
+after an adoption still counts `direction="rollback"`, logs WARN
 `nvd baseline checkpoint refused a seed rollback` with failure class
 `nvd_baseline_seed_rollback`, and lands on the claim failure row under that
 class. The final positions differ between the two commit orders by design (a
@@ -77,5 +82,7 @@ position, to see which seed the year is on.
 
 - Behavior on a deployed host; no production code sets the baseline request
   fields yet.
+- The first-insert race under Observability Evidence: reasoned under READ
+  COMMITTED, not reproduced.
 - The live lane (`live-postgres-readiness`) does not gate merges; its result on
   the pushed head must be read directly.
