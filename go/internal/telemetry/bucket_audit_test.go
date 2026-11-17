@@ -60,6 +60,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_package_registry_observe_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_package_registry_generation_lag_seconds", Buckets: collectorBuckets},
 		{MetricName: "eshu_dp_vulnerability_intelligence_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
+		{MetricName: "eshu_dp_nvd_baseline_chunk_cycle_seconds", Buckets: nvdBaselineChunkCycleBuckets, Note: "plan-to-drained time of one baseline chunk: minutes to hours, one minute to one day"},
 		{MetricName: "eshu_dp_security_alert_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_ci_cd_run_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},
 		{MetricName: "eshu_dp_pagerduty_fetch_duration_seconds", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}},

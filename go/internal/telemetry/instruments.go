@@ -755,10 +755,19 @@ type Instruments struct {
 	// planned run-wide baseline progress (#10809): years replayed whole of
 	// the years the run covers, and records done of the records the started
 	// years hold. Values, never labels, carry the figures.
-	NVDBaselineYearsComplete         metric.Int64Gauge
-	NVDBaselineYearsTotal            metric.Int64Gauge
-	NVDBaselineRecordsDone           metric.Int64Gauge
-	NVDBaselineRecordsTotal          metric.Int64Gauge
+	NVDBaselineYearsComplete metric.Int64Gauge
+	NVDBaselineYearsTotal    metric.Int64Gauge
+	NVDBaselineRecordsDone   metric.Int64Gauge
+	NVDBaselineRecordsTotal  metric.Int64Gauge
+	// NVDBaselinePlanHolds counts plan calls that minted no baseline chunk
+	// because the lane held (#10814), labeled by the closed hold reason.
+	NVDBaselinePlanHolds metric.Int64Counter
+	// NVDBaselinePaceInterval records the latest per-year pace interval the
+	// planner applied, in seconds (#10814).
+	NVDBaselinePaceInterval metric.Float64Gauge
+	// NVDBaselineChunkCycle records each committed chunk's plan-to-drained
+	// time in seconds (#10814).
+	NVDBaselineChunkCycle            metric.Float64Histogram
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter
