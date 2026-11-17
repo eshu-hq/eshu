@@ -77,8 +77,9 @@ func TestNegatedProductsRetractThePreviouslyWrittenFindingThroughTheWriter(t *te
 	prior.fencingToken = first.write.FencingToken
 	beginner.state.stored = []fakeStoredFinding{prior}
 	// The fake store does not run SQL; tell it the retraction tombstoned the one
-	// stale row, as Postgres would for the NOT IN keep-set statement.
-	beginner.state.rowsAffected = map[string]int64{retractSupersededSupplyChainImpactFindingsQuery: 1}
+	// stale row and marked its one key, as Postgres would for the NOT IN
+	// keep-set statement.
+	beginner.state.retractCounts = map[string][2]int64{retractSupersededSupplyChainImpactFindingsQuery: {1, 1}}
 	secondIssuer := newTestImpactFencingTokenIssuer()
 	secondIssuer.next.Store(first.write.FencingToken)
 	secondHandler := SupplyChainImpactHandler{

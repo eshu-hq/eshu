@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -13,12 +14,13 @@ import (
 
 // Capture of the supply-chain impact winners dirty log (#9805, ruling B).
 //
-// Three capture owners append rows in the transaction that makes the change:
+// Three capture owners mark keys in the transaction that makes the change,
+// each as a key-ordered upsert that bumps only dirty_version (#10827):
 //
 //   - fact_upsert: CaptureWinnersDirtyFacts, called by the impact finding writer
 //     for every new or content-changed finding. The transaction holds the rows
-//     it appended and counts them when it commits.
-//   - fact_retract: the retract statement's own INSERT (writer_retract.go). The
+//     the upsert touched and counts them when it commits.
+//   - fact_retract: the retract statement's own upsert (writer_retract.go). The
 //     transaction holds that statement's affected rows and counts them when it
 //     commits.
 //   - activation, operator and scanner: the triggers of migrations 272 and 272a, on
@@ -29,15 +31,20 @@ import (
 // A change class no owner names is repaired by the audit and counted by
 // ..._backstop_repairs_total.
 
-// CaptureWinnersDirtyFacts appends the identifiers of the findings this
-// transaction wrote to the winners dirty log, in the same transaction, so the
-// log row commits or rolls back with the finding it names. It returns the rows
-// appended and holds them to count under source fact_upsert once the
-// transaction commits.
+// CaptureWinnersDirtyFacts upserts the identifiers of the findings this
+// transaction wrote into the winners dirty log, in the same transaction, so
+// the log row commits or rolls back with the finding it names. One row per
+// pending recompute unit (#10827): identifiers are sorted and deduplicated by
+// the conflict key before the statement runs, and the statement takes row
+// locks in that same key order while bumping only dirty_version, so a
+// re-mark of a queued key never appends a second row. It returns the rows
+// the upsert touched and holds them to count under source fact_upsert once
+// the transaction commits.
 func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	ctx context.Context,
 	identifiers []supplychaincore.WinnersDirtyIdentifier,
 ) (int64, error) {
+	identifiers = sortDedupWinnersDirtyIdentifiers(identifiers)
 	if len(identifiers) == 0 {
 		return 0, nil
 	}
@@ -56,6 +63,43 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	}
 	t.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactUpsert, rows)
 	return rows, nil
+}
+
+// sortDedupWinnersDirtyIdentifiers returns a copy of ids sorted by the dirty
+// log's fact conflict key (package_id, repository_id, subject_digest, c0,
+// advisory_id) with exact duplicates removed. The writer upsert takes row
+// locks in this same order (#10827), so sorting here keeps concurrent
+// multi-row writers from forming a lock-order cycle; the dedup keeps one
+// statement from marking one unit twice.
+func sortDedupWinnersDirtyIdentifiers(ids []supplychaincore.WinnersDirtyIdentifier) []supplychaincore.WinnersDirtyIdentifier {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]supplychaincore.WinnersDirtyIdentifier, len(ids))
+	copy(out, ids)
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.PackageID != b.PackageID {
+			return a.PackageID < b.PackageID
+		}
+		if a.RepositoryID != b.RepositoryID {
+			return a.RepositoryID < b.RepositoryID
+		}
+		if a.SubjectDigest != b.SubjectDigest {
+			return a.SubjectDigest < b.SubjectDigest
+		}
+		if a.C0 != b.C0 {
+			return a.C0 < b.C0
+		}
+		return a.AdvisoryID < b.AdvisoryID
+	})
+	kept := out[:1]
+	for _, id := range out[1:] {
+		if id != kept[len(kept)-1] {
+			kept = append(kept, id)
+		}
+	}
+	return kept
 }
 
 // RecordWinnersCapture holds the rows a statement of this transaction appended

@@ -43,4 +43,19 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 302 (#10814) adds the pace streak to the NVD baseline trip
 	// latch. 301 is #10809/#10810's resume position.
 	"vulnerability_nvd_baseline_trip_latch_streak",
+	// Migration 303 (#10827 R2) adds the dirty_version column the writer
+	// upserts bump.
+	"supply_chain_impact_winners_dirty_version",
+	// Migration 304 (#10827 R2) collapses the append-only backlog to the
+	// earliest mark per key.
+	"supply_chain_impact_winners_dirty_dedup",
+	// Migrations 305-306 (#10827 R2) add the partial unique indexes the
+	// writer upserts target: the fact five-tuple and the scope pair.
+	"supply_chain_impact_winners_dirty_log_fact_key_uniq",
+	"supply_chain_impact_winners_dirty_log_scope_key_uniq",
+	// Migrations 307-308 (#10827 R2) replace the 272 and 272a capture
+	// trigger functions with key-ordered upserts. They land after the
+	// indexes their ON CONFLICT clauses need.
+	"supply_chain_impact_winners_dirty_capture_upsert",
+	"supply_chain_impact_winners_scanner_capture_upsert",
 }

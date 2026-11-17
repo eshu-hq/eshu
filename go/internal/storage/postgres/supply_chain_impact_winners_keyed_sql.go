@@ -26,25 +26,29 @@ const (
 )
 
 // createWinnersKeyedConsumedSQL and admitWinnersKeyedWindowSQL admit one
-// bounded candidate window of the dirty log (#9805 chunked consume): the
-// oldest $1 rows by seq are copied into a temp table under the resweep's
-// single-flight lock, so no other tick can admit the same rows. Admission
-// copies instead of deleting: which rows the chunk actually applies is known
-// only after the identifier expansion and the identifier chunk bound, so the
-// DELETE (deleteWinnersKeyedAppliedDirtySQL, in the apply phase) removes
-// exactly the applied rows by seq and every other row stays queued. A row
-// committed after admission has a higher seq, is never in the window, and
-// stays for the next tick; a rollback changes nothing.
+// bounded candidate window of the dirty log (#9805 chunked consume, #10827
+// versioned): the oldest $1 rows by seq are copied into a temp table under
+// the resweep's single-flight lock, so no other tick can admit the same rows.
+// Admission copies instead of deleting: which rows the chunk actually applies
+// is known only after the identifier expansion and the identifier chunk bound,
+// so the lock-then-delete drain (deleteWinnersKeyedAppliedDirtySQL, in the
+// apply phase) removes exactly the applied rows by seq and every other row
+// stays queued. The copy carries each row's dirty_version: the drain rechecks
+// the locked log row against this admitted version, so a mark committed for
+// an admitted key after admission bumps the log past the snapshot and stays
+// queued for the next tick. A row committed after admission has a higher seq,
+// is never in the window, and stays for the next tick; a rollback changes
+// nothing.
 const createWinnersKeyedConsumedSQL = `
 CREATE TEMP TABLE winners_keyed_consumed (
     seq bigint, kind text, source text, package_id text, repository_id text, subject_digest text,
-    c0 text, advisory_id text, scope_id text, generation_id text, captured_at timestamptz
+    c0 text, advisory_id text, scope_id text, generation_id text, captured_at timestamptz, dirty_version bigint
 ) ON COMMIT DROP
 `
 
 const admitWinnersKeyedWindowSQL = `
 INSERT INTO ` + winnersKeyedConsumedTable + `
-SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id, captured_at
+SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id, captured_at, dirty_version
 FROM supply_chain_impact_winners_dirty_log
 ORDER BY seq
 LIMIT $1
@@ -379,78 +383,6 @@ deleted AS (
 )
 `
 
-// convertWinnersKeyedScopeRemainderSelectSQL is the read-only SELECT arm of
-// the scope-remainder convert below: the unapplied identifiers of partially
-// applied scope rows. Plan proofs EXPLAIN this arm instead of the INSERT, so
-// they measure the expansion-fan-out join without inserting.
-var convertWinnersKeyedScopeRemainderSelectSQL = `
-SELECT DISTINCT 'fact', c.source, si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
-FROM ` + winnersKeyedConsumedTable + ` AS c
-JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
-  ON si.scope_id = c.scope_id AND si.generation_id = c.generation_id
-WHERE c.kind = 'scope'
-  AND NOT ` + winnersKeyedChunkIdentMatch("si") + `
-  AND EXISTS (
-      SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS applied
-      WHERE applied.scope_id = c.scope_id AND applied.generation_id = c.generation_id
-        AND ` + winnersKeyedChunkIdentMatch("applied") + `
-  )
-`
-
-// convertWinnersKeyedScopeRemainderSQL turns the unapplied remainder of a
-// partially applied scope row into fact dirty rows (same source), so the
-// scope row can leave the log and the next tick resumes from named keys,
-// not from re-expanding the whole generation and re-applying its prefix.
-// A scope row with no applied identifier is left alone (nothing to resume from;
-// it re-expands next tick), and a fully applied one converts nothing.
-var convertWinnersKeyedScopeRemainderSQL = `
-INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)` + convertWinnersKeyedScopeRemainderSelectSQL
-
-// deleteWinnersKeyedAppliedDirtySQL deletes exactly the admitted dirty rows
-// this chunk applied, by seq, and tallies them by capture source: a fact row
-// whose identifier was probed, and a scope row whose expansion has no
-// unapplied identifier left — fully applied, or partially applied with its
-// remainder converted above (after conversion every unapplied identifier is
-// queued as a fact row, so the scope row's information survives its
-// deletion). Scope rows with nothing applied and fact rows of unapplied
-// identifiers stay queued. winnersDirtyTallyCTEs adds the NVD trip tally.
-var deleteWinnersKeyedAppliedDirtySQL = `
-WITH deleted AS (
-    DELETE FROM supply_chain_impact_winners_dirty_log AS d
-    USING ` + winnersKeyedConsumedTable + ` AS c
-    WHERE d.seq = c.seq
-      AND (
-          (c.kind = 'fact' AND ` + winnersKeyedChunkIdentMatch("c") + `)
-          OR (c.kind = 'scope' AND (
-              NOT EXISTS (
-                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS si
-                  WHERE si.scope_id = c.scope_id AND si.generation_id = c.generation_id
-                    AND NOT ` + winnersKeyedChunkIdentMatch("si") + `
-              )
-              OR EXISTS (
-                  SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS applied
-                  WHERE applied.scope_id = c.scope_id AND applied.generation_id = c.generation_id
-                    AND ` + winnersKeyedChunkIdentMatch("applied") + `
-              )
-          ))
-      )
-    RETURNING d.source, d.kind, d.captured_at, d.advisory_id, d.scope_id
-)` + winnersDirtyTallyCTEs + `
-SELECT source, count(*) FROM deleted GROUP BY source
-`
-
-// deleteWinnersKeyedAllDirtySQL is the over-cap fallback's delete: the full
-// rebuild recomputes every key, so every queued row is consumed, tallied by
-// source and, like the applied delete, by the NVD trip tally.
-const deleteWinnersKeyedAllDirtySQL = `
-WITH deleted AS (
-    DELETE FROM supply_chain_impact_winners_dirty_log
-    RETURNING source, kind, captured_at, advisory_id, scope_id
-)` + winnersDirtyTallyCTEs + `
-SELECT source, count(*) FROM deleted GROUP BY source
-`
-
 // stampWinnersWatermarkSQL stamps the watermark candidate for a tick that
 // consumed nothing: $1 is the DB-clock tick stamp S when the log is empty, or
 // the horizon H = min(captured_at) minus 1us when rows landed after admission
@@ -486,12 +418,20 @@ SELECT count(*), COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - min(captured_at
 FROM supply_chain_impact_winners_dirty_log
 `
 
-// captureWinnersDirtyFactsSQL appends the writer's changed identifiers to the
-// dirty log, in the writer's own transaction.
+// captureWinnersDirtyFactsSQL upserts the writer's changed identifiers into
+// the dirty log, in the writer's own transaction (#10827). One row per
+// pending recompute unit: a re-mark of a queued key bumps only
+// dirty_version, keeping the first mark's captured_at. The SELECT feeds rows
+// in conflict-key order (matching the Go sort in CaptureWinnersDirtyFacts),
+// so concurrent multi-row writers take row locks in one total order and
+// cannot form a lock-order cycle.
 const captureWinnersDirtyFactsSQL = `
 INSERT INTO supply_chain_impact_winners_dirty_log
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
 SELECT 'fact', 'fact_upsert', package_id, repository_id, subject_digest, c0, advisory_id
 FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
      AS ident(package_id, repository_id, subject_digest, c0, advisory_id)
+ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
+DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
 `
