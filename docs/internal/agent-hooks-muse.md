@@ -10,8 +10,13 @@ Read both before touching `.muse/hooks/`.
 `.muse/hooks.json` (committed) routes Muse lifecycle events to wrappers in
 `.muse/hooks/`. Each wrapper translates the Muse envelope to the Claude
 shape and delegates to the same file under `.claude/hooks/`, so one logic
-copy serves both harnesses. Wrappers are real files, not symlinks: hook
-payloads are per-harness (the canon rule in `agent-hooks.md` applies).
+copy serves both harnesses. The generic wrappers are kit symlinks, not
+copies: `install.sh --hooks --repo` links them from the pinned kit (same
+as `.claude/hooks/`), so they are git-ignored local material. The one
+exception is the eshu-owned `guard-spawn.sh` dispatch guard, a real
+committed file with no Claude sibling: hook payloads are per-harness
+(the canon rule in `agent-hooks.md` applies), and repo-specific guards
+are not part of the generic kit set.
 
 | Wrapper | Event | Muse matcher | Delegates to |
 |---|---|---|---|

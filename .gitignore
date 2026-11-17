@@ -91,6 +91,12 @@ docs/site/
 .codex/hooks/**
 .codex/skills/
 .codex/skills/**
+# Muse wrappers are kit material too: install.sh --hooks --repo links them
+# from the pinned kit into .muse/hooks/. Only the eshu-specific dispatch
+# guard and the project hooks.json stay tracked: they are this repo's own
+# harness wiring, not kit material.
+.muse/hooks/*
+!.muse/hooks/guard-spawn.sh
 .cursor/agents/
 .cursor/agents/**
 # The role launcher the kit installer links into scripts/. It is kit
