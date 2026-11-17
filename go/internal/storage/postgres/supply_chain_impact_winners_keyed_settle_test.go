@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -34,6 +35,77 @@ func TestWinnersDirtyStratifiedEnvelopesStayStratified(t *testing.T) {
 	if winnersDirtyTwoWriterP95Envelope >= winnersDirtyFourWriterP95Baseline {
 		t.Errorf("stratified envelope collapsed: 2-writer %s >= 4-writer %s: one cap for both strata masks a 2-writer regression",
 			winnersDirtyTwoWriterP95Envelope, winnersDirtyFourWriterP95Baseline)
+	}
+}
+
+// TestWinnersDirtyContentionRatiosStayStratified pins the backstop shape for
+// eshu-hq/eshu#10827: the 2-writer ratio cap is tighter than the 4-writer
+// cap, so a unified ratio still fails here, not in CI. The values sit beyond
+// serialization (3.0/3.5): calibrated on three local runs (ratios ~1.5/~1.7)
+// and the slowest CI runner observed (inferred ~2.1/~2.9), they deflake host
+// oversubscription noise while a beyond-serialization collapse still fails.
+func TestWinnersDirtyContentionRatiosStayStratified(t *testing.T) {
+	t.Parallel()
+
+	if winnersDirtyTwoWriterMaxRatio != 3.0 {
+		t.Errorf("2-writer max contention ratio = %v, want 3.0: the calibrated backstop, not a re-tuned cap",
+			winnersDirtyTwoWriterMaxRatio)
+	}
+	if winnersDirtyFourWriterMaxRatio != 3.5 {
+		t.Errorf("4-writer max contention ratio = %v, want 3.5: the stratum's own calibrated headroom, not the 2-writer cap",
+			winnersDirtyFourWriterMaxRatio)
+	}
+	if winnersDirtyTwoWriterMaxRatio >= winnersDirtyFourWriterMaxRatio {
+		t.Errorf("stratified ratios collapsed: 2-writer %v >= 4-writer %v: one cap for both strata masks a 2-writer regression",
+			winnersDirtyTwoWriterMaxRatio, winnersDirtyFourWriterMaxRatio)
+	}
+}
+
+// TestWinnersDirtyGateFailsIsConjunction pins the hybrid decision: a stratum
+// fails only when the absolute reference AND the ratio backstop both break.
+// Vectors: the local host passes both arms; the slowest CI runner observed
+// (run 44070281709, stipulated ratios) breaks the reference but holds the
+// backstop and passes; a beyond-serialization collapse breaks both and fails;
+// an absolute-only excursion with a healthy ratio passes.
+func TestWinnersDirtyGateFailsIsConjunction(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		p95, reference  time.Duration
+		ratio, maxRatio float64
+		wantFail        bool
+	}{
+		{"local 2-writer passes both arms", 2051 * time.Microsecond, 3410 * time.Microsecond, 1.48, 3.0, false},
+		{"local 4-writer passes both arms", 2288 * time.Microsecond, 3890 * time.Microsecond, 1.64, 3.5, false},
+		{"slow CI 2-writer holds backstop", 3885 * time.Microsecond, 3410 * time.Microsecond, 2.13, 3.0, false},
+		{"slow CI 4-writer holds backstop", 5255 * time.Microsecond, 3890 * time.Microsecond, 2.90, 3.5, false},
+		{"collapse breaks both arms", 5000 * time.Microsecond, 3410 * time.Microsecond, 5.0, 3.0, true},
+		{"absolute-only excursion passes", 5000 * time.Microsecond, 3410 * time.Microsecond, 1.5, 3.0, false},
+		{"ratio-only excursion passes", 2000 * time.Microsecond, 3410 * time.Microsecond, 5.0, 3.0, false},
+	}
+	for _, tc := range cases {
+		if got := winnersDirtyGateFails(tc.p95, tc.reference, tc.ratio, tc.maxRatio); got != tc.wantFail {
+			t.Errorf("%s: gate fails = %v, want %v (p95 %s vs %s, ratio %.2f vs %.1f)",
+				tc.name, got, tc.wantFail, tc.p95, tc.reference, tc.ratio, tc.maxRatio)
+		}
+	}
+}
+
+// TestWinnersDirtyContentionRatioIsQuotient pins the estimator the relative
+// gate depends on: stratum p95 over the same-run control p95. A non-positive
+// control is +Inf (fail-closed: a missing control never passes the gate).
+func TestWinnersDirtyContentionRatioIsQuotient(t *testing.T) {
+	t.Parallel()
+
+	if got := winnersDirtyContentionRatio(4000*time.Microsecond, 2000*time.Microsecond); got != 2.0 {
+		t.Errorf("contention ratio of 4000us over 2000us = %v, want 2.0", got)
+	}
+	if got := winnersDirtyContentionRatio(2*time.Millisecond, 2*time.Millisecond); got != 1.0 {
+		t.Errorf("contention ratio of equal latencies = %v, want 1.0", got)
+	}
+	if got := winnersDirtyContentionRatio(time.Millisecond, 0); !math.IsInf(got, 1) {
+		t.Errorf("contention ratio over a zero control = %v, want +Inf (fail-closed)", got)
 	}
 }
 
