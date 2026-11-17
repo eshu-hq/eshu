@@ -27,15 +27,17 @@ type purgeKeyedDelete struct {
 // service evidence snapshots) cascade, so the ledger pre-counts them here;
 // everything else reports its own delete count. The advisory locks come first
 // so the purge waits out an in-flight derive before it touches a row that
-// derive rewrites. The impact write-admission delete belongs before the scope
-// cascade to match the impact writer's lock order (see
-// purgeDeleteWriteAdmissionQuery); the pass-state delete and the statements
-// listed in deletePurgeAfterCascade are the opposite and stay after it.
+// derive rewrites, within the request's derive-lock budget. The impact
+// write-admission delete belongs before the scope cascade to match the impact
+// writer's lock order (see purgeDeleteWriteAdmissionQuery); the pass-state
+// delete and the statements listed in deletePurgeAfterCascade are the opposite
+// and stay after it.
 func deletePurgeLeftovers(
 	ctx context.Context,
 	tx db.Transaction,
 	repoID string,
 	scopeIDs []string,
+	budget *deriveLockBudget,
 ) (map[string]int64, time.Duration, error) {
 	ledger := make(map[string]int64)
 	cascaded, err := scanGrantCounts(ctx, tx, scopeIDs)
@@ -45,7 +47,7 @@ func deletePurgeLeftovers(
 	for table, count := range cascaded {
 		ledger[table] = count
 	}
-	lockWait, err := lockPurgeDerivedModels(ctx, tx, repoID)
+	lockWait, err := lockPurgeDerivedModels(ctx, tx, repoID, budget)
 	if err != nil {
 		return ledger, lockWait, err
 	}
@@ -103,29 +105,84 @@ func purgeLeftoverDeletes(repoID string, scopeIDs []string) []purgeKeyedDelete {
 	}
 }
 
-// purgeDeriveLockBudget bounds the wait for the two derive advisory locks. It
-// matches the config-artifact derive deadline (config/artifacts/derive.go), so a
-// purge never waits longer than one derive is allowed to run.
+// purgeDeriveLockBudget bounds one wait for a derive advisory lock. It matches
+// the config-artifact derive deadline (config/artifacts/derive.go), so a purge
+// never waits longer than one derive is allowed to run.
 const purgeDeriveLockBudget = 10 * time.Second
 
+// purgeRequestDeriveLockBudget bounds all the derive-lock waiting of one
+// PurgeRetired call. PostgreSQL applies lock_timeout to each lock attempt, not
+// to the transaction, so the per-lock bound alone leaves a 25-repository request
+// up to 25 x 2 x 10 s = 500 s of waiting. 30 s is the margin the fence deadline
+// (retirementFenceDeadline, 5 min 30 s) leaves inside the API server's 6 min
+// write deadline.
+const purgeRequestDeriveLockBudget = 30 * time.Second
+
+// purgeDeriveLockFloor is the smallest lock_timeout the purge sets. Once the
+// request budget is spent, each remaining repository still gets one short
+// attempt per lock: a free lock purges, a held one reports derive_lock_busy.
+// PostgreSQL reads a lock_timeout of 0 as "never time out", so the purge never
+// sets less than this.
+const purgeDeriveLockFloor = 100 * time.Millisecond
+
 // purgeBoundDeriveLockSQL saves the transaction's current lock_timeout in a
-// transaction-local setting, then sets the derive-lock budget ($1, a
+// transaction-local setting, then sets the first derive-lock wait ($1, a
 // lockTimeoutSetting value). The saved value is read inside the FROM subquery so
-// it is captured before the budget replaces it.
+// it is captured before the wait replaces it.
 const purgeBoundDeriveLockSQL = `SELECT set_config('lock_timeout', $1, true)
 FROM (SELECT set_config('eshu.purge_prior_lock_timeout', current_setting('lock_timeout'), true)) AS saved`
+
+// purgeSetLockTimeoutSQL sets the second derive-lock wait ($1) and leaves the
+// saved value alone. It must not be purgeBoundDeriveLockSQL: by then
+// current_setting('lock_timeout') is the first wait, so saving again would make
+// the restore leave that wait on the deletes.
+const purgeSetLockTimeoutSQL = `SELECT set_config('lock_timeout', $1, true)`
 
 // purgeRestoreLockTimeoutSQL puts back the lock_timeout purgeBoundDeriveLockSQL
 // saved, so the deletes after the locks keep the wait behavior they had.
 const purgeRestoreLockTimeoutSQL = `SELECT set_config('lock_timeout', current_setting('eshu.purge_prior_lock_timeout'), true)`
 
+// deriveLockBudget is the derive-lock waiting one PurgeRetired call has left.
+// The call owns it and runs its repositories one after another, so it needs no
+// lock. Never store it on a RetirementPurger: concurrent requests share the
+// purger, and a request that spent its budget must not shorten the next one.
+type deriveLockBudget struct {
+	now       func() time.Time
+	remaining time.Duration
+}
+
+func newDeriveLockBudget(now func() time.Time) *deriveLockBudget {
+	return &deriveLockBudget{now: now, remaining: purgeRequestDeriveLockBudget}
+}
+
+// timeout is the lock_timeout for the next lock statement: what is left of the
+// request budget, at most purgeDeriveLockBudget and at least
+// purgeDeriveLockFloor. It is never zero and never above one lock wait, so a
+// lockTimeoutSetting of it is always a real bound.
+func (b *deriveLockBudget) timeout() time.Duration {
+	return min(max(b.remaining, purgeDeriveLockFloor), purgeDeriveLockBudget)
+}
+
+// spend subtracts the time one lock statement took since started, whether it
+// acquired the lock or timed out. A clock that steps backwards never refunds
+// budget.
+func (b *deriveLockBudget) spend(started time.Time) {
+	if elapsed := b.now().Sub(started); elapsed > 0 {
+		b.remaining -= elapsed
+	}
+}
+
 // deriveLockBusyError reports that a derive advisory lock stayed held past the
-// purge's budget. Nothing has been written when it is returned, so the
+// purge's wait for it. Nothing has been written when it is returned, so the
 // transaction rolls back clean and the fenced tombstone stays open for a retry.
 type deriveLockBusyError struct {
 	lock string
+	// wait is the time this repository spent on its derive locks so far.
 	wait time.Duration
-	err  error
+	// timeout is the lock_timeout in force for the lock that timed out: the
+	// full per-lock wait, less as the request budget runs down, or the floor.
+	timeout time.Duration
+	err     error
 }
 
 func (e *deriveLockBusyError) Error() string {
@@ -143,32 +200,52 @@ func (e *deriveLockBusyError) Unwrap() error { return e.err }
 // content rows while waiting on a lock a retention batch holds before it
 // needs those rows. The locks release with the purge transaction.
 //
-// The wait is bounded by a transaction-local lock_timeout of
-// purgeDeriveLockBudget, restored once both locks are held. A timeout (55P03)
-// returns a *deriveLockBusyError; the purge reports it as the designed
-// derive_lock_busy exit. The elapsed time is returned for the completion log.
-func lockPurgeDerivedModels(ctx context.Context, tx db.Transaction, repoID string) (time.Duration, error) {
-	started := time.Now()
-	if _, err := tx.ExecContext(ctx, purgeBoundDeriveLockSQL, lockTimeoutSetting(purgeDeriveLockBudget)); err != nil {
-		return time.Since(started), fmt.Errorf("retirement purge: bound derive lock wait: %w", err)
-	}
-	if err := inventory.LockRepository(ctx, tx, repoID); err != nil {
-		return time.Since(started), classifyDeriveLockError("infra inventory", started, err)
-	}
-	if err := artifacts.LockRepository(ctx, tx, repoID); err != nil {
-		return time.Since(started), classifyDeriveLockError("config artifact", started, err)
+// Each wait is bounded by a transaction-local lock_timeout taken from the
+// request's budget just before the lock statement (see deriveLockBudget), and
+// the statement's elapsed time comes off the budget whether it acquired the
+// lock or timed out. The first setting saves the transaction's prior
+// lock_timeout; the restore puts it back once both locks are held. A timeout
+// (55P03) returns a *deriveLockBusyError; the purge reports it as the designed
+// derive_lock_busy exit. The time spent on the locks is returned for the
+// completion log.
+func lockPurgeDerivedModels(
+	ctx context.Context,
+	tx db.Transaction,
+	repoID string,
+	budget *deriveLockBudget,
+) (time.Duration, error) {
+	started := budget.now()
+	for _, step := range []struct {
+		name  string
+		bound string
+		lock  func(context.Context, db.Executor, string) error
+	}{
+		{"infra inventory", purgeBoundDeriveLockSQL, inventory.LockRepository},
+		{"config artifact", purgeSetLockTimeoutSQL, artifacts.LockRepository},
+	} {
+		timeout := budget.timeout()
+		if _, err := tx.ExecContext(ctx, step.bound, lockTimeoutSetting(timeout)); err != nil {
+			return budget.now().Sub(started), fmt.Errorf("retirement purge: bound derive lock wait: %w", err)
+		}
+		attempt := budget.now()
+		err := step.lock(ctx, tx, repoID)
+		budget.spend(attempt)
+		if err != nil {
+			wait := budget.now().Sub(started)
+			return wait, classifyDeriveLockError(step.name, wait, timeout, err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, purgeRestoreLockTimeoutSQL); err != nil {
-		return time.Since(started), fmt.Errorf("retirement purge: restore lock timeout: %w", err)
+		return budget.now().Sub(started), fmt.Errorf("retirement purge: restore lock timeout: %w", err)
 	}
-	return time.Since(started), nil
+	return budget.now().Sub(started), nil
 }
 
 // classifyDeriveLockError turns a lock timeout into the blocked-exit error and
 // leaves every other failure a plain wrapped error.
-func classifyDeriveLockError(lock string, started time.Time, err error) error {
+func classifyDeriveLockError(lock string, wait, timeout time.Duration, err error) error {
 	if isLockTimeoutError(err) {
-		return &deriveLockBusyError{lock: lock, wait: time.Since(started), err: err}
+		return &deriveLockBusyError{lock: lock, wait: wait, timeout: timeout, err: err}
 	}
 	return fmt.Errorf("retirement purge: %w", err)
 }

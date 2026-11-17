@@ -98,7 +98,8 @@ const (
 	// that matter are:
 	//
 	//   - before the content deletes: the infra and config-artifact advisory
-	//     locks (purgeLockInfraRepositoryQuery's helpers), in retention's order;
+	//     locks (lockPurgeDerivedModels: inventory.LockRepository, then
+	//     artifacts.LockRepository), in retention's order;
 	//   - after the content_entities delete: infra_resource_entity_dirty_repos,
 	//     because the content delete re-marks the repository;
 	//   - after the ingestion_scopes delete: relationship_generations (the

@@ -48,7 +48,9 @@ with `retirement_id`, `repository_id`, `scope_id`, and `outcome`:
   re-POST (same key resumes) after fencing again. `scope_lock_busy` names
   reducer-retention contention; retry the fenced row. `derive_lock_busy` names
   a config-artifact or infra derive that held its advisory lock past the
-  purge's 10-second wait; retry the fenced row.
+  purge's wait for it: at most 10 seconds per lock and 30 seconds across one
+  request, after which each remaining repository gets a 100-millisecond
+  attempt; retry the fenced row.
 - `refused` — the fence or the mark stopped the request before any purge;
   see [Admin Route Failures](admin-failures.md).
 - `failed` — a step error: the purge attempt rolled back and the tombstone

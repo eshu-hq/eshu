@@ -75,8 +75,9 @@ so a commit holding the fairness key first would deadlock with it
 order: exclusive key, scope rows, `fact_work_items` table lock, `scope_generations`,
 pointer, work rows. The purge never queues behind an Ack on the derived scope row:
 `NOWAIT` reports `scope_lock_busy` and the operator's re-POST retries the fenced row.
-The two derive advisory locks the purge takes after that wait at most 10 s each (a
-transaction-local `lock_timeout` restored once both are held); a timeout reports
+The two derive advisory locks the purge takes after that wait at most 10 s each and at
+most 30 s in all across one request, then 100 ms per attempt (a transaction-local
+`lock_timeout` restored once both are held); a timeout reports
 `derive_lock_busy` with nothing written. Other
 scopes send the single barrier statement and the folded gate they always sent
 (`TestRepositoryCommitKeepsOneBarrierAndNoExtraRead`).

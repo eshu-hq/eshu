@@ -109,6 +109,11 @@ tests:
     class: postgres_ci
     reason: "#10820 disposable PostgreSQL 18 proof that the purge's derive advisory-lock wait is bounded: a parked holder of either lock makes the purge return derive_lock_busy within the 10 s budget with nothing written, the retry completes once the holder ends, and the budget restores the prior lock_timeout"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/repository_retirements_purge_requestbudget_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10820 disposable PostgreSQL 18 proof of the request-level derive advisory-lock budget: one purge request with parked holders on four repositories blocks the first three after about 10 s each and the fourth within 1 s once the 30 s budget is spent, a fifth repository with free locks completes, nothing is written for the blocked ones, the pooled lock_timeout is restored, and a re-POST purges the four once the holders end"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/work/items/cancel_live_test.go
     tag: ~
     class: postgres_ci
