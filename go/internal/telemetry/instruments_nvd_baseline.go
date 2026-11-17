@@ -291,10 +291,10 @@ func (inst *Instruments) RecordNVDBaselineHeldYears(ctx context.Context, reason 
 // chunk because the lane held, under its closed hold reason
 // (eshu-hq/eshu#10814). A hold that other years' chunks overrode (some year
 // planned while another waited) is not a hold of the plan and is not counted
-// here; the plan span carries the failed and unprovable year counts. The
-// label is reason-only: no run, year, or scope ever becomes a label, and a
-// value outside the closed set records as other. Nil instruments or a nil
-// counter skip the signal.
+// here; eshu_dp_nvd_baseline_held_years and the plan span carry the failed,
+// unprovable, and retry-wait year counts. The label is reason-only: no run,
+// year, or scope ever becomes a label, and a value outside the closed set
+// records as other. Nil instruments or a nil counter skip the signal.
 func (inst *Instruments) RecordNVDBaselinePlanHold(ctx context.Context, reason string) {
 	if inst == nil || inst.NVDBaselinePlanHolds == nil {
 		return
@@ -367,7 +367,7 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselinePlans, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_plans_total",
-		metric.WithDescription("Total NVD baseline derivation verdicts per plan call (#10728): planned (one chunk minted), held (in-flight chunk, pace wait, missing or stale seed, open trip, trip latch never loaded, or invalid baseline config isolated to a hold per #10762; the hold reason rides the plan span), complete (every seed year reads complete)"),
+		metric.WithDescription("Total NVD baseline derivation verdicts per plan call (#10728): planned (one chunk minted), held (a claimed or draining chunk, a pace or retry wait, an open, never loaded, or stale trip latch, an unprovable or failed drain, or invalid baseline config isolated to a hold per #10762; the hold reason rides the plan span), complete (every seed year reads complete)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselinePlans counter: %w", err)
@@ -437,7 +437,7 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselinePlanHolds, err = meter.Int64Counter(
 		"eshu_dp_nvd_baseline_plan_holds_total",
-		metric.WithDescription("Total plan calls that minted no NVD baseline chunk because the lane held (#10814), by closed reason: baseline_chunk_in_flight (a claimed chunk or the in-flight year bound), baseline_projection_in_flight and baseline_reducer_in_flight (the prior chunk has not finished projecting or reducing), baseline_pace_wait and baseline_retry_wait (the pace interval or the retry wait has not passed), baseline_trip_open, baseline_trip_unloaded, and baseline_trip_stale (the trip latch is open, never loaded, or its last sample is older than 90 minutes), baseline_drain_unloaded (the drain probe failed or never ran), baseline_downstream_failed (a terminally failed projector or reducer item; other years keep planning, so the plan span carries the count), baseline_config_error (invalid baseline config)"),
+		metric.WithDescription("Total plan calls that minted no NVD baseline chunk because the lane held (#10814), by closed reason: baseline_chunk_in_flight (a claimed chunk or the in-flight year bound), baseline_projection_in_flight and baseline_reducer_in_flight (the prior chunk has not finished projecting or reducing), baseline_pace_wait and baseline_retry_wait (the pace interval or the retry wait has not passed), baseline_trip_open, baseline_trip_unloaded, and baseline_trip_stale (the trip latch is open, never loaded, or its last sample is older than 90 minutes or dated more than 2 minutes ahead), baseline_drain_unloaded (the drain probe failed or never ran), baseline_downstream_failed (a terminally failed projector or reducer item; other years keep planning, so eshu_dp_nvd_baseline_held_years carries the count), baseline_config_error (invalid baseline config)"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselinePlanHolds counter: %w", err)
