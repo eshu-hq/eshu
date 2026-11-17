@@ -60,11 +60,14 @@ service context for a current pointer.
   0.3 s warm (0.5 to 1.2 s on a first pass) on 3.6 million evidence rows with no
   orphans, 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the slow
   end when the planner reads the evidence table with a parallel sequential scan.
-  Those are timings from a shared development laptop; a re-run on a busier host
-  took a no-orphan pass up to 17 times as long. The census runs under a 60 s
-  statement timeout. A timeout fails the pass (`relationship_orphan_sweep`) and
-  nothing is swept, so run `VACUUM` after a large drain to keep the cheaper
-  index-only scan.
+  Those are timings from a shared development laptop, and re-runs on a busier
+  host were slower. With orphans (1.1 million evidence rows, together layout) a
+  pass took 209 to 531 ms in the re-run against 162 to 235 ms in the first run,
+  and with none (0.72 million rows) 97 to 823 ms against 49 to 55 ms. Whether
+  load can push the slowest case (8.5 s) past the 60 s statement timeout was not
+  measured. The census runs under that timeout. A timeout fails the pass
+  (`relationship_orphan_sweep`) and nothing is swept, so run `VACUUM` after a
+  large drain to keep the cheaper index-only scan.
 
 ## Operator gate before enabling deletes
 

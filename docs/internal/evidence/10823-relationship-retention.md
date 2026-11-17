@@ -104,10 +104,11 @@ table.
   to 56) were slower than the first S1 run on the same live rows: no-orphan
   census-only passes took 97 to 823 ms against 49 to 55 ms (2 to 17 times), and
   the no-orphan evidence statement 57 to 509 ms against 35.7 ms. With orphans in
-  the together layout the passes took 209 to 531 ms against 162 to 235 ms. A busy
-  host eats into the margin. Past roughly 40 million evidence rows with the slow
-  plan (a linear extrapolation from 5.6 million) it would fail the pass, and
-  nothing would be swept; there is no knob for it.
+  the together layout the passes took 209 to 531 ms against 162 to 235 ms. Whether
+  load can push the 8.5 s case past the 60 s timeout was not measured. Past
+  roughly 40 million evidence rows with the slow plan (a linear extrapolation from
+  5.6 million) it would fail the pass, and nothing would be swept; there is no
+  knob for it.
 - The sql.go comment quoted the design's 0.7 to 1.0 s on 3.3 million evidence
   rows. This run measured 0.2 to 0.3 s warm and 0.5 to 1.2 s on a first pass on 3.6 million rows,
   so the design figure sits between the cold and warm runs. The comment now
@@ -283,5 +284,7 @@ skipped-retry wrap survived until
   operator gate in the telemetry reference page is recorded.
 - Hub generations scattered over a large table were not measured for a plan
   flip; the purge note measured one at 1.43%.
-- The #10841 derive-lock budget commit was not present; the probes do not assert
-  the purge's own timing.
+- The purge's request-level derive-lock budget is not on main. It ships as a
+  separate follow-up (branch `drive/10820-purge-lock-budget`, not merged), so the
+  purge-interplay probes ran against the purge as merged in #10841. They do not
+  assert the purge's own timing. Re-run them when the follow-up lands.

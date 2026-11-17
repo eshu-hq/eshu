@@ -98,9 +98,11 @@ const lockTimeoutSetting = "500ms"
 // slow end when the planner read the evidence table with a parallel sequential
 // scan (docs/internal/evidence/10823-relationship-retention.md). A census that
 // outlives this bound fails the pass and is retried at the next poll. The bound
-// has about seven times the headroom of the slowest first run (8.5 s); a re-run
-// on a busier host took a no-orphan pass up to 17 times as long as the first
-// run, so a busy host eats into that margin. It must stay positive.
+// has about seven times the headroom of the slowest first run (8.5 s). Re-runs
+// on a busier host were slower. With orphans (1.1 million evidence rows, together
+// layout) a pass took 209 to 531 ms against 162 to 235 ms, and with none (0.72
+// million rows) 97 to 823 ms against 49 to 55 ms. Whether load can push the 8.5 s
+// case past this bound was not measured. It must stay positive.
 const censusStatementTimeoutSetting = "60s"
 
 // setLockTimeoutQuery and setStatementTimeoutQuery are SET LOCAL: they end with
