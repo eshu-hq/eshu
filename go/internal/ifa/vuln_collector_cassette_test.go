@@ -57,7 +57,10 @@ func TestVulnCollectorCassetteLoads(t *testing.T) {
 	if file.Collector != "vulnerability_intelligence" {
 		t.Errorf("collector = %q, want vulnerability_intelligence", file.Collector)
 	}
-	want := []string{vulnWindow1Scope, vulnWindow2Scope, vulnWindowXScope, vulnKEVScope, vulnEPSSScope}
+	want := []string{
+		vulnWindow1Scope, vulnWindow2Scope, vulnWindowXScope, vulnKEVScope, vulnEPSSScope,
+		vulnPublicAnalyzedWindowScope, vulnPublicRejectedWindowScope, vulnPublicKEVScope, vulnPublicEPSSScope,
+	}
 	slices.Sort(want)
 	got := make([]string, 0, len(file.Scopes))
 	for _, sc := range file.Scopes {
@@ -230,9 +233,9 @@ func assertHostScopeFields(t *testing.T, sc cassette.Scope, ingestion scope.Inge
 	t.Helper()
 	source := "nvd"
 	switch sc.ScopeID {
-	case vulnKEVScope:
+	case vulnKEVScope, vulnPublicKEVScope:
 		source = "cisa_kev"
-	case vulnEPSSScope:
+	case vulnEPSSScope, vulnPublicEPSSScope:
 		source = "first_epss"
 	}
 	wantPartition := "vulnerability_intelligence:" + vulnCollectorInstanceID + ":" + source

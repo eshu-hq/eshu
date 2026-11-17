@@ -69,12 +69,17 @@ authoring; it does not build a second coverage framework.
   because every assertion on an Odù built from nothing passes vacuously. Each
   Odù owns clones of its facts, so a test that edits one does not move another.
   The vulnerability collector's five Odùs live in `vuln_collector_odu.go`.
-  Every record in that cassette is synthetic (invented `CVE-2026-9000x` and
-  `CVE-2025-90006` ids, the made-up vendor `ifa-vendor`, reserved
-  `example.test` feed hosts). No real NVD, CISA KEV or FIRST EPSS record is
-  present. The `www.cisa.gov` and `www.first.org` links on the KEV and EPSS
-  snapshots are the source-terms attribution links the collector always
-  writes, not evidence of real data.
+  That cassette holds five synthetic scopes (invented `CVE-2026-9000x` and
+  `CVE-2025-90006` ids, the made-up vendor `ifa-vendor`) and four scopes of
+  real public records an operator captured once: `CVE-2020-10181` and
+  `CVE-2020-8644` from NVD with their CISA KEV entries and FIRST EPSS scores,
+  and the Rejected `CVE-2017-20051` from NVD. The collector repository keeps
+  the raw responses with their source URL, retrieval date, license and
+  attribution in `testdata/ifa/public`. Feed URLs are still reserved
+  `example.test` hosts, and the `www.cisa.gov` and `www.first.org` links on the
+  KEV and EPSS snapshots are the source-terms attribution links the collector
+  always writes. No Odù selects a real-record scope yet; the whole-cassette
+  contract tests cover them.
   A cassette-backed Odù proves the payload and stable-key contract, not
   production fact ids: a replay stamps `CassetteReplay` fact ids through
   `cassette.DeriveFactID`, while the real extension host stamps
