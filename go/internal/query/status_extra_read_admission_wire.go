@@ -75,6 +75,26 @@ var (
 // for the legs below. A nil handler yields nil; nil halves stay nil and
 // each leg guards its own port — the same fail-closed shape as the
 // direct narrow reads this replaces.
+//
+// No-Regression Evidence: this lane's handler change is same-shape —
+// field-type swaps to pin types plus one struct literal and nil checks
+// per request (below); no I/O, locks, goroutines, or meaningful new
+// allocation. Baseline: the 13 TestQueryRootDrained pin-test packages
+// plus the query package suite green at the frozen base (core
+// e2496962df). After: the same suites green at this head (13/13 drain
+// packages; go test ./internal/query/... -count=1). Input shape
+// unchanged (same routes and params; suppression/parity tests pin the
+// filter threading); terminal tombstone/count assertions unchanged.
+// Backend/version: Go 1.26.11 with in-memory and fake stores; the
+// pre-existing BenchmarkNeo4jReaderHealthyPolicyOverhead covers the
+// shared reader policy, untouched by this lane. Error paths unchanged:
+// nil embeds keep the standing 503/omit behavior, covered by the
+// fail-closed tests.
+//
+// No-Observability-Change: no new metrics, logs, or traces in this
+// lane (verified: no log/metric calls added); the existing status,
+// parser, reducer, graph, and query signals already diagnose these
+// legs, so no new signal is needed.
 func (h *StatusHandler) extraAdmission() *statusExtraReadAdmission {
 	if h == nil {
 		return nil
