@@ -5,6 +5,7 @@ package extensionhost
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -31,14 +32,45 @@ func baselineWriterArgs(t *testing.T, payload map[string]any) []any {
 	if collected.StateWriter == nil {
 		return nil
 	}
-	recorder := &recordingCommitExecutor{}
+	recorder := &affectedCommitExecutor{}
 	if err := collected.StateWriter(context.Background(), recorder); err != nil {
 		t.Fatalf("StateWriter() error = %v", err)
 	}
-	if len(recorder.args) != 1 {
-		t.Fatalf("StateWriter() ran %d statements, want one", len(recorder.args))
+	return recorder.advanceArgs(t)
+}
+
+// affectedCommitExecutor records every statement and reports one affected row
+// for each (the advance touched its row). counts, when set, scripts the
+// affected rows per call, so a test can stand in for a refused guard.
+type affectedCommitExecutor struct {
+	queries []string
+	args    [][]any
+	counts  []int64
+}
+
+func (e *affectedCommitExecutor) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	e.queries = append(e.queries, query)
+	e.args = append(e.args, args)
+	count := int64(1)
+	if len(e.counts) > 0 {
+		count, e.counts = e.counts[0], e.counts[1:]
 	}
-	return recorder.args[0]
+	return affectedResult(count), nil
+}
+
+type affectedResult int64
+
+func (affectedResult) LastInsertId() (int64, error)   { return 0, nil }
+func (n affectedResult) RowsAffected() (int64, error) { return int64(n), nil }
+
+// advanceArgs returns the args of the checkpoint advance, the last statement
+// the writer ran (a stamped chunk probes for a forward rotation first).
+func (e *affectedCommitExecutor) advanceArgs(t *testing.T) []any {
+	t.Helper()
+	if len(e.args) == 0 {
+		t.Fatal("StateWriter() ran no statement, want the checkpoint advance")
+	}
+	return e.args[len(e.args)-1]
 }
 
 // TestBaselineCommitCompleteVerdictAtChunkStartArmsTheCheckpoint is the
@@ -60,8 +92,8 @@ func TestBaselineCommitCompleteVerdictAtChunkStartArmsTheCheckpoint(t *testing.T
 	if args[2] != testNVDBaselineChunkStartMicros {
 		t.Fatalf("resume arg = %v, want the chunk start %d", args[2], testNVDBaselineChunkStartMicros)
 	}
-	if args[4] != true {
-		t.Fatalf("complete arg = %v, want true", args[4])
+	if args[6] != true {
+		t.Fatalf("complete arg = %v, want true", args[6])
 	}
 }
 

@@ -180,6 +180,9 @@ func (s *Source) recordClaimOutcome(
 // second call) it does nothing. Errors are non-fatal by the observer
 // contract.
 func (s *Source) ObserveClaimedGenerationCommitted(ctx context.Context, item workflow.WorkItem) error {
+	if settler, ok := s.commitPolicy.(ClaimCommitSettler); ok {
+		settler.SettleClaimCommitted(ctx, item)
+	}
 	if s.outcomeRecorder == nil {
 		return nil
 	}
@@ -200,6 +203,9 @@ func (s *Source) ObserveClaimedGenerationRefused(
 	item workflow.WorkItem,
 	refusal collector.CommitRefusal,
 ) error {
+	if settler, ok := s.commitPolicy.(ClaimCommitSettler); ok {
+		settler.DiscardClaimSettlement(item)
+	}
 	if s.outcomeRecorder == nil {
 		return nil
 	}

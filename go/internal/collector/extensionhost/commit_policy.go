@@ -4,6 +4,7 @@
 package extensionhost
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -140,6 +141,28 @@ func (c *combinedClaimCommitPolicy) CommitPolicy(
 	}
 	return ClaimCommitDecision{}, nil
 }
+
+// SettleClaimCommitted implements ClaimCommitSettler by fanning out to the
+// member policies that implement it.
+func (c *combinedClaimCommitPolicy) SettleClaimCommitted(ctx context.Context, item workflow.WorkItem) {
+	for _, member := range c.members {
+		if settler, ok := member.(ClaimCommitSettler); ok {
+			settler.SettleClaimCommitted(ctx, item)
+		}
+	}
+}
+
+// DiscardClaimSettlement implements ClaimCommitSettler by fanning out to the
+// member policies that implement it.
+func (c *combinedClaimCommitPolicy) DiscardClaimSettlement(item workflow.WorkItem) {
+	for _, member := range c.members {
+		if settler, ok := member.(ClaimCommitSettler); ok {
+			settler.DiscardClaimSettlement(item)
+		}
+	}
+}
+
+var _ ClaimCommitSettler = (*combinedClaimCommitPolicy)(nil)
 
 // applyCommitPolicy runs the configured commit policy over one collected
 // generation that carries facts. A handled decision replaces the armed

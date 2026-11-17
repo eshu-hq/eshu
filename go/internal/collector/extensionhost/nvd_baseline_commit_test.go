@@ -83,7 +83,7 @@ func TestBaselineCommitArmsCheckpointWriterInTransaction(t *testing.T) {
 	if collected.StateWriter == nil {
 		t.Fatal("StateWriter = nil for an advancing baseline verdict, want the checkpoint writer armed")
 	}
-	recorder := &recordingCommitExecutor{}
+	recorder := &affectedCommitExecutor{}
 	if err := collected.StateWriter(context.Background(), recorder); err != nil {
 		t.Fatalf("StateWriter() error = %v", err)
 	}
@@ -97,8 +97,8 @@ func TestBaselineCommitArmsCheckpointWriterInTransaction(t *testing.T) {
 		t.Fatalf("baseline StateWriter() touches the window cursor table: %q", recorder.queries[0])
 	}
 	args := recorder.args[0]
-	if len(args) < 5 {
-		t.Fatalf("StateWriter() args = %v, want (run, year, resume, sha, complete)", args)
+	if len(args) < 7 {
+		t.Fatalf("StateWriter() args = %v, want (run, year, resume, cve id, sha, stamp, complete, ...)", args)
 	}
 	if args[0] != "baseline-2026-11" || args[1] != int64(2002) {
 		t.Fatalf("StateWriter() identity args = %v, want (baseline-2026-11, 2002)", args[:2])

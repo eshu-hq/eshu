@@ -27,6 +27,29 @@ func TestCensusClassifiesVulnerabilityTargetRefreshProgress(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesNVDBaselineCheckpoints pins the #10809 checkpoint row:
+// migration 301 adds last_scope_id, which matches the live census's %scope%
+// column filter and pulls the table into the census, but it names a
+// vulnerability-intelligence baseline chunk (an audit pointer), not a
+// repository scope. The table is not_a_key with no purge step.
+func TestCensusClassifiesNVDBaselineCheckpoints(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("vulnerability_nvd_baseline_checkpoints")
+	if !ok {
+		t.Fatal("vulnerability_nvd_baseline_checkpoints has no census row; the live census fails on its last_scope_id column")
+	}
+	if entry.Disposition != "not_a_key" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want not_a_key with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "last_scope_id" {
+		t.Fatalf("key columns = %v, want [last_scope_id], the column the live filter matched", entry.KeyColumns)
+	}
+	if !strings.Contains(entry.Reason, "audit pointer") {
+		t.Fatalf("reason %q must say last_scope_id is an audit pointer, not a repository scope", entry.Reason)
+	}
+}
+
 // TestCensusClassifiesWinnersDirtyTally pins the #10767 drain tally's row:
 // nvd_scope_rows matches the live census's %scope% column filter but is a
 // count of drained NVD pointer-flip rows, not a scope or repository
