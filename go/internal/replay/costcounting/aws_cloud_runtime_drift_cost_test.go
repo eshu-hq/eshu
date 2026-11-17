@@ -141,8 +141,44 @@ func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, query stri
 	if strings.Contains(query, "WITH stale AS MATERIALIZED") {
 		return &postgresFenceOpenRows{}, nil
 	}
+	if strings.Contains(query, "WITH retracted AS (") {
+		return &postgresRetractCountRows{}, nil
+	}
 	return postgresEmptyRows{}, nil
 }
+
+// postgresRetractCountRows answers the CTE-based tombstoned/marked count
+// row the supply-chain retraction returns since #10827 (it used to report
+// RowsAffected). Cost fixtures supersede nothing, so the row counts zero
+// tombstoned findings and zero marked keys.
+type postgresRetractCountRows struct{ done bool }
+
+func (r *postgresRetractCountRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *postgresRetractCountRows) Scan(dest ...any) error {
+	if len(dest) != 2 {
+		return fmt.Errorf("retract count row wants (tombstoned, marked), got %d destinations", len(dest))
+	}
+	tombstoned, ok := dest[0].(*int64)
+	if !ok {
+		return fmt.Errorf("retract count tombstoned destination is %T, want *int64", dest[0])
+	}
+	marked, ok := dest[1].(*int64)
+	if !ok {
+		return fmt.Errorf("retract count marked destination is %T, want *int64", dest[1])
+	}
+	*tombstoned, *marked = 0, 0
+	return nil
+}
+
+func (r *postgresRetractCountRows) Err() error   { return nil }
+func (r *postgresRetractCountRows) Close() error { return nil }
 
 // postgresEmptyRows is a db.Rows cursor with no rows.
 type postgresEmptyRows struct{}
