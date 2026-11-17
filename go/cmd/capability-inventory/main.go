@@ -135,7 +135,7 @@ func run(args []string, stdout, stderr io.Writer) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(*surfaceOut, surfacePayload, 0o600); err != nil {
+		if err := os.WriteFile(*surfaceOut, surfacePayload, 0o600); err != nil { // #nosec G703 -- -surface-out is an explicit operator-controlled CLI output path for this inventory CLI.
 			return fmt.Errorf("write surface artifact %s: %w", *surfaceOut, err)
 		}
 		writeFindings(stdout, findings)
