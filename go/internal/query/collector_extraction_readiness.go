@@ -28,6 +28,24 @@ const (
 // no runtime, graph, or registry state.
 type CollectorExtractionReadinessHandler struct {
 	Profile QueryProfile
+	// Reads serves the readiness catalog through the versioned #9669 G2
+	// admission contract, never a direct call into the extraction static
+	// catalog. A nil Reads keeps the standing static satisfier, so the
+	// cmd wiring (which sets only Profile) and every existing caller
+	// keep serving the real catalog unchanged while the dest side cites
+	// the pin.
+	Reads ExtractionReadinessReadAdmission
+}
+
+// reads resolves the pin the legs admit through: the injected admission
+// when set, the static satisfier otherwise. The static default keeps
+// the route serving when the handler is built without an explicit
+// admission; it never invents rows beyond the real catalog.
+func (h *CollectorExtractionReadinessHandler) reads() ExtractionReadinessReadAdmission {
+	if h != nil && h.Reads != nil {
+		return h.Reads
+	}
+	return extractionReadinessStaticReader{}
 }
 
 // CollectorExtractionReadinessListResponse is the API response for the full
@@ -61,7 +79,7 @@ func (h *CollectorExtractionReadinessHandler) list(w http.ResponseWriter, r *htt
 	if !ok {
 		return
 	}
-	families := extraction.Catalog()
+	families := h.reads().Catalog()
 	totalCount := len(families)
 	truncated := totalCount > limit
 	if truncated {
@@ -94,7 +112,7 @@ func (h *CollectorExtractionReadinessHandler) getFamily(w http.ResponseWriter, r
 		)
 		return
 	}
-	readiness, ok := extraction.Lookup(scope.CollectorKind(family))
+	readiness, ok := h.reads().Lookup(scope.CollectorKind(family))
 	if !ok {
 		WriteContractError(
 			w,

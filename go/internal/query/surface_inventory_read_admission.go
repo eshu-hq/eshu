@@ -64,9 +64,10 @@ const SurfaceInventoryReadAdmissionContractVersion = "v0"
 //   - No constructor, selector, or store surface: the satellite satisfies
 //     this port with its own wiring; this pin carries the read shape only.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route, or
-// caller depends on it yet — so rollback moves no traffic and changes no
-// data.
+// Rollback: revert this pin plus the handler Reads field and leg
+// routing. The load admits through the pin with a static default when
+// unset — rollback restores the direct static load and moves no
+// traffic beyond the handler seam.
 type SurfaceInventoryReadAdmission interface {
 	LoadSurfaceInventory() (capabilitycatalog.SurfaceInventory, error)
 }

@@ -74,9 +74,10 @@ const VisualizationReadAdmissionContractVersion = "v0"
 //     this port with its own wiring; this pin carries the derive shape
 //     only.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route, or
-// caller depends on it yet — so rollback moves no traffic and changes no
-// data.
+// Rollback: revert this pin plus the handler Reads field and leg
+// routing. The derive dispatch admits through the pin with a static
+// default when unset — rollback restores the direct static builders
+// and moves no traffic beyond the handler seam.
 type VisualizationReadAdmission interface {
 	BuildServiceStoryPacket(map[string]any, *querycontract.TruthEnvelope) Packet
 	BuildEvidenceCitationPacket(evidence.EvidenceCitationResponse, *querycontract.TruthEnvelope) Packet

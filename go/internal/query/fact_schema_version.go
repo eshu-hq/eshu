@@ -9,8 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 const (
@@ -29,6 +27,22 @@ const (
 // go/internal/facts; the handler reads no runtime, graph, or registry state.
 type FactSchemaVersionHandler struct {
 	Profile QueryProfile
+	// Reads serves the schema-version registry through the versioned
+	// #9669 G2 admission contract, never a direct call into the facts
+	// static registry. A nil Reads keeps the standing static satisfier,
+	// so the cmd wiring (which sets only Profile) and every existing
+	// caller keep serving the real registry unchanged while the dest
+	// side cites the pin.
+	Reads FactSchemaReadAdmission
+}
+
+// reads resolves the pin the legs admit through: the injected admission
+// when set, the static satisfier otherwise.
+func (h *FactSchemaVersionHandler) reads() FactSchemaReadAdmission {
+	if h != nil && h.Reads != nil {
+		return h.Reads
+	}
+	return factSchemaStaticReader{}
 }
 
 // FactSchemaVersionEntry is one core fact kind and the schema version a core
@@ -72,7 +86,7 @@ func (h *FactSchemaVersionHandler) list(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	entries := factSchemaVersionEntries()
+	entries := h.factSchemaVersionEntries()
 	totalCount := len(entries)
 	truncated := totalCount > limit
 	if truncated {
@@ -102,7 +116,7 @@ func (h *FactSchemaVersionHandler) detail(w http.ResponseWriter, r *http.Request
 		)
 		return
 	}
-	supported, ok := facts.SchemaVersion(factKind)
+	supported, ok := h.reads().SchemaVersion(factKind)
 	if !ok {
 		WriteContractError(
 			w, r, http.StatusNotFound,
@@ -121,7 +135,7 @@ func (h *FactSchemaVersionHandler) detail(w http.ResponseWriter, r *http.Request
 	}
 	if candidate := strings.TrimSpace(QueryParam(r, "candidate")); candidate != "" {
 		response.Candidate = candidate
-		response.Compatibility = string(facts.ClassifySchemaVersion(factKind, candidate))
+		response.Compatibility = string(h.reads().ClassifySchemaVersion(factKind, candidate))
 	}
 	WriteSuccess(w, r, http.StatusOK, response, h.truth(factSchemaVersionDetailCapability))
 }
@@ -146,9 +160,10 @@ func (h *FactSchemaVersionHandler) limit(w http.ResponseWriter, r *http.Request)
 }
 
 // factSchemaVersionEntries returns the core fact-kind to supported-version
-// registry as a deterministically ordered slice.
-func factSchemaVersionEntries() []FactSchemaVersionEntry {
-	registry := facts.SupportedSchemaVersions()
+// registry as a deterministically ordered slice. The registry read admits
+// through the G2 FactSchemaReadAdmission pin.
+func (h *FactSchemaVersionHandler) factSchemaVersionEntries() []FactSchemaVersionEntry {
+	registry := h.reads().SupportedSchemaVersions()
 	entries := make([]FactSchemaVersionEntry, 0, len(registry))
 	for kind, version := range registry {
 		entries = append(entries, FactSchemaVersionEntry{FactKind: kind, SchemaVersion: version})

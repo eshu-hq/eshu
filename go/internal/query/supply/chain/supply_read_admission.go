@@ -85,9 +85,10 @@ const SupplyChainReadAdmissionContractVersion = "v0"
 //     is not separately frozen. Exporting that seam to freeze it would widen
 //     this pin; a future wave may do so deliberately.
 //
-// Rollback: revert this pin. The seam is unwired — no handler, route,
-// or caller depends on it yet — so rollback moves no traffic and
-// changes no data.
+// Rollback: revert this pin plus the query-package composer. The legs
+// stay on the pin-assignable narrow fields (they exercise exactly the
+// pinned methods) while the composer proves the seventeen satisfy the
+// pin — rollback removes the composer only and moves no traffic.
 type SupplyChainReadAdmission interface {
 	SBOMAttestationAttachmentStore
 	SBOMAttestationAttachmentAggregateStore

@@ -43,8 +43,17 @@ const identityListLimit = 500
 // code, credential handle, or external group hash. These are read-only; all
 // mutations land in later PRs.
 type ReadHandler struct {
-	Store ReadStore
-	Audit GovernanceAuditReader
+	// Store serves the tenant-scoped admin identity reads through the
+	// versioned #9669 D3 admission contract, never a direct store
+	// handle. AdminIdentityReadAdmission is an alias of ReadStore, so
+	// the swap is name-only today and any ReadStore satisfier
+	// (including the Postgres adapter below) wires unchanged while
+	// the dest side can cite the pin.
+	Store AdminIdentityReadAdmission
+	// Audit serves the tenant-admin audit links through the versioned
+	// #9669 D1/D6 audit-read admission contract. Alias of
+	// GovernanceAuditReader; same name-only standing as Store.
+	Audit GovernanceAuditReadAdmission
 }
 
 // Mount registers the admin identity read routes.
