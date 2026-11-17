@@ -57,19 +57,23 @@ const (
 // collide under hashtext only make one of them skip a pass as busy.
 const LockClass = 10823
 
-// BatchGenerations is the most generations one batch transaction removes.
-// Measured on a local PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md):
-// a batch of 50 generations of 53 rows is about 2,650 rows and commits in 24 to
-// 43 ms at p50 when a generation's rows sit together or interleave by id, and in
-// 48 to 104 ms when they are scattered at random; its p95 ranged from 28 to
-// 312 ms between runs on a shared laptop. Its WAL depends on how the rows sit in
-// the heap: about 0.3 KB per row when a generation's rows are together, about
-// 1.7 KB when they are scattered across a large table, and up to 4.3 KB for a
-// pass that starts right after a checkpoint (every first touch of a page writes
-// a full page image). A batch is bounded in generations, not rows: a hub
-// generation with many evidence rows makes it larger, so the row cap is checked
-// between batches and the first batch always runs. There is no knob: a different
-// size needs a new measurement in the evidence note.
+// BatchGenerations is the most generations one batch transaction removes; the
+// rows of a batch are bounded separately, by BatchRows. Measured on a local
+// PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md): a batch
+// of 50 generations of 53 rows is about 2,650 rows. On a calm host (load average
+// about 20) it commits in 52 to 57 ms at p50 and 109 to 127 ms at p95 when a
+// generation's rows sit together, and in 435 ms at p50 and 1.06 s at p95 on a
+// first pass over rows scattered at random; a host at load average 73 to 85 ran
+// the same statements 10 to 70 times slower, so these are best-case figures. The
+// runs set fsync=off and synchronous_commit=off, which remove the commit's wait for
+// a WAL flush: they change how long a commit takes, not how much WAL a batch
+// writes, and a production commit also waits for the flush. WAL depends on how the
+// rows sit in the heap: about 0.34 KB per row when a generation's rows are
+// together, and 1.3 KB per row on the first pass over rows scattered at random
+// right after a checkpoint (S1). The 1.7 KB scattered-across-a-large-table and
+// 4.3 KB right-after-a-checkpoint figures (S5) were measured before the row lock
+// record added about 55 B per row and were not repeated. There is no knob: a
+// different size needs a new measurement in the evidence note.
 const BatchGenerations = 50
 
 // BatchRows is the most rows each of a batch's two picking deletes (evidence,
@@ -90,11 +94,15 @@ const BatchRows = 10_000
 const CensusListLimit = 5000
 
 // DefaultRowCap is the rows one sweep pass deletes when the caller passes none:
-// about 100,000 rows. At the 1.7 KB per row planning figure for scattered rows
-// that is about 170 MB of WAL per pass, and a drain at the capped cadence is
-// about 1 GB of WAL per hour per reducer replica; rows that sit together cost
-// about a sixth of that, and a pass right after a checkpoint up to 2.5 times
-// more. The first batch of a pass always runs.
+// about 100,000 rows. At the 1.7 KB per row planning figure for rows scattered
+// across a large table that is about 170 MB of WAL per pass (measured before the
+// row lock record added about 55 B per row, 3%). A capped pass repeats after a
+// sixth of the poll interval, so one replica that always finds a backlog writes
+// about 1 GB of WAL per hour at the default 1 h poll. More replicas raise that
+// rate, not the WAL a drain writes in total: they share the backlog through the
+// advisory try locks. Rows that sit together cost about a fifth of the planning
+// figure, and a pass right after a checkpoint up to 2.5 times more. The first batch
+// of a pass always runs.
 const DefaultRowCap int64 = 100_000
 
 // lockTimeoutSetting bounds how long one batch waits for a relation-level lock,

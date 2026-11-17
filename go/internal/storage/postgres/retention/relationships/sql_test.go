@@ -120,10 +120,10 @@ func TestPickingDeletesAreBoundedByTheRowLimit(t *testing.T) {
 	t.Parallel()
 	for name, statement := range map[string]string{"evidence": deleteEvidenceQuery, "candidates": deleteCandidatesQuery} {
 		text := normalized(statement)
-		limit := strings.Index(text, "limit $2")
-		lock := strings.Index(text, "for update of ")
-		if limit < 0 || lock < 0 || limit > lock {
-			t.Errorf("%s delete must take LIMIT $2 before its FOR UPDATE ... SKIP LOCKED:\n%s", name, text)
+		// LIMIT $2 is the clause right before the lock clause, bare: an expression
+		// on the limit (LIMIT $2 * 1000) would leave the batch unbounded.
+		if !strings.Contains(text, " limit $2 for update of ") {
+			t.Errorf("%s delete must take a bare LIMIT $2 right before its FOR UPDATE ... SKIP LOCKED:\n%s", name, text)
 		}
 		if strings.Count(text, "$2") != 1 {
 			t.Errorf("%s delete uses $2 %d times, want only the row limit", name, strings.Count(text, "$2"))

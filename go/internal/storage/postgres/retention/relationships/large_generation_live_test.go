@@ -42,58 +42,92 @@ func batchRowsFromLogs(t *testing.T, logs string) []int64 {
 }
 
 // TestGenerationLargerThanTheRowLimitIsDrainedInBoundedBatchesLive seeds one
-// generation of 2,500 evidence and 700 candidate rows next to a small one and
-// sweeps with a row limit of 1,000. No batch may delete more than the two
-// picking statements' limits plus the generation rows (2,050), the generations
-// are swept once each, and nothing is counted lock_busy: the batches that cut a
-// generation are not held by anyone, they just ran out of row budget.
+// large generation next to a small one (10 evidence and 3 candidate rows) and
+// sweeps with a row limit of 1,000. No batch may delete more than the two picking
+// statements' limits plus the generation rows (2,050), the generations are swept
+// once each, and nothing is counted lock_busy: a batch that cut a generation was
+// not held by anyone, it ran out of row budget. The two cases make each picking
+// statement the only one that stops a batch, so a batch that ignored either
+// statement's limit, or counted only one of them as a cut, shows up as a different
+// batch sequence.
 func TestGenerationLargerThanTheRowLimitIsDrainedInBoundedBatchesLive(t *testing.T) {
-	f := openLiveFixture(t)
-	f.scope(t, "scope-big")
-	for _, id := range []string{"gen-big", "gen-small"} {
-		f.generation(t, "scope-big", id, "superseded")
-	}
-	f.evidence(t, "gen-big", 2500)
-	f.candidates(t, "gen-big", 700)
-	f.evidence(t, "gen-small", 10)
-	f.candidates(t, "gen-small", 3)
-
 	const limit = 1000
-	var logs bytes.Buffer
-	result, err := relationshipretention.Sweep(f.ctx, f.database, relationshipretention.Options{
-		Deletes: true, RowCap: 1 << 40, BatchRows: limit, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
-	})
-	if err != nil {
-		t.Fatalf("Sweep: %v", err)
-	}
-	perBatch := batchRowsFromLogs(t, logs.String())
-	bound := int64(2*limit + relationshipretention.BatchGenerations)
-	for i, n := range perBatch {
-		if n > bound {
-			t.Errorf("batch %d deleted %d rows, want at most %d (two row limits and the generation rows)", i+1, n, bound)
-		}
-	}
-	t.Logf("rows per batch: %v", perBatch)
-	if result.Batches != 3 || len(perBatch) != 3 {
-		t.Fatalf("pass = %d batches (%d logged), want 3: two cut at the limit and the one that finished", result.Batches, len(perBatch))
-	}
-	if result.GenerationsSwept != 2 || result.Capped != "" {
-		t.Fatalf("pass swept %d generations, capped %q, want both swept in a clean pass", result.GenerationsSwept, result.Capped)
-	}
-	wantSkipped := map[string]int{relationshipretention.SkipLockBusy: 0, relationshipretention.SkipLockTimeout: 0, relationshipretention.SkipIneligible: 0}
-	if !reflect.DeepEqual(result.Skipped, wantSkipped) {
-		t.Fatalf("skipped = %v, want %v: a generation cut by the row limit is not held by anyone", result.Skipped, wantSkipped)
-	}
-	wantRows := map[string]int64{
-		relationshipretention.EvidenceTable: 2510, relationshipretention.CandidatesTable: 703, relationshipretention.GenerationsTable: 2,
-	}
-	if !reflect.DeepEqual(result.RowsSwept, wantRows) {
-		t.Fatalf("rows swept = %v, want %v", result.RowsSwept, wantRows)
-	}
-	for _, id := range []string{"gen-big", "gen-small"} {
-		if got := f.of(t, id); got != (counts{}) {
-			t.Fatalf("%s = %+v after the pass, want nothing left", id, got)
-		}
+	for _, tc := range []struct {
+		name       string
+		evidence   int
+		candidates int
+		batches    []int64 // rows each committed batch deletes, in order
+		wantRows   map[string]int64
+	}{
+		{
+			// Batch 1 cuts both statements, batch 2 only the evidence delete (203
+			// candidate rows are left, under the limit), batch 3 finishes both
+			// generations (510 evidence rows and the two generation rows).
+			name: "evidence larger", evidence: 2500, candidates: 1200,
+			batches: []int64{2000, 1203, 512},
+			wantRows: map[string]int64{
+				relationshipretention.EvidenceTable: 2510, relationshipretention.CandidatesTable: 1203, relationshipretention.GenerationsTable: 2,
+			},
+		},
+		{
+			// Batch 1 cuts both statements, batches 2 and 3 only the candidates
+			// delete (the evidence is gone after 510 rows in batch 2), batch 4
+			// finishes with 503 candidate rows and the two generation rows.
+			name: "candidates larger", evidence: 1500, candidates: 3500,
+			batches: []int64{2000, 1510, 1000, 505},
+			wantRows: map[string]int64{
+				relationshipretention.EvidenceTable: 1510, relationshipretention.CandidatesTable: 3503, relationshipretention.GenerationsTable: 2,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := openLiveFixture(t)
+			f.scope(t, "scope-big")
+			for _, id := range []string{"gen-big", "gen-small"} {
+				f.generation(t, "scope-big", id, "superseded")
+			}
+			f.evidence(t, "gen-big", tc.evidence)
+			f.candidates(t, "gen-big", tc.candidates)
+			f.evidence(t, "gen-small", 10)
+			f.candidates(t, "gen-small", 3)
+
+			var logs bytes.Buffer
+			result, err := relationshipretention.Sweep(f.ctx, f.database, relationshipretention.Options{
+				Deletes: true, RowCap: 1 << 40, BatchRows: limit, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+			})
+			if err != nil {
+				t.Fatalf("Sweep: %v", err)
+			}
+			perBatch := batchRowsFromLogs(t, logs.String())
+			t.Logf("rows per batch: %v", perBatch)
+			bound := int64(2*limit + relationshipretention.BatchGenerations)
+			for i, n := range perBatch {
+				if n > bound {
+					t.Errorf("batch %d deleted %d rows, want at most %d (two row limits and the generation rows)", i+1, n, bound)
+				}
+			}
+			if !slices.Equal(perBatch, tc.batches) {
+				t.Fatalf("rows per batch = %v, want %v", perBatch, tc.batches)
+			}
+			if result.Batches != len(tc.batches) {
+				t.Fatalf("pass = %d batches, want %d", result.Batches, len(tc.batches))
+			}
+			if result.GenerationsSwept != 2 || result.Capped != "" {
+				t.Fatalf("pass swept %d generations, capped %q, want both swept in a clean pass", result.GenerationsSwept, result.Capped)
+			}
+			wantSkipped := map[string]int{relationshipretention.SkipLockBusy: 0, relationshipretention.SkipLockTimeout: 0, relationshipretention.SkipIneligible: 0}
+			if !reflect.DeepEqual(result.Skipped, wantSkipped) {
+				t.Fatalf("skipped = %v, want %v: a generation cut by the row limit is not held by anyone", result.Skipped, wantSkipped)
+			}
+			if !reflect.DeepEqual(result.RowsSwept, tc.wantRows) {
+				t.Fatalf("rows swept = %v, want %v", result.RowsSwept, tc.wantRows)
+			}
+			for _, id := range []string{"gen-big", "gen-small"} {
+				if got := f.of(t, id); got != (counts{}) {
+					t.Fatalf("%s = %+v after the pass, want nothing left", id, got)
+				}
+			}
+		})
 	}
 }
 
