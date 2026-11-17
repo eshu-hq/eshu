@@ -24,7 +24,7 @@ import (
 // a work item that does not exist, and a rolled-back admission leaves neither.
 //
 // The plan rows share the advisory lock the admission already takes for the
-// work items' (collector_kind, collector_instance_id): no new lock, and none is
+// work items' (collector_kind, collector_instance_id): no new advisory lock, and none is
 // held across planning. A nil advance moves no slots. The store refuses a plan
 // list it cannot trust before it opens a transaction (see
 // validateBaselinePlans).

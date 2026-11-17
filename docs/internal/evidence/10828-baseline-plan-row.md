@@ -18,7 +18,7 @@ yet, so the table stays empty in every deployment until #10746 lands.
 
 - Conflict domain: the plan row of one `(baseline_run_id, year)`, and the
   per-instance advisory lock the admission already takes for
-  `(collector_kind, collector_instance_id)`. There is no new lock, and none is
+  `(collector_kind, collector_instance_id)`. There is no new advisory lock, and none is
   held across planning. The plan write is the last statement before the commit,
   so lock order is advisory lock, run row, work items, slot progress, plan rows.
   Two instances that share one baseline run id do not share an advisory lock key,
@@ -265,10 +265,13 @@ was written for it, and the row names that test.
   store is asserted to implement that interface at build time, so only another
   `coordinator.Store` can reach this error.
 - Operator reading: `recorded` without `not_inserted` is a healthy baseline.
-  A rising `not_inserted` means the planner keeps minting a chunk for a year that
-  already has an open one; it is never a lost plan row, because a row is written
-  only with the item it names. A coordinator that logs the store-missing error
-  is running against a store older than this change.
+  `not_inserted` counts every chunk that did not land: the open-target guard or
+  a terminal-run skip (both INFO `reason=target_already_planned`), or an insert
+  conflict (WARN `reason=insert_conflict_dropped_row`: a retained finished item
+  owns the work item id). The WARN is the one to chase. None of them is a lost
+  plan row, because a row is written only with the item it names. A coordinator
+  that logs the store-missing error is running against a store older than this
+  change.
 - Coverage row: the NVD baseline row of
   `docs/public/observability/telemetry-coverage-collectors.md` names the new
   metric, the log, and the three owner files.

@@ -146,12 +146,14 @@ only access path), and nothing on the checkpoint row.
   which can predate a previous lock holder's stamp and would move the pace wait
   backwards. A future-dated stamp from a stepped clock is the planner slice's
   concern, as it is for the trip latch.
-- Locks. No new lock and none held across planning. The write reuses the advisory
+- Locks. No new advisory lock and none held across planning. The write reuses the advisory
   lock admission already takes for `(collector_kind, collector_instance_id)`.
   Two instances that share one baseline run id are not serialized by it (the key
   carries the instance), so the plan row lock is the serializer between them. The
   writer sorts its rows by `(baseline_run_id, year)` so two such admissions take
-  row locks in one order and cannot deadlock; the plan write is the last
+  row locks in one order, which cannot deadlock as long as PostgreSQL
+  processes the rows in array order (measured on 18.6, see the evidence note);
+  the plan write is the last
   statement before commit, so the contended row is held for the shortest time.
 - Reader. `ReadNVDBaselinePlans(ctx, runID)` returns the year plans of a run and,
   in one statement and one snapshot, whether each year's last planned scope still
