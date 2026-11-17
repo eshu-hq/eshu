@@ -359,6 +359,11 @@ tests:
     class: postgres_ci
     reason: "#10746 disposable PostgreSQL proof of the forward-rotation probe race: a probe that matches no row takes no lock, so a commit forced between the probe and the upsert changes the stored identity while the forward rotation goes uncounted (no row yet, a row with no stamp, the stored sha under a newer stamp), a probe that matches holds the row lock so a concurrent writer waits, and the upsert guard still refuses an older seed after a missed probe"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_adapter_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL proof that the coordinator's drain loader runs on the real probe through the adapter the parent service wires: every pipeline phase reaches the loader as the matching planner phase by value, and a key with no generation behind it leaves its year unloaded with a typed error instead of a phase"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_drain_probe_live_test.go
     tag: ~
     class: postgres_ci
