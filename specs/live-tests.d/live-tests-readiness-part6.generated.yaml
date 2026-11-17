@@ -332,7 +332,7 @@ tests:
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_identity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10810 disposable PostgreSQL proof that an unstamped baseline advance never clears a stored seed identity, that the stamp and sha travel together at an equal position, that a forward-rotation report requires the write the position check accepts, and that the resume_cve_id column compares in the C collation"
+    reason: "#10810 and #10746 disposable PostgreSQL proof that an unstamped baseline advance never clears a stored seed identity, that the stamp and sha travel together, that a newer seed adopts its identity at any position (behind the stored position only the identity moves) so a later older-seed advance is refused, including when the two commits race on the row lock, that a forward-rotation report matches the identity move across the position by stamp by sha matrix, and that the resume_cve_id column compares in the C collation"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_live_test.go
     tag: ~
@@ -343,6 +343,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10809 and #10810 disposable PostgreSQL proof that the NVD baseline checkpoint orders its resume position as the row (stamp, CVE ID) in byte order in either commit order, and that the commit-transaction advance refuses a seed rollback (older stamp, or equal stamp under another sha) so the whole generation rolls back, including a rollback racing a newer commit that holds the row lock, while a forward rotation and a collector with no stamp resume"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_checkpoint_probe_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10746 disposable PostgreSQL proof of the forward-rotation probe race: a probe that matches no row takes no lock, so a commit forced between the probe and the upsert changes the stored identity while the forward rotation goes uncounted (no row yet, a row with no stamp, the stored sha under a newer stamp), a probe that matches holds the row lock so a concurrent writer waits, and the upsert guard still refuses an older seed after a missed probe"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_live_test.go
     tag: ~

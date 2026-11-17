@@ -26,7 +26,23 @@ no stamp (an older collector, or a manifest entry with no `lastModified`) skips
 the guard and commits as before, and it never clears a stored identity: the
 position and chunk identity advance, but the stored sha and stamp stay, so a
 later candidate stamped with an older seed is still refused. The sha and stamp
-move together, only on a stamped write at an equal or greater position.
+always move together. A strictly newer stamp moves them at any position
+(#10746): a newer-seed candidate behind the stored position has committed its
+facts, so the stored identity adopts it while the position, chunk identity, and
+counters stay where they were, and a later older-seed candidate at or past the
+position is refused instead of being accepted against an identity that never
+saw the newer seed. Any other candidate moves the pair only at an equal or
+greater position. The stored seed stamp never decreases; after any stamped
+checkpoint commit it is the newest stamp a committed checkpoint advance carried.
+The guard orders checkpoint advances only: a held or not-covered chunk commits
+its facts and never writes the checkpoint, so the stored identity does not learn
+the seed that chunk read. After a behind-position adoption the stored identity
+is not the seed of `last_generation_id`: the identity names the newest seed
+committed, the chunk identity names the chunk that last moved the position. The
+other option the issue named, refusing a behind-position newer seed under a
+distinct failure class, was not taken: it adds a class to the closed set the
+status leaf, the OpenAPI enum, and the metrics docs pin, and the refused claim
+retries against a position only the other commit order moves.
 
 A refused claim fails retryable under its own class `nvd_baseline_seed_rollback`.
 The generation dead letter is recorded under `commit_failure`, and after
@@ -34,8 +50,23 @@ The generation dead letter is recorded under `commit_failure`, and after
 that never catches up ends dead-lettered rather than retrying forever. The
 planner re-mints the same position after a refused claim and waits the 30 minute
 retry wait. The forward-rotation counter (reported only when the stored seed
-identity actually moves, that is the candidate is at or past the stored
+identity actually moves: a strictly newer stamp under another sha, at any
 position) and the committed-chunk INFO line fire only after the commit lands.
+Both ride a stash of at most 64 settlements per host process, written in the
+commit transaction and read by the post-commit hook. A full stash evicts its
+oldest entry to take a new one (the earliest stash time; equal times fall to the
+smaller work item id, so the choice never depends on map order), and that is
+never silent (#10746): each eviction counts on
+`eshu_dp_nvd_baseline_settlement_evictions_total`, which carries no label, and
+logs WARN `nvd baseline settlement evicted at capacity, post-commit signals for
+that chunk may be lost` naming the dropped work item. The stash cannot tell a
+stale entry (a commit that never landed) from a chunk that committed and is
+waiting for its hook, so the signal says "may". The evicted chunk's facts and
+checkpoint are unaffected. If it had committed, only its forward-rotation count
+and committed-chunk line are lost, so after a rise in the counter read the
+stored seed identity, not the rotation counter, to see which seed a year is on.
+Both signals are reported after the stash lock is released, because every commit
+worker shares it.
 
 ## The `advance_to` contract (`nvd_baseline_advance_to_unix_us`)
 

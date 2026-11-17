@@ -19,8 +19,16 @@ import (
 // maxBaselineSettlements bounds the chunks waiting for their commit hook. A
 // worker holds one claim at a time, so the steady state is a handful; an entry
 // only lingers when a commit never lands, and a retry of the same item clears
-// it on its next policy decision.
+// it on its next policy decision. A full stash evicts its oldest entry to take a
+// new one, and that is never silent: the eviction is counted and logged at WARN
+// naming the dropped work item (eshu-hq/eshu#10746). The stash cannot tell a
+// stale entry from a chunk that committed and is waiting for its hook, so the
+// signal says the post-commit signals may be lost, not that they were.
 const maxBaselineSettlements = 64
+
+// nvdBaselineSettlementEvictedLogMessage is the WARN a full stash logs for each
+// settlement it drops. The telemetry coverage doc names this exact text.
+const nvdBaselineSettlementEvictedLogMessage = "nvd baseline settlement evicted at capacity, post-commit signals for that chunk may be lost"
 
 // ClaimCommitSettler is the optional second half of a ClaimCommitPolicy: the
 // policy decides before the commit transaction runs, so what is only true once
@@ -63,24 +71,33 @@ func newBaselineSettlements() *baselineSettlements {
 	return &baselineSettlements{rows: make(map[string]baselineSettlement)}
 }
 
-func (b *baselineSettlements) stash(item workflow.WorkItem, settlement baselineSettlement) {
+// stash records the settlement for item. When the stash is full and item is a
+// new key it evicts the oldest settlement to make room and returns that row with
+// its work item id, so the caller reports the drop after the lock is released:
+// every commit worker shares this lock, and a slow log sink must not stall them.
+// The oldest is the earliest stashedAt; equal times fall to the smaller work
+// item id so the choice never depends on map iteration order.
+func (b *baselineSettlements) stash(
+	item workflow.WorkItem,
+	settlement baselineSettlement,
+) (evictedID string, evicted baselineSettlement, dropped bool) {
 	if b == nil {
-		return
+		return "", baselineSettlement{}, false
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	key := item.WorkItemID
 	if _, exists := b.rows[key]; !exists && len(b.rows) >= maxBaselineSettlements {
-		oldestKey := ""
-		var oldest time.Time
 		for candidate, row := range b.rows {
-			if oldestKey == "" || row.stashedAt.Before(oldest) {
-				oldestKey, oldest = candidate, row.stashedAt
+			if !dropped || row.stashedAt.Before(evicted.stashedAt) ||
+				(row.stashedAt.Equal(evicted.stashedAt) && candidate < evictedID) {
+				evictedID, evicted, dropped = candidate, row, true
 			}
 		}
-		delete(b.rows, oldestKey)
+		delete(b.rows, evictedID)
 	}
 	b.rows[key] = settlement
+	return evictedID, evicted, dropped
 }
 
 func (b *baselineSettlements) take(item workflow.WorkItem) (baselineSettlement, bool) {
@@ -134,7 +151,7 @@ func (p *NVDBaselineCommitPolicy) checkpointWriter(
 			}
 			return err
 		}
-		p.settlements.stash(item, baselineSettlement{
+		evictedID, evicted, dropped := p.settlements.stash(item, baselineSettlement{
 			runID:          advance.BaselineRunID,
 			year:           advance.Year,
 			resumeMicro:    advance.ResumeUnixMicro,
@@ -144,8 +161,32 @@ func (p *NVDBaselineCommitPolicy) checkpointWriter(
 			rotatedForward: result.RotatedForward,
 			stashedAt:      p.clock().UTC(),
 		})
+		if dropped {
+			p.reportSettlementEviction(ctx, evictedID, evicted)
+		}
 		return nil
 	}
+}
+
+// reportSettlementEviction signals a settlement the full stash dropped to make
+// room (eshu-hq/eshu#10746). The dropped chunk's commit is unaffected. If it had
+// committed, only its forward-rotation count and its committed-chunk INFO line
+// are lost, and this counter and WARN are how an operator learns those
+// post-commit signals may undercount; the stash cannot tell such a chunk from a
+// stale entry whose commit never landed. The WARN names the dropped work item,
+// never the incoming one and never a scope id.
+func (p *NVDBaselineCommitPolicy) reportSettlementEviction(ctx context.Context, workItemID string, evicted baselineSettlement) {
+	p.instruments.RecordNVDBaselineSettlementEviction(ctx)
+	if p.logger == nil {
+		return
+	}
+	p.logger.Warn(nvdBaselineSettlementEvictedLogMessage,
+		"baseline_run_id", evicted.runID,
+		"year", evicted.year,
+		"work_item_id", strings.TrimSpace(workItemID),
+		"collector_instance_id", p.collectorInstanceID,
+		"capacity", maxBaselineSettlements,
+	)
 }
 
 // SettleClaimCommitted implements ClaimCommitSettler: the chunk's generation

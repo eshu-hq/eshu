@@ -50,9 +50,9 @@ coordinator registration, vulnerability-source evidence, and fact evidence.
   `FailureClassesForKind`, `ExtensionDefinedFailureToken`,
   `BoundedFailureOperation` — the
   newest unresolved terminal work-item failure per instance and the
-  per-kind allowlist that bounds its class (the eleven common classes, the four
-  extension host classes every kind admits, each first-party kind's own, and
-  one token for extension-defined classes on kinds that are not first-party or
+  per-kind allowlist that bounds its class (the common classes, the extension
+  host classes every kind admits, each first-party kind's own, and one token
+  for extension-defined classes on kinds that are not first-party or
   on an extension-hosted instance, `InstanceSummary.ExtensionHosted`, #8951) and
   operation tokens; `RuntimeStatus` and
   `PromotionProof` carry the result as `LastFailure*` fields (#8803)

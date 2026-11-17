@@ -173,6 +173,17 @@ func (inst *Instruments) RecordNVDBaselineSeedRotation(ctx context.Context, dire
 	inst.NVDBaselineSeedRotations.Add(ctx, 1, metric.WithAttributes(attribute.String("direction", direction)))
 }
 
+// RecordNVDBaselineSettlementEviction counts one chunk settlement the host's
+// bounded post-commit stash dropped at capacity (#10746). The counter
+// carries no label, so a work item or run id can never become a label value.
+// Nil instruments or a nil counter skip the signal.
+func (inst *Instruments) RecordNVDBaselineSettlementEviction(ctx context.Context) {
+	if inst == nil || inst.NVDBaselineSettlementEvictions == nil {
+		return
+	}
+	inst.NVDBaselineSettlementEvictions.Add(ctx, 1)
+}
+
 // RecordNVDBaselineProgress records the latest run-wide baseline progress
 // planned from the stored checkpoints: years replayed whole of the years the
 // run covers, and records done of the records the started years hold. Values,
@@ -219,7 +230,8 @@ func (inst *Instruments) RecordNVDBaselineDirtySample(ctx context.Context, proxy
 
 // registerNVDBaseline registers the NVD baseline signals (#10728): the
 // commit-policy advance counter, the plan verdict counter, the trip-line
-// transition counter, and the dirty-probe gauges. Labels stay closed and
+// transition counter, the seed-rotation and settlement-eviction counters, and
+// the dirty-probe and progress gauges. Labels stay closed and
 // bounded: no scope, stamp, sha, or run value ever becomes a label.
 func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	var err error
@@ -264,6 +276,13 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineSeedRotations counter: %w", err)
+	}
+	inst.NVDBaselineSettlementEvictions, err = meter.Int64Counter(
+		"eshu_dp_nvd_baseline_settlement_evictions_total",
+		metric.WithDescription("Total NVD baseline chunk settlements the extension host's bounded post-commit stash dropped at capacity (#10746): the chunk's commit is unaffected, but when it had committed, its forward-rotation count and committed-chunk log line are lost, so a rise means those signals may undercount; the WARN names the dropped work item"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineSettlementEvictions counter: %w", err)
 	}
 	inst.NVDBaselineYearsComplete, err = meter.Int64Gauge(
 		"eshu_dp_nvd_baseline_years_complete",
