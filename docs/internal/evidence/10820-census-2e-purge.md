@@ -66,6 +66,21 @@ repository's rows.
   `NOWAIT` scope lock and reads), so the rollback is clean and the fenced
   tombstone stays open for a retry. This is a bounded wait with a retry, not
   serialization: no worker count, batch size, or writer changes.
+- No-Regression Evidence (request-level derive-lock budget):
+  the baseline is the per-lock bound alone (`f241feb8b1`, merged in #10841) and
+  the after is the 30 s request budget, both on PostgreSQL 18.6. Input: one
+  request over five fenced repositories with parked advisory-lock holders on the
+  infra lock of four, plus a fake-clock pattern over 25 repositories. Baseline:
+  the live request took 40.23 s, four 10 s waits. After: 30.20 s to 31.00 s over
+  four runs, three waits of about 10 s and then about 0.1 s, and 34.675 s for the
+  25-repository worst pattern against about 500 s without a request budget.
+  Terminal rows: the fifth repository completed, nothing was written for the four
+  blocked (each tombstone stays pending and fenced, its scope and content rows
+  stay), and a re-POST purged the four in under 0.3 s once the holders ended.
+  Safe because a blocked repository rolls back before any delete, the blocked
+  exit is the existing `derive_lock_busy`, and no worker count, batch size,
+  lease or retry changes. The measurements and mutants are in the two bullets
+  below.
 - Aggregate lock budget. PostgreSQL applies `lock_timeout` to each lock
   acquisition attempt, not to the transaction, and a value of zero disables it.
   Checked on PG 18.6 with two parked sessions (key 1 held for 7 s, key 2 for
@@ -370,3 +385,14 @@ every other purged table does. A purge error surfaces through the existing
 failure path with `retirement purge delete <table>`, and a lock error with
 `retirement purge: lock ... repository`.
 `docs/public/reference/telemetry/retirement-purge.md` lists the log fields.
+
+Observability Evidence (request-level derive-lock budget): the request budget
+adds one log field and no metric or span. `derive_lock_timeout_ms` on the
+`derive_lock_busy` WARN is the `lock_timeout` the timed-out statement ran with,
+so an operator can tell a 100 ms attempt on a spent budget from a 10 s wait on a
+live derive. Repeated `derive_lock_timeout_ms=100` with a long-held lock means
+the holders are the place to look; the floor is below PostgreSQL's 1 s
+`deadlock_timeout`, so even a lock-order cycle reads this way.
+`TestPurgeRetiredChargesOnlyTheElapsedLockWait` pins the 10000 reading after free
+locks, and `TestRetirementPurgeRequestDeriveLockBudgetLive` read 10000, 10000,
+9993, 100 from a real request.
