@@ -4,7 +4,7 @@
 package relationshipretention_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass
+//eshu:readiness:reason #10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; the generation row delete removes nothing while a generation still has evidence rows or candidate rows, each kind checked on its own; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
@@ -20,6 +20,8 @@ import (
 // wrong ids would. Each statement must remove only what Rule A allows, in its
 // own snapshot, with no help from the classification statement: that is what
 // makes the deletes self-guarding rather than correct only when fed correctly.
+// The generation row delete also requires that no evidence and no candidate row
+// of the generation remain, so it runs after the two deletes that empty them.
 func TestDeleteStatementsGuardThemselvesLive(t *testing.T) {
 	f := openLiveFixture(t)
 	ids := f.eligibilityMatrix(t)
@@ -31,13 +33,32 @@ func TestDeleteStatementsGuardThemselvesLive(t *testing.T) {
 	retained := []string{"e1", "e3", "e4", "e6", "e7"} // must never lose a row to any delete
 	for _, tc := range []struct {
 		name      string
+		before    []string // statements the same transaction ran first, empty their children
 		statement string
 		want      int64 // rows removed from the swept generations e2, e5, e8
 		table     string
 	}{
-		{"evidence", relationshipretention.DeleteEvidenceSQL, 9, "relationship_evidence_facts"},
-		{"candidates", relationshipretention.DeleteCandidatesSQL, 6, "relationship_candidates"},
-		{"generations", relationshipretention.DeleteGenerationsSQL, 2, "relationship_generations"},
+		{"evidence", nil, relationshipretention.DeleteEvidenceSQL, 9, "relationship_evidence_facts"},
+		{"candidates", nil, relationshipretention.DeleteCandidatesSQL, 6, "relationship_candidates"},
+		{
+			"generations after the children are gone",
+			[]string{relationshipretention.DeleteEvidenceSQL, relationshipretention.DeleteCandidatesSQL},
+			relationshipretention.DeleteGenerationsSQL, 2, "relationship_generations",
+		},
+		{"generations while the children remain", nil, relationshipretention.DeleteGenerationsSQL, 0, "relationship_generations"},
+		// Each child guard on its own: with only one kind of child left, the other
+		// guard has nothing to block on, so a statement that lost this one would
+		// delete the generation row while rows of it remain.
+		{
+			"generations while only evidence remains",
+			[]string{relationshipretention.DeleteCandidatesSQL},
+			relationshipretention.DeleteGenerationsSQL, 0, "relationship_generations",
+		},
+		{
+			"generations while only candidates remain",
+			[]string{relationshipretention.DeleteEvidenceSQL},
+			relationshipretention.DeleteGenerationsSQL, 0, "relationship_generations",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx, err := f.db.BeginTx(f.ctx, nil)
@@ -45,16 +66,21 @@ func TestDeleteStatementsGuardThemselvesLive(t *testing.T) {
 				t.Fatalf("begin: %v", err)
 			}
 			defer func() { _ = tx.Rollback() }()
+			for _, statement := range tc.before {
+				if _, err := tx.ExecContext(f.ctx, statement, deleteArgs(statement, all)...); err != nil {
+					t.Fatalf("exec the statement that empties the children: %v", err)
+				}
+			}
 			before := map[string]int64{}
 			for _, name := range retained {
 				before[name] = countIn(t, f, tx, tc.table, ids[name])
 			}
-			result, err := tx.ExecContext(f.ctx, tc.statement, all)
+			result, err := tx.ExecContext(f.ctx, tc.statement, deleteArgs(tc.statement, all)...)
 			if err != nil {
 				t.Fatalf("exec: %v", err)
 			}
 			if got, _ := result.RowsAffected(); got != tc.want {
-				t.Errorf("%s delete removed %d rows from an array of every generation, want %d (e2, e5 and e8 only)", tc.name, got, tc.want)
+				t.Errorf("%s delete removed %d rows from an array of every generation, want %d (e2, e5 and e8 only, and a generation row only once its children are gone)", tc.name, got, tc.want)
 			}
 			for _, name := range retained {
 				if got := countIn(t, f, tx, tc.table, ids[name]); got != before[name] {
@@ -63,6 +89,15 @@ func TestDeleteStatementsGuardThemselvesLive(t *testing.T) {
 			}
 		})
 	}
+}
+
+// deleteArgs is the argument list a delete statement takes: the ids, and for the
+// two statements that pick rows the production row limit.
+func deleteArgs(statement string, ids []string) []any {
+	if statement == relationshipretention.DeleteEvidenceSQL || statement == relationshipretention.DeleteCandidatesSQL {
+		return []any{ids, relationshipretention.BatchRows}
+	}
+	return []any{ids}
 }
 
 // countIn counts one generation's rows in a table inside the caller's transaction.

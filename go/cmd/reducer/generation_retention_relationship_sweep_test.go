@@ -109,6 +109,9 @@ func (tx *relationshipSweepFakeTx) QueryContext(_ context.Context, query string,
 			rows = append(rows, []any{id, true, true})
 		}
 		return &orphanSweepFakeRows{rows: rows}, nil
+	case strings.Contains(query, "relationship retention: settle claimed generations"):
+		// Every claimed generation was swept: the settle read names none left.
+		return &orphanSweepFakeRows{}, nil
 	}
 	return nil, fmt.Errorf("unexpected query: %s", query)
 }

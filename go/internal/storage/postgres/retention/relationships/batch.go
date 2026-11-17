@@ -22,38 +22,73 @@ const (
 	stageDeleteEvidence    = "delete_evidence"
 	stageDeleteCandidates  = "delete_candidates"
 	stageDeleteGenerations = "delete_generations"
+	stageSettle            = "settle"
 )
 
 // batchOutcome is what one batch transaction did.
 type batchOutcome struct {
-	// swept is the generations the batch deleted, and rows its deletes'
-	// affected row counts by table. Both are zero unless the batch committed.
+	// committed reports that the batch committed. Only then do rows and swept
+	// count: a batch that deleted nothing and finished no generation ends
+	// without a commit, and one that fails rolls back whole.
+	committed bool
+	// swept is the claimed generations the batch left with nothing behind: no
+	// evidence, candidate or generation row, counting the batch's own deletes. It
+	// includes a claimed generation whose rows another session or replica had
+	// already removed after the census listed it, which the batch found empty.
+	// rows is the batch's deletes' affected row counts by table, which can be
+	// non-zero while swept is zero (a purge held the rest of a generation).
 	swept int
 	rows  map[string]int64
 	// busy, ineligible and timedOut count generations left for a later pass.
 	busy       int
 	ineligible int
 	timedOut   int
-	duration   time.Duration
+	// continued is the claimed generations that still had rows after a batch
+	// whose evidence or candidate delete stopped at its row limit. They are not
+	// busy: the batch only ran out of row budget, so the pass runs them again.
+	continued []string
+	duration  time.Duration
+}
+
+// total is the rows the batch's deletes affected, across the three tables.
+func (o batchOutcome) total() int64 {
+	var n int64
+	for _, rows := range o.rows {
+		n += rows
+	}
+	return n
 }
 
 // runBatch deletes the relationship rows of up to BatchGenerations orphan
-// generations in one transaction, in the fixed order the arbiter ruled:
+// generations in one transaction. It never waits for a row lock, which is what
+// keeps it out of a lock cycle with the #10820 purge (the purge deletes evidence
+// and candidates first and the generation row last; this batch locks the
+// generation row first):
 //
-//  1. lock_timeout 500 ms, transaction local (never zero);
+//  1. lock_timeout 500 ms, transaction local and never zero. It bounds the one
+//     wait the batch cannot skip, a relation-level lock such as DDL; it is a
+//     backstop, not a cycle breaker;
 //  2. a per-generation advisory try lock, so two sweepers never take the same
 //     generation, and an id another sweeper holds is skipped;
 //  3. classification, which re-checks Rule A in this snapshot and locks the
 //     generation rows FOR UPDATE SKIP LOCKED, so an activation or refinalize in
 //     flight is skipped and a committed one is re-checked under the lock;
-//  4. evidence, then candidates, then the generation row last, each delete
-//     taking only the ids classification claimed and re-asserting every Rule A
-//     predicate in its own WHERE.
+//  4. evidence, then candidates: each selects up to BatchRows rows of the claimed
+//     generations FOR UPDATE SKIP LOCKED, re-asserting every Rule A predicate,
+//     and deletes exactly those rows, so a row another session holds stays;
+//  5. the generation row last, only for a generation with no evidence and no
+//     candidate row left;
+//  6. a settle read, which names the claimed generations that still have a row.
+//     If neither picking delete stopped at its row limit, another session holds
+//     what is left: the batch counts those generations as lock_busy and leaves
+//     the rest of the batch to commit. If one did, the generation may only be
+//     larger than the batch, and the pass runs it again (outcome.continued).
 //
-// The whole batch commits or none of it does, so a crash leaves nothing
-// half-deleted. A 55P03 from any statement aborts the transaction and counts
-// every generation of the batch as lock_timeout; any other error, including a
-// deadlock (40P01), is returned so the pass fails visibly.
+// The batch commits when it deleted a row or finished a generation, and
+// otherwise ends without a commit. A 55P03 from any statement aborts the
+// transaction and counts every generation of the batch as lock_timeout; any
+// other error, including a deadlock (40P01), is returned so the pass fails
+// visibly.
 func (s *sweeper) runBatch(ctx context.Context, batch []string) (batchOutcome, error) {
 	started := time.Now()
 	outcome := batchOutcome{rows: map[string]int64{}}
@@ -109,16 +144,22 @@ func (s *sweeper) runBatch(ctx context.Context, batch []string) (batchOutcome, e
 		return outcome, nil
 	}
 
+	cut := false // a picking delete stopped at its row limit
 	for _, step := range []struct {
 		stage string
 		query string
 		table string
+		picks bool // takes the row limit as its second argument
 	}{
-		{stageDeleteEvidence, deleteEvidenceQuery, EvidenceTable},
-		{stageDeleteCandidates, deleteCandidatesQuery, CandidatesTable},
-		{stageDeleteGenerations, deleteGenerationsQuery, GenerationsTable},
+		{stageDeleteEvidence, deleteEvidenceQuery, EvidenceTable, true},
+		{stageDeleteCandidates, deleteCandidatesQuery, CandidatesTable, true},
+		{stageDeleteGenerations, deleteGenerationsQuery, GenerationsTable, false},
 	} {
-		result, err := tx.ExecContext(ctx, step.query, claimed)
+		args := []any{claimed}
+		if step.picks {
+			args = append(args, s.batchRows)
+		}
+		result, err := tx.ExecContext(ctx, step.query, args...)
 		if err != nil {
 			return fail(step.stage, err)
 		}
@@ -127,15 +168,38 @@ func (s *sweeper) runBatch(ctx context.Context, batch []string) (batchOutcome, e
 			return fail(step.stage, err)
 		}
 		outcome.rows[step.table] = n
+		if step.picks && n >= int64(s.batchRows) {
+			cut = true
+		}
 		if err := s.hook(step.stage); err != nil {
 			return fail(step.stage, err)
 		}
+	}
+	left, err := settle(ctx, tx, claimed)
+	if err != nil {
+		return fail("settle", err)
+	}
+	if err := s.hook(stageSettle); err != nil {
+		return fail("settle", err)
+	}
+	outcome.swept = len(claimed) - len(left)
+	if cut {
+		outcome.continued = left
+	} else {
+		outcome.busy += len(left)
+	}
+	if outcome.swept == 0 && outcome.total() == 0 {
+		// Another session held everything the batch claimed: nothing was deleted
+		// and no generation finished, so there is nothing to commit.
+		outcome.rows = map[string]int64{}
+		outcome.duration = time.Since(started)
+		return outcome, nil
 	}
 	if err := tx.Commit(); err != nil {
 		return fail("commit", err)
 	}
 	committed = true
-	outcome.swept = len(claimed)
+	outcome.committed = true
 	outcome.duration = time.Since(started)
 	return outcome, nil
 }
@@ -190,6 +254,43 @@ func classify(ctx context.Context, q db.Queryer, locked []string) (claimed []str
 	return claimed, held, ineligible, rows.Err()
 }
 
+// settle returns the claimed generations that still have a row after the batch's
+// deletes, in the order the batch claimed them: ones another session held, or
+// ones larger than the batch's row limit. It returns each claimed id once and
+// ignores anything else the statement returns, so the batch's swept count can
+// never go below zero.
+func settle(ctx context.Context, q db.Queryer, claimed []string) (left []string, err error) {
+	rows, err := q.QueryContext(ctx, settleQuery, claimed)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	pending := make(map[string]struct{}, len(claimed))
+	for _, id := range claimed {
+		pending[id] = struct{}{}
+	}
+	got := make(map[string]struct{})
+	for rows.Next() {
+		var generationID string
+		if err := rows.Scan(&generationID); err != nil {
+			return nil, err
+		}
+		if _, ok := pending[generationID]; ok {
+			delete(pending, generationID)
+			got[generationID] = struct{}{}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, id := range claimed {
+		if _, ok := got[id]; ok {
+			left = append(left, id)
+		}
+	}
+	return left, nil
+}
+
 // hook runs the test-only fault hook after a statement; production never sets it.
 func (s *sweeper) hook(stage string) error {
 	if s.afterStatement == nil {
@@ -199,8 +300,9 @@ func (s *sweeper) hook(stage string) error {
 }
 
 // isLockTimeout reports SQLSTATE 55P03, lock_timeout expiry: another session
-// holds rows the batch needs, and the batch rolled back with nothing applied.
-// A deadlock (40P01) is deliberately not a timeout: it must surface.
+// holds a relation-level lock the batch needs (the batch never waits for a row
+// lock), and the batch rolled back with nothing applied. A deadlock (40P01) is
+// deliberately not a timeout: it must surface.
 func isLockTimeout(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "55P03"

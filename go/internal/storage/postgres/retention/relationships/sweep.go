@@ -31,6 +31,9 @@ type Options struct {
 	// BatchGenerations is the generations per batch (BatchGenerations when not
 	// positive). Tests lower it; there is no operator knob.
 	BatchGenerations int
+	// BatchRows is the row limit of a batch's evidence and candidate deletes
+	// (BatchRows when not positive). Tests lower it; there is no operator knob.
+	BatchRows int
 	// Logger, when non-nil, receives one line per committed batch and one per
 	// batch left for a later pass.
 	Logger *slog.Logger
@@ -49,16 +52,21 @@ type Options struct {
 type Result struct {
 	// Census is the census the pass started from.
 	Census Census
-	// RowsSwept is the rows the committed batches deleted, by table.
+	// RowsSwept is the rows the committed batches deleted, by table. A batch
+	// that could not finish a generation (another session held some of its rows)
+	// still commits the rows it did delete.
 	RowsSwept map[string]int64
-	// GenerationsSwept is the generations whose rows the committed batches
-	// deleted.
+	// GenerationsSwept is the generations the committed batches left with no
+	// evidence, candidate or generation row, counting the batches' own deletes.
+	// A generation another session held rows of is not counted (it is lock_busy
+	// and retried), and one whose rows another session or replica removed after
+	// the census listed it is counted although this pass deleted none of them.
 	GenerationsSwept int
 	// Skipped is the generations left for a later pass, by reason (lock_busy,
 	// lock_timeout, ineligible). All three reasons always have an entry.
 	Skipped map[string]int
-	// Batches is the committed batch transactions; a batch that skipped
-	// everything or rolled back is not counted.
+	// Batches is the committed batch transactions; a batch that deleted nothing
+	// and finished no generation, or rolled back, is not counted.
 	Batches int
 	// Capped is why the pass stopped with orphans left: CapRows, CapDeadline or
 	// CapList. It is empty for a clean pass and for a census-only pass, so a
@@ -73,6 +81,8 @@ type Result struct {
 type sweeper struct {
 	database       db.Beginner
 	afterStatement func(stage string) error
+	// batchRows is the row limit of a batch's two picking deletes.
+	batchRows int
 }
 
 // Sweep takes the orphan census and, when opts.Deletes holds, deletes the
@@ -83,10 +93,13 @@ type sweeper struct {
 // skips a generation the first holds and a crash loses at most one uncommitted
 // batch.
 //
-// A lock timeout (a concurrent #10820 purge holding rows the batch needs) skips
-// that batch and the pass continues; any other batch error ends the pass with
-// the rows already committed still counted in the returned Result. The census
-// always runs, so the orphan gauge stays truthful with deletes off.
+// A batch never waits for a row lock: a generation whose rows another session
+// holds (a #10820 purge in flight, a writer) is skipped as lock_busy and the
+// rest of the batch commits. A lock timeout (a relation-level lock, such as DDL,
+// that the batch cannot skip) skips that batch and the pass continues; any other
+// batch error ends the pass with the rows already committed still counted in the
+// returned Result. The census always runs, so the orphan gauge stays truthful
+// with deletes off.
 func Sweep(ctx context.Context, database db.Beginner, opts Options) (Result, error) {
 	result := Result{
 		RowsSwept: map[string]int64{EvidenceTable: 0, CandidatesTable: 0, GenerationsTable: 0},
@@ -117,49 +130,60 @@ func Sweep(ctx context.Context, database db.Beginner, opts Options) (Result, err
 	if rowCap <= 0 {
 		rowCap = DefaultRowCap
 	}
-	s := &sweeper{database: database, afterStatement: opts.afterStatement}
+	batchRows := opts.BatchRows
+	if batchRows <= 0 {
+		batchRows = BatchRows
+	}
+	s := &sweeper{database: database, afterStatement: opts.afterStatement, batchRows: batchRows}
 	started := now()
 	var rows int64
 	attempted := false
 	list := census.Generations
+walk:
 	for start := 0; start < len(list); start += size {
-		if attempted {
-			// The first batch always runs; later batches wait for the budget.
-			if rows >= rowCap {
-				result.Capped = CapRows
-				break
-			}
-			if !opts.Deadline.IsZero() && !now().Before(opts.Deadline) {
-				result.Capped = CapDeadline
-				break
-			}
-		}
-		if err = ctx.Err(); err != nil {
-			err = fmt.Errorf("relationship retention sweep: %w", err)
-			break
-		}
-		attempted = true
 		batch := list[start:min(start+size, len(list))]
-		var outcome batchOutcome
-		outcome, err = s.runBatch(ctx, batch)
-		if err != nil {
-			break
+		// A slice is repeated until it is done: a batch whose row limit cut it
+		// hands back the generations it left, and they run again before the
+		// next slice starts, under the same budget as any other batch.
+		for len(batch) > 0 {
+			if attempted {
+				// The first batch always runs; later batches wait for the budget.
+				if rows >= rowCap {
+					result.Capped = CapRows
+					break walk
+				}
+				if !opts.Deadline.IsZero() && !now().Before(opts.Deadline) {
+					result.Capped = CapDeadline
+					break walk
+				}
+			}
+			if err = ctx.Err(); err != nil {
+				err = fmt.Errorf("relationship retention sweep: %w", err)
+				break walk
+			}
+			attempted = true
+			var outcome batchOutcome
+			outcome, err = s.runBatch(ctx, batch)
+			if err != nil {
+				break walk
+			}
+			result.Skipped[SkipLockBusy] += outcome.busy
+			result.Skipped[SkipIneligible] += outcome.ineligible
+			result.Skipped[SkipLockTimeout] += outcome.timedOut
+			if outcome.committed {
+				for table, n := range outcome.rows {
+					result.RowsSwept[table] += n
+					rows += n
+				}
+				result.GenerationsSwept += outcome.swept
+				result.Batches++
+				logBatch(ctx, opts.Logger, outcome)
+				addBatchEvent(ctx, outcome)
+			} else {
+				logYield(ctx, opts.Logger, outcome, len(batch))
+			}
+			batch = outcome.continued
 		}
-		result.Skipped[SkipLockBusy] += outcome.busy
-		result.Skipped[SkipIneligible] += outcome.ineligible
-		result.Skipped[SkipLockTimeout] += outcome.timedOut
-		if outcome.swept == 0 {
-			logYield(ctx, opts.Logger, outcome, len(batch))
-			continue
-		}
-		for table, n := range outcome.rows {
-			result.RowsSwept[table] += n
-			rows += n
-		}
-		result.GenerationsSwept += outcome.swept
-		result.Batches++
-		logBatch(ctx, opts.Logger, outcome)
-		addBatchEvent(ctx, outcome)
 	}
 	result.SweepDuration = now().Sub(started)
 	if err == nil && result.Capped == "" && census.Saturated {
@@ -203,12 +227,16 @@ func addBatchEvent(ctx context.Context, outcome batchOutcome) {
 }
 
 // logBatch writes the committed-batch line: counts and time, no identifiers.
+// batch_generations is the generations the batch finished and batch_continued the
+// ones its row limit cut, which the pass runs again, so a hub generation's chunks
+// read as batches that finish none and continue some.
 func logBatch(ctx context.Context, logger *slog.Logger, outcome batchOutcome) {
 	if logger == nil {
 		return
 	}
 	logger.InfoContext(ctx, "generation retention relationship batch committed",
 		slog.Int("batch_generations", outcome.swept),
+		slog.Int("batch_continued", len(outcome.continued)),
 		slog.Int64("evidence_rows", outcome.rows[EvidenceTable]),
 		slog.Int64("candidate_rows", outcome.rows[CandidatesTable]),
 		slog.Int64("generation_rows", outcome.rows[GenerationsTable]),
@@ -218,9 +246,9 @@ func logBatch(ctx context.Context, logger *slog.Logger, outcome batchOutcome) {
 	)
 }
 
-// logYield writes the line for a batch that swept nothing: every skip reason it
-// counted. A lock timeout is a WARN because it means a writer or the purge held
-// rows; the others are INFO.
+// logYield writes the line for a batch that committed nothing: every skip reason
+// it counted. A lock timeout is a WARN because a table lock held the batch; the
+// others are INFO.
 func logYield(ctx context.Context, logger *slog.Logger, outcome batchOutcome, size int) {
 	if logger == nil {
 		return

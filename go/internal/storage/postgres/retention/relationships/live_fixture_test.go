@@ -150,15 +150,48 @@ func (f *liveFixture) census(t *testing.T) relationshipretention.Result {
 // release function (rollback), also registered as cleanup.
 func (f *liveFixture) holdGeneration(t *testing.T, generationID string) (release func()) {
 	t.Helper()
+	return f.holdRows(t, `SELECT 1 FROM relationship_generations WHERE generation_id = $1 FOR UPDATE`, generationID)
+}
+
+// holdEvidence parks a transaction that holds every evidence row of the
+// generation FOR UPDATE, the way a writer in the middle of an upsert would. It
+// returns the release function (rollback), also registered as cleanup.
+func (f *liveFixture) holdEvidence(t *testing.T, generationID string) (release func()) {
+	t.Helper()
+	return f.holdRows(t, `SELECT 1 FROM relationship_evidence_facts WHERE generation_id = $1 FOR UPDATE`, generationID)
+}
+
+// holdCandidates parks a transaction that holds every candidate row of the
+// generation FOR UPDATE, the way a writer in the middle of an upsert would. It
+// returns the release function (rollback), also registered as cleanup.
+func (f *liveFixture) holdCandidates(t *testing.T, generationID string) (release func()) {
+	t.Helper()
+	return f.holdRows(t, `SELECT 1 FROM relationship_candidates WHERE generation_id = $1 FOR UPDATE`, generationID)
+}
+
+// holdRows runs a locking SELECT in a transaction it leaves open and returns
+// the release function (rollback), also registered as cleanup.
+func (f *liveFixture) holdRows(t *testing.T, lockingSelect string, args ...any) (release func()) {
+	t.Helper()
 	tx, err := f.db.BeginTx(f.ctx, nil)
 	if err != nil {
 		t.Fatalf("begin holder: %v", err)
 	}
-	var one int
-	if err := tx.QueryRowContext(f.ctx, `SELECT 1 FROM relationship_generations WHERE generation_id = $1 FOR UPDATE`, generationID).Scan(&one); err != nil {
+	rows, err := tx.QueryContext(f.ctx, lockingSelect, args...)
+	if err != nil {
 		_ = tx.Rollback()
-		t.Fatalf("hold generation row: %v", err)
+		t.Fatalf("hold rows %.60q: %v", lockingSelect, err)
 	}
+	held := 0
+	for rows.Next() {
+		held++
+	}
+	if err := rows.Err(); err != nil || held == 0 {
+		_ = rows.Close()
+		_ = tx.Rollback()
+		t.Fatalf("hold rows %.60q: locked %d rows, error %v", lockingSelect, held, err)
+	}
+	_ = rows.Close()
 	released := false
 	release = func() {
 		if !released {

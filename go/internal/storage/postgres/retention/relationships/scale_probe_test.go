@@ -120,6 +120,46 @@ func (f *liveFixture) probeExplain(ctx context.Context, t *testing.T, label, sta
 	t.Logf("EXPLAIN %s\n%s", label, strings.Join(lines, "\n"))
 }
 
+// probeStep is one statement of a batch the probe explains.
+type probeStep struct {
+	label, statement string
+	args             []any
+}
+
+// probeExplainBatch runs EXPLAIN (ANALYZE, BUFFERS) of each step in order inside
+// one transaction that always rolls back. EXPLAIN ANALYZE executes a DELETE, so
+// a later step sees the rows an earlier one removed, as it does in a real batch:
+// the generation delete and the settle read are only representative after the
+// evidence and candidate deletes have run.
+func (f *liveFixture) probeExplainBatch(ctx context.Context, t *testing.T, steps []probeStep) {
+	t.Helper()
+	tx, err := f.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SET LOCAL statement_timeout = '`+probeStatementTimeout+`'`); err != nil {
+		t.Fatalf("set statement_timeout: %v", err)
+	}
+	for _, step := range steps {
+		rows, err := tx.QueryContext(ctx, `EXPLAIN (ANALYZE, BUFFERS, SETTINGS) `+step.statement, step.args...)
+		if err != nil {
+			t.Fatalf("explain %s: %v", step.label, err)
+		}
+		var lines []string
+		for rows.Next() {
+			var line string
+			if err := rows.Scan(&line); err != nil {
+				_ = rows.Close()
+				t.Fatalf("scan explain %s: %v", step.label, err)
+			}
+			lines = append(lines, line)
+		}
+		_ = rows.Close()
+		t.Logf("EXPLAIN %s\n%s", step.label, strings.Join(lines, "\n"))
+	}
+}
+
 // probeVacuum refreshes the planner statistics and the visibility map, as a
 // production table would have them after autovacuum.
 func (f *liveFixture) probeVacuum(ctx context.Context, t *testing.T, tables ...string) {
@@ -207,18 +247,23 @@ func (f *liveFixture) probeCensus(ctx context.Context, t *testing.T, state strin
 	}
 }
 
-// probeDeletePlans logs the plans of one batch of 50 orphan generations: the
-// classify statement and the three deletes (rolled back).
+// probeDeletePlans logs the plans of one batch of 50 orphan generations in the
+// order a batch runs them, in one transaction that rolls back: classification,
+// the evidence and candidate deletes, the generation row delete and the settle
+// read.
 func (f *liveFixture) probeDeletePlans(ctx context.Context, t *testing.T) {
 	t.Helper()
 	ids := make([]string, 0, 50)
 	for k := 1; k <= 50; k++ {
 		ids = append(ids, fmt.Sprintf("orph-%07d", k))
 	}
-	f.probeExplain(ctx, t, "delete evidence, 50 generations", relationshipretention.DeleteEvidenceSQL, ids)
-	f.probeExplain(ctx, t, "delete candidates, 50 generations", relationshipretention.DeleteCandidatesSQL, ids)
-	f.probeExplain(ctx, t, "delete generations, 50 generations", relationshipretention.DeleteGenerationsSQL, ids)
-	f.probeExplain(ctx, t, "classify, 50 generations", relationshipretention.ClassifySQL, ids)
+	f.probeExplainBatch(ctx, t, []probeStep{
+		{"classify, 50 generations", relationshipretention.ClassifySQL, []any{ids}},
+		{"delete evidence, 50 generations", relationshipretention.DeleteEvidenceSQL, []any{ids, relationshipretention.BatchRows}},
+		{"delete candidates, 50 generations", relationshipretention.DeleteCandidatesSQL, []any{ids, relationshipretention.BatchRows}},
+		{"delete generations, 50 generations", relationshipretention.DeleteGenerationsSQL, []any{ids}},
+		{"settle, 50 generations", relationshipretention.SettleSQL, []any{ids}},
+	})
 }
 
 // probeWAL is the WAL position and the pg_stat_wal counters at one instant.
@@ -271,10 +316,12 @@ func (f *liveFixture) probeSweepPasses(ctx context.Context, t *testing.T) {
 		}
 		before := f.probeWALNow(ctx, t)
 		var logs bytes.Buffer
-		started := time.Now()
-		result, err := relationshipretention.Sweep(ctx, f.database, relationshipretention.Options{
+		opts := relationshipretention.Options{
 			Deletes: true, RowCap: probeRowCap, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
-		})
+		}
+		probeLogSlowStatements(t, &opts, time.Second)
+		started := time.Now()
+		result, err := relationshipretention.Sweep(ctx, f.database, opts)
 		wall := time.Since(started)
 		if err != nil {
 			t.Fatalf("Sweep: %v", err)
@@ -298,6 +345,27 @@ func (f *liveFixture) probeSweepPasses(ctx context.Context, t *testing.T) {
 	}
 }
 
+// probeLogSlowStatements installs a hook that logs every batch statement that
+// took longer than threshold (measured from the previous statement of the same
+// batch, so the first one of a batch also covers the transaction's begin). It
+// names the statement behind a slow batch instead of leaving only the batch's
+// total.
+func probeLogSlowStatements(t *testing.T, opts *relationshipretention.Options, threshold time.Duration) {
+	var last time.Time
+	relationshipretention.SetAfterStatement(opts, func(stage string) error {
+		now := time.Now()
+		if !last.IsZero() && stage != relationshipretention.StageSetLockTimeout && now.Sub(last) > threshold {
+			t.Logf("slow statement: %s took %s", stage, now.Sub(last).Round(time.Millisecond))
+		}
+		if stage == relationshipretention.StageSettle {
+			last = time.Time{} // the batch commits next; the next batch starts a new series
+		} else {
+			last = now
+		}
+		return nil
+	})
+}
+
 // probeBytesPerRow divides the WAL bytes by the rows a pass deleted.
 func probeBytesPerRow(walBytes string, rows int64) string {
 	if rows == 0 {
@@ -305,25 +373,6 @@ func probeBytesPerRow(walBytes string, rows int64) string {
 	}
 	n, _ := strconv.ParseInt(walBytes, 10, 64)
 	return fmt.Sprintf("%.0f", float64(n)/float64(rows))
-}
-
-// probeHubBatch seeds 50 orphan generations of 1,000 evidence rows (4.5% of the
-// scale 1 table) and logs the evidence delete's plan, to see the sequential scan
-// flip the #10820 purge note describes.
-func (f *liveFixture) probeHubBatch(ctx context.Context, t *testing.T) {
-	t.Helper()
-	f.probeExec(ctx, t, `INSERT INTO relationship_generations (generation_id, scope, run_id, status, created_at)
-SELECT 'hub-'||lpad(k::text, 4, '0'), 'run-hub', 'run', 'superseded', now() FROM generate_series(1, 50) k`)
-	f.probeExec(ctx, t, `INSERT INTO relationship_evidence_facts (evidence_id, generation_id, evidence_kind, relationship_type, source_repo_id, target_repo_id, source_entity_id, target_entity_id, confidence, rationale, details, observed_at)
-SELECT 'hub-'||lpad(k::text, 4, '0')||'-ev-'||i, 'hub-'||lpad(k::text, 4, '0'), 'terraform', 'DEPENDS_ON', 'repo-'||(i%17), 'repo-t', 'src-'||i, 'tgt-'||i, 0.9,
-       'seed rationale text of moderate length for the row', jsonb_build_object('path', 'modules/x/main.tf', 'line', i), now()
-FROM generate_series(1, 50) k, generate_series(1, 1000) i`)
-	f.probeVacuum(ctx, t, "relationship_evidence_facts")
-	hub := make([]string, 0, 50)
-	for k := 1; k <= 50; k++ {
-		hub = append(hub, fmt.Sprintf("hub-%04d", k))
-	}
-	f.probeExplain(ctx, t, "delete evidence, 50 hub generations (50,000 rows)", relationshipretention.DeleteEvidenceSQL, hub)
 }
 
 // TestRelationshipRetentionScaleProbe is the measurement behind the

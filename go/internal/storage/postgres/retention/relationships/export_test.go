@@ -11,6 +11,7 @@ const (
 	StageDeleteEvidence    = stageDeleteEvidence
 	StageDeleteCandidates  = stageDeleteCandidates
 	StageDeleteGenerations = stageDeleteGenerations
+	StageSettle            = stageSettle
 )
 
 // SetAfterStatement installs a hook that runs after each batch statement, so an
@@ -24,6 +25,7 @@ const (
 	DeleteCandidatesSQL  = deleteCandidatesQuery
 	DeleteGenerationsSQL = deleteGenerationsQuery
 	ClassifySQL          = classifyQuery
+	SettleSQL            = settleQuery
 	CensusEvidenceSQL    = censusEvidenceQuery
 	CensusCandidatesSQL  = censusCandidatesQuery
 	CensusGenerationsSQL = censusGenerationsQuery

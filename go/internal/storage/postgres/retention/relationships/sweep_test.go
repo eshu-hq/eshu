@@ -55,6 +55,9 @@ func (s script) handle(c call) reply {
 		return reply{affected: s.rows[1]}
 	case deleteGenerationsQuery:
 		return reply{affected: s.rows[2]}
+	case settleQuery:
+		// Nothing left behind unless a test says which claimed ids are.
+		return reply{}
 	}
 	return reply{}
 }
@@ -85,8 +88,8 @@ func sweepWith(t *testing.T, s script, opts Options) (Result, *scriptedDB, error
 // TestBatchRunsStatementsInFixedOrder pins the sweep shape the arbiter ruled:
 // one transaction per batch, lock_timeout first, per-generation try lock,
 // classification with the rg row lock, then evidence, candidates and the
-// generation row last (the #10820 purge deletes them in the same order), one
-// commit.
+// generation row last (the #10820 purge deletes them in the same order), a
+// settle read of what was left behind, one commit.
 func TestBatchRunsStatementsInFixedOrder(t *testing.T) {
 	t.Parallel()
 	s := script{evidence: []string{"g1", "g2"}, candidates: []string{"g2", "g3"}, rows: [3]int64{7, 3, 3}}
@@ -97,7 +100,7 @@ func TestBatchRunsStatementsInFixedOrder(t *testing.T) {
 	// Transaction 1 is the census, transaction 2 the only batch.
 	wantBatch := []string{
 		setLockTimeoutQuery, tryLockQuery, classifyQuery,
-		deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery,
+		deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery, settleQuery,
 	}
 	if got := database.queriesIn(2); !reflect.DeepEqual(got, wantBatch) {
 		t.Fatalf("batch statements out of order:\n got %v\nwant %v", got, wantBatch)
@@ -153,10 +156,10 @@ func TestDeletesReceiveOnlyTheClassifiedIDs(t *testing.T) {
 	if want := []string{"held", "ineligible", "ok-1", "ok-2"}; !slices.Equal(classifyArgs, want) {
 		t.Fatalf("classify received %v, want only the try-locked ids %v", classifyArgs, want)
 	}
-	for _, query := range []string{deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery} {
+	for _, query := range []string{deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery, settleQuery} {
 		got := idsArg(database.callsFor(query)[0])
 		if want := []string{"ok-1", "ok-2"}; !slices.Equal(got, want) {
-			t.Errorf("a delete received %v, want only the classified ids %v", got, want)
+			t.Errorf("a delete or the settle read received %v, want only the classified ids %v", got, want)
 		}
 	}
 	wantSkipped := map[string]int{SkipLockBusy: 2, SkipIneligible: 1, SkipLockTimeout: 0}
@@ -185,7 +188,7 @@ func TestBatchWithNothingEligibleOpensNoDeletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
-	for _, query := range []string{classifyQuery, deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery} {
+	for _, query := range []string{classifyQuery, deleteEvidenceQuery, deleteCandidatesQuery, deleteGenerationsQuery, settleQuery} {
 		if n := len(database.callsFor(query)); n != 0 {
 			t.Errorf("statement ran %d times for a batch with nothing locked: %.40s", n, query)
 		}

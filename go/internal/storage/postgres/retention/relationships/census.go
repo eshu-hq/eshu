@@ -86,8 +86,15 @@ func TakeCensus(ctx context.Context, database db.Beginner) (Census, error) {
 	}
 	sort.Strings(census.Generations)
 	if len(census.Generations) > CensusListLimit {
-		// Each table's list is its lowest ids, so the lowest CensusListLimit of
-		// the union are exactly the lowest CensusListLimit orphans overall.
+		// Each table's list is its lowest ids in the database's collation order
+		// (the census statements ORDER BY the id), while sort.Strings above orders
+		// bytewise. The two orders agree for ASCII ids under the C collation and
+		// can differ otherwise, so the CensusListLimit ids kept here are not
+		// guaranteed to be the lowest orphans overall. That only changes which
+		// orphans a pass lists: the ones left out are listed by later passes
+		// (Saturated stays set) and the gauge reads "at least". It never changes
+		// eligibility: every batch re-checks Rule A for each id it is given, so a
+		// generation is never swept because of where it sorts.
 		census.Generations = census.Generations[:CensusListLimit]
 		census.Saturated = true
 	}

@@ -4,13 +4,15 @@
 package relationshipretention_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements read evidence, candidates and generations through their generation index or primary key and never sequentially scan the table they delete from, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)
+//eshu:readiness:reason #10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -107,9 +109,11 @@ func (f *liveFixture) explainCustom(t *testing.T, statement string, args ...any)
 // explainGeneric plans the statement as a prepared statement under
 // plan_cache_mode = force_generic_plan, the plan a driver that caches prepared
 // statements serves after the fifth run. A bare EXPLAIN never shows it. The
-// array is passed as a literal to EXECUTE; the helper checks the plan still
-// references $1 so a silently custom plan cannot pass as the generic one.
-func (f *liveFixture) explainGeneric(t *testing.T, name, statement string, ids []string) []planNode {
+// array is passed as a literal to EXECUTE. The plan is explained VERBOSE so a
+// statement that only passes $1 to a function (the settle read's unnest) still
+// shows it, and the helper checks the plan references $1 so a silently custom
+// plan cannot pass as the generic one.
+func (f *liveFixture) explainGeneric(t *testing.T, name, statement string, ids []string, limit int) []planNode {
 	t.Helper()
 	ctx := context.Background()
 	conn, err := f.db.Conn(f.ctx)
@@ -121,13 +125,16 @@ func (f *liveFixture) explainGeneric(t *testing.T, name, statement string, ids [
 		t.Fatalf("force generic plan: %v", err)
 	}
 	defer func() { _, _ = conn.ExecContext(ctx, `RESET plan_cache_mode`) }()
-	if _, err := conn.ExecContext(ctx, "PREPARE "+name+"(text[]) AS "+statement); err != nil {
+	types, literal := "text[]", "'{"+strings.Join(ids, ",")+"}'"
+	if limit > 0 { // the statements that pick rows take the row limit as $2
+		types, literal = types+", bigint", literal+", "+strconv.Itoa(limit)
+	}
+	if _, err := conn.ExecContext(ctx, "PREPARE "+name+"("+types+") AS "+statement); err != nil {
 		t.Fatalf("prepare %s: %v", name, err)
 	}
 	defer func() { _, _ = conn.ExecContext(ctx, "DEALLOCATE "+name) }()
-	literal := "'{" + strings.Join(ids, ",") + "}'"
 	var raw []byte
-	if err := conn.QueryRowContext(f.ctx, "EXPLAIN (FORMAT JSON) EXECUTE "+name+"("+literal+")").Scan(&raw); err != nil {
+	if err := conn.QueryRowContext(f.ctx, "EXPLAIN (FORMAT JSON, VERBOSE) EXECUTE "+name+"("+literal+")").Scan(&raw); err != nil {
 		t.Fatalf("explain generic %s: %v", name, err)
 	}
 	if !strings.Contains(string(raw), "$1") {
@@ -136,32 +143,39 @@ func (f *liveFixture) explainGeneric(t *testing.T, name, statement string, ids [
 	return flattenPlan(t, raw)
 }
 
-// requireIndexServed fails unless some node reads the index and no node scans
-// the table sequentially.
-func requireIndexServed(t *testing.T, label string, nodes []planNode, table, index string) {
+// requirePlan fails unless every named index is read by some node and no node
+// scans one of the named tables sequentially. It logs the plan's nodes, so the
+// evidence note can quote the shape.
+func requirePlan(t *testing.T, label string, nodes []planNode, indexes, noSeqScan []string) {
 	t.Helper()
-	usesIndex := false
+	t.Logf("%s plan nodes: %v", label, nodes)
+	read := map[string]bool{}
 	for _, node := range nodes {
-		if node.index == index {
-			usesIndex = true
-		}
-		if strings.HasSuffix(node.nodeType, "Seq Scan") && node.relation == table {
-			t.Errorf("%s: %s is read with a %s, want a read through %s\nplan nodes: %v", label, table, node.nodeType, index, nodes)
+		read[node.index] = true
+		if strings.HasSuffix(node.nodeType, "Seq Scan") && slices.Contains(noSeqScan, node.relation) {
+			t.Errorf("%s: %s is read with a %s, want a read through an index\nplan nodes: %v", label, node.relation, node.nodeType, nodes)
 		}
 	}
-	if !usesIndex {
-		t.Errorf("%s: no node reads %s\nplan nodes: %v", label, index, nodes)
+	for _, index := range indexes {
+		if !read[index] {
+			t.Errorf("%s: no node reads %s\nplan nodes: %v", label, index, nodes)
+		}
 	}
 }
 
 // TestRelationshipRetentionStatementsAreIndexServedLive pins the plan shapes
 // the sweep's deletes rely on. A delete batch removes about a thousand rows, so
-// each delete must read its table through the generation index (evidence and
-// candidates, the leading column of both indexes) or the primary key (the
-// generation rows) and never scan the table it deletes from: a sequential scan
-// would make the batch cost grow with the table instead of with the rows it
-// deletes. It is checked for the custom plan and for the generic plan a pooled
-// driver serves after five runs.
+// each statement must read its tables through an index and never scan one
+// sequentially: a sequential scan would make the batch cost grow with the table
+// instead of with the rows it deletes. The evidence and candidate deletes pick
+// their rows through the generation index and delete them through the primary
+// key; the generation row delete reads its own primary key and probes the
+// children of a generation through the evidence and candidate generation indexes.
+// It is checked for the custom plan and for the generic plan a pooled driver
+// serves after five runs.
+//
+// The settle read, which names the claimed generations that still have a row,
+// is pinned for the two large tables only (see the comment on its case).
 //
 // The census statements are not pinned. They read every generation id once, and
 // the planner picks an index only scan or a parallel sequential scan by table
@@ -179,23 +193,44 @@ func TestRelationshipRetentionStatementsAreIndexServedLive(t *testing.T) {
 	const (
 		evidence      = "relationship_evidence_facts"
 		evidenceIndex = "relationship_evidence_generation_idx"
+		evidencePK    = "relationship_evidence_facts_pkey"
 		candidates    = "relationship_candidates"
 		candIndex     = "relationship_candidates_generation_idx"
+		candidatePK   = "relationship_candidates_pkey"
 		generations   = "relationship_generations"
 		generationPK  = "relationship_generations_pkey"
 	)
+	// The statements that pick rows take the production row limit as $2.
+	limit := relationshipretention.BatchRows
 	for _, tc := range []struct {
-		name, statement, table, index string
+		name, statement string
+		limit           int // 0 for a statement bound only by its ids
+		indexes, tables []string
 	}{
-		{"delete_evidence", relationshipretention.DeleteEvidenceSQL, evidence, evidenceIndex},
-		{"delete_candidates", relationshipretention.DeleteCandidatesSQL, candidates, candIndex},
-		{"delete_generations", relationshipretention.DeleteGenerationsSQL, generations, generationPK},
+		{"delete_evidence", relationshipretention.DeleteEvidenceSQL, limit, []string{evidenceIndex, evidencePK}, []string{evidence}},
+		{"delete_candidates", relationshipretention.DeleteCandidatesSQL, limit, []string{candIndex, candidatePK}, []string{candidates}},
+		{
+			"delete_generations", relationshipretention.DeleteGenerationsSQL, 0,
+			[]string{generationPK, evidenceIndex, candIndex},
+			[]string{generations, evidence, candidates},
+		},
+		// The settle read probes the two large tables for each claimed id through
+		// their generation indexes. It does not pin relationship_generations: the
+		// planner may hash that one-row-per-generation table instead of probing
+		// it (a hashed alternative plan for the EXISTS), which it does only while
+		// that is cheaper than the probes, so its cost stays bounded by about 50
+		// probes however large the table grows.
+		{"settle", relationshipretention.SettleSQL, 0, []string{evidenceIndex, candIndex}, []string{evidence, candidates}},
 	} {
+		args := []any{batch}
+		if tc.limit > 0 {
+			args = append(args, tc.limit)
+		}
 		t.Run(tc.name+" custom plan", func(t *testing.T) {
-			requireIndexServed(t, tc.name, f.explainCustom(t, tc.statement, batch), tc.table, tc.index)
+			requirePlan(t, tc.name, f.explainCustom(t, tc.statement, args...), tc.indexes, tc.tables)
 		})
 		t.Run(tc.name+" generic plan", func(t *testing.T) {
-			requireIndexServed(t, tc.name+" (generic)", f.explainGeneric(t, "retention_"+tc.name, tc.statement, batch), tc.table, tc.index)
+			requirePlan(t, tc.name+" (generic)", f.explainGeneric(t, "retention_"+tc.name, tc.statement, batch, tc.limit), tc.indexes, tc.tables)
 		})
 	}
 }

@@ -15,17 +15,20 @@ const (
 )
 
 // Skip reasons: the closed `reason` label set of the skipped-generations
-// counter. A skipped generation keeps all its rows and is retried by a later
-// pass.
+// counter. A skipped generation keeps its rows (all of them, or the ones a
+// batch could not take) and is retried by a later pass.
 const (
-	// SkipLockBusy is a generation another session holds: its advisory
-	// lock, or its relationship_generations row (an activation or a refinalize
-	// in flight).
+	// SkipLockBusy is a generation another session holds, which the batch
+	// leaves instead of waiting for: its advisory lock, its
+	// relationship_generations row (an activation or a refinalize in flight),
+	// or evidence or candidate rows (a #10820 purge in flight, a writer). The
+	// batch takes row locks only with SKIP LOCKED, so it never waits for any of
+	// them.
 	SkipLockBusy = "lock_busy"
-	// SkipLockTimeout is a batch that waited 500 ms for a lock (a concurrent
-	// #10820 purge holds rows the batch needs) and rolled back. Every
-	// generation of that batch is counted, because the error aborts the whole
-	// batch transaction.
+	// SkipLockTimeout is a batch that waited 500 ms for a lock it cannot skip,
+	// a relation-level lock (a DDL statement or VACUUM FULL holding a table), and
+	// rolled back. Every generation of that batch is counted, because the error
+	// aborts the whole batch transaction. A row lock never causes it.
 	SkipLockTimeout = "lock_timeout"
 	// SkipIneligible is a generation that stopped satisfying Rule A between the
 	// census and the batch (it has a scope_generations row again, a scope's
@@ -69,6 +72,16 @@ const LockClass = 10823
 // size needs a new measurement in the evidence note.
 const BatchGenerations = 50
 
+// BatchRows is the most rows each of a batch's two picking deletes (evidence,
+// candidates) takes, so a batch deletes at most 2*BatchRows+BatchGenerations rows
+// however large a generation is. A generation with more rows than that is drained
+// by successive batches inside the same pass, each its own transaction. Without it
+// a batch was bounded in generations only, and one generation of 125,000 evidence
+// rows held every one of its row locks for the whole batch (the evidence note
+// records how long): a #10820 purge of that repository waits for the batch, so the
+// bound is on how long it can wait.
+const BatchRows = 10_000
+
 // CensusListLimit is the most distinct orphan generations the census lists
 // per table, and so the most one pass can sweep. The orphan gauge counts the
 // distinct generations the census listed and saturates here: a value equal to
@@ -84,11 +97,15 @@ const CensusListLimit = 5000
 // more. The first batch of a pass always runs.
 const DefaultRowCap int64 = 100_000
 
-// lockTimeoutSetting bounds how long one batch waits for a row lock another
-// session holds. It sits below the server's default deadlock_timeout (1 s), so
-// the sweeper, not the #10820 purge, gives way when their lock orders cross:
-// the batch rolls back with 55P03, counts lock_timeout, and a later pass
-// retries it. It must stay positive: lock_timeout = 0 disables the timeout.
+// lockTimeoutSetting bounds how long one batch waits for a relation-level lock,
+// the one wait it cannot skip: a DDL statement or VACUUM FULL holding ACCESS
+// EXCLUSIVE on a relationship table. The batch never waits for a row lock (its
+// row locks are all SKIP LOCKED), so this is a backstop that keeps a stuck table
+// lock from holding a reducer connection, not a way to break a lock cycle with
+// the #10820 purge: a lock timeout only ends the waiter that carries it, and the
+// deadlock check of the other waiter can fire first. The batch rolls back with
+// 55P03, counts lock_timeout, and a later pass retries it. It must stay
+// positive: lock_timeout = 0 disables the timeout.
 const lockTimeoutSetting = "500ms"
 
 // censusStatementTimeoutSetting bounds the census transaction. The census reads
@@ -171,38 +188,94 @@ LEFT JOIN no_rg n ON n.generation_id = w.generation_id
 `
 
 // The three deletes run in this order inside the batch transaction: evidence,
-// candidates, the generation row last. The #10820 purge deletes the same tables
-// in the same order, and the generation row is the only one the batch locked
-// before them, so it is the single place the two lock orders cross (the
-// 500 ms lock_timeout breaks that cycle).
+// candidates, the generation row last. That is the order the #10820 purge
+// deletes the same tables in, and it is only the delete order: the lock orders
+// still differ, because the batch locks the generation row first (in
+// classification) and the purge reaches it last. They are safe together because
+// the batch never waits for a row lock, so it cannot be a link in a wait cycle.
+// Classification takes the generation row with SKIP LOCKED; the evidence and
+// candidate deletes select the rows they will delete in a MATERIALIZED CTE,
+// FOR UPDATE SKIP LOCKED, and delete exactly those ids in the same statement, so
+// a row a purge or a writer holds is left in place, not waited on. The only wait
+// edge left is the purge (or a writer) waiting for the batch, which ends when the
+// batch commits or rolls back.
 //
-// Each delete re-asserts all three Rule A predicates in its own WHERE. $1 is a
-// narrowing list, never the authority: a wrong array deletes nothing it should
-// not, because every row is checked against scope_generations,
-// ingestion_scopes.active_generation_id and the generation row's status in the
-// delete's own snapshot. Nothing here names resolved_relationships.
+// The two picking statements stop after $2 rows (BatchRows), counted over the rows
+// they lock: a row another session holds is skipped and does not count against the
+// limit. That bounds what one batch holds and how long a purge or a writer can wait
+// for it, however large a generation is; a generation with more rows than that is
+// finished by the batches that follow (see the settle read).
+//
+// Each delete carries all three Rule A predicates itself, in the statement that
+// takes the rows. $1 is a narrowing list, never the authority: a wrong array
+// deletes nothing it should not, because every row is checked against
+// scope_generations, ingestion_scopes.active_generation_id and the generation
+// row's status in the delete's own snapshot. Nothing here names
+// resolved_relationships.
 const deleteEvidenceQuery = `-- relationship retention: delete evidence
+WITH picked AS MATERIALIZED (
+    SELECT e.evidence_id
+    FROM relationship_evidence_facts e
+    WHERE e.generation_id = ANY($1::text[])
+      AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = e.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = e.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM relationship_generations rg WHERE rg.generation_id = e.generation_id AND rg.status = 'active')
+    LIMIT $2
+    FOR UPDATE OF e SKIP LOCKED
+)
 DELETE FROM relationship_evidence_facts e
-WHERE e.generation_id = ANY($1::text[])
-  AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = e.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = e.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM relationship_generations rg WHERE rg.generation_id = e.generation_id AND rg.status = 'active')
+USING picked p
+WHERE e.evidence_id = p.evidence_id
 `
 
 const deleteCandidatesQuery = `-- relationship retention: delete candidates
+WITH picked AS MATERIALIZED (
+    SELECT c.candidate_id
+    FROM relationship_candidates c
+    WHERE c.generation_id = ANY($1::text[])
+      AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = c.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = c.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM relationship_generations rg WHERE rg.generation_id = c.generation_id AND rg.status = 'active')
+    LIMIT $2
+    FOR UPDATE OF c SKIP LOCKED
+)
 DELETE FROM relationship_candidates c
-WHERE c.generation_id = ANY($1::text[])
-  AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = c.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = c.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM relationship_generations rg WHERE rg.generation_id = c.generation_id AND rg.status = 'active')
+USING picked p
+WHERE c.candidate_id = p.candidate_id
 `
 
+// deleteGenerationsQuery deletes a generation row only when no evidence and no
+// candidate row of it is left. A purge or a writer that holds rows the two
+// deletes skipped keeps them visible to this statement, so the generation row
+// stays with them, and the batch reports the generation as left for a later
+// pass. The row lock classification already holds makes this delete wait for
+// nothing.
 const deleteGenerationsQuery = `-- relationship retention: delete generations
 DELETE FROM relationship_generations rg
 WHERE rg.generation_id = ANY($1::text[])
   AND rg.status <> 'active'
   AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = rg.generation_id)
   AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = rg.generation_id)
+  AND NOT EXISTS (SELECT 1 FROM relationship_evidence_facts e WHERE e.generation_id = rg.generation_id)
+  AND NOT EXISTS (SELECT 1 FROM relationship_candidates c WHERE c.generation_id = rg.generation_id)
+`
+
+// settleQuery runs after the three deletes, in the same transaction, and returns
+// the claimed generations in $1 that still have a row in any of the three
+// tables. The batch's own deletes are invisible to it; rows another session
+// deleted but has not committed (a purge in flight), rows it holds, and rows a
+// writer added are not. A generation it returns was not swept. If neither
+// picking delete stopped at its row limit, another session holds what is left and
+// the batch counts the generation as lock_busy for a later pass; if one did, the
+// generation may just be larger than the batch and the pass runs it again. One
+// that it does not return has nothing left, which includes a generation whose
+// rows another session or replica removed after the census listed it.
+const settleQuery = `-- relationship retention: settle claimed generations
+SELECT c.generation_id
+FROM unnest($1::text[]) AS c(generation_id)
+WHERE EXISTS (SELECT 1 FROM relationship_evidence_facts e WHERE e.generation_id = c.generation_id)
+   OR EXISTS (SELECT 1 FROM relationship_candidates k WHERE k.generation_id = c.generation_id)
+   OR EXISTS (SELECT 1 FROM relationship_generations rg WHERE rg.generation_id = c.generation_id)
 `
 
 // The census statements list distinct orphan generations, ordered and bounded

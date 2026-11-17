@@ -19,23 +19,35 @@
 // for the orphan gauge; the count saturates at [CensusListLimit]. [Sweep] runs
 // the census and, only when [Options.Deletes] holds (off by default), deletes
 // the listed generations in batches of [BatchGenerations] under a row cap
-// ([DefaultRowCap]) and a deadline; the first batch always runs.
+// ([DefaultRowCap]) and a deadline; the first batch always runs. A batch is also
+// bounded in rows: each of its two picking deletes takes at most [BatchRows].
 //
-// Every batch is one transaction in a fixed order. It sets a 500 ms local
-// lock_timeout (below the server's 1 s deadlock_timeout, never zero), takes a
+// Every batch is one transaction in a fixed order, and it never waits for a row
+// lock. It sets a 500 ms local lock_timeout (never zero; it bounds only the one
+// wait the batch cannot skip, a relation-level lock such as DDL), takes a
 // per-generation advisory try lock (class [LockClass]), classifies the ids and
-// locks their generation rows FOR UPDATE SKIP LOCKED, then deletes evidence,
-// candidates and the generation row last, each delete taking only the ids
-// classification claimed and re-asserting all three Rule A predicates in its
-// own WHERE. There is no session lock, no pass-long transaction and no global
-// single flight: a second reducer replica skips a generation the first holds.
-// A 55P03 aborts the batch, counts every generation of it as lock_timeout and
-// the pass goes on; a deadlock or any other error ends the pass visibly.
+// locks their generation rows FOR UPDATE SKIP LOCKED, then deletes evidence and
+// candidates (each statement picks up to [BatchRows] rows of the claimed
+// generations FOR UPDATE SKIP LOCKED, re-asserting all three Rule A predicates,
+// and deletes exactly those rows), deletes the generation row last, only for a
+// generation with no evidence or candidate row left, and settles which claimed
+// generations still have a row. If neither picking delete stopped at its row
+// limit, another session holds what is left: the generation is counted lock_busy,
+// keeps its generation row and is retried by a later pass, and the rest of the
+// batch commits. If one did, the generation is only larger than the batch: it
+// runs again in the same pass, in its own transaction, until the pass budget ends.
+// There is no session lock, no pass-long transaction and no
+// global single flight: a second reducer replica skips a generation the first
+// holds. A 55P03 aborts the batch, counts every generation of it as lock_timeout
+// and the pass goes on; a deadlock or any other error ends the pass visibly.
 //
-// The one lock-order cycle is against the #10820 repository purge, which
-// deletes evidence, candidates and the generation row in the same order but
-// reaches the generation row last while this sweep holds it first; the
-// sweeper's lock_timeout breaks that cycle, so the purge never sees a 40P01.
+// The lock orders cross the #10820 repository purge: it deletes evidence,
+// candidates and the generation row in the order this batch does, but it reaches
+// the generation row last while this batch holds it first. A lock timeout cannot
+// break that cycle (the purge's own deadlock check can fire first, and it did,
+// 700 and 800 ms after the purge queued, in the design that relied on one), so
+// the batch is wait-free instead: the only wait edge left is the purge waiting
+// for the batch, which ends when the batch commits or rolls back.
 //
 // This package must not import the parent postgres package.
 package relationshipretention

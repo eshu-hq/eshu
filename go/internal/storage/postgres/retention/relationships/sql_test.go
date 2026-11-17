@@ -29,12 +29,16 @@ const (
 )
 
 // TestDeleteStatementsReassertEveryPredicate pins that each delete carries all
-// three Rule A predicates in its own WHERE, not only the statement that listed
-// the ids: under Read Committed a delete runs on a newer snapshot than the
-// statement that classified the generation, and the ids come back through the
-// application, so a delete trusting them could remove an active generation's
-// rows. The generation row delete carries the active test as its own status
-// column instead of a subquery over itself.
+// three Rule A predicates in the statement that takes its rows, not only the
+// statement that listed the ids: under Read Committed a delete runs on a newer
+// snapshot than the statement that classified the generation, and the ids come
+// back through the application, so a delete trusting them could remove an active
+// generation's rows. The evidence and candidate deletes pick their rows in a
+// materialized CTE (FOR UPDATE SKIP LOCKED, so a row another session holds is
+// left, not waited on) and delete exactly the picked ids. The generation row
+// delete carries the active test as its own status column instead of a subquery
+// over itself, and also requires that no evidence and no candidate row of the
+// generation remain.
 func TestDeleteStatementsReassertEveryPredicate(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -42,31 +46,113 @@ func TestDeleteStatementsReassertEveryPredicate(t *testing.T) {
 		statement string
 		alias     string
 		table     string
-		active    string
+		key       string // the picked id column; empty for the generation row delete
 	}{
-		{"evidence", deleteEvidenceQuery, "e", "relationship_evidence_facts", predicateNoActiveRow},
-		{"candidates", deleteCandidatesQuery, "c", "relationship_candidates", predicateNoActiveRow},
-		{"generations", deleteGenerationsQuery, "rg", "relationship_generations", "rg.status <> 'active'"},
+		{"evidence", deleteEvidenceQuery, "e", "relationship_evidence_facts", "evidence_id"},
+		{"candidates", deleteCandidatesQuery, "c", "relationship_candidates", "candidate_id"},
+		{"generations", deleteGenerationsQuery, "rg", "relationship_generations", ""},
 	} {
 		statement := normalized(tc.statement)
 		if !strings.HasPrefix(strings.TrimPrefix(statement, "-- "), "relationship retention:") {
 			t.Errorf("%s delete lacks its relationship retention marker comment: %.60s", tc.name, statement)
 		}
-		if !strings.Contains(statement, "delete from "+tc.table+" "+tc.alias+" where") {
-			t.Errorf("%s delete does not start on %s: %s", tc.name, tc.table, statement)
-		}
-		for _, want := range []string{
+		wants := []string{
 			fmt.Sprintf(predicateNoScopeGeneration, tc.alias),
 			fmt.Sprintf(predicateNoPointer, tc.alias),
-			strings.ReplaceAll(tc.active, "%s", tc.alias),
 			tc.alias + ".generation_id = any($1::text[])",
-		} {
+		}
+		if tc.key != "" {
+			wants = append(wants,
+				fmt.Sprintf(predicateNoActiveRow, tc.alias),
+				"with picked as materialized ( select "+tc.alias+"."+tc.key+" from "+tc.table+" "+tc.alias+" where",
+				"for update of "+tc.alias+" skip locked )",
+				"delete from "+tc.table+" "+tc.alias+" using picked p where "+tc.alias+"."+tc.key+" = p."+tc.key,
+			)
+		} else {
+			wants = append(wants,
+				"delete from "+tc.table+" "+tc.alias+" where",
+				"rg.status <> 'active'",
+				"not exists (select 1 from relationship_evidence_facts e where e.generation_id = rg.generation_id)",
+				"not exists (select 1 from relationship_candidates c where c.generation_id = rg.generation_id)",
+			)
+		}
+		for _, want := range wants {
 			if !strings.Contains(statement, want) {
 				t.Errorf("%s delete is missing %q:\n%s", tc.name, want, statement)
 			}
 		}
 		if strings.Contains(statement, "returning") {
 			t.Errorf("%s delete returns rows; the batch counts rows affected", tc.name)
+		}
+	}
+}
+
+// TestEveryRowLockSkipsLocked pins the wait-free doctrine at the text level: a
+// batch statement that locks rows does so only with SKIP LOCKED, never with a
+// plain FOR UPDATE (which waits) or NOWAIT, and the statements that lock rows
+// are exactly classification and the two row-picking deletes. The behavioural
+// proof is the purge arrival tests; this keeps a plain FOR UPDATE from being
+// added to a statement they do not reach.
+func TestEveryRowLockSkipsLocked(t *testing.T) {
+	t.Parallel()
+	lockers := map[string]bool{"classify": true, "delete evidence": true, "delete candidates": true}
+	for name, statement := range allStatements() {
+		text := normalized(statement)
+		locks := strings.Count(text, "for update")
+		if got := strings.Count(text, "skip locked"); got != locks {
+			t.Errorf("%s has %d row locks and %d SKIP LOCKED: every row lock must skip locked rows", name, locks, got)
+		}
+		if strings.Contains(text, "nowait") || strings.Contains(text, "for share") || strings.Contains(text, "for no key update") {
+			t.Errorf("%s takes a row lock other than FOR UPDATE ... SKIP LOCKED", name)
+		}
+		if (locks > 0) != lockers[name] {
+			t.Errorf("%s takes %d row locks, but only classification and the row-picking deletes may", name, locks)
+		}
+	}
+}
+
+// TestPickingDeletesAreBoundedByTheRowLimit pins the bound that keeps a batch
+// small when one generation is large: each of the two statements that pick rows
+// stops after $2 locked rows (the limit sits in the picked CTE, before the lock
+// clause, so it counts the rows the batch got and not the ones it skipped), and
+// the generation delete has no second argument: its ids bound it.
+func TestPickingDeletesAreBoundedByTheRowLimit(t *testing.T) {
+	t.Parallel()
+	for name, statement := range map[string]string{"evidence": deleteEvidenceQuery, "candidates": deleteCandidatesQuery} {
+		text := normalized(statement)
+		limit := strings.Index(text, "limit $2")
+		lock := strings.Index(text, "for update of ")
+		if limit < 0 || lock < 0 || limit > lock {
+			t.Errorf("%s delete must take LIMIT $2 before its FOR UPDATE ... SKIP LOCKED:\n%s", name, text)
+		}
+		if strings.Count(text, "$2") != 1 {
+			t.Errorf("%s delete uses $2 %d times, want only the row limit", name, strings.Count(text, "$2"))
+		}
+	}
+	if strings.Contains(deleteGenerationsQuery, "$2") {
+		t.Error("the generation delete takes a second argument; it is bounded by its ids")
+	}
+}
+
+// TestSettleStatementReadsEveryTable pins the statement that decides which
+// claimed generations the batch left behind: it looks for a row of the generation
+// in each of the three tables, and it only reads.
+func TestSettleStatementReadsEveryTable(t *testing.T) {
+	t.Parallel()
+	statement := normalized(settleQuery)
+	for _, want := range []string{
+		"from unnest($1::text[]) as c(generation_id)",
+		"exists (select 1 from relationship_evidence_facts e where e.generation_id = c.generation_id)",
+		"exists (select 1 from relationship_candidates k where k.generation_id = c.generation_id)",
+		"exists (select 1 from relationship_generations rg where rg.generation_id = c.generation_id)",
+	} {
+		if !strings.Contains(statement, want) {
+			t.Errorf("settle statement is missing %q:\n%s", want, statement)
+		}
+	}
+	for _, banned := range []string{"delete ", "update ", "insert ", "for update", "advisory"} {
+		if strings.Contains(statement, banned) {
+			t.Errorf("settle statement contains %q; it only reads", banned)
 		}
 	}
 }
@@ -159,11 +245,15 @@ func TestLockClassLiteralMatchesTheConstant(t *testing.T) {
 	}
 }
 
-// TestLockTimeoutsAreBoundedAndNeverZero pins the bounded-wait doctrine: the
-// batch lock_timeout is positive (zero disables it) and below the server's
-// default 1 s deadlock_timeout, so the sweeper gives way to the #10820 purge
-// instead of becoming a deadlock victim, and both settings are transaction
-// local so they never leak onto the pooled connection.
+// TestLockTimeoutsAreBoundedAndNeverZero pins the bounded-wait backstop: the
+// batch lock_timeout (which only ever ends a wait for a relation-level lock, the
+// batch having no row lock to wait for) is positive, because zero disables it,
+// and under the server's default 1 s deadlock_timeout so a stuck table lock is
+// given up on quickly. It is not what keeps the batch out of a lock cycle with
+// the purge: that is SKIP LOCKED on every row lock (TestEveryRowLockSkipsLocked
+// and the purge arrival tests). Both settings are transaction local so they never
+// leak onto the pooled connection. The behavioural proof is the live test that
+// holds ACCESS EXCLUSIVE on a table.
 func TestLockTimeoutsAreBoundedAndNeverZero(t *testing.T) {
 	t.Parallel()
 	lock, err := time.ParseDuration(lockTimeoutSetting)
@@ -174,7 +264,7 @@ func TestLockTimeoutsAreBoundedAndNeverZero(t *testing.T) {
 		t.Fatalf("lock_timeout %q renders zero, which disables it", lockTimeoutSetting)
 	}
 	if lock >= time.Second {
-		t.Fatalf("lock_timeout %s is not below the default 1 s deadlock_timeout", lock)
+		t.Fatalf("lock_timeout %s is not below the default 1 s deadlock_timeout, so a stuck table lock would be waited on past it", lock)
 	}
 	statement, err := time.ParseDuration(censusStatementTimeoutSetting)
 	if err != nil || statement <= 0 {
@@ -215,6 +305,7 @@ func allStatements() map[string]string {
 		"delete evidence":       deleteEvidenceQuery,
 		"delete candidates":     deleteCandidatesQuery,
 		"delete generations":    deleteGenerationsQuery,
+		"settle":                settleQuery,
 		"census evidence":       censusEvidenceQuery,
 		"census candidates":     censusCandidatesQuery,
 		"census generations":    censusGenerationsQuery,

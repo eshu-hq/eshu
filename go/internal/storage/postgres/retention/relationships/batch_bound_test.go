@@ -34,6 +34,7 @@ func TestDefaultBatchSizeBoundsEveryBatch(t *testing.T) {
 		"delete evidence":    deleteEvidenceQuery,
 		"delete candidates":  deleteCandidatesQuery,
 		"delete generations": deleteGenerationsQuery,
+		"settle":             settleQuery,
 	} {
 		var got []int
 		for _, c := range database.callsFor(statement) {
