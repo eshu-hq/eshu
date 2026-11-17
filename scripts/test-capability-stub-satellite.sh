@@ -43,6 +43,8 @@ code="$(curl -s -o "${TMP_ROOT}/doc.json" -w '%{http_code}' \
 	-H "Authorization: Bearer ${ESHU_API_KEY}" \
 	"${ESHU_API_BASE_URL}/api/v0/openapi.json" || true)"
 printf 'tokened=%s\n' "${code}" >>"${RESULT_FILE}"
+PROBE_EOF
+cat >>"${tmp_root}/probe_child.sh" <<'PROBE_EOF2'
 code="$(curl -s -o /dev/null -w '%{http_code}' \
 	"${ESHU_API_BASE_URL}/api/v0/openapi.json" || true)"
 printf 'untokened=%s\n' "${code}" >>"${RESULT_FILE}"
@@ -50,11 +52,13 @@ code="$(curl -s -o /dev/null -w '%{http_code}' \
 	-H "Authorization: Bearer wrong-token" \
 	"${ESHU_API_BASE_URL}/api/v0/openapi.json" || true)"
 printf 'wrongtoken=%s\n' "${code}" >>"${RESULT_FILE}"
+PROBE_EOF2
+cat >>"${tmp_root}/probe_child.sh" <<'PROBE_EOF3'
 code="$(curl -s -o /dev/null -w '%{http_code}' \
 	-H "Authorization: Bearer ${ESHU_API_KEY}" \
 	"${ESHU_API_BASE_URL}/nope" || true)"
 printf 'wrongpath=%s\n' "${code}" >>"${RESULT_FILE}"
-PROBE_EOF
+PROBE_EOF3
 chmod +x "${tmp_root}/probe_child.sh"
 
 # run_probe [preset-key]: one wrapper run with ESHU_API_BASE_URL unset (and
