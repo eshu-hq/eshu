@@ -58,23 +58,23 @@ func captureWriterRecording() (PostgresSupplyChainImpactWriter, fakeImpactBeginn
 }
 
 // TestRetractionCountsItsCaptureRowsAtCaptureTime pins the writer-side counter
-// for source fact_retract: the writer reports the retract statement's
-// affected-row count, which is the number of dirty-log rows its INSERT
-// appended, through the capturer in the same transaction. A pass that retracts
-// nothing reports nothing.
+// for source fact_retract: the writer reports the retract statement's marked
+// count (distinct dirty-log keys touched) through the capturer in the same
+// transaction, while FactsRetracted keeps the tombstoned rows. A pass that
+// retracts nothing reports nothing.
 func TestRetractionCountsItsCaptureRowsAtCaptureTime(t *testing.T) {
 	t.Parallel()
 
 	finding := changedTestFinding("CVE-2026-0001")
 	write := changedTestWrite(finding)
 	writer, beginner, _, recorded := captureWriterRecording()
-	beginner.state.rowsAffected = map[string]int64{retractSupersededSupplyChainImpactFindingsQuery: 3}
+	beginner.state.retractCounts = map[string][2]int64{retractSupersededSupplyChainImpactFindingsQuery: {3, 2}}
 	result, err := writer.WriteSupplyChainImpactFindings(context.Background(), write)
 	if err != nil {
 		t.Fatalf("WriteSupplyChainImpactFindings() error = %v", err)
 	}
-	if result.FactsRetracted != 3 || recorded["fact_retract"] != 3 {
-		t.Fatalf("FactsRetracted=%d recorded=%v, want fact_retract = 3 = the retraction's affected rows", result.FactsRetracted, recorded)
+	if result.FactsRetracted != 3 || recorded["fact_retract"] != 2 {
+		t.Fatalf("FactsRetracted=%d recorded=%v, want tombstoned 3 with fact_retract = 2 marked keys", result.FactsRetracted, recorded)
 	}
 }
 
@@ -188,20 +188,34 @@ func TestWriteCapturesAdvisoryOnlyFindingsAndDeduplicates(t *testing.T) {
 }
 
 // TestRetractionCapturesRetractedFindingIdentifiers pins that the retract
-// statement itself appends one dirty-log row per tombstoned finding, so no Go
-// change is needed to name a retracted finding's key (ruling decision 1).
+// statement itself upserts one dirty-log row per tombstoned key, so no Go
+// change is needed to name a retracted finding's key (ruling decision 1,
+// versioned by #10827): the DISTINCT collapses twins to one mark, the ORDER
+// BY feeds the upsert in conflict-key order, the conflict arm bumps only
+// dirty_version, and the final SELECT reports the CTE-based tombstoned and
+// marked counts.
 func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
 	t.Parallel()
 
-	query := retractSupersededSupplyChainImpactFindingsQuery
-	for _, want := range []string{
-		"UPDATE fact_records",
-		"RETURNING",
-		"INSERT INTO supply_chain_impact_winners_dirty_log",
-		"'fact_retract'",
+	for name, query := range map[string]string{
+		"replace-set": retractSupersededSupplyChainImpactFindingsQuery,
+		"scoped":      retractSupersededSupplyChainImpactFindingsScopedQuery,
 	} {
-		if !strings.Contains(query, want) {
-			t.Errorf("retract statement does not contain %q:\n%s", want, query)
+		for _, want := range []string{
+			"UPDATE fact_records",
+			"RETURNING",
+			"SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id",
+			"INSERT INTO supply_chain_impact_winners_dirty_log",
+			"'fact_retract'",
+			"ORDER BY package_id, repository_id, subject_digest, c0, advisory_id",
+			"ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'",
+			"DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1",
+			"(SELECT count(*) FROM retracted) AS tombstoned",
+			"(SELECT count(*) FROM upserted) AS marked",
+		} {
+			if !strings.Contains(query, want) {
+				t.Errorf("%s retract statement does not contain %q:\n%s", name, want, query)
+			}
 		}
 	}
 }

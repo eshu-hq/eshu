@@ -267,13 +267,23 @@ import (
 // 300 is #10791's open work-items index). #10814 adds
 // 302_vulnerability_nvd_baseline_trip_latch_streak.sql (the pace streak
 // column on the baseline trip latch; 301 is #10809/#10810's).
-const goldenBootstrapDefinitionsDigest = "01c70cb6dc837ff5ae3e30bffe43d6d32c6813fadcd54e6ea29f2c8a921df9e8"
+// #10827 adds 303_supply_chain_impact_winners_dirty_version.sql (the
+// dirty_version column), 304_supply_chain_impact_winners_dirty_dedup.sql
+// (the earliest-mark-per-key dedup of the append-only backlog),
+// 305_supply_chain_impact_winners_dirty_log_fact_key_uniq.sql and
+// 306_supply_chain_impact_winners_dirty_log_scope_key_uniq.sql (the partial
+// unique indexes the writer upserts target, one single-statement CONCURRENTLY
+// build each), 307_supply_chain_impact_winners_dirty_capture_upsert.sql
+// (the 272 capture triggers as key-ordered upserts) and
+// 308_supply_chain_impact_winners_scanner_capture_upsert.sql (the 272a
+// scanner capture triggers as key-ordered upserts, public-only).
+const goldenBootstrapDefinitionsDigest = "a98667a823f0d9f0fa5d1bcb42071e449ea91b90a5bdf00836a8c8bf595e32e4"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 328
+const goldenBootstrapDefinitionsCount = 334
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

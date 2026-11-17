@@ -196,16 +196,29 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}
 	if over {
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseFullRebuild, func() error {
-			tally, remaining, _, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
+			tally, remaining, remainingMin, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
 			if err != nil {
 				return err
 			}
 			result.Identifiers = tally.total()
 			result.TriggerCaptured = tally.triggerSources()
 			result.Remaining = remaining
-			// A full rebuild recomputes every key, so the pre-admission
-			// stamp S stays sound here as on the drained keyed path.
-			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, tickStamp)
+			// The drain only deletes admitted rows whose version still
+			// matches (#10827 R2): rows that arrived after admission were
+			// never admitted, and re-marked keys keep their bumped version
+			// for the next tick. When the residual set is non-empty the
+			// tick stamps the horizon over it like the keyed path, not S:
+			// stamping S would cover residuals the rebuild may not have
+			// seen. A residual-free fallback stamps the pre-admission S, a
+			// full rebuild recomputes every key.
+			stamp := tickStamp
+			if remaining > 0 {
+				result.Bounded = true
+				if stamp, err = horizonCandidate(remainingMin); err != nil {
+					return err
+				}
+			}
+			full, err := runSupplyChainImpactWinnersRebuild(ctx, tx, stamp)
 			if err != nil {
 				return err
 			}
@@ -356,98 +369,6 @@ func (s SupplyChainImpactWinnersStore) overKeyedCap(ctx context.Context, tx db.T
 		return false, err
 	}
 	return stored > 0 && float64(idents) > fraction*float64(stored), nil
-}
-
-// admitWinnersDirtyWindow copies the oldest limit dirty-log rows into the
-// consumed temp table and returns how many it admitted. The rows stay in the
-// log until settleWinnersKeyedDirtyLog deletes the applied ones.
-func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64) (int64, error) {
-	if _, err := tx.ExecContext(ctx, createWinnersKeyedConsumedSQL); err != nil {
-		return 0, fmt.Errorf("admit supply chain impact winners dirty window: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, admitWinnersKeyedWindowSQL, limit); err != nil {
-		return 0, fmt.Errorf("admit supply chain impact winners dirty window: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, indexWinnersKeyedConsumedSeqSQL); err != nil {
-		return 0, fmt.Errorf("index supply chain impact winners consumed rows: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, analyzeWinnersKeyedConsumedSQL); err != nil {
-		return 0, fmt.Errorf("analyze supply chain impact winners consumed rows: %w", err)
-	}
-	return scanWinnersInt64(ctx, tx, countWinnersKeyedConsumedSQL, "count admitted dirty rows")
-}
-
-// stampWinnersWatermark stamps the watermark candidate for a tick that
-// consumed nothing and returns the watermark it replaced.
-func stampWinnersWatermark(ctx context.Context, tx db.Transaction, candidate time.Time) (time.Time, error) {
-	rows, err := tx.QueryContext(ctx, stampWinnersWatermarkSQL, candidate)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("stamp supply chain impact winners watermark: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	var previous sql.NullTime
-	if rows.Next() {
-		if err := rows.Scan(&previous); err != nil {
-			return time.Time{}, fmt.Errorf("scan supply chain impact winners watermark: %w", err)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return time.Time{}, fmt.Errorf("stamp supply chain impact winners watermark: %w", err)
-	}
-	if previous.Valid {
-		return previous.Time.UTC(), nil
-	}
-	return time.Time{}, nil
-}
-
-// scanWinnersTime runs a one-row one-column timestamptz query, UTC-normalized,
-// and drains its cursor. The tick clock and the committed watermark reads are
-// both this shape.
-func scanWinnersTime(ctx context.Context, q db.Queryer, query, what string) (time.Time, error) {
-	rows, err := q.QueryContext(ctx, query)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("%s: %w", what, err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return time.Time{}, fmt.Errorf("%s: %w", what, err)
-		}
-		return time.Time{}, fmt.Errorf("%s: statement returned no row", what)
-	}
-	var at time.Time
-	if err := rows.Scan(&at); err != nil {
-		return time.Time{}, fmt.Errorf("%s: %w", what, err)
-	}
-	if rows.Next() {
-		return time.Time{}, fmt.Errorf("%s: statement returned more than one row", what)
-	}
-	if err := rows.Err(); err != nil {
-		return time.Time{}, fmt.Errorf("%s: %w", what, err)
-	}
-	if err := rows.Close(); err != nil {
-		return time.Time{}, fmt.Errorf("close %s: %w", what, err)
-	}
-	return at.UTC(), nil
-}
-
-// scanWinnersInt64 runs a one-row one-column int query and drains its cursor.
-func scanWinnersInt64(ctx context.Context, q db.Queryer, query, what string) (int64, error) {
-	rows, err := q.QueryContext(ctx, query)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", what, err)
-	}
-	defer func() { _ = rows.Close() }()
-	var n int64
-	if rows.Next() {
-		if err := rows.Scan(&n); err != nil {
-			return 0, fmt.Errorf("%s: %w", what, err)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("%s: %w", what, err)
-	}
-	return n, nil
 }
 
 // DirtyLogStats reads the dirty log's depth and the age of its oldest row, for

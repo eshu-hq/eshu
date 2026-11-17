@@ -35,6 +35,11 @@ type fakeImpactTxState struct {
 	// rowsAffected overrides the RowsAffected the fake reports for a query, so a
 	// test can make the fencing admission report a rejection (0 rows).
 	rowsAffected map[string]int64
+	// retractCounts feeds the replace-set retraction's CTE-based counts:
+	// tombstoned rows and marked dirty-log keys, per retract query. A query
+	// absent from the map reports one and one, matching the control
+	// FakeExecer's RowsAffected default the Exec-based runner used to see.
+	retractCounts map[string][2]int64
 	// stored feeds the changed-row read inside the write transaction; cveRows
 	// feeds the recovery CVE read, with cveMembers carrying each recovery
 	// row's advisory group member set (#10408). A nil queryErr means the
@@ -208,6 +213,17 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 		return &fakeImpactRows{rows: suppressionDiffFakeRows(t.state.wholeGen)}, nil
 	case setSuppressionDiffStatementTimeoutQuery:
 		return &fakeImpactRows{}, nil
+	case retractSupersededSupplyChainImpactFindingsQuery, retractSupersededSupplyChainImpactFindingsScopedQuery:
+		counts, ok := t.state.retractCounts[query]
+		if !ok {
+			counts = [2]int64{1, 1}
+		}
+		// The retraction is a Query statement (it returns the CTE-based
+		// tombstoned/marked counts), but like the pass-state fence it lands
+		// on control too, so the statement-stream assertions keep reading
+		// the whole write in order.
+		t.state.control.Execs = append(t.state.control.Execs, testutil.ExecCall{Query: query, Args: args})
+		return &fakeImpactRows{rows: [][]any{{counts[0], counts[1]}}}, nil
 	case supplyChainImpactScopePassStateQuery:
 		// The pass-state upsert is a control statement (not a batched fact
 		// insert), so it lands on control like the lock, admission, and

@@ -113,7 +113,7 @@ func TestWriteSupplyChainImpactFindingsLocksUpsertsThenRetracts(t *testing.T) {
 		t.Fatalf("commits=%d rollbacks=%d, want 1/0", beginner.state.commits, beginner.state.rollbacks)
 	}
 	if result.FactsRetracted != 1 {
-		t.Fatalf("FactsRetracted = %d, want the retraction's RowsAffected (1)", result.FactsRetracted)
+		t.Fatalf("FactsRetracted = %d, want the retraction's tombstoned CTE count (1)", result.FactsRetracted)
 	}
 }
 

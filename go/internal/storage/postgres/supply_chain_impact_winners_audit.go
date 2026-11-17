@@ -81,8 +81,11 @@ WHERE kind = 'fact'
 UNION
 ` + winnersScopeExpansionSelect("supply_chain_impact_winners_dirty_log")
 
-// queueWinnersAuditRepairsSQL appends the verified stale keys that are not
-// already pending to the dirty log as source "audit" and reports how many.
+// queueWinnersAuditRepairsSQL upserts the verified stale keys that are not
+// already pending into the dirty log as source "audit" and reports how many
+// (#10827). A stale key already queued by a writer re-mark bumps only
+// dirty_version instead of appending a duplicate row. The SELECT feeds rows
+// in conflict-key order so the upsert takes row locks in the global order.
 const queueWinnersAuditRepairsSQL = `
 INSERT INTO supply_chain_impact_winners_dirty_log
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
@@ -93,6 +96,9 @@ WHERE NOT EXISTS (
     WHERE (p.package_id, p.repository_id, p.subject_digest, p.c0, p.advisory_id)
         = (s.package_id, s.repository_id, s.subject_digest, s.c0, s.advisory_id)
 )
+ORDER BY s.package_id, s.repository_id, s.subject_digest, s.c0, s.advisory_id
+ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
+DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
 `
 
 // countWinnersAuditCandidatesSQL counts the candidates the read found.

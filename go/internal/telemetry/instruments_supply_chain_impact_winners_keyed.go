@@ -73,10 +73,12 @@ const (
 	// temp table (the probe into fact_records), the operator facts added to it,
 	// and its ANALYZE.
 	SupplyChainImpactWinnersPhaseBuildActiveFacts = "build_active_facts"
-	// SupplyChainImpactWinnersPhaseApply deletes exactly the admitted dirty
-	// rows this chunk applied (tallying them by capture source), converts a
-	// partially applied scope row's remainder to fact rows, and runs the
-	// winner select and the row writes of one keyed apply statement.
+	// SupplyChainImpactWinnersPhaseApply converts a partially applied scope
+	// row's remainder to fact rows, lock-then-deletes exactly the admitted
+	// dirty rows this chunk applied in the global key order (tallying their
+	// dirty_version sums by capture source; a re-marked key keeps its bumped
+	// version for the next tick), and runs the winner select and the row
+	// writes of one keyed apply statement.
 	SupplyChainImpactWinnersPhaseApply = "apply"
 	// SupplyChainImpactWinnersPhaseFullRebuild is the whole-table rebuild a tick
 	// ran in place of the keyed build and apply because it went over the cap.
@@ -118,10 +120,11 @@ type supplyChainImpactWinnersDirtyLog struct {
 //     identifier rows a keyed tick consumed.
 //
 //   - eshu_dp_supply_chain_impact_winners_capture_rows_total{source}: dirty-log
-//     rows appended to the log, by capture source. The impact writer counts
+//     marks appended to the log, by capture source. The impact writer counts
 //     fact_upsert and fact_retract once their transaction commits; the maintainer counts
 //     activation, operator and scanner (database triggers cannot emit a metric)
-//     when it consumes them. A source that goes flat while the others move is a
+//     when it consumes them, summing dirty_version so one consumed row counts
+//     every mark it collapsed. A source that goes flat while the others move is a
 //     capture path that stopped.
 //
 //   - eshu_dp_supply_chain_impact_winners_backstop_repairs_total: stale keys the
@@ -157,13 +160,13 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	}
 	if inst.SupplyChainImpactWinnersIdentifiersConsumed, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_identifiers_consumed_total",
-		metric.WithDescription("Supply-chain impact winners dirty-log identifier rows a keyed resweep consumed."),
+		metric.WithDescription("Supply-chain impact winners dirty-log marks a keyed resweep consumed: the drain sums dirty_version, so one consumed row counts every mark it collapsed."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersIdentifiersConsumed counter: %w", err)
 	}
 	if inst.SupplyChainImpactWinnersCaptureRows, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_capture_rows_total",
-		metric.WithDescription("Supply-chain impact winners dirty-log rows appended, by source (fact_upsert, fact_retract, activation, operator, scanner, audit). The impact writer counts fact_upsert and fact_retract after its transaction commits, so a rollback adds nothing; the maintainer counts the trigger sources activation, operator and scanner when it consumes them. A source that goes flat while the others move is a capture path that stopped."),
+		metric.WithDescription("Supply-chain impact winners dirty-log marks appended, by source (fact_upsert, fact_retract, activation, operator, scanner, audit). The impact writer counts fact_upsert and fact_retract after its transaction commits, so a rollback adds nothing; the maintainer counts the trigger sources activation, operator and scanner when it consumes them, summing dirty_version so one consumed row counts every mark it collapsed. A source that goes flat while the others move is a capture path that stopped."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersCaptureRows counter: %w", err)
 	}

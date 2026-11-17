@@ -559,6 +559,16 @@ tests:
     class: dedicated_ci
     reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_dirty_versioned_upsert_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10827: reducer-contention covers this file's named Go tests via the WinnersDirty alternation in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_deadlock_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10827: reducer-contention covers this file's named Go tests via the WinnersResweep and WinnersDirty alternations in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_stale_copy_pin_live_test.go
     tag: ~
     class: dedicated_ci

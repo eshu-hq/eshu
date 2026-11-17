@@ -230,14 +230,15 @@ func commitSupplyChainImpactRows(
 		for _, row := range rows {
 			keep = append(keep, row.FactID)
 		}
-		outcome.retracted, err = retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
+		tombstoned, marked, err := retractSupersededSupplyChainImpactFindings(ctx, tx, write.ScopeID, write.GenerationID, keep, write.FencingToken, write.ScopedCVEIDs)
 		if err != nil {
 			return supplyChainImpactTxOutcome{}, err
 		}
-		// The retract statement appended one dirty-log row per tombstoned
-		// finding, so its affected-row count is the capture count.
+		outcome.retracted = tombstoned
+		// The capture count is the marked keys, not the tombstoned rows:
+		// twin findings that share one key collapse to one dirty-log row.
 		if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
-			capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(outcome.retracted))
+			capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(marked))
 		}
 	}
 	if write.Recovery {
@@ -318,10 +319,15 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 // Legacy rows written before the token existed carry 0 and are retracted by any
 // pass (0 <= $5).
 //
-// The tombstoned rows' keys are appended to the winners dirty log by the same
-// statement (#9805): one log row per retracted finding, so the affected-row
-// count of the INSERT is the retracted count and no Go change is needed to name
-// a retracted finding's key. A retracted row is always a change.
+// The tombstoned rows' keys are upserted into the winners dirty log by the same
+// statement (#9805, versioned by #10827), which reports two CTE-based counts:
+// the rows it tombstoned and the distinct keys it marked. A retracted row is
+// always a change. The DISTINCT collapses twin findings that share one key to
+// one mark, the ORDER BY feeds the upsert in conflict-key order, and the
+// conflict arm bumps only dirty_version: a re-mark of a queued key never
+// appends a second row. The caller keeps the tombstoned count as
+// FactsRetracted (prior finding rows, per the write-result contract) and the
+// marked count as the fact_retract capture count (dirty-log rows touched).
 const retractSupersededSupplyChainImpactFindingsQuery = `
 WITH retracted AS (
     UPDATE fact_records
@@ -339,17 +345,30 @@ WITH retracted AS (
         COALESCE(payload->>'subject_digest', '') AS subject_digest,
         COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
         COALESCE(payload->>'advisory_id', '') AS advisory_id
+),
+ordered AS (
+    SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
+    FROM retracted
+    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+),
+upserted AS (
+    INSERT INTO supply_chain_impact_winners_dirty_log
+        (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+    SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
+    FROM ordered
+    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
+    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
+    RETURNING 1
 )
-INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
-SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
-FROM retracted
+SELECT (SELECT count(*) FROM retracted) AS tombstoned,
+       (SELECT count(*) FROM upserted) AS marked
 `
 
 // retractSupersededSupplyChainImpactFindingsScopedQuery is the scoped-pass
-// variant of the replace-set retraction (#9779). The keep set still names the
-// rows the pass just wrote, but the statement only tombstones rows inside the
-// stamped CVE set: rows outside it are not the pass's to retire, so they are
+// (#9779) twin of the replace-set retraction above: same CTE-based
+// tombstoned/marked counts, but the statement only tombstones rows inside the
+// stamped CVE set. Rows outside it are not the pass's to retire, so they are
 // left byte-identical however stale the next full pass would find them. Rows
 // without a cve_id never match the set and converge on the next full pass.
 const retractSupersededSupplyChainImpactFindingsScopedQuery = `
@@ -370,15 +389,29 @@ WITH retracted AS (
         COALESCE(payload->>'subject_digest', '') AS subject_digest,
         COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), '') AS c0,
         COALESCE(payload->>'advisory_id', '') AS advisory_id
+),
+ordered AS (
+    SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id
+    FROM retracted
+    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+),
+upserted AS (
+    INSERT INTO supply_chain_impact_winners_dirty_log
+        (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+    SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
+    FROM ordered
+    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
+    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
+    RETURNING 1
 )
-INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
-SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
-FROM retracted
+SELECT (SELECT count(*) FROM retracted) AS tombstoned,
+       (SELECT count(*) FROM upserted) AS marked
 `
 
 // retractSupersededSupplyChainImpactFindings runs the replace-set retraction
-// for one pass and returns how many rows it tombstoned. A scoped pass
+// for one pass and returns its CTE-based counts: the prior finding rows it
+// tombstoned, and the distinct dirty-log keys it marked. A scoped pass
 // (#9779) retracts inside its stamped CVE set only.
 func retractSupersededSupplyChainImpactFindings(
 	ctx context.Context,
@@ -388,7 +421,7 @@ func retractSupersededSupplyChainImpactFindings(
 	keepFactIDs []string,
 	fencingToken int64,
 	scopedCVEIDs []string,
-) (int, error) {
+) (tombstoned, marked int, err error) {
 	query := retractSupersededSupplyChainImpactFindingsQuery
 	args := []any{
 		supplyChainImpactFactKind,
@@ -401,13 +434,24 @@ func retractSupersededSupplyChainImpactFindings(
 		query = retractSupersededSupplyChainImpactFindingsScopedQuery
 		args = append(args, scopedCVEIDs)
 	}
-	result, err := tx.ExecContext(ctx, query, args...)
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
-		return 0, fmt.Errorf("retract superseded supply chain impact findings: %w", err)
+		return 0, 0, fmt.Errorf("retract superseded supply chain impact findings: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("read supply chain impact retraction rows affected: %w", err)
+	defer func() { _ = rows.Close() }()
+	var tombstoned64, marked64 int64
+	found := false
+	for rows.Next() {
+		if err := rows.Scan(&tombstoned64, &marked64); err != nil {
+			return 0, 0, fmt.Errorf("read supply chain impact retraction counts: %w", err)
+		}
+		found = true
 	}
-	return int(affected), nil
+	if err := rows.Err(); err != nil {
+		return 0, 0, fmt.Errorf("read supply chain impact retraction counts: %w", err)
+	}
+	if !found {
+		return 0, 0, fmt.Errorf("retract superseded supply chain impact findings: no count row")
+	}
+	return int(tombstoned64), int(marked64), nil
 }

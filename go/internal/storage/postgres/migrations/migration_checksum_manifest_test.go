@@ -401,6 +401,19 @@ var migrationShippedChecksums = map[string]string{
 	// #10814: the NVD baseline pace streak column on the trip latch
 	// (migration 302; 301 is #10809/#10810's resume position).
 	"302_vulnerability_nvd_baseline_trip_latch_streak.sql": "d343e1f30665d584fcd3e0d72171095e71ec09e66c1e66e3d3f23583831c911d",
+	// #10827 (R2: Global Key-Ordered Versioned Upsert): the dirty_version
+	// column (303) plus the dedup of the append-only backlog (304), the two
+	// partial unique indexes the writer upserts target (305 fact
+	// five-tuple, 306 scope pair, one single-statement CONCURRENTLY build
+	// each), and the key-ordered upsert replacements of the 272 (307) and
+	// 272a (308, public-only) capture triggers. The function replacements
+	// land after the indexes their ON CONFLICT clauses need.
+	"303_supply_chain_impact_winners_dirty_version.sql":            "c60ff895244d5bb77ffff25d8fc5806a74d8f98e55a5524a2951d9ff95eca10d",
+	"304_supply_chain_impact_winners_dirty_dedup.sql":              "497fd0a96766375e389353282f89b52aad1b8411d8ebdfb724380cfba02a5dd1",
+	"305_supply_chain_impact_winners_dirty_log_fact_key_uniq.sql":  "3652f1574fe9427597bc87166f880746b0f71cf1ae0c5125705a6581353b4b1c",
+	"306_supply_chain_impact_winners_dirty_log_scope_key_uniq.sql": "0ed47112a3fa22db2a746caa535312bbbcb1f0aa0ce54e5acf1851324f299250",
+	"307_supply_chain_impact_winners_dirty_capture_upsert.sql":     "4c045b1366f782a783efebc4206b98e4564602bf0ee75ced6eb7ae3668583316",
+	"308_supply_chain_impact_winners_scanner_capture_upsert.sql":   "4f8fc65e03c4344886e4e4fede0aabd5140208373dee57d1c2e8a0a29407610e",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
