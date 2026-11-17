@@ -133,8 +133,10 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 		// The writer appends the identifiers of the findings it wrote to the
 		// supply-chain impact winners dirty log in the same transaction (#9805).
 		// Like fact_records, the log is an ordinary base table whose privileges
-		// are a DBA pregrant: INSERT and the id sequence, nothing else.
-		`GRANT INSERT ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
+		// are a DBA pregrant: SELECT, INSERT, UPDATE and the id sequence.
+		// UPDATE is required since #10827 turned the capture into a versioned
+		// upsert (ON CONFLICT DO UPDATE bumps dirty_version).
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
 		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
 	} {
 		if _, err := admin.ExecContext(ctx, statement); err != nil {
