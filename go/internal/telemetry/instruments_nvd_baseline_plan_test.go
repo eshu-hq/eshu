@@ -93,10 +93,10 @@ func TestNVDBaselinePlanHoldReasonsAreCountedAndClosed(t *testing.T) {
 }
 
 // TestNVDBaselinePaceIntervalGaugeKeepsTheLastAppliedPace pins the pace gauge
-// (eshu-hq/eshu#10814): it reports the latest per-year pace the planner
-// applied, in seconds, and a plan that held before the pace was known (open,
-// unloaded, or stale trip) passes zero, which must not overwrite the last real
-// interval with a value the planner never applied.
+// (eshu-hq/eshu#10814): it reports the latest pace the planner applied, in
+// seconds, and a plan that held before the pace was known (open, unloaded, or
+// stale trip) passes zero, which must not overwrite the last real interval
+// with a value the planner never applied.
 func TestNVDBaselinePaceIntervalGaugeKeepsTheLastAppliedPace(t *testing.T) {
 	t.Parallel()
 
@@ -159,4 +159,77 @@ func TestNVDBaselineChunkCycleHistogramResolvesMinutesToHours(t *testing.T) {
 	var nilInstruments *Instruments
 	nilInstruments.RecordNVDBaselineChunkCycle(context.Background(), 60)
 	(&Instruments{}).RecordNVDBaselineChunkCycle(context.Background(), 60)
+}
+
+// TestNVDBaselineHeldYearsGaugeIsClosedAndRecordsEveryPlan pins the held-years
+// gauge (eshu-hq/eshu#10814, arbiter ruling item 5), the operator signal for a
+// year the planner holds while other years keep minting: one closed label,
+// reason, with the three stored-state reasons, no year or scope label, and a
+// value recorded every plan. A zero is a sample like any other: it must replace
+// a figure the previous plan left, or the gauge would keep reporting a year
+// that has since recovered. A value outside the set is dropped, never
+// collapsed to a label of its own, because the set is the ruling's.
+func TestNVDBaselineHeldYearsGaugeIsClosedAndRecordsEveryPlan(t *testing.T) {
+	t.Parallel()
+
+	want := []string{"downstream_failed", "drain_unloaded", "retry_wait"}
+	if got := NVDBaselineHeldYearReasons(); !slices.Equal(got, want) {
+		t.Fatalf("NVDBaselineHeldYearReasons() = %v, want %v", got, want)
+	}
+	set := NVDBaselineHeldYearReasons()
+	set[0] = "mutated"
+	if NVDBaselineHeldYearReasons()[0] != want[0] {
+		t.Fatal("NVDBaselineHeldYearReasons() shares its backing array with the caller")
+	}
+
+	instruments, reader := testBaselineInstruments(t)
+	read := func() map[string]int64 {
+		t.Helper()
+		metric := collectNVDBaselineMetric(t, reader, "eshu_dp_nvd_baseline_held_years")
+		gauge, ok := metric.Data.(metricdata.Gauge[int64])
+		if !ok {
+			t.Fatalf("held years data = %T, want Gauge[int64]", metric.Data)
+		}
+		got := map[string]int64{}
+		for _, point := range gauge.DataPoints {
+			if point.Attributes.Len() != 1 {
+				t.Fatalf("held years point carries %d labels, want only reason: %v", point.Attributes.Len(), point.Attributes)
+			}
+			value, ok := point.Attributes.Value("reason")
+			if !ok {
+				t.Fatalf("held years point has no reason label: %v", point.Attributes)
+			}
+			got[value.AsString()] = point.Value
+		}
+		return got
+	}
+	record := func(failed, unloaded, retry int64) {
+		instruments.RecordNVDBaselineHeldYears(context.Background(), NVDBaselineHeldYearDownstreamFailed, failed)
+		instruments.RecordNVDBaselineHeldYears(context.Background(), NVDBaselineHeldYearDrainUnloaded, unloaded)
+		instruments.RecordNVDBaselineHeldYears(context.Background(), NVDBaselineHeldYearRetryWait, retry)
+	}
+
+	record(2, 0, 1)
+	if got := read(); len(got) != 3 || got["downstream_failed"] != 2 || got["drain_unloaded"] != 0 || got["retry_wait"] != 1 {
+		t.Fatalf("held years = %v, want all three reasons with the zero kept as a sample", got)
+	}
+	record(0, 3, 0)
+	if got := read(); len(got) != 3 || got["downstream_failed"] != 0 || got["drain_unloaded"] != 3 || got["retry_wait"] != 0 {
+		t.Fatalf("held years after the next plan = %v, want the latest figures, zeros included", got)
+	}
+
+	// A negative count clamps to zero, and anything outside the closed set,
+	// including the hold counter's baseline_-prefixed spelling, is dropped
+	// without minting a label.
+	instruments.RecordNVDBaselineHeldYears(context.Background(), NVDBaselineHeldYearRetryWait, -4)
+	for _, reason := range []string{"baseline_retry_wait", "other", "", "2004"} {
+		instruments.RecordNVDBaselineHeldYears(context.Background(), reason, 9)
+	}
+	if got := read(); len(got) != 3 || got["retry_wait"] != 0 || got["drain_unloaded"] != 3 {
+		t.Fatalf("held years = %v, want a negative clamped to 0 and no label outside the closed set", got)
+	}
+
+	var nilInstruments *Instruments
+	nilInstruments.RecordNVDBaselineHeldYears(context.Background(), want[0], 1)
+	(&Instruments{}).RecordNVDBaselineHeldYears(context.Background(), want[0], 1)
 }

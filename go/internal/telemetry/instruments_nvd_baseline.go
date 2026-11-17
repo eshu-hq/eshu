@@ -241,6 +241,52 @@ func NVDBaselinePlanHoldReasons() []string {
 	return slices.Clone(nvdBaselinePlanHoldReasons[:])
 }
 
+// The closed reason set of eshu_dp_nvd_baseline_held_years (eshu-hq/eshu#10814,
+// arbiter ruling item 5): the stored states in which the planner holds one
+// year while other years keep minting. Each value is the planner's hold reason
+// without the baseline_ prefix, and a parity test in the coordinator package
+// keeps the two spellings tied together.
+const (
+	// NVDBaselineHeldYearDownstreamFailed: the year's last chunk dead-lettered
+	// in the projector or reducer. The year releases its slot until a replay.
+	NVDBaselineHeldYearDownstreamFailed = "downstream_failed"
+	// NVDBaselineHeldYearDrainUnloaded: the drain probe could not prove the
+	// year's last chunk, so the year keeps its slot and does not plan.
+	NVDBaselineHeldYearDrainUnloaded = "drain_unloaded"
+	// NVDBaselineHeldYearRetryWait: the year's last claim did not advance its
+	// checkpoint and the retry wait has not passed. The year releases its slot.
+	NVDBaselineHeldYearRetryWait = "retry_wait"
+)
+
+var nvdBaselineHeldYearReasons = [...]string{
+	NVDBaselineHeldYearDownstreamFailed,
+	NVDBaselineHeldYearDrainUnloaded,
+	NVDBaselineHeldYearRetryWait,
+}
+
+// NVDBaselineHeldYearReasons returns the closed, ordered reason set of the
+// held-years gauge.
+func NVDBaselineHeldYearReasons() []string {
+	return slices.Clone(nvdBaselineHeldYearReasons[:])
+}
+
+// RecordNVDBaselineHeldYears records the latest count of baseline years the
+// planner holds for one closed reason (eshu-hq/eshu#10814). The planner calls
+// it for every reason on every plan, zero included, so a year that recovered
+// clears from the gauge. The label is reason-only: no run, year, or scope ever
+// becomes a label. A reason outside the closed set is dropped instead of
+// collapsed to another value, and a negative count clamps to zero. Nil
+// instruments or a nil gauge skip the signal.
+func (inst *Instruments) RecordNVDBaselineHeldYears(ctx context.Context, reason string, years int64) {
+	if inst == nil || inst.NVDBaselineHeldYears == nil || !slices.Contains(nvdBaselineHeldYearReasons[:], reason) {
+		return
+	}
+	if years < 0 {
+		years = 0
+	}
+	inst.NVDBaselineHeldYears.Record(ctx, years, metric.WithAttributes(attribute.String("reason", reason)))
+}
+
 // RecordNVDBaselinePlanHold counts one plan call that minted no baseline
 // chunk because the lane held, under its closed hold reason
 // (eshu-hq/eshu#10814). A hold that other years' chunks overrode (some year
@@ -259,8 +305,9 @@ func (inst *Instruments) RecordNVDBaselinePlanHold(ctx context.Context, reason s
 	inst.NVDBaselinePlanHolds.Add(ctx, 1, metric.WithAttributes(attribute.String("reason", reason)))
 }
 
-// RecordNVDBaselinePaceInterval records the latest per-year pace interval the
-// planner applied, in seconds. A plan that held before the pace was known
+// RecordNVDBaselinePaceInterval records the latest pace interval the planner
+// applied, in seconds: the run-wide chunk interval, one chunk per interval per
+// max_in_flight_years slot. A plan that held before the pace was known
 // (an open, unloaded, or stale trip) passes zero, and a non-positive value
 // records nothing, so the gauge keeps the last interval the planner really
 // applied instead of a value it never used. Nil instruments or a nil gauge
@@ -397,11 +444,18 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	}
 	inst.NVDBaselinePaceInterval, err = meter.Float64Gauge(
 		"eshu_dp_nvd_baseline_pace_interval_seconds",
-		metric.WithDescription("Latest per-year NVD baseline pace interval the planner applied, in seconds: max(floor, 30 minutes / 2^quiet-hour streak); not updated while the lane holds before the pace is known (#10814)"),
+		metric.WithDescription("Latest NVD baseline pace interval the planner applied, in seconds: max(floor, 30 minutes / 2^quiet-hour streak), one chunk per interval per max_in_flight_years slot across the whole run; not updated while the lane holds before the pace is known (#10814)"),
 		metric.WithUnit("s"),
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselinePaceInterval gauge: %w", err)
+	}
+	inst.NVDBaselineHeldYears, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_held_years",
+		metric.WithDescription("Latest count of NVD baseline years the planner holds by stored state, by closed reason (#10814): downstream_failed (the year's last chunk dead-lettered in the projector or reducer; it releases its slot until a replay), drain_unloaded (the drain probe could not prove the year's last chunk; it keeps its slot), retry_wait (the year's last claim did not advance its checkpoint and under 30 minutes have passed; it releases its slot). Recorded every plan including zero, so a recovered year clears; skipped for a disabled derivation or a config-error plan, which compute no year counts"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineHeldYears gauge: %w", err)
 	}
 	inst.NVDBaselineChunkCycle, err = meter.Float64Histogram(
 		"eshu_dp_nvd_baseline_chunk_cycle_seconds",

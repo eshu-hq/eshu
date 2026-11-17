@@ -762,9 +762,14 @@ type Instruments struct {
 	// NVDBaselinePlanHolds counts plan calls that minted no baseline chunk
 	// because the lane held (#10814), labeled by the closed hold reason.
 	NVDBaselinePlanHolds metric.Int64Counter
-	// NVDBaselinePaceInterval records the latest per-year pace interval the
-	// planner applied, in seconds (#10814).
+	// NVDBaselinePaceInterval records the latest pace interval the planner
+	// applied, in seconds: one chunk per interval per slot (#10814).
 	NVDBaselinePaceInterval metric.Float64Gauge
+	// NVDBaselineHeldYears records the latest count of baseline years the
+	// planner holds by stored state, labeled by the closed reason
+	// downstream_failed, drain_unloaded, or retry_wait (#10814). It is
+	// recorded every plan, zero included, and carries no year label.
+	NVDBaselineHeldYears metric.Int64Gauge
 	// NVDBaselineChunkCycle records each committed chunk's plan-to-drained
 	// time in seconds (#10814).
 	NVDBaselineChunkCycle            metric.Float64Histogram
