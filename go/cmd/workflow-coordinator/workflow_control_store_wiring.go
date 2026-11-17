@@ -16,6 +16,12 @@ import (
 // that cannot, so this assertion keeps the wiring honest at compile time.
 var _ coordinator.SlotProgressStore = (*postgres.WorkflowControlStore)(nil)
 
+// The production store must also record the NVD baseline per-year plan rows
+// (#10828): an admission that carries baseline chunks is refused at run time
+// against a store that cannot, so this assertion keeps that wiring honest at
+// compile time too.
+var _ coordinator.BaselinePlanStore = (*postgres.WorkflowControlStore)(nil)
+
 // newWorkflowControlStore constructs the workflow coordinator's
 // WorkflowControlStore and wires the shared meter-provider instruments and
 // the per-component quota lookup (#8471) onto it. Extracted from run() so
