@@ -9,8 +9,7 @@ the corpus) is settled YES by that ruling. Parent transport design:
 Measurements:
 [10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
 
-Pace and resume (revised under #10816 to the arbiter's pace ruling of
-2026-11-16,
+Pace and resume (revised under #10816 to the arbiter's pace ruling of 2026-11-16,
 [10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md)):
 record-atomic 16 MiB chunks resumed by (stamp, CVE ID), newest year first, a
 drain-gated adaptive pace, and a seed rollback refused at commit. The whole
@@ -50,21 +49,19 @@ Newest first (ruled 2026-11-16, decision 7): the configured `last_year`
 2026 (measurements M3, `10671-nvd-feed-measurements.md`, section "M3. Year-feed
 footprint and generation times"). Each year is an independent lane: one chunk in
 flight per year, so per-year order is preserved; a year whose last claim did not
-advance waits 30 minutes and does not block other years; `max_in_flight_years`
-defaults to 1, with a ceiling of 4, and rises above 1 only after the canary
-shows cycle time and inflow headroom. Year files share no CVE id (B2 of the
-superseded measurements), so concurrent years touch disjoint rows. The resume
-position is per year (section 3), so no global monotone stamp is needed across
-years. Shipped (C1): `deriveNVDBaselineLanes` in
+advance waits 30 minutes and releases its slot, so it does not block other
+years; `max_in_flight_years` bounds the years holding a slot across the run (the
+slot rule, section 4), defaults to 1, with a ceiling of 4, and rises above 1
+only after the canary shows cycle time and inflow headroom. Year files share no
+CVE id (B2 of the superseded measurements), so concurrent years touch disjoint
+rows. The resume position is per year (section 3), so no global monotone stamp
+is needed across years. Shipped: `deriveNVDBaselineLanes` in
 `go/internal/coordinator/vulnerability/nvd_baseline_planner.go` plans these
-lanes, with `max_in_flight_years` clamped to 1 to 4 and a negative value a config
-error. It reads the per-year state from two request inputs,
-`NVDBaselineInFlightYears` and `NVDBaselineLastPlanned` (scope id and planned
-time per year), and the `baseline_retry_wait` hold means every plannable year is
-inside its 30-minute wait. No production caller fills those inputs before the
-#10746 enable lane. Newest first puts 2026 and 2025 (32.1% of records, 19.6% of facts) in
-about 8 hours at the adaptive floor; "most queried years" is a proxy from record
-share, because no query data exists.
+lanes (C1, corrected by the slot rule in #10814) from request inputs that no
+production caller fills before the #10746 enable lane. Newest first puts 2026
+and 2025 (32.1% of records, 19.6% of facts) in about 8 hours at the adaptive
+floor; "most queried years" is a proxy from record share, because no query data
+exists.
 
 Within a year, records emit in ascending (`lastModified` floored to the UTC
 millisecond, canonical CVE ID by byte order). This mirrors the satellite's
@@ -314,6 +311,13 @@ chunk per planner run" bound.
   is unmeasured, so the default stays 30 minutes.
 - **One chunk of a year at a time.** The next start is unknown until the
   previous chunk commits.
+- **Slot rule: the pace is run-wide.** `max_in_flight_years` slots bound the
+  whole run: one slot mints at most one chunk per interval (12 in six hours at
+  30 minutes), where C1 paced each year alone. A year holds a slot while its
+  claim is open, its last chunk is draining or unprobed, or its advancing last
+  plan is inside the interval. A non-advancing chunk releases its slot, so the
+  trip latch backstops a systemic fault. Rule, bound and tests: the coordinator
+  README.
 
 Lease fencing covers the overrun case: a feed attempt that outlives its lease is
 fenced by the claim-row lock and the `fencing_token` filter (parent design
@@ -389,9 +393,8 @@ No pausing or serializing OSV/GHSA to make room (ruling decision 3).
 Known limits to close before the baseline enable lane (#10746) turns on.
 These come from the #10760 review findings F8 and F10. The follow-ups are
 tracked as #10767 (inflow measure, F8, closed below) and #10768 (durable
-latch, F10), and both must land before #10746 turns the lane on. F10 is
-closed in the store and fold by #10768 (below). #10746 wires the recorders
-and the plan-time latch load into the service.
+latch, F10), and both must land before #10746 turns the lane on. #10746
+wires the recorders and the plan-time latch load into the service.
 
 - Inflow, not backlog (F8), closed by #10767. The sampler reads hourly
   inflow: the CVE-% rows still queued plus the CVE-% rows the winners
@@ -408,11 +411,9 @@ and the plan-time latch load into the service.
   delta was rejected: it counts every source, and the measured all-source
   inflow (M6) is 60k to 109k rows an hour against the 15k threshold.
 - Durable latch (F10, #10768). Done in the store and fold; the service
-  wiring is still #10746. See "Durable latch contract" below. `Observe`
-  itself counts samples, not elapsed time (the sample timestamp is not
-  read), so a missed or duplicate hourly sample would count as a
-  consecutive hour; the fold closes that with the gap and replay handling
-  described below.
+  wiring is still #10746. `Observe` itself counts samples, not elapsed time,
+  so a missed or duplicate hour would count as consecutive; the fold closes
+  that with the gap and replay handling in "Durable latch contract" below.
 - Recorders. The lane wires the trip, plan, latch, and dirty-probe recorders,
   including `close_refused` from a refused `Close`, each with a test.
 
@@ -425,7 +426,6 @@ rollback story are in
 moved there unchanged under #10816 to keep this record under the Markdown line
 cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
 (migration 302, #10814).
-
 
 ## 6. Idempotency argument
 

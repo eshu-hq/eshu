@@ -158,8 +158,8 @@ load early (nothing probed a year after the failing one), a failed year left in
 the map as a zero state instead of out of it, which is what the loader
 documents, and a paced year ending the walk for the older years.
 `TestPlanNVDBaselineReportsTheChunkCycleOfADrainedChunk`,
-`TestLoadNVDBaselineDrainFailsClosedPerYear`, and
-`TestPlanNVDBaselineAPacedYearDoesNotBlockAnotherYear` now pin them.
+`TestLoadNVDBaselineDrainFailsClosedPerYear`, and (before the slot rule replaced
+that walk) a paced-year test now pin them.
 
 The equivalent mutant removes the explicit zero-drain-time guard in the chunk
 cycle. The `cycle <= 0` check right after it refuses the same input, because a
@@ -169,11 +169,13 @@ subtraction saturates.
 
 ## Limits and open points
 
-- At `max_in_flight_years` 1, a second year can mint a chunk while the first
-  year's chunk is projecting or paced, because a draining or paced year takes no
-  slot (the C1 semantics) and the interval is per year. Only open collector
-  claims are capped. If the ruling meant one chunk in the whole downstream
-  pipeline, that needs a ruling.
+- The pace is a run-wide rate (the slot rule: a draining, unprobed, or paced
+  year holds one of the `max_in_flight_years` slots), so one slot mints at most
+  one chunk per interval. A chunk that commits facts but does not advance its
+  checkpoint releases its slot (the year reads as retry wait), and the probe,
+  which reads the checkpoint's last scope, cannot see that chunk's downstream
+  work. A systemic fault of that kind can still mint one chunk per year per 30
+  minutes; the trip latch is the backstop.
 - A year whose last chunk failed downstream shows on the plan span and as a
   hold only when nothing else plans; other years keep planning.
 - A checkpoint with no last scope or generation (written before migration 301)
