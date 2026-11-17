@@ -362,8 +362,9 @@ const (
 // no fixed ratio can both pass that host and catch serialization collapse.
 // The ratios therefore sit beyond serialization (3.0/3.5): they catch
 // beyond-serialization collapse anywhere, while lock order stays with the
-// deadlock assertions above, uniform statement cost with the benchstat gate,
-// and the absolute reference arm with matching hardware.
+// deadlock assertions above. Uniform statement-cost drift is currently
+// unwatched: no benchmark runs this statement shape, and the bench
+// regression check is advisory. That backstop is tracked in #10842.
 const (
 	winnersDirtyTwoWriterMaxRatio  = 3.0
 	winnersDirtyFourWriterMaxRatio = 3.5
@@ -371,10 +372,12 @@ const (
 
 // winnersDirtyGateFails is the hybrid gate: a stratum fails only when its
 // p95 breaks the shim-host reference AND its same-run contention ratio
-// breaks the backstop. On reference hardware the absolute arm rules exactly
-// as before (ratios there sit near 1.5, far under the backstop); on slower
-// shared runners the ratio arm deflakes host oversubscription noise that the
-// identical code cannot control.
+// breaks the backstop. The conjunction passes absolute-only excursions on
+// every host, reference hardware included (ratios there sit near 1.5, far
+// under the backstop), so a uniform statement-cost regression passes this
+// gate; that drift is unwatched pending the #10842 bench backstop. What the
+// ratio arm buys is deflaking host oversubscription noise on slower shared
+// runners that the identical code cannot control.
 func winnersDirtyGateFails(p95, reference time.Duration, ratio, maxRatio float64) bool {
 	return p95 > reference && ratio > maxRatio
 }

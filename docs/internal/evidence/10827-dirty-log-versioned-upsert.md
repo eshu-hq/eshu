@@ -19,6 +19,20 @@ order. Migrations 303-308 (column, dedup, two CONCURRENTLY index builds,
 272/272a trigger upserts). The gate encodes the stratified envelope and
 pins the ruled values.
 
+## Rollout: writer quiesce required
+
+Migrations 305/306 build partial UNIQUE indexes CONCURRENTLY over the
+dirty log after 304's dedup, and old binaries' plain INSERTs violate the
+new indexes until the app rolls. The Helm pre-upgrade hook runs while
+outgoing pods still serve, and deployment ordering does not stop
+already-running writers, so this deploy is not a standard migration-gated
+roll: stop the dirty-log writers first (scale the reducer and ingester
+runtimes to zero per
+[service-runtimes-bootstrap.md](../../public/deployment/service-runtimes-bootstrap.md)),
+then apply 303-308, then roll the app. If a unique build reports
+duplicates from concurrent writes, recover in order: re-run 304 (the
+dedup), then 305/306 (the two CONCURRENTLY builds).
+
 ## Performance Evidence:
 
 Writer upsert on local PostgreSQL 18 (disposable database, seeded 1.27M
@@ -44,5 +58,8 @@ and first-mark timestamp preserved; 150 passes collapse to one row).
 Duplicate collapse is visible in the settled tally: `sum(dirty_version)`
 counts every mark a consumed row stood for, and the NVD trip CTEs sum
 versions the same way. Telemetry wording updated to version-sums with no
-new metrics. A future hot-key coalescing issue (#10837) tracks reducing
+new metrics. One attribution change ships with the dedup: source is
+first-marker-wins, so a trigger re-mark of an already-queued key bumps
+the version without changing the row's source, and the maintainer's
+per-source counts credit the owner that queued the unit. A future hot-key coalescing issue (#10837) tracks reducing
 the inherent serialization cost; it does not block this change.

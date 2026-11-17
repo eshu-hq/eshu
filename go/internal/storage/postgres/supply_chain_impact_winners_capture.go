@@ -28,6 +28,12 @@ import (
 //     trigger cannot emit a Go metric, so the maintainer counts these sources
 //     when it consumes their rows, by the row's source column.
 //
+// Source attribution is first-marker-wins (#10827): one row per recompute
+// unit, and a re-mark by a later owner bumps only dirty_version, leaving the
+// first marker's source on the row. The maintainer's per-source counts
+// therefore credit the owner that queued the unit, not every owner that
+// re-marked it; the version-sum still counts every mark.
+//
 // A change class no owner names is repaired by the audit and counted by
 // ..._backstop_repairs_total.
 

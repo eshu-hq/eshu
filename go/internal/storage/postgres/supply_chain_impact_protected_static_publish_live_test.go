@@ -321,9 +321,14 @@ func proofWorkerDSN(adminDSN, dbName, role, password string) (string, error) {
 // seeded-violation pair for the scanner triggers of migration 272a on the real
 // publish path (#9805, ruling B). The protected publication function inserts
 // classification and association rows as its owner, from the runtime-writer's
-// transaction. With the insert triggers enabled, one publish appends scanner
-// rows naming the published finding; with them disabled, the same publish
-// appends none, which is the capture hole the audit exists to repair.
+// transaction. Under the versioned dirty log (#10827) the writer's own
+// fact_upsert mark lands first in that transaction and the scanner trigger's
+// mark of the same key collapses into it as a dirty_version bump, so the
+// discriminant is the finding row's version, not a scanner-source row count:
+// with the insert triggers enabled one publish leaves the row at version 2
+// or more (writer mark plus scanner bump); with them disabled it stays at
+// version 1 (writer mark only), which is the capture hole the audit exists
+// to repair.
 func TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN")) == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the scanner capture proof")
@@ -363,33 +368,34 @@ func TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive(t *testin
 			t.Fatalf("publish %s: %v", scope, err)
 		}
 	}
-	scannerLogRows := func() int {
+	dirtyVersionOf := func(cve string) int64 {
 		t.Helper()
-		var n int
+		var v int64
 		if err := admin.QueryRowContext(ctx, `
-SELECT count(*) FROM supply_chain_impact_winners_dirty_log
-WHERE source = 'scanner' AND package_id = 'pkg:npm/scanner-capture'
-  AND repository_id = 'repo://scanner-capture/api'`).Scan(&n); err != nil {
-			t.Fatalf("count scanner dirty rows: %v", err)
+SELECT dirty_version FROM supply_chain_impact_winners_dirty_log
+WHERE kind = 'fact' AND package_id = 'pkg:npm/scanner-capture'
+  AND repository_id = 'repo://scanner-capture/api' AND c0 = $1`, cve).Scan(&v); err != nil {
+			t.Fatalf("read dirty version for %s: %v", cve, err)
 		}
-		return n
+		return v
 	}
 
-	// Violation: the insert triggers are disabled, so the publish captures nothing.
+	// Violation: the insert triggers are disabled, so only the writer's own
+	// mark lands and the finding row stays at its first version.
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications DISABLE TRIGGER scanner_classifications_winners_dirty_insert`)
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations DISABLE TRIGGER scanner_associations_winners_dirty_insert`)
 	seedScope("scanner-capture-red", "scanner-capture-red/g1")
 	publish("scanner-capture-red", "scanner-capture-red/g1", "CVE-2026-9805-1")
-	if got := scannerLogRows(); got != 0 {
-		t.Fatalf("with the scanner triggers disabled the publish appended %d scanner dirty rows, want 0", got)
+	if got := dirtyVersionOf("CVE-2026-9805-1"); got != 1 {
+		t.Fatalf("with the scanner triggers disabled the publish left dirty_version=%d, want 1 (writer mark only)", got)
 	}
 
-	// Shipped triggers: the same publish names its finding.
+	// Shipped triggers: the same publish bumps the row past its first version.
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications ENABLE TRIGGER scanner_classifications_winners_dirty_insert`)
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations ENABLE TRIGGER scanner_associations_winners_dirty_insert`)
 	seedScope("scanner-capture-green", "scanner-capture-green/g1")
 	publish("scanner-capture-green", "scanner-capture-green/g1", "CVE-2026-9805-2")
-	if got := scannerLogRows(); got < 1 {
-		t.Fatalf("with the scanner triggers enabled the publish appended %d scanner dirty rows, want at least 1", got)
+	if got := dirtyVersionOf("CVE-2026-9805-2"); got < 2 {
+		t.Fatalf("with the scanner triggers enabled the publish left dirty_version=%d, want at least 2 (writer mark plus scanner bump)", got)
 	}
 }
