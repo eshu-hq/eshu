@@ -47,6 +47,11 @@ new index. Nothing in production fills the planner's request fields until the
 - **Unknown statuses.** The open sets name their terminal statuses, so a status
   the query does not know holds the year instead of releasing it
   (`TestNVDBaselineDrainProbeTreatsUnknownStatusesAsOpenLive`).
+- **A missing reducer item.** `NVDBaselineDrainDrained` is documented as claim
+  closed, generation active, and reducer item done "or none was enqueued", so an
+  active generation with no reducer item reads `drained`. The test deletes the
+  reducer item of a finished chunk and requires that
+  (`TestNVDBaselineAbsentReducerItemReadsDrainedLive`).
 - **A pending same-scope successor.** The named generation can be active and
   fully drained while a re-commit of the same chunk scope is still pending, so
   the probe has a leg for any `pending` generation of the scope and reads it as
@@ -160,10 +165,18 @@ package and read the result: a mutant is killed when a test fails and survives
 when none does. They cover the drain probe's query and phase derivation, its
 timeout and typed errors, the slot rule, the pace, the held-years gauge, the
 pending-successor leg, and the failed-successor leg. 144 were killed on the
-first pass and six were not. A later review added one more hand-made mutant
-(X10), which also survived, so the table lists seven. The harness and its
-mutant list are not in the repository, so this branch cannot rerun the pass; the
-table is the record of the mutants that survived.
+first pass and six were not. Five more hand-made mutants were applied
+afterwards, one at a time. X10, from a later review, flipped the newest-projector
+default of the final select from false to true. S1 to S4 flipped the other four
+absent-row defaults (the claim, projector failure, reducer failure, and reducer
+open legs), so all five `COALESCE((SELECT ...), false)` defaults are covered;
+`rg -n 'COALESCE\(\(SELECT [a-z_]+ FROM [a-z_]+\), false\)'` on the probe file
+lists them. X10 ran against the storage and coordinator vulnerability packages,
+and S1 to S4 against the storage package, the one place the SQL runs. S1 to S3
+were killed on their first run; X10 and S4 survived. So eight mutants were not
+killed when first run. The harness and its mutant list are not in the
+repository, so this branch cannot rerun the 150-mutant pass; the table is the
+record of the mutants that survived.
 
 | Mutant | Why it was not killed | Outcome |
 |---|---|---|
@@ -174,11 +187,13 @@ table is the record of the mutants that survived.
 | The retry-wait count read as the drain-unloaded count (HY3) | A real gap: the end-to-end test held one year under each reason. | `TestWorkPlannerRecordsHeldYearsEveryPlan` now holds 1, 2, and 3 years and kills it |
 | A held year can still mint (SL15) | Invalid: the edit left a variable unused, so the package did not compile. | Repaired and killed |
 | The newest generation's projector leg read an absent item as live: the `COALESCE` default flipped from false to true (X10, from the later review) | A real gap: a dead-lettered item was tested and a deleted one was not, so the flip passed the whole storage and coordinator vulnerability test runs. | `TestNVDBaselineAbsentProjectorItemStillReadsFailedLive` kills it: the chunk reads `projecting` instead of `failed` |
+| The reducer leg read an absent item as open: its `COALESCE` default flipped from false to true (S4, from the sweep) | A real gap: the documented reading of a missing reducer item as done had no test, so the flip passed the whole storage test run and a chunk would have held as `reducing` for ever. | `TestNVDBaselineAbsentReducerItemReadsDrainedLive` kills it: the chunk reads `reducing` instead of `drained` |
 
 With the tests added after the first pass (the commit "Pin the held-years counts
 by reason and the drain gate's default for an unknown phase", then
-`TestNVDBaselineAbsentProjectorItemStillReadsFailedLive`), 149 of 151 are killed
-and the other two are equivalent. The mutants the failed-successor ruling asked
+`TestNVDBaselineAbsentProjectorItemStillReadsFailedLive` and
+`TestNVDBaselineAbsentReducerItemReadsDrainedLive`), 153 of 155 are killed and
+the other two are equivalent. The mutants the failed-successor ruling asked
 for all fail tests: the no-pending condition dropped
 (`TestNVDBaselineDrainProbeDerivesThePhaseOfTheLastChunk`), the no-active
 condition dropped (same), the status-only leg without "newest"
