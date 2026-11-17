@@ -73,7 +73,9 @@ trap cleanup EXIT INT TERM
 ( cd "${go_dir}" && go build -o "${work_dir}/stub-satellite" "${stub_src}" ) \
 	|| die "failed to build the stub satellite"
 
-"${work_dir}/stub-satellite" -token "${stub_token}" >"${work_dir}/url" 2>"${work_dir}/err.log" &
+# The expected bearer travels via the stub's environment, not its argv:
+# process arguments are visible to other local users via ps.
+CAPABILITY_STUB_TOKEN="${stub_token}" "${work_dir}/stub-satellite" >"${work_dir}/url" 2>"${work_dir}/err.log" &
 server_pid=$!
 
 # Wait for the URL line, then for the RequireAuth shape itself: an untokened

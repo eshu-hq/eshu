@@ -26,7 +26,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -53,10 +52,12 @@ const stubServerTimeout = 10 * time.Second
 const stubSafetyTimeout = 10 * time.Minute
 
 func main() {
-	token := flag.String("token", "", "admin/all-scope bearer token the stub expects (required)")
-	flag.Parse()
-	if *token == "" {
-		fmt.Fprintln(os.Stderr, "capability-stub-satellite: -token is required")
+	// The expected bearer arrives via the environment, never argv: process
+	// arguments are visible to other local users via ps while the
+	// environment of a child started by the wrapper is not.
+	token := os.Getenv("CAPABILITY_STUB_TOKEN")
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "capability-stub-satellite: CAPABILITY_STUB_TOKEN is required")
 		os.Exit(2)
 	}
 	document := []byte(openapi.Spec())
@@ -74,7 +75,7 @@ func main() {
 			// RequireAuth-shaped gate: the admin/all-scope bearer only,
 			// anything else 401s. The token value never leaves the
 			// comparison — it is not logged or echoed.
-			if request.Header.Get("Authorization") != "Bearer "+*token {
+			if request.Header.Get("Authorization") != "Bearer "+token {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
