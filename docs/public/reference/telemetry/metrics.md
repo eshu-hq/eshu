@@ -173,10 +173,11 @@ registered instances with a terminal work-item failure inside 3 x their
 `scan_interval` (30 minute floor) and no later completed work item for the same
 instance and scope; `failure_class` is one of the 51 bounded classes in
 [Collector Terminal Failure Readiness](../http-api/collector-terminal-failure.md#values)
-(the ten every kind shares, the six the extension host writes, each kind's
-own, and the one `extension_defined` token for a class an extension defines, on
-a kind that is not first-party or on a component-activated instance), or
-`unknown`, so the label takes at most 51 values. A class outside the kind's own
+(12 classes every kind shares, 12 the extension host writes, 26 more that
+individual first-party kinds add, and the one `extension_defined` token for a
+class an extension defines, on a kind that is not first-party or on a
+component-activated instance), or `unknown`, so the label takes at most 52
+values. A class outside the kind's own
 set reads `unknown`, and no persisted text reaches the label. It is a gauge,
 not a counter, so a recovered or aged-out instance
 drops out. Every runtime that scrapes status exports the same value with its
