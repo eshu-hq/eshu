@@ -304,3 +304,18 @@ and a fresh arbiter review in-lane is required before any removal PR.
   dispatch by design, is NOT a relay-leg blocker, and needs no
   satellite wave. G2 snapshot unaffected (row stays tier-C; relay+absent
   remain 0).
+- Sessions boundary restatement (G9 condition 6, verified at frozen sat
+  triple c041d7e): the carve-out above covers the full 22-route D8
+  family, not one row. api/d8.go declares 18 authed routes behind the
+  D8 credential-class gate plus 4 pre-auth public routes, all as
+  tier-C dispatch-only HTTP write-through to the current core
+  handlers; contracts/d8-session-resolver.md states the destination
+  holds no session, identity, token, or TOTP state, mints no
+  credential, keeps no ledger, appends no audit, and runs no
+  finalize. No termination wave runs against auth/sessions or any of
+  the 22; the D13 removal takes only the relay catch-all and never
+  core-owned reads. G2: 21 of the 22 ride tier-C (of the 27 tier-C
+  dispatch rows); the 22nd
+  (`POST /api/v0/auth/local/invitations/{invite_id}/revoke`) rides
+  relay-disclosed as a named core-owned survivor. Relay+absent
+  remain 0.
