@@ -96,14 +96,14 @@ one enabled bounded scope; invalid configurations fail validation.
 - `Store` — the narrow durable interface `Service` depends on:
   `ReconcileCollectorInstances`, `ListCollectorInstances`, `CreateRun`,
   `CreateRunWithWorkItemsIfNoOpenTargets`, `EnqueueWorkItems`,
-  `ReapExpiredClaims`, and `ReconcileWorkflowRuns`. Implemented by
-  `storage/postgres.WorkflowControlStore`.
+  `ReapExpiredClaims`, `ExpireStaleOpenRuns`, and `ReconcileWorkflowRuns`
+  (implemented by `storage/postgres.WorkflowControlStore`).
 - `Service` — the long-running loop; wire `Config`, `Store`, `Metrics`, and
   `Logger` then call `Service.Run`.
 - `Config` — runtime settings: `DeploymentMode`, `ClaimsEnabled`,
   `ReconcileInterval`, `RunReconcileInterval`, `ReapInterval`,
   `ClaimLeaseTTL`, `HeartbeatInterval`, `ExpiredClaimLimit`,
-  `ExpiredClaimRequeueDelay`, `CollectorEgressPolicy`, `CollectorInstances`, `QuotaLookup`.
+  `ExpiredClaimRequeueDelay`, `MaxOpenRunAge`, `CollectorEgressPolicy`, `CollectorInstances`, `QuotaLookup`.
 - `LoadConfig(getenv)` — parses all `ESHU_WORKFLOW_COORDINATOR_*` and
   `ESHU_COLLECTOR_INSTANCES_JSON` env vars into a validated `Config`. `LoadConfigObserved(getenv, observer)` also reports component grant decisions (#7153; see `doc.go`).
 - `MetricPrefix` — the OTEL instrument namespace
@@ -112,10 +112,10 @@ one enabled bounded scope; invalid configurations fail validation.
   without importing this package: `cmd/workflow-coordinator` passes it to
   `semantic.NewProviderWorkerMetrics`.
 - `Metrics` — recording interface: `RecordReconcile`, `RecordReap`,
-  `RecordRunReconciliation`.
+  `RecordRunReconciliation`, `RecordStaleRunExpiry`.
 - `NewMetrics(meter)` — registers OTEL counters, histograms, and observable
   gauges against the `eshu_dp_workflow_coordinator_` prefix.
-- `ReconcileObservation`, `ReapObservation`, `RunReconciliationObservation` —
+- `ReconcileObservation`, `ReapObservation`, `RunReconciliationObservation`, `StaleRunExpiryObservation` —
   value types passed to `Metrics` recording methods.
 - `TerraformStatePlanner` — the root interface implemented by
   `tfstate.WorkPlanner`. Its `BackendFacts` port returns Terraform

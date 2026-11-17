@@ -159,9 +159,12 @@ func TestClaimedServiceBudgetExhaustedKeepsStageOperation(t *testing.T) {
 }
 
 // TestClaimedServiceBudgetExhaustedKeepsCarriedClass pins the other dispatch
-// variant of the same P2-1 fix: when the budget-exhausted cause already
-// carries its own class, that class still wins over the budget fallback while
-// the operation column keeps the stage token.
+// variant of the budget-exhausted contract: when the cause already carries
+// its own class, the persisted row still records attempt_budget_exhausted so
+// budget-filtered dashboards do not undercount (eshu-hq/eshu#10804 review P1,
+// superseding the P2-1 carried-class-wins rule). The cause stays in the error
+// chain for diagnosis, the operation column keeps the stage token, and the
+// provider status code is preserved.
 func TestClaimedServiceBudgetExhaustedKeepsCarriedClass(t *testing.T) {
 	t.Parallel()
 
@@ -192,8 +195,8 @@ func TestClaimedServiceBudgetExhaustedKeepsCarriedClass(t *testing.T) {
 		t.Fatalf("terminal fail calls = %d, want %d", got, want)
 	}
 	got := store.lastTerminalFail
-	if got.FailureClass != string(sdk.FailureRateLimited) {
-		t.Fatalf("FailureClass = %q, want %q", got.FailureClass, string(sdk.FailureRateLimited))
+	if got.FailureClass != FailureClassAttemptBudgetExhausted {
+		t.Fatalf("FailureClass = %q, want %q", got.FailureClass, FailureClassAttemptBudgetExhausted)
 	}
 	if got.FailureOperation != "collect_failure" {
 		t.Fatalf("FailureOperation = %q, want collect_failure stage token", got.FailureOperation)

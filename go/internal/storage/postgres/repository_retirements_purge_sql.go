@@ -73,6 +73,20 @@ const (
 	purgeDeleteDeadLettersQuery = `DELETE FROM collector_generation_dead_letters
 		WHERE scope_id = ANY($1)`
 
+	// purgeDeleteWriteAdmissionQuery drops the #7142 impact write-admission
+	// watermark rows of the purge scopes (migration 154, no FK; the primary
+	// key leads with scope_id). It runs in the leftover sweep, BEFORE the
+	// scope delete, which is the opposite of the pass-state row: the impact
+	// writer upserts the admission row before its fact insert takes the
+	// KEY SHARE on scope_generations (writer_retract.go), so the writer's
+	// order is (admission row, generation row). The purge takes the same
+	// order: admission row here, generation rows in the cascade. Deleting
+	// after the cascade would hold the generation lock while waiting on an
+	// admission row an in-flight writer holds, and that writer waits on the
+	// generation: a cycle only the deadlock detector could break.
+	purgeDeleteWriteAdmissionQuery = `DELETE FROM supply_chain_impact_write_admission
+		WHERE scope_id = ANY($1)`
+
 	// purgeScopeGenerationIDsQuery lists every generation of the purge
 	// scopes so the key sidecar prune covers exactly the facts the scope
 	// delete cascades. Facts are generation-scoped and every key writer
@@ -91,6 +105,16 @@ const (
 	// factkeys.DeleteGenerations (paired classification, see the delete
 	// guard), or orphaned sidecar rows would survive the retirement.
 	purgeDeleteScopesQuery = `DELETE FROM ingestion_scopes WHERE scope_id = ANY($1)`
+
+	// purgeDeleteScopePassStateQuery drops the #10389 per-scope pass-state
+	// rows (migration 284, no FK). It runs after the scope delete: the
+	// impact writer holds the fact insert's KEY SHARE on scope_generations
+	// before it upserts this row last, so deleting here keeps the purge's
+	// lock order equal to the writer's (scope_generations, then pass state)
+	// and no cycle can form.
+	//
+	// #nosec G101 -- SQL DML whose const name contains "Pass"; the value is a fully-parameterized query, not a credential literal
+	purgeDeleteScopePassStateQuery = `DELETE FROM supply_chain_impact_scope_pass_state WHERE scope_id = ANY($1)`
 
 	// purgeCompleteTombstoneQuery writes the tombstone: the terminal
 	// complete/done state, the retirement timestamp, and the deleted-row

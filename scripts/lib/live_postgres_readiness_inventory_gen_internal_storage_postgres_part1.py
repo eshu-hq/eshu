@@ -211,6 +211,15 @@ TABLE = {
             "TestWorkflowClaimFirstClaimAfterBulkAdmission",
             "TestWorkflowClaimFirstClaimAfterBulkAdmissionOntoStatlessTable",
         ),
+        "go/internal/storage/postgres/control_expire_stale_runs_live_test.go": (
+            "TestExpireStaleRunsLiveHappyPath",
+            "TestExpireStaleRunsLiveIdempotent",
+            "TestExpireStaleRunsLiveClaimRace",
+            "TestExpireStaleRunsLiveGuardRelease",
+        ),
+        "go/internal/storage/postgres/control_expire_stale_runs_plan_live_test.go": (
+            "TestExpireStaleOpenRunsPlanStaysIndexServed",
+        ),
         "go/internal/storage/postgres/control_retire_unclaimed_live_test.go": (
             "TestRetireUnclaimedLiveHappyPath",
             "TestRetireUnclaimedLiveIdempotent",

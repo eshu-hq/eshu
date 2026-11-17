@@ -333,6 +333,20 @@ func registerCoordinatorGauges(meter metric.Meter, recorder *otelMetrics) error 
 	if err != nil {
 		return fmt.Errorf("register scanner derived backlog gauge: %w", err)
 	}
+	staleRunExpiredRunsGauge, err := meter.Int64ObservableGauge(
+		MetricPrefix+"stale_runs_expired",
+		metric.WithDescription("Non-terminal runs aged out by the most recent run-age bound expiry pass (#10791)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register stale runs expired gauge: %w", err)
+	}
+	staleRunExpiredItemsGauge, err := meter.Int64ObservableGauge(
+		MetricPrefix+"stale_run_expired_items",
+		metric.WithDescription("Work items the most recent run-age bound expiry pass moved to failed_terminal (#10791)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register stale run expired items gauge: %w", err)
+	}
 	if _, err := meter.RegisterCallback(func(ctx context.Context, observer metric.Observer) error {
 		observer.ObserveInt64(desiredGauge, recorder.desiredCount.Load())
 		observer.ObserveInt64(durableGauge, recorder.durableCount.Load())
@@ -343,8 +357,10 @@ func registerCoordinatorGauges(meter metric.Meter, recorder *otelMetrics) error 
 		observer.ObserveInt64(gcpFreshnessStuckGauge, recorder.gcpFreshnessStuckClaims.Load())
 		observer.ObserveInt64(incidentFreshnessStuckGauge, recorder.incidentFreshnessStuckClaims.Load())
 		observer.ObserveInt64(scannerDerivedBacklogGauge, recorder.scannerDerivedBacklog.Load())
+		observer.ObserveInt64(staleRunExpiredRunsGauge, recorder.staleRunExpiredRuns.Load())
+		observer.ObserveInt64(staleRunExpiredItemsGauge, recorder.staleRunExpiredItems.Load())
 		return nil
-	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge, incidentFreshnessStuckGauge, scannerDerivedBacklogGauge); err != nil {
+	}, desiredGauge, durableGauge, driftGauge, reapedGauge, reconciledGauge, awsFreshnessStuckGauge, gcpFreshnessStuckGauge, incidentFreshnessStuckGauge, scannerDerivedBacklogGauge, staleRunExpiredRunsGauge, staleRunExpiredItemsGauge); err != nil {
 		return fmt.Errorf("register coordinator metrics callback: %w", err)
 	}
 

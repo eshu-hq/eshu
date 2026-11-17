@@ -81,6 +81,10 @@ type Metrics interface {
 	// watermark ages. It fires only when the instance opts into
 	// osv_delta_replan; the flag-off path never calls it.
 	RecordOSVDeltaReplan(context.Context, OSVDeltaReplanMetricsObservation)
+	// RecordStaleRunExpiry records one run-age bound expiry pass
+	// (#10791): the operator-visible signal for non-terminal runs that
+	// aged out and how many work items they carried to failed_terminal.
+	RecordStaleRunExpiry(context.Context, StaleRunExpiryObservation)
 }
 
 // ReconcileObservation captures one reconcile-loop outcome.
@@ -124,6 +128,11 @@ type otelMetrics struct {
 	staleSkipTotal    metric.Int64Counter
 	runReconcileTotal metric.Int64Counter
 	runReconcileDur   metric.Float64Histogram
+
+	staleRunExpiryTotal    metric.Int64Counter
+	staleRunExpiryDuration metric.Float64Histogram
+	staleRunExpiredRuns    atomic.Int64
+	staleRunExpiredItems   atomic.Int64
 
 	awsFreshnessReapTotal         metric.Int64Counter
 	awsFreshnessReapDuration      metric.Float64Histogram
@@ -325,6 +334,11 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 		return nil, err
 	}
 
+	staleRunExpiryInstruments, err := newStaleRunExpiryInstruments(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	recorder := &otelMetrics{
 		ownedRotation:                 ownedRotation,
 		ownedSlots:                    ownedSlots,
@@ -352,6 +366,9 @@ func NewMetrics(meter metric.Meter) (Metrics, error) {
 
 		ownedDerivedSelectedTotal: ownedDerived.selectedTotal,
 		ownedDerivedSkippedTotal:  ownedDerived.skippedTotal,
+
+		staleRunExpiryTotal:    staleRunExpiryInstruments.total,
+		staleRunExpiryDuration: staleRunExpiryInstruments.duration,
 	}
 
 	if err := registerCoordinatorGauges(meter, recorder); err != nil {

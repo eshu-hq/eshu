@@ -23,6 +23,7 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | `ESHU_WORKFLOW_COORDINATOR_GCP_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for GCP freshness trigger handoff (#4576). |
 | `ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL` | duration | — | Heartbeat interval for claim owners. |
 | `ESHU_WORKFLOW_COORDINATOR_INCIDENT_FRESHNESS_CLAIM_LEASE_DURATION` | duration | `5m` | Claim lease duration for incident freshness trigger handoff (#9379). |
+| `ESHU_WORKFLOW_COORDINATOR_MAX_OPEN_RUN_AGE` | duration | `24h` | Maximum age of a non-terminal workflow run before the run-age bound expires its pending and claimed items to failed_terminal (#10791). Must be positive. |
 | `ESHU_WORKFLOW_COORDINATOR_PUBLIC_ADVISORY_POLICY_JSON` | string | — | Operator-managed JSON policy with expected_revision, a higher desired_revision, and the complete set of advisory-owned vulnerability_intelligence instance IDs. Blank leaves public advisory registration disabled. Each selected instance must explicitly declare public_advisory_targets; each public target requires scope_id and max_age_seconds (1 to 2592000). A startup-attested Postgres control role contract is required. |
 | `ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL` | duration | — | Expired-claim reaping interval. |
 | `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | duration | `30s` | Workflow state reconciliation interval. |

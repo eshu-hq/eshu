@@ -176,6 +176,143 @@ under collector#97. The arbiter's proposed step of unsetting or rotating the
 key is not supported by these results and is not taken. Samples are small (13
 requests, one session, one source IP).
 
+## M11. Baseline corpus, chunk sizes and pace (arbiter, 2026-11-16)
+
+Measured by the arbiter on 2026-11-16, read-only, on a `git archive` copy of the
+collector at origin/main `a4f7b31` over the 25 cached year files (generated
+2026-11-15), on a darwin/arm64 laptop with go1.26.11. The ruling and its item
+numbers are in
+[10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md),
+section (a). This replaces the upper-bound extrapolation in M5 for the baseline
+corpus. The design consequences are in
+[10728-baseline-pacing.md](../design/10728-baseline-pacing.md) section 2.
+
+Method. A scratch test ran the shipped `scanNVDFeed`, `nvdFeedRecordStamp`,
+`NVDRecordEnvelopes` and `nvdFactBudgetBytes` over every record of the 25 files,
+with scope `vuln-intel://nvd/_baseline/qa-baseline-2026-11/<year>/<us>`, a
+64-character generation id and the public year-feed source URI. Chunk counts cut
+the (stamp, CVE ID) ordered record list (a records table plus a chunking script,
+both in the arbiter's scratch directory) at each budget. Scratch artifacts are
+not committed.
+
+| Quantity (ruling item) | Measured |
+|---|---|
+| Records (1) | 425,782 |
+| Facts (1) | 5,039,862: 425,782 cve, 3,247,201 affected_product, 1,366,879 reference |
+| Budget bytes (1) | 6,404,997,673, or 1,270.9 a fact (the earlier 1,256 differs only by id lengths) |
+| Shipped group-atomic caps, 2 MiB and 10,000 facts (2) | 3,124 chunks plus 2 groups refused forever; 3,124 x 30 min = 65 days; byte cap binds at 2,097,152 / 1,270.9 = 1,650 facts |
+| Bytes a fact by kind (5) | cve 2,166; affected_product 1,248; reference 1,047 |
+| Bytes a fact by field (5, every 25th fact) | payload 614.2 (48%); `source_ref` 444.5 (35%: generation_id 83, scope_id 82, fact_key 78, uri 72, record_id 69.5, source_system 45); stable_key 80; kind 37; observed_at 37; source_confidence 31; schema_version 25 |
+| Folding all 25 files (6) | 163 s CPU; streaming them (gunzip, sha256, scan) 28.3 s |
+| Folding 2026 alone (6) | 27.4 s fold, 4.4 s stream |
+| A 32 MiB chunk of 24,922 facts (6) | folds in 0.40 s, splits into 9 pages in 0.14 s |
+
+Chunks by budget, record-atomic (item 3):
+
+| Chunk budget | Chunks | Detail |
+|---|---|---|
+| 2 MiB | 3,180 | |
+| 8 MiB | 787 | |
+| 16 MiB | 397 | mean 12,695 facts; max 14,855 facts; max 2,917 records |
+| 32 MiB | 203 | max 29,550 facts; max 5,213 records |
+| 64 MiB | 108 | |
+
+The two groups that stall a group-atomic baseline (item 4):
+
+| File | Stamp | Records | Facts | Bytes |
+|---|---|---|---|---|
+| 2025 | `2026-10-18T21:10:00.120` | 1,402 | 17,478 | 22,945,411 |
+| 2026 | `2026-10-26T21:10:00.170` | 1,581 | 14,156 | 18,691,477 |
+
+They are the only groups over 10,000 facts. 73 groups exceed 2 MiB, 2 exceed 16
+MiB and none exceeds 32 MiB. The largest single record is CVE-2021-3942, 5,485
+facts, 6,983,745 bytes. This is the first corpus-wide measurement of facts per
+record under the satellite's folding: 5,039,862 / 425,782 is about 11.8, against
+the Modified-feed mean of 7.07 in M5.
+
+Collector memory (item 7 and the coordinator adjustment). Retained Go heap is
+1.50 x budget bytes: 24.1 MiB at 16 MiB, 48.0 at 32 and 96.0 at 64 (a scratch
+memory test). The collector child's peak RSS is a separate measurement, recorded
+in [collector issue
+#203](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/203)
+and quoted in the ruling's coordinator adjustment: a 553 MB synthetic year file
+with the real handler, one process per call.
+
+| Chunk budget | Peak RSS | Against the 256 MiB budget |
+|---|---|---|
+| 8 MiB | 109 MiB | under |
+| 16 MiB | 184 MiB | under |
+| 32 MiB, first page | 279 MiB | over |
+| 32 MiB, continuation | 319 MiB | over |
+
+Pace to the milestones (ruling table in section (a); item 9 gives the adaptive
+arithmetic, 3 h + (397 - 14) / 12 = 34.9 h):
+
+| Milestone | Unchanged 30 min | Open-loop 15 min | Adaptive, 5 min floor |
+|---|---|---|---|
+| 2026 + 2025 (79 chunks; 32.1% of records, 19.6% of facts) | 39.5 h | 19.8 h | 8.4 h |
+| 2026 to 2023 (139 chunks; 48.8% of records, 34.4% of facts) | 69.5 h | 34.8 h | 13.4 h |
+| All 25 years (397 chunks) | 8.3 days | 4.1 days | 34.9 h |
+
+Trip-line arithmetic (item 8). The trip opens above 15,000 CVE-keyed dirty rows
+an hour for two hours. The only measured dirty-row ratio is 0.25 rows a fact
+([10729-baseline-disposable-proof.md](10729-baseline-disposable-proof.md)
+section 2, n = 80 facts), so 15,000 / 0.25 = 60,000 facts an hour, or 84 hours
+for the corpus at any chunk size. The lane today runs at about 3,300 facts an
+hour. The middle column above is about 50,800 facts an hour.
+
+Limits: the adaptive column assumes a chunk's collect, commit, projection and
+reducer pass finishes inside 5 minutes, which is not measured; the 0.25 ratio is
+from 80 facts with every CVE planted to yield a finding; the files are a day
+old; and the RSS figures come from the collector issue, not from this
+repository.
+
+## M12. Window gap served from the year seed (arbiter, 2026-11-16)
+
+Measured by the arbiter on 2026-11-16, read-only, on a `git archive` copy of the
+collector at `3e3968692e` over the same 25 cached year files, on an Apple M5 Max
+with go1.26.11. The host was busy (load average 8 to 40), so absolute times are
+pessimistic for this CPU; the ratios carry the ruling. The ruling is
+[10671-window-seed-scan-ruling-2026-11-16.md](../arbiter/10671-window-seed-scan-ruling-2026-11-16.md);
+the design consequence is in sections 1 and 5 of
+[10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
+This closes R7b, the per-claim scan cost of the year set that the design left
+unmeasured.
+
+Method. Two scratch tests ran as test binaries in the scratch copy: one timed
+each component of a per-claim scan (gunzip, sha256, a byte-level record scanner,
+`json.Decoder` raw elements, and the shipped `nvdFeedRecordStamp` path) over all
+25 files in two runs; the other built a 60-day tail in one pass and served every
+6 hour window of the gap from it, comparing record ids with a full-scan serve. A
+claim simulation ran at the 2 MiB and 10,000-fact caps with a lone over-budget
+group paged. Outputs and analysis scripts stayed in the scratch directory.
+
+| What | Result |
+|---|---|
+| Corpus | 25 files, 2,946,235,735 decoded bytes, 425,782 records |
+| Shipped scan, all 25 files | 61.7 s and 47.4 s (two runs); 2026 alone 9.5 s and 10.1 s. The #198 reviewer measured 19.5 s for 2026, so 78 to 104 s per claim at that rate |
+| Floor, gunzip only | 3.0 to 4.3 s |
+| Floor, plus sha256 | 3.9 to 6.1 s |
+| Floor, plus a byte-level record scanner | 7.2 to 10.0 s |
+| Floor, plus `json.Decoder` raw elements | 15.7 to 20.4 s |
+| Byte-pattern pre-filter prototype | 42.5 to 56.5 s, no real gain: 37,127 of 39,376 records in the 2024 file hold non-ASCII bytes |
+| Gap [2026-10-17T20:18Z, 2026-11-07T08:00Z) | 48,202 records, 277,973,569 raw bytes, 9.4% of the corpus |
+| Per 6 h window of the gap | p50 219 records and 1.3 MB; p90 2,198 and 11.9 MB; max 4,983 and 27.7 MB |
+| File-level pruning | all 25 files hold a gap record; a perfect per-window file filter still opens 992 MB at p50 and 1.81 GB at p90 |
+| Claims to cross the gap (simulated) | 198 claims, 225 collector invocations, 32 paged groups, 6 pages at most; 314,548 facts, 416,504,322 budget bytes |
+| Largest paged group on the #198 branch | 3 pages (2026-10-23T23:10:00.157, 8.5 MB): 141 to 312 s of scanning in one lease |
+| Largest paged group once #197 pages over the fact cap | 6 pages (1,402 records at 2026-10-18T21:10:00.120): 284 to 370 s at the arbiter's rate, 624 s at the reviewer's, against a 600 s lease in the docs |
+| Tail build, 60 days | 88,927 records, 61 day buckets, 549,909,230 raw bytes, 67,664,342 gzip bytes (BestSpeed), largest bucket 44,991,120 bytes, 59.2 s, 135 MiB heap in use (naive: 61 gzip writers open at once) |
+| All 82 six-hour windows from buckets | 0 windows differ from the full-scan record set (48,202 records); p50 240 ms, p90 724 ms, worst 1,397 ms (two buckets, 65.5 MB); 27.4 s for all 82 |
+| Continuation re-read of the 5-page group at 2026-10-26T21:10:00.170 | 873 ms, one bucket of 45.0 MB |
+| Bucket read rate | 47 to 51 MB/s; the ruled floor of 4 MiB/s is about 11 times under it |
+| Record's id-year equals its file's year | 0 mismatches in 425,782 |
+
+Limits: one CPU under load, not production hardware; the equality check compared
+ids, not facts; the tail size is at BestSpeed gzip, and the builder's peak RSS
+is unmeasured (heap only); the 6-page figure assumes #197 pages the two over-cap
+groups as its commit message says.
+
 ## Commands
 
 All read-only. `curl -s -H 'User-Agent: eshu-diagnostic'` against the feed
@@ -193,7 +330,8 @@ prefix groups over `supply_chain_impact_winners_dirty_log`. A 30-minute
 - Whether NVD regenerates a year file for every record change (one snapshot
   only; M4).
 - Feed cadence across a full week; one `.meta` sample.
-- Facts per record under the satellite's folding, rather than this upper bound.
+- Facts per record by year under the satellite's folding. The corpus total is
+  measured in M11 (about 11.8 a record); a per-year split is not.
 - Per-source fact counts from `fact_records` (query cancelled).
 - Whether the satellite runtime itself carries a non-blank NVD key. The in-pod
   curl tests in M10 ran keyed and anonymous from the container's own

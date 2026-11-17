@@ -88,10 +88,10 @@ func (e extensionFailure) TerminalFailure() bool {
 }
 
 // RetryAfterDelay returns the provider-requested retry delay.
-// ClaimedService uses max(PollInterval, this) as the re-queue delay of a
-// retryable claim, and none once the claim's attempt budget is spent. It is the
-// largest status.retry_after_seconds on the result, clamped to
-// MaxRetryAfterDelay, or zero when the result requested none.
+// ClaimedService uses min(max(PollInterval, this), 1h) as the re-queue delay
+// of a retryable claim, and none once the claim's attempt budget is spent
+// (#10791). It is the largest status.retry_after_seconds on the result,
+// clamped to MaxRetryAfterDelay, or zero when the result requested none.
 func (e extensionFailure) RetryAfterDelay() time.Duration {
 	return e.retryAfter
 }

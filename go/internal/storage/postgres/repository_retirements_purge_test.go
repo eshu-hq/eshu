@@ -100,7 +100,9 @@ func TestPurgeRetiredRunsDesignedStepOrder(t *testing.T) {
 		"DELETE FROM shared_projection_intents",
 		"DELETE FROM shared_projection_unroutable_intents",
 		"DELETE FROM collector_generation_dead_letters",
+		"DELETE FROM supply_chain_impact_write_admission",
 		"DELETE FROM ingestion_scopes",
+		"DELETE FROM supply_chain_impact_scope_pass_state",
 		"SET state = 'complete'",
 		"phase = 'done'",
 	} {
@@ -134,6 +136,42 @@ func TestPurgeRetiredRunsDesignedStepOrder(t *testing.T) {
 	}
 	if firstSidecar < 0 || scopeDelete < 0 || firstSidecar > scopeDelete {
 		t.Fatalf("sidecar prune (idx %d) must precede scope delete (idx %d):\n%s", firstSidecar, scopeDelete, joined)
+	}
+	// The #10794 pass-state delete must run after the scope delete and
+	// before the tombstone completion: the impact writer holds the fact
+	// insert's KEY SHARE on scope_generations before it upserts this row
+	// last, so the purge keeps the same lock order. Placed before the
+	// cascade it would form a lock cycle with an in-flight writer.
+	passStateDelete, completeIdx := -1, -1
+	for i, stmt := range stmts {
+		if strings.Contains(stmt, "DELETE FROM supply_chain_impact_scope_pass_state") {
+			passStateDelete = i
+		}
+		if strings.Contains(stmt, "SET state = 'complete'") {
+			completeIdx = i
+		}
+	}
+	if passStateDelete <= scopeDelete || passStateDelete >= completeIdx {
+		t.Fatalf("pass-state delete (idx %d) must follow scope delete (idx %d) and precede tombstone completion (idx %d):\n%s",
+			passStateDelete, scopeDelete, completeIdx, joined)
+	}
+	// The #10800 admission delete is the opposite case: the impact writer
+	// upserts the admission row BEFORE its fact insert takes the KEY SHARE on
+	// scope_generations (writer_retract.go: conflict-domain lock, admission,
+	// fact insert). Deleting it after the scope cascade would hold the
+	// generation row lock while waiting on an admission row an in-flight
+	// writer holds and that writer waits on the generation: a lock cycle.
+	// It must precede the scope delete, so both sides take the admission row
+	// first and the generation row second.
+	admissionDelete := -1
+	for i, stmt := range stmts {
+		if strings.Contains(stmt, "DELETE FROM supply_chain_impact_write_admission") {
+			admissionDelete = i
+		}
+	}
+	if admissionDelete < 0 || admissionDelete >= scopeDelete || admissionDelete >= completeIdx {
+		t.Fatalf("write-admission delete (idx %d) must precede scope delete (idx %d) and tombstone completion (idx %d):\n%s",
+			admissionDelete, scopeDelete, completeIdx, joined)
 	}
 	if !tx.committed {
 		t.Fatal("purge transaction committed = false, want true")

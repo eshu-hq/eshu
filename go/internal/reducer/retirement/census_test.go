@@ -27,6 +27,84 @@ func TestCensusClassifiesVulnerabilityTargetRefreshProgress(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesWinnersDirtyTally pins the #10767 drain tally's row:
+// nvd_scope_rows matches the live census's %scope% column filter but is a
+// count of drained NVD pointer-flip rows, not a scope or repository
+// identity, so the table is not_a_key (design 7766) with no purge step. The
+// maintainer prunes its own buckets after three hours.
+func TestCensusClassifiesWinnersDirtyTally(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_winners_dirty_tally")
+	if !ok {
+		t.Fatal("supply_chain_impact_winners_dirty_tally has no census row; the live census fails on its nvd_scope_rows column")
+	}
+	if entry.Disposition != "not_a_key" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want not_a_key with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "nvd_scope_rows" {
+		t.Fatalf("key columns = %v, want [nvd_scope_rows], the column the live filter matched", entry.KeyColumns)
+	}
+	if !strings.Contains(entry.Reason, "count") {
+		t.Fatalf("reason %q must say nvd_scope_rows is a count, not a scope key", entry.Reason)
+	}
+}
+
+// TestCensusClassifiesSupplyChainImpactScopePassState pins the #10389 pass
+// state table's row (#10794): it is keyed by scope_id with no foreign key,
+// and a surviving partial row would hold the stuck-partial degraded reason
+// for a purged scope forever, so the purge deletes it at 2e.
+func TestCensusClassifiesSupplyChainImpactScopePassState(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_scope_pass_state")
+	if !ok {
+		t.Fatal("supply_chain_impact_scope_pass_state has no census row; the live census fails on it")
+	}
+	if entry.Disposition != "2e" {
+		t.Fatalf("disposition = %q, want 2e", entry.Disposition)
+	}
+	if len(entry.RemoveSteps) != 1 || entry.RemoveSteps[0] != "2e" {
+		t.Fatalf("remove steps = %v, want [2e]", entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "scope_id" {
+		t.Fatalf("key columns = %v, want [scope_id]", entry.KeyColumns)
+	}
+	if entry.InvisibleToScan {
+		t.Fatal("InvisibleToScan = true, want false: the schema scan sees scope_id")
+	}
+}
+
+// TestCensusClassifiesSupplyChainImpactWriteAdmission pins the #7142 admission
+// watermark table's row (#10800): scope-keyed with no foreign key, deleted by
+// the purge at 2e. Unlike the pass-state row, the delete must run BEFORE the
+// ingestion_scopes delete, because the impact writer upserts this row before
+// its fact insert takes the scope_generations KEY SHARE. The reason text names
+// that order so the census cannot drift back to a sweep nobody runs.
+func TestCensusClassifiesSupplyChainImpactWriteAdmission(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_write_admission")
+	if !ok {
+		t.Fatal("supply_chain_impact_write_admission has no census row")
+	}
+	if entry.Disposition != "2e" {
+		t.Fatalf("disposition = %q, want 2e", entry.Disposition)
+	}
+	if len(entry.RemoveSteps) != 1 || entry.RemoveSteps[0] != "2e" {
+		t.Fatalf("remove steps = %v, want [2e]", entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "scope_id" {
+		t.Fatalf("key columns = %v, want [scope_id]", entry.KeyColumns)
+	}
+	if entry.InvisibleToScan {
+		t.Fatal("InvisibleToScan = true, want false: the schema scan sees scope_id")
+	}
+	if !strings.Contains(entry.Reason, "before the ingestion_scopes delete") {
+		t.Fatalf("reason = %q, want it to name the delete order (before the ingestion_scopes delete)", entry.Reason)
+	}
+}
+
 // TestRetireTableDispositionsAreWellFormed pins the census table's shape:
 // every row names its table, carries a valid disposition code with only
 // known purge steps, and cites its deleter or keep reason. The live test

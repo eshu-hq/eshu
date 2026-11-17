@@ -197,10 +197,6 @@ tests:
     tag: ~
     class: scheduled
     reason: "#8659 retirement purge scale measurement live proof, untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
-  - file: go/internal/storage/postgres/retirement_table_census_live_test.go
-    tag: ~
-    class: scheduled
-    reason: "#8659 retirement table-census live proof (every scope-keyed table classified both directions), untagged and gated by the ESHU_POSTGRES_DSN env Skip; not yet run against a live backend in this lane — promote to blocking with measured timing evidence"
   - file: go/internal/storage/postgres/ingestion_published_generation_recommit_live_test.go
     tag: ~
     class: dedicated_ci

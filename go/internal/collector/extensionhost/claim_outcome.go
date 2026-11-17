@@ -70,7 +70,8 @@ type ClaimOutcome struct {
 	// Terminal reports whether ClaimedService fails the claim terminal.
 	Terminal bool
 	// RetryAfter is the extension's capped retry request (zero unless
-	// retryable); ClaimedService applies max(PollInterval, RetryAfter).
+	// retryable); ClaimedService applies min(max(PollInterval, RetryAfter),
+	// 1h) while attempts remain (#10791).
 	RetryAfter time.Duration
 	// Partial is true when the result state is partial or any status row
 	// reported partial data.

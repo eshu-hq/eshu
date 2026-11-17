@@ -114,6 +114,11 @@ tests:
     class: postgres_ci
     reason: "#8829 disposable PostgreSQL 18 proofs that workflow_work_items retention keeps the newest unresolved terminal failure, the newest completed row (so the status registry last_completed_at survives), the newest row and the active-generation row per target, never touches claimed, pending, retrying, expired, open-run or young rows, respects its batch bound and deletes nothing on a second walk; each proof creates and drops its own database from the bootstrap schema; about 1 to 2 s per proof on PostgreSQL 18.6 locally; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retirement_table_census_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10794 retirement table census on a disposable PostgreSQL 18 schema: every scope- or repo-keyed table resolves to a census row and the seeded source_repo_id probe is reported, so a new scope-keyed migration cannot merge unclassified; each test builds its own isolated schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/run_reconciliation_factless_live_test.go
     tag: ~
     class: postgres_ci
@@ -318,6 +323,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10768 disposable PostgreSQL proof that the coordinator's fold-and-save drives the real latch store end to end: an open trip survives a restart, an unreadable store holds planning, and a Close racing an hourly sample cannot be undone"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_sample_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10767 disposable PostgreSQL proof that the NVD baseline trip sampler reads hourly inflow of the winners dirty log, not the rows the maintainer left behind: a writer appends CVE-keyed, GHSA-keyed, and scope rows while the real keyed maintainer drains the log with DELETE, and the sampled rate stays exactly the committed NVD-proxy rows"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_window_cursor_live_test.go
     tag: ~

@@ -85,12 +85,13 @@ Known limit, reading `unknown` rather than leaking text:
 | `rate_limited` | every kind | The provider throttled the run. |
 | `terminal` | every kind | The provider returned another non-retryable error. |
 | `retryable` | every kind | A transient provider failure used up the attempt budget. |
-| `attempt_budget_exhausted` | every kind | The attempt budget ran out on a cause that carried no class. |
+| `attempt_budget_exhausted` | every kind | The attempt budget ran out; the row records this class independent of the carried cause class (#10791). |
 | `identity_mismatch` | every kind | The collected generation's identity did not match the claim. |
 | `collect_failure` | every kind | A non-retryable collect error carried no class. |
 | `commit_failure` | every kind | A non-retryable commit error carried no class. |
 | `expired_lease_budget_exhausted` | every kind | The expired-lease reaper dead-lettered the work item after the attempt budget ran out without a returned failure verdict (#10113). |
 | `operator_retired_unclaimed` | every kind | The sanctioned never-claimed retirement moved the pending work item to terminal for a deconfigured collector instance (#10532). |
+| `run_age_bound_exceeded` | every kind | The run-age bound expired a pending or claimed work item of a non-terminal run older than the bound (#10791). |
 | `permission_hidden` | `jira` | Jira refused the credential (401 or 403) or hid the data behind a permission. |
 | `deleted` | `jira` | The Jira resource was not found (404). |
 | `archived` | `jira` | The Jira resource is gone or archived (410). |

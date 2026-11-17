@@ -48,8 +48,8 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
 - `ResultRecord.RetryAfter`, the retry-after gauge, and the
   `extension_status.retry_after_seconds` log key are the extension's capped
   request, recorded before `ClaimedService` decides. Never document them as the
-  applied or honored delay: `ClaimedService` applies `max(PollInterval,
-  request)`, and none once the attempt budget is spent.
+  applied or honored delay: `ClaimedService` applies `min(max(PollInterval,
+  request), 1h)` (#10791), and none once the attempt budget is spent.
 - `Config.ClaimOutcomeRecorder` (#9420) gets exactly one `RecordClaimOutcome`
   per `NextClaimed` exit, called before `recordResult` so the `ResultRecord`
   reflects a `source_state_record` failure. Only completed outcomes are
@@ -66,3 +66,9 @@ extensions. Follow the root `AGENTS.md`, `docs/internal/agent-guide.md`, and
   Figures reach `ResultRecord` only for a validated SDK result whose FINAL
   assembled state is not complete or unchanged, never a host
   verdict, and ride on the existing result log line; do not add a log line.
+- The NVD window and baseline verdict keys are pinned by one vector shared
+  with the satellite repo: `fixturepack.NVDVerdictKeysGolden()` from the pinned
+  eshu-sdk/factschema. `nvd_verdict_keys_vector_test.go` replays every case
+  through the real readers and holds the vector's SHA-256, which the satellite
+  repo pins too. Rename a key constant or change a verdict rule only with the
+  vector, and bump the SDK pin and the digest on both sides in step (#10732).

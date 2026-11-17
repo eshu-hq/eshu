@@ -37,6 +37,10 @@ type Config struct {
 	HeartbeatInterval        time.Duration
 	ExpiredClaimLimit        int
 	ExpiredClaimRequeueDelay time.Duration
+	// MaxOpenRunAge bounds how long a non-terminal workflow run may stay
+	// open before the run-age bound expires its pending and claimed items
+	// (eshu-hq/eshu#10791). Zero uses DefaultMaxOpenRunAge.
+	MaxOpenRunAge time.Duration
 	// AWSFreshnessClaimLeaseDuration bounds how long a claimed AWS freshness
 	// trigger can sit unresolved before the reap pass reclaims it back to
 	// 'queued' (#4576). Zero uses defaultAWSFreshnessClaimLeaseDuration.
@@ -148,6 +152,10 @@ func loadConfigForPlatform(getenv func(string) string, observer component.GrantO
 	if err != nil {
 		return Config{}, err
 	}
+	maxOpenRunAge, err := environment.Duration(getenv, "ESHU_WORKFLOW_COORDINATOR_MAX_OPEN_RUN_AGE", workflow.DefaultMaxOpenRunAge())
+	if err != nil {
+		return Config{}, err
+	}
 	awsFreshnessClaimLeaseDuration, gcpFreshnessClaimLeaseDuration, incidentFreshnessClaimLeaseDuration, freshnessClaimReapLimit, err := loadFreshnessClaimTimings(getenv)
 	if err != nil {
 		return Config{}, err
@@ -209,6 +217,7 @@ func loadConfigForPlatform(getenv func(string) string, observer component.GrantO
 		HeartbeatInterval:                   heartbeatInterval,
 		ExpiredClaimLimit:                   expiredClaimLimit,
 		ExpiredClaimRequeueDelay:            expiredClaimRequeueDelay,
+		MaxOpenRunAge:                       maxOpenRunAge,
 		AWSFreshnessClaimLeaseDuration:      awsFreshnessClaimLeaseDuration,
 		IncidentFreshnessClaimLeaseDuration: incidentFreshnessClaimLeaseDuration,
 		GCPFreshnessClaimLeaseDuration:      gcpFreshnessClaimLeaseDuration,
@@ -298,6 +307,9 @@ func (c Config) Validate() error {
 	}
 	if c.ExpiredClaimLimit <= 0 {
 		return fmt.Errorf("workflow coordinator expired claim limit must be positive")
+	}
+	if c.MaxOpenRunAge <= 0 {
+		return fmt.Errorf("workflow coordinator max open run age must be positive")
 	}
 	if c.ExpiredClaimRequeueDelay < 0 {
 		return fmt.Errorf("workflow coordinator expired claim requeue delay must not be negative")
@@ -431,6 +443,9 @@ func (c Config) withDefaults() Config {
 	}
 	if c.ExpiredClaimLimit <= 0 {
 		c.ExpiredClaimLimit = workflow.DefaultExpiredClaimLimit()
+	}
+	if c.MaxOpenRunAge <= 0 {
+		c.MaxOpenRunAge = workflow.DefaultMaxOpenRunAge()
 	}
 	if c.ExpiredClaimRequeueDelay == 0 {
 		c.ExpiredClaimRequeueDelay = workflow.DefaultExpiredClaimRequeueDelay()

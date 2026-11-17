@@ -74,11 +74,17 @@ flowchart TD
 Inputs: the Modified feed's span from its own records, `M0` = min and `M1` = max
 `lastModified`, computed while streaming with sha256 checked against `.meta`; a
 year-set manifest with each year's `.meta` time `D_y` and sha256; `R = max D_y`;
-seed validity horizon `V = R - 24 h`.
+and `verified_at_Y`, the time the refresher last matched year file `Y` against
+the upstream `.meta`. The seed validity horizon is per year:
+`V_Y = min(verified_at_Y, R) - 24 h`. A year is stale when `V_Y < M0`.
 
-A window is covered when `e <= M1` and (`s >= M0` or `e <= V`). Served records are
+A window is covered when `e <= M1` and (`s >= M0` or `e <= V_Y` for every year
+`Y` the window reads). Served records are
 the year-set records with `lastModified` in `[s, e)`, overlaid by Modified
-records by CVE id (Modified wins). Otherwise the API runs.
+records by CVE id (Modified wins). Otherwise the API runs. **No window claim
+opens a year file.** The year-set records are read through the window tail
+described under "Seed read through the window tail" below, not by scanning
+`nvdcve-2.0-<year>.json.gz`; only the baseline lane reads year files.
 
 **Selector order (healthy path stays free).** (1) One `.meta` GET (10 s). (2) If
 `e` is at or after the `.meta` `lastModifiedDate`, the window cannot be covered
@@ -104,15 +110,74 @@ path was selected (see Errors).
   only) nor the year file. Mitigation, owned by follow-up C: a periodic API
   cross-check of the dormant years. Until it exists, QA enable for windows older
   than `M0` carries this risk knowingly.
-- **Guard.** For each Modified record with `lastModified <= V`, require
-  `D_{year} >= lastModified`. On a trip: class `nvd_feed_year_stale` (retryable,
+- **Guard.** For each Modified record with `lastModified <= V_Y`, where `Y` is
+  the record's year, require `D_Y >= lastModified`. On a trip: class `nvd_feed_year_stale` (retryable,
   never terminal), mark the year set invalid, run the API, count the trip.
 - A healthy, caught-up system never takes the feed path: `e` is after the
   `.meta` time, so the selector stops at step 2 and the API runs. No flag flips
   and nothing flaps.
-- A seed older than about six days opens a hole (`V < M0`); the selector sends
-  that window to the API. Re-seed to close it.
+- **Why two terms.** `R` alone let one year that regenerates daily vouch for a
+  year the refresher stopped confirming, so each year also carries its own
+  `verified_at_Y`. Neither term implies the other, and `min(a, b) - 24 h < M0`
+  holds exactly when either `a - 24 h < M0` or `b - 24 h < M0`. The `verified_at_Y`
+  term catches a stuck refresher (one year the refresher keeps failing). The `R`
+  term catches a stalled upstream (NVD stops regenerating year files while the
+  refresher keeps matching the frozen `.meta`, which keeps every `verified_at_Y`
+  fresh). The 24 hours is regeneration lag, not clock-skew slack, and the guard
+  has no clock of its own: a `verified_at_Y` ahead of real time is not caught
+  here. The refresher-side skew check is tracked as
+  eshu-hq/eshu-collector-vulnerability-intelligence#185. The guard never reads
+  year `Y`'s own `D_y`, for the dormant-year reason above.
+- A year not verified for about six days opens a hole (`V_Y < M0`, with `M0`
+  about eight days back); the claim is sent away from the seed (a baseline chunk
+  refuses retryable as `nvd_feed_year_stale`, a window goes to the API) until the
+  refresher restamps the year. The six days is the refresher's budget: one
+  successful pass every six days per year, against a daily default cadence. See
+  ADR-0006 in the collector repository. Today the collector passes a zero seed
+  horizon on the window path, so the `e <= V_Y` branch never fires there and the
+  per-year guard applies to baseline chunks only. The ruled replacement is the
+  tail reader below, which runs `V_Y`, stale precedence and the guard on the
+  tail's year pins (collector #198).
 - If the remaining claim deadline is under 150 s the selector chooses the API.
+  The tail reader adds a second floor, described below.
+
+**Seed read through the window tail (ruled 2026-11-16, not yet built).** Serving
+the gap by scanning year files per claim costs 47 to 62 s a claim against a lease
+shared by every page of a paged group, so a 6-page group cannot finish
+([measurements M12](../evidence/10671-nvd-feed-measurements.md); ruling:
+[10671-window-seed-scan-ruling-2026-11-16.md](../arbiter/10671-window-seed-scan-ruling-2026-11-16.md)).
+The ruling keeps the seed as the source for the gap and changes how it is read:
+
+- **The refresher builds a window tail.** At the end of a refresh pass, under its
+  single-writer lock (ADR-0006), `collector refresh-nvd-seed` copies every record
+  stamped at or after a low bound `L` into a gzip bucket per UTC day of its stamp
+  (`L` is the start of the UTC day of the pass clock minus `--window-tail-days`,
+  default 60, range 31 to 120). A self-contained tail manifest pins each year's
+  digest, `last_modified`, `verified_at` and counts, so a claim that reads only
+  the tail manifest sees one consistent seed generation. Built by collector issue
+  [#204](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/204).
+- **A window claim reads the one or two day buckets its window touches.** Selection
+  is by stamp alone, verified against the tail manifest, and no claim opens a year
+  file. Read by collector #198, rebased on #204.
+- **Four seed classes route the claim.** `nvd_feed_before_seed` is new: `s < L`,
+  the API runs, expected, no alarm, and there is no slow fallback to year files.
+  The other three exist on the #198 branch and keep their meaning:
+  `nvd_feed_covered_seed` (served from the seed, an ordinary outcome),
+  `nvd_feed_beyond_seed` (the seed is fresh but `e` is past its horizon `V`, so
+  the API runs, an ordinary outcome) and `nvd_feed_seed_unavailable` (the API
+  runs, operational: alert on it). The ruling widens the last to cover a missing,
+  unreadable or unknown-format tail manifest, a year not pinned, a year with an
+  unreadable stamp count above zero, and a bucket that fails its digest while the
+  tail generation is unchanged. `nvd_feed_year_stale` keeps its meaning. Core
+  reads no selector class today; the four names are scope for
+  [eshu#10716](https://github.com/eshu-hq/eshu/issues/10716).
+- **Deadline floor.** After the probe and the tail manifest read, the claim needs
+  at least 75 s plus bucket bytes divided by 4 MiB/s remaining, or it routes to the
+  API as `nvd_feed_deadline_short`. The byte count comes from the manifest before
+  any read, so the verdict is deterministic.
+- **Enable preflight.** The deployed lease, `nvd_seed_dir`, seed volume free space
+  and a QA canary are
+  [eshu#10817](https://github.com/eshu-hq/eshu/issues/10817).
 
 ### 2. Unchanged by construction
 
@@ -173,7 +238,7 @@ For the retained CVE List supplement: `cvssV2_0`, reference tags,
 
 | Limit | Value |
 | --- | --- |
-| Facts and bytes per claim | 10,000 and 2 MiB (unchanged) |
+| Facts and bytes per claim | 10,000 and 2 MiB for window claims (unchanged). A baseline chunk is record-atomic, 16 MiB at most, and paged (ruled; [10728-baseline-pacing.md](10728-baseline-pacing.md) section 2) |
 | Windows per planner run | 1 (at most 10,000 facts per 30 min, about 20k dirty rows an hour worst case) |
 | Meta GET timeout | 10 s |
 | Feed GET timeout | 120 s total, 100 KB/s stall floor |
@@ -181,7 +246,9 @@ For the retained CVE List supplement: `cvssV2_0`, reference tags,
 | Memory | streamed; target at most 256 MiB RSS, proved by R7 (not yet measured) |
 | Lease and heartbeat | deployed 10 m and 30 s (code defaults 60 s and 20 s) |
 | Attempts and retry | 10 and 60 s (unchanged) |
-| Year-feed footprint | 237.6 MiB gzip for 25 files; decompressed 2.7 GiB (2,809 MiB), never held whole; per-claim scan cost of the year set is unmeasured (R7b) |
+| Year-feed footprint | 237.6 MiB gzip for 25 files; decompressed 2.7 GiB (2,809 MiB), never held whole. Per-claim scan of all 25 files, measured (R7b, M12): 61.7 s and 47.4 s in two runs, so the window path does not scan them |
+| Window tail (ruled, #204) | 60 days by default: 88,927 records in 61 day buckets, 549,909,230 raw and 67,664,342 gzip bytes, built in one 59.2 s pass; a 6 h window of the gap is served in 0.24 s p50 and 1.4 s worst (M12) |
+| Seed-read deadline floor (ruled, #198) | 75 s plus bucket bytes divided by 4 MiB/s; the measured bucket read rate is 47 to 51 MB/s |
 
 Errors once the feed path was selected: sha256 mismatch, gateway errors, and
 timeouts are retryable; nothing on the feed path maps to the capacity terminal.
@@ -281,6 +348,11 @@ Follow-ups, all filed under epic #9209:
   recorded here, not pre-empted, and a change to it needs its own ruling.
 - F. [eshu#10718](https://github.com/eshu-hq/eshu/issues/10718): `cvelist_shard.go`
   accounting (R11). The supersession notes on #9872 and #9961 are in this PR.
+- G. Added by the 2026-11-16 seed-scan ruling (R7b is now measured, M12):
+  [collector#204](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/204)
+  builds the window tail and blocks collector #198, which reads it;
+  [eshu#10817](https://github.com/eshu-hq/eshu/issues/10817) is the enable
+  preflight and canary; the four seed classes are scope for eshu#10716 (B).
 
 ## Implementation plan
 
