@@ -128,9 +128,17 @@ func NVDBaselineScopeID(runID string, year int, start time.Time, fromCVEID strin
 // including window scopes, static NVD scopes, and GHSA scopes: a wrong
 // family is a fail-closed shape error, never a baseline plan. A fourth
 // segment must be a canonical CVE ID: a lowercase, padded, empty, or
-// over-long id, a fifth segment, a query, or a fragment all reject, so one
-// position never has two scope ids.
+// over-long id, a fifth segment, a query, or a fragment all reject, and so does
+// any non-canonical year or start spelling (signed, zero-padded, space-padded,
+// or a start that is not a whole UTC millisecond), so one position never has
+// two scope ids.
 func ParseNVDBaselineScope(scopeID string) (runID string, year int, start time.Time, fromCVEID string, ok bool) {
+	// The literal prefix check rejects an upper-case scheme or host that
+	// url.Parse would fold, so the parser accepts exactly the spelling the
+	// mint writes and IsNVDBaselineScope agrees with it.
+	if !strings.HasPrefix(scopeID, nvdBaselineScopePrefix) {
+		return "", 0, time.Time{}, "", false
+	}
 	parsed, err := url.Parse(scopeID)
 	if err != nil || parsed.Scheme != "vuln-intel" || parsed.Host != SourceNVD {
 		return "", 0, time.Time{}, "", false
@@ -150,12 +158,14 @@ func ParseNVDBaselineScope(scopeID string) (runID string, year int, start time.T
 	if !isNVDBaselineRunID(runID) {
 		return "", 0, time.Time{}, "", false
 	}
-	year, err = strconv.Atoi(strings.TrimSpace(yearRaw))
-	if err != nil || year < nvdBaselineFirstYear {
+	// Year and start parse only in the spelling the mint writes: no sign, no
+	// padding, a four-digit year, and a whole UTC millisecond start.
+	year, err = strconv.Atoi(yearRaw)
+	if err != nil || len(yearRaw) != 4 || strconv.Itoa(year) != yearRaw || year < nvdBaselineFirstYear {
 		return "", 0, time.Time{}, "", false
 	}
-	startMicros, err := strconv.ParseInt(strings.TrimSpace(startRaw), 10, 64)
-	if err != nil || startMicros <= 0 {
+	startMicros, err := strconv.ParseInt(startRaw, 10, 64)
+	if err != nil || startMicros <= 0 || strconv.FormatInt(startMicros, 10) != startRaw || startMicros%1000 != 0 {
 		return "", 0, time.Time{}, "", false
 	}
 	if len(segments) == 4 {

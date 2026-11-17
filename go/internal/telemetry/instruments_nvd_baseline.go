@@ -19,8 +19,12 @@ import (
 // per plan call by the coordinator derivation; the trip set is the
 // transition label of eshu_dp_nvd_baseline_trip_transitions_total.
 const (
-	// NVDBaselineOutcomeAdvanced: the chunk advanced the checkpoint in its
-	// commit transaction.
+	// NVDBaselineOutcomeAdvanced: the commit policy accepted the verdict and
+	// armed the checkpoint writer. It is recorded at the decision, before the
+	// commit transaction runs, so the writer can still refuse a seed rollback
+	// (counted on the seed rotation counter's rollback direction) and a failed
+	// commit leaves the checkpoint where it was; the committed-chunk INFO line
+	// is the signal that the advance landed.
 	NVDBaselineOutcomeAdvanced = "advanced"
 	// NVDBaselineOutcomeHeld: no verdict or a hold verdict — facts commit,
 	// the checkpoint holds, the next plan replays the chunk.
