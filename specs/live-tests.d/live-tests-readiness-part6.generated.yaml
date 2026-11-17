@@ -334,6 +334,11 @@ tests:
     class: postgres_ci
     reason: "#10768 disposable PostgreSQL proof that the coordinator's fold-and-save drives the real latch store end to end: an open trip survives a restart, an unreadable store holds planning, and a Close racing an hourly sample cannot be undone"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_latch_streak_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10814 disposable PostgreSQL proof that the NVD baseline pace streak rides the trip latch's guarded revision compare-and-swap write: racing samplers add exactly one increment per applied sample, a stale writer cannot lose or repeat an increment, a Close clears the streak against a pre-Close sampler, and migration 302 adds the column to a populated table without a rewrite while old rows read 0"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/vulnerability/nvd_baseline_trip_sample_live_test.go
     tag: ~
     class: postgres_ci

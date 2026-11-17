@@ -102,6 +102,46 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   than wall-clock hours (at worst one sample per 45 minutes). The re-enable
   count is still a count of distinct sample times at least 45 minutes apart,
   and the operator `Close` stays the final decision.
+- Pace streak (#10814, migration 302). The row carries `soft_quiet_streak`, the
+  count the adaptive chunk interval `max(floor, 30 min / 2^streak)` reads (pace
+  ruling decision 8, and the 2026-11-17 arbiter ruling on the fold).
+  `NVDBaselineTripState.Observe` folds it: while the trip is shut, a sample with
+  CVE-keyed inflow at or under 7,500 an hour (half the trip rate, inclusive) and
+  an oldest dirty age at or under 96 hours adds one. Any other sample sets it to
+  0, and so does every sample that leaves the trip open (the opening sample is
+  hot anyway; a quiet sample on an open trip does not count). A missed hour (the
+  gap rule above) and a lost-row synthesized trip restart it at 0; an operator
+  `Close` returns the zero latch, so a re-enabled lane restarts at 30 minutes and
+  earns each halving again. The fold does not cap it: the planner that reads it
+  saturates the exponent so a long quiet stretch cannot overflow. The streak is
+  written by the same guarded statement as every other field
+  (`soft_quiet_streak = $8`, revision `$9`), so it needs no lock of its own.
+
+  | Delivery | Streak after |
+  | --- | --- |
+  | Applied sample, quiet, trip shut | previous + 1 |
+  | Applied sample, not quiet, or the trip open | 0 |
+  | Replay at or before the stored sample time (`stale`) | unchanged, no write |
+  | Second tick inside 45 minutes (`too_soon`) | unchanged, no write |
+  | Two samplers loaded one revision (`lost_race`) | the winner's single increment; the loser writes nothing and is not retried |
+  | Next hourly sample after a lost race | folds onto the winner's row, one more |
+  | Write failed, or applied with the acknowledgement lost | stored streak unchanged, or already moved once; the retry is `stale` and changes nothing, or folds once |
+  | Sample after more than 90 minutes | reset to 0, then the sample counts as 1 if quiet |
+  | Pre-`Close` sampler writes after `Close` | refused on the moved revision |
+
+  No sample is ever folded twice and no increment is lost: the fold is pure on
+  the loaded state, the write is a single revision compare-and-swap, and a
+  dropped write is not retried within the hour. Migration 302 is
+  `ADD COLUMN IF NOT EXISTS soft_quiet_streak INTEGER NOT NULL DEFAULT 0 CHECK
+  (soft_quiet_streak >= 0)` on a table with one row per baseline run: a constant
+  default adds no rewrite (the live test pins the relation's file node across
+  the ALTER over 2,000 rows), old rows read 0, and the CHECK scan is momentary.
+  A pre-302 binary never names the column and its inserts take the default, so
+  the binary can roll back alone. Downgrade caveat: a pre-302
+  binary that samples moves `sampled_at` and leaves the streak untouched, so
+  after a downgrade and a re-upgrade the first quiet sample can resume a stale
+  streak. Roll back before the floor is lowered, or `Close` the latch after
+  re-upgrading.
 - #10746 observability notes. The recorders in this change count outcomes but
   log nothing. #10746 must (a) emit a WARN log on `read_failed` and
   `write_failed` (the counter alone does not say which run or which error),
@@ -129,3 +169,24 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   `orderedBootstrapDefinitionNamesLatest` in
   `go/internal/storage/postgres/schema_order_latest_test.go` keeping 298 before
   299.
+
+No-Regression Evidence: #10814 adds one INTEGER to the latch row and one
+operand to its two guarded statements. The conflict domain is the keyed latch
+row, written about once an hour per baseline run by the sampler (no worker or
+lease setting changes; several replicas still serialize on the revision). On
+PostgreSQL 18.6 over a scratch table of 50 rows, 20,000 keyed updates took
+1.09 to 1.11 s without the column and 1.25 to 1.58 s with it (three runs each,
+the with-column run second), about 55 us against 60 to 80 us an update, which
+at one write an hour is not a cost. Migration 302 over 2,000 populated rows
+left the relation's file node unchanged, so it is not a rewrite.
+`TestNVDBaselineTripLatchStreakRacingSamplersIncrementOncePerHourLive` ran 16
+racing samplers over six simulated hourly rounds (about 3 seconds of wall time):
+1 applied per round, no error, no deadlock.
+
+Observability Evidence: no new instrument. The streak is a column on the latch
+row and rides `NVDBaselineTripObservation.Before` and `After`
+(`SoftQuietStreak`), which the #10746 recorder and log lines read.
+`eshu_dp_nvd_baseline_trip_latch_total{outcome}` already counts the outcomes the
+streak's replay matrix is keyed on: `applied`, `applied_after_gap`, `stale`,
+`too_soon`, `lost_race`, `write_failed`. The pace metrics that carry the
+interval and the inflow belong to the later pace slice.

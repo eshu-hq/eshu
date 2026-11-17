@@ -398,6 +398,9 @@ var migrationShippedChecksums = map[string]string{
 	// generation stamp, and chunk identity columns on the baseline checkpoints
 	// (migration 301; 300 is #10791's open work-items index).
 	"301_vulnerability_nvd_baseline_resume_position.sql": "f7b4d39baa6d460bd2dd33134082bd84dc99632c75dbe44be917f66e2d63aa92",
+	// #10814: the NVD baseline pace streak column on the trip latch
+	// (migration 302; 301 is #10809/#10810's resume position).
+	"302_vulnerability_nvd_baseline_trip_latch_streak.sql": "d343e1f30665d584fcd3e0d72171095e71ec09e66c1e66e3d3f23583831c911d",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

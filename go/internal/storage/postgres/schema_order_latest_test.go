@@ -40,4 +40,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// seed generation stamp, and the chunk identity columns to the baseline
 	// checkpoints. 300 is #10791's open work-items index.
 	"vulnerability_nvd_baseline_resume_position",
+	// Migration 302 (#10814) adds the pace streak to the NVD baseline trip
+	// latch. 301 is #10809/#10810's resume position.
+	"vulnerability_nvd_baseline_trip_latch_streak",
 }

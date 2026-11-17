@@ -293,11 +293,14 @@ cadence and the "one chunk per planner run" bound.
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
   `streak` counts consecutive hourly trip-latch samples with CVE-keyed inflow at
   or under 7,500 an hour and oldest dirty age at or under 96 hours; any other
-  sample resets it to 0. A migration after 301 adds `soft_quiet_streak` to the latch row
-  (section 5, "Durable latch contract"). The rate at most doubles once an hour
-  and only after an hour at or under half the trip rate, so if inflow scales
-  with rate one step cannot cross the trip rate; a hot hour resets the pace to
-  30 minutes before the two-hour latch can open.
+  sample resets it to 0. Shipped as `soft_quiet_streak` (#10814, migration 302):
+  folded in `NVDBaselineTripState.Observe`, written by the latch's revision
+  compare-and-swap (section 5), not capped (the planner saturates the exponent).
+  An open trip, a missed hour and `Close` reset it; a refused or too-soon sample
+  leaves it. The rate at most doubles once an hour and only after an hour at or
+  under half the trip rate, so if inflow scales with rate one step cannot cross
+  the trip rate; a hot hour resets the pace to 30 minutes before the two-hour
+  latch can open.
 - **The floor is `min_chunk_interval`.** Blank means 30 minutes, so the pace
   stays as it is today until an operator lowers it. The compiled minimum for the
   knob drops from 30 to 5 minutes. This supersedes the earlier clamp that paced
@@ -421,7 +424,7 @@ rollback story are in
 [10728-baseline-trip-latch-contract.md](10728-baseline-trip-latch-contract.md),
 moved there unchanged under #10816 to keep this record under the Markdown line
 cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
-(a migration after 301, which C1 took).
+(migration 302, #10814).
 
 
 ## 6. Idempotency argument
