@@ -147,14 +147,15 @@ coordinator-supplied plan order is opposite on purpose (2026, 2025 and 2025,
 
 ### Clock proof
 
-`TestWorkflowControlBaselinePlansLive`, subtest "stamped from the database clock
-after the planning-lock wait": the test holds the instance's planning lock from
-another session, starts the admission so its transaction begins and waits, then
-releases the lock 500 ms later. `last_planned_at` must not be earlier than the
-database clock at the release. With `now()` in place of `clock_timestamp()` the
-stamp was 10:05:43.323563 against a release at 10:05:43.817783, about 494 ms
-early: the transaction start, which can predate the previous lock holder's stamp
-and shorten the planner's pace wait.
+`TestWorkflowControlBaselinePlansLive`, subtest "the plan row is stamped from the
+database clock after the planning-lock wait": the test holds the instance's
+planning lock from another session, starts the admission so its transaction
+begins and waits, then releases the lock 500 ms later. `last_planned_at` must not
+be earlier than the database clock at the release. In the run of the LC mutant
+(PostgreSQL 18.6), `now()` in place of `clock_timestamp()` stamped
+10:05:43.323563 against a release at 10:05:43.817783, about 494 ms early: the
+transaction start, which can predate the previous lock holder's stamp and shorten
+the planner's pace wait.
 
 ### Atomicity and drop-case proofs
 
