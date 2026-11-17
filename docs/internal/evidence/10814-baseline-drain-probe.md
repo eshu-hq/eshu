@@ -211,7 +211,8 @@ reading the newest one, are killed by the phase table and by
   reason and the gauge show it). No service has planned a baseline chunk yet, so
   no such row should exist, but that has not been checked in any environment.
   There is no in-place repair in this goal: disable the lane and start a new
-  `baseline_run_id`. The #10817 enable preflight counts them:
+  `baseline_run_id`. The ruling adds a count of such rows to the #10817 enable
+  preflight reads:
 
   ```sql
   SELECT count(*) AS blank_key_rows,

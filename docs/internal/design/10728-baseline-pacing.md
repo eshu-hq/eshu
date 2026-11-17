@@ -476,7 +476,7 @@ cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
 - Collector child RSS at the 16 MiB ceiling beyond collector issue #203's
   measurement, and at 24 and 32 MiB after that issue's memory work.
 - Per-year record counts (M3 measures sizes only).
-- Blank-key checkpoint rows: the #10817 preflight counts them in QA.
+- Blank-key checkpoint rows: the ruling adds a count to the #10817 preflight reads.
 - Whether the satellite runtime on the QA path carries the intended
   `nvd_feed_transport` value (M10 caveat, `10671-nvd-feed-measurements.md`,
   section "NOT_CHECKED", fifth bullet).
