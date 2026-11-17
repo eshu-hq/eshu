@@ -255,7 +255,7 @@ func run(parent context.Context) error {
 		},
 		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
 		PackageRegistryPlanner:            packages.WorkPlanner{},
-		VulnerabilityIntelligencePlanner:  vulnerability.IntelligenceWorkPlanner{},
+		VulnerabilityIntelligencePlanner:  vulnerability.IntelligenceWorkPlanner{Instruments: instruments},
 		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		ScannerImagePlanner:               scannerworker.WorkPlanner{},

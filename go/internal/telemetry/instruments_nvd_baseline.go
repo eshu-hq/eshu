@@ -261,20 +261,33 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineSeedRotations counter: %w", err)
 	}
-	for _, gauge := range []struct {
-		target      *metric.Int64Gauge
-		name        string
-		description string
-	}{
-		{&inst.NVDBaselineYearsComplete, "eshu_dp_nvd_baseline_years_complete", "Latest planned count of baseline years replayed whole in the run (#10809)"},
-		{&inst.NVDBaselineYearsTotal, "eshu_dp_nvd_baseline_years_total", "Latest planned count of years the baseline run covers, first year 2002 through the configured last_year (#10809)"},
-		{&inst.NVDBaselineRecordsDone, "eshu_dp_nvd_baseline_records_done", "Latest planned sum of records committed across the baseline run's started years; 0 until the collector reports its record counts (#10809)"},
-		{&inst.NVDBaselineRecordsTotal, "eshu_dp_nvd_baseline_records_total", "Latest planned sum of records the baseline run's started years hold; 0 until the collector reports its record counts (#10809)"},
-	} {
-		*gauge.target, err = meter.Int64Gauge(gauge.name, metric.WithDescription(gauge.description))
-		if err != nil {
-			return fmt.Errorf("register %s gauge: %w", gauge.name, err)
-		}
+	inst.NVDBaselineYearsComplete, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_years_complete",
+		metric.WithDescription("Latest planned count of baseline years replayed whole in the run (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineYearsComplete gauge: %w", err)
+	}
+	inst.NVDBaselineYearsTotal, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_years_total",
+		metric.WithDescription("Latest planned count of years the baseline run covers, first year 2002 through the configured last_year (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineYearsTotal gauge: %w", err)
+	}
+	inst.NVDBaselineRecordsDone, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_records_done",
+		metric.WithDescription("Latest planned sum of records committed across the baseline run's started years; 0 until the collector reports its record counts (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineRecordsDone gauge: %w", err)
+	}
+	inst.NVDBaselineRecordsTotal, err = meter.Int64Gauge(
+		"eshu_dp_nvd_baseline_records_total",
+		metric.WithDescription("Latest planned sum of records the baseline run's started years hold; 0 until the collector reports its record counts (#10809)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineRecordsTotal gauge: %w", err)
 	}
 	return registerNVDBaselineTripLatch(meter, inst)
 }
