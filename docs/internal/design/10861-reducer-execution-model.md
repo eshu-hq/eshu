@@ -1,10 +1,11 @@
 # Reducer execution model: six design decisions (#10861)
 
-Status: **Proposed**. These recommendations are a starting position from the
-measurements in #10860. None is accepted yet; acceptance needs the arbiter
-ruling quoted in #10861 (criterion 2) and baseline confirmation via #10862
-(criterion 3). Until then this record approves no code, migration, contract
-change, deployment, or QA enable.
+Status: **Proposed**. The arbiter ruled on 2026-11-18
+([ruling](../arbiter/10861-reducer-execution-model-ruling-2026-11-18.md)):
+D1, D2, D4 directions accepted; D3, D5, D6 rejected as written and replaced
+by the text below; no numeric limit is accepted until the #10862 baseline
+exists (criterion 3). Until Status becomes Accepted this record approves no
+code, migration, contract change, deployment, or QA enable.
 
 Refs #10861. Part of #10860 (Phase 0, step 1; phases 2 and 3 wait on
 acceptance). Size target (set by the owner 2026-11-17, #10862): ten times one
@@ -18,7 +19,7 @@ whose options added capacity around how the reducer works today.
 Where each decision applies in the flow: saving a fact (decision 2) starts
 waiting work (decision 4); work finds its input (decision 1) and processes the
 change (decision 3); results land in the graph or a result table (decision 5);
-facts and the queue are divided by repository (decision 6).
+facts are divided by scope hash (decision 6).
 
 ## Decision 1: how reducer work finds its input
 
@@ -73,16 +74,22 @@ each redoes a whole repository or the fleet per item. Ten other kinds of work
 already narrow to what changed. No-audit change-only would never correct a
 missed change.
 
-- Rule: work averaging more than 5 s a run, or reading across the fleet, must
-  process changes only. Work restarts only when its input changed (#8283 is the
-  restart-on-change pattern; `crossScopeCorrelationReopenDomains` is the
-  restart-without-change case to remove).
-- Proposed limit: a full audit run at most once a day per kind of work, with
-  what it corrects reported.
+- Rule: work must process changes only when any of these holds over the
+  #10862 baseline window: average run over 5 s; at least 5% of total handler
+  time; or input not bounded by the scopes that changed. Work restarts only
+  when its input changed (#8283 is the restart-on-change pattern;
+  `crossScopeCorrelationReopenDomains` is the restart-without-change case to
+  remove).
+- Proposed limit: a full audit run at most once a day per kind of work,
+  inside a stated time budget for that kind; corrections above zero are
+  reported per run, and corrections on two consecutive audits page the owner
+  as a delta-correctness defect.
 - Proof: on the golden corpus, the same graph and result tables as a full run,
   with matching, non-matching, and unclear cases. Tracked in #10878.
 - Reject if: a kind of work cannot name what changed. It may then keep full
-  runs under a stated cost limit, recorded here.
+  runs only under a per-domain ceiling recorded here before #10878 starts on
+  it (seconds per run and runs per day at the baseline size, with a review
+  date). No ceiling recorded, no exemption.
 
 ## Decision 4: how work waits when it is not ready
 
@@ -101,7 +108,11 @@ know its dependents.
 - Proposed limits: under 5% of runs put back (32% today); the audit starts a
   missed item within 10 minutes.
 - Proof: the same result whichever arrives first, the waiting work or its
-  input. Tracked in #10876 and #10877.
+  input; plus, per #10860's queue rules, a competing-workers proof on the
+  built program against the largest realistic queue (#10862 replay) showing
+  no lost wake, no double claim, and save-transaction latency unchanged
+  within the baseline tolerance. Row equality alone is not enough. Tracked
+  in #10876 and #10877.
 - Reject if: starting work in the saving step makes saves wait on each other.
 
 ## Decision 5: what the graph is the source of truth for
@@ -115,11 +126,15 @@ and counts are slower there. Dropping the graph reloads the already-full
 database. `7331-neo4j-primary-graph-backend-decision.md` chose the graph
 database without saying which store answers what; this record says it.
 
-- Rule: a result goes into the graph only when a read follows relationships
-  across more than one step. Every other result goes into a table made for its
-  reads. Both rebuild from facts.
-- Proposed limit: every one of the 162 capabilities declares one answering
-  store, and a check fails when a read uses another.
+- Rule: a result goes into the graph only when a declared read traverses
+  relationships with depth or fan-out not fixed at write time. Fixed-depth
+  joins, lists, counts, and filters go into a table made for their reads.
+  Both rebuild from facts; no family becomes graph-only until #10883 has
+  timed a full rebuild at 9,000+ scopes.
+- Proposed limit: every one of the 162 capabilities declares its answering
+  store or stores in the capability catalog (mixed is allowed when named;
+  the 6 unsorted are sorted first), and a check fails when a read uses a
+  store it did not declare.
 - Proof: identical API and MCP answers before and after a family of results
   moves. Tracked in #10880, with graph rebuild time in #10883.
 - Reject if: a family needs both relationship-following and filtered lists over
@@ -127,17 +142,24 @@ database without saying which store answers what; this record says it.
 
 ## Decision 6: how facts and the queue are divided
 
-Recommended: divide by repository into a fixed number of parts, after reads
-move off the fact table. Rationale: `fact_records` is 415 GB in one piece with
-152 indexes (64 parts would mean about 9,700), and old data is removed row by
-row; the search index is already divided this way into 64 parts. Dividing by
-date would scatter every single-repository load; a database per customer is
+Recommended: divide `fact_records` by `HASH(scope_id)` into a fixed number
+of parts (the `eshu_search_index_terms` precedent), after reads move off the
+fact table. The queue (`fact_work_items`) is not divided by this decision;
+#10881 must bring its own claim-fairness proof or leave the queue in one
+piece. Rationale: `fact_records` is 415 GB in one piece with 152 indexes
+(64 parts would mean about 9,700), and old data is removed row by row; the
+search index is already divided this way into 64 parts. Dividing by date
+would scatter every single-repository load; a database per customer is
 beyond the owner's target, which is not a hosted service.
 
-- Rule: reads move off the fact table first. The rule identifying a fact must
-  include the repository; cross-repository reads keep their own path.
-- Proposed limit: removing a retired snapshot costs in proportion to that
-  snapshot, not to the table size.
+- Rule: reads move off the fact table first. The conflict key that
+  identifies a fact must include `scope_id`, with a proof that global
+  `fact_id` dedup semantics do not change. Cross-scope reads keep their own
+  path, and the largest single scope's share of one part is measured and
+  recorded (hash parts do not split one scope).
+- Proposed limit: removing a retired snapshot — delete plus vacuum back to
+  steady state — costs in proportion to that snapshot on the divided copy,
+  measured against the undivided copy on the same data.
 - Proof: removal measured on a test copy both ways on the same data. Tracked
   in #10881.
 - Reject if: the busiest loads get slower on the divided copy.
@@ -163,8 +185,10 @@ beyond the owner's target, which is not a hosted service.
 ## Acceptance mapping (#10861)
 
 - Size target set (#10862, 2026-11-17): done, recorded above.
-- Arbiter ruling per decision, quoted in the issue: pending; update Status to
-  Accepted and quote the ruling here when it lands.
+- Arbiter ruling per decision, quoted in the issue: done 2026-11-18 —
+  D1/D2/D4 accepted (limits still Proposed), D3/D5/D6 replaced as above;
+  see [ruling](../arbiter/10861-reducer-execution-model-ruling-2026-11-18.md).
+  Status stays Proposed until criterion 3.
 - Limits confirmed or replaced against the #10862 baseline: pending; fill in
   per decision.
 - Proving experiment plus reject result per decision: recorded above.
