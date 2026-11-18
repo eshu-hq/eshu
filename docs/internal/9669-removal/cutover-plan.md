@@ -89,8 +89,9 @@ URL points at the monolith (verify during phase 0).
   endpoint, part of monolith serving — retires with it).
 - No eshu console deployed in-cluster (only observability frontends);
   no Gateway API route exposes the API externally (only MCP + webhooks
-  have hostnames). No external callers to flip; console QA base URL
-  still to verify (likely MCP-fronted or port-forwarded).
+  have hostnames). No external callers to flip; the console takes its
+  base URL at runtime (bootFromSession, operator-pointed), so the flip
+  communicates the new endpoint rather than rewiring infra.
 - CI live-satellite envs use mock cores (no cluster dependency).
 
 ## Ruling request (owner/arbiter)
