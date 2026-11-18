@@ -47,14 +47,14 @@ identifiers appear: every figure is a total, a size, or a timing.
 
 ## How this was measured
 
-Read-only measurements against the ops-qa test cluster on 2026-11-18,
+Read-only measurements against the QA environment on 2026-11-18,
 about 01:40–02:10 UTC, plus the system's own performance counters, plus
 a replay of the same-shaped queue on a throwaway database. Nothing in
 the test environment was written to or changed; the throwaway database
 was destroyed after the run.
 
 Benchmark Evidence: QA reducer baseline captured 2026-11-18 via read-only
-SELECTs on ops-qa (9,751 scopes, 83.2M live facts, 8,671-8,713 reducer rows
+SELECTs on the QA environment (9,751 scopes, 83.2M live facts, 8,671-8,713 reducer rows
 waiting, oldest 29.8d), Prometheus claim/execution histograms, and the
 `TestReducerQueue10862ReplayShapeAndDrain` replay (8,713 rows drained,
 claim p50 0.011s p95 0.013s on disposable hardware, flatness 0.79x);
