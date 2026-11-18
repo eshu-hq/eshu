@@ -112,7 +112,7 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 	case selectWinnersStagingCollapseStatsSQL:
 		// The fake queue always holds two staged rows under the test default
 		// budget, so every tick exercises the bound and both merge arms.
-		return &phaseFakeRows{row: []any{int64(2), int64(9), nil}}, nil
+		return &phaseFakeRows{row: []any{int64(2), int64(9)}}, nil
 	case selectWinnersStagingCollapseBoundSQL:
 		return &phaseFakeRows{row: []any{int64(7)}}, nil
 	case collapseWinnersStagingFactSQL:
