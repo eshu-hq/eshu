@@ -54,9 +54,9 @@ var _ StatusGovernanceReadAdmission = statusGovernanceReadAdmissionWitness{}
 // statusGovernanceReadAdmissionMethodSet reflects the live
 // StatusGovernanceReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func statusGovernanceReadAdmissionMethodSet(t *testing.T) []string {
+func statusGovernanceReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*StatusGovernanceReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -77,7 +77,7 @@ func TestStatusGovernanceReadAdmissionContractIsVersioned(t *testing.T) {
 	if StatusGovernanceReadAdmissionContractVersion != "v0" {
 		t.Errorf("StatusGovernanceReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", StatusGovernanceReadAdmissionContractVersion, "v0")
 	}
-	got := statusGovernanceReadAdmissionMethodSet(t)
+	got := statusGovernanceReadAdmissionMethodSet(t, (*StatusGovernanceReadAdmission)(nil))
 	if len(got) != len(frozenStatusGovernanceReadAdmission) {
 		t.Fatalf("StatusGovernanceReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenStatusGovernanceReadAdmission, len(frozenStatusGovernanceReadAdmission), StatusGovernanceReadAdmissionContractVersion)
 	}
@@ -127,13 +127,10 @@ type seededStatusGovernanceDrift interface {
 func TestStatusGovernanceReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededStatusGovernanceDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := statusGovernanceReadAdmissionMethodSet(t, (*seededStatusGovernanceDrift)(nil))
+	if reflect.DeepEqual(got, frozenStatusGovernanceReadAdmission) {
+		t.Fatal("seeded widening (List) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenStatusGovernanceReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusGovernanceReadAdmission)+1)
 	}

@@ -50,9 +50,9 @@ var _ StatusExtraReadAdmission = statusExtraReadAdmissionWitness{}
 // statusExtraReadAdmissionMethodSet reflects the live
 // StatusExtraReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func statusExtraReadAdmissionMethodSet(t *testing.T) []string {
+func statusExtraReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*StatusExtraReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -73,7 +73,7 @@ func TestStatusExtraReadAdmissionContractIsVersioned(t *testing.T) {
 	if StatusExtraReadAdmissionContractVersion != "v0" {
 		t.Errorf("StatusExtraReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", StatusExtraReadAdmissionContractVersion, "v0")
 	}
-	got := statusExtraReadAdmissionMethodSet(t)
+	got := statusExtraReadAdmissionMethodSet(t, (*StatusExtraReadAdmission)(nil))
 	if len(got) != len(frozenStatusExtraReadAdmission) {
 		t.Fatalf("StatusExtraReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenStatusExtraReadAdmission, len(frozenStatusExtraReadAdmission), StatusExtraReadAdmissionContractVersion)
 	}
@@ -127,13 +127,10 @@ type seededStatusExtraDrift interface {
 func TestStatusExtraReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededStatusExtraDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := statusExtraReadAdmissionMethodSet(t, (*seededStatusExtraDrift)(nil))
+	if reflect.DeepEqual(got, frozenStatusExtraReadAdmission) {
+		t.Fatal("seeded widening (Exec) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenStatusExtraReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusExtraReadAdmission)+1)
 	}

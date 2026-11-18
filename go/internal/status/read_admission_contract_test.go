@@ -46,9 +46,9 @@ var _ StatusReadAdmission = statusReadAdmissionWitness{}
 // statusReadAdmissionMethodSet reflects the live StatusReadAdmission
 // method set into sorted "name signature" strings for comparison with
 // the frozen list.
-func statusReadAdmissionMethodSet(t *testing.T) []string {
+func statusReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*StatusReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -70,7 +70,7 @@ func TestStatusReadAdmissionContractIsVersioned(t *testing.T) {
 	if StatusReadAdmissionContractVersion != "v0" {
 		t.Errorf("StatusReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", StatusReadAdmissionContractVersion, "v0")
 	}
-	got := statusReadAdmissionMethodSet(t)
+	got := statusReadAdmissionMethodSet(t, (*StatusReadAdmission)(nil))
 	if len(got) != len(frozenStatusReadAdmission) {
 		t.Fatalf("StatusReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenStatusReadAdmission, len(frozenStatusReadAdmission), StatusReadAdmissionContractVersion)
 	}
@@ -120,13 +120,10 @@ type seededStatusReadAdmissionDrift interface {
 func TestStatusReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededStatusReadAdmissionDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := statusReadAdmissionMethodSet(t, (*seededStatusReadAdmissionDrift)(nil))
+	if reflect.DeepEqual(got, frozenStatusReadAdmission) {
+		t.Fatal("seeded widening (Exec) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenStatusReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusReadAdmission)+1)
 	}

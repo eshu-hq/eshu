@@ -60,9 +60,9 @@ var _ StatusHostedReadinessReadAdmission = statusHostedReadinessReadAdmissionWit
 // statusHostedReadinessReadAdmissionMethodSet reflects the live
 // StatusHostedReadinessReadAdmission method set into sorted "name
 // signature" strings for comparison with the frozen list.
-func statusHostedReadinessReadAdmissionMethodSet(t *testing.T) []string {
+func statusHostedReadinessReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*StatusHostedReadinessReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -83,7 +83,7 @@ func TestStatusHostedReadinessReadAdmissionContractIsVersioned(t *testing.T) {
 	if StatusHostedReadinessReadAdmissionContractVersion != "v0" {
 		t.Errorf("StatusHostedReadinessReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", StatusHostedReadinessReadAdmissionContractVersion, "v0")
 	}
-	got := statusHostedReadinessReadAdmissionMethodSet(t)
+	got := statusHostedReadinessReadAdmissionMethodSet(t, (*StatusHostedReadinessReadAdmission)(nil))
 	if len(got) != len(frozenStatusHostedReadinessReadAdmission) {
 		t.Fatalf("StatusHostedReadinessReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenStatusHostedReadinessReadAdmission, len(frozenStatusHostedReadinessReadAdmission), StatusHostedReadinessReadAdmissionContractVersion)
 	}
@@ -133,13 +133,10 @@ type seededStatusHostedReadinessDrift interface {
 func TestStatusHostedReadinessReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededStatusHostedReadinessDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := statusHostedReadinessReadAdmissionMethodSet(t, (*seededStatusHostedReadinessDrift)(nil))
+	if reflect.DeepEqual(got, frozenStatusHostedReadinessReadAdmission) {
+		t.Fatal("seeded widening (Exec) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenStatusHostedReadinessReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusHostedReadinessReadAdmission)+1)
 	}
