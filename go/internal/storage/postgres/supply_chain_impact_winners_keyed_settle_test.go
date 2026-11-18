@@ -263,6 +263,10 @@ func (tx *settleFakeTx) QueryContext(_ context.Context, query string, _ ...any) 
 		return &settleFakeRows{rows: [][2]any{{int64(0), nil}}}, nil
 	case selectWinnersKeyedRemainingMinSQL:
 		return &settleFakeRows{rows: [][2]any{{nil, nil}}}, nil
+	case selectWinnersStagingResidualSQL:
+		// The residual scan reads (count, min): the two-destination
+		// *int64 arm takes row[1], so the count rides there.
+		return &settleFakeRows{rows: [][2]any{{nil, int64(0)}}}, nil
 	}
 	return nil, errSettleUnscriptedQuery
 }

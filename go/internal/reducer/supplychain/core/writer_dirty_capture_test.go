@@ -188,12 +188,12 @@ func TestWriteCapturesAdvisoryOnlyFindingsAndDeduplicates(t *testing.T) {
 }
 
 // TestRetractionCapturesRetractedFindingIdentifiers pins that the retract
-// statement itself upserts one dirty-log row per tombstoned key, so no Go
-// change is needed to name a retracted finding's key (ruling decision 1,
-// versioned by #10827): the DISTINCT collapses twins to one mark, the ORDER
-// BY feeds the upsert in conflict-key order, the conflict arm bumps only
-// dirty_version, and the final SELECT reports the CTE-based tombstoned and
-// marked counts.
+// statement itself stages one row per tombstoned key (#10837 direction C),
+// so no Go change is needed to name a retracted finding's key: the DISTINCT
+// collapses twins to one staged mark, and the final SELECT reports the
+// CTE-based tombstoned and marked counts. There is no ORDER BY (no locks to
+// take in order) and no ON CONFLICT (no unique index on the hot path): the
+// tick collapse restores the version math.
 func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
 	t.Parallel()
 
@@ -205,16 +205,22 @@ func TestRetractionCapturesRetractedFindingIdentifiers(t *testing.T) {
 			"UPDATE fact_records",
 			"RETURNING",
 			"SELECT DISTINCT package_id, repository_id, subject_digest, c0, advisory_id",
-			"INSERT INTO supply_chain_impact_winners_dirty_log",
+			"INSERT INTO supply_chain_impact_winners_dirty_staging",
 			"'fact_retract'",
-			"ORDER BY package_id, repository_id, subject_digest, c0, advisory_id",
-			"ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'",
-			"DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1",
 			"(SELECT count(*) FROM retracted) AS tombstoned",
 			"(SELECT count(*) FROM upserted) AS marked",
 		} {
 			if !strings.Contains(query, want) {
 				t.Errorf("%s retract statement does not contain %q:\n%s", name, want, query)
+			}
+		}
+		for _, banned := range []string{
+			"supply_chain_impact_winners_dirty_log",
+			"ON CONFLICT",
+			"dirty_version",
+		} {
+			if strings.Contains(query, banned) {
+				t.Errorf("%s retract statement contains %q, the hot path it must avoid:\n%s", name, banned, query)
 			}
 		}
 	}

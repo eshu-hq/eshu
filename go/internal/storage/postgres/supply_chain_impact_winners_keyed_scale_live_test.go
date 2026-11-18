@@ -132,6 +132,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 	}
 	loadElapsed := time.Since(loadStart)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	h.exec(`ANALYZE fact_records`)
 
 	fullStart := time.Now()
@@ -149,7 +150,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 		corpus.writeScope(h, i*(corpus.scopes/churnScopes), 1000)
 	}
 	churnElapsed := time.Since(churnStart)
-	pending := h.dirtyDepth()
+	pending := h.pendingDepth()
 
 	var activePlan, applyPlan string
 	if winnersScaleKnob(winnersScaleExplainEnv) == "1" {
@@ -165,7 +166,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 	var keyed supplychaincore.SupplyChainImpactWinnersResweep
 	keyed.Path = telemetry.SupplyChainImpactWinnersPathKeyed
 	var keyedTicks int
-	for h.dirtyDepth() > 0 {
+	for h.pendingDepth() > 0 {
 		r, err := h.store.ResweepWinnersKeyed(h.ctx)
 		if err != nil || r.Skipped {
 			t.Fatalf("keyed drain tick = %+v, %v", r, err)
@@ -181,7 +182,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 		keyed.Unchanged += r.Unchanged
 		keyedTicks++
 		if keyedTicks > 200 {
-			t.Fatalf("keyed drain exceeded 200 ticks with depth %d", h.dirtyDepth())
+			t.Fatalf("keyed drain exceeded 200 ticks with depth %d", h.pendingDepth())
 		}
 	}
 	keyedElapsed := time.Since(keyedStart)

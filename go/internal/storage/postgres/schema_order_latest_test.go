@@ -58,4 +58,13 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// indexes their ON CONFLICT clauses need.
 	"supply_chain_impact_winners_dirty_capture_upsert",
 	"supply_chain_impact_winners_scanner_capture_upsert",
+	// Migration 309 (#10837 direction C) adds the shared staging queue the
+	// capture owners plain-INSERT into: the table, its ordering sequence,
+	// and its non-unique seq index. No unique index rides the hot path.
+	"supply_chain_impact_winners_dirty_staging",
+	// Migrations 310-311 (#10837 direction C) retarget the 272 and 272a
+	// capture trigger functions to plain staging INSERTs, so no writer
+	// touches the versioned log's conflict arbiter anymore.
+	"supply_chain_impact_winners_staging_capture",
+	"supply_chain_impact_winners_scanner_staging_capture",
 }

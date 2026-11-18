@@ -69,25 +69,34 @@ stored AS (
 )
 ` + winnersAuditDiffSelect("winners_now", "stored")
 
-// createWinnersAuditPendingSQL collects the identifiers already waiting in the
-// dirty log: its fact rows directly, and its scope rows through the same
-// expansion a keyed tick applies. A stale key in this set is being repaired by
-// the next tick, so it is not a capture hole.
+// createWinnersAuditPendingSQL collects the identifiers already waiting to be
+// consumed: the dirty log's fact rows directly and its scope rows through the
+// same expansion a keyed tick applies, plus both arms of the staging queue
+// (#10837 direction C), which the next tick's collapse folds in before
+// admission. A stale key in this set is being repaired by the next tick, so
+// it is not a capture hole.
 var createWinnersAuditPendingSQL = `
 CREATE TEMP TABLE winners_audit_pending ON COMMIT DROP AS
 SELECT package_id, repository_id, subject_digest, c0, advisory_id
 FROM supply_chain_impact_winners_dirty_log
 WHERE kind = 'fact'
 UNION
-` + winnersScopeExpansionSelect("supply_chain_impact_winners_dirty_log")
+` + winnersScopeExpansionSelect("supply_chain_impact_winners_dirty_log") + `
+UNION
+SELECT package_id, repository_id, subject_digest, c0, advisory_id
+FROM ` + winnersStagingTable + `
+WHERE kind = 'fact'
+UNION
+` + winnersScopeExpansionSelect(winnersStagingTable)
 
-// queueWinnersAuditRepairsSQL upserts the verified stale keys that are not
-// already pending into the dirty log as source "audit" and reports how many
-// (#10827). A stale key already queued by a writer re-mark bumps only
-// dirty_version instead of appending a duplicate row. The SELECT feeds rows
-// in conflict-key order so the upsert takes row locks in the global order.
+// queueWinnersAuditRepairsSQL stages the verified stale keys that are not
+// already pending as source "audit" and reports how many (#10837 direction
+// C). A stale key already queued by a writer re-mark appends another staged
+// row instead of bumping a version; the tick collapse restores the version
+// math. The pending set unions the staging queue (below), so a staged key is
+// never re-queued.
 const queueWinnersAuditRepairsSQL = `
-INSERT INTO supply_chain_impact_winners_dirty_log
+INSERT INTO supply_chain_impact_winners_dirty_staging
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
 SELECT 'fact', 'audit', s.package_id, s.repository_id, s.subject_digest, s.c0, s.advisory_id
 FROM ` + winnersAuditStaleTable + ` AS s
@@ -96,9 +105,6 @@ WHERE NOT EXISTS (
     WHERE (p.package_id, p.repository_id, p.subject_digest, p.c0, p.advisory_id)
         = (s.package_id, s.repository_id, s.subject_digest, s.c0, s.advisory_id)
 )
-ORDER BY s.package_id, s.repository_id, s.subject_digest, s.c0, s.advisory_id
-ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
 `
 
 // countWinnersAuditCandidatesSQL counts the candidates the read found.

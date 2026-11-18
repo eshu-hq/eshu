@@ -277,13 +277,20 @@ import (
 // (the 272 capture triggers as key-ordered upserts) and
 // 308_supply_chain_impact_winners_scanner_capture_upsert.sql (the 272a
 // scanner capture triggers as key-ordered upserts, public-only).
-const goldenBootstrapDefinitionsDigest = "a98667a823f0d9f0fa5d1bcb42071e449ea91b90a5bdf00836a8c8bf595e32e4"
+// #10837 direction C adds 309_supply_chain_impact_winners_dirty_staging.sql
+// (the shared staging queue: sequence plus non-unique seq index, no unique
+// index on the hot path),
+// 310_supply_chain_impact_winners_staging_capture.sql (the 272 capture
+// triggers as plain staging INSERTs) and
+// 311_supply_chain_impact_winners_scanner_staging_capture.sql (the 272a
+// scanner capture triggers as plain staging INSERTs, public-only).
+const goldenBootstrapDefinitionsDigest = "bc31bcb76537c50eb091658d17026dc169b32d1058d871d924e0a8d52aadb134"
 
 // goldenBootstrapDefinitionsCount pins the definition count alongside the
 // digest so a truncated embed pattern (e.g. matching embed.go itself, or
 // silently dropping files) fails loudly even in the unlikely case of a hash
 // collision.
-const goldenBootstrapDefinitionsCount = 334
+const goldenBootstrapDefinitionsCount = 337
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

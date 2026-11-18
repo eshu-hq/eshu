@@ -44,11 +44,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS supply_chain_impact_winners_dirty_log_scope_ke
 
 // The gate writers hammer the shipped capture statement itself
 // (captureWinnersDirtyFactsSQL), never a copy: a shipped-shape change must
-// move this gate with it. Input arrays are passed in reverse key order on
-// purpose, so the gate proves the statement's ORDER BY — not the caller's
-// input order — governs lock acquisition. Writers in both gates below are
-// autocommit single statements: they prove per-statement lock order and
-// cannot falsify the multi-batch transaction-level claim (#10851).
+// move this gate with it. Under direction C the statement is a plain staging
+// INSERT with no arbiter, so input order governs nothing; the arrays stay in
+// reverse key order as the adversarial input anyway. Writers in both gates
+// below are autocommit single statements: they prove the staging path takes
+// no conflicting locks, and the settlers prove the collapse-in-tick meets no
+// lock cycle either.
 
 // winnersDeadlockSeedSQL plants distinct fact keys for the gate.
 const winnersDeadlockSeedSQL = `
@@ -220,10 +221,14 @@ WHERE kind = 'fact' AND package_id = 'pkg:shared'`, "count converted rows")
 	}
 }
 
-// winnersSettleOnce runs one fact-only settle pass: admit, build the
-// identifier set and chunk, settle. It returns the drained version sums and
-// the residual depth.
+// winnersSettleOnce runs one direction-C settle pass: collapse the staging
+// queue under the same transaction, then admit, build the identifier set and
+// chunk, settle. It returns the drained version sums and the residual depth,
+// which unions the staging remainder (#10837 direction C).
 func winnersSettleOnce(ctx context.Context, tx db.Transaction) (winnersCaptureTally, int64, error) {
+	if _, err := collapseWinnersStaging(ctx, tx, 0); err != nil {
+		return nil, 0, fmt.Errorf("collapse: %w", err)
+	}
 	if _, err := admitWinnersDirtyWindow(ctx, tx, winnersDeadlockSettleBounds.dirtyRows); err != nil {
 		return nil, 0, fmt.Errorf("admit: %w", err)
 	}
@@ -246,28 +251,34 @@ func winnersSettleOnce(ctx context.Context, tx db.Transaction) (winnersCaptureTa
 	return tally, remaining, nil
 }
 
-// TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive is test (3)
-// of the #10827 R2 TDD order, the deterministic deadlock interleave gate:
-// two settle transactions race K-ordered writer upserts (input in reverse key
-// order, so the statement's ORDER BY governs) over the same hot keys. Zero
+// TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive is the
+// direction-C rerun of the deterministic deadlock interleave gate: two settle
+// transactions race staging plain-INSERT writers (input in reverse key order,
+// as before) over the same hot keys while each settle collapses first. Zero
 // 40P01/deadlock errors may surface, and every mark is conserved: the drained
-// version sums plus the residual versions equal the marks the writers sent,
-// so no interleaving loses a queued mark. The static shape tests pin the
-// lock order; the EXPLAIN assertion above pins LockRows-above-Sort on the
-// shipped statement; this gate pins the runtime behavior.
+// version sums plus the residual log versions plus the staging residual equal
+// the marks the writers sent, so no interleaving loses a queued mark. The
+// static shape tests pin the order; the EXPLAIN assertion above pins
+// LockRows-above-Sort on the shipped drain; this gate pins the runtime
+// behavior.
 func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T) {
 	ctx, database := winnersSettleGateDB(t)
 
 	winnersExplainSettleLocks(t, ctx, database)
 
 	// Baseline the marks bootstrap itself left queued (the bootstrap moves
-	// scope pointers, so the activation trigger owns rows here before the
-	// gate plants its own): the drain tallies every version it deletes, so
-	// conservation counts them too.
-	var baseVersions int64
+	// scope pointers, so the activation trigger owns baseline rows here before
+	// the gate stages its own): the drain tallies every version it deletes,
+	// so conservation counts them too. The baseline spans both tables: the
+	// trigger stages into the queue now.
+	var baseVersions, baseStaged int64
 	if err := database.QueryRowContext(ctx,
 		`SELECT COALESCE(sum(dirty_version), 0) FROM supply_chain_impact_winners_dirty_log`).Scan(&baseVersions); err != nil {
 		t.Fatalf("read baseline log versions: %v", err)
+	}
+	if err := database.QueryRowContext(ctx,
+		`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging`).Scan(&baseStaged); err != nil {
+		t.Fatalf("read baseline staged rows: %v", err)
 	}
 
 	if _, err := database.ExecContext(ctx, winnersDeadlockSeedSQL); err != nil {
@@ -275,10 +286,10 @@ func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T
 	}
 	const keys = 60
 	var totalMarks atomic.Int64
-	totalMarks.Add(baseVersions + keys)
+	totalMarks.Add(baseVersions + baseStaged + keys)
 
-	// The writer keys in reverse K order: the upsert's ORDER BY must re-sort
-	// them, so lock acquisition never follows caller order.
+	// The writer keys in reverse K order, as before: the staging INSERT takes
+	// no row locks at all, so caller order must not matter either way.
 	reversed := make([]string, keys)
 	for i := range reversed {
 		reversed[i] = fmt.Sprintf("pkg:deadlock:%03d", keys-1-i)
@@ -307,34 +318,36 @@ func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T
 	start := make(chan struct{})
 	var workers sync.WaitGroup
 	var drained atomic.Int64
-	// Two settlers race the writers over the same admitted window. Every
-	// drained version sum counts toward conservation, including the ones the
-	// racing settles tally while the writers are still sending.
-	for s := 0; s < 2; s++ {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
-			<-start
-			for i := 0; i < 8; i++ {
-				tx, err := (SQLDB{DB: database}).Begin(ctx)
-				if err != nil {
-					record(err)
-					return
-				}
-				tally, _, err := winnersSettleOnce(ctx, tx)
-				if err != nil {
-					_ = tx.Rollback()
-					record(err)
-					return
-				}
-				if err := tx.Commit(); err != nil {
-					record(err)
-					return
-				}
-				drained.Add(tally.total())
+	// One settler races the writers: it collapses, then settles, serially.
+	// Two racing settlers would each collapse the same staged wave and merge
+	// it twice (the merge is not idempotent across concurrent collapses);
+	// production serializes ticks under the resweep single-flight claim, so
+	// the gate runs one. Every drained version sum counts toward
+	// conservation, including the ones the settler tallies while the writers
+	// are still sending.
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		<-start
+		for i := 0; i < 16; i++ {
+			tx, err := (SQLDB{DB: database}).Begin(ctx)
+			if err != nil {
+				record(err)
+				return
 			}
-		}()
-	}
+			tally, _, err := winnersSettleOnce(ctx, tx)
+			if err != nil {
+				_ = tx.Rollback()
+				record(err)
+				return
+			}
+			if err := tx.Commit(); err != nil {
+				record(err)
+				return
+			}
+			drained.Add(tally.total())
+		}
+	}()
 	// Four writers hammer the same keys while the settles run.
 	for w := 0; w < 4; w++ {
 		workers.Add(1)
@@ -383,13 +396,17 @@ func TestSupplyChainImpactWinnersResweepKeyedSettleDeadlockFreeLive(t *testing.T
 			t.Fatalf("log did not drain after 20 final settles, %d rows remain", remaining)
 		}
 	}
-	var depth, versions int64
+	var depth, versions, staged int64
 	if err := database.QueryRowContext(ctx,
 		`SELECT count(*), COALESCE(sum(dirty_version), 0) FROM supply_chain_impact_winners_dirty_log`).Scan(&depth, &versions); err != nil {
 		t.Fatalf("read residual log: %v", err)
 	}
-	if depth != 0 || versions != 0 {
-		t.Fatalf("residual log holds %d rows with %d versions, want an empty log", depth, versions)
+	if err := database.QueryRowContext(ctx,
+		`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging`).Scan(&staged); err != nil {
+		t.Fatalf("read residual staging: %v", err)
+	}
+	if depth != 0 || versions != 0 || staged != 0 {
+		t.Fatalf("residual holds log(depth=%d, versions=%d) plus staging=%d rows, want every table empty", depth, versions, staged)
 	}
 	if got, want := drained.Load(), totalMarks.Load(); got != want {
 		t.Fatalf("drained version sums = %d, want %d marks sent: marks were lost or double-counted", got, want)
@@ -478,14 +495,11 @@ func winnersDirtyLatencyPercentile(durs []time.Duration, p float64) time.Duratio
 	return cp[i]
 }
 
-// winnersStratifiedSeedSQL plants the stratified gate's key space: 60
-// private keys per writer (writers 0-3), so every statement is a
-// steady-state upsert bump with no insert/update mix variance. Writers are
-// fully disjoint by key: concurrent production writers mark their own
-// scopes' identifiers, and sharing one hot row across every statement would
-// serialize all writers through it, measuring lock-wait scheduling instead
-// of statement latency (the deadlock test above already hammers the shared
-// hot keys for exactly that interleave).
+// winnersStratifiedSeedSQL plants the versioned log's steady-state shape for
+// the stratified gate. The stratified writers stage into the queue (a plain
+// INSERT needs no seed), but the seed keeps the shared log at a realistic
+// depth while the gate times the statement, so the sample is not taken
+// against an empty table. Writers stay fully disjoint by key.
 const winnersStratifiedSeedSQL = `
 INSERT INTO supply_chain_impact_winners_dirty_log
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
@@ -506,7 +520,12 @@ FROM generate_series(0, 3) AS w, generate_series(0, 59) AS g
 // warm-cache steady state, then its timed iterations. Settlers stay out of
 // this gate on purpose: the sample is writer-statement latency, and the
 // deadlock test above covers both the shared-key interleave and the
-// writer-vs-settle interleave. Each contended stratum fails only when its
+// writer-vs-settle interleave. Under direction C the timed statement is the
+// production staging INSERT (plain, no arbiter), not the retired contended
+// upsert: the references below are the pre-C upsert numbers, kept as upper
+// bounds the staging path must stay under while it proves out, and the ratio
+// arm still guards contention growth per writer count.
+// Each contended stratum fails only when its
 // p95 breaks the shim-host reference AND its same-run contention ratio
 // breaks the backstop (max 3.0x at 2 writers, 3.5x at 4): the conjunction
 // passes absolute-only excursions on every host, so uniform statement-cost
@@ -551,8 +570,10 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 			strings.Contains(err.Error(), "deadlock detected"))
 	}
 
-	// runStratum hammers the writer upsert with writers concurrent writers
+	// runStratum hammers the staging INSERT with writers concurrent writers
 	// for iters timed iterations each and returns every statement latency.
+	// The sets reach the statement in reverse K order, as before: caller
+	// order governs nothing on the arbiter-free path.
 	runStratum := func(writers, iters int) []time.Duration {
 		samples := make([][]time.Duration, writers)
 		start := make(chan struct{})
@@ -621,7 +642,7 @@ func TestSupplyChainImpactWinnersDirtyWriterStratifiedEnvelopeLive(t *testing.T)
 		t.Logf("winners_dirty_writer_p95 writers=%d n=%d p50=%s p95=%s max=%s control_p95=%s ratio=%.2f max_ratio=%.1f reference=%s",
 			writers, len(durs), p50, p95, slices.Max(durs), controlP95, ratio, maxRatio, reference)
 		if winnersDirtyGateFails(p95, reference, ratio, maxRatio) {
-			t.Errorf("stratified gate writers=%d failed over %d statements: p95 %s above the %s %s and %.2fx the same-run control above the %.1f backstop: the capture upsert regressed for this writer count",
+			t.Errorf("stratified gate writers=%d failed over %d statements: p95 %s above the %s %s and %.2fx the same-run control above the %.1f backstop: the staging INSERT regressed for this writer count",
 				writers, len(durs), p95, reference, stratum, ratio, maxRatio)
 		}
 	}

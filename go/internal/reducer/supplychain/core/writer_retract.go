@@ -236,7 +236,7 @@ func commitSupplyChainImpactRows(
 		}
 		outcome.retracted = tombstoned
 		// The capture count is the marked keys, not the tombstoned rows:
-		// twin findings that share one key collapse to one dirty-log row.
+		// twin findings that share one key collapse to one staged mark.
 		if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
 			capturer.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactRetract, int64(marked))
 		}
@@ -319,15 +319,15 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 // Legacy rows written before the token existed carry 0 and are retracted by any
 // pass (0 <= $5).
 //
-// The tombstoned rows' keys are upserted into the winners dirty log by the same
-// statement (#9805, versioned by #10827), which reports two CTE-based counts:
+// The tombstoned rows' keys are staged by the same statement (#9805, routed
+// through the staging queue by #10837), which reports two CTE-based counts:
 // the rows it tombstoned and the distinct keys it marked. A retracted row is
 // always a change. The DISTINCT collapses twin findings that share one key to
-// one mark, the ORDER BY feeds the upsert in conflict-key order, and the
-// conflict arm bumps only dirty_version: a re-mark of a queued key never
-// appends a second row. The caller keeps the tombstoned count as
-// FactsRetracted (prior finding rows, per the write-result contract) and the
-// marked count as the fact_retract capture count (dirty-log rows touched).
+// one mark, and the maintainer tick later collapses staged marks into the
+// versioned dirty log (version bumps by mark count). The caller keeps the
+// tombstoned count as FactsRetracted (prior finding rows, per the write-result
+// contract) and the marked count as the fact_retract capture count (staged
+// rows touched).
 const retractSupersededSupplyChainImpactFindingsQuery = `
 WITH retracted AS (
     UPDATE fact_records
@@ -352,13 +352,10 @@ ordered AS (
     ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
 ),
 upserted AS (
-    INSERT INTO supply_chain_impact_winners_dirty_log
+    INSERT INTO supply_chain_impact_winners_dirty_staging
         (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
-    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
     RETURNING 1
 )
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,
@@ -396,13 +393,10 @@ ordered AS (
     ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
 ),
 upserted AS (
-    INSERT INTO supply_chain_impact_winners_dirty_log
+    INSERT INTO supply_chain_impact_winners_dirty_staging
         (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
-    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
     RETURNING 1
 )
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,

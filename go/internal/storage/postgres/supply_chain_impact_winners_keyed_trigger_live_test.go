@@ -205,12 +205,14 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 				tc.prepare(h, scopeA, scopeB)
 			}
 			// Rows the prepare step queued (the writer's own fact capture) are not
-			// the capture under test.
+			// the capture under test: clear both the versioned log and the
+			// staging queue (#10837 direction C stages every capture).
 			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 			return h, scopeA, scopeB
 		}
 		sourceRows := func(h *keyedHarness) int {
-			return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = $1`, tc.wantSource)
+			return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE source = $1`, tc.wantSource)
 		}
 		t.Run(tc.name+" without the trigger", func(t *testing.T) {
 			h, scopeA, scopeB := setup(t, "#9805 trigger violation proof")
@@ -235,7 +237,7 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			h, scopeA, scopeB := setup(t, "#9805 trigger capture proof")
 			tc.change(h, scopeA, scopeB)
 			if got := sourceRows(h); got == 0 {
-				t.Fatalf("the change appended no dirty-log row with source %q", tc.wantSource)
+				t.Fatalf("the change staged no row with source %q", tc.wantSource)
 			}
 			result := h.keyed()
 			// The maintainer counts trigger sources when it consumes them, so the
@@ -337,10 +339,11 @@ func TestSupplyChainImpactWinnersResweepRetirementFenceThenPurgeLive(t *testing.
 
 // TestSupplyChainImpactWinnersResweepScopeTriggersRunWithoutLogPrivilegesLive
 // binds a login-like role that may move and delete scope rows and nothing else:
-// no privilege on the dirty log, its sequence or fact_records. The pointer and
+// no privilege on the staging queue or fact_records. The pointer and
 // delete triggers are SECURITY DEFINER, so the projector, collector, retirement
-// fence and suppression store need no grant on the log (#9805 review F2). The
-// control statement shows the role really has no INSERT on the log, so a trigger
+// fence and suppression store need no grant on staging (#9805 review F2, #10837
+// direction C stages every capture). The
+// control statement shows the role really has no INSERT on staging, so a trigger
 // that ran as the caller would fail here with permission denied.
 func TestSupplyChainImpactWinnersResweepScopeTriggersRunWithoutLogPrivilegesLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 definer trigger role proof")
@@ -350,20 +353,20 @@ func TestSupplyChainImpactWinnersResweepScopeTriggersRunWithoutLogPrivilegesLive
 	// delete pair from 272.
 	assertWinnersCaptureFunctions(h.ctx, t, h.db, "public", 4)
 	conn := logBlindConn(h)
-	if _, err := conn.ExecContext(h.ctx, `INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, scope_id, generation_id)
+	if _, err := conn.ExecContext(h.ctx, `INSERT INTO supply_chain_impact_winners_dirty_staging (kind, source, scope_id, generation_id)
 VALUES ('scope', 'activation', 'x', 'y')`); err == nil || !strings.Contains(err.Error(), "permission denied") {
-		t.Fatalf("control insert as the role = %v, want permission denied: the role must have no log privilege", err)
+		t.Fatalf("control insert as the role = %v, want permission denied: the role must have no staging privilege", err)
 	}
 	if _, err := conn.ExecContext(h.ctx, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`, scopeA); err != nil {
-		t.Fatalf("pointer move as a role without log privileges: %v", err)
+		t.Fatalf("pointer move as a role without staging privileges: %v", err)
 	}
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'scope' AND scope_id = $1`, scopeA); got != 1 {
-		t.Fatalf("pointer trigger wrote %d scope rows for the role's UPDATE, want 1", got)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'scope' AND scope_id = $1`, scopeA); got != 1 {
+		t.Fatalf("pointer trigger staged %d scope rows for the role's UPDATE, want 1", got)
 	}
 	if _, err := conn.ExecContext(h.ctx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeB); err != nil {
-		t.Fatalf("scope delete as a role without log or fact privileges: %v", err)
+		t.Fatalf("scope delete as a role without staging or fact privileges: %v", err)
 	}
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact' AND source = 'activation'`); got < 1 {
-		t.Fatalf("delete trigger wrote %d fact rows for the role's DELETE, want at least 1", got)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact' AND source = 'activation'`); got < 1 {
+		t.Fatalf("delete trigger staged %d fact rows for the role's DELETE, want at least 1", got)
 	}
 }

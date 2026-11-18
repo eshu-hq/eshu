@@ -1386,6 +1386,17 @@ type Instruments struct {
 	SupplyChainImpactWinnersDirtyLogDepth       metric.Float64ObservableGauge
 	SupplyChainImpactWinnersDirtyLogOldestAge   metric.Float64ObservableGauge
 	supplyChainImpactWinnersDirtyLog            *supplyChainImpactWinnersDirtyLog
+	supplyChainImpactWinnersStaging             *supplyChainImpactWinnersStaging
+	// SupplyChainImpactWinnersStagingDepth and ...StagingOldestAge report the
+	// shared staging queue's backlog (#10837 direction C): rows waiting to
+	// collapse and the age of the oldest staged row. Registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersStagingDepth     metric.Float64ObservableGauge
+	SupplyChainImpactWinnersStagingOldestAge metric.Float64ObservableGauge
+	// SupplyChainImpactWinnersStagingCollapsed counts staged rows one keyed
+	// tick collapsed into the dirty log (#10837 direction C). Registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersStagingCollapsed metric.Int64Counter
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter

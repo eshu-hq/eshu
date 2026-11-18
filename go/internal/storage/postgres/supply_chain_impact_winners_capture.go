@@ -37,15 +37,15 @@ import (
 // A change class no owner names is repaired by the audit and counted by
 // ..._backstop_repairs_total.
 
-// CaptureWinnersDirtyFacts upserts the identifiers of the findings this
-// transaction wrote into the winners dirty log, in the same transaction, so
-// the log row commits or rolls back with the finding it names. One row per
-// pending recompute unit (#10827): identifiers are sorted and deduplicated by
-// the conflict key before the statement runs, and the statement takes row
-// locks in that same key order while bumping only dirty_version, so a
-// re-mark of a queued key never appends a second row. It returns the rows
-// the upsert touched and holds them to count under source fact_upsert once
-// the transaction commits.
+// CaptureWinnersDirtyFacts stages the identifiers of the findings this
+// transaction wrote in the winners staging queue, in the same transaction, so
+// the staged rows commit or roll back with the finding they name. The
+// maintainer tick collapses staged rows into the versioned dirty log (#10837:
+// one GROUP BY merge-upsert per key, version bumps by mark count), so the
+// hot path takes no dirty-log row locks. Identifiers are sorted and
+// deduplicated by the conflict key before the statement runs. It returns the
+// rows the staging insert touched and holds them to count under source
+// fact_upsert once the transaction commits.
 func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	ctx context.Context,
 	identifiers []supplychaincore.WinnersDirtyIdentifier,
@@ -61,11 +61,11 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	}
 	result, err := t.tx.ExecContext(ctx, captureWinnersDirtyFactsSQL, pkg, repo, digest, c0, advisory)
 	if err != nil {
-		return 0, fmt.Errorf("append supply chain impact winners dirty log: %w", err)
+		return 0, fmt.Errorf("stage supply chain impact winners dirty keys: %w", err)
 	}
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return 0, fmt.Errorf("count supply chain impact winners dirty log rows: %w", err)
+		return 0, fmt.Errorf("count supply chain impact winners staged rows: %w", err)
 	}
 	t.RecordWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceFactUpsert, rows)
 	return rows, nil
@@ -109,11 +109,12 @@ func sortDedupWinnersDirtyIdentifiers(ids []supplychaincore.WinnersDirtyIdentifi
 	return kept
 }
 
-// RecordWinnersCapture holds the rows a statement of this transaction appended
-// to the winners dirty log under source, and counts them when the transaction
-// commits. A rollback, or a commit that fails, discards them: the log rows
-// vanish with the transaction, and the counter must match the rows that exist
-// (#9957). A zero count holds nothing. Without instruments it holds nothing.
+// RecordWinnersCapture holds the rows a statement of this transaction staged
+// in the winners staging queue under source, and counts them when the
+// transaction commits. A rollback, or a commit that fails, discards them: the
+// staged rows vanish with the transaction, and the counter must match the
+// rows that exist (#9957). A zero count holds nothing. Without instruments it
+// holds nothing.
 // The transaction is used by one writer goroutine, so the hold needs no lock.
 func (t *supplyChainImpactTx) RecordWinnersCapture(ctx context.Context, source string, rows int64) {
 	if t.instruments == nil || rows <= 0 {

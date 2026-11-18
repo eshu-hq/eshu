@@ -78,8 +78,8 @@ func TestSupplyChainImpactWinnersResweepKeyedConsumeKeepsLateArrivalsLive(t *tes
 	scopeA, _ := keyedSeedSettled(h)
 
 	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 50), keyedFinding("CVE-2026-2002", "pkg:npm/y", 5))
-	if depth := h.dirtyDepth(); depth == 0 {
-		t.Fatal("the writer captured nothing for a changed finding")
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("the writer staged nothing for a changed finding")
 	}
 	release, done, _ := keyedStartBlockedTick(h)
 	// A late change commits while the tick is blocked after its consume.
@@ -88,7 +88,7 @@ func TestSupplyChainImpactWinnersResweepKeyedConsumeKeepsLateArrivalsLive(t *tes
 	if err := <-done; err != nil {
 		t.Fatalf("blocked keyed tick: %v", err)
 	}
-	if depth := h.dirtyDepth(); depth == 0 {
+	if depth := h.pendingDepth(); depth == 0 {
 		t.Fatal("the late arrival was consumed with the batch that did not include it: the consume deletes more than it processed")
 	}
 	h.keyed()
@@ -102,15 +102,15 @@ func TestSupplyChainImpactWinnersResweepKeyedRollbackReturnsTheKeysLive(t *testi
 	scopeA, _ := keyedSeedSettled(h)
 
 	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 50), keyedFinding("CVE-2026-2002", "pkg:npm/y", 5))
-	before := h.dirtyDepth()
+	before := h.pendingDepth()
 	release, done, cancel := keyedStartBlockedTick(h)
 	cancel()
 	if err := <-done; err == nil {
 		t.Fatal("a cancelled keyed tick returned no error")
 	}
 	release()
-	if after := h.dirtyDepth(); after != before {
-		t.Fatalf("dirty log depth after a rolled-back tick = %d, want %d", after, before)
+	if after := h.pendingDepth(); after != before {
+		t.Fatalf("pending depth after a rolled-back tick = %d, want %d", after, before)
 	}
 	h.keyed()
 	h.assertParity("after the rolled-back tick")
@@ -160,6 +160,7 @@ func TestSupplyChainImpactWinnersResweepDirtyLogStatsLive(t *testing.T) {
 	// clone is not guaranteed to open with an empty log. Drain to a known
 	// state first; the readings below prove content, not freshness.
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	empty, err := h.store.DirtyLogStats(h.ctx)
 	if err != nil || empty != (supplychaincore.SupplyChainImpactWinnersDirtyStats{}) {
 		t.Fatalf("empty log stats = %+v, %v; want zeroes", empty, err)

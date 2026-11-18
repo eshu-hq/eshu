@@ -244,6 +244,18 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go": (
             "TestSupplyChainImpactUpstreamWidenedProbeHoldsNVDScaleLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go": (
+            "TestSupplyChainImpactWinnersHotkeyStagingShimLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_staging_collapse_live_test.go": (
+            "TestSupplyChainImpactWinnersStagingCollapseConservationLive",
+            "TestSupplyChainImpactWinnersStagingCollapseDeletesExactlyOneRowLive",
+            "TestSupplyChainImpactWinnersStagingReMarkSurvivesInflightSettleLive",
+            "TestSupplyChainImpactWinnersStagingCollapseSplitKeepsStagingUnionHorizonLive",
+            "TestSupplyChainImpactWinnersStagingInterleaveDeadlockFreeLive",
+            "TestSupplyChainImpactWinnersStagingCollapseWorstPartitionCostLive",
+            "TestSupplyChainImpactWinnersStagingCollapseExplainPinsKeyOrderLive",
+        ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
         ),

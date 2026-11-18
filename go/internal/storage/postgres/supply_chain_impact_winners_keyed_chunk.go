@@ -307,6 +307,14 @@ func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback
 	if err != nil {
 		return nil, 0, sql.NullTime{}, err
 	}
+	// The residual unions the staging queue (#10837 direction C): the
+	// collapse folded at most its row budget before admission, so post-bound
+	// and mid-tick staged rows stay queued and the horizon must cover them.
+	stagingCount, stagingMin, err := countWinnersStagingResidual(ctx, tx, "count remaining staging rows")
+	if err != nil {
+		return nil, 0, sql.NullTime{}, err
+	}
+	remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, stagingCount, stagingMin)
 	return tally, remaining, remainingMin, nil
 }
 

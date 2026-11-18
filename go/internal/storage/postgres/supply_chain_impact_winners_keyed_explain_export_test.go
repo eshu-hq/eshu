@@ -24,6 +24,11 @@ func ExplainWinnersKeyedForTest(ctx context.Context, database *sql.DB, materiali
 	if claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx); err != nil || !claimed {
 		return "", "", fmt.Errorf("claim resweep lock for explain: claimed=%v err=%v", claimed, err)
 	}
+	// The tick collapses the staging queue before admission, so the plans
+	// below are drawn over the collapsed window, not an empty log.
+	if _, err := collapseWinnersStaging(ctx, tx, 0); err != nil {
+		return "", "", fmt.Errorf("collapse staging for explain: %w", err)
+	}
 	if _, err := admitWinnersDirtyWindow(ctx, tx, defaultWinnersChunkMaxDirtyRows); err != nil {
 		return "", "", err
 	}
@@ -78,6 +83,11 @@ func ExplainWinnersKeyedSettleForTest(ctx context.Context, database *sql.DB) (co
 	defer func() { _ = tx.Rollback() }()
 	if claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx); err != nil || !claimed {
 		return "", "", "", fmt.Errorf("claim resweep lock for settle explain: claimed=%v err=%v", claimed, err)
+	}
+	// The tick collapses the staging queue before admission, so the plans
+	// below are drawn over the collapsed window, not an empty log.
+	if _, err := collapseWinnersStaging(ctx, tx, 0); err != nil {
+		return "", "", fmt.Errorf("collapse staging for settle explain: %w", err)
 	}
 	if _, err := admitWinnersDirtyWindow(ctx, tx, defaultWinnersChunkMaxDirtyRows); err != nil {
 		return "", "", "", fmt.Errorf("admit window for settle explain: %w", err)

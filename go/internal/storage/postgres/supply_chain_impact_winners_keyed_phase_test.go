@@ -109,6 +109,18 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.claimed}}, nil
 	case countWinnersKeyedConsumedSQL:
 		return &phaseFakeRows{row: []any{tx.consumed}}, nil
+	case selectWinnersStagingCollapseStatsSQL:
+		// The fake queue always holds two staged rows under the test default
+		// budget, so every tick exercises the bound and both merge arms.
+		return &phaseFakeRows{row: []any{int64(2), int64(9)}}, nil
+	case selectWinnersStagingCollapseBoundSQL:
+		return &phaseFakeRows{row: []any{int64(7)}}, nil
+	case collapseWinnersStagingFactSQL:
+		return &phaseFakeRows{row: []any{int64(2), int64(2)}}, nil
+	case collapseWinnersStagingScopeSQL:
+		return &phaseFakeRows{row: []any{int64(0), int64(0)}}, nil
+	case selectWinnersStagingResidualSQL:
+		return &phaseFakeRows{row: []any{int64(0), nil}}, nil
 	case selectWinnersKeyedChunkIdentsSQL:
 		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", "", "CVE-2026-1", ""}}, nil
 	case countWinnersKeyedActiveFactsSQL:
@@ -227,17 +239,17 @@ func TestResweepWinnersKeyedRecordsOneSamplePerPhase(t *testing.T) {
 		{
 			name: "keyed apply",
 			tx:   phaseFakeTx{claimed: true, consumed: 3, identifier: 3, stored: 100},
-			want: []string{"claim", "consume", "build_idents", "build_active_facts", "apply", "commit"},
+			want: []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply", "commit"},
 		},
 		{
 			name: "idle tick stamps the watermark",
 			tx:   phaseFakeTx{claimed: true},
-			want: []string{"claim", "consume", "stamp", "commit"},
+			want: []string{"claim", "collapse", "consume", "stamp", "commit"},
 		},
 		{
 			name: "over the cap falls back to the full rebuild",
 			tx:   phaseFakeTx{claimed: true, consumed: 3, identifier: defaultWinnersKeyedMaxIdentifiers + 1, stored: 1000000},
-			want: []string{"claim", "consume", "build_idents", "full_rebuild", "commit"},
+			want: []string{"claim", "collapse", "consume", "build_idents", "full_rebuild", "commit"},
 		},
 		{
 			name: "lock held by another resweep",
@@ -290,13 +302,14 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		idle, overCap bool
 	}{
 		{"claim", tryClaimSupplyChainImpactWinnersResweepSQL, "claim", []string{"claim"}, false, false},
-		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "consume"}, false, false},
-		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "consume", "build_idents"}, false, false},
-		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "consume", "build_idents", "build_active_facts"}, false, false},
-		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
-		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "consume", "stamp"}, true, false},
-		{"full_rebuild", rebuildSupplyChainImpactWinnersSQL, "full_rebuild", []string{"claim", "consume", "build_idents", "full_rebuild"}, false, true},
-		{"commit", "", "commit", []string{"claim", "consume", "build_idents", "build_active_facts", "apply", "commit"}, false, false},
+		{"collapse", selectWinnersStagingCollapseStatsSQL, "collapse", []string{"claim", "collapse"}, false, false},
+		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "collapse", "consume"}, false, false},
+		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "collapse", "consume", "build_idents"}, false, false},
+		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},
+		{"apply", applyWinnersKeyedSQL, "apply", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply"}, false, false},
+		{"stamp", stampWinnersWatermarkSQL, "stamp", []string{"claim", "collapse", "consume", "stamp"}, true, false},
+		{"full_rebuild", rebuildSupplyChainImpactWinnersSQL, "full_rebuild", []string{"claim", "collapse", "consume", "build_idents", "full_rebuild"}, false, true},
+		{"commit", "", "commit", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts", "apply", "commit"}, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
