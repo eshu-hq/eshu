@@ -86,22 +86,36 @@ Notes:
   waves (Waves 3/5); the riders are pinned here so the core service
   answers them byte-identically from Wave 0 on.
 
-## Mutations (19 rows): TODO pending the S2 fill
+## Mutations (19 rows, frozen per S2 verdict)
 
-S2 SETTLED during Wave 0 (lane commit `1abea44d37`, plan annotation):
-candidate (A) **4+3+4+1+7 wins** — d7 4
-(backfill/dead-letter/reindex/skip), setup 3 (claim/admin/mfa),
-recovery 4 (replay/reopen/refinalize/recover-generations), signin
-PATCH 1, d9 login 7 (OIDC 2 + GitHub 2 + SAML 3). The 50−31 set is
-rejected as a mount/capability category error (~15 of the 31
-`wireAPI` rows are reads). Row 17 (`GET .../saml/.../metadata`) is
-a census read riding the D9-SAML lane as an indivisible triple: 18
-mutations + 1 rider, same 19-row set.
+S2 SETTLED (candidate (A) **4+3+4+1+7 wins**; 50−31 rejected as a
+mount/capability category error). Row 17 (`GET .../saml/.../metadata`)
+is a census read riding the D9-SAML lane as an indivisible triple: 18
+mutations + 1 rider, same 19-row set. Oracle fragments below are
+relative to `go/internal/query/openapi/` at `8a78eb3f48`; satellite
+lines at `08ebde4`.
 
-This section stays a TODO in Wave 0 per the lane brief: the table
-will be filled row-by-row (Method+Path+Family+oracle fragment +
-satellite wave line) per the verdict's per-row rationale in the
-mutation-fill follow-up, not estimated here.
+| # | Route | Family | Oracle fragment | Satellite line |
+| --- | --- | --- | --- | --- |
+| M1 | `POST /api/v0/admin/backfill` | Admin | `paths/status/admin.go` (backfill row: 200 400 500 503) | `api/d7.go:36-39`, `contracts/d7-admin-four.md:4-6,156-158` |
+| M2 | `POST /api/v0/admin/dead-letter` | Admin | `paths/status/admin.go` (dead-letter row: 200 400 500 503) | `api/d7.go:36-39`, `contracts/d7-admin-four.md` |
+| M3 | `POST /api/v0/admin/reindex` | Admin | `paths/status/admin.go` (reindex row: 202 400 500 503) | `api/d7.go:36-39`, `contracts/d7-admin-four.md` |
+| M4 | `POST /api/v0/admin/skip` | Admin | `paths/status/admin.go` (skip row: 200 400 409 500 503) | `api/d7.go:36-39`, `contracts/d7-admin-four.md` |
+| M5 | `POST /api/v0/auth/setup/claim` | Setup | `paths/auth/setup.go` (setup/claim row: 200 400 401 410 503) | `api/setup.go:23-25`, `contracts/setup-admission.md:4-5,68-70` |
+| M6 | `POST /api/v0/auth/setup/admin` | Setup | `paths/auth/setup.go` (setup/admin row: 200 400 401 410 503) | `api/setup.go:23-25`, `contracts/setup-admission.md` |
+| M7 | `POST /api/v0/auth/setup/mfa` | Setup | `paths/auth/setup.go` (setup/mfa row: 200 400 401 410 503) | `api/setup.go:23-25`, `contracts/setup-admission.md` |
+| M8 | `POST /api/v0/admin/replay` | Admin | `paths/status/admin.go` (replay row: 200 400 403 409 422 500 503) | `api/recovery.go:27-30`, `contracts/recovery-admission.md:4-5,104-107` |
+| M9 | `POST /api/v0/admin/reopen` | Admin | `paths/status/admin.go` (reopen row: 200 400 403 404 409 422 500 503) | `api/recovery.go:27-30`, `contracts/recovery-admission.md` |
+| M10 | `POST /api/v0/admin/refinalize` | Admin | `paths/status/admin.go` (refinalize row: 200 400 409 500 503) | `api/recovery.go:27-30`, `contracts/recovery-admission.md` |
+| M11 | `POST /api/v0/admin/recover-generations` | Admin | `paths/status/admin.go` (recover-generations row: 200 400 403 409 500 503) | `api/recovery.go:27-30`, `contracts/recovery-admission.md` |
+| M12 | `PATCH /api/v0/auth/admin/sign-in-policy` | SignInPolicyMutations | `paths/auth/sign_in_policy.go` (sign-in-policy row: 200 400 403 500 503) | `api/signin.go:17`, `contracts/sign-in-admission.md:4` + W7-writers line 55 |
+| M13 | `GET /api/v0/auth/oidc/login` | OIDCLogin | `paths/auth/routes.go` (login row: 302 400 401 500 503) | `api/d9.go:37-38`, `contracts/d9-oidc-login.md:46-49` |
+| M14 | `GET /api/v0/auth/oidc/callback` | OIDCLogin | `paths/auth/routes.go` (callback row: 201 303 400 401 403 500 503) | `api/d9.go:37-38`, `contracts/d9-oidc-login.md` |
+| M15 | `GET /api/v0/auth/github/login` | GitHubLogin | `paths/auth/routes.go` (login row: 302 400 401 500 503) | `api/d9github.go:38-39`, `contracts/d9-github-login.md:47-50` |
+| M16 | `GET /api/v0/auth/github/callback` | GitHubLogin | `paths/auth/routes.go` (callback row: 201 303 400 401 403 500 503) | `api/d9github.go:38-39`, `contracts/d9-github-login.md` |
+| M17 | `GET /api/v0/auth/saml/providers/{provider_id}/metadata` | SAML | `paths/auth/routes.go` (metadata row: 200 404 500 503) | `api/d9saml.go:39`, `contracts/d9-saml-login.md:54-61` — census read, lane rider |
+| M18 | `GET /api/v0/auth/saml/providers/{provider_id}/login` | SAML | `paths/auth/routes.go` (login row: 302 404 500 503) | `api/d9saml.go:40`, `contracts/d9-saml-login.md` |
+| M19 | `POST /api/v0/auth/saml/providers/{provider_id}/acs` | SAML | `paths/auth/routes.go` (acs row: 201 303 400 401 500 503) | `api/d9saml.go:41`, `contracts/d9-saml-login.md` |
 
 ## Wave-0 G2 stub record
 
