@@ -1,19 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/repository_retirements_census_lock_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10820 disposable PostgreSQL 18 deadlock probes for the census 2e purge statements: each probe parks an in-flight writer ahead of the purge in that writer's own lock order and proves the purge waits without a 40P01 cycle (the real relationship generation claim activation statements, infra and config-artifact derive advisory locks, service materialization)"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/repository_retirements_derived_explain_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10054 before and after EXPLAIN of the retirement statements at 100,000 scopes on the real schema; a measurement that also needs ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary lane"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/repository_retirements_derived_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10054 disposable PostgreSQL 18 proof that an operator retirement removes the derived Go reachability scope: purge, preview equals ledger, neighbor and longer-id scopes untouched, winners capture, budget attribution, graph-key capture"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/repository_retirements_derived_race_live_test.go
     tag: ~
     class: postgres_ci
