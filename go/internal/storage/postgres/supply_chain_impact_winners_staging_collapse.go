@@ -49,10 +49,11 @@ const winnersStagingTable = "supply_chain_impact_winners_dirty_staging"
 const defaultWinnersStagingCollapseMaxRows = 50000
 
 // selectWinnersStagingCollapseStatsSQL reads one row for the collapse
-// budget: how many rows are staged, the newest staged seq, and the oldest
-// staged capture time.
+// budget: how many rows are staged and the newest staged seq. The oldest
+// staged capture time is read by the union stats query that feeds the
+// staging age gauge, not here.
 const selectWinnersStagingCollapseStatsSQL = `
-SELECT count(*), COALESCE(max(seq), 0), min(captured_at)
+SELECT count(*), COALESCE(max(seq), 0)
 FROM supply_chain_impact_winners_dirty_staging
 `
 
@@ -179,8 +180,7 @@ func collapseWinnersStaging(ctx context.Context, tx db.Transaction, maxRows int6
 		maxRows = defaultWinnersStagingCollapseMaxRows
 	}
 	var staged, maxSeq int64
-	var oldest sql.NullTime
-	if err := scanWinnersStagingRow(ctx, tx, selectWinnersStagingCollapseStatsSQL, "read supply chain impact winners staging stats", &staged, &maxSeq, &oldest); err != nil {
+	if err := scanWinnersStagingRow(ctx, tx, selectWinnersStagingCollapseStatsSQL, "read supply chain impact winners staging stats", &staged, &maxSeq); err != nil {
 		return outcome, err
 	}
 	if staged == 0 {
@@ -256,9 +256,9 @@ func stagingUnionRemaining(logRemaining int64, logMin sql.NullTime, stagingCount
 	}
 }
 
-// scanWinnersStagingRow runs a one-row (count, seq, timestamptz) staging
-// query and drains its cursor.
-func scanWinnersStagingRow(ctx context.Context, q db.Queryer, query, what string, count, seq *int64, oldest *sql.NullTime) error {
+// scanWinnersStagingRow runs a one-row (count, seq) staging query and
+// drains its cursor.
+func scanWinnersStagingRow(ctx context.Context, q db.Queryer, query, what string, count, seq *int64) error {
 	rows, err := q.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("%s: %w", what, err)
@@ -272,8 +272,7 @@ func scanWinnersStagingRow(ctx context.Context, q db.Queryer, query, what string
 	}
 	var n int64
 	var s int64
-	var t sql.NullTime
-	if err := rows.Scan(&n, &s, &t); err != nil {
+	if err := rows.Scan(&n, &s); err != nil {
 		return fmt.Errorf("%s: %w", what, err)
 	}
 	if rows.Next() {
@@ -287,7 +286,6 @@ func scanWinnersStagingRow(ctx context.Context, q db.Queryer, query, what string
 	}
 	*count = n
 	*seq = s
-	*oldest = t
 	return nil
 }
 

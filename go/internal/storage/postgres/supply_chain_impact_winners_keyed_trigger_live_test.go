@@ -209,7 +209,6 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'claimed', 1, 'owner-9805', now
 			// staging queue (#10837 direction C stages every capture).
 			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-			h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 			return h, scopeA, scopeB
 		}
 		sourceRows := func(h *keyedHarness) int {

@@ -45,7 +45,6 @@ func TestSupplyChainImpactWinnersDirtyReMarkSurvivesLive(t *testing.T) {
 	// under test.
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
 	const pkg, cve = "pkg:npm/10837-survive", "CVE-2026-9001"
 	first := keyedFinding(cve, pkg, 5)

@@ -76,11 +76,13 @@ Role-bound logins need grants for the application-code capture only. The pointer
 scope-delete and scanner trigger functions run as their owner (`SECURITY
 DEFINER` with a pinned `search_path`), so the projector, collector, retirement
 fence, suppression store and scanner publisher logins need no privilege on the
-dirty log. A database that uses least-privilege writer logins must grant `INSERT`
-on `supply_chain_impact_winners_dirty_log` and `USAGE` on its
-`supply_chain_impact_winners_dirty_log_seq_seq` sequence to the login that runs
-the impact writer (the reducer), and `SELECT`, `INSERT` and `DELETE` plus the
-same sequence `USAGE` to the winners maintainer, which also needs `SELECT`,
+dirty log or the staging table. A database that uses least-privilege writer logins
+must grant `INSERT` on `supply_chain_impact_winners_dirty_staging` and `USAGE` on
+its `supply_chain_impact_winners_dirty_staging_seq` sequence to the login that
+runs the impact writer (the reducer), and `SELECT`, `INSERT` and `DELETE` on the
+staging table plus the same sequence `USAGE` to the winners maintainer, which
+also keeps its `SELECT`, `INSERT` and `DELETE` on `supply_chain_impact_winners_dirty_log`
+(the collapse merge-upsert and the settle drain both write it) and needs `SELECT`,
 `INSERT`, `UPDATE` and `DELETE` on `supply_chain_impact_winners_dirty_tally`:
 its two drain statements keep per-minute buckets, held for three hours, of
 the NVD-proxy and NVD scope rows they delete there, so the NVD baseline trip sampler (the coordinator login) can read
