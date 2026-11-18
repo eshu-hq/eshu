@@ -412,26 +412,32 @@ WHERE c.oid = 'supply_chain_impact_canonical_winners'::regclass
 const countWinnersKeyedIdentsSQL = `SELECT count(*) FROM ` + winnersKeyedIdentsTable
 
 // selectWinnersDirtyLogStatsSQL reads the dirty log's depth and the age of its
-// oldest row.
+// oldest row, unioned with the staging queue's (#10837 direction C). The
+// maintainer samples before the tick's collapse, so the gauges must see the
+// staged rows too; the tick's remaining/horizon math unions the same two sets
+// after the collapse.
 const selectWinnersDirtyLogStatsSQL = `
-SELECT count(*), COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - min(captured_at)), 0)::float8
-FROM supply_chain_impact_winners_dirty_log
+SELECT COALESCE(l.c, 0) + COALESCE(s.c, 0),
+    COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - LEAST(COALESCE(l.m, s.m), COALESCE(s.m, l.m))), 0)::float8,
+    COALESCE(s.c, 0),
+    COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - s.m), 0)::float8
+FROM (SELECT count(*) AS c, min(captured_at) AS m FROM supply_chain_impact_winners_dirty_log) AS l,
+     (SELECT count(*) AS c, min(captured_at) AS m FROM supply_chain_impact_winners_dirty_staging) AS s
 `
 
-// captureWinnersDirtyFactsSQL upserts the writer's changed identifiers into
-// the dirty log, in the writer's own transaction (#10827). One row per
-// pending recompute unit: a re-mark of a queued key bumps only
-// dirty_version, keeping the first mark's captured_at. The SELECT feeds rows
-// in conflict-key order (matching the Go sort in CaptureWinnersDirtyFacts),
-// so this statement takes row locks in the one total order; ordering across
-// the several batches of one transaction is #10851.
+// captureWinnersDirtyFactsSQL stages the writer's changed identifiers, in
+// the writer's own transaction (#10837 direction C). One row per mark: a
+// re-mark of a queued key appends another staged row instead of waiting on
+// the log's conflict arbiter, and the maintainer tick's collapse restores
+// the version math (dirty_version += staged marks, first captured_at and
+// first-marker source win). The Go sort in CaptureWinnersDirtyFacts still
+// deduplicates one statement's identifiers, so one statement never stages
+// one unit twice; the SELECT needs no ORDER BY (no locks to take in order)
+// and no ON CONFLICT (no unique index on the hot path).
 const captureWinnersDirtyFactsSQL = `
-INSERT INTO supply_chain_impact_winners_dirty_log
+INSERT INTO supply_chain_impact_winners_dirty_staging
     (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
 SELECT 'fact', 'fact_upsert', package_id, repository_id, subject_digest, c0, advisory_id
 FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
      AS ident(package_id, repository_id, subject_digest, c0, advisory_id)
-ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
 `

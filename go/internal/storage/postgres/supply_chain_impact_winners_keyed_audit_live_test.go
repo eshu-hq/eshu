@@ -29,11 +29,11 @@ WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
 	if audit.Repairs != 1 {
 		t.Fatalf("audit repairs = %d, want exactly the one stale key", audit.Repairs)
 	}
-	if depth := h.dirtyDepth(); depth != 1 {
-		t.Fatalf("dirty log depth after the audit = %d, want the one repaired key queued", depth)
+	if depth := h.stagingDepth(); depth != 1 {
+		t.Fatalf("staging depth after the audit = %d, want the one repaired key staged", depth)
 	}
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = 'audit'`); got != 1 {
-		t.Fatalf("audit-sourced dirty rows = %d, want 1", got)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE source = 'audit'`); got != 1 {
+		t.Fatalf("audit-sourced staged rows = %d, want 1", got)
 	}
 	h.keyed()
 	h.assertParity("after the audit repair")
@@ -68,13 +68,13 @@ func TestSupplyChainImpactWinnersResweepAuditDoesNotCountPendingKeysLive(t *test
 	h.addGeneration(scopeB, scopeB+"/g2", "pending")
 	h.write(scopeB, scopeB+"/g2", keyedFinding("CVE-2026-2003", "pkg:npm/z", 1))
 	h.activate(scopeB, scopeB+"/g1", scopeB+"/g2") // leaves scope rows pending
-	pending := h.dirtyDepth()
+	pending := h.pendingDepth()
 	audit, err := h.store.AuditWinners(h.ctx)
 	if err != nil || audit.Repairs != 0 {
 		t.Fatalf("audit over pending changes = %+v, %v; want zero repairs", audit, err)
 	}
-	if after := h.dirtyDepth(); after != pending {
-		t.Fatalf("dirty log depth moved from %d to %d: the audit appended keys that were already pending", pending, after)
+	if after := h.pendingDepth(); after != pending {
+		t.Fatalf("pending depth moved from %d to %d: the audit appended keys that were already pending", pending, after)
 	}
 	h.keyed()
 	h.assertParity("after pending keys")

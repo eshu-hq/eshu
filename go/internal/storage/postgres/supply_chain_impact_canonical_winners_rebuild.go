@@ -167,6 +167,11 @@ type SupplyChainImpactWinnersStore struct {
 	// supply_chain_impact_winners_keyed_chunk.go.
 	ChunkMaxDirtyRows   int
 	ChunkMaxIdentifiers int
+	// StagingCollapseMaxRows bounds one tick's staging collapse (#10837
+	// direction C): at most this many staged rows fold into the dirty log
+	// before admission. Zero means the default in
+	// supply_chain_impact_winners_staging_collapse.go.
+	StagingCollapseMaxRows int
 	// Instruments records the wall time of each phase of a keyed tick (#9975).
 	// Nil records nothing and changes no statement.
 	Instruments *telemetry.Instruments

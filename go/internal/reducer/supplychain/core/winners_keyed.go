@@ -81,10 +81,14 @@ type SupplyChainImpactWinnersAuditor interface {
 }
 
 // SupplyChainImpactWinnersDirtyStats is the dirty log's depth and the age of
-// its oldest row, sampled every tick.
+// its oldest row, sampled every tick. Depth unions the log and the staging
+// queue (#10837 direction C); StagingDepth and StagingOldestAge carry the
+// staging queue's own backlog for its gauges.
 type SupplyChainImpactWinnersDirtyStats struct {
-	Depth     int64
-	OldestAge time.Duration
+	Depth            int64
+	OldestAge        time.Duration
+	StagingDepth     int64
+	StagingOldestAge time.Duration
 }
 
 // SupplyChainImpactWinnersDirtyLogReader reads the dirty log's depth and age.

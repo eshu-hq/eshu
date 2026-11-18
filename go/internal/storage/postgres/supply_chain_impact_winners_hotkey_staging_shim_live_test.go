@@ -100,6 +100,25 @@ FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
      AS ident(package_id, repository_id, subject_digest, c0, advisory_id)
 `
 
+// hotkeyShimDirectUpsertSQL is the frozen pre-#10837-direction-C capture
+// statement: the K-ordered versioned upsert the "upsert" cell times as the
+// contended baseline. Production no longer ships it (every capture owner
+// stages now), but the freeze keeps the shim's theory comparison — staging
+// plain INSERT vs contended upsert over the same shared hot-key shape —
+// re-runnable on one host in one run. It targets the versioned log the
+// direction-C collapse merges into, and it must stay byte-identical to the
+// retired statement: a drift here silently redefines the baseline.
+const hotkeyShimDirectUpsertSQL = `
+INSERT INTO supply_chain_impact_winners_dirty_log
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
+SELECT 'fact', 'fact_upsert', package_id, repository_id, subject_digest, c0, advisory_id
+FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
+     AS ident(package_id, repository_id, subject_digest, c0, advisory_id)
+ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
+ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
+DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
+`
+
 // hotkeyShimCollapseSQL is the collapse operator the theory needs: one pass
 // over the staged wave, key-ordered (the merge into the dirty log keeps the
 // shipped K order), carrying the conservation inputs per key (mark count for
@@ -154,11 +173,12 @@ func TestSupplyChainImpactWinnersHotkeyStagingShimLive(t *testing.T) {
 		return out
 	}
 
-	// Seed every writer's private tail so the upsert cell never mixes
-	// inserts with bumps (the hot keys are already seeded above).
+	// Seed every writer's private tail through the frozen direct arm so the
+	// upsert cell never mixes inserts with bumps (the hot keys are already
+	// seeded above).
 	for w := 0; w < 4; w++ {
 		pkgs := hotkeyShimKeys(w)[hotkeyShimHotKeys:]
-		if _, err := database.ExecContext(ctx, captureWinnersDirtyFactsSQL,
+		if _, err := database.ExecContext(ctx, hotkeyShimDirectUpsertSQL,
 			pkgs, sized(len(pkgs), repos), sized(len(pkgs), digest),
 			sized(len(pkgs), cve), sized(len(pkgs), cve)); err != nil {
 			t.Fatalf("seed writer %d tail: %v", w, err)
@@ -178,8 +198,8 @@ func TestSupplyChainImpactWinnersHotkeyStagingShimLive(t *testing.T) {
 			strings.Contains(err.Error(), "deadlock detected"))
 	}
 
-	// runUpsertStratum hammers the SHIPPED capture upsert with writers
-	// concurrent writers over the shared hot keys and returns every
+	// runUpsertStratum hammers the frozen pre-direction-C capture upsert with
+	// writers concurrent writers over the shared hot keys and returns every
 	// statement latency. Same-order K-locked updates serialize through
 	// waiting here (the effect the disjoint-key gate cannot see).
 	runUpsertStratum := func(writers, iters int) []time.Duration {
@@ -198,7 +218,7 @@ func TestSupplyChainImpactWinnersHotkeyStagingShimLive(t *testing.T) {
 				local := make([]time.Duration, 0, iters)
 				for i := -2; i < iters; i++ {
 					begin := time.Now()
-					_, err := database.ExecContext(ctx, captureWinnersDirtyFactsSQL,
+					_, err := database.ExecContext(ctx, hotkeyShimDirectUpsertSQL,
 						pkgs, reposArr, digestArr, cveArr, cveArr)
 					elapsed := time.Since(begin)
 					if err != nil {

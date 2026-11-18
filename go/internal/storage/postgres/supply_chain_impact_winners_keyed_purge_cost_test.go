@@ -42,6 +42,7 @@ func runWinnersPurgeCost(h *keyedHarness, corpus winnersScaleCorpus, n int) stri
 	batch := corpus.findingsFrom(corpus.findings, n)
 	h.write(scope, scope+"/g1", batch...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
 	var out strings.Builder
 	fmt.Fprintf(&out, "purge_cost scope_findings=%d host_load1=%s\n", n, hostLoad())
@@ -76,6 +77,9 @@ WHERE fact.scope_id = $1 AND fact.fact_kind = 'reducer_supply_chain_impact_findi
 	}
 	if _, err := tx.ExecContext(h.ctx, `DELETE FROM supply_chain_impact_winners_dirty_log`); err != nil {
 		h.t.Fatalf("clear measured capture rows: %v", err)
+	}
+	if _, err := tx.ExecContext(h.ctx, `DELETE FROM supply_chain_impact_winners_dirty_staging`); err != nil {
+		h.t.Fatalf("clear staging: %v", err)
 	}
 	del, err := tx.QueryContext(h.ctx, `EXPLAIN (ANALYZE, BUFFERS) DELETE FROM ingestion_scopes WHERE scope_id = $1`, scope)
 	if err != nil {

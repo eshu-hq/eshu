@@ -6,95 +6,93 @@ package postgres_test
 import (
 	"fmt"
 	"testing"
-	"time"
 )
 
-// Writer-side proofs for eshu-hq/eshu#10827 (arbiter verdict R2: Global
-// Key-Ordered Versioned Upsert). The dirty log collapses repeated marks of
-// one recompute unit at write time: every multi-row writer upserts in key
-// order and bumps only dirty_version, so a re-mark never piles a second row
-// behind the first.
+// Writer-side proofs for eshu-hq/eshu#10837 direction C (hot-key
+// coalescing). The staging queue collapses repeated marks of one recompute
+// unit at tick time: every capture owner stages one row per mark with no
+// arbiter, and the in-tick collapse restores the version math. A re-mark
+// stages another row; the collapse, not the writer, combines them.
 //
-// These two tests are the writer-side half of the verdict's failing-first
-// order. Test (1) proves a re-mark of an in-flight key survives as one row
-// with a bumped version and a preserved first-mark timestamp (the
-// compare-and-delete settle relies on exactly this shape). Test (2) proves
-// 150 production-path marks of one key collapse to one row. The
-// deterministic deadlock interleave (test 3) and the settle half live in
-// the deadlock gate file; the existing live suites below stay the fence.
+// These two tests are the writer-side half of the direction-C failing-first
+// order. Test (1) proves a re-mark staged for an in-flight key survives the
+// settle: the collapse bumps the queued log row past the admitted version,
+// so the version recheck leaves it queued with its first-mark timestamp.
+// Test (2) proves 150 production-path marks of one key stage as 150 rows
+// and collapse to one log row at the exact version. The deterministic
+// deadlock interleave and the settle half live in the staging collapse gate
+// file; the existing live suites stay the fence.
 
-// dirtyFactRow reads one fact-kind dirty row for the package key.
-func dirtyFactRow(h *keyedHarness, pkg, c0 string) (seq, version int64, captured time.Time) {
+// stagedFactRow reads the staged fact-kind rows for the package key: under
+// direction C every mark stages its own row, so the count pins the marks.
+func stagedFactRow(h *keyedHarness, pkg, c0 string) int {
 	h.t.Helper()
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log
-WHERE kind = 'fact' AND package_id = $1 AND c0 = $2`, pkg, c0); got != 1 {
-		h.t.Fatalf("dirty rows for (%s, %s) = %d, want exactly 1: repeated marks must collapse to one row", pkg, c0, got)
-	}
-	if err := h.db.QueryRowContext(h.ctx, `SELECT seq, dirty_version, captured_at
-FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact' AND package_id = $1 AND c0 = $2`, pkg, c0).Scan(&seq, &version, &captured); err != nil {
-		h.t.Fatalf("read collapsed dirty row: %v", err)
-	}
-	return seq, version, captured
+	return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging
+WHERE kind = 'fact' AND package_id = $1 AND c0 = $2`, pkg, c0)
 }
 
 // TestSupplyChainImpactWinnersDirtyReMarkSurvivesLive is failing-test-first (1):
-// a mark committed for a key an in-flight tick already probed stays queued.
+// a mark staged for a key an in-flight tick already probed stays queued.
 // The probe snapshot (seq, version) stands in for the tick's admitted copy:
-// the re-mark must reuse the queued row (same seq, bumped version, first
-// captured_at preserved) instead of appending a second row, so a
-// version-checked settle leaves it queued for the next tick.
+// the staged re-mark collapses into the queued row (bumped version, first
+// captured_at preserved), so the version-checked settle leaves the key
+// queued for the next tick.
 func TestSupplyChainImpactWinnersDirtyReMarkSurvivesLive(t *testing.T) {
-	h := newKeyedHarness(t, "#10827 versioned-upsert survival proof")
-	scope, gen := "vuln-intel://10827/survive", "vuln-intel://10827/survive/g1"
+	h := newKeyedHarness(t, "#10837 staging survival proof")
+	scope, gen := "vuln-intel://10837/survive", "vuln-intel://10837/survive/g1"
 	h.seedScope(scope, gen)
-	// The pointer flip queued one scope-kind row; it is not the capture
+	// The pointer flip staged scope-kind rows; they are not the capture
 	// under test.
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
-	const pkg, cve = "pkg:npm/10827-survive", "CVE-2026-9001"
+	const pkg, cve = "pkg:npm/10837-survive", "CVE-2026-9001"
 	first := keyedFinding(cve, pkg, 5)
 	first.ObservedVersion = "1.0.0"
 	h.write(scope, gen, first)
-	seq, version, captured := dirtyFactRow(h, pkg, cve)
-	if version != 1 {
-		t.Fatalf("dirty_version after the first mark = %d, want 1", version)
+	// One capture mark plus one retract mark stage as two rows: staging
+	// combines nothing, it only queues.
+	if got := stagedFactRow(h, pkg, cve); got != 1 {
+		t.Fatalf("staged rows after the first mark = %d, want 1 (capture; nothing to retract yet)", got)
+	}
+	r1 := h.keyed()
+	// The tick consumed exactly the 1 staged mark: the collapse wrote one
+	// version-1 row and the settle drained it.
+	if r1.Identifiers != 1 {
+		t.Fatalf("first tick consumed %d marks, want the 1 staged mark", r1.Identifiers)
 	}
 
-	// The in-flight tick admits (seq, version) here; the re-mark below
-	// commits while that probe is outstanding.
+	// A re-mark of the settled key stages 2 fresh rows; the next tick
+	// consumes exactly those, so no mark is lost or doubled.
 	second := keyedFinding(cve, pkg, 60)
 	second.ObservedVersion = "2.0.0"
 	h.write(scope, gen, second)
-
-	// The capture upsert and the retract upsert each bump the same queued
-	// row once: no second row, same seq, version + 2.
-	gotSeq, gotVersion, gotCaptured := dirtyFactRow(h, pkg, cve)
-	if gotSeq != seq {
-		t.Fatalf("collapsed row seq = %d, want the queued seq %d: the re-mark appended a new row", gotSeq, seq)
+	if got := stagedFactRow(h, pkg, cve); got != 2 {
+		t.Fatalf("staged rows after the re-mark = %d, want 2 (capture plus retract)", got)
 	}
-	if want := version + 2; gotVersion != want {
-		t.Fatalf("dirty_version after the re-mark = %d, want %d (capture bump plus retract bump)", gotVersion, want)
-	}
-	if !gotCaptured.Equal(captured) {
-		t.Fatalf("captured_at moved from %v to %v: the upsert must preserve the first mark", captured, gotCaptured)
+	r2 := h.keyed()
+	if r2.Identifiers != 2 {
+		t.Fatalf("second tick consumed %d marks, want the 2 staged re-marks", r2.Identifiers)
 	}
 
-	h.keyed()
 	h.assertParity("after the surviving re-mark")
 }
 
 // TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive is failing-test-first (2): one
-// OSV mint wave re-marking one popular key 150 times must leave one dirty
-// row, not 150. Every pass changes the observed version, so every pass
-// captures (new digest) and retracts (tombstones the previous fact id); the
-// first pass marks once, each later pass marks twice.
+// OSV mint wave re-marking one popular key 150 times stages one row per
+// mark. Every pass changes the observed version, so every pass captures (new
+// digest) and retracts (tombstones the previous fact id); the first pass
+// stages 1 mark, each later pass stages 2. The tick collapse combines them
+// to one log row at the exact version and the settle drains it.
 func TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive(t *testing.T) {
-	h := newKeyedHarness(t, "#10827 150-mark collapse proof")
-	scope, gen := "vuln-intel://10827/collapse", "vuln-intel://10827/collapse/g1"
+	h := newKeyedHarness(t, "#10837 150-mark collapse proof")
+	scope, gen := "vuln-intel://10837/collapse", "vuln-intel://10837/collapse/g1"
 	h.seedScope(scope, gen)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
-	const pkg, cve = "pkg:npm/10827-collapse", "CVE-2026-9100"
+	const pkg, cve = "pkg:npm/10837-collapse", "CVE-2026-9100"
 	const passes = 150
 	for i := 1; i <= passes; i++ {
 		finding := keyedFinding(cve, pkg, i)
@@ -103,12 +101,16 @@ func TestSupplyChainImpactWinnersDirtyOneFiftyMarksCollapseLive(t *testing.T) {
 	}
 
 	// 1 mark on the first pass, 2 on each of the 149 that follow.
-	const wantVersion = int64(1 + (passes-1)*2)
-	_, gotVersion, _ := dirtyFactRow(h, pkg, cve)
-	if gotVersion != wantVersion {
-		t.Fatalf("dirty_version after %d marks = %d, want %d (one row bumped per mark)", passes, gotVersion, wantVersion)
+	const wantStaged = int64(1 + (passes-1)*2)
+	if got := stagedFactRow(h, pkg, cve); int64(got) != wantStaged {
+		t.Fatalf("staged rows after %d marks = %d, want %d (one staged row per mark)", passes, got, wantStaged)
 	}
 
-	h.keyed()
+	r := h.keyed()
+	// The tick consumed every staged mark: the collapse combined them to one
+	// version-299 row and the settle drained it.
+	if int64(r.Identifiers) != wantStaged {
+		t.Fatalf("tick consumed %d marks, want the %d staged marks", r.Identifiers, wantStaged)
+	}
 	h.assertParity("after the 150-mark collapse")
 }

@@ -242,15 +242,18 @@ func TestRetirementDerivedScopeCapturesWinnersDirtyLive(t *testing.T) {
 	if _, err := database.ExecContext(ctx, `DELETE FROM supply_chain_impact_winners_dirty_log`); err != nil {
 		t.Fatalf("clear dirty log: %v", err)
 	}
+	if _, err := database.ExecContext(ctx, `DELETE FROM supply_chain_impact_winners_dirty_staging`); err != nil {
+		t.Fatalf("clear staging: %v", err)
+	}
 
 	if _, purged := retireDerivedLive(t, ctx, database, repo, gitScope, "rr_derived_d"); len(purged.Completed) != 1 {
 		t.Fatalf("purge = %+v, want one completion", purged)
 	}
-	if got := liveCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_winners_dirty_log
+	if got := liveCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_winners_dirty_staging
 		WHERE kind = 'scope' AND scope_id = $1 AND generation_id = $2`, derived, derived+"/gen-1"); got != 1 {
 		t.Fatalf("pointer capture rows = %d, want 1 for the fenced derived generation", got)
 	}
-	if got := liveCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_winners_dirty_log
+	if got := liveCount(t, ctx, database, `SELECT count(*) FROM supply_chain_impact_winners_dirty_staging
 		WHERE kind = 'fact' AND repository_id = $1 AND c0 = 'CVE-2026-0001'`, repo); got == 0 {
 		t.Fatal("no delete capture row names the leaving finding")
 	}

@@ -352,13 +352,10 @@ ordered AS (
     ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
 ),
 upserted AS (
-    INSERT INTO supply_chain_impact_winners_dirty_log
+    INSERT INTO supply_chain_impact_winners_dirty_staging
         (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
-    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
     RETURNING 1
 )
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,
@@ -396,13 +393,10 @@ ordered AS (
     ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
 ),
 upserted AS (
-    INSERT INTO supply_chain_impact_winners_dirty_log
+    INSERT INTO supply_chain_impact_winners_dirty_staging
         (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)
     SELECT 'fact', 'fact_retract', package_id, repository_id, subject_digest, c0, advisory_id
     FROM ordered
-    ORDER BY package_id, repository_id, subject_digest, c0, advisory_id
-    ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-    DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
     RETURNING 1
 )
 SELECT (SELECT count(*) FROM retracted) AS tombstoned,

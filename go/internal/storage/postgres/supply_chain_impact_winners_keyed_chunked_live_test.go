@@ -36,17 +36,19 @@ func chunkedTick(h *keyedHarness) supplychaincore.SupplyChainImpactWinnersReswee
 	return result
 }
 
-// chunkedDrain ticks until the dirty log is empty and returns the ticks run.
+// chunkedDrain ticks until the log and the staging queue are both empty and
+// returns the ticks run (#10837 direction C stages every capture, so the
+// queue is pending work too).
 func chunkedDrain(h *keyedHarness) []supplychaincore.SupplyChainImpactWinnersResweep {
 	h.t.Helper()
 	var ticks []supplychaincore.SupplyChainImpactWinnersResweep
 	for range 50 {
-		if h.dirtyDepth() == 0 {
+		if h.pendingDepth() == 0 {
 			return ticks
 		}
 		ticks = append(ticks, chunkedTick(h))
 	}
-	h.t.Fatalf("dirty log never drained after 50 chunked ticks (depth %d)", h.dirtyDepth())
+	h.t.Fatalf("dirty backlog never drained after 50 chunked ticks (depth %d)", h.pendingDepth())
 	return ticks
 }
 
@@ -70,6 +72,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 
 	h.write("vuln-intel://9805-chunked/s1", "vuln-intel://9805-chunked/s1/g1", chunkedFindings("chunk", 12, 2, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -79,8 +82,8 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	// dirty at once (24 post-expansion identifiers), a backlog far past one
 	// bounded transaction.
 	h.write("vuln-intel://9805-chunked/s1", "vuln-intel://9805-chunked/s1/g1", chunkedFindings("chunk", 12, 2, 1000)...)
-	if depth := h.dirtyDepth(); depth == 0 {
-		t.Fatal("rewrite left the dirty log empty")
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("rewrite left nothing pending")
 	}
 
 	h.store.ChunkMaxIdentifiers = 10
@@ -134,6 +137,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedSingleIdentLive(t *testing.T
 	h.seedScope("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1")
 	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 5, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -169,13 +173,14 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive(t *tes
 	h.seedScope("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1")
 	h.write("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1", chunkedFindings("adm", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
 	h.write("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1", chunkedFindings("adm", 8, 1, 1000)...)
-	if depth := h.dirtyDepth(); depth != 8 {
-		t.Fatalf("rewrite queued %d dirty rows, want the 8 fact rows", depth)
+	if depth := h.stagingDepth(); depth != 8 {
+		t.Fatalf("rewrite staged %d rows, want the 8 staged fact rows", depth)
 	}
 
 	h.store.ChunkMaxDirtyRows = 3
@@ -216,6 +221,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	h.seedScope(scope, scope+"/g1")
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -224,6 +230,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	h.addGeneration(scope, scope+"/g2", "pending")
 	h.write(scope, scope+"/g2", chunkedFindings("zzz", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact'`)
 	// The four rewritten aaa fact rows predate the activation, so their
 	// identifiers are older than every zzz identifier of the g2 scope row's
 	// expansion.
@@ -231,14 +238,14 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	h.activate(scope, scope+"/g1", scope+"/g2")
 	// The activation queued one scope row per generation side (old and new),
 	// plus the four fact rows for the rewritten aaa findings.
-	if depth := h.dirtyDepth(); depth != 6 {
-		t.Fatalf("queued %d dirty rows, want 4 fact rows plus 2 scope rows", depth)
+	if depth := h.pendingDepth(); depth != 6 {
+		t.Fatalf("queued %d pending rows, want 4 staged fact rows plus 2 staged scope rows", depth)
 	}
 	// The g2 scope row is the newest dirty row: oldest-first applies the
 	// older aaa identifiers before its expansion.
 	var newestKind, newestGen string
 	if err := h.db.QueryRowContext(h.ctx,
-		`SELECT kind, generation_id FROM supply_chain_impact_winners_dirty_log ORDER BY captured_at DESC, seq DESC LIMIT 1`).Scan(&newestKind, &newestGen); err != nil {
+		`SELECT kind, generation_id FROM supply_chain_impact_winners_dirty_staging ORDER BY captured_at DESC, seq DESC LIMIT 1`).Scan(&newestKind, &newestGen); err != nil {
 		t.Fatalf("read newest dirty row: %v", err)
 	}
 	if newestKind != "scope" || newestGen != scope+"/g2" {
@@ -289,6 +296,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive(t *testing.T)
 	h.seedScope(scope, scope+"/g1")
 	h.write(scope, scope+"/g1", chunkedFindings("act", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -297,9 +305,10 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive(t *testing.T)
 	h.addGeneration(scope, scope+"/g2", "pending")
 	h.write(scope, scope+"/g2", chunkedFindings("act", 8, 1, 1000)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact'`)
 	h.activate(scope, scope+"/g1", scope+"/g2")
-	if depth := h.dirtyDepth(); depth == 0 {
-		t.Fatal("activation left the dirty log empty")
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("activation left nothing pending")
 	}
 
 	h.store.ChunkMaxIdentifiers = 3

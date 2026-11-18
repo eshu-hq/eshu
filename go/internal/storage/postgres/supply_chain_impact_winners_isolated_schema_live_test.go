@@ -73,12 +73,12 @@ VALUES ('iso-f1', 'iso-scope', 'iso-g1', $1, 'iso-f1', '1.0.0', 'synthetic', 'is
 		facts.ReducerSupplyChainImpactFindingFactKind)
 
 	exec(`UPDATE ingestion_scopes SET active_generation_id = 'iso-g1' WHERE scope_id = 'iso-scope'`)
-	if got := count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'scope' AND scope_id = 'iso-scope'`); got != 1 {
-		t.Fatalf("pointer move wrote %d scope rows in schema %s, want 1", got, schema)
+	if got := count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'scope' AND scope_id = 'iso-scope'`); got != 1 {
+		t.Fatalf("pointer move staged %d scope rows in schema %s, want 1", got, schema)
 	}
 	exec(`DELETE FROM ingestion_scopes WHERE scope_id = 'iso-scope'`)
-	if got := count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact' AND package_id = 'pkg:npm/iso'`); got != 1 {
-		t.Fatalf("scope delete wrote %d fact rows in schema %s, want 1", got, schema)
+	if got := count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact' AND package_id = 'pkg:npm/iso'`); got != 1 {
+		t.Fatalf("scope delete staged %d fact rows in schema %s, want 1", got, schema)
 	}
 
 	assertWinnersCaptureFunctions(ctx, t, database, schema, 2)
@@ -162,6 +162,7 @@ WHERE tgrelid = 'ingestion_scopes'::regclass AND NOT tgisinternal AND tgname NOT
 		h.exec(`ALTER TABLE ingestion_scopes DISABLE TRIGGER "` + name + `"`)
 	}
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 
 	conn, err := h.db.Conn(h.ctx)
 	if err != nil {
@@ -184,32 +185,32 @@ WHERE tgrelid = 'ingestion_scopes'::regclass AND NOT tgisinternal AND tgname NOT
 // is listed in the search_path. Two probes run as a role with no privilege on
 // the log or on fact_records:
 //
-//   - a temporary table named like the dirty log, then a pointer move: the
-//     capture row must land in the real log, not the caller's table;
+//   - a temporary table named like the staging queue, then a pointer move: the
+//     capture row must land in the real queue, not the caller's table;
 //   - a temporary table named like fact_records holding a forged finding of the
-//     scope, then a scope delete: the real log must hold the scope's real
+//     scope, then a scope delete: the real queue must hold the scope's real
 //     finding identifiers and none of the forged ones.
 func TestSupplyChainImpactWinnersResweepCaptureIgnoresCallerTempTablesLive(t *testing.T) {
 	h := newKeyedHarness(t, "#9805 definer pg_temp shadow proof")
 	scopeA, scopeB := keyedSeedSettled(h)
 	conn := logBlindConn(h)
 
-	if _, err := conn.ExecContext(h.ctx, `CREATE TEMP TABLE supply_chain_impact_winners_dirty_log
+	if _, err := conn.ExecContext(h.ctx, `CREATE TEMP TABLE supply_chain_impact_winners_dirty_staging
 (kind text, source text, scope_id text, generation_id text)`); err != nil {
-		t.Fatalf("shadow the dirty log: %v", err)
+		t.Fatalf("shadow the staging queue: %v", err)
 	}
 	if _, err := conn.ExecContext(h.ctx, `UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = $1`, scopeA); err != nil {
 		t.Fatalf("pointer move beside a shadow log: %v", err)
 	}
 	var shadowed int
-	if err := conn.QueryRowContext(h.ctx, `SELECT count(*) FROM pg_temp.supply_chain_impact_winners_dirty_log`).Scan(&shadowed); err != nil {
-		t.Fatalf("count shadow log rows: %v", err)
+	if err := conn.QueryRowContext(h.ctx, `SELECT count(*) FROM pg_temp.supply_chain_impact_winners_dirty_staging`).Scan(&shadowed); err != nil {
+		t.Fatalf("count shadow staging rows: %v", err)
 	}
 	if shadowed != 0 {
 		t.Errorf("the pointer capture wrote %d rows into the caller's temporary table: the definer function resolves names through pg_temp", shadowed)
 	}
-	if real := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_log WHERE kind = 'scope' AND scope_id = $1`, scopeA); real != 1 {
-		t.Errorf("the real log holds %d scope rows for the pointer move, want 1: the capture was diverted", real)
+	if real := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_staging WHERE kind = 'scope' AND scope_id = $1`, scopeA); real != 1 {
+		t.Errorf("the real staging queue holds %d scope rows for the pointer move, want 1: the capture was diverted", real)
 	}
 
 	if _, err := conn.ExecContext(h.ctx, `CREATE TEMP TABLE fact_records
@@ -224,10 +225,10 @@ func TestSupplyChainImpactWinnersResweepCaptureIgnoresCallerTempTablesLive(t *te
 	if _, err := conn.ExecContext(h.ctx, `DELETE FROM ingestion_scopes WHERE scope_id = $1`, scopeB); err != nil {
 		t.Fatalf("scope delete beside a shadow fact_records: %v", err)
 	}
-	if forged := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_log WHERE package_id = 'pkg:INJECTED'`); forged != 0 {
-		t.Fatalf("the real log holds %d forged identifiers: the definer function read the caller's temporary fact_records", forged)
+	if forged := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_staging WHERE package_id = 'pkg:INJECTED'`); forged != 0 {
+		t.Fatalf("the real staging queue holds %d forged identifiers: the definer function read the caller's temporary fact_records", forged)
 	}
-	if real := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_log WHERE kind = 'fact' AND source = 'activation'`); real < 1 {
-		t.Fatalf("the real log holds %d fact rows for the scope delete, want at least 1", real)
+	if real := h.count(`SELECT count(*) FROM public.supply_chain_impact_winners_dirty_staging WHERE kind = 'fact' AND source = 'activation'`); real < 1 {
+		t.Fatalf("the real staging queue holds %d fact rows for the scope delete, want at least 1", real)
 	}
 }

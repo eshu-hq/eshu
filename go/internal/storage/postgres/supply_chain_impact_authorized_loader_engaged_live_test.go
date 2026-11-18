@@ -87,11 +87,13 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
-		// The impact writer names the winners it changed in the same transaction
-		// (#9805), so the worker login needs the dirty log: a DBA pregrant outside
-		// the migration set, as the protected-publish proof grants it.
-		// UPDATE is required since #10827 turned the capture into a versioned
-		// upsert (ON CONFLICT DO UPDATE bumps dirty_version).
+		// The impact writer stages the winners it changed in the same transaction
+		// (#9805, #10837 direction C), so the worker login needs the staging
+		// queue: a DBA pregrant outside the migration set, as the
+		// protected-publish proof grants it (INSERT plus the ordering
+		// sequence; no UPDATE, no arbiter).
+		`GRANT INSERT ON supply_chain_impact_winners_dirty_staging TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_staging_seq TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
 		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
 	} {

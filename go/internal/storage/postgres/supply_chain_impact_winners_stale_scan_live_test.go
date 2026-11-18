@@ -134,11 +134,11 @@ WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
 	if audit.Repairs != 1 {
 		t.Fatalf("stale audit repairs = %d, want exactly the one stale key", audit.Repairs)
 	}
-	if depth := h.dirtyDepth(); depth != 1 {
-		t.Fatalf("dirty log depth after the stale audit = %d, want the one repaired key queued", depth)
+	if depth := h.stagingDepth(); depth != 1 {
+		t.Fatalf("staging depth after the stale audit = %d, want the one repaired key staged", depth)
 	}
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = 'audit'`); got != 1 {
-		t.Fatalf("audit-sourced dirty rows = %d, want 1", got)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE source = 'audit'`); got != 1 {
+		t.Fatalf("audit-sourced staged rows = %d, want 1", got)
 	}
 	h.keyed()
 	h.assertParity("after the stale audit repair")
@@ -299,8 +299,8 @@ CROSS JOIN generate_series(1, $1) AS g`, bogus)
 	if seeds != 2 {
 		t.Fatalf("ident seed batches = %d, want 2 for %d candidates: each INSERT is batch-bounded", seeds, bogus)
 	}
-	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE source = 'audit'`); got != bogus {
-		t.Fatalf("audit-sourced dirty rows = %d, want %d", got, bogus)
+	if got := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging WHERE source = 'audit'`); got != bogus {
+		t.Fatalf("audit-sourced staged rows = %d, want %d", got, bogus)
 	}
 	// The winners table holds advisory_id NOT NULL, so no NULL flows from
 	// this table; the seed's NULL mapping (invalid NullString to a nil

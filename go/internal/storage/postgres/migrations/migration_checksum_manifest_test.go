@@ -414,6 +414,13 @@ var migrationShippedChecksums = map[string]string{
 	"306_supply_chain_impact_winners_dirty_log_scope_key_uniq.sql": "0ed47112a3fa22db2a746caa535312bbbcb1f0aa0ce54e5acf1851324f299250",
 	"307_supply_chain_impact_winners_dirty_capture_upsert.sql":     "4c045b1366f782a783efebc4206b98e4564602bf0ee75ced6eb7ae3668583316",
 	"308_supply_chain_impact_winners_scanner_capture_upsert.sql":   "4f8fc65e03c4344886e4e4fede0aabd5140208373dee57d1c2e8a0a29407610e",
+	// #10837 direction C (hot-key coalescing): the shared staging queue
+	// (309: table, sequence, non-unique seq index; no unique index on the
+	// hot path) and the retarget of the 272 (310) and 272a (311,
+	// public-only) capture triggers to plain staging INSERTs.
+	"309_supply_chain_impact_winners_dirty_staging.sql":           "963ee79c83d78425336901d89f1de03af88eaf060a6eb541e692d5c0908c6aec",
+	"310_supply_chain_impact_winners_staging_capture.sql":         "5a2c3a4ab72315528c184382a6d0937ce8f8facf6efcfb21e3c598c703d6d3f2",
+	"311_supply_chain_impact_winners_scanner_staging_capture.sql": "5b5602347f33b713035f71cf99147ebd7c4f728b2c4abe7cbd15cdd025eae558",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -86,6 +86,21 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
 	bounds := s.chunkBounds()
+	// The staging collapse runs under the resweep lock before the tick-clock
+	// read (#10837 direction C): every staged mark lands in the versioned
+	// log with its version math before admission snapshots the window, so
+	// the tick sees the whole queue and the union below covers only rows
+	// that arrived mid-tick. A rollback restores the staging deletes with the
+	// tick.
+	var collapsed winnersStagingCollapseOutcome
+	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseCollapse, func() error {
+		var err error
+		collapsed, err = collapseWinnersStaging(ctx, tx, int64(s.StagingCollapseMaxRows))
+		return err
+	}); err != nil {
+		return none, err
+	}
+	s.Instruments.RecordSupplyChainImpactWinnersStagingCollapsed(ctx, collapsed.rows)
 	// The tick stamp is read once, before admission (#10706): a row that
 	// commits after this read carries a later captured_at, so stamping S can
 	// never cover a capture the tick did not see. Every branch below stamps
@@ -111,19 +126,28 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			// The window was empty at admission; rows that landed while the
 			// tick ran are still counted now, so an idle tick never stamps
 			// over them: with an empty log it stamps the pre-admission S,
-			// else the horizon H over the rows that arrived mid-tick.
+			// else the horizon H over the rows that arrived mid-tick. The
+			// residual unions the staging queue (#10837 direction C): the
+			// collapse ran before admission, so every staged row is a
+			// mid-tick arrival that the horizon must cover.
 			remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 			if err != nil {
 				return err
 			}
+			var remainingMin sql.NullTime
+			if remainingMin, err = selectWinnersRemainingMin(ctx, tx); err != nil {
+				return err
+			}
+			var stagingCount int64
+			var stagingMin sql.NullTime
+			if stagingCount, stagingMin, err = countWinnersStagingResidual(ctx, tx, "count remaining staging rows"); err != nil {
+				return err
+			}
+			remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, stagingCount, stagingMin)
 			result.Remaining = remaining
 			var candidate time.Time
 			if remaining > 0 {
 				result.Bounded = true
-				var remainingMin sql.NullTime
-				if remainingMin, err = selectWinnersRemainingMin(ctx, tx); err != nil {
-					return err
-				}
 				if candidate, err = horizonCandidate(remainingMin); err != nil {
 					return err
 				}
@@ -371,8 +395,9 @@ func (s SupplyChainImpactWinnersStore) overKeyedCap(ctx context.Context, tx db.T
 	return stored > 0 && float64(idents) > fraction*float64(stored), nil
 }
 
-// DirtyLogStats reads the dirty log's depth and the age of its oldest row, for
-// the operator gauges. An empty log reads as zero depth and zero age.
+// DirtyLogStats reads the dirty log's depth and the age of its oldest row,
+// unioned with the staging queue's (#10837 direction C), for the operator
+// gauges. An empty log and queue read as zero depth and zero age.
 func (s SupplyChainImpactWinnersStore) DirtyLogStats(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersDirtyStats, error) {
 	var stats supplychaincore.SupplyChainImpactWinnersDirtyStats
 	if s.DB == nil {
@@ -386,11 +411,12 @@ func (s SupplyChainImpactWinnersStore) DirtyLogStats(ctx context.Context) (suppl
 	if !rows.Next() {
 		return stats, rows.Err()
 	}
-	var ageSeconds float64
-	if err := rows.Scan(&stats.Depth, &ageSeconds); err != nil {
+	var ageSeconds, stagingAgeSeconds float64
+	if err := rows.Scan(&stats.Depth, &ageSeconds, &stats.StagingDepth, &stagingAgeSeconds); err != nil {
 		return stats, fmt.Errorf("scan supply chain impact winners dirty log stats: %w", err)
 	}
 	stats.OldestAge = time.Duration(ageSeconds * float64(time.Second))
+	stats.StagingOldestAge = time.Duration(stagingAgeSeconds * float64(time.Second))
 	return stats, rows.Err()
 }
 

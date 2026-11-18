@@ -42,6 +42,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstFactLive(t *testing
 	// One identifier that sorts last, four that sort before it.
 	h.write(scope, scope+"/g1", append(chunkedFindings("zzz", 1, 1, 0), chunkedFindings("aaa", 4, 1, 0)...)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -50,19 +51,19 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstFactLive(t *testing
 	// then age the last-sorting row into the oldest capture: the oldest fact
 	// row's identifier sorts last alphabetically.
 	h.write(scope, scope+"/g1", append(chunkedFindings("zzz", 1, 1, 1000), chunkedFindings("aaa", 4, 1, 1000)...)...)
-	if depth := h.dirtyDepth(); depth != 5 {
-		t.Fatalf("rewrite queued %d dirty rows, want the 5 fact rows", depth)
+	if depth := h.pendingDepth(); depth != 5 {
+		t.Fatalf("rewrite queued %d pending rows, want the 5 staged fact rows", depth)
 	}
-	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() - interval '1 hour' WHERE package_id LIKE 'pkg:npm/zzz%'`)
-	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() WHERE package_id NOT LIKE 'pkg:npm/zzz%'`)
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_staging SET captured_at = now() - interval '1 hour' WHERE package_id LIKE 'pkg:npm/zzz%'`)
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_staging SET captured_at = now() WHERE package_id NOT LIKE 'pkg:npm/zzz%'`)
 	before, ok := horizonRemainingMin(h)
 	if !ok {
 		t.Fatal("dirty log is empty before the bounded tick")
 	}
 	var oldestPkg string
 	if err := h.db.QueryRowContext(h.ctx,
-		`SELECT package_id FROM supply_chain_impact_winners_dirty_log ORDER BY captured_at, seq LIMIT 1`).Scan(&oldestPkg); err != nil {
-		t.Fatalf("read oldest dirty row: %v", err)
+		`SELECT package_id FROM supply_chain_impact_winners_dirty_staging ORDER BY captured_at, seq LIMIT 1`).Scan(&oldestPkg); err != nil {
+		t.Fatalf("read oldest staged row: %v", err)
 	}
 	if oldestPkg != "pkg:npm/zzz-00" {
 		t.Fatalf("oldest dirty row is %q, want the last-sorting pkg:npm/zzz-00", oldestPkg)
@@ -112,6 +113,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstScopeLive(t *testin
 	h.seedScope(scope, scope+"/g1")
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -121,21 +123,22 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstScopeLive(t *testin
 	h.addGeneration(scope, scope+"/g2", "pending")
 	h.write(scope, scope+"/g2", chunkedFindings("zzz", 1, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact'`)
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 1000)...)
 	h.activate(scope, scope+"/g1", scope+"/g2")
-	if depth := h.dirtyDepth(); depth != 6 {
-		t.Fatalf("queued %d dirty rows, want 4 fact rows plus 2 scope rows", depth)
+	if depth := h.pendingDepth(); depth != 6 {
+		t.Fatalf("queued %d pending rows, want 4 staged fact rows plus 2 staged scope rows", depth)
 	}
-	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() - interval '1 hour' WHERE kind = 'scope' AND generation_id = $1`, scope+"/g2")
-	h.exec(`UPDATE supply_chain_impact_winners_dirty_log SET captured_at = now() WHERE NOT (kind = 'scope' AND generation_id = $1)`, scope+"/g2")
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_staging SET captured_at = now() - interval '1 hour' WHERE kind = 'scope' AND generation_id = $1`, scope+"/g2")
+	h.exec(`UPDATE supply_chain_impact_winners_dirty_staging SET captured_at = now() WHERE NOT (kind = 'scope' AND generation_id = $1)`, scope+"/g2")
 	before, ok := horizonRemainingMin(h)
 	if !ok {
 		t.Fatal("dirty log is empty before the bounded tick")
 	}
 	var oldestKind, oldestGen string
 	if err := h.db.QueryRowContext(h.ctx,
-		`SELECT kind, generation_id FROM supply_chain_impact_winners_dirty_log ORDER BY captured_at, seq LIMIT 1`).Scan(&oldestKind, &oldestGen); err != nil {
-		t.Fatalf("read oldest dirty row: %v", err)
+		`SELECT kind, generation_id FROM supply_chain_impact_winners_dirty_staging ORDER BY captured_at, seq LIMIT 1`).Scan(&oldestKind, &oldestGen); err != nil {
+		t.Fatalf("read oldest staged row: %v", err)
 	}
 	if oldestKind != "scope" || oldestGen != scope+"/g2" {
 		t.Fatalf("oldest dirty row is %s %q, want the scope row of the last-sorting expansion", oldestKind, oldestGen)

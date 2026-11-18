@@ -21,7 +21,7 @@ func horizonRemainingMin(h *keyedHarness) (time.Time, bool) {
 	h.t.Helper()
 	var min sql.NullTime
 	if err := h.db.QueryRowContext(h.ctx,
-		`SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_log`).Scan(&min); err != nil {
+		`SELECT min(captured_at) FROM (SELECT captured_at FROM supply_chain_impact_winners_dirty_log UNION ALL SELECT captured_at FROM supply_chain_impact_winners_dirty_staging) AS pending`).Scan(&min); err != nil {
 		h.t.Fatalf("read remaining min captured_at: %v", err)
 	}
 	if !min.Valid {
@@ -32,7 +32,7 @@ func horizonRemainingMin(h *keyedHarness) (time.Time, bool) {
 
 func horizonUncovered(h *keyedHarness, watermark time.Time) int {
 	h.t.Helper()
-	return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE captured_at <= $1`, watermark)
+	return h.count(`SELECT count(*) FROM (SELECT captured_at FROM supply_chain_impact_winners_dirty_log UNION ALL SELECT captured_at FROM supply_chain_impact_winners_dirty_staging) AS pending WHERE captured_at <= $1`, watermark)
 }
 
 func horizonDBNow(h *keyedHarness) time.Time {
@@ -54,6 +54,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonAdvancesOnBoundedTickLive(t 
 
 	h.write("vuln-intel://10706/horizon", "vuln-intel://10706/horizon/g1", chunkedFindings("horizon", 12, 2, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -95,6 +96,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonNeverRegressesAcrossTicksLiv
 
 	h.write("vuln-intel://10706/monotonic", "vuln-intel://10706/monotonic/g1", chunkedFindings("mono", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -140,6 +142,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive(t *testin
 	h.seedScope(scope, scope+"/g1")
 	h.write(scope, scope+"/g1", chunkedFindings("act", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -148,6 +151,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive(t *testin
 	h.addGeneration(scope, scope+"/g2", "pending")
 	h.write(scope, scope+"/g2", chunkedFindings("act", 8, 1, 1000)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging WHERE kind = 'fact'`)
 	h.activate(scope, scope+"/g1", scope+"/g2")
 
 	h.store.ChunkMaxIdentifiers = 3
@@ -178,6 +182,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonLateCommitCoveredNextTickLiv
 
 	h.write("vuln-intel://10706/late", "vuln-intel://10706/late/g1", chunkedFindings("late", 12, 2, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -245,13 +250,14 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonTupleOrderIrrelevantLive(t *
 	h.write("vuln-intel://10706/order", "vuln-intel://10706/order/g1", chunkedFindings("zzz", 4, 1, 0)...)
 	h.write("vuln-intel://10706/order", "vuln-intel://10706/order/g1", chunkedFindings("aaa", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 
 	h.write("vuln-intel://10706/order", "vuln-intel://10706/order/g1", chunkedFindings("zzz", 4, 1, 1000)...)
 	h.write("vuln-intel://10706/order", "vuln-intel://10706/order/g1", chunkedFindings("aaa", 4, 1, 1000)...)
-	if depth := h.dirtyDepth(); depth == 0 {
+	if depth := h.pendingDepth(); depth == 0 {
 		t.Fatal("rewrite queued no dirty rows")
 	}
 	// Age decouples the chunk order from tuple order: the last-sorting zzz
@@ -300,6 +306,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonDbSourcedStampLive(t *testin
 
 	h.write("vuln-intel://10706/clock", "vuln-intel://10706/clock/g1", chunkedFindings("clock", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -334,6 +341,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonIdleLateCommitLive(t *testin
 
 	h.write("vuln-intel://10706/idlelate", "vuln-intel://10706/idlelate/g1", chunkedFindings("idle", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -394,6 +402,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonDrainedLateCommitLive(t *tes
 
 	h.write("vuln-intel://10706/drainlate", "vuln-intel://10706/drainlate/g1", chunkedFindings("drain", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
@@ -455,6 +464,7 @@ func TestSupplyChainImpactWinnersResweepKeyedFullFallbackReportsCommittedWaterma
 
 	h.write("vuln-intel://10706/fallback", "vuln-intel://10706/fallback/g1", chunkedFindings("fb", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
+	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
 	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}

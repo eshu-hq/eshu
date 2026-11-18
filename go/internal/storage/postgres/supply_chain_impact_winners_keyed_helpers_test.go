@@ -90,6 +90,22 @@ func (h *keyedHarness) dirtyDepth() int {
 	return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log`)
 }
 
+// stagingDepth reads the shared staging queue's row count (#10837 direction
+// C): every capture owner stages here and the tick collapse drains it.
+func (h *keyedHarness) stagingDepth() int {
+	h.t.Helper()
+	return h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_staging`)
+}
+
+// pendingDepth reads the whole unconsumed backlog: the versioned log plus
+// the staging queue (#10837 direction C). Drain loops wait on this, not on
+// the log alone: a tick collapses staging before it admits, so staging rows
+// are pending work the next tick consumes.
+func (h *keyedHarness) pendingDepth() int {
+	h.t.Helper()
+	return h.dirtyDepth() + h.stagingDepth()
+}
+
 // seedScope creates a source scope with one active generation.
 func (h *keyedHarness) seedScope(scope, generation string) {
 	h.t.Helper()
@@ -228,6 +244,9 @@ func (h *keyedHarness) keyed() supplychaincore.SupplyChainImpactWinnersResweep {
 	}
 	if depth := h.dirtyDepth(); depth != 0 {
 		h.t.Fatalf("dirty log depth after a keyed tick = %d, want 0", depth)
+	}
+	if staged := h.stagingDepth(); staged != 0 {
+		h.t.Fatalf("staging depth after a keyed tick = %d, want the collapse to have drained the queue", staged)
 	}
 	return result
 }

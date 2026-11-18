@@ -130,12 +130,15 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 		// It is an ordinary base table, not a protected object; the inventory
 		// above is unchanged.
 		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
-		// The writer appends the identifiers of the findings it wrote to the
-		// supply-chain impact winners dirty log in the same transaction (#9805).
-		// Like fact_records, the log is an ordinary base table whose privileges
-		// are a DBA pregrant: SELECT, INSERT, UPDATE and the id sequence.
-		// UPDATE is required since #10827 turned the capture into a versioned
-		// upsert (ON CONFLICT DO UPDATE bumps dirty_version).
+		// The writer stages the identifiers of the findings it wrote in the
+		// same transaction (#9805, #10837 direction C). Like fact_records,
+		// the staging queue is an ordinary base table whose privileges are a
+		// DBA pregrant: INSERT plus the ordering sequence (the collapsed
+		// version math runs as the maintainer, not the writer, so the writer
+		// needs no UPDATE and no log grant for the capture itself; the log
+		// grants below stay for the pre-existing paths that share this role).
+		`GRANT INSERT ON supply_chain_impact_winners_dirty_staging TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_staging_seq TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
 		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
 	} {
@@ -318,17 +321,14 @@ func proofWorkerDSN(adminDSN, dbName, role, password string) (string, error) {
 }
 
 // TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive is the
-// seeded-violation pair for the scanner triggers of migration 272a on the real
-// publish path (#9805, ruling B). The protected publication function inserts
+// seeded-violation pair for the scanner triggers on the real publish path
+// (#9805, #10837 direction C). The protected publication function inserts
 // classification and association rows as its owner, from the runtime-writer's
-// transaction. Under the versioned dirty log (#10827) the writer's own
-// fact_upsert mark lands first in that transaction and the scanner trigger's
-// mark of the same key collapses into it as a dirty_version bump, so the
-// discriminant is the finding row's version, not a scanner-source row count:
-// with the insert triggers enabled one publish leaves the row at version 2
-// or more (writer mark plus scanner bump); with them disabled it stays at
-// version 1 (writer mark only), which is the capture hole the audit exists
-// to repair.
+// transaction. Under the staging queue every mark stages its own row, so the
+// discriminant is the staged row count by source: with the insert triggers
+// disabled only the writer's own marks land; with them enabled the scanner
+// trigger's marks land too, which is the capture hole the audit exists to
+// repair.
 func TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive(t *testing.T) {
 	if strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN")) == "" {
 		t.Skip("set ESHU_POSTGRES_DSN and ESHU_POSTGRES_DISPOSABLE=1 to run the scanner capture proof")
@@ -368,34 +368,36 @@ func TestSupplyChainImpactProtectedPublishCapturesWinnersDirtyKeysLive(t *testin
 			t.Fatalf("publish %s: %v", scope, err)
 		}
 	}
-	dirtyVersionOf := func(cve string) int64 {
+	stagedMarksOf := func(cve string) (writer, scanner int64) {
 		t.Helper()
-		var v int64
 		if err := admin.QueryRowContext(ctx, `
-SELECT dirty_version FROM supply_chain_impact_winners_dirty_log
+SELECT count(*) FILTER (WHERE source IN ('fact_upsert', 'fact_retract')),
+       count(*) FILTER (WHERE source = 'scanner')
+FROM supply_chain_impact_winners_dirty_staging
 WHERE kind = 'fact' AND package_id = 'pkg:npm/scanner-capture'
-  AND repository_id = 'repo://scanner-capture/api' AND c0 = $1`, cve).Scan(&v); err != nil {
-			t.Fatalf("read dirty version for %s: %v", cve, err)
+  AND repository_id = 'repo://scanner-capture/api' AND c0 = $1`, cve).Scan(&writer, &scanner); err != nil {
+			t.Fatalf("read staged marks for %s: %v", cve, err)
 		}
-		return v
+		return writer, scanner
 	}
 
 	// Violation: the insert triggers are disabled, so only the writer's own
-	// mark lands and the finding row stays at its first version.
+	// marks stage and no scanner mark lands.
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications DISABLE TRIGGER scanner_classifications_winners_dirty_insert`)
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations DISABLE TRIGGER scanner_associations_winners_dirty_insert`)
 	seedScope("scanner-capture-red", "scanner-capture-red/g1")
 	publish("scanner-capture-red", "scanner-capture-red/g1", "CVE-2026-9805-1")
-	if got := dirtyVersionOf("CVE-2026-9805-1"); got != 1 {
-		t.Fatalf("with the scanner triggers disabled the publish left dirty_version=%d, want 1 (writer mark only)", got)
+	if writer, scanner := stagedMarksOf("CVE-2026-9805-1"); writer < 1 || scanner != 0 {
+		t.Fatalf("with the scanner triggers disabled the publish staged writer=%d scanner=%d, want writer>=1 scanner=0 (writer marks only)", writer, scanner)
 	}
 
-	// Shipped triggers: the same publish bumps the row past its first version.
+	// Shipped triggers: the same publish stages the writer's marks plus the
+	// scanner trigger's marks of the same key.
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_classifications ENABLE TRIGGER scanner_classifications_winners_dirty_insert`)
 	mustExecProofRow(t, ctx, admin, `ALTER TABLE scanner_image_result_fact_associations ENABLE TRIGGER scanner_associations_winners_dirty_insert`)
 	seedScope("scanner-capture-green", "scanner-capture-green/g1")
 	publish("scanner-capture-green", "scanner-capture-green/g1", "CVE-2026-9805-2")
-	if got := dirtyVersionOf("CVE-2026-9805-2"); got < 2 {
-		t.Fatalf("with the scanner triggers enabled the publish left dirty_version=%d, want at least 2 (writer mark plus scanner bump)", got)
+	if writer, scanner := stagedMarksOf("CVE-2026-9805-2"); writer < 1 || scanner < 1 {
+		t.Fatalf("with the scanner triggers enabled the publish staged writer=%d scanner=%d, want writer>=1 scanner>=1 (writer marks plus scanner marks)", writer, scanner)
 	}
 }

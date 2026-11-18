@@ -66,6 +66,12 @@ const (
 	// tally and the delete of the applied rows run under the apply phase, once
 	// the chunk bound has decided which admitted rows the tick applies.
 	SupplyChainImpactWinnersPhaseConsume = "consume"
+	// SupplyChainImpactWinnersPhaseCollapse folds the shared staging queue
+	// into the dirty log (#10837 direction C): one atomic key-ordered
+	// GROUP BY merge-upsert plus the seq-bounded delete, under the resweep
+	// lock before the tick-clock read. A slow collapse reads as a slow
+	// staging drain, not as a slow read or write.
+	SupplyChainImpactWinnersPhaseCollapse = "collapse"
 	// SupplyChainImpactWinnersPhaseBuildIdents is the identifier set built from
 	// the consumed rows, its ANALYZE, and the cap check on it.
 	SupplyChainImpactWinnersPhaseBuildIdents = "build_idents"
@@ -104,6 +110,15 @@ func AttrPath(v string) attribute.KeyValue {
 // supplyChainImpactWinnersDirtyLog holds the last dirty-log depth and oldest-row
 // age a tick sampled, for the observable gauges to report at scrape time.
 type supplyChainImpactWinnersDirtyLog struct {
+	depth         atomic.Int64
+	oldestAgeNano atomic.Int64
+	sampled       atomic.Bool
+}
+
+// supplyChainImpactWinnersStaging holds the last staging-queue depth and
+// oldest-row age a tick sampled (#10837 direction C), for the observable
+// staging gauges to report at scrape time.
+type supplyChainImpactWinnersStaging struct {
 	depth         atomic.Int64
 	oldestAgeNano atomic.Int64
 	sampled       atomic.Bool
@@ -223,6 +238,39 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersDirtyLogOldestAge gauge: %w", err)
 	}
+	inst.supplyChainImpactWinnersStaging = new(supplyChainImpactWinnersStaging)
+	staging := inst.supplyChainImpactWinnersStaging
+	if inst.SupplyChainImpactWinnersStagingDepth, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staging_depth",
+		metric.WithDescription("Rows waiting in the supply-chain impact winners staging queue at the last keyed tick this process sampled. A depth that keeps climbing means captures outpace the per-tick collapse."),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			if staging.sampled.Load() {
+				o.Observe(float64(staging.depth.Load()))
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersStagingDepth gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersStagingOldestAge, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staging_oldest_age_seconds",
+		metric.WithDescription("Age of the oldest row in the supply-chain impact winners staging queue at the last keyed tick this process sampled, 0 when the queue was empty. It bounds how stale a capture can sit before the collapse folds it in."),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			if staging.sampled.Load() {
+				o.Observe(time.Duration(staging.oldestAgeNano.Load()).Seconds())
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersStagingOldestAge gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersStagingCollapsed, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total",
+		metric.WithDescription("Supply-chain impact winners staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersStagingCollapsed counter: %w", err)
+	}
 	return nil
 }
 
@@ -260,4 +308,29 @@ func (i *Instruments) RecordSupplyChainImpactWinnersCapture(ctx context.Context,
 		return
 	}
 	i.SupplyChainImpactWinnersCaptureRows.Add(ctx, rows, metric.WithAttributes(AttrSource(source)))
+}
+
+// RecordSupplyChainImpactWinnersStaging sets the staging-queue depth and
+// oldest-row age the staging gauges report (#10837 direction C). An empty
+// queue reads as zero depth and zero age. It is safe on a nil receiver and
+// from any goroutine.
+func (i *Instruments) RecordSupplyChainImpactWinnersStaging(depth int64, oldest time.Duration) {
+	if i == nil || i.supplyChainImpactWinnersStaging == nil {
+		return
+	}
+	s := i.supplyChainImpactWinnersStaging
+	s.depth.Store(depth)
+	s.oldestAgeNano.Store(int64(oldest))
+	s.sampled.Store(true)
+}
+
+// RecordSupplyChainImpactWinnersStagingCollapsed counts the staged rows one
+// keyed tick collapsed into the dirty log (#10837 direction C): the
+// seq-bounded delete count, so one collapsed group counts every mark it
+// combined. A zero count records nothing. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersStagingCollapsed(ctx context.Context, rows int64) {
+	if i == nil || i.SupplyChainImpactWinnersStagingCollapsed == nil || rows <= 0 {
+		return
+	}
+	i.SupplyChainImpactWinnersStagingCollapsed.Add(ctx, rows)
 }
