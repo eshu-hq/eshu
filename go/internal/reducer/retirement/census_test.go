@@ -73,6 +73,37 @@ func TestCensusClassifiesWinnersDirtyTally(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesWinnersDirtyStaging pins the #10837 staging queue's
+// row (#10909): it is the append target of every winners capture owner,
+// including the ingestion_scopes delete trigger that fires during the
+// purge itself, and the maintainer tick's collapse folds it into the
+// dirty log. It stays kept like the dirty log: a purge delete would lose
+// staged marks the trigger cannot recapture (fact_retract marks for
+// findings already tombstoned), and surviving rows drain on the next
+// tick.
+func TestCensusClassifiesWinnersDirtyStaging(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_winners_dirty_staging")
+	if !ok {
+		t.Fatal("supply_chain_impact_winners_dirty_staging has no census row; the live census fails on it")
+	}
+	if entry.Disposition != "kept" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want kept with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 2 || entry.KeyColumns[0] != "repository_id" || entry.KeyColumns[1] != "scope_id" {
+		t.Fatalf("key columns = %v, want [repository_id scope_id]", entry.KeyColumns)
+	}
+	if entry.InvisibleToScan {
+		t.Fatal("InvisibleToScan = true, want false: the schema scan sees repository_id and scope_id")
+	}
+	for _, phrase := range []string{"ingestion_scopes_winners_dirty_capture_delete", "collapseWinnersStaging", "no purge step may delete"} {
+		if !strings.Contains(entry.Reason, phrase) {
+			t.Errorf("reason %q does not name %q", entry.Reason, phrase)
+		}
+	}
+}
+
 // TestCensusClassifiesSupplyChainImpactScopePassState pins the #10389 pass
 // state table's row (#10794): it is keyed by scope_id with no foreign key,
 // and a surviving partial row would hold the stuck-partial degraded reason
