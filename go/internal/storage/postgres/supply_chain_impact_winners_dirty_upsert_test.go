@@ -13,10 +13,11 @@ import (
 )
 
 // TestSortDedupWinnersDirtyIdentifiersOrdersByTheConflictKey pins the Go half
-// of the #10827 writer lock order: identifiers reach the capture upsert
-// sorted by the fact conflict key with exact duplicates removed, so
-// concurrent multi-row writers take row locks in one total order and one
-// statement never marks one unit twice.
+// of the #10837 direction-C capture shape: identifiers reach the staging
+// insert sorted by the fact conflict key with exact duplicates removed, so
+// one statement's row batch is deterministic and never stages one unit
+// twice. The staging INSERT takes no row locks, so the order is a batch
+// shape, not a lock order.
 func TestSortDedupWinnersDirtyIdentifiersOrdersByTheConflictKey(t *testing.T) {
 	t.Parallel()
 

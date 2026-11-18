@@ -371,6 +371,9 @@ func (s SupplyChainImpactWinnersStore) timePhase(ctx context.Context, phase stri
 	started := time.Now()
 	err := fn()
 	s.Instruments.RecordSupplyChainImpactWinnersTickPhase(ctx, phase, time.Since(started))
+	if err != nil {
+		s.Instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx, telemetry.SupplyChainImpactWinnersConflictSiteTick, winnersWriteConflictClass(err))
+	}
 	return err
 }
 

@@ -18,6 +18,22 @@ import (
 // SupplyChainImpactWinnersPath* constants.
 const MetricDimensionPath = "path"
 
+// Write-conflict sites for
+// eshu_dp_supply_chain_impact_winners_write_conflicts_total (#10851). The
+// value set is closed: the SupplyChainImpactWinnersConflictSite* constants.
+const (
+	// SupplyChainImpactWinnersConflictSiteWriterCapture is the writer's
+	// capture statement (fact_upsert staging, fact_retract staging).
+	SupplyChainImpactWinnersConflictSiteWriterCapture = "writer_capture"
+	// SupplyChainImpactWinnersConflictSiteWriterCommit is the writer
+	// transaction's commit.
+	SupplyChainImpactWinnersConflictSiteWriterCommit = "writer_commit"
+	// SupplyChainImpactWinnersConflictSiteTick is any phase of a keyed
+	// tick: the claim, the collapse, the consume, the build, the apply,
+	// the stamp, or the commit.
+	SupplyChainImpactWinnersConflictSiteTick = "tick"
+)
+
 // Resweep path label values. They are the closed set of the path label.
 const (
 	// SupplyChainImpactWinnersPathFull is the whole-table resweep: the startup
@@ -163,6 +179,11 @@ type supplyChainImpactWinnersStaging struct {
 //     read (build_idents, build_active_facts), a slow write (apply, commit), or
 //     a slow consume. A phase that fails still records the time it spent.
 //
+//   - eshu_dp_supply_chain_impact_winners_write_conflicts_total{site,
+//     failure_class}: writer and tick statements the database aborted with a
+//     deadlock or a serialization failure. The victim is classified only;
+//     nothing retries.
+//
 // No label carries a canonical key, scope, repository or CVE.
 func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
@@ -271,6 +292,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStagingCollapsed counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersWriteConflicts, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_write_conflicts_total",
+		metric.WithDescription("Supply-chain impact winners writer and tick statements the database aborted with a deadlock (40P01) or a serialization failure (40001), by site (writer_capture, writer_commit, tick) and failure_class (deadlock, serialization_failure). The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersWriteConflicts counter: %w", err)
+	}
 	return nil
 }
 
@@ -333,4 +360,19 @@ func (i *Instruments) RecordSupplyChainImpactWinnersStagingCollapsed(ctx context
 		return
 	}
 	i.SupplyChainImpactWinnersStagingCollapsed.Add(ctx, rows)
+}
+
+// RecordSupplyChainImpactWinnersWriteConflict counts one writer or tick
+// statement the database aborted with a write conflict (#10851). site must
+// be one of the SupplyChainImpactWinnersConflictSite* constants and class
+// one of deadlock or serialization_failure; an empty class records nothing.
+// It is safe on a nil receiver and from any goroutine.
+func (i *Instruments) RecordSupplyChainImpactWinnersWriteConflict(ctx context.Context, site, class string) {
+	if i == nil || i.SupplyChainImpactWinnersWriteConflicts == nil || class == "" {
+		return
+	}
+	i.SupplyChainImpactWinnersWriteConflicts.Add(ctx, 1, metric.WithAttributes(
+		attribute.String(MetricDimensionSite, site),
+		attribute.String(MetricDimensionFailureClass, class),
+	))
 }

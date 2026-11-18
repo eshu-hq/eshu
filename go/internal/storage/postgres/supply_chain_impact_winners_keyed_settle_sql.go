@@ -4,30 +4,32 @@
 package postgres
 
 // Versioned settle of the supply-chain impact winners dirty log (#10827 R2:
-// Global Key-Ordered Versioned Upsert).
+// Global Key-Ordered Versioned Upsert, #10851 transaction-global).
 //
 // The dirty log carries dirty_version (one row per pending recompute unit;
 // every re-mark of a queued key bumps the version instead of appending a
-// row). Every multi-row statement takes row locks in one total order over
-// the conflict key — kind first, then the fact five-tuple, then the scope
-// pair, with seq as the final tiebreak so pre-dedup duplicate keys still
-// lock deterministically — so no two statements contend out of order. The
-// order is per-statement, not per-transaction: a writer pass and a settle
-// tick each run several ordered batches, and cross-batch inversion can
-// still deadlock one victim into a rollback (#10851 tracks the
-// transaction-global fix and its interleave gate). The naive versioned
-// pattern deadlocked UPSERT-vs-DELETE at ~2.8e-6 per transaction under wave
-// load; per-statement order plus the single-statement lock-then-delete
-// below removes that within-statement cycle instead of retrying through it
-// (no shipped deadlock retry anywhere; a retry firing in the gate is a
-// fail).
+// row). No writer touches the log anymore: every capture owner stages plain
+// INSERTs into the queue (#10837 direction C, no unique index, no row
+// locks), and the maintainer tick's collapse is the only log write a tick
+// makes before admission, running inside the tick transaction under the
+// resweep single-flight claim. The collapse's two merge-upserts and the
+// convert below therefore meet no concurrent log writer, so the old
+// cross-batch inversion is gone by construction — the fix is
+// transaction-global, not per-statement. The settle drain still takes its
+// row locks in one total order over the conflict key — kind first, then the
+// fact five-tuple, then the scope pair, with seq as the final tiebreak — in
+// its single lock-then-delete statement, and the naive versioned pattern's
+// UPSERT-vs-DELETE cycle stays removed instead of retried through (no
+// shipped deadlock retry anywhere; a retry firing in the gate is a fail).
+// The writer-txn replay and the wave-load gates pin the runtime behavior:
+// zero 40P01 with no retry and exact conservation.
 //
-// winnersDirtyKeyOrderClause renders that order for one alias. The writer
-// upserts (fact capture, retract, triggers, audit queue) ORDER BY the same
-// columns over the rows they insert; the settle drains below ORDER BY them
-// over the admitted window before FOR UPDATE. Writers have no seq yet, so
-// they order by the key alone; the settle tiebreak only separates identical
-// keys, which writers serialize on the unique index instead.
+// winnersDirtyKeyOrderClause renders that order for one alias. The tick's own
+// log writers — the collapse's two merge-upserts and the scope convert —
+// ORDER BY the same columns over the rows they merge, and the settle drains
+// below ORDER BY them over the admitted window before FOR UPDATE. Writers
+// stage with no ORDER BY (no locks to take in order); the settle tiebreak
+// only separates identical keys.
 
 // winnersDirtyKeyOrderClause renders the R2 total lock order over the dirty
 // log's conflict key for the rows of alias: kind, the fact five-tuple, the

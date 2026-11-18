@@ -1418,6 +1418,17 @@ type Instruments struct {
 	// watermark (#9805 chunked consume). Steady state is zero outside a
 	// backlog drain.
 	SupplyChainImpactWinnersChunkedTicks metric.Int64Counter
+	// SupplyChainImpactWinnersWriteConflicts counts writer and tick
+	// statements the database aborted with a deadlock (40P01) or a
+	// serialization failure (40001), by site (writer_capture: the capture
+	// statement, writer_commit: the writer transaction commit, tick: any
+	// keyed-tick phase including the collapse, the settle, and the tick
+	// commit) and failure_class (deadlock, serialization_failure) (#10851).
+	// The counter classifies the victim only: nothing retries, the
+	// transaction rolls back and the queue re-drives it. Steady state is
+	// zero; a rising rate names the contending site. Registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersWriteConflicts metric.Int64Counter
 	// The advisory-group graph projection signals of #10411, registered by
 	// registerAdvisoryGroupProjectionInstruments: groups reconciled by
 	// outcome, AFFECTED_BY edges created and retracted, AdvisoryGroup
