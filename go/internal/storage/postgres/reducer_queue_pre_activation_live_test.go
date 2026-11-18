@@ -132,9 +132,9 @@ func TestReducerContentionGatePreActivationGenerationRunsAfterActivation(t *test
 
 // TestReducerContentionGateOlderGenerationSupersessionStaysTerminal keeps the
 // true-supersession path terminal. An intent for a generation that sorts
-// before the active one is superseded by the claim itself (the
-// superseded_stale_reducer_generations CTE), so the handler never runs and no
-// retry is scheduled. The production freshness check, read against the same
+// before the active one is fenced by the claim gate and superseded by the
+// periodic sweep (#10863), so the handler never runs and no retry is
+// scheduled. The production freshness check, read against the same
 // rows, must agree: older, superseded, and unknown generations report
 // (false, nil) -- terminal -- and only the newer pending generation reports a
 // retryable not-yet-active error.
@@ -166,7 +166,10 @@ func TestReducerContentionGateOlderGenerationSupersessionStaysTerminal(t *testin
 			t.Fatalf("Enqueue(%s) error = %v", generationID, err)
 		}
 		if claimed := env.claimExecuteSettle(t, ctx); claimed {
-			t.Fatalf("Claim(%s) claimed = true, want the claim-time supersession to retire it", generationID)
+			t.Fatalf("Claim(%s) claimed = true, want the claim gate to fence it", generationID)
+		}
+		if _, err := env.queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+			t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
 		}
 		if status, _, _ := readPreActivationWorkItem(t, ctx, db, generationID); status != "superseded" {
 			t.Fatalf("%s: status = %q, want superseded (true supersession stays terminal)", generationID, status)

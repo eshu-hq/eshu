@@ -90,8 +90,8 @@ func supersessionPermission(roleARN, action, resource string) facts.Envelope {
 //
 //  1. gen N is claimed; the handler commits the ready edge and defers.
 //  2. gen N+1 activates before the bound, with the target still missing. The
-//     next Claim supersedes N (terminal) and returns N+1, whose first
-//     evaluation commits at once.
+//     next Claim fences N at hand-out (#10863: the periodic sweep owns the
+//     terminal mark) and returns N+1, whose first evaluation commits at once.
 //  3. At anchor+MaxWait -- measured from N's first defer, not from N+1's row --
 //     the N+1 row settles and is acked, and abandoned is counted exactly once.
 //
@@ -206,7 +206,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 		t.Fatalf("gen N: writes %d rows %d, want the ready edge written at the first evaluation", writer.writes, writer.rows)
 	}
 
-	// Step 2: gen N+1 activates before the bound; the claim supersedes N.
+	// Step 2: gen N+1 activates before the bound; the claim fences N.
 	clock = start.Add(6 * time.Minute)
 	// Activation retires the prior generation, as the projector's does.
 	seedAWSCloudRuntimeDriftGeneration(t, ctx, sqlDB, genN, scopeID, "superseded", start)
@@ -215,8 +215,16 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 	seedCloudNodesCommitted(t, ctx, sqlDB, scopeID, genN1, clock)
 	enqueue(genN1)
 	gen1Claim := claim(genN1)
+	// #10863: the claim no longer terminalizes N; it stays retrying (and
+	// fenced) until the periodic sweep runs.
+	if status := reducerWorkStatus(t, ctx, sqlDB, scopeID, genN); status != "retrying" {
+		t.Fatalf("gen N row status after claim = %q, want retrying (fenced, not terminalized)", status)
+	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 1 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want gen N only", swept, err)
+	}
 	if status := reducerWorkStatus(t, ctx, sqlDB, scopeID, genN); status != "superseded" {
-		t.Fatalf("gen N row status = %q, want superseded", status)
+		t.Fatalf("gen N row status after sweep = %q, want superseded", status)
 	}
 	if err := handle(gen1Claim); err == nil {
 		t.Fatal("gen N+1 first evaluation succeeded, want commit then defer")

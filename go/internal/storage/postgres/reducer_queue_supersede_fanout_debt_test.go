@@ -95,6 +95,17 @@ func TestReducerClaimDoesNotSupersedeFanOutDebtBehindNewerGeneration(t *testing.
 			if claimed && intent.IntentID != workItemID {
 				t.Fatalf("Claim() intent = %q, want the spared continuation %q", intent.IntentID, workItemID)
 			}
+			// #10863: the claim fences but never terminalizes, so an
+			// unspared stale row is still in its seeded status here; the
+			// periodic sweep is what supersedes it.
+			if tc.wantStatus == "superseded" {
+				if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID); status != tc.status {
+					t.Fatalf("work item %q status after claim = %q, want seeded %q (fenced, not terminalized)", workItemID, status, tc.status)
+				}
+			}
+			if _, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+				t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
+			}
 			status, failureClass := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID)
 			if status != tc.wantStatus {
 				t.Fatalf("work item %q status = %q (failure_class=%q), want %q: #10060 stranded fan-out continuation", workItemID, status, failureClass, tc.wantStatus)

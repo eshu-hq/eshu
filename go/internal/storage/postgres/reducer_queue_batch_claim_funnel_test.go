@@ -285,11 +285,13 @@ func TestClaimBatchFunnelQueryReusesShippedChain(t *testing.T) {
 }
 
 // TestClaimBatchFunnelQueryIsReadOnly is the F1 hermetic guard for #10565:
-// the funnel census must replay the sweep membership without executing it.
-// A data-modifying CTE runs on every claim even when nothing reads it, so
-// any data-modifying statement in this text reintroduces the second sweep
-// lock pass F1 removes. The final assertion keeps the guard non-vacuous:
-// the shipped claim still carries its sweep UPDATE, so a guard that cannot
+// the funnel census must replay the claim's stale fence without executing
+// any write. A data-modifying CTE runs on every claim even when nothing
+// reads it, so any data-modifying statement in this text reintroduces a
+// write pass F1 removes. Since #10863 the fence itself is read-only in
+// both statements, so the census composes the claim's gate CTEs verbatim;
+// the final assertion keeps the guard non-vacuous: the standalone periodic
+// sweep still carries the terminalizing UPDATE, so a guard that cannot
 // see one proves nothing.
 func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 	t.Parallel()
@@ -315,26 +317,25 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 			t.Fatalf("funnel counts query contains data-modifying %q: it must stay a pure SELECT census", banned)
 		}
 	}
+	// MATERIALIZED is load-bearing on both gate CTEs (see their comment):
+	// without it the planner inlines the stale set under base's NOT EXISTS.
 	for _, want := range []string{
-		"superseded_stale_reducer_locked AS (",
-		"superseded_crossplane_newest_carrier AS MATERIALIZED (",
-		// MATERIALIZED is load-bearing (see the marker's comment): without
-		// it the planner inlines the sweep under base's NOT EXISTS.
-		"superseded_stale_reducer_generations AS MATERIALIZED (",
-		supersedeInactiveReducerLockedColumnsSQL,
-		supersedeInactiveReducerCarrierArmSQL,
-		supersededCrossplaneNewestCarrierCTE,
-		supersedeInactiveReducerUpdateRowFiltersSQL,
+		reducerClaimStaleGateCTEs(),
+		"claim_active_generations AS MATERIALIZED (",
+		"stale_reducer_candidates AS MATERIALIZED (",
 	} {
 		if !strings.Contains(reducerClaimBatchFunnelQuery, want) {
-			t.Fatalf("funnel counts query missing read-only sweep piece %q: the exclusion set must derive from the shared sweep sources", want)
+			t.Fatalf("funnel counts query missing stale-gate piece %q: the exclusion set must be the claim's gate verbatim", want)
 		}
 	}
 	if strings.Contains(reducerClaimBatchFunnelQuery, "UPDATE fact_work_items AS stale") {
-		t.Fatal("funnel counts query contains the sweep UPDATE: it must use the read-only generations SELECT")
+		t.Fatal("funnel counts query contains the sweep UPDATE: it must stay a pure SELECT census")
 	}
-	if !strings.Contains(claimReducerWorkBatchQuery, "UPDATE fact_work_items AS stale") {
-		t.Fatal("shipped claim lost its sweep UPDATE: the read-only guard above is vacuous without a mutating reference")
+	if strings.Contains(claimReducerWorkBatchQuery, "UPDATE fact_work_items AS stale") {
+		t.Fatal("shipped claim regained the in-claim sweep UPDATE: #10863 keeps terminalization in the periodic sweep only")
+	}
+	if !strings.Contains(supersedeStaleReducerGenerationsQuery, "UPDATE fact_work_items AS stale") {
+		t.Fatal("standalone sweep lost its terminalizing UPDATE: the read-only guard above is vacuous without a mutating reference")
 	}
 }
 

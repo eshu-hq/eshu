@@ -13,9 +13,12 @@ import (
 )
 
 // TestReducerClaimCoalesceConcurrentClaimersLive drains a three-generation
-// backlog with two claimers on independent connections: the stale rows are
-// superseded exactly once, exactly one carrier execution is leased, and no
-// claim errors or deadlocks.
+// backlog with two claimers on independent connections: exactly one carrier
+// execution is leased and no claim errors or deadlocks. Since #10863 the
+// claims only fence the stale rows; one sweep pass afterwards supersedes
+// every stale row except the newest pending one, which stays as the
+// rebind fallback while the carrier is in flight (a claimed carrier never
+// counts for the sweep either).
 func TestReducerClaimCoalesceConcurrentClaimersLive(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
@@ -70,116 +73,41 @@ func TestReducerClaimCoalesceConcurrentClaimersLive(t *testing.T) {
 		t.Fatalf("concurrent Claim() error = %v", err)
 	}
 
-	var superseded, claimed int
-	if err := db.QueryRowContext(ctx, `
+	countOutcomes := func() (superseded, claimed, pending int) {
+		t.Helper()
+		if err := db.QueryRowContext(ctx, `
 SELECT count(*) FILTER (WHERE status = 'superseded'),
-       count(*) FILTER (WHERE status = 'claimed')
-FROM fact_work_items WHERE work_item_id LIKE 'co-conc-%'`).Scan(&superseded, &claimed); err != nil {
-		t.Fatalf("count coalesce outcomes: %v", err)
+       count(*) FILTER (WHERE status = 'claimed'),
+       count(*) FILTER (WHERE status = 'pending')
+FROM fact_work_items WHERE work_item_id LIKE 'co-conc-%'`).Scan(&superseded, &claimed, &pending); err != nil {
+			t.Fatalf("count coalesce outcomes: %v", err)
+		}
+		return superseded, claimed, pending
 	}
-	if superseded != 3 || claimed != 1 {
-		t.Fatalf("coalesce outcomes superseded=%d claimed=%d, want 3 superseded and exactly 1 carrier claimed", superseded, claimed)
+	if superseded, claimed, pending := countOutcomes(); superseded != 0 || claimed != 1 || pending != 3 {
+		t.Fatalf("post-claim outcomes superseded=%d claimed=%d pending=%d, want 0/1/3 (claims fence, never terminalize)",
+			superseded, claimed, pending)
+	}
+	if _, err := queues[0].SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+		t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
+	}
+	if superseded, claimed, pending := countOutcomes(); superseded != 2 || claimed != 1 || pending != 1 {
+		t.Fatalf("post-sweep outcomes superseded=%d claimed=%d pending=%d, want 2/1/1 (newest pending stays as fallback)",
+			superseded, claimed, pending)
 	}
 }
 
-// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive is the EvalPlanQual
-// interleave: session X holds the stale row's lock uncommitted so the sweep
-// waits on it; meanwhile another worker leases the carrier (the only real
-// transition out of pending — dead-letter writes require
-// claimed/running) and commits. Carrier membership is membership in the
-// lock step's output, decided by row-self status quals the recheck
-// re-evaluates on the newest row version, so the claimed carrier never
-// enters the locked set and the stale row survives as the #10106 rebind
-// fallback. The merged #10320 snapshot-EXISTS probe retired the stale row
-// in this interleave; #10325 proved that unsound (an in-flight carrier can
-// still dead-letter, and superseded is unreplayable) and replaced it with
-// the lock-step form this test now pins.
+// TestReducerClaimCoalesceCarrierClaimedBeforeLockLive pins the #10325
+// carrier rule under the #10863 split: another worker leases the carrier
+// and commits before the sweep's lock step runs. Carrier membership is
+// membership in the lock step's output, decided by row-self status quals,
+// so the claimed carrier never enters the locked set and the stale row
+// survives the sweep as the #10106 rebind fallback; the claim gate fences
+// it only while that carrier is in flight. When the carrier later
+// dead-letters, the fence lifts and the stale row is claimable again —
+// the outcome the merged #10320 snapshot-EXISTS probe destroyed by
+// terminalizing the fallback against an in-flight carrier.
 func TestReducerClaimCoalesceCarrierClaimedBeforeLockLive(t *testing.T) {
-	dsn := reducerSupersedeReadinessDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the coalesce proof")
-	}
-	ctx := context.Background()
-	db, schemaName := openReducerSupersedeReadinessDBWithSchema(t, ctx, dsn)
-	base := time.Date(2026, time.November, 7, 8, 0, 0, 0, time.UTC)
-	domain := string(reducercontract.DomainCrossplaneSatisfiedByMaterialization)
-
-	seedCoalesceScope(t, ctx, db, "scope-co-epq", 3, base)
-	insertCoalesceWorkItem(t, ctx, db, coalesceRow{id: "co-epq-g0", generationID: "g0", status: "pending"}, "scope-co-epq", domain, base)
-	insertCoalesceWorkItem(t, ctx, db, coalesceRow{id: "co-epq-g1", generationID: "g1", status: "pending"}, "scope-co-epq", domain, base)
-
-	holder := openSupersedeReadinessClaimerDB(t, ctx, dsn, schemaName)
-	tx, err := holder.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatalf("begin holder: %v", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE fact_work_items SET updated_at = updated_at WHERE work_item_id = 'co-epq-g0'`); err != nil {
-		t.Fatalf("holder lock stale row: %v", err)
-	}
-	var holderPID int
-	if err := tx.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&holderPID); err != nil {
-		t.Fatalf("holder pid: %v", err)
-	}
-
-	sweeperDB := openSupersedeReadinessClaimerDB(t, ctx, dsn, schemaName)
-	var sweepPID int
-	if err := sweeperDB.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&sweepPID); err != nil {
-		t.Fatalf("sweeper pid: %v", err)
-	}
-	queue := ReducerQueue{
-		database:      SQLDB{DB: sweeperDB},
-		LeaseOwner:    "coalesce-epq",
-		LeaseDuration: time.Minute,
-		Now:           func() time.Time { return base.Add(4 * time.Hour) },
-	}
-	claimDone := make(chan error, 1)
-	go func() {
-		_, _, err := queue.Claim(ctx)
-		claimDone <- err
-	}()
-	if blockers := waitBlocked(t, ctx, db, sweepPID); len(blockers) != 1 || blockers[0] != holderPID {
-		t.Fatalf("sweep blocked by %v, want holder pid %d", blockers, holderPID)
-	}
-
-	// Another worker leases the carrier and commits while the sweep waits.
-	if _, err := db.ExecContext(ctx, `
-UPDATE fact_work_items
-SET status = 'claimed', lease_owner = 'co-epq-other', claim_until = $1
-WHERE work_item_id = 'co-epq-g1'`, base.Add(5*time.Hour)); err != nil {
-		t.Fatalf("lease carrier: %v", err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatalf("commit holder: %v", err)
-	}
-	if err := <-claimDone; err != nil {
-		t.Fatalf("Claim() error = %v", err)
-	}
-
-	// Both rows must survive: the carrier stays claimed under the other
-	// worker's lease (its claimed version never entered the locked
-	// carrier set), and the stale row stays pending — the claim defers
-	// behind the carrier's lease on the shared conflict domain — as the
-	// rebind fallback if that carrier later dead-letters. Superseding it
-	// here is the #10320 snapshot-probe outcome #10325 removed.
-	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g1"); status != "claimed" {
-		t.Fatalf("carrier status = %q, want claimed (debt holder must survive the prune)", status)
-	}
-	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g0"); status != "pending" {
-		t.Fatalf("stale row status = %q, want pending (no locked carrier; the rebind fallback must survive)", status)
-	}
-}
-
-// TestReducerCoalesceBacklogDrainCountsLive measures the redundant-work
-// bound on the real queue: S scopes x G queued generations of pending
-// Crossplane rows drain through Claim+Ack. Each claim lease is one handler
-// execution against the active snapshot, so executions must equal scopes
-// (not rows), with rows-scopes one-time supersede writes. Before #10269
-// the same drain leased every row (S*G executions); the RED run of
-// TestReducerClaimCoalescesStaleCrossplaneRowsLive observed the oldest
-// stale row claimed with the rest left pending.
-func TestReducerCoalesceBacklogDrainCountsLive(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the coalesce proof")
@@ -187,6 +115,76 @@ func TestReducerCoalesceBacklogDrainCountsLive(t *testing.T) {
 	ctx := context.Background()
 	db, _ := openReducerSupersedeReadinessDBWithSchema(t, ctx, dsn)
 	base := time.Date(2026, time.November, 7, 8, 0, 0, 0, time.UTC)
+	domain := string(reducercontract.DomainCrossplaneSatisfiedByMaterialization)
+
+	seedCoalesceScope(t, ctx, db, "scope-co-epq", 3, base)
+	insertCoalesceWorkItem(t, ctx, db, coalesceRow{id: "co-epq-g0", generationID: "g0", status: "pending"}, "scope-co-epq", domain, base)
+	insertCoalesceWorkItem(t, ctx, db, coalesceRow{id: "co-epq-g1", generationID: "g1", status: "pending"}, "scope-co-epq", domain, base)
+
+	// Another worker leases the carrier and commits before the sweep runs.
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = 'claimed', lease_owner = 'co-epq-other', claim_until = $1
+WHERE work_item_id = 'co-epq-g1'`, base.Add(5*time.Hour)); err != nil {
+		t.Fatalf("lease carrier: %v", err)
+	}
+
+	queue := ReducerQueue{
+		database:      SQLDB{DB: db},
+		LeaseOwner:    "coalesce-epq",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return base.Add(4 * time.Hour) },
+	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 0 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want 0 (claimed carrier never counts)", swept, err)
+	}
+	// The gate fences the stale row while the carrier is in flight, so the
+	// claim hands out nothing on this conflict key.
+	if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+		t.Fatalf("Claim() = claimed %v err %v, want no hand-out while the carrier is leased", claimed, err)
+	}
+	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g1"); status != "claimed" {
+		t.Fatalf("carrier status = %q, want claimed (debt holder must survive the prune)", status)
+	}
+	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, "co-epq-g0"); status != "pending" {
+		t.Fatalf("stale row status = %q, want pending (no locked carrier; the rebind fallback must survive)", status)
+	}
+
+	// The carrier dead-letters: the fence lifts and the stale row becomes
+	// the claimable rebind fallback again.
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items
+SET status = 'dead_letter', lease_owner = NULL, claim_until = NULL
+WHERE work_item_id = 'co-epq-g1'`); err != nil {
+		t.Fatalf("dead-letter carrier: %v", err)
+	}
+	intent, claimed, err := queue.Claim(ctx)
+	if err != nil || !claimed || intent.IntentID != "co-epq-g0" {
+		t.Fatalf("Claim() after carrier dead-letter = %q claimed %v err %v, want the stale fallback co-epq-g0",
+			intent.IntentID, claimed, err)
+	}
+}
+
+// TestReducerCoalesceBacklogDrainCountsLive measures the redundant-work
+// bound on the real queue: S scopes x G queued generations of pending
+// Crossplane rows drain through Claim+Ack with the periodic sweep ticking
+// between claims (the production pairing since #10863). Each claim lease
+// is one handler execution against the active snapshot, so executions must
+// equal scopes (not rows), with rows-scopes one-time supersede writes.
+// Before #10269 the same drain leased every row (S*G executions); the RED
+// run of TestReducerClaimCoalescesStaleCrossplaneRowsLive observed the
+// oldest stale row claimed with the rest left pending.
+func TestReducerCoalesceBacklogDrainCountsLive(t *testing.T) {
+	dsn := reducerSupersedeReadinessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the coalesce proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerSupersedeReadinessDBWithSchema(t, ctx, dsn)
+	// Ack's lease fence compares claim_until with the database's real
+	// clock_timestamp(), so anchor the fixture clock at real time (a fixed
+	// past date makes every Ack read as an expired lease).
+	base := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
 	domain := string(reducercontract.DomainCrossplaneSatisfiedByMaterialization)
 
 	const scopes, generations = 20, 5
@@ -210,6 +208,11 @@ func TestReducerCoalesceBacklogDrainCountsLive(t *testing.T) {
 	}
 	executions := 0
 	for range scopes * generations {
+		// The production sweeper ticks independently of claims; one pass
+		// per drain step is its fastest-cadence form.
+		if _, err := queue.SupersedeStaleReducerGenerations(ctx, 1000); err != nil {
+			t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
+		}
 		intent, claimed, err := queue.Claim(ctx)
 		if err != nil {
 			t.Fatalf("Claim() error = %v", err)

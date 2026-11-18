@@ -57,9 +57,9 @@ func TestReducerContentionGatePreActivationDeferralExits(t *testing.T) {
 	})
 
 	// A newer gen-3 activates first: the scope's active pointer moves past
-	// gen-2, so the reducer claim's superseded_stale_reducer_generations CTE
-	// retires the deferred gen-2 row (retrying is in its status list) before
-	// any worker can run it.
+	// gen-2, so the claim gate fences the deferred gen-2 row at hand-out
+	// and the periodic sweep retires it (retrying is in its status list)
+	// before any worker can run it.
 	t.Run("newer_generation_activation_ends_the_wait_superseded", func(t *testing.T) {
 		ctx := context.Background()
 		db, env, calls := setupPreActivationDeferral(t, ctx, dsn)
@@ -72,7 +72,13 @@ func TestReducerContentionGatePreActivationDeferralExits(t *testing.T) {
 
 		env.advance(time.Minute)
 		if claimed := env.claimExecuteSettle(t, ctx); claimed {
-			t.Fatal("Claim() claimed = true, want the claim-time supersession to retire the gen-2 row")
+			t.Fatal("Claim() claimed = true, want the claim gate to fence the gen-2 row")
+		}
+		if status, _, _ := readPreActivationWorkItem(t, ctx, db, "gen-2"); status != "retrying" {
+			t.Fatalf("status after claim = %q, want retrying (fenced, not terminalized by the claim)", status)
+		}
+		if swept, err := env.queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 1 {
+			t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want the gen-2 row only", swept, err)
 		}
 		if status, _, _ := readPreActivationWorkItem(t, ctx, db, "gen-2"); status != "superseded" {
 			t.Fatalf("status = %q, want superseded once a newer generation is active", status)

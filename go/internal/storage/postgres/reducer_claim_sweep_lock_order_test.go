@@ -16,13 +16,15 @@ const (
 )
 
 // TestSupersedeSweepLocksStaleRowsInWorkItemOrder pins the #8205 shape of the
-// reducer claim-time supersede sweep, derived from the shipped constant: a
-// lock step that carries the whole sweep predicate (generation guard and
-// readiness gate) plus the #10269 active-generation carrier arm in the same
-// scan, sorts on stale.work_item_id COLLATE "C" and takes a waiting
-// FOR NO KEY UPDATE OF stale, followed by an UPDATE restricted to the locked
-// rows that rechecks stage, status, and generation. Both claim statements
-// embed it ahead of their candidate selection.
+// reducer supersede sweep, derived from the shipped constant: a lock step
+// that carries the whole sweep predicate (generation guard and readiness
+// gate) plus the #10269 active-generation carrier arm in the same scan,
+// sorts on stale.work_item_id COLLATE "C" and takes FOR NO KEY UPDATE OF
+// stale, followed by an UPDATE restricted to the locked rows that rechecks
+// stage, status, and generation. Since #10863 no claim statement embeds
+// it: the standalone periodic sweep composes the bounded SKIP LOCKED form
+// from the same builder, keeping the global lock order so concurrent
+// sweepers and ordered replays cannot form a lock cycle.
 func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 	t.Parallel()
 	cte := supersedeInactiveReducerGenerationsCTE
@@ -64,8 +66,21 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 		"claimReducerWorkQuery":      claimReducerWorkQuery,
 		"claimReducerWorkBatchQuery": claimReducerWorkBatchQuery,
 	} {
-		if !strings.Contains(query, cte) {
-			t.Errorf("%s does not embed the ordered supersede sweep", name)
+		if strings.Contains(query, cte) {
+			t.Errorf("%s embeds the ordered supersede sweep again: #10863 keeps cleanup out of the claim", name)
+		}
+	}
+	// The standalone sweep keeps the same ordered lock step and locked-set
+	// UPDATE, bounded by LIMIT and multi-sweeper safe via SKIP LOCKED.
+	for _, want := range []string{
+		"WHERE (" + supersedeInactiveReducerGenerationsPredicate + ")",
+		`ORDER BY stale.work_item_id COLLATE "C"`,
+		"LIMIT $3",
+		"FOR NO KEY UPDATE OF stale SKIP LOCKED",
+		"WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))",
+	} {
+		if !strings.Contains(supersedeStaleReducerGenerationsQuery, want) {
+			t.Errorf("standalone sweep query lacks %q", want)
 		}
 	}
 }

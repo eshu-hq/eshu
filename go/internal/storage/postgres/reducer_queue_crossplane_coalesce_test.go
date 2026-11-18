@@ -85,9 +85,11 @@ type coalesceRow struct {
 }
 
 // coalesceCase seeds one scope with generations g<i> ingested an hour apart,
-// the last one active, plus the given crossplane rows, runs one claim, and
-// wants the given final status per row id ("claimed" means the claim leased
-// it; anything else is read back verbatim).
+// the last one active, plus the given crossplane rows, runs one periodic
+// sweep pass and one claim (the production pair since #10863: the claim
+// fences stale rows at hand-out, the sweep terminalizes them), and wants
+// the given final status per row id ("claimed" means the claim leased it;
+// anything else is read back verbatim).
 type coalesceCase struct {
 	name string
 	rows []coalesceRow
@@ -100,10 +102,12 @@ type coalesceCase struct {
 // TestReducerClaimCoalescesStaleCrossplaneRowsLive is the #10269 regression:
 // under reducer backlog, G queued per-generation Crossplane rows for one
 // scope each ran the full active-snapshot materialization because the
-// #10106 exemption kept every stale row claimable. The sweep must now prune
-// a stale row when a newer pending/retrying sibling carries the debt, while
-// every #10106 guard case (sole stale row, dead-letter/failed newest,
-// in-flight carrier, cross-scope) keeps a row executable.
+// #10106 exemption kept every stale row claimable. The claim gate must
+// fence a stale row when a newer sibling carries the debt and the sweep
+// must prune it, while every #10106 guard case (sole stale row,
+// dead-letter/failed newest, in-flight carrier, cross-scope) keeps a row
+// executable. Since #10863 the runner drives one sweep pass before the
+// claim, as the production sweeper does on its interval.
 func TestReducerClaimCoalescesStaleCrossplaneRowsLive(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
@@ -196,6 +200,9 @@ func TestReducerClaimCoalescesStaleCrossplaneRowsLive(t *testing.T) {
 				LeaseOwner:    "coalesce-proof",
 				LeaseDuration: time.Minute,
 				Now:           func() time.Time { return base.Add(4 * time.Hour) },
+			}
+			if _, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+				t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
 			}
 			if _, _, err := queue.Claim(ctx); err != nil {
 				t.Fatalf("Claim() error = %v", err)
