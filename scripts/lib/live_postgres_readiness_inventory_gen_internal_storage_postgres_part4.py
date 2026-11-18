@@ -262,6 +262,10 @@ TABLE = {
             "TestSupplyChainImpactWinnersStagingCollapseWorstPartitionCostLive",
             "TestSupplyChainImpactWinnersStagingCollapseExplainPinsKeyOrderLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_writer_txn_replay_live_test.go": (
+            "TestSupplyChainImpactWinnersResweepClaimIsCrossBackendLive",
+            "TestSupplyChainImpactWinnersWriterTxnReplayLive",
+        ),
         "go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go": (
             "TestTermsForeignKeyDropFailsCleanlyWhenItsLockStaysBusyLive",
         ),

@@ -23,6 +23,9 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go": (
+            "TestNVDBaselineTwoPassesConvergeToOneRowSetLive",
+        ),
         "go/internal/storage/postgres/nvd_window_ownership_live_test.go": (
             "TestNVDWindowOwnershipAccumulatesAcrossWindowsLive",
             "TestNVDWindowRefusalAndSkipHoldCursorLive",

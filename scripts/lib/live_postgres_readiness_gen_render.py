@@ -71,12 +71,16 @@ FRAGMENT_NAMES = (
 # 502-line budget edge. The fifth cut moves four entries later (part5 94
 # rows, part6 98 rows/492 lines); the stale-red seed (+1 row in part6) and
 # the stable seed (part1) still fit; six fragments pinned.
+# Rebalanced 2026-11-18 for #10851: the writer-txn replay enrollment pushes
+# part6 to 99 rows (497 lines, 502 with the stable seed over the 499 budget).
+# The fifth cut moves three entries later (part5 97 rows/487 lines, part6
+# 96 rows/482 lines, 487 with the seed); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
     "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
-    "go/internal/storage/postgres/repository_retirements_census_lock_live_test.go",
+    "go/internal/storage/postgres/repository_retirements_derived_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

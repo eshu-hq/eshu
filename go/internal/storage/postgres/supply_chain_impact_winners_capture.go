@@ -5,28 +5,56 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// winnersWriteConflictClass returns the failure class for a retryable write
+// conflict, or "" when err is nil or not a deadlock/serialization failure.
+// It follows the content_files and projector-claim classifiers
+// (contentFileWriteConflictClass, claimConflictClass): 40P01 counts as
+// deadlock, 40001 as serialization_failure. The counter below classifies
+// the victim only and never retries.
+func winnersWriteConflictClass(err error) string {
+	var pgErr *pgconn.PgError
+	if err == nil || !errors.As(err, &pgErr) {
+		return ""
+	}
+	switch pgErr.Code {
+	case "40P01":
+		return "deadlock"
+	case "40001":
+		return "serialization_failure"
+	default:
+		return ""
+	}
+}
+
 // Capture of the supply-chain impact winners dirty log (#9805, ruling B).
 //
 // Three capture owners mark keys in the transaction that makes the change,
-// each as a key-ordered upsert that bumps only dirty_version (#10827):
+// each as plain staging INSERTs into the shared queue (#10837 direction C):
+// no owner touches the versioned dirty log, so no capture statement takes a
+// dirty-log row lock and concurrent writers over the same hot keys never
+// wait on a conflict arbiter.
 //
 //   - fact_upsert: CaptureWinnersDirtyFacts, called by the impact finding writer
 //     for every new or content-changed finding. The transaction holds the rows
-//     the upsert touched and counts them when it commits.
-//   - fact_retract: the retract statement's own upsert (writer_retract.go). The
-//     transaction holds that statement's affected rows and counts them when it
-//     commits.
-//   - activation, operator and scanner: the triggers of migrations 272 and 272a, on
-//     ingestion_scopes.active_generation_id and the two scanner tables. A
-//     trigger cannot emit a Go metric, so the maintainer counts these sources
-//     when it consumes their rows, by the row's source column.
+//     the staging insert touched and counts them when it commits.
+//   - fact_retract: the retract statement's own staging insert
+//     (writer_retract.go). The transaction holds that statement's staged rows
+//     and counts them when it commits.
+//   - activation, operator and scanner: the staging triggers of migrations
+//     310 and 311, on ingestion_scopes.active_generation_id and the two
+//     scanner tables. A trigger cannot emit a Go metric, so the maintainer
+//     counts these sources when it consumes their rows, by the row's source
+//     column.
 //
 // Source attribution is first-marker-wins (#10827): one row per recompute
 // unit, and a re-mark by a later owner bumps only dirty_version, leaving the
@@ -61,6 +89,7 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 	}
 	result, err := t.tx.ExecContext(ctx, captureWinnersDirtyFactsSQL, pkg, repo, digest, c0, advisory)
 	if err != nil {
+		t.recordWinnersWriteConflict(telemetry.SupplyChainImpactWinnersConflictSiteWriterCapture, err)
 		return 0, fmt.Errorf("stage supply chain impact winners dirty keys: %w", err)
 	}
 	rows, err := result.RowsAffected()
@@ -73,11 +102,11 @@ func (t *supplyChainImpactTx) CaptureWinnersDirtyFacts(
 
 // sortDedupWinnersDirtyIdentifiers returns a copy of ids sorted by the dirty
 // log's fact conflict key (package_id, repository_id, subject_digest, c0,
-// advisory_id) with exact duplicates removed. The writer upsert takes row
-// locks in this same order (#10827), so sorting here keeps concurrent
-// multi-row statements from contending out of order; the dedup keeps one
-// statement from marking one unit twice. The order binds one statement,
-// not the whole writer transaction (#10851).
+// advisory_id) with exact duplicates removed. The staging INSERT takes no
+// row locks (#10837 direction C: no unique index, no arbiter), so the sort
+// buys no lock order — it keeps the statement's row batch deterministic and
+// the dedup keeps one statement from staging one unit twice. The order binds
+// one statement, not the whole writer transaction (#10851).
 func sortDedupWinnersDirtyIdentifiers(ids []supplychaincore.WinnersDirtyIdentifier) []supplychaincore.WinnersDirtyIdentifier {
 	if len(ids) == 0 {
 		return nil
@@ -135,8 +164,24 @@ func (t *supplyChainImpactTx) Commit() error {
 		t.flushCapture()
 	} else {
 		t.pendingCapture = nil
+		t.recordWinnersWriteConflict(telemetry.SupplyChainImpactWinnersConflictSiteWriterCommit, err)
 	}
 	return err
+}
+
+// recordWinnersWriteConflict counts one aborted writer statement or commit
+// under its failure class (#10851). It classifies the victim only: the error
+// still returns to the caller unchanged and nothing retries. A nil error or
+// a non-conflict error records nothing.
+func (t *supplyChainImpactTx) recordWinnersWriteConflict(site string, err error) {
+	if t.instruments == nil {
+		return
+	}
+	ctx := t.captureCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	t.instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx, site, winnersWriteConflictClass(err))
 }
 
 // Rollback rolls the transaction back and discards the capture rows it held.

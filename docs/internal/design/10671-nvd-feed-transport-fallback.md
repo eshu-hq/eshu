@@ -336,7 +336,8 @@ Follow-ups, all filed under epic #9209:
   R4b, R7, R14).
 - B. [eshu#10716](https://github.com/eshu-hq/eshu/issues/10716): kill switch,
   telemetry (transport label, feed-age gauge, guard and deadline counters),
-  golden trace, wider cursor reader, NIST sunset watch (R5, R6, R8).
+  golden trace, wider cursor reader, NIST sunset watch (R5, R6, R8; watch
+  file `docs/internal/evidence/nvd-2.0-feeds-sunset.watch`).
 - C. [collector#100](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/100):
   year-feed seed through the baseline store, with the manifest, guard, and a
   dormant-year API cross-check (R7b, R12, R13, R15). Required before QA enable.
