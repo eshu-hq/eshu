@@ -53,30 +53,36 @@ var winnersDirtyLogMigrationAllowlist = map[string]bool{
 func TestWinnersDirtyLogWritesStayInCollapseAndConvert(t *testing.T) {
 	t.Parallel()
 
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("read package directory: %v", err)
-	}
 	var offenders []string
-	for _, entry := range entries {
+	err := filepath.WalkDir(".", func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+			return nil
 		}
-		body, err := os.ReadFile(filepath.Join(".", name))
+		body, err := os.ReadFile(path)
 		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
+			return err
 		}
+		// Strip full-line comments before matching so prose mentioning
+		// the statement does not count, then match the whole file at
+		// once: a statement split across lines must not evade the guard.
+		var code []string
 		for _, line := range strings.Split(string(body), "\n") {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "//") {
+			if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "//") {
 				continue
 			}
-			if winnersDirtyLogInsertPattern.MatchString(line) && !winnersDirtyLogWriterAllowlist[name] {
-				offenders = append(offenders, name)
-				break
-			}
+			code = append(code, line)
 		}
+		if winnersDirtyLogInsertPattern.MatchString(strings.Join(code, "\n")) && !winnersDirtyLogWriterAllowlist[name] {
+			offenders = append(offenders, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk package directory: %v", err)
 	}
 	if len(offenders) != 0 {
 		t.Errorf("direct dirty-log writers outside collapse/convert: %v (route new capture owners through the staging queue)", offenders)

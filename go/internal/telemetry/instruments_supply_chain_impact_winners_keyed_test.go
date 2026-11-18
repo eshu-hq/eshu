@@ -11,11 +11,17 @@ import (
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // TestSupplyChainImpactWinnersWriteConflictContract pins the closed site set
 // of eshu_dp_supply_chain_impact_winners_write_conflicts_total (#10851) and
-// that NewInstruments registers the counter.
+// that NewInstruments registers the counter. The want-list is literal and
+// independent of the constants: recording drives through each constant, and
+// the test then asserts every want-list site produced a series and the
+// accepted series count equals the want-list length, so a future site
+// constant without a Record switch entry fails here instead of passing for
+// the wrong reason.
 func TestSupplyChainImpactWinnersWriteConflictContract(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +33,44 @@ func TestSupplyChainImpactWinnersWriteConflictContract(t *testing.T) {
 	wantSites := []string{"writer_capture", "writer_commit", "tick"}
 	if !slices.Equal(gotSites, wantSites) {
 		t.Fatalf("write-conflict sites = %v, want the closed set %v", gotSites, wantSites)
+	}
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	ctx := context.Background()
+	for _, site := range gotSites {
+		inst.RecordSupplyChainImpactWinnersWriteConflict(ctx, site, "deadlock")
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	accepted := map[string]bool{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_winners_write_conflicts_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("conflicts metric data type = %T, want Int64 sum", m.Data)
+			}
+			for _, dp := range sum.DataPoints {
+				site, _ := dp.Attributes.Value(MetricDimensionSite)
+				accepted[site.AsString()] = true
+			}
+		}
+	}
+	for _, want := range wantSites {
+		if !accepted[want] {
+			t.Errorf("no recorded series for site %q: a constant without a Record switch entry would pass silently", want)
+		}
+	}
+	if len(accepted) != len(wantSites) {
+		t.Errorf("accepted %d sites, want exactly %d (%v)", len(accepted), len(wantSites), wantSites)
 	}
 	if got, want := MetricDimensionSite, "site"; got != want {
 		t.Fatalf("MetricDimensionSite = %q, want %q", got, want)
