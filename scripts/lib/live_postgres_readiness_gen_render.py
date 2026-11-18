@@ -61,17 +61,17 @@ FRAGMENT_NAMES = (
 # Union 2026-11-06 for the #10015 rebase onto #10199: keep the #10015 midpoint
 # cut and the four #10055 cuts (the three pre-#10199 cuts both lines replaced
 # stay moved); six fragments pinned.
-# Rebalanced 2026-11-17 for #10823: the relationship retention sweep's live
-# proofs and the #10820 request-budget proof took the sixth fragment to 527
-# lines, over the 499 budget. The fifth cut moves ten entries later, to the
-# 11th path of the old sixth fragment (437/477 lines for the fifth and sixth);
-# six fragments pinned.
+# Rebalanced 2026-11-18 for #10814: five new drain-probe proofs land past
+# the #10823 cut (part6 482 to 507 lines, 512 with the stale-red seed), so
+# regeneration failed over the 499 budget. The fifth cut moves three entries
+# later (part5 437 to 452 lines, part6 98 rows/492 lines); the seed lands in
+# part5 (457 lines); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
     "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
-    "go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go",
+    "go/internal/storage/postgres/reopen_stamp_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
