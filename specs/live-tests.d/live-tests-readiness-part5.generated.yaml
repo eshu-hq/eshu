@@ -337,7 +337,7 @@ tests:
   - file: go/internal/storage/postgres/reducer_claim_sweep_lock_order_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8205 reducer claim-time supersede sweep lock order over 400,000 analyzed background rows: two-session sweep against scoped and stage-only recovery replays in both start orders waits one way and the held-middle-row race of the same pairs completes (main: mutual block, then 40P01), 150 rounds of a claim racing scoped, stage-only and bounded replays with 0 x 40P01 and every stale row superseded exactly once (main: 111 of 150 deadlocked), the active-generation guard keeps every active-generation row, and the EvalPlanQual case keeps a row claimed before the sweep's lock step; isolated schemas; about 60 s locally; enrolled in the live-postgres-readiness runner"
+    reason: "#8205/#10863 reducer standalone supersede sweep lock order over 400,000 analyzed background rows: two-session sweep (bounded SKIP LOCKED since #10863, so it never waits) against scoped and stage-only recovery replays in both start orders completes with no 40P01 and the held-middle-row race of the same pairs completes (main: mutual block, then 40P01), 150 rounds of the sweep racing scoped, stage-only and bounded replays with 0 x 40P01 and every stale row superseded exactly once after follow-up passes (main: 111 of 150 deadlocked), the active-generation guard keeps every active-generation row, and the held-row case keeps a row claimed before the sweep's lock step; isolated schemas; about 60 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go
     tag: ~
