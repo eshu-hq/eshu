@@ -588,6 +588,14 @@ tests:
     tag: ~
     class: scheduled
     reason: "#10901 manual quiet-host-only landing-gate re-prove (adjudication condition 3): committed shim shape at n=200 per gated cell with control canary and load1 entry gate; incompatible with shared CI runners so it stays unenrolled from live-postgres-readiness; execution evidence in go/internal/storage/postgres/evidence-10901-quiet-absolute-reprove.md"
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_staging_autovacuum_soak_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10901 manual quiet-host-only landing-gate soak (box 4, goal-ops/ruling-10901-autovacuum-soak-r2.md): sustained production-shape waves with per-tick vacuum series, conservation exact, RED-first via ESHU_SOAK_VACUUM_OFF=1; incompatible with shared CI runners so it stays unenrolled from live-postgres-readiness; execution evidence in go/internal/storage/postgres/evidence-10901-autovacuum-soak.md"
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_staging_autovacuum_soak_support_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10901 soak harness helpers (wave runner, canary, series sampling) for the box-4 soak test above; same manual quiet-host-only lane, stays unenrolled from live-postgres-readiness"
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled
