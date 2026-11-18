@@ -64,6 +64,31 @@ func replay10862Mix() []replay10862Row {
 	return rows
 }
 
+// TestReplay10862MixShape is the hermetic guard for the baseline shape
+// pins: it runs without a database so static CI legs fail if the seed mix
+// drifts from the measured counts the evidence note records.
+func TestReplay10862MixShape(t *testing.T) {
+	rows := replay10862Mix()
+	if len(rows) != 8713 {
+		t.Fatalf("mix rows = %d, want 8713", len(rows))
+	}
+	retrying, advisory := 0, 0
+	for _, r := range rows {
+		if r.status == "retrying" {
+			retrying++
+		}
+		if r.domain == reducercontract.DomainAdvisoryGroupProjection {
+			advisory++
+		}
+	}
+	if retrying != 1238 {
+		t.Fatalf("mix retrying = %d, want 1238", retrying)
+	}
+	if advisory != 1707 {
+		t.Fatalf("mix advisory burst = %d, want 1707", advisory)
+	}
+}
+
 // seedReducerQueue10862Replay plants the #10862 waiting mix on a disposable
 // Postgres behind the benchmark schema. createdAt spread reproduces the
 // measured queue age (oldest ~30d) deterministically: row i of n lands at
