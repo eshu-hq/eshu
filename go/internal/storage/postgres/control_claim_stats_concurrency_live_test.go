@@ -37,6 +37,17 @@ func TestWorkflowStatsAnalyzeDuringClaims(t *testing.T) {
 	defer cancel()
 	now := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
 
+	// Pin the proof table cold: an awake autovacuum daemon can autoanalyze
+	// the 20k-row corpus before the helper's first attempt, and the gate
+	// then skips on auto=true until the retry deadline (#10897: 358
+	// consecutive skips). The database is per-test isolated, so the setting
+	// dies with the test. The six claimers still run throughout, so the
+	// SKIP_LOCKED contention proof is unchanged: the only analyzer that can
+	// warm the table is the helper under test.
+	if _, err := database.ExecContext(ctx, `ALTER TABLE workflow_work_items SET (autovacuum_enabled = false)`); err != nil {
+		t.Fatalf("disable autovacuum on workflow_work_items: %v", err)
+	}
+
 	const (
 		run      = "stats-concurrency-run"
 		keys     = 200
@@ -95,11 +106,12 @@ func TestWorkflowStatsAnalyzeDuringClaims(t *testing.T) {
 	//
 	// One ANALYZE samples a single lock instant: with SKIP_LOCKED it
 	// legitimately reports skipped when every claimer holds the needed
-	// locks at that instant, and the stats gate reports skipped when a
-	// concurrent autovacuum already warmed the table. Neither means the
-	// helper is broken, so repeat until the helper reports analyzed or
-	// the retry budget ends. Claimers run throughout; ANALYZE is
-	// idempotent, and a helper error still fails fast.
+	// locks at that instant. Autovacuum is disabled on the proof table
+	// above, so a skip can only come from claim-lock contention, never
+	// from a warmed table. Neither means the helper is broken, so repeat
+	// until the helper reports analyzed or the retry budget ends.
+	// Claimers run throughout; ANALYZE is idempotent, and a helper error
+	// still fails fast.
 	time.Sleep(2 * time.Second)
 	var outcome string
 	var analyzeWall time.Duration
