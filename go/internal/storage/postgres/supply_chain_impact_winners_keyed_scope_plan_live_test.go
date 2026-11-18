@@ -34,15 +34,23 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 	}
 	// Production tables carry planner statistics on a real backend, so the
 	// only estimates the plans can miss are the tick's own temp tables.
+	// Over-cap arm for the fallback pin below: 5,000 fact-kind rows take
+	// the admitted window to its LIMIT, the scale the over-cap fallback
+	// delete runs at. The delete path touches only the dirty log and the
+	// consumed temp table, so key-only rows (no backing facts) shape its
+	// plan faithfully; the scope-heavy seed above keeps the convert and
+	// applied-delete assertions on real expansion data.
+	h.exec(`INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, package_id, repository_id, subject_digest, c0, advisory_id) SELECT 'fact', 'scanner', 'pkg:npm/10839-ocap/' || g, 'repo-10839-ocap', 'digest-10839-ocap-' || g, 'c0-10839-ocap', 'CVE-2027-' || g FROM generate_series(1,5000) g`)
 	h.exec(`ANALYZE fact_records`)
 	h.exec(`ANALYZE supply_chain_impact_winners_dirty_log`)
 
-	convertPlan, deletePlan, err := postgres.ExplainWinnersKeyedSettleForTest(h.ctx, h.db)
+	convertPlan, deletePlan, fallbackPlan, err := postgres.ExplainWinnersKeyedSettleForTest(h.ctx, h.db)
 	if err != nil {
 		t.Fatalf("explain settle: %v", err)
 	}
 	t.Logf("convert plan:\n%s", convertPlan)
 	t.Logf("applied-delete plan:\n%s", deletePlan)
+	t.Logf("fallback-delete plan:\n%s", fallbackPlan)
 
 	// The convert must probe the chunk through its unique index (not rescan
 	// it per expansion row) and reach the expansion through the
@@ -68,5 +76,25 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 	}
 	if strings.Contains(deletePlan, "Join Filter: (d.seq = c.seq)") {
 		t.Error("applied-delete plan filters d.seq = c.seq per row instead of an index join: the statistics-blind nested loop is back")
+	}
+	// The over-cap fallback delete (deleteWinnersKeyedAllDirtySQL) must keep
+	// the seq equijoin as a join key — a Hash Cond or an Index Cond — never
+	// a per-row Join Filter. Measured (2026-11-18, PG18, 5,000-row admitted
+	// window, analyzed stats, winners_keyed_consumed_seq_idx present): the
+	// planner hash-joins, correctly — probing the pkey once per admitted row
+	// costs more than one log scan plus hash at this width, and the admitted
+	// window is hard-capped at 5,000 rows so the hash side is bounded. An
+	// index-probe assertion would demand the slower plan; the regression
+	// class this pins is the statistics-blind nested loop that filters
+	// seq equality per row (or rescans the log per consumed row).
+	if !strings.Contains(fallbackPlan, "c.seq = d.seq") &&
+		!strings.Contains(fallbackPlan, "d.seq = c.seq") &&
+		!strings.Contains(fallbackPlan, "seq = c.seq") &&
+		!strings.Contains(fallbackPlan, "seq = d.seq") {
+		t.Error("fallback-delete plan carries no seq equijoin between the dirty log and the admitted window")
+	}
+	if strings.Contains(fallbackPlan, "Join Filter: (d.seq = c.seq)") ||
+		strings.Contains(fallbackPlan, "Join Filter: (c.seq = d.seq)") {
+		t.Error("fallback-delete plan filters seq equality per row instead of joining on it: the statistics-blind nested loop is back")
 	}
 }
