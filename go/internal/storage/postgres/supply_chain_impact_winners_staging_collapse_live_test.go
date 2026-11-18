@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10837 direction C landing proofs: shared staging collapse conservation (version/captured_at/source arithmetic, one-row control, re-mark survival, budget split with staging-union horizon), writer-vs-collapse interleave at 1/2/4 writers with zero 40P01, worst-partition collapse cost, and key-ordered EXPLAIN pins
+//eshu:readiness:env ESHU_POSTGRES_TEST_DSN ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE
+
 import (
 	"context"
 	"database/sql"
