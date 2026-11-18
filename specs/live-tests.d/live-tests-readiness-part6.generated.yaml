@@ -299,6 +299,11 @@ tests:
     class: postgres_ci
     reason: "#10837 direction C landing proofs: shared staging collapse conservation (version/captured_at/source arithmetic, one-row control, re-mark survival, budget split with staging-union horizon), writer-vs-collapse interleave at 1/2/4 writers with zero 40P01, worst-partition collapse cost, and key-ordered EXPLAIN pins"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_writer_txn_replay_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10851 conditions 1, 4 and 6: cross-backend resweep-claim mutual exclusion, the multi-batch writer-txn replay held open across a concurrent collapse-in-tick settle with zero 40P01 and exact conservation"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~
     class: postgres_ci
