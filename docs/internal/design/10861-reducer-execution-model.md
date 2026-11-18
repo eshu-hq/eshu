@@ -194,5 +194,6 @@ beyond the owner's target, which is not a hosted service.
 - Proving experiment plus reject result per decision: recorded above.
 - This file: this record.
 - Part E marked replaced: pointer at the top of Part E.
-- Phase 2 and 3 children citing their decision: #10875-#10880 cite #10861;
-  #10881, #10882, #10883 do not yet.
+- Phase 2 and 3 children citing their decision: done — #10875-#10880 cite
+  #10861; #10881 (D6), #10882 (D6 skew/D4 freshness), #10883 (D5) edited
+  2026-11-18 to cite their decision.
