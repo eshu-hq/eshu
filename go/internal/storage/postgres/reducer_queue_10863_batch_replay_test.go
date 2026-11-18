@@ -18,13 +18,13 @@ import (
 // TestReducerQueue10863BatchClaimReplay drains the #10862 QA waiting mix
 // (8,713 rows) through the shipped ClaimBatch/Ack path and logs batch
 // claim p50/p95 plus one rolled-back EXPLAIN (ANALYZE, BUFFERS) of the
-// batch claim over the same seed. It is the after-measurement surface for
-// #10863 acceptance 1/2/6 on the built code: the before numbers on the
-// identical seed are recorded in
-// docs/internal/evidence/10863-claim-supersede-out.md (shipped sweep:
-// ClaimBatch median 50.6 ms / p95 52.6 ms, candidate buffers 12,941 on the
-// clean replay). Operator-gated on ESHU_REDUCER_CLAIM_BENCH_DSN like the
-// other claim benches; it never touches QA.
+// batch claim over the same seed. It is the before/after surface for
+// #10863 acceptance 1/2/6 on the built code: run it on both builds and
+// pair drain percentiles only with drain percentiles (they fall as depth
+// falls). The recorded same-method pair lives in
+// docs/internal/evidence/10863-claim-supersede-out.md. Operator-gated on
+// ESHU_REDUCER_CLAIM_BENCH_DSN like the other claim benches; it never
+// touches QA.
 func TestReducerQueue10863BatchClaimReplay(t *testing.T) {
 	dsn := reducerClaimBenchmarkDSN()
 	if dsn == "" {

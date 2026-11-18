@@ -58,12 +58,19 @@ hand-out (16 rows) identical, while the naked variant handed out 8 of
 exists to prevent. The funnel-style read-only sweep replay measured no
 better than the shipped sweep, so it was rejected as the gate shape.
 
-Built-path after-measurement (`TestReducerQueue10863BatchClaimReplay`,
-unmodified 8,713-row replay seed, same container): drained 8,713 in
-23.1 s, `ClaimBatch` p50 25.963 ms / p95 43.934 ms, explain median
-50.149 ms / 4,847 buffers at full depth. Shipped build on the identical
-seed before this change: `ClaimBatch` median 50.638 ms / p95 52.610 ms,
-12,941 buffers (prior perf-verify run). Single-claim replay
+Built-path before/after, same method both sides
+(`TestReducerQueue10863BatchClaimReplay` — drain the unmodified
+8,713-row replay seed through `ClaimBatch(16)`+`Ack`, timed per claim;
+the shipped side is the merge-base build running the identical test,
+same container, 2026-11-18): this change drained 8,713 in 22.3 s,
+`ClaimBatch` p50 26.179 ms / p95 43.737 ms, full-depth explain median
+49.592 ms / 4,847 buffers; shipped drained in 24.9 s, p50 29.902 ms /
+p95 48.696 ms, explain 55.874 ms / 13,000 buffers. Same-method effect
+on this seed: p50 −12%, p95 −10%, buffers −63% (the buffer term is the
+removed sweep scan; latency at this depth is dominated by the
+candidate chain both sides share). Drain-method percentiles fall as
+depth falls, so they must never be paired with steady-depth medians.
+Single-claim replay
 (`TestReducerQueue10862ReplayShapeAndDrain`) after: p50 0.006 s /
 p95 0.008 s, flatness 0.806. No QA percentage is claimed: QA is
 buffer-bound at a different scale, and these numbers prove direction
