@@ -72,20 +72,46 @@ func TestReplay10862MixShape(t *testing.T) {
 	if len(rows) != 8713 {
 		t.Fatalf("mix rows = %d, want 8713", len(rows))
 	}
-	retrying, advisory := 0, 0
+	want := map[reducercontract.Domain][2]int{ // pending, retrying per domain
+		reducercontract.DomainSupplyChainImpact:              {5845, 46},
+		reducercontract.DomainAdvisoryGroupProjection:        {725, 982},
+		reducercontract.DomainWorkloadMaterialization:        {248, 54},
+		reducercontract.DomainDeploymentMapping:              {216, 0},
+		reducercontract.DomainDeployableUnitCorrelation:      {1, 156},
+		reducercontract.DomainContainerImageIdentity:         {150, 0},
+		reducercontract.DomainPlatformInfraMaterialization:   {125, 0},
+		reducercontract.DomainEshuSearchDocument:             {81, 0},
+		reducercontract.DomainCodeImportRepoEdge:             {51, 0},
+		reducercontract.DomainAWSCloudRuntimeDrift:           {9, 0},
+		reducercontract.DomainRationaleMaterialization:       {6, 0},
+		reducercontract.DomainRuntimeDeclarationProjection:   {6, 0},
+		reducercontract.DomainSubmodulePin:                   {6, 0},
+		reducercontract.DomainCodeownersOwnership:            {5, 0},
+		reducercontract.DomainSecurityAlertReconciliation:    {1, 0},
+	}
+	got := map[reducercontract.Domain][2]int{}
+	retrying := 0
 	for _, r := range rows {
+		c := got[r.domain]
 		if r.status == "retrying" {
+			c[1]++
 			retrying++
+		} else {
+			c[0]++
 		}
-		if r.domain == reducercontract.DomainAdvisoryGroupProjection {
-			advisory++
-		}
+		got[r.domain] = c
 	}
 	if retrying != 1238 {
 		t.Fatalf("mix retrying = %d, want 1238", retrying)
 	}
-	if advisory != 1707 {
-		t.Fatalf("mix advisory burst = %d, want 1707", advisory)
+	for domain, w := range want {
+		if got[domain] != w {
+			t.Fatalf("mix %s = pending %d retrying %d, want pending %d retrying %d",
+				domain, got[domain][0], got[domain][1], w[0], w[1])
+		}
+	}
+	if len(got) != len(want) {
+		t.Fatalf("mix domains = %d, want %d", len(got), len(want))
 	}
 }
 

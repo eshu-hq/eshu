@@ -148,7 +148,7 @@ Two snapshots minutes apart (the queue is live; totals drifted
 | Workload summaries | 302 | 54 | |
 | Deployment mapping | 216 | 0 | |
 | Deployable-unit matching | 157 | 156 (99%) | Almost everything retries |
-| All other kinds combined | ~440 | 0 | |
+| All other kinds combined | 441 | 0 | |
 | **Total waiting** | **8,713** | **1,238** | Oldest item: 30 days. In progress: 7–8. Given up on: ~150 |
 
 ## 8. How stale answers are, by source
