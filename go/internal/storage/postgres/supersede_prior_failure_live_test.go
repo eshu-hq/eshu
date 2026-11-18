@@ -229,8 +229,10 @@ func TestSupersedeFoldsPriorFailureAckRefusal(t *testing.T) {
 	}
 }
 
-// TestSupersedeFoldsPriorFailureReducerClaim covers site 5: the reducer claim's
-// inactive-generation sweep, through both ReducerQueue.Claim and ClaimBatch.
+// TestSupersedeFoldsPriorFailureReducerClaim covers site 5: the reducer
+// inactive-generation sweep. Since #10863 the sweep runs standalone; both
+// ReducerQueue.Claim and ClaimBatch first fence the stale rows at hand-out
+// (writing nothing), then one sweep pass folds and terminalizes them.
 func TestSupersedeFoldsPriorFailureReducerClaim(t *testing.T) {
 	dsn := claimMaintenanceProofDSN(t)
 	for _, mode := range []string{"claim", "claim_batch"} {
@@ -251,6 +253,14 @@ func TestSupersedeFoldsPriorFailureReducerClaim(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("reducer %s error = %v", mode, err)
+			}
+			for _, tc := range cases {
+				if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, context.Background(), database, "old-pf-red-"+tc.name); status == "superseded" {
+					t.Fatalf("reducer %s terminalized stale row %q inline; #10863 keeps supersession in the sweep", mode, tc.name)
+				}
+			}
+			if _, err := queue.SupersedeStaleReducerGenerations(context.Background(), 100); err != nil {
+				t.Fatalf("reducer sweep error = %v", err)
 			}
 			for _, tc := range cases {
 				scopeID := "pf-red-" + tc.name

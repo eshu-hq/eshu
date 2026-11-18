@@ -148,6 +148,11 @@ claim_until = now() + interval '1 minute' WHERE work_item_id = $1`, "old-"+scope
 		if _, _, err := queue.Claim(ctx); err != nil {
 			t.Fatalf("first Claim() error = %v", err)
 		}
+		// #10863: the claim fences the stale row; the periodic sweep is
+		// what terminalizes it and folds the prior failure.
+		if _, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+			t.Fatalf("SupersedeStaleReducerGenerations() error = %v", err)
+		}
 		before := pfSnapshot(t, database, "old-"+scopeID)
 		if !strings.Contains(before, "prior_failure") {
 			t.Fatalf("precondition: superseded reducer row has no prior_failure: %s", before)
@@ -158,8 +163,11 @@ claim_until = now() + interval '1 minute' WHERE work_item_id = $1`, "old-"+scope
 		if _, err := queue.ClaimBatch(ctx, 4); err != nil {
 			t.Fatalf("ClaimBatch() error = %v", err)
 		}
+		if _, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+			t.Fatalf("second SupersedeStaleReducerGenerations() error = %v", err)
+		}
 		if after := pfSnapshot(t, database, "old-"+scopeID); after != before {
-			t.Fatalf("reducer claim rewrote a superseded row:\nbefore %s\nafter  %s", before, after)
+			t.Fatalf("reducer claim/sweep rewrote a superseded row:\nbefore %s\nafter  %s", before, after)
 		}
 	})
 }

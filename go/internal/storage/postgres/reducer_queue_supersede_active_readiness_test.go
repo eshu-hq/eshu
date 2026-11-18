@@ -125,6 +125,9 @@ func TestReducerClaimSupersedesStaleWorkWhenReadinessMetUnderActiveGeneration(t 
 	if intent.IntentID != activeID {
 		t.Fatalf("Claim() claimed %q, want the live row %q (stale rows must never be claimed)", intent.IntentID, activeID)
 	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 1000); err != nil || swept != supersedeActiveReadinessStaleRows {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want %d", swept, err, supersedeActiveReadinessStaleRows)
+	}
 
 	var superseded int
 	if err := db.QueryRowContext(ctx, `
@@ -237,12 +240,13 @@ func openSupersedeReadinessClaimerDB(t *testing.T, ctx context.Context, dsn, sch
 	return db
 }
 
-// TestReducerSupersedeActiveReadinessConcurrentClaims proves the widened sweep
-// does not race with live claims: claimers draining the #7664 shape on two
-// scopes at once must each see no error, retire every stale row exactly once,
-// and claim each live row exactly once (attempt_count 1, no double-claim, no
-// live row superseded, no deadlock). Run with -race to catch data races in
-// the concurrent claim drivers.
+// TestReducerSupersedeActiveReadinessConcurrentClaims proves the widened
+// sweep does not race with live claims: claimers draining the #7664 shape
+// on two scopes at once must each see no error and claim each live row
+// exactly once (attempt_count 1, no double-claim, no live row superseded,
+// no deadlock); a sweep pass after the drain then retires every stale row
+// exactly once (#10863: claims fence, the sweep terminalizes). Run with
+// -race to catch data races in the concurrent claim drivers.
 func TestReducerSupersedeActiveReadinessConcurrentClaims(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
@@ -307,6 +311,9 @@ func TestReducerSupersedeActiveReadinessConcurrentClaims(t *testing.T) {
 	close(errs)
 	for err := range errs {
 		t.Fatal(err)
+	}
+	if swept, err := queues[0].SupersedeStaleReducerGenerations(ctx, 1000); err != nil || swept != 2*stalePerScope {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want %d", swept, err, 2*stalePerScope)
 	}
 
 	var superseded int
@@ -393,8 +400,8 @@ func (database *supersedeActiveReadinessExplainDB) QueryContext(ctx context.Cont
 
 // TestReducerSupersedeActiveReadinessClaimPlan captures the claim statement's
 // plan over the #7664 shape in a rolled-back transaction. It asserts the
-// sweep and its readiness gate are in the plan; the timings are plan evidence
-// for the PR, not a latency gate.
+// stale gate and its readiness probe are in the plan; the timings are plan
+// evidence for the PR, not a latency gate.
 func TestReducerSupersedeActiveReadinessClaimPlan(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
@@ -451,10 +458,13 @@ func TestReducerSupersedeActiveReadinessClaimPlan(t *testing.T) {
 	if plan == "" {
 		t.Fatalf("no plan captured for the claim statement")
 	}
-	for _, want := range []string{"superseded_stale_reducer_generations", "graph_projection_phase_state"} {
+	for _, want := range []string{"stale_reducer_candidates", "graph_projection_phase_state"} {
 		if !strings.Contains(plan, want) {
-			t.Fatalf("claim plan does not mention %q; the sweep or its gate is missing from the plan", want)
+			t.Fatalf("claim plan does not mention %q; the stale gate or its readiness probe is missing from the plan", want)
 		}
+	}
+	if strings.Contains(plan, "superseded_stale_reducer_generations") {
+		t.Fatalf("claim plan executes the in-claim supersede sweep again (#10863): %s", plan)
 	}
 	t.Logf("7664 claim plan over the active-readiness shape (rolled back): %s", plan)
 }

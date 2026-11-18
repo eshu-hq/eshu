@@ -165,7 +165,17 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
         ` + reducerClaimReadinessGateSQL("stale", "supersede_readiness_req", "supersede_readiness_phase") + `
         OR ` + reducerClaimReadinessGateForGenerationSQL("stale", "scope.active_generation_id", "supersede_active_readiness_req", "supersede_active_readiness_phase") + `
       )
-      AND NOT (
+      AND ` + supplyChainFanOutDebtSpareSQL + `
+`
+
+// supplyChainFanOutDebtSpareSQL is the #10060 fan-out-debt spare: a
+// supply_chain_impact row (outside the manifest-dependency marker chain)
+// that still owes holder fan-out is never stale-superseded or claim-fenced,
+// because its payload is the only record of the unreached holders. Shared
+// verbatim by the sweep predicate above and the claim-time stale gate
+// (reducer_claim_stale_gate_sql.go) so the spare cannot drift between the
+// row that terminalizes and the row that fences hand-out.
+var supplyChainFanOutDebtSpareSQL = `NOT (
         stale.domain = '` + string(reducercontract.DomainSupplyChainImpact) + `'
         AND COALESCE(stale.payload->>'` + supplychaincore.PayloadKeyTrigger + `', '') <> '` + supplychaincore.TriggerManifestDependency + `'
         AND (
@@ -176,12 +186,15 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
                ELSE FALSE
              END
         )
-      )
-`
+      )`
 
 // supersedeInactiveReducerGenerationsCTE terminalizes unleased older-generation
-// reducer rows during claim so audit history remains durable without letting
-// obsolete work keep readiness in progress forever.
+// reducer rows so audit history remains durable without letting obsolete
+// work keep readiness in progress forever. It ran inside every claim until
+// #10863 moved cleanup to the standalone periodic sweep
+// (supersedeStaleReducerGenerationsQuery); claims now fence the same rows
+// read-only at hand-out (reducer_claim_stale_gate_sql.go), so correctness
+// never waits for the sweep and the sweep only owns terminalization.
 //
 // One domain is spared conditionally: crossplane_satisfied_by_materialization
 // rows are scope-keyed replays that rebind to the active generation at execute
@@ -265,25 +278,67 @@ var supersedeInactiveReducerGenerationsPredicate = `stale.stage = 'reducer'
 // (EvalPlanQual), so a row a worker claimed meanwhile is dropped. The UPDATE
 // rechecks the row's own stage and status and joins the scope only for the
 // failure details: once locked, no other transaction can change the row, and
-// re-running the readiness gate there measured +16 % on a 2,118-row sweep. It
-// does not use SKIP LOCKED: a skipped row would leave an older generation's
-// work unsuperseded by this claim, weakening the guard the sweep exists for.
+// re-running the readiness gate there measured +16 % on a 2,118-row sweep. The
+// in-claim form did not use SKIP LOCKED: a skipped row would leave an older
+// generation's work unsuperseded by that claim, weakening the guard the sweep
+// exists for. The standalone periodic form (#10863) does use SKIP LOCKED with
+// a bounded LIMIT: hand-out safety no longer depends on this statement (the
+// claim gate fences stale rows read-only, and the runtime generation guard
+// refuses a leaked stale intent before its handler runs), so a row another
+// sweeper or claim holds is simply terminalized on a later pass.
 //
 // This CTE must be declared AFTER reducerClaimReadinessRequirementsCTE in the
 // enclosing WITH clause so the readiness-gate predicate below can reference
 // reducer_claim_readiness_requirements; Postgres CTEs may only reference
 // earlier siblings in the same WITH list (barring RECURSIVE, which is not
 // used here).
-var supersedeInactiveReducerGenerationsCTE = `
+// supersedeInactiveReducerGenerationsCTE is the unbounded, blocking-lock
+// form of the sweep CTEs, kept as the canonical text the shape pins and
+// the prior-failure enumerations read. Since #10863 no claim statement
+// composes it: claims fence stale rows through the read-only gate
+// (reducer_claim_stale_gate_sql.go) and the standalone periodic sweep
+// (supersedeStaleReducerGenerationsQuery) composes the bounded
+// SKIP LOCKED form from the same builder.
+var supersedeInactiveReducerGenerationsCTE = supersedeInactiveReducerGenerationsCTEs(`
+    ORDER BY stale.work_item_id COLLATE "C"
+    FOR NO KEY UPDATE OF stale
+`)
+
+// supersedeInactiveReducerGenerationsCTEs renders the sweep CTE chain
+// (lock step, Crossplane carrier, terminal UPDATE) with a caller-chosen
+// lock-step tail: the ORDER BY plus locking clause, optionally bounded by
+// a LIMIT. The predicate, carrier arm, carrier CTE, and UPDATE are shared
+// verbatim across every tail.
+func supersedeInactiveReducerGenerationsCTEs(lockTail string) string {
+	return supersedeInactiveReducerGenerationsCTEsAfter(lockTail, "")
+}
+
+// supersedeInactiveReducerGenerationsCTEsAfter is
+// supersedeInactiveReducerGenerationsCTEs with an optional keyset cursor
+// on the lock step: when afterParam names a text parameter (for example
+// "$4"), the whole lock-step disjunction (stale predicate OR
+// active-generation carrier arm) is parenthesized and ANDed with
+// stale.work_item_id past that parameter, empty meaning the first window.
+// The cursor applies to both arms, so a window can never lock a stale row
+// on one side of the cursor and its carrier on the other and then
+// supersede it: the carrier check still probes only this statement's
+// locked set (supersededCrossplaneNewestCarrierCTE), so chunking at a
+// cursor boundary only ever spares more. An empty afterParam renders the
+// canonical text byte-for-byte, which the shape pins read.
+func supersedeInactiveReducerGenerationsCTEsAfter(lockTail string, afterParam string) string {
+	lockWhere := `WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
+` + supersedeInactiveReducerCarrierArmSQL + lockTail
+	if afterParam != "" {
+		lockWhere = `WHERE ((` + supersedeInactiveReducerGenerationsPredicate + `)
+` + supersedeInactiveReducerCarrierArmSQL + `)
+      AND (` + afterParam + `::text = '' OR stale.work_item_id COLLATE "C" > ` + afterParam + `::text)` + lockTail
+	}
+	return `
 superseded_stale_reducer_locked AS (
     ` + supersedeInactiveReducerLockedColumnsSQL + `
     FROM fact_work_items AS stale,
          ` + supersedeInactiveReducerGenerationsJoin + `
-    WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
-` + supersedeInactiveReducerCarrierArmSQL + `
-    ORDER BY stale.work_item_id COLLATE "C"
-    FOR NO KEY UPDATE OF stale
-),
+    ` + lockWhere + `),
 ` + supersededCrossplaneNewestCarrierCTE + `
 superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale
@@ -314,6 +369,7 @@ superseded_stale_reducer_generations AS (
     RETURNING stale.work_item_id
 )
 `
+}
 
 // priorFailureStaleSQL and priorFailureWorkSQL are the jsonb expression that
 // folds a work row's failure evidence into the failure_details a supersede

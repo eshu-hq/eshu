@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -196,12 +197,18 @@ VALUES ($1, $2, 'synthetic', now(), now(), 'active', now(), '{}'::jsonb)`, []any
 }
 
 // TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive is the
-// EvalPlanQual arm of the #10060 proof. The sweep's lock step carries the
-// whole supersede predicate and locks candidate rows in work_item_id order
-// without SKIP LOCKED: a claim whose snapshot predates a fan-out debt write
-// blocks on that row's lock, and the waited lock must recheck the predicate
-// on the newest row version. Row-set equivalence cannot show this — the
-// debt exists only in the version committed while the claim waited.
+// re-evaluation arm of the #10060 proof. It used to prove the claim-time
+// sweep's EvalPlanQual recheck: the in-claim lock step blocked without
+// SKIP LOCKED on a debt row whose fan-out debt was still uncommitted, and
+// the waited lock rechecked the predicate on the newest row version.
+// Since #10863 the standalone sweep is bounded and SKIP LOCKED, so the
+// same guarantee takes a different shape, proven here at the same
+// strength: a pass whose snapshot predates the debt write skips the
+// locked row instead of terminalizing it under that snapshot, the next
+// passes re-evaluate it under a fresh snapshot once the debt commits and
+// spare it for its debt, and the claim gate then hands it out. Row-set
+// equivalence cannot show this — the debt exists only in the version
+// committed after the first pass ran.
 func TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	const scope = "scope:stranded-epq"
@@ -221,39 +228,66 @@ func TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive(t *testing.T) {
 		t.Fatalf("write debt in held transaction: %v", err)
 	}
 
-	type claimResult struct {
-		intent reducercontract.Intent
-		ok     bool
-		err    error
-	}
-	done := make(chan claimResult, 1)
 	queue := fanOutLiveQueue(db)
+	type sweepResult struct {
+		swept int
+		err   error
+	}
+	done := make(chan sweepResult, 1)
 	go func() {
-		intent, ok, err := queue.Claim(ctx)
-		done <- claimResult{intent, ok, err}
+		swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100)
+		done <- sweepResult{swept, err}
 	}()
 	select {
 	case got := <-done:
-		t.Fatalf("claim returned (%q, %v, %v) while the debt write held the row lock: the interleave never happened", got.intent.IntentID, got.ok, got.err)
-	case <-time.After(500 * time.Millisecond):
+		if got.err != nil {
+			t.Fatalf("sweep while the debt write held the row lock: %v", got.err)
+		}
+		if got.swept != 0 {
+			t.Fatalf("sweep superseded %d rows while the debt write held the row lock, want 0 (SKIP LOCKED skips it)", got.swept)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("sweep did not return within 15s while the debt write held the row lock: SKIP LOCKED must not wait")
+	}
+	if status := fanOutItem(t, ctx, db, id).status; status != "pending" {
+		t.Fatalf("item status after the locked-out pass = %q, want pending untouched", status)
 	}
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("commit debt write: %v", err)
 	}
-	select {
-	case got := <-done:
-		if got.err != nil {
-			t.Fatalf("claim error = %v", got.err)
+
+	// Repeated passes until quiescent: the debt is visible to every fresh
+	// snapshot now, so the spare must hold on each pass and the debt
+	// payload must survive untouched.
+	for pass := range 3 {
+		swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100)
+		if err != nil {
+			t.Fatalf("sweep pass %d after the debt committed: %v", pass, err)
 		}
-		if !got.ok || got.intent.IntentID != id {
-			status := fanOutItem(t, ctx, db, id).status
-			t.Fatalf("claim = (%q, %v), item status %q: debt committed while the sweep waited was not rechecked (#10060)", got.intent.IntentID, got.ok, status)
+		if swept != 0 {
+			t.Fatalf("sweep pass %d superseded %d rows, want 0: debt committed after the first pass was not re-evaluated (#10060)", pass, swept)
 		}
-		if err := queue.Ack(ctx, got.intent, reducercontract.Result{}); err != nil {
-			t.Fatalf("ack rechecked claim: %v", err)
+		var status, remaining string
+		if err := db.QueryRowContext(ctx, `
+SELECT status, COALESCE(payload->>'`+supplychaincore.PayloadKeyFanOutRemaining+`', '')
+FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&status, &remaining); err != nil {
+			t.Fatalf("read item after pass %d: %v", pass, err)
 		}
-	case <-time.After(15 * time.Second):
-		t.Fatal("claim did not return within 15s after the debt write committed")
+		if status != "pending" || !strings.Contains(remaining, "scope:holder-x") {
+			t.Fatalf("after pass %d item = (%q, remaining %q), want pending with its fan-out debt intact (#10060)", pass, status, remaining)
+		}
+	}
+
+	intent, ok, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("claim error = %v", err)
+	}
+	if !ok || intent.IntentID != id {
+		status := fanOutItem(t, ctx, db, id).status
+		t.Fatalf("claim = (%q, %v), item status %q: the debt row did not stay claimable across the sweep passes (#10060)", intent.IntentID, ok, status)
+	}
+	if err := queue.Ack(ctx, intent, reducercontract.Result{}); err != nil {
+		t.Fatalf("ack rechecked claim: %v", err)
 	}
 }
 
@@ -430,12 +464,16 @@ func TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive(t *testing
 			t.Fatalf("round %d claim on drained queue = ok %v err %v, want no work", round, ok, err)
 		}
 		// Duplicate-delivery arm: the debt-free stale item re-pended must be
-		// terminalized by the next claim sweep, not executed again.
+		// fenced at hand-out by the claim gate and terminalized by the
+		// periodic stale-generation sweep, not executed again (#10863).
 		if _, err := c.db.ExecContext(c.ctx, `UPDATE fact_work_items SET status='pending', attempt_count=0, lease_owner=NULL, claim_until=NULL, visible_at=now(), next_attempt_at=NULL WHERE work_item_id=$1`, continuationID); err != nil {
 			t.Fatalf("round %d re-pend duplicate: %v", round, err)
 		}
 		if _, ok, err := c.queue.Claim(c.ctx); err != nil || ok {
-			t.Fatalf("round %d duplicate claim = ok %v err %v, want the sweep to retire it unclaimed", round, ok, err)
+			t.Fatalf("round %d duplicate claim = ok %v err %v, want the gate to fence it unclaimed", round, ok, err)
+		}
+		if _, err := c.queue.SupersedeStaleReducerGenerations(c.ctx, 100); err != nil {
+			t.Fatalf("round %d SupersedeStaleReducerGenerations: %v", round, err)
 		}
 		if got := fanOutItem(t, c.ctx, c.db, continuationID); got.status != "superseded" {
 			t.Fatalf("round %d duplicate stale item status = %q, want superseded once its debt is gone", round, got.status)

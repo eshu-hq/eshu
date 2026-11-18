@@ -37,7 +37,7 @@ tests:
   - file: go/internal/query/admin/activation_wake_interleave_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner"
+    reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a standalone stale-generation sweep pass on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/query/admin/reopen_live_test.go
     tag: ~
@@ -52,7 +52,7 @@ tests:
   - file: go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8205 admin replay against the reducer claim-time supersede sweep in both start orders waits one way and survives the held-middle-row race (main: 40P01), and 150 rounds of a claim, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
+    reason: "#8205 admin replay against the standalone stale-generation sweep (SKIP LOCKED since #10863, so it never waits) in both start orders and through the held-middle-row race (main: 40P01), and 150 rounds of a sweep, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting after follow-up passes (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/query/admin/replay_lock_order_live_test.go
     tag: ~
@@ -67,7 +67,7 @@ tests:
   - file: go/internal/query/admin/skip_lock_order_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
+    reason: "#8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the standalone stale-generation sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/query/admin/store/reopen_stamp_intent_age_live_test.go
     tag: ~

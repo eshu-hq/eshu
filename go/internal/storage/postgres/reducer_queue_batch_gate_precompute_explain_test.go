@@ -21,16 +21,18 @@ import (
 //
 //   - the OLD candidate plan still evaluates per-row SubPlans on this
 //     fixture (non-vacuous: the shape the rewrite removes is present), and
-//   - the NEW candidate and FULL-claim plans evaluate zero SubPlans, while
-//     the full-claim Update node still sweeps the stale volume, and
+//   - the NEW candidate and FULL-claim plans evaluate zero base-section
+//     SubPlans, while the standalone periodic sweep (#10863) still
+//     terminalizes the stale volume out of band, and
 //   - the FUNNEL plan evaluates zero Update/LockRows nodes (F1: the census
-//     replays the sweep read-only instead of re-running its UPDATE).
+//     stays a pure SELECT).
 //
 // Every EXPLAIN ANALYZE runs inside a transaction that rolls back, so the
-// sweep UPDATE the plans execute never commits and every side observes the
-// identical fixture state. Timings and buffer counts are logged as evidence,
-// not asserted as gates (single-sample wall time is not a proof, and neither
-// fixture is production scale: see the production-scale caveat below).
+// sweep UPDATE the sweep plan executes never commits and every side
+// observes the identical fixture state. Timings and buffer counts are
+// logged as evidence, not asserted as gates (single-sample wall time is
+// not a proof, and neither fixture is production scale: see the
+// production-scale caveat below).
 //
 // Skipped unless a DSN is provided, like the other claim proofs.
 func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
@@ -106,8 +108,16 @@ func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
 		t.Fatalf("full-claim base section still evaluates %d SubPlan nodes:\n%s",
 			fullBaseSubPlans, strings.Join(fullPlan, "\n"))
 	}
-	swept := fullClaimUpdateRows(t, fullPlan)
-	t.Logf("full-claim Update node actual rows (sweep + claims): %d (seeded stale: %d)", swept, staleRows)
+	claimedRows := fullClaimUpdateRows(t, fullPlan)
+	t.Logf("full-claim Update node actual rows (claimed only since #10863): %d (seeded stale: %d)", claimedRows, staleRows)
+	// #10863: the claim's only UPDATE is the claimed-rows update (bounded
+	// by the batch limit); the stale volume is terminalized by the
+	// standalone sweep, proven on its own plan against the same fixture.
+	sweepPlan := explainAnalyzeRollback(t, ctx, db, supersedeStaleReducerGenerationsQuery,
+		[]any{clock, nil, staleRows + 1000, ""})
+	swept := fullClaimUpdateRows(t, sweepPlan)
+	t.Logf("standalone sweep Update node actual rows: %d (seeded stale: %d), execution time %s",
+		swept, staleRows, planExecutionTime(sweepPlan))
 
 	// F1/F6 funnel-vs-claim pair on the same stale-heavy fixture: the
 	// funnel census must show no data-modifying or locking node, and its
@@ -130,8 +140,12 @@ func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
 	t.Logf("funnel-vs-claim buffers: funnel=[%s] full-claim=[%s]",
 		strings.Join(planBufferLines(funnelPlan), " / "),
 		strings.Join(planBufferLines(fullPlan), " / "))
+	if claimedRows > 8 {
+		t.Fatalf("full-claim Update node touched %d rows, want at most the batch limit 8 claimed rows; "+
+			"the claim must not terminalize stale volume inline (#10863)", claimedRows)
+	}
 	if swept < staleRows {
-		t.Fatalf("full-claim Update node swept %d rows, want at least the %d seeded stale rows; "+
+		t.Fatalf("standalone sweep Update node swept %d rows, want at least the %d seeded stale rows; "+
 			"the sweep volume this proof must cover is missing", swept, staleRows)
 	}
 }
@@ -273,10 +287,10 @@ func planCTESection(t *testing.T, plan []string, name string) []string {
 var fullClaimUpdateRowsRe = regexp.MustCompile(`Update on fact_work_items.*rows=([\d.]+) loops=`)
 
 // fullClaimUpdateRows sums actual rows across every Update on fact_work_items
-// node in the full-claim plan: the sweep UPDATE plus the claimed rows. It
-// proves the explained full claim really executed the sweep volume instead
-// of planning it away. Summing (not first-match) keeps the count independent
-// of CTE plan-print order.
+// node in a plan (the claim's claimed-rows update, or the standalone
+// sweep's terminalizing update). It proves the explained statement really
+// executed that write volume instead of planning it away. Summing (not
+// first-match) keeps the count independent of CTE plan-print order.
 func fullClaimUpdateRows(t *testing.T, plan []string) int {
 	t.Helper()
 	total := 0

@@ -19,9 +19,9 @@ import (
 )
 
 // Cost proof for #7320 (P5). The fold makes every supersede sweep read and
-// re-write the old failure_details, so the claim statements' sweep rows get
-// wider. This measures that on the shipped claim statements (the projector
-// claim, the reducer claim and the reducer batch claim), executed with the
+// re-write the old failure_details, so the sweep rows get wider. This
+// measures that on the shipped statements carrying the fold (the projector
+// claim and, since #10863, the standalone reducer sweep), executed with the
 // arguments their queue methods pass: the shipped text ("after") against the
 // same text with the fold cut out ("before", derived from the shipped constant,
 // so it cannot drift). Runs interleave before/after and alternate which goes
@@ -122,8 +122,11 @@ type costStatement struct {
 	args func(now time.Time) []any
 }
 
-// costStatements are the three claim statements the fold touches. The text is
-// the shipped constant; the measured "before" text is derived from it.
+// costStatements are the shipped statements the fold touches on the claim
+// paths measured here: the projector claim (its sweep still runs inline)
+// and the standalone reducer sweep (#10863 moved the reducer fold there
+// out of both reducer claims). The text is the shipped constant; the
+// measured "before" text is derived from it.
 func costStatements() []costStatement {
 	return []costStatement{
 		{
@@ -131,12 +134,8 @@ func costStatements() []costStatement {
 			args: func(now time.Time) []any { return []any{now, "cost", now.Add(time.Minute), ""} },
 		},
 		{
-			name: "reducer_claim", text: claimReducerWorkQuery, seed: costSeedReducer,
-			args: func(now time.Time) []any { return costReducerArgs(now, 0) },
-		},
-		{
-			name: "reducer_claim_batch", text: claimReducerWorkBatchQuery, seed: costSeedReducer,
-			args: func(now time.Time) []any { return costReducerArgs(now, 4) },
+			name: "reducer_sweep", text: supersedeStaleReducerGenerationsQuery, seed: costSeedReducer,
+			args: func(now time.Time) []any { return []any{now, nil, 100000, ""} },
 		},
 	}
 }
@@ -401,20 +400,6 @@ func fmtSecs(v []float64) string {
 		parts[i] = strconv.FormatFloat(x, 'f', 6, 64)
 	}
 	return strings.Join(parts, ",")
-}
-
-// costReducerArgs are the arguments ReducerQueue passes its claim statements;
-// batch adds the row limit.
-func costReducerArgs(now time.Time, batch int) []any {
-	q := NewReducerQueue(nil, "cost", time.Minute)
-	args := []any{
-		now, q.claimDomainFilters(), q.LeaseOwner, now.Add(q.LeaseDuration),
-		q.RequireProjectorDrainBeforeClaim, q.ExpectedSourceLocalProjectors, q.semanticEntityClaimLimit(),
-	}
-	if batch > 0 {
-		args = append(args, batch)
-	}
-	return args
 }
 
 // costExplain runs EXPLAIN (ANALYZE, BUFFERS) of a claim statement inside a

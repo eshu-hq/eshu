@@ -4,7 +4,7 @@
 package admin_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8205 admin replay against the reducer claim-time supersede sweep in both start orders waits one way and survives the held-middle-row race (main: 40P01), and 150 rounds of a claim, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8205 admin replay against the standalone stale-generation sweep (SKIP LOCKED since #10863, so it never waits) in both start orders and through the held-middle-row race (main: 40P01), and 150 rounds of a sweep, a scoped and a stage-only recovery replay and an admin replay started together over the same stale rows give 0 x 40P01 with exact accounting after follow-up passes (main: 212 x 40P01); isolated schemas; about 60-90 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -22,7 +22,7 @@ import (
 )
 
 // makeStale gives every target scope a newer active generation, so the
-// reducer claim-time supersede sweep retires the 18 target rows, and runs
+// standalone stale-generation sweep retires the 18 target rows, and runs
 // source_system forward with the scope order.
 func (f *adminLockOrderFixture) makeStale(t *testing.T, ctx context.Context) {
 	t.Helper()
@@ -58,11 +58,12 @@ SET status = 'dead_letter', failure_class = $2, attempt_count = 3, lease_owner =
 WHERE scope_id LIKE 'lo-s%'`, f.at, adminLockOrderClass)
 }
 
-// startClaim runs one reducer claim, and with it the supersede sweep, on db.
-func startClaim(ctx context.Context, db *sql.DB) adminLockOrderReplay {
+// startSweep runs one bounded standalone supersede sweep pass on db
+// (#10863: the sweep no longer rides a claim).
+func startSweep(ctx context.Context, db *sql.DB) adminLockOrderReplay {
 	r := adminLockOrderReplay{done: make(chan adminLockOrderResult, 1)}
 	go func() {
-		_, _, err := interleaveQueue(db, reducer.DomainWorkloadIdentity).Claim(ctx)
+		_, err := interleaveQueue(db, reducer.DomainWorkloadIdentity).SupersedeStaleReducerGenerations(ctx, 1000)
 		r.done <- adminLockOrderResult{err: err}
 	}()
 	return r
@@ -96,11 +97,15 @@ SELECT count(*) FROM fact_work_items WHERE scope_id LIKE 'lo-s%' AND status = 's
 }
 
 // TestAdminReplayAndClaimSweepBlockOneWayLive drives the admin replay against
-// the claim-time supersede sweep on two sessions with a 150 ms per-row
-// trigger sleep, in both start orders (#8205). On main the admin UPDATE locked
-// s0 first and the sweep s5 first, so the pair formed a lock cycle; with both
-// on work_item_id COLLATE "C" the second waits for the first one way, both
-// succeed, and every row ends superseded.
+// the standalone supersede sweep on two sessions with a 150 ms per-row
+// trigger sleep, in both start orders (#8205). On main the admin UPDATE
+// locked s0 first and the in-claim sweep s5 first, so the pair formed a
+// lock cycle. The sweep now locks in work_item_id COLLATE "C" order with
+// SKIP LOCKED (#10863), so it never waits on the replay: no cycle can
+// form, both statements succeed, and after follow-up sweep passes (the
+// rows a pass skipped while the replay held them) every row ends
+// superseded. The name keeps its enrolled form; the one-way wait it
+// names is now the replay waiting on the sweep, never the reverse.
 func TestAdminReplayAndClaimSweepBlockOneWayLive(t *testing.T) {
 	f := openAdminLockOrderFixture(t, true)
 	setup, cancelSetup := context.WithTimeout(context.Background(), time.Minute)
@@ -114,23 +119,21 @@ func TestAdminReplayAndClaimSweepBlockOneWayLive(t *testing.T) {
 			f.resetStale(t, ctx)
 			sweeper, pidSweep := f.sleepingSession(t, ctx)
 			replayer, pidReplay := f.sleepingSession(t, ctx)
-			first, second := pidReplay, pidSweep
 			var sweep, replay adminLockOrderReplay
 			if sweepFirst {
-				first, second = pidSweep, pidReplay
-				sweep = startClaim(ctx, sweeper)
+				sweep = startSweep(ctx, sweeper)
 				f.waitHoldsRowLock(t, ctx, pidSweep)
 				replay = startAdminReplay(ctx, replayer, stageOnly)
 			} else {
 				replay = startAdminReplay(ctx, replayer, stageOnly)
 				f.waitHoldsRowLock(t, ctx, pidReplay)
-				sweep = startClaim(ctx, sweeper)
+				sweep = startSweep(ctx, sweeper)
 			}
-			blockers := f.waitBlocked(t, ctx, second)
+			// SKIP LOCKED: the sweep must never be blocked, in either
+			// start order, so no lock cycle with the replay can form.
 			for sample := 0; sample < 3; sample++ {
-				if firstBlockers := f.blockingPIDs(t, ctx, first); len(firstBlockers) != 0 {
-					t.Errorf("sample %d: first statement (pid %d) blocked by %v while second (pid %d) blocked by %v",
-						sample, first, firstBlockers, second, f.blockingPIDs(t, ctx, second))
+				if sweepBlockers := f.blockingPIDs(t, ctx, pidSweep); len(sweepBlockers) != 0 {
+					t.Errorf("sample %d: sweep (pid %d) blocked by %v; SKIP LOCKED must never wait", sample, pidSweep, sweepBlockers)
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
@@ -139,18 +142,22 @@ func TestAdminReplayAndClaimSweepBlockOneWayLive(t *testing.T) {
 				t.Fatalf("sweep err=%v (40P01=%t), admin replay err=%v (40P01=%t)", sweepResult.err,
 					isDeadlock(sweepResult.err), replayResult.err, isDeadlock(replayResult.err))
 			}
+			adminSweepUntilDrained(t, ctx, sweeper)
 			if problem := f.supersededAccounting(t, ctx, replayResult); problem != "" {
 				t.Errorf("accounting: %s", problem)
 			}
-			t.Logf("second statement waited on %v; admin replay reported %d rows", blockers, len(replayResult.ids))
+			t.Logf("admin replay reported %d rows", len(replayResult.ids))
 		})
 	}
 }
 
 // TestAdminReplayAndClaimSweepHeldRowRaceLive makes the admin replay and the
-// claim-time supersede sweep meet at a held middle row (raceThroughHeldRow),
-// in both start orders: in scan order they deadlocked (admin s0 first, sweep
-// s5 first); in one global order both succeed and every row ends superseded.
+// standalone supersede sweep meet at a held middle row, in both start
+// orders: in scan order they deadlocked (admin s0 first, in-claim sweep
+// s5 first). The SKIP LOCKED sweep completes around the held row without
+// waiting, the replay queues behind the holder alone, and follow-up
+// passes retire what the racing pass skipped, so every row ends
+// superseded.
 func TestAdminReplayAndClaimSweepHeldRowRaceLive(t *testing.T) {
 	f := openAdminLockOrderFixture(t, true)
 	setup, cancelSetup := context.WithTimeout(context.Background(), time.Minute)
@@ -164,15 +171,13 @@ func TestAdminReplayAndClaimSweepHeldRowRaceLive(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()
 			f.resetStale(t, ctx)
-			first, second := adminReplay, startClaim
-			if sweepFirst {
-				first, second = startClaim, adminReplay
+			sweepResult, replayResult := f.raceSweepThroughHeldRow(t, ctx, f.ids[len(f.ids)/2], sweepFirst, startSweep, adminReplay)
+			if sweepResult.err != nil || replayResult.err != nil {
+				t.Fatalf("sweep err=%v (40P01=%t), admin replay err=%v (40P01=%t)", sweepResult.err,
+					isDeadlock(sweepResult.err), replayResult.err, isDeadlock(replayResult.err))
 			}
-			a, b := f.raceThroughHeldRow(t, ctx, f.ids[len(f.ids)/2], first, second)
-			if a.err != nil || b.err != nil {
-				t.Fatalf("first err=%v (40P01=%t), second err=%v (40P01=%t)", a.err, isDeadlock(a.err), b.err, isDeadlock(b.err))
-			}
-			if problem := f.supersededAccounting(t, ctx, a, b); problem != "" {
+			adminSweepUntilDrained(t, ctx, f.base)
+			if problem := f.supersededAccounting(t, ctx, sweepResult, replayResult); problem != "" {
 				t.Errorf("accounting: %s", problem)
 			}
 		})
@@ -180,17 +185,18 @@ func TestAdminReplayAndClaimSweepHeldRowRaceLive(t *testing.T) {
 }
 
 // TestReplaysAndClaimSweepConcurrentNeverDeadlockLive is the three-way #8205
-// proof: 150 rounds of a reducer claim (with its supersede sweep), a scoped
-// and a stage-only recovery replay, and an admin replay, all started at once
-// over the same 18 stale rows on independent connections. It requires zero
-// 40P01 and exact accounting in every round.
+// proof: 150 rounds of a standalone supersede sweep pass, a scoped and a
+// stage-only recovery replay, and an admin replay, all started at once
+// over the same 18 stale rows on independent connections. It requires
+// zero 40P01 and exact accounting in every round, judged after follow-up
+// sweep passes retire what the racing pass skipped.
 func TestReplaysAndClaimSweepConcurrentNeverDeadlockLive(t *testing.T) {
 	f := openAdminLockOrderFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	f.makeStale(t, ctx)
 	ops := []func(*sql.DB) adminLockOrderResult{
-		func(db *sql.DB) adminLockOrderResult { return startClaim(ctx, db).wait() },
+		func(db *sql.DB) adminLockOrderResult { return startSweep(ctx, db).wait() },
 		func(db *sql.DB) adminLockOrderResult {
 			return startRecoveryReplay(ctx, db, recovery.ReplayFilter{
 				Stage: recovery.StageReducer, ScopeIDs: f.scopes, FailureClass: adminLockOrderClass,
@@ -241,6 +247,7 @@ func TestReplaysAndClaimSweepConcurrentNeverDeadlockLive(t *testing.T) {
 		close(start)
 		wg.Wait()
 		if roundDeadlocks == 0 {
+			adminSweepUntilDrained(t, ctx, conns[0])
 			if problem := f.supersededAccounting(t, ctx, results...); problem != "" {
 				accountingFailures++
 				if accountingFailures <= 5 {
@@ -253,10 +260,10 @@ func TestReplaysAndClaimSweepConcurrentNeverDeadlockLive(t *testing.T) {
 	for _, n := range deadlocks {
 		total += n
 	}
-	t.Logf("%d rounds in %s: 40P01 claim=%d recovery scoped=%d recovery stage-only=%d admin=%d; rounds failing accounting=%d",
+	t.Logf("%d rounds in %s: 40P01 sweep=%d recovery scoped=%d recovery stage-only=%d admin=%d; rounds failing accounting=%d",
 		rounds, time.Since(started).Round(time.Millisecond), deadlocks[0], deadlocks[1], deadlocks[2], deadlocks[3], accountingFailures)
 	if total != 0 {
-		t.Errorf("claim sweep and replays deadlocked %d times in %d rounds, want 0", total, rounds)
+		t.Errorf("standalone sweep and replays deadlocked %d times in %d rounds, want 0", total, rounds)
 	}
 	if accountingFailures != 0 {
 		t.Errorf("%d deadlock-free rounds failed exact accounting", accountingFailures)

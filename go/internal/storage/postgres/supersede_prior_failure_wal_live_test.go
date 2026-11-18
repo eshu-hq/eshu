@@ -96,8 +96,8 @@ SELECT 'projector_scope-1_g'||i,'scope-1','scope-1-g'||i,'projector','source_loc
 		`VACUUM ANALYZE fact_work_items`, `ANALYZE scope_generations`, `ANALYZE ingestion_scopes`)
 }
 
-// walCases are the five writers (six statements: the reducer has a claim and a
-// batch claim).
+// walCases are the five writers (the reducer writer is the standalone
+// periodic sweep since #10863).
 func walCases() []walCase {
 	one := func(args func(now time.Time) []any) func(int) []walCall {
 		return func(int) []walCall { return []walCall{{args(time.Now().UTC())}} }
@@ -117,12 +117,8 @@ func walCases() []walCase {
 			calls: one(func(now time.Time) []any { return []any{now, "cost", now.Add(time.Minute), ""} }),
 		},
 		{
-			name: "reducer_claim", text: claimReducerWorkQuery, fold: priorFailureStaleSQL, seed: costSeedReducer,
-			calls: one(func(now time.Time) []any { return costReducerArgs(now, 0) }),
-		},
-		{
-			name: "reducer_claim_batch", text: claimReducerWorkBatchQuery, fold: priorFailureStaleSQL, seed: costSeedReducer,
-			calls: one(func(now time.Time) []any { return costReducerArgs(now, 4) }),
+			name: "reducer_sweep", text: supersedeStaleReducerGenerationsQuery, fold: priorFailureStaleSQL, seed: costSeedReducer,
+			calls: one(func(now time.Time) []any { return []any{now, nil, 100000, ""} }),
 		},
 		{
 			name: "projector_ack_obsolete", text: supersedeProjectorObsoleteGenerationsQuery, fold: priorFailureStaleSQL,

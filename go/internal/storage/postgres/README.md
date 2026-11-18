@@ -170,16 +170,7 @@ High-signal invariants for this package:
   recoverable. #7265: blockage must also have stopped moving. A generation whose actionable outstanding intent sits in a `projection_domain` queue that completed any intent after `now - ProgressWindow` (default 10m) is draining: the sweep skips it without spending budget and the gauge counts it `draining`. Both queries embed `generationIntentProgressingPredicate`; the progress probe never filters on `source_run_id`. See `docs/internal/evidence/7265-liveness-recovery-progress-window.md`.
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
-  source-local projection is in flight. A reducer claim also supersedes
-  unleased older-generation reducer rows once the same scope has a newer active
-  generation, and status/drain/observer reads exclude those inactive rows from
-  live readiness while preserving the durable work item for audit history.
-  Supersession composes with the readiness gate rather than racing ahead of it
-  (#4445, `reducer_claim_readiness_requirements`): a stale row is held out of
-  the sweep while neither its own nor the active generation's readiness would
-  allow a claim (#7664 own-or-active OR), so a still-pending gate never gets
-  permanently terminalized into unreplayable `superseded` the instant a newer
-  generation activates; the candidate gate stays own-generation, so no live row becomes claimable early. The scope-keyed `crossplane_satisfied_by_materialization` domain is spared conditionally (#10106/#10269): its handler materializes the active snapshot, so a stale row is superseded only when the claim's locked set also holds a newer pending/retrying sibling for the same scope to carry the debt; a sole stale row stays claimable for the runtime rebind.
+  source-local projection is in flight. A reducer claim fences unleased older-generation rows read-only at hand-out (#10863 gate in `reducer_claim_stale_gate_sql.go`); the periodic standalone sweep (`ReducerStaleGenerationSweeper`) supersedes them out of band, and status/drain/observer reads exclude those inactive rows from live readiness. Gate and sweep share the readiness hold (#4445/#7664 own-or-active OR, so no live row becomes claimable early and no pending gate is terminalized early) and the conditional Crossplane spare (#10106/#10269: fenced while a newer sibling is pending, retrying, or in flight; superseded only against a locked newer pending/retrying carrier; a sole stale row stays claimable for the runtime rebind). Measured on the #10862 replay widened to 4,000 scopes: 67.0 ms / 29,684 buffers clean and 69.6 ms / 31,447 stale versus the shipped sweep's 83.3 / 85,476 and 275 / 299,980, hand-out identical (EXCEPT 0/0); see `docs/internal/evidence/10863-claim-supersede-out.md`.
   The #10060 holder fan-out debt-spare rule lives in [`HOLDER_FANOUT.md`](../../reducer/supplychain/core/HOLDER_FANOUT.md).
 - Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent

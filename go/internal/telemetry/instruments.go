@@ -3521,6 +3521,18 @@ type Instruments struct {
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
 	ReducerOwnGateWake metric.Int64Counter
+	// ReducerStaleSweptRows counts fact_work_items rows the #10863
+	// periodic stale-generation sweep terminalized as superseded.
+	// Registered by registerReducerStaleSweepInstruments.
+	ReducerStaleSweptRows metric.Int64Counter
+	// ReducerStaleSweepPasses counts #10863 stale-generation sweep cycles
+	// by outcome (ok, failed), once per cycle. Registered by
+	// registerReducerStaleSweepInstruments.
+	ReducerStaleSweepPasses metric.Int64Counter
+	// ReducerStaleSweepDuration records one #10863 stale-generation sweep
+	// cycle's wall time in seconds by outcome (ok, failed). Registered by
+	// registerReducerStaleSweepInstruments.
+	ReducerStaleSweepDuration metric.Float64Histogram
 	// ReducerCompletionWake counts #8294 completion-driven
 	// deployable_unit_correlation wake transactions by outcome (reopened,
 	// noop, error), once per transaction. Registered by
@@ -6906,6 +6918,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerReducerStaleSweepInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerWorkflowClaimStatsInstruments(meter, inst); err != nil {

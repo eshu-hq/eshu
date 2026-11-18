@@ -17,7 +17,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// TestReducerClaimDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGeneration
+// TestReducerSweepDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGeneration
 // is the TDD regression for issue #4445 (A2): the reducer's
 // supersedeInactiveReducerGenerationsCTE (reducer_generation_filter_sql.go)
 // terminalizes older-generation pending/retrying rows purely by generation
@@ -45,16 +45,17 @@ import (
 //     ingested_at ordering), which is the exact trigger condition the
 //     supersede CTE keys off.
 //
-// It then runs one reducer Claim() (which executes
-// supersedeInactiveReducerGenerationsCTE as part of the same statement) and
-// asserts the gen-old readiness-gated row's status is NOT 'superseded'. Before
-// the fix this assertion fails (status = 'superseded'); after the fix the row
-// must still be in a replayable state (pending/retrying) because its domain's
-// readiness requirement was never satisfied while it was live.
+// It then runs one reducer Claim() and one periodic sweep pass (since
+// #10863 the sweep owns terminalization; the claim only fences) and
+// asserts the gen-old readiness-gated row's status is NOT 'superseded'.
+// Before the #4445 fix this assertion fails (status = 'superseded');
+// after it the row must still be in a replayable state
+// (pending/retrying) because its domain's readiness requirement was
+// never satisfied while it was live.
 //
 // It executes against a live Postgres; it is skipped unless a DSN is provided
 // so the package unit suite stays hermetic.
-func TestReducerClaimDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGeneration(t *testing.T) {
+func TestReducerSweepDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGeneration(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the supersede-vs-readiness proof")
@@ -108,12 +109,17 @@ func TestReducerClaimDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGenerat
 	}
 
 	// Run a claim. No row is claimable (readiness unmet, and the only
-	// candidate row belongs to the now-inactive generation), but the
-	// supersede CTE still executes as part of the same claim statement.
+	// candidate row belongs to the now-inactive generation). Since #10863
+	// the claim only fences; the periodic sweep is what could terminalize
+	// the row, so run it too — the readiness hold must spare the row in
+	// both places.
 	if _, claimed, err := queue.Claim(ctx); err != nil {
 		t.Fatalf("Claim() error = %v", err)
 	} else if claimed {
 		t.Fatalf("Claim() unexpectedly claimed work; readiness was never satisfied")
+	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 0 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want 0 (readiness unmet under both generations)", swept, err)
 	}
 
 	status, failureClass := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID)
@@ -130,13 +136,13 @@ func TestReducerClaimDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGenerat
 	}
 }
 
-// TestReducerClaimSupersedesReadinessGatedWorkOnceReadinessIsSatisfied proves
+// TestReducerSweepSupersedesReadinessGatedWorkOnceReadinessIsSatisfied proves
 // the fix does not over-broaden protection: once a readiness-gated domain's
 // required canonical-node phase IS visible, a gen-old row for that domain
 // must still be superseded by a newer active generation exactly like today —
 // the fix only defers supersession while readiness is unmet, it does not
 // exempt readiness-gated domains from supersession forever.
-func TestReducerClaimSupersedesReadinessGatedWorkOnceReadinessIsSatisfied(t *testing.T) {
+func TestReducerSweepSupersedesReadinessGatedWorkOnceReadinessIsSatisfied(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the supersede-vs-readiness proof")
@@ -193,6 +199,12 @@ func TestReducerClaimSupersedesReadinessGatedWorkOnceReadinessIsSatisfied(t *tes
 	} else if claimed {
 		t.Fatalf("Claim() unexpectedly claimed gen-old work; gen-old is inactive and must not be claimable")
 	}
+	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID); status != "pending" {
+		t.Fatalf("work item %q status after claim = %q, want pending (fenced, not terminalized by the claim)", workItemID, status)
+	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 1 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want 1", swept, err)
+	}
 
 	status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID)
 	if status != "superseded" {
@@ -204,12 +216,12 @@ func TestReducerClaimSupersedesReadinessGatedWorkOnceReadinessIsSatisfied(t *tes
 	}
 }
 
-// TestReducerClaimSupersedesNonReadinessGatedWorkBehindNewerGeneration proves
+// TestReducerSweepSupersedesNonReadinessGatedWorkBehindNewerGeneration proves
 // the fix preserves today's behavior for reducer domains that have no
 // readiness requirement row at all (most domains): the readiness-gate NOT
 // EXISTS is vacuously true for them, so pure generation-ordering supersession
 // still applies unchanged.
-func TestReducerClaimSupersedesNonReadinessGatedWorkBehindNewerGeneration(t *testing.T) {
+func TestReducerSweepSupersedesNonReadinessGatedWorkBehindNewerGeneration(t *testing.T) {
 	dsn := reducerSupersedeReadinessDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_SUPERSEDE_READINESS_DSN or ESHU_POSTGRES_DSN to run the supersede-vs-readiness proof")
@@ -255,6 +267,12 @@ func TestReducerClaimSupersedesNonReadinessGatedWorkBehindNewerGeneration(t *tes
 		t.Fatalf("Claim() error = %v", err)
 	} else if claimed {
 		t.Fatalf("Claim() unexpectedly claimed gen-old work for non-gated domain")
+	}
+	if status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID); status != "pending" {
+		t.Fatalf("work item %q status after claim = %q, want pending (fenced, not terminalized by the claim)", workItemID, status)
+	}
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 1 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d rows err %v, want 1", swept, err)
 	}
 
 	status, _ := readReducerSupersedeReadinessWorkItemStatus(t, ctx, db, workItemID)

@@ -36,8 +36,9 @@ import "strings"
 // Everything downstream of the fence (lock tail, claimed UPDATE) is
 // byte-identical, so the fairness contract (#3385 interleave, #8024
 // idle-domain boost, search-doc last) and the EvalPlanQual `locked`
-// recheck (invariant I5) are untouched. Sweep precompute stays deferred
-// (see the funnel/claim split in reducer_queue_batch_claim_funnel.go).
+// recheck (invariant I5) are untouched. The stale-generation fence is
+// its own precompute (#10863, reducer_claim_stale_gate_sql.go), composed
+// ahead of this chain by both claims and the funnel census.
 //
 // Self-exclusion dependency (C-4): the first semantic inflight check in the
 // shipped query excludes the candidate row itself
@@ -160,8 +161,8 @@ func reducerClaimReadinessMissingPredicateSQL() string {
 //
 // AS MATERIALIZED is load-bearing: without it the planner inlines the set
 // under the anti-join and replays the live-lease scan per candidate row —
-// the exact per-row shape this removes (see the funnel
-// reducerClaimFunnelGenerationsCTE precedent).
+// the exact per-row shape this removes (the same marker the #10863 stale
+// gate CTEs carry for the same reason).
 func reducerClaimLiveFenceKeysCTE() string {
 	return `live_fence_keys AS MATERIALIZED (
     SELECT DISTINCT conflict_domain, COALESCE(conflict_key, scope_id) AS ckey

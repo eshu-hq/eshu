@@ -11,55 +11,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// reducerClaimFunnelSweepCTEs renders read-only stand-ins for the sweep CTEs
-// the claim composes from supersedeInactiveReducerGenerationsCTE: the same
-// locked-membership SELECT (no ORDER BY, no FOR NO KEY UPDATE), the same
-// carrier CTE verbatim, and the same generations membership as a SELECT (no
-// UPDATE) over the locked set. The CTE names match the claim's sweep CTEs,
-// so `base` resolves the same exclusion set; the shared join, predicate,
-// carrier-arm, carrier, and row-filter sources keep the two from drifting.
-// The statement takes no row locks and modifies nothing: Postgres still
-// executes every CTE it references, but these CTEs are pure SELECTs.
-//
-// Read-only membership can differ from the claim's EvalPlanQual set under a
-// race (a row a concurrent claimer leases between the two statements is
-// still counted here), which is the documented census approximation, not a
-// second lock pass: there is no SKIP LOCKED wait and no lock to contend.
-func reducerClaimFunnelSweepCTEs() string {
-	// NOTE: the locked list carries stale.stage on top of the shared
-	// columns: the claim's UPDATE rechecks stage against its own target
-	// row, but this SELECT form needs the column to apply the shared row
-	// filters verbatim. The claim's sweep text is untouched.
-	return `superseded_stale_reducer_locked AS (
-    ` + supersedeInactiveReducerLockedColumnsSQL + `,
-           stale.stage
-    FROM fact_work_items AS stale,
-         ` + supersedeInactiveReducerGenerationsJoin + `
-    WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
-` + supersedeInactiveReducerCarrierArmSQL + `
-),
-` + supersededCrossplaneNewestCarrierCTE + `
-` + reducerClaimFunnelGenerationsCTE()
-}
-
-// reducerClaimFunnelGenerationsCTE renders the read-only stand-in for the
-// sweep's terminal UPDATE...RETURNING: the same row-filter membership as a
-// SELECT over the locked set.
-//
-// AS MATERIALIZED is load-bearing: without it the planner inlines this
-// SELECT under base's NOT EXISTS and replays the sweep per candidate row
-// (measured 614 ms / 1.8 M buffer hits vs the claim's 114 ms on the
-// stale-heavy fixture). The claim's UPDATE...RETURNING form is inherently
-// evaluated once; this marker gives the read-only stand-in the same
-// evaluate-once shape.
-func reducerClaimFunnelGenerationsCTE() string {
-	return `superseded_stale_reducer_generations AS MATERIALIZED (
-    SELECT stale.work_item_id
-    FROM superseded_stale_reducer_locked AS stale,
-         ingestion_scopes AS scope
-    WHERE ` + supersedeInactiveReducerUpdateRowFiltersSQL + `
-)`
-}
+// The funnel composes reducerClaimStaleGateCTEs verbatim (#10863): the
+// claim's stale fence is read-only, so the census resolves the same
+// exclusion set from the same Go source with no stand-in text to keep in
+// step. (Before #10863 the claim embedded the locking sweep UPDATE and
+// this file carried read-only stand-ins for its membership.)
 
 // reducerClaimBatchFunnelQuery replays the batch-claim candidate chain
 // (reducerClaimBatchCandidateChainCTEs, the same Go source the shipped claim
@@ -89,7 +45,7 @@ var reducerClaimBatchFunnelQuery = `
 -- batch_claim_funnel_counts (#10565 box 6): candidates in, representatives
 -- after the fence, and the ordered stage counts drops derive from.
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
-` + reducerClaimFunnelSweepCTEs() + `,
+` + reducerClaimStaleGateCTEs() + `,
 ` + reducerClaimBatchCandidateChainCTEs() + `
 SELECT
     (SELECT count(*) FROM base) AS candidates,

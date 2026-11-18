@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8261 generation retention lock order: a real PruneSupersededGenerations pass over a pruned generation's dead letters races the reducer claim sweep and the scoped and stage-only recovery replays through a held middle row in both start orders and completes (main: 6 of 6 40P01 in the FK cascade delete), 150 rounds of the pass, a claim and both replays give 0 x 40P01 and prune every row (main: 14 x 40P01), and a row replayed before the pass's lock step is still pruned; isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8261 generation retention lock order: a real PruneSupersededGenerations pass over a pruned generation's dead letters races the standalone stale-generation sweep and the scoped and stage-only recovery replays through a held middle row in both start orders and completes (main: 6 of 6 40P01 in the FK cascade delete), 150 rounds of the pass, a sweep and both replays give 0 x 40P01 and prune every row (main: 14 x 40P01), and a row replayed before the pass's lock step is still pruned; isolated schemas; about 70-90 s locally; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -47,10 +47,13 @@ func retentionCascadeLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 
 // TestRetentionCascadeHeldRowRaceLive races retention's FK-cascade delete of
 // a pruned generation's work rows against the ordered lockers that can hold
-// the same rows (#8261): the reducer claim sweep (an older generation's
-// dead letters under a newer active generation) and the recovery replays
-// (dead letters of any generation). Each pair runs in both start orders
-// through the held middle row. Every target row must end deleted.
+// the same rows (#8261): the standalone stale-generation sweep (an older
+// generation's dead letters under a newer active generation) and the
+// recovery replays (dead letters of any generation). Each pair runs in
+// both start orders through the held middle row. Every target row must
+// end deleted. Since #10863 the sweep is SKIP LOCKED, so its pair cannot
+// use the wait-for-both-blocked choreography: the sweep must complete
+// around the held row while retention queues on the holder alone.
 func TestRetentionCascadeHeldRowRaceLive(t *testing.T) {
 	f := openUnorderedLockerFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -60,8 +63,9 @@ func TestRetentionCascadeHeldRowRaceLive(t *testing.T) {
 	others := []struct {
 		name   string
 		locker func(context.Context, *sql.DB) ([]string, error)
+		sweep  bool
 	}{
-		{name: "claim sweep", locker: claimSweepLocker},
+		{name: "stale sweep", locker: staleSweepLocker, sweep: true},
 		{name: "scoped replay", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"rt"}})},
 		{name: "stage-only replay", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageReducer})},
 	}
@@ -75,15 +79,71 @@ func TestRetentionCascadeHeldRowRaceLive(t *testing.T) {
 				f.seedRetentionGeneration(t, ctx, retentionCascadeIDs)
 				t.Logf("cascade scans fact_work_items via %v", factWorkItemsScans(t, ctx, f.base,
 					`DELETE FROM ONLY fact_work_items WHERE $1 OPERATOR(pg_catalog.=) generation_id`, "rt-g1"))
-				a, b, nameA, nameB := retentionCascadeLocker, other.locker, "retention cascade", other.name
-				if !retentionFirst {
-					a, b, nameA, nameB = other.locker, retentionCascadeLocker, other.name, "retention cascade"
+				if other.sweep {
+					f.heldRowSweepPair(t, ctx, retentionCascadeIDs[1], retentionFirst)
+				} else {
+					a, b, nameA, nameB := retentionCascadeLocker, other.locker, "retention cascade", other.name
+					if !retentionFirst {
+						a, b, nameA, nameB = other.locker, retentionCascadeLocker, other.name, "retention cascade"
+					}
+					f.heldRowPair(t, ctx, retentionCascadeIDs[1], nameA, nameB, a, b)
 				}
-				f.heldRowPair(t, ctx, retentionCascadeIDs[1], nameA, nameB, a, b)
 				if left := f.workStatuses(t, ctx, retentionCascadeIDs); len(left) != 0 {
 					t.Errorf("rows left after the prune: %v", left)
 				}
 			})
+		}
+	}
+}
+
+// heldRowSweepPair races retention against the standalone sweep through
+// held: retention queues on the holder, the SKIP LOCKED sweep completes
+// around the held row without ever waiting, and releasing the holder lets
+// retention finish. Any error (a 40P01 above all) fails the test.
+func (f *lockOrderFixture) heldRowSweepPair(t *testing.T, ctx context.Context, held string, retentionFirst bool) {
+	t.Helper()
+	holder := f.session(t)
+	tx, err := holder.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var locked string
+	if err := tx.QueryRowContext(ctx, `SELECT work_item_id FROM fact_work_items WHERE work_item_id = $1 FOR UPDATE`, held).Scan(&locked); err != nil {
+		t.Fatalf("hold %s: %v", held, err)
+	}
+	retentionDB, sweepDB := f.session(t), f.session(t)
+	pidRetention := lockOrderBackendPID(t, ctx, retentionDB)
+	runSweep := func() lockOrderReplayResult {
+		t.Helper()
+		run := startLocker(ctx, sweepDB, staleSweepLocker)
+		select {
+		case result := <-run.done:
+			return result
+		case <-time.After(30 * time.Second):
+			t.Fatal("sweep did not complete around the held row; SKIP LOCKED must not wait")
+			return lockOrderReplayResult{}
+		}
+	}
+	var sweepResult lockOrderReplayResult
+	var retentionRun lockOrderReplay
+	if retentionFirst {
+		retentionRun = startLocker(ctx, retentionDB, retentionCascadeLocker)
+		waitBlocked(t, ctx, f.base, pidRetention)
+		sweepResult = runSweep()
+	} else {
+		sweepResult = runSweep()
+		retentionRun = startLocker(ctx, retentionDB, retentionCascadeLocker)
+		waitBlocked(t, ctx, f.base, pidRetention)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("release %s: %v", held, err)
+	}
+	retentionResult := retentionRun.wait()
+	t.Logf("retention first %t through %s: %s", retentionFirst, held, lockerVerdict(sweepResult, retentionResult))
+	for name, result := range map[string]lockOrderReplayResult{"stale sweep": sweepResult, "retention cascade": retentionResult} {
+		if result.err != nil {
+			t.Errorf("%s: %v (40P01=%t)", name, result.err, isDeadlock(result.err))
 		}
 	}
 }
@@ -143,7 +203,7 @@ func TestRetentionCascadeDeletesRowChangedBeforeItsLockLive(t *testing.T) {
 }
 
 // TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive runs a
-// retention pass, a reducer claim (with its supersede sweep), a scoped and a
+// retention pass, a standalone stale-generation sweep pass, a scoped and a
 // stage-only recovery replay concurrently over a pruned generation's 18
 // dead letters for lockOrderRounds rounds (#8261). Every round must prune
 // the generation and leave none of its rows.
@@ -175,7 +235,7 @@ func TestRetentionCascadeConcurrentWithSweepAndReplaysNeverDeadlockLive(t *testi
 	}
 	f.stressLockers(t, ctx, reset, check, []namedLocker{
 		{name: "retention", locker: retentionCascadeLocker},
-		{name: "claim", locker: claimSweepLocker},
+		{name: "sweep", locker: staleSweepLocker},
 		{name: "scoped", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"rt"}})},
 		{name: "stage-only", locker: recoveryReplayLocker(recovery.ReplayFilter{Stage: recovery.StageReducer})},
 	})

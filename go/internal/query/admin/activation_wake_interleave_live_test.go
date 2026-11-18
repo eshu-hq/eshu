@@ -4,7 +4,7 @@
 package admin_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a claim-time supersede sweep on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a standalone stale-generation sweep pass on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -39,8 +39,8 @@ import (
 //   - B: a consumer's final counted Fail in the producer-terminal class;
 //   - C: the public admin replay (store.ReplayFailedWorkItems) of another
 //     dead-lettered consumer, retried on 40P01 with exact accounting;
-//   - D: a consumer-domain claim, whose claim-time sweep supersedes the
-//     scope's older-generation row.
+//   - D: a consumer-domain standalone sweep pass, which supersedes the
+//     scope's older-generation row (the claim-time sweep's #10863 home).
 //
 // It requires zero 40P01 on the activation (the wake) and zero lost wakes:
 // once A commits, no consumer of the generation is left dead-lettered, and
@@ -62,7 +62,7 @@ func TestActivationWakeInterleaveLive(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		total.add(runInterleaveIteration(t, ctx, base, conns, pids, i))
 	}
-	t.Logf("%d iterations: 40P01 activation=%d fail=%d admin=%d claim=%d; admin 40P01 retries=%d; "+
+	t.Logf("%d iterations: 40P01 activation=%d fail=%d admin=%d sweep=%d; admin 40P01 retries=%d; "+
 		"lost wakes=%d; consumers reopened by the wake=%d, by the admin replay=%d",
 		iterations, total.deadlock[0], total.deadlock[1], total.deadlock[2], total.deadlock[3],
 		total.adminRetries, total.lost, total.byWake, total.byAdmin)
@@ -262,10 +262,10 @@ func runInterleaveIteration(t *testing.T, ctx context.Context, base *sql.DB, con
 	go func() {
 		defer wg.Done()
 		<-start
-		_, _, err := interleaveQueue(conns[3], reducer.DomainDeployableUnitCorrelation).Claim(ctx)
+		_, err := interleaveQueue(conns[3], reducer.DomainDeployableUnitCorrelation).SupersedeStaleReducerGenerations(ctx, 100)
 		note(3, err)
 		if err != nil {
-			t.Errorf("iteration %d: claim sweep: %v", i, err)
+			t.Errorf("iteration %d: stale sweep: %v", i, err)
 		}
 	}()
 	close(start)
