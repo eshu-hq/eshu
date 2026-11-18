@@ -153,14 +153,6 @@ for family in query graph-schema postgres-schema live-helper combined; do
  done
  printf 'selection %s: static and live proof selected\n' "$family"
 done
-for helper in scripts/extend-read-api-work-budgets.sh scripts/test-extend-read-api-work-budgets.sh; do
- printf '%s\n' "$helper" > "$work/paths"
- "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
- for gate in read-api-work-budget-mirror; do
-  jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$helper" "$gate" >&2; exit 1; }
- done
- printf 'selection %s: static mirror selected\n' "$helper"
-done
 for fixture in \
  go/internal/mcp/methodology_live_test.go \
  go/internal/query/methodology_graph_artifact_live_test.go \
@@ -193,11 +185,5 @@ for fixture in scripts/lib/test-verify-query-methodology-go.sh scripts/lib/test-
   jq -e --arg gate "$gate" 'any(.selected[]; .id == $gate)' "$work/selection.json" >/dev/null || { printf '%s failed to select %s\n' "$fixture" "$gate" >&2; exit 1; }
  done
  printf 'selection %s: static and live proof selected\n' "$fixture"
-done
-for fixture in scripts/lib/test-methodology-scale-resource-observer-gate.sh scripts/lib/test-methodology-scale-resource-observer-docker.sh scripts/lib/test-methodology-scale-resource-observer-sleep.sh; do
- printf '%s\n' "$fixture" > "$work/paths"
- "$work/ci-gates" select --registry "$repo_root/specs/ci-gates.v1.yaml" --tier pre-pr --paths-from "$work/paths" --json > "$work/selection.json"
- jq -e 'any(.selected[]; .id == "read-api-work-budget-mirror")' "$work/selection.json" >/dev/null || { printf '%s failed to select read-api-work-budget-mirror\n' "$fixture" >&2; exit 1; }
- printf 'selection %s: resource mirror selected\n' "$fixture"
 done
 printf 'test-verify-query-methodology: pass\n'

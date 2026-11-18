@@ -142,9 +142,10 @@
   check on a fresh stack before the first admin exists. See `credential.go`'s
   file comment.
 - **`BootstrapCredentialPayload`'s JSON field tags.** They must stay
-  byte-for-byte identical to `go/cmd/api/seed_initial_admin.go`'s sealing
-  side. That file is `package main` and cannot be imported, so nothing but
-  review keeps the two in step.
+  byte-for-byte identical to the serving sealer's shape (formerly the
+  in-tree seeder's sealing side, retired with the D13 removal). That code
+  was in `package main` and could not be imported, so nothing but review
+  keeps the two in step.
 - **The four audit reason codes.** They are the durable record epic #4962
   requires; renaming one orphans the history already written under the old
   value.

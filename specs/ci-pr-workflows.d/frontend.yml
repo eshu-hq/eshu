@@ -59,7 +59,6 @@ workflows:
   - docker-compose.yaml
   - Dockerfile
   - go/cmd/mock-oidc-idp/**
-  - go/cmd/api/**
   - go/internal/oidclogin/**
   - scripts/run-auth-mcp-e2e.sh
   - scripts/auth-mcp-e2e-runtime.mjs

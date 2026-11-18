@@ -58,11 +58,6 @@ tests:
     class: dedicated_ci
     reason: isolated PostgreSQL emitted-statement root; required PASS event in blocking query-plan-regression
     runner: query-methodology
-  - file: go/cmd/api/issue7033_canary_startup_live_test.go
-    tag: issue7033_canary_startup
-    class: scheduled
-    reason: isolated Neo4j canary startup proof requires a disposable PostgreSQL database and an explicit Neo4j endpoint; not compatible with the deterministic live-backend runner
-    backends: neo4j
   - file: go/cmd/bootstrap-data-plane/module_import_key_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

@@ -240,7 +240,6 @@ gates:
       - "scripts/ci/install-apt-packages.sh"
       - "Dockerfile"
       - "go/cmd/mock-oidc-idp/**"
-      - "go/cmd/api/**"
       - "go/internal/oidclogin/**"
       - ".github/workflows/frontend.yml"
       - "scripts/lib/ci-image-compose.sh"

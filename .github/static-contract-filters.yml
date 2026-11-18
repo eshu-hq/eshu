@@ -10,7 +10,6 @@ route:
   - 'specs/ci-gates.d/**'
   - '.github/static-contract-filters.yml'
   - 'go/internal/query/**'
-  - 'go/cmd/api/**'
   - 'scripts/*verify-route-coverage*.sh'
   - 'scripts/test-gate-fetch-base-guard.sh'
   - 'scripts/lib/test-gate-fetch-base-guard-route-cases.sh'

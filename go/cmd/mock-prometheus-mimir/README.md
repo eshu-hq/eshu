@@ -12,7 +12,7 @@ service.
 This command owns two test-only endpoints: `GET /health` and strict
 `GET /api/v1/query_range`. Eshu's metric-name mapping, source configuration,
 range bounds, response decoding, and public API remain in
-`go/internal/query` and `go/cmd/api`.
+`go/internal/query` (the `go/cmd/api` half retired with the D13 removal).
 
 ## Exported surface
 
@@ -40,5 +40,6 @@ OpenTelemetry providers or Eshu product metrics.
 ## Related docs
 
 - `go/internal/query/metrics/prometheus.go` owns the production range client.
-- `go/cmd/api/metrics_source.go` selects the configured Prometheus/Mimir target.
+- The former in-tree `metrics_source.go` selector (retired with the D13
+  removal) chose the configured Prometheus/Mimir target.
 - `scripts/verify-golden-corpus-gate.sh` runs the deployed proof.

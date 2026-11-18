@@ -120,7 +120,8 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   embedded resource; consume that before any human text summary, and fail a
   malformed resource as a required finding. A tool whose
   route the MCP server does not mount returns `isError`+`HTTP 404` even though it
-  is advertised; fix the route (mirror `cmd/api/wiring.go`), do not drop the
+  is advertised; fix the route (mirror the serving API wiring — formerly
+  the in-tree wiring, retired with the D13 removal), do not drop the
   assertion. Tools needing a selector pass it in `arguments` (`get_repo_summary`
   → `repo_name`; `list_kubernetes_correlations` → `cluster_id`).
 - **`graph_bolt.go` and `graph.go` are content-flagged by the perf-evidence

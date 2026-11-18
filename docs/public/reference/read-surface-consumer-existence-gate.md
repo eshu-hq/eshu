@@ -1,12 +1,20 @@
 # Read-Surface Consumer-Existence Gate
 
+> **D13 removal notice (2026-11-18):** the mounted-route parity check
+> described below (`fact_kind_mounted_route_gate.go` plus its test) retired
+> with the D13 removal of the in-tree relay surface — its implementation is
+> deleted. GATE 1 (language parity) and the fact-kind registry match still
+> ride the package test floor. A satellite-side mounted-route successor is
+> serving-owner follow-up, recorded as retired coverage in the D13 removal
+> PR body.
+
 Blocking, credential-free, Docker-free CI gate for issue
 [#5335](https://github.com/eshu-hq/eshu/issues/5335). It targets the epic's
 dominant defect class: a ledger row or a query claiming a capability with no
 real consumer behind it — a typo'd label, a renamed tool, or a UNION branch
-naming a relationship type nobody ever writes. All three halves ride the
+naming a relationship type nobody ever writes. The surviving halves ride the
 existing Go package test floor (`go test ./internal/mcp ./internal/query
-./internal/replaycoverage ./cmd/api`); there is no separate workflow.
+./internal/replaycoverage`); there is no separate workflow.
 
 ## GATE 1 — read-surface consumer existence
 

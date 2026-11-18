@@ -297,7 +297,7 @@ require_workflow_path "collector extraction readiness catalog (#5538)" "go/inter
 
 # query/status_governance.go imports governanceaudit directly and calls
 # GovernanceAudit.Summary() to fill get_hosted_governance_status.audit.
-# cmd/api/wiring_router.go wires a real store
+# The former in-tree API wiring wired a real store
 # (newGovernanceAuditStore / auditstore.NewGovernanceAuditStore); the removed
 # MCP entrypoint did the same (eshu-hq/eshu#9670)
 # unconditionally -- no opt-in flag gates it, unlike governanceauditasync

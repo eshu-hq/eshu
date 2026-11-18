@@ -319,3 +319,40 @@ and a fresh arbiter review in-lane is required before any removal PR.
   (`POST /api/v0/auth/local/invitations/{invite_id}/revoke`) rides
   relay-disclosed as a named core-owned survivor. Relay+absent
   remain 0.
+
+## Removal PR cut (2026-11-18, base `0b45d549bf`)
+
+Owner GO to cut the removal PR recorded on eshu-hq/eshu-api#101 at the
+post-lane-merges triple (core f9cfd99c / sat c041d7e / sdk bc350d35),
+with the lane merges (#10843 row-7 drain, #10844 row-6 switch) landed.
+Rebuilt here onto current `origin/main` `0b45d549bf` (newer than the
+triple; verified via `git ls-remote origin main`): clean rebase 14/14,
+zero conflicts. The removal surface is unchanged at the new base — the
+126-file in-tree API tree, sorted-list digest
+`903ec84a8ed7831ebf703948dd2e41bb74389f88e61ff3dd14babcd37edaaa9a`,
+byte-identical at f9cfd99c, 9b44a805, and 0b45d549 — so the G8 Shape-3
+dry-run proof (synthetic removal plus clean revert, byte-identical tree)
+carries forward without re-execution.
+
+Design constraints honored (D13 ruling on #101): the deletion takes only
+the relay catch-all plus the previously-pinned pending-termination
+surface; auth/sessions and the other 21 D8 dispatch routes are
+declared core-owned survivors with no termination wave against them
+(all satellite-side; this lane makes no core change outside the
+deletion set). No `#474` referent anywhere — rollback of the merge is a
+plain `git revert` (Shape-3), forward-fix posture; see the PR body for
+the full rollback disposition and the retired-coverage honesty note.
+
+In-PR retargets (same PR, reviewer-green): the four D13DESIGN test
+retargets (API dep-closure pin, latency-gate diagnostic fixture,
+env-registry scan list, claim-truth scope), the lockstep manifest plus
+its docsset and three workflow mirrors, the live-test ledger re-pin
+(377 scheduled rows), the moved-file-refs `go-cmd-api` allowlist
+fragment for the retired-component references, the deleted-test ledger
+entry dropped, and live-pointer repoints across serving guides. Every
+Go test that cited the retired tree passes unchanged and is byte-
+identical; only pointers, never semantics, moved.
+
+Merge is NOT authorized here: merge needs green CI, resolved threads,
+owner acceptance, and a fresh cutover-good ruling. This PR cuts the
+removal for review; the merge gate decides the rest.
