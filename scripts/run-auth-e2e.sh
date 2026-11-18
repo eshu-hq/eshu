@@ -26,11 +26,13 @@ export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"
 # D13: the fresh-stack browser gate needs a live query-truth API, which no
 # longer exists in this repo (the in-tree relay is removed; the satellite
 # has no core in CI). Serving-truth proof moves to the cutover lane with
-# the satellite core. Full-suite runs skip here; a --module run proceeds to
-# fail honestly where it needs the removed API.
+# the satellite core. Full-suite runs fail closed here (P1: a job named as
+# an E2E gate must not pass vacuously); a --module run proceeds to fail
+# honestly where it needs the removed API. Remove this gate from the
+# required set, or land the cutover, to go green.
 if [[ "${1:-}" != "--module" ]]; then
-	echo "run-auth-e2e: SKIPPED (D13): no live API in this repo; serving proof moves to the cutover lane" >&2
-	exit 0
+	echo "run-auth-e2e: BLOCKED (D13): no live API in this repo; serving proof moves to the cutover lane" >&2
+	exit 1
 fi
 
 # shellcheck source=scripts/lib/auth_e2e_cli.sh

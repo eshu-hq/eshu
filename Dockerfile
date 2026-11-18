@@ -219,11 +219,12 @@ WORKDIR /data
 USER eshu
 
 # Health check. D13: the satellite serves no /healthz, and /readyz is 503
-# without a core, so liveness here means "answers HTTP", not "backended" —
-# any response proves the binary serves; the stack flip re-points this after
-# cutover-good.
+# without a core, so the check asserts the process serves: GET /health is
+# 200 credential-free on a live server (router + static handler), failing
+# only when nothing listens. The e2e health leg proves the /health premise
+# live; the stack flip re-points this after cutover-good.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -sS -o /dev/null http://localhost:8080/readyz || exit 1
+    CMD curl -fsS http://localhost:8080/health || exit 1
 
 # Default command - run the Go API server. D13: CMD stays on eshu-api through
 # the row-11 retarget above (same binary path, satellite-built); only the
