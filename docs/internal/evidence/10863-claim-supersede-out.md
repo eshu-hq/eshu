@@ -24,7 +24,7 @@ row that somehow leased is still refused by the runtime generation
 guard before its handler runs (`Runtime.execute`), except the #10060
 fan-out-debt execution the guard deliberately allows.
 
-## Performance Evidence
+## Performance Evidence: before/after on the replay shape
 
 Method (identical for every number below): disposable Docker Postgres
 18-alpine on loopback, rolled-back `EXPLAIN (ANALYZE, BUFFERS)` of the
@@ -92,7 +92,7 @@ and mechanism on the replay shape only.
   to drive claim + sweep in production order and stay green; the sweep
   statement keeps the locked-set carrier semantics and the fold.
 
-## Observability Evidence
+## Observability Evidence: sweep signals
 
 New instruments (registered in `instruments_reducer_stale_sweep.go`):
 `eshu_dp_reducer_stale_generation_swept_rows_total`,
