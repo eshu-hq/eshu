@@ -27,7 +27,7 @@ var _ telemetry.ReducerClaimedExpiredObserver = (*QueueObserverStore)(nil)
 //
 // Claimed/running rows are never fenced as stale generations (the active
 // generation filter only applies to pending/retrying), so no generation CTE
-// is needed here; every counted row is claimable.
+// is needed here; counted rows can still wait behind the candidate gates.
 const reducerClaimedExpiredQuery = `
 SELECT COUNT(*) AS count,
     COALESCE(MAX(EXTRACT(EPOCH FROM ($1 - claim_until))), 0) AS oldest_age_seconds
