@@ -40,10 +40,14 @@ ships a plain staging INSERT, and K-order now lives in the collapse.
 
 Run at least 5 times and report the median: the `worst_partition`
 log line's collapse wall time, `heap_before` / `heap_after`, and
-`dead_before` / `dead_after`. Record alongside every number a hardware
-block: CPU model and count, RAM, runner type (local vs CI), PostgreSQL
-version, and Go toolchain. Numbers without the hardware block are not
-comparable — do not compare across hardware classes.
+`dead_before` / `dead_after`. Capture the `EXPLAIN (ANALYZE, BUFFERS)`
+output (or a plan hash) for both collapse SELECT arms alongside the
+median — for example with the existing ExplainPins live test — so a plan
+change is checkable from the protocol's own records. Record alongside
+every number a hardware block: CPU model and count, RAM, runner type
+(local vs CI), PostgreSQL version, and Go toolchain. Numbers without
+the hardware block are not comparable — do not compare across
+hardware classes.
 
 ## Reopen rule
 
