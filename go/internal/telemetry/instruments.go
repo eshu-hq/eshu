@@ -69,6 +69,21 @@ type ProjectorMarkedWriteObserver interface {
 	ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error)
 }
 
+// ReducerClaimedExpiredObserver reports the reducer reclaim backlog
+// (#10865): how many reducer work items sit on an expired claimed or running
+// lease, and the age of the oldest such lease. A QueueObserver that also
+// implements it gets the eshu_dp_reducer_claimed_expired and
+// eshu_dp_reducer_claimed_expired_oldest_age_seconds gauges on the same
+// collection cadence as the queue depth gauges.
+type ReducerClaimedExpiredObserver interface {
+	// ReducerClaimedExpiredCounts returns how many reducer work items hold
+	// an expired claimed or running lease and the age in seconds of the
+	// oldest such lease. Zero/zero means no reclaim backlog is outstanding;
+	// the counted rows are exactly the reclaim_rank-0 rows the claim floats
+	// first.
+	ReducerClaimedExpiredCounts(ctx context.Context) (count int64, oldestAgeSeconds float64, err error)
+}
+
 // CorpusFenceObserver reports the state of the global relationship
 // completeness fence that defers the correlation consumers (#8247): how many
 // active scopes hold it, how many consumers are deferred on
@@ -3394,6 +3409,15 @@ type Instruments struct {
 	// graph-write bound means a marked write is stuck; zero means none is
 	// outstanding.
 	ProjectorMarkedWriteOldestAgeSeconds metric.Float64ObservableGauge
+	// ReducerClaimedExpired reports how many reducer work items sit on an
+	// expired claimed or running lease (#10865). Any nonzero value names the
+	// reclaim backlog the claim floats first; it drains as claims reclaim.
+	ReducerClaimedExpired metric.Int64ObservableGauge
+	// ReducerClaimedExpiredOldestAgeSeconds reports the age, in seconds, of
+	// the oldest expired reducer claim lease (#10865). A value climbing past
+	// the claim lease duration means an expired hold is waiting behind the
+	// backlog instead of being reclaimed; zero means none is outstanding.
+	ReducerClaimedExpiredOldestAgeSeconds metric.Float64ObservableGauge
 
 	// CorpusFenceHolders reports how many active scopes hold the global
 	// relationship completeness fence (#8247): a retired-or-pending current
@@ -8420,6 +8444,11 @@ func RegisterObservableGauges(
 				return err
 			}
 		}
+		if expiredObs, ok := queueObs.(ReducerClaimedExpiredObserver); ok {
+			if err := registerReducerClaimedExpiredGauges(inst, meter, expiredObs); err != nil {
+				return err
+			}
+		}
 	}
 
 	if workerObs != nil {
@@ -8507,6 +8536,59 @@ func registerProjectorMarkedWriteGauges(inst *Instruments, meter metric.Meter, m
 		return fmt.Errorf("register ProjectorMarkedWriteOldestAgeSeconds gauge: %w", err)
 	}
 	return nil
+}
+
+// registerReducerClaimedExpiredGauges registers the #10865 reclaim-backlog
+// count and oldest-age gauges backed by expiredObs.
+func registerReducerClaimedExpiredGauges(inst *Instruments, meter metric.Meter, expiredObs ReducerClaimedExpiredObserver) error {
+	var err error
+	inst.ReducerClaimedExpired, err = meter.Int64ObservableGauge(
+		"eshu_dp_reducer_claimed_expired",
+		metric.WithDescription("Reducer work items sitting on an expired claimed or running lease; the reclaim backlog the claim floats first, zero when none is outstanding"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, _, err := expiredObs.ReducerClaimedExpiredCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ReducerClaimedExpired gauge: %w", err)
+	}
+	inst.ReducerClaimedExpiredOldestAgeSeconds, err = meter.Float64ObservableGauge(
+		"eshu_dp_reducer_claimed_expired_oldest_age_seconds",
+		metric.WithDescription("Age in seconds of the oldest expired reducer claim lease; zero means no reclaim backlog is outstanding"),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
+			_, age, err := expiredObs.ReducerClaimedExpiredCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(age)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ReducerClaimedExpiredOldestAgeSeconds gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterReducerClaimedExpiredObservableGauges registers the #10865
+// reclaim-backlog count and oldest-age gauges backed by expiredObs. The
+// reducer serves it from the Postgres gauge snapshot refreshed in the
+// background (cmd/reducer), so a scrape never queries Postgres and the
+// count-and-age statement runs once per refresh interval, never per claim.
+func RegisterReducerClaimedExpiredObservableGauges(inst *Instruments, meter metric.Meter, expiredObs ReducerClaimedExpiredObserver) error {
+	if inst == nil {
+		return fmt.Errorf("instruments are required")
+	}
+	if expiredObs == nil {
+		return nil
+	}
+	return registerReducerClaimedExpiredGauges(inst, meter, expiredObs)
 }
 
 // RegisterCorpusFenceObservableGauges registers the #8247 completeness-fence
