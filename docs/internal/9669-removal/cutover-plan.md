@@ -29,6 +29,19 @@ authorized SSO role (see session record for identity).
   values, manual sync). The monolith image can never be rebuilt from
   post-D13 source (Dockerfile builds the satellite at `/go-bin/eshu-api`).
 
+## Relay scope the core must serve (frozen, machine-checked)
+
+G2 at the frozen triple (core `c16ddfa3` / sat `c041d7e`): 282 CUTOVER
+rows = 229 native-served + 27 tier-C dispatched + 26 relay through
+the generic proxy + 0 absent (checker exit 0, arbiter-verified).
+The core must implement exactly the 26 relay rows under
+`CoreReadContractsVersion` (plus the tier-C dispatch contract).
+Exact row list: recoverable from `go/cmd/api/CUTOVER_OWNERSHIP.md`
+in git history (deleted by D13; present at any pre-merge SHA) and
+cross-checkable against satellite `openapi.json` at `c041d7e`
+minus its viaNative registrations (41 `mux.Handle` calls,
+`api/router.go:472` catch-all). Do NOT re-derive by hand.
+
 ## Goal
 
 Replace the monolith as the serving core so traffic (satellite +
