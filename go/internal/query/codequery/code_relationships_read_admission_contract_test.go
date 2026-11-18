@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -247,5 +248,62 @@ func TestCodeRelationshipReadAdmissionWideningIsCaughtByFrozenSet(t *testing.T) 
 	}
 	if widened.NumMethod() != len(frozenCodeRelationshipReadAdmission)+1 {
 		t.Errorf("widened witness carries %d methods, want %d (frozen set plus one): the widening this test guards is gone", widened.NumMethod(), len(frozenCodeRelationshipReadAdmission)+1)
+	}
+}
+
+// TestCodeRelationshipReadAdmissionWireShapesAreSealed proves the seal
+// on the pin: exactly the seventeen re-declared relationship reads,
+// with no ledger, stored-summary, snapshot, or write surface riding
+// along. The frozen method-set contract test pins the exact names; this
+// test pins the exclusion the arbiter ruling demands.
+func TestCodeRelationshipReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*CodeRelationshipReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 17 {
+		t.Fatalf("CodeRelationshipReadAdmission has %d methods, want exactly 17: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Snapshot", "Ledger", "Summary", "Append", "Exec",
+			"Write", "Delete", "StartupError",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("CodeRelationshipReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededCodeRelationshipDrift is a deliberately widened copy of the pin:
+// the seventeen frozen relationship reads plus a structural-inventory
+// projection, which the relationships lane keeps OUT. It never ships; it
+// proves the frozen-set comparison below can see a one-method widening.
+type seededCodeRelationshipDrift interface {
+	CodeRelationshipReadAdmission
+	InspectStructuralInventory(context.Context, StructuralInventoryRequest) ([]EntityContent, error)
+}
+
+// TestCodeRelationshipReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes on
+// a clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeRelationshipReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeRelationshipDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeRelationshipReadAdmission) {
+		t.Fatal("seeded widening (InspectStructuralInventory) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeRelationshipReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeRelationshipReadAdmission)+1)
 	}
 }

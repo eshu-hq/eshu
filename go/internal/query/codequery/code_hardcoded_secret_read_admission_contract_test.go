@@ -150,3 +150,36 @@ func TestCodeHardcodedSecretReadAdmissionWireShapesAreSealed(t *testing.T) {
 		}
 	}
 }
+
+// seededCodeHardcodedSecretDrift is a deliberately widened copy of the
+// pin: the two frozen secret-investigation reads plus a bounded graph
+// traversal, which the secrets lane reaches only through its own
+// investigator, never as a pinned read. It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededCodeHardcodedSecretDrift interface {
+	CodeHardcodedSecretReadAdmission
+	Run(context.Context, string, map[string]any) ([]map[string]any, error)
+}
+
+// TestCodeHardcodedSecretReadAdmissionSeededDriftIsDetected is the RED
+// half of the seeded-drift pair: the same reflect comparison the
+// contract test runs must report a mismatch on the planted widening. It
+// passes on a clean tree precisely because the guard fires on drift — a
+// guard that cannot see the seeded method is no guard.
+func TestCodeHardcodedSecretReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeHardcodedSecretDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeHardcodedSecretReadAdmission) {
+		t.Fatal("seeded widening (Run) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeHardcodedSecretReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeHardcodedSecretReadAdmission)+1)
+	}
+}

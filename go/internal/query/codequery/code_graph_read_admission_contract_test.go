@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -129,5 +130,63 @@ func TestCodeGraphReadAdmissionRejectsResignedMethod(t *testing.T) {
 	}
 	if !reflect.TypeOf(codeGraphReadAdmissionWitness{}).Implements(pin) {
 		t.Errorf("codeGraphReadAdmissionWitness does not implement CodeGraphReadAdmission: the minimal shape must satisfy the pin")
+	}
+}
+
+// TestCodeGraphReadAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the three re-declared graph reads, with no list,
+// catalog, language, component, ledger, or snapshot surface riding
+// along. The frozen method-set contract test pins the exact names; this
+// test pins the exclusion the arbiter ruling demands.
+func TestCodeGraphReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*CodeGraphReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 3 {
+		t.Fatalf("CodeGraphReadAdmission has %d methods, want exactly 3: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"List", "GetFile", "GetEntity", "ByLanguageAndType",
+			"ReferencingComponent", "MatchRepositories", "Snapshot",
+			"Ledger", "Summary", "Append",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("CodeGraphReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededCodeGraphDrift is a deliberately widened copy of the pin: the
+// three frozen graph reads plus a repository-catalog list, which the
+// G-a lane keeps OUT. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededCodeGraphDrift interface {
+	CodeGraphReadAdmission
+	ListRepositories(context.Context) ([]querycontract.RepositoryCatalogEntry, error)
+}
+
+// TestCodeGraphReadAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeGraphReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeGraphDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeGraphReadAdmission) {
+		t.Fatal("seeded widening (ListRepositories) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeGraphReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeGraphReadAdmission)+1)
 	}
 }

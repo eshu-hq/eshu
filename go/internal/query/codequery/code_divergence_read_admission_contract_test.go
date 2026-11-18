@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
@@ -158,5 +159,62 @@ func TestCodeDivergenceReadAdmissionRejectsResignedMethod(t *testing.T) {
 	}
 	if !reflect.TypeOf(codeDivergenceReadAdmissionWitness{}).Implements(pin) {
 		t.Errorf("codeDivergenceReadAdmissionWitness does not implement CodeDivergenceReadAdmission: the minimal shape must satisfy the pin")
+	}
+}
+
+// TestCodeDivergenceReadAdmissionWireShapesAreSealed proves the seal on
+// the pin: exactly the six re-declared divergence reads, with no
+// single-row, search, list, ledger, or snapshot surface riding along.
+// The frozen method-set contract test pins the exact names; this test
+// pins the exclusion the arbiter ruling demands.
+func TestCodeDivergenceReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*CodeDivergenceReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 6 {
+		t.Fatalf("CodeDivergenceReadAdmission has %d methods, want exactly 6: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"RunSingle", "Search", "List", "Get", "Snapshot",
+			"Ledger", "Summary", "Append", "Exec",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("CodeDivergenceReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededCodeDivergenceDrift is a deliberately widened copy of the pin:
+// the six frozen divergence reads plus a single-row graph read, which
+// the divergence lane keeps OUT. It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededCodeDivergenceDrift interface {
+	CodeDivergenceReadAdmission
+	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+// TestCodeDivergenceReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestCodeDivergenceReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeDivergenceDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeDivergenceReadAdmission) {
+		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeDivergenceReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeDivergenceReadAdmission)+1)
 	}
 }

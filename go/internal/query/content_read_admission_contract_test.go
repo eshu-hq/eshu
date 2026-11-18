@@ -4,10 +4,13 @@
 package query
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // frozenContentPointReadAdmission pins the exact method set behind the
@@ -37,6 +40,15 @@ var frozenContentPointReadAdmission = []string{
 	"GetFileContent func(context.Context, string, string) (*querycontract.FileContent, error)",
 	"GetFileLines func(context.Context, string, string, int, int) (*querycontract.FileContent, error)",
 }
+
+// contentPointReadAdmissionWitness proves ContentPointReadAdmission is
+// satisfiable with the minimal shape: the guarded Postgres content
+// reader the handlers run against today, no wider store surface.
+type contentPointReadAdmissionWitness struct {
+	*ContentReader
+}
+
+var _ ContentPointReadAdmission = contentPointReadAdmissionWitness{}
 
 // contentPointReadAdmissionMethodSet reflects the live
 // ContentPointReadAdmission method set into sorted "name signature"
@@ -94,5 +106,37 @@ func TestContentPointReadAdmissionWireShapesAreSealed(t *testing.T) {
 				t.Errorf("ContentPointReadAdmission.%s contains %q: ledger, stored-summary, and snapshot legs stay out of this pin", name, banned)
 			}
 		}
+	}
+}
+
+// seededContentPointDrift is a deliberately widened copy of the pin: the
+// three frozen point reads plus a single-repo content-substring search,
+// which the point legs keep OUT. It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededContentPointDrift interface {
+	ContentPointReadAdmission
+	SearchFileContent(context.Context, string, string, int) ([]querycontract.FileContent, error)
+}
+
+// TestContentPointReadAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestContentPointReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededContentPointDrift)(nil)).Elem()
+	var got []string
+	for i := 0; i < rt.NumMethod(); i++ {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenContentPointReadAdmission) {
+		t.Fatal("seeded widening (SearchFileContent) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenContentPointReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenContentPointReadAdmission)+1)
 	}
 }

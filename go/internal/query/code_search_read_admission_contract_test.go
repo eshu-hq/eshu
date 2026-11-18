@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // frozenCodeSearchReadAdmission pins the exact method set behind the
@@ -37,6 +39,18 @@ var frozenCodeSearchReadAdmission = []string{
 	"SearchEntityNames func(context.Context, entity.EntityNameSearch) ([]querycontract.EntityContent, error)",
 	"SearchSymbols func(context.Context, codequery.SymbolSearchRequest) ([]querycontract.EntityContent, error)",
 }
+
+// codeSearchReadAdmissionContractWitness proves CodeSearchReadAdmission
+// is satisfiable with the minimal shape: the graph reader plus the
+// guarded Postgres content reader the handlers run against today, no
+// wider store surface. It is distinct from the pin-file mirror of the
+// same shape so the contract test stands on its own declaration.
+type codeSearchReadAdmissionContractWitness struct {
+	querycontract.GraphQuery
+	*ContentReader
+}
+
+var _ CodeSearchReadAdmission = codeSearchReadAdmissionContractWitness{}
 
 // codeSearchReadAdmissionMethodSet reflects the live
 // CodeSearchReadAdmission method set into sorted "name signature"

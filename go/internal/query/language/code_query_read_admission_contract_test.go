@@ -176,3 +176,35 @@ func TestCodeLanguageQueryReadAdmissionWireShapesAreSealed(t *testing.T) {
 		}
 	}
 }
+
+// seededCodeLanguageQueryDrift is a deliberately widened copy of the pin:
+// the four frozen language reads plus a single-row graph read, which the
+// language-query lane keeps OUT. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededCodeLanguageQueryDrift interface {
+	CodeLanguageQueryReadAdmission
+	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+// TestCodeLanguageQueryReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeLanguageQueryReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeLanguageQueryDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeLanguageQueryReadAdmission) {
+		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeLanguageQueryReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeLanguageQueryReadAdmission)+1)
+	}
+}

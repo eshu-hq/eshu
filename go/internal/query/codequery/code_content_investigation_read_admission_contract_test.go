@@ -160,3 +160,37 @@ func TestCodeContentInvestigationReadAdmissionWireShapesAreSealed(t *testing.T) 
 		}
 	}
 }
+
+// seededCodeContentInvestigationDrift is a deliberately widened copy of
+// the pin: the three frozen content-investigation reads plus a bounded
+// graph traversal, which the investigation lane keeps OUT (it admits
+// only the structural-inventory and topic projections). It never ships;
+// it proves the frozen-set comparison below can see a one-method
+// widening.
+type seededCodeContentInvestigationDrift interface {
+	CodeContentInvestigationReadAdmission
+	Run(context.Context, string, map[string]any) ([]map[string]any, error)
+}
+
+// TestCodeContentInvestigationReadAdmissionSeededDriftIsDetected is the
+// RED half of the seeded-drift pair: the same reflect comparison the
+// contract test runs must report a mismatch on the planted widening. It
+// passes on a clean tree precisely because the guard fires on drift — a
+// guard that cannot see the seeded method is no guard.
+func TestCodeContentInvestigationReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededCodeContentInvestigationDrift)(nil)).Elem()
+	var got []string
+	for i := range rt.NumMethod() {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if reflect.DeepEqual(got, frozenCodeContentInvestigationReadAdmission) {
+		t.Fatal("seeded widening (Run) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeContentInvestigationReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeContentInvestigationReadAdmission)+1)
+	}
+}
