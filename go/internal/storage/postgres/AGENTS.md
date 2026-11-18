@@ -119,7 +119,7 @@
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
-  without an ADR.
+  without an ADR. #10863: reducer claims fence stale rows read-only via `reducerClaimStaleGateCTEs` — never re-embed the supersede sweep in a claim; terminalization belongs only to the bounded standalone sweep (`ReducerQueue.SupersedeStaleReducerGenerations`).
 - **Status domain backlog includes shared projection.** `StatusStore` merges
   `fact_work_items` backlog with pending `shared_projection_intents` so
   `/admin/status` remains `progressing` until reducer-owned shared edges are
