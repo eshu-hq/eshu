@@ -20,7 +20,7 @@ Benchmark Evidence: QA reducer baseline captured 2026-11-18 via read-only
 SELECTs on ops-qa (9,751 scopes, 83.2M live facts, 8,671-8,713 reducer rows
 waiting, oldest 29.8d), Prometheus claim/execution histograms, and the
 `TestReducerQueue10862ReplayShapeAndDrain` replay (8,713 rows drained,
-claim p50 0.011s p95 0.013s on disposable hardware, flatness 0.78x);
+claim p50 0.011s p95 0.013s on disposable hardware, flatness 0.79x);
 absolute QA-vs-disposable times are published side by side and NOT equated
 (different hardware, per performance-rigor).
 
@@ -216,15 +216,15 @@ the shipped single Claim/Ack path.
 Run: `cd go && ESHU_POSTGRES_DSN=<disposable> go test
 ./internal/storage/postgres/ -run TestReducerQueue10862ReplayShapeAndDrain
 -v -timeout 20m` (measured 2026-11-18 on a shared host, docker
-`postgres:18-alpine` 18.6; run took 103 s).
+`postgres:18-alpine` 18.6; fresh `-count=1` run took 103 s).
 
 | What | Replay (disposable) | QA baseline | Comparable? |
 | --- | --- | --- | --- |
 | Depth | 8,713 | 8,671-8,713 | yes (same shape) |
 | Shape | counts exact; tail >= 29 d; burst present | section 7 | yes, asserted in-test |
 | Claim p50 / p95 / max | 0.011 s / 0.013 s / 0.034 s | p50 ~(2.5,5] s, p95 ~(5,10] s | NO (different hardware, empty-vs-loaded DB) |
-| Items per second | 85.0 (claim+ack loop) | 0.069 (end-to-end drain incl. execution) | NO (different boundaries) |
-| Flatness (2nd-half p95 / 1st-half p95) | 0.78 | NOT_CHECKED on QA | same-shape rule, asserted <= 1.10x in-test |
+| Items per second | 84.7 (claim+ack loop) | 0.069 (end-to-end drain incl. execution) | NO (different boundaries) |
+| Flatness (2nd-half p95 / 1st-half p95) | 0.79 | NOT_CHECKED on QA | same-shape rule, asserted <= 1.10x in-test |
 
 Stated tolerance: shape counts exact; age tail within the measured 29.8 d
 (>= 29 d asserted); replay run-to-run claim p95 within 10% or 60 s (the

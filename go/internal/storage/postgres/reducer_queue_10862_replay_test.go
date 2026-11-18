@@ -13,6 +13,7 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // replay10862Row is one waiting reducer row in the #10862 replay seed:
@@ -67,7 +68,7 @@ func replay10862Mix() []replay10862Row {
 // Postgres behind the benchmark schema. createdAt spread reproduces the
 // measured queue age (oldest ~30d) deterministically: row i of n lands at
 // oldest + i*span/n, so the replay carries both the old tail and fresh rows.
-func seedReducerQueue10862Replay(t *testing.T, ctx context.Context, database *sql.DB, schema string, now time.Time) int {
+func seedReducerQueue10862Replay(t *testing.T, ctx context.Context, database db.Executor, schema string, now time.Time) int {
 	t.Helper()
 	rows := replay10862Mix()
 	const scopeCount = 600
@@ -196,8 +197,12 @@ func TestReducerQueue10862ReplayShapeAndDrain(t *testing.T) {
 		t.Fatalf("create completion events table: %v", err)
 	}
 
-	now := time.Date(2026, time.November, 18, 2, 0, 0, 0, time.UTC)
-	want := seedReducerQueue10862Replay(t, ctx, database, schemaName, now)
+	// Real clock: the Ack lease fence compares claim_until against
+	// clock_timestamp(), so a fixed Now would expire every lease once the
+	// wall clock passes it. The age tail is anchored on the QA-measured
+	// oldest row, which stays >= 29 d behind any run in this window.
+	now := time.Now().UTC()
+	want := seedReducerQueue10862Replay(t, ctx, conn, schemaName, now)
 	if err := analyzeReducerClaimBenchmarkTables(ctx, conn); err != nil {
 		t.Fatalf("analyze replay tables: %v", err)
 	}
@@ -238,7 +243,6 @@ min(created_at), max(created_at) FROM fact_work_items WHERE stage='reducer'`,
 		database:      conn,
 		LeaseOwner:    "replay-10862",
 		LeaseDuration: time.Minute,
-		Now:           func() time.Time { return now },
 	}
 	var latencies []float64
 	drained := 0
