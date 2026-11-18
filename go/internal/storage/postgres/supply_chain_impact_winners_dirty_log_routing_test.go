@@ -6,17 +6,20 @@ package postgres
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// winnersDirtyLogInsert is the literal every direct writer of the versioned
-// dirty log carries. Capture owners stage into
+// winnersDirtyLogInsertPattern matches a direct write of the versioned dirty
+// log with or without a schema qualifier: migrations 272a and 308 spell it
+// `INSERT INTO public.supply_chain_impact_winners_dirty_log`, which a plain
+// literal match would miss. Capture owners stage into
 // supply_chain_impact_winners_dirty_staging instead (#10837 direction C), so
 // no production statement outside the collapse and the convert may carry it.
-const winnersDirtyLogInsert = "INSERT INTO supply_chain_impact_winners_dirty_log"
+var winnersDirtyLogInsertPattern = regexp.MustCompile(`(?i)\bINSERT\s+INTO\s+(?:public\.)?supply_chain_impact_winners_dirty_log\b`)
 
 // winnersDirtyLogWriterAllowlist names the only non-test Go files that may
 // write the versioned dirty log directly: the two collapse arms (fact and its
@@ -27,13 +30,17 @@ var winnersDirtyLogWriterAllowlist = map[string]bool{
 	"supply_chain_impact_winners_keyed_settle_sql.go": true,
 }
 
-// winnersDirtyLogMigrationAllowlist names the only trigger migrations that
-// ever wrote the versioned dirty log directly. Migrations are append-only
+// winnersDirtyLogMigrationAllowlist names the trigger migrations that wrote
+// the versioned dirty log directly before direction C retargeted capture
+// triggers at staging: 272/307 (unqualified) and 272a/308 (schema-qualified),
+// all superseded by the 310/311 staging triggers. Migrations are append-only
 // history; a new migration carrying a direct log write is a new capture
 // owner that bypasses the staging queue and fails this gate.
 var winnersDirtyLogMigrationAllowlist = map[string]bool{
-	"272_supply_chain_impact_winners_dirty_log.sql":            true,
-	"307_supply_chain_impact_winners_dirty_capture_upsert.sql": true,
+	"272_supply_chain_impact_winners_dirty_log.sql":              true,
+	"272a_scanner_winners_dirty_capture.sql":                     true,
+	"307_supply_chain_impact_winners_dirty_capture_upsert.sql":   true,
+	"308_supply_chain_impact_winners_scanner_capture_upsert.sql": true,
 }
 
 // TestWinnersDirtyLogWritesStayInCollapseAndConvert is the #10851 routing
@@ -65,7 +72,7 @@ func TestWinnersDirtyLogWritesStayInCollapseAndConvert(t *testing.T) {
 			if strings.HasPrefix(trimmed, "//") {
 				continue
 			}
-			if strings.Contains(line, winnersDirtyLogInsert) && !winnersDirtyLogWriterAllowlist[name] {
+			if winnersDirtyLogInsertPattern.MatchString(line) && !winnersDirtyLogWriterAllowlist[name] {
 				offenders = append(offenders, name)
 				break
 			}
@@ -81,7 +88,7 @@ func TestWinnersDirtyLogWritesStayInCollapseAndConvert(t *testing.T) {
 	if !strings.Contains(collapseWinnersStagingScopeSQL, "ON CONFLICT (scope_id, generation_id) WHERE kind = 'scope'") {
 		t.Error("collapse lost its scope arm: the fact arm alone strands scope marks")
 	}
-	if !strings.Contains(convertWinnersKeyedScopeRemainderSQL, winnersDirtyLogInsert) ||
+	if !winnersDirtyLogInsertPattern.MatchString(convertWinnersKeyedScopeRemainderSQL) ||
 		!strings.Contains(convertWinnersKeyedScopeRemainderSQL, "ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'") {
 		t.Error("scope-remainder convert is not the pinned fact-kind versioned upsert")
 	}
@@ -108,7 +115,7 @@ func TestWinnersDirtyLogTriggerMigrationsStayAllowlisted(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read migration %s: %v", name, err)
 		}
-		if strings.Contains(string(body), winnersDirtyLogInsert) && !winnersDirtyLogMigrationAllowlist[name] {
+		if winnersDirtyLogInsertPattern.MatchString(string(body)) && !winnersDirtyLogMigrationAllowlist[name] {
 			offenders = append(offenders, name)
 		}
 	}

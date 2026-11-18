@@ -68,6 +68,10 @@ func TestSupplyChainImpactWinnersWriteConflictScrapeNames(t *testing.T) {
 	// counter flat.
 	instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx,
 		SupplyChainImpactWinnersConflictSiteWriterCapture, "")
+	// An unknown site records nothing: a typo'd caller must not open a
+	// new series.
+	instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx,
+		"writer_captrue", "deadlock")
 
 	code, body := scrapeMetrics(providers.PrometheusHandler)
 	if code != http.StatusOK {
@@ -86,5 +90,8 @@ func TestSupplyChainImpactWinnersWriteConflictScrapeNames(t *testing.T) {
 	}
 	if strings.Contains(body, `site="writer_capture"`) {
 		t.Error("scrape contains a writer_capture point, but the empty-class record must add nothing")
+	}
+	if strings.Contains(body, `site="writer_captrue"`) {
+		t.Error("scrape contains a writer_captrue point, but an unknown site must add nothing")
 	}
 }
