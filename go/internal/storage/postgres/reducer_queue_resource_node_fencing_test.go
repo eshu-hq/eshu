@@ -73,12 +73,15 @@ func TestReducerQueueClaimAndBatchFenceOnConflictKey(t *testing.T) {
 		"COALESCE(inflight.conflict_key, inflight.scope_id) = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
 	}
 	// The batch claim reads the same key comparison from the
-	// once-per-claim live_fence_keys set (#10630 step 2).
+	// once-per-claim live_fence_keys set (#10630 step 2); since #10916 the
+	// candidate side reads reps.conflict_domain / reps.ckey, base's
+	// snapshot of the identical (conflict_domain,
+	// COALESCE(conflict_key, scope_id)) pair.
 	batchFencePredicates := []string{
 		"live_fence_keys AS MATERIALIZED (",
 		"FROM live_fence_keys",
-		"live_fence_keys.conflict_domain = fact_work_items.conflict_domain",
-		"live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
+		"live_fence_keys.conflict_domain = reps.conflict_domain",
+		"live_fence_keys.ckey = reps.ckey",
 	}
 
 	claimDB := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}

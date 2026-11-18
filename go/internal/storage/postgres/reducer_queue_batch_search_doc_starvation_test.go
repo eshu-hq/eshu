@@ -127,7 +127,10 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 
 	query := claimReducerWorkBatchQuery
 
-	const priorityCASE = "CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority"
+	// #10916: the candidate priority CASE reads reps.domain (base's
+	// snapshot) instead of re-joining fact_work_items; the mapping is
+	// byte-identical otherwise.
+	const priorityCASE = "CASE WHEN reps.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority"
 	if !strings.Contains(query, priorityCASE) {
 		t.Fatalf("batch claim query lost the domain-priority CASE %q", priorityCASE)
 	}
