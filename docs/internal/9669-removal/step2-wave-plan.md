@@ -5,8 +5,10 @@ Pins: core `88f1fd2a22`, satellite `08ebde4` (v0.6.0), oracle `8a78eb3f48`.
 
 ## Frozen scope formula
 
-`228`-read census (`docs/parity.md:9-16` at `08ebde4`: 278 live = 228
-read + 50 mutation; `newRouter` 247 + `wireAPI` 31) **minus** ~221
+`231`-read census (oracle `8a78eb3f48` CUTOVER_OWNERSHIP: 282 live = 231
+read + 51 mutation; `newRouter` 251 + `wireAPI` 31 — satellite
+`docs/parity.md:9-16` at `08ebde4` still says 278/228/50, stale; see the
+reconciliation in `contracts/step2-frozen-scope.md`) **minus** ~221
 terminated viaNative census reads **plus** 19 core-owned survivor
 mutations (tier-C dispatch clones, zero removal credit).
 
