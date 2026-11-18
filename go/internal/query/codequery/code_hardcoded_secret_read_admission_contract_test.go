@@ -71,9 +71,9 @@ func (codeHardcodedSecretReadAdmissionResignedWitness) InvestigateHardcodedSecre
 // codeHardcodedSecretReadAdmissionMethodSet reflects the live
 // CodeHardcodedSecretReadAdmission method set into sorted "name
 // signature" strings for comparison with the frozen list.
-func codeHardcodedSecretReadAdmissionMethodSet(t *testing.T) []string {
+func codeHardcodedSecretReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeHardcodedSecretReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -96,7 +96,7 @@ func TestCodeHardcodedSecretReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeHardcodedSecretReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeHardcodedSecretReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeHardcodedSecretReadAdmissionContractVersion, "v0")
 	}
-	got := codeHardcodedSecretReadAdmissionMethodSet(t)
+	got := codeHardcodedSecretReadAdmissionMethodSet(t, (*CodeHardcodedSecretReadAdmission)(nil))
 	if len(got) != len(frozenCodeHardcodedSecretReadAdmission) {
 		t.Fatalf("CodeHardcodedSecretReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeHardcodedSecretReadAdmission, len(frozenCodeHardcodedSecretReadAdmission), CodeHardcodedSecretReadAdmissionContractVersion)
 	}
@@ -169,13 +169,7 @@ type seededCodeHardcodedSecretDrift interface {
 func TestCodeHardcodedSecretReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeHardcodedSecretDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeHardcodedSecretReadAdmissionMethodSet(t, (*seededCodeHardcodedSecretDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeHardcodedSecretReadAdmission) {
 		t.Fatal("seeded widening (Run) matches the frozen set: the comparison cannot see drift")
 	}

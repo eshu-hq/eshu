@@ -81,9 +81,9 @@ func (codeContentInvestigationReadAdmissionResignedWitness) InvestigateCodeTopic
 // codeContentInvestigationReadAdmissionMethodSet reflects the live
 // CodeContentInvestigationReadAdmission method set into sorted "name
 // signature" strings for comparison with the frozen list.
-func codeContentInvestigationReadAdmissionMethodSet(t *testing.T) []string {
+func codeContentInvestigationReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeContentInvestigationReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -107,7 +107,7 @@ func TestCodeContentInvestigationReadAdmissionContractIsVersioned(t *testing.T) 
 	if CodeContentInvestigationReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeContentInvestigationReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeContentInvestigationReadAdmissionContractVersion, "v0")
 	}
-	got := codeContentInvestigationReadAdmissionMethodSet(t)
+	got := codeContentInvestigationReadAdmissionMethodSet(t, (*CodeContentInvestigationReadAdmission)(nil))
 	if len(got) != len(frozenCodeContentInvestigationReadAdmission) {
 		t.Fatalf("CodeContentInvestigationReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeContentInvestigationReadAdmission, len(frozenCodeContentInvestigationReadAdmission), CodeContentInvestigationReadAdmissionContractVersion)
 	}
@@ -180,13 +180,7 @@ type seededCodeContentInvestigationDrift interface {
 func TestCodeContentInvestigationReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeContentInvestigationDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeContentInvestigationReadAdmissionMethodSet(t, (*seededCodeContentInvestigationDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeContentInvestigationReadAdmission) {
 		t.Fatal("seeded widening (Run) matches the frozen set: the comparison cannot see drift")
 	}

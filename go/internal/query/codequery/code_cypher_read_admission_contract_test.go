@@ -60,9 +60,9 @@ func (codeCypherReadAdmissionResignedWitness) Run(context.Context, string, map[s
 // codeCypherReadAdmissionMethodSet reflects the live
 // CodeCypherReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeCypherReadAdmissionMethodSet(t *testing.T) []string {
+func codeCypherReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeCypherReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -85,7 +85,7 @@ func TestCodeCypherReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeCypherReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeCypherReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeCypherReadAdmissionContractVersion, "v0")
 	}
-	got := codeCypherReadAdmissionMethodSet(t)
+	got := codeCypherReadAdmissionMethodSet(t, (*CodeCypherReadAdmission)(nil))
 	if len(got) != len(frozenCodeCypherReadAdmission) {
 		t.Fatalf("CodeCypherReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeCypherReadAdmission, len(frozenCodeCypherReadAdmission), CodeCypherReadAdmissionContractVersion)
 	}
@@ -158,13 +158,7 @@ type seededCodeCypherDrift interface {
 func TestCodeCypherReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeCypherDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeCypherReadAdmissionMethodSet(t, (*seededCodeCypherDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeCypherReadAdmission) {
 		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
 	}

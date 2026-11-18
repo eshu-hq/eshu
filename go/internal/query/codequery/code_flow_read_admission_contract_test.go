@@ -49,9 +49,9 @@ var _ CodeFlowReadAdmission = codeFlowReadAdmissionWitness{}
 // codeFlowReadAdmissionMethodSet reflects the live
 // CodeFlowReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeFlowReadAdmissionMethodSet(t *testing.T) []string {
+func codeFlowReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeFlowReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -74,7 +74,7 @@ func TestCodeFlowReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeFlowReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeFlowReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeFlowReadAdmissionContractVersion, "v0")
 	}
-	got := codeFlowReadAdmissionMethodSet(t)
+	got := codeFlowReadAdmissionMethodSet(t, (*CodeFlowReadAdmission)(nil))
 	if len(got) != len(frozenCodeFlowReadAdmission) {
 		t.Fatalf("CodeFlowReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeFlowReadAdmission, len(frozenCodeFlowReadAdmission), CodeFlowReadAdmissionContractVersion)
 	}
@@ -127,13 +127,7 @@ type seededCodeFlowDrift interface {
 func TestCodeFlowReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeFlowDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeFlowReadAdmissionMethodSet(t, (*seededCodeFlowDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeFlowReadAdmission) {
 		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
 	}

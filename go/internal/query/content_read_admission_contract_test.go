@@ -53,9 +53,9 @@ var _ ContentPointReadAdmission = contentPointReadAdmissionWitness{}
 // contentPointReadAdmissionMethodSet reflects the live
 // ContentPointReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func contentPointReadAdmissionMethodSet(t *testing.T) []string {
+func contentPointReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*ContentPointReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -76,7 +76,7 @@ func TestContentPointReadAdmissionContractIsVersioned(t *testing.T) {
 	if ContentPointReadAdmissionContractVersion != "v0" {
 		t.Errorf("ContentPointReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", ContentPointReadAdmissionContractVersion, "v0")
 	}
-	got := contentPointReadAdmissionMethodSet(t)
+	got := contentPointReadAdmissionMethodSet(t, (*ContentPointReadAdmission)(nil))
 	if len(got) != len(frozenContentPointReadAdmission) {
 		t.Fatalf("ContentPointReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenContentPointReadAdmission, len(frozenContentPointReadAdmission), ContentPointReadAdmissionContractVersion)
 	}
@@ -126,13 +126,7 @@ type seededContentPointDrift interface {
 func TestContentPointReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededContentPointDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := contentPointReadAdmissionMethodSet(t, (*seededContentPointDrift)(nil))
 	if reflect.DeepEqual(got, frozenContentPointReadAdmission) {
 		t.Fatal("seeded widening (SearchFileContent) matches the frozen set: the comparison cannot see drift")
 	}

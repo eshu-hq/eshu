@@ -94,9 +94,9 @@ func (codeLanguageQueryReadAdmissionResignedWitness) ListEntityMetadataByIDsForA
 // codeLanguageQueryReadAdmissionMethodSet reflects the live
 // CodeLanguageQueryReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeLanguageQueryReadAdmissionMethodSet(t *testing.T) []string {
+func codeLanguageQueryReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeLanguageQueryReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -119,7 +119,7 @@ func TestCodeLanguageQueryReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeLanguageQueryReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeLanguageQueryReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeLanguageQueryReadAdmissionContractVersion, "v0")
 	}
-	got := codeLanguageQueryReadAdmissionMethodSet(t)
+	got := codeLanguageQueryReadAdmissionMethodSet(t, (*CodeLanguageQueryReadAdmission)(nil))
 	if len(got) != len(frozenCodeLanguageQueryReadAdmission) {
 		t.Fatalf("CodeLanguageQueryReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeLanguageQueryReadAdmission, len(frozenCodeLanguageQueryReadAdmission), CodeLanguageQueryReadAdmissionContractVersion)
 	}
@@ -194,13 +194,7 @@ type seededCodeLanguageQueryDrift interface {
 func TestCodeLanguageQueryReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeLanguageQueryDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeLanguageQueryReadAdmissionMethodSet(t, (*seededCodeLanguageQueryDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeLanguageQueryReadAdmission) {
 		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
 	}

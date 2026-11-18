@@ -107,9 +107,9 @@ func (codeDivergenceReadAdmissionResignedWitness) Run(context.Context, string, m
 // codeDivergenceReadAdmissionMethodSet reflects the live
 // CodeDivergenceReadAdmission method set into sorted "name
 // signature" strings for comparison with the frozen list.
-func codeDivergenceReadAdmissionMethodSet(t *testing.T) []string {
+func codeDivergenceReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeDivergenceReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -133,7 +133,7 @@ func TestCodeDivergenceReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeDivergenceReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeDivergenceReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeDivergenceReadAdmissionContractVersion, "v0")
 	}
-	got := codeDivergenceReadAdmissionMethodSet(t)
+	got := codeDivergenceReadAdmissionMethodSet(t, (*CodeDivergenceReadAdmission)(nil))
 	if len(got) != len(frozenCodeDivergenceReadAdmission) {
 		t.Fatalf("CodeDivergenceReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeDivergenceReadAdmission, len(frozenCodeDivergenceReadAdmission), CodeDivergenceReadAdmissionContractVersion)
 	}
@@ -204,13 +204,7 @@ type seededCodeDivergenceDrift interface {
 func TestCodeDivergenceReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeDivergenceDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeDivergenceReadAdmissionMethodSet(t, (*seededCodeDivergenceDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeDivergenceReadAdmission) {
 		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
 	}

@@ -70,9 +70,9 @@ func (codeGraphScanReadAdmissionResignedWitness) ListRepoEntitiesByIDs(context.C
 // codeGraphScanReadAdmissionMethodSet reflects the live
 // CodeGraphScanReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeGraphScanReadAdmissionMethodSet(t *testing.T) []string {
+func codeGraphScanReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeGraphScanReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -95,7 +95,7 @@ func TestCodeGraphScanReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeGraphScanReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeGraphScanReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeGraphScanReadAdmissionContractVersion, "v0")
 	}
-	got := codeGraphScanReadAdmissionMethodSet(t)
+	got := codeGraphScanReadAdmissionMethodSet(t, (*CodeGraphScanReadAdmission)(nil))
 	if len(got) != len(frozenCodeGraphScanReadAdmission) {
 		t.Fatalf("CodeGraphScanReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeGraphScanReadAdmission, len(frozenCodeGraphScanReadAdmission), CodeGraphScanReadAdmissionContractVersion)
 	}
@@ -167,13 +167,7 @@ type seededCodeGraphScanDrift interface {
 func TestCodeGraphScanReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCodeGraphScanDrift)(nil)).Elem()
-	var got []string
-	for i := range rt.NumMethod() {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
-	}
-	sort.Strings(got)
+	got := codeGraphScanReadAdmissionMethodSet(t, (*seededCodeGraphScanDrift)(nil))
 	if reflect.DeepEqual(got, frozenCodeGraphScanReadAdmission) {
 		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
 	}
