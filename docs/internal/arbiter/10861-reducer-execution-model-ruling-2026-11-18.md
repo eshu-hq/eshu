@@ -1,4 +1,23 @@
-# Arbiter ruling: reducer execution model decisions D1–D6 (2026-11-18)
+# Independent reviewer's ruling: the six growth decisions (2026-11-18)
+
+## Plain-language summary
+
+An independent reviewer checked the six decisions in
+[the growth plan](../design/10861-reducer-execution-model.md) against the
+code and the measurements, and ruled as follows:
+
+| Decision | Verdict | Why, in one line |
+| --- | --- | --- |
+| 1. Fast lookups via saved labels | Accepted | Already proven in one area; the speed target was not credible and was later replaced by measurement |
+| 2. Central system prepares labels | Accepted | The only option that survives rule changes; one rebuild gap must be closed |
+| 3. Process only what changed | Sent back, rewritten | As written it exempted its own biggest target and allowed unlimited exceptions |
+| 4. Waiting work starts on arrival | Accepted, stronger proof required | The mechanism exists; the proof must show no lost or double starts under load |
+| 5. Match questions to the right store | Sent back, rewritten | "One store per question" was already untrue — 13 of 162 need both |
+| 6. Split the giant fact store | Sent back, rewritten | The example it cited actually splits by area code, not by repository, and the queue question was undecided |
+
+The reviewer also refused to approve any numeric target before the
+baseline measurements existed. Those measurements have since been taken
+(#10862) and the plan updated. The full technical ruling follows.
 
 Recorded by the coordinator; the arbiter does not edit files. Arbiter:
 `arbiter-eshu`. Issue: #10861 (epic #10860, Phase 0). Design:
