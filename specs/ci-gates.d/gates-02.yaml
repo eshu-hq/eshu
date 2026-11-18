@@ -97,9 +97,12 @@ gates:
       # that runs it, for the same reason as every sibling companion.
       - "scripts/test-verify-agent-canon-pipes.sh"
       # The kit version pin the workflow's VERSION-vs-pin assertion reads,
-      # and the alias fixture/marker case lib the hygiene mirror sources.
-      # Trigger paths so editing either alone selects the gate that uses it.
+      # the install script carrying the ESHU_AGENT_KIT_REF checkout pin CI
+      # installs the hooks from, and the alias fixture/marker case lib the
+      # hygiene mirror sources. Trigger paths so editing any one alone
+      # selects the gate that uses it.
       - ".agent-kit-version"
+      - "scripts/ci/install-eshu-agent-kit.sh"
       - "scripts/lib/test-agent-alias-cases.sh"
       # The doc generator too: this gate's table is its committed output, so
       # a generator-only edit must select the gate whose rows it rewrites.
@@ -120,6 +123,9 @@ gates:
       - "scripts/goal-role-router.py"
       - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
+      # The CI kit-checkout pin: a REF-only bump changes the hook content the
+      # self-test runs against, so it must select the self-test too.
+      - "scripts/ci/install-eshu-agent-kit.sh"
       # The skill-census cases are a sourced companion, so it is a trigger
       # path in its own right -- otherwise deleting a case from it would
       # not select the gate that runs it.

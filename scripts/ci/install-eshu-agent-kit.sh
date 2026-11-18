@@ -24,7 +24,7 @@ target="${1:-$repo_root}"
 # The pinned kit revision. Update it together with .agent-kit-version: the
 # VERSION check below fails the job when the two disagree, so a forgotten
 # bump is loud rather than silent.
-readonly ESHU_AGENT_KIT_REF="${ESHU_AGENT_KIT_REF:-34fea29917e730b89a04cafc89296112fd9b03e7}"
+readonly ESHU_AGENT_KIT_REF="${ESHU_AGENT_KIT_REF:-209830b9bd0a2d6b74e9b69e6911fcd3118b7ac1}"
 
 # The kit is extracted somewhere DURABLE. The installer links the shared
 # material into the repo as symlinks, and a symlink into a deleted temp

@@ -63,6 +63,9 @@ canon_scripts=(
   "scripts/test-cursor-hooks.sh"
   "scripts/test-cursor-hooks-helper-cases.sh"
   "scripts/test-verify-agent-canon-pipes.sh"
+  # The CI kit-checkout script is an agent-canon trigger (it carries the REF
+  # pin), so the drift check requires it here too.
+  "scripts/ci/install-eshu-agent-kit.sh"
 )
 
 # Agent-canon trigger-path shell scripts this scan deliberately does NOT

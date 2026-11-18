@@ -115,8 +115,10 @@ installed `.agents/skills/` directly), is the usual fresh-machine failure.
 ## Muse Code activation
 
 The Muse port is project-level and **live**: `.muse/hooks.json` plus
-`.muse/hooks/` (7 wrappers delegating to `.claude/hooks/`, plus the
-Muse-native `guard-spawn.sh` dispatch guard). Muse
+`.muse/hooks/` (8 kit-linked wrappers delegating to `.claude/hooks/` --
+run `install.sh --hooks --repo` from the pinned kit to materialize them --
+plus the Muse-native `guard-spawn.sh` dispatch guard, which stays a
+committed eshu file). Muse
 discovers project skills from the installed `.agents/skills/` and role
 definitions from `.agents/agents/` — there is intentionally no `.muse/skills/` or
 `.muse/agents/` copy.
