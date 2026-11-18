@@ -362,22 +362,42 @@ func TestFenceLogsTheGenerationAndALaterTickConsumesItLive(t *testing.T) {
 		}
 		return count
 	}
+	// Direction C (#10837) retargeted the activation capture trigger at the
+	// staging queue (migration 310): the fence mark lands in staging and the
+	// tick's collapse moves it to the log, so the capture probe reads
+	// staging while the consumption probe still reads the log.
+	const staged = `SELECT count(*) FROM supply_chain_impact_winners_dirty_staging
+		WHERE kind = 'scope' AND source = 'activation' AND scope_id = $1 AND generation_id = $2`
+	readStaged := func() int {
+		t.Helper()
+		var count int
+		if err := database.QueryRowContext(t.Context(), staged, scopeID, generationID).Scan(&count); err != nil {
+			t.Fatalf("read staging queue: %v", err)
+		}
+		return count
+	}
 	if got := readLogged(); got != 0 {
 		t.Fatalf("dirty rows before the fence = %d, want 0", got)
+	}
+	if got := readStaged(); got != 0 {
+		t.Fatalf("staged rows before the fence = %d, want 0", got)
 	}
 
 	fence := []scannercomponent.StaleEvidenceFence{{ScopeID: scopeID, GenerationID: generationID}}
 	if _, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fence, time.Now().UTC()); err != nil {
 		t.Fatalf("fence: %v", err)
 	}
-	if got := readLogged(); got != 1 {
-		t.Fatalf("dirty rows after the fence = %d, want 1", got)
+	if got := readStaged(); got != 1 {
+		t.Fatalf("staged rows after the fence = %d, want 1", got)
 	}
 	if _, err := winners.ResweepWinnersKeyed(t.Context()); err != nil {
 		t.Fatalf("keyed tick: %v", err)
 	}
 	if got := readLogged(); got != 0 {
 		t.Fatalf("dirty rows after the tick = %d, want 0", got)
+	}
+	if got := readStaged(); got != 0 {
+		t.Fatalf("staged rows after the tick = %d, want 0", got)
 	}
 }
 
