@@ -18,10 +18,13 @@ TABLE = {
         ),
         "go/internal/storage/postgres/retention/relationships/guard_live_test.go": (
             "TestDeleteStatementsGuardThemselvesLive",
+            "TestGenerationRowDeleteGuardsItselfWithoutChildrenLive",
+            "TestSettleReadsTheGenerationRowLive",
             "TestSweepStopsAtTheRowCapLive",
         ),
         "go/internal/storage/postgres/retention/relationships/held_rows_live_test.go": (
             "TestRowsHeldOnAGenerationWithoutAGenerationRowAreNotCountedSweptLive",
+            "TestGenerationRowCreatedAfterClassificationIsSkippedNotWaitedForLive",
         ),
         "go/internal/storage/postgres/retention/relationships/large_generation_live_test.go": (
             "TestGenerationLargerThanTheRowLimitIsDrainedInBoundedBatchesLive",

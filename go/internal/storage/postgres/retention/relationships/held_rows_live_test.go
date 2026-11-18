@@ -5,6 +5,7 @@ package relationshipretention_test
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:reason #10823 disposable PostgreSQL 18 proof that a generation with no generation row, whose evidence rows or whose candidate rows another session holds, is never counted swept: the batch skips the held rows without waiting, commits the rows it could delete, counts the generation lock_busy, and the next pass sweeps it once the holder lets go; a settle read that ignored one table would count the generation swept while its rows remain; and a generation row that appears after classification (the generation had none to lock) and is held by another session is skipped by the generation row delete, which picks the row FOR UPDATE SKIP LOCKED instead of waiting for it: the batch commits the rows it deleted, counts lock_busy and never ends on the 500 ms lock timeout, and the next pass sweeps the generation once the holder lets go
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
 	"context"
