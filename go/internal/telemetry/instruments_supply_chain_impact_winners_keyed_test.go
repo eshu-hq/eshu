@@ -64,6 +64,10 @@ func TestSupplyChainImpactWinnersWriteConflictScrapeNames(t *testing.T) {
 		SupplyChainImpactWinnersConflictSiteTick, "deadlock")
 	instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx,
 		SupplyChainImpactWinnersConflictSiteWriterCommit, "serialization_failure")
+	// Every closed-set site records with a valid class: a future site
+	// constant that the switch does not accept would silently drop here.
+	instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx,
+		SupplyChainImpactWinnersConflictSiteWriterCapture, "deadlock")
 	// An empty class records nothing: a non-conflict error leaves the
 	// counter flat.
 	instruments.RecordSupplyChainImpactWinnersWriteConflict(ctx,
@@ -81,6 +85,7 @@ func TestSupplyChainImpactWinnersWriteConflictScrapeNames(t *testing.T) {
 		`eshu_dp_supply_chain_impact_winners_write_conflicts_total{`,
 		`site="tick"`,
 		`site="writer_commit"`,
+		`site="writer_capture"`,
 		`failure_class="deadlock"`,
 		`failure_class="serialization_failure"`,
 	} {
