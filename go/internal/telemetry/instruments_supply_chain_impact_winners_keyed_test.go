@@ -93,10 +93,10 @@ func TestSupplyChainImpactWinnersWriteConflictScrapeNames(t *testing.T) {
 			t.Errorf("scrape lacks %q", want)
 		}
 	}
-	if strings.Contains(body, `site="writer_capture"`) {
-		t.Error("scrape contains a writer_capture point, but the empty-class record must add nothing")
-	}
 	if strings.Contains(body, `site="writer_captrue"`) {
 		t.Error("scrape contains a writer_captrue point, but an unknown site must add nothing")
+	}
+	if strings.Contains(body, `failure_class=""`) {
+		t.Error("scrape contains an empty failure_class point, but the empty-class record must add nothing")
 	}
 }
