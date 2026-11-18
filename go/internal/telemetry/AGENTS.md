@@ -58,6 +58,14 @@
   only `operation="read"` and the same closed outcome vocabulary. Slow,
   deadline, and unavailable warnings must not include Cypher text, graph
   addresses, or raw driver errors.
+- **NVD window labels stay closed** — the `transport`, `outcome`, and guard
+  `failure_class` values on the `eshu_dp_vulnerability_nvd_*` instruments come
+  only from the closed sets in `nvd_window.go` (`NVDTransport`,
+  `NVDFeedGuardClass`, and the outcome constants). The extension host maps every
+  satellite-stamped value onto them first, so satellite text never becomes a
+  label. The lag and feed-age gauges read process-local trackers and add no
+  query to a scrape; a series exists only after a position or feed time was
+  recorded in this process (#10716).
 
 ## How to add a new metric
 

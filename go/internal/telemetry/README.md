@@ -175,6 +175,13 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `VulnerabilityIntelligenceAffectedEntriesSkipped` | `eshu_dp_vulnerability_intelligence_affected_entries_skipped_total` |
 | `VulnerabilityIntelligenceRecordsSkipped` | `eshu_dp_vulnerability_intelligence_records_skipped_total` |
 | `VulnerabilityIntelligenceIdentityEdgesEmitted` | `eshu_dp_vulnerability_intelligence_identity_edges_emitted_total` |
+| `NVDTimeAnomalies` | `eshu_dp_vulnerability_nvd_time_anomalies_total` |
+| `NVDWindowClaims` | `eshu_dp_vulnerability_nvd_window_claims_total` |
+| `NVDWindowCursorAdvances` | `eshu_dp_vulnerability_nvd_window_cursor_advance_total` |
+| `NVDFeedGuardTrips` | `eshu_dp_vulnerability_nvd_feed_guard_trips_total` |
+| `NVDFeedDeadlineShort` | `eshu_dp_vulnerability_nvd_feed_deadline_short_total` |
+| `NVDFeedSHA256Mismatch` | `eshu_dp_vulnerability_nvd_feed_sha256_mismatch_total` |
+| `NVDFeedMetaUnavailable` | `eshu_dp_vulnerability_nvd_feed_meta_unavailable_total` |
 | `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
 | `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
 | `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
@@ -337,6 +344,8 @@ The histogram inventory (fields, metric names, bucket ranges, and the
 | `SharedAcceptanceRows` | `eshu_dp_shared_acceptance_rows` | none |
 | `GraphOrphanNodes` | `eshu_dp_graph_orphan_nodes` | `node_label` |
 | `ActiveGenerationsByAge` | `eshu_dp_active_generations` | `age_bucket` |
+| `NVDCursorLagSeconds` | `eshu_dp_vulnerability_nvd_cursor_lag_seconds` | `source`, `transport` |
+| `NVDFeedAgeSeconds` | `eshu_dp_vulnerability_nvd_feed_age_seconds` | `source` |
 | (via `RecordGOMEMLIMIT`) | `eshu_dp_gomemlimit_bytes` | none |
 
 ### Span name constants
