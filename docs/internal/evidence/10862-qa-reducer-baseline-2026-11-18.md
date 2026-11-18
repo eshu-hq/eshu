@@ -206,8 +206,7 @@ by everything competing at once — not by the backlog's depth. Phase 1
 How to re-run: `cd go && ESHU_POSTGRES_DSN=<disposable> go test
 ./internal/storage/postgres/ -run TestReducerQueue10862ReplayShapeAndDrain
 -v -timeout 20m` (about 103 seconds; an independent re-run reproduced
-the result). The group hand-out path is not yet covered by the replay —
-listed under "Not checked".
+the result). The group hand-out path is not covered by the replay: it picks work in a different order (priority and fairness first), so the replay's flat-cost result does **not** carry over to it. Listed under "Not checked".
 
 ## 12. Where this baseline is registered
 

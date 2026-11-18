@@ -140,7 +140,7 @@ failure_details, payload, created_at, updated_at) VALUES `+strings.Join(values, 
 	return n
 }
 
-func percentileSortedDesc(samples []float64, p float64) float64 {
+func percentileSorted(samples []float64, p float64) float64 {
 	if len(samples) == 0 {
 		return 0
 	}
@@ -160,8 +160,13 @@ func percentileSortedDesc(samples []float64, p float64) float64 {
 //
 // Operator-gated like BenchmarkReducerQueueClaimDeepQueue: it needs
 // ESHU_REDUCER_CLAIM_BENCH_DSN (or ESHU_POSTGRES_DSN) and never touches QA.
-// Batch-claim coverage stays NOT_CHECKED: the drain loop exercises the
-// single-claim SQL, which ranks the same queue the batch path ranks.
+// Batch-claim coverage stays NOT_CHECKED. The drain loop exercises the
+// single-claim SQL only: it orders by (updated_at, work_item_id), while
+// the production batch path orders by domain priority, in-flight counts,
+// and fairness rank before that pair. The two rankings are NOT
+// equivalent, so this replay proves hand-out cost stays flat for the
+// single-claim path on the baseline shape — it does not prove anything
+// about batch hand-out cost or order.
 func TestReducerQueue10862ReplayShapeAndDrain(t *testing.T) {
 	dsn := reducerClaimBenchmarkDSN()
 	if dsn == "" {
@@ -267,12 +272,12 @@ min(created_at), max(created_at) FROM fact_work_items WHERE stage='reducer'`,
 		t.Fatalf("replay drained = %d, want %d (claims stalled with work left)", drained, want)
 	}
 	half := len(latencies) / 2
-	p95First := percentileSortedDesc(latencies[:half], 0.95)
-	p95Second := percentileSortedDesc(latencies[half:], 0.95)
+	p95First := percentileSorted(latencies[:half], 0.95)
+	p95Second := percentileSorted(latencies[half:], 0.95)
 	t.Logf("10862 replay: depth=%d drained=%d wall=%.1fs items_per_sec=%.1f claim_p50=%.3fs claim_p95=%.3fs claim_max=%.3fs flatness_p95_second_over_first=%.3f",
 		want, drained, wall, float64(drained)/wall,
-		percentileSortedDesc(latencies, 0.50), percentileSortedDesc(latencies, 0.95),
-		percentileSortedDesc(latencies, 1.0), p95Second/p95First)
+		percentileSorted(latencies, 0.50), percentileSorted(latencies, 0.95),
+		percentileSorted(latencies, 1.0), p95Second/p95First)
 	if p95First > 0 && p95Second > 1.10*p95First {
 		t.Fatalf("hand-out not flat: second-half p95 %.3fs > 1.10x first-half p95 %.3fs",
 			p95Second, p95First)
