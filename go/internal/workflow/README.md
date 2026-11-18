@@ -182,10 +182,9 @@ limits are validated before the instance reaches durable storage.
 `config_validation_enabled` opts a target into live PagerDuty service and
 service-integration metadata collection, and `config_resource_limit` keeps that
 read bounded to the same 0-100 page limit family as incident, log-entry, and
-change-event reads.
-Disabled `pagerduty` and `jira` instances are registration-only. Their durable
-identity, kind, mode, and JSON shape must be valid, but private target fields
-can stay blank until the instance is enabled.
+change-event reads. Disabled `pagerduty` and `jira` instances are
+registration-only. Their durable identity, kind, mode, and JSON shape must be
+valid, but private target fields can stay blank until the instance is enabled.
 
 `oci_registry` collector instances are claim-capable. The coordinator plans one
 bounded work item per configured registry repository target, and the
@@ -197,25 +196,23 @@ contract.
 `package_registry` collector instances are claim-capable. The coordinator plans
 one bounded work item per configured package/feed target, and the
 `collector-package-registry` runtime resolves each claimed `scope_id` back to a
-configured metadata endpoint before parsing package-native evidence. Targets
-may opt into `document_format=artifactory_package` when the response is a
-JFrog wrapper around native metadata; unknown document formats are rejected
-before planning. Targets may also opt into `derive_from_owned_packages` for
-bounded package metadata planning from active owned Git dependency facts for
-npm, PyPI, Go modules, Maven, NuGet, Composer, RubyGems, and Cargo.
-Package-registry derivation selects package identities, not package-version
-rows, so one heavily reused package cannot consume the whole planning budget.
-Derived npm and PyPI targets have native metadata URLs today; derived Go
-module, Maven, NuGet, Composer, RubyGems, and Cargo targets are planned as
-identity evidence and complete with explicit missing-evidence warnings until
-native metadata adapters land. When `version_limit` is omitted, the runtime
-keeps one registry version for fetched metadata and leaves exact
-installed-version truth to source dependency facts and vulnerability-intelligence
-OSV query batches. Explicit package-registry targets can still set a higher
-`version_limit` when the goal is targeted registry version/dependency
-inspection.
-Package registry instances are fact-only until reducer correlation and graph
-projection contracts land.
+configured metadata endpoint before parsing package-native evidence. Targets may
+opt into `document_format=artifactory_package` when the response is a JFrog
+wrapper around native metadata; unknown document formats are rejected before
+planning. Targets may also opt into `derive_from_owned_packages` for bounded
+package metadata planning from active owned Git dependency facts for npm, PyPI,
+Go modules, Maven, NuGet, Composer, RubyGems, and Cargo. Package-registry
+derivation selects package identities, not package-version rows, so one heavily
+reused package cannot consume the whole planning budget. Derived npm and PyPI
+targets have native metadata URLs today; derived Go module, Maven, NuGet,
+Composer, RubyGems, and Cargo targets are planned as identity evidence and
+complete with explicit missing-evidence warnings until native metadata adapters
+land. When `version_limit` is omitted, the runtime keeps one registry version
+for fetched metadata and leaves exact installed-version truth to source
+dependency facts and vulnerability-intelligence OSV query batches. Explicit
+package-registry targets can still set a higher `version_limit` when the goal is
+targeted registry version/dependency inspection. Package registry instances are
+fact-only until reducer correlation and graph projection contracts land.
 
 `vulnerability_intelligence` collector instances are claim-capable. The
 coordinator plans one bounded work item per configured vulnerability source
@@ -256,6 +253,9 @@ the full corpus does not repeatedly schedule only the first sorted page. Set
 `derive_from_installed_evidence.planning_mode=single_pass` only for bounded
 representative proofs that must keep the total derived target set fixed across
 reconcile buckets.
+The vulnerability-intelligence validator accepts the NVD sections
+`derive_nvd_rolling_windows` and `derive_nvd_baseline` by exact key only and
+leaves the baseline contents to `coordinator/vulnerability` (see AGENTS.md).
 
 `scanner_worker` work items reserve the workflow boundary for isolated security
 analyzers. A scanner-worker claim copies the active work item, claim ID,

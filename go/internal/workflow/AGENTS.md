@@ -54,6 +54,23 @@
   `unsupported ecosystem "x"` prefix and appends `(supported: ...)`. A name
   belongs in a set only when the reader, derivation, and `vulnruntime`
   provider can act on it; `vulnruntime` pins the provider side (#9221).
+- **NVD sections are an exact-key allowlist** — the shared NVD guard in
+  `vulnerability_intelligence_nvd_window_validation.go` accepts exactly
+  `derive_nvd_rolling_windows` and `derive_nvd_baseline` (`isKnownNVDSectionKey`)
+  and rejects every other top-level key containing `nvd`, naming both valid
+  keys (#9982, #10736). Never widen it to a prefix, a case fold, or a
+  `baseline` substring: a misspelled section would then plan nothing without
+  a signal. The guard does not read the `derive_nvd_baseline` contents. A bad
+  baseline section must not fail the whole config and stop the OSV, GHSA, and
+  window plan with it (#10762), so its strict decode lives in
+  `coordinator/vulnerability.NVDBaselineDerivationFromConfig` and holds only
+  the baseline lane. Both callers share the one function:
+  `ValidateVulnerabilityIntelligenceCollectorConfiguration` and, through
+  `ValidateVulnerabilityNVDWindowSection`, the coordinator activation decode.
+  Revert guard: a core release without the `derive_nvd_baseline` exemption
+  fails config load for the whole instance, so remove the section, do not just
+  set `enabled` false, before reverting to one. The key is accepted but inert
+  until the #10746 service wiring calls the loader.
 - **ghsa admits reviewed and malware only** — the `ghsa` target case in
   `vulnerability_intelligence_ghsa_config.go` requires `advisory_type` of
   exactly `reviewed` or `malware` and a `scope_id` of exactly
