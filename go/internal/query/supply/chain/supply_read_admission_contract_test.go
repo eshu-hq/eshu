@@ -57,9 +57,9 @@ var frozenSupplyChainReadAdmission = []string{
 // supplyChainReadAdmissionMethodSet reflects the live
 // SupplyChainReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func supplyChainReadAdmissionMethodSet(t *testing.T) []string {
+func supplyChainReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*SupplyChainReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -81,7 +81,7 @@ func TestSupplyChainReadAdmissionContractIsVersioned(t *testing.T) {
 	if SupplyChainReadAdmissionContractVersion != "v0" {
 		t.Errorf("SupplyChainReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", SupplyChainReadAdmissionContractVersion, "v0")
 	}
-	got := supplyChainReadAdmissionMethodSet(t)
+	got := supplyChainReadAdmissionMethodSet(t, (*SupplyChainReadAdmission)(nil))
 	if len(got) != len(frozenSupplyChainReadAdmission) {
 		t.Fatalf("SupplyChainReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenSupplyChainReadAdmission, len(frozenSupplyChainReadAdmission), SupplyChainReadAdmissionContractVersion)
 	}
@@ -231,13 +231,10 @@ type seededSupplyChainDrift interface {
 func TestSupplyChainReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededSupplyChainDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := supplyChainReadAdmissionMethodSet(t, (*seededSupplyChainDrift)(nil))
+	if reflect.DeepEqual(got, frozenSupplyChainReadAdmission) {
+		t.Fatal("seeded widening (WriteSuppressionLedger) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenSupplyChainReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenSupplyChainReadAdmission)+1)
 	}

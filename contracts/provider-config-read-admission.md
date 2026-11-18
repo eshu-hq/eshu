@@ -39,7 +39,7 @@ Evidence (not enforcement): the pin-satisfying witness
 over zero values, and the real-handler tests (`reads_test.go`:
 `TestHandleListAdminProviderConfigs`,
 `TestHandleGetAdminProviderConfigFound`,
-`TestListRevisionsAdminProviderConfig`,
+`TestHandleListRevisionsAdminProviderConfig`,
 `TestProviderConfigReadsRequireAllScope`) prove each leg serves
 through `config.ReadHandler.Mount` with all-scope authorization.
 
@@ -95,10 +95,10 @@ provider-config read legs.
   carries plaintext or sealed ciphertext (`leakage_test.go`); every
   attempt is governance-audited. There is no secret method set to
   freeze.
-- The `test-connection` POST (`ConnectionTester`: bounded OIDC
-  discovery/JWKS reachability plus SAML validation, implemented
-  outside go/internal/query in cmd/api) — a writer-adjacent probe,
-  not a read here.
+- The `test-connection` POST (`ConnectionTester` interface declared in
+  `go/internal/query/admin/provider/config/types.go`, implemented by
+  `go/internal/oidclogin`: bounded OIDC discovery/JWKS reachability
+  plus SAML validation) — a writer-adjacent probe, not a read here.
 - D1-style append/audit surfaces and the setup-claim/admin/mfa legs —
   each keeps its own standing until a deliberate pin covers it.
 

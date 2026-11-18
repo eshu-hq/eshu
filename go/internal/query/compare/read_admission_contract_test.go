@@ -53,9 +53,9 @@ var _ CompareReadAdmission = compareReadAdmissionWitness{}
 // compareReadAdmissionMethodSet reflects the live
 // CompareReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func compareReadAdmissionMethodSet(t *testing.T) []string {
+func compareReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CompareReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -78,7 +78,7 @@ func TestCompareReadAdmissionContractIsVersioned(t *testing.T) {
 	if CompareReadAdmissionContractVersion != "v0" {
 		t.Errorf("CompareReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CompareReadAdmissionContractVersion, "v0")
 	}
-	got := compareReadAdmissionMethodSet(t)
+	got := compareReadAdmissionMethodSet(t, (*CompareReadAdmission)(nil))
 	if len(got) != len(frozenCompareReadAdmission) {
 		t.Fatalf("CompareReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCompareReadAdmission, len(frozenCompareReadAdmission), CompareReadAdmissionContractVersion)
 	}
@@ -128,13 +128,10 @@ type seededCompareDrift interface {
 func TestCompareReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededCompareDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := compareReadAdmissionMethodSet(t, (*seededCompareDrift)(nil))
+	if reflect.DeepEqual(got, frozenCompareReadAdmission) {
+		t.Fatal("seeded widening (SnapshotCompareEnvironments) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenCompareReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCompareReadAdmission)+1)
 	}

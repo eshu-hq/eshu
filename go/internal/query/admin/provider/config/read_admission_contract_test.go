@@ -27,9 +27,9 @@ var frozenProviderConfigReadAdmission = []string{
 // providerConfigReadAdmissionMethodSet reflects the live
 // ProviderConfigReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func providerConfigReadAdmissionMethodSet(t *testing.T) []string {
+func providerConfigReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*ProviderConfigReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -50,7 +50,7 @@ func TestProviderConfigReadAdmissionContractIsVersioned(t *testing.T) {
 	if ProviderConfigReadAdmissionContractVersion != "v0" {
 		t.Errorf("ProviderConfigReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", ProviderConfigReadAdmissionContractVersion, "v0")
 	}
-	got := providerConfigReadAdmissionMethodSet(t)
+	got := providerConfigReadAdmissionMethodSet(t, (*ProviderConfigReadAdmission)(nil))
 	if len(got) != len(frozenProviderConfigReadAdmission) {
 		t.Fatalf("ProviderConfigReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenProviderConfigReadAdmission, len(frozenProviderConfigReadAdmission), ProviderConfigReadAdmissionContractVersion)
 	}
@@ -121,13 +121,10 @@ type seededProviderConfigDrift interface {
 func TestProviderConfigReadAdmissionSeededDriftIsDetected(t *testing.T) {
 	t.Parallel()
 
-	rt := reflect.TypeOf((*seededProviderConfigDrift)(nil)).Elem()
-	var got []string
-	for i := 0; i < rt.NumMethod(); i++ {
-		m := rt.Method(i)
-		got = append(got, m.Name+" "+m.Type.String())
+	got := providerConfigReadAdmissionMethodSet(t, (*seededProviderConfigDrift)(nil))
+	if reflect.DeepEqual(got, frozenProviderConfigReadAdmission) {
+		t.Fatal("seeded widening (CreateProviderConfig) matches the frozen set: the comparison cannot see drift")
 	}
-	sort.Strings(got)
 	if len(got) != len(frozenProviderConfigReadAdmission)+1 {
 		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenProviderConfigReadAdmission)+1)
 	}

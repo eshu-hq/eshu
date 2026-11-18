@@ -89,7 +89,7 @@ composer proves the production stores jointly serve the pin.
 
 ## W8a disclosed-absence posture
 
-All 19 SupplyChain read rows are natively mounted in-tree
+All 18 SupplyChain read rows are natively mounted in-tree
 (`chain.Handler.Mount` in go/internal/query/supply/chain/handler.go
 plus the `supplyChainImpactAggregateRoutes`,
 `securityAlertReconciliationAggregateRoutes`,
@@ -101,7 +101,7 @@ fragments stay core-side (oracle `paths/supply/chain/*` and
 stub covers these legs: the wire-shape generator snapshots forwarded
 relay spellings only, and no SupplyChain leg has one. The mount +
 core-side fragments + spec-key list above is the complete termination
-record for the 19 read legs.
+record for the 18 read legs.
 
 ## Explicitly OUT (not widened by this pin)
 

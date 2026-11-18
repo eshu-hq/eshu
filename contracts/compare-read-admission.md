@@ -101,5 +101,6 @@ Compare POST leg.
 
 ## Rollback
 
-Revert this pin. The seam is unwired — no handler, route, or caller
-depends on it yet — so rollback moves no traffic and changes no data.
+Revert this pin. The seam is unwired — the handler (`compare.Handler`)
+and route exist and are mounted; only the pin is new — so rollback
+moves no traffic and changes no data.
