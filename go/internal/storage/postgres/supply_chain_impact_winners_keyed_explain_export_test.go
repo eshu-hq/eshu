@@ -87,7 +87,7 @@ func ExplainWinnersKeyedSettleForTest(ctx context.Context, database *sql.DB) (co
 	// The tick collapses the staging queue before admission, so the plans
 	// below are drawn over the collapsed window, not an empty log.
 	if _, err := collapseWinnersStaging(ctx, tx, 0); err != nil {
-		return "", "", fmt.Errorf("collapse staging for settle explain: %w", err)
+		return "", "", "", fmt.Errorf("collapse staging for settle explain: %w", err)
 	}
 	if _, err := admitWinnersDirtyWindow(ctx, tx, defaultWinnersChunkMaxDirtyRows); err != nil {
 		return "", "", "", fmt.Errorf("admit window for settle explain: %w", err)
