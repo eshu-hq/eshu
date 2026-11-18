@@ -108,7 +108,7 @@ as a safety net so a missed change is eventually corrected.
 | Item | Detail |
 | --- | --- |
 | Rule | Change-only processing is required when a kind of work averages over 5 seconds per run, **or** uses at least 5% of total processing time, **or** reads beyond the areas that changed. Work restarts only when its input actually changed |
-| Safety net | One full check per day per kind of work, inside a stated time budget. If the daily check has to correct results two days in a row, that is treated as a defect and the owner is alerted |
+| Safety net | One full check per day per kind of work, inside a stated time budget. What each check corrects is reported on every run; corrections on two consecutive runs are treated as a defect and the owner is alerted |
 | Exceptions | A kind of work that cannot say what changed may keep full runs only under a written cost ceiling (seconds per run, runs per day, review date) recorded before work starts. No ceiling, no exception |
 | Tracked in | #10878 |
 
@@ -125,7 +125,7 @@ slow safety check remains in case a start is ever missed.
 | Item | Detail |
 | --- | --- |
 | Targets (confirmed against the 2026-11-18 measurements) | Fewer than 5% of runs put back to wait (32% today; the worst areas retry 58% and 99% of the time); a missed start is caught within 10 minutes |
-| How we will know it works | Same results no matter which arrives first — the work or its input — proven with many workers competing on a realistic queue: no lost starts, no double starts, and saving does not get slower |
+| How we will know it works | Same results no matter which arrives first — the work or its input — proven with many workers competing on a realistic queue: no lost starts, no double starts, and saving time unchanged within the tolerance measured in the baseline |
 | Guardrail | This changes how the queue is stored, so #10876 must spell out that change explicitly; "% put back" must be read together with freshness (below), so the number cannot be gamed by holding work longer |
 | Tracked in | #10876, #10877 |
 
