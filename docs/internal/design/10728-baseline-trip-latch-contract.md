@@ -113,8 +113,9 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   gap rule above) and a lost-row synthesized trip restart it at 0; an operator
   `Close` returns the zero latch, so a re-enabled lane restarts at 30 minutes and
   earns each halving again. The fold does not cap it: the planner that reads it
-  saturates the exponent so a long quiet stretch cannot overflow. The streak is
-  written by the same guarded statement as every other field
+  (`nvdBaselinePaceInterval`) saturates the exponent at six halvings, so a long
+  quiet stretch cannot overflow and a hand-edited negative value reads as zero.
+  The streak is written by the same guarded statement as every other field
   (`soft_quiet_streak = $8`, revision `$9`), so it needs no lock of its own.
 
   | Delivery | Streak after |
@@ -142,6 +143,18 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   after a downgrade and a re-upgrade the first quiet sample can resume a stale
   streak. Roll back before the floor is lowered, or `Close` the latch after
   re-upgrading.
+- Staleness the planner reads (#10814). A shut latch proves nothing once its
+  sampler has stopped, so the planner holds an incomplete run as
+  `baseline_trip_stale` when `sampled_at` is older than 90 minutes
+  (`NVDBaselineTripMaxSampleGap`, the gap the fold already treats as a missed
+  hour; exactly 90 minutes is still fresh) or was never set. The check sits
+  after the complete verdict, since a finished run has nothing to plan, and
+  before the pace is read, so a dead sampler never paces from a streak nothing
+  can refresh. Planning resumes on its own once a sample applies. One reading
+  goes past the ruling's wording: a sample dated more than
+  `NVDBaselineTripMaxSampleSkew` (2 minutes) ahead of the planner's `now` also
+  reads stale, the bound the writer refuses at, so a stepped clock or a
+  poisoned row cannot read fresh for ever.
 - #10746 observability notes. The recorders in this change count outcomes but
   log nothing. #10746 must (a) emit a WARN log on `read_failed` and
   `write_failed` (the counter alone does not say which run or which error),
@@ -149,7 +162,9 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   reason, so an operator reading one plan span can tell an open trip from an
   unreadable latch. The hold reasons `baseline_trip_open` and
   `baseline_trip_unloaded` already ride the plan span through
-  `appendNVDBaselineTarget` (`nvd_baseline_hold_reason`); only the latch
+  `appendNVDBaselineTarget` (`nvd_baseline_hold_reason`), as does
+  `baseline_trip_stale`, and every hold also counts on
+  `eshu_dp_nvd_baseline_plan_holds_total{reason}` (#10814); only the latch
   outcome attribute is left for #10746.
 - Rollback. The migration only creates a new table nothing references, so
   the schema rollback is `DROP TABLE vulnerability_nvd_baseline_trip_latches`.
@@ -188,5 +203,10 @@ row and rides `NVDBaselineTripObservation.Before` and `After`
 (`SoftQuietStreak`), which the #10746 recorder and log lines read.
 `eshu_dp_nvd_baseline_trip_latch_total{outcome}` already counts the outcomes the
 streak's replay matrix is keyed on: `applied`, `applied_after_gap`, `stale`,
-`too_soon`, `lost_race`, `write_failed`. The pace metrics that carry the
-interval and the inflow belong to the later pace slice.
+`too_soon`, `lost_race`, `write_failed`. The planner slice (#10814) adds
+`eshu_dp_nvd_baseline_pace_interval_seconds` for the interval the planner
+applied and counts `baseline_trip_stale` on
+`eshu_dp_nvd_baseline_plan_holds_total{reason}`. The ruling's soft-inflow and ETA
+gauges are not built here: `eshu_dp_nvd_baseline_dirty_proxy_rows_per_hour` stands
+in for the inflow gauge, and #10746 records it from the hourly sampler, confirms it
+carries the CVE-keyed inflow, and builds the ETA from the sampler's history.
