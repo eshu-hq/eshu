@@ -4,6 +4,7 @@
 package query
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"strings"
@@ -40,6 +41,21 @@ var frozenStatusHostedReadinessReadAdmission = []string{
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 	"RunSingle func(context.Context, string, map[string]interface {}) (map[string]interface {}, error)",
 }
+
+// statusHostedReadinessReadAdmissionWitness proves
+// StatusHostedReadinessReadAdmission is satisfiable with the minimal
+// shape: the two re-declared graph reads, no wider graph surface.
+type statusHostedReadinessReadAdmissionWitness struct{}
+
+func (statusHostedReadinessReadAdmissionWitness) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+func (statusHostedReadinessReadAdmissionWitness) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+var _ StatusHostedReadinessReadAdmission = statusHostedReadinessReadAdmissionWitness{}
 
 // statusHostedReadinessReadAdmissionMethodSet reflects the live
 // StatusHostedReadinessReadAdmission method set into sorted "name
@@ -96,6 +112,47 @@ func TestStatusHostedReadinessReadAdmissionWireShapesAreSealed(t *testing.T) {
 			if strings.Contains(name, banned) {
 				t.Errorf("StatusHostedReadinessReadAdmission.%s contains %q: session, write, and snapshot legs stay out of this pin", name, banned)
 			}
+		}
+	}
+}
+
+// seededStatusHostedReadinessDrift is a deliberately widened copy of the
+// pin: the two frozen reads plus a session Exec the hosted-readiness
+// route never issues. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededStatusHostedReadinessDrift interface {
+	StatusHostedReadinessReadAdmission
+	Exec(context.Context, string, map[string]any) error
+}
+
+// TestStatusHostedReadinessReadAdmissionSeededDriftIsDetected is the RED
+// half of the seeded-drift pair: the same reflect comparison the
+// contract test runs must report a mismatch on the planted widening.
+// It passes on a clean tree precisely because the guard fires on drift
+// — a guard that cannot see the seeded method is no guard.
+func TestStatusHostedReadinessReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededStatusHostedReadinessDrift)(nil)).Elem()
+	var got []string
+	for i := 0; i < rt.NumMethod(); i++ {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if len(got) != len(frozenStatusHostedReadinessReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusHostedReadinessReadAdmission)+1)
+	}
+	for _, want := range frozenStatusHostedReadinessReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }

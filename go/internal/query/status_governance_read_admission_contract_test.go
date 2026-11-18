@@ -4,10 +4,13 @@
 package query
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 // frozenStatusGovernanceReadAdmission pins the exact method set behind the
@@ -36,6 +39,17 @@ import (
 var frozenStatusGovernanceReadAdmission = []string{
 	"Summary func(context.Context) (governanceaudit.Summary, error)",
 }
+
+// statusGovernanceReadAdmissionWitness proves
+// StatusGovernanceReadAdmission is satisfiable with the minimal shape:
+// one Summary read, no wider audit surface.
+type statusGovernanceReadAdmissionWitness struct{}
+
+func (statusGovernanceReadAdmissionWitness) Summary(context.Context) (governanceaudit.Summary, error) {
+	return governanceaudit.Summary{}, nil
+}
+
+var _ StatusGovernanceReadAdmission = statusGovernanceReadAdmissionWitness{}
 
 // statusGovernanceReadAdmissionMethodSet reflects the live
 // StatusGovernanceReadAdmission method set into sorted "name signature"
@@ -92,6 +106,47 @@ func TestStatusGovernanceReadAdmissionWireShapesAreSealed(t *testing.T) {
 			if strings.Contains(name, banned) {
 				t.Errorf("StatusGovernanceReadAdmission.%s contains %q: list, append, tenant, and snapshot legs stay out of this pin", name, banned)
 			}
+		}
+	}
+}
+
+// seededStatusGovernanceDrift is a deliberately widened copy of the pin:
+// the one frozen read plus a detailed-event List the governance route
+// never issues. It never ships; it proves the frozen-set comparison
+// below can see a one-method widening.
+type seededStatusGovernanceDrift interface {
+	StatusGovernanceReadAdmission
+	List(context.Context) ([]governanceaudit.Summary, error)
+}
+
+// TestStatusGovernanceReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestStatusGovernanceReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededStatusGovernanceDrift)(nil)).Elem()
+	var got []string
+	for i := 0; i < rt.NumMethod(); i++ {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if len(got) != len(frozenStatusGovernanceReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusGovernanceReadAdmission)+1)
+	}
+	for _, want := range frozenStatusGovernanceReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }
