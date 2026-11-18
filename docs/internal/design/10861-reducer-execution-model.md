@@ -33,8 +33,11 @@ data per work item.
 
 - Rule: a load that runs more than once a second may not match patterns or
   search text inside fact content.
-- Proposed limit: 95% of load queries finish within 100 ms on the baseline
-  data set.
+- Limit (replaced by the #10862 baseline, 2026-11-18): the proposed "95% of
+  loads within 100 ms" is refuted — claim-adjacent loads run 0.26–3.3 s
+  means on QA. The enforceable budget is the #10862 replay flatness check:
+  second-half claim p95 within 1.10× of first-half p95 (replay measured
+  0.79×). See `docs/internal/evidence/10862-qa-reducer-baseline-2026-11-18.md` §10.
 - Where the database still does the choosing (e.g. picking the winning
   advisory), it reads only the entries marked as changed.
 - Proof: the before-and-after query plan on a realistic copy, and a comparison
@@ -189,8 +192,14 @@ beyond the owner's target, which is not a hosted service.
   D1/D2/D4 accepted (limits still Proposed), D3/D5/D6 replaced as above;
   see [ruling](../arbiter/10861-reducer-execution-model-ruling-2026-11-18.md).
   Status stays Proposed until criterion 3.
-- Limits confirmed or replaced against the #10862 baseline: pending; fill in
-  per decision.
+- Limits confirmed or replaced against the #10862 baseline: done
+  2026-11-18 per baseline §10 — D1 REPLACED (flatness ≤1.10×, above);
+  D4 CONFIRMED as target (worst domains `advisory_group_projection` 58%,
+  `deployable_unit_correlation` 99% retrying; global run-count
+  recomputation NOT_CHECKED, owed to #10876/#10877); D2, D3, D5, D6
+  NOT_CHECKED on a read-only baseline and carried as Proposed to
+  #10875/#10878/#10880/#10881. Status stays Proposed until those proofs
+  land; no unmeasured number is presented as accepted.
 - Proving experiment plus reject result per decision: recorded above.
 - This file: this record.
 - Part E marked replaced: pointer at the top of Part E.
