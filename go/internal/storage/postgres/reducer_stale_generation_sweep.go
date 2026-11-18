@@ -26,22 +26,36 @@ const DefaultStaleReducerSweepLimit = 500
 // arm, and terminal UPDATE (supersedeInactiveReducerGenerationsCTEs),
 // with the lock step bounded by LIMIT $3 and made multi-sweeper safe by
 // SKIP LOCKED. $1 is the sweep clock (updated_at stamp), $2 the optional
-// domain filter (nil sweeps every domain), $3 the row bound. Hand-out
-// safety does not depend on this statement — claims fence stale rows
-// read-only (reducerClaimStaleGateCTEs) and the runtime generation guard
-// refuses a leaked stale intent before its handler runs — so a row this
-// pass skips (locked by a claim, a replay, or a sibling sweeper) is
-// terminalized by a later pass instead of blocking this one. Lock order
-// stays work_item_id COLLATE "C" (#8205), so concurrent sweepers take
-// row locks in the same global order and cannot deadlock each other.
+// domain filter (nil sweeps every domain), $3 the row bound, $4 the
+// keyset cursor: only rows with work_item_id past $4 are locked (empty
+// starts at the head). The final SELECT returns the superseded count,
+// the locked count, and the greatest locked work_item_id, so the caller
+// advances by the locked window rather than by rows terminalized: the
+// lock step also locks rows the UPDATE spares forever (a sole stale
+// Crossplane row kept by the #10106 carrier rule, an active-generation
+// carrier-arm row), and a pass that stops on updated < limit re-locks that
+// same spared head every cycle and never reaches the stale rows behind
+// it. Hand-out safety does not depend on this statement — claims fence
+// stale rows read-only (reducerClaimStaleGateCTEs) and the runtime
+// generation guard refuses a leaked stale intent before its handler runs
+// — so a row this pass skips (locked by a claim, a replay, or a sibling
+// sweeper) is terminalized by a later pass instead of blocking this one.
+// Lock order stays work_item_id COLLATE "C" (#8205), so concurrent
+// sweepers take row locks in the same global order and cannot deadlock
+// each other. The cursor filters the lock step only; the Crossplane
+// carrier check still probes this statement's locked set alone (#10325),
+// so a stale row whose carrier falls in a later window is spared again,
+// never superseded against an unlocked carrier.
 var supersedeStaleReducerGenerationsQuery = `
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
-` + supersedeInactiveReducerGenerationsCTEs(`
+` + supersedeInactiveReducerGenerationsCTEsAfter(`
     ORDER BY stale.work_item_id COLLATE "C"
     LIMIT $3
     FOR NO KEY UPDATE OF stale SKIP LOCKED
-`) + `
-SELECT count(*) FROM superseded_stale_reducer_generations
+`, "$4") + `
+SELECT (SELECT count(*) FROM superseded_stale_reducer_generations),
+       (SELECT count(*) FROM superseded_stale_reducer_locked),
+       COALESCE((SELECT max(work_item_id COLLATE "C") FROM superseded_stale_reducer_locked), '')
 `
 
 // SupersedeStaleReducerGenerations terminalizes up to limit unleased
@@ -53,31 +67,60 @@ SELECT count(*) FROM superseded_stale_reducer_generations
 // queue may claim; the shared sweeper queues carry no filter and sweep
 // every domain. limit <= 0 uses DefaultStaleReducerSweepLimit.
 func (q ReducerQueue) SupersedeStaleReducerGenerations(ctx context.Context, limit int) (int, error) {
+	pass, err := q.supersedeStaleReducerGenerationsAfter(ctx, limit, "")
+	if err != nil {
+		return 0, err
+	}
+	return pass.superseded, nil
+}
+
+// staleSweepPass is one bounded sweep statement's outcome: how many rows
+// it terminalized, how many rows its lock step locked (terminalized or
+// spared), and the greatest locked work_item_id. The sweeper chains
+// passes on the locked window — a full locked window followed by the
+// cursor at its greatest id — because spared rows never leave the
+// candidate set, so only the locked window proves forward progress.
+type staleSweepPass struct {
+	superseded          int
+	locked              int
+	maxLockedWorkItemID string
+}
+
+// supersedeStaleReducerGenerationsAfter runs one bounded sweep pass over
+// candidates with work_item_id past afterWorkItemID (empty for the head)
+// and reports the locked window alongside the superseded count. Rows a
+// concurrent claim or sweeper holds are SKIP LOCKED out of the locked
+// set, so the cursor can step over them this cycle; the next cycle
+// restarts at the head and reaches them then.
+func (q ReducerQueue) supersedeStaleReducerGenerationsAfter(ctx context.Context, limit int, afterWorkItemID string) (staleSweepPass, error) {
 	if q.database == nil {
-		return 0, errors.New("reducer stale-generation sweep requires a database")
+		return staleSweepPass{}, errors.New("reducer stale-generation sweep requires a database")
 	}
 	if limit <= 0 {
 		limit = DefaultStaleReducerSweepLimit
 	}
-	rows, err := q.database.QueryContext(ctx, supersedeStaleReducerGenerationsQuery, q.now(), q.claimDomainFilters(), limit)
+	rows, err := q.database.QueryContext(ctx, supersedeStaleReducerGenerationsQuery, q.now(), q.claimDomainFilters(), limit, afterWorkItemID)
 	if err != nil {
-		return 0, fmt.Errorf("supersede stale reducer generations: %w", err)
+		return staleSweepPass{}, fmt.Errorf("supersede stale reducer generations: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return 0, fmt.Errorf("supersede stale reducer generations: %w", err)
+			return staleSweepPass{}, fmt.Errorf("supersede stale reducer generations: %w", err)
 		}
-		return 0, errors.New("supersede stale reducer generations returned no count row")
+		return staleSweepPass{}, errors.New("supersede stale reducer generations returned no count row")
 	}
-	var swept int64
-	if err := rows.Scan(&swept); err != nil {
-		return 0, fmt.Errorf("supersede stale reducer generations: scan count: %w", err)
+	var pass staleSweepPass
+	var swept, locked int64
+	if err := rows.Scan(&swept, &locked, &pass.maxLockedWorkItemID); err != nil {
+		return staleSweepPass{}, fmt.Errorf("supersede stale reducer generations: scan count: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("supersede stale reducer generations: %w", err)
+		return staleSweepPass{}, fmt.Errorf("supersede stale reducer generations: %w", err)
 	}
-	return int(swept), nil
+	pass.superseded = int(swept)
+	pass.locked = int(locked)
+	return pass, nil
 }
 
 // ReducerStaleGenerationSweeper runs SupersedeStaleReducerGenerations on
@@ -95,7 +138,7 @@ type ReducerStaleGenerationSweeper struct {
 	// DefaultStaleReducerSweepLimit.
 	BatchSize int
 	// MaxPassesPerCycle bounds how many bounded statements one cycle may
-	// chain while passes keep returning a full batch; zero means 10. The
+	// chain while passes keep locking a full window; zero means 10. The
 	// bound keeps one cycle from monopolizing a connection draining a
 	// very deep stale backlog; the rest waits for the next cycle.
 	MaxPassesPerCycle int
@@ -120,27 +163,42 @@ func (s ReducerStaleGenerationSweeper) Run(ctx context.Context) error {
 	}
 }
 
-// SweepOnce runs bounded sweep passes until one pass supersedes fewer
-// rows than the batch bound (backlog drained for now) or the per-cycle
-// pass bound is reached, and records the cycle's rows, duration, and
-// outcome. A failed pass is logged and counted, never returned: the next
-// cycle retries, and claims stay correct through the gate meanwhile.
+// SweepOnce runs bounded sweep passes until one pass locks fewer rows
+// than the batch bound (backlog drained for now) or the per-cycle pass
+// bound is reached, and records the cycle's rows, duration, and outcome.
+// Passes chain on a keyset cursor over the locked window, not on rows
+// superseded: a window full of rows the UPDATE spares forever (sole
+// stale Crossplane rows, active-generation carriers) supersedes nothing
+// yet must not stop the cycle, or every later cycle re-locks that same
+// head and the stale rows behind it are never reached. The cursor is
+// per cycle — the next cycle restarts at the head, so a row this cycle
+// stepped over (SKIP LOCKED, or a carrier split across windows) is
+// revisited then. A failed pass is logged and counted, never returned:
+// the next cycle retries, and claims stay correct through the gate
+// meanwhile.
 func (s ReducerStaleGenerationSweeper) SweepOnce(ctx context.Context) {
 	started := s.clock()
 	total := 0
 	passes := 0
+	after := ""
 	var sweepErr error
 	for passes < s.maxPasses() {
-		n, err := s.Queue.SupersedeStaleReducerGenerations(ctx, s.batchSize())
+		pass, err := s.Queue.supersedeStaleReducerGenerationsAfter(ctx, s.batchSize(), after)
 		if err != nil {
 			sweepErr = err
 			break
 		}
 		passes++
-		total += n
-		if n < s.batchSize() {
+		total += pass.superseded
+		if pass.locked < s.batchSize() {
 			break
 		}
+		if pass.maxLockedWorkItemID == "" || pass.maxLockedWorkItemID == after {
+			// A full window whose greatest id did not advance cannot
+			// make progress by repeating the same cursor.
+			break
+		}
+		after = pass.maxLockedWorkItemID
 	}
 	duration := s.clock().Sub(started)
 	if ctx.Err() != nil {
@@ -158,7 +216,7 @@ func (s ReducerStaleGenerationSweeper) SweepOnce(ctx context.Context) {
 		if inst.ReducerStaleSweepDuration != nil {
 			inst.ReducerStaleSweepDuration.Record(ctx, duration.Seconds(), attrs)
 		}
-		if sweepErr == nil && total > 0 && inst.ReducerStaleSweptRows != nil {
+		if total > 0 && inst.ReducerStaleSweptRows != nil {
 			inst.ReducerStaleSweptRows.Add(ctx, int64(total))
 		}
 	}

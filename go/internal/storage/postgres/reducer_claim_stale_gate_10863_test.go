@@ -81,6 +81,12 @@ func TestSupersedeStaleReducerGenerationsQueryShape(t *testing.T) {
 		"status = 'superseded'",
 		"LIMIT $3",
 		"FOR NO KEY UPDATE OF stale SKIP LOCKED",
+		// Keyset cursor over the locked window: progress is locked rows
+		// plus the greatest locked id, never the superseded count alone,
+		// or a spared head starves every row behind it.
+		`stale.work_item_id COLLATE "C" > $4::text`,
+		"(SELECT count(*) FROM superseded_stale_reducer_locked)",
+		`max(work_item_id COLLATE "C") FROM superseded_stale_reducer_locked`,
 		priorFailureStaleSQL,
 	} {
 		if !strings.Contains(supersedeStaleReducerGenerationsQuery, want) {

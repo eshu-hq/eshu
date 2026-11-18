@@ -310,13 +310,35 @@ var supersedeInactiveReducerGenerationsCTE = supersedeInactiveReducerGenerations
 // a LIMIT. The predicate, carrier arm, carrier CTE, and UPDATE are shared
 // verbatim across every tail.
 func supersedeInactiveReducerGenerationsCTEs(lockTail string) string {
+	return supersedeInactiveReducerGenerationsCTEsAfter(lockTail, "")
+}
+
+// supersedeInactiveReducerGenerationsCTEsAfter is
+// supersedeInactiveReducerGenerationsCTEs with an optional keyset cursor
+// on the lock step: when afterParam names a text parameter (for example
+// "$4"), the whole lock-step disjunction (stale predicate OR
+// active-generation carrier arm) is parenthesized and ANDed with
+// stale.work_item_id past that parameter, empty meaning the first window.
+// The cursor applies to both arms, so a window can never lock a stale row
+// on one side of the cursor and its carrier on the other and then
+// supersede it: the carrier check still probes only this statement's
+// locked set (supersededCrossplaneNewestCarrierCTE), so chunking at a
+// cursor boundary only ever spares more. An empty afterParam renders the
+// canonical text byte-for-byte, which the shape pins read.
+func supersedeInactiveReducerGenerationsCTEsAfter(lockTail string, afterParam string) string {
+	lockWhere := `WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
+` + supersedeInactiveReducerCarrierArmSQL + lockTail
+	if afterParam != "" {
+		lockWhere = `WHERE ((` + supersedeInactiveReducerGenerationsPredicate + `)
+` + supersedeInactiveReducerCarrierArmSQL + `)
+      AND (` + afterParam + `::text = '' OR stale.work_item_id COLLATE "C" > ` + afterParam + `::text)` + lockTail
+	}
 	return `
 superseded_stale_reducer_locked AS (
     ` + supersedeInactiveReducerLockedColumnsSQL + `
     FROM fact_work_items AS stale,
          ` + supersedeInactiveReducerGenerationsJoin + `
-    WHERE (` + supersedeInactiveReducerGenerationsPredicate + `)
-` + supersedeInactiveReducerCarrierArmSQL + lockTail + `),
+    ` + lockWhere + `),
 ` + supersededCrossplaneNewestCarrierCTE + `
 superseded_stale_reducer_generations AS (
     UPDATE fact_work_items AS stale

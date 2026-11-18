@@ -135,7 +135,7 @@ func costStatements() []costStatement {
 		},
 		{
 			name: "reducer_sweep", text: supersedeStaleReducerGenerationsQuery, seed: costSeedReducer,
-			args: func(now time.Time) []any { return []any{now, nil, 100000} },
+			args: func(now time.Time) []any { return []any{now, nil, 100000, ""} },
 		},
 	}
 }

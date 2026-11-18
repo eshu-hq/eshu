@@ -114,7 +114,7 @@ func TestClaimBatchGatePrecomputeStaleHeavyExplain(t *testing.T) {
 	// by the batch limit); the stale volume is terminalized by the
 	// standalone sweep, proven on its own plan against the same fixture.
 	sweepPlan := explainAnalyzeRollback(t, ctx, db, supersedeStaleReducerGenerationsQuery,
-		[]any{clock, nil, staleRows + 1000})
+		[]any{clock, nil, staleRows + 1000, ""})
 	swept := fullClaimUpdateRows(t, sweepPlan)
 	t.Logf("standalone sweep Update node actual rows: %d (seeded stale: %d), execution time %s",
 		swept, staleRows, planExecutionTime(sweepPlan))

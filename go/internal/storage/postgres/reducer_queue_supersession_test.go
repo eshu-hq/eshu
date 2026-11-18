@@ -166,6 +166,7 @@ func TestReducerStaleSweepSupersedesInactiveGenerationReducerWork(t *testing.T) 
 		"carrier.generation_id > carrier_stale_generation.generation_id",
 		"stale.generation_id = scope.active_generation_id",
 		"LIMIT $3",
+		`stale.work_item_id COLLATE "C" > $4::text`,
 		"FOR NO KEY UPDATE OF stale SKIP LOCKED",
 	} {
 		if !strings.Contains(query, want) {

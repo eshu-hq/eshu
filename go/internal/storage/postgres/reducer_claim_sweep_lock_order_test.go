@@ -71,13 +71,18 @@ func TestSupersedeSweepLocksStaleRowsInWorkItemOrder(t *testing.T) {
 		}
 	}
 	// The standalone sweep keeps the same ordered lock step and locked-set
-	// UPDATE, bounded by LIMIT and multi-sweeper safe via SKIP LOCKED.
+	// UPDATE, bounded by LIMIT and multi-sweeper safe via SKIP LOCKED, with
+	// the keyset cursor parenthesizing the whole lock-step disjunction so
+	// it filters the stale predicate and the carrier arm alike.
 	for _, want := range []string{
-		"WHERE (" + supersedeInactiveReducerGenerationsPredicate + ")",
+		"WHERE ((" + supersedeInactiveReducerGenerationsPredicate + ")",
+		`stale.work_item_id COLLATE "C" > $4::text`,
 		`ORDER BY stale.work_item_id COLLATE "C"`,
 		"LIMIT $3",
 		"FOR NO KEY UPDATE OF stale SKIP LOCKED",
 		"WHERE stale.work_item_id = ANY(ARRAY(SELECT work_item_id FROM superseded_stale_reducer_locked))",
+		"(SELECT count(*) FROM superseded_stale_reducer_locked)",
+		`max(work_item_id COLLATE "C") FROM superseded_stale_reducer_locked`,
 	} {
 		if !strings.Contains(supersedeStaleReducerGenerationsQuery, want) {
 			t.Errorf("standalone sweep query lacks %q", want)

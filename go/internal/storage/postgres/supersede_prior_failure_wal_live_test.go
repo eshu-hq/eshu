@@ -118,7 +118,7 @@ func walCases() []walCase {
 		},
 		{
 			name: "reducer_sweep", text: supersedeStaleReducerGenerationsQuery, fold: priorFailureStaleSQL, seed: costSeedReducer,
-			calls: one(func(now time.Time) []any { return []any{now, nil, 100000} }),
+			calls: one(func(now time.Time) []any { return []any{now, nil, 100000, ""} }),
 		},
 		{
 			name: "projector_ack_obsolete", text: supersedeProjectorObsoleteGenerationsQuery, fold: priorFailureStaleSQL,
