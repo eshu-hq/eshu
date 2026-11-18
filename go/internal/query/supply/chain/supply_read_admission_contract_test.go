@@ -4,9 +4,15 @@
 package chain
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // frozenSupplyChainReadAdmission pins the exact method set behind the
@@ -82,6 +88,169 @@ func TestSupplyChainReadAdmissionContractIsVersioned(t *testing.T) {
 	for i := range got {
 		if got[i] != frozenSupplyChainReadAdmission[i] {
 			t.Errorf("SupplyChainReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenSupplyChainReadAdmission[i], SupplyChainReadAdmissionContractVersion)
+		}
+	}
+}
+
+// supplyChainReadAdmissionWitness proves SupplyChainReadAdmission is
+// satisfiable with the minimal shape: the 23 family reads and nothing
+// wider — no suppression mutation, no shared graph/content port, no
+// packet-writer surface.
+type supplyChainReadAdmissionWitness struct{}
+
+func (supplyChainReadAdmissionWitness) ContainerImageIdentityInventory(context.Context, ContainerImageIdentityAggregateFilter, ContainerImageIdentityInventoryDimension, int, int) ([]ContainerImageIdentityInventoryRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) CountContainerImageIdentities(context.Context, ContainerImageIdentityAggregateFilter) (ContainerImageIdentityAggregateCount, error) {
+	return ContainerImageIdentityAggregateCount{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) CountSBOMAttestationAttachments(context.Context, SBOMAttestationAttachmentAggregateFilter) (SBOMAttestationAttachmentAggregateCount, error) {
+	return SBOMAttestationAttachmentAggregateCount{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) CountSecurityAlertReconciliations(context.Context, SecurityAlertReconciliationAggregateFilter) (SecurityAlertReconciliationAggregateCount, error) {
+	return SecurityAlertReconciliationAggregateCount{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) CountSupplyChainImpactFindings(context.Context, impact.AggregateFilter) (impact.AggregateCount, error) {
+	return impact.AggregateCount{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) CurrentAuthorizedCloudResourceUIDs(context.Context, []string, bool, []string, []string) ([]string, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) CurrentAuthorizedCloudResourcesByDigest(context.Context, []string, bool, []string, []string) ([]CloudResourceRuntimeDigestMatch, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) CurrentAuthorizedKubernetesRuntimeWorkloads(context.Context, []KubernetesRuntimeCandidate, bool, []string, []string) ([]KubernetesRuntimeWorkloadMatch, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) ExplainSupplyChainImpact(context.Context, packet.ExplanationFilter) (impact.ExplanationRow, error) {
+	return impact.ExplanationRow{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListAdvisoryCatalog(context.Context, advisory.CatalogFilter) (advisory.CatalogPage, error) {
+	return advisory.CatalogPage{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListAdvisoryEvidence(context.Context, advisory.EvidenceFilter) ([]advisory.EvidenceRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListContainerImageIdentities(context.Context, ContainerImageIdentityFilter) ([]ContainerImageIdentityRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListSBOMAttestationAttachments(context.Context, SBOMAttestationAttachmentFilter) (SBOMAttestationAttachmentPage, error) {
+	return SBOMAttestationAttachmentPage{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListSecurityAlertReconciliations(context.Context, SecurityAlertReconciliationFilter) ([]SecurityAlertReconciliationRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) ListSupplyChainImpactFindings(context.Context, impact.FindingFilter) ([]impact.FindingRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) ReadSupplyChainImpactReadiness(context.Context, impact.ReadinessQuery) (packet.ReadinessSnapshot, error) {
+	return packet.ReadinessSnapshot{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) SBOMAttestationAttachmentInventory(context.Context, SBOMAttestationAttachmentAggregateFilter, SBOMAttestationAttachmentInventoryDimension, int, int) ([]SBOMAttestationAttachmentInventoryRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) SecurityAlertCollectorConfigurations(context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) SecurityAlertReconciliationInventory(context.Context, SecurityAlertReconciliationAggregateFilter, SecurityAlertReconciliationInventoryDimension, int, int) ([]SecurityAlertReconciliationInventoryRow, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) SecurityAlertReconciliationQueueStates(context.Context, []string) ([]SecurityAlertReconciliationQueueState, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) SecurityAlertTargetStates(context.Context, []string, []string) ([]SecurityAlertTargetState, error) {
+	return nil, nil
+}
+
+func (supplyChainReadAdmissionWitness) SupplyChainImpactGroupedInventory(context.Context, impact.AggregateFilter, impact.GroupedInventoryDimension, int, int) (impact.GroupedInventoryPage, error) {
+	return impact.GroupedInventoryPage{}, nil
+}
+
+func (supplyChainReadAdmissionWitness) SupplyChainImpactInventory(context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int) ([]impact.InventoryRow, error) {
+	return nil, nil
+}
+
+var _ SupplyChainReadAdmission = supplyChainReadAdmissionWitness{}
+
+// TestSupplyChainReadAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the 23 embedded narrow family reads, with no suppression
+// mutation, no shared graph/content port, and no snapshot/ledger surface
+// riding along. The frozen method-set contract test pins the exact
+// names; this test pins the exclusion the arbiter ruling demands.
+func TestSupplyChainReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*SupplyChainReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 23 {
+		t.Fatalf("SupplyChainReadAdmission has %d methods, want exactly 23: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := 0; i < rt.NumMethod(); i++ {
+		name := rt.Method(i).Name
+		for _, banned := range []string{"Suppress", "Mutat", "Append", "Write", "Delete", "Create", "Update", "Graph", "Snapshot", "Ledger", "Tenant", "Exec", "Revert", "Enable", "Disable", "Migrate", "Backfill"} {
+			if strings.Contains(name, banned) {
+				t.Errorf("SupplyChainReadAdmission.%s contains %q: suppression, mutation, and shared-port legs stay out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededSupplyChainDrift is a deliberately widened copy of the pin: the
+// 23 frozen reads plus a suppression write the read legs never issue. It
+// never ships; it proves the frozen-set comparison below can see a
+// one-method widening.
+type seededSupplyChainDrift interface {
+	SupplyChainReadAdmission
+	WriteSuppressionLedger(context.Context) error
+}
+
+// TestSupplyChainReadAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestSupplyChainReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededSupplyChainDrift)(nil)).Elem()
+	var got []string
+	for i := 0; i < rt.NumMethod(); i++ {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if len(got) != len(frozenSupplyChainReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenSupplyChainReadAdmission)+1)
+	}
+	for _, want := range frozenSupplyChainReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }

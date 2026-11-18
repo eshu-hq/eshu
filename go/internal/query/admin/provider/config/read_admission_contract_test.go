@@ -4,8 +4,10 @@
 package config
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +57,90 @@ func TestProviderConfigReadAdmissionContractIsVersioned(t *testing.T) {
 	for i := range got {
 		if got[i] != frozenProviderConfigReadAdmission[i] {
 			t.Errorf("ProviderConfigReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenProviderConfigReadAdmission[i], ProviderConfigReadAdmissionContractVersion)
+		}
+	}
+}
+
+// providerConfigReadAdmissionWitness proves ProviderConfigReadAdmission
+// is satisfiable with the minimal shape: the three admin reads (list,
+// detail, revisions) over redacted non-secret configuration, no wider
+// store surface.
+type providerConfigReadAdmissionWitness struct{}
+
+func (providerConfigReadAdmissionWitness) GetProviderConfigDetail(context.Context, string, string) (Detail, bool, error) {
+	return Detail{}, false, nil
+}
+
+func (providerConfigReadAdmissionWitness) ListProviderConfigDetails(context.Context, string) ([]Detail, error) {
+	return nil, nil
+}
+
+func (providerConfigReadAdmissionWitness) ListProviderConfigRevisions(context.Context, string, string) ([]RevisionItem, error) {
+	return nil, nil
+}
+
+var _ ProviderConfigReadAdmission = providerConfigReadAdmissionWitness{}
+
+// TestProviderConfigReadAdmissionWireShapesAreSealed proves the seal on
+// the pin: exactly the three redacted reads, with no mutation
+// (create/update/revert/enable/disable), connection-test, secret, or
+// snapshot surface riding along. The frozen method-set contract test
+// pins the exact names; this test pins the exclusion the arbiter
+// ruling demands.
+func TestProviderConfigReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*ProviderConfigReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 3 {
+		t.Fatalf("ProviderConfigReadAdmission has %d methods, want exactly 3: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := 0; i < rt.NumMethod(); i++ {
+		name := rt.Method(i).Name
+		for _, banned := range []string{"Create", "Update", "Revert", "Enable", "Disable", "Test", "Secret", "Delete", "Append", "Write", "Snapshot", "Ledger", "Tenant", "Exec", "Mutat", "Suppress"} {
+			if strings.Contains(name, banned) {
+				t.Errorf("ProviderConfigReadAdmission.%s contains %q: mutation, connection-test, and secret legs stay out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededProviderConfigDrift is a deliberately widened copy of the pin:
+// the three frozen reads plus the Create mutation the read legs never
+// issue. It never ships; it proves the frozen-set comparison below can
+// see a one-method widening.
+type seededProviderConfigDrift interface {
+	ProviderConfigReadAdmission
+	CreateProviderConfig(context.Context, CreateRequest) (WriteResult, error)
+}
+
+// TestProviderConfigReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestProviderConfigReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*seededProviderConfigDrift)(nil)).Elem()
+	var got []string
+	for i := 0; i < rt.NumMethod(); i++ {
+		m := rt.Method(i)
+		got = append(got, m.Name+" "+m.Type.String())
+	}
+	sort.Strings(got)
+	if len(got) != len(frozenProviderConfigReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenProviderConfigReadAdmission)+1)
+	}
+	for _, want := range frozenProviderConfigReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }
