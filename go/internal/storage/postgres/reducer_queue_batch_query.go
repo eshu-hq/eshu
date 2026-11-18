@@ -215,16 +215,22 @@ source_heads AS MATERIALIZED (
     WHERE sh.src_rn = 1
 ),
 candidate AS (
+    -- #10916: every column this CTE reads (work_item_id, domain,
+    -- conflict_domain, ckey, updated_at) already rides on reps from base,
+    -- snapshot-identical by construction, so candidate reads reps directly
+    -- instead of joining back to fact_work_items by primary key. The lock
+    -- arms below keep their fact_work_items lock_target probes: those
+    -- re-read the live row for the EvalPlanQual recheck, which a snapshot
+    -- column cannot replace.
     SELECT
-        fact_work_items.work_item_id,
-        CASE WHEN fact_work_items.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
+        reps.work_item_id,
+        CASE WHEN reps.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
         COALESCE(source_counts.reducer_source_inflight_count, 0) AS reducer_source_inflight_count,
-        CASE WHEN fact_work_items.work_item_id = source_heads.work_item_id THEN 0 ELSE 1 END AS reducer_source_fair_rank,
+        CASE WHEN reps.work_item_id = source_heads.work_item_id THEN 0 ELSE 1 END AS reducer_source_fair_rank,
         reps.reducer_domain_fair_rank AS reducer_domain_fair_rank,
         COALESCE(domain_counts.reducer_domain_inflight_count, 0) AS reducer_domain_inflight_count,
-        fact_work_items.updated_at AS updated_at
+        reps.updated_at AS updated_at
     FROM reps
-    JOIN fact_work_items ON fact_work_items.work_item_id = reps.work_item_id
     LEFT JOIN reducer_source_inflight AS source_counts
       ON source_counts.reducer_source_system = reps.reducer_source_system
     LEFT JOIN reducer_domain_inflight AS domain_counts
@@ -236,14 +242,17 @@ candidate AS (
       AND reps.semantic_ok
       -- #10630 step 2: the #4137 live-lease fence reads the once-per-claim
       -- live_fence_keys set instead of re-probing fact_work_items once per
-      -- representative. The key comparison is the shipped one verbatim; the
-      -- shipped work_item_id self-exclusion is vacuous here because base
-      -- pre-filters to unleased rows (see reducerClaimLiveFenceKeysCTE).
+      -- representative. The key comparison reads reps.conflict_domain and
+      -- reps.ckey (#10916), which base computed as the shipped
+      -- (conflict_domain, COALESCE(conflict_key, scope_id)) pair verbatim;
+      -- the shipped work_item_id self-exclusion is vacuous here because
+      -- base pre-filters to unleased rows (see
+      -- reducerClaimLiveFenceKeysCTE).
       AND NOT EXISTS (
           SELECT 1
           FROM live_fence_keys
-          WHERE live_fence_keys.conflict_domain = fact_work_items.conflict_domain
-            AND live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)
+          WHERE live_fence_keys.conflict_domain = reps.conflict_domain
+            AND live_fence_keys.ckey = reps.ckey
       )
 )`
 }

@@ -161,8 +161,11 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		"live_fence_keys AS MATERIALIZED (",
 		"NOT EXISTS (",
 		"FROM live_fence_keys",
-		"live_fence_keys.conflict_domain = fact_work_items.conflict_domain",
-		"live_fence_keys.ckey = COALESCE(fact_work_items.conflict_key, fact_work_items.scope_id)",
+		// #10916: the fence key reads reps (base's snapshot of the same
+		// conflict_domain / COALESCE(conflict_key, scope_id) pair); the
+		// live set itself is unchanged.
+		"live_fence_keys.conflict_domain = reps.conflict_domain",
+		"live_fence_keys.ckey = reps.ckey",
 		// The pre-rewrite query selected the one representative per conflict key
 		// with a correlated per-candidate-row subquery
 		// (work_item_id = (SELECT same.work_item_id ... ORDER BY ... LIMIT 1)),
