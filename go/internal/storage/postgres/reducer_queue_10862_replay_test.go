@@ -73,21 +73,21 @@ func TestReplay10862MixShape(t *testing.T) {
 		t.Fatalf("mix rows = %d, want 8713", len(rows))
 	}
 	want := map[reducercontract.Domain][2]int{ // pending, retrying per domain
-		reducercontract.DomainSupplyChainImpact:              {5845, 46},
-		reducercontract.DomainAdvisoryGroupProjection:        {725, 982},
-		reducercontract.DomainWorkloadMaterialization:        {248, 54},
-		reducercontract.DomainDeploymentMapping:              {216, 0},
-		reducercontract.DomainDeployableUnitCorrelation:      {1, 156},
-		reducercontract.DomainContainerImageIdentity:         {150, 0},
-		reducercontract.DomainPlatformInfraMaterialization:   {125, 0},
-		reducercontract.DomainEshuSearchDocument:             {81, 0},
-		reducercontract.DomainCodeImportRepoEdge:             {51, 0},
-		reducercontract.DomainAWSCloudRuntimeDrift:           {9, 0},
-		reducercontract.DomainRationaleMaterialization:       {6, 0},
-		reducercontract.DomainRuntimeDeclarationProjection:   {6, 0},
-		reducercontract.DomainSubmodulePin:                   {6, 0},
-		reducercontract.DomainCodeownersOwnership:            {5, 0},
-		reducercontract.DomainSecurityAlertReconciliation:    {1, 0},
+		reducercontract.DomainSupplyChainImpact:            {5845, 46},
+		reducercontract.DomainAdvisoryGroupProjection:      {725, 982},
+		reducercontract.DomainWorkloadMaterialization:      {248, 54},
+		reducercontract.DomainDeploymentMapping:            {216, 0},
+		reducercontract.DomainDeployableUnitCorrelation:    {1, 156},
+		reducercontract.DomainContainerImageIdentity:       {150, 0},
+		reducercontract.DomainPlatformInfraMaterialization: {125, 0},
+		reducercontract.DomainEshuSearchDocument:           {81, 0},
+		reducercontract.DomainCodeImportRepoEdge:           {51, 0},
+		reducercontract.DomainAWSCloudRuntimeDrift:         {9, 0},
+		reducercontract.DomainRationaleMaterialization:     {6, 0},
+		reducercontract.DomainRuntimeDeclarationProjection: {6, 0},
+		reducercontract.DomainSubmodulePin:                 {6, 0},
+		reducercontract.DomainCodeownersOwnership:          {5, 0},
+		reducercontract.DomainSecurityAlertReconciliation:  {1, 0},
 	}
 	got := map[reducercontract.Domain][2]int{}
 	retrying := 0
