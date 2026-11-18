@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10837 prove-theory shim for direction C: N writers (1,2,4) mark the same 162 hot keys through the staging plain INSERT and the shipped capture upsert on one host and run, plus GROUP BY collapse over a 162x150 staged wave, a mostly-distinct worst-partition wave, and a staging vacuum note; pre-registered kill threshold at the 4-writer stratum
+//eshu:readiness:env ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE
+
 import (
 	"database/sql"
 	"fmt"

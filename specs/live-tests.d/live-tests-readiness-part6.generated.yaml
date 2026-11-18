@@ -314,6 +314,11 @@ tests:
     class: postgres_ci
     reason: "#9994 disposable PostgreSQL 18 proof that the #9914 widened upstream probe — the CVE key probe over all five vulnerability kinds — holds its anchor on an NVD-bearing store at the 120-id chunk bound under custom and generic plans; the no-statistics control must walk, so a hold proves the measurement and not the fixture"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10837 prove-theory shim for direction C: N writers (1,2,4) mark the same 162 hot keys through the staging plain INSERT and the shipped capture upsert on one host and run, plus GROUP BY collapse over a 162x150 staged wave, a mostly-distinct worst-partition wave, and a staging vacuum note; pre-registered kill threshold at the 4-writer stratum"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/terms_foreign_key_migration_budget_live_test.go
     tag: ~
     class: postgres_ci
