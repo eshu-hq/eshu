@@ -15,9 +15,10 @@ var _ telemetry.ReducerClaimedExpiredObserver = (*QueueObserverStore)(nil)
 
 // reducerClaimedExpiredQuery counts reducer work items sitting on an expired
 // claim lease and reports the oldest such lease's age in seconds (#10865).
-// The predicate mirrors the claim's reclaim_rank exactly (status claimed or
-// running with claim_until at or before the read clock), so the gauge counts
-// precisely the rows the claim now floats first — a nonzero count names the
+// The predicate mirrors the claim's reclaim_rank lease test (status claimed
+// or running with claim_until at or before the read clock), so the gauge
+// counts the expired-lease rows the claim now floats first — a nonzero
+// count names the
 // reclaim backlog, and the age names how long its head has waited. A claimed
 // row with a NULL claim_until (no lease stamped, anomalous: the claim UPDATE
 // always stamps one) is excluded here but floats first in the batch by

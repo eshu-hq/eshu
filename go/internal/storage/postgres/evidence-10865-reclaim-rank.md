@@ -49,8 +49,9 @@ same fixture, same `$1..$8` args, batch limit 8.
   `COUNT(*)` plus `MAX(EXTRACT(EPOCH ...))` over
   `stage = 'reducer' AND status IN ('claimed','running') AND
   claim_until <= $1`) runs 0.025 ms with 10 shared buffers on the same
-  fixture, and serves only from the 60 s Postgres gauge snapshot — never
-  per claim or per scrape.
+  fixture, and serves only from the Postgres gauge snapshot (refresh
+  cadence `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL`, 5m default) — never per
+  claim or per scrape.
 
 Performance Evidence: full-claim plan parity (31 Sort nodes both sides,
 13.6 ms vs 16.8 ms on the 2,006-row fixture, same buffer profile) plus the
@@ -70,7 +71,9 @@ Observability Evidence: `eshu_dp_reducer_claimed_expired` (count) and
 `eshu_dp_reducer_claimed_expired_oldest_age_seconds` publish the reclaim
 backlog the claim floats first; zero/zero means none outstanding. An alert
 on the age climbing past the claim lease duration names a hold waiting
-behind the backlog instead of being reclaimed. The metric query doubles as
-the QA confirmation query: after deploy, the oldest-age gauge stays below
-180s (60s lease + 60s snapshot cadence + 60s slack) and the count returns to
-0; sustained 180s or more fails QA (production observed 18,052s).
+behind the backlog instead of being reclaimed. A gauge reading can lag
+Postgres by up to one 5m refresh interval, so the gauge alert threshold is
+420s (60s lease + 300s cadence + 60s slack). QA confirmation uses the SQL
+form of the metric query read directly from the QA database: after deploy
+the count is 0 and no row is older than 180s past its lease across repeated
+reads (production observed 18,052s).

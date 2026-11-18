@@ -79,8 +79,9 @@ type ReducerClaimedExpiredObserver interface {
 	// ReducerClaimedExpiredCounts returns how many reducer work items hold
 	// an expired claimed or running lease and the age in seconds of the
 	// oldest such lease. Zero/zero means no reclaim backlog is outstanding;
-	// the counted rows are exactly the reclaim_rank-0 rows the claim floats
-	// first.
+	// the counted rows are the expired-lease rows the claim floats first
+	// (a claimed row with no lease stamped is excluded, and counted rows
+	// can still wait behind claim gates).
 	ReducerClaimedExpiredCounts(ctx context.Context) (count int64, oldestAgeSeconds float64, err error)
 }
 
