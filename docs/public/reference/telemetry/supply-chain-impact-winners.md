@@ -94,6 +94,17 @@ revoked it fails the tick with `permission denied`. Without the writer grant the
 impact write fails with `permission denied` and the reducer retries it; nothing
 is skipped silently.
 
+The winners path is forward-only across the staging change (#10837,
+migrations 309-311): the capture triggers stage every activation, operator,
+scanner, and scope-delete mark, and only the new maintainer tick collapses
+staging into the dirty log. A binary older than that change running against
+the new schema still writes fact captures straight to the log, but its tick
+consumes only the dirty log, so trigger-sourced marks sit staged and invisible
+until re-upgrade (the audit backstop re-queues some via the log path, not all).
+Never run an old maintainer or old triggers against the new schema except
+transiently during the roll; roll back by re-upgrading and letting the new
+tick collapse the backlog, not by downgrading the binary alone.
+
 ## Enrichment freshness
 
 A KEV listing or EPSS rescore does not edit winner rows directly. The
