@@ -7,7 +7,7 @@ selector vocabulary, claim-plane golden trace and fencing tests. Branch
 
 ## Performance Evidence:
 
-Backend: Apple M5 Max (darwin/arm64), Homebrew Go 1.27.3. Functional
+Backend: Apple M5 Max (darwin/arm64), Homebrew Go 1.27.4. Functional
 proof ran on disposable postgres:18-alpine; CI (linux/amd64) runs the
 full suite.
 
@@ -22,23 +22,31 @@ full suite.
   lane. The arming decision adds one integer comparison (`advance_to
   > head`) before arming; the transport/selector folds are exact-match
   closed-set lookups.
-- Microbenchmark (new fold code, worst case of the three inputs cycled):
+- Microbenchmark (committed as `BenchmarkNVDTransportFold` and
+  `BenchmarkNVDWindowFeedSelectorFold` in `go/internal/telemetry`;
+  inputs cycle set members, a miss, and the empty stamp, so the figure
+  covers the worst case of a miss scanning the whole set):
 
-  `BenchmarkNVDWindowFeedSelectorScratch-18 100000 1.6 ns/op`
-  `BenchmarkNVDTransportFoldScratch-18      100000 1.8 ns/op`
+  `BenchmarkNVDWindowFeedSelectorFold-18 100000 6.100 ns/op 0 B/op 0 allocs/op`
+  `BenchmarkNVDTransportFold-18          100000 4.497 ns/op 0 B/op 0 allocs/op`
 
-  Input shape: closed sets of short strings (longest 27 chars). The
-  folds run at most once per window claim or probe tick; at 1.8 ns/op
-  they are four orders of magnitude below the claim's I/O.
+  Input shape: closed sets of short strings. The folds run at most
+  once per window claim or probe tick; at ~6 ns/op worst case they are
+  negligible next to the claim's I/O (indexed single-row SELECT plus
+  commit).
 - No-Regression Evidence: every affected package suite passes on the
   final head, including the disposable-Postgres live tests (cursor
   compare-and-advance, concurrent serialization, stale-advance,
   split-partial/full ordering, scan shape, ownership accumulation; the
   R5 trace chain and R6 fencing tests; race detector clean), so the
   added column, comparison, and registrations changed no behavior the
-  tests pin. The change cannot regress p95s: one extra 8-byte column on
-  an indexed single-row read, ns-scale folds, in-process metric
-  recording with explicit buckets (1 s to 900 s, unit s), no new I/O.
+  tests pin. The folds are ns-scale with zero allocs per the committed
+  benchmarks above; the rest of the delta is one extra 8-byte column on
+  an indexed single-row read, one integer comparison, and in-process
+  metric recording with explicit buckets (1 s to 900 s, unit s) — no
+  new I/O, lock, retry, pacing, or serialization, so there is no
+  measured p95 regression path (the p95 expectation is reasoning from
+  that delta, not a load-test measurement).
 
 ## Observability Evidence:
 

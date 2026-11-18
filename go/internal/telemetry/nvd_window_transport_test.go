@@ -346,3 +346,16 @@ func TestInstrumentsRegisterNVDFeedCounters(t *testing.T) {
 		t.Fatalf("guard failure_class = %q, want %q", got, NVDFeedGuardYearStale)
 	}
 }
+
+// BenchmarkNVDTransportFold measures the satellite-stamped transport fold
+// over the closed set. The inputs cycle set members, a miss, and the empty
+// stamp, so the figure covers the worst case: a miss scans the whole set.
+func BenchmarkNVDTransportFold(b *testing.B) {
+	inputs := []string{NVDTransportAPI, NVDTransportFeed, NVDTransportUnknown, "cdn", ""}
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		_ = NVDTransport(inputs[i%len(inputs)])
+		i++
+	}
+}

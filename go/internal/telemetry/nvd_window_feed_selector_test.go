@@ -25,3 +25,17 @@ func TestNVDWindowFeedSelectorFoldsOntoClosedSet(t *testing.T) {
 		t.Fatalf("NVDWindowFeedSelectors() = %v, want %v", got, want)
 	}
 }
+
+// BenchmarkNVDWindowFeedSelectorFold measures the satellite-stamped
+// selector fold over the closed set. The inputs cycle set members, a miss,
+// and the empty stamp, so the figure covers the worst case: a miss scans
+// the whole set.
+func BenchmarkNVDWindowFeedSelectorFold(b *testing.B) {
+	inputs := []string{NVDFeedSelectorBeforeSeed, NVDFeedSelectorCoveredSeed, NVDFeedSelectorBeyondSeed, NVDFeedSelectorUnavailable, "nvd_feed_probe_failed", ""}
+	b.ReportAllocs()
+	i := 0
+	for b.Loop() {
+		_ = NVDWindowFeedSelector(inputs[i%len(inputs)])
+		i++
+	}
+}
