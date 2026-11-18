@@ -114,7 +114,8 @@ class ToolsWorkflowTest(unittest.TestCase):
         # 35th cell is the changelogunreleased gate (#9096), not an image check.
         # 36th cell is buildcacheprune (#9632), the GHCR build-cache prune self-test, not an image check.
         # claudrules scope gate retired (#10448), not an image check, no longer counted.
-        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 35)
+        # D13: route-coverage cell retired with the deleted go/cmd/api surface.
+        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 34)
         cell = next(
             line for line in source.splitlines()
             if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.dockerhublogin }}"')
