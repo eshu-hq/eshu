@@ -137,10 +137,11 @@ WHERE work_item_id = $1`, id, claimUntil); err != nil {
 }
 
 // TestReducerClaimedExpiredQueryMirrorsReclaimPredicate pins the metric to
-// the claim's reclaim class: it must count exactly the expired
-// claimed/running rows the claim floats first (#10865) — stage reducer,
-// claimed-or-running status, lease at or before the read clock — and must
-// not merge live leases in.
+// the claim's reclaim lease test: it must count the expired claimed/running
+// rows the claim floats first (#10865) — stage reducer, claimed-or-running
+// status, lease at or before the read clock — and must not merge live
+// leases in. (A claimed row with no lease stamped floats first in the batch
+// but is excluded here by design; see the observer comment.)
 func TestReducerClaimedExpiredQueryMirrorsReclaimPredicate(t *testing.T) {
 	t.Parallel()
 
