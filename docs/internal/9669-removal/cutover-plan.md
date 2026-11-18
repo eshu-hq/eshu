@@ -29,35 +29,23 @@ authorized SSO role (see session record for identity).
   values, manual sync). The monolith image can never be rebuilt from
   post-D13 source (Dockerfile builds the satellite at `/go-bin/eshu-api`).
 
-## Relay scope, corrected (verified 2026-11-18: relay set is EMPTY)
+## What the replacement must actually answer (corrected 2026-11-18)
 
-Correction to the frozen-triple census quoted below: at satellite tip
-`c041d7e` every one of the 279 served operations is natively
-registered (284 mounted minus 5 by-design non-API exclusions;
-`TestSpecScope_MountedHasSpec`, `TestSpecScope_SpecHasMount`,
-`TestSpecSnapshot_ServedMatchesSnapshot`, `TestSpecSnapshot_NoDrift`
-all pass; retired D4 explicit-relay set is empty). The row-7 lanes
-closed the old 26-row relay set, so there is nothing left to re-home.
+An earlier version of this section claimed the relay set was empty
+and nothing needed re-homing. That measured routing only: all 279
+operations do match native registrations (scope tests pass). But the
+native handlers forward to the old service for the answer
+(`serveCodeFlowTerminatedAs` and siblings: authorize, then
+`forwardToCore`, core bytes back unmodified). Routing is new; the
+answers still come from the old place.
 
-The core dependency REMAINS, in a different shape: the native
-handlers dial versioned core read APIs for data (verified: most
-`*_terminate.go` handlers reference the core origin; the arbiter
-confirmed every native lane uses the versioned core read API as its
-transport and the satellite holds no table handles). The core service
-to build must therefore serve the frozen read-method set (the G2
-pins + parity stub wire strings under `CoreReadContractsVersion`),
-not 26 proxy rows.
-
-G2 at the frozen triple (core `c16ddfa3` / sat `c041d7e`): 282 CUTOVER
-rows = 229 native-served + 27 tier-C dispatched + 26 relay through
-the generic proxy + 0 absent (checker exit 0, arbiter-verified).
-The core must implement exactly the 26 relay rows under
-`CoreReadContractsVersion` (plus the tier-C dispatch contract).
-Exact row list: recoverable from `go/cmd/api/CUTOVER_OWNERSHIP.md`
-in git history (deleted by D13; present at any pre-merge SHA) and
-cross-checkable against satellite `openapi.json` at `c041d7e`
-minus its viaNative registrations (41 `mux.Handle` calls,
-`api/router.go:472` catch-all). Do NOT re-derive by hand.
+So "the 26" is the wrong number in both directions: as routes there
+is nothing to re-home, but as serving work the replacement must
+answer everything the new service passes along -- essentially the
+whole read surface, not 26 rows. The contract for that surface is
+the frozen read-method set (G2 pins + parity stub wire strings
+under `CoreReadContractsVersion`), with the deleted in-tree
+handlers as behavioral oracle (reference only).
 
 ## Goal
 
