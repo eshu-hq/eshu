@@ -66,12 +66,15 @@ FRAGMENT_NAMES = (
 # regeneration failed over the 499 budget. The fifth cut moves three entries
 # later (part5 437 to 452 lines, part6 98 rows/492 lines); the seed lands in
 # part5 (457 lines); six fragments pinned.
+# Rebalanced 2026-11-18 for #10905: later proofs pushed part6 to 502 lines
+# on main, so the fifth cut moves three more entries later (part5 452 to
+# 467 lines, part6 502 to 487 lines); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
     "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
-    "go/internal/storage/postgres/reopen_stamp_race_live_test.go",
+    "go/internal/storage/postgres/repository_retirements_census_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
