@@ -100,7 +100,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `payload-usage-manifest.yml` | Blocking payload consumer manifest | Preserve ownership contract; consider deriving consumer metadata from code. |
 | `product-claim-ledger.yml` | Blocking claim evidence, plus weekly audit | Useful truth boundary; replace brittle text assertions with executable contract evidence where possible. |
 | `race-graph-writes.yml` | Blocking tagged graph race tests | Investigate actual overlap with whole-module race before deletion; tags may provide unique coverage. |
-| `read-api-latency-gate.yml` | Latency/work budgets (NornicDB cell disabled 2026-11-03) plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
+| `read-api-latency-gate.yml` (RETIRED with the D13 removal; satellite owns the latency gate) | Was: latency/work budgets plus two comparator mirrors | Preserve performance correctness; benchmark noise and mirrored maintenance are consolidation targets. |
 | `reducer-contention-gate.yml` | Blocking contention and supply-chain queries | Distinct concurrency proof; retain. |
 | `refresh-cassettes.yml` | Opt-in label/manual credentialed cassette authoring | Necessary authoring automation, not routine PR gating. |
 | `replay-coverage-gate.yml` | Three blocking replay/auth coverage gates | Distinct replay/security proof; retain. |
@@ -228,7 +228,7 @@ whatever the exact-text pins around those lines say.
 | Golden corpus NornicDB cell | `golden-corpus-gate.yml` / `corpus-gate` | matrix cell commented out | `golden-corpus-gate`: manual, non-blocking, no `check_names` |
 | Differential NornicDB captures | `golden-corpus-gate.yml` / `differential-capture`, `differential` | matrix is `[neo4j]`; staging names `neo4j`; backend-diff step is `if: ${{ false }}`; writer coverage reads Neo4j only | `golden-corpus-differential`: stays blocking (Neo4j only) |
 | Live-backend NornicDB leg | `live-backend-tests.yml` / `live-backend-shards`, `live-backend` | shard matrix is `[2, 3, 4]`; aggregate runs `expand --backend neo4j` and `--skip-shard 1/4` | `live-backend-tests`: stays blocking (Neo4j shards) |
-| Read-API latency cell | `read-api-latency-gate.yml` / `latency-gate` | `if: ${{ false }}` (2026-11-03) | `read-api-latency-gate`: manual, non-blocking |
+| Read-API latency cell | `read-api-latency-gate.yml` / `latency-gate` (workflow retired with the D13 removal) | `if: ${{ false }}` (2026-11-03) | retired; was manual, non-blocking |
 
 The Neo4j cells stay on and blocking. The job names (`differential nornicdb vs
 neo4j`, `live-backend (nornicdb and neo4j)`) are unchanged so pinned check names
