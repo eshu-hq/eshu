@@ -115,6 +115,19 @@ func TestCollectedGenerationHoldsWindowCursorWriter(t *testing.T) {
 				testNVDWindowVerdictPayload(true),
 			)},
 		},
+		{
+			name:    "candidate past the stamped head",
+			scopeID: testNVDWindowScopeForArming,
+			envelopes: []facts.Envelope{testNVDWindowSnapshotEnvelope(
+				map[string]any{
+					"coverage_descriptor":            map[string]any{"version": "nvd.v1"},
+					"nvd_window_advance_to_unix_us":  int64(1767402000000000),
+					"nvd_window_head_unix_us":        int64(1767398400000000),
+					"nvd_window_should_advance":      true,
+					"nvd_window_time_anomaly_reason": "",
+				},
+			)},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

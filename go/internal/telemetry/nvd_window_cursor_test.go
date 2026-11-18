@@ -43,24 +43,24 @@ func nvdCursorTestMicros(t *testing.T, value string) int64 {
 func TestNVDCursorLagTrackerHoldsMaxLagPerSource(t *testing.T) {
 	t.Parallel()
 	var nilTracker *NVDCursorLagTracker
-	nilTracker.RecordCursorPosition("nvd", "scope-a", 1, 2)
-	if got := nilTracker.LagSecondsBySource(); len(got) != 0 {
-		t.Fatalf("nil LagSecondsBySource() = %v, want empty", got)
+	nilTracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-a", 1, 2)
+	if got := nilTracker.LagSeconds(); len(got) != 0 {
+		t.Fatalf("nil LagSeconds() = %v, want empty", got)
 	}
 	tracker := NewNVDCursorLagTracker()
-	tracker.RecordCursorPosition("nvd", "", 1, 2)
-	if got := tracker.LagSecondsBySource(); len(got) != 0 {
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "", 1, 2)
+	if got := tracker.LagSeconds(); len(got) != 0 {
 		t.Fatalf("blank key recorded lag %v, want nothing", got)
 	}
 	micros := func(value string) int64 { return nvdCursorTestMicros(t, value) }
-	tracker.RecordCursorPosition("nvd", "scope-a",
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-a",
 		micros("2026-01-03T00:00:00Z"), micros("2026-01-05T00:00:00Z"))
-	tracker.RecordCursorPosition("nvd", "scope-b",
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-b",
 		micros("2026-01-03T00:00:00Z"), micros("2026-01-04T00:00:00Z"))
-	tracker.RecordCursorPosition("nvd", "scope-behind",
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-behind",
 		micros("2026-01-05T00:00:00Z"), micros("2026-01-03T00:00:00Z"))
-	lags := tracker.LagSecondsBySource()
-	if got := lags["nvd"]; got != 172800 {
+	lags := tracker.LagSeconds()
+	if got := lags[NVDLagSeries{Source: "nvd", Transport: NVDTransportAPI}]; got != 172800 {
 		t.Fatalf("lag = %v seconds, want the 2-day max (172800), floored negatives ignored", got)
 	}
 }
@@ -71,11 +71,11 @@ func TestNVDCursorLagTrackerKeepsMaxPerKey(t *testing.T) {
 	// The late record carries a nonzero lag (cursor Jan 5, head Jan 7), so
 	// a blind store that lets the stale record win reads 0 while max-keep
 	// holds 172800: this cell fails on the pre-fix implementation.
-	tracker.RecordCursorPosition("nvd", "scope-a",
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-a",
 		nvdCursorTestMicros(t, "2026-01-05T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-07T00:00:00Z"))
-	tracker.RecordCursorPosition("nvd", "scope-a",
+	tracker.RecordCursorPosition("nvd", NVDTransportAPI, "scope-a",
 		nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"), nvdCursorTestMicros(t, "2026-01-03T00:00:00Z"))
-	if got := tracker.LagSecondsBySource()["nvd"]; got != 172800 {
+	if got := tracker.LagSeconds()[NVDLagSeries{Source: "nvd", Transport: NVDTransportAPI}]; got != 172800 {
 		t.Fatalf("lag after stale record = %v, want 172800 (late-then-stale holds)", got)
 	}
 }
@@ -90,8 +90,8 @@ func TestNVDCursorLagTrackerIsRaceFree(t *testing.T) {
 			defer wg.Done()
 			key := fmt.Sprintf("scope-%d", worker%4)
 			for i := 0; i < 200; i++ {
-				tracker.RecordCursorPosition("nvd", key, int64(i), int64(i+10))
-				_ = tracker.LagSecondsBySource()
+				tracker.RecordCursorPosition("nvd", NVDTransportAPI, key, int64(i), int64(i+10))
+				_ = tracker.LagSeconds()
 			}
 		}()
 	}
@@ -106,7 +106,7 @@ func TestInstrumentsReportNVDCursorLagGauge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
-	inst.NVDCursorLags.RecordCursorPosition("nvd", "scope-a", 1_000_000, 172_801_000_000)
+	inst.NVDCursorLags.RecordCursorPosition("nvd", NVDTransportAPI, "scope-a", 1_000_000, 172_801_000_000)
 	inst.NVDTimeAnomalies.Add(context.Background(), 1, metric.WithAttributes(attribute.String(MetricDimensionSource, "nvd")))
 
 	var collected metricdata.ResourceMetrics
@@ -130,7 +130,10 @@ func TestInstrumentsReportNVDCursorLagGauge(t *testing.T) {
 					t.Fatalf("lag = %v, want 172800 seconds from server-stamped operands only", point.Value)
 				}
 				if got, ok := point.Attributes.Value("source"); !ok || got.AsString() != "nvd" {
-					t.Fatalf("source = %v, %v; want nvd and no other label", got, ok)
+					t.Fatalf("source = %v, %v; want nvd", got, ok)
+				}
+				if got, ok := point.Attributes.Value("transport"); !ok || got.AsString() != NVDTransportAPI || point.Attributes.Len() != 2 {
+					t.Fatalf("transport = %v, %v with %d labels; want api and only source plus transport", got, ok, point.Attributes.Len())
 				}
 				gaugeFound = true
 			case "eshu_dp_vulnerability_nvd_time_anomalies_total":

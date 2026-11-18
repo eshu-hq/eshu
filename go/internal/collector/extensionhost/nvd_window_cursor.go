@@ -37,10 +37,13 @@ const nvdWindowSnapshotFactKind = "vulnerability.source_snapshot"
 // The writer runs inside the generation's own commit transaction, so the
 // cursor advances with its window's facts or not at all; the CAS keeps the
 // max when two claims planned from one cursor commit in either order. No
-// verdict, ShouldAdvance=false, or a degenerate advance-to arms nothing:
-// facts still commit, the cursor holds. It mirrors the host-owned
-// side-write pattern: the extracted collector has no storage handle by
-// design, so the host writes the row.
+// verdict, ShouldAdvance=false, a degenerate advance-to, or a candidate
+// past the stamped head arms nothing: facts still commit, the cursor holds.
+// A candidate later than the head would skip every record modified between
+// the horizon and the candidate, which the feed never held, so the horizon
+// guard holds the cursor even when the verdict says advance. It mirrors the
+// host-owned side-write pattern: the extracted collector has no storage
+// handle by design, so the host writes the row.
 func (s *Source) armNVDWindowCursorWriter(
 	item workflow.WorkItem,
 	observedAt time.Time,
@@ -62,6 +65,9 @@ func (s *Source) armNVDWindowCursorWriter(
 		return nil
 	}
 	head, _ := payloadMicros(payload, nvdWindowHeadPayloadKey)
+	if head > 0 && advanceTo > head {
+		return nil
+	}
 	if observedAt.IsZero() {
 		observedAt = s.clock().UTC()
 	}

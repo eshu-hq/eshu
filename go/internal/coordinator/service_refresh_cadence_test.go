@@ -219,8 +219,7 @@ func TestServiceRefreshCadenceAllSkippedPersistsNoRun(t *testing.T) {
 	holdStore := &fakeStore{}
 	holdTick := refreshCadenceService(holdConfiguration, holdStore, progress)
 	holdTick.NVDWindowCursorReader = &fakeNVDWindowCursorReader{
-		cursor: halfHour.Add(time.Hour).UnixMicro(),
-		set:    true,
+		cursor: vulnerability.NVDWindowCursor{CursorUnixMicro: halfHour.Add(time.Hour).UnixMicro(), Set: true},
 	}
 	var holdLogs bytes.Buffer
 	holdTick.Logger = slog.New(slog.NewTextHandler(&holdLogs, nil))
@@ -287,7 +286,7 @@ func TestServiceRefreshCadenceRecordsReplacedNVDAnchor(t *testing.T) {
 	observedAt := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
 	progress := &fakeTargetRefreshProgressStore{}
 	service := refreshCadenceService(refreshCadenceNVDAnchorConfiguration, &fakeStore{}, progress)
-	service.NVDWindowCursorReader = &fakeNVDWindowCursorReader{cursor: 1768435200000000, set: true}
+	service.NVDWindowCursorReader = &fakeNVDWindowCursorReader{cursor: vulnerability.NVDWindowCursor{CursorUnixMicro: 1768435200000000, Set: true}}
 
 	if err := service.scheduleVulnerabilityIntelligenceWork(context.Background(), observedAt,
 		[]workflow.CollectorInstance{refreshCadenceInstance(refreshCadenceNVDAnchorConfiguration, observedAt)}); err != nil {

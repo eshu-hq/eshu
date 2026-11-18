@@ -698,8 +698,9 @@ type Instruments struct {
 	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
 	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
 	// NVDCursorLagSeconds gauges the NVD rolling-window lag in seconds per
-	// source (stored head minus cursor, both server-stamped; #9877). Labels
-	// stay source-only.
+	// source and transport (stored head minus cursor, both server-stamped;
+	// #9877). On the feed transport the head is the feed horizon, not the
+	// server clock (#10716).
 	NVDCursorLagSeconds metric.Float64ObservableGauge
 	// NVDCursorLags is the process-local tracker feeding NVDCursorLagSeconds.
 	NVDCursorLags *NVDCursorLagTracker
@@ -707,6 +708,25 @@ type Instruments struct {
 	// (#9877): unknown head, skew past the 5-minute budget, or record
 	// timestamps past head plus budget. Labels stay source-only.
 	NVDTimeAnomalies metric.Int64Counter
+	// NVDWindowClaims counts NVD window claim outcomes by transport and
+	// outcome (eshu-hq/eshu#10716), NVDWindowCursorAdvances counts the
+	// cursor verdict of committed windows (advanced or held) by transport,
+	// and NVDWindowClaimDuration records claim wall time by the same labels.
+	NVDWindowClaims         metric.Int64Counter
+	NVDWindowCursorAdvances metric.Int64Counter
+	NVDWindowClaimDuration  metric.Float64Histogram
+	// NVDFeedAgeSeconds gauges the age of the NVD 2.0 feed the satellite
+	// last read, computed at scrape time from NVDFeedAges so it keeps
+	// growing while no claim reads a feed. The four counters count the feed
+	// selector's guard trips (by closed failure class), claims that fell
+	// back because under 150 s of deadline remained, sha256 mismatches, and
+	// a missing or failing feed meta file (#10716).
+	NVDFeedAgeSeconds      metric.Float64ObservableGauge
+	NVDFeedAges            *NVDFeedAgeTracker
+	NVDFeedGuardTrips      metric.Int64Counter
+	NVDFeedDeadlineShort   metric.Int64Counter
+	NVDFeedSHA256Mismatch  metric.Int64Counter
+	NVDFeedMetaUnavailable metric.Int64Counter
 	// GHSACursorLagSeconds gauges the GHSA rolling-window lag in seconds
 	// per advisory type (scrape clock minus the latest committed cursor;
 	// #10037). Labels stay advisory-type-only.
@@ -7047,6 +7067,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerNVDCursorLag(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerNVDWindowTransport(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerGHSACursorLag(meter, inst); err != nil {

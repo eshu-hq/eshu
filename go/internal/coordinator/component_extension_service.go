@@ -386,7 +386,7 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 	// same probe as the in-tree path (eshu-hq/eshu#9877 Path A). A disabled
 	// derivation reads nothing; an enabled one without a reader fails
 	// loudly instead of silently planning every window from zero.
-	nvdCursor, nvdCursorSet, err := s.vulnerabilityNVDWindowCursor(ctx, derivation.DeriveNVDWindows, instance.InstanceID)
+	nvdCursor, err := s.vulnerabilityNVDWindowCursor(ctx, derivation.DeriveNVDWindows, instance.InstanceID, observedAt)
 	if err != nil {
 		return fmt.Errorf("load vulnerability intelligence NVD window cursor for %q: %w", instance.InstanceID, err)
 	}
@@ -422,8 +422,8 @@ func (s Service) scheduleVulnerabilityActivationDerivedScopes(
 		HostScopeID:              hostScopeID,
 		Derivation:               derivation,
 		ComponentConfig:          string(config.ComponentConfig),
-		NVDWindowCursorUnixMicro: nvdCursor,
-		NVDWindowCursorSet:       nvdCursorSet,
+		NVDWindowCursorUnixMicro: nvdCursor.CursorUnixMicro,
+		NVDWindowCursorSet:       nvdCursor.Set,
 		GHSAWindowCursors:        ghsaCursors,
 		OwnedPackageTargets:      ownedPage.Targets,
 		OwnedPackageWindow:       ownedPage.Window,
