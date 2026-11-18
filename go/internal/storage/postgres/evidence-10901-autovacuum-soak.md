@@ -1,4 +1,4 @@
-# #10901 sustained autovacuum soak: evidence note
+#10901 sustained autovacuum soak: evidence note
 
 Lane: `drive/10901-autovacuum-soak`. Closes acceptance box 4
 (`goal-ops/ruling-10901-autovacuum-soak.md`, amended by
@@ -37,12 +37,16 @@ load evidence below.
 
 ## RED run (vacuum off, ESHU_SOAK_VACUUM_OFF=1)
 
-714 waves / 1,310,383 marks in 5m0s, conservation exact
-(version growth = marks; depth growth = distinct keys), canary
-49.5ms, load max 2.61, zero 40P01. Bounds bite as designed: heap
-219MB (bound 128MB), dead 1.32M (bound 500k), vac_count 0 with no
-last_autovacuum advance. "RED proven" logged. A RED that passes the
-bounds would mean they are too loose.
+140 waves / 259,536 marks in 5m1s with 2s inter-wave pacing,
+conservation exact (version growth = marks; depth growth = 3,480
+distinct keys), canary 43.3ms, load max 1.39, zero 40P01. In-load
+contained as designed (heap max 42MB < 128MB; dead max 259k < 500k);
+the recovery gate bites: after the quiesce window, depth 0 but dead
+stuck at 259,536 (bound 1000) with vac_count 0 and no last_autovacuum
+advance. "RED proven" logged; the run PASSES because a bound was
+breached. A RED that breached nothing would mean the bounds are too
+loose. (An earlier zero-idle furnace RED — 714 waves in 5m0s —
+motivated the paced re-ruling v2 and is superseded by this run.)
 
 ## GREEN run (vacuum on)
 

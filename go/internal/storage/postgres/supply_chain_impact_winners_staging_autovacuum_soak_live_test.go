@@ -4,7 +4,8 @@
 package postgres
 
 // Soak harness for eshu-hq/eshu#10901 box 4 (sustained autovacuum soak,
-// goal-ops/ruling-10901-autovacuum-soak.md). Manual landing-gate harness:
+// goal-ops/ruling-10901-autovacuum-soak.md, as amended by
+// goal-ops/ruling-10901-autovacuum-soak-r2.md). Manual landing-gate harness:
 // deliberately NOT enrolled in live-postgres-readiness (no //eshu:readiness
 // marker), because the soak is only licensed on an owned quiet host and
 // shared CI runners cannot hold the entry gate.
