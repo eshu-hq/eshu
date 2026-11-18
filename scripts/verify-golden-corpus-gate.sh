@@ -218,7 +218,8 @@ export ESHU_QUERY_PROFILE
 export ESHU_EMIT_DATAFLOW=true
 log "query profile: ${ESHU_QUERY_PROFILE}"
 export ESHU_API_KEY="${GATE_API_KEY}"
-export ESHU_API_ADDR=":${GATE_API_PORT}"
+# D13: no ESHU_API_ADDR — the in-tree API read its listen addr from the
+# environment, but the satellite only honors --addr (passed at start_bg).
 # The SSM host inventory readback fails closed without freshness bounds
 # (#9558: the API/MCP handlers 503 when any bound is unset). The corpus
 # carries no SSM fixtures, so the gate asserts the empty shape served —
@@ -236,8 +237,9 @@ export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 # operator status server on ESHU_LISTEN_ADDR and a metrics scrape server on
 # ESHU_METRICS_ADDR, both defaulting to fixed ports (8080 / 9464). Run
 # concurrently they would all collide on those ports and exit on startup, so each
-# process gets an ephemeral port. The api's data server is separate
-# (ESHU_API_ADDR, set above) and is the one the gate queries. pprof stays off
+# process gets an ephemeral port. The satellite api's data server is separate
+# (--addr at start_bg) and serves only the fail-closed liveness probe now;
+# nothing queries it for truth. pprof stays off
 # because ESHU_PPROF_ADDR is left unset.
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
@@ -381,7 +383,7 @@ golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
 log "start satellite eshu-api (no core in this gate: serving-liveness probe)"
 golden_metrics_source_start
 golden_ask_source_start
-start_bg api api_pid "${bin_dir}/eshu-api" --core-base-url=http://127.0.0.1:9
+start_bg api api_pid "${bin_dir}/eshu-api" -addr=":${GATE_API_PORT}" --core-base-url=http://127.0.0.1:9
 # D13: the satellite answers /readyz 503 with no Retry-After when coreless.
 # Poll for the bind, then assert the fail-closed contract. Serving-truth
 # proof (suppression, query, demo-answers, MCP) moves to the cutover lane

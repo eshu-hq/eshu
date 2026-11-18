@@ -179,9 +179,11 @@ require "reducer drain" "eshu-reducer"
 # `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
 # names both gate invocations; each is pinned to the one line that must exist.
 # shellcheck disable=SC2016  # the needle is the literal orchestrator source line
-# D13: satellite with an explicit (dead) core origin — no core exists in
-# this gate; the liveness probe below asserts the fail-closed contract.
-require "satellite api start with dead core origin" 'start_bg api api_pid "${bin_dir}/eshu-api" --core-base-url=http://127.0.0.1:9'
+# D13: satellite with an explicit listen addr (the in-tree ESHU_API_ADDR
+# env is gone; the satellite only honors --addr) and an explicit (dead)
+# core origin — no core exists in this gate; the liveness probe below
+# asserts the fail-closed contract.
+require "satellite api start with dead core origin" 'start_bg api api_pid "${bin_dir}/eshu-api" -addr=":${GATE_API_PORT}" --core-base-url=http://127.0.0.1:9'
 require "gate binary built" "build_bin golden-corpus-gate"
 require "corpus fixture inventory source" "golden-corpus-fixtures.sh"
 require_in "SQL relationship corpus fixture" "${fixture_lib}" $'\tsql_comprehensive'
