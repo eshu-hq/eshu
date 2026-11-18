@@ -303,9 +303,9 @@ then rejected with `401`. With none of the three set the read surface is open
 (the deliberate local/demo dev-mode; see
 [Docker Compose](https://github.com/eshu-hq/eshu-deploy/blob/main/docs/run-locally/docker-compose.md)). Seeded bootstrap identities
 and console-minted tokens are not enforcement signals on their own — close the
-open read surface with one of those three environment variables. Both `cmd/api`
-and the `eshu-mcp-server` satellite log the resolved posture (`auth.enforcement.configured` or
-`auth.enforcement.open`) once at startup.
+open read surface with one of those three environment variables. The
+`eshu-mcp-server` satellite logs the resolved posture (`auth.enforcement.configured`
+or `auth.enforcement.open`) once at startup.
 
 ### All-scope credentials on grant-filtered routes
 

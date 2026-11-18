@@ -223,10 +223,15 @@ bash -n "${suppression_seq_cases_lib}" || fail "golden-corpus-suppression-sequen
 . "${suppression_seq_cases_lib}"
 [[ "${suppression_sequencing_cases_completed:-0}" -eq 1 ]] ||
 	fail "golden-corpus-suppression-sequencing-cases.sh did not run to completion (gutted, or returned early)"
-rg --fixed-strings --quiet -- "golden_suppression_verify_producer_truth" "${script}" \
-	|| fail "golden gate must execute the suppression producer proof helper"
-rg --fixed-strings --quiet -- '${golden_suppression_runtime_snapshot}' "${script}" \
-	|| fail "final query gate must use the runtime snapshot with the exact suppression body"
+# D13: the suppression proof queried the live in-tree API, so it (and the
+# runtime-snapshot variable it produced) left the orchestrator; serving
+# truth moves to the cutover lane. The orchestrator now asserts the
+# coreless satellite's fail-closed contract and re-heads the snapshot
+# chain on the static snapshot the proof itself consumed as input.
+rg --fixed-strings --quiet -- 'want 503 (coreless satellite)' "${script}" \
+	|| fail "golden gate must assert the satellite fail-closed /readyz contract"
+rg --fixed-strings --quiet -- '"testdata/golden/e2e-20repo-snapshot.json" \' "${script}" \
+	|| fail "snapshot chain must re-head on the static snapshot after the suppression-proof removal"
 
 # Skipping comment lines is load-bearing, not cosmetic: the orchestrator and its
 # lib chunks name their own helpers, sourced libs and gate flags in the prose

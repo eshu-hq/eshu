@@ -156,7 +156,6 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | bootstrap-phase-seconds | 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600 |
 | workflow-claim-run-seconds | 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800 |
 | pipeline-overlap-seconds | 1, 5, 10, 30, 60, 120, 300, 600, 1800 |
-| shutdown-duration-seconds | 0.5, 1, 2.5, 5, 10, 30, 60 |
 | relationship-breakdown-permit-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | deferred-backfill-partition-workers-count | 1, 2, 4, 8, 16, 32 |
 | deferred-backfill-fact-count | 0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000 |

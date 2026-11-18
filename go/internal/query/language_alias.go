@@ -21,9 +21,9 @@ import (
 // forwards to the canonical home. New code must import language directly.
 
 // LanguageQueryHandler is the language-query handler family type. Its home
-// is language/; this alias keeps cmd/api's and cmd/mcp-server's
-// wiring_router.go struct literals, internal/mcp's dispatch tests, and
-// staying root tests spelling query.LanguageQueryHandler unchanged.
+// is language/; this alias keeps the former in-tree wiring struct literals,
+// internal/mcp's dispatch tests, and staying root tests spelling
+// query.LanguageQueryHandler unchanged.
 type LanguageQueryHandler = language.Handler
 
 // languageEntitySearch aliases language.EntitySearch. content_reader_entity_search.go
@@ -68,9 +68,9 @@ func sourceBackendForTruthBasis(basis querycontract.TruthBasis) string {
 
 // This compile-time pin proves *ContentReader still satisfies the port
 // language.searchLanguageEntities type-asserts content stores against.
-// *ContentReader is the only production content store (cmd/api/wiring.go
-// wires NewContentReader(db); the removed MCP entrypoint did the same,
-// eshu-hq/eshu#9670); this line fails
+// *ContentReader is the only production content store (the former in-tree
+// wiring wired NewContentReader(db); the removed MCP entrypoint did the
+// same, eshu-hq/eshu#9670); this line fails
 // `go build`, not only `go test`, the moment it stops satisfying the port.
 // It moved from language/metadata.go (#6642) because ContentReader is a
 // later lane's family and the leaf must never name it.

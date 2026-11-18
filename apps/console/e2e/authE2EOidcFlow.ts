@@ -297,7 +297,8 @@ export async function findProviderConfigIdByIssuer(page: Page, issuer: string): 
 // (go/internal/storage/postgres/identity_admin_mutations.go) will accept.
 // This does NOT grant the member session admin power: unlike local/SAML
 // login, the DB-backed OIDC grant path (postgresOIDCStoreAdapter.
-// ResolveGroupGrants, go/cmd/api/oidc_login.go) never runs the special
+// ResolveGroupGrants in the former in-tree OIDC login, retired with the
+// D13 removal) never ran the special
 // role_id IN ('owner','tenant_admin') AllScopes check — that check is
 // SQL-literal to the local/SAML queries only (identity_local_sql.go/
 // identity_saml_sql.go) — and identity_role_grants has zero rows for ANY

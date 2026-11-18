@@ -71,7 +71,18 @@ require_workflow_path "bootstrap-index fact seeding"   "go/cmd/bootstrap-index/*
 require_workflow_path "ingester fact emission"         "go/cmd/ingester/**"
 require_workflow_path "projector runtime"              "go/cmd/projector/**"
 require_workflow_path "reducer runtime"                "go/cmd/reducer/**"
+# D13 removal (eshu-hq/eshu#9669): the go/cmd/api tree was deleted with the relay
+# surface, so its trigger retired together -- a paths entry for a tree that can
+# never change again would only confuse. Either state must stay consistent:
+# tree present requires the trigger (original false-green guard); tree absent
+# forbids a stale trigger entry.
+if [[ -d "${repo_root}/go/cmd/api" ]]; then
 require_workflow_path "api query surface"              "go/cmd/api/**"
+else
+if rg -q --fixed-strings -- "- go/cmd/api/**" "${workflow_paths}"; then
+	fail "go/cmd/api/** was deleted with the D13 removal but its workflow trigger remains; retire both together"
+fi
+fi
 # Both were already IN the workflow's paths filter and the ci-gates registry
 # but had never been asserted by this mirror -- a pre-existing gap (present on
 # main too), found during the #5538 second review round. The gate command
@@ -297,7 +308,7 @@ require_workflow_path "collector extraction readiness catalog (#5538)" "go/inter
 
 # query/status_governance.go imports governanceaudit directly and calls
 # GovernanceAudit.Summary() to fill get_hosted_governance_status.audit.
-# cmd/api/wiring_router.go wires a real store
+# The former in-tree API wiring wired a real store
 # (newGovernanceAuditStore / auditstore.NewGovernanceAuditStore); the removed
 # MCP entrypoint did the same (eshu-hq/eshu#9670)
 # unconditionally -- no opt-in flag gates it, unlike governanceauditasync

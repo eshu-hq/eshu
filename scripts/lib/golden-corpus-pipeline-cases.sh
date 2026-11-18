@@ -179,7 +179,11 @@ require "reducer drain" "eshu-reducer"
 # `eshu-api` also names the /readyz failure message, and `eshu-golden-corpus-gate`
 # names both gate invocations; each is pinned to the one line that must exist.
 # shellcheck disable=SC2016  # the needle is the literal orchestrator source line
-require "api for query truth" 'start_bg api api_pid "${bin_dir}/eshu-api"'
+# D13: satellite with an explicit listen addr (the in-tree ESHU_API_ADDR
+# env is gone; the satellite only honors --addr) and an explicit (dead)
+# core origin — no core exists in this gate; the liveness probe below
+# asserts the fail-closed contract.
+require "satellite api start with dead core origin" 'start_bg api api_pid "${bin_dir}/eshu-api" -addr=":${GATE_API_PORT}" --core-base-url=http://127.0.0.1:9'
 require "gate binary built" "build_bin golden-corpus-gate"
 require "corpus fixture inventory source" "golden-corpus-fixtures.sh"
 require_in "SQL relationship corpus fixture" "${fixture_lib}" $'\tsql_comprehensive'
@@ -189,14 +193,16 @@ require_in "direct comma-separated SQL DROP migration fixture" "${sql_drop_fixtu
 	'DROP TABLE IF EXISTS public.users, public.orgs;'
 require_in "SQL DROP required correlation in B-12 snapshot" "${snapshot}" '"id": "rc-163"'
 
-# Asserts all four B-7 buckets. The snapshot flag appears in both gate
-# invocations, so each invocation region is asserted independently.
+# Asserts the projection/timing/delta buckets (D13: query + demo-answers
+# need a live query-truth core and move to the cutover lane). The snapshot
+# flag appears in both gate invocations, so each invocation region is
+# asserted independently.
 require "drains phase" "-phase=drains"
-require "graph+query+timing phase" "-phase=graph,query,timing"
+require "graph+timing phase" "-phase=graph,timing,delta-union,delta-readers"
 require_region "snapshot contract (drains phase)" \
 	"/-phase=drains/,/-drain-timeout=/" "-snapshot=testdata/golden/e2e-20repo-snapshot.json"
-require_region "runtime snapshot contract (graph,query,timing phase)" \
-	"/-phase=graph,query,timing,demo-answers/,/-elapsed-seconds=/" '-snapshot="${golden_query_runtime_snapshot}"'
+require_region "runtime snapshot contract (graph,timing phase)" \
+	"/-phase=graph,timing,delta-union,delta-readers/,/-elapsed-seconds=/" '-snapshot="${golden_query_runtime_snapshot}"'
 require "timing budget" "-budget-multiplier"
 # The blocking-correlation set is single-sourced from the snapshot's required
 # correlation IDs through the `all` sentinel (#4596).

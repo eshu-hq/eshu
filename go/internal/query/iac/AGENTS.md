@@ -60,7 +60,7 @@
   matching `openapi_paths_*.go` fragment in root (a Part C surface;
   coordinate with that lane), and update
   `docs/public/reference/http-api.md`. Run `go test ./internal/query/iac/...
-  ./cmd/api ./internal/mcp -count=1` and
+  ./internal/mcp -count=1` and
   `bash scripts/verify-route-coverage.sh`.
 - **Rename or move a symbol this move exported only for a root
   forwarder/test double** (see README.md's Naming section for the list) →
@@ -137,7 +137,8 @@ existing contract; do not change it here. Never write a `LookupError`'s
   — they must always equal root's `contract/replatforming.go` constants;
   changing either side alone silently desyncs the capability gate.
 - `Handler`'s exported field names (`Content`, `Reachability`, `Management`,
-  `Inventory`, `Graph`, `Profile`) — `cmd/api/wiring_router.go` constructs
-  this struct with keyed literals through the root alias (the removed MCP
-  entrypoint did the same; eshu-hq/eshu#9670); a field rename breaks the
+  `Inventory`, `Graph`, `Profile`) — the serving API wiring constructs
+  this struct with keyed literals through the root alias (formerly the
+  in-tree wiring did the same; the removed MCP entrypoint did too,
+  eshu-hq/eshu#9670); a field rename breaks the
   wiring without a compiler error pointing here.

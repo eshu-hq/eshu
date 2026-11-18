@@ -42,20 +42,27 @@ COPY sdk/go/factschema/ ./sdk/go/factschema/
 
 # Build all Go binaries. xx-go sets GOARCH, CGO_ENABLED, and CC automatically
 # for the target platform. CGO is required for tree-sitter parser bindings.
-# D13 (#9669 removal prep, checklist row 11): RETARGET at the removal PR —
-# owner eshu-api satellite. The eshu-api repo Dockerfile owns the api build;
-# core drops the `./cmd/api` build below and COPYs the digest-pinned
-# satellite release binary under its old /go-bin/eshu-api path (the #9679
-# mcp-server precedent: the mcp-satellite stage below), keeping the CMD and
-# :8080/healthz contract below until the stack flips. No deletion and no
-# binary swap until every consumer row drains (all TODO); this stage keeps
-# building in-tree.
+# D13 (#9669 removal, checklist row 11): the in-tree `./cmd/api` relay is
+# gone, so eshu-api builds from satellite source at the frozen cutover SHA
+# (no satellite release carries the full surface yet; row 11's digest-pinned
+# release COPY is the serving owner's follow-up when the first post-surface
+# release cuts, same pattern as the mcp-satellite stage below). The satellite
+# module is stdlib-only, so this build runs with CGO off while xx-go still
+# carries the target GOARCH under cross.
+ARG ESHU_API_REF=c041d7ec95e41cba1c9874c8dc098af6a2f994f8
+RUN git init -q /tmp/eshu-api-src \
+    && git -C /tmp/eshu-api-src remote add origin https://github.com/eshu-hq/eshu-api.git \
+    && git -C /tmp/eshu-api-src fetch --depth 1 origin "${ESHU_API_REF}" \
+    && git -C /tmp/eshu-api-src checkout -q FETCH_HEAD \
+    && echo "eshu-api ${ESHU_API_REF} resolved to $(git -C /tmp/eshu-api-src rev-parse HEAD)" \
+    && cd /tmp/eshu-api-src \
+    && CGO_ENABLED=0 xx-go build -trimpath -ldflags="-s -w -buildid=" -o /go-bin/eshu-api ./cmd/eshu-api \
+    && rm -rf /tmp/eshu-api-src
 RUN cd go \
     && export CGO_ENABLED=1 \
     && export GOFLAGS="-buildvcs=false" \
     && LDFLAGS="-s -w -buildid= -extldflags '-static' -X github.com/eshu-hq/eshu/go/internal/buildinfo.Version=${ESHU_VERSION}" \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu ./cmd/eshu \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-api ./cmd/api \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-ingester ./cmd/ingester \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-index ./cmd/bootstrap-index \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-reducer ./cmd/reducer \
@@ -211,9 +218,13 @@ EXPOSE 8080 9464
 WORKDIR /data
 USER eshu
 
-# Health check
+# Health check. D13: the satellite serves no /healthz, and /readyz is 503
+# without a core, so the check asserts the process serves: GET /health is
+# 200 credential-free on a live server (router + static handler), failing
+# only when nothing listens. The e2e health leg proves the /health premise
+# live; the stack flip re-points this after cutover-good.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -fsS http://localhost:8080/healthz || exit 1
+    CMD curl -fsS http://localhost:8080/health || exit 1
 
 # Default command - run the Go API server. D13: CMD stays on eshu-api through
 # the row-11 retarget above (same binary path, satellite-built); only the

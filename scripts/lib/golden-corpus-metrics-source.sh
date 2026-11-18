@@ -12,9 +12,10 @@ golden_metrics_source_json() {
 	# fixture instances the B-7 readiness assertions read. They reuse the
 	# cassette scopes' own collector_instance_id values, which #9227's
 	# coverage tests pin verbatim — the gate registers those identities rather
-	# than renaming them. The API metrics selector (go/cmd/api/metrics_source.go)
-	# filters by collector_kind, so the extra entries are invisible to the
-	# Prometheus source wiring. The NVD feed_url must match the endpoint the
+	# than renaming them. The former API metrics selector filtered by
+	# collector_kind (retired with the D13 removal), so the extra entries are
+	# invisible to the Prometheus source wiring. The NVD feed_url must match
+	# the endpoint the
 	# cassette's source_snapshot facts record, or committed-coverage matching
 	# finds no snapshot. CVE-2026-09000 is a configured-but-never-collected
 	# target: it has no cassette facts and gets no seeded state, so it reads

@@ -63,9 +63,9 @@ func NewContentReaderWithReadStore(readStore db.ReadStore) *ContentReader {
 // to it -- exactly the regression a runtime tripwire cannot see.
 //
 // All 14 are bound to *ContentReader because it is the only production
-// implementer: cmd/api/wiring.go wires a ContentReader as the sole content
-// store passed to every handler's Content field (the removed MCP entrypoint
-// did the same; eshu-hq/eshu#9670), and no other type in this package
+// implementer: the former in-tree API wiring wired a ContentReader as the
+// sole content store passed to every handler's Content field (the removed
+// MCP entrypoint did the same; eshu-hq/eshu#9670), and no other type in this package
 // defines any of these 14
 // method sets (confirmed by symbol search across internal/query when this
 // block was added; see the #6060 PR description for the break/restore

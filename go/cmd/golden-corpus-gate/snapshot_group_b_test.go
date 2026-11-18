@@ -25,13 +25,12 @@ func TestGoldenHarnessSeedsDeadLetterAfterFinalDrainBeforeQuery(t *testing.T) {
 
 	drainAt := strings.Index(script, "\nrun_maintenance_drain_cycles\n")
 	seedAt := strings.Index(script, "\nseed_golden_dead_letter_fixture\n")
-	suppressionDrainAt := strings.Index(script, "\ngolden_suppression_verify_producer_truth\n")
 	queryAt := strings.Index(script, "start_bg mcp-server mcp_pid")
-	if drainAt < 0 || suppressionDrainAt < 0 || seedAt < 0 || queryAt < 0 {
-		t.Fatalf("missing ordered harness stages: maintenance=%d suppression=%d seed=%d query=%d", drainAt, suppressionDrainAt, seedAt, queryAt)
+	if drainAt < 0 || seedAt < 0 || queryAt < 0 {
+		t.Fatalf("missing ordered harness stages: maintenance=%d seed=%d query=%d", drainAt, seedAt, queryAt)
 	}
-	if drainAt >= suppressionDrainAt || suppressionDrainAt >= seedAt || seedAt >= queryAt {
-		t.Fatalf("dead-letter seed ordering = maintenance:%d suppression:%d seed:%d query:%d, want maintenance < suppression < seed < query", drainAt, suppressionDrainAt, seedAt, queryAt)
+	if drainAt >= seedAt || seedAt >= queryAt {
+		t.Fatalf("dead-letter seed ordering = maintenance:%d seed:%d query:%d, want maintenance < seed < query", drainAt, seedAt, queryAt)
 	}
 }
 
@@ -46,14 +45,13 @@ func TestGoldenHarnessSeedsDocumentationAfterFinalDrainBeforeQuery(t *testing.T)
 	script := string(body)
 
 	drainAt := strings.Index(script, "\nrun_maintenance_drain_cycles\n")
-	suppressionDrainAt := strings.Index(script, "\ngolden_suppression_verify_producer_truth\n")
 	seedAt := strings.Index(script, "\ngolden_documentation_run_proof\n")
 	queryAt := strings.Index(script, "start_bg mcp-server mcp_pid")
-	if drainAt < 0 || suppressionDrainAt < 0 || seedAt < 0 || queryAt < 0 {
-		t.Fatalf("missing ordered harness stages: maintenance=%d suppression=%d seed=%d query=%d", drainAt, suppressionDrainAt, seedAt, queryAt)
+	if drainAt < 0 || seedAt < 0 || queryAt < 0 {
+		t.Fatalf("missing ordered harness stages: maintenance=%d seed=%d query=%d", drainAt, seedAt, queryAt)
 	}
-	if drainAt >= suppressionDrainAt || suppressionDrainAt >= seedAt || seedAt >= queryAt {
-		t.Fatalf("documentation seed ordering = maintenance:%d suppression:%d seed:%d query:%d, want maintenance < suppression < seed < query", drainAt, suppressionDrainAt, seedAt, queryAt)
+	if drainAt >= seedAt || seedAt >= queryAt {
+		t.Fatalf("documentation seed ordering = maintenance:%d seed:%d query:%d, want maintenance < seed < query", drainAt, seedAt, queryAt)
 	}
 
 	helperPath := filepath.Join("..", "..", "..", "scripts", "lib", "golden-corpus-documentation-fixture.sh")

@@ -221,7 +221,7 @@ by `AuthMiddleware` before the handler runs. A browser-session caller's
 admission is policy-dependent, not a flat reject: off the allowlist, as here,
 `browserSessionRouteDenialReason` admits only a tenant-bound all-scopes
 session under `BrowserSessionRoutePolicy.AllowTenantBoundAllScopes`, which
-`cmd/api` sets for the default, `local_no_policy`, and `hosted_single_tenant`
+the serving API sets for the default, `local_no_policy`, and `hosted_single_tenant`
 modes, and rejects a restricted-scope session. On the allowlist it splits by
 `scopedRouteClass` (#6450): an all-scope session still needs that policy
 unless the route needs no caller grant.
@@ -809,8 +809,8 @@ No-Regression Evidence: `go test ./internal/query -run
 -count=1` proves the full disclosure matrix (allowed/denied/partial/stale/missing),
 content-withheld on denied and partial, the ACL axis independent of freshness
 (fresh+denied, stale+allowed), and the #2138 labels preserved on withheld rows;
-`go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
-keeps the API and MCP envelope contracts green (MCP proxies the same routes, so
+`go test ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
+keeps the MCP envelope contracts green (MCP proxies the same routes, so
 the disclosure surfaces with parity).
 No-Observability-Change: this slice adds no metric instrument, label, span,
 queue, worker, or runtime knob, and adds no source ids, paths, titles, urls, or
@@ -896,7 +896,7 @@ scoped `AGENTS.md` entry instead of expanding this index.
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
 `ContentReader` are the only concrete types that touch drivers, and they are
-wired in `cmd/api/wiring.go`, not here.
+wired by the serving API, not here.
 
 Semantic extraction status is a runtime projection.
 `GET /api/v0/status/semantic-extraction` reports no-provider mode as

@@ -13,8 +13,8 @@ import (
 // the versioned #9669 D6 StatusExtraReadAdmission pin: the bounded
 // LiveActivity read and the retirement-summary read. The handler legs
 // admit through the pin's embedded ports; the narrow fields stay as the
-// construction seam (go/cmd/api builds them from the guarded reader and
-// cannot be edited in this lane), and any pair of satisfiers — including
+// construction seam (the serving eshu-api builds them from the guarded
+// reader), and any pair of satisfiers — including
 // pin-typed values held by a dest lifter — composes here.
 //
 // A nil half stays nil inside the composition: each leg nil-guards its

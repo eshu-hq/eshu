@@ -63,8 +63,8 @@ for the full file layout and Move evidence.
   recovery-code hashes, the policy revision hash, and
   `password_parameters_hash`. Before the move (#6642) it was two functions --
   this package's own unexported `localIdentityHash` doing the work, and an
-  exported `IdentityHash` forwarding to it for `go/cmd/api/seed_initial_admin.go`,
-  `go/cmd/api/seed_initial_admin_helpers.go`, and
+  exported `IdentityHash` that forwarded it to the former in-tree
+  seed-initial-admin callers (retired with the D13 removal) and
   `go/internal/cli/admin/credential.go`. Naming rule 4 would drop the
   package-word stutter from `localIdentityHash` too, colliding with the
   already-exported wrapper of the exact same computation. The two were

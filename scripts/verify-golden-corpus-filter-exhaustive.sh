@@ -5,9 +5,9 @@
 # golden-corpus-gate.yml's frozen PR inventory filter, because completeness
 # was maintained by hand -- see scripts/lib/golden-corpus-mirror-workflow-
 # paths.sh's header for the incident history. This script makes it converge:
-# every package actually compiled into the five binaries
+# every package actually compiled into the four binaries
 # scripts/verify-golden-corpus-gate.sh still builds in-tree (bootstrap-index,
-# projector, reducer, api, golden-corpus-gate) must be EITHER
+# projector, reducer, golden-corpus-gate) must be EITHER
 #
 #   1. covered by a path in the validated PR inventory, OR
 #   2. listed with a one-line reason in
@@ -16,9 +16,15 @@
 # A package in NEITHER set fails here, loudly, naming the exact package --
 # instead of silently shipping an unverified change until the unconditional
 # push-to-main trigger catches it post-merge (the wrong side of the review
-# boundary). Adding a package anywhere in the five binaries' import graph now
+# boundary). Adding a package anywhere in the four binaries' import graph now
 # forces an explicit classify-or-cover decision instead of relying on the next
 # reviewer to notice.
+#
+# The api binary left the exhaustive set when the in-tree relay surface was
+# removed under eshu-hq/eshu#9669 (D13: `go list` on a deleted package fails,
+# so the verifier can no longer enumerate it). The gate script's API serving
+# leg still names it; rewiring that leg to the satellite is sequenced
+# separately, and the workflow filter keeps its api paths until then.
 #
 # The sixth binary the gate script names, mcp-server, left the exhaustive
 # set when the in-tree entrypoint was removed under eshu-hq/eshu#9670
@@ -50,8 +56,9 @@ command -v go >/dev/null 2>&1 || fail "go is required"
 command -v rg >/dev/null 2>&1 || fail "rg (ripgrep) is required"
 
 # The binaries scripts/verify-golden-corpus-gate.sh still builds in-tree
-# (mcp-server left this set with the #9670 removal; see the header note).
-binaries=(bootstrap-index projector reducer api golden-corpus-gate)
+# (mcp-server left this set with the #9670 removal and api with the #9669 D13
+# removal; see the header note).
+binaries=(bootstrap-index projector reducer golden-corpus-gate)
 
 # --- 1. derive the compiled package set -------------------------------------
 compiled_pkgs_raw="$(mktemp -t golden-corpus-filter-exhaustive.XXXXXX)"

@@ -40,10 +40,43 @@ build_satellite_bin() {
 		|| die "build satellite mcp-server ${ESHU_MCP_REF} failed"
 }
 
+# ESHU_API_REF pins the eshu-api satellite tree whose serving binary the
+# gates run after the in-tree removal (#9669 D13). A frozen commit SHA, not
+# a tag: no satellite release carries the full relay surface yet, so the pin
+# tracks the G9-frozen satellite triple instead of a release.
+: "${ESHU_API_REF:=c041d7ec95e41cba1c9874c8dc098af6a2f994f8}"
+
+# build_satellite_api_bin clones the satellite at ESHU_API_REF and builds
+# ./cmd/eshu-api as ${bin_dir}/eshu-api. Same shape as build_satellite_bin
+# (the #9670 mcp precedent), except the pin is a SHA — `clone --branch`
+# takes no SHA, so this does init + fetch + checkout. The satellite module
+# is stdlib-only, so CGO stays off.
+build_satellite_api_bin() {
+	local src_dir="${work_dir}/eshu-api-src"
+	rm -rf "${src_dir}"
+	golden_corpus_git init -q "${src_dir}" \
+		|| die "init eshu-api-src failed"
+	golden_corpus_git -C "${src_dir}" remote add origin https://github.com/eshu-hq/eshu-api.git \
+		|| die "remote eshu-api failed"
+	golden_corpus_git -C "${src_dir}" fetch --depth 1 origin "${ESHU_API_REF}" \
+		|| die "fetch eshu-api ${ESHU_API_REF} failed"
+	golden_corpus_git -C "${src_dir}" checkout -q FETCH_HEAD \
+		|| die "checkout eshu-api ${ESHU_API_REF} failed"
+	# Record the resolved commit: the pin is already a SHA, so the gate log
+	# echoes it back for the record.
+	echo "eshu-api ${ESHU_API_REF} resolved to $(git -C "${src_dir}" rev-parse HEAD)"
+	CGO_ENABLED=0 go -C "${src_dir}" build -trimpath -o "${bin_dir}/eshu-api" ./cmd/eshu-api \
+		|| die "build satellite api ${ESHU_API_REF} failed"
+}
+
 build_bin() {
 	local cmd="$1"
 	if [[ "${cmd}" == "mcp-server" ]]; then
 		build_satellite_bin
+		return
+	fi
+	if [[ "${cmd}" == "api" ]]; then
+		build_satellite_api_bin
 		return
 	fi
 	eshu_export_cgo_cflags
