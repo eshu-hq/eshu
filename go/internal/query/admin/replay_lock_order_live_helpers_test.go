@@ -288,6 +288,79 @@ SELECT count(*) FROM fact_work_items WHERE scope_id LIKE 'lo-s%' AND status = 'p
 	return strings.Join(problems, "; ")
 }
 
+// adminSweepUntilDrained runs standalone sweep passes on db until one
+// supersedes nothing: the production sweeper's next ticks, which retire
+// rows an earlier pass skipped because a replay held their locks.
+func adminSweepUntilDrained(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	queue := interleaveQueue(db, "workload_identity")
+	for pass := 0; pass < 10; pass++ {
+		n, err := queue.SupersedeStaleReducerGenerations(ctx, 1000)
+		if err != nil {
+			t.Fatalf("follow-up sweep: %v", err)
+		}
+		if n == 0 {
+			return
+		}
+	}
+	t.Fatal("follow-up sweeps did not drain in 10 passes")
+}
+
+// raceSweepThroughHeldRow races the SKIP LOCKED standalone sweep against a
+// blocking locker through held, in the requested start order: the other
+// locker queues on the holder alone while the sweep completes around the
+// held row without ever waiting, then the holder releases. Twin of the
+// storage/postgres retargeted held-row choreography (#10863).
+func (f *adminLockOrderFixture) raceSweepThroughHeldRow(
+	t *testing.T,
+	ctx context.Context,
+	held string,
+	sweepFirst bool,
+	sweep, other func(context.Context, *sql.DB) adminLockOrderReplay,
+) (adminLockOrderResult, adminLockOrderResult) {
+	t.Helper()
+	tx, err := interleaveConn(t, ctx, f.dsn, f.schema, false).BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var locked string
+	if err := tx.QueryRowContext(ctx, `SELECT work_item_id FROM fact_work_items WHERE work_item_id = $1 FOR UPDATE`, held).Scan(&locked); err != nil {
+		t.Fatalf("hold %s: %v", held, err)
+	}
+	sweepDB, otherDB := interleaveConn(t, ctx, f.dsn, f.schema, false), interleaveConn(t, ctx, f.dsn, f.schema, false)
+	var pidOther int
+	if err := otherDB.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pidOther); err != nil {
+		t.Fatalf("pid other: %v", err)
+	}
+	runSweep := func() adminLockOrderResult {
+		t.Helper()
+		run := sweep(ctx, sweepDB)
+		select {
+		case result := <-run.done:
+			return result
+		case <-time.After(30 * time.Second):
+			t.Fatal("sweep did not complete around the held row; SKIP LOCKED must not wait")
+			return adminLockOrderResult{}
+		}
+	}
+	var sweepResult adminLockOrderResult
+	var otherRun adminLockOrderReplay
+	if sweepFirst {
+		sweepResult = runSweep()
+		otherRun = other(ctx, otherDB)
+		f.waitBlocked(t, ctx, pidOther)
+	} else {
+		otherRun = other(ctx, otherDB)
+		f.waitBlocked(t, ctx, pidOther)
+		sweepResult = runSweep()
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("release %s: %v", held, err)
+	}
+	return sweepResult, otherRun.wait()
+}
+
 // raceThroughHeldRow makes two lockers meet at one row deterministically: a
 // third session keeps held locked while a, then b, advance until they wait,
 // and then releases it. Lockers in one global order queue one behind the

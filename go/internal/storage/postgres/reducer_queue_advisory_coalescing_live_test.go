@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10566 disposable PostgreSQL proof for the advisory-coalescing re-homing design: a concurrent enqueue+retouch storm over one synthetic-slot group converges to one row with one insert and one live lease (A-1), the claim-time supersede sweep retires real stale rows while never touching the synthetic active-generation row and N touches over M groups leave M rows with the synthetic genesis absent from the real retention-candidate selection (A-2), and fail-after-touch then retry reclaims the same slot with the winners-watermark bound covering the second touch (A-3); seeded rows carry a unique prefix with cleanup on both paths; wall time is logged, not gated
+//eshu:readiness:reason #10566 disposable PostgreSQL proof for the advisory-coalescing re-homing design: a concurrent enqueue+retouch storm over one synthetic-slot group converges to one row with one insert and one live lease (A-1), the periodic stale-generation sweep retires real stale rows while never touching the synthetic active-generation row and N touches over M groups leave M rows with the synthetic genesis absent from the real retention-candidate selection (A-2), and fail-after-touch then retry reclaims the same slot with the winners-watermark bound covering the second touch (A-3); seeded rows carry a unique prefix with cleanup on both paths; wall time is logged, not gated
 //eshu:readiness:env ESHU_POSTGRES_TEST_DSN
 
 import (
@@ -235,8 +235,11 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 		t.Fatalf("A-1 storm row status = %s, want succeeded", s)
 	}
 
-	// A-2: advancing the real scope retires its stale row in the claim
-	// sweep while the synthetic row on the always-active genesis survives.
+	// A-2: advancing the real scope retires its stale row in the periodic
+	// stale-generation sweep while the synthetic row on the always-active
+	// genesis survives. Since #10863 the drain's claims only fence the
+	// stale row at hand-out, so the drainer ticks one sweep pass first,
+	// as the production sweeper does on its interval.
 	g2synth := "GHSA-COALESCE-HOMED"
 	g2synthID := reducerWorkItemID(coalescing10566Intent(synth, genesis, g2synth))
 	mustCoalescing10566Touch(t, ctx, enq, synth, genesis, g2synth)
@@ -247,7 +250,11 @@ func TestAdvisoryCoalescingLifecycleLive(t *testing.T) {
 		t.Fatalf("retire gen1: %v", err)
 	}
 	coalescing10566SeedGeneration(t, ctx, db, realGen2, realScope, "active")
-	drainAll(mkQueue("drainer-"+suffix), 10)
+	drainer := mkQueue("drainer-" + suffix)
+	if _, err := drainer.SupersedeStaleReducerGenerations(ctx, 100); err != nil {
+		t.Fatalf("SupersedeStaleReducerGenerations: %v", err)
+	}
+	drainAll(drainer, 10)
 	if s := coalescing10566Status(t, ctx, db, g2realID); s != "superseded" {
 		t.Fatalf("A-2 real stale row = %s, want superseded", s)
 	}

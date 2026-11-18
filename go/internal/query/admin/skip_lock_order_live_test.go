@@ -4,7 +4,7 @@
 package admin_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the reducer claim sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8261 admin repository skip (SkipRepositoryWorkItems) lock order against the recovery replay, the admin replay and the standalone stale-generation sweep over failed rows of a superseded generation: the held-middle-row race completes in both start orders (main: 6 of 6 40P01), 150 rounds of all four with a 2 ms per-row trigger sleep and random start delays give 0 x 40P01 (main: 98 x 40P01), and the EvalPlanQual case drops a row claimed or replayed before the skip's lock step; isolated schemas; about 100-180 s locally including two 400,000-row seeds; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -50,10 +50,13 @@ func skipLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 // TestSkipRepositoryHeldRowRaceLive races the admin repository skip
 // (SkipRepositoryWorkItems) against the ordered lockers that hold the same
 // rows (#8261): the recovery and admin replays on failed rows, and the
-// reducer claim sweep on an older generation's failed reducer rows. The skip
-// locks in its selection order (updated_at DESC); the others lock in
-// work_item_id COLLATE "C" order. Each pair runs in both start orders
-// through the held middle row, and both statements must succeed.
+// standalone stale-generation sweep on an older generation's failed
+// reducer rows. The skip locks in its selection order (updated_at DESC);
+// the others lock in work_item_id COLLATE "C" order. Each pair runs in
+// both start orders through the held middle row, and both statements must
+// succeed. Since #10863 the sweep is SKIP LOCKED, so its pair runs the
+// sweep-completes-around-the-held-row choreography instead of waiting
+// for both lockers to block.
 func TestSkipRepositoryHeldRowRaceLive(t *testing.T) {
 	f := openAdminLockOrderFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -70,9 +73,22 @@ func TestSkipRepositoryHeldRowRaceLive(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				f.seedSkipRows(t, ctx, skipLockOrderIDs)
-				resultA, resultB := f.raceThroughHeldRow(t, ctx, skipLockOrderIDs[1],
-					func(ctx context.Context, db *sql.DB) adminLockOrderReplay { return startAdminLocker(ctx, db, a) },
-					func(ctx context.Context, db *sql.DB) adminLockOrderReplay { return startAdminLocker(ctx, db, b) })
+				var resultA, resultB adminLockOrderResult
+				if other.sweep {
+					sweepResult, skipResult := f.raceSweepThroughHeldRow(t, ctx, skipLockOrderIDs[1], !skipFirst,
+						startSweep,
+						func(ctx context.Context, db *sql.DB) adminLockOrderReplay {
+							return startAdminLocker(ctx, db, skipLocker)
+						})
+					resultA, resultB = sweepResult, skipResult
+					if skipFirst {
+						resultA, resultB = skipResult, sweepResult
+					}
+				} else {
+					resultA, resultB = f.raceThroughHeldRow(t, ctx, skipLockOrderIDs[1],
+						func(ctx context.Context, db *sql.DB) adminLockOrderReplay { return startAdminLocker(ctx, db, a) },
+						func(ctx context.Context, db *sql.DB) adminLockOrderReplay { return startAdminLocker(ctx, db, b) })
+				}
 				verdict := "one-way"
 				for label, result := range map[string]adminLockOrderResult{nameA: resultA, nameB: resultB} {
 					if result.err != nil {
@@ -91,7 +107,7 @@ func TestSkipRepositoryHeldRowRaceLive(t *testing.T) {
 }
 
 // seedSkipScope inserts scope sk, its superseded generation sk-g1 (whose
-// rows the claim sweep retires) and its active generation sk-g2.
+// rows the stale sweep retires) and its active generation sk-g2.
 func (f *adminLockOrderFixture) seedSkipScope(t *testing.T, ctx context.Context) {
 	t.Helper()
 	interleaveExec(t, ctx, f.base, `
@@ -109,10 +125,12 @@ VALUES ('sk-g1', 'sk', 'snapshot', 'x', $1::timestamptz, $1::timestamptz - inter
 func skipOtherLockers() []struct {
 	name   string
 	locker func(context.Context, *sql.DB) ([]string, error)
+	sweep  bool
 } {
 	return []struct {
 		name   string
 		locker func(context.Context, *sql.DB) ([]string, error)
+		sweep  bool
 	}{
 		{name: "recovery replay", locker: func(ctx context.Context, db *sql.DB) ([]string, error) {
 			r := startRecoveryReplay(ctx, db, recovery.ReplayFilter{Stage: recovery.StageReducer, ScopeIDs: []string{"sk"}}).wait()
@@ -122,8 +140,8 @@ func skipOtherLockers() []struct {
 			r := startAdminReplay(ctx, db, admin.ReplayWorkItemFilter{ScopeID: "sk", Stage: "reducer"}).wait()
 			return r.ids, r.err
 		}},
-		{name: "claim sweep", locker: func(ctx context.Context, db *sql.DB) ([]string, error) {
-			r := startClaim(ctx, db).wait()
+		{name: "stale sweep", sweep: true, locker: func(ctx context.Context, db *sql.DB) ([]string, error) {
+			r := startSweep(ctx, db).wait()
 			return r.ids, r.err
 		}},
 	}
@@ -218,10 +236,10 @@ func TestSkipRepositoryDropsRowChangedBeforeItsLockLive(t *testing.T) {
 }
 
 // TestSkipRepositoryConcurrentWithReplaysAndSweepNeverDeadlockLive runs the
-// skip, a recovery replay, an admin replay and a reducer claim concurrently
-// over 18 failed rows for 150 rounds (#8261), each after a random start
-// delay, with a 2 ms per-row trigger sleep. No round may deadlock or leave a
-// row outside the states those statements produce.
+// skip, a recovery replay, an admin replay and a standalone sweep pass
+// concurrently over 18 failed rows for 150 rounds (#8261), each after a
+// random start delay, with a 2 ms per-row trigger sleep. No round may
+// deadlock or leave a row outside the states those statements produce.
 func TestSkipRepositoryConcurrentWithReplaysAndSweepNeverDeadlockLive(t *testing.T) {
 	f := openAdminLockOrderFixture(t, true)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)

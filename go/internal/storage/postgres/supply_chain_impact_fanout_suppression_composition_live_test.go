@@ -225,7 +225,12 @@ func TestSuppressionFanOutCoalescedChainReopensBothHoldersLive(t *testing.T) {
 		t.Fatalf("claim after C activates = %v %v, want the C pass", ok, err)
 	}
 	if intent.GenerationID != genC {
-		t.Fatalf("claimed generation = %s, want C: the sweep must supersede B's item", intent.GenerationID)
+		t.Fatalf("claimed generation = %s, want C: the claim gate must fence B's item", intent.GenerationID)
+	}
+	// Since #10863 the claim fences B's stale item without terminalizing
+	// it; one periodic sweep pass supersedes it.
+	if _, err := c.queue.SupersedeStaleReducerGenerations(c.ctx, 100); err != nil {
+		t.Fatalf("SupersedeStaleReducerGenerations: %v", err)
 	}
 	if got := fanOutItem(t, c.ctx, c.db, itemB); got.status != "superseded" {
 		t.Fatalf("B's item = %+v, want superseded without ever running", got)

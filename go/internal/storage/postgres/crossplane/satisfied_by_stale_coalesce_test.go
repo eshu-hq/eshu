@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -70,12 +71,60 @@ func coalesceExecutionsByScope(written []map[string]any) map[string]int {
 	return out
 }
 
+// coalesceSweep runs one periodic stale-generation sweep pass. Since
+// #10863 the claims only fence stale rows at hand-out through the
+// read-only gate; this out-of-claim pass (the production
+// ReducerStaleGenerationSweeper's statement) is what terminalizes them,
+// so the coalesce proofs drive it explicitly in production order.
+func coalesceSweep(ctx context.Context, t *testing.T, queue postgres.ReducerQueue) int {
+	t.Helper()
+	swept, err := queue.SupersedeStaleReducerGenerations(ctx, 1000)
+	if err != nil {
+		t.Fatalf("SupersedeStaleReducerGenerations: %v", err)
+	}
+	return swept
+}
+
+// drainCoalesceQueue drains like drainQuietDeltaQueue, ticking one sweep
+// pass before each claim: the production sweeper's fastest-cadence form,
+// and the pairing that prunes each scope's stale siblings against their
+// carrier before the carrier executes (after it succeeds, a fenced
+// sibling would turn claimable again and re-run the materialization).
+func drainCoalesceQueue(ctx context.Context, t *testing.T, queue postgres.ReducerQueue, rt *reducer.Runtime) {
+	t.Helper()
+	for range 8 {
+		coalesceSweep(ctx, t, queue)
+		intent, claimed, err := queue.Claim(ctx)
+		if err != nil {
+			t.Fatalf("Claim: %v", err)
+		}
+		if !claimed {
+			return
+		}
+		result, err := rt.Execute(ctx, intent)
+		if err != nil {
+			t.Fatalf("Execute(%s): %v", intent.IntentID, err)
+		}
+		if result.Status == reducercontract.ResultStatusSuperseded {
+			t.Fatalf("Execute(%s) superseded (generation %s): the replay was dropped", intent.IntentID, intent.GenerationID)
+		}
+		if err := queue.Ack(ctx, intent, result); err != nil {
+			t.Fatalf("Ack(%s): %v", intent.IntentID, err)
+		}
+	}
+	t.Fatal("queue did not drain within 8 claims")
+}
+
 // testCrossplaneStaleRowCoalesceLive is the #10269 acceptance proof, run as
 // the stale_coalesce subtest of the scheduled redrive proof. The shim's
 // seven guard cases run over the real ReducerQueue and Runtime: stale
 // per-generation rows coalesce onto the newest pending/retrying carrier,
 // while the #10106 rebind debt (sole stale row, dead-letter newest) is
-// never absorbed.
+// never absorbed. Since #10863 the pair is the read-only claim gate plus
+// the periodic sweep: claims fence stale siblings at hand-out and the
+// sweep terminalizes them, so the drains below tick the sweep between
+// claims exactly as the already-retargeted parent-package coalesce
+// proofs do.
 func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 	t.Run("guard cases drain to one execution per scope", func(t *testing.T) {
 		db, _ := crossplaneRedriveProofDB(t)
@@ -97,8 +146,8 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 
 		spy := &quietDeltaSpyEdgeWriter{}
 		rt := quietDeltaRuntime(t, db, spy)
-		// The shared drain helper caps at 8 claims; 5 scopes need 5.
-		drainQuietDeltaQueue(ctx, t, queue, rt)
+		// The drain helper caps at 8 claims; 5 scopes need 5.
+		drainCoalesceQueue(ctx, t, queue, rt)
 
 		written, gens := spy.snapshot()
 		executions := coalesceExecutionsByScope(written)
@@ -150,7 +199,11 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		}
 	})
 
-	t.Run("three queued generations collapse in one batch claim", func(t *testing.T) {
+	// Renamed from "collapse in one batch claim": since #10863 the batch
+	// claim only fences the stale siblings, and the sweep pass ticking
+	// before it is what terminalizes them. The execution assertions are
+	// unchanged.
+	t.Run("three queued generations collapse under sweep plus batch claim", func(t *testing.T) {
 		db, _ := crossplaneRedriveProofDB(t)
 		ctx := context.Background()
 		now := time.Now().UTC()
@@ -160,6 +213,9 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		seedCoalesceScope(ctx, t, db, queue, "coal-chain",
 			[]string{"coal-chain-g1", "coal-chain-g2", "coal-chain-g3"}, group, kind, now)
 
+		if swept := coalesceSweep(ctx, t, queue); swept != 2 {
+			t.Fatalf("sweep superseded %d rows, want the 2 stale siblings", swept)
+		}
 		intents, err := queue.ClaimBatch(ctx, 8)
 		if err != nil {
 			t.Fatalf("ClaimBatch: %v", err)
@@ -169,7 +225,7 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		}
 		for _, gen := range []string{"coal-chain-g1", "coal-chain-g2"} {
 			if got := quietDeltaWorkItemStatus(ctx, t, db, "coal-chain", gen); got != "superseded" {
-				t.Errorf("stale row %s status = %q, want superseded by the batch claim sweep", gen, got)
+				t.Errorf("stale row %s status = %q, want superseded by the sweep before the batch claim", gen, got)
 			}
 		}
 		spy := &quietDeltaSpyEdgeWriter{}
@@ -206,7 +262,7 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		}
 		spy := &quietDeltaSpyEdgeWriter{}
 		rt := quietDeltaRuntime(t, db, spy)
-		drainQuietDeltaQueue(ctx, t, queue, rt)
+		drainCoalesceQueue(ctx, t, queue, rt)
 		written, gens := spy.snapshot()
 		if len(written) != 1 || gens[0] != "coal-activecarrier-delta" {
 			t.Fatalf("executions = %v gens %v, want one run under the active generation", written, gens)
@@ -254,7 +310,7 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		if err := queue.Ack(ctx, intent, result); err != nil {
 			t.Fatalf("Ack g1: %v", err)
 		}
-		drainQuietDeltaQueue(ctx, t, queue, rt)
+		drainCoalesceQueue(ctx, t, queue, rt)
 		written, _ := spy.snapshot()
 		if len(written) != 2 {
 			t.Fatalf("executions = %d, want 2 (in-flight g1 + newest carrier), independent of queued generations", len(written))
@@ -268,7 +324,7 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 	})
 
 	t.Run("sibling claimed before the sweep lock keeps the stale row", func(t *testing.T) {
-		db, targetDSN := crossplaneRedriveProofDB(t)
+		db, _ := crossplaneRedriveProofDB(t)
 		ctx := context.Background()
 		now := time.Now().UTC()
 		const group, kind = "epq.example.org", "XEpqClaim"
@@ -277,57 +333,31 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		seedCoalesceScope(ctx, t, db, queue, "coal-epq",
 			[]string{"coal-epq-g1", "coal-epq-g2"}, group, kind, now)
 
-		// X holds the stale g1 row lock with a version-bumping update. The
-		// sweep's lock step snapshots g2 as a pending carrier and waits on
-		// X; meanwhile a third session claims g2. When X commits, g2's
-		// claimed version fails the lock step's row-self status quals, so
-		// g2 never enters the locked carrier set: with no locked carrier,
-		// the carrier condition fails and g1 survives.
-		holder := crossplaneRedriveProofConn(t, targetDSN)
-		tx, err := holder.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatalf("begin holder: %v", err)
-		}
-		defer func() { _ = tx.Rollback() }()
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE fact_work_items SET updated_at = updated_at
-			WHERE scope_id = 'coal-epq' AND generation_id = 'coal-epq-g1'
-			  AND domain = 'crossplane_satisfied_by_materialization'
-		`); err != nil {
-			t.Fatalf("holder lock: %v", err)
-		}
-		var holderPID int
-		if err := tx.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&holderPID); err != nil {
-			t.Fatalf("holder pid: %v", err)
-		}
-
-		sweeperDB := crossplaneRedriveProofConn(t, targetDSN)
-		var sweeperPID int
-		if err := sweeperDB.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&sweeperPID); err != nil {
-			t.Fatalf("sweeper pid: %v", err)
-		}
-		sweepQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: sweeperDB}, "coalesce-epq-sweep", time.Minute)
-		sweepDone := make(chan error, 1)
-		go func() {
-			_, _, claimErr := sweepQueue.Claim(ctx)
-			sweepDone <- claimErr
-		}()
-		waitCoalesceBlocked(ctx, t, db, sweeperPID, holderPID)
-
+		// Another worker leases the carrier g2 and commits before the
+		// sweep's lock step runs (the parent package's
+		// carrier-claimed-before-lock retarget). Carrier membership is
+		// membership in that lock step's output, decided by row-self
+		// status quals, so the claimed carrier never enters the locked
+		// set: with no locked carrier, the sweep spares g1 as the #10106
+		// rebind fallback, and the claim gate fences it only while the
+		// carrier stays in flight. The pre-#10863 form raced the carrier
+		// claim against the claim's own blocking lock step; claims no
+		// longer lock stale rows, and the standalone sweep is SKIP
+		// LOCKED, so that blocked-pid interleaving no longer exists.
 		crossplaneRedriveMustExec(ctx, t, db, `
 			UPDATE fact_work_items
 			SET status = 'claimed', lease_owner = 'epq-carrier-worker', claim_until = $1
 			WHERE scope_id = 'coal-epq' AND generation_id = 'coal-epq-g2'
 			  AND domain = 'crossplane_satisfied_by_materialization'
 		`, time.Now().UTC().Add(time.Hour))
-		if err := tx.Commit(); err != nil {
-			t.Fatalf("commit holder: %v", err)
+		if swept := coalesceSweep(ctx, t, queue); swept != 0 {
+			t.Fatalf("sweep superseded %d rows, want 0 (claimed carrier never counts)", swept)
 		}
-		if err := <-sweepDone; err != nil {
-			t.Fatalf("sweep claim: %v", err)
+		if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+			t.Fatalf("Claim = claimed %t err %v, want no hand-out while the carrier is leased", claimed, err)
 		}
-		if got := quietDeltaWorkItemStatus(ctx, t, db, "coal-epq", "coal-epq-g1"); got == "superseded" {
-			t.Fatalf("stale row superseded although its only carrier was claimed before the lock: the rebind fallback was destroyed")
+		if got := quietDeltaWorkItemStatus(ctx, t, db, "coal-epq", "coal-epq-g1"); got != "pending" {
+			t.Fatalf("stale row status = %q, want pending: superseding it against a carrier claimed before the lock would destroy the rebind fallback", got)
 		}
 		if got := quietDeltaWorkItemStatus(ctx, t, db, "coal-epq", "coal-epq-g2"); got != "claimed" {
 			t.Fatalf("carrier status = %q, want claimed untouched", got)
@@ -354,7 +384,7 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		}
 		spy := &quietDeltaSpyEdgeWriter{}
 		rt := quietDeltaRuntime(t, db, spy)
-		drainQuietDeltaQueue(ctx, t, queue, rt)
+		drainCoalesceQueue(ctx, t, queue, rt)
 		written, _ := spy.snapshot()
 		if len(written) != scopes {
 			t.Fatalf("handler executions = %d, want %d (one per scope; %d rows queued)", len(written), scopes, scopes*gens)
@@ -383,6 +413,17 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 		seedQueue := postgres.NewReducerQueue(postgres.SQLDB{DB: db}, "coalesce-race-seed", time.Minute)
 		seedCoalesceScope(ctx, t, db, seedQueue, "coal-race",
 			[]string{"coal-race-g1", "coal-race-g2", "coal-race-g3"}, group, kind, now)
+
+		// One sweeper pass ticks before the race, as the independent
+		// production sweeper may: it terminalizes both stale siblings
+		// against the still-pending newest carrier. Racing first would
+		// leave the middle row as the in-flight carrier's rebind
+		// fallback, so this is the order that keeps the superseded
+		// assertions below at full strength; the two claimers then race
+		// for the sole surviving carrier.
+		if swept := coalesceSweep(ctx, t, seedQueue); swept != 2 {
+			t.Fatalf("sweep superseded %d rows, want the 2 stale siblings", swept)
+		}
 
 		queues := []postgres.ReducerQueue{
 			postgres.NewReducerQueue(postgres.SQLDB{DB: crossplaneRedriveProofConn(t, targetDSN)}, "coale-race-a", time.Minute),
@@ -440,25 +481,4 @@ func testCrossplaneStaleRowCoalesceLive(t *testing.T) {
 			}
 		}
 	})
-}
-
-// waitCoalesceBlocked polls until pid is blocked by blocker in
-// pg_blocking_pids, proving the sweep reached its lock step and is waiting
-// on the holder before the test mutates the carrier.
-func waitCoalesceBlocked(ctx context.Context, t *testing.T, db *sql.DB, pid, blocker int) {
-	t.Helper()
-	deadline := time.Now().Add(30 * time.Second)
-	for time.Now().Before(deadline) {
-		var blocked bool
-		if err := db.QueryRowContext(ctx, `
-			SELECT $2 = ANY(pg_blocking_pids($1))
-		`, pid, blocker).Scan(&blocked); err != nil {
-			t.Fatalf("poll pg_blocking_pids: %v", err)
-		}
-		if blocked {
-			return
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
-	t.Fatalf("pid %d never blocked on holder %d within 30s", pid, blocker)
 }

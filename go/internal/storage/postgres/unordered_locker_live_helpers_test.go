@@ -19,8 +19,8 @@ import (
 // Shared fixture for the #8261 repros: the multi-row fact_work_items lockers
 // that #8205 left unordered (poison recovery, the retention cascade delete
 // and projector Ack's obsolete-generation supersede) raced against the
-// ordered lockers (the recovery replays and the reducer claim sweep, both
-// work_item_id COLLATE "C"). Each repro seeds one small scope on top of the
+// ordered lockers (the recovery replays and the standalone stale sweep,
+// both work_item_id COLLATE "C"). Each repro seeds one small scope on top of the
 // 400,000-row background of the #8205 fixture, so the planner sees
 // production-shaped statistics, and drives the pair through
 // raceThroughHeldRow: the outcome then depends only on the two lock orders.
@@ -172,11 +172,14 @@ func recoveryReplayLocker(filter recovery.ReplayFilter) func(context.Context, *s
 	}
 }
 
-// claimSweepLocker runs one reducer claim, and with it the claim-time
-// supersede sweep (supersedeInactiveReducerGenerationsCTE).
-func claimSweepLocker(ctx context.Context, db *sql.DB) ([]string, error) {
+// staleSweepLocker runs one standalone stale-generation sweep pass
+// (supersedeInactiveReducerGenerationsCTE). Since #10863 that statement,
+// not a reducer claim, is the production locker that terminalizes stale
+// rows: it locks in work_item_id COLLATE "C" order with SKIP LOCKED, so
+// it never waits on the other lockers raced here.
+func staleSweepLocker(ctx context.Context, db *sql.DB) ([]string, error) {
 	clock := time.Now().UTC()
-	_, _, err := newOwnGateQueue(db, &clock, "workload_identity").Claim(ctx)
+	_, err := newOwnGateQueue(db, &clock, "workload_identity").SupersedeStaleReducerGenerations(ctx, 1000)
 	return nil, err
 }
 

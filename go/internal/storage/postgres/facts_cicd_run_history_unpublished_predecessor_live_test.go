@@ -60,7 +60,12 @@ func TestCICDRunCorrelationArtifactPatchRebuildsUnpublishedPredecessor(t *testin
 		t.Fatalf("claim active artifact generation: %v", err)
 	}
 	if !ok || claimed.GenerationID != "gen-2" {
-		t.Fatalf("claimed intent = %#v, want active gen-2 after gen-1 supersession", claimed)
+		t.Fatalf("claimed intent = %#v, want active gen-2 (gen-1 fenced at hand-out)", claimed)
+	}
+	// Since #10863 the claim only fences the stale predecessor; the
+	// periodic stale-generation sweep terminalizes it.
+	if swept, err := queue.SupersedeStaleReducerGenerations(ctx, 100); err != nil || swept != 1 {
+		t.Fatalf("SupersedeStaleReducerGenerations = %d, %v; want 1, nil", swept, err)
 	}
 	var predecessorStatus string
 	if err := db.QueryRowContext(ctx, `
