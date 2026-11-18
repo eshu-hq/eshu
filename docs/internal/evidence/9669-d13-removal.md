@@ -67,6 +67,31 @@ retired-component references). The satellite owns its own registry
 for the HTTP surface it now serves; satellite metric/span/log names
 are Leaf E follow-up.
 
+## Provenance appendix (coordinator re-runs on the D13 head)
+
+All commands run in the `drive/9669-d13-removal` worktree at the
+pushed head, Go 1.26.11, `GOTMPDIR=~/tmp/gotmp-9669`, exit codes as
+shown:
+- `bash scripts/test-capability-stub-satellite.sh` → exit 0,
+  `stub-satellite harness: 11 passed, 0 failed`.
+- `cd go && GOWORK=off go test -count=1
+  ./cmd/capability-inventory/` → exit 0,
+  `ok github.com/eshu-hq/eshu/go/cmd/capability-inventory`.
+- `GOWORK=off go vet ./cmd/capability-inventory/` → exit 0, no
+  findings. `gofmt -l` on the touched Go files → empty.
+- `bash scripts/test-verify-golden-corpus-gate.sh` and
+  `bash scripts/test-stage-differential-capture.sh` → exit 0
+  (`test-verify-golden-corpus-gate: pass`; `differential capture
+  staging is complete, isolated and fail-closed`).
+- `bash -n` + `shellcheck -S warning` on the touched shell files →
+  clean (one pre-existing SC2154 note class shared with the file's
+  older lines: sourced-lib variables).
+- Census recounts on this head: `go/cmd/api` tracked files 0 (was
+  126); non-test query-root importers outside `go/cmd/api` +
+  `go/internal/query` empty; `go/cmd/api` importers outside itself
+  unchanged (single test file); zero remaining Go references to the
+  five retired telemetry instruments.
+
 ## Left for the merge gate and the owners
 
 `Dockerfile` row 11 (satellite-binary swap) waits on the owner-provided

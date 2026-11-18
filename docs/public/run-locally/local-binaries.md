@@ -57,6 +57,9 @@ By default the script installs to `GOBIN`, or to `$(go env GOPATH)/bin` when
 The script installs:
 
 - owner and API binaries: `eshu`, `eshu-api` (`eshu-mcp-server` ships with the satellite `eshu-hq/eshu-mcp`)
+  > Retired 2026-11-17 (D13 removal): the install script no longer
+  > ships `eshu-api`; install the serving eshu-api satellite release
+  > instead, once the satellite cutover publishes its coordinates.
 - indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
   `eshu-reducer`, `eshu-projector`
 - collector and control-plane binaries: `eshu-workflow-coordinator`,

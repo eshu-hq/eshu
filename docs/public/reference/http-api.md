@@ -307,6 +307,11 @@ open read surface with one of those three environment variables. Both `cmd/api`
 and the `eshu-mcp-server` satellite log the resolved posture (`auth.enforcement.configured` or
 `auth.enforcement.open`) once at startup.
 
+> Retired 2026-11-17 (D13 removal): the in-tree `cmd/api` binary no
+> longer exists, so the startup-posture log described above now comes
+> from the serving eshu-api satellite. This sentence keeps the old
+> wording until the serving owner confirms the satellite log line.
+
 ### All-scope credentials on grant-filtered routes
 
 A credential marked all-scope — a `ESHU_SCOPED_TOKENS_FILE` entry with
