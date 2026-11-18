@@ -424,9 +424,6 @@ var migrationShippedChecksums = map[string]string{
 	// #10828: the NVD baseline per-year plan row table (migration 312; 311
 	// is #10837 direction C's scanner staging capture).
 	"312_vulnerability_nvd_baseline_plans.sql": "940c733be9bddf69e1fd474c359e0513335671eb9d96e11af5cc2df171a3b8ab",
-	// #10828: the NVD baseline per-year plan row table (migration 309; 308
-	// is #10827's scanner capture trigger upsert).
-	"309_vulnerability_nvd_baseline_plans.sql": "e4fea9c9c4a4eb3de7cb70a225c243fca7a7de104733da6978ea7d9c67a61054",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

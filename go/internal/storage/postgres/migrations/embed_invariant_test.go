@@ -287,19 +287,10 @@ import (
 // adds 312_vulnerability_nvd_baseline_plans.sql (the per-year plan row the
 // admission transaction writes for each inserted baseline chunk; one CREATE
 // TABLE, no index).
-const goldenBootstrapDefinitionsDigest = "9824885cfeb158705151ac1e88551bc641e2f0cdaca913a47b48c97ee88194b0"
-const goldenBootstrapDefinitionsCount = 338
-// scanner capture triggers as key-ordered upserts, public-only). #10828 adds
-// 309_vulnerability_nvd_baseline_plans.sql (the per-year plan row the
-// admission transaction writes for each inserted baseline chunk; one CREATE
-// TABLE, no index).
-const goldenBootstrapDefinitionsDigest = "1dba3ed5c3337e04eef99101374eb593266417dabdf1544ad4165f1373e3e09b"
-
-// goldenBootstrapDefinitionsCount pins the definition count alongside the
-// digest so a truncated embed pattern (e.g. matching embed.go itself, or
-// silently dropping files) fails loudly even in the unlikely case of a hash
-// collision.
-const goldenBootstrapDefinitionsCount = 335
+const (
+	goldenBootstrapDefinitionsDigest = "9824885cfeb158705151ac1e88551bc641e2f0cdaca913a47b48c97ee88194b0"
+	goldenBootstrapDefinitionsCount  = 338
+)
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()
