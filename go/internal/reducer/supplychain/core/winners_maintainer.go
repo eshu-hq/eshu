@@ -87,9 +87,9 @@ type SupplyChainImpactWinnersResweep struct {
 	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
 	// keyed resweep (#9805), which the maintainer reads as full.
 	Path string
-	// Identifiers is the number of dirty-log identifier rows a keyed tick
-	// consumed and Keys the number of canonical keys it recomputed. They are zero
-	// on the full path.
+	// Identifiers is the number of dirty-log marks (dirty_version sums, #10827)
+	// a keyed tick consumed and Keys the number of canonical keys it recomputed.
+	// They are zero on the full path.
 	Identifiers int64
 	Keys        int64
 	// TriggerCaptured is the consumed dirty-log marks (version sums, #10827)

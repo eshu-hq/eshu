@@ -70,26 +70,26 @@ func ExplainWinnersKeyedForTest(ctx context.Context, database *sql.DB, materiali
 // dirty log and the winners table are unchanged afterwards. The setup runs the
 // production statements (including the tick's temp indexes), so the plans are
 // the plans the tick gets.
-func ExplainWinnersKeyedSettleForTest(ctx context.Context, database *sql.DB) (convertPlan, deletePlan string, err error) {
+func ExplainWinnersKeyedSettleForTest(ctx context.Context, database *sql.DB) (convertPlan, deletePlan, fallbackPlan string, err error) {
 	tx, err := (SQLDB{DB: database}).Begin(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("begin settle explain transaction: %w", err)
+		return "", "", "", fmt.Errorf("begin settle explain transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx); err != nil || !claimed {
-		return "", "", fmt.Errorf("claim resweep lock for settle explain: claimed=%v err=%v", claimed, err)
+		return "", "", "", fmt.Errorf("claim resweep lock for settle explain: claimed=%v err=%v", claimed, err)
 	}
 	if _, err := admitWinnersDirtyWindow(ctx, tx, defaultWinnersChunkMaxDirtyRows); err != nil {
-		return "", "", fmt.Errorf("admit window for settle explain: %w", err)
+		return "", "", "", fmt.Errorf("admit window for settle explain: %w", err)
 	}
 	for _, stmt := range winnersKeyedBuildIdentsStmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return "", "", fmt.Errorf("build identifiers for settle explain: %w", err)
+			return "", "", "", fmt.Errorf("build identifiers for settle explain: %w", err)
 		}
 	}
 	var empty SupplyChainImpactWinnersStore
 	if _, err := buildWinnersKeyedChunk(ctx, tx, empty.chunkBounds()); err != nil {
-		return "", "", fmt.Errorf("build chunk for settle explain: %w", err)
+		return "", "", "", fmt.Errorf("build chunk for settle explain: %w", err)
 	}
 	explain := func(stmt string) (string, error) {
 		rows, err := tx.QueryContext(ctx, "EXPLAIN "+stmt)
@@ -108,10 +108,13 @@ func ExplainWinnersKeyedSettleForTest(ctx context.Context, database *sql.DB) (co
 		return strings.Join(lines, "\n"), rows.Err()
 	}
 	if convertPlan, err = explain(convertWinnersKeyedScopeRemainderSelectSQL); err != nil {
-		return "", "", fmt.Errorf("explain keyed scope remainder convert: %w", err)
+		return "", "", "", fmt.Errorf("explain keyed scope remainder convert: %w", err)
 	}
 	if deletePlan, err = explain(deleteWinnersKeyedAppliedDirtySQL); err != nil {
-		return "", "", fmt.Errorf("explain keyed applied delete: %w", err)
+		return "", "", "", fmt.Errorf("explain keyed applied delete: %w", err)
 	}
-	return convertPlan, deletePlan, nil
+	if fallbackPlan, err = explain(deleteWinnersKeyedAllDirtySQL); err != nil {
+		return "", "", "", fmt.Errorf("explain keyed fallback delete: %w", err)
+	}
+	return convertPlan, deletePlan, fallbackPlan, nil
 }
