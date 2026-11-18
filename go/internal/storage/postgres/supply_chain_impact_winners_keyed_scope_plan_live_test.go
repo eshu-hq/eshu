@@ -52,6 +52,35 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 	t.Logf("applied-delete plan:\n%s", deletePlan)
 	t.Logf("fallback-delete plan:\n%s", fallbackPlan)
 
+	// planHasJoinKeyLine reports whether any plan line carries the seq
+	// equijoin as a join key (Hash/Merge/Index Cond). planHasSeqFilterLine
+	// reports whether any plan line filters on seq after the join. Both are
+	// line-based because a statistics-blind nested loop over a two-qual
+	// join (ON c.seq = d.seq plus the version recheck) renders as one
+	// combined filter such as
+	// Join Filter: ((c.seq = d.seq) AND (...)), which an exact single-string
+	// match on "Join Filter: (c.seq = d.seq)" misses while a bare substring
+	// still matches inside it.
+	planHasJoinKeyLine := func(plan string) bool {
+		for _, line := range strings.Split(plan, "\n") {
+			if strings.Contains(line, "seq") &&
+				(strings.Contains(line, "Hash Cond:") ||
+					strings.Contains(line, "Merge Cond:") ||
+					strings.Contains(line, "Index Cond:")) {
+				return true
+			}
+		}
+		return false
+	}
+	planHasSeqFilterLine := func(plan string) bool {
+		for _, line := range strings.Split(plan, "\n") {
+			if strings.Contains(line, "Join Filter") && strings.Contains(line, "seq") {
+				return true
+			}
+		}
+		return false
+	}
+
 	// The convert must probe the chunk through its unique index (not rescan
 	// it per expansion row) and reach the expansion through the
 	// (scope_id, generation_id) index.
@@ -74,27 +103,30 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 		!strings.Contains(deletePlan, "winners_keyed_consumed_seq_idx") {
 		t.Error("applied-delete plan joins the dirty log to the admitted window with no index in either direction")
 	}
-	if strings.Contains(deletePlan, "Join Filter: (d.seq = c.seq)") {
-		t.Error("applied-delete plan filters d.seq = c.seq per row instead of an index join: the statistics-blind nested loop is back")
+	if !planHasJoinKeyLine(deletePlan) {
+		t.Error("applied-delete plan carries the seq equijoin on no Hash/Merge/Index Cond line: the join key is not pinned")
+	}
+	if planHasSeqFilterLine(deletePlan) {
+		t.Error("applied-delete plan filters seq equality per row instead of joining on it: the statistics-blind nested loop is back")
 	}
 	// The over-cap fallback delete (deleteWinnersKeyedAllDirtySQL) must keep
-	// the seq equijoin as a join key — a Hash Cond or an Index Cond — never
-	// a per-row Join Filter. Measured (2026-11-18, PG18, 5,000-row admitted
-	// window, analyzed stats, winners_keyed_consumed_seq_idx present): the
-	// planner hash-joins, correctly — probing the pkey once per admitted row
-	// costs more than one log scan plus hash at this width, and the admitted
-	// window is hard-capped at 5,000 rows so the hash side is bounded. An
-	// index-probe assertion would demand the slower plan; the regression
-	// class this pins is the statistics-blind nested loop that filters
-	// seq equality per row (or rescans the log per consumed row).
-	if !strings.Contains(fallbackPlan, "c.seq = d.seq") &&
-		!strings.Contains(fallbackPlan, "d.seq = c.seq") &&
-		!strings.Contains(fallbackPlan, "seq = c.seq") &&
-		!strings.Contains(fallbackPlan, "seq = d.seq") {
-		t.Error("fallback-delete plan carries no seq equijoin between the dirty log and the admitted window")
+	// the seq equijoin as a join key — a Hash Cond, Merge Cond, or Index
+	// Cond line mentioning seq — never a per-row Join Filter. Measured
+	// (2026-11-18, PG18, 5,000-row admitted window, analyzed stats,
+	// winners_keyed_consumed_seq_idx present): the planner hash-joins,
+	// correctly — probing the pkey once per admitted row costs more than
+	// one log scan plus hash at this width, and the admitted window is
+	// hard-capped at 5,000 rows so the hash side is bounded. An index-probe
+	// assertion would demand the slower plan; the regression class this pins
+	// is the statistics-blind nested loop that filters seq equality per row
+	// (or rescans the log per consumed row). The checks are line-based
+	// because the fallback join has two quals (ON seq plus the version
+	// recheck), so the blind shape renders as one combined filter such as
+	// Join Filter: ((c.seq = d.seq) AND (...)).
+	if !planHasJoinKeyLine(fallbackPlan) {
+		t.Error("fallback-delete plan carries the seq equijoin on no Hash/Merge/Index Cond line: the join key is not pinned")
 	}
-	if strings.Contains(fallbackPlan, "Join Filter: (d.seq = c.seq)") ||
-		strings.Contains(fallbackPlan, "Join Filter: (c.seq = d.seq)") {
+	if planHasSeqFilterLine(fallbackPlan) {
 		t.Error("fallback-delete plan filters seq equality per row instead of joining on it: the statistics-blind nested loop is back")
 	}
 }
