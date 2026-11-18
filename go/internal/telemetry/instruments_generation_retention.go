@@ -37,10 +37,22 @@ const SpanGenerationRetentionExpiredReport = "generation_retention.expired_repor
 // expired-but-blocked generation adds to the expired-report span.
 const GenerationRetentionExpiredBlockedEvent = "generation_retention.expired_blocked"
 
+// SpanGenerationRetentionRelationshipSweep wraps one relationship retention
+// pass (#10823): the orphan census and, when deletes are enabled, the committed
+// batches. The span carries the pass counts; each committed batch adds one
+// generation_retention.relationship_batch event with its row counts. Generation
+// identifiers stay out of span attributes and metric labels.
+const SpanGenerationRetentionRelationshipSweep = "generation_retention.relationship_sweep"
+
+// GenerationRetentionRelationshipBatchEvent is the span event one committed
+// relationship retention batch adds to the sweep span.
+const GenerationRetentionRelationshipBatchEvent = "generation_retention.relationship_batch"
+
 // registerGenerationRetentionPhaseInstruments registers the per-phase,
 // scope-lock-hold and search index pre-delete batch histograms of the
-// generation retention cycle, and the search index orphan census gauge and
-// swept-rows counter (#7427 PR2), on inst.
+// generation retention cycle, the search index orphan census gauge and
+// swept-rows counter (#7427 PR2), and the relationship retention census gauge
+// and sweep counters (#10823), on inst.
 func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.GenerationRetentionPhaseDuration, err = meter.Float64Histogram(
@@ -111,6 +123,34 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 		metric.WithUnit("{row}"),
 	); err != nil {
 		return fmt.Errorf("register SearchIndexSupersededRowsSwept counter: %w", err)
+	}
+	if inst.RelationshipRetentionOrphanGenerations, err = meter.Int64Gauge(
+		"eshu_dp_relationship_retention_orphan_generations",
+		metric.WithDescription("Distinct relationship generations no scope_generations row, active generation row or scope active pointer keeps alive, by table, at the last census (saturates at the census list limit)"),
+		metric.WithUnit("{generation}"),
+	); err != nil {
+		return fmt.Errorf("register RelationshipRetentionOrphanGenerations gauge: %w", err)
+	}
+	if inst.RelationshipRetentionRowsSwept, err = meter.Int64Counter(
+		"eshu_dp_relationship_retention_rows_swept_total",
+		metric.WithDescription("Relationship rows the retention sweep deleted from orphan generations, by table"),
+		metric.WithUnit("{row}"),
+	); err != nil {
+		return fmt.Errorf("register RelationshipRetentionRowsSwept counter: %w", err)
+	}
+	if inst.RelationshipRetentionGenerationsSkipped, err = meter.Int64Counter(
+		"eshu_dp_relationship_retention_generations_skipped_total",
+		metric.WithDescription("Orphan relationship generations a sweep pass left for a later pass, by reason (lock_busy, lock_timeout, ineligible)"),
+		metric.WithUnit("{generation}"),
+	); err != nil {
+		return fmt.Errorf("register RelationshipRetentionGenerationsSkipped counter: %w", err)
+	}
+	if inst.RelationshipRetentionCapped, err = meter.Int64Counter(
+		"eshu_dp_relationship_retention_capped_total",
+		metric.WithDescription("Relationship retention sweep passes that stopped with orphans left, by cap (rows, deadline, list)"),
+		metric.WithUnit("{pass}"),
+	); err != nil {
+		return fmt.Errorf("register RelationshipRetentionCapped counter: %w", err)
 	}
 	return nil
 }

@@ -215,6 +215,7 @@ var spanNames = []string{
 	SpanReducerProducerActivationSettle,
 	SpanReducerStatusSummaryPass,
 	SpanGenerationRetentionExpiredReport,
+	SpanGenerationRetentionRelationshipSweep,
 }
 
 var logKeys = []string{

@@ -1,54 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/reducer_queue_security_alert_settled_skip_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9053 disposable PostgreSQL 18 proof, on the real ReducerQueue claim/fail/ack SQL, the real readiness/producer.ImpactStore, and the real SecurityAlertReconciliationHandler, that a reconciliation whose same-generation supply_chain_impact work already succeeded writes its genuine no-match on the first attempt (one claim, terminal succeeded at attempt 1, no impact_wait_outcome), and that a reconciliation whose producer finishes late still waits without spending an attempt and matches once the finding lands; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 3s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_bound_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7816 disposable PostgreSQL 18 proof that the runtime fence bound is measured from the producer row's last-workable time (GREATEST of COALESCE(reopened_at, created_at), COALESCE(last_attempt_at, created_at), COALESCE(visible_at, created_at), COALESCE(claim_until, created_at)), not the catalog row's age: a 45-minute-old catalog row defers on a one-minute-old producer; a producer enqueued 45 minutes ago that is polling its corpus fence, sleeping in a counting backoff, claimed one minute ago, holding a lease that expired 29 minutes ago, heartbeating a run claimed 31 minutes ago, or reclaimed by a second owner keeps a young catalog row deferring, and a retry leaves claim_until NULL; a producer with no claim, heartbeat, scheduled visibility, or cycle start for 31 minutes (never claimed, corpus-fence retry starved, counting retry visible and unclaimed, lease expired 31 minutes ago) lets the catalog row commit and ack; and a producer reopened through ReopenSucceeded waits a fresh bound; every producer row is shaped by the real Claim, Heartbeat, Fail, and ReopenSucceeded SQL; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s to 6s each on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_interleave_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7816 disposable PostgreSQL 18 proof that a workload_materialization producer acking between the runtime fence check and the read still defers the catalog intent, and that three catalog workers racing one producer on separate connections produce complete mock materialization calls and settle the real queue, including one owed replay; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local runs about 1s each on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_readiness_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7816 disposable PostgreSQL 18 proof that the service_catalog_correlation_runtime_not_ready deferral keeps attempt_count frozen at 1 past MaxAttempts on the real queue and sends both runtime rows to the mock materialization writer once the producer acks; enrolled in the live-postgres-readiness runner and the reducer contention gate. Local run about 2s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_batch_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8169 disposable PostgreSQL 18 proof that the batch workload_materialization ACK re-triggers the linked service catalog row once and records eshu_dp_service_catalog_runtime_retrigger_total and the re-trigger log line; a later ACK with nothing to re-trigger records outcome none. Local run about 2s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_fence_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8169 disposable PostgreSQL 18 proof that a pending repo_dependency RUNS_ON intent holds the service catalog runtime fence with nothing written, and that two concurrent workload_materialization ACKs on separate connections reopen the catalog row once and produce one catalog run. Local run about 3s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8169 disposable PostgreSQL 18 proof that a workload_materialization ACK re-triggers the service_catalog_correlation rows whose decisions name its repository: a succeeded row reopens, a claimed row is flagged for replay, and the next catalog run commits a generation carrying the runtime family. Local run about 3s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#8169 disposable PostgreSQL 18 regression proof that a workload_materialization ACK landing between a catalog re-run's runtime read and its decision write flags that in-flight run, even when the scope's older decisions do not name the repository; the run's ACK returns it to pending instead of committing an empty runtime family. Local run about 2s on postgres:18; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/relationship_activation_wake_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7597 each relationship-generation activation writer (claim-fenced, plain, CommitGeneration) reopens in the same transaction only the same scope-generation consumers dead-lettered in an own-gate counting class, keeps retry evidence and stamps reopened_at; the repo-dependency workload replay flips from NotScheduled to Scheduled and the woken workload item succeeds; isolated schema per subtest, about 4 s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/relationship_activation_wake_race_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7597 activation-wake races: an activation waits for an in-flight final Fail and wakes it, a final Fail that waited on the activation lock is reopened by its own post-dead-letter wake, and a held consumer row makes the activation fail with a retryable 55P03 that rolls back and the retry wakes; disposable database per test, about 5 s locally; enrolled in the live-postgres-readiness runner"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_store_completion_wake_contention_live_test.go
     tag: ~
     class: postgres_ci
@@ -113,6 +63,66 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10820 disposable PostgreSQL 18 proof of the request-level derive advisory-lock budget: one purge request with parked holders on four repositories blocks the first three after about 10 s each and the fourth within 1 s once the 30 s budget is spent, a fifth repository with free locks completes, nothing is written for the blocked ones, the pooled lock_timeout is restored, and a re-POST purges the four once the holders end"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/classify_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that classification re-checks a generation row under its own lock: an activation that commits after the classification statement took its snapshot and before it locks the row (staged by gating the shipped statement on an advisory lock the test holds) leaves the generation unclaimed with no lock held on the now active row, and a whole pass over the same race counts it as left for a later pass, never as swept, with every row intact"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/eligibility_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof of the relationship retention sweep eligibility matrix E1 to E8 through the real batch statements: only generations with no scope_generations row, no scope active pointer and no active generation row lose their evidence, candidate and generation rows (a no-generation-row evidence generation included); a generation row another session holds is skipped with every child row intact and swept once released; resolved rows are never touched; the census counts distinct generations per table; a second pass is a no-op; a fault between statements leaves the generation whole"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; the generation row delete removes nothing while a generation still has evidence rows or candidate rows, each kind checked on its own; on generation rows with no children, so no child guard can mask it, the generation row delete leaves an active row, a row a scope_generations row names and a row a scope pointer names and removes only the plain orphan; the settle read returns a claimed generation whose only remaining row is its generation row; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/held_rows_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that a generation with no generation row, whose evidence rows or whose candidate rows another session holds, is never counted swept: the batch skips the held rows without waiting, commits the rows it could delete, counts the generation lock_busy, and the next pass sweeps it once the holder lets go; a settle read that ignored one table would count the generation swept while its rows remain; and a generation row that appears after classification (the generation had none to lock) and is held by another session is skipped by the generation row delete, which picks the row FOR UPDATE SKIP LOCKED instead of waiting for it: the batch commits the rows it deleted, counts lock_busy and never ends on the 500 ms lock timeout, and the next pass sweeps the generation once the holder lets go"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/large_generation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that a generation larger than the batch row limit is drained by successive bounded batches inside one pass, each deleting at most the two picking statements' row limits plus the generation rows, with every generation swept exactly once and none counted lock_busy; and that when another session holds some of the rows the batches skip them (the limit counts the rows taken, never the ones skipped), finish everything else, and count the generation lock_busy exactly once, at the end, after which the next pass sweeps it"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/lock_timeout_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that the batch lock timeout is a real backstop for the one kind of wait the batch cannot skip, a relation-level lock: another session holds ACCESS EXCLUSIVE on relationship_evidence_facts when the batch's evidence delete starts, the batch gives up after its 500 ms lock timeout, counts every generation of the batch as lock_timeout, rolls back whole and leaves every row, and a later pass sweeps them; a lock timeout of zero (which disables it) or of seconds would leave the sweep waiting"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/prune_claimed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof, with the real generation retention prune, that a superseded generation with a claimed work item stays out of both the prune (live work) and the relationship sweep (its scope generation row still exists), and that once the work item finishes and the prune deletes the scope generation row the sweep removes the generation's evidence, candidate and generation rows"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/purge_arrival_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 deadlock probes of the wait-free relationship retention batch against the real #10820 repository purge, in both arrival orders: a purge that arrives while the batch holds the generation row (the batch resumed 0, 300, 700, 800 and 1200 ms after the purge queued behind it, the delays at which the earlier lock-timeout design let the purge become the deadlock victim) completes without a 40P01 while the batch skips the generation as lock_busy with no lock timeout; a purge that arrives while the batch holds the rows it deleted waits and completes after the batch commits; a purge that rolls back leaves the generation whole and the next pass sweeps all of it"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/purge_interplay_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 probe of the wait-free relationship retention batch against the real #10820 repository purge: a purge parked mid-flight (it deleted the generation's evidence rows and waits on a candidate row held by another session) makes the batch skip that generation as lock_busy without waiting and without a lock timeout, leave every row of it whole, and still sweep a disjoint generation, and the purge completes once the holder lets go"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/served_contract_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 served-contract proof: the real evidence drilldown handler over the real ContentReader read model answers 200 for the resolved_id of a retained generation and, after a sweep, the existing 404 (relationship evidence not found) for the resolved_id of the swept generation, whose resolved_relationships rows this slice leaves in place; the swept id answered 200 before the sweep, so the 404 is the sweep's doing and not a seeding mistake"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/retention/relationships/state_change_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that a relationship generation which stops being an orphan between the census and its batch is skipped as ineligible with every row intact (a scope generation row appears, the generation row turns active, a scope pointer names it), that the production relationship activation blocks behind the batch's generation row lock instead of racing the deletes and re-creates the generation only after the batch commits, that a repeated activation race never leaves an active generation row without the children its own statement kept, and that the claim-fenced activation cannot revive an id that has no scope generation"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/work/items/cancel_live_test.go
     tag: ~

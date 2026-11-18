@@ -132,7 +132,7 @@ func buildReducerService(
 	graphProjectionRepairQueue := configureGraphProjectionRepairQueue(database, clk)
 	graphProjectionReadinessLookup := postgres.NewGraphProjectionReadinessLookup(database)
 	graphProjectionReadinessPrefetch := postgres.NewGraphProjectionReadinessPrefetch(database)
-	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg, logger)
+	generationRetentionRunner := generationRetentionRunnerFor(database, generationRetentionCfg, logger, tracer)
 	if generationRetentionRunner != nil {
 		generationRetentionRunner.Instruments = instruments
 		generationRetentionRunner.Logger = logger

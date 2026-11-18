@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/retention"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher/sweep/orphan"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	relationshipretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/relationships"
 )
 
 type defaultWiringCase struct {
@@ -39,8 +40,32 @@ func TestProductionWiringConsumesCapabilityDefaults(t *testing.T) {
 			name:            "generation retention policy",
 			defaultValue:    reducerGenerationRetentionPolicy(postgres.DefaultGenerationRetentionPolicy()),
 			productionValue: generationRetentionCfg.Runner.Policy,
+			override: defaultWiringOverride{
+				reason: "the relationship retention sweep (#10823) is a reducer setting, not part of the " +
+					"storage retention policy: it stays off, and its per-pass row cap defaults to " +
+					"relationshipretention.DefaultRowCap",
+				assert: assertRelationshipSweepIsTheOnlyDifference,
+			},
 		},
 	})
+}
+
+// assertRelationshipSweepIsTheOnlyDifference accepts a production policy that
+// equals the storage capability default except for the relationship sweep's row
+// cap, which must be the leaf's default. The sweep flag is not set here: it is
+// false in both, so any other difference (including the flag turning on by
+// default) fails the comparison.
+func assertRelationshipSweepIsTheOnlyDifference(t *testing.T, defaultValue, productionValue any) {
+	t.Helper()
+	want, ok := defaultValue.(retention.Policy)
+	if !ok {
+		t.Fatalf("default value is %T, want retention.Policy", defaultValue)
+	}
+	want.RelationshipRetentionRowCap = relationshipretention.DefaultRowCap
+	if !reflect.DeepEqual(want, productionValue) {
+		t.Fatalf("production policy differs from the capability default by more than the relationship row cap %d\n  want: %#v\n  got:  %#v",
+			relationshipretention.DefaultRowCap, want, productionValue)
+	}
 }
 
 func assertDefaultWiring(t *testing.T, cases []defaultWiringCase) {

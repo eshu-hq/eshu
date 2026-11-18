@@ -263,7 +263,7 @@ func repositoryTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "get_relationship_evidence",
-			Description: "Dereference a relationship evidence pointer by resolved_id and return durable source/target metadata, confidence_basis, evidence kinds, rationale, and preview details.",
+			Description: "Dereference a relationship evidence pointer by resolved_id and return durable source/target metadata, confidence_basis, evidence kinds, rationale, and preview details. A resolved_id is readable only while retention keeps its relationship generation: an id from a removed generation, including one read from a graph edge, answers not found like an id that never existed, so re-read the repository or service context for a current pointer.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

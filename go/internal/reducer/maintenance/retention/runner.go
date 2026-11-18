@@ -74,6 +74,12 @@ type Policy struct {
 	// removed while their facts stay held. Off by default; enablement stays
 	// held until the issue's gate-(b) dead-tuple/bloat evidence lands.
 	SearchIndexSupersededSweepEnabled bool
+	// RelationshipRetentionSweepEnabled opts into deleting orphan relationship
+	// rows (#10823). Off by default; the read-only census always runs.
+	RelationshipRetentionSweepEnabled bool
+	// RelationshipRetentionRowCap bounds one relationship sweep pass's deleted
+	// rows; unset (0) leaves the storage default of 100,000.
+	RelationshipRetentionRowCap int64
 }
 
 // Result summarizes one bounded cleanup transaction.
@@ -178,6 +184,9 @@ type Runner struct {
 	// index rows of still-existing superseded generations once per poll
 	// interval, after the orphan sweep (#8231).
 	SupersededSweeper SupersededSweeper
+	// RelationshipSweeper, when set, runs the relationship retention census
+	// every poll interval and, when the policy enables it, the sweep (#10823).
+	RelationshipSweeper RelationshipSweeper
 	// Now is the clock for the sweep cadence; nil uses time.Now.
 	Now func() time.Time
 	// lastOrphanSweep is when the last sweep started. A Runner is driven by
@@ -185,6 +194,10 @@ type Runner struct {
 	lastOrphanSweep time.Time
 	// lastSupersededSweep is when the last superseded sweep started (#8231).
 	lastSupersededSweep time.Time
+	// lastRelationshipSweep and relationshipCapped drive the relationship
+	// sweep cadence: a capped pass re-runs after a sixth of the poll interval.
+	lastRelationshipSweep time.Time
+	relationshipCapped    bool
 }
 
 // Run drains eligible retention batches until the context is cancelled. A
@@ -223,7 +236,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			// temporarily blocked, so retry soon with a bounded backoff
 			// rather than sleeping a full poll interval.
 			consecutiveSkipped++
-			waitFor := generationRetentionSkippedRetryInterval(r.Config.pollInterval(), consecutiveSkipped)
+			waitFor := r.shortenForRelationshipBacklog(generationRetentionSkippedRetryInterval(r.Config.pollInterval(), consecutiveSkipped))
 			if waitErr := r.wait(ctx, waitFor); waitErr != nil {
 				if contextDone(ctx, waitErr) {
 					return nil
@@ -238,7 +251,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		// keeps this full sleep. The lock holder is making progress on those
 		// rows, and the next poll sees whatever it left behind.
 		consecutiveSkipped = 0
-		if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
+		if waitErr := r.wait(ctx, r.shortenForRelationshipBacklog(r.Config.pollInterval())); waitErr != nil {
 			if contextDone(ctx, waitErr) {
 				return nil
 			}
@@ -268,6 +281,9 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	// The superseded sweep (#8231) follows the orphan sweep under its own
 	// flag and cadence, still outside the prune transaction.
 	r.sweepSupersededIfDue(ctx, policy.SearchIndexPredeleteDeadline, policy.SearchIndexPredeleteRowCap)
+	// The relationship sweep (#10823) takes its census on every pass it is due,
+	// and deletes only when the policy enables it.
+	r.sweepRelationshipsIfDue(ctx, policy)
 	if err != nil {
 		return Result{}, fmt.Errorf("prune superseded generations: %w", err)
 	}

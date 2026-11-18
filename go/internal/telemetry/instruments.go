@@ -2463,6 +2463,21 @@ type Instruments struct {
 	// superseded sweep deleted from a still-existing superseded generation,
 	// by table (terms, documents, stats).
 	SearchIndexSupersededRowsSwept metric.Int64Counter
+	// RelationshipRetentionOrphanGenerations is the distinct orphan
+	// generations of the relationship tables the last census listed, by
+	// table (#10823); it saturates at the census list limit. The census
+	// runs whether or not deletes are enabled.
+	RelationshipRetentionOrphanGenerations metric.Int64Gauge
+	// RelationshipRetentionRowsSwept counts the relationship rows the
+	// sweep deleted, by table (evidence, candidates, generations).
+	RelationshipRetentionRowsSwept metric.Int64Counter
+	// RelationshipRetentionGenerationsSkipped counts the generations a
+	// sweep pass left for a later pass, by reason (lock_busy, lock_timeout,
+	// ineligible).
+	RelationshipRetentionGenerationsSkipped metric.Int64Counter
+	// RelationshipRetentionCapped counts the sweep passes that stopped with
+	// orphans left, by cap (rows, deadline, list): the lag signal.
+	RelationshipRetentionCapped metric.Int64Counter
 	// ChangedSinceLinkDuration, ChangedSinceLinkDeltaRows and
 	// ChangedSinceLinkKeys describe committed links by link_kind.
 	ChangedSinceLinkDuration  metric.Float64Histogram

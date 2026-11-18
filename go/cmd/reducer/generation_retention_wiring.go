@@ -18,8 +18,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	linkstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	relationshipretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/retention/relationships"
 	indexretention "github.com/eshu-hq/eshu/go/internal/storage/postgres/search/index/retention"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// Relationship retention knobs (#10823). The sweep deletes the evidence,
+// candidate and generation rows of relationship generations nothing keeps
+// alive. It is off by default: the read-only census and its orphan gauge run
+// whenever the retention runner runs, and the default flips only after a
+// recorded drain in a shared environment.
+const (
+	// generationRetentionRelationshipSweepEnabledEnv opts into the deletes. An
+	// unset or unparsable value leaves them off.
+	generationRetentionRelationshipSweepEnabledEnv = "ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ENABLED"
+	// generationRetentionRelationshipSweepRowCapEnv bounds the rows one sweep
+	// pass deletes. An unset, unparsable or non-positive value keeps the
+	// 100,000-row default (about 170 MB of WAL per pass).
+	generationRetentionRelationshipSweepRowCapEnv = "ESHU_GENERATION_RETENTION_RELATIONSHIP_SWEEP_ROW_CAP"
 )
 
 // loadGenerationRetentionConfig reads the generation retention env settings.
@@ -53,6 +69,10 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 				// Off by default (#8231): an unset or unparsable value leaves
 				// the superseded sweep off and issuing no SQL.
 				SearchIndexSupersededSweepEnabled: loadBoolOrDefault(getenv, generationRetentionSearchIndexSupersededSweepEnabledEnv, false),
+				// Off by default (#10823): an unset or unparsable value leaves
+				// the relationship sweep census-only, issuing no DELETE.
+				RelationshipRetentionSweepEnabled: loadBoolOrDefault(getenv, generationRetentionRelationshipSweepEnabledEnv, false),
+				RelationshipRetentionRowCap:       int64(loadPositiveIntOrDefault(getenv, generationRetentionRelationshipSweepRowCapEnv, int(relationshipretention.DefaultRowCap))),
 			},
 		},
 		HardMaxSupersededAgeLifted: lifted,
@@ -113,11 +133,14 @@ type postgresGenerationRetentionPruner struct {
 
 // generationRetentionRunnerFor builds the retention runner, or nil when
 // retention is disabled. logger receives the store's per-generation search
-// index pre-delete lines (#7427); the caller sets the runner's own logger.
+// index pre-delete lines (#7427) and the relationship sweep's batch lines
+// (#10823); tracer wraps each relationship sweep pass in one span (nil is
+// allowed). The caller sets the runner's own logger.
 func generationRetentionRunnerFor(
 	database db.ExecQueryer,
 	cfg generationRetentionConfig,
 	logger *slog.Logger,
+	tracer trace.Tracer,
 ) *retention.Runner {
 	if !cfg.Enabled {
 		return nil
@@ -135,7 +158,53 @@ func generationRetentionRunnerFor(
 		runner.OrphanSweeper = searchIndexOrphanSweeper{database: sweepDatabase, logger: logger}
 		runner.SupersededSweeper = searchIndexSupersededSweeper{database: sweepDatabase, logger: logger}
 	}
+	// The relationship sweep (#10823) likewise opens its own batch
+	// transactions, after the prune transaction has ended.
+	if sweepDatabase, ok := database.(db.Beginner); ok {
+		runner.RelationshipSweeper = relationshipRetentionSweeper{database: sweepDatabase, logger: logger, tracer: tracer}
+	}
 	return runner
+}
+
+// relationshipRetentionSweeper adapts the relationship retention census and
+// sweep to the retention runner's contract (#10823).
+type relationshipRetentionSweeper struct {
+	database db.Beginner
+	logger   *slog.Logger
+	tracer   trace.Tracer
+}
+
+// SweepRelationships runs one census and, when the request enables deletes,
+// one bounded sweep: batches stop when the pass has deleted RowCap rows (the
+// leaf's 100,000-row default when not positive) or Deadline has passed from
+// now (no deadline when not positive). With Deletes false it takes the
+// read-only census only and sends no DELETE. A census that succeeded before a
+// batch failed still returns its tables with the error.
+func (s relationshipRetentionSweeper) SweepRelationships(
+	ctx context.Context,
+	request retention.RelationshipSweepRequest,
+) (retention.RelationshipSweepResult, error) {
+	opts := relationshipretention.Options{
+		Deletes: request.Deletes,
+		RowCap:  request.RowCap,
+		Logger:  s.logger,
+		Tracer:  s.tracer,
+	}
+	if request.Deadline > 0 {
+		opts.Deadline = time.Now().Add(request.Deadline)
+	}
+	sweep, err := relationshipretention.Sweep(ctx, s.database, opts)
+	return retention.RelationshipSweepResult{
+		OrphanGenerations: sweep.Census.ByTable,
+		CensusSaturated:   sweep.Census.Saturated,
+		RowsSwept:         sweep.RowsSwept,
+		GenerationsSwept:  sweep.GenerationsSwept,
+		Skipped:           sweep.Skipped,
+		Batches:           sweep.Batches,
+		Capped:            sweep.Capped,
+		CensusDuration:    sweep.Census.Duration,
+		SweepDuration:     sweep.SweepDuration,
+	}, err
 }
 
 // searchIndexOrphanSweeper adapts the indexretention orphan census and sweep
