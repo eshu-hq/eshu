@@ -157,11 +157,11 @@ func (p *nvdWindowOwnershipProof) project() {
 
 func (p *nvdWindowOwnershipProof) readCursor() (cursor int64, set bool) {
 	p.t.Helper()
-	cursor, set, _, err := p.cursorStore.ReadNVDWindowCursor(context.Background(), p.instance)
+	state, err := p.cursorStore.ReadNVDWindowCursor(context.Background(), p.instance)
 	if err != nil {
 		p.t.Fatalf("read cursor: %v", err)
 	}
-	return cursor, set
+	return state.CursorUnixMicro, state.Set
 }
 
 // visibleWindowCVEs reads the shipped active_facts fence verbatim (the
