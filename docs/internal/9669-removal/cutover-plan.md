@@ -29,7 +29,24 @@ authorized SSO role (see session record for identity).
   values, manual sync). The monolith image can never be rebuilt from
   post-D13 source (Dockerfile builds the satellite at `/go-bin/eshu-api`).
 
-## Relay scope the core must serve (frozen, machine-checked)
+## Relay scope, corrected (verified 2026-11-18: relay set is EMPTY)
+
+Correction to the frozen-triple census quoted below: at satellite tip
+`c041d7e` every one of the 279 served operations is natively
+registered (284 mounted minus 5 by-design non-API exclusions;
+`TestSpecScope_MountedHasSpec`, `TestSpecScope_SpecHasMount`,
+`TestSpecSnapshot_ServedMatchesSnapshot`, `TestSpecSnapshot_NoDrift`
+all pass; retired D4 explicit-relay set is empty). The row-7 lanes
+closed the old 26-row relay set, so there is nothing left to re-home.
+
+The core dependency REMAINS, in a different shape: the native
+handlers dial versioned core read APIs for data (verified: most
+`*_terminate.go` handlers reference the core origin; the arbiter
+confirmed every native lane uses the versioned core read API as its
+transport and the satellite holds no table handles). The core service
+to build must therefore serve the frozen read-method set (the G2
+pins + parity stub wire strings under `CoreReadContractsVersion`),
+not 26 proxy rows.
 
 G2 at the frozen triple (core `c16ddfa3` / sat `c041d7e`): 282 CUTOVER
 rows = 229 native-served + 27 tier-C dispatched + 26 relay through
