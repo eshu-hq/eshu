@@ -187,7 +187,7 @@ results are derived from the inputs rather than written by hand. See
 - `parserfixture-tests` (blocking): Replays recorded parser fixtures against the real parser to prove its output stays deterministic.
 - `replay-tier` (blocking): Replays recorded ingest/projector cassettes offline and checks the results match the real Neo4j backend.
 
-### Truth: Does the whole system produce the known right answer? (8 gates)
+### Truth: Does the whole system produce the known right answer? (7 gates)
 
 - `accuracy-golden-gate` (blocking): Fails when parser/reducer accuracy metrics (complexity, call resolution, correlation precision) drop below the published baseline floor.
 - `supply-chain-impact-live` (blocking): Keeps the supply-chain impact retraction, fencing and capped-evidence proofs enrolled in the reducer contention gate so they run on real Postgres.
@@ -196,7 +196,6 @@ results are derived from the inputs rather than written by hand. See
 - `live-postgres-migrations` (blocking): Runs the exact seven PostgreSQL 18.6 migration and fixture-ownership integration tests; every test and the package must pass without skips.
 - `golden-corpus-differential` (blocking): Runs the golden corpus on Neo4j with capture; failed runs, empty captures, missing coverage or unanchored id writers block. NornicDB legs are off (2026-11-05).
 - `e2e-tests` (blocking): Boots the full Docker service stack and checks the whole system produces the right end-to-end results.
-- `auth-mcp-e2e` (blocking): Runs a real browser plus scripted OAuth flow against a fresh stack to prove MCP identity auth works end-to-end.
 
 ### Performance: Do performance budgets hold on the supported backend? (5 gates)
 
@@ -206,12 +205,11 @@ results are derived from the inputs rather than written by hand. See
 - `ifa-load-saturation` (blocking): Checks the real backpressure gate holds under saturation load so overflow work waits and drains instead of dead-lettering.
 - `perf-evidence` (blocking): Requires hot-path changes to carry a recorded performance-benchmark marker proving the perf budget still holds.
 
-### Secondary: What do we watch without blocking a merge? (13 gates)
+### Secondary: What do we watch without blocking a merge? (12 gates)
 
 - `docs-prose-quality` (advisory): Advisory check that flags weak prose quality in public docs as a burn-down baseline, not a merge gate.
 - `docs-contradiction` (advisory): Advisory scan for self-contradicting statements across public docs, run as a burn-down baseline.
 - `golden-corpus-gate` (advisory): Runs the golden-corpus pipeline on NornicDB, the secondary backend, to watch for backend drift; Neo4j is the blocking golden gate.
-- `auth-sso-e2e` (advisory): Runs a real browser against a fresh stack to prove first-run, OIDC login, SSO enforcement and break-glass work end to end.
 - `release-sbom-attach` (advisory): Attaches the image SBOM to the GitHub Release after a tag publish; runs only on a tag push.
 - `ci-service-mirror-publish` (advisory): Copies the reviewed upstream CI service images to GHCR by digest on a main-only manual dispatch; it never runs on a pull request or merge group.
 - `ci-service-mirror-verify-public` (advisory): Verifies on a main-only manual dispatch that the mirrored CI service images resolve to the reviewed digests without registry credentials.
@@ -352,8 +350,6 @@ results are derived from the inputs rather than written by hand. See
 | `authz-scoped-route-tests` | Authorization Scoped Route Replay Tests | exactness | pre-pr | true | `cd go && ../scripts/go-test-run-guard.sh 6 'Test(AuthorizationReplayCoverageContract\|SecretsIAMPostureSummaryScopedGrant\|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1` | replay-coverage-gate.yml / coverage-gate (blocking) | 8 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/scopedtoken/**, … |
 | `code-coverage-report` | Go Code Coverage Report | exactness | pre-pr | false | `bash scripts/generate-code-coverage-report.sh`<br>then self-test: `bash scripts/test-generate-code-coverage-report.sh` | code-coverage-report.yml / Generate Go code coverage report | 11 path(s): go/**, scripts/generate-code-coverage-report.sh, scripts/test-generate-code-coverage-report.sh, … |
 | `e2e-tests` | End-to-end tests (Docker stack) | exactness | ci-heavy | true | — (CI-only: requires Docker Compose service stack) | e2e-tests.yml / test (neo4j) | 14 path(s): go/**, scripts/verify_backend_conformance_live.sh, scripts/lib/nornic_conformance_events.py, … |
-| `auth-mcp-e2e` | MCP-identity auth E2E (browser + scripted OAuth, fresh stack) | exactness | ci-heavy | true | `bash scripts/run-auth-mcp-e2e.sh` | frontend.yml / MCP-identity auth E2E (browser + scripted OAuth, fresh stack) | 21 path(s): apps/console/e2e/**, scripts/lib/auth_e2e_cli.sh, scripts/test-auth-e2e-cli.sh, … |
-| `auth-sso-e2e` | SSO auth E2E (browser, fresh stack) | exactness | ci-heavy | false | `bash scripts/run-auth-e2e.sh` | frontend.yml / SSO auth E2E (browser, fresh stack) | 14 path(s): scripts/lib/auth_e2e_cli.sh, scripts/test-auth-e2e-cli.sh, scripts/run-auth-e2e.sh, … |
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 2 path(s): go/**, Dockerfile |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 4 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |
 | `docker-image-reproducibility` | Docker image reproducibility | build | ci-heavy | true | — (CI-only: requires two clean hosted Docker Buildx builds) | docker-publish.yml / verify-reproducibility | 6 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |

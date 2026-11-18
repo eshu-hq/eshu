@@ -223,6 +223,26 @@ local runs: repo-pinned Go 1.26.11 first on PATH
   passes locally (PASS/PASS), and the regen output is byte-identical,
   so no drift was baked in. Final proof is the fresh CI registry job.
 
+## Browser-gate removal round, 2026-11-18 (owner "remove them if they no longer belong")
+
+The SSO + MCP-identity fresh-stack jobs fail-closed with no core in
+this repo, and serving truth belongs to the cutover lane — so the jobs
+leave the workflow instead of staying red: deleted `auth-sso-e2e` +
+`auth-mcp-e2e` from `frontend.yml` (158 lines), retired their
+`gates-14.yaml` registry entries, deleted the orphaned
+`test-auth-e2e-cli.sh` contract mirror, dropped its fragment trigger,
+and narrowed the registry mirror's CLI-parity block. The pr-plan
+fragment's job list now matches the workflow exactly (the ownership
+validator requires byte-equality and failed the run on the stale
+`auth-*-e2e` entries). Runners, runtimes, sweep/manifest/sensitivity
+scripts, and the `lib/auth_e2e_cli.sh` helper stay in-tree as
+fail-closed cutover material (the image-compose gate still fixtures
+`run-auth-mcp-e2e.sh --module`). Doc regen: 160 gates.
+Proven locally: registry PASS/PASS, `test_pr_scheduling.py` OK,
+`test-resolve-required-gates-pr` all pass, doc byte-identical on
+re-run. Owner action still needed: drop the two required-check
+entries in branch protection.
+
 ## Left for the merge gate and the owners
 
 `Dockerfile` row 11 (satellite-binary swap) waits on the owner-provided
