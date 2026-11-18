@@ -89,9 +89,13 @@ Plus lane rule in `*_terminate.go` and the rollback line (remove
 
 ## Open items (owned)
 
-- S2 (19-mutation parent definition): with arbiter — candidate
-  4+3+4+1+7 vs coincidental 50−31 set. Blocks the scope file's mutation
-  table; forwarded-reads work proceeds regardless.
+- S2 (19-mutation parent definition): SETTLED by arbiter — candidate
+  (A) 4+3+4+1+7 wins; 50−31 rejected as a mount/capability category
+  error (~15 of the 31 wireAPI rows are reads). Annotation: row 17
+  (`GET .../saml/.../metadata`) is a census read riding the D9-SAML
+  lane as an indivisible triple — 18 mutations + 1 rider, same 19-row
+  set. Scope file mutation table may now be filled per the verdict's
+  per-row rationale.
 - C1/C2 decided coordinator-side: tier-b docs + tier-d generator live
   core-side (`contracts/`, `scripts/`) per in-repo precedent.
 - C3 (81-vs-83/84 skew), O4 (stale 66/278 prose): folded into Wave 0.
