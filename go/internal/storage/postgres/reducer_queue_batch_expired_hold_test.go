@@ -69,12 +69,18 @@ func reclaimFirstExpectedOrder(ids []string, expired map[string]bool) []string {
 // claimed row either reaches a worker over the unbuffered workCh rendezvous
 // or is dropped at a recorded shutdown/panic site whose unrenewed lease
 // expires for reclaim (service_batch.go claim-wins-race, mid-handoff cancel,
-// post-receive shutdown). No path marks a batch claimed without handing it
-// to workers and without recording the drop, so the production shape —
-// claimed rows sitting 5h past lease expiry while 24 same-group items wait —
-// is ORDER BY starvation, not a lost handoff: the expired hold rewrote its
-// own updated_at at claim time, so it sorts AFTER older pending rows at the
-// updated_at ASC tie-break and perpetually loses the LIMIT slots.
+// post-receive shutdown). No healthy-run in-process path marks a batch
+// claimed without handing it to workers and without recording the drop.
+// Ruled IN (not a handoff bug, unfixable at dispatch): the claim commits in
+// Postgres before any in-process handoff can be guaranteed, so process
+// death, panic, kill, or restart between claim commit and first heartbeat —
+// plus the three graceful drop sites above — orphans the batch, and its only
+// release is the 60s lease expiry. The production shape — claimed rows
+// sitting 5h past lease expiry while 24 same-group items wait — is that
+// orphan never being reclaimed (ORDER BY starvation), not a lost handoff:
+// the expired hold rewrote its own updated_at at claim time, so it sorts
+// AFTER older pending rows at the updated_at ASC tie-break and perpetually
+// loses the LIMIT slots.
 func TestClaimBatchExpiredHoldClaimedFirst(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {

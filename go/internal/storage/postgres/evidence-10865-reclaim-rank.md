@@ -18,7 +18,12 @@ NULL-lease) hold awaiting reclaim. The claim UPDATE, lease duration,
 heartbeat, and worker-handoff paths are untouched: under a healthy run every
 claimed row already reaches a worker over the unbuffered handoff rendezvous
 or lands in a recorded shutdown/panic drop whose unrenewed lease expires for
-reclaim, so ORDER BY starvation was the only live cause. The single-claim
+reclaim. No healthy-run in-process path claims a batch without handing it to
+workers. Ruled IN: process death, panic, kill, or restart between the
+Postgres claim commit and the first heartbeat (plus the recorded drop sites)
+orphans the batch by construction, and its only release is the 60s lease
+expiry; ORDER BY starvation then kept that orphan unclaimed for 5h, so it —
+not a lost handoff — was the live cause. The single-claim
 query leads with the same rank (full status-plus-lease CASE on its own
 candidate, which reads the raw table directly).
 
@@ -66,5 +71,6 @@ Observability Evidence: `eshu_dp_reducer_claimed_expired` (count) and
 backlog the claim floats first; zero/zero means none outstanding. An alert
 on the age climbing past the claim lease duration names a hold waiting
 behind the backlog instead of being reclaimed. The metric query doubles as
-the QA confirmation query against the prod replica: zero rows with age
-above the lease duration proves no stuck claimed-expired backlog.
+the QA confirmation query: after deploy, the oldest-age gauge stays below
+180s (60s lease + 60s snapshot cadence + 60s slack) and the count returns to
+0; sustained 180s or more fails QA (production observed 18,052s).
