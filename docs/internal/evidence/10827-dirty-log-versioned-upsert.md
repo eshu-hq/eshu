@@ -98,3 +98,33 @@ buckets, where the append-only log stamped every mark fresh. Accepted:
 the trip signal reads newly-dirty inflow, and a long-queued unit's
 re-marks are not new inflow. A future hot-key coalescing issue (#10837) tracks reducing
 the inherent serialization cost; it does not block this change.
+
+## Migration 304 dedup: permanent one-time quiesced form (#10852)
+
+Decision: accepted. Migration `304_supply_chain_impact_winners_dirty_dedup.sql`'s
+two unbounded DELETEs (fact five-tuple `row_number` PARTITION,
+scope pair `row_number` PARTITION, `ORDER BY seq`, `rn > 1`) are the
+permanent shape. They run once, under the full writer quiesce in the
+Rollout section above, taking row-level locks only. Post-304, migrations
+305/306 partial unique indexes (fact five-tuple `WHERE kind = fact`;
+scope pair `WHERE kind = scope`) forbid duplicate formation, so no future
+production dedup applies; any manual recovery reuse of the 304 SQL runs
+under the same quiesce.
+
+Measured duration on a production-size backlog (disposable PostgreSQL 18,
+table at pre-305 shape with seq PK only, 1,275,000 seeded rows: 55,000
+distinct fact five-tuples x 23 marks plus 5,000 scope pairs x 2, 18h
+captured_at spread; `ANALYZE` before measuring): fact arm deleted
+1,210,000 rows in 6434.581 ms (55,000 remain, all distinct); scope arm
+deleted 5,000 rows in 48.893 ms (5,000 remain, all distinct). Open-transaction
+`pg_locks` sampling during the fact-arm DELETE shows only
+`relation:RowExclusiveLock` + `relation:AccessShareLock` plus transaction
+bookkeeping — no table-exclusive lock, row-granularity confirmed. Fact-arm
+plan: seq scan + window sort + hash join (temp spill ~65k pages).
+
+Batched alternative (seq-range bounded DELETEs with a global earliest-per-key
+keeper set) was considered and rejected: it requires per-batch commits
+outside the single-phase migration runner plus an equivalence proof for
+boundary-straddling keys, for a one-time already-executed statement with no
+live trigger. Revisit only if a future dedup runs without quiesce. 304
+stays checksum-pinned; this record changes no 303-308 behavior.
