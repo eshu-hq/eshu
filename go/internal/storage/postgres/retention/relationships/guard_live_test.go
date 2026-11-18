@@ -4,7 +4,7 @@
 package relationshipretention_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; the generation row delete removes nothing while a generation still has evidence rows or candidate rows, each kind checked on its own; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass
+//eshu:readiness:reason #10823 disposable PostgreSQL 18 proof that every relationship retention delete guards itself and the batch is bounded: each of the evidence, candidate and generation row deletes, called directly with an array holding every E1 to E8 generation (the ids a wrong caller could pass), removes only the rows of generations that satisfy Rule A and leaves the retained, stuck-active, pointer-named, pending and refinalize generations whole; the generation row delete removes nothing while a generation still has evidence rows or candidate rows, each kind checked on its own; on generation rows with no children, so no child guard can mask it, the generation row delete leaves an active row, a row a scope_generations row names and a row a scope pointer names and removes only the plain orphan; the settle read returns a claimed generation whose only remaining row is its generation row; and a pass with a small batch size and a row cap stops after the batch that crosses the cap and leaves the rest for the next pass
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
@@ -88,6 +88,88 @@ func TestDeleteStatementsGuardThemselvesLive(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestGenerationRowDeleteGuardsItselfWithoutChildrenLive calls the generation row
+// delete on generation rows that have no evidence and no candidate rows, so the
+// two child tests have nothing to block on and cannot hide the statement's own
+// predicates (TestDeleteStatementsGuardThemselvesLive keeps rows on every
+// retained generation, and those rows alone keep them whole). Each retained row
+// is held back by exactly one predicate: its status, a scope_generations row, or a
+// scope pointer. Only the plain orphan may go.
+func TestGenerationRowDeleteGuardsItselfWithoutChildrenLive(t *testing.T) {
+	f := openLiveFixture(t)
+	f.scope(t, "scope-gd-active")
+	f.generation(t, "scope-gd-active", "gen-gd-active", "active")
+	f.scope(t, "scope-gd-sg")
+	f.scopeGeneration(t, "scope-gd-sg", "gen-gd-sg", "superseded")
+	f.generation(t, "scope-gd-sg", "gen-gd-sg", "superseded")
+	f.scope(t, "scope-gd-ptr")
+	f.generation(t, "scope-gd-ptr", "gen-gd-ptr", "superseded")
+	f.pointer(t, "scope-gd-ptr", "gen-gd-ptr")
+	f.scope(t, "scope-gd-orphan")
+	f.generation(t, "scope-gd-orphan", "gen-gd-orphan", "superseded")
+
+	cases := []struct {
+		id   string
+		want int64 // generation rows left after the delete
+		why  string
+	}{
+		{"gen-gd-active", 1, "its row is active (status)"},
+		{"gen-gd-sg", 1, "a scope_generations row names it"},
+		{"gen-gd-ptr", 1, "a scope's active pointer names it"},
+		{"gen-gd-orphan", 0, "nothing keeps it: the only row the delete may remove"},
+	}
+	ids := make([]string, 0, len(cases))
+	for _, tc := range cases {
+		if got := f.of(t, tc.id); got != (counts{generations: 1}) {
+			t.Fatalf("%s seeded as %+v, want one generation row and no children", tc.id, got)
+		}
+		ids = append(ids, tc.id)
+	}
+	result, err := f.db.ExecContext(f.ctx, relationshipretention.DeleteGenerationsSQL, ids)
+	if err != nil {
+		t.Fatalf("delete generations: %v", err)
+	}
+	if got, _ := result.RowsAffected(); got != 1 {
+		t.Errorf("the generation row delete removed %d rows from four childless generations, want 1 (the plain orphan)", got)
+	}
+	for _, tc := range cases {
+		if got := f.of(t, tc.id).generations; got != tc.want {
+			t.Errorf("%s has %d generation rows after the delete, want %d (%s)", tc.id, got, tc.want, tc.why)
+		}
+	}
+}
+
+// TestSettleReadsTheGenerationRowLive pins the settle read's third branch. A
+// claimed generation whose only remaining row is its generation row (a writer's
+// row the generation row delete skipped, held by another session) must come back
+// from the read, or the batch would count it swept; a generation with nothing left
+// must not. The child tables have no row for either id, so the other two branches
+// cannot answer for it.
+func TestSettleReadsTheGenerationRowLive(t *testing.T) {
+	f := openLiveFixture(t)
+	f.scope(t, "scope-settle-row")
+	f.generation(t, "scope-settle-row", "gen-settle-row", "superseded")
+	rows, err := f.db.QueryContext(f.ctx, relationshipretention.SettleSQL, []string{"gen-settle-row", "gen-settle-nothing"})
+	if err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var left []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		left = append(left, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("settle rows: %v", err)
+	}
+	if len(left) != 1 || left[0] != "gen-settle-row" {
+		t.Fatalf("settle returned %v, want only gen-settle-row: its generation row is the one row left", left)
 	}
 }
 

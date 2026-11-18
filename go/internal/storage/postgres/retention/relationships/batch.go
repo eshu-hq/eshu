@@ -60,10 +60,11 @@ func (o batchOutcome) total() int64 {
 }
 
 // runBatch deletes the relationship rows of up to BatchGenerations orphan
-// generations in one transaction. It never waits for a row lock, which is what
-// keeps it out of a lock cycle with the #10820 purge (the purge deletes evidence
-// and candidates first and the generation row last; this batch locks the
-// generation row first):
+// generations in one transaction. It never waits for a row lock: every row lock
+// it takes, in classification and in each of the three deletes, is FOR UPDATE SKIP
+// LOCKED. That is what keeps it out of a lock cycle with the #10820 purge (the
+// purge deletes evidence and candidates first and the generation row last; this
+// batch locks the generation row first):
 //
 //  1. lock_timeout 500 ms, transaction local and never zero. It bounds the one
 //     wait the batch cannot skip, a relation-level lock such as DDL; it is a
@@ -76,8 +77,12 @@ func (o batchOutcome) total() int64 {
 //  4. evidence, then candidates: each selects up to BatchRows rows of the claimed
 //     generations FOR UPDATE SKIP LOCKED, re-asserting every Rule A predicate,
 //     and deletes exactly those rows, so a row another session holds stays;
-//  5. the generation row last, only for a generation with no evidence and no
-//     candidate row left;
+//  5. the generation row last, picked FOR UPDATE SKIP LOCKED like the rows before
+//     it and only for a generation with no evidence and no candidate row left.
+//     Classification locked the generation rows that existed then; a generation
+//     with no generation row was claimed without a lock, so a row a writer has
+//     created since is skipped here, not waited for, and the settle read counts
+//     the generation lock_busy;
 //  6. a settle read, which names the claimed generations that still have a row.
 //     If neither picking delete stopped at its row limit, another session holds
 //     what is left: the batch counts those generations as lock_busy and leaves

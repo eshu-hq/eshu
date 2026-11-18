@@ -36,9 +36,12 @@ const (
 // generation's rows. The evidence and candidate deletes pick their rows in a
 // materialized CTE (FOR UPDATE SKIP LOCKED, so a row another session holds is
 // left, not waited on) and delete exactly the picked ids. The generation row
-// delete carries the active test as its own status column instead of a subquery
-// over itself, and also requires that no evidence and no candidate row of the
-// generation remain.
+// delete picks the same way, so it waits for nothing either: a generation row
+// that did not exist when classification ran (the no_rg branch locks nothing)
+// can be created and held by a writer before it runs. It carries the active test
+// as its own status column instead of a subquery over itself, in the same SELECT
+// as the lock so the lock re-checks it on the row's newest version, and also
+// requires that no evidence and no candidate row of the generation remain.
 func TestDeleteStatementsReassertEveryPredicate(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -46,35 +49,42 @@ func TestDeleteStatementsReassertEveryPredicate(t *testing.T) {
 		statement string
 		alias     string
 		table     string
-		key       string // the picked id column; empty for the generation row delete
+		key       string // the picked id column
 	}{
 		{"evidence", deleteEvidenceQuery, "e", "relationship_evidence_facts", "evidence_id"},
 		{"candidates", deleteCandidatesQuery, "c", "relationship_candidates", "candidate_id"},
-		{"generations", deleteGenerationsQuery, "rg", "relationship_generations", ""},
+		{"generations", deleteGenerationsQuery, "rg", "relationship_generations", "generation_id"},
 	} {
 		statement := normalized(tc.statement)
 		if !strings.HasPrefix(strings.TrimPrefix(statement, "-- "), "relationship retention:") {
 			t.Errorf("%s delete lacks its relationship retention marker comment: %.60s", tc.name, statement)
 		}
+		pick := "with picked as materialized ( select " + tc.alias + "." + tc.key + " from " + tc.table + " " + tc.alias + " where"
+		lock := "for update of " + tc.alias + " skip locked )"
 		wants := []string{
 			fmt.Sprintf(predicateNoScopeGeneration, tc.alias),
 			fmt.Sprintf(predicateNoPointer, tc.alias),
 			tc.alias + ".generation_id = any($1::text[])",
+			pick,
+			lock,
+			"delete from " + tc.table + " " + tc.alias + " using picked p where " + tc.alias + "." + tc.key + " = p." + tc.key,
 		}
-		if tc.key != "" {
+		if tc.name == "generations" {
 			wants = append(wants,
-				fmt.Sprintf(predicateNoActiveRow, tc.alias),
-				"with picked as materialized ( select "+tc.alias+"."+tc.key+" from "+tc.table+" "+tc.alias+" where",
-				"for update of "+tc.alias+" skip locked )",
-				"delete from "+tc.table+" "+tc.alias+" using picked p where "+tc.alias+"."+tc.key+" = p."+tc.key,
-			)
-		} else {
-			wants = append(wants,
-				"delete from "+tc.table+" "+tc.alias+" where",
 				"rg.status <> 'active'",
 				"not exists (select 1 from relationship_evidence_facts e where e.generation_id = rg.generation_id)",
 				"not exists (select 1 from relationship_candidates c where c.generation_id = rg.generation_id)",
 			)
+			// The status test is a qual of the locked relation, so it must sit in the
+			// SELECT that carries the lock: under Read Committed the lock re-checks it
+			// on the newest version of the row, and a row that turned active drops out.
+			start, status, end := strings.Index(statement, pick), strings.Index(statement, "rg.status <> 'active'"), strings.Index(statement, lock)
+			if start < 0 || status < start || end < status {
+				t.Errorf("generations delete must test rg.status <> 'active' inside the SELECT that locks the row, got positions pick=%d status=%d lock=%d:\n%s",
+					start, status, end, statement)
+			}
+		} else {
+			wants = append(wants, fmt.Sprintf(predicateNoActiveRow, tc.alias))
 		}
 		for _, want := range wants {
 			if !strings.Contains(statement, want) {
@@ -90,12 +100,15 @@ func TestDeleteStatementsReassertEveryPredicate(t *testing.T) {
 // TestEveryRowLockSkipsLocked pins the wait-free doctrine at the text level: a
 // batch statement that locks rows does so only with SKIP LOCKED, never with a
 // plain FOR UPDATE (which waits) or NOWAIT, and the statements that lock rows
-// are exactly classification and the two row-picking deletes. The behavioural
-// proof is the purge arrival tests; this keeps a plain FOR UPDATE from being
-// added to a statement they do not reach.
+// are exactly classification and the three picking deletes (evidence, candidates
+// and the generation row, which classification cannot lock for a generation with
+// no generation row). The behavioural proof is the purge arrival tests and the
+// late generation row test; this keeps a plain FOR UPDATE, or an unlocked DELETE
+// that waits behind another session's row lock, from being added to a statement
+// they do not reach.
 func TestEveryRowLockSkipsLocked(t *testing.T) {
 	t.Parallel()
-	lockers := map[string]bool{"classify": true, "delete evidence": true, "delete candidates": true}
+	lockers := map[string]bool{"classify": true, "delete evidence": true, "delete candidates": true, "delete generations": true}
 	for name, statement := range allStatements() {
 		text := normalized(statement)
 		locks := strings.Count(text, "for update")
@@ -106,7 +119,7 @@ func TestEveryRowLockSkipsLocked(t *testing.T) {
 			t.Errorf("%s takes a row lock other than FOR UPDATE ... SKIP LOCKED", name)
 		}
 		if (locks > 0) != lockers[name] {
-			t.Errorf("%s takes %d row locks, but only classification and the row-picking deletes may", name, locks)
+			t.Errorf("%s takes %d row locks, but only classification and the three picking deletes may", name, locks)
 		}
 	}
 }

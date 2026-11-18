@@ -20,10 +20,14 @@ const (
 const (
 	// SkipLockBusy is a generation another session holds, which the batch
 	// leaves instead of waiting for: its advisory lock, its
-	// relationship_generations row (an activation or a refinalize in flight),
-	// or evidence or candidate rows (a #10820 purge in flight, a writer). The
-	// batch takes row locks only with SKIP LOCKED, so it never waits for any of
-	// them.
+	// relationship_generations row (an activation or a refinalize in flight, or a
+	// row a writer created after classification, which had nothing to lock), or
+	// evidence or candidate rows (a #10820 purge in flight, a writer). The batch
+	// takes row locks only with SKIP LOCKED, so it never waits for any of them. A
+	// generation whose row an activation turned active between classification's
+	// snapshot and its row lock is counted here too, although it is no longer an
+	// orphan: the lock drops the row and the statement cannot tell that from a row
+	// it could not lock. A later pass's census does not list it.
 	SkipLockBusy = "lock_busy"
 	// SkipLockTimeout is a batch that waited 500 ms for a lock it cannot skip,
 	// a relation-level lock (a DDL statement or VACUUM FULL holding a table), and
@@ -32,7 +36,9 @@ const (
 	SkipLockTimeout = "lock_timeout"
 	// SkipIneligible is a generation that stopped satisfying Rule A between the
 	// census and the batch (it has a scope_generations row again, a scope's
-	// active pointer names it, or its generation row is active).
+	// active pointer names it, or its generation row was already active when
+	// classification took its snapshot; a row that turns active only after that
+	// snapshot is counted lock_busy, above).
 	SkipIneligible = "ineligible"
 )
 
@@ -203,12 +209,13 @@ LEFT JOIN no_rg n ON n.generation_id = w.generation_id
 // still differ, because the batch locks the generation row first (in
 // classification) and the purge reaches it last. They are safe together because
 // the batch never waits for a row lock, so it cannot be a link in a wait cycle.
-// Classification takes the generation row with SKIP LOCKED; the evidence and
-// candidate deletes select the rows they will delete in a MATERIALIZED CTE,
-// FOR UPDATE SKIP LOCKED, and delete exactly those ids in the same statement, so
-// a row a purge or a writer holds is left in place, not waited on. The only wait
-// edge left is the purge (or a writer) waiting for the batch, which ends when the
-// batch commits or rolls back.
+// Classification takes the generation rows with SKIP LOCKED; each of the three
+// deletes selects the rows it will delete in a MATERIALIZED CTE, FOR UPDATE SKIP
+// LOCKED, and deletes exactly those ids in the same statement, so a row a purge or
+// a writer holds is left in place, not waited on. The generation row delete takes
+// its own lock because classification cannot lock a row that did not exist yet.
+// The only wait edge left is the purge (or a writer) waiting for the batch, which
+// ends when the batch commits or rolls back.
 //
 // The two picking statements stop after $2 rows (BatchRows), counted over the rows
 // they lock: a row another session holds is skipped and does not count against the
@@ -255,19 +262,37 @@ WHERE c.candidate_id = p.candidate_id
 `
 
 // deleteGenerationsQuery deletes a generation row only when no evidence and no
-// candidate row of it is left. A purge or a writer that holds rows the two
-// deletes skipped keeps them visible to this statement, so the generation row
-// stays with them, and the batch reports the generation as left for a later
-// pass. The row lock classification already holds makes this delete wait for
-// nothing.
+// candidate row of it is left. It picks the row the way the two deletes above pick
+// theirs, in a MATERIALIZED CTE FOR UPDATE SKIP LOCKED, so it waits for no row
+// lock. Classification holds the lock of every generation row that existed when it
+// ran, but a generation with no generation row (the no_rg branch) was claimed
+// without locking anything, and a writer can create that row, and hold it, before
+// this statement runs. A plain DELETE would wait for that row until lock_timeout
+// rolled the whole batch back (up to 50 generations counted lock_timeout), or close
+// a lock cycle if the writer waited for a row the batch had deleted. This statement
+// skips the row: the settle read still finds it and the batch counts the generation
+// lock_busy for a later pass.
+//
+// The status test sits in the same SELECT as the lock, so under Read Committed the
+// lock re-checks it on the row's newest version: a row that turned active after the
+// statement's snapshot is not deleted. A purge or a writer that holds rows the two
+// deletes skipped keeps them visible to the child tests here, so the generation row
+// stays with them, and the batch reports the generation as left for a later pass.
 const deleteGenerationsQuery = `-- relationship retention: delete generations
+WITH picked AS MATERIALIZED (
+    SELECT rg.generation_id
+    FROM relationship_generations rg
+    WHERE rg.generation_id = ANY($1::text[])
+      AND rg.status <> 'active'
+      AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = rg.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = rg.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM relationship_evidence_facts e WHERE e.generation_id = rg.generation_id)
+      AND NOT EXISTS (SELECT 1 FROM relationship_candidates c WHERE c.generation_id = rg.generation_id)
+    FOR UPDATE OF rg SKIP LOCKED
+)
 DELETE FROM relationship_generations rg
-WHERE rg.generation_id = ANY($1::text[])
-  AND rg.status <> 'active'
-  AND NOT EXISTS (SELECT 1 FROM scope_generations sg WHERE sg.generation_id = rg.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM ingestion_scopes s WHERE s.active_generation_id = rg.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM relationship_evidence_facts e WHERE e.generation_id = rg.generation_id)
-  AND NOT EXISTS (SELECT 1 FROM relationship_candidates c WHERE c.generation_id = rg.generation_id)
+USING picked p
+WHERE rg.generation_id = p.generation_id
 `
 
 // settleQuery runs after the three deletes, in the same transaction, and returns
