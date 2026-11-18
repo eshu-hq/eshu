@@ -171,6 +171,58 @@ headers; `/healthz` does not exist (404); liveness lives at `GET
 - Pre-existing breakage untouched: bench functional cases fail
   identically on main; postgres compile fixed by #10908 in the base.
 
+## Provenance appendix (answers the evidence-overclaim P2s)
+
+Every green claim above was measured, not asserted. Environment for all
+local runs: repo-pinned Go 1.26.11 first on PATH
+(`~/.local/share/mise/installs/go/1.26.11/bin`, `go version` confirms
+`go1.26.11`), `GOROOT`/`GOBIN` unset, `GOTMPDIR=~/tmp/gotmp-9669`,
+2026-11-18. Exact command, tree, and exit code per claim:
+
+- Registry N1: `bash scripts/test-main-health.sh` → `test-main-health:
+  165 passed, 0 failed`, exit 0. Tree: worktree rebased to
+  origin/main 87b501a1d (commit 3500100afd) plus the uncommitted
+  watcher-entry removal and http-api fold (committed as 858277a06f).
+- Docs-helm: `bash scripts/test-context-stories-doc-split.sh` →
+  `all checks passed`, exit 0, `wc -l` 450/450 on the same tree.
+- verify-contracts filter: `bash
+  scripts/test-verify-golden-corpus-filter-exhaustive.sh` → `10/10
+  cases pass`, exit 0, after the `api` binary-set edit (committed as
+  858277a06f).
+- Docker Hub login gate: `bash scripts/ci/test-image-overrides.sh`
+  → exit 0, after dropping the deleted workflow from the loop list
+  (committed as 09865c4167).
+- Merge-group predictors on head e2fb85ba (clean worktree except this
+  docs-only appendix): `go build ./...` (go/ module) exit 0;
+  `test-verify-collector-entrypoints-generated.sh` + verifier both
+  pass; `dev/precommit-go.sh filecap-all` exit 0;
+  `test-verify-ci-gates-registry.sh` PASS/PASS.
+- Corpus gate mirror: `bash scripts/test-verify-golden-corpus-gate.sh`
+  → `test-verify-golden-corpus-gate: pass`, exit 0, on e2fb85ba
+  (after the Layer-2 phase/flag/probe edits, before this appendix).
+- Satellite source build (proves the Layer-1 pin): `git init` +
+  `remote add https://github.com/eshu-hq/eshu-api.git` + `fetch
+  --depth 1 origin c041d7ec95e41cba1c9874c8dc098af6a2f994f8` +
+  `checkout -q FETCH_HEAD` → `rev-parse HEAD` echoes the same SHA;
+  `CGO_ENABLED=0 go build -trimpath -o ... ./cmd/eshu-api` exit 0;
+  `--help` lists `-addr` (default `:8080`) and required
+  `-core-base-url`.
+- Satellite boot contracts (probed against the binary above):
+  no-flag run exits nonzero with `eshu-api: --core-base-url is
+  required`; with `--core-base-url=http://127.0.0.1:9`,
+  `GET /readyz` → 503 with zero `retry-after` headers,
+  `GET /healthz` → 404.
+- Frontend/auth mirrors on e2fb85ba: `test-auth-e2e-cli.sh` PASS;
+  `test-ci-image-compose.sh` PASS; `test-verify-apk-floors.sh`
+  52 passed, 0 failed; `test-verify-docs-only-ci-skip.sh` 23/23 and
+  docs-set 7/7; `generate-ci-gates-doc.sh` writes 162 gates,
+  byte-identical, `test-generate-ci-gates-doc.sh` 31/31.
+- Registry drift P2 (ci-gates.md thread): the red mirror the review
+  saw was the N1 orphan above (judged name vs deleted workflow file);
+  the watcher-entry removal fixes the judged set, the registry test
+  passes locally (PASS/PASS), and the regen output is byte-identical,
+  so no drift was baked in. Final proof is the fresh CI registry job.
+
 ## Left for the merge gate and the owners
 
 `Dockerfile` row 11 (satellite-binary swap) waits on the owner-provided
