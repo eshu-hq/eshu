@@ -34,6 +34,19 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive(t *testing.T
 	}
 	// Production tables carry planner statistics on a real backend, so the
 	// only estimates the plans can miss are the tick's own temp tables.
+	// The seed's scope captures wait in the staging queue (#10837
+	// direction C) and the tick's collapse folds them into the dirty log
+	// with fresh log seqs, NEWER than every row already queued. The tick
+	// admits oldest-first, so without pinned scope rows the 5,000-row
+	// over-cap arm below would fill the whole admitted window and starve
+	// the scope expansion the convert assertions plan on. Seed one scope
+	// row per seeded generation directly into the log first: the same
+	// (scope_id, generation_id) keys the triggers staged, at seqs the
+	// admission window reaches.
+	for s := range 4 {
+		scope := fmt.Sprintf("vuln-intel://10839-plan/s%d", s)
+		h.exec(`INSERT INTO supply_chain_impact_winners_dirty_log (kind, source, scope_id, generation_id) VALUES ('scope', 'activation', $1, $1 || '/g1'), ('scope', 'activation', $1, $1 || '/g2')`, scope)
+	}
 	// Over-cap arm for the fallback pin below: 5,000 fact-kind rows take
 	// the admitted window to its LIMIT, the scale the over-cap fallback
 	// delete runs at. The delete path touches only the dirty log and the
