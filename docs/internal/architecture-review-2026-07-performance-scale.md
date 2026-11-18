@@ -7,6 +7,10 @@ Part 3 of the July 2026 architecture review; start at [Architecture Review
 
 ## Part E — Performance, HA, failure modes, scale
 
+> Replaced by [the #10861 reducer execution model](design/10861-reducer-execution-model.md)
+> (status: Proposed, pending arbiter acceptance per #10861; Part of #10860).
+> Until that record is accepted, this section stays readable here for context.
+
 ### E.1 Concrete bottlenecks (cited)
 
 - **Giant-repo parse tail** — `git_source_processing.go:99-131`.
