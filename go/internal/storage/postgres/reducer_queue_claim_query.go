@@ -5,15 +5,19 @@ package postgres
 
 var claimReducerWorkQuery = `
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
-` + supersedeInactiveReducerGenerationsCTE + `,
+` + reducerClaimStaleGateCTEs() + `,
 candidate AS (
     SELECT work_item_id
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
+      -- #10863: stale-generation rows are fenced read-only here, on the
+      -- FOR UPDATE candidate level, so the EvalPlanQual recheck re-runs
+      -- the gate against the locked row. The periodic sweep owns
+      -- terminalization.
       AND NOT EXISTS (
           SELECT 1
-          FROM superseded_stale_reducer_generations AS superseded
+          FROM stale_reducer_candidates AS superseded
           WHERE superseded.work_item_id = fact_work_items.work_item_id
       )
       -- #6828: visibility runs on the clock that stamped the row. Retry and

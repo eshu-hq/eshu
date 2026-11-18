@@ -126,9 +126,12 @@ base AS MATERIALIZED (
       ON semantic_ranked.work_item_id = fact_work_items.work_item_id
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
+      -- #10863: stale-generation rows are fenced read-only here; the
+      -- periodic sweep terminalizes them out of band, so a fenced row
+      -- stays pending (diagnosable, replayable) until it runs.
       AND NOT EXISTS (
           SELECT 1
-          FROM superseded_stale_reducer_generations AS superseded
+          FROM stale_reducer_candidates AS superseded
           WHERE superseded.work_item_id = fact_work_items.work_item_id
       )
       -- #6828: visibility runs on the clock that stamped the row (same fix
@@ -258,7 +261,7 @@ func reducerClaimBatchCandidateChainCTEs() string {
 
 var claimReducerWorkBatchQuery = `
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
-` + supersedeInactiveReducerGenerationsCTE + `,
+` + reducerClaimStaleGateCTEs() + `,
 ` + reducerClaimBatchCandidateChainCTEs() + `,
 locked_search_doc_reserved AS MATERIALIZED (
     -- #10568 search_doc_reserved: one reserved claim slot per batch for the
@@ -302,6 +305,14 @@ locked_search_doc_reserved AS MATERIALIZED (
         FROM fact_work_items AS lock_target
         WHERE lock_target.stage = 'reducer'
           AND lock_target.work_item_id = ordered_candidate.work_item_id
+          -- #10863: recheck the stale-generation gate on the locked row,
+          -- beside the lease rechecks below, so hand-out refusal does not
+          -- rest on the snapshot candidate set alone.
+          AND NOT EXISTS (
+              SELECT 1
+              FROM stale_reducer_candidates AS gate_stale
+              WHERE gate_stale.work_item_id = lock_target.work_item_id
+          )
           AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
           AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
           -- #6828: stamp-clock visibility, matching the base candidate filter
@@ -358,6 +369,14 @@ locked_rest AS (
         -- claimed candidate set is unchanged.
         WHERE lock_target.stage = 'reducer'
           AND lock_target.work_item_id = ordered_candidate.work_item_id
+          -- #10863: recheck the stale-generation gate on the locked row,
+          -- beside the lease rechecks below, so hand-out refusal does not
+          -- rest on the snapshot candidate set alone.
+          AND NOT EXISTS (
+              SELECT 1
+              FROM stale_reducer_candidates AS gate_stale
+              WHERE gate_stale.work_item_id = lock_target.work_item_id
+          )
           AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
           AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
           -- #6828: stamp-clock visibility, matching the base candidate filter
