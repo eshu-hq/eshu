@@ -247,6 +247,12 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_winners_hotkey_staging_shim_live_test.go": (
             "TestSupplyChainImpactWinnersHotkeyStagingShimLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_landing_distinct_total_cost_live_test.go": (
+            "TestSupplyChainImpactWinnersLandingDistinctTotalCostLive",
+        ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_landing_multibatch_interleave_live_test.go": (
+            "TestSupplyChainImpactWinnersLandingMultibatchInterleaveLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_winners_staging_collapse_live_test.go": (
             "TestSupplyChainImpactWinnersStagingCollapseConservationLive",
             "TestSupplyChainImpactWinnersStagingCollapseDeletesExactlyOneRowLive",
