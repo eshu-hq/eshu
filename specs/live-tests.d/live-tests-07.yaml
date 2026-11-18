@@ -584,6 +584,10 @@ tests:
     class: dedicated_ci
     reason: "lane-9774: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.68s); docs/internal/evidence/7533-contention-live-proof.md"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_quiet_absolute_reprove_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "#10901 manual quiet-host-only landing-gate re-prove (adjudication condition 3): committed shim shape at n=200 per gated cell with control canary and load1 entry gate; incompatible with shared CI runners so it stays unenrolled from live-postgres-readiness; execution evidence in go/internal/storage/postgres/evidence-10901-quiet-absolute-reprove.md"
   - file: go/internal/storage/postgres/supply_chain_suppression_migration_live_test.go
     tag: ~
     class: scheduled
