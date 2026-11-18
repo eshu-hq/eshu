@@ -92,6 +92,85 @@ shown:
   unchanged (single test file); zero remaining Go references to the
   five retired telemetry instruments.
 
+## CI repair round, 2026-11-18 (post-rebase to origin/main 87b501a1d)
+
+Four lane-caused failures fixed and locally re-proven (pushed):
+
+- Registry N1 (`verify-ci-gate-registry`): the D13 lane deleted
+  `.github/workflows/read-api-latency-gate.yml` but left its name in
+  the `main-health.yml` watcher trigger list, which is also the judged
+  set. Removed the orphan entry; `test-main-health.sh` 165/165 pass.
+- Docs-helm (`test-context-stories-doc-split`): the lane's http-api.md
+  retirement notice pushed the file to 455 lines (cap 450). Folded the
+  correction into the paragraph in place (450/450, gate passes).
+- verify-contracts (`test-verify-golden-corpus-filter-exhaustive`
+  case `case_real_state_passes`): the verifier hardcoded the deleted
+  `api` binary (`go list -deps ./cmd/api/...` fails on a deleted
+  tree). Removed `api` from the binary set following the #9670
+  mcp-server precedent; mirror 10/10 pass.
+- Docker Hub login gate (`scripts/ci/test-image-overrides.sh`):
+  mikefarah-yq `open ... read-api-latency-gate.yml: no such file`
+  from the same deleted workflow lingering in the pin-check loop
+  list. Dropped from the list; script exit 0.
+
+Pre-existing main breakage (NOT lane-caused, proven against main's own
+runs): the #10904/#10907-era postgres test-package compile error
+(`supply_chain_impact_winners_keyed_explain_export_test.go:90`,
+3-value call vs 4-value helper) failed merge-group-slim, go-race,
+bench functional cases, and the live-postgres/corpus legs on the PR's
+merge runs AND on main runs 10437/10438 with the identical signature.
+Fix #10908 is in the new base; the rebased tree compiles clean
+(`go test --no-run` over `./internal/storage/postgres/` ok).
+Bench `test-run-go-benchmarks` fails byte-identically on main
+(de1a7bb2, no D13 content), so any residual bench red is main's to
+own, not this lane's.
+
+Still open (needs owner satellite coordinates): e2e `go build
+./cmd/api` + `/healthz`+`/readyz` health leg, corpus `build_bin api`
++ `/readyz` probe, Dockerfile builder `./cmd/api` line (row 11),
+frontend SSO/MCP image builds. Ground facts: satellite `cmd/eshu-api`
+serves :8080 with `/readyz` (503 dead-core / 200 live-core, no
+`/healthz`) and REQUIRES `--core-base-url`; no satellite release
+carries the full surface (latest v0.5.0, 2026-11-09, SBOM asset
+only). Retarget design (retire legs vs satellite+core in CI) is an
+owner call; the P0 thread already holds the digest question.
+
+## Satellite swap round, 2026-11-18 (owner "do it" on the retire-vs-wire question)
+
+Builds now use the new code: satellite source at the frozen G9 triple
+SHA c041d7ec95e41cba1c9874c8dc098af6a2f994f8 (no satellite release
+carries the full surface yet; latest v0.5.0 ships only an SBOM).
+Satellite module is stdlib-only (zero cgo), verified
+`go build ./cmd/eshu-api` clean at the pin. Grounded interface facts
+(probed against the real pinned binary): no `--core-base-url` flag
+exits nonzero; coreless `/readyz` is 503 with zero Retry-After
+headers; `/healthz` does not exist (404); liveness lives at `GET
+/health` (200, credential-free).
+
+- `Dockerfile`: builder loop drops `./cmd/api`; new satellite-source
+  RUN (SHA-pinned ARG) writes `/go-bin/eshu-api`. Production
+  HEALTHCHECK moves from `/healthz` (gone) to serving-liveness on
+  `/readyz` (any HTTP answer). Row-11 release-digest COPY stays the
+  serving-owner follow-up.
+- `e2e-tests.yml`: build step clones + builds the satellite; "Verify
+  API health" now asserts the live fail-closed contract (`/health`
+  200, `/readyz` 503, no Retry-After) instead of the deleted 200s.
+- Corpus `build_bin api` builds the satellite via
+  `build_satellite_api_bin` (#9670 mcp pattern, SHA form).
+- Corpus serve legs narrowed with cutover-lane pointers: satellite
+  starts with a dead core + 503-assert; B-7 suppression proof, query +
+  demo-answers phases, and api/mcp base-URL flags leave (no live
+  query-truth core exists in this gate); graph/timing/delta phases,
+  drains, mocks, snapshots, and both MCP start flags stay. Snapshot
+  chain re-heads on the static snapshot. Mirror updates: phase-timing
+  exclusion checks, pipeline phase/region pins, delta-reader phase
+  string, suppression execution pins (all green locally).
+- Frontend SSO/MCP runners skip full-suite runs with a loud message
+  (`--module` runs proceed to fail honestly; catalog-sweep policy
+  failure ordering preserved, `test-ci-image-compose` green).
+- Pre-existing breakage untouched: bench functional cases fail
+  identically on main; postgres compile fixed by #10908 in the base.
+
 ## Left for the merge gate and the owners
 
 `Dockerfile` row 11 (satellite-binary swap) waits on the owner-provided

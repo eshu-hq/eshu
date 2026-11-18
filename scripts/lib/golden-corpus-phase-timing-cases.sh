@@ -40,6 +40,13 @@
 # every bracket's span. Do NOT "fix" a future timing warning here by widening
 # the baseline or deleting a bracket -- append a new bracket for the new
 # in-window block instead.
+#
+# D13: the suppression producer proof queried the live in-tree API, so the
+# proof AND its exclusion bracket leave the orchestrator together (serving
+# truth moves to the cutover lane). The timing lib defaults empty brackets
+# sane, the graph_query window still measures API + MCP startup, and the
+# behavioural arithmetic cases below keep pinning the lib. The structural
+# bracket checks and the region/placement guards leave with the bracket.
 
 # require_lib: require_in against the phase-timing lib. The non-comment
 # anchoring matters here too — that lib's own header prose names
@@ -57,16 +64,10 @@ require_lib "phase baseline default" "e2e-baseline.json"
 require_lib "per-phase gate flag" "-phase-timings-file="
 
 # ---------------------------------------------------------------------------
-# Structural: the bracket exists in the orchestrator, and the lib subtracts it.
-#
-# Both halves are required. The bracket alone leaves the stamps dead code, and
-# the subtraction alone has nothing to subtract; either one on its own is a
-# silent no-op that still emits a plausible-looking phase number.
+# Structural: the lib subtracts the excluded span (the orchestrator bracket
+# left with the D13 suppression-proof removal; the lib default covers the
+# empty case, and the behavioural cases below keep proving the arithmetic).
 # ---------------------------------------------------------------------------
-# shellcheck disable=SC2016  # the needles are literal source lines
-require "suppression proof excluded-span open" 'phase_graph_query_excluded_starts+=("$(date +%s)")'
-# shellcheck disable=SC2016
-require "suppression proof excluded-span close" 'phase_graph_query_excluded_ends+=("$(date +%s)")'
 # shellcheck disable=SC2016
 require_lib "graph_query window is measured" "phase_graph_query_window=\$(( phase_graph_query_end - phase_graph_query_start ))"
 require_lib "graph_query subtracts the excluded span" \
@@ -350,111 +351,11 @@ phase_timing_half_set_end_missing_dir="$(mktemp -d)"
 rm -rf "${phase_timing_half_set_end_missing_dir}"
 
 # ---------------------------------------------------------------------------
-# #5837 P2 review: bracket PLACEMENT was unasserted. The two stamps existing
-# somewhere in the orchestrator (already asserted above via `require`) does
-# not pin that they actually surround
-# golden_suppression_verify_producer_truth, nor that nothing else
-# long-running rides inside the exclusion. Moving the stamps to span the
-# whole phase would emit graph_query=0 forever with every gate still green --
-# the exact "the gate measured something other than what it claimed" class
-# this change exists to fix.
+# D13: the exclusion bracket (and its region/placement guards) left the
+# orchestrator with the suppression-proof removal — there is no bracket left
+# to place or bound. The timing lib defaults empty brackets sane, the
+# behavioural arithmetic cases above keep pinning the lib, and the serving
+# proof (with its own timing story) moves to the cutover lane.
 # ---------------------------------------------------------------------------
-# shellcheck disable=SC2016  # the range boundaries are literal source lines
-phase_graph_query_excluded_region_range='/phase_graph_query_excluded_starts+=("$(date +%s)")/,/phase_graph_query_excluded_ends+=("$(date +%s)")/'
-require_region "excluded-span brackets the suppression producer proof, not something wider" \
-	"${phase_graph_query_excluded_region_range}" "golden_suppression_verify_producer_truth"
-
-# Presence guard, ALLOWLIST not denylist (#5837 round-8 review): the previous
-# version of this guard rejected the region only if it contained "start_bg" or
-# "readyz" -- two specific strings pulled from the one incident that had
-# already happened. Any THIRD block inserted between the stamps (a new health
-# check, a new setup call, anything not named start_bg or readyz) would pass
-# this guard silently, get deducted from graph_query forever, and every gate
-# would stay green while the phase measured less than it claimed to. An
-# allowlist closes that: every non-comment, non-blank line in the region must
-# be one of the three lines this bracket is supposed to contain.
-phase_graph_query_excluded_region="$(sed -n "${phase_graph_query_excluded_region_range}p" "${script}")"
-[[ -n "${phase_graph_query_excluded_region}" ]] ||
-	fail "empty phase_graph_query excluded region in $(basename "${script}")"
-# shellcheck disable=SC2016  # literal source lines, not shell expansions
-phase_graph_query_excluded_region_allowed=(
-	'phase_graph_query_excluded_starts+=("$(date +%s)")'
-	'golden_suppression_verify_producer_truth'
-	'phase_graph_query_excluded_ends+=("$(date +%s)")'
-)
-# Process substitution, not a `<<<` here-string: a here-string feeding a
-# while-read loop is known to hang under Homebrew bash 5.3.15 once the body
-# crosses a size threshold. This region is 3 lines today, but the pattern
-# below is the one the rest of this repo's shell code standardizes on, so a
-# future larger region does not silently reintroduce that hang.
-while IFS= read -r phase_graph_query_excluded_region_line; do
-	# Pure-bash trim (no sed/awk): strips leading/trailing [:space:] without
-	# touching a BSD-sed bracket-expression edge case elsewhere in this repo
-	# (a `\t` inside `[ \t]` on macOS sed has silently corrupted output before).
-	phase_graph_query_excluded_region_trimmed="${phase_graph_query_excluded_region_line#"${phase_graph_query_excluded_region_line%%[![:space:]]*}"}"
-	phase_graph_query_excluded_region_trimmed="${phase_graph_query_excluded_region_trimmed%"${phase_graph_query_excluded_region_trimmed##*[![:space:]]}"}"
-	[[ -z "${phase_graph_query_excluded_region_trimmed}" ]] && continue
-	[[ "${phase_graph_query_excluded_region_trimmed}" == \#* ]] && continue
-	phase_graph_query_excluded_region_line_allowed=0
-	for phase_graph_query_excluded_region_candidate in "${phase_graph_query_excluded_region_allowed[@]}"; do
-		if [[ "${phase_graph_query_excluded_region_trimmed}" == "${phase_graph_query_excluded_region_candidate}" ]]; then
-			phase_graph_query_excluded_region_line_allowed=1
-			break
-		fi
-	done
-	(( phase_graph_query_excluded_region_line_allowed )) ||
-		fail "phase_graph_query excluded region contains an unexpected line -- everything inside these stamps is silently deducted from graph_query forever, so only the suppression producer proof call belongs here: ${phase_graph_query_excluded_region_trimmed} (#5837)"
-done < <(printf '%s\n' "${phase_graph_query_excluded_region}")
-
-# ---------------------------------------------------------------------------
-# #5837 P2 review follow-up: everything above guards region CONTENT (what
-# rides between the two stamp lines), not region PLACEMENT (whether the whole
-# bracket sits inside the graph_query window at all). A bracket relocated
-# wholly ABOVE phase_graph_query_start= -- both stamps moved together, same
-# three allowed lines, same relative order -- passes every check above
-# unchanged: sed's pattern-range match finds the same two lines wherever they
-# sit in the file. The runtime `excluded > window` die
-# (golden-corpus-phase-timings.sh:90-92) is what actually catches that shape
-# today, not this static gate. This block closes the static gap by asserting
-# the bracket's own source line numbers fall strictly between the
-# phase_graph_query_start= assignment and the emit_phase_timings_and_flags
-# call that consumes it.
-#
-# #5837 round-9+ review: an earlier version of this block anchored each needle
-# with `^...`/`--line-regexp` and picked the FIRST match via `rg --max-count=1
-# | cut -d: -f1`. That defeats a COMMENT decoy (comments cannot open with the
-# needle text), but not a HEREDOC-BODY decoy: a `cat <<'EOF' >/dev/null` /
-# `phase_graph_query_start=999` / `EOF` block placed above the real assignment
-# is a real, column-1, non-comment line that satisfies `^phase_graph_query_start=`
-# just as well as the genuine one, and `--max-count=1` silently bound to
-# whichever line rg listed first -- reproduced: a bracket relocated wholly
-# above the real start assignment, with a matching heredoc decoy placed even
-# earlier, passed this guard at exit 0 with the real placement genuinely wrong.
-# Enumerating decoy shapes (a comment, then a heredoc body, and whatever comes
-# next) does not terminate; requiring UNIQUENESS does. resolve_unique_line
-# (scripts/lib/golden-corpus-mirror-matcher.sh) is the SAME exactly-one-
-# non-comment-home invariant the `require`/`require_lib` calls above already
-# apply to these same needles (see phase_graph_query_excluded_region_allowed),
-# now also returning the resolved line number: a decoy of ANY shape that adds
-# a second non-comment home turns the lookup "ambiguous" and dies loudly
-# instead of silently binding to the wrong line. It also replaces the
-# `rg ... | cut` pipeline that, under this file's `set -o pipefail` caller,
-# aborted the whole script on a genuine zero-match BEFORE reaching this
-# block's own diagnostic (#5837 P2-2, reproduced with trailing whitespace
-# defeating the old `--line-regexp` lookup) -- resolve_unique_line guards its
-# own `rg` call and reports "missing ..." instead.
-# ---------------------------------------------------------------------------
-phase_graph_query_start_line="$(resolve_unique_line \
-	"phase_graph_query_start= assignment" "${script}" 'phase_graph_query_start=')"
-phase_graph_query_excluded_open_line="$(resolve_unique_line \
-	"phase_graph_query_excluded_starts+= stamp" "${script}" "${phase_graph_query_excluded_region_allowed[0]}")"
-phase_graph_query_excluded_close_line="$(resolve_unique_line \
-	"phase_graph_query_excluded_ends+= stamp" "${script}" "${phase_graph_query_excluded_region_allowed[2]}")"
-phase_graph_query_emit_line="$(resolve_unique_line \
-	"emit_phase_timings_and_flags invocation" "${script}" 'emit_phase_timings_and_flags')"
-(( phase_graph_query_start_line < phase_graph_query_excluded_open_line )) ||
-	fail "phase_graph_query excluded-span open stamp (line ${phase_graph_query_excluded_open_line}) is not after phase_graph_query_start= (line ${phase_graph_query_start_line}) in $(basename "${script}") -- a bracket relocated above the start assignment mismeasures the window without tripping any content check"
-(( phase_graph_query_excluded_close_line < phase_graph_query_emit_line )) ||
-	fail "phase_graph_query excluded-span close stamp (line ${phase_graph_query_excluded_close_line}) is not before emit_phase_timings_and_flags (line ${phase_graph_query_emit_line}) in $(basename "${script}")"
 
 phase_timing_cases_completed=1

@@ -378,31 +378,31 @@ golden_aggregate_counts_oracle="${log_dir}/persisted-aggregate-counts.json"
 	die "persisted aggregate-count oracle failed"
 golden_aggregate_counts_capture "${golden_aggregate_counts_oracle}"
 
-log "start eshu-api for query truth"
+log "start satellite eshu-api (no core in this gate: serving-liveness probe)"
 golden_metrics_source_start
 golden_ask_source_start
-start_bg api api_pid "${bin_dir}/eshu-api"
-wait_for_gate_http "eshu-api /readyz never returned on port ${GATE_API_PORT}" "http://localhost:${GATE_API_PORT}/readyz" "api"
+start_bg api api_pid "${bin_dir}/eshu-api" --core-base-url=http://127.0.0.1:9
+# D13: the satellite answers /readyz 503 with no Retry-After when coreless.
+# Poll for the bind, then assert the fail-closed contract. Serving-truth
+# proof (suppression, query, demo-answers, MCP) moves to the cutover lane
+# with the satellite core; this gate keeps projection, timing, and deltas.
+for _ in $(seq 1 30); do
+	curl -sS -o /dev/null "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1 && break
+	sleep 1
+done
+api_readyz_code="$(curl -sS -o /dev/null -w '%{http_code}' "http://localhost:${GATE_API_PORT}/readyz")"
+[[ "${api_readyz_code}" == "503" ]] || die "eshu-api /readyz=${api_readyz_code}, want 503 (coreless satellite)"
+if curl -sSI "http://localhost:${GATE_API_PORT}/readyz" | grep -qi 'retry-after'; then
+	die "eshu-api /readyz must not send Retry-After"
+fi
 
-log "B-7 suppression producer truth: B-expired -> hidden -> A-expired"
-# #5837: this proof runs inside the phase_graph_query window but is assertion
-# work, not pipeline startup — and it cannot go faster than the expiry waits
-# it schedules for itself (B's 20s window plus the hidden-leg window, #7740).
-# Left unbracketed it billed those waits to graph_query, whose effective
-# ceiling is 8s (3s baseline + 5s absolute_slack_seconds) -- so any wait fails
-# on any host, from source alone, with no pipeline slowdown behind it. The
-# ~23s figure quoted around this change is an illustrative local reading, not
-# a captured measurement; see docs/internal/evidence/5837-aws-drift-reopen.md,
-# "Golden-gate phase-timing note". Bracket it so the phase keeps measuring what the
-# baseline note says it measures: eshu-api + eshu-mcp-server startup. Move these
-# stamps if the proof moves; do not delete them to "fix" a timing warning.
-phase_graph_query_excluded_starts+=("$(date +%s)")
-golden_suppression_verify_producer_truth
-phase_graph_query_excluded_ends+=("$(date +%s)")
-
+# D13: the B-7 suppression producer proof queried the live in-tree API, which
+# no longer exists (its exclusion bracket leaves with it; the emitter
+# defaults empty brackets sane). The snapshot chain below re-heads on the
+# static snapshot the proof itself consumed as input.
 golden_service_runtime_snapshot="${log_dir}/e2e-20repo-service-runtime-snapshot.json"
 golden_service_changed_since_compose_snapshot \
-	"${golden_suppression_runtime_snapshot}" \
+	"testdata/golden/e2e-20repo-snapshot.json" \
 	"${golden_service_runtime_snapshot}"
 golden_repository_runtime_snapshot="${log_dir}/e2e-20repo-repository-runtime-snapshot.json"
 golden_changed_since_compose_snapshot \
@@ -423,13 +423,13 @@ log "seed post-drain dead-letter + vulnerability-readiness query fixtures"
 seed_golden_dead_letter_fixture
 seed_golden_vulnerability_readiness_fixture
 
-log "start satellite eshu-mcp (http) for MCP query truth"
+log "start satellite eshu-mcp (http) for MCP serving liveness (query truth moves to the cutover lane)"
 ESHU_MCP_TRANSPORT=http ESHU_MCP_QUERY_PROFILE="${ESHU_QUERY_PROFILE:-}" \
 	start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server" \
 		-addr=":${GATE_MCP_PORT}" -core-base-url="http://localhost:${GATE_API_PORT}"
 wait_for_gate_http "eshu-mcp-server /health never returned on port ${GATE_MCP_PORT}" "http://localhost:${GATE_MCP_PORT}/health" "mcp-server"
 
-log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
+log "B-7(b) graph truth + B-7(d) timing (query truth moves to the cutover lane)"
 # Minimal-corpus graph assertions prove projection plus deterministic
 # correlations from static fixtures and credential-free cassettes.
 # rc-1 uses the deployable-source/deployable-config pair; rc-2 and rc-8 use the
@@ -468,17 +468,13 @@ log "B-7(b) graph truth + B-7(c) query truth + B-7(d) timing"
 emit_phase_timings_and_flags
 
 gate_status=0
-# demo-answers (#4776): after graph/query truth, execute the five
-# specs/demo-first-answers.v1.yaml questions live with their SPECIFIC arguments
-# and assert each returns a populated answer. The generic query shapes assert
-# each tool/route with example arguments; this phase guards the demo oracle's
-# own pinned arguments so a demo answer cannot silently regress to empty.
+# D13: query + demo-answers phases need a live query-truth core, which no
+# longer exists in this gate — they move to the cutover lane with the
+# satellite core. The demo manifest, api/mcp base URLs, and result shape
+# leave with those phases; graph/timing/delta phases keep the snapshot.
 "${bin_dir}/eshu-golden-corpus-gate" \
-	-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-stage=delta -delta-reader-ignore-expected-failures="${GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES:-0}" \
+	-phase=graph,timing,delta-union,delta-readers -delta-reader-stage=delta -delta-reader-ignore-expected-failures="${GATE_DELTA_READER_IGNORE_EXPECTED_FAILURES:-0}" \
 	-snapshot="${golden_query_runtime_snapshot}" \
-	-demo-manifest=specs/demo-first-answers.v1.yaml \
-	-api-base-url="http://localhost:${GATE_API_PORT}" \
-	-mcp-base-url="http://localhost:${GATE_MCP_PORT}" -mcp-result-shape="${GATE_MCP_RESULT_SHAPE:-}" \
 	-graph-required-only=false \
 	-required-node-labels="Repository,Directory,File,Function,AtlantisProject,AtlantisWorkflow,Platform,GitlabPipeline,GitlabJob,CloudAction" \
 	-required-correlations="all" \
@@ -493,7 +489,7 @@ kill "${metrics_source_pid}" >/dev/null 2>&1 || true
 kill "${ask_provider_pid}" >/dev/null 2>&1 || true
 
 if [[ "${gate_status}" -ne 0 ]]; then
-	die "graph/query/timing phase failed (elapsed ${elapsed}s)"
+	die "graph/timing phase failed (elapsed ${elapsed}s)"
 fi
 
 log "PASS: B-7 golden corpus gate green (elapsed ${elapsed}s, budget ceiling $((GATE_BUDGET_SECONDS * GATE_BUDGET_MULTIPLIER))s)"

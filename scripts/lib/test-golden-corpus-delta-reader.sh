@@ -85,7 +85,9 @@ delta_reader_sync_line="$(delta_reader_body_line 'golden_delta_reader_sync true 
 	|| fail "the delta-reader lib's only stage assertion must be 'golden_delta_reader_assert_stage full'"
 rg --quiet --fixed-strings -- '-delta-reader-stage="${stage}"' "${delta_reader_lib}" \
 	|| fail "golden_delta_reader_assert_stage must pass its stage as -delta-reader-stage"
-rg --quiet --fixed-strings -- '-phase=graph,query,timing,demo-answers,delta-union,delta-readers -delta-reader-stage=delta ' "${script}" \
+# D13: query + demo-answers move to the cutover lane (no live query-truth
+# core); delta-readers stays on the narrowed invocation.
+rg --quiet --fixed-strings -- '-phase=graph,timing,delta-union,delta-readers -delta-reader-stage=delta ' "${script}" \
 	|| fail "the final gate invocation must run delta-readers with -delta-reader-stage=delta"
 for delta_reader_const in 'DeltaReaderStageFull DeltaReaderStage = "full"' 'DeltaReaderStageDelta DeltaReaderStage = "delta"'; do
 	rg --quiet --fixed-strings -- "${delta_reader_const}" "${repo_root}/go/internal/goldengate/delta_readers.go" \
