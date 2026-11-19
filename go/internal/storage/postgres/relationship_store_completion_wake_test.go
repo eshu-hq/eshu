@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 )
@@ -278,7 +279,10 @@ func TestCompletionWakeQueriesComposeFloorAndOrderedLock(t *testing.T) {
 	t.Parallel()
 
 	for name, query := range map[string]string{
-		"flag":   flagInflightDeployableUnitCorrelationsQuery,
+		"flag": completionWakeFlagQueryForDomain(
+			string(reducercontract.DomainDeployableUnitCorrelation),
+			"deployable_unit_reopen_fingerprints",
+			reducercontract.DeployableUnitCorrelationLogicVersion),
 		"reopen": reopenDeployableUnitCorrelationsForReposQuery,
 	} {
 		if !strings.Contains(query, backfill.ScopeReplayFloorCTE) {

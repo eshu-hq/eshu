@@ -58,9 +58,10 @@ var corpusCompletionWakeDomains = []corpusCompletionWakeDomain{
 	{string(reducercontract.DomainServiceCatalogCorrelation), "service_catalog_correlation_reopen_fingerprints", reducercontract.ServiceCatalogCorrelationLogicVersion},
 }
 
-// completionWakeCandidateIDsSQL is the candidate selection both wake arms
-// share ($1 wake timestamp, unused here; $2 the wake's repository scope). It
-// composes the single scope replay floor (backfill.ScopeReplayFloorCTE and
+// completionWakeCandidateIDsSQLForDomain is the candidate selection one
+// gated domain's wake arms share ($1 wake timestamp, unused here; $2 the
+// wake's repository scope), over that domain's fingerprint table. It composes
+// the single scope replay floor (backfill.ScopeReplayFloorCTE and
 // ScopeReplayFloorJoins, the bound every floored reopen listing uses), the
 // failed-generation exclusion, and the floor tuple predicate, so the write
 // set is the at-or-above-floor items only — never the accumulated succeeded
@@ -80,16 +81,6 @@ var corpusCompletionWakeDomains = []corpusCompletionWakeDomain{
 // (EvalPlanQual), so a row another transaction reopened, claimed, or
 // superseded between the snapshot and the lock drops out instead of being
 // rewritten.
-func completionWakeCandidateIDsSQL(statusPredicate string) string {
-	return completionWakeCandidateIDsSQLForDomain(statusPredicate,
-		string(reducercontract.DomainDeployableUnitCorrelation),
-		"deployable_unit_reopen_fingerprints",
-		reducercontract.DeployableUnitCorrelationLogicVersion)
-}
-
-// completionWakeCandidateIDsSQLForDomain is the candidate selection for one
-// gated domain: same floor, exclusion, and changed-evidence shape as the
-// deployable_unit_correlation wake, over that domain's fingerprint table.
 func completionWakeCandidateIDsSQLForDomain(statusPredicate, domain, table string, logicVersion int) string {
 	return `SELECT work.work_item_id
 ` + backfill.ScopeReplayFloorJoins + `LEFT JOIN ` + table + ` AS fingerprint
@@ -106,31 +97,6 @@ ORDER BY work.work_item_id COLLATE "C"
 FOR UPDATE OF work`
 }
 
-// flagInflightDeployableUnitCorrelationsQuery is the wake's in-flight arm:
-// a claimed/running item whose recorded input no longer holds keeps its
-// exact lease and gains cross_scope_replay_required, so the migration 093
-// ACK trigger returns it to pending instead of landing it succeeded on stale
-// input. The SET list names no status column: the trigger fires BEFORE
-// UPDATE OF status, and this statement must not trip it early. Items
-// already flagged are excluded so a repeat wake neither locks nor rewrites
-// them. Items with no fingerprint row are excluded too: with no recorded
-// input there is nothing to prove stale — the running execution is the
-// first derivation and records its fingerprint on success — and flagging it
-// would force a redundant replay whose diverted ACK resets attempt_count,
-// erasing kill-recovery reclaim evidence (fault-injection shard 3/4
-// killworkerdeployableunit: a pass that inserted nothing flagged the
-// admission-blocked victim, and the replacement's reclaimed attempt read
-// back as the reset instead of above the kill-time value).
-var flagInflightDeployableUnitCorrelationsQuery = backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
-SET cross_scope_replay_required = TRUE,
-    updated_at = $1
-WHERE work_item_id IN (` +
-	completionWakeCandidateIDsSQL(`work.status IN ('claimed', 'running')
-  AND NOT work.cross_scope_replay_required
-  AND fingerprint.work_item_id IS NOT NULL`) + `
-)
-`
-
 // reopenDeployableUnitCorrelationsForReposQuery is the wake's succeeded
 // arm. It composes the shared succeeded-to-pending SET clause (#7731) so
 // the wake resets exactly the columns the reducer claim path reads.
@@ -139,7 +105,21 @@ var reopenDeployableUnitCorrelationsForReposQuery = completionWakeReopenQueryFor
 	"deployable_unit_reopen_fingerprints",
 	reducercontract.DeployableUnitCorrelationLogicVersion)
 
-// completionWakeFlagQueryForDomain builds one domain's in-flight arm.
+// completionWakeFlagQueryForDomain builds one domain's in-flight arm: a
+// claimed/running item whose recorded input no longer holds keeps its exact
+// lease and gains cross_scope_replay_required, so the migration 093 ACK
+// trigger returns it to pending instead of landing it succeeded on stale
+// input. The SET list names no status column: the trigger fires BEFORE
+// UPDATE OF status, and this statement must not trip it early. Items already
+// flagged are excluded so a repeat wake neither locks nor rewrites them.
+// Items with no fingerprint row are excluded too: with no recorded input
+// there is nothing to prove stale — the running execution is the first
+// derivation and records its fingerprint on success — and flagging it would
+// force a redundant replay whose diverted ACK resets attempt_count, erasing
+// kill-recovery reclaim evidence (fault-injection shard 3/4
+// killworkerdeployableunit: a pass that inserted nothing flagged the
+// admission-blocked victim, and the replacement's reclaimed attempt read back
+// as the reset instead of above the kill-time value).
 func completionWakeFlagQueryForDomain(domain, table string, logicVersion int) string {
 	return backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
 SET cross_scope_replay_required = TRUE,
