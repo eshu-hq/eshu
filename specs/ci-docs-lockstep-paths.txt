@@ -13,6 +13,9 @@
 # one does).
 #
 # One path per line, repo-root-relative, sorted.
+#
+# After editing, regenerate the classifier's copy (never hand-edit it):
+#   scripts/generate-ci-lockstep.sh
 AGENTS.md
 docs/internal/design/430-nornicdb-graph-search-split.md
 docs/internal/design/5351-ifa-materialized-edge-known-gaps.md
