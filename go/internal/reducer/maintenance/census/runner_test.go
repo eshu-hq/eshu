@@ -293,3 +293,40 @@ func TestIDAnchorCensusLoopRunsFirstPassAtOnceThenPerInterval(t *testing.T) {
 		t.Fatalf("exactly the first pass is the startup pass:\n%s", ct.logs.String())
 	}
 }
+
+// cancelDuringCensusSource cancels the parent context inside its first
+// AnchorCensus call, deterministically placing a cancel in the window
+// between AnchorCensus returning and RunOnce recording the pass.
+type cancelDuringCensusSource struct {
+	once   sync.Once
+	cancel context.CancelFunc
+	census anchor.Census
+}
+
+func (s *cancelDuringCensusSource) AnchorCensus(context.Context) (anchor.Census, error) {
+	s.once.Do(func() {
+		if s.cancel != nil {
+			s.cancel()
+		}
+	})
+	return s.census, nil
+}
+
+// TestRunOnceLogsCompletedPassAfterConcurrentCancel proves a pass that
+// finishes while another goroutine cancels the parent is still recorded.
+// Cancelling between AnchorCensus and the log must not silently drop a
+// completed pass: CI showed the startup pass ran and shutdown completed
+// while the first_pass=true line was missing.
+func TestRunOnceLogsCompletedPassAfterConcurrentCancel(t *testing.T) {
+	t.Parallel()
+
+	logs := &bytes.Buffer{}
+	logger := slog.New(slog.NewTextHandler(logs, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	source := &cancelDuringCensusSource{cancel: cancel, census: anchor.Census{IDBearing: 1}}
+	r := &Runner{Source: source, Logger: logger, Timeout: time.Minute}
+	r.RunOnce(ctx, true)
+	if !strings.Contains(logs.String(), "first_pass=true") {
+		t.Fatalf("completed pass after concurrent cancel was not logged:\n%s", logs.String())
+	}
+}
