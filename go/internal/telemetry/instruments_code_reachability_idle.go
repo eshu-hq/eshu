@@ -51,7 +51,7 @@ const (
 
 // registerCodeReachabilityIdle registers the #10870 code-reachability
 // idle-probe instruments on inst. Labels are closed bounded sets: kind (the
-// four cycle kinds above) and trigger (probe, audit). No scope, generation,
+// five cycle kinds above) and trigger (probe, audit). No scope, generation,
 // repository, or run value ever rides a label.
 func registerCodeReachabilityIdle(meter metric.Meter, inst *Instruments) error {
 	var err error
