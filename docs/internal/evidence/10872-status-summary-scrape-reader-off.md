@@ -23,20 +23,28 @@ same stored rows (same `SourceSHA256`, same 33 s `StaleAfter` bound).
 `TestStatusMetricsStatementInventory` (`go/internal/runtime/metrics_summary_test.go`)
 counts every statement one scrape issues over an empty store:
 
-- Before (reader off): 22 statements, including 1 live active-work statement
+- Before (reader off): 26 statements, including 1 live active-work statement
   and 8 live coordinator statements.
-- After (reader off): 17 statements: the summary clock and the keyed row read
+- After, reader on: 17 statements: the summary clock and the keyed row read
   per stored model (2 + 2), zero live active-work and zero live coordinator
-  statements. Identical to the reader-on inventory.
+  statements.
+- After, reader off with no servable row: 26 statements: the two probe reads
+  plus the full live path each model falls back to (`reason: flag_off`).
+- After, reader off with fresh rows for both models: 21 statements, zero live
+  active-work and zero live coordinator statements — the 17 stored-serve
+  statements plus the four probe reads (one clock and one keyed row read per
+  model), live-measured in
+  `TestScrapeStatementInventoryOnAnEmptyStoreLive`
+  (`before=26 (active-work 1, coordinator 8), reader off=21 (0, 0), reader
+  on=17 (0, 0)`).
 
 `TestScrapeWithTheReaderOffAttributesOnlyModelReads`
 (`go/internal/storage/postgres/status/summary/reader_read_total_labels_test.go`)
-pins the per-read attribution on the same instruments QA uses: a flag-off
-scrape records database time only under
+seeds both models, so a flag-off scrape records database time only under
 `eshu_dp_status_snapshot_read_duration_seconds{read="active_work_summary_model"}`
 and `{read="coordinator_model"}`, plus one
 `eshu_dp_status_summary_scrape_total` point per model
-(`active_work_summary`/`model`/`fresh`, `coordinator_snapshot`/`zero`/`missing`
+(`active_work_summary`/`model`/`fresh`, `coordinator_snapshot`/`model`/`fresh`
 in the test shape). No sample is recorded under the live labels
 `active_work_summary` or `coordinator`. Before the fix the same scrape
 recorded its time under the live labels, so the before/after per-reader
