@@ -21,22 +21,23 @@ fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
 | `eshu_dp_reducer_run_duration_seconds` | histogram | Handler execution window after a worker starts a work item. |
 | `eshu_dp_reducer_queue_wait_seconds` | histogram | Time visible in the reducer queue before handler start. |
 | `eshu_dp_reducer_batch_claim_size` | histogram | Batch claim size where batched reducer claiming is used. |
+| `eshu_dp_reducer_batch_buffer_depth` | gauge | Current reducer batch prefetch items claimed and hold-heartbeated but not yet executing (`queue="reducer"`). A nonzero steady value with idle workers means the buffer holds prefetched work; stuck above the configured depth means a pop-side leak. |
+| `eshu_dp_reducer_batch_buffer_dwell_seconds` | histogram | Time a prefetched item waits in the buffer between claim and worker execution start. Dropped items (evicted or drained) record none; a dwell climbing past the 60s claim lease means the hold heartbeat is the only thing keeping the claim alive. |
+| `eshu_dp_reducer_batch_buffer_hold_heartbeat_failed_total` | counter | Reducer batch prefetch items evicted after their hold heartbeat failed during the buffer dwell, by `domain`. A rising rate means leases are dying in the buffer faster than workers drain it. |
 | `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. Completed handler wall time lands on `eshu_dp_reducer_handler_duration_seconds` by domain (the #10866 bound-setting measurement; histogram top bucket 3600s); handlers released without returning count on `eshu_dp_reducer_handler_abandoned_total` (shutdown release) or `eshu_dp_reducer_handler_timed_out_total` (expired per-domain bound, `failure_class="reducer_handler_timeout"`) by domain instead, with an ERROR `reducer execution failed` log line carrying the class. The configured bound per domain is exported on `eshu_dp_reducer_handler_timeout_seconds` (0 = unbounded); alert `eshu_dp_reducer_batch_worker_execution_age_seconds > on(domain) eshu_dp_reducer_handler_timeout_seconds` plus `increase(eshu_dp_reducer_handler_timed_out_total[10m]) > 0`. |
 
 `eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK completed. `ack_claim_rejected` marks a rejected single-item ACK, and each superseded claim dropped from a batch ACK (one record per dropped claim,
 carrying its work item id); a successor whose ACK committed in such a batch is
 recorded as `succeeded` with its result. `ack_outcome_unknown` marks a batch
 whose ACK may have committed only some of its surviving items, or an ACK cut
-short by shutdown. `ack_abandoned_to_lease_expiry` marks an ACK, single-item
-or batch, that kept failing with a Postgres deadlock
+short by shutdown. `ack_abandoned_to_lease_expiry` marks an ACK, single-item or batch, that kept failing with a Postgres deadlock
 (40P01) or serialization failure (40001) through its five attempts: the claim
 stays leased and is reclaimed when the lease expires, and the run keeps
 draining. A steady rate of it points at lock contention on the queue rows, not
 at a stopping process. Inspect durable queue state before treating any of these
 as completed work.
 
-Compare queue wait with run duration before changing worker counts. High queue
-age with low run duration points to claim, routing, or conflict-domain pressure.
+Compare queue wait with run duration before changing worker counts. High queue age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.
 
 ## Package-Consumption Sidecar Repair
@@ -55,8 +56,7 @@ High run duration points to the handler, store, or graph-write path.
 | `eshu_dp_graph_id_anchor_census_passes_total` | counter | Census passes by closed `outcome`: `ok` or `failed` (graph error or the `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline). |
 | `eshu_dp_graph_id_anchor_census_duration_seconds` | histogram | Wall time of each census pass by the same outcome. The pass scanned 1,130,424 nodes in about 1.95 s on QA (image sha-57167b0, 2026-10-08). |
 
-The reducer emits a structured elected-pass log with `ready`,
-`dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;
+The reducer emits a structured elected-pass log with `ready`, `dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;
 contention and failure have separate structured logs. A progress-sampling
 failure warns and leaves the progress gauges stale without failing the repair pass.
 Storage writes key=value process logs for each completed scope during the

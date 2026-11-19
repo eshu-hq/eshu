@@ -564,6 +564,7 @@ func buildReducerService(
 		RetryMaxAttempts:       retryCfg.MaxAttempts,
 		Workers:                workers,
 		BatchClaimSize:         loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		BatchPrefetchDepth:     loadReducerBatchPrefetchDepth(getenv, workers, loadReducerBatchClaimSize(getenv, workers, graphBackend)),
 		Tracer:                 tracer,
 		Instruments:            instruments,
 		Logger:                 logger,

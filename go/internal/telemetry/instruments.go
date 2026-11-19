@@ -2949,6 +2949,17 @@ type Instruments struct {
 	// Reducer batch claim metric
 	BatchClaimSize metric.Int64Histogram
 
+	// Reducer batch prefetch buffer metrics (#10867). The claimer holds up
+	// to BatchPrefetchDepth claimed items with a lease heartbeat each until
+	// a worker pops them, so the 3 AM question "are leases held safely in
+	// the buffer or expiring?" is answered by depth (current buffered items,
+	// queue=reducer), dwell (claim-to-execution-start per executed item;
+	// dropped items record none), and hold-heartbeat failures (evictions by
+	// domain).
+	BatchBufferDepth               metric.Int64UpDownCounter
+	BatchBufferDwell               metric.Float64Histogram
+	BatchBufferHoldHeartbeatFailed metric.Int64Counter
+
 	// Reducer batch-claim funnel metrics (#10565 box 6): candidates in,
 	// representatives after the fence, and drops by closed reason. The
 	// funnel reconciles per claim: candidates = admitted + over_limit +
@@ -7569,6 +7580,33 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register BatchClaimSize histogram: %w", err)
+	}
+
+	// batchBufferDwellBuckets spans the sub-lease dwell range up to the
+	// 60s claim lease: a dwell past the lease means the hold heartbeat is
+	// the only thing keeping the claim alive.
+	batchBufferDwellBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.BatchBufferDepth, err = meter.Int64UpDownCounter(
+		"eshu_dp_reducer_batch_buffer_depth",
+		metric.WithDescription("Current reducer batch prefetch items claimed and hold-heartbeated but not yet executing"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferDepth counter: %w", err)
+	}
+	inst.BatchBufferDwell, err = meter.Float64Histogram(
+		"eshu_dp_reducer_batch_buffer_dwell_seconds",
+		metric.WithDescription("Time a prefetched item waits in the batch buffer between claim and worker execution start"),
+		metric.WithExplicitBucketBoundaries(batchBufferDwellBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferDwell histogram: %w", err)
+	}
+	inst.BatchBufferHoldHeartbeatFailed, err = meter.Int64Counter(
+		"eshu_dp_reducer_batch_buffer_hold_heartbeat_failed_total",
+		metric.WithDescription("Reducer batch prefetch items evicted after their hold heartbeat failed during the buffer dwell"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferHoldHeartbeatFailed counter: %w", err)
 	}
 
 	// batchClaimFunnelBuckets bounds the per-claim funnel histograms. A live

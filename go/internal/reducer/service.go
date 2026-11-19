@@ -222,6 +222,14 @@ type Service struct {
 	Workers        int // concurrent worker count; 0 or 1 means sequential
 	BatchClaimSize int // items per ClaimBatch call; 0 uses default (Workers * 4, max 64)
 
+	// BatchPrefetchDepth bounds the lookahead buffer between the single
+	// claimer and the batch workers (#10867). A positive depth lets the
+	// claimer hold up to free-buffer-slots items with a lease
+	// heartbeat each until a worker pops it; 0 (the zero value) keeps
+	// today's idle-only claiming with no buffer. The effective depth never
+	// exceeds the claim size; see batchPrefetchDepth.
+	BatchPrefetchDepth int
+
 	// HandlerTimeout is the operator-configured default bound on one handler
 	// execution, and HandlerTimeoutOverrides replaces it per domain. Zero
 	// (the default) means no bound is configured. A positive bound is
