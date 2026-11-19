@@ -57,8 +57,9 @@ func TestClaimBatchQueryStaysBatchBounded(t *testing.T) {
 	// live clauses may satisfy or break the bound.
 	uncommented := regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(query, "")
 	for _, want := range []string{
-		// Reserved arm: at most one priority-1 row per batch.
-		"ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
+		// Reserved arm: at most one priority-1 row per batch (#10865:
+		// reclaim_rank leads so an expired search-doc hold takes it).
+		"ORDER BY ordered_candidate.reclaim_rank ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
 		// Rest arm: the remainder of the caller's batch, full $8 when empty.
 		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
 	} {

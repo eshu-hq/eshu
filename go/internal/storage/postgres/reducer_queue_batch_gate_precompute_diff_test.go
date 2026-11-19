@@ -140,8 +140,12 @@ func TestClaimBatchGatePrecomputeMatchesPreChangeCandidateSetAndOrder(t *testing
 					onlyInOld, onlyInNew, oldIDs, newIDs,
 				)
 			}
-			if len(oldIDs) != len(newIDs) || fmt.Sprint(oldIDs) != fmt.Sprint(newIDs) {
-				t.Fatalf("gate-precompute candidate ORDER diverges from pre-change order:\nOLD = %v\nNEW = %v", oldIDs, newIDs)
+			// #10865 intentionally reorders: expired holds float first
+			// (the fixture holds one live at the early clock and expired
+			// at the late clock). The new order must be the old order
+			// stable-partitioned by the expired set at the cell clock.
+			if want := reclaimFirstExpectedOrder(oldIDs, expiredClaimedWorkItemIDs(t, ctx, db, c.clock)); fmt.Sprint(newIDs) != fmt.Sprint(want) {
+				t.Fatalf("gate-precompute candidate ORDER diverges from the #10865 reclaim-first order:\nOLD = %v\nNEW = %v\nwant = %v", oldIDs, newIDs, want)
 			}
 			if len(oldIDs) > 0 {
 				nonEmpty++

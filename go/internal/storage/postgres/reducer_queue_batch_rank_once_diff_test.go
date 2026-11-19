@@ -13,9 +13,10 @@ import (
 
 // TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder is the
 // 0/0 differential proof for the #3624 Track 2 rank-once window rewrite: the
-// new candidate SELECT must return the IDENTICAL work_item_id set, in the
-// IDENTICAL order, as the pre-rewrite correlated-subquery candidate SELECT,
-// on a fixture that exercises:
+// new candidate SELECT must return the IDENTICAL work_item_id set as the
+// pre-rewrite correlated-subquery candidate SELECT, in the identical order up
+// to the intentional #10865 reclaim-first reorder (expired claimed/running
+// holds float first, stable within each class), on a fixture that exercises:
 //
 //   - multiple pending siblings sharing a conflict key,
 //   - an expired claimed/running holder with an older pending sibling on the
@@ -120,8 +121,12 @@ func TestClaimBatchRankOnceRewriteMatchesPreRewriteCandidateSetAndOrder(t *testi
 			onlyInOld, onlyInNew, oldIDs, newIDs,
 		)
 	}
-	if len(oldIDs) != len(newIDs) || fmt.Sprint(oldIDs) != fmt.Sprint(newIDs) {
-		t.Fatalf("rank-once rewrite candidate ORDER diverges from pre-rewrite order:\nOLD = %v\nNEW = %v", oldIDs, newIDs)
+	// #10865 intentionally reorders: expired holds float first. The new
+	// order must be the old order stable-partitioned by the expired set at
+	// the query clock — same membership, same relative order within each
+	// class, holds first.
+	if want := reclaimFirstExpectedOrder(oldIDs, expiredClaimedWorkItemIDs(t, ctx, db, args[0].(time.Time))); fmt.Sprint(newIDs) != fmt.Sprint(want) {
+		t.Fatalf("rank-once rewrite candidate ORDER diverges from the #10865 reclaim-first order:\nOLD = %v\nNEW = %v\nwant = %v", oldIDs, newIDs, want)
 	}
 }
 

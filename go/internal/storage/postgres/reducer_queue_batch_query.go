@@ -224,6 +224,16 @@ candidate AS (
     -- column cannot replace.
     SELECT
         reps.work_item_id,
+        -- #10865 reclaim_rank: expired claimed/running holds sort first at
+        -- the batch LIMIT (projector #10480 twin). Only status is tested
+        -- because base already admits solely unleased rows (claim_until IS
+        -- NULL or past), so no live lease can reach this CASE — every
+        -- claimed/running row here is an expired (or anomalous NULL-lease)
+        -- hold awaiting reclaim. Without this lead the hold rewrites its
+        -- own updated_at at claim time and sorts after older pending rows
+        -- at every updated_at tie-break, starving behind any backlog
+        -- deeper than the batch.
+        CASE WHEN reps.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS reclaim_rank,
         CASE WHEN reps.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
         COALESCE(source_counts.reducer_source_inflight_count, 0) AS reducer_source_inflight_count,
         CASE WHEN reps.work_item_id = source_heads.work_item_id THEN 0 ELSE 1 END AS reducer_source_fair_rank,
@@ -306,7 +316,7 @@ locked_search_doc_reserved AS MATERIALIZED (
         SELECT candidate.*
         FROM candidate
         WHERE candidate.reducer_domain_priority = 1
-        ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC
+        ORDER BY candidate.reclaim_rank ASC, candidate.updated_at ASC, candidate.work_item_id ASC
         OFFSET 0
     ) AS ordered_candidate
     JOIN LATERAL (
@@ -330,7 +340,7 @@ locked_search_doc_reserved AS MATERIALIZED (
           AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
         FOR UPDATE OF lock_target SKIP LOCKED
     ) AS lock_target ON true
-    ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
+    ORDER BY ordered_candidate.reclaim_rank ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
     LIMIT 1
 ),
 locked_rest AS (
@@ -350,12 +360,16 @@ locked_rest AS (
         LEFT JOIN locked_search_doc_reserved AS search_doc_taken
           ON search_doc_taken.work_item_id = candidate.work_item_id
         WHERE search_doc_taken.work_item_id IS NULL
+        -- #10865: reclaim_rank ASC leads every key below, so an expired
+        -- claimed/running hold takes a slot ahead of ordinary waiting rows;
+        -- the keys below keep their relative order, so pending-only batches
+        -- claim exactly as before.
         -- #8024: reducer_domain_inflight_count ASC sits after the fairness
         -- ranks and before the updated_at tie-break, so a ready row of a
         -- domain with no inflight work takes a slot ahead of an older
         -- same-source backlog without disturbing the #3385 cross-domain
         -- interleave (which ties at 0 = 0 when neither domain holds leases).
-        ORDER BY candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC
+        ORDER BY candidate.reclaim_rank ASC, candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC
         OFFSET 0
     ) AS ordered_candidate
     JOIN LATERAL (
@@ -400,7 +414,7 @@ locked_rest AS (
     -- pinned source-fairness contract. The inner copy above stays
     -- candidate-qualified for clarity beside the reserved anti-join, whose
     -- output carries the same column names.
-    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
+    ORDER BY reclaim_rank ASC, reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
     -- The reserved arm took COUNT(*) rows (0 or 1); the rest arm fills what
     -- remains of the batch. The scalar subquery plans as an InitPlan, not a
     -- per-row SubPlan, and falls back to the full $8 when nothing reserved.

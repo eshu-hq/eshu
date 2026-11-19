@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -144,6 +145,35 @@ func TestClaimBatchCandidateRejoinRemovalMatchesPreChangeSetAndOrder(t *testing.
 		cell{name: "clockA/domain-filter", clock: clockA, filter: []string{"supply_chain_impact"}, drain: true, projN: 2, semCap: 10, limit: 1000},
 	)
 
+	// assertReclaimFirstHead proves the LIMIT 1 head property for the #10865
+	// order: the head the new query takes under LIMIT 1 is the head of the
+	// full new order for the same cell, and the full new order is the
+	// reclaim-first partition of the full old order (0/0 set included).
+	assertReclaimFirstHead := func(t *testing.T, c cell, newHead []candidateRow) {
+		t.Helper()
+		fullArgs := []any{c.clock, c.filter, "n/a", c.clock.Add(time.Hour), c.drain, c.projN, c.semCap, 1000}
+		fullOld := queryCandidateRows(t, ctx, db, oldQuery, fullArgs)
+		fullNew := queryCandidateRows(t, ctx, db, newQuery, fullArgs)
+		if onlyInOld := diffStringSlices(candidateRowIDs(fullOld), candidateRowIDs(fullNew)); len(onlyInOld) != 0 {
+			t.Fatalf("limit-1 cell full old order has rows the new order lacks: %v", onlyInOld)
+		}
+		if onlyInNew := diffStringSlices(candidateRowIDs(fullNew), candidateRowIDs(fullOld)); len(onlyInNew) != 0 {
+			t.Fatalf("limit-1 cell full new order has rows the old order lacks: %v", onlyInNew)
+		}
+		if want := reclaimFirstExpectedOrder(candidateRowIDs(fullOld), expiredClaimedWorkItemIDs(t, ctx, db, c.clock)); fmt.Sprint(candidateRowIDs(fullNew)) != fmt.Sprint(want) {
+			t.Fatalf("limit-1 cell full new order diverges from the #10865 reclaim-first order:\nOLD = %v\nNEW = %v\nwant = %v", fullOld, fullNew, want)
+		}
+		if len(fullNew) == 0 {
+			if len(newHead) != 0 {
+				t.Fatalf("limit-1 head = %v, want empty (full order is empty)", newHead)
+			}
+			return
+		}
+		if fmt.Sprint(newHead) != fmt.Sprint(fullNew[:1]) {
+			t.Fatalf("limit-1 head = %v, want the full new order head %v", newHead, fullNew[:1])
+		}
+	}
+
 	nonEmpty := 0
 	for _, c := range cells {
 		c := c
@@ -151,6 +181,20 @@ func TestClaimBatchCandidateRejoinRemovalMatchesPreChangeSetAndOrder(t *testing.
 			args := []any{c.clock, c.filter, "n/a", c.clock.Add(time.Hour), c.drain, c.projN, c.semCap, c.limit}
 			oldRows := queryCandidateRows(t, ctx, db, oldQuery, args)
 			newRows := queryCandidateRows(t, ctx, db, newQuery, args)
+			if c.limit == 1 {
+				// #10865: under LIMIT 1 the pre-change and reclaim-first
+				// heads differ by design when an expired hold is present
+				// (the hold floats to the head), so the 0/0 set premise
+				// cannot hold here. Prove instead that the new head is
+				// the head of the full new order for the same cell, and
+				// that the full new order is the reclaim-first partition
+				// of the full old order.
+				assertReclaimFirstHead(t, c, newRows)
+				if len(newRows) > 0 {
+					nonEmpty++
+				}
+				return
+			}
 			onlyInOld := diffStringSlices(candidateRowIDs(oldRows), candidateRowIDs(newRows))
 			onlyInNew := diffStringSlices(candidateRowIDs(newRows), candidateRowIDs(oldRows))
 			if len(onlyInOld) != 0 || len(onlyInNew) != 0 {
@@ -158,8 +202,16 @@ func TestClaimBatchCandidateRejoinRemovalMatchesPreChangeSetAndOrder(t *testing.
 					"only in OLD = %v, only in NEW = %v\nOLD = %v\nNEW = %v",
 					onlyInOld, onlyInNew, oldRows, newRows)
 			}
-			if fmt.Sprint(oldRows) != fmt.Sprint(newRows) {
-				t.Fatalf("rejoin-removal candidate rows diverge (columns or order):\nOLD = %v\nNEW = %v", oldRows, newRows)
+			// #10865 intentionally reorders: expired holds float first.
+			// The row multiset must stay identical (the moved reads are
+			// value-identical), and the new ID order must be the old
+			// order stable-partitioned by the expired set at the cell
+			// clock.
+			if fmt.Sprint(rowMultiset(oldRows)) != fmt.Sprint(rowMultiset(newRows)) {
+				t.Fatalf("rejoin-removal candidate row multiset diverges:\nOLD = %v\nNEW = %v", oldRows, newRows)
+			}
+			if want := reclaimFirstExpectedOrder(candidateRowIDs(oldRows), expiredClaimedWorkItemIDs(t, ctx, db, c.clock)); fmt.Sprint(candidateRowIDs(newRows)) != fmt.Sprint(want) {
+				t.Fatalf("rejoin-removal candidate rows diverge from the #10865 reclaim-first order:\nOLD = %v\nNEW = %v\nwant = %v", oldRows, newRows, want)
 			}
 			if len(oldRows) > 0 {
 				nonEmpty++
@@ -297,6 +349,18 @@ func candidateRowIDs(rows []candidateRow) []string {
 		ids[i] = row.id
 	}
 	return ids
+}
+
+// rowMultiset renders rows order-insensitively so the #10865 reorder (holds
+// first) can be asserted on IDs while the value-identity proof stays a
+// multiset comparison.
+func rowMultiset(rows []candidateRow) []string {
+	out := make([]string, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, fmt.Sprint(row))
+	}
+	sort.Strings(out)
+	return out
 }
 
 // fullCandidateProjection widens a read-only candidate SELECT (derived or
