@@ -28,14 +28,12 @@ import (
 // activation wake's bound.
 const defaultCompletionWakeLockTimeout = 2 * time.Second
 
-// completionWakeInputChanged is the #8283 changed-evidence verdict over one
-// candidate's LEFT JOINed fingerprint row: missing row, moved logic
-// version, or a fingerprint that differs from the recompute over the
-// recorded repository set. It renders the same ResolvedInputFingerprintSQL
-// the maintenance gate renders, so the two wakes can never disagree about
-// completionWakeInputChangedFor is the changed-evidence verdict over one
-// fingerprint table and logic version: missing row, moved logic version, or
-// a fingerprint that differs from the recompute over the recorded set.
+// completionWakeInputChangedFor is the #8283 changed-evidence verdict over
+// one candidate's LEFT JOINed fingerprint row in one gated domain's
+// fingerprint table: missing row, moved logic version, or a fingerprint
+// that differs from the recompute over the recorded repository set. It
+// renders the same ResolvedInputFingerprintSQL the maintenance gate renders,
+// so the two wakes can never disagree about whether an item's input changed.
 func completionWakeInputChangedFor(logicVersion int) string {
 	return `(fingerprint.work_item_id IS NULL
         OR fingerprint.logic_version IS DISTINCT FROM ` +
