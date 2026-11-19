@@ -30,6 +30,18 @@ var frozenObservabilityCoverageCorrelationReadAdmission = []string{
 	"ListObservabilityCoverageCorrelations func(context.Context, coverage.CorrelationFilter) ([]coverage.CorrelationRow, error)",
 }
 
+// observabilityCoverageCorrelationReadAdmissionWitness proves
+// ObservabilityCoverageCorrelationReadAdmission is satisfiable with
+// the minimal shape: the single bounded correlation list, no wider
+// store surface.
+type observabilityCoverageCorrelationReadAdmissionWitness struct{}
+
+func (observabilityCoverageCorrelationReadAdmissionWitness) ListObservabilityCoverageCorrelations(context.Context, CorrelationFilter) ([]CorrelationRow, error) {
+	return nil, nil
+}
+
+var _ ObservabilityCoverageCorrelationReadAdmission = observabilityCoverageCorrelationReadAdmissionWitness{}
+
 // observabilityCoverageCorrelationReadAdmissionMethodSet reflects the live
 // ObservabilityCoverageCorrelationReadAdmission method set into sorted "name
 // signature" strings for comparison with the frozen list.

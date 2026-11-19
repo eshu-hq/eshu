@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -39,10 +40,13 @@ var _ TerraformDriftReadAdmission = fakeTerraformConfigStateDriftStore{}
 
 // terraformDriftReadAdmissionMethodSet reflects the live
 // TerraformDriftReadAdmission method set into sorted "name signature"
-// strings for comparison with the frozen list.
-func terraformDriftReadAdmissionMethodSet(t *testing.T) []string {
+// strings for comparison with the frozen list. The iface parameter
+// forces every caller — including the seeded-drift RED proof below —
+// through this same guard comparison, so a passing suite proves the
+// guard itself can see drift rather than proving a private copy can.
+func terraformDriftReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*TerraformDriftReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -65,7 +69,7 @@ func TestTerraformDriftReadAdmissionContractIsVersioned(t *testing.T) {
 	if TerraformDriftReadAdmissionContractVersion != "v0" {
 		t.Errorf("TerraformDriftReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", TerraformDriftReadAdmissionContractVersion, "v0")
 	}
-	got := terraformDriftReadAdmissionMethodSet(t)
+	got := terraformDriftReadAdmissionMethodSet(t, (*TerraformDriftReadAdmission)(nil))
 	if len(got) != len(frozenTerraformDriftReadAdmission) {
 		t.Fatalf("TerraformDriftReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenTerraformDriftReadAdmission, len(frozenTerraformDriftReadAdmission), TerraformDriftReadAdmissionContractVersion)
 	}
@@ -73,6 +77,56 @@ func TestTerraformDriftReadAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenTerraformDriftReadAdmission[i] {
 			t.Errorf("TerraformDriftReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenTerraformDriftReadAdmission[i], TerraformDriftReadAdmissionContractVersion)
 		}
+	}
+}
+
+// TestTerraformDriftReadAdmissionWireShapesAreSealed proves the seal
+// on the pin: exactly the two re-declared finding reads, with no
+// mutation, resolve, or snapshot surface riding along. The frozen
+// method-set contract test pins the exact names; this test pins the
+// exclusion the arbiter ruling demands.
+func TestTerraformDriftReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*TerraformDriftReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 2 {
+		t.Fatalf("TerraformDriftReadAdmission has %d methods, want exactly 2: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Resolve", "Delete", "Create", "Write", "Snapshot", "Ledger", "Summary",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("TerraformDriftReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededTerraformDriftDrift is a deliberately widened copy of the pin:
+// the two frozen finding reads plus an active-finding resolve, which
+// the findings lane never issues. It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededTerraformDriftDrift interface {
+	TerraformDriftReadAdmission
+	ResolveActiveFinding(context.Context, string) (FindingRow, error)
+}
+
+// TestTerraformDriftReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a
+// guard that cannot see the seeded method is no guard.
+func TestTerraformDriftReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := terraformDriftReadAdmissionMethodSet(t, (*seededTerraformDriftDrift)(nil))
+	if reflect.DeepEqual(got, frozenTerraformDriftReadAdmission) {
+		t.Fatal("seeded widening (ResolveActiveFinding) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenTerraformDriftReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenTerraformDriftReadAdmission)+1)
 	}
 }
 

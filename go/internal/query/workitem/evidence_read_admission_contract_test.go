@@ -28,6 +28,17 @@ var frozenWorkItemEvidenceReadAdmission = []string{
 	"ListWorkItemEvidence func(context.Context, workitem.EvidenceFilter) (workitem.EvidencePage, error)",
 }
 
+// workItemEvidenceReadAdmissionWitness proves
+// WorkItemEvidenceReadAdmission is satisfiable with the minimal shape:
+// the single bounded evidence list, no wider store surface.
+type workItemEvidenceReadAdmissionWitness struct{}
+
+func (workItemEvidenceReadAdmissionWitness) ListWorkItemEvidence(context.Context, EvidenceFilter) (EvidencePage, error) {
+	return EvidencePage{}, nil
+}
+
+var _ WorkItemEvidenceReadAdmission = workItemEvidenceReadAdmissionWitness{}
+
 // workItemEvidenceReadAdmissionMethodSet reflects the live
 // WorkItemEvidenceReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.

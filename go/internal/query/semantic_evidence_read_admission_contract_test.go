@@ -30,6 +30,17 @@ var frozenSemanticEvidenceReadAdmission = []string{
 	"SemanticEvidence func(context.Context, query.semanticEvidenceFilter) (query.semanticEvidenceListReadModel, error)",
 }
 
+// semanticEvidenceReadAdmissionWitness proves
+// SemanticEvidenceReadAdmission is satisfiable with the minimal shape:
+// the single bounded evidence read, no wider store surface.
+type semanticEvidenceReadAdmissionWitness struct{}
+
+func (semanticEvidenceReadAdmissionWitness) SemanticEvidence(context.Context, semanticEvidenceFilter) (semanticEvidenceListReadModel, error) {
+	return semanticEvidenceListReadModel{}, nil
+}
+
+var _ SemanticEvidenceReadAdmission = semanticEvidenceReadAdmissionWitness{}
+
 // semanticEvidenceReadAdmissionMethodSet reflects the live
 // SemanticEvidenceReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
