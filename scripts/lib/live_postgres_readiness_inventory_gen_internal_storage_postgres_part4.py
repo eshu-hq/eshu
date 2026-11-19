@@ -282,6 +282,10 @@ TABLE = {
             "TestUpsertFactBatchUnchangedGuardConcurrentReplay",
             "TestUpsertFactsUnchangedReplayAddsNoUpdates",
         ),
+        "go/internal/storage/postgres/unchanged_skip_proof_live_test.go": (
+            "TestUpsertFactBatchSkipsUnchangedRow",
+            "TestUpsertFactBatchUnchangedGuardChangeMatrix",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
             "TestWorkflowClaimClassColumnsRoundTrip",
             "TestWorkflowClaimClassColumnsBackfill",

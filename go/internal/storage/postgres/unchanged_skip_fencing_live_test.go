@@ -9,7 +9,7 @@ package postgres
 
 // Fencing, tombstone, admission, concurrency, and write-counter proof for the
 // issue #10873 unchanged-fact skip guard. Companions the
-// unchanged_skip_proof_test.go change matrix: the guard must keep the
+// unchanged_skip_proof_live_test.go change matrix: the guard must keep the
 // issue #4444 fencing protection exactly as it is (a higher-token same-content
 // write still lands to advance the stored token; a lower-token write never
 // lands whatever its content), tombstone flips must always write,

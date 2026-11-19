@@ -3,6 +3,10 @@
 
 package postgres
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10873 repeat-save skip regression and 15-case NULL-safe change matrix for the unchanged-row guard on disposable PostgreSQL: an identical same-token replay keeps xmin and both timestamps while staying accepted, and every guarded column writes on exactly one flip in both NULL directions; wall time logged not gated
+//eshu:readiness:env ESHU_POSTGRES_DSN
+
 // Unchanged-fact skip proof for issue #10873 (parent epic #10860).
 //
 // Saving a fact that is already stored rewrites its row even when nothing in

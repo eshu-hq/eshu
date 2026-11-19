@@ -104,7 +104,7 @@ Live tests run against PostgreSQL 18.6 on a throwaway local instance
 (`TestUpsertFactBatchSkipsUnchangedRow` first failed on the unguarded code:
 equal replays moved xmin on every leg). All in `go/internal/storage/postgres`:
 
-- `unchanged_skip_proof_test.go`: skip keeps xmin and both timestamps
+- `unchanged_skip_proof_live_test.go`: skip keeps xmin and both timestamps
   with the fact_id still accepted; per-column change matrix (all 12 guarded
   columns, NULL transitions both directions) writes on exactly one flip and
   skips on the equal replay.

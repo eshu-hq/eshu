@@ -5,7 +5,10 @@ package postgres
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -20,18 +23,56 @@ import (
 // short-circuit, and the fencing predicate kept verbatim (#4444).
 
 var (
-	factGuardSetPattern     = regexp.MustCompile(`(?is)\bDO\s+UPDATE\s+SET\s+(.*?)\s+WHERE\s`)
-	factGuardGroupPattern   = regexp.MustCompile(`(?is)\bAND\s*\((.*)\)\s*$`)
-	factGuardLegPattern     = regexp.MustCompile(`(?i)^fact_records\.(\w+)\s+IS\s+DISTINCT\s+FROM\s+EXCLUDED\.(\w+)$`)
-	factGuardSetItemPattern = regexp.MustCompile(`(?i)^(\w+)\s*=\s*EXCLUDED\.(\w+)$`)
-	factGuardInsertPattern  = regexp.MustCompile(`(?is)INSERT\s+INTO\s+fact_records\s*\((.*?)\)`)
+	factGuardSetPattern   = regexp.MustCompile(`(?is)\bDO\s+UPDATE\s+SET\s+(.*?)\s+WHERE\s`)
+	factGuardGroupPattern = regexp.MustCompile(`(?is)\bAND\s*\((.*)\)\s*$`)
+	factGuardLegPattern   = regexp.MustCompile(`(?i)^fact_records\.(\w+)\s+IS\s+DISTINCT\s+FROM\s+EXCLUDED\.(\w+)$`)
+	// factGuardDiscriminatorLegPattern matches one leg of the
+	// selectUnchangedFactIDs WHERE clause in unchanged_guard.go, which joins
+	// fact_records AS f against the incoming VALUES AS v and keeps rows
+	// equal on every leg (IS NOT DISTINCT FROM). Parsed from the production
+	// source (never a hand copy) so a guard-side column addition without the
+	// matching discriminator leg fails loudly.
+	factGuardDiscriminatorLegPattern = regexp.MustCompile(`(?i)\bf\.(\w+)\s+IS\s+NOT\s+DISTINCT\s+FROM\s+v\.(\w+)`)
+	factGuardSetItemPattern          = regexp.MustCompile(`(?i)^(\w+)\s*=\s*EXCLUDED\.(\w+)$`)
+	factGuardInsertPattern           = regexp.MustCompile(`(?is)INSERT\s+INTO\s+fact_records\s*\((.*?)\)`)
 )
 
 const factGuardFencingPredicate = "fact_records.fencing_token <= EXCLUDED.fencing_token"
 
+// unchangedGuardSource reads the production selectUnchangedFactIDs source so
+// the lockstep check parses the discriminator legs it ships, never a copy.
+func unchangedGuardSource(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) failed")
+	}
+	src, err := os.ReadFile(filepath.Join(filepath.Dir(file), "unchanged_guard.go"))
+	if err != nil {
+		t.Fatalf("read unchanged_guard.go: %v", err)
+	}
+	return string(src)
+}
+
+// factGuardDiscriminatorLegs returns the ordered f.X/v.Y leg columns parsed
+// from a selectUnchangedFactIDs source, plus every malformed leg.
+func factGuardDiscriminatorLegs(source string) (legs []string, malformed []string) {
+	for _, match := range factGuardDiscriminatorLegPattern.FindAllStringSubmatch(source, -1) {
+		if match[1] != match[2] {
+			malformed = append(malformed, match[0])
+			continue
+		}
+		legs = append(legs, match[1])
+	}
+	return legs, malformed
+}
+
 // factGuardClauseDrift returns every way suffix's SET list, guard legs, and
-// prefix's INSERT columns disagree.
-func factGuardClauseDrift(suffix, prefix string) []string {
+// prefix's INSERT columns disagree. discriminator is the production
+// unchanged_guard.go source: its WHERE legs must equal the suffix guard legs
+// in order, or a fencing-false row that differs only in a guard-side-only
+// column would match the discriminator and leak a stale derivation (#4444).
+func factGuardClauseDrift(suffix, prefix, discriminator string) []string {
 	var drift []string
 	setMatch := factGuardSetPattern.FindStringSubmatch(suffix)
 	if setMatch == nil {
@@ -76,6 +117,15 @@ func factGuardClauseDrift(suffix, prefix string) []string {
 	if len(gotGuard) > 0 && gotGuard[len(gotGuard)-1] != "payload" {
 		drift = append(drift, fmt.Sprintf("payload is not the last guard leg (got %q): cheap scalars must short-circuit first", gotGuard[len(gotGuard)-1]))
 	}
+	discLegs, discMalformed := factGuardDiscriminatorLegs(discriminator)
+	for _, leg := range discMalformed {
+		drift = append(drift, fmt.Sprintf("discriminator leg %q is not `f.X IS NOT DISTINCT FROM v.X`", leg))
+	}
+	if len(discLegs) == 0 && len(discMalformed) == 0 {
+		drift = append(drift, "no discriminator `f.X IS NOT DISTINCT FROM v.X` legs found")
+	} else if !slices.Equal(discLegs, gotGuard) {
+		drift = append(drift, fmt.Sprintf("discriminator legs %v != suffix guard legs %v in order", discLegs, gotGuard))
+	}
 
 	insertMatch := factGuardInsertPattern.FindStringSubmatch(prefix)
 	if insertMatch == nil {
@@ -100,7 +150,7 @@ func factGuardClauseDrift(suffix, prefix string) []string {
 // guard legs, or INSERT columns drift apart.
 func TestUpsertFactBatchGuardLockstep(t *testing.T) {
 	t.Parallel()
-	if drift := factGuardClauseDrift(upsertFactBatchSuffix, upsertFactBatchPrefix); len(drift) > 0 {
+	if drift := factGuardClauseDrift(upsertFactBatchSuffix, upsertFactBatchPrefix, unchangedGuardSource(t)); len(drift) > 0 {
 		t.Fatalf("fact upsert guard drifted:\n%s", strings.Join(drift, "\n"))
 	}
 	if !strings.HasSuffix(upsertFactBatchSuffixReturningFactID, upsertFactBatchSuffix) &&
@@ -121,7 +171,11 @@ fact_kind = EXCLUDED.fact_kind, payload = EXCLUDED.payload, observed_at = EXCLUD
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
   AND (fact_records.fact_kind IS DISTINCT FROM EXCLUDED.fact_kind
     OR fact_records.payload IS DISTINCT FROM EXCLUDED.payload)`
-	if drift := factGuardClauseDrift(clean, insertBase); len(drift) != 0 {
+	const cleanDiscriminator = `
+JOIN fact_records AS f ON f.fact_id = v.fact_id
+WHERE f.fact_kind IS NOT DISTINCT FROM v.fact_kind
+  AND f.payload IS NOT DISTINCT FROM v.payload`
+	if drift := factGuardClauseDrift(clean, insertBase, cleanDiscriminator); len(drift) != 0 {
 		t.Fatalf("clean clause reported drift: %v", drift)
 	}
 	cases := map[string]string{
@@ -135,7 +189,22 @@ WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
 			clean, "payload = EXCLUDED.payload,", "payload = EXCLUDED.payload, fact_kind = EXCLUDED.fact_kind,", 1),
 	}
 	for name, clause := range cases {
-		if drift := factGuardClauseDrift(clause, insertBase); len(drift) == 0 {
+		if drift := factGuardClauseDrift(clause, insertBase, cleanDiscriminator); len(drift) == 0 {
+			t.Fatalf("seeded violation %q not reported", name)
+		}
+	}
+	discriminatorCases := map[string]string{
+		"discriminator leg dropped": strings.Replace(
+			cleanDiscriminator, "\n  AND f.payload IS NOT DISTINCT FROM v.payload", "", 1),
+		"discriminator legs reordered": `
+JOIN fact_records AS f ON f.fact_id = v.fact_id
+WHERE f.payload IS NOT DISTINCT FROM v.payload
+  AND f.fact_kind IS NOT DISTINCT FROM v.fact_kind`,
+		"discriminator alias mismatch": strings.Replace(
+			cleanDiscriminator, "f.payload IS NOT DISTINCT FROM v.payload", "f.payload IS NOT DISTINCT FROM v.fact_kind", 1),
+	}
+	for name, discriminator := range discriminatorCases {
+		if drift := factGuardClauseDrift(clean, insertBase, discriminator); len(drift) == 0 {
 			t.Fatalf("seeded violation %q not reported", name)
 		}
 	}
