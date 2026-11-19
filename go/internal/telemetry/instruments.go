@@ -419,7 +419,8 @@ type Instruments struct {
 	SharedProjectionCycleBackoff metric.Float64Gauge
 	// CodeReachabilityProjectionCycles counts code-reachability projection
 	// runner cycles by closed kind (probe_skip, probe_triggered_full,
-	// audit_full, productive). Registered by registerCodeReachabilityIdle.
+	// audit_full, drain_full, productive). Registered by
+	// registerCodeReachabilityIdle.
 	CodeReachabilityProjectionCycles metric.Int64Counter
 	// CodeReachabilityProjectionInputsFound counts projected inputs by the
 	// closed trigger that surfaced them (probe, audit). Registered by

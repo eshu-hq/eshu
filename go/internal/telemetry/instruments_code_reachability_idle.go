@@ -24,6 +24,12 @@ const (
 	// full candidate query (startup/unknown cursor, probe error, probe
 	// regression, or audit interval elapsed).
 	CodeReachabilityCycleKindAuditFull = "audit_full"
+	// CodeReachabilityCycleKindDrainFull means the previous full query was
+	// productive and the probe has not advanced: the backlog may hold more
+	// than one batch, so the cycle drains it with another full query. It is
+	// not an audit — the probe path forced the query, and it carries no
+	// audit log line.
+	CodeReachabilityCycleKindDrainFull = "drain_full"
 	// CodeReachabilityCycleKindProductive means the full candidate query
 	// found snapshots to project.
 	CodeReachabilityCycleKindProductive = "productive"
@@ -33,8 +39,9 @@ const (
 // eshu_dp_code_reachability_projection_inputs_found_total (#10870): which
 // full-query path surfaced the projected snapshots.
 const (
-	// CodeReachabilityTriggerProbe means a probe advance triggered the
-	// full query that found the inputs.
+	// CodeReachabilityTriggerProbe means the probe path (advance or backlog
+	// drain) ran the full query that found the inputs — not the audit
+	// backstop.
 	CodeReachabilityTriggerProbe = "probe"
 	// CodeReachabilityTriggerAudit means the audit forced the full query
 	// that found the inputs — including the short-list-miss class the
@@ -50,7 +57,7 @@ func registerCodeReachabilityIdle(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.CodeReachabilityProjectionCycles, err = meter.Int64Counter(
 		"eshu_dp_code_reachability_projection_cycles_total",
-		metric.WithDescription("Code-reachability projection runner cycles by kind (probe_skip, probe_triggered_full, audit_full, productive); only non-skip kinds run the full candidate query (#10870)"),
+		metric.WithDescription("Code-reachability projection runner cycles by kind (probe_skip, probe_triggered_full, audit_full, drain_full, productive); only non-skip kinds run the full candidate query (#10870)"),
 	); err != nil {
 		return fmt.Errorf("register CodeReachabilityProjectionCycles counter: %w", err)
 	}

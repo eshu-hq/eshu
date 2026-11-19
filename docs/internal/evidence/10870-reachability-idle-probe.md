@@ -92,17 +92,21 @@ the QA `pg_stat_statements` buffer profile above.
 New signals (closed label sets, no scope/generation/repository values):
 
 - `eshu_dp_code_reachability_projection_cycles_total` by kind
-  (`probe_skip`, `probe_triggered_full`, `audit_full`, `productive`) —
-  the idle-cost signal: only non-skip kinds run the full query.
+  (`probe_skip`, `probe_triggered_full`, `audit_full`, `drain_full`,
+  `productive`) — the idle-cost signal: only non-skip kinds run the full
+  query. Drain-forced fulls (backlog drain after a productive cycle) record
+  `drain_full`, never `audit_full`, so they stay out of the audit signal.
 - `eshu_dp_code_reachability_projection_inputs_found_total` by trigger
   (`probe`, `audit`) — an `audit` rate above zero is the short-list-miss
-  class with its found count attached.
+  class with its found count attached. Productive drain cycles carry the
+  `probe` trigger.
 - `eshu_dp_code_reachability_projection_backoff_seconds` gauge — the
   current idle wait, 0 on productive re-poll.
 - Every audit-forced full query logs `code reachability projection audit
   completed` with `input_count` including zero, so the audit cadence is
-  visible even when it finds nothing. A productive probe-triggered cycle
-  keeps the existing `code reachability projection completed` log.
+  visible even when it finds nothing. Drain-forced cycles log nothing
+  audit-named. A productive probe-triggered cycle keeps the existing
+  `code reachability projection completed` log.
 
 Coverage contract row added for `code_reachability_projection_idle.go`
 in `docs/public/observability/telemetry-coverage-reducer-core.md`

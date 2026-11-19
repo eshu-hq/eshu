@@ -127,7 +127,8 @@ full-query-every-poll. The knobs are
 
 The runner records the #10870 idle-probe signals:
 `eshu_dp_code_reachability_projection_cycles_total` by closed kind
-(`probe_skip`, `probe_triggered_full`, `audit_full`, `productive`),
+(`probe_skip`, `probe_triggered_full`, `audit_full`, `drain_full`,
+`productive`),
 `eshu_dp_code_reachability_projection_inputs_found_total` by closed trigger
 (`probe`, `audit`), and the
 `eshu_dp_code_reachability_projection_backoff_seconds` gauge. The runner's
