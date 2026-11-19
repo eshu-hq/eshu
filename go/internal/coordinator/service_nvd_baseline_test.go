@@ -312,6 +312,75 @@ func TestLoadNVDBaselinePlanInputsCheckpointFailureFailsClosed(t *testing.T) {
 	}
 }
 
+// TestLoadNVDBaselinePlanInputsPlanFailureFailsClosed proves an unreadable
+// plan store zeroes the trip so the planner holds instead of planning blind
+// from checkpoints with no pace or in-flight proof, and logs the cause at
+// WARN. A dropped chunk writes no row and a failed read returns none: both
+// read as unprovable, never as "never planned".
+func TestLoadNVDBaselinePlanInputsPlanFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 20, 12, 0, 0, 0, time.UTC)
+	fx := newBaselineServiceTestFixtures(now, "")
+	fx.checkpoints.checkpoints = map[int]NVDBaselineStoredCheckpoint{
+		2002: {
+			Checkpoint:       vulnerability.NVDBaselineCheckpoint{ResumeUnixMicro: 946684800000000, ResumeCVEID: "CVE-2002-0001", RecordsDone: 10, RecordsTotal: 100},
+			LastScopeID:      "scope-2002",
+			LastGenerationID: "gen-2002",
+		},
+	}
+	fx.plans.err = errBaselineStoreUnreachable
+	fx.latch.latch = vulnerability.NVDBaselineTripLatch{SampledAt: now.Add(-30 * time.Minute)}
+	fx.latch.found = true
+	config := baselineTestConfig("run-1", 2002)
+
+	inputs := fx.service.loadNVDBaselinePlanInputs(context.Background(), config, "instance-1", now)
+
+	if inputs.Trip.Outcome != "" {
+		t.Fatalf("loadNVDBaselinePlanInputs() trip outcome = %q, want never-loaded on a plan failure", inputs.Trip.Outcome)
+	}
+	if len(inputs.InFlightYears) != 0 || len(inputs.LastPlanned) != 0 {
+		t.Fatalf("loadNVDBaselinePlanInputs() plan state = (%v, %v), want no pace or in-flight proof from an unreadable read", inputs.InFlightYears, inputs.LastPlanned)
+	}
+	if !baselineWarned(*fx.messages) {
+		t.Fatal("loadNVDBaselinePlanInputs() logged nothing, want a WARN naming the plan failure")
+	}
+	if fx.sampler.calls != 0 {
+		t.Fatalf("sampler calls = %d, want none when the plan rows never loaded", fx.sampler.calls)
+	}
+}
+
+// TestLoadNVDBaselinePlanInputsMissingReaderHoldsLoud proves a missing plan
+// reader holds the lane the same loud way as an unreadable store: the trip
+// stays never-loaded so an enabled derivation never plans blind.
+func TestLoadNVDBaselinePlanInputsMissingReaderHoldsLoud(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 20, 12, 0, 0, 0, time.UTC)
+	fx := newBaselineServiceTestFixtures(now, "")
+	fx.checkpoints.checkpoints = map[int]NVDBaselineStoredCheckpoint{
+		2002: {
+			Checkpoint:       vulnerability.NVDBaselineCheckpoint{ResumeUnixMicro: 946684800000000, ResumeCVEID: "CVE-2002-0001"},
+			LastScopeID:      "scope-2002",
+			LastGenerationID: "gen-2002",
+		},
+	}
+	fx.service.NVDBaselinePlanReader = nil
+	config := baselineTestConfig("run-1", 2002)
+
+	inputs := fx.service.loadNVDBaselinePlanInputs(context.Background(), config, "instance-1", now)
+
+	if inputs.Trip.Outcome != "" {
+		t.Fatalf("loadNVDBaselinePlanInputs() trip outcome = %q, want never-loaded without a plan reader", inputs.Trip.Outcome)
+	}
+	if !baselineWarned(*fx.messages) {
+		t.Fatal("loadNVDBaselinePlanInputs() logged nothing, want a WARN naming the missing plan reader")
+	}
+	if fx.sampler.calls != 0 {
+		t.Fatalf("sampler calls = %d, want none without a plan reader", fx.sampler.calls)
+	}
+}
+
 // TestLoadNVDBaselinePlanInputsMapsLiveState proves the happy path maps every
 // request field: the derivation, the checkpoint positions, the in-flight set
 // and last-planned times from the plan rows, the loaded trip, and the drain
@@ -665,7 +734,10 @@ func TestServiceTickMapsBaselineStateMintsOneChunk(t *testing.T) {
 		Clock:                            func() time.Time { return now },
 	}
 
-	store := &fakeStore{instances: []workflow.CollectorInstance{instance}}
+	// The minted chunk carries a plan, so the admission takes the
+	// plan-recording entry point (#10828): the store fake records plans
+	// the way the real one does, and the test pins the handoff.
+	store := &baselinePlanFakeStore{fakeStore: &fakeStore{instances: []workflow.CollectorInstance{instance}}, recorded: -1}
 	service.Store = store
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -685,6 +757,9 @@ func TestServiceTickMapsBaselineStateMintsOneChunk(t *testing.T) {
 	}
 	if got := len(baselines); got != 1 {
 		t.Fatalf("baseline items = %d, want the one minted chunk, enqueued = %+v", got, store.enqueuedItems)
+	}
+	if len(store.calls) != 1 || len(store.calls[0].plans) != 1 || store.calls[0].plans[0].Year != 2002 {
+		t.Fatalf("plan calls = %+v, want the one plan-carrying admission for the minted 2002 chunk", store.calls)
 	}
 	if got := collectBaselineCounter(t, reader, "eshu_dp_nvd_baseline_plans_total"); got != 1 {
 		t.Fatalf("baseline plans = %d, want the one planned outcome", got)

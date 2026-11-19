@@ -13,7 +13,7 @@ row; at most `max_in_flight_years` in flight; order after #10828).
 The planner exists but production never filled its request fields. This lane
 adds the one loader both planning sites share
 (`loadNVDBaselinePlanInputs` in
-`go/internal/coordinator/vulnerability_intelligence_baseline_service.go`):
+`go/internal/coordinator/service_nvd_baseline.go`):
 the validated `derive_nvd_baseline` section, the stored checkpoints, the
 per-year in-flight verdicts and last-planned times from the plan rows, the
 trip latch sampled hourly, and the per-year drain states. The in-tree tick
@@ -70,13 +70,16 @@ latch, drain, and sampler stores onto the coordinator ports.
 
 Red then green in-session: the loader, sampler, drain, ETA, age,
 held-change, and both-site loop tests in
-`go/internal/coordinator/vulnerability_intelligence_baseline_service_test.go`
-(13 tests), the inputs and timeout helpers in
+`go/internal/coordinator/service_nvd_baseline_test.go`
+(15 tests: the 13 loader/sampler/drain/ETA/loop proofs plus the plan-row
+failure and missing-reader fail-closed pins), the inputs and timeout helpers in
 `go/internal/coordinator/vulnerability/nvd_baseline_inputs_test.go`, the
 three service instruments in
 `go/internal/telemetry/instruments_nvd_baseline_service_test.go`, and the
-four `cmd` adapters in
-`go/cmd/workflow-coordinator/nvd_baseline_supply_test.go`. The loop test
+seven `cmd` adapter proofs in
+`go/cmd/workflow-coordinator/nvd_baseline_supply_test.go` (checkpoint,
+latch, drain, sampler, and the plan-row stamp plus its failure
+propagation). The loop test
 runs one scheduler tick through the real planner: one hourly sample, one
 minted chunk, one planned outcome. Full suites green for
 `go/internal/coordinator`, `go/internal/coordinator/vulnerability`,
@@ -84,12 +87,17 @@ minted chunk, one planned outcome. Full suites green for
 
 ## Open points
 
-- **Plan rows (#10828).** The branch is unmerged, so `NVDBaselinePlanReader`
-  is nil in production wiring: an enabled derivation holds loudly
-  (`baseline_trip_unloaded` plus the WARN) until that lane merges, then the
-  adapter is one mapping beside the checkpoint reader and this lane rebases.
-  The live plan-row API lives on `drive/10828-per-year-plan-row`
-  (migration 309 there, not 312).
+- **Plan rows (#10828, merged).** Migration 312 and
+  `NVDBaselinePlanStore.ReadNVDBaselinePlans` are on `origin/main`; the
+  `cmd` `nvdBaselinePlanReader` maps them onto the coordinator port beside
+  the checkpoint reader and `main.go` wires it. The read is keyed by run
+  id in one statement, so a superseded run's rows (#10831) never enter
+  another run's inputs; an unreadable read zeroes the trip and holds the
+  lane loudly (`baseline_trip_unloaded` plus the WARN), pinned by
+  `TestNVDBaselinePlanReaderReturnsWrittenStamp`,
+  `TestNVDBaselinePlanReaderPropagatesProbeFailure`,
+  `TestLoadNVDBaselinePlanInputsPlanFailureFailsClosed`, and
+  `TestLoadNVDBaselinePlanInputsMissingReaderHoldsLoud`.
 - **Closed transitions.** `closed` and `close_refused` have no producer: no
   operator Close route calls the latch from production code. The sampler
   records `opened`, `paged`, and `eligible` only.

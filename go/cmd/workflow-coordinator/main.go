@@ -287,10 +287,11 @@ func run(parent context.Context) error {
 		// NVD baseline parent-service supply (eshu-hq/eshu#10746): the
 		// loader maps these durable probes onto the planner request every
 		// tick an instance enables derive_nvd_baseline. The plan reader
-		// stays nil until the per-year plan-row lane (#10828) merges; an
-		// enabled derivation without one holds loudly instead of planning
-		// blind.
+		// serves the per-year plan rows the admission wrote beside its
+		// baseline work items (#10828); an unreadable read holds the lane
+		// loudly instead of planning blind.
 		NVDBaselineCheckpointReader: nvdBaselineCheckpointReader{database: postgres.SQLDB{DB: db}},
+		NVDBaselinePlanReader:       nvdBaselinePlanReader{database: postgres.SQLDB{DB: db}},
 		NVDBaselineTripLatchStore:   nvdBaselineLatchStore{database: postgres.SQLDB{DB: db}},
 		NVDBaselineDrainStore: nvdBaselineDrainStore{reader: vulnerabilitystore.NewNVDBaselineDrainProbe(
 			postgres.SQLDB{DB: db},

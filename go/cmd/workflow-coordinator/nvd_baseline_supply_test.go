@@ -175,3 +175,55 @@ func TestNVDBaselineTripSamplerMapsRates(t *testing.T) {
 		t.Fatalf("SampleNVDBaselineTrip() at = %v, want %v", got.At, now)
 	}
 }
+
+// TestNVDBaselinePlanReaderReturnsWrittenStamp proves the cmd-level reader
+// hands the coordinator the stamp the admission wrote beside its work item:
+// the year's last planned scope, the database clock of that insert, and
+// whether the scope still has an open work item. The read binds the run id,
+// so plan rows of a superseded run (#10831) never enter another run's
+// inputs.
+func TestNVDBaselinePlanReaderReturnsWrittenStamp(t *testing.T) {
+	t.Parallel()
+
+	plannedAt := time.Date(2026, time.November, 20, 11, 0, 0, 0, time.UTC)
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{
+		2002,
+		"scope-2002",
+		plannedAt,
+		true,
+	}}}}}
+	got, err := nvdBaselinePlanReader{database: database}.
+		ReadNVDBaselinePlans(context.Background(), "run-1")
+	if err != nil {
+		t.Fatalf("ReadNVDBaselinePlans() error = %v, want nil", err)
+	}
+	row, ok := got[2002]
+	if !ok {
+		t.Fatalf("ReadNVDBaselinePlans() = %+v, want the 2002 row", got)
+	}
+	if row.LastPlannedScopeID != "scope-2002" || !row.LastPlannedAt.Equal(plannedAt) || !row.InFlight {
+		t.Fatalf("ReadNVDBaselinePlans() row = %+v, want scope-2002 at %v in flight", row, plannedAt)
+	}
+	if len(database.Queries) != 1 || len(database.Queries[0].Args) == 0 || database.Queries[0].Args[0] != "run-1" {
+		t.Fatalf("ReadNVDBaselinePlans() queries = %+v, want the one read bound to run-1", database.Queries)
+	}
+}
+
+// TestNVDBaselinePlanReaderPropagatesProbeFailure proves a failed plan read
+// reaches the coordinator as an error, never as an empty map the planner
+// would read as "never planned": a chunk whose row is missing or dropped
+// holds loudly per the fail-closed rule.
+func TestNVDBaselinePlanReaderPropagatesProbeFailure(t *testing.T) {
+	t.Parallel()
+
+	probeErr := errors.New("connection reset by peer")
+	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{FailWith: probeErr}}}
+	got, err := nvdBaselinePlanReader{database: database}.
+		ReadNVDBaselinePlans(context.Background(), "run-1")
+	if !errors.Is(err, probeErr) {
+		t.Fatalf("ReadNVDBaselinePlans() error = %v, want it to wrap %v", err, probeErr)
+	}
+	if len(got) != 0 {
+		t.Fatalf("ReadNVDBaselinePlans() = %+v, want no rows alongside the error", got)
+	}
+}

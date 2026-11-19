@@ -45,6 +45,34 @@ func (r nvdBaselineCheckpointReader) ReadNVDBaselineCheckpoints(ctx context.Cont
 	return checkpoints, nil
 }
 
+// nvdBaselinePlanReader serves the coordinator's per-year plan verdicts
+// from the plan rows the admission transaction wrote beside the baseline
+// work items it inserted (eshu-hq/eshu#10828): each year's last planned
+// scope and database-clock time, with whether that scope still has an open
+// work item. The read is keyed by the run id in a single statement, so plan
+// rows a superseded run left behind (eshu-hq/eshu#10831) never enter another
+// run's inputs. A failure reaches the coordinator as an error, never as an
+// empty map the planner would read as "never planned".
+type nvdBaselinePlanReader struct {
+	database db.ExecQueryer
+}
+
+func (r nvdBaselinePlanReader) ReadNVDBaselinePlans(ctx context.Context, baselineRunID string) (map[int]coordinator.NVDBaselineStoredPlan, error) {
+	rows, err := vulnerabilitystore.NewNVDBaselinePlanStore(r.database).ReadNVDBaselinePlans(ctx, baselineRunID)
+	if err != nil {
+		return nil, err
+	}
+	plans := make(map[int]coordinator.NVDBaselineStoredPlan, len(rows))
+	for year, row := range rows {
+		plans[year] = coordinator.NVDBaselineStoredPlan{
+			LastPlannedScopeID: row.LastPlannedScopeID,
+			LastPlannedAt:      row.LastPlannedAt,
+			InFlight:           row.InFlight,
+		}
+	}
+	return plans, nil
+}
+
 // nvdBaselineLatchStore adapts the durable trip latch row onto the
 // coordinator's latch shape. A missing row reports found=false; the
 // coordinator folds the first hourly sample onto its own zero latch.
