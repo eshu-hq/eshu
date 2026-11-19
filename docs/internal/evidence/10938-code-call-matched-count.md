@@ -102,8 +102,14 @@ lives inside the format literals, restoring the table above.
   with resolved endpoints (the D6 census for the generic shapes); an absent
   callee reports 0 and parks; the edge appears after the late callee
   publishes with no caller re-ingest (retry convergence).
-- NornicDB: NOT proven — no NornicDB backend was available in this
-  environment. The live tests pin `backends: neo4j` until the NornicDB
-  `RETURN count(rel)` semantics proof lands; the label-scoped
+- NornicDB: semantics proven on v1.3.3
+  (`ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`,
+  disposable local container, 2026-11-19, throwaway probe, not a committed
+  test): all four base templates report matched==submitted with resolved
+  endpoints; an absent callee reports 0 with the park error; a mixed
+  2-present/1-absent UNWIND batch reports exactly one `matched` row with 2;
+  an empty UNWIND batch reports one row with 0 — via both the Bolt driver
+  and the HTTP tx/commit endpoint. The live tests keep the `backends: neo4j`
+  pin until a committed NornicDB live test lands; the label-scoped
   outside-disjunction shapes (#5116) are likewise unproven and stay
   count-only via `codeCallShortfallEnforced`.
