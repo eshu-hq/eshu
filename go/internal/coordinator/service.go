@@ -159,6 +159,41 @@ type Service struct {
 	// from (eshu-hq/eshu#9879). It is required only when a target sets
 	// refresh_interval; instances without the field never touch it.
 	TargetRefreshProgressStore TargetRefreshProgressStore
+	// NVDBaselineCheckpointReader serves the stored NVD baseline year
+	// checkpoints one baseline run resumes from (eshu-hq/eshu#10746). It is
+	// required only when an instance enables derive_nvd_baseline;
+	// instances without the section never touch it.
+	NVDBaselineCheckpointReader NVDBaselineCheckpointReader
+	// NVDBaselinePlanReader serves the per-year NVD baseline plan rows one
+	// baseline run paces from and reads in flight from
+	// (eshu-hq/eshu#10828). Nil until that lane merges; an enabled
+	// derivation without one holds loudly instead of planning blind.
+	NVDBaselinePlanReader NVDBaselinePlanReader
+	// NVDBaselineTripLatchStore is the durable NVD baseline trip latch the
+	// service reads before planning and writes after each hourly sample
+	// (eshu-hq/eshu#10746). It is required only when an instance enables
+	// derive_nvd_baseline.
+	NVDBaselineTripLatchStore vulnerability.NVDBaselineTripLatchStore
+	// NVDBaselineDrainStore probes the drain phase of one committed
+	// baseline chunk by key (eshu-hq/eshu#10746). It is required only when
+	// an instance enables derive_nvd_baseline and a checkpointed year
+	// needs probing.
+	NVDBaselineDrainStore vulnerability.NVDBaselineDrainStore
+	// NVDBaselineTripSampler probes the winners dirty log for the hourly
+	// baseline trip-line sample (eshu-hq/eshu#10746). It is required only
+	// when an instance enables derive_nvd_baseline and the stored sample
+	// is older than an hour.
+	NVDBaselineTripSampler NVDBaselineTripSampler
+	// NVDBaselineInstruments receives the #10746 service-side baseline
+	// signals: the hourly trip transition and dirty gauges, the ETA and
+	// not-done age gauges, and the drain probe timeout count. Nil records
+	// nothing.
+	NVDBaselineInstruments *telemetry.Instruments
+	// NVDBaselineTickMemory is the per-run baseline memory across ticks:
+	// the last reported held-year counts and the hourly progress
+	// snapshots the ETA divides by. Nil degrades loudly instead of going
+	// quiet.
+	NVDBaselineTickMemory *NVDBaselineTickMemory
 	// OSVDeltaChangedNameReader loads the delta feed's changed_name facts
 	// for the change-driven replan (eshu-hq/eshu#9777 step 2). It is
 	// required only when the instance opts into osv_delta_replan;

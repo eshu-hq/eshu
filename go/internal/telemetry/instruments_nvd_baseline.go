@@ -475,5 +475,8 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineChunkCycle histogram: %w", err)
 	}
+	if err := registerNVDBaselineService(meter, inst); err != nil {
+		return err
+	}
 	return registerNVDBaselineTripLatch(meter, inst)
 }

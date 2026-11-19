@@ -812,7 +812,20 @@ type Instruments struct {
 	NVDBaselineHeldYears metric.Int64Gauge
 	// NVDBaselineChunkCycle records each committed chunk's plan-to-drained
 	// time in seconds (#10814).
-	NVDBaselineChunkCycle            metric.Float64Histogram
+	NVDBaselineChunkCycle metric.Float64Histogram
+	// NVDBaselineETA records the estimated seconds until the baseline run
+	// commits its remaining records at the sampler's trailing six-hour
+	// rate (remaining records over that rate, started years only; #10746).
+	NVDBaselineETA metric.Float64Gauge
+	// NVDBaselineOldestNotDoneAge records the age in seconds of the run's
+	// oldest not-done chunk, labeled by the closed drain phase it waits in
+	// (#10746).
+	NVDBaselineOldestNotDoneAge metric.Float64Gauge
+	// NVDBaselineDrainProbeTimeouts counts the drain probe reads that hit
+	// their statement timeout or context deadline on one plan tick
+	// (#10746). Unlabeled: the held years are already visible on
+	// eshu_dp_nvd_baseline_held_years.
+	NVDBaselineDrainProbeTimeouts    metric.Int64Counter
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter
