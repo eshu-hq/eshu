@@ -57,13 +57,16 @@ func (serviceCatalogCorrelationResolutionNotReadyError) FailureClass() string {
 	return ServiceCatalogCorrelationResolutionNotReadyFailureClass
 }
 
-// restrictedCorpusFencedResolvedRelationshipLoader is the narrowed read
+// RestrictedCorpusFencedResolvedRelationshipLoader is the narrowed read
 // (#10877): the verdict, the rows, and the verdict-time blocking scope set
 // from one statement snapshot. Declared locally rather than imported from
 // the reducer root, whose own restricted loader is structurally identical: a
 // family subpackage never imports the reducer root (issue #6061), and Go
-// interfaces are satisfied structurally.
-type restrictedCorpusFencedResolvedRelationshipLoader interface {
+// interfaces are satisfied structurally. Exported so the reducer wiring can
+// pin the two declarations identical at compile time: the handler asserts
+// this interface at runtime with a silent global-fence fallback, so a
+// signature drift would otherwise only show up as over-waiting.
+type RestrictedCorpusFencedResolvedRelationshipLoader interface {
 	GetResolvedRelationshipsForReposWithRestrictedFence(
 		ctx context.Context,
 		repoIDs []string,
@@ -73,7 +76,7 @@ type restrictedCorpusFencedResolvedRelationshipLoader interface {
 // fingerprintedRestrictedCorpusFencedResolvedRelationshipLoader is the
 // narrowed read plus the input fingerprint of exactly the rows returned,
 // computed in the same statement (#10877 parity with #8283). Same local
-// declaration rule as restrictedCorpusFencedResolvedRelationshipLoader.
+// declaration rule as RestrictedCorpusFencedResolvedRelationshipLoader.
 type fingerprintedRestrictedCorpusFencedResolvedRelationshipLoader interface {
 	GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(
 		ctx context.Context,
@@ -139,7 +142,7 @@ func (h ServiceCatalogCorrelationHandler) attachServiceRelationshipEvidence(
 		}
 		return reducercontract.ResolvedReadFingerprint{RepoIDs: read.RepoIDs, Value: read.Value}, true, nil
 	}
-	if restricted, ok := h.DeploymentRelationshipLoader.(restrictedCorpusFencedResolvedRelationshipLoader); ok {
+	if restricted, ok := h.DeploymentRelationshipLoader.(RestrictedCorpusFencedResolvedRelationshipLoader); ok {
 		resolved, blocking, complete, rerr := restricted.
 			GetResolvedRelationshipsForReposWithRestrictedFence(ctx, repoIDs)
 		if rerr != nil {

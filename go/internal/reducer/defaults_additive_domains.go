@@ -59,6 +59,16 @@ func serviceCatalogDeploymentRelationshipLoader(
 	return fenced
 }
 
+// The service catalog handler asserts the restricted read at runtime with a
+// silent global-fence fallback, so a signature drift between the reducer
+// root's restricted loader and the service catalog's local declaration would
+// only show up as over-waiting. These assertions pin the two declarations
+// structurally identical at compile time instead (#10877 review P3).
+var (
+	_ servicecatalog.RestrictedCorpusFencedResolvedRelationshipLoader = RestrictedCorpusFencedResolvedRelationshipLoader(nil)
+	_ RestrictedCorpusFencedResolvedRelationshipLoader                = servicecatalog.RestrictedCorpusFencedResolvedRelationshipLoader(nil)
+)
+
 // serviceCatalogRuntimeInstanceLoader returns the repository-scoped runtime
 // instance loader used to materialize the service runtime evidence family
 // (#1986), or nil when the family cannot be sourced. The family is only wired
