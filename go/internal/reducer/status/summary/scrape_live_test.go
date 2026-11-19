@@ -4,7 +4,7 @@
 package summary_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 25 statements before, 21 with the reader off, and 16 with the reader on (no active-work and no coordinator statement, #8828); and the scrape renders identical bytes through the production handler with the metrics selection and the broader selection over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
+//eshu:readiness:reason #7009 disposable PostgreSQL 18 proofs of the runtime /metrics scrape path in autocommit, the shape of every hosted runtime: a row written by the production writer is served equal to the live active-work statement at the same data and clock; once the row is stale, missing, or its table is dropped, the process keeps serving its last row as stale with an age that keeps growing; a process that restarts into a stale but decodable row serves that row as stale, and a process that restarts with the table dropped serves the zero summary (the empty-table and foreign or undecodable row cases are proven hermetically, not by this live file); the live active-work statement runs zero times; the statement inventory on an empty store through the production status store is 26 statements before, 17 with the reader off, and 17 with the reader on (no active-work and no coordinator statement on either stored serve, #8828, #10872); and the narrowed scrape renders deterministic bytes with no stored row (zero summary marked stale, no live statement) while the broader selection still reads live over a database whose collector fact-evidence, registry collector, and coordinator sections are populated (with a planted violation on the live read); the blocking reducer-contention-gate step also runs it with ESHU_REQUIRE_STATUS_SUMMARY_WRITER_PROOF=1, so an unset DSN fails there
 //eshu:readiness:env ESHU_STATUS_SUMMARY_PROOF_DISPOSABLE ESHU_STATUS_SUMMARY_PROOF_DSN
 
 import (
@@ -208,7 +208,9 @@ func TestScrapeServesTheStoredRowAndNeverTheLiveStatementLive(t *testing.T) {
 // scrape sends to a real, empty database through the production status store:
 // before this change, with the reader off, and with the reader on. Every
 // statement runs without error, so the narrowed selection is valid SQL end to
-// end, and the reader on sends no live active-work statement.
+// end. The reader off serves the stored row, so its inventory is identical to
+// the reader on: no live active-work and no live coordinator statement
+// (#10872).
 func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	ctx, database := openWriterDatabase(t)
 	mustExec(ctx, t, database, `DELETE FROM fact_work_items`)
@@ -232,8 +234,9 @@ func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	if beforeTotal != 26 || beforeActive != 1 || beforeCoordinator != 8 {
 		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 26, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
 	}
-	if offTotal != 22 || offActive != 1 || offCoordinator != 8 {
-		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 22, 1 and 8", offTotal, offActive, offCoordinator)
+	if offTotal != 17 || offActive != 0 || offCoordinator != 0 {
+		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 17 (the active-work and the eight coordinator statements are replaced by a clock and a row read for each of the two models), 0 and 0",
+			offTotal, offActive, offCoordinator)
 	}
 	if onTotal != 17 || onActive != 0 || onCoordinator != 0 {
 		t.Fatalf("reader on = %d statements, %d active-work, %d coordinator; want 17 (the active-work and the eight coordinator statements are replaced by a clock and a row read for each of the two models), 0 and 0",
@@ -291,12 +294,15 @@ FROM generate_series(0, 11) AS i`)
 }
 
 // TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive renders the scrape
-// from a real database whose omitted sections are populated, once with the
-// metrics selection and once with the full-minus-Terraform selection the scrape
-// used before, at one pinned instant and with the reader off, and requires
-// identical bytes. It proves the populated sections exist (the broader read
-// returns them), and plants a violation: changing a section the scrape renders
-// changes the bytes.
+// from a real database whose omitted sections are populated, twice with the
+// metrics selection and once with the full-minus-Terraform selection, at one
+// pinned instant and with the reader off. No writer runs, so the stored serve
+// carries the zero summary marked stale; the broad read still runs live
+// (#10872). It proves the populated sections exist (the broader read returns
+// them), that the narrowed scrape is deterministic and sends no live
+// statement, that stored and live serves differ by path (not by section
+// content), and plants a violation: changing a section the live read renders
+// changes its bytes.
 func TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive(t *testing.T) {
 	ctx, database := openWriterDatabase(t)
 	seedWork(ctx, t, database, 200, 100)
@@ -321,7 +327,9 @@ func TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive(t *testing.T) {
 			failures, len(snapshot.Coordinator.CollectorInstances))
 	}
 
-	scrape := func(selection *statuspkg.SnapshotSelection) string {
+	pool := &recordingPool{database: database}
+	narrowStore := scrapeStatusStore(pool, false, time.Hour)
+	scrape := func(store postgres.StatusStore, selection *statuspkg.SnapshotSelection) string {
 		t.Helper()
 		handler, err := runtime.NewStatusMetricsHandler("collector-git", pinnedReader{inner: store, asOf: asOf, selection: selection})
 		if err != nil {
@@ -334,14 +342,24 @@ func TestScrapeBytesEqualWithTheOmittedSectionsPopulatedLive(t *testing.T) {
 		}
 		return rec.Body.String()
 	}
-	narrowed := scrape(nil)
-	if wide := scrape(&broad); wide != narrowed {
-		t.Fatalf("the narrowed scrape differs from the broad one with the omitted sections populated:\nbroad=%s\nnarrowed=%s", wide, narrowed)
+	narrowed := scrape(narrowStore, nil)
+	if second := scrape(narrowStore, nil); second != narrowed {
+		t.Fatalf("two identical narrowed scrapes differ:\nfirst=%s\nsecond=%s", narrowed, second)
+	}
+	if total, activeWork := pool.count(); activeWork != 0 || pool.coordinatorCount() != 0 {
+		t.Fatalf("narrowed scrapes ran %d statements with live reads; want zero live active-work and coordinator statements (stored serve only)", total)
+	}
+	if !strings.Contains(narrowed, `eshu_runtime_status_summary_stale{model_key="active_work_summary",service_name="collector-git"} 1`) {
+		t.Fatalf("narrowed scrape with no stored row is not marked stale:\n%s", narrowed)
+	}
+	wide := scrape(narrowStore, &broad)
+	if wide == narrowed {
+		t.Fatal("the stored narrow scrape equals the live broad read: the stored-vs-live split is not pinned")
 	}
 
-	// The comparison can differ: change a section the scrape renders.
+	// The live comparison can differ: change a section the broad read renders.
 	mustExec(ctx, t, database, `UPDATE fact_work_items SET status = 'succeeded' WHERE work_item_id IN ('w-0', 'w-1', 'w-2')`)
-	if changed := scrape(nil); changed == narrowed {
-		t.Fatal("a changed work item did not change the scrape: the byte comparison cannot fail")
+	if changed := scrape(narrowStore, &broad); changed == wide {
+		t.Fatal("a changed work item did not change the live broad read: the byte comparison cannot fail")
 	}
 }
