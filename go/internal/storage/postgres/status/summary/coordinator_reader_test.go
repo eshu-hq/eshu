@@ -306,3 +306,20 @@ func TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 		t.Fatalf("flag-off missing coordinator\n got: %#v\nwant live: %#v", snap.Coordinator, want)
 	}
 }
+
+// TestCoordinatorScrapeWithTheReaderOffProbeErrorFailsTheRead states the
+// fail-closed probe contract for the coordinator section (#10872): a database
+// error on the servability probe with the reader flag off fails the scrape,
+// like any other failed status read, and never falls back to the live
+// statements.
+func TestCoordinatorScrapeWithTheReaderOffProbeErrorFailsTheRead(t *testing.T) {
+	t.Parallel()
+	q := &coordQueryer{installed: true}
+	q.clockErr = errors.New("probe clock read failed")
+	if _, err := readerStore(q, false).ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, scrapeSelection()); err == nil {
+		t.Fatal("ReadStatusSnapshotFiltered() error = nil, want the probe clock read failure")
+	}
+	if q.liveRuns.Load() != 0 {
+		t.Fatalf("coordinator live statements ran %d times after a probe database error, want 0", q.liveRuns.Load())
+	}
+}

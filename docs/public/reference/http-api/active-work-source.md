@@ -195,7 +195,8 @@ stored row the same way, and otherwise runs the live statement
 no stored row, and zeros would hide a real backlog (#10872). `eshu_runtime_status_summary_stale{service_name,model_key}`
 is `0` for a fresh row and `1` otherwise, and
 `eshu_runtime_status_summary_age_seconds{service_name,model_key}` is the served
-row's age (`NaN` for the empty summary). The scrape reads two rows, so each gauge
+row's age (`NaN` for the empty summary). The scrape reads up to two rows per
+model (the servability probe plus the serve read), so each gauge
 appears twice: `model_key="active_work_summary"` for the stage, queue, and domain
 gauges, and `model_key="coordinator_snapshot"` for the `eshu_runtime_coordinator_*`
 gauges. A scrape that can decode no coordinator row renders no coordinator gauge

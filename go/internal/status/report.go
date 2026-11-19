@@ -114,10 +114,12 @@ type SnapshotSelection struct {
 	// stored row removes. A row that cannot be served is answered with the
 	// newest row the process can decode, stale included, or the zero summary
 	// when it can decode none, and ActiveWorkSource says which (with Stale true).
-	// The scrape never runs the live statement, even with the stored-summary
-	// reader flag off: a flag-off process serves the same stored row under the
-	// same fences (#10872). The flag only decides whether status routes may
-	// use the stored row.
+	// The scrape never runs the live statement while a servable stored row
+	// exists, even with the stored-summary reader flag off: a flag-off
+	// process serves the same stored row under the same fences (#10872).
+	// With no servable row the flag-off scrape runs the live statement
+	// (reason flag_off) instead of presenting zeros. The flag only decides
+	// whether status routes may use the stored row.
 	StoredActiveWorkOnly bool
 }
 

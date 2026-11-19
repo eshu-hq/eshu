@@ -211,6 +211,23 @@ func TestScrapeDatabaseErrorFailsTheRead(t *testing.T) {
 	}
 }
 
+// TestScrapeWithTheReaderOffProbeErrorFailsTheRead states the fail-closed
+// probe contract (#10872): a database error on the servability probe with
+// the reader flag off fails the scrape, like any other failed status read,
+// and never falls back to the live statement.
+func TestScrapeWithTheReaderOffProbeErrorFailsTheRead(t *testing.T) {
+	t.Parallel()
+	inner := &sourceQueryer{installed: true}
+	inner.clockErr = errors.New("probe clock read failed")
+	store := readerStore(inner, false)
+	if _, err := store.ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, scrapeSelection()); err == nil {
+		t.Fatal("ReadStatusSnapshotFiltered() error = nil, want the probe clock read failure")
+	}
+	if inner.liveRuns.Load() != 0 {
+		t.Fatalf("live statement ran %d times after a probe database error, want 0", inner.liveRuns.Load())
+	}
+}
+
 // TestScrapeWithTheReaderOffServesTheStoredRow is the #10872 no-herd contract:
 // the StoredActiveWorkOnly scrape selection serves a stored row instead of
 // the live statement, even with the reader flag off. A fresh row is served

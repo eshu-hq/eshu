@@ -292,6 +292,48 @@ func TestStatusMetricsWithTheReaderOffServeTheStoredSummary(t *testing.T) {
 	assertLine(t, onBody, `eshu_runtime_status_summary_age_seconds{model_key="coordinator_snapshot",service_name="collector-git"} NaN`)
 }
 
+// TestStatusMetricsWithTheReaderOffDecidesPerModel pins the per-model
+// independence of the flag-off fallback (#10872): with a stored row for only
+// one model, the scrape serves that model stored (with its markers) and runs
+// the live statement only for the model with no row (reason flag_off). A
+// coupled decision — both models stored or both live — fails this test.
+func TestStatusMetricsWithTheReaderOffDecidesPerModel(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+
+	// Only an active-work row: stored queue gauges with markers, and the
+	// live coordinator statement runs for the missing coordinator row.
+	activeQueryer := newSummaryScrapeQueryer(now)
+	activeQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	activeStore := postgres.NewStatusStore(activeQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	body := scrapeBody(t, activeStore)
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "0")
+	assertLine(t, body, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+	if strings.Contains(body, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot"`) {
+		t.Fatalf("flag-off scrape with no coordinator row renders a coordinator marker:\n%s", body)
+	}
+	if got := inventoryOf(activeQueryer.Queries); got.activeWork != 0 || got.coordinator == 0 {
+		t.Fatalf("flag-off scrape ran %d active-work and %d coordinator live statements, want 0 active-work and a coordinator fallback", got.activeWork, got.coordinator)
+	}
+
+	// Only a coordinator row: stored coordinator gauges with markers, and
+	// the live active-work statement runs for the missing row.
+	coordQueryer := newSummaryScrapeQueryer(now)
+	coordQueryer.coordRows = coordinatorScrapeRow(t, now.Add(-10*time.Second))
+	coordStore := postgres.NewStatusStore(coordQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	body = scrapeBody(t, coordStore)
+	assertLine(t, body, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot",service_name="collector-git"} 0`)
+	assertLine(t, body, `eshu_runtime_coordinator_active_claims{service_name="collector-git"} 3`)
+	if strings.Contains(body, `eshu_runtime_status_summary_stale{model_key="active_work_summary"`) {
+		t.Fatalf("flag-off scrape with no active-work row renders a stored marker:\n%s", body)
+	}
+	if got := inventoryOf(coordQueryer.Queries); got.activeWork == 0 || got.coordinator != 0 {
+		t.Fatalf("flag-off scrape ran %d active-work and %d coordinator live statements, want an active-work fallback and 0 coordinator", got.activeWork, got.coordinator)
+	}
+}
+
 // TestSummaryMarkerRendersOnlyForTheScrapeSources pins the gauge text per
 // source, and that a live or unreported source renders nothing.
 func TestSummaryMarkerRendersOnlyForTheScrapeSources(t *testing.T) {
