@@ -11,7 +11,7 @@ const Probes = `
       "get": {
         "tags": ["health"],
         "summary": "Readiness probe",
-        "description": "Public and unauthenticated. Returns 200 only when both PostgreSQL and the pinned Neo4j backend are reachable; otherwise 503 with no Retry-After and no backend error text.",
+        "description": "Public and unauthenticated. Returns 200 only when both PostgreSQL and the pinned Neo4j backend are reachable; otherwise 503 with no Retry-After. The error field carries the probe cause.",
         "operationId": "getReadyz",
         "responses": {
           "200": {
