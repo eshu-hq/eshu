@@ -37,7 +37,7 @@ func statementLabel(statement string) string {
 	case strings.Contains(statement, "INSERT INTO generation_retention_events"):
 		return "event"
 	case strings.HasPrefix(statement, factkeys.DeleteMarker):
-		return "fact_key" // #7420: three per pruned generation
+		return "fact_key" // #7420: four per pruned generation since #10875
 	case strings.Contains(statement, "del_activations"):
 		return "ledger_delete"
 	case strings.Contains(statement, "doomed AS MATERIALIZED"):
