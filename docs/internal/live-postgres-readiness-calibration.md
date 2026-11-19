@@ -10,8 +10,8 @@ job timeout stay in force.
 
 The fixed input is
 `specs/live-postgres-readiness-calibration.v1.json`. Its 38 runner rows cover
-1093 unique tests in canonical inventory order. The committed row identity SHA-256
-is `96bd1d703608238b206964d69dc44179031c7f44869bcd31bb8a47e8b6ab6038`.
+1101 unique tests in canonical inventory order. The committed row identity SHA-256
+is `25c0bfd74d50b08da8f8a5472d878b468635394616a188b86fc7010c38386a99`.
 There is no separate proposal file this round: the PR-reviewed manifest is the
 reviewed source, so the reviewed-source pin equals the rows digest. The runner
 uses these exact rows; it does not
@@ -28,8 +28,10 @@ proof or used to weaken the existing gate.
 
 ## Frozen inventory and drift
 
-The manifest is a snapshot of the readiness inventory at the source SHA above;
-its `source_inventory_sha256` pins that inventory independently of the rows.
+The manifest is a snapshot of the readiness inventory at its own `source_sha`
+field (`b9800bdd1e7bceabd1165a3124f8ad07429c99f0`), pinned independently of the
+rows by `source_inventory_sha256`. That snapshot SHA differs from the planner-cut
+source SHA above, which names where the prices came from, not what is frozen.
 The live inventory keeps growing as live tests are enrolled, so the manifest
 will not match it for long. That is deliberate: `load()` refuses a dispatch
 whose live inventory differs from the snapshot ("ordered coverage differs from

@@ -75,11 +75,20 @@ def _run_metadata(directory: Path, root: Path) -> tuple[int, str, int, list[dict
 
 
 def verify_log_rows(observed: list[str], memberships: list[frozenset[str]],
-                    expected: list[list[str]]) -> None:
-    """Check verifier-sorted log rows against exact scheduled row boundaries."""
-    if (memberships != [frozenset(row) for row in expected]
-            or observed != [run for row in expected for run in sorted(row)]):
+                    expected: list[list[str]],
+                    excused: frozenset[str] = frozenset()) -> list[list[str]]:
+    """Check verifier-sorted log rows against exact scheduled row boundaries.
+
+    Runs in excused (workflow-skipped proofs absent from the log) are
+    stripped from the expected rows first; rows left empty are dropped.
+    Returns the kept rows, so callers bind digests to measured content.
+    """
+    kept = [[run for run in row if run not in excused] for row in expected]
+    kept = [row for row in kept if row]
+    if (memberships != [frozenset(row) for row in kept]
+            or observed != [run for row in kept for run in sorted(row)]):
         raise ValueError("calibration log ordered row identity differs")
+    return kept
 
 
 def read_source(directory: Path, root: Path) -> dict[str, object]:
@@ -111,6 +120,10 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
            for report in reports):
         raise ValueError("calibration report run identity differs from run.json")
     rows = calibration.load(root)[1]
+    flat = [run for shard in rows for row in shard for run in row]
+    raw_logs = {number: (directory / f"shard{number}.log").read_text(encoding="utf-8")
+                for number in range(1, 9)}
+    excuse = source.run_excuse(raw_logs, run_id, flat)
     profile: tuple[str, ...] | None = None
     measured: list[dict[str, object]] = []
     runner_versions: dict[str, str] = {}
@@ -121,14 +134,21 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
                  and step.get("name") == "Run fixed calibration proofs"] if isinstance(steps, list) else []
         if len(proof) != 1 or proof[0].get("status") != "completed" or proof[0].get("conclusion") != "success":
             raise ValueError("calibration proof step is missing or failed")
-        log = (directory / f"shard{number}.log").read_text(encoding="utf-8")
+        log = raw_logs[number]
         if (f"Complete job name: {job['name']}" not in log
                 or f"name: calibration-shard-{run_id}-{attempt}-{number}" not in log):
             raise ValueError("calibration job log identity differs")
-        parsed, timings, (found_profile, version), memberships = refresh._parse_shard(
-            _normalized_log(log, number), number, 8)
         expected = rows[number - 1]
-        verify_log_rows(parsed, memberships, expected)
+        shard_excused = source.shard_excused_runs(
+            [frozenset(row) for row in expected], excuse)
+        names = frozenset(run.split("|", 1)[1] for run in shard_excused)
+        packages = frozenset(
+            package for package in {run.split("|", 1)[0] for row in expected for run in row}
+            if all(run in shard_excused for row in expected for run in row
+                   if run.split("|", 1)[0] == package))
+        parsed, timings, (found_profile, version), memberships = refresh._parse_shard(
+            _normalized_log(log, number), number, 8, names, packages)
+        kept = verify_log_rows(parsed, memberships, expected, shard_excused)
         if profile is not None and found_profile != profile:
             raise ValueError("calibration runner/backend profile differs between shards")
         profile = found_profile
@@ -136,7 +156,7 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
         for index, (package, category, seconds) in enumerate(timings):
             measured.append({"shard": number, "row": index + 1, "package": package,
                              "category": category, "residual_seconds": seconds,
-                             "row_sha256": calibration.row_digest(expected[index])})
+                             "row_sha256": calibration.row_digest(kept[index])})
     if profile is None:
         raise ValueError("calibration has no runner profile")
     return {"run_id": run_id, "attempt": attempt, "head": sha,
@@ -172,7 +192,7 @@ def build_evidence(directories: list[Path], root: Path) -> dict[str, object]:
             "harness_sha256": calibration.file_digest(root, calibration.HARNESS),
             "reviewed_source_sha256": calibration.REVIEWED_SOURCE_SHA256,
             "row_identity_sha256": calibration.ROW_SHA256,
-            "coverage": {"shards": 8, "runs_per_dispatch": 1093},
+            "coverage": {"shards": 8, "runs_per_dispatch": 1101},
             "categories": dict(categories), "runs": runs}
 
 

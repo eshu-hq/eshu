@@ -90,6 +90,11 @@ jobs:
           export ESHU_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j
           export ESHU_NEO4J_URI='neo4j://127.0.0.1:7687'
           export ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=local-proof-only
+          # Behavior-gated excuse (#10054), mirroring the acceptance lane:
+          # the derived-scope plan proof only runs with
+          # ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary lane.
+          # Remove when the gate opens.
+          export LIVE_READINESS_EXTRA_SKIP=TestRetirementDerivedStatementPlansLive
           echo "calibration-start shard=${{ matrix.shard }}/8"
           bash scripts/run-live-postgres-readiness-tests.sh --calibration \
             --shard '${{ matrix.shard }}/8' --report calibration-shard-report.json
