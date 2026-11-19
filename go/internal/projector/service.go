@@ -118,8 +118,12 @@ func (s Service) Run(ctx context.Context) error {
 	return s.runConcurrent(ctx)
 }
 
-// runSequential processes work one at a time.
+// runSequential processes work one at a time. Consecutive empty polls back
+// the wait off exponentially to maxProjectorPollInterval; a claimed item
+// resets the counter before processing, and a claim conflict waits one base
+// interval without touching it (contention is not emptiness).
 func (s Service) runSequential(ctx context.Context) error {
+	consecutiveEmpty := 0
 	for {
 		claimStart := time.Now()
 		work, ok, err := s.WorkSource.Claim(ctx)
@@ -138,7 +142,8 @@ func (s Service) runSequential(ctx context.Context) error {
 			return fmt.Errorf("claim projector work: %w", err)
 		}
 		if !ok {
-			if err := s.wait(ctx, s.pollInterval()); err != nil {
+			consecutiveEmpty++
+			if err := s.wait(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty)); err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 					return nil
 				}
@@ -147,6 +152,7 @@ func (s Service) runSequential(ctx context.Context) error {
 			continue
 		}
 
+		consecutiveEmpty = 0
 		if err := s.processWork(ctx, work, 0); err != nil {
 			return err
 		}
@@ -173,6 +179,7 @@ func (s Service) runConcurrent(ctx context.Context) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			consecutiveEmpty := 0
 			for {
 				if ctx.Err() != nil {
 					return
@@ -199,7 +206,8 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					return
 				}
 				if !ok {
-					if err := s.wait(ctx, s.pollInterval()); err != nil {
+					consecutiveEmpty++
+					if err := s.wait(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty)); err != nil {
 						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 							return
 						}
@@ -212,6 +220,7 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					continue
 				}
 
+				consecutiveEmpty = 0
 				if err := s.processWork(ctx, work, workerID); err != nil {
 					mu.Lock()
 					errs = append(errs, err)
