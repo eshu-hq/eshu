@@ -115,3 +115,38 @@ evidence); that one shared computation is the accepted cost.
   (`ErrScrapeReaderDisabled`, HTTP 500 `load runtime metrics failed`) instead
   of running the live statement; production stores always attach the
   process-wide reader via `NewInstrumentedStatusStore`.
+
+## Follow-up: flag-off scrape falls back to live with no servable row (#10872)
+
+Review of the change above found an availability gap it introduced: with the
+reader flag off and no servable stored row (a writer-off deployment, where no
+row can ever exist), the scrape served the zero summary — a zero queue that
+would hide a real backlog. The fix keeps the stored path untouched and adds a
+per-model probe in the postgres layer: with the reader off, each model runs
+only its cheap keyed row select first, and serves the stored row only when
+`Select` returns `Stored != nil`; otherwise that model falls through to the
+live statement and reports `source: live`, `reason: flag_off`. A database
+error on the probe fails the scrape like any other failed status read — it
+never falls back silently.
+
+The Scope claim above is therefore narrowed: the scrape never runs the live
+statement with the reader **on**; with the reader **off** it runs zero live
+statements while a servable row exists, and the live statement for exactly
+the models with no servable row. The per-model decision is independent: one
+model can serve stored while the other runs live. Evidence:
+
+- `TestScrapeWithTheReaderOffServesTheStoredRow` and
+  `TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow`: the missing-row
+  case now pins `live`/`flag_off` with the live statement executed (1
+  active-work statement, 8 coordinator statements) and the live counts
+  served instead of zeros.
+- `TestStatusMetricsWithTheReaderOffServeTheStoredSummary`: with both rows
+  present the flag-off scrape is byte-identical to the flag-on scrape with
+  zero live statements; with both rows gone the flag-off scrape runs both
+  live fallbacks while the flag-on scrape serves the remembered stale rows.
+- `TestScrapeWithTheReaderOffAttributesOnlyModelReads` seeds both models so
+  it keeps pinning the stored-only attribution
+  (`active_work_summary`/`model`/`fresh`,
+  `coordinator_snapshot`/`model`/`fresh`).
+- Public contract:
+  [active-work-source.md](../../public/reference/http-api/active-work-source.md#runtime-metrics-scrape).

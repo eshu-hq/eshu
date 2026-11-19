@@ -89,6 +89,11 @@ func TestScrapeWithTheReaderOffAttributesOnlyModelReads(t *testing.T) {
 	}
 	storedAt := sourceTestNow.Add(-10 * time.Second)
 	q := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, pgstatus.ActiveWorkSummarySourceSHA256(), 4, encodedEntries(t, goodEntries()...))}
+	// A stored coordinator row too, so both models serve stored and nothing
+	// runs live: without it the flag-off scrape would correctly fall back
+	// to the live coordinator statement, which is a different attribution
+	// than this test pins.
+	q.coordRow = coordStoredRow(t, storedAt, pgstatus.CoordinatorSummarySourceSHA256(), liveCoordinator(t))
 	store := readerStore(q, false)
 	store.Instruments = instruments
 	scrapeSnapshot(t, store)
@@ -138,8 +143,8 @@ func TestScrapeWithTheReaderOffAttributesOnlyModelReads(t *testing.T) {
 		}
 	}
 	want := map[scrapeKey]int64{
-		{"active_work_summary", "model", "fresh"}:   1,
-		{"coordinator_snapshot", "zero", "missing"}: 1,
+		{"active_work_summary", "model", "fresh"}:  1,
+		{"coordinator_snapshot", "model", "fresh"}: 1,
 	}
 	if len(scrapes) != len(want) {
 		t.Fatalf("eshu_dp_status_summary_scrape_total points = %v, want exactly %v", scrapes, want)

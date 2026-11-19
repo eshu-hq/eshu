@@ -246,10 +246,12 @@ func TestCoordinatorScrapeNeverRunsALiveStatement(t *testing.T) {
 
 // TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow is the #10872
 // no-herd contract for the coordinator section: the StoredActiveWorkOnly
-// scrape selection never runs the live coordinator statements, even with the
-// reader flag off. A fresh row is served as model/fresh with its durations
-// advanced, a stale row as last_row/stale, and a missing row as zero (nil)
-// with stale set.
+// scrape selection serves a stored row instead of the live coordinator
+// statements, even with the reader flag off. A fresh row is served as
+// model/fresh with its durations advanced, a stale row as last_row/stale,
+// and a missing row runs the live statement (reason flag_off) —
+// writer-off deployments have no stored row, and zeros would hide real
+// coordinators.
 func TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 	t.Parallel()
 	good := liveCoordinator(t)
@@ -288,12 +290,19 @@ func TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 		t.Fatalf("flag-off stale coordinator scrape ran %d live statements, coordinator %#v", stale.liveRuns.Load(), snap.Coordinator)
 	}
 
+	// No stored row and the reader flag off: the scrape runs the live
+	// statements (reason flag_off) instead of presenting a zero snapshot —
+	// writer-off deployments have no stored row, and zeros would hide real
+	// coordinators (#10872).
 	missing := &coordQueryer{installed: true}
 	snap = read(missing)
-	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceZero || !src.Stale {
-		t.Fatalf("flag-off missing coordinator source = %+v, want zero, stale", src)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceLive || src.Reason != statuspkg.ActiveWorkReasonFlagOff || src.Stale {
+		t.Fatalf("flag-off missing coordinator source = %+v, want live/flag_off, not stale", src)
 	}
-	if missing.liveRuns.Load() != 0 || snap.Coordinator != nil {
-		t.Fatalf("flag-off missing coordinator scrape ran %d live statements, coordinator %#v; want none and nil", missing.liveRuns.Load(), snap.Coordinator)
+	if missing.liveRuns.Load() != 8 {
+		t.Fatalf("flag-off missing coordinator scrape ran %d live statements, want the full live read (8)", missing.liveRuns.Load())
+	}
+	if want := liveCoordinator(t); !reflect.DeepEqual(snap.Coordinator, want) {
+		t.Fatalf("flag-off missing coordinator\n got: %#v\nwant live: %#v", snap.Coordinator, want)
 	}
 }

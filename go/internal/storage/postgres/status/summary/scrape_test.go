@@ -212,11 +212,13 @@ func TestScrapeDatabaseErrorFailsTheRead(t *testing.T) {
 }
 
 // TestScrapeWithTheReaderOffServesTheStoredRow is the #10872 no-herd contract:
-// the StoredActiveWorkOnly scrape selection never runs the live statement,
-// even with the reader flag off. A fresh row is served as model/fresh, a row
-// past the staleness bound is served as last_row/stale with its counts frozen
-// at as_of and its ages advanced, and a missing row on a fresh process is the
-// zero summary with stale set.
+// the StoredActiveWorkOnly scrape selection serves a stored row instead of
+// the live statement, even with the reader flag off. A fresh row is served
+// as model/fresh, a row past the staleness bound is served as last_row/stale
+// with its counts frozen at as_of and its ages advanced. A missing row on a
+// fresh process runs the live statement (reason flag_off) instead of
+// presenting zeros — writer-off deployments have no stored row, and a zero
+// queue would hide a real backlog.
 func TestScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 	t.Parallel()
 
@@ -259,24 +261,32 @@ func TestScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 		t.Fatalf("stale flag-off queue oldest age = %v, want %v", stale.Queue.OldestOutstandingAge, want)
 	}
 
-	// No row on a process that never served one: the zero summary, still with
-	// no live statement.
-	empty := readerStore(&sourceQueryer{installed: true}, false)
-	zero := scrapeSnapshot(t, empty)
-	got = zero.ActiveWorkSource
-	if got.Source != statuspkg.ActiveWorkSourceZero || got.Reason != statuspkg.ActiveWorkReasonMissing || !got.Stale {
-		t.Fatalf("missing flag-off source = %+v, want zero/missing with stale=true", got)
+	// No row on a process that never served one, with the reader flag off:
+	// the scrape runs the live statement (reason flag_off) instead of
+	// presenting a zero queue — writer-off deployments have no stored row,
+	// and zeros would hide a real backlog (#10872).
+	emptyQueryer := &sourceQueryer{installed: true}
+	empty := readerStore(emptyQueryer, false)
+	live := scrapeSnapshot(t, empty)
+	got = live.ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceLive || got.Reason != statuspkg.ActiveWorkReasonFlagOff || got.Stale {
+		t.Fatalf("missing flag-off source = %+v, want live/flag_off, not stale", got)
 	}
-	if zero.Queue != (statuspkg.QueueSnapshot{}) {
-		t.Fatalf("missing flag-off queue = %+v, want the zero summary", zero.Queue)
+	if emptyQueryer.liveRuns.Load() != 1 {
+		t.Fatalf("missing flag-off scrape ran the live statement %d times, want exactly 1", emptyQueryer.liveRuns.Load())
+	}
+	if live.Queue.Pending != 2 || live.Queue.Outstanding != 2 {
+		t.Fatalf("missing flag-off queue = %+v, want the live pending/outstanding counts, not zeros", live.Queue)
 	}
 }
 
 // TestScrapeWithTheReaderOffMatchesTheReaderOnServe pins that the flag changes
-// nothing about the served values: the same database state scraped with the
-// reader off and on carries identical sections at the same as_of, so every
-// acceptance output (waiting work, oldest age, retries, overdue and failed
-// items) reads the same from a host that never enabled the reader. The stored
+// nothing about the served values when a stored row is present: the same
+// database state scraped with the reader off and on carries identical
+// sections at the same as_of, so every acceptance output (waiting work,
+// oldest age, retries, overdue and failed items) reads the same. (With no
+// stored row the flag-off scrape runs the live statement instead; see the
+// missing-row case above.) The stored
 // fixture carries nonzero retrying, overdue, failed, and dead-letter counts,
 // a backlog, a blockage, and the latest failure.
 func TestScrapeWithTheReaderOffMatchesTheReaderOnServe(t *testing.T) {
