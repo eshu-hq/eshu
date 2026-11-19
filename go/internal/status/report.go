@@ -124,9 +124,10 @@ type SnapshotSelection struct {
 }
 
 // WithStoredActiveWorkOnly returns a copy of s that never runs the live
-// active-work statement, whether the stored-summary reader is on or off
-// (#10872). It applies to the standard mode only; a semantic-only selection
-// fails Validate.
+// active-work statement while a servable stored row exists, whether the
+// stored-summary reader is on or off (#10872); with no servable row the
+// flag-off scrape runs the live statement instead. It applies to the
+// standard mode only; a semantic-only selection fails Validate.
 func (s SnapshotSelection) WithStoredActiveWorkOnly() SnapshotSelection {
 	s.StoredActiveWorkOnly = true
 	return s
