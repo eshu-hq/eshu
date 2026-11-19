@@ -41,7 +41,10 @@ test_ifa_generic_blocked_claim_no_waiter_is_not_engaged() (
 	source "${generic_blocked_claim_lib}"
 	local rc=0 output killed_rows="" census_state="unset"
 	local FAULT_COMPOSE_PROJECT="test-project" use_compose=0 ESHU_POSTGRES_DSN="test-dsn" compose_file="compose.yaml"
-	ifa_det_pg() { printf '1|0|0|'; }
+	ifa_det_pg() {
+		[[ "$4" == *"NOT lock_row.granted"* && "$4" == *"waiter.wait_event_type = 'Lock'"* && "$4" == *"held.granted"* && "$4" == *"'shared_projection_intents'::regclass"* ]] || return 1
+		printf '1|0|0|'
+	}
 
 	output="$(ifa_fault_wait_for_blocked_claim testcell testns test_materialization 30 killed_rows census_state 2>&1)" || rc=$?
 	[[ "${rc}" -eq 1 ]] \
@@ -64,7 +67,10 @@ test_ifa_generic_blocked_claim_no_claim_is_not_engaged() (
 	source "${generic_blocked_claim_lib}"
 	local rc=0 output killed_rows="" census_state="unset"
 	local FAULT_COMPOSE_PROJECT="test-project" use_compose=0 ESHU_POSTGRES_DSN="test-dsn" compose_file="compose.yaml"
-	ifa_det_pg() { printf '1|2|0|'; }
+	ifa_det_pg() {
+		[[ "$4" == *"NOT lock_row.granted"* && "$4" == *"waiter.wait_event_type = 'Lock'"* && "$4" == *"held.granted"* && "$4" == *"'shared_projection_intents'::regclass"* ]] || return 1
+		printf '1|2|0|'
+	}
 
 	output="$(ifa_fault_wait_for_blocked_claim testcell testns test_materialization 30 killed_rows census_state 2>&1)" || rc=$?
 	[[ "${rc}" -eq 1 ]] \
@@ -157,7 +163,13 @@ test_ifa_generic_blocked_claim_green_passes() (
 	# instead of here. Names the lib never declares stay bound to this
 	# scope (the kill body likewise passes killed_rows/census_state).
 	canned_rows="$(_ifa_test_blocked_claim_rows)"
-	ifa_det_pg() { printf '1|2|2|%s' "${canned_rows}"; }
+	# The census fake pins the waiter-filter query shape: a census that
+	# stopped distinguishing granted holders from ungranted waiters would
+	# pass on canned output.
+	ifa_det_pg() {
+		[[ "$4" == *"NOT lock_row.granted"* && "$4" == *"waiter.wait_event_type = 'Lock'"* && "$4" == *"held.granted"* && "$4" == *"'shared_projection_intents'::regclass"* ]] || return 1
+		printf '1|2|2|%s' "${canned_rows}"
+	}
 
 	ifa_fault_wait_for_blocked_claim testcell testns test_materialization 30 got_rows got_state >/dev/null \
 		|| fail "blocked-claim census rejected a parked claim set"
