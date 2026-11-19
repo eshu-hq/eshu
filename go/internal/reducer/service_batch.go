@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 477 lines: the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch. The prefetch buffer itself lives in service_batch_prefetch.go.
+package reducer //nolint:filelength // 493 lines: the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch. The prefetch buffer itself lives in service_batch_prefetch.go.
 
 import (
 	"context"

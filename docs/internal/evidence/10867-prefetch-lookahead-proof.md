@@ -67,3 +67,17 @@ and `bucket_audit_test.go` entries), documented in
 `docs/public/observability/telemetry-coverage-reducer-core.md`, and surfaced
 to operators via `ESHU_REDUCER_BATCH_PREFETCH_DEPTH` (`entries.go` +
 generated env-registry page + `environment-variables.md`).
+
+## No-Regression Evidence (follow-up comment-only fixes):
+
+Baseline and after: `go test ./internal/reducer/ -run
+'TestServiceRunBatchPrefetch' -count=1` green on both sides of the delta
+(5.0s); `gofmt` clean on touched packages; `git diff --check` clean.
+Backend: none touched (no query, plan, or lease change); input shape
+unchanged; terminal queue and row counts untouched. Safe because the
+delta holds zero non-comment lines, so compiled behavior is identical.
+
+## No-Observability-Change (follow-up comment-only fixes):
+
+No instruments, logs, spans, or dashboards touched; comment text only.
+The three new instruments above are unchanged by the follow-up.

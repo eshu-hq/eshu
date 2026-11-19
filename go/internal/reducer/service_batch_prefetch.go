@@ -147,11 +147,10 @@ func (s Service) claimPrefetchBatches(
 		}
 
 		// Block only while the buffer is full. A slotFreed notification
-		// means a pop freed exactly one slot; a missed notification is
-		// impossible because a full notification channel already holds
-		// a pending wakeup, and every wakeup rechecks the length, so
-		// dropped sends only coalesce. The ctx arm keeps a full buffer
-		// from deadlocking shutdown.
+		// means at least one pop happened; a missed send only coalesces
+		// with a pending wakeup, and every wakeup rechecks the length,
+		// so the claimer never relies on a 1:1 correspondence. The ctx
+		// arm keeps a full buffer from deadlocking shutdown.
 		if len(bufCh) == cap(bufCh) {
 			select {
 			case <-slotFreed:

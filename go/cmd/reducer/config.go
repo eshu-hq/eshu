@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 519 lines (base 498): reducer env/flag loading for the claim path; the #10565 funnel flag loader stays next to the flags it describes.
+package main //nolint:filelength // 544 lines (base 498): reducer env/flag loading for the claim path; the #10565 funnel flag loader stays next to the flags it describes.
 
 import (
 	"context"
