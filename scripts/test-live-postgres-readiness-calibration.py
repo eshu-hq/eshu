@@ -71,10 +71,10 @@ class CalibrationContractTest(unittest.TestCase):
     def test_fixed_rows_cover_canonical_inventory(self) -> None:
         calibration.validate_manifest(self.document, self.plan)
         self.assertEqual(sum(len(row) for shard in self.document["rows"]
-                             for row in shard), 1093)
+                             for row in shard), 1101)
         self.assertEqual([sum(len(row) for row in shard)
                           for shard in self.document["rows"]],
-                         [122, 45, 153, 184, 108, 126, 110, 245])
+                         [123, 45, 162, 194, 98, 117, 119, 243])
 
     def test_rejects_missing_and_duplicate_runs(self) -> None:
         missing = copy.deepcopy(self.document)
@@ -91,8 +91,8 @@ class CalibrationContractTest(unittest.TestCase):
         # across rows trips the package check; the digest guard below is
         # what pins the exact row identity.
         shifted = copy.deepcopy(self.document)
-        moved = shifted["rows"][2][0].pop()
-        shifted["rows"][2][1].insert(0, moved)
+        moved = shifted["rows"][2][1].pop()
+        shifted["rows"][2][2].insert(0, moved)
         with self.assertRaisesRegex(ValueError, "row spans packages"):
             calibration.validate_manifest(shifted, self.plan)
         with mock.patch.object(calibration, "ROW_SHA256", "0" * 64):

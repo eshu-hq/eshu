@@ -16,12 +16,12 @@ from live_postgres_readiness_shards import _parse_json, expand_tsv
 MANIFEST = "specs/live-postgres-readiness-calibration.v1.json"
 WORKFLOW = ".github/workflows/live-postgres-readiness-calibration.yml"
 HARNESS = "scripts/run-live-postgres-readiness-tests.sh"
-ROW_SHA256 = "96bd1d703608238b206964d69dc44179031c7f44869bcd31bb8a47e8b6ab6038"
+ROW_SHA256 = "25c0bfd74d50b08da8f8a5472d878b468635394616a188b86fc7010c38386a99"
 # No separate proposal file this round: the PR-reviewed manifest is the
 # reviewed source, so this pin equals the rows digest above.
-REVIEWED_SOURCE_SHA256 = "96bd1d703608238b206964d69dc44179031c7f44869bcd31bb8a47e8b6ab6038"
-SOURCE_SHA = "52b0d1cf12cb5fc2a2b222106d5999b823121337"
-BOUNDS = [0, 122, 167, 320, 504, 612, 738, 848, 1093]
+REVIEWED_SOURCE_SHA256 = "25c0bfd74d50b08da8f8a5472d878b468635394616a188b86fc7010c38386a99"
+SOURCE_SHA = "b9800bdd1e7bceabd1165a3124f8ad07429c99f0"
+BOUNDS = [0, 123, 168, 330, 524, 622, 739, 858, 1101]
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -48,7 +48,7 @@ def validate_manifest(document: object, plan: list[str]) -> list[list[list[str]]
     expected = {"purpose": "offline_calibration_topology_proposal", "status": "NOT_RUN",
                 "source_sha": SOURCE_SHA, "source_acceptance_run": "44446666633",
                 "source_acceptance_shards": 6, "calibration_shards": 8,
-                "source_inventory_sha256": "8455ef7a05b61aacaaab4b3fd7abf85a112701884c287177d60838dddd024fd1",
+                "source_inventory_sha256": "38829542a3f2c4ea8d31e592aaf29ef32991eadd204cd211eac9e657c7a44c57",
                 "source_weights_sha256": "8080aad85831377573921e0e44ad1067a42b0e920d1d7802b79f2e36248a2646",
                 "bounds": BOUNDS}
     if set(document) != set(expected) | {"rows"} or any(
@@ -68,7 +68,7 @@ def validate_manifest(document: object, plan: list[str]) -> list[list[list[str]]
             if len({run.split("|", 1)[0] for run in row}) != 1:
                 raise ValueError("calibration row spans packages")
             flattened.extend(row)
-    if flattened != plan or len(plan) != 1093 or len(set(plan)) != 1093:
+    if flattened != plan or len(plan) != 1101 or len(set(plan)) != 1101:
         raise ValueError("calibration ordered coverage differs from inventory")
     lengths = [sum(map(len, shard)) for shard in rows]
     if lengths != [BOUNDS[i + 1] - BOUNDS[i] for i in range(8)]:
@@ -198,7 +198,7 @@ def main() -> int:
         else:
             loaded = [_parse_json(path.read_text()) for path in args.reports]
             verify_reports(root, args.head, full_tsv, loaded)
-            print("readiness calibration: 1093/1093 ordered runs in eight fixed shards")
+            print("readiness calibration: 1101/1101 ordered runs in eight fixed shards")
         return 0
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
         print(f"readiness calibration: {error}", file=sys.stderr)

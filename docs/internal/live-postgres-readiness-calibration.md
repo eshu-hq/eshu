@@ -10,8 +10,8 @@ job timeout stay in force.
 
 The fixed input is
 `specs/live-postgres-readiness-calibration.v1.json`. Its 38 runner rows cover
-1093 unique tests in canonical inventory order. The committed row identity SHA-256
-is `96bd1d703608238b206964d69dc44179031c7f44869bcd31bb8a47e8b6ab6038`.
+1101 unique tests in canonical inventory order. The committed row identity SHA-256
+is `25c0bfd74d50b08da8f8a5472d878b468635394616a188b86fc7010c38386a99`.
 There is no separate proposal file this round: the PR-reviewed manifest is the
 reviewed source, so the reviewed-source pin equals the rows digest. The runner
 uses these exact rows; it does not
