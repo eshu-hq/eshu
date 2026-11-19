@@ -102,7 +102,7 @@ results are derived from the inputs rather than written by hand. See
 - `codex-goal-continuation` (blocking): Exercises Codex Stop-hook error continuation and per-session goal progress handling.
 - `ghcr-buildcache-prune` (blocking): Fails when the eshu-buildcache prune deletes a tagged, recent or newest-4 version, names another package, or hides an API error (#9632).
 
-### Unit: Does the code do what its tests say? (7 gates)
+### Unit: Does the code do what its tests say? (8 gates)
 
 - `mcp-test-suite` (blocking): Runs every test under the MCP server packages so a broken tool handler or envelope fails before merge.
 - `race-graph-writes` (blocking): Runs the graph-write code paths (ingester, projector, reducer, storage) under Go's race detector.
@@ -110,6 +110,7 @@ results are derived from the inputs rather than written by hand. See
 - `frontend-site` (blocking): Typechecks, unit-tests, and builds the marketing site to catch build-breaking regressions.
 - `frontend-console-checks` (blocking): Typechecks, unit-tests, and builds the admin console, including its JS bundle-size budget checks.
 - `code-coverage-report` (advisory): Runs the full Go test suite with coverage and regenerates the public coverage report and badge; advisory only.
+- `code-coverage-floors` (blocking): Blocks coverage regression on changed Go packages via per-package floors; the scheduled whole-module floor rises toward 90% with a published ranking (#10983).
 - `go-test-race` (blocking): Runs the replay and scheduling test packages under Go's race detector to catch data races.
 
 ### Contract: Do declared or generated artifacts match the code? (63 gates)
@@ -347,6 +348,7 @@ results are derived from the inputs rather than written by hand. See
 | `parserfixture-tests` | Parser Fixture Replay Tests | exactness | pre-pr | true | `cd go && go test ./internal/replay/parserfixture/... -count=1` | test.yml / go-race-complete | 2 path(s): go/internal/replay/parserfixture/**, specs/parser-backing-ledger.v1.yaml |
 | `authz-scoped-route-tests` | Authorization Scoped Route Replay Tests | exactness | pre-pr | true | `cd go && ../scripts/go-test-run-guard.sh 6 'Test(AuthorizationReplayCoverageContract\|SecretsIAMPostureSummaryScopedGrant\|AuthMiddlewareWithScopedTokensAllowsSecretsIAMRoutes)' -- ./internal/query -count=1` | replay-coverage-gate.yml / coverage-gate (blocking) | 8 path(s): go/internal/query/**, go/internal/mcp/**, go/internal/scopedtoken/**, … |
 | `code-coverage-report` | Go Code Coverage Report | exactness | pre-pr | false | `bash scripts/generate-code-coverage-report.sh`<br>then self-test: `bash scripts/test-generate-code-coverage-report.sh` | code-coverage-report.yml / Generate Go code coverage report | 11 path(s): go/**, scripts/generate-code-coverage-report.sh, scripts/test-generate-code-coverage-report.sh, … |
+| `code-coverage-floors` | Go Package Coverage Floors | exactness | pre-pr | true | `bash scripts/test-verify-coverage-floors.sh && bash scripts/ci/test-check-changed-coverage-floors.sh` | code-coverage-report.yml / Package coverage floors | 7 path(s): go/**, scripts/verify-coverage-floors.sh, scripts/test-verify-coverage-floors.sh, … |
 | `e2e-tests` | End-to-end tests (Docker stack) | exactness | ci-heavy | true | — (CI-only: requires Docker Compose service stack) | e2e-tests.yml / test (neo4j) | 14 path(s): go/**, scripts/verify_backend_conformance_live.sh, scripts/lib/nornic_conformance_events.py, … |
 | `trivy-image` | Trivy image scan (GHCR) | security | ci-heavy | false | — (CI-only: requires published container image and GHCR credentials) | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | 2 path(s): go/**, Dockerfile |
 | `docker-image-build` | Docker image build smoke | build | ci-heavy | true | — (CI-only: requires hosted Docker Buildx; PR runs build with push disabled) | docker-publish.yml / build-and-push-image | 4 path(s): Dockerfile, .dockerignore, .github/workflows/docker-publish.yml, … |

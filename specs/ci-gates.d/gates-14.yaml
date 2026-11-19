@@ -139,6 +139,35 @@ gates:
       - go
     ci_only_reason: ""
 
+  - id: code-coverage-floors
+    name: Go Package Coverage Floors
+    category: exactness
+    layer: unit
+    purpose: "Blocks coverage regression on changed Go packages via per-package floors; the scheduled whole-module floor rises toward 90% with a published ranking (#10983)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-coverage-floors.sh"
+      - "scripts/test-verify-coverage-floors.sh"
+      - "scripts/ci/check-changed-coverage-floors.sh"
+      - "scripts/ci/test-check-changed-coverage-floors.sh"
+      - "specs/coverage-floors.v1.yaml"
+      - ".github/workflows/code-coverage-report.yml"
+    # No self_test_triggers: like the ifa-replay-drive mirror above, the local
+    # command already IS the hermetic self-test, so there is no distinct
+    # verifier self-test to scope (the loader rejects self_test_triggers
+    # without a distinct test_command).
+    local:
+      command: "bash scripts/test-verify-coverage-floors.sh && bash scripts/ci/test-check-changed-coverage-floors.sh"
+      test_command: "bash scripts/test-verify-coverage-floors.sh && bash scripts/ci/test-check-changed-coverage-floors.sh"
+    ci:
+      workflow: code-coverage-report.yml
+      job: "Package coverage floors"
+    requirements:
+      - go
+    ci_only_reason: ""
+
   - id: e2e-tests
     name: End-to-end tests (Docker stack)
     category: exactness
