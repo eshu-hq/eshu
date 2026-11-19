@@ -196,17 +196,17 @@ func TestCodeCallProjectionRunnerHonorsFlippedAnswerNextCycle(t *testing.T) {
 // shared by value within the cycle only.
 //
 // Safety note for the dangerous direction (open at probe, uncommitted
-// mid-cycle): no mid-cycle "clear" of matchable canonical nodes exists to
-// widen — phase rows are keyed per generation
-// (projector/runtime/phase.go appendCanonicalGraphPhase includes the
-// generation in the composite key) and canonical projection retracts
-// per generation (#5472), so a new generation activates with no facts and
-// no phases of its own. The probe was also never atomic with the MATCH
-// write: today's per-partition probe already spans lease, selection, load,
-// and write before the edge write lands, and the per-intent readiness gate
-// still covers the caller's own acceptance unit. The hoist extends that
+// mid-cycle): first-commit absence needs no clear (nodes do not exist until
+// canonical Write commits and the phase publishes after Write returns), and
+// on Neo4j re-projection retract/files/entities run as one ExecuteWrite
+// transaction — but the NornicDB PhaseGroupExecutor wiring and the
+// sequential fallback commit retract before entities, an observable clear.
+// The probe was also never atomic with the MATCH write: today's
+// per-partition probe already spans lease, selection, load, and write
+// before the edge write lands, and the per-intent readiness gate still
+// covers the caller's own acceptance unit. The hoist extends that
 // pre-existing window from one partition pipeline to one cycle; it adds no
-// new hazard class.
+// new hazard class. The residual race is tracked by #10938.
 func TestCodeCallProjectionRunnerMidCycleFlipActsOnCycleAnswer(t *testing.T) {
 	t.Parallel()
 

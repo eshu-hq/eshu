@@ -76,16 +76,26 @@ partition, poll-interval, and lease knobs unchanged.
 ## Safety
 
 The dangerous direction is open-at-probe to uncommitted mid-cycle (a new
-generation activating while later partitions write). No mid-cycle clear of
-matchable canonical nodes exists to widen: phase rows are keyed per
-generation (`projector/runtime/phase.go` includes the generation in the
-composite key) and canonical projection retracts per generation (#5472), so a
-new generation activates with no facts and no phases of its own. The probe
-was also never atomic with the MATCH write — today's per-partition probe
-already spans lease, selection, load, and write — so the hoist extends a
-pre-existing window from one partition pipeline to one cycle rather than
-adding a hazard class. The per-intent readiness gate still covers the
-caller's own acceptance unit. Pinned hermetically:
+generation activating while later partitions write). Two cases exist.
+First-commit absence needs no clear: a new scope's nodes do not exist until
+its canonical `Write` commits, and the phase publishes only after `Write`
+returns (`writeCanonicalProjection` in `projector/runtime/stages.go`), so
+an edge row whose endpoint MATCH misses writes nothing. On Neo4j the
+no-clear claim holds in effect for re-projection: retract, files, and
+entities run as one `ExecuteWrite` transaction
+(`cmd/projector/neo4j_executor.go`, atomic-group branch in
+`storage/cypher/canonical_node_writer.go`), but the NornicDB
+`PhaseGroupExecutor` wiring (`cmd/projector/executor_wiring.go`) and the
+sequential fallback commit the retract phase before entities — an
+observable clear. In all cases the probe was never atomic with the MATCH
+write — today's per-partition probe already spans lease, selection, load,
+and write — so the hoist extends a pre-existing window from one partition
+pipeline to one cycle (at most one wave older on the default 8-partition /
+4-worker concurrent topology; up to 7 extra pipelines only under an
+operator-set `workers=1`) rather than adding a hazard class. The
+per-intent readiness gate still covers the caller's own acceptance unit.
+The residual race (a silently missed edge completing its intent) is
+tracked by #10938. Pinned hermetically:
 `TestCodeCallProjectionRunnerMidCycleFlipActsOnCycleAnswer` (later
 partitions act on the cycle answer) and
 `TestCodeCallProjectionRunnerHonorsFlippedAnswerNextCycle` (the next cycle
