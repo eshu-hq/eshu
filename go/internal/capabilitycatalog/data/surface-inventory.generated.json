@@ -2426,6 +2426,11 @@
     },
     {
       "category": "command",
+      "name": "core-api",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "dirgate",
       "readiness": "implemented"
     },
