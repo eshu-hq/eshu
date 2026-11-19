@@ -179,6 +179,11 @@ tests:
     class: postgres_ci
     reason: "#8954 disposable PostgreSQL 18 proofs that the status blockage read names the domain holding a blocked row's conflict fence (a claimed supply_chain_impact row fencing a pending security_alert_reconciliation row) and that the holder lookup reads the live-lease set once with and without planner statistics; each proof opens its own schema from the bootstrap migrations and drops it; about 1 s per proof on PostgreSQL 18.6 locally; wall time is not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/code/reachability/idle_probe_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10870 disposable PostgreSQL 18 proof that the idle cursor probe serves from the existing pending index, that a run whose readiness flips with no new intent completion is skipped until the audit and then projected, that a fresh completion is picked up without waiting for the audit, and that two concurrent runners converge; enrolled in the live-postgres-readiness runner. Upper-bound timing: 20s cold including one-time schema bootstrap and the section fixtures, on local postgres:18"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go
     tag: ~
     class: postgres_ci
