@@ -128,9 +128,11 @@ func laneAttributes(reason string) metric.MeasurementOption {
 
 // recordCodeCallLaneBlocked makes a blocked cycle visible (#7133): the lane
 // sat shut for eight days in the QA environment with no log line and no metric. Every
-// blocked partition cycle counts; the log line and the blocking-scope sample
-// are rate-limited per episode. A sample failure is logged, never returned:
-// the gate already answered and the sample is operator detail only.
+// blocked cycle counts once (#10871: the gate is evaluated once per cycle and
+// the answer is shared across partitions, so the counter is per-cycle, not
+// per-partition); the log line and the blocking-scope sample are rate-limited
+// per episode. A sample failure is logged, never returned: the gate already
+// answered and the sample is operator detail only.
 func (r *Runner) recordCodeCallLaneBlocked(ctx context.Context, reason string) {
 	if r.Instruments != nil && r.Instruments.SharedProjectionLaneBlocked != nil {
 		r.Instruments.SharedProjectionLaneBlocked.Add(ctx, 1, laneAttributes(reason))

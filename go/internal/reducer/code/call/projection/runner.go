@@ -190,16 +190,32 @@ func (r *Runner) runOneCycle(ctx context.Context) (worker.PartitionProcessResult
 }
 
 func (r *Runner) processOnce(ctx context.Context, now time.Time) (result worker.PartitionProcessResult, retErr error) {
-	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount())
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
+	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount(), blockedReason)
 }
 
 func (r *Runner) runOneCycleSequential(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
 	var cycleResult worker.PartitionProcessResult
 	for partitionID := 0; partitionID < r.Config.partitionCount(); partitionID++ {
 		if ctx.Err() != nil {
 			return cycleResult, nil
 		}
-		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount())
+		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount(), blockedReason)
 		worker.MergePartitionProcessResult(&cycleResult, result)
 		if err != nil {
 			return cycleResult, err
@@ -209,6 +225,14 @@ func (r *Runner) runOneCycleSequential(ctx context.Context, now time.Time) (work
 }
 
 func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
 	partitionCount := r.Config.partitionCount()
 	work := make(chan int, partitionCount)
 	for partitionID := 0; partitionID < partitionCount; partitionID++ {
@@ -230,7 +254,7 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (work
 				if ctx.Err() != nil {
 					return
 				}
-				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount)
+				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount, blockedReason)
 				mu.Lock()
 				worker.MergePartitionProcessResult(&cycleResult, result)
 				if err != nil {
@@ -244,20 +268,23 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (work
 	return cycleResult, errors.Join(errs...)
 }
 
+// processPartitionOnce runs one partition of a cycle whose lane-gate answer
+// was already evaluated by the cycle entry point (runOneCycleSequential,
+// runOneCycleConcurrent, or processOnce) and is passed by value as
+// blockedReason (#10871). A non-empty reason parks the partition without
+// touching a lease; an empty reason was proven open this cycle, so the
+// partition proceeds without re-probing.
 func (r *Runner) processPartitionOnce(
 	ctx context.Context,
 	now time.Time,
 	partitionID int,
 	partitionCount int,
+	blockedReason string,
 ) (result worker.PartitionProcessResult, retErr error) {
 	cycleStart := time.Now()
 	acceptanceTelemetry := worker.AcceptanceTelemetry{
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
-	}
-	blockedReason, err := r.projectionLaneBlocked(ctx)
-	if err != nil {
-		return worker.PartitionProcessResult{}, err
 	}
 	if blockedReason != "" {
 		r.recordCodeCallLaneBlocked(ctx, blockedReason)
@@ -265,7 +292,6 @@ func (r *Runner) processPartitionOnce(
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
 	}
-	r.recordCodeCallLaneReleased(ctx)
 
 	claimStart := time.Now()
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
