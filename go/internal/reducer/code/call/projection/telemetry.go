@@ -42,6 +42,8 @@ func (r *Runner) recordCodeCallCycle(
 		logAttrs = append(
 			logAttrs,
 			slog.Int("written_rows", writtenRows),
+			slog.Int("submitted_rows", timing.CodeCallSubmittedRows),
+			slog.Int("matched_rows", timing.CodeCallMatchedRows),
 			slog.Int("written_groups", writtenGroups),
 			slog.Float64("duration_seconds", duration),
 			slog.Float64("intent_wait_seconds", timing.MaxIntentWaitSeconds),
@@ -97,6 +99,16 @@ func (r *Runner) recordCodeCallTiming(ctx context.Context, result worker.Partiti
 				telemetry.AttrOutcome("completed"),
 			),
 		)
+	}
+	// Matched-vs-submitted counts (#10938) ride the visit result into the
+	// submitted/matched series. A shortfall on an enforced relationship
+	// parks the visit via the write error path, so this series stays the
+	// verified-write record while the park itself counts on
+	// SharedEdgeTargetMiss (writer) and surfaces in the cycle-failure log.
+	if result.CodeCallSubmittedRows > 0 {
+		attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainCodeCalls))
+		r.Instruments.CodeCallEdgeSubmittedRows.Add(ctx, int64(result.CodeCallSubmittedRows), attrs)
+		r.Instruments.CodeCallEdgeMatchedRows.Add(ctx, int64(result.CodeCallMatchedRows), attrs)
 	}
 	worker.RecordStepDurations(ctx, r.Instruments, reducercontract.DomainCodeCalls, result)
 }

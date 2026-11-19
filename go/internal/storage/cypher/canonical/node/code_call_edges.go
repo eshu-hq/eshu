@@ -26,6 +26,9 @@ package node
 // in #5116 is a data concern, not a Cypher-shape one: unresolved-label
 // endpoints route here and can reference nodes that do not exist or carry
 // labels outside the disjunction, in which case the row still writes nothing.
+// Since #10938 every template below also reports
+// `RETURN count(rel) AS matched`, so that silent row is now counted and the
+// writer can park the batch instead of completing it.
 // The CALLS template is different: its coalesce(row.caller_entity_id,
 // row.source_entity_id) anchor is a function-expression variant no probe has
 // measured on v1.1.11, so it keeps its own #5116 write-side proof obligation.
@@ -72,7 +75,8 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`
 
 const BatchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|Struct|Interface|TypeAlias|File {uid: row.caller_entity_id})
@@ -82,7 +86,8 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`
 
 const BatchCanonicalMetaclassUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: row.source_entity_id})
@@ -92,4 +97,5 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.relationship_type = row.relationship_type`
+    rel.relationship_type = row.relationship_type
+RETURN count(rel) AS matched`

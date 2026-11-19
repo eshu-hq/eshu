@@ -3057,6 +3057,16 @@ type Instruments struct {
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
 	CodeCallEdgeDuration               metric.Float64Histogram
+	// CodeCallEdgeSubmittedRows counts code-call edge rows a partition
+	// visit's write attempted: the rows that reached a statement (#10938).
+	// The label is the bounded projection domain; evidence source and
+	// sample intent stay in the accompanying structured log.
+	CodeCallEdgeSubmittedRows metric.Int64Counter
+	// CodeCallEdgeMatchedRows counts code-call rows whose MATCH bound and
+	// whose MERGE committed (#10938). A shortfall against the submitted
+	// series on an enforced relationship parks the visit instead of
+	// completing it; the park itself counts on SharedEdgeTargetMiss.
+	CodeCallEdgeMatchedRows metric.Int64Counter
 	// CodeCallDeltaScopeUnusable counts delta-generation repositories whose
 	// code-call file scope could not be built (#10023), labeled by the closed
 	// reason set in registerCodeCallDeltaScopeUnusable. Registered by that
@@ -7741,6 +7751,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CodeCallEdgeBatches counter: %w", err)
+	}
+
+	inst.CodeCallEdgeSubmittedRows, err = meter.Int64Counter(
+		"eshu_dp_code_call_edge_submitted_rows_total",
+		metric.WithDescription("Total code-call edge rows a partition visit's write attempted, by domain (#10938)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeCallEdgeSubmittedRows counter: %w", err)
+	}
+
+	inst.CodeCallEdgeMatchedRows, err = meter.Int64Counter(
+		"eshu_dp_code_call_edge_matched_rows_total",
+		metric.WithDescription("Total code-call rows whose MATCH bound and whose MERGE committed, by domain (#10938)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeCallEdgeMatchedRows counter: %w", err)
 	}
 
 	codeCallBatchBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}

@@ -473,13 +473,15 @@ func (r *Runner) processPartitionOnce(
 		}
 
 		writeStart := time.Now()
-		writtenRows, groups, err := r.writeActiveRows(ctx, active)
+		writeReport, groups, err := r.writeActiveRows(ctx, active)
 		if err != nil {
 			return result, err
 		}
 		result.WriteDurationSeconds = time.Since(writeStart).Seconds()
 		writtenGroups = groups
-		result.UpsertedRows = writtenRows
+		result.UpsertedRows = writeReport.SubmittedRows
+		result.CodeCallSubmittedRows = writeReport.SubmittedRows
+		result.CodeCallMatchedRows = writeReport.MatchedRows
 	}
 	// #7736 F5 drain-forced-retract marker: a pure-drain cycle (nothing
 	// kept, drainable rows present) runs retract on the drained scope before

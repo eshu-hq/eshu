@@ -115,6 +115,16 @@ type PartitionProcessResult struct {
 	// for this visit, including the final one (#7724 telemetry:
 	// per-visit widen rounds).
 	SelectionRounds int
+	// CodeCallSubmittedRows counts the code-call edge rows this visit's
+	// write attempted: the rows that reached a statement (#10938). Only
+	// the code_calls lane sets it; the shared runner leaves it zero.
+	CodeCallSubmittedRows int
+	// CodeCallMatchedRows counts the code-call rows whose MATCH bound and
+	// whose MERGE committed, summed over the visit's counted-write
+	// statements (#10938). A shortfall against CodeCallSubmittedRows on an
+	// enforced relationship parks the visit instead of completing it.
+	// Only the code_calls lane sets it; the shared runner leaves it zero.
+	CodeCallMatchedRows int
 	// PrefetchStats accumulates this visit's selection prefetch
 	// behavior: per-kind keys, queries, rows, readiness cache hits, and
 	// durations (#7724 telemetry: per-visit prefetch stats).

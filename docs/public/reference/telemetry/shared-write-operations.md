@@ -22,6 +22,8 @@ Start with:
 - `eshu_dp_deployable_unit_edge_verify_total`
 - `eshu_dp_code_call_edge_batches_total`
 - `eshu_dp_code_call_edge_batch_duration_seconds`
+- `eshu_dp_code_call_edge_submitted_rows_total`
+- `eshu_dp_code_call_edge_matched_rows_total`
 
 ## Shared-Edge Target Misses
 
@@ -54,6 +56,28 @@ generation and the re-selected batch binds then, so a transient rise during a
 rebuild drain is expected and a stuck non-zero rate across generations is
 the signal worth alerting on. (This section lives here rather than in
 `index.md` because that file is grandfather-capped and may not grow.)
+
+## Code-Call Matched Counts
+
+Every code-call edge template reports `RETURN count(rel) AS matched`,
+atomically with the write (#10938), and the writer reconciles the summed
+matched count against the submitted rows before the caller completes
+anything. `eshu_dp_code_call_edge_submitted_rows_total` counts the rows a
+partition visit's write attempted; `eshu_dp_code_call_edge_matched_rows_total`
+counts the rows whose `MATCH` bound and whose `MERGE` committed. Both carry
+only the bounded `domain` label; evidence source and sample intent stay in the
+accompanying `code call edge rows did not all match; batch held for retry`
+WARN.
+
+A shortfall on an enforced relationship (`CALLS` today; other templates stay
+count-only until their census lands, see the `codeCallShortfallEnforced` map)
+fails the visit with the retryable non-counting `shared_edge_target_not_ready`
+class, so the intent stays open and the park counts on
+`eshu_dp_shared_edge_target_miss_total{domain="code_calls"}`. A count-only
+shortfall or a surplus (duplicate-uid nodes) completes with a WARN. No probe
+statements were added: the count rides the same `UNWIND` statement, so the
+statement count per write is unchanged and the once-per-cycle lane gate holds
+— the verification is atomic with the write instead of racing it.
 
 ## Deployable-Unit Edge Verification
 

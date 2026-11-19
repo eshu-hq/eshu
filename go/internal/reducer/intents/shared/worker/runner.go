@@ -272,6 +272,8 @@ func MergePartitionProcessResult(total *PartitionProcessResult, result Partition
 	total.ProcessedIntents += result.ProcessedIntents
 	total.BlockedReadiness += result.BlockedReadiness
 	total.UnusableDeltaDeadLettered += result.UnusableDeltaDeadLettered
+	total.CodeCallSubmittedRows += result.CodeCallSubmittedRows
+	total.CodeCallMatchedRows += result.CodeCallMatchedRows
 	if result.MaxBlockedIntentWaitSeconds > total.MaxBlockedIntentWaitSeconds {
 		total.MaxBlockedIntentWaitSeconds = result.MaxBlockedIntentWaitSeconds
 	}

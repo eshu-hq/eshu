@@ -40,6 +40,19 @@ func (r *recordingExecutor) Execute(_ context.Context, statement sourcecypher.St
 	return nil
 }
 
+// ExecuteCountedWrite mirrors Execute with a full matched count (#10938):
+// the shared fake stands in for production executors, which all report the
+// statement's rows as matched on success. Tests that need a shortfall script
+// their own fake.
+func (r *recordingExecutor) ExecuteCountedWrite(_ context.Context, statement sourcecypher.Statement) (int64, error) {
+	r.calls = append(r.calls, statement)
+	if r.errAtCall != nil {
+		return 0, r.errAtCall
+	}
+	rows, _ := sourcecypher.StatementRowsCount(statement)
+	return int64(rows), nil
+}
+
 // Run implements OrphanSweepReader so recordingExecutor can double as the
 // EdgeWriter.Reader in shell-exec orphan-cleanup retract tests. It
 // distinguishes the S1 candidate-keys read (no "keys" parameter) from the S2
@@ -74,6 +87,19 @@ func (noopGroupExecutor) Execute(_ context.Context, _ sourcecypher.Statement) er
 
 func (noopGroupExecutor) ExecuteGroup(_ context.Context, _ []sourcecypher.Statement) error {
 	return nil
+}
+
+// ExecuteCountedWriteGroup reports a full match per statement (#10938): the
+// no-op benchmark executor stands in for a backend write that binds every
+// row, so benchmarks keep measuring row shaping and batching rather than the
+// fail-closed path.
+func (noopGroupExecutor) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	counts := make([]int64, 0, len(stmts))
+	for _, stmt := range stmts {
+		rows, _ := sourcecypher.StatementRowsCount(stmt)
+		counts = append(counts, int64(rows))
+	}
+	return counts, nil
 }
 
 // concurrencyProbeExecutor duplicates the concurrency probe fake from package

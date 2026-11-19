@@ -32,6 +32,22 @@ func (r *recordingGroupExecutor) ExecuteGroup(_ context.Context, stmts []sourcec
 	return nil
 }
 
+// ExecuteCountedWriteGroup mirrors ExecuteGroup with a full matched count
+// per statement (#10938): the shared fake stands in for production grouped
+// executors, which all report full matches on success. Tests that need a
+// shortfall script their own fake.
+func (r *recordingGroupExecutor) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	cloned := make([]sourcecypher.Statement, len(stmts))
+	copy(cloned, stmts)
+	r.groupCalls = append(r.groupCalls, cloned)
+	counts := make([]int64, 0, len(stmts))
+	for _, stmt := range stmts {
+		rows, _ := sourcecypher.StatementRowsCount(stmt)
+		counts = append(counts, int64(rows))
+	}
+	return counts, nil
+}
+
 func TestEdgeWriterSQLRelationshipSequentialWritesBypassManagedTransactions(t *testing.T) {
 	t.Parallel()
 
