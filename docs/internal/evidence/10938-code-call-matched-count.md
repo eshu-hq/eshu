@@ -111,5 +111,6 @@ lives inside the format literals, restoring the table above.
   an empty UNWIND batch reports one row with 0 — via both the Bolt driver
   and the HTTP tx/commit endpoint. The live tests keep the `backends: neo4j`
   pin until a committed NornicDB live test lands; the label-scoped
-  outside-disjunction shapes (#5116) are likewise unproven and stay
-  count-only via `codeCallShortfallEnforced`.
+  outside-disjunction REFERENCES and INSTANTIATES shapes (#5116) are
+  likewise unproven and stay count-only via `codeCallShortfallEnforced`
+  (label-scoped CALLS is correctly enforced per the #5116 rationale).
