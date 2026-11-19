@@ -73,7 +73,8 @@ RUN cd go \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-collector-cicd-run ./cmd/collector-cicd-run \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-webhook-intake ./cmd/webhook-intake \
     && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-bootstrap-data-plane ./cmd/bootstrap-data-plane \
-    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-admin-status ./cmd/admin-status \
+    && xx-go build -trimpath -ldflags="${LDFLAGS}" -o /go-bin/eshu-core-api ./cmd/core-api
 
 # mcp-satellite: the extracted MCP server (#9670). The in-tree go/cmd/mcp-server
 # is gone, but the E2E fresh stack (compose/docker-compose.e2e.yaml under
