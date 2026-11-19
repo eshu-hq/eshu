@@ -157,6 +157,7 @@ func generationRetentionRunnerFor(
 	if sweepDatabase, ok := database.(indexretention.Database); ok {
 		runner.OrphanSweeper = searchIndexOrphanSweeper{database: sweepDatabase, logger: logger}
 		runner.SupersededSweeper = searchIndexSupersededSweeper{database: sweepDatabase, logger: logger}
+		runner.PartitionSizes = searchIndexPartitionSizesCensuser{database: sweepDatabase}
 	}
 	// The relationship sweep (#10823) likewise opens its own batch
 	// transactions, after the prune transaction has ended.
@@ -205,6 +206,61 @@ func (s relationshipRetentionSweeper) SweepRelationships(
 		CensusDuration:    sweep.Census.Duration,
 		SweepDuration:     sweep.SweepDuration,
 	}, err
+}
+
+// searchIndexPartitionSizesCensuser adapts the indexretention
+// per-partition size census to the retention runner's contract (#10874).
+type searchIndexPartitionSizesCensuser struct {
+	database indexretention.Database
+}
+
+// CensusSearchIndexPartitionSizes takes one catalog-only size pass over the
+// terms leaves and classifies each leaf. The partition label is the closed
+// p00-p63 set; scope and generation identifiers never reach metric labels.
+func (s searchIndexPartitionSizesCensuser) CensusSearchIndexPartitionSizes(
+	ctx context.Context,
+) (retention.PartitionSizesResult, error) {
+	started := time.Now()
+	census, err := indexretention.TakePartitionSizeCensus(ctx, s.database)
+	if err != nil {
+		return retention.PartitionSizesResult{}, err
+	}
+	result := retention.PartitionSizesResult{CensusDuration: time.Since(started)}
+	for _, leaf := range census {
+		var suspect string
+		switch indexretention.ClassifyPartitionSize(leaf) {
+		case indexretention.PartitionSizeWarn:
+			suspect = "warn"
+		case indexretention.PartitionSizePage:
+			suspect = "page"
+		}
+		result.Leaves = append(result.Leaves, retention.PartitionLeafSize{
+			Partition:     searchIndexPartitionLabel(leaf.Leaf),
+			Leaf:          leaf.Leaf,
+			TotalBytes:    leaf.TotalBytes,
+			HeapBytes:     leaf.HeapBytes,
+			IndexBytes:    leaf.IndexBytes,
+			EstimatedRows: leaf.EstimatedRows,
+			BytesPerRow:   leaf.BytesPerRow(),
+			Suspect:       suspect,
+		})
+	}
+	return result, nil
+}
+
+// searchIndexPartitionLabel shortens a terms leaf regclass to its closed
+// pNN label; anything unexpected keeps its full name rather than colliding
+// with a real partition.
+func searchIndexPartitionLabel(leaf string) string {
+	const prefix = "eshu_search_index_terms_p"
+	suffix := ""
+	if len(leaf) == len(prefix)+2 && len(leaf) > len(prefix) && leaf[:len(prefix)] == prefix {
+		suffix = leaf[len(prefix):]
+	}
+	if len(suffix) == 2 && suffix[0] >= '0' && suffix[0] <= '9' && suffix[1] >= '0' && suffix[1] <= '9' {
+		return "p" + suffix
+	}
+	return leaf
 }
 
 // searchIndexOrphanSweeper adapts the indexretention orphan census and sweep

@@ -2583,6 +2583,19 @@ type Instruments struct {
 	// superseded sweep deleted from a still-existing superseded generation,
 	// by table (terms, documents, stats).
 	SearchIndexSupersededRowsSwept metric.Int64Counter
+	// SearchIndexPartitionBytes is the per-leaf size census gauge (#10874):
+	// pg_total_relation_size by partition (p00-p63) and component
+	// (heap, index, total). The partition label is closed; scope_id and
+	// generation_id never appear in labels.
+	SearchIndexPartitionBytes metric.Int64Gauge
+	// SearchIndexPartitionEstimatedRows is the per-leaf estimated live rows
+	// gauge (#10874), by partition (p00-p63). A suspect-detector from
+	// n_live_tup-or-reltuples, never a byte-exact claim.
+	SearchIndexPartitionEstimatedRows metric.Int64Gauge
+	// SearchIndexPartitionBytesPerRow is the per-leaf total-bytes-per-row
+	// gauge (#10874), by partition and component (total, heap, index). The
+	// WARN/PAGE thresholds read this series.
+	SearchIndexPartitionBytesPerRow metric.Float64Gauge
 	// RelationshipRetentionOrphanGenerations is the distinct orphan
 	// generations of the relationship tables the last census listed, by
 	// table (#10823); it saturates at the census list limit. The census

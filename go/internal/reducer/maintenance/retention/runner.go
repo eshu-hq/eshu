@@ -187,6 +187,10 @@ type Runner struct {
 	// RelationshipSweeper, when set, runs the relationship retention census
 	// every poll interval and, when the policy enables it, the sweep (#10823).
 	RelationshipSweeper RelationshipSweeper
+	// PartitionSizes, when set, takes the catalog-only per-partition
+	// size-vs-rowcount census on the orphan-sweep cadence, after the pass
+	// (#10874). It reads pg_class only and holds no row lock.
+	PartitionSizes PartitionSizesCensuser
 	// Now is the clock for the sweep cadence; nil uses time.Now.
 	Now func() time.Time
 	// lastOrphanSweep is when the last sweep started. A Runner is driven by
