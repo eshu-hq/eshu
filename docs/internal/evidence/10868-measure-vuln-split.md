@@ -17,7 +17,7 @@ domains in cleanup and ranking. Verified by reading (worktree at `origin/main`
 | Representative ranking | Transitively yes — `reps_ranked`/`reps` derive `FROM base` | `reducer_queue_batch_query.go:166-192` |
 | Stale-generation fence in claim | Yes — `stale.domain = ANY($2)` | `[stale-generation fence](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_claim_stale_gate_sql.go#L80)` |
 | Standalone stale sweep | Yes — passes `q.claimDomainFilters()` as `$2`; shared (unfiltered) sweeper queues sweep all; `SKIP LOCKED` keeps overlap safe | `[standalone stale sweep](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_stale_generation_sweep.go#L61)` (lines 61-68 and 102), helpers `reducer_queue_helpers.go:46-66` |
-| Readiness gate | Per-row, not claim-filter limited — and that is sufficient: the gate keys on the row's own domain (`reducerClaimReadinessGateSQL`, `reducer_queue_readiness_sql.go:300-307`), and `supply_chain_impact` has no row in the requirements `VALUES` list (`:273-297`), so it passes vacuously. A filtered claim never pays other domains' readiness rows beyond the base scan. | `reducer_queue_readiness_sql.go:273-307` |
+| Readiness gate | Per-row, not claim-filter limited — and that is sufficient: the gate keys on the row's own domain (`reducerClaimReadinessGateSQL`, `reducer_queue_readiness_sql.go:300-307`), and `supply_chain_impact` has no row in the requirements `VALUES` list (`:273-297`), so it passes vacuously. Gating is per-row, but cost is not free: the [readiness-missing precompute](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_queue_batch_claim_gates.go#L98) scans all reducer pending/retrying/claimed/running rows with no domain predicate, once per claim — sizing that shared cost is Phase 1 shim work. | `reducer_queue_readiness_sql.go:273-307` |
 | Live-lease fence (`live_fence_keys`) | NO — unfiltered; see verdict below | `reducer_queue_batch_claim_gates.go:166-174` |
 
 Plumbing: `ESHU_REDUCER_CLAIM_DOMAINS` plural allowlist
@@ -40,6 +40,13 @@ Per the arbiter ruling this is filed separately, not fixed inside
 global fence — decide there). Recommended follow-up: new in-goal issue
 under #10860 recording the unfiltered CTE and the two candidate
 resolutions (add `$2` filter vs document global fence).
+
+Update (2026-11-19): decided in #10935 as intentionally global — the
+fence keys on conflict identity rather than domain, and scoping it
+would surface as whole-batch aborts the lock recheck cannot prevent.
+Pinned by `TestClaimBatchLiveFenceKeysStayGlobalAcrossDomains` in
+`reducer_queue_claim_domains_test.go` (PR #10936). Measurement arms
+run under the global fence.
 
 ## Split proposal (pending QA census confirmation)
 
