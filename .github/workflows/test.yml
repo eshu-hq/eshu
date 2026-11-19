@@ -394,12 +394,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     runs-on: ubuntu-24.04
-    # Shard 2 of the -race split runs ~31 min on main and twice hit this
-    # ceiling on PR runners; per-package -timeout 900s still bounds genuine
-    # hangs. Rebalance the NR%-sharding (storage/postgres/* clusters in one
-    # shard) as a follow-up instead of raising this further.
+    # Eight shards since 2026-11-19: the four-way split's slowest shard ran
+    # ~26 min on PR runners (~31 min on main) and twice hit this ceiling.
+    # Halving the packages per shard (1302 total, ~163 each) halves the
+    # worst case instead of raising the ceiling further; per-package
+    # -timeout 900s still bounds genuine hangs.
     timeout-minutes: 60
     env: {GOCACHE: /tmp/eshu-ci/go-build}
     steps:
@@ -416,7 +417,7 @@ jobs:
           # A race build stores different objects than go-core's plain build.
           # Sharing go-core's key let it save first and shadow this lane with a
           # cache holding no race objects (#9462), so the race lane keeps its own
-          # key. One key for all four shards, not one each: the repository cache
+          # key. One key for all eight shards, not one each: the repository cache
           # store is nearly full, and the shards share most compiled packages.
           # "gobuildrace" does not match go-core's "gobuild-" restore prefix, so
           # go-core never restores a race cache.
@@ -469,7 +470,7 @@ jobs:
           count="$(printf '%s\n' "${pkgs}" | wc -l | tr -d ' ')"
           echo "shard ${SHARD_INDEX}/${SHARD_TOTAL}: ${count} package(s)"
           printf '%s\n' "${pkgs}" | xargs go test -count=1 -race -timeout 900s -p 2
-      # The four shards share one key; the first to finish saves it and the
+      # The eight shards share one key; the first to finish saves it and the
       # others log a reserve warning, as before the restore/save split.
       - name: Save Go build cache
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.gobuildrace-cache.outputs.cache-hit != 'true' }}
