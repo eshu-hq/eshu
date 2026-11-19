@@ -95,9 +95,17 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	filter securityalert.SecurityAlertReconciliationFactFilter,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
+	// The keyed sidecar path runs only after the backfill marker proves every
+	// eligible fact has keys; until then the legacy six-arm query runs
+	// verbatim so a partially backfilled table can never under-select
+	// (issue #10875).
+	query := listActiveSecurityAlertReconciliationFactsQuery
+	if ready, err := SecurityAlertReconciliationKeysReady(ctx, s.database); err == nil && ready {
+		query = listActiveSecurityAlertReconciliationFactsKeyedQuery
+	}
 	rows, err := s.database.QueryContext(
 		ctx,
-		listActiveSecurityAlertReconciliationFactsQuery,
+		query,
 		filter.RepositoryIDs,
 		filter.PackageIDs,
 		filter.CVEIDs,

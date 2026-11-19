@@ -146,8 +146,8 @@ func TestBackfillDeferredPassExcludesSelfRepoIDMatch(t *testing.T) {
 // so repo_id args must not be %-wrapped LIKE terms.
 func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	t.Helper()
-	if len(args) != 7 {
-		t.Fatalf("deferred fact query args count = %d, want 7 (non-repo_id anchors, repo_id values, scope_id, generation_id, own-excluded regex, own repo_id, repo_id reference keys)", len(args))
+	if len(args) != 8 {
+		t.Fatalf("deferred fact query args count = %d, want 8 (non-repo_id anchors, repo_id values, scope_id, generation_id, own-excluded regex, own repo_id, repo_id reference keys, raw anchors)", len(args))
 	}
 	nonRepoIDTerms, ok := args[0].(array.StringArray)
 	if !ok {
@@ -195,6 +195,33 @@ func assertDeferredSelfExclusionArgs(t *testing.T, args []any) {
 	// There must be at least one repo_id-value term so the self-exclusion arm is live.
 	if len(repoIDTerms) == 0 {
 		t.Fatal("deferred query repo_id-value anchor terms is empty; the cross-repo repo_id arm is inoperative")
+	}
+	// $8 raw anchors must be raw lowercase literals (position-matched, never
+	// LIKE-wrapped) drawn from the same anchor set $1 wraps (issue #10875).
+	rawAnchors, ok := args[7].(array.StringArray)
+	if !ok {
+		t.Fatalf("deferred query arg[7] ($8 raw anchors) type = %T, want array.StringArray", args[7])
+	}
+	for _, anchor := range rawAnchors {
+		if anchor == "" {
+			t.Fatal("deferred query $8 raw anchor is empty; position('' in x) matches every sidecar row")
+		}
+		if strings.HasPrefix(anchor, "%") || strings.HasSuffix(anchor, "%") || strings.ContainsAny(anchor, "\\_") {
+			t.Fatalf("deferred query $8 raw anchor %q carries LIKE syntax; $8 is position-matched", anchor)
+		}
+		if anchor != strings.ToLower(anchor) {
+			t.Fatalf("deferred query $8 raw anchor %q is not lowercase", anchor)
+		}
+		found := false
+		for _, term := range nonRepoIDTerms {
+			if strings.Contains(term, anchor) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("deferred query $8 raw anchor %q appears in no $1 LIKE term; $8 drifted from $1", anchor)
+		}
 	}
 }
 

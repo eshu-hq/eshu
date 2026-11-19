@@ -68,6 +68,18 @@ CREATE TABLE relationship_reference_candidate_keys (
     generation_id TEXT NOT NULL,
     source_repo_id TEXT NOT NULL,
     reference_key TEXT NOT NULL,
+    keys_version SMALLINT NOT NULL DEFAULT 0,
+    fact_kind TEXT NOT NULL DEFAULT '',
+    artifact_type_norm TEXT NOT NULL DEFAULT '',
+    path_norm TEXT NOT NULL DEFAULT '',
+    content_argocd_kind BOOLEAN NOT NULL DEFAULT FALSE,
+    content_salt_gitfs BOOLEAN NOT NULL DEFAULT FALSE,
+    flux_git_nonempty BOOLEAN NOT NULL DEFAULT FALSE,
+    um_kind_application BOOLEAN NOT NULL DEFAULT FALSE,
+    um_artifact_argocd BOOLEAN NOT NULL DEFAULT FALSE,
+    um_argocd_applications BOOLEAN NOT NULL DEFAULT FALSE,
+    um_argocd_applicationsets BOOLEAN NOT NULL DEFAULT FALSE,
+    um_flux_git_repositories BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (fact_id)
 );
 

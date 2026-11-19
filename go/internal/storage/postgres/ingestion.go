@@ -329,6 +329,11 @@ func (s IngestionStore) commitScopeGeneration(
 			if err := refreshPackageRegistryIdentityKeys(ctx, tx, batch); err != nil {
 				return err
 			}
+			// Last in Deletes order (factkeys.Deletes): the security-alert
+			// writer takes no conflicting lock order (issue #10875).
+			if err := refreshSecurityAlertReconciliationKeys(ctx, tx, batch); err != nil {
+				return err
+			}
 			for _, envelope := range batch {
 				successorObserver.observe(envelope)
 				if envelope.FactKind != "repository" {

@@ -98,17 +98,20 @@ VALUES ($1, $2, $3, 'npm', 'pkg-census', 'pid-census')`, []any{envelopes[0].Fact
 	}
 
 	// The shipped cleanup, run per reported generation, clears what the
-	// census names and keeps the live keys of the same generation.
+	// census names and keeps the live keys of the same generation. The
+	// fixture plants no security-alert orphans, so the fourth column reads
+	// zero here; it exists because the cleanup returns one count per table
+	// (#10875).
 	for _, generation := range []string{active, scope + "-other"} {
-		var relationship, manifest, registry int64
-		if err := database.QueryRowContext(ctx, factkeys.OrphanCleanupSQL, scope, generation).Scan(&relationship, &manifest, &registry); err != nil {
+		var relationship, manifest, registry, securityAlert int64
+		if err := database.QueryRowContext(ctx, factkeys.OrphanCleanupSQL, scope, generation).Scan(&relationship, &manifest, &registry, &securityAlert); err != nil {
 			t.Fatalf("orphan cleanup for %s: %v", generation, err)
 		}
-		wantDeleted := [3]int64{1, 2, 0}
+		wantDeleted := [4]int64{1, 2, 0, 0}
 		if generation != active {
-			wantDeleted = [3]int64{0, 0, 1}
+			wantDeleted = [4]int64{0, 0, 1, 0}
 		}
-		if got := [3]int64{relationship, manifest, registry}; got != wantDeleted {
+		if got := [4]int64{relationship, manifest, registry, securityAlert}; got != wantDeleted {
 			t.Errorf("orphan cleanup for %s deleted %v, want %v", generation, got, wantDeleted)
 		}
 	}

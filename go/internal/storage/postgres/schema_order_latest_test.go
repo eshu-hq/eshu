@@ -78,4 +78,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 314 (#10947) adds the durable COALESCE-once first-shortfall
 	// anchor for the code-call CALLS shortfall park bound.
 	"shared_projection_intents_first_shortfall_at",
+	// Migration 315 (#10875) adds the version-1 family/marker columns on
+	// relationship_reference_candidate_keys plus the
+	// security_alert_reconciliation_keys sidecar and its backfill marker.
+	// 314 is #10947's shared-projection first-shortfall anchor.
+	"relationship_lookup_keys",
 }

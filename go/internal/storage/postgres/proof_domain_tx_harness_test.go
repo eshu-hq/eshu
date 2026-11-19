@@ -142,6 +142,14 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO relationship_reference_candidate_keys"):
 		return proofResult{}, nil
+	// #10875: the commit path refreshes the security-alert key sidecar in
+	// the same transaction. The proof domain never reads the keyed reader,
+	// so both statements are no-ops here, mirroring the manifest/registry
+	// key pairs above.
+	case strings.Contains(query, "DELETE FROM security_alert_reconciliation_keys"):
+		return proofResult{}, nil
+	case strings.Contains(query, "INSERT INTO security_alert_reconciliation_keys"):
+		return proofResult{}, nil
 	case strings.Contains(query, "INSERT INTO relationship_evidence_facts"):
 		details := parseJSONBytes(args[10])
 		tx.state.evidenceFacts[args[0].(string)] = evidenceRecord{

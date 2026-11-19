@@ -247,6 +247,14 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{}, nil
 	}
 
+	// The version-1 key fallback probe (issue #10875) always resolves to zero
+	// missing rows here, independent of FIFO order: fixtures model a corpus
+	// whose sidecar state the loader path under test does not manage, so the
+	// probe must not consume a scripted response staged for a later query.
+	if query == backfill.DeferredRelationshipKeyFallbackProbeSQL {
+		return &queueFakeRows{rows: [][]any{{int64(0)}}}, nil
+	}
+
 	// The fan-in's under-lock generation re-read (backfill.LoadActiveGenerationForScope)
 	// is answered from the SAME rows the fixture already staged for the
 	// corpus-wide backfill.ActiveRepositoryGenerationsQuery below, rather than from the
@@ -484,15 +492,3 @@ type fakeResult struct{}
 func (fakeResult) LastInsertId() (int64, error) { return 0, nil }
 
 func (fakeResult) RowsAffected() (int64, error) { return 1, nil }
-
-type retryableReducerTestError struct {
-	message string
-}
-
-func (e retryableReducerTestError) Error() string {
-	return e.message
-}
-
-func (e retryableReducerTestError) Retryable() bool {
-	return true
-}
