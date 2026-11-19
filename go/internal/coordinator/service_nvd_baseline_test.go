@@ -622,6 +622,49 @@ func TestReportNVDBaselineHeldChangedWarnsOnce(t *testing.T) {
 	}
 }
 
+// TestNVDBaselineTickMemoryEvictsOldestRuns proves the per-run memory stays
+// bounded: beyond maxNVDBaselineTickMemoryRuns retained run IDs the oldest
+// run's held counts and progress snapshots are evicted, and an evicted run
+// that returns reports changed instead of resuming silently.
+func TestNVDBaselineTickMemoryEvictsOldestRuns(t *testing.T) {
+	t.Parallel()
+
+	memory := NewNVDBaselineTickMemory()
+	now := time.Date(2026, time.November, 20, 12, 0, 0, 0, time.UTC)
+	counts := nvdBaselineHeldCounts{downstream: 1}
+	total := maxNVDBaselineTickMemoryRuns + 2
+	for i := 0; i < total; i++ {
+		runID := fmt.Sprintf("run-%d", i)
+		memory.heldChanged(runID, counts)
+		memory.pushProgress(runID, vulnerability.NVDBaselineProgressSnapshot{At: now, Done: 1, Total: 2})
+	}
+
+	newest := fmt.Sprintf("run-%d", total-1)
+	memory.mu.Lock()
+	heldLen, progressLen := len(memory.held), len(memory.progress)
+	_, evictedHeld := memory.held["run-0"]
+	_, keptHeld := memory.held[newest]
+	_, evictedProgress := memory.progress["run-0"]
+	_, keptProgress := memory.progress[newest]
+	memory.mu.Unlock()
+	if heldLen != maxNVDBaselineTickMemoryRuns || progressLen != maxNVDBaselineTickMemoryRuns {
+		t.Fatalf("retained runs = %d held / %d progress, want %d each", heldLen, progressLen, maxNVDBaselineTickMemoryRuns)
+	}
+	if evictedHeld || evictedProgress {
+		t.Fatal("run-0 still retained, want the oldest run evicted from both maps")
+	}
+	if !keptHeld || !keptProgress {
+		t.Fatalf("newest run %q missing, want it retained in both maps", newest)
+	}
+
+	if changed := memory.heldChanged("run-0", counts); len(changed) == 0 {
+		t.Fatal("evicted run re-stored identical counts reported nothing, want changed (fail loud, not silent resume)")
+	}
+	if changed := memory.heldChanged(newest, counts); len(changed) != 0 {
+		t.Fatalf("retained run re-stored identical counts reported %v, want nothing", changed)
+	}
+}
+
 // TestLoadNVDBaselinePlanInputsRecordsETAAndNotDoneAge proves the loader
 // records the run-completion ETA from checkpoint progress and the oldest
 // not-done chunk age next to its phase.

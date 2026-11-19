@@ -110,12 +110,17 @@ minted chunk, one planned outcome. Full suites green for
 - Changed hot files: `go/internal/coordinator/service_nvd_baseline.go`
   (the shared plan-input loader plus the moved activation-derivation
   mapping) and `go/internal/telemetry/instruments.go` (the instruments
-  struct the lane extends). The gate fires on them by content, but the
-  lane adds no concurrency primitive: no `go` statement, no mutex, no
-  channel, no worker pool, no batch-size or lease knob. The per-tick work
-  is one checkpoint read, one plan read, and one or two latch reads, all
-  keyed point lookups, and every failure path zeroes the trip or drops
-  the year instead of retrying in a loop.
+  struct the lane extends). The gate fires on them by content. The lane
+  adds exactly one concurrency primitive and no others: the
+  `NVDBaselineTickMemory.mu` leaf mutex, guarding only the in-memory
+  held/progress maps, never held across I/O, awaits, or nested locks.
+  There is no new `go` statement, channel, worker pool, batch-size, or
+  lease knob. The per-run maps are bounded to
+  `maxNVDBaselineTickMemoryRuns` retained run IDs with oldest-evicted,
+  so a long-lived Service cannot grow on run IDs it does not control.
+  The per-tick work is one checkpoint read, one plan read, and one or
+  two latch reads, all keyed point lookups, and every failure path
+  zeroes the trip or drops the year instead of retrying in a loop.
 - Before/after suite timing, same machine (darwin/arm64, Go from
   `go.mod`), `-count=1`, base `b9267c2336` vs head `801df639c1`:
 

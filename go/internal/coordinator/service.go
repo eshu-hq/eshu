@@ -166,8 +166,9 @@ type Service struct {
 	NVDBaselineCheckpointReader NVDBaselineCheckpointReader
 	// NVDBaselinePlanReader serves the per-year NVD baseline plan rows one
 	// baseline run paces from and reads in flight from
-	// (eshu-hq/eshu#10828). Nil until that lane merges; an enabled
-	// derivation without one holds loudly instead of planning blind.
+	// (eshu-hq/eshu#10828). It is wired in production; a nil reader is
+	// tolerated only in tests, and an enabled derivation without one
+	// holds loudly instead of planning blind.
 	NVDBaselinePlanReader NVDBaselinePlanReader
 	// NVDBaselineTripLatchStore is the durable NVD baseline trip latch the
 	// service reads before planning and writes after each hourly sample

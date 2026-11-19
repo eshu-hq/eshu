@@ -52,8 +52,9 @@ type NVDBaselineStoredCheckpoint struct {
 // NVDBaselinePlanReader is the coordinator's port for the per-year plan rows
 // the admission transaction writes beside its work items (eshu-hq/eshu#10828):
 // each year's last planned scope and time, with whether that scope still
-// has an open work item. Nil until that lane merges; an enabled derivation
-// without one holds loudly instead of planning blind.
+// has an open work item. It is wired in production; a nil reader is
+// tolerated only in tests, and an enabled derivation without one holds
+// loudly instead of planning blind.
 type NVDBaselinePlanReader interface {
 	ReadNVDBaselinePlans(ctx context.Context, baselineRunID string) (map[int]NVDBaselineStoredPlan, error)
 }
@@ -97,6 +98,13 @@ type nvdBaselineHeldCounts struct {
 	retryWait  int
 }
 
+// maxNVDBaselineTickMemoryRuns bounds the per-run entries
+// NVDBaselineTickMemory retains. Run IDs are operator-configured and rotate
+// rarely, so a small bound keeps a rotation with headroom while keeping a
+// long-lived Service bounded. An evicted run that returns reports changed
+// and rebuilds its ETA instead of resuming silently.
+const maxNVDBaselineTickMemoryRuns = 8
+
 // NVDBaselineTickMemory is the service's per-run baseline memory across
 // ticks: the last reported held-year counts (so the WARN fires only when
 // eshu_dp_nvd_baseline_held_years{reason} moves) and the hourly progress
@@ -104,10 +112,35 @@ type nvdBaselineHeldCounts struct {
 // holds one pointer to it, shared across the value copies the scheduler
 // passes around. The zero value is usable, and a nil memory degrades
 // loudly: held sets report changed and no ETA records.
+//
+// The memory holds one leaf mutex guarding only the in-memory held and
+// progress maps. The lock is never held across I/O, awaits, or nested
+// locks: every method locks, copies or stores plain values, and unlocks.
 type NVDBaselineTickMemory struct {
 	mu       sync.Mutex
 	held     map[string]nvdBaselineHeldCounts
 	progress map[string][]vulnerability.NVDBaselineProgressSnapshot
+	order    []string
+}
+
+// retainRun records runID as most recently seen and evicts the oldest runs
+// beyond maxNVDBaselineTickMemoryRuns from both maps. The caller must hold
+// m.mu.
+func (m *NVDBaselineTickMemory) retainRun(runID string) {
+	kept := m.order[:0]
+	for _, id := range m.order {
+		if id != runID {
+			kept = append(kept, id)
+		}
+	}
+	kept = append(kept, runID)
+	for len(kept) > maxNVDBaselineTickMemoryRuns {
+		oldest := kept[0]
+		kept = kept[1:]
+		delete(m.held, oldest)
+		delete(m.progress, oldest)
+	}
+	m.order = kept
 }
 
 // NewNVDBaselineTickMemory constructs the per-run baseline memory.
@@ -132,6 +165,7 @@ func (m *NVDBaselineTickMemory) heldChanged(runID string, counts nvdBaselineHeld
 		m.held = map[string]nvdBaselineHeldCounts{}
 	}
 	m.held[runID] = counts
+	m.retainRun(runID)
 	return changed
 }
 
@@ -174,6 +208,7 @@ func (m *NVDBaselineTickMemory) pushProgress(runID string, snapshot vulnerabilit
 		out = out[len(out)-128:]
 	}
 	m.progress[runID] = out
+	m.retainRun(runID)
 }
 
 // etaSeconds estimates the run's completion ETA from its stored snapshots. A
