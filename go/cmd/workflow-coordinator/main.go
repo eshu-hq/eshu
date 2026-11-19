@@ -49,6 +49,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/security/alerts/retirement"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
+	vulnerabilitystore "github.com/eshu-hq/eshu/go/internal/storage/postgres/vulnerability"
 	actionsstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook/actions"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -283,21 +284,36 @@ func run(parent context.Context) error {
 		NVDWindowCursorReader:             nvdWindowCursorReader{database: postgres.SQLDB{DB: db}},
 		GHSAWindowCursorReader:            ghsaWindowCursorReader{database: postgres.SQLDB{DB: db}},
 		TargetRefreshProgressStore:        targetRefreshProgressStore{database: postgres.SQLDB{DB: db}},
-		AWSScheduledPlanner:               scheduled.WorkPlanner{},
-		AWSFreshnessTriggers:              awsFreshnessStore,
-		AWSFreshnessPlanner:               freshness.WorkPlanner{},
-		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
-		GCPFreshnessTriggers:              gcpFreshnessStore,
-		GCPFreshnessEvents:                instruments.GCPFreshnessEvents,
-		GCPFreshnessFanOut:                instruments.GCPFreshnessFanOut,
-		ActivationDerivedScopes:           instruments.ActivationDerivedScopesPlanned,
-		ActivationDerivedScopesFenced:     instruments.ActivationDerivedScopesFenced,
-		GenerationRetentionSoftCutoff:     generationRetentionSoftCutoff(os.Getenv),
-		IncidentFreshnessTriggers:         incidentFreshnessStore,
-		GovernanceAudit:                   governanceAuditStore,
-		Metrics:                           coordinatorMetrics,
-		WorkItemRetention:                 items.NewSweeper(workItemRetentionDB),
-		Logger:                            logger,
+		// NVD baseline parent-service supply (eshu-hq/eshu#10746): the
+		// loader maps these durable probes onto the planner request every
+		// tick an instance enables derive_nvd_baseline. The plan reader
+		// serves the per-year plan rows the admission wrote beside its
+		// baseline work items (#10828); an unreadable read holds the lane
+		// loudly instead of planning blind.
+		NVDBaselineCheckpointReader: nvdBaselineCheckpointReader{database: postgres.SQLDB{DB: db}},
+		NVDBaselinePlanReader:       nvdBaselinePlanReader{database: postgres.SQLDB{DB: db}},
+		NVDBaselineTripLatchStore:   nvdBaselineLatchStore{database: postgres.SQLDB{DB: db}},
+		NVDBaselineDrainStore: nvdBaselineDrainStore{reader: vulnerabilitystore.NewNVDBaselineDrainProbe(
+			postgres.SQLDB{DB: db},
+		)},
+		NVDBaselineTripSampler:        nvdBaselineTripSampler{database: postgres.SQLDB{DB: db}},
+		NVDBaselineInstruments:        instruments,
+		NVDBaselineTickMemory:         coordinator.NewNVDBaselineTickMemory(),
+		AWSScheduledPlanner:           scheduled.WorkPlanner{},
+		AWSFreshnessTriggers:          awsFreshnessStore,
+		AWSFreshnessPlanner:           freshness.WorkPlanner{},
+		AWSFreshnessEvents:            instruments.AWSFreshnessEvents,
+		GCPFreshnessTriggers:          gcpFreshnessStore,
+		GCPFreshnessEvents:            instruments.GCPFreshnessEvents,
+		GCPFreshnessFanOut:            instruments.GCPFreshnessFanOut,
+		ActivationDerivedScopes:       instruments.ActivationDerivedScopesPlanned,
+		ActivationDerivedScopesFenced: instruments.ActivationDerivedScopesFenced,
+		GenerationRetentionSoftCutoff: generationRetentionSoftCutoff(os.Getenv),
+		IncidentFreshnessTriggers:     incidentFreshnessStore,
+		GovernanceAudit:               governanceAuditStore,
+		Metrics:                       coordinatorMetrics,
+		WorkItemRetention:             items.NewSweeper(workItemRetentionDB),
+		Logger:                        logger,
 	}
 	if scannerRoleContract != nil {
 		serviceRunner.ControlRolePolicyRevision = scannerRoleContract.PolicyRevision

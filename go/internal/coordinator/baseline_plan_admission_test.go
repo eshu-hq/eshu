@@ -318,7 +318,11 @@ func TestServiceRunRecordsBaselinePlansForTheInTreeInstance(t *testing.T) {
 func TestBothAdmissionSitesShareOneAdmissionFunction(t *testing.T) {
 	t.Parallel()
 
-	for _, file := range []string{"vulnerability_intelligence_service.go", "component_extension_service.go"} {
+	// The activation site admits from activation_derived_scopes.go: the
+	// #10746 parent-service supply moved it out of
+	// component_extension_service.go to keep that file under the line cap,
+	// and the guard follows the admission, not the old address.
+	for _, file := range []string{"vulnerability_intelligence_service.go", "activation_derived_scopes.go"} {
 		source, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
