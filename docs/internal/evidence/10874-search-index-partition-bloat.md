@@ -90,7 +90,7 @@ and `TestGenerationRetentionRunnerRecordsPartitionSizes`.
   wired in `go/cmd/reducer/generation_retention_wiring.go`) with three
   gauges (`eshu_dp_search_index_partition_bytes{partition,component}`,
   `eshu_dp_search_index_partition_estimated_rows{partition}`,
-  `eshu_dp_search_index_partition_bytes_per_row{partition,component}`),
+  `eshu_dp_search_index_partition_bytes_per_row{partition}`),
   one WARN line per suspect leaf, and a failure counter that never fails
   the pass.
 - Migration 313: per-leaf autovacuum reloptions (0.02/0.05, the #9975

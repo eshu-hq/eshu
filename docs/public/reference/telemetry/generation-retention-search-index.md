@@ -75,7 +75,7 @@ leaves (`pg_class`/`pg_inherits` only: no heap scan, no `count(*)`, no row
 lock) and records it on three gauges — `eshu_dp_search_index_partition_bytes`
 (by `partition` `p00`-`p63`, `component` `heap`/`index`/`total`),
 `eshu_dp_search_index_partition_estimated_rows` (by `partition`), and
-`eshu_dp_search_index_partition_bytes_per_row` (by `partition` and `component`) —
+`eshu_dp_search_index_partition_bytes_per_row` (by `partition`) —
 plus the `census_search_index_partition_sizes` phase on
 `eshu_dp_generation_retention_phase_duration_seconds`. A failed census lands on
 `eshu_dp_generation_retention_failures_total{reason="search_index_partition_size_census"}`

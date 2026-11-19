@@ -2593,8 +2593,8 @@ type Instruments struct {
 	// n_live_tup-or-reltuples, never a byte-exact claim.
 	SearchIndexPartitionEstimatedRows metric.Int64Gauge
 	// SearchIndexPartitionBytesPerRow is the per-leaf total-bytes-per-row
-	// gauge (#10874), by partition and component (total, heap, index). The
-	// WARN/PAGE thresholds read this series.
+	// gauge (#10874), by partition (p00-p63). The WARN/PAGE thresholds read
+	// this series.
 	SearchIndexPartitionBytesPerRow metric.Float64Gauge
 	// RelationshipRetentionOrphanGenerations is the distinct orphan
 	// generations of the relationship tables the last census listed, by
