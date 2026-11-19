@@ -39,6 +39,18 @@ func TestTakePartitionSizeCensusReadsOneCatalogPass(t *testing.T) {
 	if got := ClassifyPartitionSize(census[0]); got != PartitionSizePage {
 		t.Fatalf("p29 verdict = %v, want PAGE (193 GiB at ~536 KiB/row)", got)
 	}
+	// The verdicts above read TotalBytes only, so a heap/index column swap
+	// in the census SQL or Scan would stay green. Pin the scanned mapping
+	// against the distinct canned values of the p29 fixture row.
+	if census[0].HeapBytes != 30502215680 {
+		t.Fatalf("p29 HeapBytes = %d, want 30502215680", census[0].HeapBytes)
+	}
+	if census[0].IndexBytes != 176990003200 {
+		t.Fatalf("p29 IndexBytes = %d, want 176990003200", census[0].IndexBytes)
+	}
+	if census[0].EstimatedRows != 386974 {
+		t.Fatalf("p29 EstimatedRows = %d, want 386974", census[0].EstimatedRows)
+	}
 	if got := ClassifyPartitionSize(census[1]); got != PartitionSizePage {
 		t.Fatalf("p07 verdict = %v, want PAGE (37 GiB at ~43 KiB/row)", got)
 	}
