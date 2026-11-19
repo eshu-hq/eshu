@@ -24,6 +24,22 @@ func (s Service) batchClaimSize() int {
 	return n
 }
 
+// batchPrefetchDepth bounds the lookahead buffer between the claimer and the
+// workers (#10867). Non-positive disables the buffer and preserves today's
+// idle-only claiming. A positive depth is capped by the claim size so one
+// ClaimBatch call can never hand out more than it asked for; each call is
+// further bounded by free buffer slots only (stale idle credits would
+// over-claim).
+func (s Service) batchPrefetchDepth() int {
+	if s.BatchPrefetchDepth <= 0 {
+		return 0
+	}
+	if cap := s.batchClaimSize(); s.BatchPrefetchDepth > cap {
+		return cap
+	}
+	return s.BatchPrefetchDepth
+}
+
 // pollInterval returns the idle wait between empty claim attempts.
 func (s Service) pollInterval() time.Duration {
 	if s.PollInterval <= 0 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 538 lines (base 476): the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch, and a file split is out of scope for this telemetry-only change.
+package reducer //nolint:filelength // 477 lines: the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch. The prefetch buffer itself lives in service_batch_prefetch.go.
 
 import (
 	"context"
@@ -38,11 +38,12 @@ type batchAckItem struct {
 // branch. Mirrors the generationRetentionTestHooks precedent in
 // internal/storage/postgres.
 type batchWorkerTestHooks struct {
-	// afterWorkReceive runs after a worker completes a handoff rendezvous
-	// receive and before its post-receive cancellation check, so a test can
-	// land shutdown exactly in the post-receive drop window. Cancelling from
-	// the test goroutine instead would race the select rendezvous-vs-cancel
-	// outcome and prove nothing about that window.
+	// afterWorkReceive runs after a worker takes an item — either by
+	// completing a handoff rendezvous receive or by popping a buffered
+	// prefetched item — and before its post-receive cancellation check, so
+	// a test can land shutdown exactly in the post-receive drop window.
+	// Cancelling from the test goroutine instead would race the select
+	// rendezvous-vs-cancel outcome and prove nothing about that window.
 	afterWorkReceive func()
 }
 
@@ -50,11 +51,19 @@ type batchWorkerTestHooks struct {
 // and hand them only to ready worker goroutines. A separate acker goroutine
 // batches acknowledgments. This reduces Postgres round-trips from O(items) to
 // O(items/batchSize) without preclaiming work that is not yet heartbeat-owned.
+//
+// With a positive BatchPrefetchDepth the claimer instead parks up to
+// free-buffer-slots items in a hold-heartbeated FIFO buffer (see
+// runBatchConcurrentPrefetch); without it the claim below keeps the original
+// rendezvous handoff.
 func (s Service) runBatchConcurrent(
 	ctx context.Context,
 	batchSource BatchWorkSource,
 	batchSink BatchWorkSink,
 ) error {
+	if depth := s.batchPrefetchDepth(); depth > 0 {
+		return s.runBatchConcurrentPrefetch(ctx, batchSource, batchSink, depth)
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -286,93 +295,9 @@ func (s Service) runBatchConcurrent(
 		}()
 	}
 
-	// Acker goroutine: collects results and batches acks.
-	ackDone := make(chan struct{})
-	go func() {
-		defer close(ackDone)
-
-		var pending []batchAckItem
-		flushTimer := time.NewTimer(100 * time.Millisecond)
-		defer flushTimer.Stop()
-
-		flush := func() {
-			if len(pending) == 0 {
-				return
-			}
-			if ctx.Err() != nil {
-				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
-				}
-				pending = pending[:0]
-				return
-			}
-
-			intents := make([]reducercontract.Intent, len(pending))
-			results := make([]reducercontract.Result, len(pending))
-			for i, item := range pending {
-				intents[i] = item.intent
-				results[i] = item.result
-			}
-
-			if err := s.ackBatchRetryingTransient(ctx, batchSink, intents, results); err != nil {
-				unknown := s.recordBatchAckError(ctx, pending, err)
-				if ctx.Err() == nil {
-					switch {
-					case errors.Is(err, errAckAbandonedToLeaseExpiry):
-						// Claims stay leased and expire for reclaim; the run
-						// keeps draining (#7267). Already logged by the retrier.
-					case errors.Is(err, ErrExecutionClaimRejected):
-						// A fully attributed supersession batch already
-						// logged each dropped claim with its work item id;
-						// the fence line stays for batches with
-						// unattributed items.
-						if unknown > 0 {
-							s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
-						}
-					default:
-						appendErr(fmt.Errorf("batch ack reducer work: %w", err))
-					}
-				}
-			} else {
-				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, "succeeded", nil)
-				}
-			}
-			pending = pending[:0]
-		}
-
-		for {
-			select {
-			case item, ok := <-ackCh:
-				if !ok {
-					flush()
-					return
-				}
-				pending = append(pending, item)
-				if len(pending) >= batchSize {
-					flush()
-					if !flushTimer.Stop() {
-						select {
-						case <-flushTimer.C:
-						default:
-						}
-					}
-					flushTimer.Reset(100 * time.Millisecond)
-				}
-			case <-flushTimer.C:
-				flush()
-				flushTimer.Reset(100 * time.Millisecond)
-			case <-ctx.Done():
-				for _, item := range pending {
-					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
-				}
-				for item := range ackCh {
-					s.recordBatchAckOutcome(ctx, item, ackStatusOutcomeUnknown, ctx.Err())
-				}
-				return
-			}
-		}
-	}()
+	// Acker goroutine: collects results and batches acks (shared with the
+	// prefetch path; see runBatchAckLoop).
+	ackDone := s.runBatchAckLoop(ctx, batchSink, batchSize, ackCh, appendErr)
 
 	// Wait for claimer to finish, then workers, then close ack channel.
 	// The claimer closes workCh when done, which causes workers to drain.
@@ -491,6 +416,21 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 	defer func() {
 		_ = stopHeartbeat()
 	}()
+
+	// If the immediate pre-heartbeat already failed, no handler work has run
+	// yet: skip Executor.Execute (it would only observe the cancellation and
+	// return context.Canceled) and do not route through WorkSink.Fail, which
+	// can wrongly dead-letter an intent that simply lost its lease before
+	// starting. Leaving the lease unrenewed lets the expired-lease reclaim
+	// path (#4464) pick it back up. Mirrors the per-item path in service.go.
+	if execCtx.Err() != nil {
+		var preFailure *reducerPreHeartbeatFailure
+		if err := stopHeartbeat(); errors.As(err, &preFailure) {
+			duration := time.Since(start).Seconds()
+			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_before_start", workerID, err)
+			return batchAckItem{}, false, nil
+		}
+	}
 
 	execCtx = factdecode.WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	execStart := time.Now()

@@ -147,6 +147,75 @@ func TestLoadReducerBatchClaimSize_NornicDBDefaultsToWorkerCount(t *testing.T) {
 	}
 }
 
+func TestLoadReducerBatchPrefetchDepth_EnvOverride(t *testing.T) {
+	t.Parallel()
+
+	got := loadReducerBatchPrefetchDepth(func(k string) string {
+		if k == reducerBatchPrefetchDepthEnv {
+			return "3"
+		}
+		return ""
+	}, 8, 32)
+	if got != 3 {
+		t.Fatalf("got %d, want 3", got)
+	}
+}
+
+func TestLoadReducerBatchPrefetchDepth_UnsetDefaultsToWorkers(t *testing.T) {
+	t.Parallel()
+
+	if got := loadReducerBatchPrefetchDepth(func(string) string { return "" }, 8, 32); got != 8 {
+		t.Fatalf("got %d, want worker count 8", got)
+	}
+}
+
+func TestLoadReducerBatchPrefetchDepth_DefaultCappedByClaimSize(t *testing.T) {
+	t.Parallel()
+
+	if got := loadReducerBatchPrefetchDepth(func(string) string { return "" }, 8, 2); got != 2 {
+		t.Fatalf("got %d, want claim size 2", got)
+	}
+}
+
+func TestLoadReducerBatchPrefetchDepth_ExplicitZeroDisables(t *testing.T) {
+	t.Parallel()
+
+	got := loadReducerBatchPrefetchDepth(func(k string) string {
+		if k == reducerBatchPrefetchDepthEnv {
+			return "0"
+		}
+		return ""
+	}, 8, 32)
+	if got != 0 {
+		t.Fatalf("got %d, want 0 (explicit opt-out keeps idle-only claiming)", got)
+	}
+}
+
+func TestLoadReducerBatchPrefetchDepth_InvalidEnvFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"nope", "-2"} {
+		got := loadReducerBatchPrefetchDepth(func(string) string { return raw }, 8, 32)
+		if got != 8 {
+			t.Fatalf("got %d for %q, want worker count 8", got, raw)
+		}
+	}
+}
+
+func TestLoadReducerBatchPrefetchDepth_EnvOverrideCappedByClaimSize(t *testing.T) {
+	t.Parallel()
+
+	got := loadReducerBatchPrefetchDepth(func(k string) string {
+		if k == reducerBatchPrefetchDepthEnv {
+			return "64"
+		}
+		return ""
+	}, 2, 3)
+	if got != 3 {
+		t.Fatalf("got %d, want 3 (one ClaimBatch call never hands out more than it asked for)", got)
+	}
+}
+
 func TestLoadReducerBatchClaimSize_InvalidEnvFallsBackToBackendDefault(t *testing.T) {
 	t.Parallel()
 
