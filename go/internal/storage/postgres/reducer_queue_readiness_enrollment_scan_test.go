@@ -26,8 +26,16 @@ const reducerImportPath = "github.com/eshu-hq/eshu/go/internal/reducer"
 // string constants, read from the files the enrollment scan already parsed. It
 // is what lets a selector such as reducer.SharedEdgeTargetNotReadyFailureClass,
 // returned from a type outside the reducer tree, resolve to its class string.
-func reducerTreeConstants(reducerDir string, parsedFiles map[string]*ast.File) map[string]map[string]string {
+//
+// A constant whose value is another package's constant (an alias such as
+// `const SharedEdgeTargetNotReadyFailureClass = reducercontract.SharedEdgeTargetNotReadyFailureClass`)
+// carries no literal of its own, so it is recorded in the aliases map instead,
+// keyed the same way, holding the target import path and name. Callers follow
+// the chain to the literal; an alias loop resolves to nothing rather than
+// hanging the scan.
+func reducerTreeConstants(reducerDir string, parsedFiles map[string]*ast.File) (map[string]map[string]string, map[string]map[string]string) {
 	consts := map[string]map[string]string{}
+	aliases := map[string]map[string]string{}
 	for filePath, file := range parsedFiles {
 		rel, err := filepath.Rel(reducerDir, filepath.Dir(filePath))
 		if err != nil {
@@ -47,22 +55,40 @@ func reducerTreeConstants(reducerDir string, parsedFiles map[string]*ast.File) m
 				if !isValue || len(value.Names) != 1 || len(value.Values) != 1 {
 					continue
 				}
-				lit, isLit := value.Values[0].(*ast.BasicLit)
-				if !isLit || lit.Kind != token.STRING {
+				if lit, isLit := value.Values[0].(*ast.BasicLit); isLit {
+					if lit.Kind != token.STRING {
+						continue
+					}
+					unquoted, err := strconv.Unquote(lit.Value)
+					if err != nil {
+						continue
+					}
+					if consts[importPath] == nil {
+						consts[importPath] = map[string]string{}
+					}
+					consts[importPath][value.Names[0].Name] = unquoted
 					continue
 				}
-				unquoted, err := strconv.Unquote(lit.Value)
-				if err != nil {
+				sel, isSel := value.Values[0].(*ast.SelectorExpr)
+				if !isSel {
 					continue
 				}
-				if consts[importPath] == nil {
-					consts[importPath] = map[string]string{}
+				pkgIdent, isIdent := sel.X.(*ast.Ident)
+				if !isIdent {
+					continue
 				}
-				consts[importPath][value.Names[0].Name] = unquoted
+				targetPath := importPathForName(file, pkgIdent.Name)
+				if targetPath == "" {
+					continue
+				}
+				if aliases[importPath] == nil {
+					aliases[importPath] = map[string]string{}
+				}
+				aliases[importPath][value.Names[0].Name] = targetPath + "\x00" + sel.Sel.Name
 			}
 		}
 	}
-	return consts
+	return consts, aliases
 }
 
 // parseReducerClassReferencesOutsideTree parses every non-test Go file under
@@ -124,14 +150,17 @@ func parseReducerClassReferencesOutsideTree(
 
 // reducerSelectorClass resolves a FailureClass body of the form
 // `return pkg.Name`, where pkg is an import of the reducer tree, to the
-// constant's string. It returns (value, "", true) when resolved, ("",
-// "pkg.Name", true) when pkg is a reducer-tree import but the constant is not
-// a readable string literal — reported as unreadable rather than dropped — and
-// ("", "", false) when the body is not a reducer-tree selector at all.
+// constant's string, following alias hops (a root alias into the contract
+// package, for example) to the literal. It returns (value, "", true) when
+// resolved, ("", "pkg.Name", true) when pkg is a reducer-tree import but the
+// constant is neither a readable string literal nor a resolvable alias —
+// reported as unreadable rather than dropped — and ("", "", false) when the
+// body is not a reducer-tree selector at all.
 func reducerSelectorClass(
 	file *ast.File,
 	fn *ast.FuncDecl,
 	consts map[string]map[string]string,
+	aliases map[string]map[string]string,
 ) (string, string, bool) {
 	if fn.Body == nil || len(fn.Body.List) != 1 {
 		return "", "", false
@@ -154,6 +183,24 @@ func reducerSelectorClass(
 	}
 	if value, ok := consts[importPath][sel.Sel.Name]; ok {
 		return value, "", true
+	}
+	// Follow one alias chain to the literal. The seen set bounds the walk so
+	// a cyclic alias resolves to nothing (unreadable) instead of looping.
+	seen := map[string]bool{importPath + "\x00" + sel.Sel.Name: true}
+	target, ok := aliases[importPath][sel.Sel.Name]
+	for ok {
+		if seen[target] {
+			break
+		}
+		seen[target] = true
+		parts := strings.SplitN(target, "\x00", 2)
+		if len(parts) != 2 {
+			break
+		}
+		if value, ok := consts[parts[0]][parts[1]]; ok {
+			return value, "", true
+		}
+		target, ok = aliases[parts[0]][parts[1]]
 	}
 	return "", pkg.Name + "." + sel.Sel.Name, true
 }

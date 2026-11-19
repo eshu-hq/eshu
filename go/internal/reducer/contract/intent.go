@@ -52,6 +52,27 @@ type FailureRecord struct {
 	Details      string
 }
 
+// SharedEdgeTargetNotReadyFailureClass classifies a shared-edge batch write
+// deferred because one of its runtime targets is not yet in the graph. It
+// lives in the contract package because every producer and consumer of the
+// class already imports it: the shared-edge writer's target-presence guard
+// (go/internal/storage/cypher/edge/writer/unroutable.go), the code-call
+// matched-count shortfall (go/internal/storage/cypher/edge/writer/code_call_matched.go),
+// the queue readiness SQL
+// (go/internal/storage/postgres/reducer_queue_readiness_sql.go), and the
+// code-call projection shortfall bound
+// (go/internal/reducer/code/call/projection/bound.go), which must never
+// import the reducer root. A single definition keeps the writer and the
+// bound from drifting apart: if the writer's class ever stops matching the
+// bound's, shortfall parks never expire (#10947).
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the target
+// node is committed by another scope's materialization with no happens-before
+// against the batch, so the miss is a timing state, not a payload defect.
+const SharedEdgeTargetNotReadyFailureClass = "shared_edge_target_not_ready"
+
 // RetryableError marks reducer failures that should re-enter the durable queue.
 type RetryableError interface {
 	error

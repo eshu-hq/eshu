@@ -3,7 +3,7 @@
 The enforced-CALLS shortfall park held a batch open across cycles with no
 elapsed cap: a deleted endpoint in a never-superseded generation parked one
 partition forever. The bound stamps the first park durably
-(`first_code_call_shortfall_at`, COALESCE-once, migration 313) and, past
+(`first_code_call_shortfall_at`, COALESCE-once, migration 314) and, past
 `crossscope.ProducerReadinessMaxWait` (30 minutes elapsed), dead-letters one
 `sharedintent.UnroutableRow` per active intent through the unroutable sink
 before the shared completion path runs. Every other outcome keeps the batch

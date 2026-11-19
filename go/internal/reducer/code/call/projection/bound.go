@@ -20,14 +20,12 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// codeCallShortfallFailureClass names the failure class of the writer's
-// shortfall park error. It is spelled out here instead of referencing the
-// canonical reducer.SharedEdgeTargetNotReadyFailureClass because this
-// package is a leaf below the reducer root and must never import it (see
-// AGENTS.md); the writer pins the equality on its side
-// (code_call_matched_count_test.go asserts the class), so a rename must
-// update both.
-const codeCallShortfallFailureClass = "shared_edge_target_not_ready"
+// codeCallShortfallFailureClass is the writer's shortfall park error class,
+// referenced from the contract package (not spelled out here and not taken
+// from the reducer root, which this leaf package must never import): the one
+// shared symbol keeps the bound from drifting away from the writer's class,
+// which would silently restore the #10947 forever-park with a green suite.
+const codeCallShortfallFailureClass = reducercontract.SharedEdgeTargetNotReadyFailureClass
 
 // ShortfallStamper anchors the shortfall park's elapsed bound. The stamp is
 // durable and COALESCE-once: the first park wins, so the bound measures from
