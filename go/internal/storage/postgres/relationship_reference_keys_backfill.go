@@ -153,18 +153,36 @@ ORDER BY fact.fact_id ASC
 LIMIT $3
 `
 
+// lookupKeyBackfillMissingSQL counts eligible facts still missing sidecar
+// rows on either side: relationship facts without version-1 rows, and
+// security-alert facts without key rows. The kind lists mirror
+// lookupKeyBackfillPageSQL above and securityAlertReconciliationFactKinds;
+// an eligible-kind fact that yields zero keys (no id values) keeps counting
+// here and keeps its scope listed, so a rerun revisits that scope.
 const lookupKeyBackfillMissingSQL = `
 SELECT count(*)
 FROM fact_records AS fact
 WHERE fact.scope_id = $1
-  AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
   AND fact.is_tombstone = FALSE
-  AND NOT EXISTS (
-    SELECT 1 FROM relationship_reference_candidate_keys AS ref
-    WHERE ref.fact_id = fact.fact_id
-      AND ref.scope_id = fact.scope_id
-      AND ref.generation_id = fact.generation_id
-      AND ref.keys_version >= 1
+  AND (
+    (
+      fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship')
+      AND NOT EXISTS (
+        SELECT 1 FROM relationship_reference_candidate_keys AS ref
+        WHERE ref.fact_id = fact.fact_id
+          AND ref.scope_id = fact.scope_id
+          AND ref.generation_id = fact.generation_id
+          AND ref.keys_version >= 1
+      )
+    ) OR (
+      fact.fact_kind IN ('security_alert.repository_alert', 'reducer_package_consumption_correlation', 'reducer_supply_chain_impact_finding')
+      AND NOT EXISTS (
+        SELECT 1 FROM security_alert_reconciliation_keys AS keys
+        WHERE keys.fact_id = fact.fact_id
+          AND keys.scope_id = fact.scope_id
+          AND keys.generation_id = fact.generation_id
+      )
+    )
   )
 `
 

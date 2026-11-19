@@ -70,7 +70,8 @@ func TestLookupKeyBackfillRebuildsVersionedRowsAndKeys(t *testing.T) {
 		`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, observed_at, payload) VALUES
 ('fact-terraform', 'scope-1', 'gen-1', 'content', NOW(), '{"repo_id": "acme/app", "artifact_type": "terraform", "relative_path": "main.tf", "content": "module x { source = acme/lib }"}'),
 ('fact-argocd', 'scope-1', 'gen-1', 'content', NOW(), '{"repo_id": "acme/app", "artifact_type": "argocd", "content_path": "app.yaml", "content": "kind: Application"}'),
-('fact-alert', 'scope-1', 'gen-1', 'security_alert.repository_alert', NOW(), '{"repository_id": "acme/app"}')`,
+('fact-alert', 'scope-1', 'gen-1', 'security_alert.repository_alert', NOW(), '{"repository_id": "acme/app"}'),
+('fact-alert-empty', 'scope-1', 'gen-1', 'security_alert.repository_alert', NOW(), '{}')`,
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			t.Fatalf("proof ddl/seed: %v", err)
@@ -115,6 +116,40 @@ func TestLookupKeyBackfillRebuildsVersionedRowsAndKeys(t *testing.T) {
 	}
 	if keyCount != 1 {
 		t.Fatalf("security keys = %d, want 1", keyCount)
+	}
+	missing, err := countLookupKeyMissingFacts(ctx, store, "scope-1")
+	if err != nil {
+		t.Fatalf("count missing after run: %v", err)
+	}
+	if missing != 1 {
+		t.Fatalf("missing = %d, want 1 (the keyless security fact)", missing)
+	}
+	if _, err := db.ExecContext(ctx, `DELETE FROM security_alert_reconciliation_keys WHERE fact_id = 'fact-alert'`); err != nil {
+		t.Fatalf("drop alert keys: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE relationship_reference_candidate_keys SET keys_version = 0 WHERE fact_id = 'fact-terraform'`); err != nil {
+		t.Fatalf("downgrade version: %v", err)
+	}
+	missing, err = countLookupKeyMissingFacts(ctx, store, "scope-1")
+	if err != nil {
+		t.Fatalf("count missing after drops: %v", err)
+	}
+	if missing != 3 {
+		t.Fatalf("missing = %d, want 3 (keyless alert, keyless fact-alert, version-0 terraform)", missing)
+	}
+	healed, err := LookupKeyBackfill{}.Run(ctx, store, 25, 500)
+	if err != nil {
+		t.Fatalf("heal run: %v", err)
+	}
+	if !healed {
+		t.Fatal("heal run completed = false, want true")
+	}
+	missing, err = countLookupKeyMissingFacts(ctx, store, "scope-1")
+	if err != nil {
+		t.Fatalf("count missing after heal: %v", err)
+	}
+	if missing != 1 {
+		t.Fatalf("missing = %d after heal, want 1 (only the keyless alert)", missing)
 	}
 	var artifact, path string
 	var argocd bool

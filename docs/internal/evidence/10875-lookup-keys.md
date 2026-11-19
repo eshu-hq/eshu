@@ -23,7 +23,7 @@ text arms verbatim for rows without version-1 keys.
 
 ## What shipped
 
-- Migration 313: version-1 columns on `relationship_reference_candidate_keys`
+- Migration 314: version-1 columns on `relationship_reference_candidate_keys`
   (keys_version, fact kind, artifact/path norms, two content-marker bits,
   Flux bit, five unconditional-marker bits) plus the
   `security_alert_reconciliation_keys` exploded sidecar with partition and
