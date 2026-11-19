@@ -71,4 +71,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// admission transaction writes for each inserted baseline chunk. 311 is
 	// #10837 direction C's scanner staging capture.
 	"vulnerability_nvd_baseline_plans",
+	// Migration 313 (#10874) sets per-leaf autovacuum reloptions on the
+	// search-index terms leaves and documents table: catalog-only SET, no
+	// rewrite, replay is a no-op.
+	"search_index_terms_autovacuum_reloptions",
 }

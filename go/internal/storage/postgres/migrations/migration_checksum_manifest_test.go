@@ -424,6 +424,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10828: the NVD baseline per-year plan row table (migration 312; 311
 	// is #10837 direction C's scanner staging capture).
 	"312_vulnerability_nvd_baseline_plans.sql": "940c733be9bddf69e1fd474c359e0513335671eb9d96e11af5cc2df171a3b8ab",
+	// #10874: per-leaf autovacuum reloptions for the search index terms
+	// leaves plus the documents table (migration 313).
+	"313_search_index_terms_autovacuum_reloptions.sql": "4401f6cf97d36d4717217bd4e8f2397b740bc5ad551783bf475f6605eb5cffdb",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

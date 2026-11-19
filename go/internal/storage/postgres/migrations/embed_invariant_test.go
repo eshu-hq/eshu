@@ -286,10 +286,13 @@ import (
 // scanner capture triggers as plain staging INSERTs, public-only). #10828
 // adds 312_vulnerability_nvd_baseline_plans.sql (the per-year plan row the
 // admission transaction writes for each inserted baseline chunk; one CREATE
-// TABLE, no index).
+// TABLE, no index). #10874 adds
+// 313_search_index_terms_autovacuum_reloptions.sql (the per-leaf
+// autovacuum reloptions for the search index terms leaves plus the
+// documents table; one catalog-only DO block, no rewrite).
 const (
-	goldenBootstrapDefinitionsDigest = "9824885cfeb158705151ac1e88551bc641e2f0cdaca913a47b48c97ee88194b0"
-	goldenBootstrapDefinitionsCount  = 338
+	goldenBootstrapDefinitionsDigest = "d55958455d07452017fa87579f168aaead67aa067b9fae6b23cb654cc5bbfa63"
+	goldenBootstrapDefinitionsCount  = 339
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

@@ -124,6 +124,27 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 	); err != nil {
 		return fmt.Errorf("register SearchIndexSupersededRowsSwept counter: %w", err)
 	}
+	if inst.SearchIndexPartitionBytes, err = meter.Int64Gauge(
+		"eshu_dp_search_index_partition_bytes",
+		metric.WithDescription("Search index terms leaf size in bytes, by partition (p00-p63) and component (heap, index, total), at the last size census"),
+		metric.WithUnit("{byte}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexPartitionBytes gauge: %w", err)
+	}
+	if inst.SearchIndexPartitionEstimatedRows, err = meter.Int64Gauge(
+		"eshu_dp_search_index_partition_estimated_rows",
+		metric.WithDescription("Search index terms leaf estimated live rows (n_live_tup when positive, else reltuples), by partition (p00-p63), at the last size census"),
+		metric.WithUnit("{row}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexPartitionEstimatedRows gauge: %w", err)
+	}
+	if inst.SearchIndexPartitionBytesPerRow, err = meter.Float64Gauge(
+		"eshu_dp_search_index_partition_bytes_per_row",
+		metric.WithDescription("Search index terms leaf total bytes per estimated row, by partition (p00-p63), at the last size census"),
+		metric.WithUnit("{byte}"),
+	); err != nil {
+		return fmt.Errorf("register SearchIndexPartitionBytesPerRow gauge: %w", err)
+	}
 	if inst.RelationshipRetentionOrphanGenerations, err = meter.Int64Gauge(
 		"eshu_dp_relationship_retention_orphan_generations",
 		metric.WithDescription("Distinct relationship generations no scope_generations row, active generation row or scope active pointer keeps alive, by table, at the last census (saturates at the census list limit)"),
