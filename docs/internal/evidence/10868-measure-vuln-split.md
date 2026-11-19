@@ -4,6 +4,10 @@ Status: Phase 0 code-evidence complete. Measurements (Phases 1–3) and the
 deployment-doc decision (box 5) are pending; they need a QA-shaped snapshot
 and built-binary A/B/C runs (method below). No production code changed.
 
+Update: Phases 1–2 measured and the decision recorded in
+[10868-vulnerability-split-deployment-decision.md](../design/10868-vulnerability-split-deployment-decision.md)
+(adopted with rules; pool sizing and the live re-measure still owed).
+
 ## Box 2 answer: cleanup and readiness scoping
 
 The issue's theory holds only if a domain-limited claim also skips other
