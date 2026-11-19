@@ -415,6 +415,20 @@ func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.
 	}
 }
 
+// retryableReducerTestError is a retryable reducer failure used to prove
+// the queue retries within the attempt budget and dead-letters past it.
+type retryableReducerTestError struct {
+	message string
+}
+
+func (e retryableReducerTestError) Error() string {
+	return e.message
+}
+
+func (e retryableReducerTestError) Retryable() bool {
+	return true
+}
+
 // readinessBacklogTestError is a retryable, self-classifying reducer readiness
 // miss used to prove readiness backlogs keep their own failure class.
 type readinessBacklogTestError struct {

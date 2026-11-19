@@ -492,15 +492,3 @@ type fakeResult struct{}
 func (fakeResult) LastInsertId() (int64, error) { return 0, nil }
 
 func (fakeResult) RowsAffected() (int64, error) { return 1, nil }
-
-type retryableReducerTestError struct {
-	message string
-}
-
-func (e retryableReducerTestError) Error() string {
-	return e.message
-}
-
-func (e retryableReducerTestError) Retryable() bool {
-	return true
-}

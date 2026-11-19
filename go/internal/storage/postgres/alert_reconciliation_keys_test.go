@@ -59,7 +59,9 @@ func TestSecurityAlertReconciliationKeyRowsMapsAllSixArms(t *testing.T) {
 
 // TestSecurityAlertReconciliationKeyRowsMirrorExistsSemantics proves the
 // extraction mirrors ?| exactly: array string elements become values,
-// object keys become values, and any other shape yields nothing (#10875).
+// object keys become values, and any other array/object shape yields nothing
+// (#10875). Scalar arms instead coerce numbers and bools the way ->>
+// renders them, so the numeric cve_id below lands as its text form.
 func TestSecurityAlertReconciliationKeyRowsMirrorExistsSemantics(t *testing.T) {
 	t.Parallel()
 
@@ -79,13 +81,65 @@ func TestSecurityAlertReconciliationKeyRowsMirrorExistsSemantics(t *testing.T) {
 	for _, row := range rows {
 		got[row.KeyKind+"\x00"+row.KeyValue] = true
 	}
-	for _, want := range []string{"cve\x00CVE-2024-0001", "cve\x00other", "advisory\x00GHSA-1"} {
+	for _, want := range []string{"cve\x00CVE-2024-0001", "cve\x00other", "cve\x0042", "advisory\x00GHSA-1"} {
+		if !got[want] {
+			t.Errorf("missing %q in %v", want, rows)
+		}
+	}
+	if len(rows) != 4 {
+		t.Fatalf("len(rows) = %d, want 4 (only array/object shapes yield nothing)", len(rows))
+	}
+}
+
+// TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow proves
+// the scalar arms coerce JSON scalars exactly the way the legacy query's
+// payload->> renders them: numbers and bools become their text form instead
+// of vanishing, while null, missing, and compound values still yield nothing
+// (issue #10875). The sibling relationshipReferencePayloadText sets the
+// contract (fmt.Sprint); this writer matches it.
+func TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow(t *testing.T) {
+	t.Parallel()
+
+	rows := securityAlertReconciliationKeyRows([]facts.Envelope{{
+		FactID:       "fact-1",
+		ScopeID:      "scope",
+		GenerationID: "gen",
+		FactKind:     "security_alert.repository_alert",
+		Payload: map[string]any{
+			"repository_id": float64(12345),
+			"package_id":    true,
+			"cve_id":        "CVE-2024-0001",
+			"advisory_id":   nil,
+		},
+	}, {
+		FactID:       "fact-2",
+		ScopeID:      "scope",
+		GenerationID: "gen",
+		FactKind:     "security_alert.repository_alert",
+		Payload: map[string]any{
+			"repository_id": map[string]any{"nested": "object"},
+			"package_id":    []any{"array"},
+		},
+	}})
+	got := make(map[string]bool)
+	for _, row := range rows {
+		if row.FactID != "fact-1" {
+			t.Errorf("unexpected row for %s: %v", row.FactID, row)
+			continue
+		}
+		got[row.KeyKind+"\x00"+row.KeyValue] = true
+	}
+	for _, want := range []string{
+		"repository\x0012345",
+		"package\x00true",
+		"cve\x00CVE-2024-0001",
+	} {
 		if !got[want] {
 			t.Errorf("missing %q in %v", want, rows)
 		}
 	}
 	if len(rows) != 3 {
-		t.Fatalf("len(rows) = %d, want 3 (non-strings yield nothing)", len(rows))
+		t.Fatalf("len(rows) = %d, want 3 (nil and compound scalars yield nothing)", len(rows))
 	}
 }
 

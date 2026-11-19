@@ -5,7 +5,9 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -60,7 +62,11 @@ type securityAlertReconciliationKeyRow struct {
 // arms compare exact values (payload->>'repository_id' = ANY($1),
 // ?| on raw array elements), and cleanStringFilterValues trims only the
 // filter side, so the sidecar must keep the fact's bytes untouched for the
-// keyed EXISTS to select exactly the legacy set.
+// keyed EXISTS to select exactly the legacy set. Scalar arms coerce JSON
+// scalars the way ->> renders them (numbers and bools become their text
+// form, the relationshipReferencePayloadText contract, with floats
+// formatted exponent-free as ->> renders them); only null, missing, and
+// compound values yield nothing there.
 func securityAlertReconciliationKeyRows(envelopes []facts.Envelope) []securityAlertReconciliationKeyRow {
 	if len(envelopes) == 0 {
 		return nil
@@ -96,8 +102,35 @@ func securityAlertReconciliationKeyRows(envelopes []facts.Envelope) []securityAl
 		}
 	}
 	appendScalar := func(envelope facts.Envelope, kind string, value any) {
+		if value == nil {
+			return
+		}
 		if text, ok := value.(string); ok {
 			appendKey(envelope, kind, text)
+			return
+		}
+		// Coerce JSON scalars the way the legacy scalar arms read them:
+		// payload->> renders a JSON number or bool as text, so a numeric
+		// or boolean id matches its filter only when the sidecar stores
+		// that same text (issue #10875). This is the
+		// relationshipReferencePayloadText contract (->> parity), with an
+		// exponent-free float rendering: ->> never uses exponent notation
+		// (1e21 renders as its full decimal expansion on PostgreSQL
+		// 18.6), while fmt.Sprint(float64(20240001)) is "2.0240001e+07"
+		// and would still drop the id. Null is absent above; objects and
+		// arrays never reach a scalar equality arm, so they yield
+		// nothing.
+		switch typed := value.(type) {
+		case bool:
+			appendKey(envelope, kind, strconv.FormatBool(typed))
+		case json.Number:
+			appendKey(envelope, kind, typed.String())
+		case float64:
+			appendKey(envelope, kind, strconv.FormatFloat(typed, 'f', -1, 64))
+		case float32:
+			appendKey(envelope, kind, strconv.FormatFloat(float64(typed), 'f', -1, 32))
+		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+			appendKey(envelope, kind, fmt.Sprint(value))
 		}
 	}
 	for _, envelope := range envelopes {

@@ -99,12 +99,21 @@ VALUES ($1, 'scope-1', 'gen-1', $2, NOW(), $3, $4::jsonb)`,
 	seed("fact-vuln", "reducer_supply_chain_impact_finding", false, `{"cve_ids": ["CVE-2024-0002"], "ghsa_ids": ["GHSA-1"], "advisory_id": "GHSA-2"}`)
 	// Object-shaped cve_ids: ?| matches key names; must survive the conversion.
 	seed("fact-obj", "reducer_supply_chain_impact_finding", false, `{"cve_ids": {"CVE-2024-0003": {}}}`)
+	// Non-string array element: ?| never matches it under either form.
+	seed("fact-num-arr", "reducer_supply_chain_impact_finding", false, `{"cve_ids": [20240002]}`)
 	// Noise: eligible kind but no matching identifier.
 	seed("fact-noise", "security_alert.repository_alert", false, `{"repository_id": "someone/else"}`)
 	// Wrong kind: identifiers present but the load never reads it.
 	seed("fact-kind", "content", false, `{"repository_id": "acme/app"}`)
 	// Tombstone with identifiers: excluded by both forms.
 	seed("fact-tomb", "security_alert.repository_alert", true, `{"repository_id": "acme/app"}`)
+	// Numeric scalar id: the legacy arm reads payload->>'repository_id',
+	// which renders the JSON number as text, so the "12345" filter matches.
+	seed("fact-num-repo", "security_alert.repository_alert", false, `{"repository_id": 12345}`)
+	// Boolean scalar id: ->> renders true as text, so the "true" filter matches.
+	seed("fact-bool-pkg", "reducer_package_consumption_correlation", false, `{"package_id": true}`)
+	// Numeric scalar cve id: ->> renders the JSON number as text.
+	seed("fact-num-cve", "reducer_supply_chain_impact_finding", false, `{"cve_id": 20240001}`)
 
 	envelopes := []facts.Envelope{
 		{FactID: "fact-repo", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "security_alert.repository_alert", Payload: map[string]any{"repository_id": "acme/app"}},
@@ -114,6 +123,10 @@ VALUES ($1, 'scope-1', 'gen-1', $2, NOW(), $3, $4::jsonb)`,
 		{FactID: "fact-noise", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "security_alert.repository_alert", Payload: map[string]any{"repository_id": "someone/else"}},
 		{FactID: "fact-kind", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "content", Payload: map[string]any{"repository_id": "acme/app"}},
 		{FactID: "fact-tomb", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "security_alert.repository_alert", IsTombstone: true, Payload: map[string]any{"repository_id": "acme/app"}},
+		{FactID: "fact-num-repo", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "security_alert.repository_alert", Payload: map[string]any{"repository_id": float64(12345)}},
+		{FactID: "fact-bool-pkg", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "reducer_package_consumption_correlation", Payload: map[string]any{"package_id": true}},
+		{FactID: "fact-num-cve", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "reducer_supply_chain_impact_finding", Payload: map[string]any{"cve_id": float64(20240001)}},
+		{FactID: "fact-num-arr", ScopeID: "scope-1", GenerationID: "gen-1", FactKind: "reducer_supply_chain_impact_finding", Payload: map[string]any{"cve_ids": []any{float64(20240002)}}},
 	}
 	if err := refreshSecurityAlertReconciliationKeys(ctx, SQLDB{DB: db}, envelopes); err != nil {
 		t.Fatalf("seed security alert keys with the production writer: %v", err)
@@ -123,9 +136,9 @@ VALUES ($1, 'scope-1', 'gen-1', $2, NOW(), $3, $4::jsonb)`,
 	}
 
 	filter := securityalert.SecurityAlertReconciliationFactFilter{
-		RepositoryIDs: []string{"acme/app"},
-		PackageIDs:    []string{"pkg:npm/left-pad"},
-		CVEIDs:        []string{"CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003"},
+		RepositoryIDs: []string{"acme/app", "12345"},
+		PackageIDs:    []string{"pkg:npm/left-pad", "true"},
+		CVEIDs:        []string{"CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003", "20240001"},
 		GHSAIDs:       []string{"GHSA-1", "GHSA-2"},
 	}
 	load := func(query string) []string {
@@ -160,7 +173,7 @@ VALUES ($1, 'scope-1', 'gen-1', $2, NOW(), $3, $4::jsonb)`,
 	}
 	legacy := load(listActiveSecurityAlertReconciliationFactsQuery)
 	keyed := load(listActiveSecurityAlertReconciliationFactsKeyedQuery)
-	want := []string{"fact-obj", "fact-pkg", "fact-repo", "fact-vuln"}
+	want := []string{"fact-bool-pkg", "fact-num-cve", "fact-num-repo", "fact-obj", "fact-pkg", "fact-repo", "fact-vuln"}
 	if fmt.Sprint(legacy) != fmt.Sprint(want) {
 		t.Fatalf("legacy set = %v, want %v", legacy, want)
 	}
