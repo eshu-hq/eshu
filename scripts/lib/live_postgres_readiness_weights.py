@@ -15,7 +15,7 @@ Planner, shard report, and aggregate verification all call
 ``weighted_bounds`` with the same selected weights file, so every proof
 lands in exactly one shard and a weights change cannot silently move a proof
 out of the union.
-A present v2 file switches to a separate row-aware six-shard model; the
+A present v2 file switches to a separate row-aware eight-shard model; the
 v1 path and its four-shard behavior remain unchanged when v2 is absent.
 All arithmetic uses integer tenths of a second. Two gates keep the file
 honest: ``budget_errors`` fails when a shard's predicted job seconds pass
@@ -232,7 +232,7 @@ def weighted_bounds(runs: list[str], weights: Weights | WeightsV2,
         if shard_count is None:
             shard_count = weights.shard_count
         if shard_count != weights.shard_count:
-            raise ValueError("v2 planner requires six shards")
+            raise ValueError("v2 planner requires eight shards")
         key = (weights.fingerprint(), tuple(runs), shard_count)
         cached = _BOUNDS_CACHE.get(key)
         if cached is not None:

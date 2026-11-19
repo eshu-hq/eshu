@@ -143,7 +143,7 @@ def source_shard_count(root: Path, sha: str) -> int:
     """Bind a source run to the shard count its own commit declared.
 
     A tree without a v2 weights file ran the four-shard v1 model. A tree with
-    one ran its own count, five or six, which the history-tolerant v2 parse
+    one ran its own count, five, six, or eight, which the history-tolerant v2 parse
     validates with every other schema check of that file (#9473).
     """
     _source_text(root, sha, WORKFLOW)

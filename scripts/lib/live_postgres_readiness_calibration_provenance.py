@@ -15,9 +15,9 @@ import live_postgres_readiness_calibration as calibration
 import live_postgres_readiness_refresh_v2 as refresh
 import live_postgres_readiness_refresh_v2_provenance as source
 
-JOB_RE = re.compile(r"readiness-calibration \(postgres18\) shard \(([1-6])/6\)")
-START_RE = re.compile(r"^(\S+Z) calibration-start shard=([1-6])/6$")
-SUMMARY_RE = re.compile(r"readiness calibration shard ([1-6])/6: ")
+JOB_RE = re.compile(r"readiness-calibration \(postgres18\) shard \(([1-8])/8\)")
+START_RE = re.compile(r"^(\S+Z) calibration-start shard=([1-8])/8$")
+SUMMARY_RE = re.compile(r"readiness calibration shard ([1-8])/8: ")
 
 
 def _json(path: Path) -> object:
@@ -35,9 +35,9 @@ def _normalized_log(log: str, number: int) -> str:
     result = []
     for line in log.splitlines():
         if match := START_RE.fullmatch(line):
-            result.append(f'{match.group(1)} ##[group]Run bash scripts/run-live-postgres-readiness-tests.sh --shard "{number}/6" --report readiness-shard-report.json')
+            result.append(f'{match.group(1)} ##[group]Run bash scripts/run-live-postgres-readiness-tests.sh --shard "{number}/8" --report readiness-shard-report.json')
         else:
-            result.append(SUMMARY_RE.sub(f"readiness shard {number}/6: ", line))
+            result.append(SUMMARY_RE.sub(f"readiness shard {number}/8: ", line))
     return "\n".join(result) + "\n"
 
 
@@ -83,7 +83,7 @@ def verify_log_rows(observed: list[str], memberships: list[frozenset[str]],
 
 
 def read_source(directory: Path, root: Path) -> dict[str, object]:
-    """Validate one complete six-shard run and return measured row evidence."""
+    """Validate one complete eight-shard run and return measured row evidence."""
     run_id, sha, attempt, jobs = _run_metadata(directory, root)
     required = {"readiness-calibration coverage"}
     seen: dict[int, dict[str, object]] = {}
@@ -100,9 +100,9 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
                 raise ValueError("duplicate calibration shard job")
             source._successful(job, run_id, sha, attempt)
             seen[number] = job
-    if set(seen) != set(range(7)):
+    if set(seen) != set(range(9)):
         raise ValueError("calibration jobs are partial")
-    raw_reports = [_json(directory / f"shard{number}.json") for number in range(1, 7)]
+    raw_reports = [_json(directory / f"shard{number}.json") for number in range(1, 9)]
     if any(not isinstance(report, dict) for report in raw_reports):
         raise ValueError("calibration report is malformed")
     reports: list[dict[str, object]] = raw_reports  # type: ignore[assignment]
@@ -114,7 +114,7 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
     profile: tuple[str, ...] | None = None
     measured: list[dict[str, object]] = []
     runner_versions: dict[str, str] = {}
-    for number in range(1, 7):
+    for number in range(1, 9):
         job = seen[number]
         steps = job.get("steps")
         proof = [step for step in steps if isinstance(step, dict)
@@ -126,7 +126,7 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
                 or f"name: calibration-shard-{run_id}-{attempt}-{number}" not in log):
             raise ValueError("calibration job log identity differs")
         parsed, timings, (found_profile, version), memberships = refresh._parse_shard(
-            _normalized_log(log, number), number, 6)
+            _normalized_log(log, number), number, 8)
         expected = rows[number - 1]
         verify_log_rows(parsed, memberships, expected)
         if profile is not None and found_profile != profile:
@@ -140,7 +140,7 @@ def read_source(directory: Path, root: Path) -> dict[str, object]:
     if profile is None:
         raise ValueError("calibration has no runner profile")
     return {"run_id": run_id, "attempt": attempt, "head": sha,
-            "job_ids": {str(number): seen[number]["id"] for number in range(7)},
+            "job_ids": {str(number): seen[number]["id"] for number in range(9)},
             "profile": list(profile), "runner_versions": runner_versions, "rows": measured}
 
 
@@ -172,7 +172,7 @@ def build_evidence(directories: list[Path], root: Path) -> dict[str, object]:
             "harness_sha256": calibration.file_digest(root, calibration.HARNESS),
             "reviewed_source_sha256": calibration.REVIEWED_SOURCE_SHA256,
             "row_identity_sha256": calibration.ROW_SHA256,
-            "coverage": {"shards": 6, "runs_per_dispatch": 702},
+            "coverage": {"shards": 8, "runs_per_dispatch": 1092},
             "categories": dict(categories), "runs": runs}
 
 

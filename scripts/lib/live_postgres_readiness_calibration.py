@@ -16,10 +16,12 @@ from live_postgres_readiness_shards import _parse_json, expand_tsv
 MANIFEST = "specs/live-postgres-readiness-calibration.v1.json"
 WORKFLOW = ".github/workflows/live-postgres-readiness-calibration.yml"
 HARNESS = "scripts/run-live-postgres-readiness-tests.sh"
-ROW_SHA256 = "a203de14ef00ae93c0ccb274b65460a9b0e8680e0c0d25f47316ba1d49707a0c"
-REVIEWED_SOURCE_SHA256 = "f00e9933ca1c2a913c42c667e080f8542118fa4acc67651bc56b8092ebec5ba9"
-SOURCE_SHA = "2e3ba9fc40ec89a552e28ac25038646571df8b4e"
-BOUNDS = [0, 75, 119, 349, 394, 491, 702]
+ROW_SHA256 = "842057797ee54dd292857abce68bda0714d3973cb9572c980adf8f2230c278e9"
+# No separate proposal file this round: the PR-reviewed manifest is the
+# reviewed source, so this pin equals the rows digest above.
+REVIEWED_SOURCE_SHA256 = "842057797ee54dd292857abce68bda0714d3973cb9572c980adf8f2230c278e9"
+SOURCE_SHA = "b9267c233673b08bb6a064450477cabd5b55de37"
+BOUNDS = [0, 122, 167, 320, 504, 612, 738, 848, 1092]
 RUN_RE = re.compile(r"^\./[A-Za-z0-9_./-]+\|Test[A-Za-z0-9_]+$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -44,16 +46,16 @@ def validate_manifest(document: object, plan: list[str]) -> list[list[list[str]]
     if not isinstance(document, dict):
         raise ValueError("calibration manifest is malformed")
     expected = {"purpose": "offline_calibration_topology_proposal", "status": "NOT_RUN",
-                "source_sha": SOURCE_SHA, "source_acceptance_run": "40784513987",
-                "source_acceptance_shards": 5, "calibration_shards": 6,
-                "source_inventory_sha256": "458d943f293a1e43cbcd202a7bb725979a2d1a1225031c415bc3a5b383b59629",
-                "source_weights_sha256": "2b624a3b8e731317980a8248629f4b075a603f0c9d55f0625ec9aa3e02e9e885",
+                "source_sha": SOURCE_SHA, "source_acceptance_run": "44446666633",
+                "source_acceptance_shards": 6, "calibration_shards": 8,
+                "source_inventory_sha256": "369e767fcdbb8f4a1cc72bb199d83006f3c8bf8e66d9287bcdfc881c4c63a330",
+                "source_weights_sha256": "8080aad85831377573921e0e44ad1067a42b0e920d1d7802b79f2e36248a2646",
                 "bounds": BOUNDS}
     if set(document) != set(expected) | {"rows"} or any(
             document.get(key) != value for key, value in expected.items()):
         raise ValueError("calibration manifest provenance or bounds changed")
     rows = document.get("rows")
-    if not isinstance(rows, list) or len(rows) != 6:
+    if not isinstance(rows, list) or len(rows) != 8:
         raise ValueError("calibration row identity is invalid")
     flattened: list[str] = []
     for shard in rows:
@@ -66,10 +68,10 @@ def validate_manifest(document: object, plan: list[str]) -> list[list[list[str]]
             if len({run.split("|", 1)[0] for run in row}) != 1:
                 raise ValueError("calibration row spans packages")
             flattened.extend(row)
-    if flattened != plan or len(plan) != 702 or len(set(plan)) != 702:
+    if flattened != plan or len(plan) != 1092 or len(set(plan)) != 1092:
         raise ValueError("calibration ordered coverage differs from inventory")
     lengths = [sum(map(len, shard)) for shard in rows]
-    if lengths != [BOUNDS[i + 1] - BOUNDS[i] for i in range(6)]:
+    if lengths != [BOUNDS[i + 1] - BOUNDS[i] for i in range(8)]:
         raise ValueError("calibration shard bounds differ")
     if digest(json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode()) != ROW_SHA256:
         raise ValueError("calibration row identity differs from reviewed proposal")
@@ -115,7 +117,7 @@ def make_report(root: Path, shard: int, head: str, full_tsv: list[str],
     if not SHA_RE.fullmatch(head) or run_id <= 0 or attempt <= 0:
         raise ValueError("invalid calibration run identity")
     _, rows = load(root, full_tsv)
-    if not 1 <= shard <= 6:
+    if not 1 <= shard <= 8:
         raise ValueError("invalid calibration shard")
     observed = _manifest_rows(runner_manifest)
     expected = rows[shard - 1]
@@ -132,9 +134,9 @@ def make_report(root: Path, shard: int, head: str, full_tsv: list[str],
 
 def verify_reports(root: Path, head: str, full_tsv: list[str] | None,
                    reports: list[dict[str, object]]) -> None:
-    """Require six exact, successful reports from one dispatch attempt."""
+    """Require eight exact, successful reports from one dispatch attempt."""
     _, rows = load(root, full_tsv)
-    if not SHA_RE.fullmatch(head) or len(reports) != 6:
+    if not SHA_RE.fullmatch(head) or len(reports) != 8:
         raise ValueError("calibration reports are partial")
     if any(not isinstance(report, dict) for report in reports):
         raise ValueError("calibration report is malformed")
@@ -144,7 +146,7 @@ def verify_reports(root: Path, head: str, full_tsv: list[str] | None,
             type(value) is not int or value <= 0 for value in run_ids | attempts):
         raise ValueError("calibration reports mix runs or attempts")
     numbers = [report.get("shard") for report in reports]
-    if any(type(number) is not int for number in numbers) or sorted(numbers) != list(range(1, 7)):
+    if any(type(number) is not int for number in numbers) or sorted(numbers) != list(range(1, 9)):
         raise ValueError("calibration reports have duplicate or missing shard")
     for report in reports:
         shard = report["shard"]
@@ -184,19 +186,19 @@ def main() -> int:
         full_tsv = sys.stdin.read().splitlines()
         if args.command == "plan":
             _, rows = load(root, full_tsv)
-            if not 1 <= args.shard <= 6:
+            if not 1 <= args.shard <= 8:
                 raise ValueError("invalid calibration shard")
             print("\n".join(tsv_rows(rows[args.shard - 1])))
         elif args.command == "report":
             result = make_report(root, args.shard, args.head, full_tsv,
                                  args.manifest, args.run_id, args.attempt)
             args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
-            print(f"readiness calibration shard {args.shard}/6: "
+            print(f"readiness calibration shard {args.shard}/8: "
                   f"{len(result['runs'])}/{len(result['runs'])} passing runs, ok=True")
         else:
             loaded = [_parse_json(path.read_text()) for path in args.reports]
             verify_reports(root, args.head, full_tsv, loaded)
-            print("readiness calibration: 702/702 ordered runs in six fixed shards")
+            print("readiness calibration: 1092/1092 ordered runs in eight fixed shards")
         return 0
     except (ValueError, OSError, TypeError, json.JSONDecodeError) as error:
         print(f"readiness calibration: {error}", file=sys.stderr)
