@@ -753,6 +753,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /readyz",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "PATCH /api/v0/auth/admin/sign-in-policy",
       "readiness": "implemented"
     },

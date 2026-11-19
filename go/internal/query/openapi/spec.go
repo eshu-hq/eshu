@@ -165,6 +165,7 @@ func Spec() string {
 			status.Operations+
 			freshness.Causality+
 			status.CollectorReadiness+
+			status.Probes+
 			status.Governance+
 			status.Semantic+
 			status.AnswerNarration+

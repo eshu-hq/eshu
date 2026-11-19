@@ -171,6 +171,7 @@ func seedCoreBootstrapAdminGenerated(
 		return "error", fmt.Errorf("hash bootstrap admin password: %w", err)
 	}
 	record := newCoreBootstrapLocalIdentityRecord(username, string(passwordHash), []string{recoveryHash}, now, false)
+	// #nosec G117 -- bootstrap credential sealed immediately via keyring.Seal; only the sealed envelope, hashes, and key ID persist, never the plaintext payload.
 	payload, err := json.Marshal(struct {
 		Username     string `json:"username"`
 		Password     string `json:"password"`

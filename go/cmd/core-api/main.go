@@ -326,7 +326,7 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 			telemetry.EventAttr("auth.oidc.session_refresh.started"))
 	}
 
-	server := &http.Server{Addr: addr, Handler: handler}
+	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 30 * time.Second}
 	logger.Info("core api listening",
 		telemetry.EventAttr("runtime.server.listening"), slog.String("addr", addr))
 	errCh := make(chan error, 1)
