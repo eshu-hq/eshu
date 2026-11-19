@@ -265,7 +265,8 @@ func (i *InstrumentedExecutor) ExecuteCountedWrite(ctx context.Context, stmt Sta
 // Statements guarded by GuardStatementsIndexKeys keep ExecuteGroup's shape:
 // the group runs with the survivors. Callers reconcile the returned counts
 // against the surviving statements, never the pre-guard input, so a guarded
-// statement surfaces as a shortfall at the writer instead of a silent skew.
+// statement surfaces as a short-slice counting error at the writer instead
+// of a silent skew.
 func (i *InstrumentedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []Statement) ([]int64, error) {
 	cw, ok := i.Inner.(CountedWriteGroupExecutor)
 	if !ok {
