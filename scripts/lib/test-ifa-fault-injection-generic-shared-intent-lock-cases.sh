@@ -213,21 +213,35 @@ test_ifa_generic_intent_writer_precondition_is_wired_before_the_body() {
 		|| fail "the shared_intent_lock precondition runs at or after the kill-worker body (precondition line ${precondition_line}, body line ${body_line}); it must gate the cell, not follow it"
 
 	# CALL-SITE pins, not body pins. The parent mirror already pins
-	# "ifa_fault_assert_retried_above" and the assert-edges invocation, but both
-	# needles live INSIDE _ifa_generic_require_retry_baseline and
-	# _ifa_generic_assert_edges themselves, so they went on passing when the only
-	# INVOCATION was deleted. Proven by mutation: removing the retry-baseline call
-	# site left the fault mirror AND test-verify-ifa-determinism.sh at exit 0, and
-	# the live gate green -- the kill cell still drove, locked, killed, drained and
-	# asserted edges, it just stopped proving the interrupted unit re-executed above
-	# its fault-free retry baseline. That is the "kill cell downgraded to ordinary
-	# baseline recovery" failure _ifa_generic_require_retry_baseline's own header
-	# says it exists to close, arriving through the pin instead of the row.
-	#
-	# A pin naming a function body proves the function EXISTS; only a pin naming
-	# the invocation proves it RUNS. These two name the invocations.
-	require_generic_cells "generic kill cell WIRES the retry-baseline proof (call site, not body)" \
-		'[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"'
+	# "ifa_fault_assert_killed_claims_reexecuted" and the assert-edges
+	# invocation, but a needle naming a function body proves the function
+	# EXISTS; only a needle naming the invocation proves it RUNS. Deleting
+	# the invocation while the body survives in the mechanism file left the
+	# mirror green the last time this shape was pinned by body text
+	# (_ifa_generic_require_retry_baseline, retired by #10955: removing its
+	# call site left the fault mirror AND test-verify-ifa-determinism.sh at
+	# exit 0, and the live gate green -- the kill cell still drove, locked,
+	# killed, drained and asserted edges, it just stopped proving the
+	# interrupted unit re-executed). These name the invocations.
+	require_generic_cells "generic kill cell RUNS the blocked-claim census before SIGKILL (call site, not body)" \
+		'ifa_fault_wait_for_blocked_claim "${cell}" "${blocker_arg}" "${wait_key}" "${CLAIMED_ROW_WAIT_TIMEOUT}" killed_rows census_state'
+	require_generic_cells "generic kill cell RECHECKS the killed set after SIGKILL before lock release (call site, not body)" \
+		'ifa_fault_assert_blocked_claims_still_held "${cell}" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}" "${killed_rows}"'
+	require_generic_cells "generic kill cell WIRES the monotonic re-execution proof (call site, not body)" \
+		'ifa_fault_assert_killed_claims_reexecuted "${cell}" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}" "${killed_rows}"'
+	# NEGATIVE pin: the retired final-state baseline poll must have no code
+	# presence left in the dispatcher -- no invocation and no redefinition.
+	# _ifa_count_code_matches skips full-line comments, so the retirement
+	# note standing where the function stood does not satisfy this.
+	[[ "$(_ifa_count_code_matches '_ifa_generic_require_retry_baseline' "${generic_cells_lib}")" == "0" ]] \
+		|| fail "generic cells lib still references _ifa_generic_require_retry_baseline in code -- the retired final-state baseline poll must be gone, not just uncalled"
+	# The wrapper pin above is not enough: a re-added DIRECT final-state
+	# poll call would restore the exact misattribution #10955 closes while
+	# every other pin stays green.
+	[[ "$(_ifa_count_code_matches 'ifa_fault_assert_retried_above' "${generic_cells_lib}")" == "0" ]] \
+		|| fail "generic cells lib calls ifa_fault_assert_retried_above directly -- the final-state baseline poll must stay retired in every spelling, not just the wrapper"
+	require_generic_cells "generic kill cell FREEZES the kill-window snapshot at kill time (call site, not body)" \
+		'_ifa_generic_write_kill_snapshot "${cell}" "${blocker_kind}" "${blocker_arg}" "${wait_key}" "${killed_rows}" "${census_state}" "${claimed_before}"'
 	# TWO call sites, counted -- not "at least one". The kill-worker body and the
 	# fail-graph-write cell each assert the family's edge set, and a --quiet pin
 	# is satisfied by either one surviving alone.
