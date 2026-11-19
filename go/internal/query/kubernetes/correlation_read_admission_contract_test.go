@@ -28,6 +28,17 @@ var frozenKubernetesCorrelationReadAdmission = []string{
 	"ListKubernetesCorrelations func(context.Context, kubernetes.CorrelationFilter) ([]kubernetes.CorrelationRow, error)",
 }
 
+// kubernetesCorrelationReadAdmissionWitness proves
+// KubernetesCorrelationReadAdmission is satisfiable with the minimal
+// shape: the single bounded correlation list, no wider store surface.
+type kubernetesCorrelationReadAdmissionWitness struct{}
+
+func (kubernetesCorrelationReadAdmissionWitness) ListKubernetesCorrelations(context.Context, CorrelationFilter) ([]CorrelationRow, error) {
+	return nil, nil
+}
+
+var _ KubernetesCorrelationReadAdmission = kubernetesCorrelationReadAdmissionWitness{}
+
 // kubernetesCorrelationReadAdmissionMethodSet reflects the live
 // KubernetesCorrelationReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.

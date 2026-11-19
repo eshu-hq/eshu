@@ -30,6 +30,17 @@ var frozenImageReadAdmission = []string{
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 }
 
+// imageReadAdmissionWitness proves ImageReadAdmission is satisfiable
+// with the minimal shape: the single bounded graph read, no wider
+// store surface.
+type imageReadAdmissionWitness struct{}
+
+func (imageReadAdmissionWitness) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+var _ ImageReadAdmission = imageReadAdmissionWitness{}
+
 // imageReadAdmissionMethodSet reflects the live ImageReadAdmission method set
 // into sorted "name signature" strings for comparison with the frozen list.
 func imageReadAdmissionMethodSet(t *testing.T, iface any) []string {

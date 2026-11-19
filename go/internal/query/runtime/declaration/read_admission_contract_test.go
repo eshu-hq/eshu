@@ -31,6 +31,17 @@ var frozenRuntimeDeclarationReadAdmission = []string{
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 }
 
+// runtimeDeclarationReadAdmissionWitness proves
+// RuntimeDeclarationReadAdmission is satisfiable with the minimal
+// shape: the single bounded graph read, no wider store surface.
+type runtimeDeclarationReadAdmissionWitness struct{}
+
+func (runtimeDeclarationReadAdmissionWitness) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+var _ RuntimeDeclarationReadAdmission = runtimeDeclarationReadAdmissionWitness{}
+
 // runtimeDeclarationReadAdmissionMethodSet reflects the live
 // RuntimeDeclarationReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.

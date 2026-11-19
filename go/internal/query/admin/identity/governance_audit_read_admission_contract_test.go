@@ -4,8 +4,10 @@
 package identity
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -28,10 +30,13 @@ var frozenGovernanceAuditReadAdmission = []string{
 
 // governanceAuditReadAdmissionMethodSet reflects the live
 // GovernanceAuditReadAdmission method set into sorted "name signature"
-// strings for comparison with the frozen list.
-func governanceAuditReadAdmissionMethodSet(t *testing.T) []string {
+// strings for comparison with the frozen list. The iface parameter
+// forces every caller — including the seeded-drift RED proof below —
+// through this same guard comparison, so a passing suite proves the
+// guard itself can see drift rather than proving a private copy can.
+func governanceAuditReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*GovernanceAuditReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -53,7 +58,7 @@ func TestGovernanceAuditReadAdmissionContractIsVersioned(t *testing.T) {
 	if GovernanceAuditReadAdmissionContractVersion != "v0" {
 		t.Errorf("GovernanceAuditReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", GovernanceAuditReadAdmissionContractVersion, "v0")
 	}
-	got := governanceAuditReadAdmissionMethodSet(t)
+	got := governanceAuditReadAdmissionMethodSet(t, (*GovernanceAuditReadAdmission)(nil))
 	if len(got) != len(frozenGovernanceAuditReadAdmission) {
 		t.Fatalf("GovernanceAuditReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenGovernanceAuditReadAdmission, len(frozenGovernanceAuditReadAdmission), GovernanceAuditReadAdmissionContractVersion)
 	}
@@ -61,5 +66,55 @@ func TestGovernanceAuditReadAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenGovernanceAuditReadAdmission[i] {
 			t.Errorf("GovernanceAuditReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenGovernanceAuditReadAdmission[i], GovernanceAuditReadAdmissionContractVersion)
 		}
+	}
+}
+
+// TestGovernanceAuditReadAdmissionWireShapesAreSealed proves the seal
+// on the pin: exactly the three re-declared audit reads, with no
+// mutation, purge, or other-family surface riding along. The frozen
+// method-set contract test pins the exact names; this test pins the
+// exclusion the arbiter ruling demands.
+func TestGovernanceAuditReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*GovernanceAuditReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 3 {
+		t.Fatalf("GovernanceAuditReadAdmission has %d methods, want exactly 3: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Create", "Update", "Delete", "Purge", "Write", "Upsert", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("GovernanceAuditReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededGovernanceAuditDrift is a deliberately widened copy of the
+// pin: the three frozen audit reads plus an audit-event purge, which
+// the audit-read lane never issues. It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededGovernanceAuditDrift interface {
+	GovernanceAuditReadAdmission
+	PurgeAuditEvents(context.Context) error
+}
+
+// TestGovernanceAuditReadAdmissionSeededDriftIsDetected is the RED
+// half of the seeded-drift pair: the same reflect comparison the
+// contract test runs must report a mismatch on the planted widening.
+// It passes on a clean tree precisely because the guard fires on
+// drift — a guard that cannot see the seeded method is no guard.
+func TestGovernanceAuditReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := governanceAuditReadAdmissionMethodSet(t, (*seededGovernanceAuditDrift)(nil))
+	if reflect.DeepEqual(got, frozenGovernanceAuditReadAdmission) {
+		t.Fatal("seeded widening (PurgeAuditEvents) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenGovernanceAuditReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenGovernanceAuditReadAdmission)+1)
 	}
 }

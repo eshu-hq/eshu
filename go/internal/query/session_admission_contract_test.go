@@ -4,11 +4,13 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -87,10 +89,13 @@ var frozenBrowserSessionAdmission = []string{
 
 // browserSessionAdmissionMethodSet reflects the live BrowserSessionAdmission
 // method set into sorted "name signature" strings for comparison with the
-// frozen list.
-func browserSessionAdmissionMethodSet(t *testing.T) []string {
+// frozen list. The iface parameter forces every caller — including the
+// seeded-drift RED proof below — through this same guard comparison, so a
+// passing suite proves the guard itself can see drift rather than proving
+// a private copy can.
+func browserSessionAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*BrowserSessionAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -111,7 +116,7 @@ func TestBrowserSessionAdmissionContractIsVersioned(t *testing.T) {
 	if BrowserSessionAdmissionContractVersion != "v0" {
 		t.Errorf("BrowserSessionAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", BrowserSessionAdmissionContractVersion, "v0")
 	}
-	got := browserSessionAdmissionMethodSet(t)
+	got := browserSessionAdmissionMethodSet(t, (*BrowserSessionAdmission)(nil))
 	if len(got) != len(frozenBrowserSessionAdmission) {
 		t.Fatalf("BrowserSessionAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenBrowserSessionAdmission, len(frozenBrowserSessionAdmission), BrowserSessionAdmissionContractVersion)
 	}
@@ -119,6 +124,60 @@ func TestBrowserSessionAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenBrowserSessionAdmission[i] {
 			t.Errorf("BrowserSessionAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenBrowserSessionAdmission[i], BrowserSessionAdmissionContractVersion)
 		}
+	}
+}
+
+// TestBrowserSessionAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the four D8 session methods — the SessionList read
+// (ListSessionsBySubject) plus the three lifecycle methods that ride
+// the same store — with no admin, impersonation, or snapshot surface
+// riding along. The frozen method-set contract test pins the exact
+// names; this test pins the exclusion the arbiter ruling demands. The
+// lifecycle methods are D8 standing, recorded here not silently
+// assumed: Wave 5 adopts ListSessionsBySubject only, and a satellite
+// PR citing this record for lifecycle coverage is invalid.
+func TestBrowserSessionAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*BrowserSessionAdmission)(nil)).Elem()
+	if rt.NumMethod() != 4 {
+		t.Fatalf("BrowserSessionAdmission has %d methods, want exactly 4: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Delete", "Update", "Upsert", "Impersonate", "Admin", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("BrowserSessionAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededBrowserSessionDrift is a deliberately widened copy of the pin:
+// the four frozen session methods plus a session-purge the session
+// lane never issues. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededBrowserSessionDrift interface {
+	BrowserSessionAdmission
+	PurgeBrowserSessions(context.Context) error
+}
+
+// TestBrowserSessionAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a
+// guard that cannot see the seeded method is no guard.
+func TestBrowserSessionAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := browserSessionAdmissionMethodSet(t, (*seededBrowserSessionDrift)(nil))
+	if reflect.DeepEqual(got, frozenBrowserSessionAdmission) {
+		t.Fatal("seeded widening (PurgeBrowserSessions) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenBrowserSessionAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenBrowserSessionAdmission)+1)
 	}
 }
 

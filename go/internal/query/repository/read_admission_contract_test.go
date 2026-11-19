@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -170,10 +171,13 @@ func (repositoryStoryReadAdmissionResignedWitness) GetFileContents(context.Conte
 
 // repositoryStoryReadAdmissionMethodSet reflects the live
 // RepositoryStoryReadAdmission method set into sorted "name signature"
-// strings for comparison with the frozen list.
-func repositoryStoryReadAdmissionMethodSet(t *testing.T) []string {
+// strings for comparison with the frozen list. The iface parameter
+// forces every caller — including the seeded-drift RED proof below —
+// through this same guard comparison, so a passing suite proves the
+// guard itself can see drift rather than proving a private copy can.
+func repositoryStoryReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*RepositoryStoryReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -197,7 +201,7 @@ func TestRepositoryStoryReadAdmissionContractIsVersioned(t *testing.T) {
 	if RepositoryStoryReadAdmissionContractVersion != "v0" {
 		t.Errorf("RepositoryStoryReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", RepositoryStoryReadAdmissionContractVersion, "v0")
 	}
-	got := repositoryStoryReadAdmissionMethodSet(t)
+	got := repositoryStoryReadAdmissionMethodSet(t, (*RepositoryStoryReadAdmission)(nil))
 	if len(got) != len(frozenRepositoryStoryReadAdmission) {
 		t.Fatalf("RepositoryStoryReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenRepositoryStoryReadAdmission, len(frozenRepositoryStoryReadAdmission), RepositoryStoryReadAdmissionContractVersion)
 	}
@@ -222,5 +226,58 @@ func TestRepositoryStoryReadAdmissionRejectsResignedMethod(t *testing.T) {
 	}
 	if !reflect.TypeOf(repositoryStoryReadAdmissionWitness{}).Implements(pin) {
 		t.Errorf("repositoryStoryReadAdmissionWitness does not implement RepositoryStoryReadAdmission: the minimal shape must satisfy the pin")
+	}
+}
+
+// TestRepositoryStoryReadAdmissionWireShapesAreSealed proves the seal
+// on the pin: exactly the fifteen re-declared story reads, with no
+// list-all, mutation, snapshot, or ledger surface riding along. The
+// frozen method-set contract test pins the exact names; this test
+// pins the exclusion the arbiter ruling demands. Minting a
+// whole-Repositories pin to cover this one route would retroactively
+// widen D4, which stays forbidden: the count below is the enforcement.
+func TestRepositoryStoryReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*RepositoryStoryReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 15 {
+		t.Fatalf("RepositoryStoryReadAdmission has %d methods, want exactly 15: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"ListRepositories", "Delete", "Create", "Update", "Write", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("RepositoryStoryReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededRepositoryStoryDrift is a deliberately widened copy of the
+// pin: the fifteen frozen story reads plus a repository-catalog list,
+// which the story lane never issues (the catalog leg rides the
+// sibling repository-reads pin). It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededRepositoryStoryDrift interface {
+	RepositoryStoryReadAdmission
+	ListRepositories(context.Context) ([]string, error)
+}
+
+// TestRepositoryStoryReadAdmissionSeededDriftIsDetected is the RED
+// half of the seeded-drift pair: the same reflect comparison the
+// contract test runs must report a mismatch on the planted widening.
+// It passes on a clean tree precisely because the guard fires on
+// drift — a guard that cannot see the seeded method is no guard.
+func TestRepositoryStoryReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := repositoryStoryReadAdmissionMethodSet(t, (*seededRepositoryStoryDrift)(nil))
+	if reflect.DeepEqual(got, frozenRepositoryStoryReadAdmission) {
+		t.Fatal("seeded widening (ListRepositories) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenRepositoryStoryReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenRepositoryStoryReadAdmission)+1)
 	}
 }

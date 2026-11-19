@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
@@ -163,10 +164,13 @@ func (impactReadAdmissionResignedWitness) ListRepoEntitiesByPaths(context.Contex
 
 // impactReadAdmissionMethodSet reflects the live ImpactReadAdmission
 // method set into sorted "name signature" strings for comparison with
-// the frozen list.
-func impactReadAdmissionMethodSet(t *testing.T) []string {
+// the frozen list. The iface parameter forces every caller —
+// including the seeded-drift RED proof below — through this same guard
+// comparison, so a passing suite proves the guard itself can see drift
+// rather than proving a private copy can.
+func impactReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*ImpactReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -189,7 +193,7 @@ func TestImpactReadAdmissionContractIsVersioned(t *testing.T) {
 	if ImpactReadAdmissionContractVersion != "v0" {
 		t.Errorf("ImpactReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", ImpactReadAdmissionContractVersion, "v0")
 	}
-	got := impactReadAdmissionMethodSet(t)
+	got := impactReadAdmissionMethodSet(t, (*ImpactReadAdmission)(nil))
 	if len(got) != len(frozenImpactReadAdmission) {
 		t.Fatalf("ImpactReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenImpactReadAdmission, len(frozenImpactReadAdmission), ImpactReadAdmissionContractVersion)
 	}
@@ -214,5 +218,55 @@ func TestImpactReadAdmissionRejectsResignedMethod(t *testing.T) {
 	}
 	if !reflect.TypeOf(impactReadAdmissionWitness{}).Implements(pin) {
 		t.Errorf("impactReadAdmissionWitness does not implement ImpactReadAdmission: the minimal shape must satisfy the pin")
+	}
+}
+
+// TestImpactReadAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the fourteen re-declared impact reads, with no
+// mutation, snapshot, ledger, or other-family surface riding along.
+// The frozen method-set contract test pins the exact names; this test
+// pins the exclusion the arbiter ruling demands.
+func TestImpactReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*ImpactReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 14 {
+		t.Fatalf("ImpactReadAdmission has %d methods, want exactly 14: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Delete", "Create", "Update", "Revoke", "Upsert", "Grant", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("ImpactReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededImpactDrift is a deliberately widened copy of the pin: the
+// fourteen frozen impact reads plus a deployment-trace write the
+// impact lane never issues. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededImpactDrift interface {
+	ImpactReadAdmission
+	RecordImpactSnapshot(context.Context, string) error
+}
+
+// TestImpactReadAdmissionSeededDriftIsDetected is the RED half of the
+// seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on
+// a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestImpactReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := impactReadAdmissionMethodSet(t, (*seededImpactDrift)(nil))
+	if reflect.DeepEqual(got, frozenImpactReadAdmission) {
+		t.Fatal("seeded widening (RecordImpactSnapshot) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenImpactReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenImpactReadAdmission)+1)
 	}
 }
