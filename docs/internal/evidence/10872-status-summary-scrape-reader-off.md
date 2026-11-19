@@ -73,8 +73,21 @@ evidence); that one shared computation is the accepted cost.
   in both gate states (execution 38.3 ms detail, 97.4 ms grouped, plus the
   generic-plan runs at 63.5/62.9 ms), the `fact_work_summary_mode` gate CTE
   evaluates once (`loops=1`), and the seeded nested-loop rescan is rejected
-  in both CTEs. The statement shape is unchanged by this fix; a QA-shape
-  (268,754 rows / 1.7 GB, grouped branch) plan capture still needs QA access.
+  in both CTEs. The statement shape is unchanged by this fix.
+- QA-shape plan: `TestStatusActiveWorkSummaryQAShapePlan`
+  (`active_work_qa_shape_proof_test.go`) runs the unchanged main form
+  under `EXPLAIN (ANALYZE, BUFFERS)` at 268,750 `scope_generations` /
+  268,750 `fact_work_items` rows with `fact_work_items` at 1,665 MB total
+  (database 2,610 MB on scratch Postgres 18.7), the QA 268,754-row / 1.7 GB
+  band with incompressible random-hex payload padding so buffer counts
+  reflect physical pages: detail 1,159.7 ms (shared hit=17,375 read=30,813,
+  temp read=29,642 written=14,874), grouped 425.7 ms (shared hit=21,606
+  read=38,385 written=5,352, temp read=2,167 written=2,167), forced generic
+  plan 403.9 ms (shared hit=29,614 read=30,387 written=71, temp read=2,167
+  written=2,167). The gate CTE reports `loops=1` and the single-pass
+  generation-scan rules hold in all three states. The grouped branch — the
+  one QA runs — never executes the parallel-seq-scan `InitPlan` over
+  `fact_work_items`; its full scans are one hashed pass per CTE (`loops=1`).
 
 ## Observability Evidence: what a flag-off scrape emits now
 
