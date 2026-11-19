@@ -312,6 +312,11 @@ func TestCoreSourceAddsNoUnfrozenRoute(t *testing.T) {
 	mounted, unresolvable := collectMountedPatterns(t, []string{
 		pkgDir,
 		filepath.Join(pkgDir, "..", "cli", "support"),
+		// The serving binary mounts one route outside package query: the
+		// /metrics scrape endpoint (go/cmd/core-api, ExtraMounts). It is
+		// carved out below, never frozen: infrastructure scraping, not
+		// forwarded API surface.
+		filepath.Join(pkgDir, "..", "..", "cmd", "core-api"),
 	})
 	for _, u := range unresolvable {
 		t.Errorf("unresolvable registration (dynamic pattern): %s", u)
@@ -332,6 +337,10 @@ func TestCoreSourceAddsNoUnfrozenRoute(t *testing.T) {
 		"GET /api/v0/redoc":                                   true,
 		"GET /.well-known/oauth-protected-resource":           true,
 		"GET /.well-known/oauth-protected-resource/{rest...}": true,
+		// "/metrics" (no method prefix: bare mux.Handle in cmd/core-api)
+		// is the Prometheus scrape endpoint: mounted by the binary, never
+		// forwarded by the satellite, hence intentionally unfrozen.
+		"/metrics": true,
 	}
 	var extra []string
 	for pat := range mounted {
