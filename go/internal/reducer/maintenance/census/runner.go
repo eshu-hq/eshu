@@ -59,9 +59,9 @@ func (r *Runner) RunOnce(ctx context.Context, first bool) {
 	started := r.clock()
 	census, err := r.Source.AnchorCensus(passCtx)
 	duration := r.clock().Sub(started)
-	if ctx.Err() != nil {
-		return
-	}
+	// A pass that finished is recorded even when the parent was cancelled
+	// concurrently: dropping it here loses a completed pass silently (the
+	// shutdown path stops the loop via wait, never by skipping a result).
 	outcome := "ok"
 	if err != nil {
 		outcome = "failed"
