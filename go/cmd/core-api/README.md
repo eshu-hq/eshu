@@ -58,3 +58,18 @@ No-Observability-Change: the binary reuses the shared `eshu_dp_*`
 instruments (`telemetry.NewInstruments`) and the process logger; it adds no
 new metric, span, or log key. The Prometheus handler serves on `/metrics`
 (public, behind the same auth chain).
+
+## No-regression proof (Wave-6 review findings)
+
+No-Regression Evidence: `TestCoreOuterMiddlewareV1CarriesNoDeprecation`
+(red before the header/rewrite reorder, green after) plus the full
+`go/internal/query` and `go/cmd/core-api` suites green at this commit;
+`scripts/prove-core-api-live.sh` (driven by
+`TestCoreAPILiveD44Proof` under `ESHU_D44_LIVE=1`) replays `/readyz`
+200/503/200 per backend and byte-identical satellite relay legs against
+live backends — see
+`docs/internal/9669-removal/wave6-d44-live-proof-evidence.md`.
+
+No-Observability-Change: the reorder changes response headers only and
+the proof harness adds no operator surface; per-request relay rows
+(via/status/outcome) already flow through the satellite log.
