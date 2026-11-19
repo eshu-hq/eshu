@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -249,13 +250,16 @@ func (s searchIndexPartitionSizesCensuser) CensusSearchIndexPartitionSizes(
 }
 
 // searchIndexPartitionLabel shortens a terms leaf regclass to its closed
-// pNN label; anything unexpected keeps its full name rather than colliding
-// with a real partition.
+// pNN label. The census emits ::regclass::text, which PostgreSQL
+// schema-qualifies as the search_path needs, so an optional public. qualifier
+// is trimmed first; anything else unexpected keeps its full name rather than
+// colliding with a real partition.
 func searchIndexPartitionLabel(leaf string) string {
 	const prefix = "eshu_search_index_terms_p"
+	name := strings.TrimPrefix(leaf, "public.")
 	suffix := ""
-	if len(leaf) == len(prefix)+2 && len(leaf) > len(prefix) && leaf[:len(prefix)] == prefix {
-		suffix = leaf[len(prefix):]
+	if len(name) == len(prefix)+2 && len(name) > len(prefix) && name[:len(prefix)] == prefix {
+		suffix = name[len(prefix):]
 	}
 	if len(suffix) == 2 && suffix[0] >= '0' && suffix[0] <= '9' && suffix[1] >= '0' && suffix[1] <= '9' {
 		return "p" + suffix

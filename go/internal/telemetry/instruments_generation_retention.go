@@ -140,7 +140,7 @@ func registerGenerationRetentionPhaseInstruments(meter metric.Meter, inst *Instr
 	}
 	if inst.SearchIndexPartitionBytesPerRow, err = meter.Float64Gauge(
 		"eshu_dp_search_index_partition_bytes_per_row",
-		metric.WithDescription("Search index terms leaf bytes per estimated row, by partition (p00-p63) and component (total, heap, index); the WARN/PAGE suspect thresholds read this series"),
+		metric.WithDescription("Search index terms leaf total bytes per estimated row, by partition (p00-p63), at the last size census"),
 		metric.WithUnit("{byte}"),
 	); err != nil {
 		return fmt.Errorf("register SearchIndexPartitionBytesPerRow gauge: %w", err)

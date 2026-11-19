@@ -99,3 +99,48 @@ func TestPartitionParitySnapshotMatchesAcrossIdenticalReads(t *testing.T) {
 		t.Fatal("ComparePartitionParity() error = nil, want a mismatch when a row is lost")
 	}
 }
+
+// TestPartitionParitySnapshotRejectsUnexpectedLeaf is the #10874 hardening
+// proof: only a terms leaf short name or its schema-qualified regclass text
+// reaches SQL; anything else fails before a statement is built.
+func TestPartitionParitySnapshotRejectsUnexpectedLeaf(t *testing.T) {
+	for _, leaf := range []string{
+		"eshu_search_index_terms_p29",
+		"eshu_search_index_terms_p00",
+		"eshu_search_index_terms_p63",
+		"public.eshu_search_index_terms_p29",
+	} {
+		database := &scriptedDB{answer: func(query string, _ []any) ([][]any, error) {
+			if strings.Contains(query, "partition parity snapshot") {
+				return [][]any{{int64(1), int64(2)}}, nil
+			}
+			t.Fatalf("unexpected query %q", query)
+			return nil, nil
+		}}
+		if _, err := TakePartitionParitySnapshot(context.Background(), database, leaf); err != nil {
+			t.Fatalf("TakePartitionParitySnapshot(%q) error = %v, want accepted", leaf, err)
+		}
+		if len(database.statements) != 1 {
+			t.Fatalf("TakePartitionParitySnapshot(%q) statements = %d, want 1", leaf, len(database.statements))
+		}
+	}
+	for _, leaf := range []string{
+		"",
+		"eshu_search_index_terms_p29; DROP TABLE eshu_search_index_terms_p29",
+		"eshu_search_index_terms_p7",
+		"eshu_search_index_terms",
+		"public.eshu_search_index_documents",
+		"pg_class",
+	} {
+		database := &scriptedDB{answer: func(query string, _ []any) ([][]any, error) {
+			t.Fatalf("rejected leaf %q reached SQL: %q", leaf, query)
+			return nil, nil
+		}}
+		if _, err := TakePartitionParitySnapshot(context.Background(), database, leaf); err == nil {
+			t.Fatalf("TakePartitionParitySnapshot(%q) error = nil, want rejection before SQL", leaf)
+		}
+		if len(database.statements) != 0 {
+			t.Fatalf("TakePartitionParitySnapshot(%q) statements = %d, want 0", leaf, len(database.statements))
+		}
+	}
+}

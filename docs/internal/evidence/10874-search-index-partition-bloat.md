@@ -67,8 +67,9 @@ WAL / lock-wait numbers stay NOT_CHECKED until the copy run (table below).
 
 `eshu_dp_search_index_partition_bytes{partition,component}`,
 `eshu_dp_search_index_partition_estimated_rows{partition}`,
-`eshu_dp_search_index_partition_bytes_per_row{partition,component}`:
-`partition` is the closed p00-p63 set, `component` is heap/index/total;
+`eshu_dp_search_index_partition_bytes_per_row{partition}`:
+`partition` is the closed p00-p63 set; `component` is heap/index/total on
+the bytes gauge and total-only on the bytes-per-row gauge;
 scope_id and generation_id never reach labels (they ride the WARN log line
 and span events only, per the existing `SpanGenerationRetentionExpiredReport`
 precedent). One `generation retention search index partition size suspect`

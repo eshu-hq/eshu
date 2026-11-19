@@ -6,9 +6,16 @@ package indexretention
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
+
+// parityLeafPattern is the closed allowlist for TakePartitionParitySnapshot
+// leaves: a terms leaf short name or its schema-qualified regclass text (the
+// census emits ::regclass::text, which PostgreSQL schema-qualifies as the
+// search_path needs). Anything else is rejected before its text reaches SQL.
+var parityLeafPattern = regexp.MustCompile(`^(public\.)?eshu_search_index_terms_p[0-9]{2}$`)
 
 // Partition size-vs-rowcount suspect thresholds (#10874, arbiter Decision 3:
 // initial values, calibrated against the all-64-leaf distribution measured
@@ -115,6 +122,9 @@ type PartitionParity struct {
 // Run it before and after a rebuild-equivalent operation on the copy;
 // ComparePartitionParity is the search-parity proof.
 func TakePartitionParitySnapshot(ctx context.Context, q db.Queryer, leaf string) (PartitionParity, error) {
+	if !parityLeafPattern.MatchString(leaf) {
+		return PartitionParity{}, fmt.Errorf("search index partition parity snapshot: unexpected leaf %q", leaf)
+	}
 	snapshot := PartitionParity{Leaf: leaf}
 	rows, err := q.QueryContext(ctx, partitionParitySnapshotQuery(leaf))
 	if err != nil {
