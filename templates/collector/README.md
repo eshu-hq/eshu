@@ -37,7 +37,11 @@ runs `go mod tidy -diff` first so that drift fails before review.
 
 `scripts/run-conformance.sh` runs the same gate CI runs
 (`.github/workflows/ci.yml`, discovered by GitHub Actions when this directory
-becomes a repository root).
+becomes a repository root). The workflow is a thin caller: lane bodies live in
+the pinned `eshu-hq/.github` reusable (`go-collector-ci.yml`, peeled SHA, never
+the mutable tag). Keep it thin when you port — per-repo differences are caller
+inputs, never copied lane bodies — and ratchet `coverage-floor` from 0 to your
+measured total on the first green run.
 
 ## Configuration
 

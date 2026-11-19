@@ -1,18 +1,183 @@
-name: collector-ci
+name: ci
 
+# Org gate contract for eshu-hq collector repos: stable job names, a changes
+# path-filter, govulncheck and gosec scans, and a ci-complete aggregator.
+# ci-complete is the only context the main ruleset requires. No static gates:
+# lanes judge the code itself, except the 500-line .go file cap (plain wc -l
+# step in the reusable lint lane).
+#
+# Lane bodies run from the pinned eshu-hq/.github reusable (eshu-hq/eshu#10986).
+# The caller keeps the changes path-filter and the ci-complete aggregator, so
+# the required context name never churns; only the bodies live upstream.
+# Pinned to the peeled v2 commit (never the mutable tag); advance the SHA and
+# the `# v2` comment together, and re-prove every lane on the advance.
+#
+# This file seeds every new collector (copied from templates/collector), so
+# keep it thin: per-repo differences are inputs below, never inline lane
+# bodies. Copying lane bodies into a collector reintroduces the duplication
+# this template exists to remove.
+#
+# Coverage notes: the template holds real coverable statements, so each port
+# ratchets coverage-floor from 0 to its measured total on the first green run
+# and only rises toward 90 from there; never lower it or delete assertions
+# to move it.
+#
+# Image note: the Dockerfile builds the actual collector, so run-image follows
+# the image filter and the lane runs a real build (no push) through the
+# reusable.
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly Monday 05:17 UTC sweep: every lane runs as a record. Scan
+    # findings on scheduled runs fail their lanes; triage rides the run
+    # artifacts until the reusable grows a filing hook (upstream follow-up
+    # eshu-hq/.github#10).
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  conformance:
+  changes:
+    name: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      fixtures: ${{ steps.filter.outputs.fixtures }}
+      shell: ${{ steps.filter.outputs.shell }}
+      deps: ${{ steps.filter.outputs.deps }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+      image: ${{ steps.filter.outputs.image }}
+      misc: ${{ steps.filter.outputs.misc }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          go-version: "1.26.5"
-      - run: go build ./...
-      - run: go vet ./...
-      - run: go mod tidy -diff
-      - run: go test ./... -count=1
+          fetch-depth: 0
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
+        id: filter
+        with:
+          # Needed so the `misc` catch-all below can use `!` negations;
+          # groups without negations behave exactly as before.
+          predicate-quantifier: 'some-with-excludes'
+          filters: |
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+            fixtures:
+              # Every entry is grep-proven test- or embed-consumed:
+              # testdata/** via conformance_test.go (os.ReadFile
+              # testdata/+name), **/*.json via grant_test.go
+              # (grant.example.json) and testdata/*.json, manifest.yaml via
+              # conformance_test.go plus manifest.go (go:embed). NOT
+              # fixtures: config.example.yaml has no test readers
+              # (README-only), so it stays out.
+              - 'testdata/**'
+              - '**/*.json'
+              - 'manifest.yaml'
+              - 'grant.example.json'
+            shell:
+              - '**/*.sh'
+            deps:
+              - 'go.mod'
+              - 'go.sum'
+              - '.golangci.yml'
+            workflow:
+              - '.github/workflows/**'
+            image:
+              - 'Dockerfile'
+              - 'cmd/**'
+            misc:
+              # Fail-closed catch-all: anything not classified above runs
+              # the full Go lanes (lint+test+race). Docs stay skipped so a
+              # docs-only PR keeps passing vacuously; every classified
+              # pattern is negated too so narrow lanes keep their shape.
+              - '**'
+              - '!**/*.md'
+              - '!LICENSE'
+              - '!CODEOWNERS'
+              - '!**/*.go'
+              - '!go.mod'
+              - '!go.sum'
+              - '!.golangci.yml'
+              - '!testdata/**'
+              - '!**/*.json'
+              - '!manifest.yaml'
+              - '!grant.example.json'
+              - '!**/*.sh'
+              - '!Dockerfile'
+              - '!cmd/**'
+              - '!.github/workflows/**'
+
+  lanes:
+    name: lanes
+    needs: [changes]
+    # No timeout-minutes: the schema forbids it on reusable-call jobs. Each
+    # inner lane carries its own timeout, which bounds this job.
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@4d01ab90baf5dd77c21cc1ee6bdf701332613449 # v2
+    with:
+      module: collector
+      go-version-file: go.mod
+      coverage-floor: 0
+      # Pin the tool set the v2 selftest callers proved green. Reusable
+      # defaults float across tags, so a SHA advance must neither downgrade
+      # nor silently upgrade a scanner: review these pins on every advance.
+      golangci-lint-version: v2.12.2
+      govulncheck-version: v1.9.0
+      gosec-version: v2.27.1
+      actionlint-version: 1.7.12
+      actionlint-sha256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+      run-lint: ${{ github.event_name != 'pull_request' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.misc == 'true' || needs.changes.outputs.workflow == 'true' }}
+      run-test: ${{ github.event_name != 'pull_request' || needs.changes.outputs.go == 'true' || needs.changes.outputs.fixtures == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.misc == 'true' || needs.changes.outputs.workflow == 'true' }}
+      run-race: ${{ github.event_name != 'pull_request' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.misc == 'true' || needs.changes.outputs.workflow == 'true' }}
+      run-shell: ${{ github.event_name != 'pull_request' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflow == 'true' }}
+      # Filter-only (see the image note above): the Dockerfile builds the
+      # actual collector, so any Dockerfile or cmd change runs a real
+      # image build (no push) in the lane.
+      run-image: ${{ needs.changes.outputs.image == 'true' }}
+      # No boundary gate in the template; each port defines its own
+      # boundary-command (import bans, fail-closed guards) when it lands.
+      run-boundary: false
+      run-govulncheck: ${{ github.event_name != 'pull_request' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflow == 'true' }}
+      run-gosec: ${{ github.event_name != 'pull_request' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.workflow == 'true' }}
+      # Advisory scans: findings upload as artifacts but never fail the lane;
+      # each port flips this deliberately when it starts triaging.
+      gosec-fail-on-findings: false
+      run-actionlint: ${{ github.event_name != 'pull_request' || needs.changes.outputs.workflow == 'true' }}
+
+  ci-complete:
+    name: ci-complete
+    needs: [changes, lanes]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Aggregate lane results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'EOF'
+          import json
+          import os
+          import sys
+          needs = json.loads(os.environ['NEEDS'])
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          bad = {k: v.get('result') for k, v in needs.items()
+                 if v.get('result') not in ('success', 'skipped')}
+          if bad:
+              print(f'ci-complete: failing lanes: {bad}')
+              sys.exit(1)
+          print('ci-complete: every lane succeeded or was legitimately skipped')
+          EOF
