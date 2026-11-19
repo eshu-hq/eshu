@@ -187,11 +187,11 @@ plant scheduled-runner-image scripts/run-ifa-scheduled-proofs.sh \
 plant scheduled-workflow-name .github/workflows/ifa-scheduled-proofs.yml \
 	's/vs Neo4j and PostgreSQL/vs NornicDB and PostgreSQL/' "ifa-scheduled-proofs.yml: active line names NornicDB"
 plant workflow-logs-wrong-compose-file .github/workflows/ifa-determinism-gate.yml \
-	'120s#docker-compose\.neo4j\.yml#docker-compose.yaml#' "names the NornicDB compose file docker-compose.yaml"
+	's#DETERMINISM_COMPOSE_PROJECT\}" -f eshu-deploy/compose/docker-compose\.neo4j\.yml -- logs#DETERMINISM_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- logs#' "names the NornicDB compose file docker-compose.yaml"
 plant workflow-down-wrong-compose-file .github/workflows/ifa-determinism-gate.yml \
-	'267s#docker-compose\.neo4j\.yml#docker-compose.yaml#' "names the NornicDB compose file docker-compose.yaml"
+	's#FAULT_COMPOSE_PROJECT\}" -f eshu-deploy/compose/docker-compose\.neo4j\.yml -- down#FAULT_COMPOSE_PROJECT}" -f eshu-deploy/compose/docker-compose.yaml -- down#' "names the NornicDB compose file docker-compose.yaml"
 plant workflow-compose-without-file .github/workflows/ifa-determinism-gate.yml \
-	'174s# -f eshu-deploy/compose/docker-compose\.neo4j\.yml##' "does not name docker-compose.neo4j.yml"
+	's#\(DEADLETTER_MATRIX_COMPOSE_PROJECT\}"\) -f eshu-deploy/compose/docker-compose\.neo4j\.yml#\1#' "does not name docker-compose.neo4j.yml"
 plant script-compose-file-nornic scripts/lib/ifa_fault_injection_common.sh \
 	's#^\(.*\)bash scripts/ci/compose.sh#\1docker-compose.yaml bash scripts/ci/compose.sh#' "names the NornicDB compose file docker-compose.yaml"
 plant lib-default-flipped scripts/lib/ifa_graph_backend.sh \
