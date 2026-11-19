@@ -64,6 +64,13 @@ func (r *CodeReachabilityProjectionRunner) ProcessNextCycle(
 				r.recordCycle(ctx, telemetry.CodeReachabilityCycleKindProbeSkip, "", 0)
 				return CodeReachabilityProjectionResult{}, nil
 			}
+			if r.lastFullProductive && !r.auditDue(now) {
+				// Backlog drain, not an audit: the previous full query was
+				// productive, so another batch may wait. A distinct kind
+				// keeps drain-forced fulls out of the audit short-list-miss
+				// signal and skips the audit log line.
+				return r.runFullCycle(ctx, now, probeAt, true, telemetry.CodeReachabilityCycleKindDrainFull)
+			}
 		}
 	}
 	return r.runFullCycle(ctx, now, probeAt, true, telemetry.CodeReachabilityCycleKindAuditFull)
