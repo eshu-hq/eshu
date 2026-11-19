@@ -37,6 +37,15 @@ var frozenContentSearchReadAdmission = []string{
 	"SearchPHPConfigEntities func(context.Context, []string, string, *querycontract.PHPConfigCursor, int) ([]querycontract.EntityContent, error)",
 }
 
+// contentSearchReadAdmissionWitness proves ContentSearchReadAdmission is
+// satisfiable with the minimal shape: the guarded Postgres content
+// reader the handlers run against today, no wider store surface.
+type contentSearchReadAdmissionWitness struct {
+	*ContentReader
+}
+
+var _ ContentSearchReadAdmission = contentSearchReadAdmissionWitness{}
+
 // contentSearchReadAdmissionMethodSet reflects the live
 // ContentSearchReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.

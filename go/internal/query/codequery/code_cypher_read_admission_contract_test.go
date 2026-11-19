@@ -60,9 +60,9 @@ func (codeCypherReadAdmissionResignedWitness) Run(context.Context, string, map[s
 // codeCypherReadAdmissionMethodSet reflects the live
 // CodeCypherReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeCypherReadAdmissionMethodSet(t *testing.T) []string {
+func codeCypherReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeCypherReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -85,7 +85,7 @@ func TestCodeCypherReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeCypherReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeCypherReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeCypherReadAdmissionContractVersion, "v0")
 	}
-	got := codeCypherReadAdmissionMethodSet(t)
+	got := codeCypherReadAdmissionMethodSet(t, (*CodeCypherReadAdmission)(nil))
 	if len(got) != len(frozenCodeCypherReadAdmission) {
 		t.Fatalf("CodeCypherReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeCypherReadAdmission, len(frozenCodeCypherReadAdmission), CodeCypherReadAdmissionContractVersion)
 	}
@@ -137,5 +137,32 @@ func TestCodeCypherReadAdmissionWireShapesAreSealed(t *testing.T) {
 				t.Errorf("CodeCypherReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
 			}
 		}
+	}
+}
+
+// seededCodeCypherDrift is a deliberately widened copy of the pin: the
+// one frozen cypher read plus a single-row graph read, which the cypher
+// lane keeps OUT (the only contact is the bounded Run). It never ships;
+// it proves the frozen-set comparison below can see a one-method
+// widening.
+type seededCodeCypherDrift interface {
+	CodeCypherReadAdmission
+	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+// TestCodeCypherReadAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeCypherReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := codeCypherReadAdmissionMethodSet(t, (*seededCodeCypherDrift)(nil))
+	if reflect.DeepEqual(got, frozenCodeCypherReadAdmission) {
+		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeCypherReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeCypherReadAdmission)+1)
 	}
 }
