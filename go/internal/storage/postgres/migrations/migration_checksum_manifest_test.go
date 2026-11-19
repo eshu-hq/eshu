@@ -435,7 +435,7 @@ var migrationShippedChecksums = map[string]string{
 	"315_relationship_lookup_keys.sql": "578769fd865c5317351cfe33f7c4e25479af23a54d4bc2c91853e065eb28ca02",
 	// #10876: the reducer waiting set-aside (waits_for kind+key, #10876;
 	// renumbered 313 to 316 onto origin/main carrying #10874/#10947/#10875).
-	"316_reducer_waiting_items.sql": "560e99f3f29dd679fde41a83116d0f59a101227bbf7b0d6defca538b99478ed0",
+	"316_reducer_waiting_items.sql": "21cadebc4c4f8f27a6cce75e7caad4a7904702497507f31f60e0d13eeb0ce472",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

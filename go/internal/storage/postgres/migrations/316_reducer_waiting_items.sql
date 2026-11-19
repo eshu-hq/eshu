@@ -21,10 +21,12 @@
 -- repository or scope ids is a JSON array, never a second row shape.
 --
 -- Wake path: the providing save deletes the matching wait rows and reopens
--- the queue rows in the same transaction (shared helper, #7597 lock order:
--- claimant work row, providing row, waiting rows by work_item_id COLLATE "C"
--- with SET LOCAL lock_timeout, parked/dead rows SKIP LOCKED). The 10-minute
--- backstop plus the 5-minute audit reopen a wait whose wake was missed.
+-- the queue rows in the same transaction (shared helper; waiting rows lock
+-- in work_item_id COLLATE "C" order with plain FOR UPDATE — no SET LOCAL
+-- lock_timeout, no SKIP LOCKED — the same global order every multi-row
+-- reducer locker uses, so a concurrent wake cannot deadlock it). The
+-- 10-minute backstop plus the 5-minute audit reopen a wait whose wake was
+-- missed.
 CREATE TABLE IF NOT EXISTS reducer_waiting_items (
     work_item_id TEXT NOT NULL,
     waits_for_kind TEXT NOT NULL,

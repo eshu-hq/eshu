@@ -17,11 +17,14 @@ import (
 )
 
 // ReducerWaitingAuditor runs AuditWaitingItems on an interval (#10876
-// decision 4). The audit is idempotent and SKIP LOCKED bounded, so every
-// reducer replica may run one without a lease: concurrent auditors partition
-// the parked backlog by whichever rows each locks first. Claims never wait
-// for it — parked rows stay claimable through their backstop — and a missed
-// wake is bounded by two audit cycles plus one claim latency.
+// decision 4). The audit is idempotent, so every reducer replica may run
+// one without a lease. The batch SELECT runs outside an explicit
+// transaction (autocommit), so its FOR UPDATE SKIP LOCKED row locks release
+// when the SELECT finishes and concurrent auditors can evaluate overlapping
+// batches; the overlap stays benign because the wake and the reconcile
+// delete are idempotent. Claims never wait for the audit — parked rows stay
+// claimable through their backstop — and a missed wake is bounded by two
+// audit cycles plus one claim latency.
 type ReducerWaitingAuditor struct {
 	// Queue supplies the database, clock, and instruments.
 	Queue ReducerQueue
@@ -147,9 +150,12 @@ type waitingAuditRow struct {
 	firstSeen    time.Time
 }
 
-// selectWaitingAuditBatchQuery locks the oldest parked waits for one audit
-// pass, bounded and SKIP LOCKED so concurrent auditors partition the backlog
-// instead of stacking behind one another.
+// selectWaitingAuditBatchQuery reads the oldest parked waits for one audit
+// pass. FOR UPDATE SKIP LOCKED skips rows a concurrent writer holds at
+// SELECT time instead of stacking behind them, but the SELECT runs outside
+// an explicit transaction (autocommit), so the locks release when it
+// finishes: concurrent auditors may evaluate overlapping batches, and the
+// idempotent wake plus reconcile delete keep the overlap benign.
 const selectWaitingAuditBatchQuery = `
 SELECT work_item_id, waits_for_kind, waits_for_key, scope_id, generation_id,
        domain, failure_class, first_deferred_at
@@ -167,6 +173,22 @@ DELETE FROM reducer_waiting_items
 WHERE work_item_id = $1 AND waits_for_kind = $2 AND waits_for_key = $3::jsonb
 `
 
+// reconciledDelete runs one audit reconcile delete and reports whether it
+// dropped a row. A concurrent wake or audit pass may delete the same wait
+// row first; a zero-row delete is a lost race, not a reconciliation, so
+// only an affected row counts toward the reconciled total.
+func reconciledDelete(ctx context.Context, database db.ExecQueryer, op string, args ...any) (bool, error) {
+	res, err := database.ExecContext(ctx, deleteWaitingRowQuery, args...)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", op, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("%s rows affected: %w", op, err)
+	}
+	return affected > 0, nil
+}
+
 // waitingQueueStateQuery reads the parked row's queue state so the audit
 // never reopens work that already moved on.
 const waitingQueueStateQuery = `
@@ -176,9 +198,10 @@ SELECT status, failure_class FROM fact_work_items WHERE work_item_id = $1
 // AuditWaitingItems re-evaluates up to limit parked waits and reopens the
 // satisfied ones. It returns reopened and reconciled (dangling wait rows
 // dropped because their queue row already moved on) counts. Missed wakes —
-// rows satisfied a full audit interval after they parked, meaning an earlier
-// pass should have caught them — are counted separately so the seeded audit
-// test can assert the audit finds a planted miss within its stated bound.
+// rows satisfied more than two audit intervals after they parked, meaning
+// an earlier pass should have caught them — are counted separately so the
+// seeded audit test can assert the audit finds a planted miss within its
+// stated bound.
 func AuditWaitingItems(
 	ctx context.Context,
 	database db.ExecQueryer,
@@ -235,23 +258,29 @@ func AuditWaitingItems(
 		if err := querySingleRow(ctx, database, waitingQueueStateQuery,
 			[]any{row.workItemID}, &status, &failureClass); err != nil {
 			if err == sql.ErrNoRows {
-				if _, derr := database.ExecContext(ctx, deleteWaitingRowQuery,
-					row.workItemID, string(row.kind), row.keyJSON); derr != nil {
-					return reopened, reconciled, missed,
-						fmt.Errorf("reconcile missing waiting queue row: %w", derr)
+				cleared, derr := reconciledDelete(ctx, database,
+					"reconcile missing waiting queue row",
+					row.workItemID, string(row.kind), row.keyJSON)
+				if derr != nil {
+					return reopened, reconciled, missed, derr
 				}
-				reconciled++
+				if cleared {
+					reconciled++
+				}
 				continue
 			}
 			return reopened, reconciled, missed, fmt.Errorf("read waiting queue state: %w", err)
 		}
 		if status != "retrying" || (failureClass.Valid && failureClass.String != row.failureClass) {
-			if _, derr := database.ExecContext(ctx, deleteWaitingRowQuery,
-				row.workItemID, string(row.kind), row.keyJSON); derr != nil {
-				return reopened, reconciled, missed,
-					fmt.Errorf("reconcile moved waiting queue row: %w", derr)
+			cleared, derr := reconciledDelete(ctx, database,
+				"reconcile moved waiting queue row",
+				row.workItemID, string(row.kind), row.keyJSON)
+			if derr != nil {
+				return reopened, reconciled, missed, derr
 			}
-			reconciled++
+			if cleared {
+				reconciled++
+			}
 			continue
 		}
 		satisfied, err := waitingSatisfied(
