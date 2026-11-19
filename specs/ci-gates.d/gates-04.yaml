@@ -335,7 +335,7 @@ gates:
       - "scripts/heredoc-budget-baseline.txt"
       - "go/cmd/heredoc-budget/**"
     local:
-      command: "cd go && go run ./cmd/heredoc-budget -baseline ../scripts/heredoc-budget-baseline.txt"
+      command: "cd go && go test ./cmd/heredoc-budget -count=1"
       test_command: "cd go && go test ./cmd/heredoc-budget -count=1"
     ci:
       workflow: static-contract-gates.yml

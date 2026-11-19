@@ -64,13 +64,13 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     is unaffected.
 //   - CI-only gates (Local == nil) are skipped: no local command means no
 //     script to derive.
-//   - heredoc-budget's local.command references a scripts/ file through a
-//     relative token ("-baseline ../scripts/heredoc-budget-baseline.txt")
-//     that extractScriptPaths does not recognise — it only matches a leading
-//     "scripts/" prefix, not "../scripts/". That file is already an explicit
-//     trigger on the heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing
-//     goes unselected today; widen extractScriptPaths if that stops being
-//     true.
+//   - No committed gate command references a scripts/ file through a
+//     relative token today ("-baseline ../scripts/..." retired with #10988,
+//     which re-pointed heredoc-budget's local.command at its go test).
+//     extractScriptPaths only matches a leading "scripts/" prefix, not
+//     "../scripts/". The baseline file stays an explicit trigger on the
+//     heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing goes
+//     unselected; widen extractScriptPaths if a relative token returns.
 //   - sourcedScripts (and therefore the transitive walk below) only resolves
 //     a `source`/`.` line whose LITERAL TEXT contains "scripts/". A line that
 //     sources a computed or variable path — for example
