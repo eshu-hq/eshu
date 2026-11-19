@@ -26,27 +26,24 @@ envs set = startup error), wired through
 `configureReducerQueue` (`go/cmd/reducer/main_helpers.go:65-117`,
 `ClaimDomains` at `:100`) to `$2` in every query above.
 
-## Fence verdict (new finding, NOT fixed here)
+## Fence verdict (decided in #10935 — intentionally global)
 
 `reducerClaimLiveFenceKeysCTE` scans all live-leased rows
 (`status IN ('claimed','running') AND claim_until > $1`) with no `$2`
-domain predicate. Effect under a split: each deployment's candidates
-are fenced against the other deployment's live leases on the same
-`(conflict_domain, ckey)` — conservative (never admits a conflicting
-row), costing only some isolation benefit, never correctness. Cost is
-small: the set covers live leases only, not the waiting backlog.
-Per the arbiter ruling this is filed separately, not fixed inside
-#10868: the fence predicate needs its own issue (leak or intentional
-global fence — decide there). Recommended follow-up: new in-goal issue
-under #10860 recording the unfiltered CTE and the two candidate
-resolutions (add `$2` filter vs document global fence).
+domain predicate. Decided in #10935 as intentionally global: the fence
+keys on conflict identity rather than domain, so a live holder in one
+deployment must fence the same key in another; scoping it would surface
+as whole-batch aborts the lock recheck cannot prevent. Effect under a
+split is conservative (never admits a conflicting row), costing only
+some isolation benefit, never correctness — and the set covers live
+leases only, not the waiting backlog. Pinned by
+`TestClaimBatchLiveFenceKeysStayGlobalAcrossDomains` in
+`reducer_queue_claim_domains_test.go` (PR #10936). Measurement arms run
+under the global fence.
 
-Update (2026-11-19): decided in #10935 as intentionally global — the
-fence keys on conflict identity rather than domain, and scoping it
-would surface as whole-batch aborts the lock recheck cannot prevent.
-Pinned by `TestClaimBatchLiveFenceKeysStayGlobalAcrossDomains` in
-`reducer_queue_claim_domains_test.go` (PR #10936). Measurement arms
-run under the global fence.
+History: at writing time this was a new finding filed separately per
+the arbiter ruling (the follow-up became #10935); the section above
+records the decision that closed it.
 
 ## Split proposal (pending QA census confirmation)
 
