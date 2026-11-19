@@ -10,8 +10,8 @@ job timeout stay in force.
 
 The fixed input is
 `specs/live-postgres-readiness-calibration.v1.json`. Its 38 runner rows cover
-1092 unique tests in canonical inventory order. The committed row identity SHA-256
-is `842057797ee54dd292857abce68bda0714d3973cb9572c980adf8f2230c278e9`.
+1093 unique tests in canonical inventory order. The committed row identity SHA-256
+is `96bd1d703608238b206964d69dc44179031c7f44869bcd31bb8a47e8b6ab6038`.
 There is no separate proposal file this round: the PR-reviewed manifest is the
 reviewed source, so the reviewed-source pin equals the rows digest. The runner
 uses these exact rows; it does not
@@ -20,7 +20,7 @@ before any proof starts.
 
 The offline proposal has **not run on hosted runners**. Its planner cut,
 based on acceptance run `44446666633` at source SHA
-`b9267c233673b08bb6a064450477cabd5b55de37`, prices the eight jobs at 826 to
+`52b0d1cf12cb5fc2a2b222106d5999b823121337`, prices the eight jobs at 826 to
 873 s against the 1440-second modeled job limit at 3.98% spread. A hosted
 run can exceed either that estimate or the 30-minute job timeout. Until the
 dispatched pair lands, these runs cannot be called acceptance

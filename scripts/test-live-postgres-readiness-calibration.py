@@ -71,10 +71,10 @@ class CalibrationContractTest(unittest.TestCase):
     def test_fixed_rows_cover_canonical_inventory(self) -> None:
         calibration.validate_manifest(self.document, self.plan)
         self.assertEqual(sum(len(row) for shard in self.document["rows"]
-                             for row in shard), 1092)
+                             for row in shard), 1093)
         self.assertEqual([sum(len(row) for row in shard)
                           for shard in self.document["rows"]],
-                         [122, 45, 153, 184, 108, 126, 110, 244])
+                         [122, 45, 153, 184, 108, 126, 110, 245])
 
     def test_rejects_missing_and_duplicate_runs(self) -> None:
         missing = copy.deepcopy(self.document)
