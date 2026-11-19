@@ -12,12 +12,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	postgresdb "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
+	db := &recordingExecQueryer{queryRows: []postgresdb.Rows{&recordingRows{}, &waitingWakeCountRows{}}}
 	queue := NewProjectorQueue(db, "projector-1", 30*time.Second)
 	queue.Now = func() time.Time {
 		return time.Date(2026, time.May, 24, 15, 30, 0, 0, time.UTC)

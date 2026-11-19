@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -91,6 +92,12 @@ JOIN graph_projection_phase_state AS a
 // PostgreSQL.
 type GraphProjectionPhaseStateStore struct {
 	database db.ExecQueryer
+	// Instruments records waiting-wake outcomes; nil disables the recording.
+	// The phase publish is the providing save for the phase_committed wait
+	// kind (#10876), so the wake runs in the same call — in the caller's
+	// transaction when the caller passes one (the backfill seam does), as a
+	// following statement otherwise.
+	Instruments *telemetry.Instruments
 }
 
 // NewGraphProjectionPhaseStateStore constructs a store backed by the provided
@@ -123,6 +130,29 @@ func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []gpph
 		}
 		if err := upsertGraphProjectionPhaseStateBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
+		}
+	}
+
+	// #10876: the phase publish is the providing save for the phase_committed
+	// wait kind. The wake runs in this call — inside the caller's transaction
+	// when the caller passes one (the backfill seam does), as a following
+	// statement otherwise. The key is coarser than one phase row on purpose:
+	// the claim gate and the handler re-check the exact requirement, so the
+	// wake is a hint that cannot start work early.
+	seen := make(map[string]struct{}, len(rows))
+	now := time.Now().UTC()
+	for _, row := range rows {
+		key := waitingScopeGenerationKey(row.Key.ScopeID, row.Key.GenerationID)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		if _, _, err := wakeWaitingByKey(ctx, s.database, s.Instruments, WaitingWakeSiteInTx,
+			WaitingKindPhaseCommitted, key, now); err != nil {
+			return fmt.Errorf("wake phase-committed waits: %w", err)
 		}
 	}
 

@@ -470,6 +470,11 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, re
 			return ErrReducerClaimRejected
 		}
 		q.recordServiceCatalogRetrigger(ctx, intent.Domain, intent.ScopeID, 1, retrigger)
+		// #10876: a terminal producer Ack reopens the waits that named it.
+		if err := wakeProducerTerminalAfterAck(ctx, q.database, q.Instruments,
+			[]reducercontract.Intent{intent}, q.now()); err != nil {
+			return fmt.Errorf("wake waiting items after ack: %w", err)
+		}
 		return nil
 	}
 	execResult, err := q.database.ExecContext(ctx, query, args...)
@@ -482,6 +487,12 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, re
 	}
 	if rowsAffected != 1 {
 		return ErrReducerClaimRejected
+	}
+
+	// #10876: a terminal producer Ack reopens the waits that named it.
+	if err := wakeProducerTerminalAfterAck(ctx, q.database, q.Instruments,
+		[]reducercontract.Intent{intent}, q.now()); err != nil {
+		return fmt.Errorf("wake waiting items after ack: %w", err)
 	}
 
 	return nil

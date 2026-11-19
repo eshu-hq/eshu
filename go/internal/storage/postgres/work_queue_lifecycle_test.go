@@ -276,6 +276,12 @@ func (f *fakeExecQueryer) QueryContext(
 	}
 
 	if len(f.queryResponses) == 0 {
+		if query == waitingSatisfiedQuery {
+			// #10876: the set-aside re-check on a fake with no staged
+			// provider state answers unsatisfied: the wait parks and the
+			// provider wake (or a staged live test) reopens it later.
+			return &queueFakeRows{rows: [][]any{{false}}}, nil
+		}
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
 		}

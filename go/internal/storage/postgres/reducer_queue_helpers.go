@@ -262,7 +262,8 @@ func (q ReducerQueue) failIntent(
 			retryFailureClass = probeClass
 		}
 		_, failureMessage, failureDetails := queuestore.QueueFailureMetadata(cause, retryFailureClass)
-		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource())
+		delay, waitEntry, parkWait := waitingParkDelay(retryFailureClass,
+			queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource()))
 		args := []any{
 			now,
 			retryFailureClass,
@@ -294,6 +295,11 @@ func (q ReducerQueue) failIntent(
 			q.Instruments.ReducerRetrySurge.Add(ctx, 1, metric.WithAttributes(
 				telemetry.AttrFailureClass(retryFailureClass),
 			))
+		}
+		if parkWait {
+			if _, err := setAsideWaiting(ctx, q.database, q.Instruments, intent, waitEntry, now); err != nil {
+				return fmt.Errorf("park waiting reducer work: %w", err)
+			}
 		}
 		return nil
 	}

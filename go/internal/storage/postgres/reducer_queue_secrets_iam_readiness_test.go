@@ -11,7 +11,6 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *testing.T) {
@@ -30,6 +29,8 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 
 	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-2",
 		AttemptCount: 42,
 	}
 
@@ -37,7 +38,7 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(db.execs), 2; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
@@ -56,13 +57,16 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 	if got, want := db.execs[0].args[1], secretsiam.SecretsIAMEndpointNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
-	// class keeps retrying indefinitely) drives the exponential term far past
-	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
-	// clamps to queuestore.DefaultRetryMaxDelayFallback rather than doubling
-	// forever.
-	if got, want := db.execs[0].args[4], now.Add(queuestore.DefaultRetryMaxDelayFallback); got != want {
+	// #10876: a parked readiness wait returns on the 10-minute backstop, not
+	// on the exponential backoff: the wait row carries the waits-for and the
+	// provider wake (or the audit) reopens it, so the backoff only bounds a
+	// wait the map does not park.
+	if got, want := db.execs[0].args[4], now.Add(WaitingBackstopDelay); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
+	}
+	// The park writes exactly one wait row for the deferred intent.
+	if got := db.execs[1].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
+		t.Fatalf("second exec is not the wait-row park: %s", got)
 	}
 }
 

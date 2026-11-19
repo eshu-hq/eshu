@@ -283,6 +283,11 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 		return ErrReducerClaimRejected
 	}
 
+	// #10876: terminal producer ACKs reopen the waits that named them.
+	if err := wakeProducerTerminalAfterAck(ctx, q.database, q.Instruments, intents, now); err != nil {
+		return fmt.Errorf("wake waiting items after batch ack: %w", err)
+	}
+
 	return nil
 }
 

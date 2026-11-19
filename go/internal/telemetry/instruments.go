@@ -3648,6 +3648,22 @@ type Instruments struct {
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
 	ReducerOwnGateWake metric.Int64Counter
+	// ReducerWaitingWake counts #10876 waiting-set-aside wake statements by
+	// site (in_tx, audit) and outcome (reopened, noop, error), once per
+	// statement. Registered by registerReducerWaitingInstruments.
+	ReducerWaitingWake metric.Int64Counter
+	// ReducerWaitingMissedWake counts #10876 waits the audit reopened a full
+	// audit interval after they parked. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
+	// recorded by the waiting audit each cycle. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingCount metric.Int64Gauge
+	// ReducerWaitingOldestAge is the oldest parked-wait age in seconds by
+	// reason (failure_class), recorded by the waiting audit each cycle.
+	// Registered by registerReducerWaitingInstruments.
+	ReducerWaitingOldestAge metric.Int64Gauge
 	// ReducerStaleSweptRows counts fact_work_items rows the #10863
 	// periodic stale-generation sweep terminalized as superseded.
 	// Registered by registerReducerStaleSweepInstruments.
@@ -7057,6 +7073,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerReducerWaitingInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerReducerStaleSweepInstruments(meter, inst); err != nil {

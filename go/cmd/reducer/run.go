@@ -177,6 +177,7 @@ func run(parent context.Context) error {
 	startSearchDocumentSweeper(ctx, db, logger)
 	startConfigStateDriftCatchUpSweeper(ctx, db, instruments, logger)
 	startReducerStaleGenerationSweeper(ctx, db, instruments, logger)
+	startReducerWaitingAuditor(ctx, db, instruments, logger)
 
 	return service.Run(ctx)
 }

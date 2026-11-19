@@ -147,6 +147,13 @@ func (q ProjectorQueue) Ack(
 	if err := oweProducerActivationObligation(ctx, tx, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		return fmt.Errorf("ack projector work: %w", err)
 	}
+	// #10876: the same activation reopens parked generation_active waits for
+	// this scope generation in the same transaction. A missed wake still
+	// resolves through the audit and the 10-minute backstop.
+	if _, _, err := wakeWaitingByKey(ctx, tx, q.Instruments, WaitingWakeSiteInTx,
+		WaitingKindGenerationActive, waitingScopeGenerationKey(work.Scope.ScopeID, work.Generation.GenerationID), now); err != nil {
+		return fmt.Errorf("ack projector work: wake waiting items: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
