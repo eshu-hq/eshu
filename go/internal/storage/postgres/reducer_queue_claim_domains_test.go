@@ -112,3 +112,55 @@ func TestClaimBatchCanFilterByMultipleDomains(t *testing.T) {
 		t.Fatalf("domain filter arg = %#v, want %#v", got, want)
 	}
 }
+
+// TestClaimBatchLiveFenceKeysStayGlobalAcrossDomains pins #10935: the
+// once-per-claim live-lease fence set must NOT carry the $2 domain
+// predicate even when the claim itself is domain-filtered. The fence keys
+// on (conflict_domain, ckey), not domain — a live holder in one deployment
+// must fence a candidate sharing that key in another, and the locked-CTE
+// EvalPlanQual recheck covers row-self arms only, so a scoped fence would
+// surface as a 23505 batch abort instead of a skipped candidate.
+func TestClaimBatchLiveFenceKeysStayGlobalAcrossDomains(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.April, 28, 14, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: nil},
+		},
+	}
+	queue := ReducerQueue{
+		database:      db,
+		LeaseOwner:    "code-graph-lane",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+		ClaimDomains: []reducercontract.Domain{
+			reducer.DomainSQLRelationshipMaterialization,
+			reducer.DomainInheritanceMaterialization,
+		},
+	}
+
+	if _, err := queue.ClaimBatch(context.Background(), 5); err != nil {
+		t.Fatalf("ClaimBatch() error = %v, want nil", err)
+	}
+
+	query := db.queries[0].query
+	fenceBody := cteBody(query, "live_fence_keys AS MATERIALIZED (", "reps_ranked AS MATERIALIZED (")
+	if fenceBody == "" {
+		t.Fatalf("batch claim query missing live_fence_keys CTE:\n%s", query)
+	}
+	for _, want := range []string{
+		"WHERE stage = 'reducer'",
+		"AND status IN ('claimed', 'running')",
+		"AND claim_until > $1",
+	} {
+		if !strings.Contains(fenceBody, want) {
+			t.Fatalf("live_fence_keys CTE body missing live predicate %q:\n%s", want, fenceBody)
+		}
+	}
+	for _, forbidden := range []string{"$2", "ANY(", "domain ="} {
+		if strings.Contains(fenceBody, forbidden) {
+			t.Fatalf("live_fence_keys CTE body must stay global across domains, found %q:\n%s", forbidden, fenceBody)
+		}
+	}
+}
