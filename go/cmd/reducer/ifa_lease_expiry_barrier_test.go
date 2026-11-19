@@ -42,6 +42,80 @@ func (leaseBarrierProbeOnlyStub) ExecuteProbe(context.Context, sourcecypher.Stat
 	return true, nil
 }
 
+// leaseBarrierCountedOnlyStub implements only the counted-write seam: it
+// proves wrapGraph advertises counted without requiring Group or Probe.
+type leaseBarrierCountedOnlyStub struct{ leaseBarrierExecuteOnlyStub }
+
+func (leaseBarrierCountedOnlyStub) ExecuteCountedWrite(context.Context, sourcecypher.Statement) (int64, error) {
+	return 7, nil
+}
+
+func (leaseBarrierCountedOnlyStub) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	out := make([]int64, len(stmts))
+	for i := range stmts {
+		out[i] = 7
+	}
+	return out, nil
+}
+
+type leaseBarrierGroupCountedStub struct {
+	leaseBarrierGroupOnlyStub
+	countedCalls atomic.Int32
+}
+
+func (s *leaseBarrierGroupCountedStub) ExecuteCountedWrite(context.Context, sourcecypher.Statement) (int64, error) {
+	s.countedCalls.Add(1)
+	return 7, nil
+}
+
+func (s *leaseBarrierGroupCountedStub) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	s.countedCalls.Add(1)
+	out := make([]int64, len(stmts))
+	for i := range stmts {
+		out[i] = 7
+	}
+	return out, nil
+}
+
+type leaseBarrierProbeCountedStub struct{ leaseBarrierProbeOnlyStub }
+
+func (leaseBarrierProbeCountedStub) ExecuteCountedWrite(context.Context, sourcecypher.Statement) (int64, error) {
+	return 7, nil
+}
+
+func (leaseBarrierProbeCountedStub) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	out := make([]int64, len(stmts))
+	for i := range stmts {
+		out[i] = 7
+	}
+	return out, nil
+}
+
+type leaseBarrierFullCountedStub struct {
+	*leaseBarrierGraphStub
+	countedCalls atomic.Int32
+}
+
+func (s *leaseBarrierFullCountedStub) ExecuteCountedWrite(context.Context, sourcecypher.Statement) (int64, error) {
+	s.countedCalls.Add(1)
+	if s.leaseBarrierGraphStub.fail {
+		return 0, errors.New("graph write failed")
+	}
+	return 7, nil
+}
+
+func (s *leaseBarrierFullCountedStub) ExecuteCountedWriteGroup(_ context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	s.countedCalls.Add(1)
+	if s.leaseBarrierGraphStub.fail {
+		return nil, errors.New("graph write failed")
+	}
+	out := make([]int64, len(stmts))
+	for i := range stmts {
+		out[i] = 7
+	}
+	return out, nil
+}
+
 func (s *leaseBarrierGraphStub) Execute(context.Context, sourcecypher.Statement) error {
 	s.calls.Add(1)
 	if s.fail {
@@ -296,25 +370,128 @@ func TestIfaLeaseExpiryBarrierPreservesOptionalCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		name  string
-		inner sourcecypher.Executor
-		group bool
-		probe bool
+		name    string
+		inner   sourcecypher.Executor
+		group   bool
+		probe   bool
+		counted bool
 	}{
-		{"execute-only", leaseBarrierExecuteOnlyStub{}, false, false},
-		{"group-only", leaseBarrierGroupOnlyStub{}, true, false},
-		{"probe-only", leaseBarrierProbeOnlyStub{}, false, true},
-		{"group-and-probe", &leaseBarrierGraphStub{}, true, true},
+		{"execute-only", leaseBarrierExecuteOnlyStub{}, false, false, false},
+		{"group-only", leaseBarrierGroupOnlyStub{}, true, false, false},
+		{"probe-only", leaseBarrierProbeOnlyStub{}, false, true, false},
+		{"group-and-probe", &leaseBarrierGraphStub{}, true, true, false},
+		{"counted-only", leaseBarrierCountedOnlyStub{}, false, false, true},
+		{"group-and-counted", &leaseBarrierGroupCountedStub{}, true, false, true},
+		{"probe-and-counted", leaseBarrierProbeCountedStub{}, false, true, true},
+		{"group-probe-and-counted", &leaseBarrierFullCountedStub{leaseBarrierGraphStub: &leaseBarrierGraphStub{}}, true, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wrapped := barrier.wrapGraph(tc.inner)
 			_, group := wrapped.(sourcecypher.GroupExecutor)
 			_, probe := wrapped.(sourcecypher.ProbeExecutor)
 			_, phase := wrapped.(sourcecypher.PhaseGroupExecutor)
-			if group != tc.group || probe != tc.probe || phase {
-				t.Fatalf("capabilities group=%t probe=%t phase=%t, want %t %t false", group, probe, phase, tc.group, tc.probe)
+			_, counted := wrapped.(sourcecypher.CountedWriteExecutor)
+			_, countedGroup := wrapped.(sourcecypher.CountedWriteGroupExecutor)
+			if group != tc.group || probe != tc.probe || phase || counted != tc.counted || countedGroup != tc.counted {
+				t.Fatalf("capabilities group=%t probe=%t phase=%t counted=%t/%t, want %t %t false %t %t",
+					group, probe, phase, counted, countedGroup, tc.group, tc.probe, tc.counted, tc.counted)
 			}
 		})
+	}
+}
+
+// TestIfaLeaseExpiryBarrierCountedWriteHoldsOnceAfterInnerSuccess proves the
+// counted seam runs the lease hold exactly like ExecuteGroup: one inner call,
+// then a hold that resolves only on the matching release, with the counts
+// delivered after the release.
+func TestIfaLeaseExpiryBarrierCountedWriteHoldsOnceAfterInnerSuccess(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lease")
+	barrier, err := newIfaLeaseExpiryBarrier(func(name string) string {
+		if name == ifaLeaseExpiryBarrierEnv {
+			return path
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := &leaseBarrierFullCountedStub{leaseBarrierGraphStub: &leaseBarrierGraphStub{}}
+	wrapped := barrier.wrapGraph(inner)
+	grouped, ok := wrapped.(sourcecypher.CountedWriteGroupExecutor)
+	if !ok {
+		t.Fatal("full counted inner did not expose CountedWriteGroupExecutor")
+	}
+	epoch := time.Now().UTC()
+	ctx := context.WithValue(context.Background(), ifaLeaseExpiryContextKey{}, ifaLeaseExpiryRecord{
+		WorkItemID: "counted-target", ClaimedAt: epoch.Format(time.RFC3339Nano), AttemptCount: 1,
+		Domain: string(reducer.DomainGCPResourceMaterialization),
+	})
+	type result struct {
+		counts []int64
+		err    error
+	}
+	done := make(chan result, 1)
+	stmts := []sourcecypher.Statement{{Operation: sourcecypher.OperationCanonicalUpsert}}
+	go func() { counts, err := grouped.ExecuteCountedWriteGroup(ctx, stmts); done <- result{counts, err} }()
+	held := awaitLeaseBarrierHeld(t, path)
+	if held.WorkItemID != "counted-target" {
+		t.Fatalf("held claim = %+v, want counted-target", held)
+	}
+	select {
+	case r := <-done:
+		t.Fatalf("counted handler returned while held: %v", r.err)
+	default:
+	}
+	release, _ := json.Marshal(ifaLeaseExpiryRecord{WorkItemID: held.WorkItemID, ClaimedAt: held.ClaimedAt})
+	if err := os.WriteFile(path+".release", release, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case r := <-done:
+		if r.err != nil {
+			t.Fatalf("released counted handler: %v", r.err)
+		}
+		if len(r.counts) != 1 || r.counts[0] != 7 {
+			t.Fatalf("counts = %v, want [7] from the single inner group call", r.counts)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("matching release did not finish the counted call")
+	}
+	if got := inner.countedCalls.Load(); got != 1 {
+		t.Fatalf("inner counted group calls = %d, want exactly 1", got)
+	}
+}
+
+// TestIfaLeaseExpiryBarrierCountedWriteSkipsHoldOnInnerError proves a failed
+// inner write never reaches the hold: the error propagates and no marker is
+// published.
+func TestIfaLeaseExpiryBarrierCountedWriteSkipsHoldOnInnerError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lease")
+	barrier, err := newIfaLeaseExpiryBarrier(func(name string) string {
+		if name == ifaLeaseExpiryBarrierEnv {
+			return path
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner := &leaseBarrierFullCountedStub{leaseBarrierGraphStub: &leaseBarrierGraphStub{fail: true}}
+	wrapped := barrier.wrapGraph(inner)
+	grouped, ok := wrapped.(sourcecypher.CountedWriteGroupExecutor)
+	if !ok {
+		t.Fatal("full counted inner did not expose CountedWriteGroupExecutor")
+	}
+	epoch := time.Now().UTC()
+	ctx := context.WithValue(context.Background(), ifaLeaseExpiryContextKey{}, ifaLeaseExpiryRecord{
+		WorkItemID: "counted-fail", ClaimedAt: epoch.Format(time.RFC3339Nano), AttemptCount: 1,
+		Domain: string(reducer.DomainGCPResourceMaterialization),
+	})
+	if _, err := grouped.ExecuteCountedWriteGroup(ctx, []sourcecypher.Statement{{}}); err == nil {
+		t.Fatal("counted group over a failing inner returned nil error")
+	}
+	if _, err := os.Stat(path + ".held.json"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed counted write published a hold marker: %v", err)
 	}
 }
 

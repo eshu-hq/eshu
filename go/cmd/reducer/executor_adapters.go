@@ -69,6 +69,15 @@ type reducerNeo4jExecutor struct {
 	retry   *sourcecypher.RetryingExecutor
 }
 
+// reducerNeo4jExecutor carries the #10938 counted-write seam: without these
+// forwards the whole production chain bottoms out here and every code-call
+// batch fails closed, so a future edit that removes one fails the build
+// (see the compile-time assertions below) rather than silently wedging the
+// lane. RetryingExecutor owns all retries; each forward is one inner call.
+var _ sourcecypher.CountedWriteExecutor = reducerNeo4jExecutor{}
+
+var _ sourcecypher.CountedWriteGroupExecutor = reducerNeo4jExecutor{}
+
 // newReducerNeo4jExecutor builds a reducerNeo4jExecutor around session with
 // its own persistent RetryingExecutor. instruments may be nil (no retry
 // counter recorded, matching the pre-#5048 default -- see the doc on
@@ -112,6 +121,26 @@ func (e reducerNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecy
 // and silently fall back to the unconditional DELETE it exists to skip.
 func (e reducerNeo4jExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
 	return e.retry.ExecuteProbe(ctx, stmt)
+}
+
+// ExecuteCountedWrite forwards to the same persistent RetryingExecutor
+// object as Execute and ExecuteGroup (#10938) -- same object, same reason:
+// the counted-write seam must survive from EdgeWriter down to the session
+// runner, and reducerNeo4jExecutor is the layer where the production chain
+// would otherwise bottom out with ErrCountedWriteUnsupported and wedge every
+// code-call batch in retry-then-dead-letter. RetryingExecutor owns retries;
+// a runner without the seam fails closed there (never silent completion).
+func (e reducerNeo4jExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	return e.retry.ExecuteCountedWrite(ctx, stmt)
+}
+
+// ExecuteCountedWriteGroup forwards to the same persistent RetryingExecutor
+// object (#10938), same rationale as ExecuteCountedWrite: the group path is
+// the one executeCodeCallCountedStatements prefers, and the counts align
+// with stmts only when the whole group commits, which is exactly what the
+// retry seam guarantees.
+func (e reducerNeo4jExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	return e.retry.ExecuteCountedWriteGroup(ctx, stmts)
 }
 
 // reducerCypherExecutor adapts a cypherRunner to the reducer.CypherExecutor
