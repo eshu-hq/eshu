@@ -539,7 +539,7 @@ func buildReducerService(
 			graphProjectionReadinessPrefetch,
 			repoDependencyCfg, tracer, instruments, logger,
 		),
-		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),
+		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, getenv, instruments, logger),
 		GraphProjectionPhaseRepairer: graphProjectionPhaseRepairerFor(
 			graphProjectionRepairQueue, database, graphProjectionStateStore, repairCfg, clk, instruments, logger,
 		),

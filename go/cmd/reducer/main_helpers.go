@@ -284,23 +284,32 @@ func incidentRepositoryCorrelationWiring(database db.ExecQueryer, instruments *t
 // codeReachabilityProjectionRunnerFor wires the reachability read-model runner.
 // It reuses the backend-aware reducer worker count (ESHU_REDUCER_WORKERS) as the
 // disjoint-partition fan-out so operators tune both with one knob; the runner
-// clamps the value to the host CPU count.
+// clamps the value to the host CPU count. The #10870 idle-probe knobs (backoff
+// cap, audit cadence, kill-switch) flow from the environment with package
+// defaults.
 func codeReachabilityProjectionRunnerFor(
 	database db.ExecQueryer,
 	sharedCfg worker.RunnerConfig,
 	concurrency int,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) *codeintel.CodeReachabilityProjectionRunner {
 	store := reachabilitystore.NewCodeReachabilityStore(database)
+	maxPollInterval, auditInterval, idleProbeDisabled := loadCodeReachabilityProjectionIdleTuning(getenv)
 	return &codeintel.CodeReachabilityProjectionRunner{
 		InputLoader: store,
 		RowWriter:   store,
 		Config: codeintel.CodeReachabilityProjectionRunnerConfig{
-			PollInterval: sharedCfg.PollInterval,
-			BatchLimit:   sharedCfg.BatchLimit,
-			Concurrency:  concurrency,
+			PollInterval:     sharedCfg.PollInterval,
+			BatchLimit:       sharedCfg.BatchLimit,
+			Concurrency:      concurrency,
+			MaxPollInterval:  maxPollInterval,
+			AuditInterval:    auditInterval,
+			DisableIdleProbe: idleProbeDisabled,
 		},
-		Logger: logger,
+		Instruments: instruments,
+		Logger:      logger,
 	}
 }
 

@@ -15,6 +15,14 @@
 // domain — and replaces each partition's rows through a
 // [CodeReachabilityRowWriter] in one transaction.
 //
+// The runner is idle-gated (#10870): each cycle first runs the cursor probe
+// ([CodeReachabilityInputLoader.LatestCompletedIntentTime], two backward
+// index-only tip scans) and runs the full candidate query only when the
+// probe advanced, failed, regressed, is unknown, or the audit interval
+// elapsed. Empty cycles back off exponentially to MaxPollInterval; the
+// audit bounds every non-intent transition to AuditInterval. See the
+// package README for the scheduling contract and pickup bounds.
+//
 // [BuildCodeRootVerdicts] is the repo-wide decision that keeps that
 // reachable-set honest for Ruby-on-Rails controller actions. The parser roots
 // a controller action whenever its declared base class is unresolved in that

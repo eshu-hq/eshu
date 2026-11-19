@@ -95,19 +95,54 @@ imports it to implement `CodeReachabilityInputLoader` and
 wires the concrete runner. Import is one-way: this package never imports
 back.
 
+## Scheduling contract (#10870)
+
+The runner is idle-gated. Each cycle first runs the cursor probe
+(`LatestCompletedIntentTime`: one per-domain newest-`completed_at`, two
+backward index-only tip scans, O(1) in ready runs) and runs the full
+candidate query only when the probe advanced past the cursor, the probe
+failed, the probe regressed (reopen/failover), the cursor is unknown
+(startup), the previous full query was productive (backlog drain), or the
+audit interval elapsed. A probe-equal cycle with no due audit and no
+productive predecessor costs one probe and no full query.
+
+Pickup bounds: (a) intent-completion-driven readiness is processed at most
+`MaxPollInterval` (default 30s) after the completing intent commits, plus one
+full-query/batch drain — empty cycles back off exponentially from
+`PollInterval`, doubling per consecutive empty cycle, capped at
+`MaxPollInterval`; a productive cycle resets to base and re-polls
+immediately, and a productive full query forces the next cycle to run the
+full query again so a static backlog drains one batch per cycle instead of
+one batch per audit. (b) Every other readiness transition (a
+materialization ack landing after all intent completions, a generation
+activation, a reopen, a verdict-schema-epoch bump re-arming all runs with
+no intent movement) is processed at most `AuditInterval` (default 15m)
+after it lands, plus the same drain. `ESHU_CODE_REACHABILITY_PROJECTION_IDLE_PROBE=false` restores
+full-query-every-poll. The knobs are
+`ESHU_CODE_REACHABILITY_PROJECTION_MAX_POLL_INTERVAL`,
+`ESHU_CODE_REACHABILITY_PROJECTION_AUDIT_INTERVAL`, and
+`ESHU_CODE_REACHABILITY_PROJECTION_IDLE_PROBE`.
+
 ## Telemetry
 
-This package emits no metric or span of its own. The runner's execution is
-covered by the reducer's standard `eshu_dp_reducer_executions_total` /
-`eshu_dp_reducer_run_duration_seconds`, plus
-`eshu_dp_postgres_query_duration_seconds` for the class-registry and route-fact
-loads and the atomic row replacement. Per-cycle outcomes surface through the
-runner's "code reachability projection completed" structured log
+The runner records the #10870 idle-probe signals:
+`eshu_dp_code_reachability_projection_cycles_total` by closed kind
+(`probe_skip`, `probe_triggered_full`, `audit_full`, `productive`),
+`eshu_dp_code_reachability_projection_inputs_found_total` by closed trigger
+(`probe`, `audit`), and the
+`eshu_dp_code_reachability_projection_backoff_seconds` gauge. The runner's
+execution is additionally covered by the reducer's standard
+`eshu_dp_reducer_executions_total` / `eshu_dp_reducer_run_duration_seconds`,
+plus `eshu_dp_postgres_query_duration_seconds` for the class-registry and
+route-fact loads and the atomic row replacement. Per-cycle outcomes surface
+through the runner's "code reachability projection completed" structured log
 (`verdicts_written`, `verdicts_downgraded`, `verdicts_route_downgraded`,
-`verdicts_inconclusive_missing_context`) and the per-partition "code root
-controller verdicts downgraded" log. See
+`verdicts_inconclusive_missing_context`), the per-partition "code root
+controller verdicts downgraded" log, and the audit's "code reachability
+projection audit completed" log (`input_count`, including zero). See
 `docs/public/observability/telemetry-coverage.md` rows for "projection
-(code-root controller verdicts)" and "projection (code-root route liveness)".
+(code-root controller verdicts)", "projection (code-root route liveness)",
+and "projection (code reachability idle probe)".
 
 ## Gotchas / invariants
 

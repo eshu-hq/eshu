@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/storage/postgres/code/reachability": {
+        "go/internal/storage/postgres/code/reachability/idle_probe_live_test.go": (
+            "TestIdleProbeLiveProof",
+        ),
         "go/internal/storage/postgres/code/reachability/loader_completed_index_live_test.go": (
             "TestCodeReachabilityLoaderUsesCompletedIntentsIndex",
         ),

@@ -171,6 +171,29 @@ func loadSharedEdgeWriterGroupTuning(getenv func(string) string) (int, int) {
 		loadPositiveIntOrDefault(getenv, sqlRelationshipEdgeGroupBatchSizeEnv, defaultSQLRelationshipEdgeGroupBatchSize)
 }
 
+const (
+	codeReachabilityProjectionMaxPollIntervalEnv = "ESHU_CODE_REACHABILITY_PROJECTION_MAX_POLL_INTERVAL"
+	codeReachabilityProjectionAuditIntervalEnv   = "ESHU_CODE_REACHABILITY_PROJECTION_AUDIT_INTERVAL"
+	codeReachabilityProjectionIdleProbeEnv       = "ESHU_CODE_REACHABILITY_PROJECTION_IDLE_PROBE"
+
+	defaultCodeReachabilityProjectionMaxPollInterval = 30 * time.Second
+	defaultCodeReachabilityProjectionAuditInterval   = 15 * time.Minute
+)
+
+// loadCodeReachabilityProjectionIdleTuning reads the #10870 idle-probe knobs:
+// the backoff cap (intent-completion-driven pickup bound), the full-query
+// audit cadence (every other transition bound), and the probe kill-switch
+// (false restores full-query-every-poll). Unset or unparsable values fall
+// back to the owning package's defaults without failing startup.
+func loadCodeReachabilityProjectionIdleTuning(getenv func(string) string) (maxPollInterval, auditInterval time.Duration, idleProbeDisabled bool) {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	return loadDurationOrDefault(getenv, codeReachabilityProjectionMaxPollIntervalEnv, defaultCodeReachabilityProjectionMaxPollInterval),
+		loadDurationOrDefault(getenv, codeReachabilityProjectionAuditIntervalEnv, defaultCodeReachabilityProjectionAuditInterval),
+		!loadBoolOrDefault(getenv, codeReachabilityProjectionIdleProbeEnv, true)
+}
+
 func loadGraphProjectionPhaseRepairConfig(getenv func(string) string) repair.Config {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
