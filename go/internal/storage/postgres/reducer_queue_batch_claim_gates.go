@@ -163,6 +163,18 @@ func reducerClaimReadinessMissingPredicateSQL() string {
 // under the anti-join and replays the live-lease scan per candidate row —
 // the exact per-row shape this removes (the same marker the #10863 stale
 // gate CTEs carry for the same reason).
+//
+// The set is intentionally GLOBAL across claim domains: it carries no $2
+// domain predicate, and none must ever be added (#10935). The fence keys on
+// (conflict_domain, ckey), not domain, so a live holder in one deployment
+// must fence a candidate sharing that key in another — that cross-domain
+// exclusion is the fence's purpose. Scoping it would not be saved by the
+// locked-CTE EvalPlanQual recheck (which covers row-self arms only): the
+// global live-lease unique index would fire 23505 on the conflicting
+// claimed UPDATE and abort the whole batch, starving it deterministically
+// while the other deployment's holder lives. Only admission (base,
+// single-claim twin, stale gate, sweep) is domain-scoped; every live-lease
+// fence (batch here, single-claim inflight probe) stays global by design.
 func reducerClaimLiveFenceKeysCTE() string {
 	return `live_fence_keys AS MATERIALIZED (
     SELECT DISTINCT conflict_domain, COALESCE(conflict_key, scope_id) AS ckey
