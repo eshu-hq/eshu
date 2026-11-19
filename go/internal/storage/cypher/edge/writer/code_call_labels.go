@@ -152,6 +152,13 @@ func isCodeInstantiatesTargetLabel(label string) bool {
 	return ok
 }
 
+// Every code-call template reports `RETURN count(rel) AS matched`,
+// atomically with the write (#10938). The RETURN rides the same UNWIND
+// statement: the statement count per WriteEdges call is unchanged, and the
+// count is atomic with the MERGE — first-generation absence and non-atomic
+// re-projection clear are both caught regardless of when the endpoint
+// vanished. The tail lives inside the format literals (not a post-Sprintf
+// concat) so row shaping pays no extra string build per row.
 func buildLabelScopedCodeCallCypher(sourceLabel string, targetLabel string) string {
 	return fmt.Sprintf(`UNWIND $rows AS row
 MATCH (source:%s {uid: row.caller_entity_id})
@@ -161,7 +168,8 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`, sourceLabel, targetLabel)
 }
 
 func buildLabelScopedCodeReferenceCypher(sourceLabel string, targetLabel string) string {
@@ -173,7 +181,8 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`, sourceLabel, targetLabel)
 }
 
 func buildLabelScopedInstantiatesCypher(sourceLabel string, targetLabel string) string {
@@ -185,7 +194,8 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`, sourceLabel, targetLabel)
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`, sourceLabel, targetLabel)
 }
 
 func annotateEdgeStatementSummaries(domain string, cypher string, stmts []sourcecypher.Statement) {

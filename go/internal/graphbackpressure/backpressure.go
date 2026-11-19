@@ -292,6 +292,15 @@ func NewGate(maxInFlight int, instruments *telemetry.Instruments, gateName strin
 // eshu_dp_rationale_retract_probe_outcomes_total with outcome="unsupported"
 // rather than passing silently. Widen this check if that assumption stops
 // holding.
+//
+// The #10938 counted-write seam follows the GroupExecutor bundle by the same
+// rule: BackpressureExecutor forwards both counted methods whenever the type
+// exposes them, so the full branch preserves the seam exactly when inner has
+// it, and the execute-only branch hides it. A Group inner without the seam
+// still advertises CountedWriteExecutor through the wrapper type but fails
+// every counted call with ErrCountedWriteUnsupported (fail-closed, never a
+// silent unverified write); the code-call chain's root adapter, not this
+// wrapper, is where that seam must be provided.
 func WrapExecutorWithGate(inner cypher.Executor, gate *cypher.BackpressureGate) cypher.Executor {
 	if gate == nil {
 		return inner

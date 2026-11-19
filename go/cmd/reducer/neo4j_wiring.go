@@ -103,6 +103,10 @@ func (r neo4jSessionRunner) RunCypherGroup(ctx context.Context, stmts []sourcecy
 	return err
 }
 
+// Counted-write execution lives beside the seam in neo4j_counted_write.go:
+// the runner collects each statement's MatchedCountColumn RETURN row before
+// Consume, so the matched count is atomic with the write (#10938).
+
 func (r neo4jSessionRunner) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {
 	if r.TxTimeout <= 0 {
 		return nil

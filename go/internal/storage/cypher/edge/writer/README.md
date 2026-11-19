@@ -42,6 +42,17 @@ the package contract.
   `shared_edge_target_not_ready`), `missing_edge` (counting
   `deployable_unit_edge_write_unverified`), `probe_error` (counting, no class).
   A miss logs a WARN with the verdict and sample ids.
+- Code-call writes verify matched-vs-submitted counts atomically with the
+  write (#10938): every code-call template reports
+  `RETURN count(rel) AS matched` and `reconcileCodeCallMatchedCounts`
+  (`code_call_matched.go`) reconciles before the caller completes anything.
+  `eshu_dp_code_call_edge_submitted_rows_total` /
+  `eshu_dp_code_call_edge_matched_rows_total` carry the verified counts
+  (bounded `domain`); a shortfall on an enforced relationship parks the batch
+  with the retryable non-counting `shared_edge_target_not_ready` class and
+  counts on `eshu_dp_shared_edge_target_miss_total{domain=code_calls}`. An
+  executor without the counted-write seam fails the batch closed with the
+  retryable `codeCallCountingError`, never silently.
 - `eshu_dp_canonical_repository_stubs_created_total{writer}` counts the
   path-less `Repository` stubs the `repo_dependency` and `submodule_pin`
   upserts MERGE-create by id (#7446), from the backend's `NodesCreated`,
@@ -52,7 +63,10 @@ the package contract.
 
 - Keep every Cypher template byte-identical when moving code; statement or
   predicate changes need their own issue with `EXPLAIN` and contention
-  proof per `cypher-query-rigor`.
+  proof per `cypher-query-rigor`. The one sanctioned template-shape change is
+  the #10938 `RETURN count(rel) AS matched` tail on code-call templates: it
+  rides the same `UNWIND` statement (statement count unchanged) so the write
+  verifies itself atomically.
 - Whole-scope narrowing must keep its single sanctioned call site
   (`retract_narrowing_test.go` guards this).
 - Test fakes duplicated from `package cypher` (`bolt_harness_test.go`,

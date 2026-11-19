@@ -327,6 +327,10 @@ var errDifferentialNoExecuteProbe = errors.New("differential inner executor does
 // for the same group-capable case.
 var errDifferentialNoExecuteCountProbe = errors.New("differential inner executor does not support ExecuteCountProbe")
 
+// errDifferentialNoExecuteCountedWrite is the counted-write counterpart for
+// the same group-capable case (#10938).
+var errDifferentialNoExecuteCountedWrite = errors.New("differential inner executor does not support counted writes")
+
 func (e differentialExecutorRecorder) Execute(ctx context.Context, stmt sourcecypher.Statement) error {
 	return e.recorded(ctx, stmt, func(call context.Context) error {
 		return e.inner.Execute(call, stmt)
@@ -372,6 +376,11 @@ func (e differentialGroupRecorder) ExecuteCountProbe(ctx context.Context, stmt s
 		return prober.ExecuteCountProbe(ctx, stmt)
 	})
 }
+
+// Counted-write forwarding lives beside the seam in
+// differential_counted_write.go: the recorders forward both counted-write
+// methods and record the statements exactly like Execute/ExecuteGroup, so
+// capture mode preserves the production dispatch without skewing digests.
 
 // recordedCountProbe captures a count probe as a one-row read: the count is
 // the row, so a backend that counts differently digests differently,

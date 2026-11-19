@@ -308,6 +308,88 @@ func (e TimeoutExecutor) ExecuteCountProbe(ctx context.Context, stmt Statement) 
 	return count, err
 }
 
+// ExecuteCountedWrite forwards one counted write with an optional deadline
+// when the wrapped executor supports it (#10938). Timeout and cancellation
+// map to the same GraphWriteTimeoutError shape as Execute with a
+// counted-write operation label, so operators can tell which write flavor
+// timed out.
+func (e TimeoutExecutor) ExecuteCountedWrite(ctx context.Context, stmt Statement) (int64, error) {
+	if e.Inner == nil {
+		return 0, fmt.Errorf("inner executor is required")
+	}
+	cw, ok := e.Inner.(CountedWriteExecutor)
+	if !ok {
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountedWrite: %w", ErrCountedWriteUnsupported)
+	}
+	if e.Timeout <= 0 {
+		return cw.ExecuteCountedWrite(ctx, stmt)
+	}
+
+	execCtx, cancel := context.WithTimeout(ctx, e.Timeout)
+	defer cancel()
+
+	count, err := cw.ExecuteCountedWrite(execCtx, stmt)
+	if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		return 0, timeoutError(
+			"neo4j execute counted write timed out",
+			e.Timeout,
+			e.TimeoutHint,
+			statementSummary(stmt),
+			context.DeadlineExceeded,
+		)
+	}
+	if errors.Is(execCtx.Err(), context.Canceled) {
+		return 0, timeoutError(
+			"neo4j execute counted write canceled before completion",
+			0,
+			"",
+			statementSummary(stmt),
+			context.Canceled,
+		)
+	}
+	return count, err
+}
+
+// ExecuteCountedWriteGroup forwards grouped counted writes with an optional
+// deadline when the wrapped executor supports them (#10938), with the same
+// GraphWriteTimeoutError mapping as ExecuteGroup.
+func (e TimeoutExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []Statement) ([]int64, error) {
+	if e.Inner == nil {
+		return nil, fmt.Errorf("inner executor is required")
+	}
+	cw, ok := e.Inner.(CountedWriteGroupExecutor)
+	if !ok {
+		return nil, fmt.Errorf("inner executor does not support ExecuteCountedWriteGroup: %w", ErrCountedWriteUnsupported)
+	}
+	if e.Timeout <= 0 {
+		return cw.ExecuteCountedWriteGroup(ctx, stmts)
+	}
+
+	execCtx, cancel := context.WithTimeout(ctx, e.Timeout)
+	defer cancel()
+
+	counts, err := cw.ExecuteCountedWriteGroup(execCtx, stmts)
+	if errors.Is(execCtx.Err(), context.DeadlineExceeded) {
+		return nil, timeoutError(
+			"neo4j execute counted write group timed out",
+			e.Timeout,
+			e.TimeoutHint,
+			statementGroupSummary(stmts),
+			context.DeadlineExceeded,
+		)
+	}
+	if errors.Is(execCtx.Err(), context.Canceled) {
+		return nil, timeoutError(
+			"neo4j execute counted write group canceled before completion",
+			0,
+			"",
+			statementGroupSummary(stmts),
+			context.Canceled,
+		)
+	}
+	return counts, err
+}
+
 func timeoutError(prefix string, timeout time.Duration, timeoutHint string, summary string, cause error) error {
 	if errors.Is(cause, context.DeadlineExceeded) {
 		return GraphWriteTimeoutError{

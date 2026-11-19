@@ -269,7 +269,10 @@ func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ 
 		rows:           append([]sharedintent.Row(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
-	return sharedintent.WriteReport{}, nil
+	// Mirror the production writer's happy path: every row the tests hand
+	// to the fake routes and matches, so the report carries full counts
+	// (#10938). Tests that need a shortfall script shortfallCodeCallWriter.
+	return sharedintent.WriteReport{SubmittedRows: len(rows), MatchedRows: len(rows)}, nil
 }
 
 type flakyCodeCallProjectionEdgeWriter struct {
