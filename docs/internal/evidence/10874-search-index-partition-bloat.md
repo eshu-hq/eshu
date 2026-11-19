@@ -29,6 +29,54 @@ Top-5 largest sibling leaves by `pg_total_relation_size` (exact bytes):
 p03 34,493,464,576; p18 26,710,106,112; p62 17,195,106,304;
 p59 16,625,410,048; p48 13,856,219,216.
 
+## No-Regression Evidence: the per-pass census costs one ~5 ms catalog-only statement
+
+Baseline: before this lane the retention runner issued zero statements about
+partition sizes; the only size signal was the stale `reltuples` estimate
+(6x off exact on p29), which is why p29/p07 grew to 193/37 GB unnoticed.
+
+After: `TakePartitionSizeCensus` issues exactly one statement per due pass
+(pinned by `TestTakePartitionSizeCensusReadsOneCatalogPass`, which fails on
+any second statement), and the runner runs it at most once per poll interval
+(pinned by `TestGenerationRetentionRunnerCensusesPartitionSizesOncePerPollInterval`).
+
+Backend/version: throwaway PostgreSQL 18.6 cluster on this machine
+(socket-only, dropped after the run), schema `PARTITION BY HASH(scope_id)`
+with 64 empty-index leaves matching production DDL, 200,000 terms rows +
+20,000 documents rows loaded, `VACUUM ANALYZE` run. Input shape: the exact
+`partitionSizeCensusQuery` text from `sql.go`, `EXPLAIN (ANALYZE, COSTS OFF,
+TIMING OFF)` x5: 5.515 / 5.697 / 5.161 / 5.271 / 5.238 ms. The plan touches
+only catalog relations (`pg_class`, `pg_index`, `pg_namespace`,
+`pg_stat_user_tables`); zero scans on any `eshu_search_index_terms_pNN`
+leaf. The statement takes the same `ACCESS SHARE` leaf locks as the existing
+per-leaf orphan-census SELECTs, and a census error is recorded on
+`eshu_dp_generation_retention_failures_total{reason="search_index_partition_size_census"}`
+without failing the pass (pinned by runner test), so a catalog hiccup can
+never stall retention.
+
+The parity snapshot (`TakePartitionParitySnapshot`) is a full-leaf scan by
+design (0.3 ms over ~2k rows on the same fixture, not a scale claim) and
+never runs on the hot path: only on the copy, before and after the
+rebuild-equivalent operation. Telemetry/log/status proof: `go test`
+`./internal/storage/postgres/search/index/retention/`
+`./internal/reducer/maintenance/retention/` `./internal/telemetry/` all
+green in this lane, plus the three new tests above; live copy wall-time /
+WAL / lock-wait numbers stay NOT_CHECKED until the copy run (table below).
+
+## Observability Evidence: new series are bounded and closed-label
+
+`eshu_dp_search_index_partition_bytes{partition,component}`,
+`eshu_dp_search_index_partition_estimated_rows{partition}`,
+`eshu_dp_search_index_partition_bytes_per_row{partition,component}`:
+`partition` is the closed p00-p63 set, `component` is heap/index/total;
+scope_id and generation_id never reach labels (they ride the WARN log line
+and span events only, per the existing `SpanGenerationRetentionExpiredReport`
+precedent). One `generation retention search index partition size suspect`
+WARN per suspect leaf per pass; one
+`census_search_index_partition_sizes` sample per pass on the phase
+histogram. Covered by `TestSearchIndexPartitionInstrumentsRecordClosedLabels`
+and `TestGenerationRetentionRunnerRecordsPartitionSizes`.
+
 ## What this lane shipped
 
 - `TakePartitionSizeCensus` + `ClassifyPartitionSize` + parity snapshot

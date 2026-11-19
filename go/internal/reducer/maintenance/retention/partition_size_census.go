@@ -107,7 +107,9 @@ func (r *Runner) recordPartitionSizes(ctx context.Context, result PartitionSizes
 		return
 	}
 	for _, leaf := range result.Leaves {
-		if leaf.Suspect == "" {
+		switch leaf.Suspect {
+		case partitionSizeSuspectWarn, partitionSizeSuspectPage:
+		default:
 			continue
 		}
 		r.Logger.WarnContext(
