@@ -241,7 +241,7 @@ func (e *handlerAbandonedError) Retryable() bool { return true }
 
 // HandlerTimeoutFor resolves the configured handler bound for one domain:
 // the per-domain override when present, else the default. Zero means no bound
-// is configured. Step (a) of #8211 records the slot without enforcing it.
+// is configured. A positive bound is enforced by executeHandler (#10866).
 func (s Service) HandlerTimeoutFor(domain reducercontract.Domain) time.Duration {
 	if s.HandlerTimeoutOverrides != nil {
 		if bound, ok := s.HandlerTimeoutOverrides[domain]; ok {

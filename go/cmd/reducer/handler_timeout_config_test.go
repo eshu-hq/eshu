@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 func TestLoadReducerHandlerTimeoutDefaultsToZero(t *testing.T) {
@@ -81,6 +82,61 @@ func TestLoadReducerHandlerTimeoutOverridesParsesDomains(t *testing.T) {
 	}
 }
 
+// TestLoadReducerHandlerTimeoutOverridesAcceptsZeroExemption pins #10945
+// review: an explicit domain=0s exempts that domain from a default bound
+// (HandlerTimeoutFor returns a present 0 as-is), so the loader must store
+// 0 rather than fail startup.
+func TestLoadReducerHandlerTimeoutOverridesAcceptsZeroExemption(t *testing.T) {
+	t.Parallel()
+
+	getenv := func(name string) string {
+		if name == reducerHandlerTimeoutOverridesEnv {
+			return "workload_materialization=0s"
+		}
+		return ""
+	}
+	overrides, err := loadReducerHandlerTimeoutOverrides(getenv)
+	if err != nil {
+		t.Fatalf("loadReducerHandlerTimeoutOverrides() error = %v, want nil", err)
+	}
+	bound, ok := overrides[reducer.DomainWorkloadMaterialization]
+	if !ok {
+		t.Fatalf("overrides = %v, want workload_materialization present", overrides)
+	}
+	if bound != 0 {
+		t.Fatalf("override workload_materialization = %v, want 0 (exempt)", bound)
+	}
+}
+
+// TestHandlerTimeoutsEnforced pins the startup-log branch: only a positive
+// default or a positive override counts as enforced. An all-zero
+// configuration (including pure-0s exemption maps) must log disabled.
+func TestHandlerTimeoutsEnforced(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		def       time.Duration
+		overrides map[reducercontract.Domain]time.Duration
+		want      bool
+	}{
+		{"unset", 0, nil, false},
+		{"all-zero overrides", 0, map[reducercontract.Domain]time.Duration{reducer.DomainWorkloadMaterialization: 0}, false},
+		{"positive default", 5 * time.Minute, nil, true},
+		{"positive override", 0, map[reducercontract.Domain]time.Duration{reducer.DomainWorkloadMaterialization: 5 * time.Minute}, true},
+		{"mixed zero and positive", 0, map[reducercontract.Domain]time.Duration{reducer.DomainWorkloadMaterialization: 0, reducer.DomainServiceCatalogCorrelation: time.Minute}, true},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := handlerTimeoutsEnforced(tt.def, tt.overrides); got != tt.want {
+				t.Fatalf("handlerTimeoutsEnforced(%v, %v) = %v, want %v", tt.def, tt.overrides, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadReducerHandlerTimeoutOverridesEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -100,7 +156,7 @@ func TestLoadReducerHandlerTimeoutOverridesRejectsBadEntries(t *testing.T) {
 		"no-equals-here",
 		"not_a_domain=5m",
 		"workload_materialization=forever",
-		"workload_materialization=0s",
+		"workload_materialization=-5m",
 		"workload_materialization=5m,",
 		"workload_materialization=5m,workload_materialization=10m",
 	} {
