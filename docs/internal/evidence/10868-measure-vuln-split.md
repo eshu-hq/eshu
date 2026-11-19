@@ -12,11 +12,11 @@ domains in cleanup and ranking. Verified by reading (worktree at `origin/main`
 
 | Surface | Scoped by claim domains? | Evidence |
 | --- | --- | --- |
-| Batch-claim admission (`base`) | Yes — `AND ($2::text[] IS NULL OR domain = ANY($2::text[]))` | `go/internal/storage/postgres/reducer_queue_batch_query.go:143` |
-| Single-claim admission | Yes — same predicate | `go/internal/storage/postgres/reducer_queue_claim_query.go:42` |
+| Batch-claim admission (`base`) | Yes — `AND ($2::text[] IS NULL OR domain = ANY($2::text[]))` | `[batch admission predicate](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_queue_batch_query.go#L143)` |
+| Single-claim admission | Yes — same predicate | `[single-claim admission predicate](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_queue_claim_query.go#L42)` |
 | Representative ranking | Transitively yes — `reps_ranked`/`reps` derive `FROM base` | `reducer_queue_batch_query.go:166-192` |
-| Stale-generation fence in claim | Yes — `stale.domain = ANY($2)` | `go/internal/storage/postgres/reducer_claim_stale_gate_sql.go:80` |
-| Standalone stale sweep | Yes — passes `q.claimDomainFilters()` as `$2`; shared (unfiltered) sweeper queues sweep all; `SKIP LOCKED` keeps overlap safe | `go/internal/storage/postgres/reducer_stale_generation_sweep.go:61-68,102`, helpers `reducer_queue_helpers.go:46-66` |
+| Stale-generation fence in claim | Yes — `stale.domain = ANY($2)` | `[stale-generation fence](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_claim_stale_gate_sql.go#L80)` |
+| Standalone stale sweep | Yes — passes `q.claimDomainFilters()` as `$2`; shared (unfiltered) sweeper queues sweep all; `SKIP LOCKED` keeps overlap safe | `[standalone stale sweep](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/storage/postgres/reducer_stale_generation_sweep.go#L61)` (lines 61-68 and 102), helpers `reducer_queue_helpers.go:46-66` |
 | Readiness gate | Per-row, not claim-filter limited — and that is sufficient: the gate keys on the row's own domain (`reducerClaimReadinessGateSQL`, `reducer_queue_readiness_sql.go:300-307`), and `supply_chain_impact` has no row in the requirements `VALUES` list (`:273-297`), so it passes vacuously. A filtered claim never pays other domains' readiness rows beyond the base scan. | `reducer_queue_readiness_sql.go:273-307` |
 | Live-lease fence (`live_fence_keys`) | NO — unfiltered; see verdict below | `reducer_queue_batch_claim_gates.go:166-174` |
 
@@ -49,7 +49,7 @@ resolutions (add `$2` filter vs document global fence).
   `security_alert_reconciliation` pending census — 1 row in the mix).
   REJECTED: G unfiltered (nil = all domains, so G would race V).
 - G (everything else) = explicit complement: `AllDomains()` minus V,
-  generated at run time (`go/internal/reducer/domain.go:30`), frozen
+  generated at run time (`[domain registry](https://github.com/eshu-hq/eshu/blob/b9267c233673b08bb6a064450477cabd5b55de37/go/internal/reducer/domain.go#L30)`), frozen
   into both deployment values before any measured run.
 - Source->domain mapping must come from the census, not from code:
   the claim filter is on `domain` while the issue counts
