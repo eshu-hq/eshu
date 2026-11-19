@@ -93,6 +93,8 @@ ifa_live_gate_fault_only_seams=(
 	# files did.
 	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_shard_cells.sh'
 	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_generic_cells.sh'
+	'scripts/lib/ifa_fault_*.sh|scripts/lib/ifa_fault_generic_blocked_claim.sh'
+	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-generic-blocked-claim-cases.sh'
 	'scripts/lib/test-ifa-fault-injection-*.sh|scripts/lib/test-ifa-fault-injection-shard-cases.sh'
 	# The two files that were DARK on main (#6200): both split out under the
 	# 500-line cap, both absent from the registry and from

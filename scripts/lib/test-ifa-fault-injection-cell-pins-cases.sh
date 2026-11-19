@@ -266,7 +266,7 @@ run_ifa_fault_injection_cell_pins_cases() {
 	# generically, driven by the family argument every cell already passes).
 	[[ "$(_ifa_count_code_matches 'scripts/lib/ifa_fault_generic_cells.sh' "${sources_lib}")" -ge 1 ]] \
 		|| fail "generic-cell dispatcher is not sourced by the gate source inventory"
-	require_generic_cells "generic kill cell proves a retry above baseline" "ifa_fault_assert_retried_above"
+	require_generic_cells "generic kill cell proves per-row monotonic re-execution above its kill snapshot, not a count above baseline" "ifa_fault_assert_killed_claims_reexecuted"
 	require_generic_cells "generic graph-write cell selects queue-retry" '"queue-retry"'
 	require_generic_cells "generic graph-write cell targets the durable once-fired marker" "ifa_fault_assert_once_fault_marker"
 	require_generic_cells "generic graph-write cell asserts edges by the registry's per-family domain" 'assert-edges -domain "${family}" -expected "${expected}"'

@@ -266,7 +266,35 @@ ifa_fault_validate_cell_artifacts() {
 				"${manifest}" restart-graph-dump absent no-regular-or-failure-dump
 			complete=0
 		fi
-		if [[ -s "${work_root}/restart-watch-result" ]] \
+		if [[ "${current_cell}" == genkillworker* ]]; then
+		# Generic kill-worker cells (#10955): the recovery verdict rests on
+		# the kill-window snapshot plus the reducer logs on both sides of
+		# SIGKILL and the lock-holder log. A missing one fails closed here
+		# instead of passing on a recovery asserted without its evidence.
+		# The lock log is <family-dashes>-lock-<cell>.log
+		# (ifa_fault_start_shared_intent_lock / table-lock start); the glob
+		# below matches either mechanism's naming. Every generic family
+		# today is shared_intent_lock, so zero matches is a fail-closed
+		# absence, not an inapplicable check -- a future blocker_kind=none
+		# family would edit this branch explicitly.
+		local lock_log lock_matched=0
+		for existing in "logs/reducer-${current_cell}-before.log" "logs/reducer-${current_cell}-after.log" "logs/${current_cell}-kill-snapshot.txt"; do
+			ifa_fault_record_existing_artifact \
+				"${manifest}" "${existing}" "${work_root}/${existing}" || complete=0
+		done
+		for lock_log in "${work_root}"/logs/*-lock-"${current_cell}".log; do
+			[[ -e "${lock_log}" ]] || continue
+			lock_matched=1
+			ifa_fault_record_existing_artifact \
+				"${manifest}" "logs/${lock_log##*/}" "${lock_log}" || complete=0
+		done
+		if [[ "${lock_matched}" -eq 0 ]]; then
+			ifa_fault_record_diagnostic_status \
+				"${manifest}" "logs/*-lock-${current_cell}.log" absent "bytes=0"
+			complete=0
+		fi
+	fi
+	if [[ -s "${work_root}/restart-watch-result" ]] \
 			&& IFS= read -r restart_result <"${work_root}/restart-watch-result" \
 			&& [[ "${restart_result}" == fired ]]; then
 			ifa_fault_record_diagnostic_status "${manifest}" restart-watch-result-value valid fired
@@ -354,7 +382,7 @@ ifa_fault_capture_failure_diagnostics() {
 		fi
 	fi
 
-	work_items_sql="COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message FROM fact_work_items ORDER BY stage, domain, scope_id, generation_id, work_item_id) TO STDOUT WITH (FORMAT csv, HEADER true);"
+	work_items_sql="COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, lease_owner, claim_until, last_attempt_at, next_attempt_at, reopened_at, created_at, updated_at, failure_class, failure_message FROM fact_work_items ORDER BY stage, domain, scope_id, generation_id, work_item_id) TO STDOUT WITH (FORMAT csv, HEADER true);"
 	gcp_facts_sql="SELECT jsonb_build_object('fact_id', fact_id, 'scope_id', scope_id, 'generation_id', generation_id, 'fact_kind', fact_kind, 'stable_fact_key', stable_fact_key, 'schema_version', schema_version, 'collector_kind', collector_kind, 'fencing_token', fencing_token, 'source_confidence', source_confidence, 'source_system', source_system, 'source_fact_key', source_fact_key, 'source_uri', source_uri, 'source_record_id', source_record_id, 'observed_at', observed_at, 'ingested_at', ingested_at, 'is_tombstone', is_tombstone, 'payload', payload) FROM fact_records WHERE fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship') ORDER BY scope_id, generation_id, observed_at, fact_id;"
 	if [[ "${use_compose}" -eq 1 && -n "${backend_selection}" ]]; then
 		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
