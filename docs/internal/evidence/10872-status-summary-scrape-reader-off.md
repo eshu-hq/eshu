@@ -78,7 +78,9 @@ evidence); that one shared computation is the accepted cost.
   (`active_work_qa_shape_proof_test.go`) runs the unchanged main form
   under `EXPLAIN (ANALYZE, BUFFERS)` at 268,750 `scope_generations` /
   268,750 `fact_work_items` rows with `fact_work_items` at 1,665 MB total
-  (database 2,610 MB on scratch Postgres 18.7), the QA 268,754-row / 1.7 GB
+  (database 2,610 MB on scratch Postgres 18.7; two further runs agree within
+  1%: detail ~1.16 s, grouped ~0.43 s, generic ~0.40-0.42 s), the QA
+  268,754-row / 1.7 GB
   band with incompressible random-hex payload padding so buffer counts
   reflect physical pages: detail 1,159.7 ms (shared hit=17,375 read=30,813,
   temp read=29,642 written=14,874), grouped 425.7 ms (shared hit=21,606
@@ -88,6 +90,9 @@ evidence); that one shared computation is the accepted cost.
   generation-scan rules hold in all three states. The grouped branch — the
   one QA runs — never executes the parallel-seq-scan `InitPlan` over
   `fact_work_items`; its full scans are one hashed pass per CTE (`loops=1`).
+  The proof carries its own red demonstration: with index, hash, merge,
+  materialize, and memoize paths forced off, the guard rejects the seeded
+  nested-loop rescan in both CTEs (plain `EXPLAIN`, never executed).
 
 ## Observability Evidence: what a flag-off scrape emits now
 

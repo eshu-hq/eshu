@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -105,6 +106,35 @@ func TestStatusActiveWorkSummaryQAShapePlan(t *testing.T) {
 
 	// Both gate branches (#7009 S5 ruling D5.5), then a forced generic plan.
 	checkSummaryPlanInGateStates(ctx, t, conn, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+
+	// Seeded violation at QA shape: with index, hash, merge, materialize,
+	// and memoize paths off, the only generation join left is a nested loop
+	// that rescans scope_generations per outer row; the guard must reject it
+	// in both CTEs. Planned with plain EXPLAIN: executing it would rescan
+	// 268,750 generations per outer row, so R1 rejects the Nested Loop
+	// parent without actuals. This is the test's own red demonstration: it
+	// fails if the guard ever stops recognizing the hazard.
+	const seedOff = "SET enable_indexscan = off; SET enable_indexonlyscan = off; SET enable_bitmapscan = off; " +
+		"SET enable_hashjoin = off; SET enable_mergejoin = off; SET enable_material = off; SET enable_memoize = off"
+	const seedReset = "RESET enable_indexscan; RESET enable_indexonlyscan; RESET enable_bitmapscan; " +
+		"RESET enable_hashjoin; RESET enable_mergejoin; RESET enable_material; RESET enable_memoize"
+	if _, err := conn.ExecContext(ctx, seedOff); err != nil {
+		t.Fatalf("plant the nested-loop seed: %v", err)
+	}
+	seededPlan, err := statusActiveGenerationExplainText(ctx, conn, "EXPLAIN ", activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	if _, resetErr := conn.ExecContext(ctx, seedReset); resetErr != nil {
+		t.Fatalf("reset the nested-loop seed: %v", resetErr)
+	}
+	if err != nil {
+		t.Fatalf("explain seeded activeWorkSummaryQuery: %v", err)
+	}
+	seededErr := checkSummaryGenerationScans(seededPlan)
+	for _, want := range []string{`active_fact_work_items: full scope_generations scan under "Nested Loop`, `fact_work_history_counts: full scope_generations scan under "Nested Loop`} {
+		if seededErr == nil || !strings.Contains(seededErr.Error(), want) {
+			t.Fatalf("seeded nested-loop plan was not rejected with %q (err = %v):\n%s", want, seededErr, seededPlan)
+		}
+	}
+	t.Logf("seeded nested-loop plan rejected: %v", seededErr)
 }
 
 // logQAShapeSizes records the physical footprint the QA-shape plans ran
