@@ -172,6 +172,8 @@ func TestCrossScopeCorrelationReopenDomainsPinsListAndReturnsFreshSlice(t *testi
 	got := CrossScopeCorrelationReopenDomains()
 	want := []string{
 		string(reducer.DomainDeployableUnitCorrelation),
+		string(reducer.DomainWorkloadMaterialization),
+		string(reducer.DomainServiceCatalogCorrelation),
 		string(reducer.DomainKubernetesCorrelationMaterialization),
 		string(reducer.DomainContainerImageIdentity),
 		string(reducer.DomainAWSCloudRuntimeDrift),

@@ -22,14 +22,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
-// DeployableUnitCorrelationResolutionNotReadyFailureClass classifies a
-// deferral of deployable-unit correlation work whose own relationship
-// generation has not activated yet.
-//
-// The storage queue registers this as a non-counting retry class because the
-// intent is waiting on an upstream phase, not failing on its own merits.
-const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
-
 // deployableUnitCorrelationResolutionNotReadyError defers an intent until its
 // own relationship generation activates.
 type deployableUnitCorrelationResolutionNotReadyError struct {

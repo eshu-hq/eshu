@@ -235,6 +235,17 @@ func (e deployableUnitCorrelationResolutionNotReadyError) Unwrap() error {
 
 func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { return true }
 
+// DeployableUnitCorrelationResolutionNotReadyFailureClass classifies a
+// deferral of deployable-unit correlation work whose own relationship
+// generation has not activated yet.
+//
+// The storage queue registers this as a non-counting retry class because the
+// intent is waiting on an upstream phase, not failing on its own merits.
+// Declared beside its FailureClass method (not with the error type) because
+// the enrollment guard resolves constants per file: a cross-file constant
+// would silently exempt this class from the registry check.
+const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
+
 func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
 	return DeployableUnitCorrelationResolutionNotReadyFailureClass
 }
