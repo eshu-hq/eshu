@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
@@ -73,4 +75,26 @@ func blockedReasonIf(uncommitted bool) string {
 		return BlockedReasonCanonicalCodeQuiescence
 	}
 	return ""
+}
+
+// gateCycle evaluates the lane gate once for a whole runner cycle and
+// returns the answer every partition of that cycle shares (#10871). The
+// answer lives only in the cycle's call frame: callers pass it by value
+// into each partition, so one cycle performs at most one
+// HasActiveReducerGraphWork and one HasUncommittedCanonicalCodeScopes
+// consultation no matter how many partitions the cycle covers. Every cycle
+// re-evaluates, so no partition ever acts on an answer older than its
+// cycle. A probe error fails the whole cycle before any lease claim
+// (fail-closed, as before).
+func (r *Runner) gateCycle(ctx context.Context) (blockedReason string, err error) {
+	return r.projectionLaneBlocked(ctx)
+}
+
+// blockedCycleResult records one gate-held cycle as a single per-cycle
+// BlockedReadiness unit (#10871: not one per partition) and returns it.
+func (r *Runner) blockedCycleResult(ctx context.Context, blockedReason string) worker.PartitionProcessResult {
+	r.recordCodeCallLaneBlocked(ctx, blockedReason)
+	result := worker.PartitionProcessResult{BlockedReadiness: 1}
+	r.recordCodeCallTiming(ctx, result)
+	return result
 }

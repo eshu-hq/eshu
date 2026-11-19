@@ -52,8 +52,10 @@ directly (#6626 value-flow lane retired the code-call stanza of
 
 ## Blocked-lane visibility
 
-When a lane-wide gate holds the lane shut, every blocked partition cycle adds
-to `eshu_dp_shared_projection_lane_blocked_total{domain="code_calls",reason}`.
+When a lane-wide gate holds the lane shut, every blocked cycle adds once
+to `eshu_dp_shared_projection_lane_blocked_total{domain="code_calls",reason}`
+(#10871: the gate is evaluated once per cycle and shared across partitions,
+so the counter is per-cycle, not per-partition).
 blocked.go rate-limits the rest per episode: a WARN `code call projection lane
 blocked` line with `blocked_reason`, `blocked_seconds`, `blocking_scope_count`
 and up to 10 `blocking_scope_ids`, plus the

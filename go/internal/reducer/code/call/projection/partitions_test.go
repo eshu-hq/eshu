@@ -83,7 +83,7 @@ func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(
 		t.Fatalf("selection.PartitionKey = %q, want %q", selection.PartitionKey, callerPartition)
 	}
 
-	first, err := runner.processPartitionOnce(context.Background(), now, callerPartitionID, partitionCount)
+	first, err := runner.processPartitionOnce(context.Background(), now, callerPartitionID, partitionCount, "")
 	if err != nil {
 		t.Fatalf("processPartitionOnce(caller) error = %v", err)
 	}
@@ -95,7 +95,7 @@ func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(
 	}
 	assertCodeCallRetractPath(t, writer.retractCalls, "/repo/src/caller.go")
 
-	second, err := runner.processPartitionOnce(context.Background(), now, modelsPartitionID, partitionCount)
+	second, err := runner.processPartitionOnce(context.Background(), now, modelsPartitionID, partitionCount, "")
 	if err != nil {
 		t.Fatalf("processPartitionOnce(models) error = %v", err)
 	}
@@ -142,6 +142,7 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksFilePartitions(t *testing.T) {
 		now,
 		mustPartitionForKey(t, filePartition, partitionCount),
 		partitionCount,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("processPartitionOnce(file) error = %v", err)
@@ -198,6 +199,7 @@ func TestCodeCallProjectionRunnerFileRefreshBlocksCoveredFilePartitions(t *testi
 		now,
 		mustPartitionForKey(t, filePartition, partitionCount),
 		partitionCount,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("processPartitionOnce(file) error = %v", err)
@@ -244,6 +246,7 @@ func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T
 		now,
 		mustPartitionForKey(t, wholeRow.PartitionKey, partitionCount),
 		partitionCount,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("processPartitionOnce(whole) error = %v", err)
@@ -291,6 +294,7 @@ func TestCodeCallProjectionRunnerLaterWholeRefreshDoesNotBlockEarlierFilePartiti
 		now,
 		mustPartitionForKey(t, filePartition, partitionCount),
 		partitionCount,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("processPartitionOnce(file) error = %v", err)
@@ -331,7 +335,7 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope(t *testing.T) {
 		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
-	result, err := runner.processPartitionOnce(context.Background(), now, secondPartition, partitionCount)
+	result, err := runner.processPartitionOnce(context.Background(), now, secondPartition, partitionCount, "")
 	if err != nil {
 		t.Fatalf("processPartitionOnce(second whole) error = %v", err)
 	}

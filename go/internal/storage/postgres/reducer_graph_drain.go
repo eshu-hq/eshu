@@ -81,10 +81,11 @@ type ReducerGraphDrain struct {
 // graph_projection_phase_state primary key's scope_id prefix with
 // generation/keyspace/phase as filters. The collector/scope-kind filter is a
 // row filter on ingestion_scopes that runs before either subquery, so non-code
-// scopes now cost no subquery at all. No new index: this runs at most twice
-// per code-call poll cycle per partition over a scope-count row set with
-// short-circuit on first match, not per edge. (#6184 review F3, #7133 plan
-// evidence in docs/internal/evidence/7133-code-quiescence-scope.md)
+// scopes now cost no subquery at all. No new index: this runs once per
+// code-call cycle (the runner shares one gate answer across all partitions,
+// #10871) over a scope-count row set with short-circuit on first match, not
+// per edge. (#6184 review F3, #7133 plan evidence in
+// docs/internal/evidence/7133-code-quiescence-scope.md)
 const uncommittedCanonicalCodeScopePredicate = `
     scope.active_generation_id IS NOT NULL
       AND scope.collector_kind = ANY($3::text[])
