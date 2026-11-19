@@ -297,7 +297,7 @@ import (
 // relationship_reference_candidate_keys plus the
 // security_alert_reconciliation_keys sidecar and its backfill marker).
 const (
-	goldenBootstrapDefinitionsDigest = "PLACEHOLDER-RECOMPUTE-POST-REBASE"
+	goldenBootstrapDefinitionsDigest = "a1926d78a5f514dcf91a703ed989ba4358ac849ff883d1cb5b103d33e01f2a20"
 	goldenBootstrapDefinitionsCount  = 341
 )
 
