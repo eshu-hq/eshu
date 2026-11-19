@@ -99,6 +99,34 @@ func TestV1PrefixAliasMiddlewareRewrites(t *testing.T) {
 	next.ServeHTTP(nil, v1Request("/api/v1/repositories"))
 }
 
+func TestCoreOuterMiddlewareV1CarriesNoDeprecation(t *testing.T) {
+	t.Parallel()
+	// The production outer chain must leave /api/v1/ responses free of
+	// Deprecation/Sunset (v1 is the current spelling, not the deprecated
+	// one) while /api/v0/ responses keep both headers. wrapCoreAPIMiddleware
+	// is the exact chain serve() installs, so this pins the nesting order,
+	// not the individual middlewares.
+	v1Rec := &v1HeaderRecorder{}
+	wrapCoreAPIMiddleware(v1CaptureHandler{t: t, wantPath: "/api/v0/repositories"}, "test-sunset").
+		ServeHTTP(v1Rec, v1Request("/api/v1/repositories"))
+	if got := v1Rec.Header().Get("Sunset"); got != "" {
+		t.Fatalf("/api/v1/ Sunset = %q, want empty (rewrite runs inside the header middleware)", got)
+	}
+	if got := v1Rec.Header().Get("Deprecation"); got != "" {
+		t.Fatalf("/api/v1/ Deprecation = %q, want empty", got)
+	}
+
+	v0Rec := &v1HeaderRecorder{}
+	wrapCoreAPIMiddleware(v1OKHandler{}, "test-sunset").
+		ServeHTTP(v0Rec, v1Request("/api/v0/repositories"))
+	if got := v0Rec.Header().Get("Sunset"); got != "test-sunset" {
+		t.Fatalf("/api/v0/ Sunset = %q, want test-sunset", got)
+	}
+	if got := v0Rec.Header().Get("Deprecation"); got != "true" {
+		t.Fatalf("/api/v0/ Deprecation = %q, want true", got)
+	}
+}
+
 func TestDeprecationHeadersMiddlewareSetsSunset(t *testing.T) {
 	t.Parallel()
 	rec := &v1HeaderRecorder{}

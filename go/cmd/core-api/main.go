@@ -316,7 +316,7 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 	if limiter := CoreOIDCRateLimiter(getenv, instruments); limiter != nil {
 		handler = limiter.Middleware(handler)
 	}
-	handler = v1PrefixAliasMiddleware(deprecationHeadersMiddleware(handler, readCoreSunsetDate(getenv)))
+	handler = wrapCoreAPIMiddleware(handler, readCoreSunsetDate(getenv))
 
 	if worker, err := CoreOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger); err != nil {
 		return fmt.Errorf("configure oidc session refresh: %w", err)

@@ -381,6 +381,14 @@ func v1PrefixAliasMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// wrapCoreAPIMiddleware is the exact outer /api chain serve() installs:
+// the deprecation headers outside the v1 alias rewrite, so the header
+// check sees the original /api/v1/ spelling and /api/v1/ requests never
+// carry Deprecation/Sunset. Only direct /api/v0/ requests do.
+func wrapCoreAPIMiddleware(handler http.Handler, sunset string) http.Handler {
+	return deprecationHeadersMiddleware(v1PrefixAliasMiddleware(handler), sunset)
+}
+
 // deprecationHeadersMiddleware adds Deprecation/Sunset headers to /api/v0/*
 // responses. It runs outside the v1 rewrite so /api/v1/ requests never
 // carry the headers.
