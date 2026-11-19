@@ -144,3 +144,23 @@ Disposable `postgres:18-alpine` container on `127.0.0.1:55499`, removed
 after the run. Read-only QA queries: none needed (issue figures plus the
 local shim carried every number). Shim scripts live in `/tmp/10877-shim`
 (outside the repo, never committed); nothing to review in `go/`.
+
+## Rebase evidence (onto `6d4f9bb7b4`)
+
+No-Regression Evidence (rebase union #10877 onto #11000/#11015): the union
+is mechanical per the arbiter ruling — narrowed signatures from the lane,
+producer bodies and `waitingSatisfiedQuery` verbatim from main, no query
+text or fence logic changed. Proven on disposable Postgres 18.6 databases:
+`go build ./...` and `go vet ./internal/storage/postgres/` clean; 60/60
+live waiting/narrow/winners tests pass, including two new union seam pins
+(`TestSetAsideWaitingForCauseNeverParksCountingClasses`, hermetic, RED
+with the guard removed; `TestCrossScopeProducerWaitForCauseThreadsDomainsLive`,
+live, covering the `$9` quiescence arg and the domain threading); `-race`
+subset clean; migration `317_corpus_narrow_fingerprints` applies as schema
+definition 343/343; readiness generator re-run is a byte-identical no-op
+(part4 487, part5 497 lines, under the 499 budget).
+
+Observability Evidence (rebase union): the union adds no metric, span, log,
+or status signal — the lane's new gauges (`eshu_dp_corpus_fence_*`) stay
+documented in the `telemetry-coverage-reducer-core.md` per-item row, which
+this rebase carries unchanged.

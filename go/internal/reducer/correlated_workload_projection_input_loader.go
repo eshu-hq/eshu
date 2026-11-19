@@ -143,13 +143,14 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 	}
 	// The own-scope check cannot see foreign scopes, whose retired-or-pending
 	// generations would feed the by-repos read a partial set. Defer on the
-	// corpus-wide fence with the same non-counting retry class; a fence lookup
-	// failure travels on the deferral so an outage never reads as healthy
-	// backpressure (#6730). readCorpusFencedResolvedRelationships takes the
-	// fence verdict from the by-repos read's own statement snapshot when the
-	// store offers it (#6740), so no advance-and-complete cycle can slip
-	// between the verdict and the rows it admits.
-	read, err := readCorpusFencedResolvedRelationships(ctx, l.ResolvedLoader, l.ResolutionsCompleteLookup, intent, candidates)
+	// corpus fence (narrowed to the producing scopes when the store offers
+	// the restricted read, #10877) with the same non-counting retry class; a
+	// fence lookup failure travels on the deferral so an outage never reads
+	// as healthy backpressure (#6730). The fence verdict comes from the
+	// by-repos read's own statement snapshot when the store offers a fused
+	// read (#6740), so no advance-and-complete cycle can slip between the
+	// verdict and the rows it admits.
+	read, err := readRestrictedCorpusFencedRelationships(ctx, l.ResolvedLoader, l.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
 		return WorkloadProjectionInputs{}, fmt.Errorf("load resolved relationships for correlated workload projection: %w", err)
 	}
@@ -161,10 +162,20 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 		}
 	}
 	if !read.complete {
+		repoIDs, blockingScopeIDs, narrowed := corpusWaitNarrowing(read)
+		holdingScopeIDs := accepted.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup)
+		if narrowed {
+			// The restricted fence names exactly the scopes that held
+			// this read; report them instead of the corpus-wide holder
+			// list so the deferral stays actionable.
+			holdingScopeIDs = blockingScopeIDs
+		}
 		return WorkloadProjectionInputs{}, workloadMaterializationResolutionNotReadyError{
-			scopeID:         intent.ScopeID,
-			generationID:    intent.GenerationID,
-			holdingScopeIDs: accepted.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
+			scopeID:          intent.ScopeID,
+			generationID:     intent.GenerationID,
+			holdingScopeIDs:  holdingScopeIDs,
+			repoIDs:          repoIDs,
+			blockingScopeIDs: blockingScopeIDs,
 		}
 	}
 	if l.ResolvedLoader != nil {
@@ -199,6 +210,8 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionScopeInpu
 		ScopeCandidates:        admitted,
 		DeploymentEnvironments: deploymentEnvironments,
 		Selection:              selection,
+		ResolvedFingerprint:    read.fingerprint,
+		ResolvedFingerprinted:  read.fingerprinted,
 	}, nil
 }
 
@@ -226,13 +239,18 @@ type CorpusFencedResolvedRelationshipLoader interface {
 // separate-statement fence lookup failure (a deferral cause, not a read
 // failure); it is always nil on the fused path, whose query error is a read
 // error. fingerprint and fingerprinted are set only by
-// readDeployableUnitResolvedInput (#8283).
+// readDeployableUnitResolvedInput (#8283). narrowed is set only by the
+// restricted read (#10877): repoIDs is the normalized read set and
+// blockingScopeIDs the verdict-time blocking set the deferral parks on.
 type corpusFencedResolvedRead struct {
-	resolved      []relationships.ResolvedRelationship
-	complete      bool
-	fenceErr      error
-	fingerprint   reducercontract.ResolvedReadFingerprint
-	fingerprinted bool
+	resolved         []relationships.ResolvedRelationship
+	complete         bool
+	fenceErr         error
+	fingerprint      reducercontract.ResolvedReadFingerprint
+	fingerprinted    bool
+	narrowed         bool
+	repoIDs          []string
+	blockingScopeIDs []string
 }
 
 // readCorpusFencedResolvedRelationships loads the resolved relationships a

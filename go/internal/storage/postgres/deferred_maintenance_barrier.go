@@ -109,11 +109,11 @@ func (c DeferredMaintenanceBarrierConfig) validate() error {
 // single shard that has committed runs maintenance directly, matching the
 // original single-shard behavior.
 //
-// A pass runs only after a drain that committed something, so the
-// deployable_unit_correlation changed-evidence gate (#8283) has a one-pass
-// bound for input moved outside a resolution append: it is picked up by the
-// next pass, and stays stale until a later commit triggers one (see
-// backfill.ListDeployableUnitReopenCandidatesQuery). Input a
+// A pass runs only after a drain that committed something, so the gated
+// changed-evidence reopen (#8283, #10877) has a one-pass bound for input
+// moved outside a resolution append: it is picked up by the next pass, and
+// stays stale until a later commit triggers one (see
+// backfill.ListCorpusReopenCandidatesQueries). Input a
 // deployment_mapping re-opened by this pass appends after the gate read it
 // is the exception: the completion wake (#8294) reopens the affected items
 // in that same resolution pass, retry-convergent, without waiting for a

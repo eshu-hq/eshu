@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,16 +33,10 @@ const DefaultWaitingAuditInterval = 5 * time.Minute
 // DefaultWaitingAuditBatchSize bounds one audit pass over the waiting table.
 const DefaultWaitingAuditBatchSize = 500
 
-// waitingKey is the JSON waits_for_key per kind. Scope/generation keys stay
-// coarse on purpose: the wake is a hint and the claim gate plus the handler
-// re-check the exact requirement, so a wake never starts work early.
-type waitingKey struct {
-	ScopeID        string   `json:"scope_id,omitempty"`
-	GenerationID   string   `json:"generation_id,omitempty"`
-	ProducerDomain string   `json:"producer_domain,omitempty"`
-	EnqueuedAt     string   `json:"enqueued_at,omitempty"`
-	Domains        []string `json:"domains,omitempty"`
-}
+// waitingKey lives in reducer_waiting_narrow.go with the narrowed corpus
+// fields. Scope/generation keys stay coarse on purpose: the wake is a hint
+// and the claim gate plus the handler re-check the exact requirement, so a
+// wake never starts work early.
 
 // waitingParkDelay resolves the retry horizon for a deferred intent: the
 // 10-minute backstop when the failure class parks in the waiting set-aside,
@@ -224,66 +217,8 @@ SELECT EXISTS (
 )
 `
 
-// waitingSatisfied reports whether the provider of one wait already
-// committed, sharing the single predicate the audit uses.
-func waitingSatisfied(
-	ctx context.Context,
-	database db.ExecQueryer,
-	kind WaitingWakeKind,
-	scopeID, generationID, producerDomain, enqueuedAt, waiterID string,
-	fenceDomains []string,
-	progressSince time.Time,
-) (bool, error) {
-	// The domain-only producer branch evaluates the handler quiescence
-	// rule on the parked domain's mapped collector kind (empty when the
-	// domain maps to none, which counts as satisfied).
-	collectorKinds := []string{}
-	if kind == WaitingKindProducerTerminal && producerDomain != "" && scopeID == "" {
-		if collectorKind, ok := crossscope.CollectorKindForProducerDomain(reducercontract.Domain(producerDomain)); ok {
-			collectorKinds = []string{collectorKind}
-		}
-	}
-	var satisfied bool
-	if err := querySingleRow(ctx, database, waitingSatisfiedQuery, []any{
-		string(kind), scopeID, generationID, producerDomain,
-		enqueuedAt, "{" + strings.Join(quoteSQLStrings(fenceDomains), ",") + "}",
-		waiterID, progressSince.UTC(),
-		"{" + strings.Join(quoteSQLStrings(collectorKinds), ",") + "}",
-	}, &satisfied); err != nil {
-		return false, fmt.Errorf("check waiting satisfaction: %w", err)
-	}
-	return satisfied, nil
-}
-
-// quoteSQLStrings renders values as a Postgres text[] literal body.
-func quoteSQLStrings(values []string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		out = append(out, `"`+strings.ReplaceAll(value, `"`, `""`)+`"`)
-	}
-	return out
-}
-
-// querySingleRow runs a query that returns exactly one row with one column
-// group and scans it, following the store's QueryContext-only adapter
-// surface (db.ExecQueryer has no QueryRowContext).
-func querySingleRow(ctx context.Context, database db.ExecQueryer, query string, args []any, dest ...any) error {
-	rows, err := database.QueryContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		return sql.ErrNoRows
-	}
-	if err := rows.Scan(dest...); err != nil {
-		return err
-	}
-	return rows.Err()
-}
+// waitingSatisfied, quoteSQLStrings, and querySingleRow live in
+// reducer_waiting_narrow.go with the narrowed corpus branches.
 
 // waitingWakeReopenSetClause is the SET list of the #10876 waiting wake. It
 // deliberately differs from activationWakeSetClause in one load-bearing way:
@@ -450,49 +385,5 @@ func setAsideWaiting(
 	if !ok {
 		return false, nil
 	}
-	if err := insertWaitingItem(ctx, database, intent, entry, keyJSON, now); err != nil {
-		return false, err
-	}
-	satisfied, err := waitingSatisfiedForIntent(ctx, database, intent, entry, keyJSON, now)
-	if err != nil {
-		return true, err
-	}
-	if satisfied {
-		if _, _, err := wakeWaitingByKey(ctx, database, instruments, WaitingWakeSiteInTx,
-			entry.WaitsForKind, keyJSON, now); err != nil {
-			return true, err
-		}
-	}
-	return true, nil
-}
-
-// waitingSatisfiedForIntent evaluates the shared satisfaction predicate for
-// one intent's wait key.
-func waitingSatisfiedForIntent(
-	ctx context.Context,
-	database db.ExecQueryer,
-	intent reducercontract.Intent,
-	entry WaitingDeferral,
-	keyJSON string,
-	now time.Time,
-) (bool, error) {
-	var key waitingKey
-	if err := json.Unmarshal([]byte(keyJSON), &key); err != nil {
-		return false, fmt.Errorf("decode waiting key: %w", err)
-	}
-	scopeID := strings.TrimSpace(intent.ScopeID)
-	generationID := strings.TrimSpace(intent.GenerationID)
-	producerDomain := entry.ProducerDomain
-	if entry.WaitsForKind == WaitingKindProducerTerminal && key.ScopeID == "" && key.ProducerDomain != "" {
-		// #11000: a domain-only wait names no scope or generation, so the
-		// legacy scope-pinned branch can never match; the audit evaluates
-		// the quiescence branch on the parked domain instead.
-		scopeID, generationID, producerDomain = "", "", key.ProducerDomain
-	}
-	return waitingSatisfied(
-		ctx, database, entry.WaitsForKind,
-		scopeID, generationID,
-		producerDomain, key.EnqueuedAt, intent.IntentID,
-		key.Domains, now,
-	)
+	return setAsideWaitingForKey(ctx, database, instruments, intent, entry, keyJSON, now)
 }

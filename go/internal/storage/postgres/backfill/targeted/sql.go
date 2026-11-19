@@ -71,32 +71,39 @@ const correlationReopenPartitionConjunct = "  AND (work.scope_id, work.generatio
 
 // ShippedQueries carries the exact whole-pass reopen listings owned by the
 // parent package. Targeted predicates are derived from these strings.
-// DeployableUnit is the changed-evidence listing deployable_unit_correlation
-// alone uses (#8283); the other correlation domains use Correlation.
+// The gated listings (DeployableUnit plus WorkloadMaterialization and
+// ServiceCatalogCorrelation, #10877) carry the changed-evidence verdict; the
+// other correlation domains use Correlation.
 type ShippedQueries struct {
-	DeploymentMapping  string
-	CodeImportRepoEdge string
-	Correlation        string
-	DeployableUnit     string
+	DeploymentMapping         string
+	CodeImportRepoEdge        string
+	Correlation               string
+	DeployableUnit            string
+	WorkloadMaterialization   string
+	ServiceCatalogCorrelation string
 }
 
 // Queries holds the narrowed reopen listings derived once during root
 // package initialization, plus their shipped sources for differential proof.
 type Queries struct {
-	Shipped            ShippedQueries
-	DeploymentMapping  string
-	CodeImportRepoEdge string
-	Correlation        string
-	DeployableUnit     string
+	Shipped                   ShippedQueries
+	DeploymentMapping         string
+	CodeImportRepoEdge        string
+	Correlation               string
+	DeployableUnit            string
+	WorkloadMaterialization   string
+	ServiceCatalogCorrelation string
 }
 
 // ProductionQueries is derived once at initialization from the shared
 // whole-pass SQL owner. Every pass receives these exact narrowed strings.
 var ProductionQueries = DeriveQueries(ShippedQueries{
-	DeploymentMapping:  backfill.ListSucceededDeploymentMappingWorkItemsQuery,
-	CodeImportRepoEdge: backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery,
-	Correlation:        backfill.ListSucceededReducerWorkItemsByDomainQuery,
-	DeployableUnit:     backfill.ListDeployableUnitReopenCandidatesQuery,
+	DeploymentMapping:         backfill.ListSucceededDeploymentMappingWorkItemsQuery,
+	CodeImportRepoEdge:        backfill.ListSucceededCodeImportRepoEdgeWorkItemsQuery,
+	Correlation:               backfill.ListSucceededReducerWorkItemsByDomainQuery,
+	DeployableUnit:            backfill.ListDeployableUnitReopenCandidatesQuery,
+	WorkloadMaterialization:   backfill.ListCorpusReopenCandidatesQueries["workload_materialization"],
+	ServiceCatalogCorrelation: backfill.ListCorpusReopenCandidatesQueries["service_catalog_correlation"],
 })
 
 // DeriveQueries inserts the exact partition conjunct into each shipped
@@ -104,11 +111,13 @@ var ProductionQueries = DeriveQueries(ShippedQueries{
 // package-initialization behavior.
 func DeriveQueries(shipped ShippedQueries) Queries {
 	return Queries{
-		Shipped:            shipped,
-		DeploymentMapping:  DeriveQueryAtMarker(shipped.DeploymentMapping, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
-		CodeImportRepoEdge: DeriveQueryAtMarker(shipped.CodeImportRepoEdge, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
-		Correlation:        DeriveQueryAtMarker(shipped.Correlation, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
-		DeployableUnit:     DeriveQueryAtMarker(shipped.DeployableUnit, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
+		Shipped:                   shipped,
+		DeploymentMapping:         DeriveQueryAtMarker(shipped.DeploymentMapping, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
+		CodeImportRepoEdge:        DeriveQueryAtMarker(shipped.CodeImportRepoEdge, CorrelationReopenStageMarker, relationshipReopenPartitionConjunct),
+		Correlation:               DeriveQueryAtMarker(shipped.Correlation, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
+		DeployableUnit:            DeriveQueryAtMarker(shipped.DeployableUnit, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
+		WorkloadMaterialization:   DeriveQueryAtMarker(shipped.WorkloadMaterialization, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
+		ServiceCatalogCorrelation: DeriveQueryAtMarker(shipped.ServiceCatalogCorrelation, CorrelationReopenStageMarker, correlationReopenPartitionConjunct),
 	}
 }
 

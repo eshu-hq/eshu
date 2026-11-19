@@ -90,6 +90,15 @@ type WorkloadProjectionInputs struct {
 	// correlated loader reports SelectionNoKeys when the intent carries no
 	// entity keys; loaders that do not filter leave the zero value.
 	Selection CandidateSelectionReport
+	// ResolvedFingerprint is the narrowed corpus-fenced read's input
+	// fingerprint when the loader ran the fingerprinted restricted read
+	// (#10877 parity with #8283); ResolvedFingerprinted reports it describes
+	// exactly the rows the handler may now materialize. The handler
+	// records it on success so the reopen gate can restart the item when a
+	// late-arriving scope changes its input. Zero when the loader ran the
+	// global path.
+	ResolvedFingerprint   reducercontract.ResolvedReadFingerprint
+	ResolvedFingerprinted bool
 }
 
 // ScopeWorkloadProjectionInputLoader is a WorkloadProjectionInputLoader that
@@ -114,8 +123,13 @@ type InfrastructurePlatformLookup interface {
 // runtime platforms). It loads facts from the content store, extracts workload
 // candidates, builds projection rows, and writes them to Neo4j.
 type WorkloadMaterializationHandler struct {
-	FactLoader                   factload.FactLoader
-	ResolvedLoader               ResolvedRelationshipLoader
+	FactLoader     factload.FactLoader
+	ResolvedLoader ResolvedRelationshipLoader
+	// ReopenFingerprintRecorder stores the narrowed read's input fingerprint
+	// on success, so the deferred-maintenance reopen can restart the item
+	// when a late-arriving scope changes its input (#10877 parity with the
+	// deployable-unit #8283 path). Nil records nothing.
+	ReopenFingerprintRecorder    reducercontract.WorkloadMaterializationReopenFingerprintRecorder
 	InputLoader                  WorkloadProjectionInputLoader
 	InfrastructurePlatformLookup InfrastructurePlatformLookup
 	Materializer                 *WorkloadMaterializer
@@ -262,6 +276,9 @@ func (h WorkloadMaterializationHandler) Handle(
 		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
+		if err := h.recordWorkloadMaterializationReopenFingerprint(ctx, intent, inputs); err != nil {
+			return reducercontract.Result{}, err
+		}
 		zeroSelection := inputs.Selection
 		zeroSelection.Reason = refineCandidateSelectionReason(zeroSelection, intent.EntityKeys, repoIDs)
 		logWorkloadMaterializationCompleted(ctx, intent, candidates, zeroSelection, nil, MaterializeResult{}, timing, 0, 0, 0)
@@ -471,6 +488,9 @@ func (h WorkloadMaterializationHandler) Handle(
 	}
 	timing.phasePublishDuration = time.Since(phaseStarted)
 	timing.totalDuration = time.Since(totalStarted)
+	if err := h.recordWorkloadMaterializationReopenFingerprint(ctx, intent, inputs); err != nil {
+		return reducercontract.Result{}, err
+	}
 	successSelection := inputs.Selection
 	successSelection.Reason = refineCandidateSelectionReason(successSelection, intent.EntityKeys, repositoryGraphIDsFromEnvelopes(repositoryFacts))
 	logWorkloadMaterializationCompleted(

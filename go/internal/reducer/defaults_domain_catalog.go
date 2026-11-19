@@ -71,6 +71,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			def.Handler = WorkloadMaterializationHandler{
 				FactLoader:                   handlers.FactLoader,
 				ResolvedLoader:               handlers.ResolvedRelationshipLoader,
+				ReopenFingerprintRecorder:    handlers.WorkloadMaterializationReopenFingerprintRecorder,
 				InputLoader:                  handlers.WorkloadProjectionInputLoader,
 				InfrastructurePlatformLookup: handlers.InfrastructurePlatformLookup,
 				Materializer:                 handlers.WorkloadMaterializer,

@@ -22,7 +22,28 @@ import (
 // deployment_mapping/code_import_repo_edge work item and drive the REAL
 // ReopenDeploymentMappingWorkItems / ReopenCodeImportRepoEdgeWorkItems against
 // it end to end, not just the fact-load half the sibling proof file covers.
-const reopenPartitionMemoProofSchemaSQL = deferredPartitionMemoProofSchemaSQL + `
+// reopenWaitingWakeProofTablesSQL carries the waiting set-aside the
+// phase-commit wake reads: the wake runs inside the backfill fan-in and the
+// deferred maintenance pass, so the proof schemas carry the table (empty;
+// the wake then no-ops). Mirrors migration 313 (no foreign keys there).
+const reopenWaitingWakeProofTablesSQL = `
+CREATE TABLE reducer_waiting_items (
+    work_item_id TEXT NOT NULL,
+    waits_for_kind TEXT NOT NULL,
+    waits_for_key JSONB NOT NULL,
+    scope_id TEXT NOT NULL,
+    generation_id TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    failure_class TEXT NOT NULL,
+    first_deferred_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    row_version BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT reducer_waiting_items_pkey PRIMARY KEY (work_item_id, waits_for_kind, waits_for_key)
+);
+`
+
+const reopenPartitionMemoProofSchemaSQL = deferredPartitionMemoProofSchemaSQL +
+	reopenWaitingWakeProofTablesSQL + `
 CREATE TABLE fact_work_items (
     work_item_id    TEXT PRIMARY KEY,
     scope_id        TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
@@ -388,6 +409,10 @@ func provisionReopenPartitionMemoSchema(t *testing.T, db *sql.DB) string {
 		t.Fatalf("apply shipped relationship schema: %v", err)
 	}
 	applyShippedMigration(t, ctx, db, "deployable_unit_reopen_fingerprints")
+	// The narrowed gated listings (#10877) read the workload and
+	// service-catalog fingerprint tables: apply the shipped DDL for both,
+	// not copies.
+	applyShippedMigration(t, ctx, db, "corpus_narrow_fingerprints")
 	return schemaName
 }
 

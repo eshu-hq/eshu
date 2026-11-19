@@ -30,7 +30,9 @@
 // ListDeployableUnitReopenCandidatesQuery and its fragments gate the
 // deployable_unit_correlation reopen on the input fingerprint the item's last
 // success recorded (#8283); RecordDeployableUnitReopenFingerprintQuery is the
-// claim-fenced write that records it.
+// claim-fenced write that records it. The generic ListCorpusReopenCandidates
+// builders extend the same gate to workload_materialization and
+// service_catalog_correlation (#10877).
 //
 // DecideSuccessor and DecideDeltaFileUnion hold the verdict of the #7926
 // destructive-successor backstop (#8750). A full successor is compared with

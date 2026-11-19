@@ -117,6 +117,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			FactLoader:                   handlers.FactLoader,
 			Writer:                       handlers.ServiceCatalogCorrelationWriter,
 			MaterializationWriter:        handlers.ServiceMaterializationWriter,
+			ReopenFingerprintRecorder:    handlers.ServiceCatalogCorrelationReopenFingerprintRecorder,
 			DeploymentRelationshipLoader: serviceCatalogDeploymentRelationshipLoader(handlers),
 			RuntimeInstanceLoader:        serviceCatalogRuntimeInstanceLoader(handlers),
 			RuntimeProducerReadiness:     handlers.ServiceRuntimeProducerReadiness,

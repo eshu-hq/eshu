@@ -120,9 +120,15 @@ func TestReopenDeployableUnitCorrelationsForReposReopensOverlappingSucceeded(t *
 
 	database := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{
 		execResults: []sql.Result{
-			fakeResultWithRowsAffected{rowsAffected: 0}, // set lock_timeout
-			fakeResultWithRowsAffected{rowsAffected: 1}, // in-flight flag arm
-			fakeResultWithRowsAffected{rowsAffected: 2}, // succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // DU: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 1}, // DU: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 2}, // DU: succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: succeeded reopen arm
 		},
 	}}
 	store := NewRelationshipStore(database)
@@ -139,38 +145,63 @@ func TestReopenDeployableUnitCorrelationsForReposReopensOverlappingSucceeded(t *
 	if !database.committed || database.rolledBack {
 		t.Fatalf("wake transaction committed=%v rolledBack=%v, want committed only", database.committed, database.rolledBack)
 	}
-	if len(database.execs) != 3 {
-		t.Fatalf("wake issued %d statements, want 3 (lock_timeout, flag arm, reopen arm; no listing)", len(database.execs))
+	// One lock_timeout-bounded transaction per gated domain (#10877):
+	// lock_timeout, flag arm, reopen arm each; no listing.
+	if len(database.execs) != 9 {
+		t.Fatalf("wake issued %d statements, want 9 (3 per gated domain)", len(database.execs))
 	}
-	if !strings.Contains(database.execs[0].query, "lock_timeout") {
-		t.Fatalf("first wake statement does not bound lock_timeout:\n%s", database.execs[0].query)
+	domains := map[string]string{
+		"deployable_unit_correlation": "deployable_unit_reopen_fingerprints",
+		"workload_materialization":    "workload_materialization_reopen_fingerprints",
+		"service_catalog_correlation": "service_catalog_correlation_reopen_fingerprints",
 	}
-	flagQuery := database.execs[1].query
-	for _, want := range []string{
-		"cross_scope_replay_required = TRUE",
-		"status IN ('claimed', 'running')",
-	} {
-		if !strings.Contains(flagQuery, want) {
-			t.Fatalf("flag-arm query missing %q:\n%s", want, flagQuery)
+	seen := map[string]bool{}
+	for i := 0; i < 9; i += 3 {
+		if !strings.Contains(database.execs[i].query, "lock_timeout") {
+			t.Fatalf("wake statement %d does not bound lock_timeout:\n%s", i, database.execs[i].query)
 		}
-	}
-	updateAt := strings.Index(flagQuery, "UPDATE fact_work_items")
-	setClause := flagQuery[strings.Index(flagQuery[updateAt:], "SET ")+updateAt : strings.Index(flagQuery[updateAt:], "WHERE ")+updateAt]
-	if strings.Contains(setClause, "status") {
-		t.Fatalf("flag arm SET must not name status (ACK trigger is UPDATE OF status):\n%s", flagQuery)
-	}
-	reopenQuery := database.execs[2].query
-	for _, want := range []string{
-		"UPDATE fact_work_items",
-		"work.domain = 'deployable_unit_correlation'",
-		"work.status = 'succeeded'",
-		"deployable_unit_reopen_fingerprints",
-		"repo_ids &&",
-		"fingerprint.work_item_id IS NULL",
-	} {
-		if !strings.Contains(reopenQuery, want) {
-			t.Fatalf("reopen-arm query missing %q:\n%s", want, reopenQuery)
+		flagQuery := database.execs[i+1].query
+		for _, want := range []string{
+			"cross_scope_replay_required = TRUE",
+			"status IN ('claimed', 'running')",
+		} {
+			if !strings.Contains(flagQuery, want) {
+				t.Fatalf("flag-arm query missing %q:\n%s", want, flagQuery)
+			}
 		}
+		updateAt := strings.Index(flagQuery, "UPDATE fact_work_items")
+		setClause := flagQuery[strings.Index(flagQuery[updateAt:], "SET ")+updateAt : strings.Index(flagQuery[updateAt:], "WHERE ")+updateAt]
+		if strings.Contains(setClause, "status") {
+			t.Fatalf("flag arm SET must not name status (ACK trigger is UPDATE OF status):\n%s", flagQuery)
+		}
+		reopenQuery := database.execs[i+2].query
+		matched := ""
+		for domain, table := range domains {
+			if strings.Contains(reopenQuery, "work.domain = '"+domain+"'") {
+				matched = domain
+				for _, want := range []string{
+					"UPDATE fact_work_items",
+					"work.status = 'succeeded'",
+					table,
+					"repo_ids &&",
+					"fingerprint.work_item_id IS NULL",
+				} {
+					if !strings.Contains(reopenQuery, want) {
+						t.Fatalf("reopen-arm query missing %q:\n%s", want, reopenQuery)
+					}
+				}
+			}
+		}
+		if matched == "" {
+			t.Fatalf("reopen-arm query names no gated domain:\n%s", reopenQuery)
+		}
+		if seen[matched] {
+			t.Fatalf("reopen-arm query repeats domain %s", matched)
+		}
+		seen[matched] = true
+	}
+	if len(seen) != 3 {
+		t.Fatalf("wake covered %d gated domains, want 3", len(seen))
 	}
 }
 
@@ -189,9 +220,15 @@ func TestCompletionWakeFlagArmRequiresRecordedFingerprint(t *testing.T) {
 
 	database := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{
 		execResults: []sql.Result{
-			fakeResultWithRowsAffected{rowsAffected: 0}, // set lock_timeout
-			fakeResultWithRowsAffected{rowsAffected: 0}, // in-flight flag arm
-			fakeResultWithRowsAffected{rowsAffected: 0}, // succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // DU: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // DU: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // DU: succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // WL: succeeded reopen arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: set lock_timeout
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: in-flight flag arm
+			fakeResultWithRowsAffected{rowsAffected: 0}, // SC: succeeded reopen arm
 		},
 	}}
 	store := NewRelationshipStore(database)
@@ -201,21 +238,23 @@ func TestCompletionWakeFlagArmRequiresRecordedFingerprint(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ReopenDeployableUnitCorrelationsForRepos() error = %v", err)
 	}
-	if len(database.execs) != 3 {
-		t.Fatalf("wake issued %d statements, want 3 (lock_timeout, flag arm, reopen arm)", len(database.execs))
+	if len(database.execs) != 9 {
+		t.Fatalf("wake issued %d statements, want 9 (3 per gated domain)", len(database.execs))
 	}
-	flagQuery := database.execs[1].query
-	if !strings.Contains(flagQuery, "fingerprint.work_item_id IS NOT NULL") {
-		t.Fatalf("flag arm does not require a recorded fingerprint row; "+
-			"a claimed/running item with no fingerprint row would be flagged:\n%s", flagQuery)
-	}
-	for _, want := range []string{
-		"work.status IN ('claimed', 'running')",
-		"NOT work.cross_scope_replay_required",
-		"repo_ids &&",
-	} {
-		if !strings.Contains(flagQuery, want) {
-			t.Fatalf("flag arm missing %q:\n%s", want, flagQuery)
+	for i := 1; i < 9; i += 3 {
+		flagQuery := database.execs[i].query
+		if !strings.Contains(flagQuery, "fingerprint.work_item_id IS NOT NULL") {
+			t.Fatalf("flag arm %d does not require a recorded fingerprint row; "+
+				"a claimed/running item with no fingerprint row would be flagged:\n%s", i, flagQuery)
+		}
+		for _, want := range []string{
+			"work.status IN ('claimed', 'running')",
+			"NOT work.cross_scope_replay_required",
+			"repo_ids &&",
+		} {
+			if !strings.Contains(flagQuery, want) {
+				t.Fatalf("flag arm %d missing %q:\n%s", i, want, flagQuery)
+			}
 		}
 	}
 }

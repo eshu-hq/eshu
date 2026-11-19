@@ -458,6 +458,12 @@ func (s *RelationshipStore) lockAndWake(
 			return 0, err
 		}
 	}
+	// #10877: the same activation reopens narrowed corpus waits naming this
+	// scope in their verdict-time blocking set. The retried handler
+	// re-checks the restricted fence, so the wake stays a hint.
+	if err := wakeNarrowedCorpusWaitsForScope(ctx, tx, s.instruments, scopeID, now); err != nil {
+		return 0, err
+	}
 	return woken, nil
 }
 

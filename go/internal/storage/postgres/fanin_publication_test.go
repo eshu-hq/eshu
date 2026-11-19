@@ -111,6 +111,26 @@ func openFanInProofSchema(t *testing.T, ctx context.Context, dsn string, maxConn
 	if _, err := database.ExecContext(ctx, deferredPartitionMemoProofSchemaSQL); err != nil {
 		t.Fatalf("create fan-in proof tables: %v", err)
 	}
+	// The phase-commit wake runs inside the fan-in, so the proof schema
+	// carries the waiting set-aside (empty; the wake then no-ops) plus a
+	// minimal fact_work_items for the wake's reopen UPDATE.
+	if _, err := database.ExecContext(ctx, reopenWaitingWakeProofTablesSQL+`
+CREATE TABLE fact_work_items (
+    work_item_id TEXT PRIMARY KEY,
+    scope_id TEXT NOT NULL,
+    generation_id TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    domain TEXT NOT NULL,
+    status TEXT NOT NULL,
+    lease_owner TEXT,
+    claim_until TIMESTAMPTZ,
+    visible_at TIMESTAMPTZ,
+    next_attempt_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL,
+    reopened_at TIMESTAMPTZ
+);`); err != nil {
+		t.Fatalf("create fan-in proof wake tables: %v", err)
+	}
 	return database
 }
 

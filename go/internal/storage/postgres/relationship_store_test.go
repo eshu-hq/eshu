@@ -1170,6 +1170,8 @@ func (r *relationshipRows) Scan(dest ...any) error {
 			*d = val.(bool)
 		case *int:
 			*d = val.(int)
+		case *int64:
+			*d = val.(int64)
 		case *time.Time:
 			*d = val.(time.Time)
 		case *[]byte:

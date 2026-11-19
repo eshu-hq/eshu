@@ -34,6 +34,12 @@ func (tx relationshipTestTx) QueryContext(ctx context.Context, query string, arg
 	if query == lockInflightOwnGateConsumersSQL {
 		return newRelationshipRows(nil), nil
 	}
+	// The waiting wakes have no parked rows in the fake, so both reopen
+	// nothing: the live tests own wake behavior, the fake only needs the
+	// zero-wake shape to let activation flow through.
+	if query == reopenWaitingRowsQuery || query == wakeNarrowedCorpusWaitsForScopeQuery {
+		return newRelationshipRows([][]any{{int64(0), int64(0)}}), nil
+	}
 	return tx.database.QueryContext(ctx, query, args...)
 }
 

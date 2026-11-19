@@ -33,12 +33,32 @@ const defaultCompletionWakeLockTimeout = 2 * time.Second
 // version, or a fingerprint that differs from the recompute over the
 // recorded repository set. It renders the same ResolvedInputFingerprintSQL
 // the maintenance gate renders, so the two wakes can never disagree about
-// whether an item's input changed.
-var completionWakeInputChanged = `(fingerprint.work_item_id IS NULL
+// completionWakeInputChangedFor is the changed-evidence verdict over one
+// fingerprint table and logic version: missing row, moved logic version, or
+// a fingerprint that differs from the recompute over the recorded set.
+func completionWakeInputChangedFor(logicVersion int) string {
+	return `(fingerprint.work_item_id IS NULL
         OR fingerprint.logic_version IS DISTINCT FROM ` +
-	strconv.Itoa(reducercontract.DeployableUnitCorrelationLogicVersion) + `
+		strconv.Itoa(logicVersion) + `
         OR fingerprint.input_fingerprint IS DISTINCT FROM ` +
-	backfill.ResolvedInputFingerprintSQL("fingerprint.repo_ids") + `)`
+		backfill.ResolvedInputFingerprintSQL("fingerprint.repo_ids") + `)`
+}
+
+// corpusCompletionWakeDomain binds one gated correlation domain to its
+// reopen fingerprint table and logic version for the completion wake.
+type corpusCompletionWakeDomain struct {
+	domain       string
+	table        string
+	logicVersion int
+}
+
+// corpusCompletionWakeDomains lists every domain the completion wake reopens
+// (#10877: the two narrowed domains join deployable_unit_correlation).
+var corpusCompletionWakeDomains = []corpusCompletionWakeDomain{
+	{string(reducercontract.DomainDeployableUnitCorrelation), "deployable_unit_reopen_fingerprints", reducercontract.DeployableUnitCorrelationLogicVersion},
+	{string(reducercontract.DomainWorkloadMaterialization), "workload_materialization_reopen_fingerprints", reducercontract.WorkloadMaterializationLogicVersion},
+	{string(reducercontract.DomainServiceCatalogCorrelation), "service_catalog_correlation_reopen_fingerprints", reducercontract.ServiceCatalogCorrelationLogicVersion},
+}
 
 // completionWakeCandidateIDsSQL is the candidate selection both wake arms
 // share ($1 wake timestamp, unused here; $2 the wake's repository scope). It
@@ -63,17 +83,27 @@ var completionWakeInputChanged = `(fingerprint.work_item_id IS NULL
 // superseded between the snapshot and the lock drops out instead of being
 // rewritten.
 func completionWakeCandidateIDsSQL(statusPredicate string) string {
+	return completionWakeCandidateIDsSQLForDomain(statusPredicate,
+		string(reducercontract.DomainDeployableUnitCorrelation),
+		"deployable_unit_reopen_fingerprints",
+		reducercontract.DeployableUnitCorrelationLogicVersion)
+}
+
+// completionWakeCandidateIDsSQLForDomain is the candidate selection for one
+// gated domain: same floor, exclusion, and changed-evidence shape as the
+// deployable_unit_correlation wake, over that domain's fingerprint table.
+func completionWakeCandidateIDsSQLForDomain(statusPredicate, domain, table string, logicVersion int) string {
 	return `SELECT work.work_item_id
-` + backfill.ScopeReplayFloorJoins + `LEFT JOIN deployable_unit_reopen_fingerprints AS fingerprint
+` + backfill.ScopeReplayFloorJoins + `LEFT JOIN ` + table + ` AS fingerprint
   ON fingerprint.work_item_id = work.work_item_id
 WHERE work.stage = 'reducer'
-  AND work.domain = 'deployable_unit_correlation'
+  AND work.domain = '` + domain + `'
   AND ` + statusPredicate + `
   AND work_generation.status <> 'failed'
   AND (work_generation.ingested_at, work_generation.generation_id)
       >= (floor.floor_ingested_at, floor.floor_generation_id)
   AND (fingerprint.work_item_id IS NULL OR fingerprint.repo_ids && $2::text[])
-  AND ` + completionWakeInputChanged + `
+  AND ` + completionWakeInputChangedFor(logicVersion) + `
 ORDER BY work.work_item_id COLLATE "C"
 FOR UPDATE OF work`
 }
@@ -106,12 +136,33 @@ WHERE work_item_id IN (` +
 // reopenDeployableUnitCorrelationsForReposQuery is the wake's succeeded
 // arm. It composes the shared succeeded-to-pending SET clause (#7731) so
 // the wake resets exactly the columns the reducer claim path reads.
-var reopenDeployableUnitCorrelationsForReposQuery = backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
-SET ` + ReopenSucceededReducerSetClause + `
+var reopenDeployableUnitCorrelationsForReposQuery = completionWakeReopenQueryForDomain(
+	string(reducercontract.DomainDeployableUnitCorrelation),
+	"deployable_unit_reopen_fingerprints",
+	reducercontract.DeployableUnitCorrelationLogicVersion)
+
+// completionWakeFlagQueryForDomain builds one domain's in-flight arm.
+func completionWakeFlagQueryForDomain(domain, table string, logicVersion int) string {
+	return backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
+SET cross_scope_replay_required = TRUE,
+    updated_at = $1
 WHERE work_item_id IN (` +
-	completionWakeCandidateIDsSQL(`work.status = 'succeeded'`) + `
+		completionWakeCandidateIDsSQLForDomain(`work.status IN ('claimed', 'running')
+  AND NOT work.cross_scope_replay_required
+  AND fingerprint.work_item_id IS NOT NULL`, domain, table, logicVersion) + `
 )
 `
+}
+
+// completionWakeReopenQueryForDomain builds one domain's succeeded arm.
+func completionWakeReopenQueryForDomain(domain, table string, logicVersion int) string {
+	return backfill.ScopeReplayFloorCTE + `UPDATE fact_work_items
+SET ` + ReopenSucceededReducerSetClause + `
+WHERE work_item_id IN (` +
+		completionWakeCandidateIDsSQLForDomain(`work.status = 'succeeded'`, domain, table, logicVersion) + `
+)
+`
+}
 
 // CompletionWakeContentionError reports a completion-wake transaction that
 // hit lock_timeout (55P03) or a deadlock (40P01) and rolled back (#8294).
@@ -183,9 +234,46 @@ func (s *RelationshipStore) ReopenDeployableUnitCorrelationsForRepos(
 	if !ok {
 		return crossrepo.CompletionWakeResult{}, errors.New("relationship store database must support Begin to run the completion wake")
 	}
+	timeout := s.completionWakeLockTimeout
+	if timeout <= 0 {
+		timeout = defaultCompletionWakeLockTimeout
+	}
+	// One lock_timeout-bounded transaction per gated domain: an in-flight
+	// item with recorded input is flagged for replay after its ACK, then
+	// the succeeded ones reopen, over the resolution pass's repository
+	// scope. Per-domain transactions keep contention classification precise;
+	// every arm is fingerprint-gated, so a repeat is a no-op once the items
+	// re-read the appended rows.
+	now := time.Now().UTC()
+	reposArg := array.StringArray(repos)
+	var woken crossrepo.CompletionWakeResult
+	for _, gated := range corpusCompletionWakeDomains {
+		flagQuery := completionWakeFlagQueryForDomain(gated.domain, gated.table, gated.logicVersion)
+		reopenQuery := completionWakeReopenQueryForDomain(gated.domain, gated.table, gated.logicVersion)
+		flagged, reopened, err := s.reopenCorpusCorrelationsForReposInTx(ctx, beginner, timeout, now, reposArg,
+			gated.domain, flagQuery, reopenQuery)
+		if err != nil {
+			return crossrepo.CompletionWakeResult{}, err
+		}
+		woken.ReplayFlagged += flagged
+		woken.Reopened += reopened
+	}
+	return woken, nil
+}
+
+// reopenCorpusCorrelationsForReposInTx runs one domain's completion-wake
+// transaction: flag the in-flight arm, then reopen the succeeded arm.
+func (s *RelationshipStore) reopenCorpusCorrelationsForReposInTx(
+	ctx context.Context,
+	beginner db.Beginner,
+	timeout time.Duration,
+	now time.Time,
+	reposArg array.StringArray,
+	domain, flagQuery, reopenQuery string,
+) (flagged, reopened int64, err error) {
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
-		return crossrepo.CompletionWakeResult{}, fmt.Errorf("begin completion wake: %w", err)
+		return 0, 0, fmt.Errorf("begin completion wake: %w", err)
 	}
 	committed := false
 	defer func() {
@@ -193,46 +281,41 @@ func (s *RelationshipStore) ReopenDeployableUnitCorrelationsForRepos(
 			_ = tx.Rollback()
 		}
 	}()
-	timeout := s.completionWakeLockTimeout
-	if timeout <= 0 {
-		timeout = defaultCompletionWakeLockTimeout
-	}
 	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)",
 		fmt.Sprintf("%dms", timeout.Milliseconds())); err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, fmt.Errorf("completion wake: set lock timeout: %w", err)
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, fmt.Errorf("completion wake: set lock timeout: %w", err)
 	}
-	now := time.Now().UTC()
-	reposArg := array.StringArray(repos)
-	var woken crossrepo.CompletionWakeResult
-	flagResult, err := tx.ExecContext(ctx, flagInflightDeployableUnitCorrelationsQuery, now, reposArg)
+	flagResult, err := tx.ExecContext(ctx, flagQuery, now, reposArg)
 	if err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, classifyCompletionWakeError(
-			fmt.Errorf("flag in-flight deployable_unit_correlation items for replay: %w", err))
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, classifyCompletionWakeError(
+			fmt.Errorf("flag in-flight %s items for replay: %w", domain, err))
 	}
-	if woken.ReplayFlagged, err = flagResult.RowsAffected(); err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, fmt.Errorf("flag in-flight deployable_unit_correlation items for replay: rows affected: %w", err)
+	if flagged, err = flagResult.RowsAffected(); err != nil {
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, fmt.Errorf("flag in-flight %s items for replay: rows affected: %w", domain, err)
 	}
-	reopenResult, err := tx.ExecContext(ctx, reopenDeployableUnitCorrelationsForReposQuery, now, reposArg)
+	reopenResult, err := tx.ExecContext(ctx, reopenQuery, now, reposArg)
 	if err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, classifyCompletionWakeError(
-			fmt.Errorf("reopen deployable_unit_correlation items for appended resolved rows: %w", err))
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, classifyCompletionWakeError(
+			fmt.Errorf("reopen %s items for appended resolved rows: %w", domain, err))
 	}
-	if woken.Reopened, err = reopenResult.RowsAffected(); err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, fmt.Errorf("reopen deployable_unit_correlation items for appended resolved rows: rows affected: %w", err)
+	if reopened, err = reopenResult.RowsAffected(); err != nil {
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, fmt.Errorf("reopen %s items for appended resolved rows: rows affected: %w", domain, err)
 	}
 	if err := tx.Commit(); err != nil {
-		s.recordCompletionWake(ctx, telemetry.CompletionWakeOutcomeError, 0)
-		return crossrepo.CompletionWakeResult{}, classifyCompletionWakeError(
+		s.recordCompletionWakeForDomain(ctx, domain, telemetry.CompletionWakeOutcomeError, 0)
+		return 0, 0, classifyCompletionWakeError(
 			fmt.Errorf("commit completion wake: %w", err))
 	}
 	committed = true
-	s.recordCompletionWake(ctx, wakeOutcomeForCompletion(woken), woken.Reopened)
-	return woken, nil
+	s.recordCompletionWakeForDomain(ctx, domain, wakeOutcomeForCompletion(crossrepo.CompletionWakeResult{
+		ReplayFlagged: flagged, Reopened: reopened,
+	}), reopened)
+	return flagged, reopened, nil
 }
 
 // wakeOutcomeForCompletion maps a committed wake to its outcome label.
@@ -243,11 +326,9 @@ func wakeOutcomeForCompletion(woken crossrepo.CompletionWakeResult) string {
 	return telemetry.CompletionWakeOutcomeNoop
 }
 
-// recordCompletionWake counts one wake transaction on
-// eshu_dp_reducer_completion_wake_total and, for a committed wake, its
-// reopened rows on eshu_dp_correlation_reopened_total (#8294). Nil
-// instruments are a no-op.
-func (s *RelationshipStore) recordCompletionWake(ctx context.Context, outcome string, reopened int64) {
+// recordCompletionWakeForDomain counts one domain's wake transaction: the
+// wake total by outcome plus the reopened rows labeled by domain.
+func (s *RelationshipStore) recordCompletionWakeForDomain(ctx context.Context, domain, outcome string, reopened int64) {
 	if s.instruments == nil {
 		return
 	}
@@ -257,6 +338,6 @@ func (s *RelationshipStore) recordCompletionWake(ctx context.Context, outcome st
 	}
 	if reopened > 0 && s.instruments.CorrelationReopened != nil {
 		s.instruments.CorrelationReopened.Add(ctx, reopened,
-			metric.WithAttributes(attribute.String("domain", "deployable_unit_correlation")))
+			metric.WithAttributes(attribute.String("domain", domain)))
 	}
 }

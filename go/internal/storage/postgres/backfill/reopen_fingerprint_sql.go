@@ -104,18 +104,128 @@ func ResolvedInputFingerprintSQL(repoIDs string) string {
 // candidate's id plus whether its input changed. The OR short-circuits, so the
 // fingerprint subquery runs only for an item that has a row under the current
 // logic version.
-var deployableUnitReopenSelect = `SELECT work.work_item_id,
-       (fingerprint.work_item_id IS NULL
-        OR fingerprint.logic_version IS DISTINCT FROM ` +
-	strconv.Itoa(reducercontract.DeployableUnitCorrelationLogicVersion) + `
-        OR fingerprint.input_fingerprint IS DISTINCT FROM ` +
-	ResolvedInputFingerprintSQL("fingerprint.repo_ids") + `) AS input_changed
-`
+var deployableUnitReopenSelect = corpusReopenSelect(reducercontract.DeployableUnitCorrelationLogicVersion)
 
 // deployableUnitReopenFingerprintJoin attaches each candidate's recorded row.
 const deployableUnitReopenFingerprintJoin = `LEFT JOIN deployable_unit_reopen_fingerprints AS fingerprint
   ON fingerprint.work_item_id = work.work_item_id
 `
+
+// corpusReopenFingerprintTables is the allowlist of reopen fingerprint tables
+// the generic changed-evidence gate may render (#10877): one per gated
+// correlation domain. The builders panic on anything else, so a typo fails at
+// initialization instead of querying a wrong table.
+var corpusReopenFingerprintTables = map[string]bool{
+	"deployable_unit_reopen_fingerprints":             true,
+	"workload_materialization_reopen_fingerprints":    true,
+	"service_catalog_correlation_reopen_fingerprints": true,
+}
+
+// corpusReopenSelect is the gated listing's select list for one fingerprint
+// table: every candidate's id plus whether its input changed. Same shape as
+// the deployable_unit_correlation gate: missing row, moved logic version, or
+// a fingerprint that differs from the recompute over the recorded set.
+func corpusReopenSelect(logicVersion int) string {
+	return `SELECT work.work_item_id,
+       (fingerprint.work_item_id IS NULL
+        OR fingerprint.logic_version IS DISTINCT FROM ` +
+		strconv.Itoa(logicVersion) + `
+        OR fingerprint.input_fingerprint IS DISTINCT FROM ` +
+		ResolvedInputFingerprintSQL("fingerprint.repo_ids") + `) AS input_changed
+`
+}
+
+// corpusReopenFingerprintJoin attaches each candidate's recorded row from one
+// fingerprint table.
+func corpusReopenFingerprintJoin(table string) string {
+	if !corpusReopenFingerprintTables[table] {
+		panic(fmt.Sprintf("corpus reopen fingerprint table %q is not allowlisted", table))
+	}
+	return `LEFT JOIN ` + table + ` AS fingerprint
+  ON fingerprint.work_item_id = work.work_item_id
+`
+}
+
+// ListCorpusReopenCandidatesQuery is the changed-evidence gated listing for
+// one fingerprint table: the same replay floor, failed-generation exclusion,
+// $1 domain line, stage marker, and order as the deployable_unit_correlation
+// listing, plus the input_changed column. The caller re-opens the rows whose
+// input_changed is true and counts the rest as skipped_unchanged.
+func ListCorpusReopenCandidatesQuery(table string, logicVersion int) string {
+	if !corpusReopenFingerprintTables[table] {
+		panic(fmt.Sprintf("corpus reopen candidates table %q is not allowlisted", table))
+	}
+	return scopeReplayFloorCTE +
+		corpusReopenSelect(logicVersion) +
+		scopeReplayFloorJoins +
+		corpusReopenFingerprintJoin(table) +
+		scopeReplayFloorStage +
+		`  AND work.domain = $1
+` +
+		scopeReplayFloorBound
+}
+
+// RecordCorpusReopenFingerprintQuery stores the read-time fingerprint of a
+// run that is about to succeed, fenced on the exact claim like the
+// deployable_unit_correlation write. $1 work_item_id, $2 claimed_at (the
+// claim's last_attempt_at), $3 repo_ids, $4 input_fingerprint, $5 logic
+// version.
+func RecordCorpusReopenFingerprintQuery(domain, table string, logicVersion int) string {
+	if !corpusReopenFingerprintTables[table] {
+		panic(fmt.Sprintf("corpus reopen record table %q is not allowlisted", table))
+	}
+	if strings.TrimSpace(domain) == "" {
+		panic("corpus reopen record domain must not be empty")
+	}
+	return `
+WITH claimant AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id = $1
+      AND stage = 'reducer'
+      AND domain = '` + domain + `'
+      AND status IN ('claimed', 'running')
+      AND last_attempt_at = $2
+      AND claim_until > clock_timestamp()
+    FOR NO KEY UPDATE
+)
+INSERT INTO ` + table + ` (
+    work_item_id, repo_ids, input_fingerprint, logic_version, claimed_at, recorded_at
+)
+SELECT claimant.work_item_id, $3::text[], $4, $5, $2, clock_timestamp()
+FROM claimant
+ON CONFLICT (work_item_id) DO UPDATE
+SET repo_ids = EXCLUDED.repo_ids,
+    input_fingerprint = EXCLUDED.input_fingerprint,
+    logic_version = EXCLUDED.logic_version,
+    claimed_at = EXCLUDED.claimed_at,
+    recorded_at = EXCLUDED.recorded_at
+WHERE ` + table + `.claimed_at <= EXCLUDED.claimed_at
+`
+}
+
+// InvalidateCorpusReopenFingerprintsForReposQuery deletes the reopen
+// fingerprint rows of every item whose recorded repository set overlaps the
+// removed repositories, for one fingerprint table.
+func InvalidateCorpusReopenFingerprintsForReposQuery(table string) string {
+	if !corpusReopenFingerprintTables[table] {
+		panic(fmt.Sprintf("corpus reopen invalidate table %q is not allowlisted", table))
+	}
+	return `DELETE FROM ` + table + ` WHERE repo_ids && $1::text[]`
+}
+
+// ListCorpusReopenCandidatesQueries pins the changed-evidence gated listing
+// per gated correlation domain (#10877): workload materialization and service
+// catalog correlation join deployable_unit_correlation behind the gate, so a
+// late-arriving foreign scope restarts their succeeded items instead of
+// leaving partial truth standing.
+var ListCorpusReopenCandidatesQueries = map[string]string{
+	"deployable_unit_correlation": ListDeployableUnitReopenCandidatesQuery,
+	"workload_materialization": ListCorpusReopenCandidatesQuery(
+		"workload_materialization_reopen_fingerprints", reducercontract.WorkloadMaterializationLogicVersion),
+	"service_catalog_correlation": ListCorpusReopenCandidatesQuery(
+		"service_catalog_correlation_reopen_fingerprints", reducercontract.ServiceCatalogCorrelationLogicVersion),
+}
 
 // ListDeployableUnitReopenCandidatesQuery is ListSucceededReducerWorkItemsByDomainQuery
 // for deployable_unit_correlation with the changed-evidence verdict: the same
