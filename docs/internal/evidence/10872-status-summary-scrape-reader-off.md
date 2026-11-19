@@ -7,11 +7,13 @@
 `/metrics` surface) used to fall back to the live active-work and coordinator
 statements whenever the stored-summary reader flag was off, so every
 flag-off hosted runtime ran the full queue-counting statement on every
-~30 s scrape. After this change the scrape never runs the live statement,
-whatever the flag says: it serves the stored row under the scrape fences
-(fresh, else last-decodable or zero with `stale` set). Status routes are
-unchanged: with the reader off they still run the live statement with
-reason `flag_off`.
+~30 s scrape. After this change the scrape never runs the live statement
+while a servable stored row exists, whatever the flag says: it serves the
+stored row under the scrape fences (fresh, else last-decodable or zero with
+`stale` set). With the reader flag off and no servable row it runs the live
+statement (reason flag_off) instead of presenting zeros (#10872). Status
+routes are unchanged: with the reader off they still run the live statement
+with reason `flag_off`.
 
 No new metric, span, log key, or pipeline stage is added. No statement text
 changes: the writer still computes the same pinned
