@@ -104,3 +104,43 @@ minted chunk, one planned outcome. Full suites green for
 - **Pre-existing text fixed elsewhere.** The metrics-doc 51/52 wording and
   the behind-position seed rule with the settlement-eviction counter landed
   under #10887, so this lane does not touch them.
+
+## No-Regression Evidence:
+
+- Changed hot files: `go/internal/coordinator/service_nvd_baseline.go`
+  (the shared plan-input loader plus the moved activation-derivation
+  mapping) and `go/internal/telemetry/instruments.go` (the instruments
+  struct the lane extends). The gate fires on them by content, but the
+  lane adds no concurrency primitive: no `go` statement, no mutex, no
+  channel, no worker pool, no batch-size or lease knob. The per-tick work
+  is one checkpoint read, one plan read, and one or two latch reads, all
+  keyed point lookups, and every failure path zeroes the trip or drops
+  the year instead of retrying in a loop.
+- Before/after suite timing, same machine (darwin/arm64, Go from
+  `go.mod`), `-count=1`, base `b9267c2336` vs head `801df639c1`:
+
+  | suite | base | head |
+  | `internal/coordinator/vulnerability` | 1.168s | 0.407s |
+  | `internal/coordinator/security/alert` | 1.130s | 0.561s |
+  | `internal/coordinator/semantic` | 1.082s | 0.555s |
+  | `internal/telemetry` | 3.352s | 2.633s |
+  | `cmd/workflow-coordinator` | 2.658s | 2.570s |
+
+  No suite regressed; the new loader tests run inside the existing
+  packages, so their cost is included in the head column. These are
+  suite wall times, not production tick latency: the production claim
+  rests on the bounded-read paragraph above, and the tick that carries
+  the loader already runs hourly behind the trip latch.
+
+## Observability Evidence:
+
+- Log: every fail-closed path logs a WARN naming the cause
+  (`baseline_trip_unloaded`, `baseline_trip_open`, `drain_unloaded`),
+  so a broken baseline probe blinds only the baseline lane and pages
+  as the lane's own hold reason, never as a silent zero plan.
+- Metric: the lane reuses the `observeNVDBaselinePlan` verdict the
+  #10828 lane counts (`eshu_dp_nvd_baseline_plan_rows_total`), so the
+  parent-service supply path is covered by the same counter the plan-row
+  lane proves; no new label dimension is added.
+- The telemetry-coverage collectors doc updated in this PR names the new
+  instruments file, keeping the coverage inventory exact.
