@@ -103,7 +103,12 @@ test_ifa_generic_blocked_claim_acked_before_kill_is_not_engaged() (
 	local rc=0 output rows
 	local FAULT_COMPOSE_PROJECT="test-project" use_compose=0 ESHU_POSTGRES_DSN="test-dsn" compose_file="compose.yaml"
 	rows="$(_ifa_test_blocked_claim_rows)"
-	ifa_det_pg() { printf '2|1'; }
+	# The fake also pins the recheck query shape: a recheck that stopped
+	# filtering to still-held rows would pass on canned output.
+	ifa_det_pg() {
+		[[ "$4" == *"FILTER (WHERE w.status IN ('claimed', 'running'))"* ]] || return 1
+		printf '2|1'
+	}
 
 	output="$(ifa_fault_assert_blocked_claims_still_held testcell test-project 0 test-dsn compose.yaml test_materialization "${rows}" 2>&1)" || rc=$?
 	[[ "${rc}" -eq 1 ]] \
@@ -122,7 +127,12 @@ test_ifa_generic_blocked_claim_unmoved_attempt_is_not_reexecuted() (
 	local rc=0 output rows
 	local FAULT_COMPOSE_PROJECT="test-project" use_compose=0 ESHU_POSTGRES_DSN="test-dsn" compose_file="compose.yaml"
 	rows="$(_ifa_test_blocked_claim_rows)"
-	ifa_det_pg() { printf '2|1'; }
+	# The fake also pins the monotonic query shape: a proof that compared
+	# with >= (or dropped a predicate) would pass on canned output.
+	ifa_det_pg() {
+		[[ "$4" == *"w.attempt_count > killed.attempt_count"* && "$4" == *"(extract(epoch FROM w.last_attempt_at) * 1000000)::bigint > killed.last_attempt_us"* ]] || return 1
+		printf '2|1'
+	}
 
 	output="$(ifa_fault_assert_killed_claims_reexecuted testcell test-project 0 test-dsn compose.yaml test_materialization "${rows}" 2>&1)" || rc=$?
 	[[ "${rc}" -eq 1 ]] \
@@ -156,9 +166,18 @@ test_ifa_generic_blocked_claim_green_passes() (
 	[[ "${got_state}" == "1|2|2" ]] \
 		|| fail "census did not return the holders|waiters|claimed state, got ${got_state}"
 
-	ifa_det_pg() { printf '2|2'; }
+	# Each call gets its own shape-pinned fake: a recheck SQL sent to the
+	# proof (or vice versa) must not pass on canned output.
+	ifa_det_pg() {
+		[[ "$4" == *"FILTER (WHERE w.status IN ('claimed', 'running'))"* ]] || return 1
+		printf '2|2'
+	}
 	ifa_fault_assert_blocked_claims_still_held testcell test-project 0 test-dsn compose.yaml test_materialization "${got_rows}" >/dev/null \
 		|| fail "post-kill recheck rejected a fully held killed set"
+	ifa_det_pg() {
+		[[ "$4" == *"w.attempt_count > killed.attempt_count"* && "$4" == *"(extract(epoch FROM w.last_attempt_at) * 1000000)::bigint > killed.last_attempt_us"* ]] || return 1
+		printf '2|2'
+	}
 	ifa_fault_assert_killed_claims_reexecuted testcell test-project 0 test-dsn compose.yaml test_materialization "${got_rows}" >/dev/null \
 		|| fail "monotonic proof rejected a fully re-executed killed set"
 )
@@ -211,6 +230,7 @@ test_ifa_generic_blocked_claim_body_orders_census_before_kill_before_proof() {
 		'drive|_ifa_generic_wait_for_claimed "${family}" "${cell}" "${CLAIMED_ROW_WAIT_TIMEOUT}" 1' \
 		'census|ifa_fault_wait_for_blocked_claim "${cell}" "${blocker_arg}" "${wait_key}" "${CLAIMED_ROW_WAIT_TIMEOUT}" killed_rows census_state' \
 		'kill|ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL' \
+		'snapshot|_ifa_generic_write_kill_snapshot "${cell}" "${blocker_kind}" "${blocker_arg}" "${wait_key}" "${killed_rows}" "${census_state}" "${claimed_before}"' \
 		'recheck|ifa_fault_assert_blocked_claims_still_held' \
 		'release|ifa_fault_release_shared_intent_lock "${cell}" "${blocker_arg}" "${lock_holder_pid}"' \
 		'proof|ifa_fault_assert_killed_claims_reexecuted'; do
@@ -227,8 +247,10 @@ test_ifa_generic_blocked_claim_body_orders_census_before_kill_before_proof() {
 		|| fail "drive-produced check (line ${drive_line}) does not precede the census (line ${census_line})"
 	[[ "${census_line}" -lt "${kill_line}" ]] \
 		|| fail "blocked-claim census (line ${census_line}) does not precede SIGKILL (line ${kill_line})"
-	[[ "${kill_line}" -lt "${recheck_line}" ]] \
-		|| fail "SIGKILL (line ${kill_line}) does not precede the hold recheck (line ${recheck_line})"
+	[[ "${kill_line}" -lt "${snapshot_line}" ]] \
+		|| fail "SIGKILL (line ${kill_line}) does not precede the kill-window snapshot freeze (line ${snapshot_line})"
+	[[ "${snapshot_line}" -lt "${recheck_line}" ]] \
+		|| fail "kill-window snapshot freeze (line ${snapshot_line}) does not precede the hold recheck (line ${recheck_line})"
 	[[ "${recheck_line}" -lt "${release_line}" ]] \
 		|| fail "hold recheck (line ${recheck_line}) does not precede lock release (line ${release_line})"
 	[[ "${release_line}" -lt "${proof_line}" ]] \

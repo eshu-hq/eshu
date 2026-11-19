@@ -235,6 +235,11 @@ test_ifa_generic_intent_writer_precondition_is_wired_before_the_body() {
 	# note standing where the function stood does not satisfy this.
 	[[ "$(_ifa_count_code_matches '_ifa_generic_require_retry_baseline' "${generic_cells_lib}")" == "0" ]] \
 		|| fail "generic cells lib still references _ifa_generic_require_retry_baseline in code -- the retired final-state baseline poll must be gone, not just uncalled"
+	# The wrapper pin above is not enough: a re-added DIRECT final-state
+	# poll call would restore the exact misattribution #10955 closes while
+	# every other pin stays green.
+	[[ "$(_ifa_count_code_matches 'ifa_fault_assert_retried_above' "${generic_cells_lib}")" == "0" ]] \
+		|| fail "generic cells lib calls ifa_fault_assert_retried_above directly -- the final-state baseline poll must stay retired in every spelling, not just the wrapper"
 	require_generic_cells "generic kill cell FREEZES the kill-window snapshot at kill time (call site, not body)" \
 		'_ifa_generic_write_kill_snapshot "${cell}" "${blocker_kind}" "${blocker_arg}" "${wait_key}" "${killed_rows}" "${census_state}" "${claimed_before}"'
 	# TWO call sites, counted -- not "at least one". The kill-worker body and the
