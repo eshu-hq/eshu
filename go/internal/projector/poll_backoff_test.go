@@ -223,4 +223,18 @@ func TestServiceRunConcurrentBacksOffWithinBounds(t *testing.T) {
 	if baseCount < 3 {
 		t.Fatalf("only %d base-interval waits, want at least 3 (one per worker)", baseCount)
 	}
+	// Progression pin: with at least 12 waits across 3 workers, some worker
+	// recorded at least 4 consecutive waits, so at least one interval must
+	// exceed the base. Without this, a worker stuck at the base interval
+	// (no backoff on the concurrent path) still passes.
+	progressed := false
+	for _, d := range recorded {
+		if d > time.Second {
+			progressed = true
+			break
+		}
+	}
+	if !progressed {
+		t.Fatalf("no wait interval exceeded the base 1s across %d recorded waits; concurrent backoff did not progress", len(recorded))
+	}
 }
