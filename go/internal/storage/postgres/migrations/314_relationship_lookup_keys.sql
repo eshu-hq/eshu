@@ -1,4 +1,4 @@
--- 314_10875_lookup_keys.sql: extend the relationship reference candidate
+-- 314_relationship_lookup_keys.sql: extend the relationship reference candidate
 -- sidecar over the two text-search arms of the deferred cross-repository
 -- load and add the security-alert reconciliation key sidecar (issue #10875,
 -- part of #10860, decided by the #10861 D1/D2 ruling).
