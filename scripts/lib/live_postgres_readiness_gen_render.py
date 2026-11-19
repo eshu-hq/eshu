@@ -80,12 +80,17 @@ FRAGMENT_NAMES = (
 # rows (502 lines over the 499 budget). The fourth cut moves three entries
 # earlier into part4 (part4 85 rows/427 lines, part5 97 rows/487 lines, still
 # room for a seed row); six fragments pinned.
+# Rebalanced 2026-11-19 for #10873: the two unchanged-skip enrollments sort
+# past trigger_bootstrap into part6 (100 rows, 502 lines over the 499
+# budget). The fifth cut moves two entries later into part5 (part5 97 to 99
+# rows/497 lines with no seed row, part6 98 rows/492 lines, 497 with the
+# stale-red seed); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
     "go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go",
-    "go/internal/storage/postgres/repository_retirements_derived_race_live_test.go",
+    "go/internal/storage/postgres/repository_retirements_purge_requestbudget_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

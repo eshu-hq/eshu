@@ -272,6 +272,16 @@ TABLE = {
         "go/internal/storage/postgres/trigger_bootstrap_parity_live_test.go": (
             "TestWebhookTriggerStoreRunsOnBootstrapSchemaLive",
         ),
+        "go/internal/storage/postgres/unchanged_skip_bench_live_test.go": (
+            "TestUnchangedSkipGuardBeforeAfter",
+        ),
+        "go/internal/storage/postgres/unchanged_skip_fencing_live_test.go": (
+            "TestUpsertFactBatchUnchangedGuardFencingMatrix",
+            "TestUpsertFactBatchUnchangedGuardTombstones",
+            "TestUpsertStreamingFactsAdmitsAllSkippedReplay",
+            "TestUpsertFactBatchUnchangedGuardConcurrentReplay",
+            "TestUpsertFactsUnchangedReplayAddsNoUpdates",
+        ),
         "go/internal/storage/postgres/workflow_control_claim_class_columns_live_test.go": (
             "TestWorkflowClaimClassColumnsRoundTrip",
             "TestWorkflowClaimClassColumnsBackfill",

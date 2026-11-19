@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
-
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -34,20 +32,27 @@ func upsertFactBatch(ctx context.Context, database db.ExecQueryer, batch []facts
 }
 
 // upsertFactBatchReturningAccepted inserts one batch of facts and reports
-// which fact_ids actually inserted-or-updated. A fact_id is "accepted" when
-// its row is brand new or its fencing_token cleared the
-// upsertFactBatchSuffix WHERE guard; a fact_id whose incoming fencing_token
-// lost that guard is fenced out and is absent from the returned set.
+// which fact_ids the batch may derive downstream evidence from. A fact_id is
+// "accepted" when its row is brand new, when its fencing_token cleared the
+// upsertFactBatchSuffix WHERE guard and rewrote the row, or when the guard
+// skipped it as unchanged (issue #10873: the stored row already equals the
+// incoming envelope on every guarded column, so derivation from the envelope
+// is identical to derivation from a rewritten row). A fact_id whose incoming
+// fencing_token lost that guard is fenced out and is absent from the returned
+// set.
 //
 // This is the only atomic way to learn acceptance: Postgres evaluates the
 // RETURNING clause per row at the same commit-visible instant as the guard
 // itself, so there is no read-then-decide window for a concurrent batch to
 // invalidate (issue #4444 review, codex P1 — reading fencing_token separately
-// before or after the write would race). Callers that derive downstream
-// evidence from a batch (upsertStreamingFacts's afterBatch) MUST filter the
-// batch down to this accepted set before deriving anything from it, or a
-// fenced-out envelope's stale payload leaks into repository-catalog and
-// relationship-evidence derivation even though its fact_records row was
+// before or after the write would race). The unchanged-vs-fenced-out split
+// for RETURNING-absent rows is resolved by selectUnchangedFactIDs on the same
+// transaction, conservatively: a row that no longer matches the incoming
+// envelope (a concurrent winner, a delete) stays excluded. Callers that derive
+// downstream evidence from a batch (upsertStreamingFacts's afterBatch) MUST
+// filter the batch down to this accepted set before deriving anything from
+// it, or a fenced-out envelope's stale payload leaks into repository-catalog
+// and relationship-evidence derivation even though its fact_records row was
 // correctly protected.
 func upsertFactBatchReturningAccepted(
 	ctx context.Context,
@@ -80,6 +85,34 @@ func upsertFactBatchReturningAccepted(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("upsert fact batch returning accepted rows: %w", err)
 	}
+	if len(accepted) == len(batch) {
+		return accepted, nil
+	}
+
+	// The guard makes RETURNING-absence ambiguous: a missing fact_id was
+	// either fenced out or skipped as unchanged. Admit the unchanged ones so
+	// an identical replay still feeds afterBatch; fenced-out rows stay
+	// excluded. Callers pass deduplicated batches, so a missing id is never a
+	// collapsed in-batch duplicate.
+	var missing []facts.Envelope
+	seen := make(map[string]struct{}, len(batch)-len(accepted))
+	for _, envelope := range batch {
+		if _, ok := accepted[envelope.FactID]; ok {
+			continue
+		}
+		if _, dup := seen[envelope.FactID]; dup {
+			continue
+		}
+		seen[envelope.FactID] = struct{}{}
+		missing = append(missing, envelope)
+	}
+	unchanged, err := selectUnchangedFactIDs(ctx, database, missing)
+	if err != nil {
+		return nil, err
+	}
+	for factID := range unchanged {
+		accepted[factID] = struct{}{}
+	}
 
 	return accepted, nil
 }
@@ -97,9 +130,9 @@ func buildUpsertFactBatchQuery(suffix string, batch []facts.Envelope) (string, [
 			return "", nil, err
 		}
 
-		payloadJSON, err := payloadstore.MarshalPayload(envelope.Payload)
+		guarded, err := guardedFactValuesFor(envelope)
 		if err != nil {
-			return "", nil, fmt.Errorf("marshal payload for fact %q: %w", envelope.FactID, err)
+			return "", nil, err
 		}
 
 		observedAt := envelope.ObservedAt.UTC()
@@ -122,20 +155,20 @@ func buildUpsertFactBatchQuery(suffix string, batch []facts.Envelope) (string, [
 			envelope.FactID,
 			envelope.ScopeID,
 			envelope.GenerationID,
-			envelope.FactKind,
-			envelope.StableFactKey,
-			payloadstore.EmptyToDefault(envelope.SchemaVersion, "0.0.0"),
-			payloadstore.EmptyToDefault(envelope.CollectorKind, payloadstore.EmptyToDefault(envelope.SourceRef.SourceSystem, "unknown")),
-			envelope.FencingToken,
-			payloadstore.EmptyToDefault(envelope.SourceConfidence, "unknown"),
-			envelope.SourceRef.SourceSystem,
-			envelope.SourceRef.FactKey,
-			payloadstore.EmptyToNil(envelope.SourceRef.SourceURI),
-			payloadstore.EmptyToNil(envelope.SourceRef.SourceRecordID),
+			guarded.factKind,
+			guarded.stableFactKey,
+			guarded.schemaVersion,
+			guarded.collectorKind,
+			guarded.fencingToken,
+			guarded.sourceConfidence,
+			guarded.sourceSystem,
+			guarded.sourceFactKey,
+			guarded.sourceURI,
+			guarded.sourceRecordID,
 			observedAt,
 			observedAt,
-			envelope.IsTombstone,
-			payloadJSON,
+			guarded.isTombstone,
+			guarded.payloadJSON,
 		)
 	}
 
@@ -166,21 +199,36 @@ ON CONFLICT (fact_id) DO UPDATE SET
     is_tombstone = EXCLUDED.is_tombstone,
     payload = EXCLUDED.payload
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
+  AND (
+    fact_records.fact_kind IS DISTINCT FROM EXCLUDED.fact_kind
+    OR fact_records.stable_fact_key IS DISTINCT FROM EXCLUDED.stable_fact_key
+    OR fact_records.schema_version IS DISTINCT FROM EXCLUDED.schema_version
+    OR fact_records.collector_kind IS DISTINCT FROM EXCLUDED.collector_kind
+    OR fact_records.fencing_token IS DISTINCT FROM EXCLUDED.fencing_token
+    OR fact_records.source_confidence IS DISTINCT FROM EXCLUDED.source_confidence
+    OR fact_records.source_system IS DISTINCT FROM EXCLUDED.source_system
+    OR fact_records.source_fact_key IS DISTINCT FROM EXCLUDED.source_fact_key
+    OR fact_records.source_uri IS DISTINCT FROM EXCLUDED.source_uri
+    OR fact_records.source_record_id IS DISTINCT FROM EXCLUDED.source_record_id
+    OR fact_records.is_tombstone IS DISTINCT FROM EXCLUDED.is_tombstone
+    OR fact_records.payload IS DISTINCT FROM EXCLUDED.payload
+  )
 `
 
 // upsertFactBatchSuffixReturningFactID is upsertFactBatchSuffix with a
 // RETURNING clause appended. Postgres only reports RETURNING rows for the
 // subset of a multi-row INSERT ... ON CONFLICT DO UPDATE statement whose
-// fencing_token guard actually passed (a fresh INSERT always returns its
-// row; a DO UPDATE whose WHERE predicate is false is skipped for that row
-// and returns nothing for it). This is the only atomic way to learn which
-// fact_ids actually won the fencing race — reading fencing_token separately
-// before or after the write would race against concurrent batches (issue
-// #4444 review, codex P1). Kept as a distinct constant (not the default
-// shape) so the hot, heavily-tested non-streaming upsertFactBatch path
-// (upsertFacts, which has no downstream derived-evidence consumer) keeps its
-// existing plain ExecContext call and query-shape test contracts unchanged;
-// only upsertStreamingFacts, which does derive downstream evidence, needs the
+// guard rewrote the row (a fresh INSERT always returns its row; a DO UPDATE
+// whose WHERE predicate is false — fenced out by #4444 or skipped as
+// unchanged by #10873 — returns nothing for it). The unchanged-vs-fenced-out
+// split is resolved by selectUnchangedFactIDs (see
+// upsertFactBatchReturningAccepted); reading fencing_token separately before
+// or after the write would race against concurrent batches (issue #4444
+// review, codex P1). Kept as a distinct constant (not the default shape) so
+// the hot, heavily-tested non-streaming upsertFactBatch path (upsertFacts,
+// which has no downstream derived-evidence consumer) keeps its existing plain
+// ExecContext call and query-shape test contracts unchanged; only
+// upsertStreamingFacts, which does derive downstream evidence, needs the
 // accepted-row identity.
 const upsertFactBatchSuffixReturningFactID = upsertFactBatchSuffix + `
 RETURNING fact_id
