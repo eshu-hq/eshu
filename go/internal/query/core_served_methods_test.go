@@ -193,14 +193,20 @@ var (
 	routeAssign       = regexp.MustCompile(`^\s*(?:const\s+|var\s+)?(\w+)\s*:?=\s*"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) [^"]*?"`)
 	pathConstAssign   = regexp.MustCompile(`^\s*(?:const\s+|var\s+)?(\w+)\s*:?=\s*"(/[^"]*)"`)
 	bareHandleCall    = regexp.MustCompile(`\.Handle(?:Func)?\(\s*([A-Za-z_]\w*)\s*,`)
-	methodConcatCall  = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) "\s*\+\s*([A-Za-z_]\w*)`)
+	// Bare path literals: mux.Handle("/metrics", ...) registers a path with
+	// no method prefix, which muxPatternLiteral (method-first) and
+	// bareHandleCall (identifier-first) both miss. Without this, a
+	// non-forwarded infrastructure mount is invisible to the drift scan.
+	barePathLiteral  = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(/[^\"]*)"`)
+	methodConcatCall = regexp.MustCompile(`\.Handle(?:Func)?\(\s*"(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) "\s*\+\s*([A-Za-z_]\w*)`)
 )
 
 // collectMountedPatterns scans the serving sources for registered patterns:
-// string literals on mux.Handle/HandleFunc lines, plus route-pattern consts
-// referenced by bare-identifier Handle calls. A registration the scan cannot
-// resolve to a literal (dynamic concatenation, slash doubles) is reported,
-// not silently passed: such a mount is a review failure.
+// string literals on mux.Handle/HandleFunc lines (method-prefixed and bare
+// paths alike), plus route-pattern consts referenced by bare-identifier
+// Handle calls. A registration the scan cannot resolve to a literal
+// (dynamic concatenation, slash doubles) is reported, not silently passed:
+// such a mount is a review failure.
 func collectMountedPatterns(t *testing.T, roots []string) (mounted map[string]bool, unresolvable []string) {
 	t.Helper()
 	mounted = map[string]bool{}
@@ -274,6 +280,9 @@ func collectMountedPatterns(t *testing.T, roots []string) (mounted map[string]bo
 				for _, m := range bareHandleCall.FindAllStringSubmatch(code, -1) {
 					refs = append(refs, ref{file: name, line: i + 1, name: m[1]})
 				}
+				for _, m := range barePathLiteral.FindAllStringSubmatch(code, -1) {
+					mounted[m[1]] = true
+				}
 				for _, m := range methodConcatCall.FindAllStringSubmatch(code, -1) {
 					concatRefs = append(concatRefs, concatRef{file: name, line: i + 1, method: m[1], name: m[2]})
 				}
@@ -320,6 +329,12 @@ func TestCoreSourceAddsNoUnfrozenRoute(t *testing.T) {
 	})
 	for _, u := range unresolvable {
 		t.Errorf("unresolvable registration (dynamic pattern): %s", u)
+	}
+	// The scan must actually resolve the cmd/core-api scrape endpoint: a
+	// registration the scanner cannot see passes vacuously. If this fails,
+	// the scan roots or the bare-path pattern regressed.
+	if !mounted["/metrics"] {
+		t.Errorf("drift scan did not resolve /metrics from go/cmd/core-api")
 	}
 	frozen := loadFrozenServedMethods(t)
 	frozenSet := make(map[string]bool, len(frozen))
