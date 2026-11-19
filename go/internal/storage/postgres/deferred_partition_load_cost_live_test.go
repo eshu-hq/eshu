@@ -20,9 +20,10 @@ import (
 )
 
 // Frozen pre-#10875 baseline of the deferred partition load, copied verbatim
-// from go/internal/storage/postgres/backfill at c4756a4716^ (deferred_facts.go
-// lines 220-330, deferred_predicate.go lines 19-115) with const names given a
-// legacy prefix. It is the "before" side of the #10971 P1 cost comparison:
+// from go/internal/storage/postgres/backfill at c4756a4716^ (the
+// ListDeferredScopedRelationshipFactRecordsQuery const in deferred_facts.go
+// plus the predicate consts in deferred_predicate.go) with const names given
+// a legacy prefix. It is the "before" side of the #10971 P1 cost comparison:
 // the shipped query must select a superset of this baseline on the same
 // corpus, and both shapes are timed below on a migrated disposable schema.
 const legacyDeferredPathSQL = `lower(COALESCE(

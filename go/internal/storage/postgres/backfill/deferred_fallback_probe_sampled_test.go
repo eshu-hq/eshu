@@ -16,6 +16,9 @@ import (
 // load. Exactly the sampled loads issue the probe query; every load still
 // runs the main query.
 func TestDeferredRelationshipKeyFallbackProbeIsSampled(t *testing.T) {
+	// The probe counter is process-global; reset it so repeat runs
+	// (-count=2) and future earlier-sorting callers see the same sequence.
+	deferredRelationshipKeyFallbackProbeCalls.Store(0)
 	fake := &fakeExecQueryer{
 		deferredFactsByScope: map[string][][]any{"s": {}},
 	}
