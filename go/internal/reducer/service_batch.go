@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 538 lines (base 476): the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch, and a file split is out of scope for this telemetry-only change.
+package reducer //nolint:filelength // 477 lines: the #8625 mid-handoff and post-receive drop records live inline at their select/branch sites; extracting them would split each drop's ownership proof from its branch. The prefetch buffer itself lives in service_batch_prefetch.go.
 
 import (
 	"context"
@@ -38,11 +38,12 @@ type batchAckItem struct {
 // branch. Mirrors the generationRetentionTestHooks precedent in
 // internal/storage/postgres.
 type batchWorkerTestHooks struct {
-	// afterWorkReceive runs after a worker completes a handoff rendezvous
-	// receive and before its post-receive cancellation check, so a test can
-	// land shutdown exactly in the post-receive drop window. Cancelling from
-	// the test goroutine instead would race the select rendezvous-vs-cancel
-	// outcome and prove nothing about that window.
+	// afterWorkReceive runs after a worker takes an item — either by
+	// completing a handoff rendezvous receive or by popping a buffered
+	// prefetched item — and before its post-receive cancellation check, so
+	// a test can land shutdown exactly in the post-receive drop window.
+	// Cancelling from the test goroutine instead would race the select
+	// rendezvous-vs-cancel outcome and prove nothing about that window.
 	afterWorkReceive func()
 }
 
