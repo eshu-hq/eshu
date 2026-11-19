@@ -44,6 +44,28 @@ func TestSortDedupWinnersDirtyIdentifiersOrdersByTheConflictKey(t *testing.T) {
 	}
 }
 
+// TestSortDedupWinnersDirtyIdentifiersAllocsBound pins the hot-path batch
+// builder's allocation shape at a pinned small input: no per-row maps or
+// clones may creep into the builder. Allocations on statement execution
+// or on the SQL text are deliberately not asserted here — the former needs
+// a live database and the latter proves nothing about the builder.
+func TestSortDedupWinnersDirtyIdentifiersAllocsBound(t *testing.T) {
+	// No t.Parallel: testing.AllocsPerRun panics in parallel tests.
+	in := make([]supplychaincore.WinnersDirtyIdentifier, 0, 60)
+	for i := 0; i < 60; i++ {
+		in = append(in, supplychaincore.WinnersDirtyIdentifier{
+			PackageID: "pkg", RepositoryID: "repo", SubjectDigest: "digest",
+			C0: "c0", AdvisoryID: "a",
+		})
+	}
+	const wantAllocs = 4 // measured at authoring on 60 keys; a per-row map or clone would move this
+	if got := testing.AllocsPerRun(100, func() {
+		_ = sortDedupWinnersDirtyIdentifiers(in)
+	}); got != wantAllocs {
+		t.Fatalf("sortDedupWinnersDirtyIdentifiers allocs = %v, want %v (update the ceiling only when the builder shape intentionally changes)", got, wantAllocs)
+	}
+}
+
 // TestCaptureWinnersDirtyFactsSQLIsKeyOrderedVersionedUpsert pins the #10837
 // direction-C capture shape: rows stage into the shared queue with one row
 // per mark, so a re-mark of a queued key never waits on the log's conflict
@@ -57,6 +79,7 @@ func TestCaptureWinnersDirtyFactsSQLIsKeyOrderedVersionedUpsert(t *testing.T) {
 	for _, want := range []string{
 		"INSERT INTO supply_chain_impact_winners_dirty_staging",
 		"'fact_upsert'",
+		"FROM unnest(",
 	} {
 		if !strings.Contains(captureWinnersDirtyFactsSQL, want) {
 			t.Errorf("capture statement does not contain %q:\n%s", want, captureWinnersDirtyFactsSQL)
@@ -67,10 +90,17 @@ func TestCaptureWinnersDirtyFactsSQLIsKeyOrderedVersionedUpsert(t *testing.T) {
 		"ORDER BY",
 		"ON CONFLICT",
 		"dirty_version",
+		"RETURNING",
 	} {
 		if strings.Contains(captureWinnersDirtyFactsSQL, banned) {
 			t.Errorf("capture statement contains %q, the hot path it must avoid:\n%s", banned, captureWinnersDirtyFactsSQL)
 		}
+	}
+	// Single-statement form: one trailing semicolon at most. A second
+	// statement smuggled into the capture string would run inside every
+	// writer transaction.
+	if body := strings.TrimSpace(captureWinnersDirtyFactsSQL); strings.Contains(strings.TrimSuffix(body, ";"), ";") {
+		t.Errorf("capture statement is not a single statement:\n%s", captureWinnersDirtyFactsSQL)
 	}
 }
 
