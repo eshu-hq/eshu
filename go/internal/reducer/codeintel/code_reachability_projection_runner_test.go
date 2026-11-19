@@ -419,6 +419,15 @@ func (f *fakeCodeReachabilityInputLoader) LoadPendingCodeReachabilityInputs(
 	return append([]CodeReachabilityProjectionInput(nil), f.inputs...), nil
 }
 
+// LatestCompletedIntentTime reports an unknown cursor: the shared unit-test
+// fake never completed an intent through the probe path, so every cycle
+// audits. Probe behavior is covered by probeFakeCodeReachabilityInputLoader.
+func (f *fakeCodeReachabilityInputLoader) LatestCompletedIntentTime(
+	_ context.Context,
+) (time.Time, bool, error) {
+	return time.Time{}, false, nil
+}
+
 type fakeCodeReachabilityRowWriter struct {
 	scopeID      string
 	generationID string

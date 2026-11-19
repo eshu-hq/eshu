@@ -417,6 +417,17 @@ type Instruments struct {
 	// cycle (0 on productive ones: immediate re-poll, no wait) so it
 	// never goes stale behind a drain.
 	SharedProjectionCycleBackoff metric.Float64Gauge
+	// CodeReachabilityProjectionCycles counts code-reachability projection
+	// runner cycles by closed kind (probe_skip, probe_triggered_full,
+	// audit_full, productive). Registered by registerCodeReachabilityIdle.
+	CodeReachabilityProjectionCycles metric.Int64Counter
+	// CodeReachabilityProjectionInputsFound counts projected inputs by the
+	// closed trigger that surfaced them (probe, audit). Registered by
+	// registerCodeReachabilityIdle.
+	CodeReachabilityProjectionInputsFound metric.Int64Counter
+	// CodeReachabilityProjectionBackoff is the current idle backoff delay
+	// in seconds. Registered by registerCodeReachabilityIdle.
+	CodeReachabilityProjectionBackoff metric.Float64Gauge
 	// SharedProjectionPartitionsAtMaxBackoff counts partitions pinned at
 	// T_max backoff, sampled each cycle (#7724).
 	SharedProjectionPartitionsAtMaxBackoff metric.Int64Gauge
@@ -7109,6 +7120,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSharedProjectionCycle(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCodeReachabilityIdle(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {

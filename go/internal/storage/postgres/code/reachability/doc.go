@@ -23,6 +23,11 @@
 // materialization work items succeeded, and no pending code_calls or
 // inheritance_edges intent.
 //
+// LatestCompletedIntentTime is the #10870 idle cursor in front of that
+// schedule: the newest completed_at across the two traversed domains, served
+// by two backward LIMIT-1 index-only scans. The runner polls the cursor and
+// runs the full schedule only when it moves (or the audit fires).
+//
 // The loader (LoadPendingCodeReachabilityInputs and its private per-repo
 // readers) feeds codeintel.BuildCodeRootVerdicts the roots, Ruby class
 // ancestry, and Rails route-fact snapshot it needs to confirm or downgrade a

@@ -448,6 +448,14 @@ func (f *fakeCodeReachabilityInputLoader) LoadPendingCodeReachabilityInputs(
 	return append([]codeintel.CodeReachabilityProjectionInput(nil), f.inputs...), nil
 }
 
+// LatestCompletedIntentTime reports an unknown cursor so the service test's
+// runner audits every cycle, as before #10870.
+func (f *fakeCodeReachabilityInputLoader) LatestCompletedIntentTime(
+	_ context.Context,
+) (time.Time, bool, error) {
+	return time.Time{}, false, nil
+}
+
 type fakeCodeReachabilityRowWriter struct {
 	scopeID      string
 	generationID string

@@ -112,3 +112,24 @@ WHERE reach_updated_at IS NULL
 ORDER BY completed_at ASC, repository_id ASC
 LIMIT $1
 `
+
+// codeReachabilityIntentCursorSQL is the #10870 idle-probe statement: one
+// per-domain newest completed_at over the traversed code-edge intent domains.
+// Each scalar subquery is an Index Only Scan Backward with LIMIT 1 on the
+// existing shared_projection_intents_pending_idx
+// ((projection_domain, completed_at, created_at)), so an idle cycle costs
+// two index-tip probes and no table heap beyond visibility-map misses —
+// O(1) in the number of ready runs, unlike the full candidate query above.
+// The statement takes no bind parameters: the domains are the same literals
+// CompleteRunGateSQL admits, and a parameter would only risk a different
+// generic plan for an identical shape.
+const codeReachabilityIntentCursorSQL = `SELECT (
+  SELECT completed_at FROM shared_projection_intents
+  WHERE projection_domain = 'code_calls' AND completed_at IS NOT NULL
+  ORDER BY completed_at DESC LIMIT 1
+) AS code_calls_max,
+(
+  SELECT completed_at FROM shared_projection_intents
+  WHERE projection_domain = 'inheritance_edges' AND completed_at IS NOT NULL
+  ORDER BY completed_at DESC LIMIT 1
+) AS inheritance_edges_max`

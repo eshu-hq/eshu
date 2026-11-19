@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -25,12 +26,20 @@ const (
 	// DELETE+INSERT), so the default adds throughput without contention while
 	// staying modest for the Postgres connection pool. Override via Config.
 	defaultCodeReachabilityConcurrency = 4
+	// Idle defaults (defaultCodeReachabilityMaxPollInterval,
+	// defaultCodeReachabilityAuditInterval) live in
+	// code_reachability_projection_idle.go with the gating logic they tune.
 )
 
 // CodeReachabilityInputLoader loads bounded code reachability projection
 // snapshots that are newer than the currently materialized read model.
 type CodeReachabilityInputLoader interface {
 	LoadPendingCodeReachabilityInputs(ctx context.Context, limit int) ([]CodeReachabilityProjectionInput, error)
+	// LatestCompletedIntentTime reports the newest completed_at across the
+	// traversed code-edge intent domains (code_calls, inheritance_edges).
+	// ok is false when no completed intent exists; the caller treats that
+	// as an unknown cursor and runs the full candidate query.
+	LatestCompletedIntentTime(ctx context.Context) (time.Time, bool, error)
 }
 
 // CodeReachabilityRowWriter writes materialized code reachability rows and the
@@ -64,6 +73,20 @@ type CodeReachabilityProjectionRunnerConfig struct {
 	// MaxVisited bounds the distinct reachable entities materialized per
 	// snapshot. Zero selects defaultCodeReachabilityMaxVisited.
 	MaxVisited int
+	// MaxPollInterval caps the exponential idle backoff between empty
+	// cycles (#10870). Zero selects defaultCodeReachabilityMaxPollInterval.
+	// It bounds the intent-completion-driven pickup delay, not the audit.
+	MaxPollInterval time.Duration
+	// AuditInterval forces the full candidate query even when the cursor
+	// probe has not moved (#10870). Zero selects
+	// defaultCodeReachabilityAuditInterval. It bounds every other
+	// readiness-transition delay.
+	AuditInterval time.Duration
+	// DisableIdleProbe restores the pre-#10870 behavior: every cycle runs
+	// the full candidate query. It is the ESHU_CODE_REACHABILITY_
+	// PROJECTION_IDLE_PROBE=false kill-switch; the zero value keeps the
+	// probe enabled.
+	DisableIdleProbe bool
 }
 
 // CodeReachabilityProjectionResult summarizes one runner cycle.
@@ -104,9 +127,28 @@ type CodeReachabilityProjectionRunner struct {
 	Config      CodeReachabilityProjectionRunnerConfig
 	Wait        func(context.Context, time.Duration) error
 	Logger      *slog.Logger
+	// Instruments carries the #10870 idle-probe OTEL signals. Nil disables
+	// recording; every record helper is nil-safe.
+	Instruments *telemetry.Instruments
+
+	// cursor is the newest intent completed_at the runner has observed
+	// through the probe; cursorKnown reports whether a probe has ever
+	// answered. lastFullAudit is the cycle time of the last full
+	// candidate query. consecutiveEmpty counts successive empty cycles
+	// for the exponential idle backoff.
+	cursor           time.Time
+	cursorKnown      bool
+	lastFullAudit    time.Time
+	consecutiveEmpty int
 }
 
 // Run drains code reachability projection work until the context is canceled.
+//
+// Empty cycles back off exponentially (#10870): the wait after N consecutive
+// empty cycles is PollInterval doubled N-1 times, capped at MaxPollInterval.
+// A productive cycle resets the backoff and re-polls immediately. The cursor
+// probe inside ProcessNextCycle keeps idle cycles to one index-only probe;
+// see the idle file and the package README for the scheduling contract.
 func (r *CodeReachabilityProjectionRunner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
@@ -115,14 +157,29 @@ func (r *CodeReachabilityProjectionRunner) Run(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		result, err := r.ProcessOnce(ctx, time.Now().UTC())
+		result, err := r.ProcessNextCycle(ctx, time.Now().UTC())
 		if err != nil {
 			return err
 		}
 		if result.InputsProcessed > 0 {
+			r.consecutiveEmpty = 0
+			r.recordBackoff(ctx, 0)
 			continue
 		}
-		if err := r.wait(ctx, r.pollInterval()); err != nil {
+		r.consecutiveEmpty++
+		backoff := r.pollInterval()
+		for i := 1; i < r.consecutiveEmpty && i < 31; i++ {
+			backoff *= 2
+			if backoff >= r.maxPollInterval() {
+				backoff = r.maxPollInterval()
+				break
+			}
+		}
+		if backoff > r.maxPollInterval() {
+			backoff = r.maxPollInterval()
+		}
+		r.recordBackoff(ctx, backoff)
+		if err := r.wait(ctx, backoff); err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 				return nil
 			}
