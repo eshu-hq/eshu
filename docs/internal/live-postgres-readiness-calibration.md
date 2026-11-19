@@ -28,8 +28,10 @@ proof or used to weaken the existing gate.
 
 ## Frozen inventory and drift
 
-The manifest is a snapshot of the readiness inventory at the source SHA above;
-its `source_inventory_sha256` pins that inventory independently of the rows.
+The manifest is a snapshot of the readiness inventory at its own `source_sha`
+field (`b9800bdd1e7bceabd1165a3124f8ad07429c99f0`), pinned independently of the
+rows by `source_inventory_sha256`. That snapshot SHA differs from the planner-cut
+source SHA above, which names where the prices came from, not what is frozen.
 The live inventory keeps growing as live tests are enrolled, so the manifest
 will not match it for long. That is deliberate: `load()` refuses a dispatch
 whose live inventory differs from the snapshot ("ordered coverage differs from

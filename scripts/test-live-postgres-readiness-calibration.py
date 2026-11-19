@@ -178,6 +178,71 @@ class CalibrationContractTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "start marker"):
             provenance._normalized_log("\n".join(lines + [lines[4]]), 1)
 
+    def test_excused_proof_absent_from_log_parses_and_verifies(self) -> None:
+        shard = 6
+        expected = [list(row) for row in self.document["rows"][shard - 1]]
+        excused_run = next(run for row in expected for run in row
+                           if run.endswith("|TestRetirementDerivedStatementPlansLive"))
+        excuse = frozenset(["TestRetirementDerivedStatementPlansLive"])
+        planned = sum(len(row) for row in expected)
+
+        def synthesize(include_excused: bool) -> list[str]:
+            tick = [0]
+
+            def stamp() -> str:
+                tick[0] += 2
+                minute, second = divmod(tick[0], 60)
+                return f"2026-10-29T00:{minute:02d}:{second:02d}Z "
+
+            lines = [
+                "2026-10-29T00:00:00Z Image: ubuntu-24.04",
+                "2026-10-29T00:00:00Z Version: 20261012.334.1",
+                "2026-10-29T00:00:00Z Setup go version spec 1.26.10",
+                "2026-10-29T00:00:00Z ESHU_LIVE_POSTGRES_IMAGE: "
+                "ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:" + "c" * 64,
+                "2026-10-29T00:00:00Z calibration-start shard=6/8",
+                stamp() + "live-postgres-readiness: extra skip excuse: "
+                "TestRetirementDerivedStatementPlansLive",
+            ]
+            for row in expected:
+                package = row[0].split("|", 1)[0]
+                # The runner prints per-test lines sorted, like real logs.
+                tests = sorted(run.split("|", 1)[1] for run in row
+                               if include_excused or run != excused_run)
+                for name in tests:
+                    lines.append(stamp() + f"{name}: PASS elapsed=1.0s")
+                lines.append(stamp() + f"live-postgres-readiness: {package} "
+                             f"{len(tests)}/{len(tests)} PASS")
+            minute, second = divmod(tick[0] + 2, 60)
+            lines.append(f"2026-10-29T00:{minute:02d}:{second:02d}Z readiness calibration "
+                         f"shard 6/8: {planned}/{planned} passing runs, ok=True")
+            return lines
+
+        def parse(lines: list[str]):
+            normalized = provenance._normalized_log("\n".join(lines), shard)
+            shard_excused = provenance.source.shard_excused_runs(
+                [frozenset(row) for row in expected], excuse)
+            names = frozenset(run.split("|", 1)[1] for run in shard_excused)
+            packages = frozenset(
+                package for package in {run.split("|", 1)[0] for row in expected
+                                        for run in row}
+                if all(run in shard_excused for row in expected for run in row
+                       if run.split("|", 1)[0] == package))
+            return provenance.refresh._parse_shard(normalized, shard, 8, names, packages)
+
+        # GREEN: the excused proof prints nothing but counts in the summary.
+        parsed, _, _, memberships = parse(synthesize(False))
+        self.assertNotIn(excused_run, parsed)
+        kept = provenance.verify_log_rows(
+            parsed, memberships, expected,
+            provenance.source.shard_excused_runs(
+                [frozenset(row) for row in expected], excuse))
+        self.assertEqual([run for row in kept for run in row],
+                         [run for row in expected for run in row if run != excused_run])
+        # RED: an excused proof that prints a passing row fails closed.
+        with self.assertRaisesRegex(ValueError, "excused proof printed"):
+            parse(synthesize(True))
+
 
     def test_metadata_rejects_push_and_partial_job_page(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
