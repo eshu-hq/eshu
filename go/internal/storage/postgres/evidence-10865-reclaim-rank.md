@@ -24,8 +24,9 @@ Postgres claim commit and the first heartbeat (plus the recorded drop sites)
 orphans the batch by construction, and its only release is the 60s lease
 expiry; ORDER BY starvation then kept that orphan unclaimed for 5h, so it —
 not a lost handoff — was the live cause. The single-claim
-query leads with the same rank (full status-plus-lease CASE on its own
-candidate, which reads the raw table directly).
+query leads with the same status-only rank; its candidate WHERE admits
+solely unleased rows, so both claim paths float the same set first,
+including an anomalous claimed row with no lease stamped.
 
 ## Fixture and backend
 

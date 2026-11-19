@@ -161,6 +161,79 @@ func TestClaimBatchExpiredHoldClaimedFirst(t *testing.T) {
 		len(intents), got)
 }
 
+// TestClaimSingleExpiredAndNullLeaseHoldsClaimedFirst pins the unified
+// reclaim rule on the single-claim path: an expired claimed hold and an
+// anomalous claimed row with no lease stamped both rank ahead of older
+// pending rows at LIMIT 1, exactly as in the batch claim. Before the
+// status-only single CASE, the NULL-lease row ranked last here while the
+// batch floated it first.
+func TestClaimSingleExpiredAndNullLeaseHoldsClaimedFirst(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the single-claim expired-hold proof")
+	}
+
+	ctx := context.Background()
+	db := openReducerFairnessDB(t, ctx, dsn)
+
+	const domain = reducercontract.DomainSupplyChainImpact
+	now := time.Date(2026, time.November, 18, 8, 0, 0, 0, time.UTC)
+	seedReducerFairnessScope(t, ctx, db, "scope-single-hold", now)
+
+	for i := 0; i < 3; i++ {
+		insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+			workItemID:     fmt.Sprintf("single-pending-%d", i),
+			scopeID:        "scope-single-hold",
+			generationID:   "gen-fair",
+			domain:         string(domain),
+			conflictDomain: reducerConflictDomainScope,
+			conflictKey:    fmt.Sprintf("single-pending-key-%d", i),
+			updatedAt:      now.Add(time.Duration(i) * time.Second),
+		})
+	}
+	insertReducerFairnessClaimedWorkItem(t, ctx, db, reducerFairnessWorkItem{
+		workItemID:     "single-expired-hold",
+		scopeID:        "scope-single-hold",
+		generationID:   "gen-fair",
+		domain:         string(domain),
+		conflictDomain: reducerConflictDomainScope,
+		conflictKey:    "single-expired-key",
+		updatedAt:      now.Add(4 * time.Second),
+	}, now.Add(time.Hour))
+	insertReducerFairnessWorkItem(t, ctx, db, reducerFairnessWorkItem{
+		workItemID:     "single-null-hold",
+		scopeID:        "scope-single-hold",
+		generationID:   "gen-fair",
+		domain:         string(domain),
+		conflictDomain: reducerConflictDomainScope,
+		conflictKey:    "single-null-key",
+		updatedAt:      now.Add(5 * time.Second),
+	})
+	if _, err := db.ExecContext(ctx, `
+UPDATE fact_work_items SET status = 'claimed', lease_owner = 'unstamped-holder', claim_until = NULL
+WHERE work_item_id = 'single-null-hold'`); err != nil {
+		t.Fatalf("mark null-lease hold claimed: %v", err)
+	}
+
+	claimAt := now.Add(2 * time.Hour)
+	queue := ReducerQueue{
+		database:      SQLDB{DB: db},
+		LeaseOwner:    "single-hold-test",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return claimAt },
+		ClaimDomains:  []reducercontract.Domain{domain},
+	}
+	for i, want := range []string{"single-expired-hold", "single-null-hold", "single-pending-0"} {
+		intent, claimed, err := queue.Claim(ctx)
+		if err != nil || !claimed {
+			t.Fatalf("Claim() #%d = %v, %v, want %s claimed", i+1, claimed, err, want)
+		}
+		if intent.IntentID != want {
+			t.Fatalf("Claim() #%d = %q, want %q (expired and unstamped-lease holds rank first)", i+1, intent.IntentID, want)
+		}
+	}
+}
+
 // TestClaimBatchConcurrentSameConflictGroupAdmitsExpiredOnce is the #10865
 // acceptance-(3) proof: several claims racing for the same conflict group as
 // one expired hold must resolve to exactly one winner for the hold — no
@@ -302,7 +375,7 @@ func TestClaimBatchExpiredHoldOrderedFirstInShippedQuery(t *testing.T) {
 	}
 
 	single := claimReducerWorkQuery
-	const singleReclaim = "CASE WHEN fact_work_items.status IN ('claimed', 'running') AND fact_work_items.claim_until <= $1 THEN 0 ELSE 1 END AS reclaim_rank"
+	const singleReclaim = "CASE WHEN fact_work_items.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS reclaim_rank"
 	if !strings.Contains(single, singleReclaim) {
 		t.Fatalf("single claim query lost the expired-lease reclaim rank %q", singleReclaim)
 	}

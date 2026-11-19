@@ -9,9 +9,13 @@ WITH ` + reducerClaimReadinessRequirementsCTE() + `,
 candidate AS (
     -- #10865: reclaim_rank leads the lock ORDER BY below (projector #10480
     -- twin), so an expired claimed/running hold is reclaimed instead of
-    -- buried behind older pending rows at LIMIT 1.
+    -- buried behind older pending rows at LIMIT 1. Status-only, like the
+    -- batch CASE: the WHERE below admits solely unleased rows
+    -- (claim_until IS NULL or past), so every claimed/running candidate
+    -- is an expired or unstamped-lease hold — both claim paths float the
+    -- same set first.
     SELECT work_item_id,
-        CASE WHEN fact_work_items.status IN ('claimed', 'running') AND fact_work_items.claim_until <= $1 THEN 0 ELSE 1 END AS reclaim_rank
+        CASE WHEN fact_work_items.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS reclaim_rank
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')

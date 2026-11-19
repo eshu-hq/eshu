@@ -18,11 +18,10 @@ var _ telemetry.ReducerClaimedExpiredObserver = (*QueueObserverStore)(nil)
 // The predicate mirrors the claim's reclaim_rank lease test (status claimed
 // or running with claim_until at or before the read clock), so the gauge
 // counts the expired-lease rows the claim now floats first — a nonzero
-// count names the
-// reclaim backlog, and the age names how long its head has waited. A claimed
+// count names the reclaim backlog, and the age names how long its head has waited. A claimed
 // row with a NULL claim_until (no lease stamped, anomalous: the claim UPDATE
-// always stamps one) is excluded here but floats first in the batch by
-// status rank; such a row needs an owner, not a lease wait, so the metric
+// always stamps one) is excluded here but floats first in both claim paths
+// by status rank; such a row needs an owner, not a lease wait, so the metric
 // stays silent about it by design.
 //
 // Claimed/running rows are never fenced as stale generations (the active

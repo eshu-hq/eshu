@@ -149,8 +149,8 @@ func TestReducerContentionGateRuntimeProducerStatesNewestInFlightWorkableAt(t *t
 		owner      string
 		claimedAgo time.Duration
 	}{
-		// Two dead workers: claimed 15 minutes and 14m30s ago with a
-		// 1-minute lease, so the leases ended 14 and 13m30s minutes ago.
+		// Two dead workers: claimed 15 and 14.5 minutes ago with a
+		// 1-minute lease, so the leases ended 14 and 13.5 minutes ago.
 		// Worker-b claims 30s after worker-a, while a's lease is still
 		// live at b's clock, so b takes its own row instead of reclaiming
 		// a's expired hold (reclaim-first ordering, #10865).
