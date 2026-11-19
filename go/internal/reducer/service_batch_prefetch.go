@@ -63,9 +63,10 @@ func (s Service) runBatchConcurrentPrefetch(
 	bufCh := make(chan batchPrefetchItem, depth)
 	ackCh := make(chan batchAckItem, batchSize*2)
 	// slotFreed carries pop notifications from workers to the claimer: one
-	// send per pop, so a received notification means exactly one free slot.
-	// Sends are non-blocking (a full channel means pending notifications
-	// already cover the pops; the claimer always rechecks length itself),
+	// send attempt per pop, so a received notification means at least one
+	// pop happened (dropped sends only coalesce). Sends are non-blocking;
+	// the claimer always rechecks length itself and never relies on a 1:1
+	// pop-to-notification correspondence,
 	// so a worker never stalls a popped item between its hold stop and its
 	// worker heartbeat with the lease unrenewed.
 	slotFreed := make(chan struct{}, s.Workers)
