@@ -19,6 +19,11 @@ const (
 	ownedTargetSlotAgeBreachReason     = "owned_target_slot_age_exceeds_max_staleness"
 	ownedTargetProgressFallbackReason  = "owned_target_progress_clock_fallback"
 	ownedTargetSlotProgressNotSupplied = "workflow coordinator store cannot advance owned target slot progress"
+	// nvdBaselinePlanStoreNotSupplied is the refusal an admission that carries
+	// NVD baseline plans returns against a store that cannot record them
+	// (#10828). A baseline chunk admitted without its plan row would leave the
+	// planner nothing to pace from, so the admission fails instead.
+	nvdBaselinePlanStoreNotSupplied = "workflow coordinator store cannot record NVD baseline plans"
 )
 
 // SlotProgressStore is the durable surface the owned-package slot-progress
@@ -39,6 +44,26 @@ type SlotProgressStore interface {
 	// AdvanceOwnedTargetSlotProgress advances the picked slots when no work item
 	// is admitted, under the same per-instance advisory lock.
 	AdvanceOwnedTargetSlotProgress(context.Context, workflow.OwnedTargetSlotAdvance) (workflow.SlotAdvanceResult, error)
+}
+
+// BaselinePlanStore is the durable surface the NVD baseline per-year plan write
+// needs beyond [Store] (#10828). Like [SlotProgressStore] it is a separate
+// interface, so a store that predates the feature still satisfies [Store], and
+// an admission that carries baseline plans against such a store fails loudly
+// instead of admitting a chunk the planner cannot pace.
+type BaselinePlanStore interface {
+	// CreateRunWithWorkItemsRecordingBaselinePlans is the guarded admission of
+	// [Store.CreateRunWithWorkItemsIfNoOpenTargets] plus, in the same
+	// transaction, one plan row per baseline plan whose chunk the insert
+	// accepted, and the compare-and-set advance of the picked slots when the
+	// advance is non-nil.
+	CreateRunWithWorkItemsRecordingBaselinePlans(
+		context.Context,
+		workflow.Run,
+		[]workflow.WorkItem,
+		[]workflow.NVDBaselinePlan,
+		*workflow.OwnedTargetSlotAdvance,
+	) (workflow.RunAdmission, workflow.SlotAdvanceResult, error)
 }
 
 // workAdmission is what one admission step reports to its caller: the work
@@ -122,14 +147,23 @@ func ownedSlotAdvance(
 }
 
 // admitWorkflowWork admits the planned work, moving slot progress in the same
-// transaction when advance is set. A store that cannot advance progress is an
-// error, not a silent clock fallback.
+// transaction when advance is set and recording the NVD baseline per-year plan
+// rows in it when plans is non-empty (#10828). A store that cannot advance
+// progress or record plans is an error, not a silent fallback.
 func (s Service) admitWorkflowWork(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
 	advance *workflow.OwnedTargetSlotAdvance,
+	plans []workflow.NVDBaselinePlan,
 ) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
+	if len(plans) > 0 {
+		store, ok := s.Store.(BaselinePlanStore)
+		if !ok {
+			return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("%s", nvdBaselinePlanStoreNotSupplied)
+		}
+		return store.CreateRunWithWorkItemsRecordingBaselinePlans(ctx, run, items, plans, advance)
+	}
 	if advance == nil {
 		admission, err := s.Store.CreateRunWithWorkItemsIfNoOpenTargets(ctx, run, items)
 		return admission, workflow.SlotAdvanceResult{}, err

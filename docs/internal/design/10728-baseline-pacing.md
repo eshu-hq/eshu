@@ -58,7 +58,10 @@ rows. The resume position is per year (section 3), so no global monotone stamp
 is needed across years. Shipped: `deriveNVDBaselineLanes` in
 `go/internal/coordinator/vulnerability/nvd_baseline_planner.go` plans these
 lanes (C1, corrected by the slot rule in #10814) from request inputs that no
-production caller fills before the #10746 enable lane. Newest first puts 2026
+production caller fills before the #10746 enable lane. The durable source of
+the per-year state is the per-year plan row (#10828, migration 312;
+`10809-baseline-resume-position.md`); no caller reads it before the #10746
+enable lane. Newest first puts 2026
 and 2025 (32.1% of records, 19.6% of facts) in about 8 hours at the adaptive
 floor; "most queried years" is a proxy from record share, because no query data
 exists.

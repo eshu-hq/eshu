@@ -75,11 +75,16 @@ FRAGMENT_NAMES = (
 # part6 to 99 rows (497 lines, 502 with the stable seed over the 499 budget).
 # The fifth cut moves three entries later (part5 97 rows/487 lines, part6
 # 96 rows/482 lines, 487 with the seed); six fragments pinned.
+# Rebalanced 2026-11-18 for #10828: the two per-year plan-row enrollments in
+# the postgres package plus main's R6 convergence proof push part5 to 100
+# rows (502 lines over the 499 budget). The fourth cut moves three entries
+# earlier into part4 (part4 85 rows/427 lines, part5 97 rows/487 lines, still
+# room for a seed row); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
+    "go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go",
     "go/internal/storage/postgres/repository_retirements_derived_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

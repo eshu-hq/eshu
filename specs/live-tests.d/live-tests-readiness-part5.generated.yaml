@@ -1,19 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#9694 disposable PostgreSQL 18 proof of the vulnerability-intelligence commit path: an unchanged hint skips, drift commits, a trusted 3-to-1 shrink stores, an untrusted under-half or empty successor is refused and counted, repeated refusals hold the scope stale until a commit passes, and concurrent commits on one scope serialize on the scope row without deadlock or a stored refused successor; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7620 disposable PostgreSQL 18 proof of the per-repository reindex watermarks: one request stores one row per distinct scope, sixteen concurrent requests over overlapping scope sets in opposite orders all succeed and store the largest returned value per scope, a future-seeded value is not moved backward, and the per-cycle read returns only rows newer than the fleet watermark (a mutant that locks rows in input order fails with SQLSTATE 40P01). Enrolled in the live-postgres-readiness runner; 2.01s of test time on postgres:18 on 2026-10-07; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/maintenance/requests_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7620 disposable PostgreSQL 18 proof that the reindex watermark upsert returns a monotonic database-clock stamp: sequential requests never go backward, sixteen concurrent requests store the largest returned value, and a future-seeded value is not moved backward (a mutant without GREATEST fails this proof). Enrolled in the live-postgres-readiness runner; 1.23s of test time, 3s wall with a warm build cache, on postgres:18.6-alpine on tmpfs on 2026-10-06; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go
     tag: ~
     class: postgres_ci
@@ -63,6 +48,16 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7961 disposable PostgreSQL 18 proof that tracked migration 169 never blocks a content_files read past 1 s: migrations 001-168 applied through the tracked migrator (all nine content_files indexes and both secret-lines triggers asserted), 8,000 seeded rows, a 100 ms reader loop and pg_locks sampler (no AccessExclusiveLock during the backfill), receipt skip and a receipt-free replay that rewrites no tuple, a backend terminated mid-backfill that keeps the ALTER, writes no tag or receipt, and reruns to exactly one receipt, and a one-message control that must block a reader past the bound so the proof is not vacuous. Enrolled in the live-postgres-readiness runner; about 25s of test time (22.3s to 29.7s over three local PostgreSQL 18.6 runs on 2026-10-11, host load varied); wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/nvd_baseline_plan_admission_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10828 disposable PostgreSQL proof that the NVD baseline per-year plan row commits or rolls back with the work items and slot progress of one guarded admission, is written only for a chunk the insert accepted (never one the terminal-run skip, the open-target guard, or a primary-key conflict dropped), is stamped from the database clock after the planning-lock wait, and is not written by the plain or slot-progress entry points; isolated bootstrap schema with migration 312"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10828 disposable PostgreSQL proof of the NVD baseline plan row's locking: two coordinators of different instances that share one baseline run and name the same years in opposite order neither deadlock nor retry, because the writer takes row locks in one order, and an admission that records plan rows holds the same single advisory lock as one that does not plus only RowExclusiveLock on the plan table and its primary key; isolated bootstrap schema with migration 312"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go
     tag: ~

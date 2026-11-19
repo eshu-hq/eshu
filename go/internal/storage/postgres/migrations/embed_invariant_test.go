@@ -283,14 +283,14 @@ import (
 // 310_supply_chain_impact_winners_staging_capture.sql (the 272 capture
 // triggers as plain staging INSERTs) and
 // 311_supply_chain_impact_winners_scanner_staging_capture.sql (the 272a
-// scanner capture triggers as plain staging INSERTs, public-only).
-const goldenBootstrapDefinitionsDigest = "bc31bcb76537c50eb091658d17026dc169b32d1058d871d924e0a8d52aadb134"
-
-// goldenBootstrapDefinitionsCount pins the definition count alongside the
-// digest so a truncated embed pattern (e.g. matching embed.go itself, or
-// silently dropping files) fails loudly even in the unlikely case of a hash
-// collision.
-const goldenBootstrapDefinitionsCount = 337
+// scanner capture triggers as plain staging INSERTs, public-only). #10828
+// adds 312_vulnerability_nvd_baseline_plans.sql (the per-year plan row the
+// admission transaction writes for each inserted baseline chunk; one CREATE
+// TABLE, no index).
+const (
+	goldenBootstrapDefinitionsDigest = "9824885cfeb158705151ac1e88551bc641e2f0cdaca913a47b48c97ee88194b0"
+	goldenBootstrapDefinitionsCount  = 338
+)
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

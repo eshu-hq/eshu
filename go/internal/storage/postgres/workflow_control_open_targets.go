@@ -48,19 +48,21 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (workflow.RunAdmission, error) {
-	admission, _, err := s.createRunWithWorkItemsIfNoOpenTargets(ctx, run, items, nil)
+	admission, _, err := s.createRunWithWorkItemsIfNoOpenTargets(ctx, run, items, nil, nil)
 	return admission, err
 }
 
 // createRunWithWorkItemsIfNoOpenTargets is the guarded admission shared by the
-// plain entry point and the slot-progress entry point (#9776). A non-nil
-// advance moves the picked owned-package slots inside the same transaction, on
-// every path that commits.
+// plain entry point, the slot-progress entry point (#9776), and the baseline
+// plan entry point (#10828). A non-nil advance moves the picked owned-package
+// slots inside the same transaction, on every path that commits. Non-empty plans
+// write the NVD baseline per-year plan rows for the chunks the insert accepted.
 func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargets(
 	ctx context.Context,
 	run workflow.Run,
 	items []workflow.WorkItem,
 	advance *workflow.OwnedTargetSlotAdvance,
+	plans []workflow.NVDBaselinePlan,
 ) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
 	if s.database == nil {
 		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, fmt.Errorf("workflow control store database is required")
@@ -82,6 +84,9 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargets(
 	if err := validateSlotAdvanceMatchesItems(advance, items); err != nil {
 		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}
+	if err := validateBaselinePlans(plans, items); err != nil {
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+	}
 	if len(items) == 0 {
 		// No work item means no transaction on the plain path. A slot-progress
 		// caller still owes the picked slots an advance, or an empty slot is
@@ -92,8 +97,9 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargets(
 
 	var lastErr error
 	for attempt := 1; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
-		admission, result, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items, advance)
+		admission, result, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items, advance, plans)
 		if err == nil {
+			s.countBaselinePlanRows(ctx, len(plans), admission.BaselinePlansRecorded)
 			return admission, result, nil
 		}
 		lastErr = err
@@ -109,6 +115,7 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	run workflow.Run,
 	items []workflow.WorkItem,
 	advance *workflow.OwnedTargetSlotAdvance,
+	plans []workflow.NVDBaselinePlan,
 ) (workflow.RunAdmission, workflow.SlotAdvanceResult, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
@@ -206,6 +213,15 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 		admission.InsertedScopeIDs = append(admission.InsertedScopeIDs, batchScopes...)
 	}
 	result, err := advanceOwnedTargetSlots(ctx, tx, advance)
+	if err != nil {
+		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
+	}
+	// The NVD baseline plan rows (#10828) come last, for the chunks the insert
+	// accepted only, under the advisory lock taken above and in the same
+	// transaction as the work items: the row commits or rolls back with its item.
+	// They go after the slot move so the one row two instances can contend on is
+	// held for the shortest time before commit.
+	admission.BaselinePlansRecorded, err = recordBaselinePlansForInserted(ctx, tx, plans, admission.InsertedScopeIDs)
 	if err != nil {
 		return workflow.RunAdmission{}, workflow.SlotAdvanceResult{}, err
 	}

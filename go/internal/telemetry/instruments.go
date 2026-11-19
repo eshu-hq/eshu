@@ -762,6 +762,10 @@ type Instruments struct {
 	// call (#10728): planned, held, or complete. Labels stay
 	// outcome-only; the hold reason rides the plan span.
 	NVDBaselinePlans metric.Int64Counter
+	// NVDBaselinePlanRows counts the per-year plan rows the guarded workflow
+	// admission wrote or declined to write for NVD baseline chunks (#10828):
+	// recorded or not_inserted. Labels stay outcome-only.
+	NVDBaselinePlanRows metric.Int64Counter
 	// NVDBaselineTripTransitions counts NVD baseline trip-line transitions
 	// (#10728): opened, paged, eligible, closed, or close_refused. Labels stay
 	// transition-only.
