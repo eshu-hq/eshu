@@ -18,11 +18,14 @@ const (
 )
 
 // loadReducerHandlerTimeout reads the default bound on one handler execution.
-// Empty means no bound is configured. An unparsable or non-positive value is
-// an error: silently running unbounded on a typo would hide a misconfigured
-// bound, so startup refuses it like the overrides path does. Step (a) of
-// #8211 records the slot and measures handler durations only: nothing enforces
-// the value yet, because worst-case handler durations are still unmeasured.
+// Empty means no bound is configured. An explicit zero duration ("0s")
+// disables the bound: it opts out loudly, distinct from an empty value the
+// operator may never have set. An unparsable or negative value is an error:
+// silently running unbounded on a typo would hide a misconfigured bound, so
+// startup refuses it like the overrides path does. A positive value is
+// enforced by the reducer service (#10866): the worker is freed when the
+// bound expires and the intent fails with the counting
+// reducer_handler_timeout class.
 func loadReducerHandlerTimeout(getenv func(string) string) (time.Duration, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
@@ -32,8 +35,11 @@ func loadReducerHandlerTimeout(getenv func(string) string) (time.Duration, error
 		return 0, nil
 	}
 	value, err := time.ParseDuration(raw)
-	if err != nil || value <= 0 {
-		return 0, fmt.Errorf("%s must carry a positive duration, got %q", reducerHandlerTimeoutEnv, raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s must carry a positive duration or 0s to disable, got %q", reducerHandlerTimeoutEnv, raw)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("%s must carry a positive duration or 0s to disable, got %q", reducerHandlerTimeoutEnv, raw)
 	}
 	return value, nil
 }

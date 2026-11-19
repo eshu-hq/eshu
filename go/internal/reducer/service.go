@@ -224,11 +224,14 @@ type Service struct {
 
 	// HandlerTimeout is the operator-configured default bound on one handler
 	// execution, and HandlerTimeoutOverrides replaces it per domain. Zero
-	// (the default) means no bound is configured. Step (a) of #8211 records
-	// the slot and measures handler durations only: nothing enforces these
-	// values yet, because worst-case handler durations are still unmeasured.
-	// The enforcing deadline is a later step; until then the only release
-	// for a stuck handler is abandonment at shutdown (see executeHandler).
+	// (the default) means no bound is configured. A positive bound is
+	// enforced by executeHandler (#10866): the execution context derives
+	// from the bound and a deadline branch frees the worker for handlers
+	// that ignore cancellation, failing the intent with the counting
+	// reducer_handler_timeout class. Until a bound is configured, the only
+	// release for a stuck handler is abandonment at shutdown.
+	// HandlerTimeoutFor resolves the effective bound; an explicit override
+	// of 0 exempts that domain from the default.
 	HandlerTimeout          time.Duration
 	HandlerTimeoutOverrides map[reducercontract.Domain]time.Duration
 
@@ -479,6 +482,14 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 	execStart := time.Now()
 	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
 	if abandoned {
+		// A shutdown release keeps the abandonment class; an expired bound
+		// keeps the counting timeout class. The tails share the
+		// stop-heartbeat-before-Fail ordering and Fail triage; only the
+		// operator counter differs.
+		var timeoutErr *handlerTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return s.failTimedOutHandler(ctx, intent, timeoutErr, start, execStart, queueWait, workerID, stopHeartbeatOnce)
+		}
 		return s.failAbandonedHandler(ctx, intent, err, start, execStart, queueWait, workerID, stopHeartbeatOnce)
 	}
 	s.recordReducerHandlerDuration(ctx, intent, time.Since(execStart).Seconds())
@@ -486,6 +497,14 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 	status := "succeeded"
 
 	if err != nil {
+		// A cooperative timeout returned from the handler (the bound fired
+		// as the outcome arrived): its duration is recorded above like any
+		// returned execution, and the timeout counter fires here so the
+		// operator sees the bound pressure alongside the retry.
+		var timeoutErr *handlerTimeoutError
+		if errors.As(err, &timeoutErr) {
+			s.recordReducerHandlerTimedOut(ctx, intent)
+		}
 		if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}

@@ -233,6 +233,23 @@ type Instruments struct {
 	// only (a bounded closed set). A non-zero rate means handlers are
 	// wedging past process shutdown instead of observing their context.
 	ReducerHandlerAbandoned metric.Int64Counter
+	// ReducerHandlerTimedOut counts reducer intents whose handler never
+	// returned before its configured per-domain bound expired, so the
+	// worker stopped the lease heartbeat and failed the intent for retry
+	// with the counting reducer_handler_timeout class (#10866). Labeled by
+	// domain only (a bounded closed set). A non-zero rate means bound
+	// pressure: handlers run longer than the configured bound, so either
+	// the work genuinely needs longer (raise the bound) or the handler is
+	// wedging (fix cancellation or split the work). Handlers that return at
+	// the bound instead of abandoning also count here, and additionally
+	// record their duration on ReducerHandlerDuration.
+	ReducerHandlerTimedOut metric.Int64Counter
+	// ReducerHandlerTimeoutSeconds exports the configured per-domain handler
+	// bound in seconds for every known domain, so an alert can compare the
+	// live execution age against the bound that applies to it (#10866).
+	// Zero means unbounded. The value is operator configuration, not a
+	// measurement; it changes only on redeploy.
+	ReducerHandlerTimeoutSeconds metric.Float64ObservableGauge
 	// ProjectorRetrySurge counts every projector work-item retry scheduled
 	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set from queuestore.QueueFailureMetadata/
@@ -2489,10 +2506,12 @@ type Instruments struct {
 	ReducerQueueWaitDuration               metric.Float64Histogram
 	// ReducerHandlerDuration records reducer handler wall time, from
 	// Executor.Execute entry to return, labeled by domain (#8211). It is the
-	// non-enforcing measurement behind the future handler deadline: only
-	// handlers that return are recorded, so a stuck handler that is
-	// abandoned at shutdown lands on ReducerHandlerAbandoned instead and its
-	// elapsed time is visible on the abandonment log line.
+	// measurement behind the handler bound (#10866): only handlers that
+	// return are recorded, so a stuck handler that is abandoned at shutdown
+	// lands on ReducerHandlerAbandoned (and one released by its bound lands
+	// on ReducerHandlerTimedOut) instead, with its elapsed time visible on
+	// the release log line. A cooperative timeout — the handler returning at
+	// the bound — records here as well as on ReducerHandlerTimedOut.
 	ReducerHandlerDuration   metric.Float64Histogram
 	SearchIndexWriteDuration metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
@@ -3779,6 +3798,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerHandlerAbandoned counter: %w", err)
+	}
+
+	inst.ReducerHandlerTimedOut, err = meter.Int64Counter(
+		"eshu_dp_reducer_handler_timed_out_total",
+		metric.WithDescription("Total reducer intents released because the handler never returned before its configured per-domain bound expired"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerTimedOut counter: %w", err)
 	}
 
 	inst.ProjectorRetrySurge, err = meter.Int64Counter(
@@ -6826,7 +6853,11 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ProjectorStageDuration histogram: %w", err)
 	}
 
-	reducerRunBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900}
+	// The top buckets cover the observed stuck-work ages: the QA baseline
+	// for #10866 saw a 1,510s supply-chain run and a 36,553s security-alert
+	// loop, both beyond the old 900s ceiling, so p99 for bound-setting must
+	// resolve above it.
+	reducerRunBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900, 1800, 3600}
 	inst.ReducerRunDuration, err = meter.Float64Histogram(
 		"eshu_dp_reducer_run_duration_seconds",
 		metric.WithDescription("Reducer intent execution duration"),

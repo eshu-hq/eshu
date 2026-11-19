@@ -38,10 +38,24 @@ func TestLoadReducerHandlerTimeoutReadsDuration(t *testing.T) {
 func TestLoadReducerHandlerTimeoutRejectsBadValues(t *testing.T) {
 	t.Parallel()
 
-	for _, raw := range []string{"not-a-duration", "0s", "-5m", "10mm"} {
+	for _, raw := range []string{"not-a-duration", "-5m", "10mm"} {
 		getenv := func(string) string { return raw }
 		if got, err := loadReducerHandlerTimeout(getenv); err == nil {
 			t.Fatalf("loadReducerHandlerTimeout(%q) = %v, want error", raw, got)
+		}
+	}
+}
+
+// TestLoadReducerHandlerTimeoutZeroDisables pins the explicit opt-out: "0s"
+// parses to no bound. It is distinct from empty (never configured) so an
+// operator can loudly disable the bound instead of leaving it unset.
+func TestLoadReducerHandlerTimeoutZeroDisables(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"0s", "0m", "0h"} {
+		getenv := func(string) string { return raw }
+		if got, err := loadReducerHandlerTimeout(getenv); err != nil || got != 0 {
+			t.Fatalf("loadReducerHandlerTimeout(%q) = %v, %v; want 0, nil (explicitly disabled)", raw, got, err)
 		}
 	}
 }
