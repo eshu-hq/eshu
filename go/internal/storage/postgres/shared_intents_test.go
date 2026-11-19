@@ -272,6 +272,72 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	}
 }
 
+// TestSharedIntentStoreStampCodeCallShortfallOnce pins the #10947 anchor
+// contract: the first stamp wins (COALESCE-once), a re-stamp keeps the
+// original anchor, unknown ids are omitted (NULL defers), and an empty batch
+// is a no-op.
+func TestSharedIntentStoreStampCodeCallShortfallOnce(t *testing.T) {
+	t.Parallel()
+
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
+	ctx := context.Background()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	rows := []sharedintent.Row{
+		{
+			IntentID:         "si-stamp-1",
+			ProjectionDomain: reducercontract.DomainCodeCalls,
+			PartitionKey:     "pk-1",
+			RepositoryID:     "repository:r_stamp",
+			SourceRunID:      "run-s",
+			GenerationID:     "gen-s",
+			Payload:          map[string]any{},
+			CreatedAt:        now,
+		},
+		{
+			IntentID:         "si-stamp-2",
+			ProjectionDomain: reducercontract.DomainCodeCalls,
+			PartitionKey:     "pk-1",
+			RepositoryID:     "repository:r_stamp",
+			SourceRunID:      "run-s",
+			GenerationID:     "gen-s",
+			Payload:          map[string]any{},
+			CreatedAt:        now,
+		},
+	}
+	if err := store.UpsertIntents(ctx, rows); err != nil {
+		t.Fatalf("UpsertIntents: %v", err)
+	}
+
+	first, err := store.StampCodeCallShortfallOnce(ctx, []string{"si-stamp-1", "si-stamp-2", "si-unknown"}, now)
+	if err != nil {
+		t.Fatalf("StampCodeCallShortfallOnce: %v", err)
+	}
+	if len(first) != 2 {
+		t.Fatalf("stamps = %v, want one row per surviving id (unknown omitted)", first)
+	}
+	if !first["si-stamp-1"].Equal(now) || !first["si-stamp-2"].Equal(now) {
+		t.Fatalf("stamps = %v, want both anchored at %v", first, now)
+	}
+
+	second, err := store.StampCodeCallShortfallOnce(ctx, []string{"si-stamp-1", "si-stamp-2"}, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("StampCodeCallShortfallOnce: %v", err)
+	}
+	if !second["si-stamp-1"].Equal(now) || !second["si-stamp-2"].Equal(now) {
+		t.Fatalf("re-stamps = %v, want the original anchors kept (COALESCE-once)", second)
+	}
+
+	empty, err := store.StampCodeCallShortfallOnce(ctx, nil, now)
+	if err != nil {
+		t.Fatalf("StampCodeCallShortfallOnce: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Fatalf("empty batch stamps = %v, want none", empty)
+	}
+}
+
 func TestSharedIntentStoreEmptyUpsertIsNoop(t *testing.T) {
 	t.Parallel()
 
@@ -633,6 +699,29 @@ func (database *sharedIntentTestDB) ExecContext(_ context.Context, query string,
 
 func (database *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
+	case strings.Contains(query, "first_code_call_shortfall_at"):
+		// StampCodeCallShortfallOnce (#10947): COALESCE-once per intent,
+		// one row per surviving id, deleted ids omitted.
+		now := args[0].(time.Time).UTC()
+		intentIDs := args[1].([]string)
+		var rows [][]any
+		for _, id := range intentIDs {
+			stored, ok := database.intents[id]
+			if !ok {
+				continue
+			}
+			stamp := now
+			if stored.shortfallAt != nil {
+				stamp = *stored.shortfallAt
+			} else {
+				anchor := now
+				stored.shortfallAt = &anchor
+				database.intents[id] = stored
+			}
+			rows = append(rows, []any{id, stamp})
+		}
+		return newSharedIntentRows(rows), nil
+
 	case strings.Contains(query, "SELECT EXISTS") &&
 		strings.Contains(query, "source_run_id = $3") &&
 		strings.Contains(query, "completed_at IS NOT NULL"):
@@ -841,6 +930,8 @@ type storedSharedIntent struct {
 	row              sharedintent.Row
 	scopeID          string
 	acceptanceUnitID string
+	// shortfallAt mirrors first_code_call_shortfall_at (#10947).
+	shortfallAt *time.Time
 }
 
 // sharedIntentRows implements the Rows interface for shared intent test queries.

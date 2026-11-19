@@ -112,9 +112,14 @@ type RefreshFenceLookup interface {
 
 // Runner processes code-call shared intents one repo/run at a time.
 type Runner struct {
-	IntentReader        IntentReader
-	LeaseManager        sharedintent.PartitionLeaseManager
-	EdgeWriter          sharedintent.EdgeWriter
+	IntentReader IntentReader
+	LeaseManager sharedintent.PartitionLeaseManager
+	EdgeWriter   sharedintent.EdgeWriter
+	// UnroutableWriter persists one durable dead-letter row per active
+	// intent when a shortfall park reaches its elapsed bound (#10947),
+	// BEFORE MarkIntentsCompleted. A nil sink keeps an expired park open
+	// instead of completing without the durable record (#5984).
+	UnroutableWriter    worker.UnroutableWriter
 	AcceptedGen         sharedintent.AcceptedGenerationLookup
 	AcceptedGenPrefetch sharedintent.AcceptedGenerationPrefetch
 	ReadinessLookup     gpphase.ReadinessLookup
@@ -475,7 +480,26 @@ func (r *Runner) processPartitionOnce(
 		writeStart := time.Now()
 		writeReport, groups, err := r.writeActiveRows(ctx, active)
 		if err != nil {
-			return result, err
+			// The write failed before anything completed, so anchor the
+			// terminal submitted/matched counts on the visit result for
+			// the terminal series; the #10947 bound below decides whether
+			// this shortfall keeps parking or dead-letters and completes.
+			result.WriteDurationSeconds = time.Since(writeStart).Seconds()
+			result.CodeCallSubmittedRows = writeReport.SubmittedRows
+			result.CodeCallMatchedRows = writeReport.MatchedRows
+			expired, boundErr := r.expireShortfallParkIfDue(ctx, now, active, err)
+			if boundErr != nil {
+				r.recordShortfallTerminalCounts(ctx, writeReport)
+				return result, boundErr
+			}
+			if !expired {
+				r.recordShortfallTerminalCounts(ctx, writeReport)
+				return result, err
+			}
+			// Expired and dead-lettered: fall through to the shared
+			// completion path below, which marks the batch (stale plus
+			// active) completed and records the cycle. The duration and
+			// count assignments below cover this path unchanged.
 		}
 		result.WriteDurationSeconds = time.Since(writeStart).Seconds()
 		writtenGroups = groups
