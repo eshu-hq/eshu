@@ -4,8 +4,10 @@
 package compare
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -51,9 +53,9 @@ var _ CompareReadAdmission = compareReadAdmissionWitness{}
 // compareReadAdmissionMethodSet reflects the live
 // CompareReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func compareReadAdmissionMethodSet(t *testing.T) []string {
+func compareReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CompareReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -76,13 +78,73 @@ func TestCompareReadAdmissionContractIsVersioned(t *testing.T) {
 	if CompareReadAdmissionContractVersion != "v0" {
 		t.Errorf("CompareReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CompareReadAdmissionContractVersion, "v0")
 	}
-	got := compareReadAdmissionMethodSet(t)
+	got := compareReadAdmissionMethodSet(t, (*CompareReadAdmission)(nil))
 	if len(got) != len(frozenCompareReadAdmission) {
 		t.Fatalf("CompareReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCompareReadAdmission, len(frozenCompareReadAdmission), CompareReadAdmissionContractVersion)
 	}
 	for i := range got {
 		if got[i] != frozenCompareReadAdmission[i] {
 			t.Errorf("CompareReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenCompareReadAdmission[i], CompareReadAdmissionContractVersion)
+		}
+	}
+}
+
+// TestCompareReadAdmissionWireShapesAreSealed proves the seal on the pin:
+// exactly the four re-declared reads (two graph, two content), with no
+// suppression, mutation, snapshot, or ledger surface riding along. The
+// frozen method-set contract test pins the exact names; this test pins
+// the exclusion the arbiter ruling demands.
+func TestCompareReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*CompareReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 4 {
+		t.Fatalf("CompareReadAdmission has %d methods, want exactly 4: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := 0; i < rt.NumMethod(); i++ {
+		name := rt.Method(i).Name
+		for _, banned := range []string{"Suppress", "Mutat", "Append", "Write", "Delete", "Create", "Update", "Snapshot", "Ledger", "Tenant", "Exec", "Graph"} {
+			if strings.Contains(name, banned) {
+				t.Errorf("CompareReadAdmission.%s contains %q: suppression, mutation, and snapshot legs stay out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededCompareDrift is a deliberately widened copy of the pin: the four
+// frozen reads plus a snapshot export the compare route never serves. It
+// never ships; it proves the frozen-set comparison below can see a
+// one-method widening.
+type seededCompareDrift interface {
+	CompareReadAdmission
+	SnapshotCompareEnvironments(context.Context) ([]byte, error)
+}
+
+// TestCompareReadAdmissionSeededDriftIsDetected is the RED half of the
+// seeded-drift pair: the same reflect comparison the contract test runs
+// must report a mismatch on the planted widening. It passes on a clean
+// tree precisely because the guard fires on drift — a guard that cannot
+// see the seeded method is no guard.
+func TestCompareReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := compareReadAdmissionMethodSet(t, (*seededCompareDrift)(nil))
+	if reflect.DeepEqual(got, frozenCompareReadAdmission) {
+		t.Fatal("seeded widening (SnapshotCompareEnvironments) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCompareReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCompareReadAdmission)+1)
+	}
+	for _, want := range frozenCompareReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }
