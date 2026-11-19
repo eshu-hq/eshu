@@ -71,10 +71,10 @@ class CalibrationContractTest(unittest.TestCase):
     def test_fixed_rows_cover_canonical_inventory(self) -> None:
         calibration.validate_manifest(self.document, self.plan)
         self.assertEqual(sum(len(row) for shard in self.document["rows"]
-                             for row in shard), 702)
+                             for row in shard), 1092)
         self.assertEqual([sum(len(row) for row in shard)
                           for shard in self.document["rows"]],
-                         [75, 44, 230, 45, 97, 211])
+                         [122, 45, 153, 184, 108, 126, 110, 244])
 
     def test_rejects_missing_and_duplicate_runs(self) -> None:
         missing = copy.deepcopy(self.document)
@@ -87,11 +87,17 @@ class CalibrationContractTest(unittest.TestCase):
             calibration.validate_manifest(duplicate, self.plan)
 
     def test_rejects_repartition_even_with_complete_coverage(self) -> None:
+        # Every frozen row boundary is a package boundary, so moving a run
+        # across rows trips the package check; the digest guard below is
+        # what pins the exact row identity.
         shifted = copy.deepcopy(self.document)
         moved = shifted["rows"][2][0].pop()
         shifted["rows"][2][1].insert(0, moved)
-        with self.assertRaisesRegex(ValueError, "row identity"):
+        with self.assertRaisesRegex(ValueError, "row spans packages"):
             calibration.validate_manifest(shifted, self.plan)
+        with mock.patch.object(calibration, "ROW_SHA256", "0" * 64):
+            with self.assertRaisesRegex(ValueError, "row identity"):
+                calibration.validate_manifest(self.document, self.plan)
 
 
     def test_reports_reject_partial_duplicate_and_changed_rows(self) -> None:
@@ -114,7 +120,7 @@ class CalibrationContractTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "partial"):
             calibration.verify_reports(ROOT, head, None, reports[:-1])
         duplicate = copy.deepcopy(reports)
-        duplicate[5] = duplicate[4]
+        duplicate[7] = duplicate[6]
         with self.assertRaisesRegex(ValueError, "duplicate"):
             calibration.verify_reports(ROOT, head, None, duplicate)
         changed = copy.deepcopy(reports)
@@ -156,17 +162,17 @@ class CalibrationContractTest(unittest.TestCase):
             prefix + "Version: 20261012.334.1",
             prefix + "Setup go version spec 1.26.10",
             prefix + "ESHU_LIVE_POSTGRES_IMAGE: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:" + "c" * 64,
-            prefix + "calibration-start shard=1/6",
+            prefix + "calibration-start shard=1/8",
         ]
         for second, package, name in ((2, "a", "TestOne"), (4, "b", "TestTwo"),
                                       (6, "b", "TestThree")):
             stamp = f"2026-10-29T00:00:{second:02d}Z "
             lines.extend((stamp + f"{name}: PASS elapsed=1.0s",
                           stamp + f"live-postgres-readiness: ./{package} 1/1 PASS"))
-        lines.append("2026-10-29T00:00:06Z readiness calibration shard 1/6: "
+        lines.append("2026-10-29T00:00:06Z readiness calibration shard 1/8: "
                      "3/3 passing runs, ok=True")
         parsed = provenance.refresh._parse_shard(
-            provenance._normalized_log("\n".join(lines), 1), 1, 6)
+            provenance._normalized_log("\n".join(lines), 1), 1, 8)
         self.assertEqual([row[1] for row in parsed[1]],
                          ["first_row", "first_later", "repeat"])
         with self.assertRaisesRegex(ValueError, "start marker"):
@@ -188,7 +194,7 @@ class CalibrationContractTest(unittest.TestCase):
                 provenance._run_metadata(directory, ROOT)
             run["event"] = "workflow_dispatch"
             (directory / "run.json").write_text(json.dumps(run))
-            (directory / "jobs.json").write_text(json.dumps({"total_count": 7, "jobs": []}))
+            (directory / "jobs.json").write_text(json.dumps({"total_count": 9, "jobs": []}))
             with self.assertRaisesRegex(ValueError, "partial"):
                 provenance._run_metadata(directory, ROOT)
 
@@ -197,16 +203,16 @@ class CalibrationContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / "101"
             directory.mkdir()
-            reports = [{"run_id": 102, "run_attempt": 1} for _ in range(6)]
+            reports = [{"run_id": 102, "run_attempt": 1} for _ in range(8)]
             for number, report in enumerate(reports, 1):
                 (directory / f"shard{number}.json").write_text(json.dumps(report))
             jobs = [{"id": 100, "run_id": 101, "head_sha": "a" * 40,
                      "run_attempt": 1, "name": "readiness-calibration coverage",
                      "status": "completed", "conclusion": "success"}]
             jobs.extend({"id": 100 + number, "run_id": 101, "head_sha": "a" * 40,
-                         "run_attempt": 1, "name": f"readiness-calibration (postgres18) shard ({number}/6)",
+                         "run_attempt": 1, "name": f"readiness-calibration (postgres18) shard ({number}/8)",
                          "status": "completed", "conclusion": "success"}
-                        for number in range(1, 7))
+                        for number in range(1, 9))
             with mock.patch.object(provenance, "_run_metadata",
                                    return_value=(101, "a" * 40, 1, jobs)):
                 with mock.patch.object(calibration, "verify_reports"):

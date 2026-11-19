@@ -1,9 +1,9 @@
-"""Five- and six-shard source history for the v2 weights refresher (#9519, #9473).
+"""Five-, six-, and eight-shard source history for the v2 weights refresher (#9519, #9473).
 
-A v2 source is legal when its own-SHA weights file says 5 or 6 shards and
+A v2 source is legal when its own-SHA weights file says 5, 6, or 8 shards and
 passes every other schema check; its shard jobs must report that count. A pool
-may mix five- and six-shard runs. The refresher still writes a six-shard file,
-and the committed-file loader still accepts only six. Run from
+may mix runs of different counts. The refresher still writes an eight-shard file,
+and the committed-file loader still accepts only eight. Run from
 `scripts/test-live-postgres-readiness-refresh-v2.py`.
 """
 
@@ -95,7 +95,7 @@ class SourceHistoryTest(unittest.TestCase):
                              self.cuts[shape])
                 for index, shape in enumerate(shapes)]
 
-    def test_five_shard_source_is_accepted_and_output_is_six_shard(self) -> None:
+    def test_five_shard_source_is_accepted_and_output_is_eight_shard(self) -> None:
         document = refresh.build_document(self.pool(5, 5, 5), self.root)
         self.assertEqual(document["shard_count"], v2.SHARD_COUNT)
         self.assertEqual(self.planned, [5, 5, 5])
@@ -110,7 +110,7 @@ class SourceHistoryTest(unittest.TestCase):
         sources = self.pool(5, 6, 5, 6)
         document = refresh.build_document(sources, self.root)
         self.assertEqual(self.planned, [5, 6, 5, 6])
-        self.assertEqual(document["shard_count"], 6)
+        self.assertEqual(document["shard_count"], 8)
         self.assertEqual(document["package_repeat_seconds"], {"./b": 2.0})
         output = self.root / "weights.v2.json"
         argv = ["refresh", "--schema-version", "2", "--out", str(output)]
@@ -126,11 +126,11 @@ class SourceHistoryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no measured repeat row category"):
             refresh.build_document(self.pool(6, 6, 6, 6), self.root)
 
-    def test_own_file_count_outside_five_or_six_is_rejected(self) -> None:
+    def test_own_file_count_outside_history_is_rejected(self) -> None:
         for count in (7, 3, 4, "5", True):
             self.counts[SIX_SHA] = count
             with self.subTest(count=count), self.assertRaisesRegex(
-                    ValueError, "v2 source shard_count must be 5 or 6"):
+                    ValueError, "v2 source shard_count must be 5, 6, or 8"):
                 refresh.build_document(self.pool(6, 6, 6), self.root)
             for path in self.root.iterdir():
                 for item in path.iterdir():
@@ -149,13 +149,14 @@ class SourceHistoryTest(unittest.TestCase):
         self.assertEqual(sorted(run for shard in rows.values() for row in shard for run in row),
                          sorted(PLAN))
 
-    def test_committed_loader_still_requires_six(self) -> None:
-        self.assertEqual(v2.weights_from_json(own_file(6)).shard_count, 6)
-        for count in (5, 7):
+    def test_committed_loader_still_requires_eight(self) -> None:
+        self.assertEqual(v2.weights_from_json(own_file(8)).shard_count, 8)
+        for count in (5, 6, 7):
             with self.subTest(count=count), self.assertRaisesRegex(
-                    ValueError, "v2 shard_count must be 6"):
+                    ValueError, "v2 shard_count must be 8"):
                 v2.weights_from_json(own_file(count))
         self.assertEqual(v2.weights_from_json(own_file(5), history=True).shard_count, 5)
+        self.assertEqual(v2.weights_from_json(own_file(6), history=True).shard_count, 6)
         with self.assertRaisesRegex(ValueError, "v2 weights schema mismatch"):
             v2.weights_from_json({**own_file(5), "extra": 1}, history=True)
 
