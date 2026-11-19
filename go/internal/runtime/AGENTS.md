@@ -59,8 +59,11 @@
   (`StoredActiveWorkOnly`). Before adding a section to `renderStatusMetrics`,
   check the selection still requests it; `TestStatusMetricsSkipsTerraformEvidence`
   and `TestStatusMetricsStatementInventory` pin both. `writeSummaryMarker`
-  renders nothing unless the stored-summary reader answered, so a reader-off
-  scrape stays byte-identical. The stored-summary scrape reads two models, so
+  renders nothing unless the stored-summary reader answered, and the scrape
+  serves the stored row even with the reader flag off (#10872), so a
+  reader-off scrape is byte-identical to a reader-on one while a servable
+  stored row exists; with none the flag-off scrape runs the live statement
+  (reason flag_off) instead of zeros. The stored-summary scrape reads two models, so
   `writeSummaryMarkers` (`summary_marker.go`) writes one stale and one age
   gauge per model_key: `active_work_summary` for the stage, queue, and domain
   gauges and `coordinator_snapshot` (#8828) for the `eshu_runtime_coordinator_*`

@@ -89,7 +89,11 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // terminal-failure read (#8803) runs only when an enabled collector instance
 // exists; this empty store has none, so it adds no statement here. The
 // stuck-partial scope read (#10389) runs on every selection, reader on or
-// off, because no stored-summary model owns it.
+// off, because no stored-summary model owns it. With the reader off and no
+// stored row, the flag-off scrape probes the models (one clock plus one row
+// read each) and then runs the full live path, so it issues the same
+// statements as the full live read plus the two probe reads; with a stored
+// row present it serves the stored row with zero live statements (#10872).
 func TestStatusMetricsStatementInventory(t *testing.T) {
 	t.Parallel()
 	count := func(selection statuspkg.SnapshotSelection, readerOn bool) scrapeInventory {
@@ -107,7 +111,7 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 22, activeWork: 1, coordinator: 8}); off != want {
+	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 0, clock: 2, modelRow: 2, coordinator: 8}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
 	if want := (scrapeInventory{total: 17, clock: 2, modelRow: 2}); on != want {
@@ -140,17 +144,21 @@ func scrapeRow(t *testing.T, asOf time.Time) [][]any {
 // clock and every other statement with no rows.
 type summaryScrapeQueryer struct {
 	*fake.ExecQueryer
-	now  time.Time
-	rows [][]any
+	now       time.Time
+	rows      [][]any
+	coordRows [][]any
 }
 
 func newSummaryScrapeQueryer(now time.Time) *summaryScrapeQueryer {
 	q := &summaryScrapeQueryer{ExecQueryer: &fake.ExecQueryer{}, now: now}
-	q.Routes = []fake.Route{func(query string, _ []any) (*fake.Rows, bool) {
+	q.Routes = []fake.Route{func(query string, args []any) (*fake.Rows, bool) {
 		switch {
 		case strings.Contains(query, "to_regclass('status_summary_snapshots')"):
 			return &fake.Rows{Data: [][]any{{q.now, true}}}, true
 		case strings.Contains(query, "FROM status_summary_snapshots"):
+			if len(args) == 1 && args[0] == summary.ModelCoordinatorSnapshot {
+				return &fake.Rows{Data: q.coordRows}, true
+			}
 			return &fake.Rows{Data: q.rows}, true
 		}
 		return &fake.Rows{}, true
@@ -203,29 +211,126 @@ func TestStatusMetricsExportsTheSummaryMarker(t *testing.T) {
 	}
 }
 
-// TestStatusMetricsWithTheReaderOffAreUnchanged is the flag-off contract: the
-// scrape over the production store with the reader off carries no summary
-// gauge and is byte-identical to the scrape from the selection before this
-// change.
-func TestStatusMetricsWithTheReaderOffAreUnchanged(t *testing.T) {
+// TestStatusMetricsWithTheReaderOffServeTheStoredSummary is the #10872
+// contract at the handler level: a scrape with the reader flag off serves
+// the same stored summary as a scrape with the reader on whenever a stored
+// row is servable, and never the live active-work or coordinator statements
+// in that case. A fresh row exports stale 0 with the stored values; a
+// missing row runs the live statement (reason flag_off) instead of
+// presenting a zero queue, since writer-off deployments have no stored row.
+func TestStatusMetricsWithTheReaderOffServeTheStoredSummary(t *testing.T) {
 	t.Parallel()
-	scrape := func(selection statuspkg.SnapshotSelection) string {
-		t.Helper()
-		queryer := emptyStoreQueryer()
-		report, err := statuspkg.LoadReportWithSelection(context.Background(), scrapeStore(queryer, false),
-			time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), statuspkg.DefaultOptions(), selection)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return renderStatusMetrics("collector-git", report)
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	offQueryer := newSummaryScrapeQueryer(now)
+	offStore := postgres.NewStatusStore(offQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	onQueryer := newSummaryScrapeQueryer(now)
+	onStore := postgres.NewStatusStore(onQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second}))
+
+	// Fresh rows 10 s old for both stored models: stale 0, the stored ages,
+	// and the stored queue age advanced, byte-identical to the reader-on
+	// scrape, with zero live statements on the flag-off path.
+	offQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	onQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	offQueryer.coordRows = coordinatorScrapeRow(t, now.Add(-10*time.Second))
+	onQueryer.coordRows = coordinatorScrapeRow(t, now.Add(-10*time.Second))
+	offBody := scrapeBody(t, offStore)
+	onBody := scrapeBody(t, onStore)
+	if offBody != onBody {
+		t.Fatalf("flag-off scrape differs from flag-on:\noff=%s\non=%s", offBody, onBody)
 	}
-	before := scrape(statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence())
-	after := scrape(metricsSnapshotSelection())
-	if after != before {
-		t.Fatalf("scrape with the reader off changed:\nbefore=%s\nafter=%s", before, after)
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_stale", "0")
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "10")
+	assertLine(t, offBody, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+	assertLine(t, offBody, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot",service_name="collector-git"} 0`)
+	assertLine(t, offBody, `eshu_runtime_status_summary_age_seconds{model_key="coordinator_snapshot",service_name="collector-git"} 10`)
+	assertLine(t, offBody, `eshu_runtime_coordinator_active_claims{service_name="collector-git"} 3`)
+	if got := inventoryOf(offQueryer.Queries); got.activeWork != 0 || got.coordinator != 0 {
+		t.Fatalf("fresh flag-off scrape ran %d active-work and %d coordinator live statements, want 0", got.activeWork, got.coordinator)
 	}
-	if strings.Contains(after, "status_summary") {
-		t.Fatalf("scrape with the reader off carries a summary gauge:\n%s", after)
+
+	// The row disappears: the reader-on process serves its remembered last
+	// row, stale; the reader-off process has no servable row, so it runs
+	// the live statement instead (reason flag_off). The two scrapes
+	// legitimately differ — flag-off prefers a live answer over a zero
+	// queue (#10872).
+	offQueryer.rows = nil
+	onQueryer.rows = nil
+	offQueryer.coordRows = nil
+	onQueryer.coordRows = nil
+	offBody = scrapeBody(t, offStore)
+	onBody = scrapeBody(t, onStore)
+	if offBody == onBody {
+		t.Fatal("flag-off live fallback equals the flag-on remembered scrape; want the live fallback to differ")
+	}
+	assertGauge(t, onBody, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, onBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "10")
+	assertLine(t, onBody, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+	assertLine(t, onBody, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot",service_name="collector-git"} 1`)
+	assertLine(t, onBody, `eshu_runtime_status_summary_age_seconds{model_key="coordinator_snapshot",service_name="collector-git"} 10`)
+	assertLine(t, onBody, `eshu_runtime_coordinator_active_claims{service_name="collector-git"} 3`)
+	if got := inventoryOf(offQueryer.Queries); got.activeWork == 0 || got.coordinator == 0 {
+		t.Fatalf("flag-off scrape did not run both live fallbacks after the rows disappeared; got %+v", got)
+	}
+
+	// A process that never served a row: the reader-on process exports the
+	// zero summary (stale 1, NaN age); the reader-off process runs the live
+	// statement instead (reason flag_off).
+	freshOff := postgres.NewStatusStore(newSummaryScrapeQueryer(now)).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	freshOn := postgres.NewStatusStore(newSummaryScrapeQueryer(now)).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second}))
+	offBody = scrapeBody(t, freshOff)
+	onBody = scrapeBody(t, freshOn)
+	if offBody == onBody {
+		t.Fatal("flag-off live scrape equals the flag-on zero serve; want the live fallback to differ")
+	}
+	assertGauge(t, onBody, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, onBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "NaN")
+	assertLine(t, onBody, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot",service_name="collector-git"} 1`)
+	assertLine(t, onBody, `eshu_runtime_status_summary_age_seconds{model_key="coordinator_snapshot",service_name="collector-git"} NaN`)
+}
+
+// TestStatusMetricsWithTheReaderOffDecidesPerModel pins the per-model
+// independence of the flag-off fallback (#10872): with a stored row for only
+// one model, the scrape serves that model stored (with its markers) and runs
+// the live statement only for the model with no row (reason flag_off). A
+// coupled decision — both models stored or both live — fails this test.
+func TestStatusMetricsWithTheReaderOffDecidesPerModel(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+
+	// Only an active-work row: stored queue gauges with markers, and the
+	// live coordinator statement runs for the missing coordinator row.
+	activeQueryer := newSummaryScrapeQueryer(now)
+	activeQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	activeStore := postgres.NewStatusStore(activeQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	body := scrapeBody(t, activeStore)
+	assertGauge(t, body, "collector-git", "eshu_runtime_status_summary_stale", "0")
+	assertLine(t, body, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+	if strings.Contains(body, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot"`) {
+		t.Fatalf("flag-off scrape with no coordinator row renders a coordinator marker:\n%s", body)
+	}
+	if got := inventoryOf(activeQueryer.Queries); got.activeWork != 0 || got.coordinator == 0 {
+		t.Fatalf("flag-off scrape ran %d active-work and %d coordinator live statements, want 0 active-work and a coordinator fallback", got.activeWork, got.coordinator)
+	}
+
+	// Only a coordinator row: stored coordinator gauges with markers, and
+	// the live active-work statement runs for the missing row.
+	coordQueryer := newSummaryScrapeQueryer(now)
+	coordQueryer.coordRows = coordinatorScrapeRow(t, now.Add(-10*time.Second))
+	coordStore := postgres.NewStatusStore(coordQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	body = scrapeBody(t, coordStore)
+	assertLine(t, body, `eshu_runtime_status_summary_stale{model_key="coordinator_snapshot",service_name="collector-git"} 0`)
+	assertLine(t, body, `eshu_runtime_coordinator_active_claims{service_name="collector-git"} 3`)
+	if strings.Contains(body, `eshu_runtime_status_summary_stale{model_key="active_work_summary"`) {
+		t.Fatalf("flag-off scrape with no active-work row renders a stored marker:\n%s", body)
+	}
+	if got := inventoryOf(coordQueryer.Queries); got.activeWork == 0 || got.coordinator != 0 {
+		t.Fatalf("flag-off scrape ran %d active-work and %d coordinator live statements, want an active-work fallback and 0 coordinator", got.activeWork, got.coordinator)
 	}
 }
 
