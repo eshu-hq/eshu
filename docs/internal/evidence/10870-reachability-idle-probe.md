@@ -69,6 +69,18 @@ down >= 95% vs the ~0.6/s baseline (idle ceiling = audits at 4/h plus
 change-triggered fulls), probe mean <= 5 ms and <= 100 buffers/call on
 primary, probe `EXPLAIN (ANALYZE, BUFFERS)` on a read copy <= 50 buffers.
 
+Read-copy probe proof, QA `eshu-postgresql-read-0`, measured 2026-11-19 by
+the coordinator in a `BEGIN READ ONLY` transaction (verbatim probe text,
+`TIMING OFF`): run 1 (cold) 1.576 ms / 12 buffers (5 hit + 7 read), runs
+2-3 (warm) 0.211 ms / 12 buffers all-hit. Both subqueries are Index Only
+Scan Backward on `shared_projection_intents_pending_idx` (index conds on
+`projection_domain` + `completed_at IS NOT NULL`), heap fetches 1 each —
+no full-table scan at ~7.7M + ~0.16M rows per domain. Thresholds met with
+headroom (<= 5 ms, <= 100 buffers, EXPLAIN state <= 50 buffers). The
+statement takes zero bind parameters, so there is no generic/custom plan
+choice to pin. Post-deploy PRIMARY delta (#10942) remains the frequency
+proof; per-call cost is settled here.
+
 Generic-plan note (does not affect the ruling — no SQL change ships):
 `PREPARE` + 6x `EXPLAIN EXECUTE` on the disposable fixture shows the
 generic plan uses nested-loop/seq scans at tiny scale while the custom plan
@@ -123,9 +135,14 @@ Pickup bounds (stated in `go/internal/reducer/codeintel/README.md`):
 after the completing intent commits, plus one full-query/batch drain —
 proven by the fake-clock `Run` wait-sequence tests (base, 2x, cap;
 productive reset to base with immediate re-poll), no wall-clock sleeps.
-(b) every other transition: at most `AuditInterval` (15m) plus the same
-drain — proven by the audit-due runner test and the live ack-flip
-section. Competing writers are unchanged: the candidate SQL and its
+A productive full query forces the next cycle to run the full query
+again, so a static backlog drains one batch per cycle, not one per
+audit — proven by the updated idle-cycle tests (productive predecessor
+drains, empty predecessor skips). (b) every other transition
+(materialization ack, generation activation, reopen, verdict-schema-epoch
+bump re-arming all runs with no intent movement): at most `AuditInterval`
+(15m) plus the same drain — proven by the audit-due runner test and the
+live ack-flip section. Competing writers are unchanged: the candidate SQL and its
 claim-free idempotent DELETE+INSERT partition writes are untouched, and
 the probe is a read with no claim semantics; the live two-runner section
 reuses the partition-concurrency pattern asserting identical rows and

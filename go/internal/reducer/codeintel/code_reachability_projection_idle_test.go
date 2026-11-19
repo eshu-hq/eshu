@@ -69,18 +69,28 @@ var errIdleProbeTest = errors.New("idle probe test failure")
 
 // TestProcessNextCycleSkipsFullQueryWhenProbeEqual is the #10870 idle
 // contract: a probe that has not advanced past the cursor must not run the
-// expensive full candidate query.
+// expensive full candidate query — once the previous full query came back
+// empty. A productive predecessor forces another full query first, because
+// the probe tracks upstream completions rather than projection progress and
+// a static backlog larger than one batch would otherwise drain at one batch
+// per audit interval.
 func TestProcessNextCycleSkipsFullQueryWhenProbeEqual(t *testing.T) {
 	t.Parallel()
 
 	cursor := time.Date(2026, 11, 1, 4, 0, 0, 0, time.UTC)
+	// The loader models watermark advancement: the first load returns the
+	// one pending input, later loads are empty because projection advanced
+	// the watermark past it.
 	loader := &probeFakeCodeReachabilityInputLoader{
-		inputs: []CodeReachabilityProjectionInput{{
-			ScopeID:      "scope-1",
-			GenerationID: "generation-1",
-			RepositoryID: "repo-1",
-			UpdatedAt:    cursor,
-		}},
+		loadScript: [][]CodeReachabilityProjectionInput{
+			{{
+				ScopeID:      "scope-1",
+				GenerationID: "generation-1",
+				RepositoryID: "repo-1",
+				UpdatedAt:    cursor,
+			}},
+			{},
+		},
 		probe:   cursor,
 		probeOK: true,
 	}
@@ -100,16 +110,30 @@ func TestProcessNextCycleSkipsFullQueryWhenProbeEqual(t *testing.T) {
 		t.Fatalf("first InputsProcessed = %d, want 1 (startup audit runs the full query)", first.InputsProcessed)
 	}
 
-	// Second cycle with an unchanged probe must skip the full query.
+	// Second cycle with an unchanged probe must run the full query again:
+	// the first cycle was productive, so the backlog may hold more.
 	second, err := runner.ProcessNextCycle(context.Background(), cursor.Add(2*time.Minute))
 	if err != nil {
 		t.Fatalf("ProcessNextCycle() error = %v", err)
 	}
 	if second.InputsProcessed != 0 {
-		t.Fatalf("second InputsProcessed = %d, want 0 (probe-equal skips)", second.InputsProcessed)
+		t.Fatalf("second InputsProcessed = %d, want 0 (watermark advanced past the input)", second.InputsProcessed)
 	}
-	if loader.loads != 1 {
-		t.Fatalf("loader calls = %d, want 1 (no full query on probe-equal cycle)", loader.loads)
+	if loader.loads != 2 {
+		t.Fatalf("loader calls = %d, want 2 (productive predecessor forces another full query)", loader.loads)
+	}
+
+	// Third cycle with an unchanged probe skips: the previous full query
+	// came back empty, so there is nothing left to drain.
+	third, err := runner.ProcessNextCycle(context.Background(), cursor.Add(3*time.Minute))
+	if err != nil {
+		t.Fatalf("ProcessNextCycle() error = %v", err)
+	}
+	if third.InputsProcessed != 0 {
+		t.Fatalf("third InputsProcessed = %d, want 0 (empty predecessor skips)", third.InputsProcessed)
+	}
+	if loader.loads != 2 {
+		t.Fatalf("loader calls = %d, want 2 (no full query on probe-equal cycle after an empty one)", loader.loads)
 	}
 }
 
@@ -151,19 +175,25 @@ func TestProcessNextCycleRunsFullQueryWhenProbeAdvances(t *testing.T) {
 		t.Fatalf("loader calls = %d, want 2 (probe advance triggers full query)", loader.loads)
 	}
 
-	// Same probe value again: the cursor learned it, so skip.
-	loader.inputs = []CodeReachabilityProjectionInput{{
-		ScopeID:      "scope-1",
-		GenerationID: "generation-1",
-		RepositoryID: "repo-1",
-		UpdatedAt:    advanced,
-	}}
+	// Same probe value again, with the watermark advanced past the projected
+	// input: the previous full query was productive, so this cycle drains
+	// once more instead of skipping.
+	loader.inputs = nil
 	result, err := runner.ProcessNextCycle(context.Background(), advanced.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("repeat ProcessNextCycle() error = %v", err)
 	}
-	if result.InputsProcessed != 0 || loader.loads != 2 {
-		t.Fatalf("repeat InputsProcessed = %d loads = %d, want 0/2 (cursor already at probe value)", result.InputsProcessed, loader.loads)
+	if result.InputsProcessed != 0 || loader.loads != 3 {
+		t.Fatalf("repeat InputsProcessed = %d loads = %d, want 0/3 (productive predecessor drains again)", result.InputsProcessed, loader.loads)
+	}
+
+	// Fourth cycle with the same probe and an empty predecessor skips.
+	result, err = runner.ProcessNextCycle(context.Background(), advanced.Add(2*time.Minute))
+	if err != nil {
+		t.Fatalf("fourth ProcessNextCycle() error = %v", err)
+	}
+	if result.InputsProcessed != 0 || loader.loads != 3 {
+		t.Fatalf("fourth InputsProcessed = %d loads = %d, want 0/3 (empty predecessor skips)", result.InputsProcessed, loader.loads)
 	}
 }
 

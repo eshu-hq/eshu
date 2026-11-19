@@ -135,11 +135,16 @@ type CodeReachabilityProjectionRunner struct {
 	// through the probe; cursorKnown reports whether a probe has ever
 	// answered. lastFullAudit is the cycle time of the last full
 	// candidate query. consecutiveEmpty counts successive empty cycles
-	// for the exponential idle backoff.
-	cursor           time.Time
-	cursorKnown      bool
-	lastFullAudit    time.Time
-	consecutiveEmpty int
+	// for the exponential idle backoff. lastFullProductive records
+	// whether the most recent full query found work: the probe tracks
+	// upstream completions, not projection progress, so a static backlog
+	// larger than one batch needs another full query after a productive
+	// one instead of a probe-equal skip (#10870).
+	cursor             time.Time
+	cursorKnown        bool
+	lastFullAudit      time.Time
+	consecutiveEmpty   int
+	lastFullProductive bool
 }
 
 // Run drains code reachability projection work until the context is canceled.

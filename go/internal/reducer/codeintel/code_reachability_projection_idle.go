@@ -29,13 +29,18 @@ const (
 // ProcessNextCycle runs one probe-gated cycle (#10870): a cheap cursor probe
 // first, the expensive full candidate query only when the probe advanced
 // past the cursor, the probe failed, the probe regressed, the cursor is
-// unknown, or the audit interval elapsed.
+// unknown, the previous full query was productive, or the audit interval
+// elapsed.
 //
-// Cost contract: a probe-equal cycle with no due audit costs one index-only
-// probe and no full query. Every full query refreshes the audit clock and,
-// when the probe answered, moves the cursor to the probe value read BEFORE
-// the query (never a post-query max), so completions landing during the
-// query are caught next cycle.
+// Cost contract: a probe-equal cycle with no due audit and no productive
+// predecessor costs one index-only probe and no full query. Every full query
+// refreshes the audit clock and, when the probe answered, moves the cursor
+// to the probe value read BEFORE the query (never a post-query max), so
+// completions landing during the query are caught next cycle. A productive
+// full query sets lastFullProductive, forcing the next cycle to run the
+// full query again: the probe tracks upstream completions, not projection
+// progress, so a static backlog larger than one batch would otherwise drain
+// at one batch per audit interval.
 func (r *CodeReachabilityProjectionRunner) ProcessNextCycle(
 	ctx context.Context,
 	now time.Time,
@@ -55,7 +60,7 @@ func (r *CodeReachabilityProjectionRunner) ProcessNextCycle(
 		case probeAt.After(r.cursor):
 			return r.runFullCycle(ctx, now, probeAt, true, telemetry.CodeReachabilityCycleKindProbeTriggeredFull)
 		case probeAt.Equal(r.cursor):
-			if !r.auditDue(now) {
+			if !r.auditDue(now) && !r.lastFullProductive {
 				r.recordCycle(ctx, telemetry.CodeReachabilityCycleKindProbeSkip, "", 0)
 				return CodeReachabilityProjectionResult{}, nil
 			}
@@ -66,8 +71,9 @@ func (r *CodeReachabilityProjectionRunner) ProcessNextCycle(
 
 // runFullCycle runs the full candidate query, refreshes the audit clock,
 // advances the cursor to the probe value read before the query when the
-// probe answered, and records the cycle kind (productive when the query
-// found work, kind otherwise) with the trigger that forced the query.
+// probe answered, records whether the query found work (driving the next
+// cycle's drain decision), and records the cycle kind (productive when the
+// query found work, kind otherwise) with the trigger that forced the query.
 func (r *CodeReachabilityProjectionRunner) runFullCycle(
 	ctx context.Context,
 	now time.Time,
@@ -79,6 +85,7 @@ func (r *CodeReachabilityProjectionRunner) runFullCycle(
 	if err != nil {
 		return CodeReachabilityProjectionResult{}, err
 	}
+	r.lastFullProductive = result.InputsProcessed > 0
 	r.lastFullAudit = now
 	if probeOK {
 		r.cursor = probeAt

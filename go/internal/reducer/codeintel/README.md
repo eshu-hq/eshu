@@ -102,18 +102,22 @@ The runner is idle-gated. Each cycle first runs the cursor probe
 backward index-only tip scans, O(1) in ready runs) and runs the full
 candidate query only when the probe advanced past the cursor, the probe
 failed, the probe regressed (reopen/failover), the cursor is unknown
-(startup), or the audit interval elapsed. A probe-equal cycle with no due
-audit costs one probe and no full query.
+(startup), the previous full query was productive (backlog drain), or the
+audit interval elapsed. A probe-equal cycle with no due audit and no
+productive predecessor costs one probe and no full query.
 
 Pickup bounds: (a) intent-completion-driven readiness is processed at most
 `MaxPollInterval` (default 30s) after the completing intent commits, plus one
 full-query/batch drain — empty cycles back off exponentially from
 `PollInterval`, doubling per consecutive empty cycle, capped at
 `MaxPollInterval`; a productive cycle resets to base and re-polls
-immediately. (b) Every other readiness transition (a materialization ack
-landing after all intent completions, a generation activation, a reopen) is
-processed at most `AuditInterval` (default 15m) after it lands, plus the same
-drain. `ESHU_CODE_REACHABILITY_PROJECTION_IDLE_PROBE=false` restores
+immediately, and a productive full query forces the next cycle to run the
+full query again so a static backlog drains one batch per cycle instead of
+one batch per audit. (b) Every other readiness transition (a
+materialization ack landing after all intent completions, a generation
+activation, a reopen, a verdict-schema-epoch bump re-arming all runs with
+no intent movement) is processed at most `AuditInterval` (default 15m)
+after it lands, plus the same drain. `ESHU_CODE_REACHABILITY_PROJECTION_IDLE_PROBE=false` restores
 full-query-every-poll. The knobs are
 `ESHU_CODE_REACHABILITY_PROJECTION_MAX_POLL_INTERVAL`,
 `ESHU_CODE_REACHABILITY_PROJECTION_AUDIT_INTERVAL`, and
