@@ -385,59 +385,16 @@ rg --files . -g '*.py' | rg -v '^(\\./)?tests/fixtures/'
 Fixture data under `tests/fixtures/` and explicitly offline-only tooling can
 still carry Python source when they are not part of the deployable runtime.
 
-## Required Gates Trigger Filter
+## Retired Required-Gates Fan-in (Removed)
 
-The `Required Gates` aggregate (`.github/workflows/required-gates.yml`)
-triggers on `workflow_run` with `branches-ignore: [main]`. A push to `main`
-runs about 25 push workflows. About 21 of them are among the workflows
-`Required Gates` listens to, and each fires an `in_progress` and a `completed`
-event, so each merge sent about 42 events into one per-SHA concurrency group
-that keeps only the latest pending run and cancels the rest. The aggregate job
-never publishes for a push, so those runs were pure noise; the filter drops
-them at the trigger ([#7111](https://github.com/eshu-hq/eshu/issues/7111)).
+`required-gates.yml` used to be a `workflow_run` fan-in that aggregated
+path-selected gates and published a `required-gates-complete` status on each
+pull-request head. The aggregate job was disabled on 2026-11-03 (#9805) and the
+fan-in deleted in #10584: each merge fanned dozens of no-op runs into one
+per-SHA concurrency group, and the branch ruleset never required the
+aggregate. Only the scheduled live-ruleset audit remains in that workflow.
 
-This removes only the push half of the fan-in, roughly a fifth of the
-`Required Gates` runs in a busy window. Pull-request heads (about 16 to 19
-workflows each) still fan into their own per-SHA group and still cancel most of
-their runs. Merge-queue entries did the same (about 44 events per queue commit)
-until the queue was turned off on 2026-10-16. Removing that remainder needs a different trigger or concurrency
-key and is tracked separately.
-
-Pull-request heads, and merge-queue heads (`gh-readonly-queue/main/...`) while a
-queue existed, are never named `main`, so `required-gates-complete` still
-publishes for them. The
-`ci-gates` registry check rejects any other branch filter on that trigger: a
-`branches` allowlist or a wider exclusion would stop aggregating some pull
-requests. A pull request whose head branch is literally `main`, for example one
-opened from a fork's `main`, is not aggregated; re-push it from a differently
-named branch.
-
-To confirm after a merge: push-event `Required Gates` runs for the new `main`
-SHA should drop to zero, and a pull-request head should still carry a
-`required-gates-complete` status
-(`gh api repos/eshu-hq/eshu/commits/<sha>/statuses`). `gh run list --workflow
-required-gates.yml --branch main` also lists pull-request aggregates, because a `workflow_run` run reports the default-branch tip as its
-own head, so it cannot show the drop on its own.
-
-## Required Gates Pull Request Identity
-
-For a pull-request head, `Required Gates` finds the owning PR in the
-repository's open pull request list (`pulls?state=open`, every page) and keeps
-the one whose `head.sha` is the head. Exactly one match is active. None means
-the PR closed or moved on, and no status is written. More than one is ambiguous
-and publishes `error`. The pending step, `scripts/resolve-required-gates-pr.sh`,
-and the terminal re-check all use this lookup.
-
-It used `commits/<sha>/pulls` before. That endpoint lists only PRs whose head
-branch is in this repository, so a PR from a fork matched nothing, read as
-closed, and never got `required-gates-complete`
-([#7950](https://github.com/eshu-hq/eshu/issues/7950)). The `workflow_run`
-payload does not help either: its `pull_requests` array is empty for a fork
-head.
-
-Fork PRs count toward that match, so a second open PR at the same commit makes
-the head ambiguous, wherever it comes from. Examples are a fork PR opened at an
-in-repo branch head, or an in-repo copy of a fork PR. Both PRs get `error`
-until one closes. Close the extra PR, then re-run a source workflow on the head
-to publish again. The lookup does not also match the head repository: then the
-other PR's own runs would publish a verdict on the commit both PRs share.
+There is no aggregate status to wait on or confirm. Merge enforcement rests on
+the `go-core-complete` and `go-race-complete` umbrellas on the PR head; a red
+blocking registry row is still a finding to fix or link before merge. See
+[Local Testing](../local-testing.md) for the current verification map.

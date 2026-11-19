@@ -49,10 +49,11 @@ The merge path is the `main` ruleset (check it with
 `gh api repos/eshu-hq/eshu/rules/branches/main`): `pull_request`,
 `required_status_checks`, `non_fast_forward`, and `deletion`. The required
 contexts are `go-core-complete` and `go-race-complete`, and strict mode
-(`strict_required_status_checks_policy`) is off. On 2026-10-25 the owner
-disabled `required-gates-complete` as a required check, for now, because its CI
-failures were holding up every merge; whether the check is still needed is an
-open question. It still runs and still publishes. The ruleset allows merge,
+(`strict_required_status_checks_policy`) is off. The `required-gates-complete`
+fan-in was disabled as a required check on 2026-10-25 after its CI failures
+held up merges, then disabled as a publisher on 2026-11-03 (#9805) and deleted
+in #10584: it no longer runs and publishes nothing. Whether any aggregator is
+still needed is tracked in #10977. The ruleset allows merge,
 squash, and rebase merges. Strict mode is off, so a branch need not be rebased
 just because `main` moved. Nothing tests two green PRs together, so the
 [pre-push merge step](../public/reference/local-testing/pre-push-merge.md)
@@ -65,12 +66,10 @@ This is the single statement of the merge rule; other files point here.
 
 A PR merges when `go-core-complete` and `go-race-complete` are green on the
 pushed head AND no gate on that head has completed red without a disposition.
-The `required-gates-complete` status is not itself a merge input: it only
-summarizes the registry's `blocking: true` gates
-(`.github/workflows/required-gates.yml`), and its own red is often the
-false-failure publisher stamp described in
-[babysit-prs](../../.claude/skills/eshu-session-lifecycle/references/babysit-prs.md).
-Read the gates under it. A gate that completed red (an Ifá/Odù cell, a
+The `required-gates-complete` status is gone (publisher deleted in #10584) and
+is not a merge input: `.github/workflows/required-gates.yml` now holds only
+the scheduled live-ruleset audit. Read the blocking registry gates directly —
+a red one is a finding, not a publisher stamp. A gate that completed red (an Ifá/Odù cell, a
 contract, performance, or end-to-end gate) is a finding: fix it, or link an
 issue that the active goal works. A cancelled gate is not red: rerun it. A
 cancel that repeats at the job's cap after one rerun is a completed red;

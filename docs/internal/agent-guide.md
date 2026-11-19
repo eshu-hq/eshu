@@ -345,8 +345,8 @@ gate MUST own the host: pause other gates, hold load1 under half the CPU count
 spread, and keep `t.Context()` out of `t.Cleanup` teardown I/O ([rules](timing-proof-rules.md)).
 
 The ruleset requires `go-core-complete` and `go-race-complete`;
-`required-gates-complete` is disabled as a required check for now. A gate under
-it that completes red (Ifá/Odù, contract, performance, end-to-end) is still a
+the `required-gates-complete` fan-in was deleted in #10584. A blocking gate
+that completes red (Ifá/Odù, contract, performance, end-to-end) is still a
 finding to fix or link: see [When a PR may merge](agent-git-hygiene.md#when-a-pr-may-merge).
 The live Ifá/Odù cells need Docker/NornicDB/Postgres and never ran locally; the
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
