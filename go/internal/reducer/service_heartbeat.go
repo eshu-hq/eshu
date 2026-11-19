@@ -379,8 +379,10 @@ func (s Service) executeHandler(
 	case <-timer.C:
 		// The bound expired first. Prefer an already-buffered outcome (the
 		// handler finished exactly at the deadline): a DeadlineExceeded
-		// there is ours — our own timer fired — so it still carries the
-		// timeout class while the worker stays free.
+		// there is attributed to our bound — our own timer fired, so a
+		// downstream timeout landing in the same instant is
+		// indistinguishable and takes the timeout class while the worker
+		// stays free.
 		select {
 		case out := <-done:
 			if out.panicked {

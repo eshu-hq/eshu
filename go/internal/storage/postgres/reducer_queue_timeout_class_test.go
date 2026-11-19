@@ -5,6 +5,9 @@ package postgres
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +38,39 @@ func (e timeoutClassReducerTestError) Error() string { return e.message }
 func (e timeoutClassReducerTestError) Retryable() bool { return true }
 
 func (e timeoutClassReducerTestError) FailureClass() string { return "reducer_handler_timeout" }
+
+// TestTimeoutClassLiteralMatchesOwningConstant binds the hardcoded class
+// string above to reducer.HandlerTimeoutFailureClass without importing the
+// reducer service package (which would cycle): it reads the owning source
+// file and requires the declared constant value to equal the fake's class.
+// Renaming the constant's value fails this test (#10944).
+func TestTimeoutClassLiteralMatchesOwningConstant(t *testing.T) {
+	t.Parallel()
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller(0) = !ok, want caller file")
+	}
+	owner := filepath.Join(filepath.Dir(thisFile), "..", "..", "reducer", "service_handler_timeout.go")
+	body, err := os.ReadFile(owner)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) error = %v, want nil", owner, err)
+	}
+	const prefix = `HandlerTimeoutFailureClass = "`
+	text := string(body)
+	start := strings.Index(text, prefix)
+	if start < 0 {
+		t.Fatalf("owning constant declaration missing in %s", owner)
+	}
+	rest := text[start+len(prefix):]
+	end := strings.IndexByte(rest, '"')
+	if end < 0 {
+		t.Fatalf("owning constant value unterminated in %s", owner)
+	}
+	if got, want := (timeoutClassReducerTestError{}).FailureClass(), rest[:end]; got != want {
+		t.Fatalf("test class %q != owning constant %q in %s: drift, update both", got, want, owner)
+	}
+}
 
 // TestReducerQueueFailRetriesTimeoutClassWithinAttemptBudget proves a
 // timeout-class failure retries with its class preserved on the retrying
