@@ -92,11 +92,19 @@ func TestSecurityAlertReconciliationKeyRowsMirrorExistsSemantics(t *testing.T) {
 }
 
 // TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow proves
-// the scalar arms coerce JSON scalars exactly the way the legacy query's
-// payload->> renders them: numbers and bools become their text form instead
-// of vanishing, while null, missing, and compound values still yield nothing
+// the scalar arms coerce JSON scalars the way the legacy query's payload->>
+// renders them: numbers and bools become their text form instead of
+// vanishing, while null, missing, and compound values still yield nothing
 // (issue #10875). The sibling relationshipReferencePayloadText sets the
 // contract (fmt.Sprint); this writer matches it.
+//
+// Boundary pinned here, not hidden: float64 cannot preserve a scaled lexeme
+// (12345.0 decodes to 12345 and renders "12345" while ->> renders
+// "12345.0") nor >2^53 precision (9007199254740993 rounds before either
+// side renders). A corpus census over the QA environment (88M facts, every
+// id field of all 7.7M security-kind facts 100% strings) shows these shapes
+// do not occur in practice, so keyed/legacy exactness holds on real data;
+// the coercion below is defense-in-depth for off-path payloads.
 func TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow(t *testing.T) {
 	t.Parallel()
 
@@ -120,26 +128,44 @@ func TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow(t *test
 			"repository_id": map[string]any{"nested": "object"},
 			"package_id":    []any{"array"},
 		},
+	}, {
+		FactID:       "fact-3",
+		ScopeID:      "scope",
+		GenerationID: "gen",
+		FactKind:     "security_alert.repository_alert",
+		Payload: map[string]any{
+			"repository_id": float64(12345),
+			"package_id":    1e21,
+			"cve_id":        float64(9007199254740993),
+		},
 	}})
-	got := make(map[string]bool)
+	got := make(map[string]map[string]bool)
 	for _, row := range rows {
-		if row.FactID != "fact-1" {
-			t.Errorf("unexpected row for %s: %v", row.FactID, row)
-			continue
+		if got[row.FactID] == nil {
+			got[row.FactID] = make(map[string]bool)
 		}
-		got[row.KeyKind+"\x00"+row.KeyValue] = true
+		got[row.FactID][row.KeyKind+"\x00"+row.KeyValue] = true
 	}
 	for _, want := range []string{
 		"repository\x0012345",
 		"package\x00true",
 		"cve\x00CVE-2024-0001",
 	} {
-		if !got[want] {
+		if !got["fact-1"][want] {
 			t.Errorf("missing %q in %v", want, rows)
 		}
 	}
-	if len(rows) != 3 {
-		t.Fatalf("len(rows) = %d, want 3 (nil and compound scalars yield nothing)", len(rows))
+	for _, want := range []string{
+		"repository\x0012345",
+		"package\x001000000000000000000000",
+		"cve\x009007199254740992",
+	} {
+		if !got["fact-3"][want] {
+			t.Errorf("missing %q in %v", want, rows)
+		}
+	}
+	if len(rows) != 6 {
+		t.Fatalf("len(rows) = %d, want 6 (nil and compound scalars yield nothing)", len(rows))
 	}
 }
 

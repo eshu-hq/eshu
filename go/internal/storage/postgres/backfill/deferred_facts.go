@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"log"
 	"strings"
+	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
@@ -128,6 +129,20 @@ func catalogRemoteURLValues(catalog []relationships.CatalogEntry) []string {
 // because their own repo_id appears as an anchor, while still loading facts
 // whose precomputed reference keys contain another catalog repo_id. Facts with
 // no precomputed keys retain the original payload fallback.
+// deferredRelationshipKeyFallbackProbeSampleRate bounds the steady-state
+// cost of the version-1 fallback probe: it runs on the first partition load
+// of the process and then every Nth load. Measured on a 2000-fact seed at
+// production bind widths, the probe COUNT costs ~270ms against a ~2.8s
+// partition load (~10%), so unsampled probing would nearly double the
+// hot-path query count for pure telemetry. Sampling keeps the amortized cost
+// near zero while the first-line-after-silence signal still fires within N
+// loads of a regression. Sampling never stops entirely (rather than caching
+// a clean generation) because a later save path that skips sidecars must
+// still surface (issue #10971).
+const deferredRelationshipKeyFallbackProbeSampleRate = 64
+
+var deferredRelationshipKeyFallbackProbeCalls atomic.Uint64
+
 func loadDeferredScopedRelationshipFactsForPartition(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -136,7 +151,9 @@ func loadDeferredScopedRelationshipFactsForPartition(
 	generationID string,
 ) ([]facts.Envelope, error) {
 	ownRepoID := scopestore.RepoIDFromScopeID(scopeID)
-	logDeferredRelationshipKeyFallback(ctx, queryer, scopeID, generationID)
+	if deferredRelationshipKeyFallbackProbeCalls.Add(1)%deferredRelationshipKeyFallbackProbeSampleRate == 1 {
+		logDeferredRelationshipKeyFallback(ctx, queryer, scopeID, generationID)
+	}
 	regex, ok := BuildDeferredRepoIDRegex([]string(params.RepoIDValues), ownRepoID)
 	repoIDReferenceKeys := DeferredRepoIDReferenceKeys(params.RepoIDValues, params.RepoIDReferenceKey)
 	var regexParam sql.NullString

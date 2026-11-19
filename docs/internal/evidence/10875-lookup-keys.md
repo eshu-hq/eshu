@@ -72,3 +72,44 @@ state; the first line after silence names the regression), and
 `event_name=lookup_keys.backfill.scope` with facts, key rows and missing
 counts per rebuilt scope (rows-per-fact save-cost evidence). No new
 dashboard or alert; the existing loader and retention signals are unchanged.
+
+## Follow-up cost measurement (#10971 P1)
+
+Method: `TestDeferredPartitionLoadCostLive` on a migrated disposable
+PostgreSQL 18 schema with a 2000-fact partition at production bind widths
+(1029 LIKE terms, 1024 repo values, ~3KB payloads), EXPLAIN ANALYZE medians
+over 3 runs, hot cache. Frozen pre-#10875 SQL is embedded in the test as
+the before side.
+
+| Shape | Median latency | Result set |
+|---|---|---|
+| Legacy-only partition load | 2955ms | 1550 facts |
+| Shipped partition load (legacy plus keyed arms) | 2818ms | 1550 facts, identical set |
+| Fallback probe COUNT alone | 268ms | 0 missing on the backfilled seed |
+
+The enlarged UNION costs nothing measurable (the shipped load is 5%
+faster, inside run noise, with an identical set). The probe COUNT is the
+material addition at ~10% of a partition load, so it is now sampled: the
+first partition load of the process and every 64th run it
+(`TestDeferredRelationshipKeyFallbackProbeIsSampled` pins 2 probes per 65
+loads). Sampling never stops entirely because a later save path that
+skips sidecars must still surface. Still open: cold-cache behavior at the
+production call rate and the corpus-scale save-cost delta, which need the
+#10862 replay baseline.
+
+## Follow-up id-shape census (#10971 P2a)
+
+Question: can a security-alert id field ever hold a scaled float
+(`12345.0`) or a >2^53 integer, where the sidecar coercion provably
+diverges from `->>`? Live PostgreSQL 18.6 renders `12345.0` scale-preserved
+and `1e21` fully expanded, while the Go float64 path cannot reproduce the
+scale. Exhaustive `jsonb_typeof` census over the QA environment (11,392
+scopes, 88M facts; read replica, bounded indexed queries): all four scalar
+id fields across all 7.7M security-kind facts are 100% strings
+(`repository_id` 7,694,139; `package_id` 7,715,712; `cve_id` 7,720,036;
+`advisory_id` 7,730,102; `cve_ids` elements 9,824 strings). Array elements
+need no census: `?|` only matches string elements (verified live:
+`[123] ?| ['123']` is false), so non-string elements are invisible to the
+legacy arms and correctly ignored by the writer. Conclusion: the divergent
+shapes do not occur in practice; the coercion stays as defense-in-depth
+with its boundary pinned hermetically.
