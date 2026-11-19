@@ -270,3 +270,60 @@ func TestCodeCallProjectionUnclassedWriteErrorSkipsShortfallBound(t *testing.T) 
 		t.Fatalf("marked completed = %v, want none", reader.marked)
 	}
 }
+
+// TestCodeCallProjectionStampFailureKeepsParking pins the stamp fail-closed
+// rule (#10947): when the first-shortfall stamp write fails, the visit keeps
+// parking with the retryable park error instead of completing, and it records
+// no stamp, no completion, and no dead-letter row.
+func TestCodeCallProjectionStampFailureKeepsParking(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 19, 12, 0, 0, 0, time.UTC)
+	reader, writer, unroutable := boundTestSetup(now)
+	reader.stampErr = errors.New("stamp write failed")
+	runner := boundTestRunner(reader, writer, unroutable)
+
+	_, err := runner.processOnce(context.Background(), now)
+	if err == nil {
+		t.Fatal("processOnce() with a failed shortfall stamp = nil error, want the park error so the intent stays open")
+	}
+	if !reducercontract.IsRetryable(err) {
+		t.Fatalf("processOnce() error = %v, want retryable so the visit re-polls", err)
+	}
+	if got := len(reader.marked); got != 0 {
+		t.Fatalf("marked completed = %v, want none (a failed stamp completes nothing)", reader.marked)
+	}
+	if got := len(unroutable.rows); got != 0 {
+		t.Fatalf("dead-lettered rows = %d, want 0 (a failed stamp dead-letters nothing)", got)
+	}
+	if got := len(reader.shortfallStamps); got != 0 {
+		t.Fatalf("shortfall stamps = %v, want none (the failed stamp records nothing)", reader.shortfallStamps)
+	}
+}
+
+// TestCodeCallProjectionDeadLetterWriteFailureFailsCycle pins the
+// dead-letter fail-closed rule (#10947): when the unroutable-row write fails
+// on an expired shortfall, the cycle fails with that error instead of
+// completing, and it marks nothing completed and dead-letters nothing.
+func TestCodeCallProjectionDeadLetterWriteFailureFailsCycle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 19, 12, 0, 0, 0, time.UTC)
+	reader, writer, unroutable := boundTestSetup(now)
+	reader.shortfallStamps = map[string]time.Time{
+		"edge-2": now.Add(-crossscope.ProducerReadinessMaxWait - time.Minute),
+	}
+	unroutable.err = errors.New("unroutable write failed")
+	runner := boundTestRunner(reader, writer, unroutable)
+
+	_, err := runner.processOnce(context.Background(), now)
+	if err == nil {
+		t.Fatal("processOnce() with a failed dead-letter write = nil error, want the write error so nothing completes silently")
+	}
+	if got := len(reader.marked); got != 0 {
+		t.Fatalf("marked completed = %v, want none (a failed dead-letter write completes nothing)", reader.marked)
+	}
+	if got := len(unroutable.rows); got != 0 {
+		t.Fatalf("dead-lettered rows = %d, want 0 (the failed write persisted nothing)", got)
+	}
+}
