@@ -220,12 +220,16 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer handler timeout overrides: %w", err)
 	}
-	if (handlerTimeout > 0 || len(handlerTimeoutOverrides) > 0) && logger != nil {
-		logger.Warn(
-			"reducer handler timeouts are recorded but not enforced yet",
-			"default", handlerTimeout.String(),
-			"overrides", len(handlerTimeoutOverrides),
-		)
+	if logger != nil {
+		if handlerTimeoutsEnforced(handlerTimeout, handlerTimeoutOverrides) {
+			logger.Info(
+				"reducer handler timeouts enforced",
+				"default", handlerTimeout.String(),
+				"overrides", len(handlerTimeoutOverrides),
+			)
+		} else {
+			logger.Info("reducer handler timeouts disabled")
+		}
 	}
 	if len(claimDomains) > 0 && logger != nil {
 		logger.Info(

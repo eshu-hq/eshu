@@ -241,7 +241,7 @@ func (e *handlerAbandonedError) Retryable() bool { return true }
 
 // HandlerTimeoutFor resolves the configured handler bound for one domain:
 // the per-domain override when present, else the default. Zero means no bound
-// is configured. Step (a) of #8211 records the slot without enforcing it.
+// is configured. A positive bound is enforced by executeHandler (#10866).
 func (s Service) HandlerTimeoutFor(domain reducercontract.Domain) time.Duration {
 	if s.HandlerTimeoutOverrides != nil {
 		if bound, ok := s.HandlerTimeoutOverrides[domain]; ok {
@@ -262,19 +262,32 @@ type handlerOutcome struct {
 	value    any
 }
 
-// executeHandler runs Executor.Execute in a goroutine and waits for either its
-// return or shutdown (shutdownCtx done). A handler that ignores its context
-// and never returns must not wedge the worker: when shutdown arrives first,
-// executeHandler reports abandoned=true and the caller MUST stop the lease
-// heartbeat before failing the intent, so no renewal can land after the
-// release (see failAbandonedHandler). The abandoned goroutine keeps whatever
-// lifetime the handler gives it; its late result is dropped unread (the
-// channel is buffered), and any late queue mutation it attempts is rejected
-// by the lease fence (#7142).
+// executeHandler runs Executor.Execute in a goroutine and waits for its
+// return, for shutdown (shutdownCtx done), or — when the intent's domain has
+// a configured bound — for the bound to expire. A handler that ignores its
+// context and never returns must not wedge the worker: when shutdown arrives
+// first, or the bound expires first, executeHandler reports abandoned=true
+// and the caller MUST stop the lease heartbeat before failing the intent, so
+// no renewal can land after the release (see failAbandonedHandler and
+// failTimedOutHandler). The abandoned goroutine keeps whatever lifetime the
+// handler gives it; its late result is dropped unread (the channel is
+// buffered), and any late queue mutation it attempts is rejected by the lease
+// fence (#7142).
 //
-// There is deliberately no deadline branch yet: worst-case handler durations
-// are still unmeasured, so step (a) of #8211 releases only at shutdown and
-// measures durations for the later enforcing step.
+// The bound is enforced in two layers. The execution context derives from
+// the bound, so a context-cooperating handler (every paged fact loop passes
+// the context to its page queries) aborts at the next ExecContext call and
+// returns. The select below adds a deadline branch for context-ignoring
+// handlers, mirroring the shutdown branch: the worker is freed even when the
+// handler never observes cancellation. Deterministic race rules:
+// a buffered outcome beats shutdown, and shutdown beats the bound —
+// a handler that finished exactly at the deadline reports its own outcome,
+// and a shutdown racing the bound keeps the shutdown class.
+//
+// A handler that returns context.DeadlineExceeded is relabeled to the
+// counting timeout class only when our own timer fired (the done arm checks
+// the timer state): the cause is then our bound, never a downstream store or
+// query timeout, which keeps its own failure class.
 //
 // A handler panic must unwind on the caller's goroutine exactly as a direct
 // Executor.Execute call would: harnesses such as crashreplay recover crash
@@ -284,16 +297,25 @@ type handlerOutcome struct {
 // re-raises it. A panic that lands after abandonment is dropped with the late
 // outcome: the item is already released and the process is shutting down.
 //
-// Residual risk: an abandoned handler that later returns may still commit
-// graph writes after Fail released the item. Queue mutations are fenced, but
-// graph writes are only safe when the handler's writes are idempotent
-// (MERGE); a non-idempotent late write can duplicate truth the retry already
-// re-committed.
+// Residual risk: a handler released by the bound that later returns may still
+// commit graph writes after Fail released the item. Queue mutations are
+// fenced, but graph writes are only safe when the handler's writes are
+// idempotent or fenced; a non-idempotent late write can duplicate truth the
+// retry already re-committed (see the per-domain audit in
+// docs/internal/evidence/10866-reducer-handler-timeout.md). Domains without
+// an audited write path get no shipped bound.
 func (s Service) executeHandler(
 	execCtx context.Context,
 	shutdownCtx context.Context,
 	intent reducercontract.Intent,
 ) (result reducercontract.Result, err error, abandoned bool) {
+	bound := s.HandlerTimeoutFor(intent.Domain)
+	execStart := time.Now()
+	if bound > 0 {
+		var cancel context.CancelFunc
+		execCtx, cancel = context.WithTimeout(execCtx, bound)
+		defer cancel()
+	}
 	done := make(chan handlerOutcome, 1)
 	go func() {
 		completed := false
@@ -312,28 +334,87 @@ func (s Service) executeHandler(
 		}
 		return out.result, out.err, false
 	}
+	if bound <= 0 {
+		select {
+		case out := <-done:
+			return reraise(out)
+		case <-shutdownCtx.Done():
+			// Shutdown raced a finishing handler: when its outcome is already
+			// available, prefer it over abandonment. Failing an item whose
+			// handler actually completed would retry work that already
+			// succeeded. Only when no outcome is observable is the handler
+			// genuinely still running, and only then is it abandoned.
+			select {
+			case out := <-done:
+				return reraise(out)
+			default:
+			}
+			return reducercontract.Result{}, shutdownCtx.Err(), true
+		}
+	}
+	timer := time.NewTimer(bound)
+	defer timer.Stop()
 	select {
 	case out := <-done:
-		return reraise(out)
+		if out.panicked {
+			panic(out.value)
+		}
+		if ownDeadlineExpired(out, timer) {
+			// Our own timer already fired: the bound expired at (or just
+			// before) the handler's return. The handler cooperated, so the
+			// worker is free, but the cause is our bound — report the
+			// counting timeout class, never a bare context error.
+			return out.result, newHandlerTimeoutError(intent, bound, time.Since(execStart), out.err), false
+		}
+		return out.result, out.err, false
 	case <-shutdownCtx.Done():
 		// Shutdown raced a finishing handler: when its outcome is already
-		// available, prefer it over abandonment. Failing an item whose
-		// handler actually completed would retry work that already
-		// succeeded. Only when no outcome is observable is the handler
-		// genuinely still running, and only then is it abandoned.
+		// available, prefer it over abandonment.
 		select {
 		case out := <-done:
 			return reraise(out)
 		default:
 		}
 		return reducercontract.Result{}, shutdownCtx.Err(), true
+	case <-timer.C:
+		// The bound expired first. Prefer an already-buffered outcome (the
+		// handler finished exactly at the deadline): a DeadlineExceeded
+		// there is attributed to our bound — our own timer fired, so a
+		// downstream timeout landing in the same instant is
+		// indistinguishable and takes the timeout class while the worker
+		// stays free.
+		select {
+		case out := <-done:
+			if out.panicked {
+				panic(out.value)
+			}
+			if errors.Is(out.err, context.DeadlineExceeded) {
+				return out.result, newHandlerTimeoutError(intent, bound, time.Since(execStart), out.err), false
+			}
+			return out.result, out.err, false
+		default:
+		}
+		// Shutdown racing the bound: shutdown wins, with its class. Recheck
+		// the outcome first so a handler that finished in the race reports
+		// its own result instead of being abandoned.
+		if shutdownCtx.Err() != nil {
+			select {
+			case out := <-done:
+				return reraise(out)
+			default:
+			}
+			return reducercontract.Result{}, shutdownCtx.Err(), true
+		}
+		return reducercontract.Result{}, newHandlerTimeoutError(intent, bound, time.Since(execStart), context.DeadlineExceeded), true
 	}
 }
 
 // recordReducerHandlerDuration records one completed handler execution on the
-// non-enforcing measurement histogram. Abandoned handlers never return, so
-// they are counted on ReducerHandlerAbandoned instead; their elapsed time is
-// visible on the abandonment log line.
+// handler-duration histogram. Abandoned handlers never return, so they are
+// counted on ReducerHandlerAbandoned instead (or ReducerHandlerTimedOut for
+// a bound release); their elapsed time is visible on the release log line.
+// A cooperative timeout — the handler returning at the bound — records here
+// as well as on the timeout counter.
 func (s Service) recordReducerHandlerDuration(ctx context.Context, intent reducercontract.Intent, seconds float64) {
 	if s.Instruments == nil {
 		return
@@ -376,31 +457,13 @@ func (s Service) failAbandonedHandler(
 	workerID int,
 	stopHeartbeat func() error,
 ) error {
-	elapsed := time.Since(execStart)
-	duration := time.Since(start).Seconds()
 	abandonErr := &handlerAbandonedError{
 		intentID: intent.IntentID,
 		domain:   intent.Domain,
-		elapsed:  elapsed,
+		elapsed:  time.Since(execStart),
 		cause:    shutdownErr,
 	}
-	var err error = abandonErr
-	if stopErr := stopHeartbeat(); stopErr != nil {
-		err = errors.Join(err, stopErr)
-	}
-	failCtx := context.WithoutCancel(ctx)
-	failErr := s.WorkSink.Fail(failCtx, intent, err)
-	if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
-		s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
-		s.recordReducerHandlerAbandoned(failCtx, intent)
-		return nil
-	}
-	s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
-	s.recordReducerHandlerAbandoned(failCtx, intent)
-	if failErr != nil {
-		return errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
-	}
-	return nil
+	return s.releaseStuckHandler(ctx, intent, abandonErr, false, start, execStart, queueWait, workerID, stopHeartbeat)
 }
 
 // failAbandonedBatchHandler is the batch abandonment tail for executeAndReport
@@ -419,29 +482,14 @@ func (s Service) failAbandonedBatchHandler(
 	workerID int,
 	stopHeartbeat func() error,
 ) (batchAckItem, bool, error) {
-	elapsed := time.Since(execStart)
-	duration := time.Since(start).Seconds()
 	abandonErr := &handlerAbandonedError{
 		intentID: intent.IntentID,
 		domain:   intent.Domain,
-		elapsed:  elapsed,
+		elapsed:  time.Since(execStart),
 		cause:    shutdownErr,
 	}
-	var err error = abandonErr
-	if stopErr := stopHeartbeat(); stopErr != nil {
-		err = errors.Join(err, stopErr)
-	}
-	failCtx := context.WithoutCancel(ctx)
-	failErr := s.WorkSink.Fail(failCtx, intent, err)
-	if failErr != nil && errors.Is(failErr, ErrExecutionClaimRejected) {
-		s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
-		s.recordReducerHandlerAbandoned(failCtx, intent)
-		return batchAckItem{}, false, nil
-	}
-	s.recordReducerResult(failCtx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
-	s.recordReducerHandlerAbandoned(failCtx, intent)
-	if failErr != nil {
-		return batchAckItem{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
+	if err := s.releaseStuckHandler(ctx, intent, abandonErr, false, start, execStart, queueWait, workerID, stopHeartbeat); err != nil {
+		return batchAckItem{}, false, err
 	}
 	return batchAckItem{}, false, nil
 }

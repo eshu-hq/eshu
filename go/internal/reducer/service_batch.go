@@ -496,11 +496,26 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 	execStart := time.Now()
 	result, err, abandoned := s.executeHandler(execCtx, ctx, intent)
 	if abandoned {
+		// A shutdown release keeps the abandonment class; an expired bound
+		// keeps the counting timeout class. The tails share the
+		// stop-heartbeat-before-Fail ordering and Fail triage; only the
+		// operator counter differs.
+		var timeoutErr *handlerTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return s.failTimedOutBatchHandler(ctx, intent, timeoutErr, start, execStart, queueWait, workerID, stopHeartbeat)
+		}
 		return s.failAbandonedBatchHandler(ctx, intent, err, start, execStart, queueWait, workerID, stopHeartbeat)
 	}
 	s.recordReducerHandlerDuration(ctx, intent, time.Since(execStart).Seconds())
 	duration := time.Since(start).Seconds()
 	if err != nil {
+		// A cooperative timeout returned from the handler: its duration is
+		// recorded above like any returned execution, and the timeout
+		// counter fires here so the operator sees the bound pressure.
+		var timeoutErr *handlerTimeoutError
+		if errors.As(err, &timeoutErr) {
+			s.recordReducerHandlerTimedOut(ctx, intent)
+		}
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}

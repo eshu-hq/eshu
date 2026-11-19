@@ -200,10 +200,19 @@ without bound names the stuck worker and domain (#10480). Only busy
 workers are observed, so an absent series means idle. Pair it with the
 `reducer batch worker execution started` log line (`worker_id`,
 `intent_id`) for the exact intent; the in-flight `reducer.run` span
-carries the same attributes.
+carries the same attributes. When the domain has a configured handler bound
+(#10866), the alert is the age passing the bound, plus any timeout release:
 
 ```promql
 max by (worker, domain) (eshu_dp_reducer_batch_worker_execution_age_seconds)
+```
+
+```promql
+eshu_dp_reducer_batch_worker_execution_age_seconds > on(domain) eshu_dp_reducer_handler_timeout_seconds
+```
+
+```promql
+increase(eshu_dp_reducer_handler_timed_out_total[10m]) > 0
 ```
 
 ## Data-Plane Core
@@ -228,7 +237,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_reducer_claimed_expired` | Reducer work items sitting on an expired `claimed` or `running` lease. No labels. The predicate mirrors the claim's `reclaim_rank` lease test, so the count names the expired-lease backlog the claim floats first (#10865); it drains as claims reclaim, and zero means no expired hold is waiting. A claimed row with no lease timestamp is not counted (the claim always stamps one), and counted rows can still wait behind claim gates. Served by the reducer from its Postgres gauge snapshot (gauge `reducer_claimed_expired`, refresh cadence `ESHU_POSTGRES_GAUGE_REFRESH_INTERVAL`), not computed on scrape or on the claim path; reports nothing until the first refresh. |
 | `eshu_dp_reducer_claimed_expired_oldest_age_seconds` | Age in seconds of the oldest expired reducer claim lease, measured from `claim_until`. No labels. A value climbing past the claim lease duration means an expired hold is waiting behind the backlog instead of being reclaimed (#10865) and is worth an alert; zero means no reclaim backlog is outstanding. Same snapshot serving as `eshu_dp_reducer_claimed_expired`. |
 | `eshu_dp_worker_pool_active` | Active worker count by pool. |
-| `eshu_dp_reducer_batch_worker_execution_age_seconds` | Age in seconds of each busy reducer batch-claim worker's current execution, by `queue` (`reducer`), `worker` (pool index, `0`–`N-1`), and `domain`. Observed for busy workers only; an absent worker series means idle. A climbing value on one worker while claim shapes freeze means that worker is stuck inside its execution (#10480); pair with the `reducer batch worker execution started` log (`worker_id`, `intent_id`) for the exact intent. |
+| `eshu_dp_reducer_batch_worker_execution_age_seconds` | Age in seconds of each busy reducer batch-claim worker's current execution, by `queue` (`reducer`), `worker` (pool index, `0`–`N-1`), and `domain`. Observed for busy workers only; an absent worker series means idle. A climbing value on one worker while claim shapes freeze means that worker is stuck inside its execution (#10480); pair with the `reducer batch worker execution started` log (`worker_id`, `intent_id`) for the exact intent. With a configured handler bound (#10866), a value past `eshu_dp_reducer_handler_timeout_seconds` for the domain is worth an alert, as is any `eshu_dp_reducer_handler_timed_out_total` increase. |
 | `eshu_dp_collector_observe_duration_seconds` | Collector observe cycle cost. |
 | `eshu_dp_scope_assign_duration_seconds` | Repository or source scope assignment cost. |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission cost. |

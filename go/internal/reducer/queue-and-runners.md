@@ -42,27 +42,40 @@ States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 `RepoDependencyProjectionRunner`, and `GraphProjectionPhaseRepairer` as
 concurrent goroutines. Any runner error cancels the shared context.
 
-### Handler abandonment at shutdown (#8211, step a)
+### Handler release: bound expiry and abandonment at shutdown (#10866)
 
 The worker runs `Executor.Execute` in a goroutine (`executeHandler` in
-`service_heartbeat.go`) and waits for either its return or shutdown. When
-shutdown arrives first with no handler outcome available, the worker stops
-the lease heartbeat and then fails the intent through the normal `Fail`
-triage, under the counting retryable class
-`reducer_handler_abandoned_at_shutdown`: the item is retried under the normal
-attempt budget, never dead-lettered on the spot. A handler outcome that is
-already available when shutdown lands still wins over abandonment, so work
-that already succeeded is never failed into a duplicate retry. There is
-deliberately no deadline branch yet — worst-case handler durations are still
-unmeasured — so shutdown is the only release; completed executions are timed
-on `eshu_dp_reducer_handler_duration_seconds` by domain to set the future
-per-domain bound (`ESHU_REDUCER_HANDLER_TIMEOUT`,
-`ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES`, recorded but not enforced).
+`service_heartbeat.go`) and waits for its return, for shutdown, or — when the
+intent's domain has a configured bound (`ESHU_REDUCER_HANDLER_TIMEOUT`,
+`ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES`) — for the bound to expire. The
+bound is enforced in two layers: the execution context derives from it, so a
+context-cooperating handler aborts at the next query, and a deadline branch
+mirroring the shutdown branch frees the worker for handlers that ignore
+cancellation. A handler that returns `context.DeadlineExceeded` is relabeled
+to the timeout class only when our own timer fired — never for a downstream
+store or query timeout, which keeps its own class.
 
-Residual risk: an abandoned handler that later returns may still commit graph
+Either release stops the lease heartbeat and then fails the intent through
+the normal `Fail` triage, under a counting retryable class: the item is
+retried under the normal attempt budget, never dead-lettered on the spot,
+and dead-letters with its class preserved when the budget is spent.
+Deterministic race rules: a buffered outcome beats shutdown, and shutdown
+beats the bound. The two classes stay separate:
+`reducer_handler_abandoned_at_shutdown` for a shutdown release,
+`reducer_handler_timeout` for an expired bound (counter
+`eshu_dp_reducer_handler_timed_out_total`, bound gauge
+`eshu_dp_reducer_handler_timeout_seconds`, alert
+`eshu_dp_reducer_batch_worker_execution_age_seconds > on(domain)
+eshu_dp_reducer_handler_timeout_seconds`). A cooperative timeout — the
+handler returning at the bound — additionally records its duration on
+`eshu_dp_reducer_handler_duration_seconds`.
+
+Residual risk: a released handler that later returns may still commit graph
 writes after `Fail` released the item. Queue mutations are rejected by the
 lease fence (#7142), but graph writes are only safe when the handler writes
-idempotently (MERGE).
+idempotently or under a fencing token. The per-domain audit lives in
+`docs/internal/evidence/10866-reducer-handler-timeout.md`; domains without
+an audited write path get no shipped bound.
 
 The #7816 runtime fence is untouched: it still treats a heartbeating producer
 row as live, and this step adds no deadline that would change its bound.

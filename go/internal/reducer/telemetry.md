@@ -17,8 +17,10 @@ Key metrics (all prefixed `eshu_dp_`):
 - `reducer_run_duration_seconds` — per-intent execution duration, labeled by domain.
 - `reducer_queue_wait_duration_seconds` — time from `AvailableAt` to claim start.
 - `reducer_executions_total` — intent executions, labeled by domain, queue, status.
-- `reducer_handler_duration_seconds` — handler wall time by domain, from `Executor.Execute` entry to return (#8211). Non-enforcing measurement behind the future handler deadline: only handlers that return are recorded.
+- `reducer_handler_duration_seconds` — handler wall time by domain, from `Executor.Execute` entry to return (#8211, bound-setting measurement for #10866): only handlers that return are recorded. A cooperative timeout — the handler returning at the bound — records here as well as on the timeout counter.
 - `reducer_handler_abandoned_total` — intents abandoned at shutdown because the handler never returned, by domain (#8211). Each abandonment stops the lease heartbeat first, then fails the intent for retry under `failure_class="reducer_handler_abandoned_at_shutdown"`, with an ERROR `reducer execution failed` log line.
+- `reducer_handler_timed_out_total` — intents released because the handler never returned before its configured per-domain bound expired, by domain (#10866). Each release stops the lease heartbeat first, then fails the intent for retry under `failure_class="reducer_handler_timeout"`, with an ERROR `reducer execution failed` log line.
+- `reducer_handler_timeout_seconds` — configured per-domain handler bound in seconds for every known domain, 0 = unbounded (#10866). Operator configuration, not a measurement; alert `reducer_batch_worker_execution_age_seconds > on(domain) reducer_handler_timeout_seconds` plus `increase(reducer_handler_timed_out_total[10m]) > 0`.
 - `queue_claim_duration_seconds` — time to acquire one claim from Postgres.
 - `shared_projection_cycles_total` — completed shared projection cycles per domain.
 - `canonical_write_duration_seconds` — duration of one canonical write cycle.
