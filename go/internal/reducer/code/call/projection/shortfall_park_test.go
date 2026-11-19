@@ -13,12 +13,19 @@ import (
 )
 
 // retryableShortfallError scripts the writer's #10938 park error: a shortfall
-// on an enforced relationship fails the write retryably so the visit fails
-// before anything completes.
+// on an enforced relationship fails the write retryably under the shortfall
+// failure class so the visit fails before anything completes. The class is
+// what keys the #10947 bound; an unclassed retryable error never anchors it
+// (see unclassedShortfallError in shortfall_bound_test.go).
 type retryableShortfallError struct{ msg string }
 
 func (e *retryableShortfallError) Error() string   { return e.msg }
 func (e *retryableShortfallError) Retryable() bool { return true }
+
+// FailureClass returns the shortfall failure class the production writer
+// pins on codeCallMatchShortfallError (non-counting, so the park re-polls
+// instead of dead-lettering on attempt budget).
+func (e *retryableShortfallError) FailureClass() string { return codeCallShortfallFailureClass }
 
 // shortfallCodeCallWriter scripts a #10938 shortfall: the write attempt is
 // recorded, the report carries zero matches, and the write fails retryably.

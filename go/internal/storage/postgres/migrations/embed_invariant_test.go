@@ -290,9 +290,12 @@ import (
 // 313_search_index_terms_autovacuum_reloptions.sql (the per-leaf
 // autovacuum reloptions for the search index terms leaves plus the
 // documents table; one catalog-only DO block, no rewrite).
+// #10947 adds 314_shared_projection_intents_first_shortfall_at.sql (the
+// durable COALESCE-once first-shortfall anchor for the code-call CALLS
+// shortfall park bound).
 const (
-	goldenBootstrapDefinitionsDigest = "d55958455d07452017fa87579f168aaead67aa067b9fae6b23cb654cc5bbfa63"
-	goldenBootstrapDefinitionsCount  = 339
+	goldenBootstrapDefinitionsDigest = "bb32256cca1f7710da20673efdd2482dcfcd16e00cd5250c917a76f82281033f"
+	goldenBootstrapDefinitionsCount  = 340
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

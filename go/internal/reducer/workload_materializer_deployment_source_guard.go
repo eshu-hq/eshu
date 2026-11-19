@@ -47,29 +47,17 @@ type GraphExistenceProber interface {
 // a target that never appears dead-letters loudly rather than retrying forever.
 const WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass = "workload_materialization_deployment_source_target_not_ready"
 
-// SharedEdgeTargetNotReadyFailureClass classifies a shared-edge batch write
-// deferred because one of its runtime targets is not yet in the graph. The
-// shared-edge writer's target-presence guard
-// (go/internal/storage/cypher/edge/writer/unroutable.go) returns it; the
-// class lives here because the writer imports this package and the queue must
-// not import the writer.
-//
-// Registered as a non-counting reducer retry class
-// (nonCountingReducerRetryFailureClasses in
-// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the target
-// node is committed by another scope's materialization with no happens-before
-// against the batch, so the miss is a timing state, not a payload defect.
+// SharedEdgeTargetNotReadyFailureClass aliases the contract definition so
+// existing references keep compiling. The canonical definition lives in
+// reducercontract, where every producer and consumer of the class (the
+// writers, the queue SQL, and the code-call projection bound, which must
+// never import the reducer root) shares the one symbol; the history behind
+// the non-counting registration is preserved on the contract definition.
 // Counting it toward MaxAttempts dead-lettered deployable_unit_correlation
 // intents whenever that sibling write ran slow, and a dead letter is never
 // reopened, so CORRELATES_DEPLOYABLE_UNIT was lost (#7268, the sibling of
-// #6759). Because a non-counting class freezes attempt_count, the owning
-// handler bounds the wait by elapsed time instead: past
-// sharedEdgeTargetWaitMaxWait (30 minutes, crossscope.ProducerReadinessMaxWait)
-// DeployableUnitCorrelationHandler returns a counting error, so a target that
-// never appears dead-letters loudly. The shared-projection worker domains that
-// hit the same guard (handles_route, runs_in) carry no attempt budget, so the
-// class is inert there.
-const SharedEdgeTargetNotReadyFailureClass = "shared_edge_target_not_ready"
+// #6759).
+const SharedEdgeTargetNotReadyFailureClass = reducercontract.SharedEdgeTargetNotReadyFailureClass
 
 // deploymentSourceTargetMissingError fails a materialization pass whose
 // deployment-source targets are absent from the graph. Retryable() keeps the

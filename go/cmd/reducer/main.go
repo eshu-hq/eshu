@@ -516,9 +516,14 @@ func buildReducerService(
 			Logger:       logger,
 		},
 		CodeCallProjectionRunner: &projection.Runner{
-			IntentReader:        intentStore,
-			LeaseManager:        intentStore,
-			EdgeWriter:          edgeWriter,
+			IntentReader: intentStore,
+			LeaseManager: intentStore,
+			EdgeWriter:   edgeWriter,
+			// #10947: durable dead-letter row per active intent when a
+			// shortfall park reaches its elapsed bound, written BEFORE
+			// MarkIntentsCompleted. Shares the #5984 unroutable store with
+			// the shared runner.
+			UnroutableWriter:    postgres.NewSharedProjectionUnroutableIntentStore(database),
 			AcceptedGen:         postgres.NewAcceptedGenerationLookup(database),
 			AcceptedGenPrefetch: acceptedGenerationPrefetch,
 			ReadinessLookup:     graphProjectionReadinessLookup,

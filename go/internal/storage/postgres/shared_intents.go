@@ -38,6 +38,8 @@ ALTER TABLE shared_projection_intents
 ALTER TABLE shared_projection_intents
     ADD COLUMN IF NOT EXISTS partition_hash NUMERIC(20, 0) NULL;
 ALTER TABLE shared_projection_intents
+    ADD COLUMN IF NOT EXISTS first_code_call_shortfall_at TIMESTAMPTZ NULL;
+ALTER TABLE shared_projection_intents
     ADD COLUMN IF NOT EXISTS is_refresh_intent BOOLEAN NOT NULL
     GENERATED ALWAYS AS (COALESCE(payload->>'action' = 'refresh', false)) STORED;
 CREATE INDEX IF NOT EXISTS shared_projection_intents_repo_run_idx
@@ -123,6 +125,18 @@ const markIntentsCompletedSQL = `
 UPDATE shared_projection_intents
 SET completed_at = $1
 WHERE intent_id = ANY($2)
+`
+
+// stampCodeCallShortfallOnceSQL anchors the #10947 shortfall park
+// COALESCE-once in one batch-atomic statement: the first park wins, and
+// RETURNING hands the caller every surviving id with its anchor so it can
+// take the oldest. An intent deleted mid-cycle returns no row, which the
+// caller reads as "no anchor" (NULL defers).
+const stampCodeCallShortfallOnceSQL = `
+UPDATE shared_projection_intents
+SET first_code_call_shortfall_at = COALESCE(first_code_call_shortfall_at, $1)
+WHERE intent_id = ANY($2)
+RETURNING intent_id, first_code_call_shortfall_at
 `
 
 const listPendingAcceptanceUnitIntentsSQL = `
@@ -298,6 +312,35 @@ func (s *SharedIntentStore) MarkIntentsCompleted(ctx context.Context, intentIDs 
 		return 0, fmt.Errorf("count completed shared intents: %w", err)
 	}
 	return affected, nil
+}
+
+// StampCodeCallShortfallOnce records the first-shortfall anchor COALESCE-once
+// for one parked batch (#10947) and returns the anchor per surviving intent
+// id. The single UPDATE is batch-atomic: concurrent parks of the same batch
+// converge on the earliest stamp instead of racing. A requested id with no
+// returned row was deleted mid-cycle; the caller treats that as "no anchor"
+// and keeps the batch parked (NULL defers).
+func (s *SharedIntentStore) StampCodeCallShortfallOnce(ctx context.Context, intentIDs []string, now time.Time) (map[string]time.Time, error) {
+	if len(intentIDs) == 0 {
+		return map[string]time.Time{}, nil
+	}
+
+	sqlRows, err := s.database.QueryContext(ctx, stampCodeCallShortfallOnceSQL, now.UTC(), intentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("stamp code call shortfall: %w", err)
+	}
+	defer func() { _ = sqlRows.Close() }()
+
+	stamps := make(map[string]time.Time, len(intentIDs))
+	for sqlRows.Next() {
+		var intentID string
+		var stamp time.Time
+		if err := sqlRows.Scan(&intentID, &stamp); err != nil {
+			return nil, fmt.Errorf("scan code call shortfall stamp: %w", err)
+		}
+		stamps[intentID] = stamp.UTC()
+	}
+	return stamps, sqlRows.Err()
 }
 
 // ClaimPartitionLease attempts to claim a partition lease. Returns true if the

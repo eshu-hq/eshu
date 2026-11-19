@@ -40,6 +40,7 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 | `IntentReader` / `PartitionIntentReader` / `PartitionCandidateReader` / `UnhashedCandidateReader` | the intent-listing ports, from broad domain scans down to partition-hashed candidate reads |
 | `HistoryLookup` / `CurrentRunHistoryLookup` / `CurrentRunPartitionHistoryLookup` / `CurrentRunRefreshHistoryLookup` | optional completion-history ports that let a durable store skip a proven no-op retract |
 | `RefreshFenceLookup` | the optional bounded refresh-fence check a durable store can implement instead of loading the whole acceptance unit |
+| `ShortfallStamper` | the optional durable first-shortfall anchor a store implements so the shortfall park can expire (#10947) |
 | `DefaultLeaseOwnerPrefix` / `DefaultAcceptanceScanLimit` / `FilePartitionKeyPrefix` | the runner's defaults and the file-scoped partition-key prefix external stores match on |
 
 The reducer root wires `Runner` on `Service.CodeCallProjectionRunner`,
@@ -79,8 +80,9 @@ version), `internal/reducer/contract` (`Domain*`, `IsRetryable`),
 partition-processing/selection/telemetry machinery this runner drives),
 `internal/reducer/sharedintent` (`Row`, `AcceptanceKey`, `EdgeWriter`,
 `PartitionLeaseManager`, `AcceptedGenerationLookup`/`Prefetch`,
-`PartitionForKey`, `UniqueRepositoryIDs`), and `internal/telemetry`
-(`Instruments`). No dependency on the reducer root.
+`PartitionForKey`, `UniqueRepositoryIDs`), `internal/reducer/crossscope`
+(`ProducerReadinessMaxWait`, the shortfall park's elapsed bound), and
+`internal/telemetry` (`Instruments`). No dependency on the reducer root.
 
 ## Telemetry
 
@@ -92,6 +94,35 @@ logs with the full phase-duration breakdown
 (`selection_*_duration_seconds`, `lease_claim_duration_seconds`,
 `retract_duration_seconds`, `write_duration_seconds`,
 `mark_completed_duration_seconds`) and a lease-heartbeat failure log.
+
+## Shortfall park bound
+
+An enforced CALLS write that matches fewer rows than submitted parks the
+batch retryably under the shortfall failure class instead of completing it
+(#10938). The park carries a 30-minute elapsed bound
+(`crossscope.ProducerReadinessMaxWait`, the same named constant every other
+elapsed wait uses) anchored on a durable per-intent stamp:
+`shared_projection_intents.first_code_call_shortfall_at` (migration 314),
+written COALESCE-once so the first park wins. Each parked cycle takes the
+oldest stamp in the batch; a batch with no anchor yet keeps parking (NULL
+defers), as does a reader without the `ShortfallStamper` port. Past the
+bound the runner dead-letters one
+`sharedintent.UnroutableRow` per active intent (bounded reason
+`code_call_shortfall_wait_exceeded`) through `worker.UnroutableWriter`
+BEFORE `MarkIntentsCompleted`, then completes the batch — a deleted endpoint
+in a never-superseded generation terminates here instead of starving its
+partition forever. No new probe runs: the bound is checked at the
+`writeActiveRows` shortfall error return, and the once-per-cycle lane pin
+stays as-is.
+
+Three telemetry outcomes, one per terminal state: a fresh park keeps the
+writer's WARN plus `eshu_dp_shared_edge_target_miss_total`, and the visit
+result still carries the terminal submitted/matched counts onto
+`eshu_dp_code_call_edge_submitted/matched_rows_total`; an expiry adds the
+dead-letter count to `eshu_dp_shared_edge_unroutable_rows_total` under the
+bounded reason plus a `eshu_dp_shared_projection_stale_intents_total` entry
+under the same reason, with a WARN naming the dead-lettered count and the
+elapsed wait.
 
 ## Gotchas / invariants
 

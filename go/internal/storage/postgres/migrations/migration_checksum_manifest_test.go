@@ -427,6 +427,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10874: per-leaf autovacuum reloptions for the search index terms
 	// leaves plus the documents table (migration 313).
 	"313_search_index_terms_autovacuum_reloptions.sql": "4401f6cf97d36d4717217bd4e8f2397b740bc5ad551783bf475f6605eb5cffdb",
+	// #10947: the durable COALESCE-once first-shortfall anchor for the
+	// code-call CALLS shortfall park bound (migration 314).
+	"314_shared_projection_intents_first_shortfall_at.sql": "5d978f63acf8e76e2df51fa0458fe87823c560a3f07a563b4ae2808623c53e42",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

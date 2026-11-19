@@ -90,6 +90,13 @@ const (
 	StaleReasonGenerationSuperseded   = "generation_superseded"
 	StaleReasonCoveredByFullSuccessor = "covered_by_full_successor"
 	StaleReasonAbsentGenerationGone   = "acceptance_absent_generation_gone"
+	// StaleReasonCodeCallShortfallWaitExceeded is a code-call intent whose
+	// enforced CALLS shortfall park reached the 30-minute elapsed bound and
+	// dead-lettered instead of parking forever (#10947). It matches
+	// sharedintent.UnroutableReasonCodeCallShortfallWaitExceeded so the
+	// stale-intents series and the unroutable-intents table share one
+	// vocabulary.
+	StaleReasonCodeCallShortfallWaitExceeded = "code_call_shortfall_wait_exceeded"
 )
 
 // RecordStaleIntents records stale intents drained because the accepted
@@ -122,6 +129,15 @@ func (t AcceptanceTelemetry) RecordCoveredByFullSuccessorIntents(ctx context.Con
 // never counted here; they are counted by the caller's torn-write WARN.
 func (t AcceptanceTelemetry) RecordAbsentGenerationGoneIntents(ctx context.Context, runner string, domain string, count int) {
 	t.recordStale(ctx, runner, domain, StaleReasonAbsentGenerationGone, "shared projection drained intents with absent acceptance and gone generation", count)
+}
+
+// RecordCodeCallShortfallWaitExceededIntents records code-call intents
+// dead-lettered because their enforced CALLS shortfall park reached the
+// 30-minute elapsed bound (#10947). The reason attribute keeps them apart
+// from every drain so operators can tell an expired wait from orphan
+// cleanup, churn, and skipped replays.
+func (t AcceptanceTelemetry) RecordCodeCallShortfallWaitExceededIntents(ctx context.Context, runner string, domain string, count int) {
+	t.recordStale(ctx, runner, domain, StaleReasonCodeCallShortfallWaitExceeded, "code call projection dead-lettered shortfall-parked intents past the wait bound", count)
 }
 
 func (t AcceptanceTelemetry) recordStale(

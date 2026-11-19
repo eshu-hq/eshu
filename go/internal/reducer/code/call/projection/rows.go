@@ -170,6 +170,7 @@ func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (
 	sort.Strings(sources)
 
 	var total sharedintent.WriteReport
+	doneSources := 0
 	for _, source := range sources {
 		group := groups[source]
 		if len(group) == 0 {
@@ -183,13 +184,18 @@ func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (
 		// counts (#10938) ARE consumed: they flow into the visit result and
 		// telemetry, and a shortfall on an enforced relationship returns the
 		// park error below, failing the cycle before anything completes.
+		// The accumulated report is preserved on error (#10947): the
+		// writer returns the reconciled counts alongside the shortfall
+		// error, and the shortfall bound needs those terminal
+		// submitted/matched counts even though the batch did not complete.
 		report, err := r.EdgeWriter.WriteEdges(ctx, reducercontract.DomainCodeCalls, group, source)
-		if err != nil {
-			return sharedintent.WriteReport{}, 0, fmt.Errorf("write code call edges for %s: %w", source, err)
-		}
 		total.UnroutableRows = append(total.UnroutableRows, report.UnroutableRows...)
 		total.SubmittedRows += report.SubmittedRows
 		total.MatchedRows += report.MatchedRows
+		if err != nil {
+			return total, doneSources, fmt.Errorf("write code call edges for %s: %w", source, err)
+		}
+		doneSources++
 	}
 
 	return total, len(sources), nil

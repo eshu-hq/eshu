@@ -75,4 +75,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// search-index terms leaves and documents table: catalog-only SET, no
 	// rewrite, replay is a no-op.
 	"search_index_terms_autovacuum_reloptions",
+	// Migration 314 (#10947) adds the durable COALESCE-once first-shortfall
+	// anchor for the code-call CALLS shortfall park bound.
+	"shared_projection_intents_first_shortfall_at",
 }
