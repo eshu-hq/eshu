@@ -23,12 +23,13 @@ import (
 // directly or through the scope_generations / ingestion_scopes cascade.
 var factDeleteStatement = regexp.MustCompile(`(?is)DELETE\s+FROM\s+(ONLY\s+)?(fact_records|scope_generations|ingestion_scopes)\b`)
 
-// factKeySidecarKinds are the fact kinds that own rows in the three per-fact
-// key sidecars (#7420): relationship_reference_candidate_keys
+// factKeySidecarKinds are the fact kinds that own rows in the four per-fact
+// key sidecars (#7420, #10875): relationship_reference_candidate_keys
 // (relationshipReferenceFactKind), package_manifest_consumption_keys
-// (isPackageManifestConsumptionFact) and package_registry_identity_keys
-// (packageRegistryIdentityKeyRows).
-var factKeySidecarKinds = []string{"content", "file", "gcp_cloud_relationship", "content_entity", "package_registry.package"}
+// (isPackageManifestConsumptionFact), package_registry_identity_keys
+// (packageRegistryIdentityKeyRows) and security_alert_reconciliation_keys
+// (isSecurityAlertReconciliationFactKind).
+var factKeySidecarKinds = []string{"content", "file", "gcp_cloud_relationship", "content_entity", "package_registry.package", "security_alert.repository_alert", "reducer_package_consumption_correlation", "reducer_supply_chain_impact_finding"}
 
 // factDeleteSite classifies one fact delete statement. A site is safe when
 // it deletes only kinds that never own key sidecar rows (kindLiteral, or

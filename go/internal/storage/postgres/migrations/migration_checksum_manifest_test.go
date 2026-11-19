@@ -430,6 +430,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10947: the durable COALESCE-once first-shortfall anchor for the
 	// code-call CALLS shortfall park bound (migration 314).
 	"314_shared_projection_intents_first_shortfall_at.sql": "5d978f63acf8e76e2df51fa0458fe87823c560a3f07a563b4ae2808623c53e42",
+	// #10875: relationship lookup key v1 columns plus the
+	// security_alert_reconciliation_keys sidecar (migration 315).
+	"315_relationship_lookup_keys.sql": "578769fd865c5317351cfe33f7c4e25479af23a54d4bc2c91853e065eb28ca02",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

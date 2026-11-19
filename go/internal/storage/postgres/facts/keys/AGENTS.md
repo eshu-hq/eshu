@@ -43,7 +43,7 @@
 - A new statement in the parent package that deletes `fact_records`
   (directly, or through a `scope_generations` or `ingestion_scopes` cascade)
   calls `DeleteGenerations` or `DeletePage` first in the same transaction,
-  or is scoped to fact kinds that own no rows in the three key tables. Either
+  or is scoped to fact kinds that own no rows in the four key tables. Either
   way it is classified in `factDeleteSites` (`fact_delete_key_guard_test.go`).
 
 ## Verification

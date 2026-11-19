@@ -336,7 +336,7 @@ func runPreHoistDeferredScopedQuery(
 	return collectDeferredScopedRows(t, rows)
 }
 
-// runHoistedDeferredScopedQuery executes the production ($1..$7) hoisted query
+// runHoistedDeferredScopedQuery executes the production ($1..$8) hoisted query
 // shape — building $5/$6 exactly as loadDeferredScopedRelationshipFactsForPartition
 // does — and returns the loaded fact_id set.
 func runHoistedDeferredScopedQuery(
@@ -358,6 +358,7 @@ func runHoistedDeferredScopedQuery(
 		ctx,
 		backfill.ListDeferredScopedRelationshipFactRecordsQuery,
 		params.NonRepoIDLike, params.RepoIDValues, scopeID, generationID, regexParam, ownRepoID, repoIDReferenceKeys,
+		params.NonRepoIDRawAnchors,
 	)
 	if err != nil {
 		t.Fatalf("query (hoisted): %v", err)

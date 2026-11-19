@@ -3,7 +3,7 @@
 
 package factkeys
 
-// OrphanCensusSQL is the operator census for the three key sidecars once
+// OrphanCensusSQL is the operator census for the key sidecars once
 // their per-fact foreign keys are gone (#7420, migrations 188 to 190). It
 // returns one row (table_name, scope_id, generation_id, orphan_rows) for
 // every generation that holds key rows with no matching fact, ordered by
@@ -49,6 +49,14 @@ WHERE NOT EXISTS (
     WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
 )
 GROUP BY keys.scope_id, keys.generation_id
+UNION ALL
+SELECT 'security_alert_reconciliation_keys', keys.scope_id, keys.generation_id, count(*)
+FROM security_alert_reconciliation_keys AS keys
+WHERE NOT EXISTS (
+    SELECT 1 FROM fact_records AS fact
+    WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+)
+GROUP BY keys.scope_id, keys.generation_id
 ORDER BY 1, 2, 3
 `
 
@@ -60,31 +68,13 @@ ORDER BY 1, 2, 3
 // order and returns one row with the rows deleted per table. Run it per
 // reported generation, then rerun the census.
 const OrphanCleanupSQL = `WITH relationship AS (
-    DELETE FROM relationship_reference_candidate_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM relationship_reference_candidate_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 ), manifest AS (
-    DELETE FROM package_manifest_consumption_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM package_manifest_consumption_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 ), registry AS (
-    DELETE FROM package_registry_identity_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM package_registry_identity_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
+), security_alert AS (
+    DELETE FROM security_alert_reconciliation_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 )
-SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_keys,
-    (SELECT count(*) FROM manifest) AS package_manifest_consumption_keys,
-    (SELECT count(*) FROM registry) AS package_registry_identity_keys
+SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_keys, (SELECT count(*) FROM manifest) AS package_manifest_consumption_keys, (SELECT count(*) FROM registry) AS package_registry_identity_keys, (SELECT count(*) FROM security_alert) AS security_alert_reconciliation_keys
 `

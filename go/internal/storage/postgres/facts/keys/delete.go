@@ -14,11 +14,12 @@ import (
 // recorder can tell them apart from other retention statements.
 const DeleteMarker = "-- retention: fact key delete"
 
-// Table names the three per-fact key sidecars, in delete order.
+// Table names the per-fact key sidecars, in delete order.
 const (
-	RelationshipReferenceTable = "relationship_reference_candidate_keys"
-	ManifestConsumptionTable   = "package_manifest_consumption_keys"
-	RegistryIdentityTable      = "package_registry_identity_keys"
+	RelationshipReferenceTable       = "relationship_reference_candidate_keys"
+	ManifestConsumptionTable         = "package_manifest_consumption_keys"
+	RegistryIdentityTable            = "package_registry_identity_keys"
+	SecurityAlertReconciliationTable = "security_alert_reconciliation_keys"
 )
 
 // Delete is one key sidecar table and its two delete statements: Generation
@@ -31,24 +32,28 @@ type Delete struct {
 	Page       string
 }
 
-// Deletes returns the three key sidecars in the order every retention
+// Deletes returns the key sidecars in the order every retention
 // transaction deletes them: relationship keys, then manifest consumption
-// keys, then registry identity keys. The package key scope rebuild clears
+// keys, then registry identity keys, then security-alert reconciliation keys
+// (issue #10875). The package key scope rebuild clears
 // manifest keys before registry keys, so both writers take those row locks in
-// one order; the reversed order deadlocks against it. Every statement leads
+// one order; the reversed order deadlocks against it. The security-alert
+// writer takes no conflicting lock order (it refreshes in the same save
+// transaction as the other sidecars), so it goes last. Every statement leads
 // with (scope_id, generation_id), the prefix of each table's (scope_id,
-// generation_id, fact_id) partition index (migrations 058, 182 and 183): the
-// measured plans stay on that index at 5% and 20% generation shares, under
-// stale statistics and under a forced generic plan, with buffers that track
-// the generation instead of the table. A fact_id-only page delete was
-// rejected: it chose a sequential scan of the package keys and a primary key
-// walk whose buffers grow with the table
+// generation_id, fact_id) partition index (migrations 058, 182, 183 and
+// 313): the measured plans stay on that index at 5% and 20% generation
+// shares, under stale statistics and under a forced generic plan, with
+// buffers that track the generation instead of the table. A fact_id-only page
+// delete was rejected: it chose a sequential scan of the package keys and a
+// primary key walk whose buffers grow with the table
 // (docs/internal/evidence/7420-key-sidecar-explicit-deletes.md).
 func Deletes() []Delete {
 	return []Delete{
 		statements(RelationshipReferenceTable),
 		statements(ManifestConsumptionTable),
 		statements(RegistryIdentityTable),
+		statements(SecurityAlertReconciliationTable),
 	}
 }
 
@@ -99,12 +104,12 @@ func DeleteGenerations(
 	return nil
 }
 
-// TableCounts returns counts' entries for the three key sidecar tables, keyed
+// TableCounts returns counts' entries for the key sidecar tables, keyed
 // by table, with 0 for a table counts does not name. Retention uses it to
 // keep the batch's pre-count of the key rows beside the rows
 // DeleteGenerations removes, so a difference can be logged.
 func TableCounts(counts map[string]int64) map[string]int64 {
-	tables := make(map[string]int64, 3)
+	tables := make(map[string]int64, 4)
 	for _, keys := range Deletes() {
 		tables[keys.Table] = counts[keys.Table]
 	}
@@ -122,7 +127,7 @@ func DeletePage(
 	scopeID, generationID string,
 	factIDs []string,
 ) (map[string]int64, error) {
-	deleted := make(map[string]int64, 3)
+	deleted := make(map[string]int64, 4)
 	for _, keys := range Deletes() {
 		affected, err := rowsAffected(ctx, exec, keys.Page, scopeID, generationID, factIDs)
 		if err != nil {

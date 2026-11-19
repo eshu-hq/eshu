@@ -292,10 +292,13 @@ import (
 // documents table; one catalog-only DO block, no rewrite).
 // #10947 adds 314_shared_projection_intents_first_shortfall_at.sql (the
 // durable COALESCE-once first-shortfall anchor for the code-call CALLS
-// shortfall park bound).
+// shortfall park bound). #10875 adds 315_relationship_lookup_keys.sql
+// (the version-1 family/marker columns on
+// relationship_reference_candidate_keys plus the
+// security_alert_reconciliation_keys sidecar and its backfill marker).
 const (
-	goldenBootstrapDefinitionsDigest = "bb32256cca1f7710da20673efdd2482dcfcd16e00cd5250c917a76f82281033f"
-	goldenBootstrapDefinitionsCount  = 340
+	goldenBootstrapDefinitionsDigest = "PLACEHOLDER-RECOMPUTE-POST-REBASE"
+	goldenBootstrapDefinitionsCount  = 341
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

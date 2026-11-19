@@ -352,8 +352,9 @@ A release gate or audit needs a proof artifact that is not present.
 
 ## Symptom: key sidecar tables keep growing
 
-`relationship_reference_candidate_keys`, `package_manifest_consumption_keys`
-or `package_registry_identity_keys` grows while retention prunes facts.
+`relationship_reference_candidate_keys`, `package_manifest_consumption_keys`,
+`package_registry_identity_keys` or `security_alert_reconciliation_keys`
+grows while retention prunes facts.
 
 - **Census:** since #7420 no foreign key removes these rows with their facts;
   retention deletes them explicitly. Run the read-only census below
@@ -361,7 +362,7 @@ or `package_registry_identity_keys` grows while retention prunes facts.
   It returns one row per table, scope and generation with orphan key rows and
   nothing on a healthy database. It scans `fact_records` once per table, so run
   it off-peak or on a replica.
-- **Metric:** `eshu_dp_generation_retention_rows_pruned_total` with the three
+- **Metric:** `eshu_dp_generation_retention_rows_pruned_total` with the four
   table values should move with the `fact_records` value while generations
   carry keys.
 - **Log:** the reducer WARN `generation retention fact key delete differs
@@ -404,38 +405,28 @@ WHERE NOT EXISTS (
     WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
 )
 GROUP BY keys.scope_id, keys.generation_id
+UNION ALL
+SELECT 'security_alert_reconciliation_keys', keys.scope_id, keys.generation_id, count(*)
+FROM security_alert_reconciliation_keys AS keys
+WHERE NOT EXISTS (
+    SELECT 1 FROM fact_records AS fact
+    WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
+)
+GROUP BY keys.scope_id, keys.generation_id
 ORDER BY 1, 2, 3
 ```
 
 ```sql
 WITH relationship AS (
-    DELETE FROM relationship_reference_candidate_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM relationship_reference_candidate_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 ), manifest AS (
-    DELETE FROM package_manifest_consumption_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM package_manifest_consumption_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 ), registry AS (
-    DELETE FROM package_registry_identity_keys AS keys
-    WHERE keys.scope_id = $1 AND keys.generation_id = $2
-      AND NOT EXISTS (
-          SELECT 1 FROM fact_records AS fact
-          WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id
-      )
-    RETURNING 1
+    DELETE FROM package_registry_identity_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
+), security_alert AS (
+    DELETE FROM security_alert_reconciliation_keys AS keys WHERE keys.scope_id = $1 AND keys.generation_id = $2 AND NOT EXISTS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_id = keys.fact_id AND fact.scope_id = keys.scope_id AND fact.generation_id = keys.generation_id) RETURNING 1
 )
-SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_keys,
-    (SELECT count(*) FROM manifest) AS package_manifest_consumption_keys,
-    (SELECT count(*) FROM registry) AS package_registry_identity_keys
+SELECT (SELECT count(*) FROM relationship) AS relationship_reference_candidate_keys, (SELECT count(*) FROM manifest) AS package_manifest_consumption_keys, (SELECT count(*) FROM registry) AS package_registry_identity_keys, (SELECT count(*) FROM security_alert) AS security_alert_reconciliation_keys
 ```
 
 ## Symptom: search index tables keep growing

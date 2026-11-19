@@ -233,11 +233,17 @@ func TestDeferredRelationshipFamilyGuardPathGatesSaltGitfsFallback(t *testing.T)
 func TestDeferredRelationshipFamilyGuardScopeFencesReferenceKeyArms(t *testing.T) {
 	t.Parallel()
 
-	if count := strings.Count(guardedDeferredScopedQuery, "AND ref.scope_id = $3"); count != 2 {
-		t.Fatalf("reference-key arms should both fence ref rows by scope; got %d matching fences", count)
+	// Three reference-key arms carry the partition fence (issue #10875 adds
+	// the version-1 keyed_reference_keys CTE beside candidate_reference_keys
+	// and the no-key-row fallback): every arm must fence ref rows by scope
+	// and generation, so a versioned row from another partition can never
+	// leak into this partition's match set. The keyed CTE fences with WHERE
+	// (its first predicate); the other two arms fence with AND.
+	if count := strings.Count(guardedDeferredScopedQuery, "ref.scope_id = $3"); count != 3 {
+		t.Fatalf("reference-key arms should all three fence ref rows by scope; got %d matching fences", count)
 	}
-	if count := strings.Count(guardedDeferredScopedQuery, "AND ref.generation_id = $4"); count != 2 {
-		t.Fatalf("reference-key arms should both fence ref rows by generation; got %d matching fences", count)
+	if count := strings.Count(guardedDeferredScopedQuery, "ref.generation_id = $4"); count != 3 {
+		t.Fatalf("reference-key arms should all three fence ref rows by generation; got %d matching fences", count)
 	}
 }
 
@@ -453,6 +459,7 @@ func runPreRelationshipFamilyGuardDeferredScopedQuery(
 		regexParam,
 		ownRepoID,
 		repoIDReferenceKeys,
+		params.NonRepoIDRawAnchors,
 	)
 	if err != nil {
 		t.Fatalf("query pre-relationship-family guard: %v", err)

@@ -18,7 +18,8 @@ const UnavailablePartitionIndexesSQL = `SELECT expected.index_name
 FROM (VALUES
     ('relationship_reference_candidate_keys_partition_idx', 'relationship_reference_candidate_keys'),
     ('package_manifest_consumption_keys_partition_idx', 'package_manifest_consumption_keys'),
-    ('package_registry_identity_keys_partition_idx', 'package_registry_identity_keys')
+    ('package_registry_identity_keys_partition_idx', 'package_registry_identity_keys'),
+    ('security_alert_reconciliation_keys_partition_idx', 'security_alert_reconciliation_keys')
 ) AS expected(index_name, table_name)
 WHERE NOT EXISTS (
     SELECT 1

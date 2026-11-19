@@ -38,7 +38,7 @@ func (r rowsResult) LastInsertId() (int64, error) { return 0, nil }
 func (r rowsResult) RowsAffected() (int64, error) { return int64(r), nil }
 
 func tableOf(query string) string {
-	for _, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable} {
+	for _, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable, SecurityAlertReconciliationTable} {
 		if strings.Contains(query, "DELETE FROM "+table+"\n") {
 			return table
 		}
@@ -67,11 +67,12 @@ func TestDeleteGenerationsRunsTableMajorInLockOrder(t *testing.T) {
 		RelationshipReferenceTable + " s1/g1", RelationshipReferenceTable + " s2/g2",
 		ManifestConsumptionTable + " s1/g1", ManifestConsumptionTable + " s2/g2",
 		RegistryIdentityTable + " s1/g1", RegistryIdentityTable + " s2/g2",
+		SecurityAlertReconciliationTable + " s1/g1", SecurityAlertReconciliationTable + " s2/g2",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("statements = %v, want %v", got, want)
 	}
-	for _, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable} {
+	for _, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable, SecurityAlertReconciliationTable} {
 		if rowsPruned[table] != 6 {
 			t.Errorf("rowsPruned[%s] = %d, want 6", table, rowsPruned[table])
 		}
@@ -87,10 +88,10 @@ func TestDeletePageBindsPageUnderScopeAndGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeletePage() error = %v", err)
 	}
-	if len(exec.calls) != 3 {
-		t.Fatalf("statements = %d, want 3", len(exec.calls))
+	if len(exec.calls) != 4 {
+		t.Fatalf("statements = %d, want 4", len(exec.calls))
 	}
-	for i, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable} {
+	for i, table := range []string{RelationshipReferenceTable, ManifestConsumptionTable, RegistryIdentityTable, SecurityAlertReconciliationTable} {
 		call := exec.calls[i]
 		ids, _ := call.args[2].([]string)
 		if tableOf(call.query) != table || !strings.Contains(call.query, "AND fact_id = ANY($3::text[])") ||
