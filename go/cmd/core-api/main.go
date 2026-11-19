@@ -187,20 +187,30 @@ func printCoreAPIVersion(stderr *os.File) {
 
 // serve wires stores, mounts the surface, and runs ListenAndServe until the
 // process context ends.
-func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger, addr string) error {
+// coreRuntimeConfig parses the required runtime posture: query profile and
+// pinned Neo4j backend. Anything else fails startup before stores open.
+func coreRuntimeConfig(getenv func(string) string) (query.QueryProfile, query.GraphBackend, error) {
 	profile, err := query.ParseQueryProfile(strings.TrimSpace(getenv("ESHU_QUERY_PROFILE")))
 	if err != nil {
-		return fmt.Errorf("parse ESHU_QUERY_PROFILE: %w", err)
+		return "", "", fmt.Errorf("parse ESHU_QUERY_PROFILE: %w", err)
 	}
 	if profile == "" {
 		profile = query.ProfileProduction
 	}
 	backend, err := query.ParseGraphBackend(strings.TrimSpace(getenv("ESHU_GRAPH_BACKEND")))
 	if err != nil {
-		return fmt.Errorf("parse ESHU_GRAPH_BACKEND: %w", err)
+		return "", "", fmt.Errorf("parse ESHU_GRAPH_BACKEND: %w", err)
 	}
 	if backend != query.GraphBackendNeo4j {
-		return fmt.Errorf("eshu-core-api requires the pinned Neo4j backend (ESHU_GRAPH_BACKEND=neo4j), got %q", backend)
+		return "", "", fmt.Errorf("eshu-core-api requires the pinned Neo4j backend (ESHU_GRAPH_BACKEND=neo4j), got %q", backend)
+	}
+	return profile, backend, nil
+}
+
+func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger, addr string) error {
+	profile, backend, err := coreRuntimeConfig(getenv)
+	if err != nil {
+		return err
 	}
 
 	stores, err := openCoreStores(ctx, getenv, logger)
@@ -277,12 +287,18 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 	askResult := askwiring.BuildAskHandler(getenv, inner, apiKey, logger)
 	posture := askwiring.BuildNarrationPosture(getenv, askResult.AdapterReady())
 
+	metricsSource, err := newCoreMetricsSource(getenv)
+	if err != nil {
+		return fmt.Errorf("resolve metrics time-series source: %w", err)
+	}
+
 	deps := query.CoreServeDeps{
 		DB:                        rawDB,
 		Graph:                     graphReader,
 		GraphVerify:               driver.VerifyConnectivity,
 		GraphDriven:               true,
-		GraphBackend:              query.GraphBackendNeo4j,
+		GraphBackend:              backend,
+		Metrics:                   metricsSource,
 		Profile:                   profile,
 		APIKey:                    apiKey,
 		ScopedTokenResolver:       chained,

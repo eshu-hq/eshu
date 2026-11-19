@@ -107,10 +107,7 @@ func assembleCoreRouterStores(deps CoreServeDeps) (*coreRouterStores, error) {
 	if err != nil {
 		return nil, err
 	}
-	metricsSource, err := newCoreMetricsSource(deps.Getenv)
-	if err != nil {
-		return nil, err
-	}
+	metricsSource := deps.Metrics
 	semanticEmbedding, err := searchembedruntime.ConfigFromEnv(deps.Getenv, nil)
 	if err != nil {
 		return nil, err

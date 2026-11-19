@@ -86,6 +86,11 @@ type CoreServeDeps struct {
 	// Getenv reads operator configuration for sub-wiring (metrics targets,
 	// SSM bounds, semantic embedder). Nil reads as empty.
 	Getenv func(string) string
+	// Metrics is the prebuilt Prometheus/Mimir time-series source. The
+	// serving binary builds it (store wiring lives outside package query
+	// so truth surfaces never reference workflow state); nil in tests,
+	// where metrics reads fail closed.
+	Metrics MetricsTimeSeriesSource
 	// Instruments carries the shared OTEL meter provider. Nil disables emission.
 	Instruments *telemetry.Instruments
 	// Logger is the process structured logger. Nil falls back to slog.Default.
