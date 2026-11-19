@@ -170,3 +170,36 @@ Deferred to the coordinator per the leaf contract: `make pre-push`,
 `make pre-pr`, `ci-gates review-attest`, push, PR creation, and the
 post-deploy `pg_stat_statements` delta against the pre-registered
 thresholds above.
+
+## Follow-up: drain_full kind + live-harness counted seam
+
+### No-Regression Evidence: drain_full kind and harness seam carry no query change
+
+Baseline: merged `ee31d15b6b` serves drain-forced fulls as `audit_full`;
+live harnesses lack the counted-write seam, so three live tests fail
+closed (`executor chain does not support counted writes`). After:
+drain-forced cycles record `drain_full` (empty) or `productive` with the
+`probe` trigger (found); the probe SQL, candidate SQL, and every statement
+shape are byte-identical — one branch selects the kind constant, so the
+fixture probe stays 17 buffers and the read-copy probe stays 12 buffers
+all-hit warm. No new statements, no plan change, no concurrency change.
+Unit suites (`codeintel`, `telemetry`) green; new
+`TestIdleProbeDrainCycleUsesDrainKind` asserts kinds
+{productive:2, drain_full:1, probe_skip:1}, triggers {audit:1, probe:1},
+and exactly one audit log line (startup) with zero "audit completed"
+lines. Live proofs on disposable backends: `TestLiveSparseWriterRowsLeave-
+OptionalPropertiesNull` PASS (8.52 s, Neo4j community),
+`TestReducerCodeCallEdgeRetractGraphTruth` PASS (1.71 s) and
+`TestReducerMetaclassEdgeRetractGraphTruth` PASS (0.57 s) against a local
+Neo4j. Logs carry no new audit-named lines for drain cycles. Safe because
+the audit-due path still reaches `AuditFull` first (no starvation), and
+fail-closed semantics are unchanged — harnesses now provide the seam
+instead of bypassing it.
+
+### Observability Evidence: drain_full kind
+
+New closed kind `drain_full` on
+`eshu_dp_code_reachability_projection_cycles_total`; productive drain
+keeps the `probe` trigger on `inputs_found_total`. Pin: the test above
+plus the telemetry-coverage row and README kind lists updated in the same
+change.
