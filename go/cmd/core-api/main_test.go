@@ -190,3 +190,26 @@ func TestSplitCoreEnvListSkipsBlanks(t *testing.T) {
 		t.Fatalf("splitCoreEnvList = %q, want [a b]", strings.Join(got, ","))
 	}
 }
+
+// TestCoreMetricsMountIsIntentionallyUnfrozen pins /metrics as a deliberate
+// carve-out: an infrastructure scrape endpoint mounted by the binary, never
+// forwarded by the satellite, hence absent from the frozen served-method
+// list by design rather than by drift. A nil handler mounts nothing.
+func TestCoreMetricsMountIsIntentionallyUnfrozen(t *testing.T) {
+	t.Parallel()
+	served := false
+	mux := http.NewServeMux()
+	mountCoreMetrics(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { served = true }))(mux, nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK || !served {
+		t.Fatalf("/metrics = %d served=%v, want 200 served=true", rec.Code, served)
+	}
+	bare := http.NewServeMux()
+	mountCoreMetrics(nil)(bare, nil)
+	rec2 := httptest.NewRecorder()
+	bare.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec2.Code != http.StatusNotFound {
+		t.Fatalf("/metrics with nil handler = %d, want 404 (unmounted)", rec2.Code)
+	}
+}

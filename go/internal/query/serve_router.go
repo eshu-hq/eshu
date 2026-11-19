@@ -83,8 +83,9 @@ type coreRouterStores struct {
 }
 
 // assembleCoreRouterStores opens the shared read models: the Postgres
-// reader, content reader, status snapshot reader, metrics source, semantic
-// embedder config, and governance audit store.
+// reader, content reader, status snapshot reader, semantic embedder config,
+// and governance audit store. The metrics source arrives prebuilt via deps
+// (the binary owns store wiring); nil fails closed.
 func assembleCoreRouterStores(deps CoreServeDeps) (*coreRouterStores, error) {
 	profile := deps.Profile
 	if profile == "" {

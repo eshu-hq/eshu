@@ -105,4 +105,28 @@ func TestCoreReadinessCombinerNeedsBothBackends(t *testing.T) {
 	}
 }
 
+// TestCoreReadinessCombinerNeedsPostgres pins the other AND direction: a
+// healthy graph with no Postgres configured keeps /readyz at 503. Together
+// with TestCoreReadinessCombinerNeedsBothBackends this proves each backend
+// down independently fails the probe; the both-up 200 is demonstrated live
+// in D4.4, not faked here.
+func TestCoreReadinessCombinerNeedsPostgres(t *testing.T) {
+	t.Parallel()
+	router, err := query.BuildCoreRouter(query.CoreServeDeps{})
+	if err != nil {
+		t.Fatalf("BuildCoreRouter: %v", err)
+	}
+	healthy := func(context.Context) error { return nil }
+	mux := http.NewServeMux()
+	query.MountCoreMux(mux, router, nil, healthy)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("/readyz with nil Postgres = %d, want 503", rec.Code)
+	}
+	if got := rec.Header().Get("Retry-After"); got != "" {
+		t.Fatalf("Retry-After = %q, want empty", got)
+	}
+}
+
 var errCoreProbeDown = errors.New("backend down")
