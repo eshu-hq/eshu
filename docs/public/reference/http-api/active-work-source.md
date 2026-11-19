@@ -198,5 +198,8 @@ gauges, and `model_key="coordinator_snapshot"` for the `eshu_runtime_coordinator
 gauges. A scrape that can decode no coordinator row renders no coordinator gauge
 and reports the marker stale with a `NaN` age. A database error fails the
 scrape like any other failed status read
-(`eshu_runtime_status_snapshot_available 0`). With the reader off neither gauge
-is rendered and the scrape is unchanged.
+(`eshu_runtime_status_snapshot_available 0`). With the reader off the scrape
+serves the same stored row under the same fences (#10872): the flag only
+decides whether status routes may use the stored row, while the scrape
+selection already opts into stored-only. A store built without a summary
+reader fails the scrape read instead of running the live statement.

@@ -6,6 +6,7 @@ package summary_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -210,23 +211,150 @@ func TestScrapeDatabaseErrorFailsTheRead(t *testing.T) {
 	}
 }
 
-// TestScrapeWithTheReaderOffIsTheLiveRead is the flag-off contract: the scrape
-// selection changes nothing while the reader is off.
-func TestScrapeWithTheReaderOffIsTheLiveRead(t *testing.T) {
+// TestScrapeWithTheReaderOffServesTheStoredRow is the #10872 no-herd contract:
+// the StoredActiveWorkOnly scrape selection never runs the live statement,
+// even with the reader flag off. A fresh row is served as model/fresh, a row
+// past the staleness bound is served as last_row/stale with its counts frozen
+// at as_of and its ages advanced, and a missing row on a fresh process is the
+// zero summary with stale set.
+func TestScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
 	t.Parallel()
 
-	q := &sourceQueryer{installed: true}
-	snapshot := scrapeSnapshot(t, readerStore(q, false))
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	storedAt := sourceTestNow.Add(-10 * time.Second)
+	inner := &sourceQueryer{installed: true, row: storedRow(storedAt, summary.SchemaVersion, sha, 4, encodedEntries(t, goodEntries()...))}
+	q := newClockedQueryer(inner, sourceTestNow)
+	store := readerStore(q, false)
 
-	if q.clockReads.Load() != 0 || q.modelReads.Load() != 0 {
-		t.Fatalf("flag off issued %d clock and %d model reads, want none", q.clockReads.Load(), q.modelReads.Load())
+	fresh := scrapeSnapshot(t, store)
+	if inner.liveRuns.Load() != 0 {
+		t.Fatalf("live statement ran %d times on a flag-off scrape with a fresh row, want 0", inner.liveRuns.Load())
 	}
-	if q.liveRuns.Load() != 1 {
-		t.Fatalf("live statement ran %d times, want 1", q.liveRuns.Load())
+	got := fresh.ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceModel || got.Reason != statuspkg.ActiveWorkReasonFresh || got.Stale {
+		t.Fatalf("flag-off source = %+v, want model/fresh, not stale", got)
 	}
-	got := snapshot.ActiveWorkSource
-	if got.Source != statuspkg.ActiveWorkSourceLive || got.Reason != statuspkg.ActiveWorkReasonFlagOff || got.Stale {
-		t.Fatalf("source = %+v, want live/flag_off", got)
+	if !got.AsOf.Equal(storedAt) || got.Age != 10*time.Second {
+		t.Fatalf("flag-off as_of/age = %v/%v, want %v/10s", got.AsOf, got.Age, storedAt)
+	}
+	if fresh.Queue != (statuspkg.QueueSnapshot{Total: 4, Outstanding: 2, Pending: 2, Succeeded: 2, OldestOutstandingAge: 15 * time.Second}) {
+		t.Fatalf("flag-off queue = %+v, want the stored counts with the 5s age advanced by 10s", fresh.Queue)
+	}
+
+	// The writer stops: the row is past the 33s bound at the next scrape, so
+	// the last row is served stale with its counts frozen and its ages grown.
+	q.set(sourceTestNow.Add(100 * time.Second))
+	stale := scrapeSnapshot(t, store)
+	if inner.liveRuns.Load() != 0 {
+		t.Fatalf("live statement ran %d times on a stale flag-off scrape, want 0", inner.liveRuns.Load())
+	}
+	got = stale.ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceLastRow || got.Reason != statuspkg.ActiveWorkReasonStale || !got.Stale {
+		t.Fatalf("stale flag-off source = %+v, want last_row/stale", got)
+	}
+	if stale.Queue.Total != 4 || stale.Queue.Outstanding != 2 || stale.Queue.Pending != 2 || stale.Queue.Succeeded != 2 {
+		t.Fatalf("stale flag-off queue counts = %+v, want the counts frozen at as_of", stale.Queue)
+	}
+	if want := 5*time.Second + 110*time.Second; stale.Queue.OldestOutstandingAge != want {
+		t.Fatalf("stale flag-off queue oldest age = %v, want %v", stale.Queue.OldestOutstandingAge, want)
+	}
+
+	// No row on a process that never served one: the zero summary, still with
+	// no live statement.
+	empty := readerStore(&sourceQueryer{installed: true}, false)
+	zero := scrapeSnapshot(t, empty)
+	got = zero.ActiveWorkSource
+	if got.Source != statuspkg.ActiveWorkSourceZero || got.Reason != statuspkg.ActiveWorkReasonMissing || !got.Stale {
+		t.Fatalf("missing flag-off source = %+v, want zero/missing with stale=true", got)
+	}
+	if zero.Queue != (statuspkg.QueueSnapshot{}) {
+		t.Fatalf("missing flag-off queue = %+v, want the zero summary", zero.Queue)
+	}
+}
+
+// TestScrapeWithTheReaderOffMatchesTheReaderOnServe pins that the flag changes
+// nothing about the served values: the same database state scraped with the
+// reader off and on carries identical sections at the same as_of, so every
+// acceptance output (waiting work, oldest age, retries, overdue and failed
+// items) reads the same from a host that never enabled the reader. The stored
+// fixture carries nonzero retrying, overdue, failed, and dead-letter counts,
+// a backlog, a blockage, and the latest failure.
+func TestScrapeWithTheReaderOffMatchesTheReaderOnServe(t *testing.T) {
+	t.Parallel()
+
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	storedAt := sourceTestNow.Add(-10 * time.Second)
+	entries := []summary.Entry{
+		{Section: "backlog", Ordinal: 1, JSON: `{"domain":"repo_dependency","outstanding_count":3,"in_flight_count":1,"retrying_count":2,"dead_letter_count":1,"failed_count":1,"oldest_outstanding_age_seconds":42}`},
+		{Section: "blockage", Ordinal: 1, JSON: `{"stage":"reducer","domain":"d","conflict_domain":"c","conflict_key":"k","blocked_count":2,"oldest_blocked_age_seconds":9}`},
+		{Section: "queue", Ordinal: 1, JSON: `{"total_count":11,"outstanding_count":5,"pending_count":3,"in_flight_count":1,"retrying_count":2,"succeeded_count":4,"dead_letter_count":1,"failed_count":1,"provenance_edge_identity_upgrade_applied":false,"provenance_edge_identity_upgrade_required":0,"oldest_outstanding_age_seconds":42,"overdue_claim_count":2}`},
+		{Section: "stage", Ordinal: 1, JSON: `{"stage":"reducer","status":"retrying","count":2}`},
+		{Section: "failure", Ordinal: 0, JSON: `{"stage":"reducer","domain":"workload","status":"dead_letter","work_item_id":"w-1","scope_id":"s-1","generation_id":"g-1","failure_class":"boom","failure_message":"m","failure_details":"d","updated_at":"2026-10-06T12:00:00Z"}`},
+	}
+	payload := encodedEntries(t, entries...)
+	row := func() []any {
+		return storedRow(storedAt, summary.SchemaVersion, sha, len(entries), payload)
+	}
+	offQ := &sourceQueryer{installed: true, row: row()}
+	onQ := &sourceQueryer{installed: true, row: row()}
+	off := scrapeSnapshot(t, readerStore(offQ, false))
+	on := scrapeSnapshot(t, readerStore(onQ, true))
+
+	if offQ.liveRuns.Load() != 0 || onQ.liveRuns.Load() != 0 {
+		t.Fatalf("live runs off=%d on=%d, want 0 on both", offQ.liveRuns.Load(), onQ.liveRuns.Load())
+	}
+	if off.ActiveWorkSource != on.ActiveWorkSource {
+		t.Fatalf("flag-off source = %+v, flag-on source = %+v, want identical", off.ActiveWorkSource, on.ActiveWorkSource)
+	}
+	if off.Queue != on.Queue || !reflect.DeepEqual(off.StageCounts, on.StageCounts) ||
+		!reflect.DeepEqual(off.DomainBacklogs, on.DomainBacklogs) || !reflect.DeepEqual(off.QueueBlockages, on.QueueBlockages) ||
+		!reflect.DeepEqual(off.LatestQueueFailure, on.LatestQueueFailure) {
+		t.Fatalf("flag-off snapshot differs from flag-on:\noff queue=%+v stages=%+v backlogs=%+v blockages=%+v failure=%+v\non  queue=%+v stages=%+v backlogs=%+v blockages=%+v failure=%+v",
+			off.Queue, off.StageCounts, off.DomainBacklogs, off.QueueBlockages, off.LatestQueueFailure,
+			on.Queue, on.StageCounts, on.DomainBacklogs, on.QueueBlockages, on.LatestQueueFailure)
+	}
+	if off.Queue.Outstanding != 5 || off.Queue.Pending != 3 || off.Queue.Retrying != 2 ||
+		off.Queue.OverdueClaims != 2 || off.Queue.Failed != 1 || off.Queue.DeadLetter != 1 {
+		t.Fatalf("flag-off queue = %+v, want the stored waiting/retry/overdue/failed counts", off.Queue)
+	}
+	if off.Queue.OldestOutstandingAge != 52*time.Second {
+		t.Fatalf("flag-off queue oldest age = %v, want 42s stored + 10s age", off.Queue.OldestOutstandingAge)
+	}
+	if len(off.DomainBacklogs) != 1 || off.DomainBacklogs[0].Outstanding != 3 || off.DomainBacklogs[0].Retrying != 2 ||
+		off.DomainBacklogs[0].OldestAge != 52*time.Second {
+		t.Fatalf("flag-off backlogs = %+v, want the stored waiting/retrying counts with the age advanced", off.DomainBacklogs)
+	}
+	if len(off.QueueBlockages) != 1 || off.QueueBlockages[0].Blocked != 2 || off.QueueBlockages[0].OldestAge != 19*time.Second {
+		t.Fatalf("flag-off blockages = %+v, want the stored blockage with its age advanced", off.QueueBlockages)
+	}
+	if off.LatestQueueFailure == nil || off.LatestQueueFailure.WorkItemID != "w-1" || off.LatestQueueFailure.FailureClass != "boom" {
+		t.Fatalf("flag-off latest failure = %+v, want the stored w-1/boom failure", off.LatestQueueFailure)
+	}
+}
+
+// TestScrapeWithTheReaderOffHonorsTheStalenessBound pins the exact freshness
+// bound for a process that never enabled the reader: a row exactly
+// stale_after old is still served fresh, one second past it is last_row.
+func TestScrapeWithTheReaderOffHonorsTheStalenessBound(t *testing.T) {
+	t.Parallel()
+
+	sha := pgstatus.ActiveWorkSummarySourceSHA256()
+	payload := encodedEntries(t, goodEntries()...)
+	scrapeAt := func(age time.Duration) statuspkg.RawSnapshot {
+		inner := &sourceQueryer{installed: true, row: storedRow(sourceTestNow.Add(-age), summary.SchemaVersion, sha, 4, payload)}
+		return scrapeSnapshot(t, readerStore(newClockedQueryer(inner, sourceTestNow), false))
+	}
+
+	atBound := scrapeAt(33 * time.Second)
+	if got := atBound.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceModel || got.Stale {
+		t.Fatalf("row exactly 33s old source = %+v, want model, not stale", got)
+	}
+	pastBound := scrapeAt(34 * time.Second)
+	if got := pastBound.ActiveWorkSource; got.Source != statuspkg.ActiveWorkSourceLastRow || !got.Stale || got.Age != 34*time.Second {
+		t.Fatalf("row 34s old source = %+v, want last_row/stale at age 34s", got)
+	}
+	if pastBound.Queue.Total != 4 {
+		t.Fatalf("row 34s old queue = %+v, want the stored counts served stale", pastBound.Queue)
 	}
 }
 

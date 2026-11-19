@@ -113,14 +113,18 @@ type SnapshotSelection struct {
 	// /metrics scrape, where a live fallback herd would recreate the load the
 	// stored row removes. A row that cannot be served is answered with the
 	// newest row the process can decode, stale included, or the zero summary
-	// when it can decode none, and ActiveWorkSource says which (with Stale true). It has no effect while the
-	// stored-summary reader is off: the live statement answers as before.
+	// when it can decode none, and ActiveWorkSource says which (with Stale true).
+	// The scrape never runs the live statement, even with the stored-summary
+	// reader flag off: a flag-off process serves the same stored row under the
+	// same fences (#10872). The flag only decides whether status routes may
+	// use the stored row.
 	StoredActiveWorkOnly bool
 }
 
 // WithStoredActiveWorkOnly returns a copy of s that never runs the live
-// active-work statement when the stored-summary reader is on. It applies to
-// the standard mode only; a semantic-only selection fails Validate.
+// active-work statement, whether the stored-summary reader is on or off
+// (#10872). It applies to the standard mode only; a semantic-only selection
+// fails Validate.
 func (s SnapshotSelection) WithStoredActiveWorkOnly() SnapshotSelection {
 	s.StoredActiveWorkOnly = true
 	return s

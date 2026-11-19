@@ -243,3 +243,57 @@ func TestCoordinatorScrapeNeverRunsALiveStatement(t *testing.T) {
 		t.Fatalf("missing scrape ran %d live statements, coordinator %#v; want none and nil", missing.liveRuns.Load(), snap.Coordinator)
 	}
 }
+
+// TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow is the #10872
+// no-herd contract for the coordinator section: the StoredActiveWorkOnly
+// scrape selection never runs the live coordinator statements, even with the
+// reader flag off. A fresh row is served as model/fresh with its durations
+// advanced, a stale row as last_row/stale, and a missing row as zero (nil)
+// with stale set.
+func TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
+	t.Parallel()
+	good := liveCoordinator(t)
+	selection := scrapeSelection()
+	read := func(q *coordQueryer) statuspkg.RawSnapshot {
+		t.Helper()
+		snap, err := readerStore(q, false).ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, selection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snap
+	}
+
+	stored := liveCoordinator(t)
+	stored.OldestPendingAge = 40 * time.Second
+	fresh := &coordQueryer{installed: true, row: coordStoredRow(t, sourceTestNow.Add(-12*time.Second), pgstatus.CoordinatorSummarySourceSHA256(), stored)}
+	snap := read(fresh)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceModel || src.Reason != statuspkg.ActiveWorkReasonFresh || src.Stale || src.Age != 12*time.Second {
+		t.Fatalf("flag-off fresh coordinator source = %+v, want model/fresh at age 12s", src)
+	}
+	if fresh.liveRuns.Load() != 0 {
+		t.Fatalf("flag-off fresh coordinator scrape ran %d live statements, want 0", fresh.liveRuns.Load())
+	}
+	want := liveCoordinator(t)
+	want.OldestPendingAge = 52 * time.Second
+	if !reflect.DeepEqual(snap.Coordinator, want) {
+		t.Fatalf("flag-off fresh coordinator\n got: %#v\nwant: %#v", snap.Coordinator, want)
+	}
+
+	stale := &coordQueryer{installed: true, row: coordStoredRow(t, sourceTestNow.Add(-300*time.Second), pgstatus.CoordinatorSummarySourceSHA256(), good)}
+	snap = read(stale)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceLastRow || !src.Stale || src.Age != 300*time.Second {
+		t.Fatalf("flag-off stale coordinator source = %+v, want last_row, stale, age 300s", src)
+	}
+	if stale.liveRuns.Load() != 0 || snap.Coordinator == nil || snap.Coordinator.ActiveClaims != 3 {
+		t.Fatalf("flag-off stale coordinator scrape ran %d live statements, coordinator %#v", stale.liveRuns.Load(), snap.Coordinator)
+	}
+
+	missing := &coordQueryer{installed: true}
+	snap = read(missing)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceZero || !src.Stale {
+		t.Fatalf("flag-off missing coordinator source = %+v, want zero, stale", src)
+	}
+	if missing.liveRuns.Load() != 0 || snap.Coordinator != nil {
+		t.Fatalf("flag-off missing coordinator scrape ran %d live statements, coordinator %#v; want none and nil", missing.liveRuns.Load(), snap.Coordinator)
+	}
+}

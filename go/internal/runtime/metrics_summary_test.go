@@ -107,7 +107,7 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 22, activeWork: 1, coordinator: 8}); off != want {
+	if want := (scrapeInventory{total: 17, clock: 2, modelRow: 2}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
 	if want := (scrapeInventory{total: 17, clock: 2, modelRow: 2}); on != want {
@@ -203,29 +203,64 @@ func TestStatusMetricsExportsTheSummaryMarker(t *testing.T) {
 	}
 }
 
-// TestStatusMetricsWithTheReaderOffAreUnchanged is the flag-off contract: the
-// scrape over the production store with the reader off carries no summary
-// gauge and is byte-identical to the scrape from the selection before this
-// change.
-func TestStatusMetricsWithTheReaderOffAreUnchanged(t *testing.T) {
+// TestStatusMetricsWithTheReaderOffServeTheStoredSummary is the #10872
+// contract at the handler level: a scrape with the reader flag off serves the
+// same stored summary as a scrape with the reader on, and never the live
+// active-work or coordinator statements. A fresh row exports stale 0 with the
+// stored values; a missing row exports the zero summary with stale 1.
+func TestStatusMetricsWithTheReaderOffServeTheStoredSummary(t *testing.T) {
 	t.Parallel()
-	scrape := func(selection statuspkg.SnapshotSelection) string {
-		t.Helper()
-		queryer := emptyStoreQueryer()
-		report, err := statuspkg.LoadReportWithSelection(context.Background(), scrapeStore(queryer, false),
-			time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), statuspkg.DefaultOptions(), selection)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return renderStatusMetrics("collector-git", report)
+	now := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
+	offQueryer := newSummaryScrapeQueryer(now)
+	offStore := postgres.NewStatusStore(offQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	onQueryer := newSummaryScrapeQueryer(now)
+	onStore := postgres.NewStatusStore(onQueryer).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second}))
+
+	// A fresh row 10 s old: stale 0, the stored age, and the stored queue age
+	// advanced, byte-identical to the reader-on scrape.
+	offQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	onQueryer.rows = scrapeRow(t, now.Add(-10*time.Second))
+	offBody := scrapeBody(t, offStore)
+	onBody := scrapeBody(t, onStore)
+	if offBody != onBody {
+		t.Fatalf("flag-off scrape differs from flag-on:\noff=%s\non=%s", offBody, onBody)
 	}
-	before := scrape(statuspkg.FullSnapshotSelection().WithoutTerraformStateEvidence())
-	after := scrape(metricsSnapshotSelection())
-	if after != before {
-		t.Fatalf("scrape with the reader off changed:\nbefore=%s\nafter=%s", before, after)
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_stale", "0")
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "10")
+	assertLine(t, offBody, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+
+	// The row disappears: both processes serve their remembered last row,
+	// stale, with its age frozen at the fixed test clock, still
+	// byte-identical.
+	offQueryer.rows = nil
+	onQueryer.rows = nil
+	offBody = scrapeBody(t, offStore)
+	onBody = scrapeBody(t, onStore)
+	if offBody != onBody {
+		t.Fatalf("flag-off stale scrape differs from flag-on:\noff=%s\non=%s", offBody, onBody)
 	}
-	if strings.Contains(after, "status_summary") {
-		t.Fatalf("scrape with the reader off carries a summary gauge:\n%s", after)
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "10")
+	assertLine(t, offBody, `eshu_runtime_queue_oldest_outstanding_age_seconds{service_name="collector-git"} 15`)
+
+	// A process that never served a row exports the zero summary: stale 1,
+	// NaN age, still byte-identical across the flag.
+	freshOff := postgres.NewStatusStore(newSummaryScrapeQueryer(now)).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: false, StaleAfter: 33 * time.Second}))
+	freshOn := postgres.NewStatusStore(newSummaryScrapeQueryer(now)).WithSummaryReader(
+		postgres.NewStatusSummaryReaderWithConfig(summary.ReadConfig{Enabled: true, StaleAfter: 33 * time.Second}))
+	offBody = scrapeBody(t, freshOff)
+	onBody = scrapeBody(t, freshOn)
+	if offBody != onBody {
+		t.Fatalf("flag-off zero scrape differs from flag-on:\noff=%s\non=%s", offBody, onBody)
+	}
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_stale", "1")
+	assertGauge(t, offBody, "collector-git", "eshu_runtime_status_summary_age_seconds", "NaN")
+
+	if got := inventoryOf(offQueryer.Queries); got.activeWork != 0 || got.coordinator != 0 {
+		t.Fatalf("flag-off scrape ran %d active-work and %d coordinator live statements, want 0", got.activeWork, got.coordinator)
 	}
 }
 

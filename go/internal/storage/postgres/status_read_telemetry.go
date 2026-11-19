@@ -198,13 +198,15 @@ func (r *StatusSummaryReader) coordinatorModel() *summary.ModelReader[*statuspkg
 
 // readActiveWork returns the active-work summary and where it came from: the
 // stored row when every fence passes, otherwise the live statement. A
-// selection that asks for the stored summary only (the runtime /metrics scrape)
-// never reaches the live statement while the reader is on; see readActiveWorkScrape.
+// selection that asks for the stored summary only (the runtime /metrics
+// scrape) never reaches the live statement, even with the reader flag off;
+// see readActiveWorkScrape. The flag only decides whether status routes may
+// use the stored row (#10872).
 func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
 	if s.startupErr != nil {
 		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
 	}
-	if selection.StoredActiveWorkOnly && s.summaryReader.active().Enabled() {
+	if selection.StoredActiveWorkOnly {
 		return s.readActiveWorkScrape(ctx)
 	}
 	result, err := s.summaryReader.active().Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
@@ -238,15 +240,22 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selecti
 
 // readActiveWorkScrape answers the scrape path: a fresh stored row, else the
 // newest row the process can decode (a stale one included), else the zero
-// summary, and never the live statement. The marker carries Stale for the last two and the row's age at
-// this read. A database error fails the read, like every other status read.
+// summary, and never the live statement, even with the reader flag off: the
+// caller already opted into stored-only, and the flag only gates status
+// routes. The marker carries Stale for the last two and the row's age at
+// this read. A database error fails the read, like every other status read,
+// as does a store built without a summary reader.
 func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
-	result, err := s.summaryReader.active().ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
+	reader := s.summaryReader.active()
+	if reader == nil {
+		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+	}
+	result, err := reader.ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.activeWork.Config.StaleAfter, DecodeStale: true,
+				StaleAfter: reader.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},
@@ -334,15 +343,15 @@ func (s StatusStore) readTerraformState(ctx context.Context, asOf time.Time) (st
 // the live workflow statements for the whole answer (#8828). The row has its
 // own as_of and digest, so this decision is independent of the other models.
 // A selection that asks for the stored summary only (the runtime /metrics
-// scrape) never reaches the live statements while the reader is on; see
-// readCoordinatorScrape. Durations in a stored row are advanced from its as_of
+// scrape) never reaches the live statements, even with the reader flag off;
+// see readCoordinatorScrape. Durations in a stored row are advanced from its as_of
 // to the read; counts stay true at as_of, and the source marker's Age is the
 // freshness bound of the whole section.
 func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
 	if s.startupErr != nil {
 		return nil, statuspkg.ActiveWorkSource{}, s.startupErr
 	}
-	if selection.StoredActiveWorkOnly && s.summaryReader.coordinatorModel().Enabled() {
+	if selection.StoredActiveWorkOnly {
 		return s.readCoordinatorScrape(ctx)
 	}
 	result, err := s.summaryReader.coordinatorModel().Read(ctx, asOf, summary.Hooks[*statuspkg.CoordinatorSnapshot]{
@@ -379,15 +388,20 @@ func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, select
 
 // readCoordinatorScrape answers the scrape path: a fresh stored row, else the
 // newest row the process can decode (a stale one included), else no snapshot,
-// and never the live statements. The marker carries Stale for the last two and
-// the row's age at this read; the durations are advanced by that age.
+// and never the live statements, even with the reader flag off. The marker
+// carries Stale for the last two and the row's age at this read; the durations
+// are advanced by that age.
 func (s StatusStore) readCoordinatorScrape(ctx context.Context) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
-	result, err := s.summaryReader.coordinatorModel().ReadScrape(ctx, summary.ScrapeHooks[*statuspkg.CoordinatorSnapshot]{
+	reader := s.summaryReader.coordinatorModel()
+	if reader == nil {
+		return nil, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+	}
+	result, err := reader.ReadScrape(ctx, summary.ScrapeHooks[*statuspkg.CoordinatorSnapshot]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadCoordinatorModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelCoordinatorSnapshot, SourceSHA256: CoordinatorSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.coordinator.Config.StaleAfter, DecodeStale: true,
+				StaleAfter: reader.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},

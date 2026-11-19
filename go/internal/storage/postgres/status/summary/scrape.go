@@ -9,9 +9,12 @@ import (
 	"time"
 )
 
-// ErrScrapeReaderDisabled is returned by ReadScrape for a nil reader or one
-// whose flag is off: such a reader has no stored row to serve, and reading one
-// would run the clock and row statements the flag promises not to run.
+// ErrScrapeReaderDisabled is returned by ReadScrape for a nil reader: with no
+// config and no last-row memory there is no stored row to serve, and the
+// caller must not fall back to the live statement on a scrape. A present
+// reader whose flag is off still serves its stored row under the scrape
+// fences (#10872): the scrape selection opts into stored-only, and the flag
+// only decides whether status routes may use the stored row.
 var ErrScrapeReaderDisabled = errors.New("status summary scrape: reader is off")
 
 const (
@@ -66,12 +69,16 @@ func (r *ModelReader[T]) Enabled() bool {
 // it has none, and is marked stale; the live statement is never an option,
 // because a scrape from every process would turn a stopped writer into a herd
 // of expensive statements. A database error is returned: it is neither a stale
-// serve nor a live run. A reader that is off returns ErrScrapeReaderDisabled
-// before any hook runs, so a caller that skips the Enabled gate still sends no
-// summary statement. The value is decoded fresh on every call, so concurrent
-// scrapes share nothing but the remembered entries.
+// serve nor a live run. A nil reader returns ErrScrapeReaderDisabled before
+// any hook runs, so a store built without a summary reader fails the scrape
+// read instead of running the live statement. A reader whose flag is off
+// serves exactly like one that is on: the scrape selection already opted into
+// stored-only, so gating on Enabled here would reroute every flag-off scrape
+// to the live statement the scrape exists to avoid (#10872). The value is
+// decoded fresh on every call, so concurrent scrapes share nothing but the
+// remembered entries.
 func (r *ModelReader[T]) ReadScrape(ctx context.Context, h ScrapeHooks[T]) (ScrapeResult[T], error) {
-	if !r.Enabled() {
+	if r == nil {
 		return ScrapeResult[T]{}, ErrScrapeReaderDisabled
 	}
 	selection, err := h.Select(ctx)
