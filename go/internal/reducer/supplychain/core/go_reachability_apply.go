@@ -46,10 +46,11 @@ func goSupplyChainReachabilityEvidencePath(finding GoVulnerabilityFinding) []str
 		GoVulnReachabilityPackageImportReachable,
 		GoVulnReachabilityNotCalled:
 		path = append(path, chain.VulnerabilityGoCallReachabilityFactKind)
-	case GoVulnReachabilityModuleOnly, GoVulnReachabilityUnknown:
-		// Module-only and unknown reachability carry no call-graph evidence,
-		// so they contribute no evidence kind. Matches the pre-move default
-		// (no append); listed explicitly for exhaustiveness.
+	case GoVulnReachabilityModuleOnly, GoVulnReachabilityUnknown, GoVulnReachabilityAnalysisFailed:
+		// Module-only, unknown, and analysis-failed reachability carry no
+		// call-graph evidence, so they contribute no evidence kind. Matches
+		// the pre-move default (no append); listed explicitly for
+		// exhaustiveness.
 	}
 	return path
 }

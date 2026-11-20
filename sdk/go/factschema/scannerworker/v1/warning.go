@@ -71,13 +71,10 @@ package v1
 // reader MUST NOT add analysis_failed to either without a joined warning.
 //
 // An analysis_failed outcome names each distinct warning as
-// "govulncheck analysis failed: <Reason>" for a whole-repository warning and
-// "govulncheck analysis failed: <Reason> at <RelativePath>" for a go.mod
+// "govulncheck scan <Reason>" for a whole-repository warning and
+// "govulncheck scan <Reason> at <RelativePath>" for a go.mod
 // warning, plus the "govulncheck call-graph evidence missing" entry. A module with neither a fact nor a warning has no evidence either
 // way and stays unknown.
-//
-// The core reducer does not read this kind yet (eshu-hq/eshu#10043); until that
-// lands a failed scan stays unknown.
 type Warning struct {
 	Analyzer          string  `json:"analyzer"`
 	TargetKind        string  `json:"target_kind"`

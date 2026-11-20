@@ -204,10 +204,30 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			LanguageMaturity: maturity,
 			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
 		}
+	case string(GoVulnReachabilityAnalysisFailed):
+		return analysisFailedSupplyChainReachability(finding, ecosystem, maturity, detail)
 	case "package_manifest", string(GoVulnReachabilityModuleOnly), string(GoVulnReachabilityUnknown), "known_fixed":
 		return fallbackSupplyChainReachability(finding, ecosystem, maturity, detail)
 	default:
 		return fallbackSupplyChainReachability(finding, ecosystem, maturity, detail)
+	}
+}
+
+// analysisFailedSupplyChainReachability reports an unfinished govulncheck
+// scan: the reducer joined a warning for the finding's scope, so the fact
+// verdict cannot be trusted and the enrichment reads missing evidence from
+// the scanner that should have produced it (#10043). Extracted from
+// supplyChainReachabilityForFinding for the funlen cap; the body is
+// unchanged from the inlined case.
+func analysisFailedSupplyChainReachability(finding SupplyChainImpactFinding, ecosystem, maturity, detail string) SupplyChainReachability {
+	return SupplyChainReachability{
+		State:            SupplyChainReachabilityMissingEvidence,
+		Confidence:       "unknown",
+		Source:           "govulncheck",
+		Evidence:         detail,
+		Reason:           "govulncheck scan did not finish, so Eshu cannot classify reachability",
+		LanguageMaturity: maturity,
+		MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
 	}
 }
 

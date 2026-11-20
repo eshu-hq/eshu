@@ -212,9 +212,9 @@ for the same reason.
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem
   `vulnerability.affected_package` facts, and `vulnerability.go_call_reachability`
   facts (parsed from govulncheck JSON output) into one finding per
-  (advisory, module, repository) tuple with one of five reachability levels:
+  (advisory, module, repository) tuple with one of six reachability levels:
   `symbol_reachable`, `package_import_reachable`, `not_called`, `module_only`,
-  or `unknown`. Before emitting, the classifier compares the module's
+  `unknown`, or `analysis_failed` (joined warning on an unfinished scan). Before emitting, the classifier compares the module's
   effective version (replacement when a `replace` directive applied, declared
   `required_version` otherwise) against the advisory's SEMVER ranges and
   fixed versions; safe (post-fix) findings are dropped, advisories with

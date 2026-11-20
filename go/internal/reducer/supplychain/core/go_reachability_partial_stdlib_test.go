@@ -49,8 +49,8 @@ func TestPartialRunNeverReadsNotCalledOrReachable(t *testing.T) {
 		case SupplyChainReachabilityNotCalled, SupplyChainReachabilityReachable:
 			t.Fatalf("%s: partial run read as %q: %#v", osv, got.Reachability.State, got.Reachability)
 		}
-		if got.Reachability.State != SupplyChainReachabilityUnknown || got.RuntimeReachability != string(GoVulnReachabilityModuleOnly) {
-			t.Fatalf("%s: state=%q runtime=%q, want unknown/module_only", osv, got.Reachability.State, got.RuntimeReachability)
+		if got.Reachability.State != SupplyChainReachabilityMissingEvidence || got.RuntimeReachability != string(GoVulnReachabilityAnalysisFailed) {
+			t.Fatalf("%s: state=%q runtime=%q, want missing_evidence/analysis_failed", osv, got.Reachability.State, got.RuntimeReachability)
 		}
 		if !stringSliceContains(got.Reachability.MissingEvidence, "govulncheck call-graph evidence missing") {
 			t.Fatalf("%s: MissingEvidence = %#v, want the govulncheck gap named", osv, got.Reachability.MissingEvidence)
