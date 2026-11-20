@@ -193,6 +193,23 @@ func TestJSONOnlyKeepsProvenConsumerLanes(t *testing.T) {
 	}
 }
 
+func TestLaneConfigStaysCodeClass(t *testing.T) {
+	t.Parallel()
+	// go/.golangci.yml configures the go-lint verdict through the lane
+	// itself, not through any literal trigger (go-lint lists only go/** plus
+	// script literals). A lone edit must keep selecting the lanes it can
+	// affect, or a lint-config change would skip its own gate (#10992 P2).
+	changed := []string{"go/.golangci.yml"}
+	for _, gate := range []Gate{
+		goLaneGate("go-lint", "go-core", "go/**", "scripts/dev/precommit-go.sh"),
+		goLaneGate("go-fmt", "go-core", "go/**", "scripts/dev/precommit-go.sh"),
+	} {
+		if sel := selectGate(gate, changed, TierPrePR); !sel.Selected {
+			t.Errorf("lane-config %v must keep selecting %q: %s", changed, gate.ID, sel.Reason)
+		}
+	}
+}
+
 // TestGoLaneGateIDsPinnedToRegistry pins the shell/JSON skip set against the
 // committed registry: every skipped ID must exist, block, and live in the
 // test.yml workflow the skip reason names. A renamed or moved lane fails here

@@ -20,6 +20,8 @@ import (
 // test-input change (JSON or shell fixture) can change its verdict; skipping
 // it would first fail in CI. TestGoLaneGateIDsPinnedToRegistry pins this set
 // against the committed registry so a renamed or moved lane fails loudly.
+// Separately, laneConfigPaths below stay code-class: a lane's own config file
+// can change its verdict without any literal trigger naming it.
 var goLaneGateIDs = map[string]struct{}{
 	"go-build": {},
 	"go-lint":  {},
@@ -32,6 +34,22 @@ var goLaneGateIDs = map[string]struct{}{
 // "what kind of file is this", never whether it exists.
 func IsShellScriptPath(path string) bool {
 	return strings.HasSuffix(path, ".sh") || strings.HasSuffix(path, ".bash")
+}
+
+// laneConfigPaths are data-shaped files that configure a Go lane's own
+// verdict, so editing one can change that lane's outcome even though no
+// trigger names the file literally (go-lint lists only go/** plus script
+// literals, yet reads go/.golangci.yml). They stay code-class in every
+// change classification, like lockstep test inputs.
+var laneConfigPaths = map[string]struct{}{
+	"go/.golangci.yml":  {},
+	"go/.golangci.yaml": {},
+}
+
+// isLaneConfigPath reports whether path configures a Go lane's verdict.
+func isLaneConfigPath(path string) bool {
+	_, ok := laneConfigPaths[path]
+	return ok
 }
 
 // IsJSONConfigPath reports whether path names a JSON or config data file:
@@ -53,7 +71,7 @@ func allShellChanged(paths []string) bool {
 		return false
 	}
 	for _, path := range paths {
-		if !IsShellScriptPath(path) || slices.Contains(lockstepDocsPaths, path) {
+		if !IsShellScriptPath(path) || isLaneConfigPath(path) || slices.Contains(lockstepDocsPaths, path) {
 			return false
 		}
 	}
@@ -69,7 +87,7 @@ func allJSONConfigChanged(paths []string) bool {
 		return false
 	}
 	for _, path := range paths {
-		if !IsJSONConfigPath(path) || slices.Contains(lockstepDocsPaths, path) {
+		if !IsJSONConfigPath(path) || isLaneConfigPath(path) || slices.Contains(lockstepDocsPaths, path) {
 			return false
 		}
 	}
