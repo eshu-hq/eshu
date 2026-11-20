@@ -85,7 +85,11 @@ var goPackageSubcommands = map[string]struct{}{
 // TestReplayCoverageMirrorContract` (replay-coverage-static-mirror was
 // deleted; the parent row already carries `go/cmd/replay-coverage-gate/**`
 // as a trigger).
-const goPackageGateCount = 33
+// #10988 raised this from 33 to 34: ifa-replay-drive's local.command and
+// local.test_command now run `go test ./cmd/ifa -run
+// TestIfaReplayDriveMirrorContract`, and the row plus the static-contract
+// dorny filter carry `go/cmd/ifa/**` as a trigger.
+const goPackageGateCount = 34
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.
