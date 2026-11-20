@@ -97,13 +97,23 @@ func TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget(t *t
 
 	const deferCycles = 5
 	for cycle := 1; cycle <= deferCycles; cycle++ {
-		intent := claim("defer", cycle)
-		if intent.AttemptCount != 1 {
-			t.Fatalf("defer cycle %d: claimed AttemptCount = %d, want 1 frozen: %s is non-counting",
-				cycle, intent.AttemptCount, reducer.SharedEdgeTargetNotReadyFailureClass)
-		}
-		if err := queue.Fail(ctx, intent, sharedEdgeTargetMissCause(t)); err != nil {
-			t.Fatalf("defer cycle %d: Fail() error = %v", cycle, err)
+		if cycle == 1 {
+			intent := claim("defer", cycle)
+			if intent.AttemptCount != 1 {
+				t.Fatalf("defer cycle %d: claimed AttemptCount = %d, want 1 frozen: %s is non-counting",
+					cycle, intent.AttemptCount, reducer.SharedEdgeTargetNotReadyFailureClass)
+			}
+			if err := queue.Fail(ctx, intent, sharedEdgeTargetMissCause(t)); err != nil {
+				t.Fatalf("defer cycle %d: Fail() error = %v", cycle, err)
+			}
+		} else if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+			// Parked since cycle 1 on the target-committed wait: the
+			// target never appears, so every claim fences out instead
+			// of burning an attempt. The wait row below proves the
+			// set-aside parked it.
+			t.Fatalf("defer cycle %d: Claim() claimed=%v err=%v, want it fenced out while parked", cycle, claimed, err)
+		} else {
+			requireParkedWait(t, ctx, db, scopeID, "gen-fair", WaitingKindTargetCommitted, 1)
 		}
 		status, failureClass, attemptCount := readSharedEdgeTargetProofWorkItem(t, ctx, db)
 		if status != "retrying" || failureClass != reducer.SharedEdgeTargetNotReadyFailureClass || attemptCount != 1 {
@@ -113,7 +123,10 @@ func TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget(t *t
 		clock = clock.Add(5 * time.Second)
 	}
 
-	// The bound trips. Attempts now count: 1 (frozen) -> 2 -> 3 -> dead letter.
+	// The backstop lapses, so the parked row is claimable again. A classless
+	// error takes the counting path from here: attempts now count
+	// 1 (frozen) -> 2 -> 3 -> dead letter.
+	clock = clock.Add(WaitingBackstopDelay + time.Minute)
 	for cycle, wantAttempt := range []int{1, 2, 3} {
 		intent := claim("bounded", cycle+1)
 		if intent.AttemptCount != wantAttempt {

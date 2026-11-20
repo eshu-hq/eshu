@@ -88,13 +88,16 @@ func TestReducerContentionGatePreActivationGenerationRunsAfterActivation(t *test
 		)
 	}
 
-	// A non-counting class: re-claiming across more cycles than MaxAttempts
-	// must neither dead-letter the row nor erode its attempt budget.
+	// A non-counting class: the first deferral parks the generation_active
+	// wait, and re-claiming across more cycles than MaxAttempts must neither
+	// dead-letter the row nor erode its attempt budget: every claim fences
+	// out while the producer generation stays pending.
 	for cycle := 0; cycle < 4; cycle++ {
 		env.advance(time.Minute)
-		if claimed := env.claimExecuteSettle(t, ctx); !claimed {
-			t.Fatalf("defer cycle %d: Claim() claimed = false, want the deferred row back", cycle)
+		if claimed := env.claimExecuteSettle(t, ctx); claimed {
+			t.Fatalf("defer cycle %d: Claim() claimed = true, want it fenced out while parked", cycle)
 		}
+		requireParkedWait(t, ctx, db, preActivationProofScope, "gen-2", WaitingKindGenerationActive, 1)
 		status, _, attempts = readPreActivationWorkItem(t, ctx, db, "gen-2")
 		if status != "retrying" || attempts != 1 || calls != 0 {
 			t.Fatalf("defer cycle %d: status=%q attempt_count=%d calls=%d, want retrying/1/0", cycle, status, attempts, calls)

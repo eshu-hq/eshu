@@ -21,7 +21,8 @@ import (
 // factKeyPlanCorpus seeds factKeyPlanScopes scopes with factKeyPlanGenerations
 // generations of factKeyPlanFacts facts each, md5 fact ids like production
 // sha ids, with a relationship key on every fact, a manifest key on a fifth
-// and a registry key on a twentieth (the #7420 fixture shares).
+// and a registry and a security-alert key each on a twentieth (the #7420
+// fixture shares).
 const (
 	factKeyPlanScopes      = 6
 	factKeyPlanGenerations = 4
@@ -56,7 +57,7 @@ func TestGenerationRetentionFactKeyStatementsPrepareLive(t *testing.T) {
 func TestGenerationRetentionFactKeyPlansStayOnPartitionIndexLive(t *testing.T) {
 	bridgeRetentionFamilyDSN(t)
 	database, ctx := openGenerationRetentionMigratedSchema(t)
-	for _, table := range []string{"fact_records", "relationship_reference_candidate_keys", "package_manifest_consumption_keys", "package_registry_identity_keys"} {
+	for _, table := range []string{"fact_records", "relationship_reference_candidate_keys", "package_manifest_consumption_keys", "package_registry_identity_keys", "security_alert_reconciliation_keys"} {
 		if _, err := database.ExecContext(ctx, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)"); err != nil {
 			t.Fatalf("disable autovacuum on %s: %v", table, err)
 		}
@@ -82,7 +83,7 @@ func TestGenerationRetentionFactKeyPlansStayOnPartitionIndexLive(t *testing.T) {
 	}
 	t.Run("cold-custom", func(t *testing.T) { check(t, "cold custom", false) })
 	t.Run("cold-generic", func(t *testing.T) { check(t, "cold generic", true) })
-	for _, table := range []string{"fact_records", "relationship_reference_candidate_keys", "package_manifest_consumption_keys", "package_registry_identity_keys"} {
+	for _, table := range []string{"fact_records", "relationship_reference_candidate_keys", "package_manifest_consumption_keys", "package_registry_identity_keys", "security_alert_reconciliation_keys"} {
 		if _, err := database.ExecContext(ctx, "ANALYZE "+table); err != nil {
 			t.Fatalf("analyze %s: %v", table, err)
 		}
@@ -153,8 +154,11 @@ FROM fact_records WHERE scope_id LIKE 'plan-scope-%' AND (hashtext(fact_id || 'm
 		`INSERT INTO package_registry_identity_keys (fact_id, scope_id, generation_id, ecosystem, package_name, package_id)
 SELECT fact_id, scope_id, generation_id, 'npm', 'pkg-' || (hashtext(fact_id) & 255), 'pid-' || fact_id
 FROM fact_records WHERE scope_id LIKE 'plan-scope-%' AND (hashtext(fact_id || 'p') & 2147483647) % 100 < 5`,
+		`INSERT INTO security_alert_reconciliation_keys (fact_id, scope_id, generation_id, key_kind, key_value)
+SELECT fact_id, scope_id, generation_id, 'package', 'pkg-' || (hashtext(fact_id) & 255)
+FROM fact_records WHERE scope_id LIKE 'plan-scope-%' AND (hashtext(fact_id || 's') & 2147483647) % 100 < 5`,
 	}
-	args := [][]any{{factKeyPlanScopes}, {factKeyPlanScopes, factKeyPlanGenerations}, {factKeyPlanFacts}, nil, nil, nil}
+	args := [][]any{{factKeyPlanScopes}, {factKeyPlanScopes, factKeyPlanGenerations}, {factKeyPlanFacts}, nil, nil, nil, nil}
 	for i, statement := range statements {
 		if _, err := database.ExecContext(ctx, statement, args[i]...); err != nil {
 			t.Fatalf("seed plan corpus step %d: %v", i, err)

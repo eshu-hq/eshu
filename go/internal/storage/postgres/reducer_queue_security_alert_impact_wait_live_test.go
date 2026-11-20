@@ -201,11 +201,12 @@ func failureClassName(err error) string {
 
 // TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget
 // is the #8827 regression on the real queue. Reconciliation is claimed FIRST
-// while the impact row is pending, then while it is claimed (the reconciliation
-// is fenced out, not burned), then while it is retrying on the counting path.
-// Across five reconciliation cycles, more than MaxAttempts and past the
-// handler's own cap of three, attempt_count stays frozen at 1 and nothing is
-// written. Once the producer writes its finding and acks, the next claim
+// while the impact row is pending, then parks on the producer-terminal wait;
+// while it is claimed and parked, every claim fences out (the reconciliation
+// is never re-claimed, never burned). Across five reconciliation cycles,
+// more than MaxAttempts and past the handler's own cap of three,
+// attempt_count stays frozen at 1 and nothing is written. Once the producer
+// writes its finding and acks, the wake reopens the wait and the next claim
 // matches the alert and acks at attempt 1.
 func TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAttemptBudget(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
@@ -244,19 +245,29 @@ func TestReducerContentionGateSecurityAlertReconciliationImpactFenceKeepsItsAtte
 			}
 			clock = clock.Add(10 * time.Second)
 		}
-		intent, claimed, err := reconQueue.Claim(ctx)
-		if err != nil || !claimed {
-			t.Fatalf("cycle %d: reconciliation Claim() claimed=%v err=%v, want the deferred row back", cycle, claimed, err)
-		}
-		if intent.AttemptCount != 1 {
-			t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, securityalert.ImpactNotReadyFailureClass)
-		}
-		_, handleErr := handler.Handle(ctx, intent)
-		if got := failureClassName(handleErr); got != securityalert.ImpactNotReadyFailureClass {
-			t.Fatalf("cycle %d: Handle() error = %v (class %q), want the impact-not-ready deferral", cycle, handleErr, got)
-		}
-		if err := reconQueue.Fail(ctx, intent, handleErr); err != nil {
-			t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+		if cycle == 1 {
+			intent, claimed, err := reconQueue.Claim(ctx)
+			if err != nil || !claimed {
+				t.Fatalf("cycle %d: reconciliation Claim() claimed=%v err=%v, want the pending row", cycle, claimed, err)
+			}
+			if intent.AttemptCount != 1 {
+				t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, securityalert.ImpactNotReadyFailureClass)
+			}
+			_, handleErr := handler.Handle(ctx, intent)
+			if got := failureClassName(handleErr); got != securityalert.ImpactNotReadyFailureClass {
+				t.Fatalf("cycle %d: Handle() error = %v (class %q), want the impact-not-ready deferral", cycle, handleErr, got)
+			}
+			if err := reconQueue.Fail(ctx, intent, handleErr); err != nil {
+				t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+			}
+		} else if _, claimed, err := reconQueue.Claim(ctx); err != nil || claimed {
+			// Parked since cycle 1: the producer is still in flight, so
+			// the claim fences out instead of burning an attempt. The
+			// wait row below proves the set-aside parked it; the wake
+			// on the producer's Ack reopens it (final phase).
+			t.Fatalf("cycle %d: reconciliation Claim() claimed=%v err=%v, want it fenced out while parked", cycle, claimed, err)
+		} else {
+			requireParkedWait(t, ctx, db, scope, generation, WaitingKindProducerTerminal, 1)
 		}
 		status, class, attempts := readRuntimeFenceItem(t, ctx, db, "recon-8827-fence")
 		if status != "retrying" || class != securityalert.ImpactNotReadyFailureClass || attempts != 1 {

@@ -175,12 +175,31 @@ func readRuntimeFenceItem(t *testing.T, ctx context.Context, db *sql.DB, workIte
 	return status, failureClass.String, attempts
 }
 
+// requireParkedWait fails unless exactly one wait of the given kind parks
+// the scope generation: the #10876 set-aside, not a counting retry. The
+// parked row stays invisible until the providing save wakes it (or the
+// 10-minute backstop lapses), so this pins the parking mechanism behind a
+// fenced-out claim rather than only its outcome.
+func requireParkedWait(t *testing.T, ctx context.Context, db *sql.DB, scopeID, generationID string, kind WaitingWakeKind, want int) {
+	t.Helper()
+	var waits int
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM reducer_waiting_items WHERE scope_id = $1 AND generation_id = $2 AND waits_for_kind = $3`,
+		scopeID, generationID, string(kind)).Scan(&waits); err != nil {
+		t.Fatalf("count parked %s waits for %s/%s: %v", kind, scopeID, generationID, err)
+	}
+	if waits != want {
+		t.Fatalf("parked %s waits for %s/%s = %d, want %d", kind, scopeID, generationID, waits, want)
+	}
+}
+
 // TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget is
 // proof 4: while the repository's workload_materialization row is pending and
-// then claimed, the catalog row defers through more cycles than MaxAttempts
-// with attempt_count frozen at 1 and nothing written. Once the producer
-// commits its graph write and acks, the next claim commits the service
-// generation with both runtime rows.
+// then claimed, the catalog row parks after its first deferral and every
+// later claim fences out with attempt_count frozen at 1 and nothing written.
+// Once the producer commits its graph write and acks, the cross-scope wake
+// reopens the wait and the next claim commits the service generation with
+// both runtime rows.
 func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -204,20 +223,30 @@ func TestReducerContentionGateServiceCatalogRuntimeFenceKeepsItsAttemptBudget(t 
 			}
 			producerIntent = intent
 		}
-		intent, claimed, err := catalogQueue.Claim(ctx)
-		if err != nil || !claimed {
-			t.Fatalf("cycle %d: catalog Claim() claimed=%v err=%v, want the deferred row back", cycle, claimed, err)
-		}
-		if intent.AttemptCount != 1 {
-			t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, servicecatalog.RuntimeNotReadyFailureClass)
-		}
-		_, handleErr := handler.Handle(ctx, intent)
-		var classified interface{ FailureClass() string }
-		if !errors.As(handleErr, &classified) || classified.FailureClass() != servicecatalog.RuntimeNotReadyFailureClass {
-			t.Fatalf("cycle %d: Handle() error = %v, want the runtime readiness deferral", cycle, handleErr)
-		}
-		if err := catalogQueue.Fail(ctx, intent, handleErr); err != nil {
-			t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+		if cycle == 1 {
+			intent, claimed, err := catalogQueue.Claim(ctx)
+			if err != nil || !claimed {
+				t.Fatalf("cycle %d: catalog Claim() claimed=%v err=%v, want the pending row", cycle, claimed, err)
+			}
+			if intent.AttemptCount != 1 {
+				t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, servicecatalog.RuntimeNotReadyFailureClass)
+			}
+			_, handleErr := handler.Handle(ctx, intent)
+			var classified interface{ FailureClass() string }
+			if !errors.As(handleErr, &classified) || classified.FailureClass() != servicecatalog.RuntimeNotReadyFailureClass {
+				t.Fatalf("cycle %d: Handle() error = %v, want the runtime readiness deferral", cycle, handleErr)
+			}
+			if err := catalogQueue.Fail(ctx, intent, handleErr); err != nil {
+				t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+			}
+		} else if _, claimed, err := catalogQueue.Claim(ctx); err != nil || claimed {
+			// Parked since cycle 1: the producer is still in flight, so
+			// the claim fences out instead of burning an attempt. The
+			// wait row below proves the set-aside parked it; the wake
+			// on the producer's Ack reopens it (final phase).
+			t.Fatalf("cycle %d: catalog Claim() claimed=%v err=%v, want it fenced out while parked", cycle, claimed, err)
+		} else {
+			requireParkedWait(t, ctx, p.db, runtimeFenceCatalogScope, runtimeFenceCatalogGen, WaitingKindProducerTerminal, 1)
 		}
 		status, class, attempts := readRuntimeFenceItem(t, ctx, p.db, runtimeFenceCatalogItem)
 		if status != "retrying" || class != servicecatalog.RuntimeNotReadyFailureClass || attempts != 1 {

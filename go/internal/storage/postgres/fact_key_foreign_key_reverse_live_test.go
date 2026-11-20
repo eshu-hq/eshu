@@ -26,6 +26,18 @@ import (
 
 const factKeyReverseProcedurePath = "testdata/7420-drop-key-sidecar-fks-reverse.sql"
 
+// factKeyForeignKeyTables are the sidecars the #7420 reverse procedure
+// restores cascading foreign keys on: the three whose keys migrations 188
+// to 190 drop. The security-alert reconciliation sidecar (#10875) never had
+// a per-fact foreign key by migration-315 design, so the procedure neither
+// restores nor validates one for it; the shared factKeyTables list covers
+// the retention world, this one the foreign-key world.
+var factKeyForeignKeyTables = []string{
+	"relationship_reference_candidate_keys",
+	"package_manifest_consumption_keys",
+	"package_registry_identity_keys",
+}
+
 // factKeyReverseProcedure is the documented reverse procedure split on its
 // "-- step N:" headers: the preamble (the session lock_timeout) and steps
 // 1 to 4.
@@ -142,14 +154,14 @@ VALUES ('reverse-writer', $1, $2, 'content', 'reverse-writer', 'git', 'reverse-w
 			}
 		}
 	}
-	if restored := validatedCascadingFactKeys(t, ctx, database); restored != len(factKeyTables) {
+	if restored := validatedCascadingFactKeys(t, ctx, database); restored != len(factKeyForeignKeyTables) {
 		t.Fatalf("validated cascading keys after the reverse procedure = %d, want %d (%v)",
-			restored, len(factKeyTables), factRecordsForeignKeys(t, ctx, database))
+			restored, len(factKeyForeignKeyTables), factRecordsForeignKeys(t, ctx, database))
 	}
 	if _, err := database.ExecContext(ctx, `DELETE FROM fact_records WHERE scope_id = $1 AND generation_id = $2`, scope, active); err != nil {
 		t.Fatalf("delete facts under the restored keys: %v", err)
 	}
-	for _, table := range factKeyTables {
+	for _, table := range factKeyForeignKeyTables {
 		if got := factKeyRowsFor(t, ctx, database, table, scope, active); got != 0 {
 			t.Errorf("%s rows after the fact delete = %d, want 0 by cascade", table, got)
 		}
@@ -160,8 +172,8 @@ VALUES ('reverse-writer', $1, $2, 'content', 'reverse-writer', 'git', 'reverse-w
 	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("bootstrap before step 4: %v", err)
 	}
-	if restored := validatedCascadingFactKeys(t, ctx, database); restored != len(factKeyTables) {
-		t.Fatalf("keys after a bootstrap without step 4 = %d, want %d kept (ledger skips 188-190)", restored, len(factKeyTables))
+	if restored := validatedCascadingFactKeys(t, ctx, database); restored != len(factKeyForeignKeyTables) {
+		t.Fatalf("keys after a bootstrap without step 4 = %d, want %d kept (ledger skips 188-190)", restored, len(factKeyForeignKeyTables))
 	}
 	if _, err := session.ExecContext(ctx, steps[3]); err != nil {
 		t.Fatalf("step 4 forget 188-190: %v", err)

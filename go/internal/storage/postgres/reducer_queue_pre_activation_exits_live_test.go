@@ -95,9 +95,10 @@ func TestReducerContentionGatePreActivationDeferralExits(t *testing.T) {
 
 		for cycle := 0; cycle < 3; cycle++ {
 			env.advance(time.Minute)
-			if n := env.claimBatchExecuteSettle(t, ctx); n != 1 {
-				t.Fatalf("defer cycle %d: ClaimBatch() claimed %d, want the deferred row back", cycle, n)
+			if n := env.claimBatchExecuteSettle(t, ctx); n != 0 {
+				t.Fatalf("defer cycle %d: ClaimBatch() claimed %d, want it fenced out while parked", cycle, n)
 			}
+			requireParkedWait(t, ctx, db, preActivationProofScope, "gen-2", WaitingKindGenerationActive, 1)
 			status, class, attempts := readPreActivationWorkItem(t, ctx, db, "gen-2")
 			if status != "retrying" || class != reducercontract.GenerationActivationNotReadyFailureClass || attempts != 1 || *calls != 0 {
 				t.Fatalf("defer cycle %d: status=%q class=%q attempt_count=%d calls=%d, want retrying/%s/1/0",

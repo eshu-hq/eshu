@@ -51,7 +51,9 @@ package postgres
 // (1.15M probes, 5.7 s for the manifest arm over a 100-generation QA
 // batch) and under-counted orphans the delete still removed; the direct
 // legs measured 80 ms custom and 48 ms generic on the same batch
-// (#10512).
+// (#10512). The security-alert reconciliation leg (#10875) follows the
+// same envelope on its migration-315 partition index, so its pre-count
+// charges the orphan keys its delete removes.
 // content_file_secret_lines hangs off
 // content_files, whose doomed keys already live in doomed_files: a secret
 // row dies exactly when its key is doomed, so that arm joins doomed_files
@@ -84,7 +86,10 @@ package postgres
 // work items by work_item_id, so the arm joins through the work item's
 // (scope_id, generation_id) probe and then the fingerprint PRIMARY KEY.
 // Both probes stay index-only and the cost follows the batch, measured
-// with EXPLAIN ANALYZE before landing like the arms above.
+// with EXPLAIN ANALYZE before landing like the arms above. The
+// aws_drift_reopen_fingerprints (#10878, migration 317) and
+// container_identity_reopen_epochs (#10878, migration 318) arms repeat the
+// shape verbatim: same cascade through fact_work_items by work_item_id.
 //
 // The #8943 arms count the security-alert read state (security_alert_target_read_states)
 // and its unread-repository children, both cascade children of scope_generations
@@ -445,6 +450,15 @@ LEFT JOIN relationship_reference_candidate_keys AS keys
  AND keys.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
 UNION ALL
+SELECT candidate.generation_id, 'security_alert_reconciliation_keys' AS table_name, COUNT(keys.fact_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN security_alert_reconciliation_keys AS keys
+  ON keys.scope_id = generation.scope_id
+ AND keys.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
 SELECT candidate.generation_id, 'content_file_secret_lines' AS table_name, COUNT(lines.line_number) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN doomed_files AS file
@@ -459,17 +473,7 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN shared_projection_unroutable_intents AS row
   ON row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
-UNION ALL
-SELECT candidate.generation_id, 'deployable_unit_reopen_fingerprints' AS table_name, COUNT(fp.work_item_id) AS row_count
-FROM generation_retention_row_counts AS candidate
-LEFT JOIN scope_generations AS generation
-  ON generation.generation_id = candidate.generation_id
-LEFT JOIN fact_work_items AS work
-  ON work.scope_id = generation.scope_id
- AND work.generation_id = candidate.generation_id
-LEFT JOIN deployable_unit_reopen_fingerprints AS fp
-  ON fp.work_item_id = work.work_item_id
-GROUP BY candidate.generation_id
+` + generationRetentionRowCountsReopenLegs + `
 UNION ALL
 SELECT candidate.generation_id, 'security_alert_target_read_states' AS table_name, COUNT(state.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate

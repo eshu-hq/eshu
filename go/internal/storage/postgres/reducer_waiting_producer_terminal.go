@@ -148,6 +148,70 @@ func waitingProducerDomains() map[string]bool {
 	return out
 }
 
+// wakeProducerTerminalCrossScopeQuery reopens scope-bound producer-terminal
+// waits naming one producer domain, in any scope, and deletes their wait
+// rows. $1 is the wake timestamp, $2 the producer domain. A cross-scope
+// waiter (a catalog correlation parked on a repository-scope workload, a
+// pattern the #8827/#7816 contention proofs pin) commits its provider in a
+// scope the narrowed same-scope wake never names and the domain-only wake
+// never matches, so without this leg it sleeps to the 10-minute backstop.
+// The predicate mirrors reopenWaitingRowsQuery row for row except for the
+// key match: same reopen set clause, same retrying-only reopen, same
+// work_item_id COLLATE "C" lock order. The scan is bounded by the parked
+// set, not the fleet: only deferred waits have rows here.
+const wakeProducerTerminalCrossScopeQuery = `
+WITH due AS (
+    SELECT work_item_id FROM reducer_waiting_items
+    WHERE waits_for_kind = 'producer_domain_terminal'
+      AND waits_for_key->>'producer_domain' = $2
+      AND waits_for_key ? 'scope_id'
+    ORDER BY work_item_id COLLATE "C"
+    FOR UPDATE
+),
+reopened AS (
+    UPDATE fact_work_items AS work
+    SET ` + waitingWakeReopenSetClause + `
+    FROM due
+    WHERE work.work_item_id = due.work_item_id
+      AND work.stage = 'reducer'
+      AND work.status = 'retrying'
+    RETURNING work.work_item_id
+),
+cleared AS (
+    DELETE FROM reducer_waiting_items AS wait
+    USING reopened
+    WHERE wait.work_item_id = reopened.work_item_id
+      AND wait.waits_for_kind = 'producer_domain_terminal'
+      AND wait.waits_for_key->>'producer_domain' = $2
+      AND wait.waits_for_key ? 'scope_id'
+    RETURNING 1
+)
+SELECT (SELECT count(*) FROM reopened), (SELECT count(*) FROM cleared)
+`
+
+// wakeProducerTerminalCrossScope reopens every scope-bound wait parked on
+// one producer domain. Site and telemetry mirror wakeWaitingByKey.
+func wakeProducerTerminalCrossScope(
+	ctx context.Context,
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	domain string,
+	now time.Time,
+) error {
+	var reopenedCount, clearedCount int64
+	if err := querySingleRow(ctx, database, wakeProducerTerminalCrossScopeQuery,
+		[]any{now, domain}, &reopenedCount, &clearedCount); err != nil {
+		recordWaitingWake(ctx, instruments, WaitingWakeSiteInTx, telemetry.WaitingWakeOutcomeError)
+		return fmt.Errorf("wake cross-scope producer-terminal waits: %w", err)
+	}
+	outcome := telemetry.WaitingWakeOutcomeNoop
+	if reopenedCount > 0 {
+		outcome = telemetry.WaitingWakeOutcomeReopened
+	}
+	recordWaitingWake(ctx, instruments, WaitingWakeSiteInTx, outcome)
+	return nil
+}
+
 // wakeProducerTerminalAfterAck reopens producer-terminal waits after terminal
 // reducer ACKs. It runs after the ACK committed (Ack is a single statement,
 // not a transaction; the synchronous post-commit wake is the established
@@ -168,6 +232,7 @@ func wakeProducerTerminalAfterAck(
 	narrowed := waitingProducerDomains()
 	producers := completionEdgeProducerSet()
 	seen := map[string]struct{}{}
+	crossScoped := map[string]struct{}{}
 	wake := func(key string) error {
 		if _, ok := seen[key]; ok {
 			return nil
@@ -193,6 +258,15 @@ func wakeProducerTerminalAfterAck(
 			}
 			if err := wake(string(keyJSON)); err != nil {
 				return err
+			}
+			// Cross-scope waiters parked scope-bound on this domain in
+			// other scopes match no narrowed key; wake them by domain.
+			// One statement per acked domain, deduped below.
+			if _, ok := crossScoped[domain]; !ok {
+				crossScoped[domain] = struct{}{}
+				if err := wakeProducerTerminalCrossScope(ctx, database, instruments, domain, now); err != nil {
+					return err
+				}
 			}
 		}
 		if producers[intent.Domain] {

@@ -21,14 +21,19 @@ import (
 	factkeys "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/keys"
 )
 
-// factKeyTables are the three key sidecars whose per-fact foreign keys
-// migrations 188 to 190 drop (#7420). The migrated schema the live tests run
-// on has them dropped for real, so only the explicit retention deletes keep
-// the sidecars clean.
+// factKeyTables are the key sidecars the retention deletes must empty:
+// the three whose per-fact foreign keys migrations 188 to 190 drop (#7420)
+// plus the security-alert reconciliation sidecar (#10875), which never had
+// a foreign key by migration-315 design. The migrated schema the live tests
+// run on has the 188-190 keys dropped for real, so only the explicit
+// retention deletes keep every sidecar clean. Keep this list beside
+// factkeys.Deletes: a sidecar missing here is invisible to every proof
+// below, and a sidecar missing its seeder fails the seeded-rows guard.
 var factKeyTables = []string{
 	factkeys.RelationshipReferenceTable,
 	factkeys.ManifestConsumptionTable,
 	factkeys.RegistryIdentityTable,
+	factkeys.SecurityAlertReconciliationTable,
 }
 
 // requireFactKeyForeignKeysDropped fails unless the migrated schema has no
@@ -44,8 +49,9 @@ func requireFactKeyForeignKeysDropped(t *testing.T, ctx context.Context, databas
 // seedFactKeysForGeneration writes key sidecar rows for the generation's
 // facts, each copying the fact's scope and generation as the key writers do:
 // a relationship key on about a quarter of the facts, two manifest keys on
-// about a tenth and a registry key on about a twentieth, sparse enough that
-// the chunk fixture's 500-fact remainder still fits its BatchRowLimit.
+// about a tenth, a registry key on about a twentieth and a security-alert
+// reconciliation key on about a twentieth, sparse enough that the chunk
+// fixture's 500-fact remainder still fits its BatchRowLimit.
 func seedFactKeysForGeneration(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string) {
 	t.Helper()
 	for _, statement := range []string{
@@ -59,6 +65,9 @@ WHERE fact.scope_id = $1 AND fact.generation_id = $2 AND hashtext(fact.fact_id |
 		`INSERT INTO package_registry_identity_keys (fact_id, scope_id, generation_id, ecosystem, package_name, package_id)
 SELECT fact_id, scope_id, generation_id, 'npm', 'pkg-a', 'pid-' || fact_id
 FROM fact_records WHERE scope_id = $1 AND generation_id = $2 AND hashtext(fact_id || 'p') % 20 = 0`,
+		`INSERT INTO security_alert_reconciliation_keys (fact_id, scope_id, generation_id, key_kind, key_value)
+SELECT fact_id, scope_id, generation_id, 'package', 'pkg-' || (hashtext(fact_id || 's') & 2147483647) % 50
+FROM fact_records WHERE scope_id = $1 AND generation_id = $2 AND hashtext(fact_id || 's') % 20 = 0`,
 	} {
 		if _, err := database.ExecContext(ctx, statement, scopeID, generationID); err != nil {
 			t.Fatalf("seed fact keys for %s: %v", generationID, err)
@@ -134,6 +143,11 @@ FROM generate_series(1, 400) AS n CROSS JOIN (VALUES ($2::text), ($3::text)) AS 
     (fact_id, scope_id, generation_id, repository_id, ecosystem, package_name)
 VALUES ('keys-normal-orphan', $1, $2, 'repo-keys', 'npm', 'pkg-orphan')`, scope, oldGen); err != nil {
 			t.Fatalf("plant orphan manifest key: %v", err)
+		}
+		if _, err := database.ExecContext(ctx, `INSERT INTO security_alert_reconciliation_keys
+    (fact_id, scope_id, generation_id, key_kind, key_value)
+VALUES ('keys-normal-orphan', $1, $2, 'package', 'pkg-orphan')`, scope, oldGen); err != nil {
+			t.Fatalf("plant orphan security-alert key: %v", err)
 		}
 	}
 	want := map[string]int64{}
