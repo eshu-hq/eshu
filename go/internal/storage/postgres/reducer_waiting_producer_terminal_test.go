@@ -4,7 +4,6 @@
 package postgres
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -59,11 +58,8 @@ func TestProducerTerminalParkDomainsFromError(t *testing.T) {
 func TestProducerTerminalDomainKeyIsDomainOnly(t *testing.T) {
 	t.Parallel()
 
-	raw, err := json.Marshal(waitingKey{ProducerDomain: string(reducer.DomainContainerImageIdentity)})
-	if err != nil {
-		t.Fatalf("marshal domain key: %v", err)
-	}
-	if string(raw) != `{"producer_domain":"container_image_identity"}` {
+	raw := waitingProducerDomainKey(string(reducer.DomainContainerImageIdentity))
+	if raw != `{"producer_domain":"container_image_identity"}` {
 		t.Fatalf("domain key = %s, want the producer domain alone", raw)
 	}
 }
