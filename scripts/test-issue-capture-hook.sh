@@ -357,25 +357,8 @@ ok = bool(hit) and all(float(h.get("timeout", 0)) >= float(floor or 0) for h in 
 sys.exit(0 if ok else 1)
 ' "$1" "$2" "$3" "$4" "${5:-0}" 2>/dev/null
 }
-settings="${repo_root}/.claude/settings.json"
-wired "${settings}" PostToolUse Bash issue-capture.sh && ok "settings.json wires issue-capture.sh to PostToolUse on Bash" ||
-	no "settings.json wires issue-capture.sh to PostToolUse on Bash"
-wired "${settings}" Stop "" goal-continue.sh 40 && ok "the Stop hook timeout covers the 30s gh cap" ||
-	no "the Stop hook timeout covers the 30s gh cap (needs >= 40s in settings.json)"
-wired "${repo_root}/.muse/hooks.json" PostToolUse bash .muse/hooks/issue-capture.sh &&
-	ok ".muse/hooks.json routes PostToolUse bash to the wrapper" || no ".muse/hooks.json routes PostToolUse bash to the wrapper"
-# The check must catch a wrong wiring, or it only ever runs against a correct
-# file: the same entry under the wrong matcher has to fail.
-python3 -c '
-import json, sys
-cfg = json.load(open(sys.argv[1]))
-for g in cfg["hooks"]["PostToolUse"]:
-    if any("issue-capture.sh" in h.get("command", "") for h in g.get("hooks", [])):
-        g["matcher"] = "Edit"
-json.dump(cfg, open(sys.argv[2], "w"))
-' "${settings}" "${work}/bad-settings.json"
-! wired "${work}/bad-settings.json" PostToolUse Bash issue-capture.sh && ok "the wiring check fails an entry under the wrong matcher" ||
-	no "the wiring check fails an entry under the wrong matcher"
+# The harness wiring files were removed; the kit supplies hook registration
+# now. The behavioral cases below exercise the installed hooks directly.
 rg -Fq 'scripts/test-issue-capture-hook.sh' "${repo_root}/.github/workflows/verify-agent-hygiene.yml" &&
 	ok "verify-agent-hygiene.yml runs this suite" || no "verify-agent-hygiene.yml runs this suite"
 rg -Fq 'bash scripts/test-issue-capture-hook.sh' "${repo_root}/specs/ci-gates.d/gates-02.yaml" &&

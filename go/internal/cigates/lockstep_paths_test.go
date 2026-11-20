@@ -16,7 +16,7 @@ package cigates
 // eshu-agent-kit, not stored here, so a path under them does not resolve
 // until the installer has run; such a vector would fail the gate on every
 // clean CI checkout. The skill-tree branch of the classifier is exercised
-// by .claude/settings.json and .codex/config.toml, which are tracked.
+// by the installed kit trees, not by tracked wiring files (none remain).
 var probePaths = []string{
 	"AGENTS.md",
 	"CHANGELOG.md",

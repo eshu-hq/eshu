@@ -66,17 +66,13 @@ docs/site/
 .cursorignore
 .cursorindexingignore
 
-# Repo-local tooling and scratch files. .claude/* (not .claude/) so git still
-# descends into the directory and the negations below can re-include the
-# project-level settings and hooks.json shipped with the repo.
+# Repo-local tooling and scratch files.
 #
-# Shared agent material is NOT stored here: the eshu-agent-kit installer
-# regenerates it locally at the pinned kit version, so every tree below stays
-# ignored. .claude/settings.json, .codex/hooks.json, .codex/config.toml, and
-# .opencode/opencode.jsonc stay tracked: they are this repo's own harness
-# wiring, not kit material.
+# All agent material lives in the eshu-agent-kit and is installed locally at
+# the pinned kit version: harness wiring files were removed, and every tree
+# below stays ignored. Nothing under .claude/, .codex/, .muse/, .cursor/,
+# or .opencode/ is tracked.
 .claude/*
-!.claude/settings.json
 .claude/agents/
 .claude/agents/**
 .claude/hooks/
@@ -91,12 +87,10 @@ docs/site/
 .codex/hooks/**
 .codex/skills/
 .codex/skills/**
-# Muse wrappers are kit material too: install.sh --hooks --repo links them
-# from the pinned kit into .muse/hooks/. Only the eshu-specific dispatch
-# guard and the project hooks.json stay tracked: they are this repo's own
-# harness wiring, not kit material.
+# Muse wrappers are kit material: install.sh --hooks --repo links them from
+# the pinned kit into .muse/hooks/ and writes .muse/hooks.json.
+.muse/hooks.json
 .muse/hooks/*
-!.muse/hooks/guard-spawn.sh
 .cursor/agents/
 .cursor/agents/**
 # The role launcher the kit installer links into scripts/. It is kit
@@ -167,8 +161,8 @@ okta-saml-proof*.md
 okta-saml-live-proof*.json
 okta-saml-live-proof*.md
 
-# Claude Code per-user overrides; .claude/settings.json is committed so the
-# project hook works for everyone who clones.
+# Claude Code per-user overrides. No project settings file is tracked; the
+# kit installer provides hook registration locally.
 .claude/settings.local.json
 
 # Stray compiled cmd binaries from a bare `go build ./cmd/<name>` (build to a tmp dir instead)

@@ -512,73 +512,18 @@ rm -rf "$nopy"
 # recorder fires on edits instead of skill loads, so the nudge never lifts --
 # unreachable behaviour, which is the failure this block claims to catch.
 sid=$((sid + 1))
-settings="$repo_root/.claude/settings.json"
-wiring_report() { python3 -c '
-import json, sys
-hooks = json.load(open(sys.argv[1])).get("hooks", {})
-want = [
-    ("PostToolUse",  "Skill",                   "skill-loaded.sh"),
-    ("PreToolUse",   "Edit|MultiEdit|Write",    "skill-nudge.sh"),
-    ("PreToolUse",   "Bash",                    "guard-live-gate.sh"),
-    ("SessionStart", "compact|resume",          "on-compact.sh"),
-    # Stop groups carry no matcher, so the registration stores no "matcher"
-    # key and group.get("matcher") is None. Comparing against None is the
-    # assertion, not a placeholder for one.
-    ("Stop",         None,                      "goal-continue.sh"),
-    # The producer/refresher. Without this triple a dropped registration
-    # would leave the goal never restated and the Stop hook never fed --
-    # correct and unreachable, the same way the Stop triple was missing.
-    ("UserPromptSubmit", None,                  "goal-refresh.sh"),
-]
-bad = []
-for event, matcher, name in want:
-    ok = any(
-        group.get("matcher") == matcher and name in hook.get("command", "")
-        for group in hooks.get(event, [])
-        for hook in group.get("hooks", [])
-    )
-    if not ok:
-        bad.append("%s[%s]->%s" % (event, matcher, name))
-print(" ".join(bad))
-' "$1" 2>/dev/null; }
-
-missing_reg=$(wiring_report "$settings")
-if [ -z "$missing_reg" ]; then
-  printf 'ok - every hook is wired to the right event and matcher\n'
-  passed=$((passed + 1))
-else
-  printf 'FAIL - hook wiring wrong or missing: %s\n' "$missing_reg" >&2
-  failed=$((failed + 1))
-fi
-
-# ...and the check must actually catch a wrong wiring. Without this case it
-# only ever runs against a correct file and would pass if it were a no-op --
-# which is precisely how the substring version it replaced went unnoticed.
-sid=$((sid + 1))
-bad_settings="$(mktemp)"
-python3 -c '
-import json, sys
-cfg = json.load(open(sys.argv[1]))
-# Move the recorder to the wrong event: it would then fire on edits rather
-# than on skill loads, and the nudge would never lift.
-post = cfg["hooks"].get("PostToolUse", [])
-cfg["hooks"]["PostToolUse"] = [
-    g for g in post
-    if not any("skill-loaded.sh" in h.get("command", "") for h in g.get("hooks", []))
-]
-cfg["hooks"].setdefault("PreToolUse", []).append(
-    {"matcher": "Edit", "hooks": [{"type": "command", "command": "x/skill-loaded.sh"}]})
-json.dump(cfg, open(sys.argv[2], "w"))
-' "$settings" "$bad_settings" 2>/dev/null
-caught=$(wiring_report "$bad_settings")
-rm -f "$bad_settings"
-if rg -Fq 'skill-loaded.sh' <<<"$caught"; then
-  printf 'ok - the wiring check catches a hook moved to the wrong event\n'
-  passed=$((passed + 1))
-else
-  printf 'FAIL - wiring check missed a misplaced hook; report was: %s\n' "${caught:-<empty>}" >&2
-  failed=$((failed + 1))
-fi
+# The .claude/settings.json wiring file was removed with the other harness
+# wiring files; the kit supplies hook registration now. Assert the installed
+# kit hooks exist instead of reading a repo wiring file.
+for hook_name in skill-loaded.sh skill-nudge.sh guard-live-gate.sh on-compact.sh goal-continue.sh goal-refresh.sh; do
+  if [[ -f "$hooks_dir/$hook_name" ]]; then
+    printf 'ok - installed hook exists: %s\n' "$hook_name"
+    passed=$((passed + 1))
+  else
+    printf 'FAIL - installed hook missing: %s\n' "$hook_name" >&2
+    failed=$((failed + 1))
+  fi
+done
 
 # --- on-compact --------------------------------------------------------------
 # Compaction must invalidate loaded-skill markers. A resume keeps the session
