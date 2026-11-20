@@ -84,7 +84,10 @@ services:
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${ESHU_NEO4J_PASSWORD:-change-me} RETURN 1"]
+      # Quote the query: unquoted `RETURN 1` splits into two argv entries
+      # and this cypher-shell version usage-errors (exit 1) instead of
+      # querying. The shared overlay's unquoted form never goes green.
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${ESHU_NEO4J_PASSWORD:-change-me} 'RETURN 1'"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -93,6 +96,7 @@ services:
   db-migrate:
     environment:
       ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
       NEO4J_URI: bolt://neo4j:7687
     depends_on:
       neo4j:
@@ -101,6 +105,7 @@ services:
   bootstrap-index:
     environment:
       ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
       NEO4J_URI: bolt://neo4j:7687
     depends_on:
       neo4j:
@@ -114,12 +119,11 @@ services:
 
   # NornicDB is not on the proof's read or write path (single-backend
   # Neo4j run), but base-stack depends_on chains still reference it, and
-  # Compose merges depends_on additively. Keep it running idle on
-  # non-colliding host ports rather than fighting the merge.
+  # Compose merges depends_on additively. Drop its host bindings (port
+  # lists merge additively too, so a remap would only add bindings) and
+  # let it idle unexposed; its container-local healthcheck is unaffected.
   nornicdb:
-    ports:
-      - "27475:7474"
-      - "27688:7687"
+    ports: !reset []
 
 volumes:
   neo4j_data:
