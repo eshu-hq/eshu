@@ -3199,9 +3199,20 @@ type Instruments struct {
 	// the audit's own loaded rows, so it counts the same-evidence misses the
 	// audit exists to correct (config-anchor moves that never move the ARN
 	// snapshot). Sustained nonzero means the skip path is systematically
-	// blind to a real input class and needs a design pass; filing that as a
-	// defect is follow-up work, not an automatic rule.
-	AWSDriftIncrementalAuditCorrections    metric.Int64Counter
+	// blind to a real input class and needs a design pass. Two consecutive
+	// correcting audits page the owner via EshuAWSDriftConsecutiveCorrectingAudits
+	// (#11032, evaluated in Prometheus over AWSDriftIncrementalAudits); this
+	// magnitude counter never files issues by itself.
+	AWSDriftIncrementalAuditCorrections metric.Int64Counter
+	// AWSDriftIncrementalAudits counts daily #10861-D3 audit_due
+	// reconstructions by closed outcome (#11032): clean when the replay
+	// agrees with the full run, correcting when it misses keys the audit
+	// re-derived, failed when the reconstruction itself errors. Exactly one
+	// point per audit_due run, including the error path; delta, skip, and
+	// fallback runs record nothing. The corrections magnitude stays on
+	// AWSDriftIncrementalAuditCorrections, which still records no point on
+	// a zero-miss audit.
+	AWSDriftIncrementalAudits              metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
@@ -8129,6 +8140,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSDriftIncrementalAuditCorrections counter: %w", err)
+	}
+
+	inst.AWSDriftIncrementalAudits, err = meter.Int64Counter(
+		"eshu_dp_aws_drift_incremental_audits_total",
+		metric.WithDescription("Total daily aws_cloud_runtime_drift audit_due reconstructions, labeled by the closed outcome clean, correcting, or failed (#11032)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSDriftIncrementalAudits counter: %w", err)
 	}
 
 	inst.IaCReachabilityMaterializationDuration, err = meter.Float64Histogram(
