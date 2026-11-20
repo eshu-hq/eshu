@@ -33,6 +33,35 @@ func TestBoolPointerVal(t *testing.T) {
 	}
 }
 
+// TestIntPointerVal proves int payloads pass through in every Go numeric
+// shape (float64 from a JSON decode, int and int64 from an in-memory map),
+// and that missing or non-numeric values decode nil so an absent
+// trace_count stays distinct from a reported zero.
+func TestIntPointerVal(t *testing.T) {
+	t.Parallel()
+
+	if got := intPointerVal(map[string]any{"v": 3.0}, "v"); got == nil || *got != 3 {
+		t.Errorf("float64 3 must decode to 3: %v", got)
+	}
+	if got := intPointerVal(map[string]any{"v": 3}, "v"); got == nil || *got != 3 {
+		t.Errorf("int 3 must decode to 3: %v", got)
+	}
+	if got := intPointerVal(map[string]any{"v": int64(4)}, "v"); got == nil || *got != 4 {
+		t.Errorf("int64 4 must decode to 4: %v", got)
+	}
+	if intPointerVal(map[string]any{"v": 0.0}, "v") == nil {
+		t.Error("reported zero must decode set, not nil")
+	} else if got := intPointerVal(map[string]any{"v": 0.0}, "v"); *got != 0 {
+		t.Errorf("reported zero must decode to 0: %v", got)
+	}
+	if intPointerVal(map[string]any{}, "v") != nil {
+		t.Error("missing keys must decode nil")
+	}
+	if intPointerVal(map[string]any{"v": "3"}, "v") != nil {
+		t.Error("non-numeric values must decode nil")
+	}
+}
+
 // TestSupplyChainSchemaEnvelope proves an empty schema version
 // normalizes to the legacy default while explicit versions survive.
 func TestSupplyChainSchemaEnvelope(t *testing.T) {

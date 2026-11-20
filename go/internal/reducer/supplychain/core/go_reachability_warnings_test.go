@@ -4,8 +4,10 @@
 package core
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/eshu-hq/eshu-sdk/factschema"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
@@ -108,5 +110,148 @@ func TestGoWarningCompletedJoinsNothing(t *testing.T) {
 		if stringSliceContains(got.Reachability.MissingEvidence, "govulncheck scan no_go_modules") {
 			t.Fatalf("%s: MissingEvidence = %#v, want no completed-scan warning named", osv, got.Reachability.MissingEvidence)
 		}
+	}
+}
+
+// TestGoWarningOtherAnalyzerJoinsNothing pins the analyzer gate: a warning
+// from an analyzer other than go_reachability is not Go scan evidence, so
+// it must not mark Go findings.
+func TestGoWarningOtherAnalyzerJoinsNothing(t *testing.T) {
+	t.Parallel()
+	stream := loadGovulncheckStream(t, "xtext_v0_3_5_symbol_source.jsonl")
+	envelopes := realShapeImpactEnvelopes(t, stream, nil)
+	envelopes = append(envelopes, facts.Envelope{
+		FactID:        facts.StableID("scanner_worker.warning", map[string]any{"repo": realShapeRepositoryID, "class": "toolchain_unsupported"}),
+		FactKind:      "scanner_worker.warning",
+		SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
+		Payload: map[string]any{
+			"analyzer":            "sbom",
+			"target_kind":         "repository",
+			"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			"reason":              "toolchain_unsupported",
+			"warning_class":       "scanner_worker_warning",
+			"analysis_status":     "not_scanned",
+			"coverage_status":     "unsupported",
+			"repository_id":       realShapeRepositoryID,
+		},
+	})
+	for osv, got := range supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(envelopes)) {
+		if got.Reachability == nil {
+			t.Fatalf("%s: Reachability is nil", osv)
+		}
+		if stringSliceContains(got.Reachability.MissingEvidence, "govulncheck scan toolchain_unsupported") {
+			t.Fatalf("%s: MissingEvidence = %#v, want no warning from another analyzer", osv, got.Reachability.MissingEvidence)
+		}
+	}
+}
+
+// TestGoWarningSkipBranchesAreExplicit pins each skip arm of the warning
+// extractor directly: no repository, completed scan, and blank reason each
+// yield no rows without quarantine or error.
+func TestGoWarningSkipBranchesAreExplicit(t *testing.T) {
+	t.Parallel()
+	base := map[string]any{
+		"analyzer":            "go_reachability",
+		"target_kind":         "repository",
+		"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		"reason":              "toolchain_unsupported",
+		"warning_class":       "scanner_worker_warning",
+		"analysis_status":     "not_scanned",
+		"coverage_status":     "unsupported",
+		"repository_id":       realShapeRepositoryID,
+	}
+	with := func(mut func(map[string]any)) facts.Envelope {
+		payload := map[string]any{}
+		for k, v := range base {
+			payload[k] = v
+		}
+		mut(payload)
+		return facts.Envelope{
+			FactID:        facts.StableID("scanner_worker.warning", map[string]any{"repo": realShapeRepositoryID}),
+			FactKind:      facts.ScannerWorkerWarningFactKind,
+			SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
+			Payload:       payload,
+		}
+	}
+	noRepo := with(func(p map[string]any) { delete(p, "repository_id") })
+	completed := with(func(p map[string]any) { p["analysis_status"] = "completed" })
+	blankReason := with(func(p map[string]any) { p["reason"] = "  " })
+	rows, quarantined, err := extractGoReachabilityWarningsWithQuarantine([]facts.Envelope{noRepo, completed, blankReason})
+	if err != nil {
+		t.Fatalf("extract error = %v, want nil for skipped warnings", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("rows = %#v, want none; every skip arm must drop its warning", rows)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none; skips are not malformed payloads", quarantined)
+	}
+}
+
+// TestGoWarningFatalAbortsClassification pins the fault-isolation boundary
+// one level up: when the warning batch carries an unsupported schema major,
+// the classifier returns the fatal error instead of partial findings, so a
+// version-skewed warning can never silently narrow to a subset of findings.
+func TestGoWarningFatalAbortsClassification(t *testing.T) {
+	t.Parallel()
+	envelopes := []facts.Envelope{{
+		FactID:        "warning-unsupported-major",
+		FactKind:      "scanner_worker.warning",
+		SchemaVersion: "2.0.0",
+		Payload: map[string]any{
+			"analyzer":            "go_reachability",
+			"target_kind":         "repository",
+			"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			"reason":              "toolchain_unsupported",
+			"warning_class":       "scanner_worker_warning",
+			"analysis_status":     "not_scanned",
+			"coverage_status":     "unsupported",
+			"repository_id":       realShapeRepositoryID,
+		},
+	}}
+	findings, quarantined, fatal := classifyGoVulnerabilityReachabilityWithQuarantine(envelopes)
+	if fatal == nil {
+		t.Fatal("fatal = nil, want non-nil; an unsupported schema major must abort classification")
+	}
+	if !errors.Is(fatal, factschema.ErrUnsupportedSchemaMajor) {
+		t.Fatalf("fatal = %v, want errors.Is factschema.ErrUnsupportedSchemaMajor", fatal)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("findings = %d, want 0; a fatal error discards the partial index", len(findings))
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none; an unsupported major is never a per-fact quarantine", quarantined)
+	}
+}
+
+// TestGoWarningUnsupportedMajorIsFatal pins the fault-isolation boundary:
+// a warning on an unsupported schema major must fail the whole intent
+// (never a per-fact quarantine), so version skew gets durable triage.
+func TestGoWarningUnsupportedMajorIsFatal(t *testing.T) {
+	t.Parallel()
+	envelopes := []facts.Envelope{{
+		FactID:        "warning-unsupported-major",
+		FactKind:      "scanner_worker.warning",
+		SchemaVersion: "2.0.0",
+		Payload: map[string]any{
+			"analyzer":            "go_reachability",
+			"target_kind":         "repository",
+			"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			"reason":              "toolchain_unsupported",
+			"warning_class":       "scanner_worker_warning",
+			"analysis_status":     "not_scanned",
+			"coverage_status":     "unsupported",
+			"repository_id":       realShapeRepositoryID,
+		},
+	}}
+	_, quarantined, fatal := extractGoReachabilityWarningsWithQuarantine(envelopes)
+	if fatal == nil {
+		t.Fatalf("fatal = nil, want non-nil; an unsupported schema major (2.0.0) on a registered scanner_worker fact must fail the whole intent, not be quarantined")
+	}
+	if !errors.Is(fatal, factschema.ErrUnsupportedSchemaMajor) {
+		t.Fatalf("fatal = %v, want errors.Is factschema.ErrUnsupportedSchemaMajor", fatal)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %#v, want none; an unsupported major is fatal, never a per-fact quarantine", quarantined)
 	}
 }
