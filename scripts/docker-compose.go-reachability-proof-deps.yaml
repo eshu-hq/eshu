@@ -65,3 +65,9 @@ services:
     depends_on:
       core-api:
         condition: service_started
+
+  mcp-server:
+    # Loopback proof harness only: the high-range host port is still the
+    # operator's loopback. Never enable this where the port is public.
+    environment:
+      ESHU_MCP_ALLOW_UNAUTHENTICATED: "true"
