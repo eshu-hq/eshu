@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -75,20 +76,27 @@ func commitListenerConfigFromEnv(getenv func(string) string) (*commitListenerCon
 		return nil, err
 	}
 	cfg := &commitListenerConfig{listenAddr: listenAddr}
+	// Fixed declaration order: the missing-variable error must read the
+	// same every run, so companions are collected from an ordered slice,
+	// never a map range.
+	ordered := []struct {
+		env    string
+		assign *string
+	}{
+		{commitEnvManifestPath, &cfg.manifestPath},
+		{commitEnvGrantsPath, &cfg.grantsPath},
+		{commitEnvClaimPlane, &cfg.claimPlaneURL},
+		{commitEnvSourceSystem, &cfg.sourceSystem},
+		{commitEnvInstanceID, &cfg.instanceID},
+	}
 	var missing []string
-	for env, assign := range map[string]*string{
-		commitEnvManifestPath: &cfg.manifestPath,
-		commitEnvGrantsPath:   &cfg.grantsPath,
-		commitEnvClaimPlane:   &cfg.claimPlaneURL,
-		commitEnvSourceSystem: &cfg.sourceSystem,
-		commitEnvInstanceID:   &cfg.instanceID,
-	} {
-		value := strings.TrimSpace(getenv(env))
-		if value == "" && env != commitEnvGrantsPath {
-			missing = append(missing, env)
+	for _, field := range ordered {
+		value := strings.TrimSpace(getenv(field.env))
+		if value == "" && field.env != commitEnvGrantsPath {
+			missing = append(missing, field.env)
 			continue
 		}
-		*assign = value
+		*field.assign = value
 	}
 	if raw := strings.TrimSpace(getenv(commitEnvScopeKind)); raw == "" {
 		missing = append(missing, commitEnvScopeKind)
@@ -96,6 +104,9 @@ func commitListenerConfigFromEnv(getenv func(string) string) (*commitListenerCon
 		cfg.scopeKind = scope.ScopeKind(raw)
 	}
 	if len(missing) > 0 {
+		// Sorted so the error reads the same every run no matter which
+		// companions are missing.
+		sort.Strings(missing)
 		return nil, fmt.Errorf(
 			"commit listener %s requires %s to be set",
 			commitEnvListen,
@@ -216,25 +227,27 @@ func newCommitListenerMux(
 	return extensionhost.NewCommitClaimFactsMux(handler), nil
 }
 
-// buildCommitListenerMux wires the production commit bundle: the manifest
-// and optional grants from their files, the claim-plane client the fence
-// probes and pins through, and the ingestion store with its claim-plane
-// fence. The fence pairing is unconditional: a claim the plane holds
-// cannot commit through the in-tree path, so the store always fences on
-// the same client that serves as the control store.
+// buildCommitListenerMux wires the production commit bundle: the optional
+// grants and the manifest from their files, the claim-plane client the
+// fence probes and pins through, and the ingestion store with its
+// claim-plane fence. Grants load first so the manifest validates against
+// them: a core-owned kind with a covering grant starts, without one it
+// fails closed. The fence pairing is unconditional: a claim the plane
+// holds cannot commit through the in-tree path, so the store always
+// fences on the same client that serves as the control store.
 func buildCommitListenerMux(
 	cfg *commitListenerConfig,
 	database db.ExecQueryer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (*http.ServeMux, error) {
-	manifest, err := component.LoadManifest(cfg.manifestPath)
-	if err != nil {
-		return nil, fmt.Errorf("commit listener %s: %w", commitEnvManifestPath, err)
-	}
 	grants, err := loadCommitGrants(cfg.grantsPath)
 	if err != nil {
 		return nil, err
+	}
+	manifest, err := component.LoadManifestWithGrants(cfg.manifestPath, grants)
+	if err != nil {
+		return nil, fmt.Errorf("commit listener %s: %w", commitEnvManifestPath, err)
 	}
 	planeClient := workflow.NewClaimPlaneClient(
 		cfg.claimPlaneURL,
@@ -314,7 +327,7 @@ func runCommitListener(
 		defer shutdownCancel()
 		return server.Shutdown(shutdownCtx)
 	case err := <-errCh:
-		if err == http.ErrServerClosed {
+		if !coreServeFailed(err) {
 			return nil
 		}
 		return err
