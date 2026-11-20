@@ -29,7 +29,7 @@ import (
 const reducerLiveLeaseUniqueConstraint = "fact_work_items_reducer_live_lease_uniq"
 
 // reducerLeaseMirrorUniqueConstraint is the phase-1 mirror of the live-lease
-// fence on fact_work_item_leases (migration 321, #10879): at most one live
+// fence on fact_work_item_leases (migration 322, #10879): at most one live
 // mirror lease per (stage, conflict_domain, conflict key). The claim's mirror
 // insert runs after the main update in the same statement, so the main index
 // fires first on a genuine race; this name is matched so a mirror-only
