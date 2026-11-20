@@ -122,7 +122,7 @@ LIMIT 1001
 // that routes grant-bound reads through the lateral -- or edits this statement
 // at all -- fails here and has to bring its own proof for the grant-bound read:
 // the lateral was measured reading more buffers than this statement under every
-// grant size tried (docs/internal/evidence/7249-dead-code-reachability.md).
+// grant size tried for #7249.
 func TestCrossRepoDeadCodeGrantBoundPageKeepsTheShippedStatement(t *testing.T) {
 	t.Parallel()
 

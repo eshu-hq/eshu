@@ -85,8 +85,7 @@ const listActiveContainerImageCIRunRepositoryFilterSQLQualified = `fact.fact_kin
 // every active ci.run/ci.artifact fact platform-wide and filtering to the
 // owner in Go (filterContainerImageCIFactsForOwner,
 // go/internal/reducer/containerimage/container_image_identity_ci_loader.go). At the
-// documented 500,000-active-CI-run-scope worst case (see
-// docs/internal/evidence/5810-cross-scope-ci-loader.md), the prior
+// documented 500,000-active-CI-run-scope worst case (#5810), the prior
 // unfiltered shape still transferred and decoded every active CI fact on
 // every repository-scoped refresh only to discard nearly all of it in Go --
 // migration 081's index bounded the SCAN to the ci.run/ci.artifact family,

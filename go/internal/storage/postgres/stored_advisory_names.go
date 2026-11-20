@@ -42,7 +42,7 @@ const storedAdvisoryNameChunkSize = 500
 // planner from joining the active scopes first: it estimated one row and
 // probed once per active scope (1,933 probes, 1,021 ms cold), so cost followed
 // the number of scopes instead of the number of ids
-// (docs/internal/evidence/9777-stored-advisory-names.md). The active-generation
+// (#9777). The active-generation
 // joins, the ones every active reader uses (the scope's active_generation_id
 // and an active scope_generations row), then run on the candidate rows.
 // The read is a name selector, not an evidence read: an over-matched name costs

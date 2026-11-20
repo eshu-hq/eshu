@@ -87,8 +87,7 @@ func (h *CodeHandler) runWrapperKeyChunks(
 // cuts the fan-out phase and full-sweep warm p50 by roughly 40%, purely by
 // shrinking the round-trip count (PROFILE showed identical per-key
 // NodeUniqueIndexSeek cost at both sizes), with byte-identical
-// rows/findings at every size measured (see
-// docs/internal/evidence/7325-outlier-fanout-batch.md). It is a dedicated
+// rows/findings at every size measured for #7325. It is a dedicated
 // constant, not a change to wrapperEvidenceKeyBatchSize: the wrapper-bypass
 // evidence track's three reads were not remeasured and stay at 50.
 const outlierCalleeEdgeBatchSize = 250

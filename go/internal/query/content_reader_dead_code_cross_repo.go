@@ -323,8 +323,8 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 // bounds it: with the grant bound the planner leaves the rank index for another
 // index plus a sort in both, and reads an entity's whole fan-in from about 50
 // granted repositories up. The lateral also costs more buffers there, through
-// its per-row ingestion_scopes probe. That is a documented pre-existing limit,
-// see docs/internal/evidence/7249-dead-code-reachability.md.
+// its per-row ingestion_scopes probe. That is a pre-existing limit documented
+// for #7249.
 func buildCrossRepoDeadCodeConsumerEvidenceQuery(
 	producerRepoID string,
 	entityIDs []string,

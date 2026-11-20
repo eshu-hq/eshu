@@ -279,7 +279,7 @@ func sqlBlastRadiusLiveReader(ctx context.Context, t *testing.T) *sqlBlastRadius
 // sqlBlastRadiusLiveReader) removed that specific trigger, but any other delete
 // failure -- a transient backend error, a later ordering regression -- went the
 // same way while this helper only logged. "graph left clean" was a row a human
-// checked by hand in docs/internal/evidence/6204-blast-radius-bite-test.md; the
+// checked by hand in the #6204 bite proof; the
 // verify half of each probe makes it an assertion the run enforces itself.
 func sqlBlastRadiusCleanup(t *testing.T, live *sqlBlastRadiusLive, prefix string) {
 	t.Helper()
@@ -301,8 +301,8 @@ func sqlBlastRadiusCleanup(t *testing.T, live *sqlBlastRadiusLive, prefix string
 // It lives here, called by both the nine-branch proof and the bite proof
 // (#6204), so the bite proof guards the code the nine-branch proof runs rather
 // than a copy of it. Gutting this function to walk `branches` turns the bite
-// proof red; that is the standing guard the manual INDEXES experiment in
-// docs/internal/evidence/6182-blast-radius-gate-wiring.md used to stand in for.
+// proof red; that is the standing guard the manual #6182 INDEXES experiment
+// used to stand in for.
 func sqlBlastRadiusMissingBranches(
 	rows []map[string]any,
 	branches []sqlBlastRadiusBranch,

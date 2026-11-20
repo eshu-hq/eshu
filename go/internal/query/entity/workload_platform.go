@@ -121,8 +121,7 @@ func (h *Handler) FetchWorkloadPlatformResult(
 // then by stable platform identity. The production query already declares
 // this order (ORDER BY instance_id, platform_name, platform_id), but that
 // ORDER BY is not guaranteed to replay identically across NornicDB
-// executions (see docs/internal/evidence/5272-service-story-runtime-topology.md
-// and issue #5644), so relying on the backend row order alone let repeated
+// executions (issue #5644), so relying on the backend row order alone let repeated
 // service-story calls over unchanged retained data attach the same
 // instance's platforms in a different order. This Go-level sort makes
 // attachDirectPlatforms deterministic regardless of backend row order.

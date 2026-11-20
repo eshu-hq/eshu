@@ -2,8 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 //
 // #7339 high-degree-tail repo-scale live proof. The #7325 record
-// (docs/internal/evidence/7325-outlier-fanout-batch.md, Proof limits /
-// NOT_CHECKED) measured the outlier CALLS fan-out's committed 250-key
+// (Proof limits / NOT_CHECKED) measured the outlier CALLS fan-out's committed 250-key
 // batch only against seeds whose maximum out-degree is 64 -- far below
 // the QA tail (max out-degree 521,
 // docs/internal/evidence/6649-calls-degree-floor.md) and the registry

@@ -24,10 +24,9 @@ import (
 // live graph. TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes
 // catches a text-level dead branch with no backend, so "only" is the runtime
 // sense #5409 names, not dead-branch detection generally. Until now the only
-// evidence that its detection actually bites was a manual experiment recorded in
-// docs/internal/evidence/6182-blast-radius-gate-wiring.md: break the INDEXES
-// branch, watch the gate fail naming it, revert. A recorded manual run is not a
-// gate.
+// evidence that its detection actually bites was a manual experiment for #6182:
+// break the INDEXES branch, watch the gate fail naming it, revert. A recorded
+// manual run is not a gate.
 //
 // The property that matters is that the missing list accumulates from the rows
 // the query returned. A refactor that walked sqlBlastRadiusBranches() instead

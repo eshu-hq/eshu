@@ -320,8 +320,7 @@ func sortTopologyEdges(rows []map[string]any) {
 // sortWorkloadInstances orders runtime instances by environment and then by
 // stable instance identity. NornicDB can replay an identical Cypher ORDER BY
 // as a different row set order across calls over unchanged retained data
-// (see docs/internal/evidence/5272-service-story-runtime-topology.md and
-// issue #5644), so relying on the backend's row order alone let repeated
+// (issue #5644), so relying on the backend's row order alone let repeated
 // calls return the same instances in different array positions.
 // instance_id is unique per WorkloadInstance, so this is a total order
 // regardless of backend row order.

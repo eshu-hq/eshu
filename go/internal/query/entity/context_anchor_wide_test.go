@@ -60,7 +60,7 @@ func TestNeo4jEntityContextAnchorIsTheMeasuredStatement(t *testing.T) {
 	}
 	sum := sha256.Sum256([]byte(statements[0]))
 	if got := hex.EncodeToString(sum[:]); got != neo4jEntityContextStatementSHA256 {
-		t.Errorf("entity-context statement sha256 = %s, want %s (the measured candidate); rerun the entity-context performance shim and refresh this hash and docs/internal/evidence/appsync-api-key-disclosure.md",
+		t.Errorf("entity-context statement sha256 = %s, want %s (the measured candidate); rerun the entity-context performance shim and refresh this hash and go/internal/query/entity/testdata/neo4j_wide_anchor.cypher",
 			got, neo4jEntityContextStatementSHA256)
 	}
 	if got, want := neo4jEntityContextAnchor(), goldenWideAnchorClause(t); got != want {

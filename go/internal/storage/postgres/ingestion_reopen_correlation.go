@@ -273,7 +273,7 @@ func listSucceededReducerWorkItemIDsForDomain(
 // from the shipped fused read by markers, never copied: the fence CTE, the
 // by-repos predicate, the select list, and the order are its text. Measured on
 // the #6740 seed it costs about 0.2 ms over the shipped read with the same
-// buffers (docs/internal/evidence/8283-deployable-unit-reopen-gate.md).
+// buffers (#8283).
 var listResolvedByReposWithCorpusFenceAndFingerprintSQL = deriveFingerprintedFusedRead(
 	listResolvedByReposWithCorpusFenceSQL,
 )

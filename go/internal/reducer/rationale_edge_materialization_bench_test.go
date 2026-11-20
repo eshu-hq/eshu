@@ -26,8 +26,7 @@ const rationaleHandlerBenchmarkEntityCount = 5_000
 //
 // The Postgres side of that follow-up -- the per-generation
 // ListFactsByKind([repository, content_entity]) load this handler issues -- is
-// measured against a real store in
-// docs/internal/evidence/6154-fact-records-keyset-pagination.md: on the
+// measured against a real store for #6154: on the
 // 896-repository corpus the worst-case generation (241,726 facts sharing one
 // observed_at) loaded in 84.12 s and was quadratic in generation size. That was
 // root-caused and fixed in #6155 (commit e6453efd, keyset paging plus the

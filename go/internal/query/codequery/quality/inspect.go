@@ -48,8 +48,7 @@ func Inspect(
 // repository with zero matching rows. The Repository-first shape here is
 // byte-identical in anchor structure to codequery/complexity_queries.go's
 // complexityListAnchor, which WAS separately measured at 2.74s for a
-// same-shaped 0-row repository (docs/internal/evidence/
-// 7006-code-quality-context-anchor-fix.md) -- this statement's own timing was
+// same-shaped 0-row repository (#7006) -- this statement's own timing was
 // not independently measured (#7006 review round 3, F3), so treat that
 // figure as an analogous upper bound from the sibling query, not a proven
 // number for this exact statement. See docs/public/reference/cypher-performance.md.

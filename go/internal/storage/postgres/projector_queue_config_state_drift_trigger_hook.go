@@ -70,7 +70,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // call is NEVER retried on its own -- Ack's own six-statement transaction
 // already committed and must not be blocked or looped waiting on reducer
 // admission a second time (that is what the perf evidence in this branch
-// measured and bounded; see docs/internal/evidence/5593-config-state-drift-ack-latency.md).
+// measured and bounded for #5593).
 //
 // Convergence for that lost call is bounded, not reliant on either producer
 // firing again by chance (issue #5593):

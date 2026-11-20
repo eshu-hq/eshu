@@ -60,7 +60,7 @@ The production query and write shapes come from
 `go/internal/storage/postgres/facts_streaming.go`. The proof changes only the
 candidate index definitions between measurements. The exact read fixture,
 queries, and candidate DDL are in
-[`5275-documentation-query-plan-shim.sql`](5275-documentation-query-plan-shim.sql);
+`go/internal/query/testdata/5275-documentation-query-plan-shim.sql`;
 the returning-aware write probe is in
 `go/internal/storage/postgres/documentation_facts_write_index_live_test.go`.
 The verified SQL shim SHA-256 is
@@ -250,13 +250,13 @@ spans and `eshu_dp_postgres_query_duration_seconds`, with `db.operation` set to
 proof_db=eshu_5275_<run-id>
 createdb "$proof_db"
 psql -X -d "$proof_db" \
-  -f docs/internal/evidence/5275-documentation-query-plan-shim.sql
+  -f go/internal/query/testdata/5275-documentation-query-plan-shim.sql
 dropdb "$proof_db"
 
 guard_db=eshu_guard_5275_<run-id>
 createdb "$guard_db"
 ! psql -X -d "$guard_db" \
-  -f docs/internal/evidence/5275-documentation-query-plan-shim.sql
+  -f go/internal/query/testdata/5275-documentation-query-plan-shim.sql
 psql -X -d "$guard_db" \
   -c "SELECT to_regclass('public.fact_records') IS NULL"
 dropdb "$guard_db"

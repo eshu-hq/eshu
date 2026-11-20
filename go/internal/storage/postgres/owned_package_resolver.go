@@ -107,8 +107,7 @@ type OwnedPackageResolution struct {
 // [packageidentity.SwiftRepositoryKey] on both sides, and a bare feed name
 // matches the final path segment of that key and is reported in Partial. The
 // sbt "%%" read compares the binary artifact; a "%" row names its coordinate
-// through the by-name read. See docs/internal/evidence/9777-owned-package-name-resolver.md
-// for the cost of each.
+// through the by-name read (see #9777 for the cost of each).
 //
 // Caller contract: call once per pass with the whole hit list, never once per
 // name. The PyPI and swift reads walk their package manager's prefix whatever
