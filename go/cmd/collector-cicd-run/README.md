@@ -158,3 +158,6 @@ claim-plane claim fails closed. The startup log
 `collector.workflow_control_store.selected` and
 `eshu_dp_workflow_control_store_selections_total` show which store the pod
 selected.
+
+<!-- #10981 md-only trigger-table fixture: prose-only line proving a nested
+README change selects zero Go payload jobs. -->
