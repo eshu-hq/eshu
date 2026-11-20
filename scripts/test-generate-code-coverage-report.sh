@@ -373,6 +373,48 @@ require "workflow safe for forks" "permissions:" "${workflow}"
 require "ci gate registry entry" "id: code-coverage-report" "${registry}"
 require "ci gate registry workflow ref" "code-coverage-report.yml" "${registry}"
 
+# Coverage ratchet (#10983, part of #9315): per-package no-regression floors
+# on the PR path, a rising whole-module floor in the scheduled report, and a
+# published package ranking.
+floors_verifier="${repo_root}/scripts/verify-coverage-floors.sh"
+floors_selftest="${repo_root}/scripts/test-verify-coverage-floors.sh"
+floors_glue="${repo_root}/scripts/ci/check-changed-coverage-floors.sh"
+floors_glue_selftest="${repo_root}/scripts/ci/test-check-changed-coverage-floors.sh"
+floors_data="${repo_root}/specs/coverage-floors.v1.yaml"
+[[ -f "${floors_verifier}" && -x "${floors_verifier}" ]] && record_pass "floors verifier exists and is executable" || record_fail "floors verifier must exist and be executable"
+bash -n "${floors_verifier}" 2>/dev/null && record_pass "floors verifier has valid shell syntax" || record_fail "floors verifier shell syntax is invalid"
+[[ -f "${floors_glue}" && -x "${floors_glue}" ]] || record_fail "floors PR glue must exist and be executable"
+require "PR-path floors job" "package-floors" "${workflow}"
+require "PR-path floors job runs the changed-packages check" "scripts/ci/check-changed-coverage-floors.sh" "${workflow}"
+require "scheduled job checks the whole-module floor" "scripts/verify-coverage-floors.sh" "${workflow}"
+require "scheduled job publishes the package ranking" "coverage-ranking.tsv" "${workflow}"
+require "floors gate registry entry" "id: code-coverage-floors" "${registry}"
+floors_gate_block="$(awk '/- id: code-coverage-floors/{ on=1 } on { print } on && /ci_only_reason:/{ exit }' "${registry}")"
+if printf '%s\n' "${floors_gate_block}" | rg --fixed-strings --quiet -- "blocking: true"; then
+	record_pass "floors gate blocks"
+else
+	record_fail "floors gate must set blocking: true"
+fi
+if printf '%s\n' "${floors_gate_block}" | rg --fixed-strings --quiet -- 'job: "Package coverage floors"'; then
+	record_pass "floors gate owns the PR-path floors job"
+else
+	record_fail "floors gate must own the Package coverage floors job"
+fi
+require "floors data file" "whole_module_floor:" "${floors_data}"
+require "floors PR fragment job" "package-floors" "${repo_root}/specs/ci-pr-workflows.d/code-coverage-report.yml"
+# The new self-tests must stay green: they are the hermetic proof the floors
+# gate's local command runs.
+if bash "${floors_selftest}" >/dev/null 2>&1; then
+	record_pass "floors verifier self-test passes"
+else
+	record_fail "floors verifier self-test must pass"
+fi
+if bash "${floors_glue_selftest}" >/dev/null 2>&1; then
+	record_pass "floors PR glue self-test passes"
+else
+	record_fail "floors PR glue self-test must pass"
+fi
+
 if [[ "${FAIL}" -ne 0 ]]; then
 	printf 'generate-code-coverage-report tests FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
 	exit 1
