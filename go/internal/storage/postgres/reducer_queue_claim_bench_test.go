@@ -300,6 +300,17 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, database db.Executor
 		// applies the base table without this ALTER makes every Claim() fail
 		// with `column work.reopened_at does not exist`.
 		MigrationSQL("reducer_work_item_reopened_at"),
+		// post-#10876 (#11013): Ack() wakes producer-terminal waits, which
+		// reads reducer_waiting_items. A fixture without this table makes
+		// every Ack fail with `relation "reducer_waiting_items" does not
+		// exist` (SQLSTATE 42P01).
+		MigrationSQL("reducer_waiting_items"),
+		MigrationSQL("vulnerability_nvd_baseline_checkpoints"),
+		// post-#10972 (#11017): gate_waited_generations reads
+		// c.last_generation_id, added by migration 301. The 297 table
+		// alone makes every ClaimBatch fail with `column
+		// c.last_generation_id does not exist` (SQLSTATE 42703).
+		MigrationSQL("vulnerability_nvd_baseline_resume_position"),
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := database.ExecContext(ctx, stmt); err != nil {
