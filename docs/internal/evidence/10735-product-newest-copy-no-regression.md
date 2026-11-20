@@ -45,9 +45,11 @@ count the loader already bounds. No per-unit regression on either path.
 
 Observability Evidence: the per-pass dropped count rides the
 `Result.SubSignals` key `products_dropped_by_newest_copy` (0 when none, so a
-clean pass is visible), asserted by
+clean pass is visible; per pass, no CVE id, includes matches that would not
+have produced a finding), asserted by
 `TestProductPathReportsDroppedProducts` (drops, clean-pass zero, and both
-guards), and the vulnerability-index-build row of
+guards) plus `TestDerivedPassReportsNewestCopyDrops` (derived-pass drops reach
+the sub-signal and sum across targets, #11048), and the vulnerability-index-build row of
 `docs/public/observability/telemetry-coverage-reducer-domains.md` names it
 (net-zero rows; no new instrument or label).
 `scripts/verify-telemetry-coverage.sh` passes on the change.

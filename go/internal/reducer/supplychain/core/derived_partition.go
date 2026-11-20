@@ -61,7 +61,7 @@ func BuildAuthorizedScanImpactFindings(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
 ) ([]SupplyChainImpactFinding, error) {
-	findings, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets, nil, nil)
+	findings, _, _, err := buildAuthorizedScanImpactFindingsWithQuarantine(legacyFindings, targets, nil, nil)
 	return findings, err
 }
 
@@ -70,16 +70,18 @@ func BuildAuthorizedScanImpactFindings(
 // (#9848): the scanner worker's derived os_package rows exist only here, so
 // the pass signal would read "loaded, none joined" without them. When
 // representatives is non-nil it receives each target index's representative
-// outcomes the same way (#9990).
+// outcomes the same way (#9990). It also returns the summed per-target
+// newest-copy product drops (#10735, #11048): the caller merges that sum into
+// the fleet-wide build stats beside the joins and representative outcomes.
 func buildAuthorizedScanImpactFindingsWithQuarantine(
 	legacyFindings []SupplyChainImpactFinding,
 	targets []AuthorizedScanImpactEvidence,
 	joins map[osAdvisoryJoinKey]int,
 	representatives map[osRepresentativeOutcomeKey]int,
-) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
+) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, int, error) {
 	for _, finding := range legacyFindings {
 		if finding.ScanTargetID != "" || finding.ScanGenerationID != "" || len(finding.AuthorityDependencies) != 0 {
-			return nil, nil, fmt.Errorf("derived finding passed as classified legacy input")
+			return nil, nil, 0, fmt.Errorf("derived finding passed as classified legacy input")
 		}
 	}
 	seenTargets := make(map[string]struct{}, len(targets))
@@ -88,25 +90,25 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 	privateOwnerByScope := make(map[string]string)
 	for _, target := range targets {
 		if err := validateAuthorizedScanImpactEvidence(target); err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		if _, duplicate := seenTargets[target.ScanTargetID]; duplicate {
-			return nil, nil, fmt.Errorf("duplicate scan target %q", target.ScanTargetID)
+			return nil, nil, 0, fmt.Errorf("duplicate scan target %q", target.ScanTargetID)
 		}
 		seenTargets[target.ScanTargetID] = struct{}{}
 		for _, dependency := range target.AuthorityDependencies {
 			key := dependency.AdvisoryScopeID + "\x00" + dependency.AdvisoryGenerationID
 			if prior, exists := authorityWitnessByScope[key]; exists && prior != dependency {
-				return nil, nil, fmt.Errorf("advisory generation has conflicting authority revisions")
+				return nil, nil, 0, fmt.Errorf("advisory generation has conflicting authority revisions")
 			}
 			authorityWitnessByScope[key] = dependency
 			if prior := authorityClassByScope[key]; prior != "" && prior != dependency.Kind {
-				return nil, nil, fmt.Errorf("advisory generation has conflicting public and private authority")
+				return nil, nil, 0, fmt.Errorf("advisory generation has conflicting public and private authority")
 			}
 			authorityClassByScope[key] = dependency.Kind
 			if dependency.Kind == "private_binding" {
 				if prior := privateOwnerByScope[key]; prior != "" && prior != target.ScanTargetID {
-					return nil, nil, fmt.Errorf("private advisory generation shared across scan targets")
+					return nil, nil, 0, fmt.Errorf("private advisory generation shared across scan targets")
 				}
 				privateOwnerByScope[key] = target.ScanTargetID
 			}
@@ -114,14 +116,15 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 	}
 	findings := slices.Clone(legacyFindings)
 	var quarantined []factdecode.QuarantinedFact
+	var dropped int
 	if len(targets) == 0 {
-		return findings, quarantined, nil
+		return findings, quarantined, dropped, nil
 	}
 	advisoryIndexes := make(map[string]supplyChainImpactIndex, len(targets))
 	for _, target := range targets {
 		advisories, err := deduplicateScanImpactEnvelopes(target.Advisories)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		sort.Slice(advisories, func(i, j int) bool {
 			if advisories[i].ScopeID != advisories[j].ScopeID {
@@ -131,17 +134,17 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 		})
 		cacheKey, err := advisoryIndexKey(advisories)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		shared, exists := advisoryIndexes[cacheKey]
 		if !exists {
 			var advisoryQuarantined []factdecode.QuarantinedFact
 			shared, advisoryQuarantined, err = buildSupplyChainImpactIndexWithQuarantine(advisories)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, 0, err
 			}
 			if len(advisoryQuarantined) > 0 {
-				return nil, append(quarantined, advisoryQuarantined...), fmt.Errorf("authorized advisory %q has invalid %s", advisoryQuarantined[0].FactID, advisoryQuarantined[0].Field)
+				return nil, append(quarantined, advisoryQuarantined...), 0, fmt.Errorf("authorized advisory %q has invalid %s", advisoryQuarantined[0].FactID, advisoryQuarantined[0].Field)
 			}
 			advisoryIndexes[cacheKey] = shared
 		}
@@ -152,25 +155,27 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 		scanFacts := append(slices.Clone(target.OSPackages), target.Analyses...)
 		scanFacts, err = deduplicateScanImpactEnvelopes(scanFacts)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		for _, envelope := range scanFacts {
 			q, isQuarantine, fatal := addSupplyChainImpactIndexEntry(&index, envelope, nil)
 			if fatal != nil {
-				return nil, nil, fatal
+				return nil, nil, 0, fatal
 			}
 			if isQuarantine {
-				return nil, append(quarantined, q), fmt.Errorf("authorized scan fact %q has invalid %s", q.FactID, q.Field)
+				return nil, append(quarantined, q), 0, fmt.Errorf("authorized scan fact %q has invalid %s", q.FactID, q.Field)
 			}
 		}
 		if joins != nil {
 			addOSAdvisoryJoins(joins, countOSAdvisoryJoins(index))
 		}
 		index.osRepresentativeOutcomes = representatives
-		// The derived pass reads committed winners, so its load is complete and
-		// the newest-copy admission applies; its dropped count stays local to
-		// the fleet-wide build stats the caller returns.
-		targetClassified, _ := appendSupplyChainImpactIndexFindings(nil, index)
+		// The derived pass reads committed winners, so its load is complete
+		// and the newest-copy admission applies; its dropped count joins the
+		// summed per-target drops the caller merges into the fleet-wide
+		// build stats (#10735, #11048).
+		targetClassified, targetDropped := appendSupplyChainImpactIndexFindings(nil, index)
+		dropped += targetDropped
 		targetFindings := coalesceAndSortSupplyChainImpactFindings(targetClassified)
 		var targetOSRows []supplychainmodel.OSPackage
 		for _, rows := range index.osPackages {
@@ -185,12 +190,12 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 			finding.ScanGenerationID = target.ScanGenerationID
 			finding.AuthorityDependencies = findingAdvisoryDependencies(finding, advisories, target.AuthorityDependencies)
 			if len(finding.AuthorityDependencies) == 0 {
-				return nil, nil, fmt.Errorf("derived finding for %q has no authorized advisory dependency", target.ScanTargetID)
+				return nil, nil, 0, fmt.Errorf("derived finding for %q has no authorized advisory dependency", target.ScanTargetID)
 			}
 			findings = append(findings, finding)
 		}
 	}
-	return sortAuthorizedScanImpactFindings(findings), quarantined, nil
+	return sortAuthorizedScanImpactFindings(findings), quarantined, dropped, nil
 }
 
 func validateAuthorizedScanImpactEvidence(target AuthorizedScanImpactEvidence) error {
