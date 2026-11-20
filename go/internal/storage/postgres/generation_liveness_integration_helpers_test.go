@@ -481,13 +481,16 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 	// folds (without it every upsert fails with 42P01); 088, whose
 	// fact_work_items.reopened_at the projector re-drive upserts read (#9320);
 	// and 245, which adds shared_projection_intents.reopened_at so the
-	// hand-built intents table matches production (#9320).
+	// hand-built intents table matches production (#9320); and 316, whose
+	// reducer_waiting_items the projector Ack/Claim/Fail wake path reads in
+	// the Ack transaction (#10876 — without it every Ack fails with 42P01).
 	for _, name := range []string{
 		"activation_obligations",
 		"producer_activation_obligations",
 		"repository_retirements",
 		"reducer_work_item_reopened_at",
 		"shared_projection_intent_reopened_at",
+		"reducer_waiting_items",
 	} {
 		if _, err := db.ExecContext(ctx, MigrationSQL(name)); err != nil {
 			t.Fatalf("apply migration %s: %v", name, err)
