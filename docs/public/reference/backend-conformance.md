@@ -172,13 +172,14 @@ contract, finding table, and local replay commands are in the
 [Golden Corpus Gate](local-testing/golden-corpus-gate.md#differential-oracle-nornicdb-vs-neo4j).
 
 Every registry trigger of the differential job must also be in the
-`Golden Corpus Gate` workflow's `pull_request.paths` filter. The
-required-gates publisher selects the job as blocking for those paths; if the
-workflow does not start on such a PR the job stays `MISSING`, the publisher
-awaits until timeout, and `required-gates-complete` stays pending forever
-with no further run to flip it. An edit to a gate's own definition must run
-the gate, never deadlock it — the mirror test
-(`scripts/test-verify-golden-corpus-gate.sh`) pins both lists.
+`Golden Corpus Gate` workflow's `pull_request.paths` filter, so an edit to a
+gate's own definition always runs the gate. The mirror test
+(`scripts/test-verify-golden-corpus-gate.sh`) pins all three lists — the
+workflow paths filter and the registry triggers of the mirror, gate, and
+Neo4j gate rows. (The retired `required-gates-complete` fan-in publisher used
+to select this job as blocking; it was deleted in #10584, so there is no
+aggregate to wait on — enforcement is the `go-core-complete` and
+`go-race-complete` umbrellas.)
 
 ## Profile Matrix
 

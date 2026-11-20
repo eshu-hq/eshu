@@ -56,11 +56,12 @@ reviewed target and remove it afterward; deploying this hook activates nothing.
 
 The `go-core-complete` and `go-race-complete` jobs remain required. They reject
 a failed or malformed plan and verify the source/head binding before accepting
-a transferred verdict. `required-gates-complete` is still published by trusted
-default-branch policy and treats the planner check as blocking. A missing
+a transferred verdict. (The retired `required-gates-complete` fan-in publisher
+was deleted in #10584; there is no aggregate rollup.) A missing
 selected check is a failure, not a pass from an empty job list.
 
-Main pushes, scheduled runs, and merge-group events still run their existing
-independent paths. The callable workflows use the same event context as their
+Main pushes and scheduled runs still run their existing independent paths
+(`main` has no merge queue since 2026-10-16, so no `merge_group` event fires).
+The callable workflows use the same event context as their
 caller, so non-PR event guards continue to apply. See [Pre-PR execution
 ownership](pre-pr-execution.md) for the local proof layer.
