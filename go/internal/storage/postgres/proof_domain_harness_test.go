@@ -337,6 +337,35 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		scopeID, _ := args[0].(string)
 		generationID, _ := args[1].(string)
 		return newProofRows(proofFactRows(database.state.facts, scopeID, generationID)), nil
+	// #10879 phase 1: terminal statements report the main-table match
+	// count through QueryContext instead of ExecContext. They carry the
+	// same arg vectors as the Exec arms above, so they apply the same
+	// state transitions and report matched=1. These arms precede the
+	// claim arm: terminal statements also name the reducer stage.
+	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'succeeded'") && strings.Contains(query, "AS matched"):
+		if len(args) != 4 {
+			return nil, fmt.Errorf("reducer ack args = %d, want 4", len(args))
+		}
+		if _, err := database.updateWorkItemStatusByID(args[1].(string), args[2].(string), "succeeded"); err != nil {
+			return nil, err
+		}
+		return newProofRows([][]any{{int64(1)}}), nil
+	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'retrying'") && strings.Contains(query, "AS matched"):
+		if len(args) != 8 {
+			return nil, fmt.Errorf("reducer retry args = %d, want 8", len(args))
+		}
+		if _, err := database.retryReducerWork(args[5].(string), args[6].(string), args[4].(time.Time)); err != nil {
+			return nil, err
+		}
+		return newProofRows([][]any{{int64(1)}}), nil
+	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'dead_letter'") && strings.Contains(query, "AS matched"):
+		if len(args) != 7 {
+			return nil, fmt.Errorf("reducer fail args = %d, want 7", len(args))
+		}
+		if _, err := database.updateWorkItemStatusByID(args[4].(string), args[5].(string), "dead_letter"); err != nil {
+			return nil, err
+		}
+		return newProofRows([][]any{{int64(1)}}), nil
 	case strings.Contains(query, "stage = 'reducer'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("reducer claim args = %d, want 7", len(args))

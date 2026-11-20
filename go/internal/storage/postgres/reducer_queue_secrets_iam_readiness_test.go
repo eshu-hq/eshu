@@ -38,11 +38,21 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 2; got != want {
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries while the
+	// wait-row park stays an exec. The park then re-checks satisfaction,
+	// so the Fail issues two queries and one exec in total.
+	if got, want := len(db.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if got := db.queries[1].query; got != waitingSatisfiedQuery {
+		t.Fatalf("second query is not the park satisfaction re-check:\n%s", got)
+	}
+	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -54,19 +64,19 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], secretsiam.SecretsIAMEndpointNotReadyFailureClass; got != want {
+	if got, want := db.queries[0].args[1], secretsiam.SecretsIAMEndpointNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// #10876: a parked readiness wait returns on the 10-minute backstop, not
 	// on the exponential backoff: the wait row carries the waits-for and the
 	// provider wake (or the audit) reopens it, so the backoff only bounds a
 	// wait the map does not park.
-	if got, want := db.execs[0].args[4], now.Add(WaitingBackstopDelay); got != want {
+	if got, want := db.queries[0].args[4], now.Add(WaitingBackstopDelay); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 	// The park writes exactly one wait row for the deferred intent.
-	if got := db.execs[1].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
-		t.Fatalf("second exec is not the wait-row park: %s", got)
+	if got := db.execs[0].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
+		t.Fatalf("exec is not the wait-row park: %s", got)
 	}
 }
 

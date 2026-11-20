@@ -250,19 +250,13 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducercontract.In
 
 		query := ackReducerWorkBatchQuery()
 
-		result, err := q.database.ExecContext(ctx, query, now, q.LeaseOwner, ids, claimedAt)
+		matched, err := queryTerminalMatchCount(ctx, q.database,
+			fmt.Sprintf("batch ack reducer work (%d unrelated items)", len(unrelatedIntents)),
+			query, now, q.LeaseOwner, ids, claimedAt)
 		if err != nil {
-			return fmt.Errorf(
-				"batch ack reducer work (%d unrelated items): %w",
-				len(unrelatedIntents),
-				err,
-			)
+			return err
 		}
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
-		}
-		if rowsAffected != int64(len(unrelatedIntents)) {
+		if matched != int64(len(unrelatedIntents)) {
 			claimRejected = true
 			keptCommitted = false
 		}
@@ -364,7 +358,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     END,
     updated_at = EXCLUDED.updated_at
 RETURNING 1
-)
+)` + ",\n" + reducerQueueLeaseClearCTE + `
 SELECT 1 FROM acknowledged
 `, []any{now, leaseOwner, ids, claimedAt}
 }
@@ -387,7 +381,10 @@ locked_work AS MATERIALIZED (
 	  AND claim_until > clock_timestamp()
     ORDER BY work_item_id COLLATE "C"
     FOR NO KEY UPDATE
-)
+),
+-- #10879 phase 1: the main update is fenced in done so the lease mirror is
+-- cleared in the same statement (main row first, then the lease row).
+done AS (
 UPDATE fact_work_items
 SET status = 'succeeded',
     provenance_edge_identity_upgrade_required = FALSE,
@@ -400,6 +397,14 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 }
 

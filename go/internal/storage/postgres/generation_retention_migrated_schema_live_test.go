@@ -178,6 +178,10 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		// this fixture writes none either.
 		"workload_materialization_reopen_fingerprints":    0,
 		"service_catalog_correlation_reopen_fingerprints": 0,
+		// #10879 phase 1: the lease sidecar on fact_work_items; this
+		// fixture plants no live leases, and prune-time lease rows
+		// cascade with their queue row, never counted separately.
+		"fact_work_item_leases": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,

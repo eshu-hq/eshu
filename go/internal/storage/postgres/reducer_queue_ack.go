@@ -17,18 +17,33 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
+// ackReducerWorkQuery marks one claimed reducer work item as succeeded.
+// Phase 1 of #10879 clears the lease mirror in the same statement (main row
+// first, then the lease row) and reports the main-table match count, so
+// success depends only on the fence matching: hand-inserted live rows and
+// version-skewed writers ACK exactly like claimed ones, and a missing
+// mirror row can never turn a matched ACK into a false rejection.
 const ackReducerWorkQuery = `
-UPDATE fact_work_items
-SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
-    provenance_edge_identity_upgrade_required = FALSE,
-    visible_at = NULL, updated_at = $1,
-    failure_class = NULL, failure_message = NULL, failure_details = NULL
-WHERE work_item_id = $2
-  AND stage = 'reducer'
-  AND lease_owner = $3
-  AND status IN ('claimed', 'running')
-  AND claim_until > clock_timestamp()
-  AND last_attempt_at = $4
+WITH done AS (
+    UPDATE fact_work_items
+    SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
+        provenance_edge_identity_upgrade_required = FALSE,
+        visible_at = NULL, updated_at = $1,
+        failure_class = NULL, failure_message = NULL, failure_details = NULL
+    WHERE work_item_id = $2
+      AND stage = 'reducer'
+      AND lease_owner = $3
+      AND status IN ('claimed', 'running')
+      AND claim_until > clock_timestamp()
+      AND last_attempt_at = $4
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 
 const ackContainerImageIdentityReducerWorkQuery = `
@@ -78,7 +93,7 @@ WITH acknowledged AS MATERIALIZED (
         END,
         updated_at = EXCLUDED.updated_at
     RETURNING 1
-)
+)` + ",\n" + reducerQueueLeaseClearCTE + `
 SELECT 1 FROM acknowledged
 `
 
@@ -197,7 +212,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     END,
     updated_at = EXCLUDED.updated_at
 RETURNING 1
-)
+)`+",\n"+reducerQueueLeaseClearCTE+`
 SELECT 1 FROM acknowledged
 `, emitPlaceholder), args
 }
@@ -261,7 +276,7 @@ WITH acknowledged AS MATERIALIZED (
         END,
         updated_at = EXCLUDED.updated_at
     RETURNING 1
-)
+)` + ",\n" + reducerQueueLeaseClearCTE + `
 SELECT 1 FROM acknowledged
 `
 

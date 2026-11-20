@@ -28,6 +28,15 @@ import (
 // that allows at most one live reducer lease per (conflict_domain, conflict_key).
 const reducerLiveLeaseUniqueConstraint = "fact_work_items_reducer_live_lease_uniq"
 
+// reducerLeaseMirrorUniqueConstraint is the phase-1 mirror of the live-lease
+// fence on fact_work_item_leases (migration 322, #10879): at most one live
+// mirror lease per (stage, conflict_domain, conflict key). The claim's mirror
+// insert runs after the main update in the same statement, so the main index
+// fires first on a genuine race; this name is matched so a mirror-only
+// violation (version-skewed writers, backfilled duplicates) still defers
+// instead of surfacing a raw unique violation.
+const reducerLeaseMirrorUniqueConstraint = "fact_work_item_leases_live_lease_uniq"
+
 // isReducerLiveLeaseConflict reports whether err is the unique-index violation
 // that fences a second concurrent live lease on a conflict key (#4137,
 // completing #3558). Under READ COMMITTED two genuinely simultaneous claimers
@@ -40,7 +49,8 @@ func isReducerLiveLeaseConflict(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) &&
 		pgErr.Code == "23505" &&
-		pgErr.ConstraintName == reducerLiveLeaseUniqueConstraint
+		(pgErr.ConstraintName == reducerLiveLeaseUniqueConstraint ||
+			pgErr.ConstraintName == reducerLeaseMirrorUniqueConstraint)
 }
 
 func (q ReducerQueue) claimDomainFilters() []string {
@@ -283,15 +293,11 @@ func (q ReducerQueue) failIntent(
 			args = append(args, intent.ClaimEpoch)
 		}
 		args = append(args, claimedAtValue(intent))
-		result, err := q.database.ExecContext(ctx, query, args...)
+		matched, err := queryTerminalMatchCount(ctx, q.database, "fail reducer work", query, args...)
 		if err != nil {
-			return fmt.Errorf("fail reducer work: %w", err)
+			return err
 		}
-		rowsAffected, rowsErr := result.RowsAffected()
-		if rowsErr != nil {
-			return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
-		}
-		if rowsAffected != 1 {
+		if matched != 1 {
 			return ErrReducerClaimRejected
 		}
 		if q.Instruments != nil && q.Instruments.ReducerRetrySurge != nil {
@@ -329,15 +335,11 @@ func (q ReducerQueue) failIntent(
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
-	result, err := q.database.ExecContext(ctx, query, args...)
+	matched, err := queryTerminalMatchCount(ctx, q.database, "fail reducer work", query, args...)
 	if err != nil {
-		return fmt.Errorf("fail reducer work: %w", err)
+		return err
 	}
-	rowsAffected, rowsErr := result.RowsAffected()
-	if rowsErr != nil {
-		return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
-	}
-	if rowsAffected != 1 {
+	if matched != 1 {
 		return ErrReducerClaimRejected
 	}
 	if q.Instruments != nil && q.Instruments.QueueDeadLetters != nil {

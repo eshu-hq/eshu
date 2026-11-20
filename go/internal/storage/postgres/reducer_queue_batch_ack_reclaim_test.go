@@ -128,7 +128,9 @@ func TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected(t *testing.T)
 	staleClaim := time.Date(2026, time.September, 21, 15, 11, 48, 0, time.UTC)
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
 
-	database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}}}
+	// #10879 phase 1 reports the unrelated-block match count through
+	// QueryContext; the shared fake answers matched=1 by default.
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
 		database:      database,
 		LeaseOwner:    "reducer-6162",
@@ -156,19 +158,19 @@ func TestReducerQueueAckBatchReportsSupersededClaimAsClaimRejected(t *testing.T)
 	if !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 		t.Fatalf("AckBatch() error = %v, want an error wrapping reducer.ErrExecutionClaimRejected", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("AckBatch() exec count = %d, want %d: the surviving claim must still be acked", got, want)
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("AckBatch() query count = %d, want %d: the surviving claim must still be acked", got, want)
 	}
-	ids, ok := database.execs[0].args[2].([]string)
+	ids, ok := database.queries[0].args[2].([]string)
 	if !ok {
-		t.Fatalf("AckBatch() id argument type = %T, want []string", database.execs[0].args[2])
+		t.Fatalf("AckBatch() id argument type = %T, want []string", database.queries[0].args[2])
 	}
 	if got, want := len(ids), 1; got != want {
 		t.Fatalf("AckBatch() acked id count = %d, want %d", got, want)
 	}
-	claimedAts, ok := database.execs[0].args[3].([]time.Time)
+	claimedAts, ok := database.queries[0].args[3].([]time.Time)
 	if !ok {
-		t.Fatalf("AckBatch() claimed_at argument type = %T, want []time.Time", database.execs[0].args[3])
+		t.Fatalf("AckBatch() claimed_at argument type = %T, want []time.Time", database.queries[0].args[3])
 	}
 	if got, want := len(claimedAts), 1; got != want {
 		t.Fatalf("AckBatch() acked claim count = %d, want %d", got, want)
@@ -267,9 +269,11 @@ func TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck(t *testin
 	freshClaim := staleClaim.Add(900 * time.Millisecond)
 
 	// Both sub-batches ack every row they are given, so nothing but the
-	// supersession can set claimRejected.
+	// supersession can set claimRejected. The container-image target
+	// block still reports through ExecContext; the unrelated GCP block
+	// reports its match count through QueryContext (#10879 phase 1),
+	// answered matched=1 by the shared fake default.
 	database := &fakeExecQueryer{execResults: []sql.Result{
-		rowsAffectedResult{rowsAffected: 1},
 		rowsAffectedResult{rowsAffected: 1},
 	}}
 	queue := ReducerQueue{
@@ -309,8 +313,11 @@ func TestReducerQueueAckBatchKeepsSupersededSignalBesideCleanTargetAck(t *testin
 			err,
 		)
 	}
-	if got, want := len(database.execs), 2; got != want {
-		t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+	if got, want := len(database.execs), 1; got != want {
+		t.Fatalf("AckBatch() exec count = %d, want %d (the container-image target block)", got, want)
+	}
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("AckBatch() query count = %d, want %d (the unrelated GCP block)", got, want)
 	}
 }
 
@@ -352,7 +359,10 @@ func TestReducerQueueAckBatchNamesSupersededClaims(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: tc.rowsAffected}}}
+			// #10879 phase 1: the unrelated block reports its match count
+			// through QueryContext, so each case stages its matched count
+			// instead of a RowsAffected exec result.
+			database := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{tc.rowsAffected}}}}}
 			queue := ReducerQueue{
 				database:      database,
 				LeaseOwner:    "reducer-8007",

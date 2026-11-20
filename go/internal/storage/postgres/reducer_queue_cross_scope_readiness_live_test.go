@@ -407,6 +407,9 @@ func openCrossScopeReadinessProofDB(t *testing.T, ctx context.Context, dsn strin
 	for _, migration := range []string{
 		"cross_scope_completion_queue",
 		"provenance_edge_identity_upgrade_seed",
+		// #10879 phase 1: the claim/heartbeat/ack statements maintain the
+		// lease mirror, so every fixture that runs queue writes applies it.
+		"fact_work_item_leases",
 	} {
 		if _, err := db.ExecContext(ctx, MigrationSQL(migration)); err != nil {
 			t.Fatalf("apply migration %s: %v", migration, err)

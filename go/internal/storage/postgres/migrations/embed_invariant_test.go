@@ -309,13 +309,19 @@ import (
 // the ARN snapshot and fingerprint, mirroring #8283's 193) and
 // 318_container_identity_reopen_epochs.sql (the same gate for
 // container_image_identity: one row per succeeded work item carrying the
-// fleet identity epoch). #11021 adds
-// indexes, no queue-table change). #11021 adds
-// 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
-// sweep needs for parked waits of retired scopes).
+// fleet identity epoch).
+// #11021 adds 319_reducer_waiting_items_scope_idx.sql (the scope probe
+// the 2e purge sweep needs for parked waits of retired scopes).
+// #10879 phase 1 adds 322_fact_work_item_leases.sql (the lease sidecar:
+// fencing-triple mirror with fillfactor 70 and the per-stage conflict
+// unique; main columns stay authoritative) and
+// 323_fact_work_item_leases_backfill.sql (the idempotent live-lease
+// backfill, split per #7961; renumbered 317/318 to 322/323: #11018
+// owns 317/318, #11021 owns 319, the #10878 follow-up owns 320,
+// #10877 owns 321).
 const (
-	goldenBootstrapDefinitionsDigest = "aa406f04c47579003f677564ba4fb0ab0fc45ed83d5fbf998f50a424f8edb2ad"
-	goldenBootstrapDefinitionsCount  = 347
+	goldenBootstrapDefinitionsDigest = "43814886f1fd287db6291acffb50188832b34257f4265487eaad3cd87baa3f92"
+	goldenBootstrapDefinitionsCount  = 349
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

@@ -150,6 +150,9 @@ func openUnpublishedCICDRunPredecessorSchema(
 		MigrationSQL("scope_generations"),
 		MigrationSQL("fact_records"),
 		MigrationSQL("fact_work_items"),
+		// #10879 phase 1: the claim this proof runs maintains the lease
+		// mirror, so the fixture applies its table.
+		MigrationSQL("fact_work_item_leases"),
 		reducerClaimCapabilityColumnsSchemaSQL,
 		MigrationSQL("reducer_work_item_reopened_at"),
 		graphProjectionPhaseStateSchemaSQL,

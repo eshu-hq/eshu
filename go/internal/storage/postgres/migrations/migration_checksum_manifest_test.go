@@ -454,6 +454,13 @@ var migrationShippedChecksums = map[string]string{
 	// to 317 onto the #10876 base, then 317 to 319 onto the base
 	// carrying #10878's 317/318).
 	"321_corpus_narrow_fingerprints.sql": "503be2664ff2a0daf8f68c2f837c8fdedf18a581d33b5fb85d2fee9b8dc288b0",
+	// #10879 phase 1: the reducer lease sidecar (fencing triple mirror with
+	// fillfactor 70 and the conflict unique; backfill split into 323 per
+	// #7961 -- table-locking DDL and bulk DML must not share a file;
+	// renumbered 317/318 to 322/323: #11018 owns 317/318, #11021 owns
+	// 319, the #10878 follow-up owns 320, #10877 owns 321).
+	"322_fact_work_item_leases.sql":          "541cc6ff710aa9f7cdf694d0cf3036ee78f0d88f48e70179db4313eef349b99f",
+	"323_fact_work_item_leases_backfill.sql": "10f360f9d4c8af993a9d0472bafdea20ff0826bc006367648fb0cb0f35200709",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -45,6 +45,11 @@ func (d *wakeScriptDB) QueryContext(_ context.Context, query string, _ ...any) (
 		// #10876: the activation wake finds no parked waits in these scripts.
 		return &waitingWakeCountRows{}, nil
 	}
+	if strings.Contains(query, "SELECT (SELECT count(*) FROM done) AS matched") {
+		// #10879 phase 1: Fail's terminal statement reports its match
+		// count through QueryContext; these scripts always match.
+		return &queueFakeRows{rows: [][]any{{int64(1)}}}, nil
+	}
 	return newRelationshipRows(nil), nil
 }
 

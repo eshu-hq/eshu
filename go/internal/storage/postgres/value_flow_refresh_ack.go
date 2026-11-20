@@ -95,7 +95,7 @@ WITH acknowledged AS MATERIALIZED (
         END,
         updated_at = EXCLUDED.updated_at
     RETURNING 1
-)`
+)` + ",\n" + reducerQueueLeaseClearCTE
 
 // ackValueFlowRefreshProducerReducerWorkBatchQuery ACKs one domain's
 // refresh-producer batch and emits a completion event covering only the
@@ -178,7 +178,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     END,
     updated_at = EXCLUDED.updated_at
 RETURNING 1
-)`
+)` + ",\n" + reducerQueueLeaseClearCTE
 
 // valueFlowRefreshAckGroup is one domain's batch slice: every id is ACKed,
 // only emitIDs contribute to the completion event.

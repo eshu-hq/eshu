@@ -369,7 +369,7 @@ claimed AS (
         COALESCE(work.reopened_at, work.created_at) AS cycle_started_at,
         work.last_attempt_at AS claimed_at,
         work.payload
-)
+)` + ",\n" + reducerQueueLeaseMirrorCTE + `
 SELECT
     work_item_id,
     scope_id,

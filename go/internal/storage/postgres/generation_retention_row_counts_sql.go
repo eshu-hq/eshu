@@ -13,8 +13,8 @@ package postgres
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The seventeen cascade-child arms (sixteen from #7396 plus #7751, and the
-// #9376 fence arm below) count the cascade children of scope_generations
+// The eighteen cascade-child arms (sixteen from #7396 plus #7751, the
+// #9376 fence arm, and the #10879 lease arm below) count the cascade children of scope_generations
 // the final DELETE removes implicitly: without them BatchRowLimit and the
 // retention events under-count the prune. Each #7396 and #7751 arm joins its table through scope_generations on both
 // (scope_id, generation_id), the fact_records shape: a generation-only
@@ -90,6 +90,10 @@ package postgres
 // aws_drift_reopen_fingerprints (#10878, migration 317) and
 // container_identity_reopen_epochs (#10878, migration 318) arms repeat the
 // shape verbatim: same cascade through fact_work_items by work_item_id.
+//
+// The #10879 arm counts fact_work_item_leases; it lives in
+// generation_retention_row_counts_10879.go (file cap) and is composed
+// into the query below.
 //
 // The #8943 arms count the security-alert read state (security_alert_target_read_states)
 // and its unread-repository children, both cascade children of scope_generations
@@ -486,4 +490,4 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN security_alert_unread_repositories AS unread
   ON unread.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
-`
+` + generationRetentionRowCountsLeaseArm

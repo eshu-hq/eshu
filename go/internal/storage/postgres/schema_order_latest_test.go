@@ -103,10 +103,19 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// reopen fingerprints: last_audit_at per succeeded work item, NULL
 	// meaning never audited and therefore due.
 	"aws_drift_reopen_fingerprints_audit_clock",
-	// Migration 317 (#10877) adds the workload and service-catalog reopen
 	// Migration 321 (#10877) adds the workload and service-catalog reopen
 	// fingerprint tables for the per-item read-set waits with late-arrival
 	// restart. Renumbered 314→317→319→320 across base moves, then 320 to
 	// 321 onto the base carrying 320_aws_drift_audit_clock.
 	"corpus_narrow_fingerprints",
+	// Migration 322 (#10879 phase 1) adds the reducer lease sidecar:
+	// the fencing-triple mirror with fillfactor 70 and the per-stage
+	// conflict unique. Main columns stay authoritative; no read switch.
+	// 317/318 are taken by #11018, 319 by #11021, 320 by the #10878
+	// audit-clock follow-up, 321 by #10877 (all merged), so this lane
+	// takes 322/323.
+	"fact_work_item_leases",
+	// Migration 323 (#10879 phase 1) is the idempotent live-lease
+	// backfill, split from 322 per #7961.
+	"fact_work_item_leases_backfill",
 }

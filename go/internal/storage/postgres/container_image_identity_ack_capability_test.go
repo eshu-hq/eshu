@@ -195,10 +195,12 @@ func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T
 		); err != nil {
 			t.Fatalf("Ack(domain=%q) error = %v", domain, err)
 		}
-		if got, want := len(db.execs), 1; got != want {
-			t.Fatalf("Ack(domain=%q) exec count = %d, want %d", domain, got, want)
+		// #10879 phase 1 reports the terminal match count through
+		// QueryContext, so the base ack lands in queries.
+		if got, want := len(db.queries), 1; got != want {
+			t.Fatalf("Ack(domain=%q) query count = %d, want %d", domain, got, want)
 		}
-		assertContainerImageIdentityLegacyAckQuery(t, db.execs[0].query)
+		assertContainerImageIdentityLegacyAckQuery(t, db.queries[0].query)
 	}
 }
 
@@ -281,12 +283,21 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 				t.Fatalf("split intents: %v", splitErr)
 			}
 			var results []sql.Result
-			for _, count := range []int{len(target), len(cicd), len(unrelated)} {
+			for _, count := range []int{len(target), len(cicd)} {
 				if count > 0 {
 					results = append(results, rowsAffectedResult{rowsAffected: int64(count)})
 				}
 			}
-			db := &fakeExecQueryer{execResults: results}
+			// #10879 phase 1: the unrelated block reports its match count
+			// through QueryContext, so it consumes a staged matched count
+			// instead of an exec result. The shared fake default (matched=1)
+			// would short the multi-intent unrelated batches, so every
+			// non-empty unrelated block stages its exact count.
+			var queryResponses []queueFakeRows
+			if len(unrelated) > 0 {
+				queryResponses = append(queryResponses, queueFakeRows{rows: [][]any{{int64(len(unrelated))}}})
+			}
+			db := &fakeExecQueryer{execResults: results, queryResponses: queryResponses}
 			queue := ReducerQueue{
 				database:      db,
 				LeaseOwner:    "reducer-5854",
@@ -295,12 +306,39 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 			if err := queue.AckBatch(context.Background(), test.intents, nil); err != nil {
 				t.Fatalf("AckBatch() error = %v", err)
 			}
-			wantExecs := 1
-			if test.wantMixed {
-				wantExecs = 2
+			wantExecs := 0
+			if len(target)+len(cicd) > 0 {
+				wantExecs = 1
 			}
-			if got, want := len(db.execs), wantExecs; got != want {
-				t.Fatalf("AckBatch() exec count = %d, want %d", got, want)
+			if got := len(db.execs); got != wantExecs {
+				t.Fatalf("AckBatch() exec count = %d, want %d", got, wantExecs)
+			}
+			// The unrelated block reports its match count through a
+			// QueryContext terminal ("AS matched"). Other QueryContext
+			// calls (e.g. the post-batch producer wake) are incidental
+			// reads this contract does not pin, so find the terminal by
+			// shape instead of counting every query.
+			matchedIdx := -1
+			for i := range db.queries {
+				if strings.Contains(db.queries[i].query, "AS matched") {
+					if matchedIdx >= 0 {
+						t.Fatalf("AckBatch() issued two match-count terminals: %q and %q",
+							db.queries[matchedIdx].query, db.queries[i].query)
+					}
+					matchedIdx = i
+				}
+			}
+			if len(unrelated) == 0 && matchedIdx >= 0 {
+				t.Fatalf("AckBatch() issued an unexpected match-count terminal: %q", db.queries[matchedIdx].query)
+			}
+			matchedQuery := ""
+			matchedArgs := []any(nil)
+			if len(unrelated) > 0 {
+				if matchedIdx < 0 {
+					t.Fatal("AckBatch() issued no match-count terminal for the unrelated block")
+				}
+				matchedQuery = db.queries[matchedIdx].query
+				matchedArgs = db.queries[matchedIdx].args
 			}
 			if test.wantCapable {
 				assertContainerImageIdentityAttemptBoundAckQuery(t, db.execs[0].query)
@@ -363,20 +401,20 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 					}
 				}
 				if test.wantMixed {
-					assertContainerImageIdentityLegacyAckQuery(t, db.execs[1].query)
-					ids, ok := db.execs[1].args[2].([]string)
+					assertContainerImageIdentityLegacyAckQuery(t, matchedQuery)
+					ids, ok := matchedArgs[2].([]string)
 					if !ok || len(ids) != 1 || ids[0] != "intent-5854-batch-mixed-unrelated" {
-						got := db.execs[1].args[2]
+						got := matchedArgs[2]
 						t.Fatalf("mixed unrelated ACK ids = %#v, want one expected id", got)
 					}
 				}
 				return
 			}
-			assertContainerImageIdentityLegacyAckQuery(t, db.execs[0].query)
-			if !strings.Contains(db.execs[0].query, "unnest($3::text[], $4::timestamptz[])") {
+			assertContainerImageIdentityLegacyAckQuery(t, matchedQuery)
+			if !strings.Contains(matchedQuery, "unnest($3::text[], $4::timestamptz[])") {
 				t.Fatalf(
 					"generic batch ACK no longer binds exact claim pairs:\n%s",
-					db.execs[0].query,
+					matchedQuery,
 				)
 			}
 		})
