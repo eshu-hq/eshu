@@ -22,3 +22,10 @@ services:
   collector-security-alerts-preflight:
     entrypoint: ["/bin/sh", "-c", "exit 0"]
     command: []
+
+  # The fragment's worker defines its own environment without the fact and
+  # content store DSNs the extension host requires at startup. Wire the
+  # same Postgres DSN the runtime anchor uses for every other collector.
+  collector-go-reachability:
+    environment:
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
