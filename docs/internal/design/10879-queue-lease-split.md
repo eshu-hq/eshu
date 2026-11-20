@@ -92,7 +92,10 @@ only grows the heap. Fillfactor 70 belongs to the lease table only.
   and every reader is stage-aware.
 - Phase 2 (follow-up lane): switch reducer-row lease reads to the mirror
   (claim query tallies/filters/lock rechecks, terminal fences, generation
-  liveness, freshness reproject, reopen fingerprint, fanout fence reads),
+  liveness, freshness reproject, reopen fingerprint, fanout fence reads,
+  refinalize live-lease fence: `retireResolutionGenerationsTemplate` in
+  `go/internal/storage/postgres/rebuild/reset/reset.go`, which fences
+  retirement on `w.stage='reducer'` with live `status`/`claim_until`),
   narrow heartbeat to a lease-only UPDATE, then drop the main-table lease
   columns and the main-table live-lease unique. Each step needs an exactness
   diff (candidate EXCEPT 0/0) and the <10% claim-latency gate below.
