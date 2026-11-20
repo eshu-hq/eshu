@@ -217,8 +217,8 @@ SELECT EXISTS (
 )
 `
 
-// waitingSatisfied, quoteSQLStrings, and querySingleRow live in
-// reducer_waiting_narrow.go with the narrowed corpus branches.
+// waitingSatisfied and querySingleRow live in reducer_waiting_narrow.go
+// with the narrowed corpus branches.
 
 // waitingWakeReopenSetClause is the SET list of the #10876 waiting wake. It
 // deliberately differs from activationWakeSetClause in one load-bearing way:

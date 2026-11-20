@@ -5,12 +5,15 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // Narrowed waiting key unit proofs (#10877): the verdict-time sets render
@@ -144,4 +147,133 @@ func TestSetAsideWaitingForCauseNeverParksCountingClasses(t *testing.T) {
 			}
 		}
 	}
+}
+
+// captureWaitingQueryDB is a hermetic db.ExecQueryer: it records the query
+// and bind args of the single-row read and answers a canned verdict.
+type captureWaitingQueryDB struct {
+	query string
+	args  []any
+	value bool
+}
+
+func (f *captureWaitingQueryDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	f.query = query
+	f.args = args
+	return &singleBoolWaitingRows{value: f.value}, nil
+}
+
+func (f *captureWaitingQueryDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, nil
+}
+
+// singleBoolWaitingRows answers one boolean column, then ends.
+type singleBoolWaitingRows struct {
+	value bool
+	done  bool
+}
+
+func (r *singleBoolWaitingRows) Next() bool {
+	if r.done {
+		return false
+	}
+	r.done = true
+	return true
+}
+
+func (r *singleBoolWaitingRows) Scan(dest ...any) error {
+	got, ok := dest[0].(*bool)
+	if !ok {
+		return fmt.Errorf("singleBoolWaitingRows.Scan: dest %T, want *bool", dest[0])
+	}
+	*got = r.value
+	return nil
+}
+
+func (r *singleBoolWaitingRows) Err() error { return nil }
+
+func (r *singleBoolWaitingRows) Close() error { return nil }
+
+// boundTextSet extracts one bind arg as a text set and proves it carries the
+// exact elements: the arg must be array.StringArray, and its driver literal
+// must scan back to the identical set.
+func boundTextSet(t *testing.T, args []any, index int, want []string) {
+	t.Helper()
+	if index >= len(args) {
+		t.Fatalf("bind args have length %d, want an arg at index %d", len(args), index)
+	}
+	got, ok := args[index].(array.StringArray)
+	if !ok {
+		t.Fatalf("bind arg %d has type %T, want array.StringArray (hand-built text literal)", index, args[index])
+	}
+	if len(got) != len(want) {
+		t.Fatalf("bind arg %d carries %v, want %v", index, []string(got), want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("bind arg %d carries %v, want %v", index, []string(got), want)
+		}
+	}
+	literal, err := got.Value()
+	if err != nil {
+		t.Fatalf("array.StringArray.Value(): %v", err)
+	}
+	var roundTrip array.StringArray
+	if err := roundTrip.Scan(literal); err != nil {
+		t.Fatalf("array.StringArray.Scan(%v): %v", literal, err)
+	}
+	if len(roundTrip) != len(want) {
+		t.Fatalf("bind arg %d round-trips to %v, want %v", index, []string(roundTrip), want)
+	}
+	for i := range want {
+		if roundTrip[i] != want[i] {
+			t.Fatalf("bind arg %d round-trips to %v, want %v", index, []string(roundTrip), want)
+		}
+	}
+}
+
+// TestWaitingSatisfiedBindsTextSetsAsArrays pins the #10877 follow-up P2:
+// the narrowed ($3) and coarse ($6, $9) satisfaction predicates must bind
+// their text[] sets with the driver's array type, not a hand-concatenated
+// literal. The old quoteSQLStrings escaped only double quotes, so a scope id
+// carrying a backslash parsed to a different value in the shared wait/audit
+// predicate (a missed wake bounded by the audit and the backstop, or a
+// spurious wake costing one re-deferral).
+func TestWaitingSatisfiedBindsTextSetsAsArrays(t *testing.T) {
+	t.Parallel()
+	odd := []string{`scope\back`, `scope"quote`}
+	now := time.Now().UTC()
+
+	t.Run("narrowed blocking set", func(t *testing.T) {
+		t.Parallel()
+		fake := &captureWaitingQueryDB{}
+		if _, err := waitingSatisfied(context.Background(), fake,
+			WaitingKindRelationshipGenerationActive,
+			"scope-w", "gen-w", "", "", "waiter-1", nil, odd, now); err != nil {
+			t.Fatalf("waitingSatisfied(): %v", err)
+		}
+		boundTextSet(t, fake.args, 2, odd)
+	})
+
+	t.Run("fence domains", func(t *testing.T) {
+		t.Parallel()
+		fake := &captureWaitingQueryDB{}
+		if _, err := waitingSatisfied(context.Background(), fake,
+			WaitingKindFenceClear,
+			"scope-w", "gen-w", "", "", "waiter-1", odd, nil, now); err != nil {
+			t.Fatalf("waitingSatisfied(): %v", err)
+		}
+		boundTextSet(t, fake.args, 5, odd)
+	})
+
+	t.Run("producer collector kinds", func(t *testing.T) {
+		t.Parallel()
+		fake := &captureWaitingQueryDB{}
+		if _, err := waitingSatisfied(context.Background(), fake,
+			WaitingKindProducerTerminal,
+			"", "", string(reducercontract.DomainCICDRunCorrelation), "", "waiter-1", nil, nil, now); err != nil {
+			t.Fatalf("waitingSatisfied(): %v", err)
+		}
+		boundTextSet(t, fake.args, 8, []string{"ci_cd_run"})
+	})
 }

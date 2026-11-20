@@ -164,3 +164,37 @@ Observability Evidence (rebase union): the union adds no metric, span, log,
 or status signal — the lane's new gauges (`eshu_dp_corpus_fence_*`) stay
 documented in the `telemetry-coverage-reducer-core.md` per-item row, which
 this rebase carries unchanged.
+
+## Follow-up: driver array binding for the wait satisfaction text sets
+
+Owner-prescribed P2 from PR #11045 review (comments 4644048990,
+4644389768): `waitingSatisfied`
+(`go/internal/storage/postgres/reducer_waiting_narrow.go`) built its
+`$3` (narrowed blocking set), `$6` (fence domains), and `$9` (producer
+collector kinds) text[] bind args by string-concatenating a
+hand-quoted literal. `quoteSQLStrings` escaped only double quotes, not
+backslashes, and no CHECK constrains scope_id charset, so an odd scope
+id parsed to a different value in the shared wait/audit predicate. The
+fix binds all three sets with the in-repo `array.StringArray` driver
+type (the queries already cast `$N::text[]`) and deletes the
+`quoteSQLStrings` helper; the SQL text is byte-identical.
+
+No-Regression Evidence (P2 fix, commit `f95dc9132e`, base `1b05a39e5f`):
+RED pre-fix — new hermetic `TestWaitingSatisfiedBindsTextSetsAsArrays`
+fails 3/3 subtests (`bind arg N has type string, want array.StringArray`).
+GREEN post-fix — 3/3 subtests pass, each pinning exact elements plus a
+driver Value/Scan round trip for backslash/quote-carrying ids
+(`scope\back`, `scope"quote`); the full `Narrow|Waiting` hermetic suite
+passes. Live narrow suite green on a disposable Postgres 18.6
+(`18.6-0ubuntu0.26.04.1`, aarch64, loopback, removed after the run):
+`TestNarrowedWaitSelectiveWakeLive`, `TestNarrowedWaitAuditReopensSatisfiedLive`,
+`TestNarrowedWaitConcurrentConvergenceLive`, and
+`TestNarrowedReopenFingerprintGateLive` all PASS (0.8 s run). Bound
+values are identical to the old literals on every reachable path: `$3`
+is length-guarded non-empty, `collectorKinds` stays non-nil empty
+(`{}`), and a nil fence set binds NULL, which `= ANY (...)` filters
+exactly like `'{}'` (row excluded either way, `NOT EXISTS` stays true).
+`go build ./...` exit 0, `go vet` and `gofmt` clean.
+
+No-Observability-Change: bind-argument encoding only — no metric, span,
+log, status, or query-text change.

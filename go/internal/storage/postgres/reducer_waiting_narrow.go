@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -195,7 +196,7 @@ func waitingSatisfied(
 	if kind == WaitingKindRelationshipGenerationActive && len(blockingScopeIDs) > 0 {
 		var satisfied bool
 		if err := querySingleRow(ctx, database, narrowedCorpusWaitSatisfiedQuery, []any{
-			scopeID, generationID, "{" + strings.Join(quoteSQLStrings(blockingScopeIDs), ",") + "}",
+			scopeID, generationID, array.StringArray(blockingScopeIDs),
 		}, &satisfied); err != nil {
 			return false, fmt.Errorf("check narrowed waiting satisfaction: %w", err)
 		}
@@ -213,22 +214,13 @@ func waitingSatisfied(
 	var satisfied bool
 	if err := querySingleRow(ctx, database, waitingSatisfiedQuery, []any{
 		string(kind), scopeID, generationID, producerDomain,
-		enqueuedAt, "{" + strings.Join(quoteSQLStrings(fenceDomains), ",") + "}",
+		enqueuedAt, array.StringArray(fenceDomains),
 		waiterID, progressSince.UTC(),
-		"{" + strings.Join(quoteSQLStrings(collectorKinds), ",") + "}",
+		array.StringArray(collectorKinds),
 	}, &satisfied); err != nil {
 		return false, fmt.Errorf("check waiting satisfaction: %w", err)
 	}
 	return satisfied, nil
-}
-
-// quoteSQLStrings renders values as a Postgres text[] literal body.
-func quoteSQLStrings(values []string) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		out = append(out, `"`+strings.ReplaceAll(value, `"`, `""`)+`"`)
-	}
-	return out
 }
 
 // querySingleRow runs a query that returns exactly one row with one column
