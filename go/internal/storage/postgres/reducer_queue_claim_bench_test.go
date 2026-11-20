@@ -305,6 +305,12 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, database db.Executor
 		// every Ack fail with `relation "reducer_waiting_items" does not
 		// exist` (SQLSTATE 42P01).
 		MigrationSQL("reducer_waiting_items"),
+		MigrationSQL("vulnerability_nvd_baseline_checkpoints"),
+		// post-#10972 (#11017): gate_waited_generations reads
+		// c.last_generation_id, added by migration 301. The 297 table
+		// alone makes every ClaimBatch fail with `column
+		// c.last_generation_id does not exist` (SQLSTATE 42703).
+		MigrationSQL("vulnerability_nvd_baseline_resume_position"),
 		graphProjectionPhaseStateSchemaSQL,
 	} {
 		if _, err := database.ExecContext(ctx, stmt); err != nil {
