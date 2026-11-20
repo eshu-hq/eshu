@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -100,7 +101,14 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	// verbatim so a partially backfilled table can never under-select
 	// (issue #10875).
 	query := listActiveSecurityAlertReconciliationFactsQuery
-	if ready, err := SecurityAlertReconciliationKeysReady(ctx, s.database); err == nil && ready {
+	if ready, err := SecurityAlertReconciliationKeysReady(ctx, s.database); err != nil {
+		// Fail open to the legacy query, but say so: a silent fallback
+		// hides a broken readiness path behind correct-looking results
+		// (issue #10875 review). Only filter-class counts are logged;
+		// values are unbounded.
+		log.Printf("event_name=security_alert_reconciliation_keys.readiness_probe_failed error=%q repository_filters=%d package_filters=%d cve_filters=%d ghsa_filters=%d",
+			err, len(filter.RepositoryIDs), len(filter.PackageIDs), len(filter.CVEIDs), len(filter.GHSAIDs))
+	} else if ready {
 		query = listActiveSecurityAlertReconciliationFactsKeyedQuery
 	}
 	rows, err := s.database.QueryContext(

@@ -79,6 +79,40 @@ func MarkSecurityAlertReconciliationKeysReady(ctx context.Context, database db.E
 	return nil
 }
 
+// securityAlertKeyablePredicateSQL is true when a security-kind fact can
+// yield at least one sidecar row under securityAlertReconciliationKeyRows,
+// mirroring its extraction exactly: a scalar id field yields unless it is
+// null, missing, an object, an array, or an empty string; an array field
+// yields on a non-empty string element or a non-empty object key. Provably
+// keyless facts are excluded from scope selection and the missing probe so
+// both converge once every keyable fact has keys (issue #10875 review);
+// the safe direction is preserved because an excluded fact can never gain
+// a key row from a rebuild.
+const securityAlertKeyablePredicateSQL = `
+(
+  (jsonb_typeof(fact.payload -> 'repository_id') = 'string' AND fact.payload ->> 'repository_id' <> '')
+  OR jsonb_typeof(fact.payload -> 'repository_id') IN ('number', 'boolean')
+  OR (jsonb_typeof(fact.payload -> 'package_id') = 'string' AND fact.payload ->> 'package_id' <> '')
+  OR jsonb_typeof(fact.payload -> 'package_id') IN ('number', 'boolean')
+  OR (jsonb_typeof(fact.payload -> 'cve_id') = 'string' AND fact.payload ->> 'cve_id' <> '')
+  OR jsonb_typeof(fact.payload -> 'cve_id') IN ('number', 'boolean')
+  OR (jsonb_typeof(fact.payload -> 'advisory_id') = 'string' AND fact.payload ->> 'advisory_id' <> '')
+  OR jsonb_typeof(fact.payload -> 'advisory_id') IN ('number', 'boolean')
+  OR (jsonb_typeof(fact.payload -> 'cve_ids') = 'array' AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements(fact.payload -> 'cve_ids') AS e
+    WHERE jsonb_typeof(e.value) = 'string' AND e.value #>> '{}' <> ''))
+  OR (jsonb_typeof(fact.payload -> 'cve_ids') = 'object' AND EXISTS (
+    SELECT 1 FROM jsonb_object_keys(fact.payload -> 'cve_ids') AS k
+    WHERE k <> ''))
+  OR (jsonb_typeof(fact.payload -> 'ghsa_ids') = 'array' AND EXISTS (
+    SELECT 1 FROM jsonb_array_elements(fact.payload -> 'ghsa_ids') AS e
+    WHERE jsonb_typeof(e.value) = 'string' AND e.value #>> '{}' <> ''))
+  OR (jsonb_typeof(fact.payload -> 'ghsa_ids') = 'object' AND EXISTS (
+    SELECT 1 FROM jsonb_object_keys(fact.payload -> 'ghsa_ids') AS k
+    WHERE k <> ''))
+)
+`
+
 const lookupKeyBackfillScopesSQL = `
 SELECT DISTINCT fact.scope_id
 FROM fact_records AS fact
@@ -103,6 +137,7 @@ WHERE fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_
           AND keys.scope_id = fact.scope_id
           AND keys.generation_id = fact.generation_id
       )
+      AND ` + securityAlertKeyablePredicateSQL + `
     )
   )
 ORDER BY fact.scope_id
@@ -155,10 +190,11 @@ LIMIT $3
 
 // lookupKeyBackfillMissingSQL counts eligible facts still missing sidecar
 // rows on either side: relationship facts without version-1 rows, and
-// security-alert facts without key rows. The kind lists mirror
+// keyable security-alert facts without key rows. The kind lists mirror
 // lookupKeyBackfillPageSQL above and securityAlertReconciliationFactKinds;
-// an eligible-kind fact that yields zero keys (no id values) keeps counting
-// here and keeps its scope listed, so a rerun revisits that scope.
+// provably keyless security facts are excluded by
+// securityAlertKeyablePredicateSQL (same predicate as scope selection), so
+// the count converges to zero once every keyable fact has keys.
 const lookupKeyBackfillMissingSQL = `
 SELECT count(*)
 FROM fact_records AS fact
@@ -182,6 +218,7 @@ WHERE fact.scope_id = $1
           AND keys.scope_id = fact.scope_id
           AND keys.generation_id = fact.generation_id
       )
+      AND ` + securityAlertKeyablePredicateSQL + `
     )
   )
 `

@@ -121,8 +121,15 @@ func TestLookupKeyBackfillRebuildsVersionedRowsAndKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count missing after run: %v", err)
 	}
-	if missing != 1 {
-		t.Fatalf("missing = %d, want 1 (the keyless security fact)", missing)
+	if missing != 0 {
+		t.Fatalf("missing = %d, want 0 (the keyless security fact is excluded by the keyable predicate)", missing)
+	}
+	scopes, err := lookupKeyBackfillScopes(ctx, store, 25)
+	if err != nil {
+		t.Fatalf("list scopes after run: %v", err)
+	}
+	if len(scopes) != 0 {
+		t.Fatalf("scopes after run = %v, want none (converged: keyless facts do not hold a scope listed)", scopes)
 	}
 	if _, err := db.ExecContext(ctx, `DELETE FROM security_alert_reconciliation_keys WHERE fact_id = 'fact-alert'`); err != nil {
 		t.Fatalf("drop alert keys: %v", err)
@@ -134,8 +141,8 @@ func TestLookupKeyBackfillRebuildsVersionedRowsAndKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count missing after drops: %v", err)
 	}
-	if missing != 3 {
-		t.Fatalf("missing = %d, want 3 (keyless alert, keyless fact-alert, version-0 terraform)", missing)
+	if missing != 2 {
+		t.Fatalf("missing = %d, want 2 (keyless fact-alert and version-0 terraform; the keyless alert stays excluded)", missing)
 	}
 	healed, err := LookupKeyBackfill{}.Run(ctx, store, 25, 500)
 	if err != nil {
@@ -148,8 +155,8 @@ func TestLookupKeyBackfillRebuildsVersionedRowsAndKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count missing after heal: %v", err)
 	}
-	if missing != 1 {
-		t.Fatalf("missing = %d after heal, want 1 (only the keyless alert)", missing)
+	if missing != 0 {
+		t.Fatalf("missing = %d after heal, want 0", missing)
 	}
 	var artifact, path string
 	var argocd bool

@@ -117,7 +117,13 @@ func securityAlertReconciliationKeyRows(envelopes []facts.Envelope) []securityAl
 		// exponent-free float rendering: ->> never uses exponent notation
 		// (1e21 renders as its full decimal expansion on PostgreSQL
 		// 18.6), while fmt.Sprint(float64(20240001)) is "2.0240001e+07"
-		// and would still drop the id. Null is absent above; objects and
+		// and would still drop the id. Known boundary, pinned by
+		// TestSecurityAlertReconciliationKeyRowsCoerceScalarIDsLikeArrowArrow:
+		// float64 cannot preserve a scaled lexeme (12345.0 renders "12345"
+		// here vs "12345.0" via ->>) nor >2^53 precision. A corpus census
+		// over QA (88M facts, every id field of all security-kind facts
+		// 100% strings) shows these shapes do not occur in practice, so the
+		// coercion is defense-in-depth. Null is absent above; objects and
 		// arrays never reach a scalar equality arm, so they yield
 		// nothing.
 		switch typed := value.(type) {
