@@ -7,12 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -135,7 +137,19 @@ ON CONFLICT (work_item_id, waits_for_kind, waits_for_key) DO UPDATE SET
 // $5 enqueued_at (RFC3339Nano, winners only), $6 fence domains (text[]),
 // $7 waiter work_item_id (excluded from the fence's own-row check),
 // $8 progress-since timestamp (target fallback: terminal progress after the
-// deferral deserves one re-check).
+// deferral deserves one re-check), $9 producer collector kinds (text[]:
+// the kinds the parked producer domain maps to, empty when unmapped).
+//
+// The domain-only producer branch replicates the handler quiescence rule
+// for the mapped kind: zero registered scopes, or at least one
+// quiescent-active scope, reads satisfied; an unmapped domain (empty $9)
+// counts as satisfied. The probe shape mirrors
+// producerScopeQuiescenceSQL (registered scopes of the kind, each flagged
+// quiescent-active by an active generation with no live projector work);
+// like the claim query's projector-drain fence, which shares the same
+// columns without sharing the text, the two statements cannot be identical
+// because this one correlates against the parked domain's kind rather than
+// scanning an already-anchored scope.
 const waitingSatisfiedQuery = `
 SELECT EXISTS (
     SELECT 1 FROM scope_generations AS gen
@@ -151,10 +165,28 @@ SELECT EXISTS (
       AND phase.scope_id = $2 AND phase.generation_id = $3
 ) OR EXISTS (
     SELECT 1 FROM fact_work_items AS producer
-    WHERE $1 = 'producer_domain_terminal' AND $4 <> ''
+    WHERE $1 = 'producer_domain_terminal' AND $4 <> '' AND $2 <> ''
       AND producer.scope_id = $2 AND producer.generation_id = $3
       AND producer.stage = 'reducer' AND producer.domain = $4
       AND producer.status IN ('succeeded', 'failed', 'dead_letter', 'superseded')
+) OR (
+    $1 = 'producer_domain_terminal' AND $4 <> '' AND $2 = ''
+    AND NOT (
+        EXISTS (
+            SELECT 1 FROM ingestion_scopes AS kind_scope
+            WHERE kind_scope.collector_kind = ANY ($9::text[])
+        ) AND NOT EXISTS (
+            SELECT 1 FROM ingestion_scopes AS kind_scope
+            WHERE kind_scope.collector_kind = ANY ($9::text[])
+              AND kind_scope.active_generation_id IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM fact_work_items AS kind_work
+                  WHERE kind_work.stage = 'projector'
+                    AND kind_work.scope_id = kind_scope.scope_id
+                    AND kind_work.status IN ('pending', 'retrying', 'claimed', 'running')
+              )
+        )
+    )
 ) OR (
     $1 = 'winners_watermark' AND $5 <> '' AND EXISTS (
         SELECT 1 FROM supply_chain_impact_winners_materialization AS wm
@@ -194,11 +226,21 @@ func waitingSatisfied(
 	fenceDomains []string,
 	progressSince time.Time,
 ) (bool, error) {
+	// The domain-only producer branch evaluates the handler quiescence
+	// rule on the parked domain's mapped collector kind (empty when the
+	// domain maps to none, which counts as satisfied).
+	collectorKinds := []string{}
+	if kind == WaitingKindProducerTerminal && producerDomain != "" && scopeID == "" {
+		if collectorKind, ok := crossscope.CollectorKindForProducerDomain(reducercontract.Domain(producerDomain)); ok {
+			collectorKinds = []string{collectorKind}
+		}
+	}
 	var satisfied bool
 	if err := querySingleRow(ctx, database, waitingSatisfiedQuery, []any{
 		string(kind), scopeID, generationID, producerDomain,
 		enqueuedAt, "{" + strings.Join(quoteSQLStrings(fenceDomains), ",") + "}",
 		waiterID, progressSince.UTC(),
+		"{" + strings.Join(quoteSQLStrings(collectorKinds), ",") + "}",
 	}, &satisfied); err != nil {
 		return false, fmt.Errorf("check waiting satisfaction: %w", err)
 	}
@@ -314,32 +356,67 @@ func wakeWaitingByKey(
 	return reopenedCount, clearedCount, nil
 }
 
+// producerTerminalParkDomains resolves the producer domains a cross-scope
+// deferral parks on: the floor error's own unready set first, the
+// CompletionEdges catalog derivation for the consumer when the error names
+// none, and nothing when neither yields a domain (the caller then keeps the
+// existing timer path instead of parking a wait that can never wake).
+func producerTerminalParkDomains(cause error, consumer reducercontract.Domain) []reducercontract.Domain {
+	var notReady crossscope.ProducerNotReadyError
+	if errors.As(cause, &notReady) && len(notReady.ProducerDomains) > 0 {
+		out := make([]reducercontract.Domain, 0, len(notReady.ProducerDomains))
+		return append(out, notReady.ProducerDomains...)
+	}
+	var out []reducercontract.Domain
+	for _, edge := range crossscope.CompletionEdges() {
+		if edge.Consumer == consumer {
+			out = append(out, edge.Producer)
+		}
+	}
+	return out
+}
+
+// completionEdgeProducerSet is the CompletionEdges producer universe: the
+// domains whose terminal reducer Ack can provide a parked producer wait.
+// Consumers never commit a terminal row of their own, so they never wake.
+func completionEdgeProducerSet() map[reducercontract.Domain]bool {
+	out := map[reducercontract.Domain]bool{}
+	for _, edge := range crossscope.CompletionEdges() {
+		out[edge.Producer] = true
+	}
+	return out
+}
+
 // setAsideWaiting parks one deferred intent: it inserts the wait row and,
 // when the provider already committed, reopens it at once so a waiter that
 // registers after its provider never strands (the same lost-wake pattern as
 // the #7597 Fail-path wake). It returns true when the wait is parked (or
 // reopened at once) and false when no wait row applies.
+//
+// producerDomains carries the #11000 per-domain park set for the
+// cross-scope producer class; every other class passes nil and keeps the
+// legacy single-key path.
 func setAsideWaiting(
 	ctx context.Context,
 	database db.ExecQueryer,
 	instruments *telemetry.Instruments,
 	intent reducercontract.Intent,
 	entry WaitingDeferral,
+	producerDomains []reducercontract.Domain,
 	now time.Time,
 ) (bool, error) {
 	if entry.WakeSite == WaitingWakeSiteCounting || entry.WakeSite == WaitingWakeSiteNotAWait {
 		return false, nil
 	}
+	if entry.WaitsForKind == WaitingKindProducerTerminal && entry.ProducerDomain == "" {
+		return parkProducerTerminalWaits(ctx, database, instruments, intent, entry, producerDomains, now)
+	}
 	keyJSON, ok := waitingKeyFor(intent, entry)
 	if !ok {
 		return false, nil
 	}
-	if _, err := database.ExecContext(ctx, insertWaitingItemQuery,
-		intent.IntentID, string(entry.WaitsForKind), keyJSON,
-		strings.TrimSpace(intent.ScopeID), strings.TrimSpace(intent.GenerationID),
-		string(intent.Domain), entry.FailureClass, now,
-	); err != nil {
-		return false, fmt.Errorf("park waiting reducer work: %w", err)
+	if err := insertWaitingItem(ctx, database, intent, entry, keyJSON, now); err != nil {
+		return false, err
 	}
 	satisfied, err := waitingSatisfiedForIntent(ctx, database, intent, entry, keyJSON, now)
 	if err != nil {
@@ -368,65 +445,19 @@ func waitingSatisfiedForIntent(
 	if err := json.Unmarshal([]byte(keyJSON), &key); err != nil {
 		return false, fmt.Errorf("decode waiting key: %w", err)
 	}
+	scopeID := strings.TrimSpace(intent.ScopeID)
+	generationID := strings.TrimSpace(intent.GenerationID)
+	producerDomain := entry.ProducerDomain
+	if entry.WaitsForKind == WaitingKindProducerTerminal && key.ScopeID == "" && key.ProducerDomain != "" {
+		// #11000: a domain-only wait names no scope or generation, so the
+		// legacy scope-pinned branch can never match; the audit evaluates
+		// the quiescence branch on the parked domain instead.
+		scopeID, generationID, producerDomain = "", "", key.ProducerDomain
+	}
 	return waitingSatisfied(
 		ctx, database, entry.WaitsForKind,
-		strings.TrimSpace(intent.ScopeID), strings.TrimSpace(intent.GenerationID),
-		entry.ProducerDomain, key.EnqueuedAt, intent.IntentID,
+		scopeID, generationID,
+		producerDomain, key.EnqueuedAt, intent.IntentID,
 		key.Domains, now,
 	)
-}
-
-// waitingProducerDomains is the set of producer domains the deferral map
-// narrows a producer-terminal wait to. A terminal Ack of one of these
-// domains reopens exactly the waits that named it — no fleet fanout.
-func waitingProducerDomains() map[string]bool {
-	out := map[string]bool{}
-	for _, entry := range WaitingDeferralMap() {
-		if entry.WaitsForKind == WaitingKindProducerTerminal && entry.ProducerDomain != "" {
-			out[entry.ProducerDomain] = true
-		}
-	}
-	return out
-}
-
-// wakeProducerTerminalAfterAck reopens producer-terminal waits after terminal
-// reducer ACKs. It runs after the ACK committed (Ack is a single statement,
-// not a transaction), keyed narrowly to the acked (scope, generation,
-// producer domain), so it never fans out. A waiter that parks after this Ack
-// is covered by the set-aside re-check; one that parked before and whose
-// provider committed without an Ack is covered by the audit fallback.
-func wakeProducerTerminalAfterAck(
-	ctx context.Context,
-	database db.ExecQueryer,
-	instruments *telemetry.Instruments,
-	intents []reducercontract.Intent,
-	now time.Time,
-) error {
-	producers := waitingProducerDomains()
-	seen := map[string]struct{}{}
-	for _, intent := range intents {
-		domain := string(intent.Domain)
-		if !producers[domain] {
-			continue
-		}
-		scope := strings.TrimSpace(intent.ScopeID)
-		gen := strings.TrimSpace(intent.GenerationID)
-		if scope == "" || gen == "" {
-			continue
-		}
-		keyJSON, err := json.Marshal(waitingKey{ScopeID: scope, GenerationID: gen, ProducerDomain: domain})
-		if err != nil {
-			return fmt.Errorf("encode producer-terminal wake key: %w", err)
-		}
-		key := string(keyJSON)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		if _, _, err := wakeWaitingByKey(ctx, database, instruments, WaitingWakeSiteInTx,
-			WaitingKindProducerTerminal, key, now); err != nil {
-			return err
-		}
-	}
-	return nil
 }

@@ -104,7 +104,7 @@ FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/membership/known_scopes_prefix_live_test.go",
+    "go/internal/storage/postgres/membership/observations_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

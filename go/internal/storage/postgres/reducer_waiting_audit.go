@@ -283,9 +283,16 @@ func AuditWaitingItems(
 			}
 			continue
 		}
+		scopeID, generationID, producerDomain := row.scopeID, row.generationID, producerDomainForClass(row.failureClass)
+		if row.kind == WaitingKindProducerTerminal && row.key.ScopeID == "" && row.key.ProducerDomain != "" {
+			// #11000: a domain-only wait names no scope or generation, so
+			// the legacy scope-pinned branch can never match; the audit
+			// evaluates the quiescence branch on the parked domain instead.
+			scopeID, generationID, producerDomain = "", "", row.key.ProducerDomain
+		}
 		satisfied, err := waitingSatisfied(
 			ctx, database, row.kind,
-			row.scopeID, row.generationID, producerDomainForClass(row.failureClass),
+			scopeID, generationID, producerDomain,
 			row.key.EnqueuedAt, row.workItemID, row.key.Domains, row.firstSeen,
 		)
 		if err != nil {

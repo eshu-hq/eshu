@@ -197,10 +197,14 @@ func WaitingDeferralMap() []WaitingDeferral {
 	entries := append([]WaitingDeferral{}, waitingPhaseDeferrals()...)
 	entries = append(entries, []WaitingDeferral{
 		{
-			FailureClass:  crossscope.ProducerNotReadyFailureClass,
-			WaitsForKind:  WaitingKindProducerTerminal,
-			WakeSite:      WaitingWakeSiteCompletion,
-			ProvidingSave: "cross-scope completion-event fanout (CrossScopeCompletionRunner); backstop bounds",
+			FailureClass: crossscope.ProducerNotReadyFailureClass,
+			WaitsForKind: WaitingKindProducerTerminal,
+			WakeSite:     WaitingWakeSiteInTx,
+			// #11000: one domain-only wait per producer domain, woken by
+			// the producer reducer Ack and by the projector Ack that
+			// activates the producer generation; the audit re-checks the
+			// handler quiescence rule and the backstop still bounds a miss.
+			ProvidingSave: "producer reducer Ack (AckBatch/Ack terminal commit) + projector-Ack generation activation (domain wakes by acked scope kind); audit quiescence fallback + backstop",
 		},
 		{
 			FailureClass:  advisorygroup.WinnersWatermarkNotReadyFailureClass,

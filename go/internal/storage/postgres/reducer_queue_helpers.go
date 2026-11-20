@@ -262,8 +262,11 @@ func (q ReducerQueue) failIntent(
 			retryFailureClass = probeClass
 		}
 		_, failureMessage, failureDetails := queuestore.QueueFailureMetadata(cause, retryFailureClass)
-		delay, waitEntry, parkWait := waitingParkDelay(retryFailureClass,
-			queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource()))
+		backoff := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, intent.AttemptCount, q.jitterSource())
+		delay, waitEntry, parkWait := waitingParkDelay(retryFailureClass, backoff)
+		// #11000: the cross-scope producer class parks per producer
+		// domain, else keeps the timer path; see crossScopeParkGate.
+		parkDomains, parkWait, delay := crossScopeParkGate(retryFailureClass, cause, intent.Domain, parkWait, backoff, delay)
 		args := []any{
 			now,
 			retryFailureClass,
@@ -297,7 +300,7 @@ func (q ReducerQueue) failIntent(
 			))
 		}
 		if parkWait {
-			if _, err := setAsideWaiting(ctx, q.database, q.Instruments, intent, waitEntry, now); err != nil {
+			if _, err := setAsideWaiting(ctx, q.database, q.Instruments, intent, waitEntry, parkDomains, now); err != nil {
 				return fmt.Errorf("park waiting reducer work: %w", err)
 			}
 		}

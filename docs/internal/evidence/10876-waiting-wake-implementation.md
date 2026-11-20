@@ -121,6 +121,141 @@ coverage row added to `telemetry-coverage-reducer-core.md` and
 - NOT run: `make pre-push` / `make pre-pr` (coordinator owns the floor),
   full postgres package suite, production QA re-measurement.
 
+## #11000: cross-scope producer-terminal waits re-keyed to producer domain
+
+Refs #11000. Part of #10860. The cross_scope_producer_not_ready class
+parked scope-keyed waits (`{scope_id, generation_id}`) that no producer
+commit in its own scope could match, and the audit predicate checked the
+consumer scope for a producer terminal row, so it could never be
+satisfied either: only the 10-minute backstop converged these waits. The
+golden-corpus gate drain left 2 residual
+`ci_cd_run_correlation/retrying/cross_scope_producer_not_ready` rows
+waiting on `container_image_identity` (issue evidence; the same gate on
+bare base drains to zero).
+
+### What changed
+
+- Park: `failIntent` extracts per-domain sets via `errors.As` on
+  `crossscope.ProducerNotReadyError` with the CompletionEdges
+  catalog-derivation fallback for the consumer; neither yielding a domain
+  keeps the existing timer path (no un-wakeable wait is parked).
+  `setAsideWaiting` parks one domain-only wait row (`{"producer_domain"}`)
+  per domain; the row keeps the waiter's own scope/generation columns for
+  observability.
+- Wake (reducer Ack): `wakeProducerTerminalAfterAck` keeps the narrowed
+  same-scope wakes byte-identical and adds domain-only wakes for acked
+  intents whose domain is a CompletionEdges producer, regardless of the
+  acked scope. Synchronous post-commit, the established #10876 reducer-Ack
+  pattern (ReducerQueue holds no transaction).
+- Wake (projector Ack): the generation activation transaction also wakes
+  the domain-only waits for the producer domains mapped to the acked
+  scope's collector kind, alongside the generation_active wake. This wake
+  is load-bearing: the producer reducer row commits before its generation
+  activates.
+- Audit and set-aside re-check: domain-only producer rows evaluate the new
+  `waitingSatisfiedQuery` branch, which replicates the handler quiescence
+  rule for the mapped kind (zero registered scopes, or at least one
+  quiescent-active scope, reads satisfied; unmapped domain counts as
+  satisfied) through the one new exported accessor
+  `crossscope.CollectorKindForProducerDomain`. Scope-keyed narrowed rows
+  keep the legacy branch byte-identical.
+- The producer-to-collector-kind map moved from
+  `scope/completion` to the `crossscope` leaf as the single source for
+  the floor, the park, the audit, and both Ack-path wakes; the floor
+  reads it through the same accessor, so the halves cannot drift.
+- `WaitingDeferralMap`: the class row moves to WakeSite in_tx, provided
+  by the producer reducer Ack plus the projector-Ack generation
+  activation (audit quiescence fallback + backstop). Closed enum and table
+  shape unchanged; no migration; 5-minute audit and 10-minute backstop
+  unchanged; attempt-count freeze untouched (class stays non-counting).
+
+### Criterion evidence (all live-Postgres, disposable DB)
+
+- Park shape: `TestCrossScopeProducerWaitParksDomainOnlyLive`.
+- Acceptance with the audit disabled: `...ReopensOnReducerAckLive`
+  (reducer terminal commit) and `...ReopensOnProjectorActivationLive`
+  (generation activation).
+- Audit satisfiability by a real producer commit (busy then quiescent):
+  `TestCrossScopeProducerAuditSatisfiesQuiescentWaitLive`.
+- Both orders converge on the same terminal shape:
+  `TestCrossScopeProducerBothOrdersLive`.
+- Per-domain independence across the two declared producers:
+  `TestCrossScopeProducerMultiProducerLive` (batch Ack releases one,
+  activation releases the other).
+- Non-interference with the byte-identical narrowed rows:
+  `TestCrossScopeProducerWakeNonInterferenceLive`.
+- Concurrency: `TestCrossScopeProducerConcurrentWakeRaceLive` (`-race`):
+  4 parkers on independent connections plus racing reducer Ack and
+  projector activation; all reopen exactly once, attempts frozen, zero
+  lingering waits.
+- Unit: park-domain extraction (direct/wrapped/fallback/empty),
+  domain-only key bytes, CompletionEdges producer universe, deferral-map
+  row pin, kind-map pins against the scope constants.
+
+### Theory proof (disposable PG, before implementation)
+
+- Domain-only reopen rides `reducer_waiting_items_wake_idx` (index
+  condition on kind + key): no new index.
+- Mapped audit branch probes `ingestion_scopes` with the quiescent
+  anti-join (same shape as the measured 0.30 ms #5709 probe: registered
+  scopes of the kind, active generation, no live projector work).
+- Unmapped domain answers through the index-backed empty-kind guard; its
+  fact_work_items leg never executes.
+
+### Gate drain (B-7 golden-corpus gate, `ESHU_GRAPH_BACKEND=neo4j`)
+
+- BEFORE (issue evidence, #10876 lane): 2 residual
+  `ci_cd_run_correlation/retrying/cross_scope_producer_not_ready` rows on
+  `container_image_identity`; bare base drains to zero.
+- AFTER (this lane, single run, elapsed 380 s): 451 pass, 0 required-fail,
+  2 advisory-warn (phase_bootstrap 11 s and phase_first_drain 304 s timing
+  bands only — bootstrap runs pure DDL with no DDL change here, so both
+  are loaded-machine variance, not a code regression).
+  `fact_work_items_residual: residual=0` on all four drains (first plus
+  three maintenance), dead_letter=0; the first drain reached terminal zero
+  inside ~5m04s, within the 10-minute bound, with the 5-minute audit
+  unchanged. The waiting auditor reopened nothing in the run (zero
+  audit-pass lines): convergence came through the pipeline, not the audit
+  or the backstop. Zero `cross_scope_producer_not_ready` residuals.
+
+## No-Regression Evidence (#11000):
+
+Harness: disposable postgres:18-alpine (Docker loopback), production
+bootstrap schema with migration 316 applied. Focused suites, all green:
+cross-scope park/acceptance/audit/orders/multi/non-interference plus
+`-race` concurrency; `crossscope` and `scope/completion` packages;
+waiting/cross-scope/winners/deferral-map suites; Ack/Fail suites
+(single, batch, projector Ack, journal, lock order, contention probe);
+`cmd/reducer`; consumer handler suites. Attempt budget frozen on every
+parked row (attempt_count stays 1 across re-parks); the narrowed
+same-scope waits keep byte-identical keys and wakes. Claim-path cost is
+unchanged by construction (no claim predicate changed; the added audit
+branch runs only for parked domain waits and reuses the measured probe
+shape; reducer-Ack wakes add one index-probed wake per acked producer
+domain). Terminal counts: the waiting table is empty after every drain,
+queue rows succeeded. The change is safe because every reopen re-checks
+the provider predicate (the claim gate and the handler re-verify exact
+readiness), the 10-minute backstop bounds any missed wake, and the audit
+replicates the floor's own quiescence rule through the shared map.
+
+Performance Evidence (#11000): no new hot-path query shape: the Ack-path
+wakes are equality probes on the existing `reducer_waiting_items_wake_idx`;
+the audit branch reuses the measured quiescence probe shape (0.30 ms in
+the #5709 evidence) and runs only over parked domain waits; the
+projector Ack adds zero queries for unmapped scope kinds and one bounded
+wake per mapped producer domain. `scripts/verify-performance-evidence.sh`
+agrees; `scripts/test-verify-performance-evidence.sh` passes. Full
+before/after wall-time comparison is the golden-corpus gate drain below.
+
+Observability Evidence (#11000):
+`eshu_dp_reducer_waiting_wake_total{site="in_tx",outcome}`,
+`eshu_dp_reducer_waiting_missed_wake_total`,
+`eshu_dp_reducer_waiting_items{reason}`,
+`eshu_dp_reducer_waiting_oldest_age_seconds{reason}` — the same four
+signals as #10876, no new metric; the two saves report under the existing
+`in_tx` site label and the audit under `audit`.
+`scripts/verify-telemetry-coverage.sh` agrees with no untracked stages.
+
 ## Missed wake in the winners resweep path (golden-corpus gate rerun)
 
 Root-Cause Evidence: advisory waits parked at 01:58:01 against watermark
