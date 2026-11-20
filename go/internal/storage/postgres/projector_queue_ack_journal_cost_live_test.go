@@ -31,10 +31,12 @@ const (
 	ajCostMaxExtraWAL    = 6.0
 	ajCostMaxExtraBlocks = 40.0
 	// 9 Ack statements plus the #10876 in-transaction generation_active
-	// wait wake. The wake is load-bearing (a parked waiter otherwise
-	// strands until the audit), and the WAL/blocks bounds above still
-	// hold, so the pin moves with the feature instead of against it.
-	ajCostStatementsOnAck = 10
+	// wait wake plus the #11016 terminal-wait probe
+	// (wakeTerminalGenerationActiveWaits in the Ack transaction). Both
+	// wakes are load-bearing (a parked waiter otherwise strands until the
+	// audit), and the WAL/blocks bounds above still hold, so the pin
+	// moves with the feature instead of against it.
+	ajCostStatementsOnAck = 11
 )
 
 // ajCostSample is one measured batch of Acks.
