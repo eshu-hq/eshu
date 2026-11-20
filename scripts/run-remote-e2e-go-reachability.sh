@@ -43,6 +43,11 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 cd "${repo_root}"
 
+# The deploy stack builds the eshu image from ${ESHU_REPO_ROOT:-.} (base
+# stack convention). Default it at this checkout so every build context
+# resolves to an eshu root with its Dockerfile. An explicit ESHU_REPO_ROOT
+# wins for operators who build from a different checkout of the same commit.
+export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"
 project="${GOREACHABILITY_PROOF_PROJECT:-go-reachability-proof}"
 worker="${project}-collector-go-reachability-1"
 postgres="${project}-postgres-1"
