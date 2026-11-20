@@ -73,24 +73,21 @@ type RestrictedCorpusFencedResolvedRelationshipLoader interface {
 	) (rows []relationships.ResolvedRelationship, blockingScopeIDs []string, complete bool, err error)
 }
 
-// fingerprintedRestrictedCorpusFencedResolvedRelationshipLoader is the
+// FingerprintedRestrictedCorpusFencedResolvedRelationshipLoader is the
 // narrowed read plus the input fingerprint of exactly the rows returned,
 // computed in the same statement (#10877 parity with #8283). Same local
-// declaration rule as RestrictedCorpusFencedResolvedRelationshipLoader.
-type fingerprintedRestrictedCorpusFencedResolvedRelationshipLoader interface {
+// declaration rule as RestrictedCorpusFencedResolvedRelationshipLoader: the
+// family subpackage never imports the reducer root. The fingerprint is the
+// shared contract type the store returns, so the production store satisfies
+// this interface instead of only test stubs satisfying it. Exported so the
+// reducer wiring can pin it structurally identical to the reducer root's
+// fingerprinted interface at compile time. The verdict-time blocking set
+// travels in the separate blocking return, not in the fingerprint.
+type FingerprintedRestrictedCorpusFencedResolvedRelationshipLoader interface {
 	GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(
 		ctx context.Context,
 		repoIDs []string,
-	) (rows []relationships.ResolvedRelationship, blockingScopeIDs []string, complete bool, fingerprint serviceCatalogRestrictedRead, err error)
-}
-
-// serviceCatalogRestrictedRead is the narrowed read's fingerprint: the
-// repository set asked for, the blocking set the verdict ran under, and the
-// input fingerprint of exactly the rows returned.
-type serviceCatalogRestrictedRead struct {
-	RepoIDs          []string
-	BlockingScopeIDs []string
-	Value            string
+	) (rows []relationships.ResolvedRelationship, blockingScopeIDs []string, complete bool, fingerprint reducercontract.ResolvedReadFingerprint, err error)
 }
 
 // attachServiceRelationshipEvidence loads the resolved cross-repo relationships
@@ -126,7 +123,7 @@ func (h ServiceCatalogCorrelationHandler) attachServiceRelationshipEvidence(
 	if len(repoIDs) == 0 {
 		return reducercontract.ResolvedReadFingerprint{}, false, nil
 	}
-	if restricted, ok := h.DeploymentRelationshipLoader.(fingerprintedRestrictedCorpusFencedResolvedRelationshipLoader); ok {
+	if restricted, ok := h.DeploymentRelationshipLoader.(FingerprintedRestrictedCorpusFencedResolvedRelationshipLoader); ok {
 		resolved, blocking, complete, read, rerr := restricted.
 			GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(ctx, repoIDs)
 		if rerr != nil {

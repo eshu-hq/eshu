@@ -47,25 +47,21 @@ type RestrictedCorpusFencedResolvedRelationshipLoader interface {
 	) ([]relationships.ResolvedRelationship, []string, bool, error)
 }
 
-// FingerprintedRestrictedRead is the narrowed read's fingerprint: the
-// repository set the read asked for, the blocking scope set the verdict ran
-// under, and the input fingerprint of exactly the rows returned.
-type FingerprintedRestrictedRead struct {
-	RepoIDs          []string
-	BlockingScopeIDs []string
-	Value            string
-}
-
 // FingerprintedRestrictedCorpusFencedResolvedRelationshipLoader is the
 // restricted read plus the input fingerprint of the rows it returned,
 // computed in the same statement (#10877 parity with #8283). Handlers record
 // the fingerprint on success so the reopen gate can restart the item when a
-// late-arriving scope changes its input.
+// late-arriving scope changes its input. The fingerprint is the shared
+// contract type the store returns, so this interface is satisfied by the
+// production store instead of only by test stubs: a local struct type here
+// would never match the store's method set and fingerprint recording would
+// silently stay off in production. The verdict-time blocking set travels in
+// the separate blocking return, not in the fingerprint.
 type FingerprintedRestrictedCorpusFencedResolvedRelationshipLoader interface {
 	GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(
 		ctx context.Context,
 		repoIDs []string,
-	) ([]relationships.ResolvedRelationship, []string, bool, FingerprintedRestrictedRead, error)
+	) ([]relationships.ResolvedRelationship, []string, bool, reducercontract.ResolvedReadFingerprint, error)
 }
 
 // CorpusWaitNarrowing is the Fail-path contract for a corpus-fence deferral

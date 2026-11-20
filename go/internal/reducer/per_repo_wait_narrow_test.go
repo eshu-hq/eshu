@@ -9,6 +9,7 @@ import (
 	"slices"
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -64,13 +65,12 @@ func (s *stubRestrictedCorpusFencedLoader) GetResolvedRelationshipsForReposWithR
 func (s *stubRestrictedCorpusFencedLoader) GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(
 	_ context.Context,
 	repoIDs []string,
-) ([]relationships.ResolvedRelationship, []string, bool, FingerprintedRestrictedRead, error) {
+) ([]relationships.ResolvedRelationship, []string, bool, reducercontract.ResolvedReadFingerprint, error) {
 	s.calls++
 	s.gotRepoIDs = append(s.gotRepoIDs, append([]string(nil), repoIDs...))
-	return s.repoResolved, append([]string(nil), s.blocking...), s.complete, FingerprintedRestrictedRead{
-		RepoIDs:          append([]string(nil), repoIDs...),
-		BlockingScopeIDs: append([]string(nil), s.blocking...),
-		Value:            s.fingerprint,
+	return s.repoResolved, append([]string(nil), s.blocking...), s.complete, reducercontract.ResolvedReadFingerprint{
+		RepoIDs: append([]string(nil), repoIDs...),
+		Value:   s.fingerprint,
 	}, nil
 }
 
@@ -342,5 +342,61 @@ func TestPerRepoWaitNarrowDeferralCarriesWaitKey(t *testing.T) {
 	}
 	if got := narrowing.CorpusWaitBlockingScopeIDs(); !slices.Equal(got, []string{"scope-deploy", "scope-other"}) {
 		t.Fatalf("deferral blocking scopes = %v, want [scope-deploy scope-other]", got)
+	}
+}
+
+// TestPerRepoWaitNarrowRestrictedReadIsFingerprinted proves the production
+// wiring takes the fingerprinted restricted branch when the loader offers
+// it: the read is narrowed, fingerprinted, and carries the verdict-time
+// sets the reopen gate and the wait key need. A method-set drift that
+// satisfies only test stubs would still compile but take the
+// non-fingerprinted branch here, silently leaving fingerprint recording off
+// in production (#10877). Both the workload and the deployable-unit entries
+// are covered because the latter delegates to the former.
+func TestPerRepoWaitNarrowRestrictedReadIsFingerprinted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	loader := &stubRestrictedCorpusFencedLoader{
+		repoResolved: []relationships.ResolvedRelationship{perRepoWaitForeignDeployRow()},
+		blocking:     []string{"scope-deploy"},
+		complete:     true,
+		fingerprint:  "fp-narrow-claimed",
+	}
+	candidates := []WorkloadCandidate{{RepoID: "repo-service", DeploymentRepoIDs: []string{"repo-deploy"}}}
+	intent := reducercontract.Intent{IntentID: "narrow-fingerprint-proof", ScopeID: "scope-test", GenerationID: "gen-1"}
+
+	assertFingerprinted := func(name string, read corpusFencedResolvedRead, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("%s error = %v, want nil", name, err)
+		}
+		if !read.narrowed {
+			t.Fatalf("%s narrowed = false, want the restricted branch taken", name)
+		}
+		if !read.fingerprinted {
+			t.Fatalf("%s fingerprinted = false, want the fingerprinted restricted read recorded", name)
+		}
+		if read.fingerprint.Value != "fp-narrow-claimed" {
+			t.Fatalf("%s fingerprint value = %q, want fp-narrow-claimed", name, read.fingerprint.Value)
+		}
+		if !slices.Equal(read.fingerprint.RepoIDs, []string{"repo-service"}) {
+			t.Fatalf("%s fingerprint repos = %v, want [repo-service]", name, read.fingerprint.RepoIDs)
+		}
+		if !slices.Equal(read.repoIDs, []string{"repo-service"}) {
+			t.Fatalf("%s wait-key repos = %v, want [repo-service]", name, read.repoIDs)
+		}
+		if !slices.Equal(read.blockingScopeIDs, []string{"scope-deploy"}) {
+			t.Fatalf("%s wait-key blocking scopes = %v, want [scope-deploy]", name, read.blockingScopeIDs)
+		}
+	}
+
+	read, err := readRestrictedCorpusFencedRelationships(ctx, loader, nil, intent, candidates)
+	assertFingerprinted("workload restricted read", read, err)
+
+	duRead, err := readDeployableUnitRestrictedInput(ctx, loader, nil, intent, candidates)
+	assertFingerprinted("deployable-unit restricted read", duRead, err)
+
+	if loader.calls != 2 {
+		t.Fatalf("restricted loader calls = %d, want 2 (one per entry)", loader.calls)
 	}
 }

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
@@ -149,6 +151,12 @@ func (f *scopeKeepWiringDB) QueryContext(ctx context.Context, query string, args
 				}), now),
 		}}, nil
 	}
+	// The restricted fused read (#10877) must match before the generic
+	// generation-status branch: its blocking CTE also queries
+	// relationship_generations with an active-status filter.
+	if strings.Contains(query, "blocking AS MATERIALIZED") {
+		return &scopeKeepFenceRows{}, nil
+	}
 	if strings.Contains(query, "WITH fence AS MATERIALIZED") {
 		return &scopeKeepFenceRows{}, nil
 	}
@@ -163,6 +171,10 @@ func (f *scopeKeepWiringDB) QueryContext(ctx context.Context, query string, args
 
 // scopeKeepFenceRows is the fused corpus-fence read for a complete corpus
 // with no resolved relationship: one LEFT JOIN filler row, complete = true.
+// On the restricted read (#10877) the verdict is followed by the
+// verdict-time blocking set and, on the fingerprinted statement, the input
+// fingerprint; the fixture answers with no blocking scopes and an empty
+// fingerprint.
 type scopeKeepFenceRows struct{ read bool }
 
 func (r *scopeKeepFenceRows) Next() bool {
@@ -174,14 +186,42 @@ func (r *scopeKeepFenceRows) Next() bool {
 }
 
 func (r *scopeKeepFenceRows) Scan(dest ...any) error {
-	if len(dest) == 0 {
-		return fmt.Errorf("scan: no destinations")
+	// The fixture serves exactly the three fused shapes the store scans:
+	// the global read (verdict + 10 resolved columns) and the restricted
+	// read without (verdict + blocking + 10) and with (verdict + blocking
+	// + fingerprint + 10) the fingerprint. Any other width is a shape
+	// drift the fixture must surface, not absorb.
+	switch len(dest) {
+	case 11, 12, 13:
+	default:
+		return fmt.Errorf("scan: destination count %d, want a fused fence width (11, 12, or 13)", len(dest))
 	}
 	complete, ok := dest[0].(*bool)
 	if !ok {
 		return fmt.Errorf("scan: fence verdict dest %T, want *bool", dest[0])
 	}
 	*complete = true
+	// The filler row carries no resolved relationship, so every column
+	// dest takes its zero value; the store discards the row on the NULL
+	// relationship_type.
+	for _, d := range dest[1:] {
+		switch target := d.(type) {
+		case *array.StringArray:
+			*target = array.StringArray{}
+		case *string:
+			*target = ""
+		case *sql.NullString:
+			*target = sql.NullString{}
+		case *float64:
+			*target = 0
+		case *int:
+			*target = 0
+		case *[]byte:
+			*target = nil
+		default:
+			return fmt.Errorf("scan: fence column dest %T is not a resolved column the fixture serves", d)
+		}
+	}
 	return nil
 }
 
