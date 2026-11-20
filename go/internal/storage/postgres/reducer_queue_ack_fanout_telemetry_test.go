@@ -152,7 +152,15 @@ func assertAckFanoutTelemetry(t *testing.T, ctx context.Context, reader *sdkmetr
 		}
 		seen[span.Name()] = true
 	}
-	if !seen["postgres.exec"] || !seen["postgres.query"] {
+	// Phase 1 of #10879 reports terminal match counts through QueryContext,
+	// so this flow emits only postgres.query spans: the batch ACK no longer
+	// takes the ExecContext path that used to supply the exec span (the
+	// emitting ACK variants still do, so exec coverage lives on in the
+	// flows that use them). The proof (exception events, error status,
+	// durations, error identity) is unchanged; only the span-name set
+	// reflects the real adapter path. Precedent: the batch claim already
+	// records its write through QueryContext as a read.
+	if !seen["postgres.query"] {
 		t.Fatalf("missing ACK/fanout spans: %v", seen)
 	}
 	var data metricdata.ResourceMetrics
@@ -179,7 +187,10 @@ func assertAckFanoutTelemetry(t *testing.T, ctx context.Context, reader *sdkmetr
 			}
 		}
 	}
-	if !operations["read"] || !operations["write"] {
+	// Same phase-1 path note as the span set above: this flow records
+	// only read durations because every statement in it flows through
+	// QueryContext.
+	if !operations["read"] {
 		t.Fatalf("missing duration operations=%v", operations)
 	}
 }

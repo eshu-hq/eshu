@@ -491,6 +491,8 @@ func provisionLivenessSchema(t *testing.T, db *sql.DB, seedSQL string) {
 		"reducer_work_item_reopened_at",
 		"shared_projection_intent_reopened_at",
 		"reducer_waiting_items",
+		// #10879 phase 1: the queue statements maintain the lease mirror.
+		"fact_work_item_leases",
 	} {
 		if _, err := db.ExecContext(ctx, MigrationSQL(name)); err != nil {
 			t.Fatalf("apply migration %s: %v", name, err)

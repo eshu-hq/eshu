@@ -309,10 +309,14 @@ import (
 // the ARN snapshot and fingerprint, mirroring #8283's 193) and
 // 318_container_identity_reopen_epochs.sql (the same gate for
 // container_image_identity: one row per succeeded work item carrying the
-// fleet identity epoch). #11021 adds
-// indexes, no queue-table change). #11021 adds
-// 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
-// sweep needs for parked waits of retired scopes).
+// fleet identity epoch).
+// #11021 adds 319_reducer_waiting_items_scope_idx.sql (the scope probe
+// the 2e purge sweep needs for parked waits of retired scopes).
+// #10879 phase 1 adds 317_fact_work_item_leases.sql (the lease sidecar:
+// fencing-triple mirror with fillfactor 70 and the per-stage conflict
+// unique; main columns stay authoritative) and
+// 318_fact_work_item_leases_backfill.sql (the idempotent live-lease
+// backfill, split per #7961).
 const (
 	goldenBootstrapDefinitionsDigest = "aa406f04c47579003f677564ba4fb0ab0fc45ed83d5fbf998f50a424f8edb2ad"
 	goldenBootstrapDefinitionsCount  = 347

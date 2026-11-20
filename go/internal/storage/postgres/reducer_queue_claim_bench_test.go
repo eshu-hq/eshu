@@ -294,6 +294,7 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, database db.Executor
 		MigrationSQL("ingestion_scopes"),
 		MigrationSQL("scope_generations"),
 		MigrationSQL("fact_work_items"),
+		MigrationSQL("fact_work_item_leases"),
 		reducerClaimCapabilityColumnsSchemaSQL,
 		// migration 088 (#5848/#5837): fact_work_items.reopened_at, read by the
 		// claim query as COALESCE(reopened_at, created_at). A fixture that

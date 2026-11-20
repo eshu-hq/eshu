@@ -37,19 +37,45 @@ const enqueueReducerBatchSuffix = `
 ON CONFLICT (work_item_id) DO NOTHING
 `
 
+// heartbeatReducerWorkQuery extends the hold on one claimed reducer work
+// item. Phase 1 of #10879 dual-writes the fencing triple: the main row keeps
+// its authoritative columns and the lease mirror is upserted in the same
+// statement (main row first, then the lease row, matching the global
+// main-then-lease lock order). RowsAffected stays 1 iff the fence matched:
+// an empty hb inserts nothing. A missing mirror row (unreachable through the
+// wired writers) is recreated here, so the heartbeat self-heals the mirror.
 const heartbeatReducerWorkQuery = `
-UPDATE fact_work_items
-SET claim_until = $1,
-    updated_at = $2
-WHERE work_item_id = $3
-  AND stage = 'reducer'
-  AND lease_owner = $4
-  AND status IN ('claimed', 'running')
-  AND claim_until > clock_timestamp()
-  AND last_attempt_at = $5
+WITH hb AS (
+    UPDATE fact_work_items
+    SET claim_until = $1,
+        updated_at = $2
+    WHERE work_item_id = $3
+      AND stage = 'reducer'
+      AND lease_owner = $4
+      AND status IN ('claimed', 'running')
+      AND claim_until > clock_timestamp()
+      AND last_attempt_at = $5
+    RETURNING work_item_id, lease_owner, claim_until, last_attempt_at
+)
+INSERT INTO fact_work_item_leases (
+    work_item_id, stage, scope_id, conflict_domain, conflict_key,
+    lease_owner, claim_until, last_attempt_at
+)
+SELECT hb.work_item_id, 'reducer', work.scope_id, work.conflict_domain,
+    work.conflict_key, hb.lease_owner, hb.claim_until, hb.last_attempt_at
+FROM hb
+JOIN fact_work_items AS work ON work.work_item_id = hb.work_item_id
+ON CONFLICT (work_item_id) DO UPDATE SET
+    scope_id = EXCLUDED.scope_id,
+    conflict_domain = EXCLUDED.conflict_domain,
+    conflict_key = EXCLUDED.conflict_key,
+    lease_owner = EXCLUDED.lease_owner,
+    claim_until = EXCLUDED.claim_until,
+    last_attempt_at = EXCLUDED.last_attempt_at
 `
 
 const failReducerWorkQuery = `
+WITH done AS (
 UPDATE fact_work_items
 SET status = 'dead_letter',
     cross_scope_replay_required = FALSE,
@@ -67,9 +93,18 @@ WHERE work_item_id = $5
   AND status IN ('claimed', 'running')
   AND claim_until > clock_timestamp()
   AND last_attempt_at = $7
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 
 const failContainerImageIdentityReducerWorkQuery = `
+WITH done AS (
 UPDATE fact_work_items
 SET status = 'dead_letter',
     cross_scope_replay_required = FALSE,
@@ -96,9 +131,18 @@ WHERE work_item_id = $5
   AND container_image_identity_claim_epoch = $7
   AND claim_until > clock_timestamp()
   AND last_attempt_at = $8
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 
 const retryReducerWorkQuery = `
+WITH done AS (
 UPDATE fact_work_items
 SET status = 'retrying',
     cross_scope_replay_required = FALSE,
@@ -116,9 +160,18 @@ WHERE work_item_id = $6
   AND status IN ('claimed', 'running')
   AND claim_until > clock_timestamp()
   AND last_attempt_at = $8
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 
 const retryContainerImageIdentityReducerWorkQuery = `
+WITH done AS (
 UPDATE fact_work_items
 SET status = 'retrying',
     cross_scope_replay_required = FALSE,
@@ -145,6 +198,14 @@ WHERE work_item_id = $6
   AND container_image_identity_claim_epoch = $8
   AND claim_until > clock_timestamp()
   AND last_attempt_at = $9
+    RETURNING work_item_id
+),
+cleared_leases AS (
+DELETE FROM fact_work_item_leases AS lease
+USING done
+WHERE lease.work_item_id = done.work_item_id
+)
+SELECT (SELECT count(*) FROM done) AS matched
 `
 
 // ReducerQueue provides reducer-stage queue behavior over fact_work_items.
@@ -477,16 +538,30 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducercontract.Intent, re
 		}
 		return nil
 	}
-	execResult, err := q.database.ExecContext(ctx, query, args...)
-	if err != nil {
-		return fmt.Errorf("ack reducer work: %w", err)
-	}
-	rowsAffected, rowsErr := execResult.RowsAffected()
-	if rowsErr != nil {
-		return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
-	}
-	if rowsAffected != 1 {
-		return ErrReducerClaimRejected
+	if query == ackReducerWorkQuery {
+		// The base ACK reports its main-table match count (phase 1,
+		// #10879): success depends only on the fence matching, never on
+		// mirror presence, so hand-inserted live rows and version-skewed
+		// writers ACK exactly like claimed ones.
+		matched, err := queryTerminalMatchCount(ctx, q.database, "ack reducer work", query, args...)
+		if err != nil {
+			return err
+		}
+		if matched != 1 {
+			return ErrReducerClaimRejected
+		}
+	} else {
+		execResult, err := q.database.ExecContext(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf("ack reducer work: %w", err)
+		}
+		rowsAffected, rowsErr := execResult.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
+		}
+		if rowsAffected != 1 {
+			return ErrReducerClaimRejected
+		}
 	}
 
 	// #10876: a terminal producer Ack reopens the waits that named it.
