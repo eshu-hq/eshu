@@ -366,6 +366,33 @@ govulncheck_scanner_state_candidates AS (
       AND warn.payload->>'repository_id' = $11
       AND COALESCE(TRIM(warn.payload->>'analysis_status'), '') <> 'completed'
       AND NULLIF(TRIM(warn.payload->>'reason'), '') IS NOT NULL
+      -- A module-scoped warning (non-blank relative_path, #11002) counts
+      -- only when a go_module_evidence row in the same scope names that
+      -- go.mod: the reducer joins the warning to findings through those
+      -- rows, so a warning for a go.mod with no evidence joins nothing and
+      -- must not flip the scope partial. Blank stays repository scope. The
+      -- (scope_id, generation_id, fact_kind) probe below is served by
+      -- fact_records_scope_generation_idx; warnings stay rare and
+      -- repository-bounded, so no new index.
+      AND (
+          COALESCE(TRIM(warn.payload->>'relative_path'), '') = ''
+          OR EXISTS (
+              SELECT 1
+              FROM fact_records AS evidence
+              JOIN ingestion_scopes AS evidence_scope
+                ON evidence_scope.scope_id = evidence.scope_id
+               AND evidence_scope.active_generation_id = evidence.generation_id
+              JOIN scope_generations AS evidence_generation
+                ON evidence_generation.scope_id = evidence.scope_id
+               AND evidence_generation.generation_id = evidence.generation_id
+              WHERE evidence.scope_id = warn.scope_id
+                AND evidence.fact_kind = 'vulnerability.go_module_evidence'
+                AND evidence.is_tombstone = FALSE
+                AND evidence_generation.status = 'active'
+                AND evidence.payload->>'repository_id' = $11
+                AND evidence.payload->>'relative_path' = warn.payload->>'relative_path'
+          )
+      )
       AND NOT EXISTS (
           SELECT 1
           FROM vulnerability_source_states AS state

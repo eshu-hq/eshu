@@ -5,6 +5,7 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu-sdk/factschema"
@@ -78,6 +79,109 @@ func TestGoWarningWithoutRepositoryJoinsNothing(t *testing.T) {
 		}
 		if stringSliceContains(got.Reachability.MissingEvidence, "govulncheck scan toolchain_unsupported") {
 			t.Fatalf("%s: MissingEvidence = %#v, want no un-attributable warning class", osv, got.Reachability.MissingEvidence)
+		}
+	}
+}
+
+// TestGoWarningRelativePathScopesToItsModule is the #11002 regression: a
+// warning naming one failing go.mod (relative_path) joins only the findings
+// whose go_module_evidence rows include that path, via the module evidence
+// rows behind each finding. A module-scoped warning must not mark the other
+// modules' findings in the same repository; a blank or absent relative_path
+// keeps repository scope (see TestGoWarningFailureClassReachesMissingEvidence).
+func TestGoWarningRelativePathScopesToItsModule(t *testing.T) {
+	t.Parallel()
+	stream := loadGovulncheckStream(t, "xtext_v0_3_5_symbol_source.jsonl")
+	envelopes := realShapeImpactEnvelopes(t, stream, nil)
+	const otherModule = "example.com/othermod"
+	envelopes = append(envelopes,
+		packageConsumptionFactWithRange("consume-other", "gomod://proxy.golang.org/"+otherModule, realShapeRepositoryID, "v1.2.3"),
+		goModuleEvidenceEnvelope(t, realShapeRepositoryID, "tools/go.mod", otherModule, "v1.2.3", false, "", ""),
+		vulnerabilityCVEFact("cve-GO-2099-0001", "GO-2099-0001", 7.5),
+		vulnerabilityAffectedPackageGoRangeFact("affected-GO-2099-0001", "GO-2099-0001", "gomod://proxy.golang.org/"+otherModule, otherModule, "1.2.4"),
+		facts.Envelope{
+			FactID:        facts.StableID("scanner_worker.warning", map[string]any{"repo": realShapeRepositoryID, "class": "toolchain_unsupported", "rel": "tools/go.mod"}),
+			FactKind:      "scanner_worker.warning",
+			SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
+			Payload: map[string]any{
+				"analyzer":            "go_reachability",
+				"target_kind":         "repository",
+				"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+				"reason":              "toolchain_unsupported",
+				"warning_class":       "scanner_worker_warning",
+				"analysis_status":     "not_scanned",
+				"coverage_status":     "unsupported",
+				"repository_id":       realShapeRepositoryID,
+				"relative_path":       "tools/go.mod",
+			},
+		},
+	)
+	findings := supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(envelopes))
+	other, ok := findings["GO-2099-0001"]
+	if !ok {
+		t.Fatal("no finding built for the warned module example.com/othermod")
+	}
+	if other.Reachability == nil {
+		t.Fatal("GO-2099-0001: Reachability is nil")
+	}
+	if !stringSliceContains(other.Reachability.MissingEvidence, "govulncheck scan toolchain_unsupported at tools/go.mod") {
+		t.Fatalf("GO-2099-0001: MissingEvidence = %#v, want the module-scoped warning naming its go.mod", other.Reachability.MissingEvidence)
+	}
+	for osv, got := range findings {
+		if osv == "GO-2099-0001" {
+			continue
+		}
+		if got.Reachability == nil {
+			t.Fatalf("%s: Reachability is nil", osv)
+		}
+		for _, entry := range got.Reachability.MissingEvidence {
+			if strings.HasPrefix(entry, "govulncheck scan toolchain_unsupported") {
+				t.Fatalf("%s: MissingEvidence = %#v, want no warning from another module's go.mod", osv, got.Reachability.MissingEvidence)
+			}
+		}
+	}
+}
+
+// TestGoWarningPaddedRelativePathJoinsNothing pins the byte-equal rule
+// (#11002): a whitespace-padded path is non-blank, so it takes module
+// scope, but it byte-matches no evidence row, so it marks nothing and
+// must not fall back to repository scope.
+func TestGoWarningPaddedRelativePathJoinsNothing(t *testing.T) {
+	t.Parallel()
+	stream := loadGovulncheckStream(t, "xtext_v0_3_5_symbol_source.jsonl")
+	envelopes := realShapeImpactEnvelopes(t, stream, nil)
+	const otherModule = "example.com/othermod"
+	envelopes = append(envelopes,
+		packageConsumptionFactWithRange("consume-other", "gomod://proxy.golang.org/"+otherModule, realShapeRepositoryID, "v1.2.3"),
+		goModuleEvidenceEnvelope(t, realShapeRepositoryID, "tools/go.mod", otherModule, "v1.2.3", false, "", ""),
+		vulnerabilityCVEFact("cve-GO-2099-0001", "GO-2099-0001", 7.5),
+		vulnerabilityAffectedPackageGoRangeFact("affected-GO-2099-0001", "GO-2099-0001", "gomod://proxy.golang.org/"+otherModule, otherModule, "1.2.4"),
+		facts.Envelope{
+			FactID:        facts.StableID("scanner_worker.warning", map[string]any{"repo": realShapeRepositoryID, "class": "toolchain_unsupported", "rel": "padded"}),
+			FactKind:      "scanner_worker.warning",
+			SchemaVersion: chain.VulnerabilityIntelligenceSchemaVersionV1,
+			Payload: map[string]any{
+				"analyzer":            "go_reachability",
+				"target_kind":         "repository",
+				"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+				"reason":              "toolchain_unsupported",
+				"warning_class":       "scanner_worker_warning",
+				"analysis_status":     "not_scanned",
+				"coverage_status":     "unsupported",
+				"repository_id":       realShapeRepositoryID,
+				"relative_path":       " tools/go.mod ",
+			},
+		},
+	)
+	findings := supplyChainImpactFindingsByCVE(BuildSupplyChainImpactFindings(envelopes))
+	for osv, got := range findings {
+		if got.Reachability == nil {
+			continue
+		}
+		for _, entry := range got.Reachability.MissingEvidence {
+			if strings.HasPrefix(entry, "govulncheck scan toolchain_unsupported") {
+				t.Fatalf("%s: MissingEvidence = %#v, want no join from a padded path that byte-matches nothing", osv, got.Reachability.MissingEvidence)
+			}
 		}
 	}
 }

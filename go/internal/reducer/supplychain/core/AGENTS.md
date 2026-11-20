@@ -133,7 +133,12 @@ changing anything here.
   `scanner_worker.warning` (emitter-stamped `repository_id`, unfinished
   `analysis_status`, `go_reachability` analyzer) into the finding as
   `govulncheck scan <reason>`, which rides `Reachability.MissingEvidence`
-  to every read surface (#10029 R2).
+  to every read surface (#10029 R2). The join is scoped by the warning's
+  `relative_path` (#11002): blank or whitespace-only keeps repository
+  scope, while a non-blank path byte-matches (no trimming, no case or
+  separator folding) the `go_module_evidence` rows behind each finding and
+  joins only the findings with a matching row, rendered as
+  `govulncheck scan <reason> at <relative_path>`.
   Scan provenance (`scan_level`, `scan_mode`, `scanner_version`,
   `trace_count`) rides the typed decode to the explain payload, one key
   each and only when the fact reports it; pre-provenance facts emit none
@@ -175,3 +180,14 @@ changing anything here.
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped
   finding.
+
+No-Regression Evidence (#11002 module-scope join): `go test
+./internal/reducer/supplychain/core/ ./internal/query/supply/chain/impact/
+-race -count=1` green on the rebased head (core 8.6s, impact 1.1s with
+race; 0.8s/0.1s without). The hot-path delta is an in-memory byte-equal
+filter over already-materialized module rows plus one readiness CTE `AND`
+equality over rare warning rows: no new query, index, lock, or allocator
+shape, so no measurement beyond the suite timings is owed.
+
+No-Observability-Change (#11002): the join narrowing adds no metrics,
+spans, or logs; failure classes and quarantine behavior are unchanged.

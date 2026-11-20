@@ -292,7 +292,10 @@ its doubles; never redeclare them.
   the failure class. A scope a stored govulncheck row covers keeps that
   row (`NOT EXISTS`); a finished scan and another analyzer's warnings
   contribute nothing; the row fires only on repository-anchored reads.
-  The envelope reports `govulncheck:partial` in its incomplete reasons.
+  Module-scoped warnings count only with a byte-equal same-scope
+  `go_module_evidence` row naming that go.mod (#11002); blank stays
+  repository scope. The envelope reports `govulncheck:partial` in its
+  incomplete reasons.
 - Touching a family-local copy: change the root source and the copy
   together and grep for both names — they are duplicated by
   necessity, not by choice.

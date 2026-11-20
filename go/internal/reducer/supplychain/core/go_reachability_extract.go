@@ -148,18 +148,31 @@ func extractGovulncheckReachabilityRowsWithQuarantine(envelopes []facts.Envelope
 	return out, quarantined, nil
 }
 
+// goReachabilityWarning is one unfinished go_reachability scan's
+// missing-evidence entry: the failure-class message plus the go.mod scope the
+// warning names. An empty relativePath is repository scope (a blank or absent
+// warning relative_path covers the whole repository); a non-empty one names
+// the failing go.mod file, byte-equal to the relative_path on that file's
+// go_module_evidence rows (#11002).
+type goReachabilityWarning struct {
+	message      string
+	relativePath string
+}
+
 // extractGoReachabilityWarningsWithQuarantine indexes unfinished
 // go_reachability scans by repository: each scanner_worker.warning carrying a
 // repository_id and a non-completed analysis_status contributes one
 // "govulncheck scan <reason>" row naming the failure class that stopped the
-// scan. A warning that names no repository (a pre-contract emitter) joins
+// scan, scoped to the warning's relative_path (repository scope when blank or
+// absent). A warning that names no repository (a pre-contract emitter) joins
 // nothing, a finished scan reports no gap, and another analyzer's warnings
 // speak for that analyzer, not for govulncheck. A warning missing a required
 // identity field is routed through factdecode.PartitionDecodeFailures into
 // the returned quarantine list rather than silently excluded; any OTHER
 // decode error is returned fatally.
-func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (map[string][]string, []factdecode.QuarantinedFact, error) {
-	out := make(map[string][]string)
+func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (map[string][]goReachabilityWarning, []factdecode.QuarantinedFact, error) {
+	out := make(map[string][]goReachabilityWarning)
+	seen := make(map[string]struct{})
 	var quarantined []factdecode.QuarantinedFact
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.ScannerWorkerWarningFactKind || envelope.IsTombstone {
@@ -190,12 +203,40 @@ func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (ma
 		if reason == "" {
 			continue
 		}
-		out[repositoryID] = append(out[repositoryID], "govulncheck scan "+reason)
-	}
-	for repositoryID := range out {
-		out[repositoryID] = payloadcore.UniqueSortedStrings(out[repositoryID])
+		// The match key stays raw: repository scope iff the path is absent or
+		// whitespace-only, otherwise byte-equal against the evidence rows
+		// (#11002). Trimming happens only in the blank check, never in the
+		// match.
+		relativePath := payloadcore.DerefString(warning.RelativePath)
+		dedupKey := repositoryID + "\x00" + reason + "\x00" + relativePath
+		if _, ok := seen[dedupKey]; ok {
+			continue
+		}
+		seen[dedupKey] = struct{}{}
+		message := "govulncheck scan " + reason
+		if strings.TrimSpace(relativePath) != "" {
+			message += " at " + relativePath
+		}
+		out[repositoryID] = append(out[repositoryID], goReachabilityWarning{
+			message:      message,
+			relativePath: relativePath,
+		})
 	}
 	return out, quarantined, nil
+}
+
+// goModuleEvidenceRowsIncludeRelativePath reports whether any of the module
+// evidence rows behind a finding names the warned go.mod path. A finding
+// groups every go.mod that requires the dependency, so a warning for one of
+// those files joins the finding even when the finding reports another file;
+// a warning for a file none of the rows names joins nothing (#11002).
+func goModuleEvidenceRowsIncludeRelativePath(rows []goModuleEvidenceRow, relativePath string) bool {
+	for _, row := range rows {
+		if row.relativePath == relativePath {
+			return true
+		}
+	}
+	return false
 }
 
 // goVulnerabilityCallFramesFromTyped converts the typed
