@@ -453,7 +453,7 @@ var migrationShippedChecksums = map[string]string{
 	// per-item read-set waits with late-arrival restart (renumbered 314
 	// to 317 onto the #10876 base, then 317 to 319 onto the base
 	// carrying #10878's 317/318).
-	"319_corpus_narrow_fingerprints.sql": "503be2664ff2a0daf8f68c2f837c8fdedf18a581d33b5fb85d2fee9b8dc288b0",
+	"321_corpus_narrow_fingerprints.sql": "503be2664ff2a0daf8f68c2f837c8fdedf18a581d33b5fb85d2fee9b8dc288b0",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
