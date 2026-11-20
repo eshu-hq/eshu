@@ -73,6 +73,13 @@ jobs:
           cache: false
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      # The floors check runs full `go test` on covering packages, which since
+      # #10988 includes mirror-contract self-tests that shell out to scripts
+      # needing rg (same class as the replay-coverage fix on #11004).
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Check changed packages against coverage floors
         env:
           ESHU_FLOORS_BASE_REF: ${{ github.base_ref }}

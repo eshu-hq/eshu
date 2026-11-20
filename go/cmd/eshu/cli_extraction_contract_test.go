@@ -27,12 +27,14 @@ import (
 // to an installed eshu-cli, and the name/versioning/discovery of the
 // future core local-host entrypoint for graph/watch.
 //
-// The path lives in a package-level constant, and the reader resolves it
-// through filepath.Join with the runtime.Caller repo root, because the
-// lockstep discovery scanner only classifies that shape as a test read:
-// the record must stay in specs/ci-docs-lockstep-paths.txt so a docs-only
-// edit still runs this test.
-const cliContractRecordRel = "docs/internal/evidence/8874-eshu-cli-contract.md"
+// The record lives in testdata beside this test (#10978: no gate may
+// require a committed input under docs/internal/evidence/). The path
+// lives in a package-level constant, and the reader resolves it through
+// filepath.Join with the runtime.Caller repo root, because the lockstep
+// discovery scanner only classifies that shape as a test read: the record
+// must stay in specs/ci-docs-lockstep-paths.txt so a docs-only edit still
+// runs this test.
+const cliContractRecordRel = "go/cmd/eshu/testdata/8874-eshu-cli-contract.md"
 
 // cliContractRecordMustName lists strings the contract record must contain:
 // the destination repository and issue anchors, the census PR it builds
