@@ -1,0 +1,12 @@
+# Wave-3 proof overlay: the shared runtime stack gates workflow-coordinator
+# on collector-security-alerts-preflight, whose binary is not shipped in a
+# locally built eshu image (it runs from a pinned external image in hosted
+# deployments). The go-reachability proof does not use security alerts, so
+# the gate is optional here instead of blocking the whole bring-up. This
+# overlay changes nothing else: every other dependency keeps its condition.
+services:
+  workflow-coordinator:
+    depends_on:
+      collector-security-alerts-preflight:
+        condition: service_completed_successfully
+        required: false

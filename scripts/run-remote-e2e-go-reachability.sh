@@ -105,8 +105,10 @@ if [[ -z "${artifacts_dir}" ]]; then
 fi
 mkdir -p "${artifacts_dir}"
 
+proof_deps_overlay="${repo_root}/scripts/docker-compose.go-reachability-proof-deps.yaml"
+
 compose() {
-	docker compose -p "${project}" -f "${base_compose}" -f "${fragment}" "$@"
+	docker compose -p "${project}" -f "${base_compose}" -f "${fragment}" -f "${proof_deps_overlay}" "$@"
 }
 
 # Remap every published host port into a high range so the proof stack never
