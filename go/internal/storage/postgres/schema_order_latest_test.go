@@ -96,4 +96,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// container_image_identity: one row per succeeded work item carrying
 	// the fleet identity epoch.
 	"container_identity_reopen_epochs",
+	// Migration 319 (#11021) adds the scope probe the 2e purge sweep needs
+	// for parked waits of retired scopes.
+	"reducer_waiting_items_scope_idx",
 }

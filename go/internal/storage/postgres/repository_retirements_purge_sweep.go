@@ -95,6 +95,7 @@ func purgeLeftoverDeletes(repoID string, scopeIDs []string) []purgeKeyedDelete {
 		{"collector_generation_dead_letters", purgeDeleteDeadLettersQuery, []any{scopeIDs}},
 		{"supply_chain_impact_write_admission", purgeDeleteWriteAdmissionQuery, []any{scopeIDs}},
 		{"reducer_readiness_waits", purgeDeleteReadinessWaitsQuery, []any{scopeIDs}},
+		{"reducer_waiting_items", purgeDeleteWaitingItemsQuery, []any{scopeIDs}},
 		{"projection_decision_evidence", purgeDeleteProjectionDecisionEvidenceQuery, []any{repoID}},
 		{"projection_decisions", purgeDeleteProjectionDecisionsQuery, []any{repoID}},
 		{"crossplane_satisfied_by_redrive_state", purgeDeleteCrossplaneRedriveStateQuery, []any{scopeIDs}},

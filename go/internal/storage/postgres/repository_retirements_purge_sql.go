@@ -108,6 +108,10 @@ const (
 	//     cascade's fact_records trigger would re-mark it, though the sidecar
 	//     prune earlier in the transaction currently suppresses that).
 	purgeDeleteReadinessWaitsQuery = `DELETE FROM reducer_readiness_waits WHERE scope_id = ANY($1)`
+	// purgeDeleteWaitingItemsQuery drops parked waits for retired scopes. The
+	// wake and audit paths only clear live waits, so without this step a wait
+	// parked on a retired scope would linger after its queue row is gone.
+	purgeDeleteWaitingItemsQuery = `DELETE FROM reducer_waiting_items WHERE scope_id = ANY($1)`
 	// purgeDeleteProjectionDecisionEvidenceQuery runs before its parent: the
 	// evidence rows carry no repository column, only the decision id.
 	purgeDeleteProjectionDecisionEvidenceQuery = `DELETE FROM projection_decision_evidence

@@ -107,6 +107,7 @@ func TestPurgeRetiredOrdersTheCensus2eStatements(t *testing.T) {
 	// Every other #10820 leftover sits in the sweep before the cascade.
 	for _, fragment := range []string{
 		"DELETE FROM reducer_readiness_waits",
+		"DELETE FROM reducer_waiting_items",
 		"DELETE FROM crossplane_satisfied_by_redrive_state",
 		"DELETE FROM crossplane_satisfied_by_redrive_target_ledger",
 		"DELETE FROM service_materialization_generations",
@@ -144,7 +145,7 @@ func TestPurgeRetiredLedgerReportsTheCensus2eTables(t *testing.T) {
 		t.Fatalf("decode ledger %q: %v", ledgerJSON, err)
 	}
 	for _, table := range []string{
-		"reducer_readiness_waits", "projection_decisions", "projection_decision_evidence",
+		"reducer_readiness_waits", "reducer_waiting_items", "projection_decisions", "projection_decision_evidence",
 		"crossplane_satisfied_by_redrive_state", "crossplane_satisfied_by_redrive_target_ledger",
 		"relationship_generations", "relationship_evidence_facts", "relationship_candidates",
 		"service_materialization_generations", "service_evidence_snapshots",
