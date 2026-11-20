@@ -233,10 +233,15 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 		t.Fatalf("gen N+1 first evaluation writes = %d total, want a commit at its first claim", writer.writes)
 	}
 
-	// Step 3: at N's anchor + MaxWait the N+1 row settles and is acked.
-	clock = start.Add(10 * time.Minute)
+	// Step 3: past N's anchor + MaxWait the N+1 row settles and is acked.
+	// The deferral parked a target-committed wait, so the handover waits for
+	// the park backstop on top of MaxWait: the row becomes claimable at
+	// fail-time + backstop (step 2 failed at +6m), and the handler settles it
+	// on that first handover because MaxWait from N's anchor already lapsed.
+	requireParkedWait(t, ctx, sqlDB, scopeID, genN1, WaitingKindTargetCommitted, 1)
+	clock = start.Add(17 * time.Minute)
 	if err := handle(claim(genN1)); err != nil {
-		t.Fatalf("gen N+1 at anchor+MaxWait error = %v, want the wait to settle", err)
+		t.Fatalf("gen N+1 past anchor+MaxWait error = %v, want the wait to settle", err)
 	}
 	if status := reducerWorkStatus(t, ctx, sqlDB, scopeID, genN1); status != "succeeded" {
 		t.Fatalf("gen N+1 row status = %q, want succeeded", status)
@@ -244,7 +249,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 	if got := readinessWaitOutcomeTotal(t, reader, "abandoned"); got != 1 {
 		t.Fatalf("eshu_dp_reducer_readiness_waits_total{outcome=abandoned} = %d, want 1", got)
 	}
-	t.Logf("supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=%d retracts=%d",
+	t.Logf("supersession: N superseded at +6m, N+1 committed at first claim, settled past +10m (anchor from N) once the park backstop lapsed; writes=%d retracts=%d",
 		writer.writes, writer.retracts)
 }
 

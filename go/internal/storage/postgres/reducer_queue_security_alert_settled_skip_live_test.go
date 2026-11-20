@@ -102,19 +102,29 @@ func TestReducerContentionGateSecurityAlertReconciliationLateProducerKeepsItsWai
 	handler := impactWaitHandler(db, loader, writer, true, now)
 
 	for cycle := 1; cycle <= 2; cycle++ {
-		intent, claimed, err := reconQueue.Claim(ctx)
-		if err != nil || !claimed {
-			t.Fatalf("cycle %d: Claim() claimed=%v err=%v, want the deferred row back", cycle, claimed, err)
-		}
-		if intent.AttemptCount != 1 {
-			t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, securityalert.ImpactNotReadyFailureClass)
-		}
-		_, handleErr := handler.Handle(ctx, intent)
-		if got := failureClassName(handleErr); got != securityalert.ImpactNotReadyFailureClass {
-			t.Fatalf("cycle %d: Handle() error = %v (class %q), want the impact-not-ready deferral", cycle, handleErr, got)
-		}
-		if err := reconQueue.Fail(ctx, intent, handleErr); err != nil {
-			t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+		if cycle == 1 {
+			intent, claimed, err := reconQueue.Claim(ctx)
+			if err != nil || !claimed {
+				t.Fatalf("cycle %d: Claim() claimed=%v err=%v, want the pending row", cycle, claimed, err)
+			}
+			if intent.AttemptCount != 1 {
+				t.Fatalf("cycle %d: AttemptCount = %d, want 1 frozen under %s", cycle, intent.AttemptCount, securityalert.ImpactNotReadyFailureClass)
+			}
+			_, handleErr := handler.Handle(ctx, intent)
+			if got := failureClassName(handleErr); got != securityalert.ImpactNotReadyFailureClass {
+				t.Fatalf("cycle %d: Handle() error = %v (class %q), want the impact-not-ready deferral", cycle, handleErr, got)
+			}
+			if err := reconQueue.Fail(ctx, intent, handleErr); err != nil {
+				t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+			}
+		} else if _, claimed, err := reconQueue.Claim(ctx); err != nil || claimed {
+			// Parked since cycle 1: the producer is still in flight, so
+			// the claim fences out instead of burning an attempt. The
+			// wait row below proves the set-aside parked it; the wake
+			// on the producer's Ack reopens it (final phase).
+			t.Fatalf("cycle %d: Claim() claimed=%v err=%v, want it fenced out while parked", cycle, claimed, err)
+		} else {
+			requireParkedWait(t, ctx, db, scope, generation, WaitingKindProducerTerminal, 1)
 		}
 		if status, _, attempts := readRuntimeFenceItem(t, ctx, db, reconID); status != "retrying" || attempts != 1 {
 			t.Fatalf("cycle %d: reconciliation row = %s/attempts=%d, want retrying/1", cycle, status, attempts)

@@ -222,14 +222,15 @@ var lockOrderPattern = regexp.MustCompile(`(?s)ORDER BY ([^\n]+)\n\s*(?:LIMIT [^
 
 // TestOwnGateLocksShareTheBatchAckOrder pins one lock order for every
 // multi-row locker of reducer work rows the activation wake can meet: the
-// batch ack and both wake statements sort on work_item_id COLLATE "C", so
+// batch ack and the wake statements sort on work_item_id COLLATE "C", so
 // they cannot lock two rows in opposite orders (#7597 review N1).
 func TestOwnGateLocksShareTheBatchAckOrder(t *testing.T) {
 	t.Parallel()
 	for name, query := range map[string]string{
-		"ackReducerWorkBatchQuery":         ackReducerWorkBatchQuery(),
-		"lockInflightOwnGateConsumersSQL":  lockInflightOwnGateConsumersSQL,
-		"wakeProducerTerminalConsumersSQL": wakeProducerTerminalConsumersSQL,
+		"ackReducerWorkBatchQuery":            ackReducerWorkBatchQuery(),
+		"lockInflightOwnGateConsumersSQL":     lockInflightOwnGateConsumersSQL,
+		"wakeProducerTerminalConsumersSQL":    wakeProducerTerminalConsumersSQL,
+		"wakeProducerTerminalCrossScopeQuery": wakeProducerTerminalCrossScopeQuery,
 	} {
 		orders := lockOrderPattern.FindAllStringSubmatch(query, -1)
 		if len(orders) == 0 {

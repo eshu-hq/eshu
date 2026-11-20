@@ -155,13 +155,15 @@ func (w *countingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 //  1. Claim, run the real handler with both producer scopes registered and not
 //     yet activated, and Fail with the error the handler actually returned. The
 //     row lands in 'retrying' under cross_scope_producer_not_ready.
-//  2. Repeat the claim/handle/fail cycle more times than MaxAttempts. If the
-//     class were counting, the row would dead-letter; the assertion is that
-//     attempt_count stays at 1 and the row stays reclaimable, and that the
-//     writer is never called while it waits.
-//  3. Activate the producer scopes. The same handler, reading the same real
-//     readiness store, now commits: the writer runs once and Ack drives the row
-//     to 'succeeded'. A floor that could not converge would be its own bug.
+//  2. Repeat the claim more times than MaxAttempts. If the class were
+//     counting, the row would dead-letter; the assertion is that the first
+//     deferral parks the domain waits and every later claim fences out,
+//     attempt_count stays at 1, and the writer is never called while it
+//     waits.
+//  3. Activate the producer scopes and run one audit pass. The same handler,
+//     reading the same real readiness store, now commits: the writer runs
+//     once and Ack drives the row to 'succeeded'. A floor that could not
+//     converge would be its own bug.
 func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t *testing.T) {
 	dsn := reducerDomainFairnessDSN()
 	if dsn == "" {
@@ -210,44 +212,59 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	}
 
 	// More cycles than MaxAttempts: a counting class would have dead-lettered
-	// this row by cycle four.
+	// this row by cycle four. Under the #10876 set-aside the first deferral
+	// parks two domain-only waits (one per producer domain) and every later
+	// claim fences out instead of burning an attempt.
 	const deferCycles = 5
 	for cycle := 1; cycle <= deferCycles; cycle++ {
-		intent, claimed, err := queue.Claim(ctx)
-		if err != nil {
-			t.Fatalf("cycle %d: Claim() error = %v", cycle, err)
-		}
-		if !claimed {
-			t.Fatalf("cycle %d: Claim() claimed = false, want the deferred row back: a non-counting retry must stay reclaimable", cycle)
-		}
-		if intent.AttemptCount != 1 {
-			t.Fatalf(
-				"cycle %d: claimed Intent.AttemptCount = %d, want 1 frozen: cross_scope_producer_not_ready is enrolled non-counting",
-				cycle, intent.AttemptCount,
-			)
-		}
+		if cycle == 1 {
+			intent, claimed, err := queue.Claim(ctx)
+			if err != nil {
+				t.Fatalf("cycle %d: Claim() error = %v", cycle, err)
+			}
+			if !claimed {
+				t.Fatalf("cycle %d: Claim() claimed = false, want the pending row", cycle)
+			}
+			if intent.AttemptCount != 1 {
+				t.Fatalf(
+					"cycle %d: claimed Intent.AttemptCount = %d, want 1 frozen: cross_scope_producer_not_ready is enrolled non-counting",
+					cycle, intent.AttemptCount,
+				)
+			}
 
-		_, handleErr := handler.Handle(ctx, intent)
-		if handleErr == nil {
-			t.Fatalf("cycle %d: Handle() error = nil, want a deferral while the producer scopes have not activated", cycle)
-		}
-		// The failure class is read off the error the same way the queue reads
-		// it, so this pins the value Fail is about to persist rather than a
-		// restatement of it.
-		var classified interface{ FailureClass() string }
-		if !errors.As(handleErr, &classified) ||
-			classified.FailureClass() != crossscope.ProducerNotReadyFailureClass {
-			t.Fatalf(
-				"cycle %d: Handle() error = %#v, want one self-classifying as %q",
-				cycle, handleErr, crossscope.ProducerNotReadyFailureClass,
-			)
-		}
-		if writer.calls != 0 {
-			t.Fatalf("cycle %d: writer calls = %d, want 0 while the consumer is deferring", cycle, writer.calls)
-		}
+			_, handleErr := handler.Handle(ctx, intent)
+			if handleErr == nil {
+				t.Fatalf("cycle %d: Handle() error = nil, want a deferral while the producer scopes have not activated", cycle)
+			}
+			// The failure class is read off the error the same way the queue reads
+			// it, so this pins the value Fail is about to persist rather than a
+			// restatement of it.
+			var classified interface{ FailureClass() string }
+			if !errors.As(handleErr, &classified) ||
+				classified.FailureClass() != crossscope.ProducerNotReadyFailureClass {
+				t.Fatalf(
+					"cycle %d: Handle() error = %#v, want one self-classifying as %q",
+					cycle, handleErr, crossscope.ProducerNotReadyFailureClass,
+				)
+			}
+			if writer.calls != 0 {
+				t.Fatalf("cycle %d: writer calls = %d, want 0 while the consumer is deferring", cycle, writer.calls)
+			}
 
-		if err := queue.Fail(ctx, intent, handleErr); err != nil {
-			t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+			if err := queue.Fail(ctx, intent, handleErr); err != nil {
+				t.Fatalf("cycle %d: Fail() error = %v", cycle, err)
+			}
+		} else {
+			// Parked since cycle 1, one domain-only wait per producer
+			// domain: every claim fences out instead of burning an
+			// attempt while the producers stay unactivated.
+			if _, claimed, err := queue.Claim(ctx); err != nil || claimed {
+				t.Fatalf("cycle %d: Claim() claimed = %v err = %v, want it fenced out while parked", cycle, claimed, err)
+			}
+			requireParkedWait(t, ctx, db, crossScopeReadinessProofConsumerScope, "gen-fair", WaitingKindProducerTerminal, 2)
+			if writer.calls != 0 {
+				t.Fatalf("cycle %d: writer calls = %d, want 0 while the consumer is parked", cycle, writer.calls)
+			}
 		}
 		status, failureClass, attemptCount := readCrossScopeProofWorkItem(t, ctx, db)
 		if status != "retrying" {
@@ -270,9 +287,13 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	}
 
 	// The producers activate. Nothing about the intent changed; only the
-	// ingestion_scopes rows the real readiness store reads did.
+	// ingestion_scopes rows the real readiness store reads did. The parked
+	// domain waits do not move on their own: the audit re-checks the handler
+	// quiescence rule and reopens them now that a quiescent-active scope of
+	// each kind exists.
 	activateCrossScopeProducerScope(t, ctx, db, "oci_registry:ghcr.io/acme")
 	activateCrossScopeProducerScope(t, ctx, db, "ci_cd_run:github.com/acme/api")
+	ReducerWaitingAuditor{Queue: queue}.AuditOnce(ctx)
 
 	intent, claimed, err := queue.Claim(ctx)
 	if err != nil {

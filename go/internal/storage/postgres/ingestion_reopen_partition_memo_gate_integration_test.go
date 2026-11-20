@@ -25,24 +25,12 @@ import (
 // reopenWaitingWakeProofTablesSQL carries the waiting set-aside the
 // phase-commit wake reads: the wake runs inside the backfill fan-in and the
 // deferred maintenance pass, so the proof schemas carry the table (empty;
-// the wake then no-ops). Mirrors migration 313 (no foreign keys there).
-const reopenWaitingWakeProofTablesSQL = `
-CREATE TABLE reducer_waiting_items (
-    work_item_id TEXT NOT NULL,
-    waits_for_kind TEXT NOT NULL,
-    waits_for_key JSONB NOT NULL,
-    scope_id TEXT NOT NULL,
-    generation_id TEXT NOT NULL,
-    domain TEXT NOT NULL,
-    failure_class TEXT NOT NULL,
-    first_deferred_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    row_version BIGINT NOT NULL DEFAULT 0,
-    CONSTRAINT reducer_waiting_items_pkey PRIMARY KEY (work_item_id, waits_for_kind, waits_for_key)
-);
-`
+// the wake then no-ops). Sourced from the shipped migration, never
+// hand-copied: a copy rots when the production DDL moves (it once mirrored
+// migration 313; the table lives in 316 now).
+var reopenWaitingWakeProofTablesSQL = MigrationSQL("reducer_waiting_items")
 
-const reopenPartitionMemoProofSchemaSQL = deferredPartitionMemoProofSchemaSQL +
+var reopenPartitionMemoProofSchemaSQL = deferredPartitionMemoProofSchemaSQL +
 	reopenWaitingWakeProofTablesSQL + `
 CREATE TABLE fact_work_items (
     work_item_id    TEXT PRIMARY KEY,
