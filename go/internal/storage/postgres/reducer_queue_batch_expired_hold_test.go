@@ -353,7 +353,10 @@ SELECT count(*) FROM (
 // waiting rows at the batch LIMIT, mirroring the projector #10480
 // reclaim_rank. The priority CASE puts every expired claimed/running row at
 // rank 0 and everything else at 1; the lock arms sort that key first, so a
-// deeper pending backlog can no longer bury the hold.
+// deeper pending backlog can no longer bury the hold. It also pins the
+// #10972 gate-boost computation itself, not just its ORDER BY effect, so
+// neutering the boost fails hermetically instead of only in the DB-gated
+// live lane.
 func TestClaimBatchExpiredHoldOrderedFirstInShippedQuery(t *testing.T) {
 	t.Parallel()
 
@@ -371,6 +374,16 @@ func TestClaimBatchExpiredHoldOrderedFirstInShippedQuery(t *testing.T) {
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query no longer orders expired holds first with %q", want)
+		}
+	}
+
+	for _, want := range []string{
+		"CASE WHEN gate.waited_generation_id IS NOT NULL AND ROW_NUMBER() OVER w_gate_boost = 1",
+		"LEFT JOIN gate_waited_generations AS gate",
+		"WINDOW w_gate_boost AS (",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("batch claim query lost the gate-boost computation %q", want)
 		}
 	}
 
