@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -363,6 +364,29 @@ func mountCoreMetrics(prometheusHandler http.Handler) func(*http.ServeMux, *quer
 // isKeyNotConfigured reports the empty-DEK sentinel from KeyringFromEnv.
 func isKeyNotConfigured(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not configured")
+}
+
+// startCoreOIDCSessionRefresh starts the background OIDC active-session
+// revocation refresh worker when configured. A nil worker (the feature is
+// off) starts nothing and reports no error.
+func startCoreOIDCSessionRefresh(
+	ctx context.Context,
+	getenv func(string) string,
+	rawDB *sql.DB,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) error {
+	worker, err := CoreOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger)
+	if err != nil {
+		return fmt.Errorf("configure oidc session refresh: %w", err)
+	}
+	if worker == nil {
+		return nil
+	}
+	go worker.Run(ctx)
+	logger.Info("oidc session refresh worker started",
+		telemetry.EventAttr("auth.oidc.session_refresh.started"))
+	return nil
 }
 
 // v1PrefixAliasMiddleware rewrites /api/v1/* paths to /api/v0/* before auth

@@ -45,6 +45,16 @@ listen address):
   closed, never silently unencrypted)
 - Setup: `ESHU_AUTH_BOOTSTRAP_MODE`, `ESHU_ADMIN_USERNAME`,
   `ESHU_ADMIN_PASSWORD(_FILE)`
+- Commit listener (dark unless `ESHU_COMMIT_LISTEN` is set to an empty-host
+  or literal-IP `host:port`, e.g. `0.0.0.0:8089`; hostnames are refused):
+  `ESHU_COMMIT_MANIFEST_PATH`, `ESHU_COMMIT_CLAIM_PLANE_URL` (bare
+  http/https base URL), `ESHU_COMMIT_SOURCE_SYSTEM`,
+  `ESHU_COMMIT_SCOPE_KIND` (presence-checked only; an unlisted spelling
+  passes startup and mismatches are refused per-request by admission),
+  `ESHU_COMMIT_INSTANCE_ID` (all required when
+  the listener is set), and optional `ESHU_COMMIT_GRANTS_PATH`. Serves
+  `POST /workflow.v1/CommitClaimFacts` through the claim-plane fence, so
+  the satellite proxy finally has a live receiving end (issue #11064).
 
 ## Probes
 
@@ -55,9 +65,33 @@ listen address):
 ## Telemetry
 
 No-Observability-Change: the binary reuses the shared `eshu_dp_*`
-instruments (`telemetry.NewInstruments`) and the process logger; it adds no
-new metric, span, or log key. The Prometheus handler serves on `/metrics`
-(public, behind the same auth chain).
+instruments (`telemetry.NewInstruments`) and the process logger; the only
+addition is the one startup event `runtime.commit_listener.listening`
+(with `addr`) when the commit listener is enabled. The Prometheus handler
+serves on `/metrics` (public, behind the same auth chain).
+
+## Performance Evidence: commit listener (issue #11064)
+
+- Baseline: no :8089 listener existed, so every CommitClaimFacts call
+  failed at dial time (connection refused); there is no prior
+  per-request cost to regress against.
+- After: one bounded second HTTP server serving only the
+  `workflow.v1/CommitClaimFacts` protocol route through the pre-existing
+  `extensionhost` commit handler and claim-plane fence. No new hot
+  loops, no Cypher/SQL schema or index changes, no new worker pools;
+  when `ESHU_COMMIT_LISTEN` is unset the primary serve path is
+  byte-identical to before (dark by default: `TestCommitListenerDarkByDefault`
+  pins the config reports nil, and the `TestJoinCoreServersDarkLane*`
+  lifecycle tests prove the join drains with a nil commit channel).
+- Input shape: framed client envelopes capped at
+  `workflow.MaxCommitClaimFactsBytes`; handler ack happens only after
+  the commit is durable. Join shutdown (`joinCoreServers`) drains both
+  servers on cancel and reports the first fatal error — proven by the
+  `TestJoinCoreServers*` lifecycle tests.
+- Telemetry: one startup event (`runtime.commit_listener.listening`
+  with `addr`); per-request rows flow through the existing satellite
+  log. Observability Evidence: the startup event above, present only
+  when the listener is enabled.
 
 ## No-regression proof (Wave-6 review findings)
 

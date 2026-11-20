@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -334,25 +335,104 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 	}
 	handler = wrapCoreAPIMiddleware(handler, readCoreSunsetDate(getenv))
 
-	if worker, err := CoreOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger); err != nil {
-		return fmt.Errorf("configure oidc session refresh: %w", err)
-	} else if worker != nil {
-		go worker.Run(ctx)
-		logger.Info("oidc session refresh worker started",
-			telemetry.EventAttr("auth.oidc.session_refresh.started"))
+	if err := startCoreOIDCSessionRefresh(ctx, getenv, rawDB, instruments, logger); err != nil {
+		return err
+	}
+
+	// The commit listener drains on the child context: a primary failure
+	// stops it via stopListener, and a process signal stops it via the
+	// parent ctx. joinCoreServers owns both directions.
+	listenerCtx, stopListener := context.WithCancel(ctx)
+	defer stopListener()
+
+	commitErrCh, err := startCoreCommitListener(listenerCtx, getenv, rawDB, instruments, logger)
+	if err != nil {
+		return err
 	}
 
 	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 30 * time.Second}
 	logger.Info("core api listening",
 		telemetry.EventAttr("runtime.server.listening"), slog.String("addr", addr))
-	errCh := make(chan error, 1)
-	go func() { errCh <- server.ListenAndServe() }()
+	primaryErrCh := make(chan error, 1)
+	go func() { primaryErrCh <- server.ListenAndServe() }()
+	return joinCoreServers(ctx, stopListener, server, primaryErrCh, commitErrCh, coreShutdownTimeout(getenv))
+}
+
+// coreServeFailed reports whether a ListenAndServe return must fail the
+// process. http.ErrServerClosed is the clean shutdown path; any other
+// return means the socket never served, and running on without it would
+// look healthy while the satellite proxy has no core URL.
+func coreServeFailed(err error) bool {
+	return err != nil && !errors.Is(err, http.ErrServerClosed)
+}
+
+// shutdownCoreServer drains the primary server under the shared shutdown
+// deadline so in-flight requests complete instead of truncating.
+func shutdownCoreServer(primary *http.Server, shutdownTimeout time.Duration) error {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer shutdownCancel()
+	return primary.Shutdown(shutdownCtx)
+}
+
+// awaitCommitResult waits for the commit listener to finish. A nil channel
+// means the lane is dark (no listener configured), so there is nothing to
+// wait for and the join continues with the primary result alone.
+func awaitCommitResult(commitErrCh <-chan error) error {
+	if commitErrCh == nil {
+		return nil
+	}
+	return <-commitErrCh
+}
+
+// joinCoreServers joins the primary server and the commit listener after
+// the first of them — or the process context — finishes, so no return
+// abandons the other server mid-flight:
+//
+//   - ctx done: shut down the primary, await commit completion, return the
+//     first fatal error (primary shutdown first, then commit).
+//   - primary failed: cancel the listener scope unconditionally — gating
+//     the cancel deadlocks when the listener is enabled, because the
+//     commit watcher drains on ctx while the join waits for it (#10338) —
+//     then await commit completion and report the primary error.
+//   - commit failed: shut down the primary, await it, and report the
+//     commit error first.
+//
+// A nil commitErrCh is the dark lane: the select never takes the commit
+// branch and the await is a no-op.
+func joinCoreServers(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	primary *http.Server,
+	primaryErrCh <-chan error,
+	commitErrCh <-chan error,
+	shutdownTimeout time.Duration,
+) error {
 	select {
 	case <-ctx.Done():
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), coreShutdownTimeout(getenv))
-		defer shutdownCancel()
-		return server.Shutdown(shutdownCtx)
-	case err := <-errCh:
-		return err
+		primaryErr := shutdownCoreServer(primary, shutdownTimeout)
+		commitErr := awaitCommitResult(commitErrCh)
+		if coreServeFailed(primaryErr) {
+			return primaryErr
+		}
+		if coreServeFailed(commitErr) {
+			return commitErr
+		}
+		return nil
+	case err := <-primaryErrCh:
+		if coreServeFailed(err) {
+			cancel()
+		}
+		commitErr := awaitCommitResult(commitErrCh)
+		if coreServeFailed(err) {
+			return err
+		}
+		return commitErr
+	case err := <-commitErrCh:
+		cancel()
+		primaryErr := shutdownCoreServer(primary, shutdownTimeout)
+		if coreServeFailed(err) {
+			return err
+		}
+		return primaryErr
 	}
 }
