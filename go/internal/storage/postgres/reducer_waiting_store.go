@@ -15,7 +15,6 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // WaitingBackstopDelay is the visible_at horizon of a parked wait row
@@ -160,7 +159,12 @@ SELECT EXISTS (
     $1 = 'winners_watermark' AND $5 <> '' AND EXISTS (
         SELECT 1 FROM supply_chain_impact_winners_materialization AS wm
         WHERE wm.singleton = 1
-          AND wm.materialized_at > ($5::timestamptz)
+          -- >=, not >: the handler proceeds when the watermark reaches the
+          -- bound (!watermark.Before(required)), and the in-tx wake aligns
+          -- the woken row's cycle start to the covering stamp, so the
+          -- post-wake claim presents bound == watermark. A strict > would
+          -- report that claim unsatisfied while the handler accepts it.
+          AND wm.materialized_at >= ($5::timestamptz)
     )
 ) OR (
     $1 = 'fence_clear' AND NOT EXISTS (
@@ -308,76 +312,6 @@ func wakeWaitingByKey(
 	}
 	recordWaitingWake(ctx, instruments, site, outcome)
 	return reopenedCount, clearedCount, nil
-}
-
-// wakeWinnersWatermarkQuery reopens winners-watermark waits whose enqueue
-// time the new watermark passed. A range reopen, not an equality lookup:
-// every advisory wait older than the rebuild wakes together. $1 is the wake
-// timestamp, $2 the new watermark.
-const wakeWinnersWatermarkQuery = `
-WITH due AS (
-    SELECT work_item_id FROM reducer_waiting_items
-    WHERE waits_for_kind = 'winners_watermark'
-      AND (waits_for_key->>'enqueued_at')::timestamptz <= $2::timestamptz
-    ORDER BY work_item_id COLLATE "C"
-    FOR UPDATE
-),
-reopened AS (
-    UPDATE fact_work_items AS work
-    SET ` + waitingWakeReopenSetClause + `
-    FROM due
-    WHERE work.work_item_id = due.work_item_id
-      AND work.stage = 'reducer'
-      AND work.status = 'retrying'
-    RETURNING work.work_item_id
-),
-cleared AS (
-    DELETE FROM reducer_waiting_items AS wait
-    USING reopened
-    WHERE wait.work_item_id = reopened.work_item_id
-      AND wait.waits_for_kind = 'winners_watermark'
-    RETURNING 1
-)
-SELECT (SELECT count(*) FROM reopened), (SELECT count(*) FROM cleared)
-`
-
-// wakeWinnersWatermark reopens every winners wait the rebuild's watermark
-// passed. The waiting set is narrow (advisory only) and the maintainer
-// commits on a 30-second cadence, so the coarse range scan stays inside the
-// provider transaction within the measured ~16ms budget (theory proof a).
-func wakeWinnersWatermark(
-	ctx context.Context,
-	database db.ExecQueryer,
-	instruments *telemetry.Instruments,
-	site string,
-	watermark time.Time,
-	now time.Time,
-) (int64, error) {
-	var reopenedCount, clearedCount int64
-	if err := querySingleRow(ctx, database, wakeWinnersWatermarkQuery,
-		[]any{now, watermark}, &reopenedCount, &clearedCount); err != nil {
-		recordWaitingWake(ctx, instruments, site, telemetry.WaitingWakeOutcomeError)
-		return 0, fmt.Errorf("wake winners waiting items: %w", err)
-	}
-	outcome := telemetry.WaitingWakeOutcomeNoop
-	if reopenedCount > 0 {
-		outcome = telemetry.WaitingWakeOutcomeReopened
-	}
-	recordWaitingWake(ctx, instruments, site, outcome)
-	return reopenedCount, nil
-}
-
-// recordWaitingWake counts one waiting-wake statement on
-// eshu_dp_reducer_waiting_wake_total by site and outcome. Nil instruments are
-// a no-op.
-func recordWaitingWake(ctx context.Context, instruments *telemetry.Instruments, site, outcome string) {
-	if instruments == nil || instruments.ReducerWaitingWake == nil {
-		return
-	}
-	instruments.ReducerWaitingWake.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrWaitingWakeSite(site),
-		telemetry.AttrOutcome(outcome),
-	))
 }
 
 // setAsideWaiting parks one deferred intent: it inserts the wait row and,

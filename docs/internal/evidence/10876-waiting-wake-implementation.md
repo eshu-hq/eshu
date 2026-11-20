@@ -120,3 +120,34 @@ coverage row added to `telemetry-coverage-reducer-core.md` and
 - `git diff --check`: clean (run before commit).
 - NOT run: `make pre-push` / `make pre-pr` (coordinator owns the floor),
   full postgres package suite, production QA re-measurement.
+
+## Missed wake in the winners resweep path (golden-corpus gate rerun)
+
+Root-Cause Evidence: advisory waits parked at 01:58:01 against watermark
+01:57:31 while keyed resweeps committed every 30 s without waking them;
+the 5-minute audit reopened all 4 at 02:03:01 (reopened=4, missed_wake=0)
+yet all 4 were still residual at the drain deadline. Two defects combined:
+
+1. The keyed tick (`ResweepWinnersKeyed`, the 30 s production cadence)
+   stamped the watermark every tick but never called `wakeWinnersWatermark`;
+   only the rarely-taken full `ResweepWinners` woke. Every gate resweep was
+   `path=keyed`, so no wake ever fired.
+2. The woken row's bound ratcheted past the stamp that woke it: the wake
+   set `reopened_at` to the wake wall time, the claim derives the handler
+   bound from it, and the stamp predates it by definition, so the next
+   claim re-parked with a newer key. The audit's equality reopen does the
+   same, which is why the audit-reopened rows were still residual: they
+   were reclaimed and re-parked before any new stamp covered the audit
+   time, and the next tick (no wake) left them parked to the deadline.
+
+Fix: the tick wakes in-transaction before commit with the re-read committed
+watermark (`wakeWinnersWaits`, `lock_timeout=2s`, 55P03/40P01 to the
+retryable class-less `WinnersWakeContentionError` per #7597); the winners
+range wake aligns `reopened_at` to the covering stamp so the next claim's
+handler recheck passes; the `waitingSatisfied` winners branch uses `>=` to
+agree with the handler (`!watermark.Before(required)`).
+
+Proof: `TestWinnersKeyedTickWakesParkedAdvisoryWaitLive` (RED before: wait
+rows survive the tick; GREEN after: woken in-tx, bound covered) and
+`TestWinnersAuditReopenedWaitConvergesOnNextTickLive` (replays the gate's
+audit-reopen-then-residual path to convergence on the next tick).

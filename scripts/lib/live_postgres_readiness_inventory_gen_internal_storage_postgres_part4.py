@@ -95,6 +95,10 @@ TABLE = {
             "TestWaitingConcurrentClaimAndWakeLive",
             "TestWaitingDeferShareImprovementLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_winners_wake_live_test.go": (
+            "TestWinnersKeyedTickWakesParkedAdvisoryWaitLive",
+            "TestWinnersAuditReopenedWaitConvergesOnNextTickLive",
+        ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
             "TestActivationWakesOwnGateConsumersLive",
         ),

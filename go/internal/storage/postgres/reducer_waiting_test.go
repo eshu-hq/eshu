@@ -4,7 +4,11 @@
 package postgres
 
 import (
+	"errors"
+	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // TestWaitingDeferralMapCoversEveryNonCountingClass fails when a readiness
@@ -89,5 +93,65 @@ func TestWaitingWriteSupersededClassesAreNotWaits(t *testing.T) {
 			t.Errorf("write-superseded class %q wake site = %q, want %q",
 				class, entry.WakeSite, WaitingWakeSiteNotAWait)
 		}
+	}
+}
+
+// TestWinnersWakeQueryAlignsCycleStartToCoveringStamp pins the #10876 bound
+// alignment: the winners range wake sets reopened_at to the covering
+// watermark ($2), never to the wake wall time ($1). A woken row whose cycle
+// start is the wake time sits epsilon past the stamp that woke it and
+// re-parks on its next claim; with the bound aligned to the stamp the
+// handler recheck passes at once.
+func TestWinnersWakeQueryAlignsCycleStartToCoveringStamp(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(wakeWinnersWatermarkQuery, "reopened_at = $2::timestamptz") {
+		t.Errorf("winners wake query does not align reopened_at to the covering watermark:\n%s", wakeWinnersWatermarkQuery)
+	}
+	if strings.Contains(wakeWinnersWatermarkQuery, waitingWakeReopenSetClause) {
+		t.Errorf("winners wake query embeds the shared set clause, whose reopened_at = $1 reintroduces the re-park ratchet")
+	}
+}
+
+// winnersWakeContentionTestError wraps err the way the pgx driver surfaces
+// statement failures, so the classifier proof exercises errors.As.
+type winnersWakeContentionTestError struct{ err error }
+
+func (e winnersWakeContentionTestError) Error() string { return e.err.Error() }
+
+func (e winnersWakeContentionTestError) Unwrap() error { return e.err }
+
+// TestClassifyWinnersWakeError pins the #7597 contention contract for the
+// winners in-tx wake: lock_timeout (55P03) and deadlock (40P01) roll back
+// retryably with no failure class, and every other error passes through
+// unchanged.
+func TestClassifyWinnersWakeError(t *testing.T) {
+	t.Parallel()
+
+	for _, code := range []string{"55P03", "40P01"} {
+		pgErr := &pgconn.PgError{Code: code, Message: "contention"}
+		got := classifyWinnersWakeError(winnersWakeContentionTestError{err: pgErr})
+		var contention WinnersWakeContentionError
+		if !errors.As(got, &contention) {
+			t.Errorf("code %s classified as %T (%v), want WinnersWakeContentionError", code, got, got)
+			continue
+		}
+		if !contention.Retryable() {
+			t.Errorf("code %s contention error is not Retryable", code)
+		}
+		if _, ok := any(contention).(interface{ FailureClass() string }); ok {
+			t.Errorf("code %s contention error carries a FailureClass: the tick must never burn a queue budget", code)
+		}
+		if !errors.Is(got, pgErr) {
+			t.Errorf("code %s contention error does not unwrap to the driver error", code)
+		}
+	}
+
+	other := errors.New("connection reset")
+	if got := classifyWinnersWakeError(winnersWakeContentionTestError{err: other}); !errors.Is(got, other) {
+		t.Errorf("non-contention error = %v, want it passed through unchanged", got)
+	}
+	if got := classifyWinnersWakeError(other); got != other {
+		t.Errorf("plain error = %v, want the identical value", got)
 	}
 }

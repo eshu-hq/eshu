@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/membership/known_scopes_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7625 disposable PostgreSQL 18 proof of the github_org host filter on KnownScopes: with host github.com only the org's github.com scopes are known (HTTPS and normalized SSH remotes), and gitlab.com, GitHub Enterprise, and remote-less scopes drop out; with an empty host the read keeps the slug-only org partition. Enrolled in the live-postgres-readiness runner; 1.58-1.61s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/membership/known_scopes_prefix_live_test.go
     tag: ~
     class: postgres_ci
@@ -418,6 +413,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10876 waiting-race proofs: competing claimers drain parked waits while the provider commits mid-flight with exactly-once execution; disposable database per test; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_winners_wake_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10876 winners-watermark wake proofs: a keyed winners tick reopens advisory waits parked on the watermark without the audit running, and an audit-reopened wait converges through the next tick with its bound covered instead of stranding at the drain deadline; disposable database per test, about 60 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/relationship_activation_wake_live_test.go
     tag: ~
