@@ -52,7 +52,7 @@ rides the explain, list, MCP, and console surfaces.
 
 | Check | Result |
 |---|---|
-| `go test ./internal/reducer/supplychain/core/ -count=1` | ok (includes 3 new `TestGoWarning*` + updated partial-run test + #11002 `TestGoWarningRelativePathScopesToItsModule`) |
+| `go test ./internal/reducer/supplychain/core/ -count=1` | ok (includes 3 new `TestGoWarning*` + updated partial-run test + #11002 `TestGoWarningRelativePathScopesToItsModule` and `TestGoWarningPaddedRelativePathJoinsNothing`) |
 | `go test ./internal/query/supply/chain/impact/ -count=1` | ok (includes 2 new explain/list pinning tests + 2 new live proof tests with disposable Postgres + #11002 `TestReadinessScopesGovulncheckWarningToItsModuleLive`) |
 | `go test ./internal/cli/vulnscan/ -count=1` | ok (includes new provenance present/absent test) |
 | `go test ./internal/mcp/ -count=1` | ok (includes new MCP pass-through test) |
