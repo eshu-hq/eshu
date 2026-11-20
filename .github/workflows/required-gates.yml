@@ -9,6 +9,13 @@ name: Required Gates
 # one per-SHA concurrency group. Only the live-ruleset audit below remains,
 # on its schedule and manual dispatch. The leaf checks remain ordinary
 # pull-request CI and rely on branch-protected review.
+#
+# Retention decision (#10977, part of #9315): RETAIN as the scheduled audit.
+# Named consumer is the Main Health watcher (.github/workflows/main-health.yml,
+# scripts/ci/main-health.sh): it reads this workflow's newest completed
+# scheduled run on every evaluation and fails closed when no workflow owns
+# the verify-live-ruleset job, so deleting this file would break that
+# watcher. Do not delete without moving the audit (or its ownership) there.
 on:
   workflow_dispatch:
   schedule:
