@@ -455,11 +455,12 @@ var migrationShippedChecksums = map[string]string{
 	// carrying #10878's 317/318).
 	"321_corpus_narrow_fingerprints.sql": "503be2664ff2a0daf8f68c2f837c8fdedf18a581d33b5fb85d2fee9b8dc288b0",
 	// #10879 phase 1: the reducer lease sidecar (fencing triple mirror with
-	// fillfactor 70 and the conflict unique; backfill split into 320 per
+	// fillfactor 70 and the conflict unique; backfill split into 321 per
 	// #7961 -- table-locking DDL and bulk DML must not share a file;
-	// renumbered 317/318 to 319/320: #11018 owns 317/318).
-	"319_fact_work_item_leases.sql":          "85f81cb9deccf64e6b87f405be144722dda17906b7f6f725a29562554ccf4e1b",
-	"320_fact_work_item_leases_backfill.sql": "a0328447baef368223768570402757dff4370bc2e88889dbb3b0fca4a120232e",
+	// renumbered 317/318 to 320/321: #11018 owns 317/318, #11021 owns
+	// 319).
+	"320_fact_work_item_leases.sql":          "dacb92122c18c99393e01798a53da9cfef7d879260750b3a9525eece02c3b4c0",
+	"321_fact_work_item_leases_backfill.sql": "596f8525500682ab1c250046dade1508556f515623ae5f73076855a2454f8b96",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

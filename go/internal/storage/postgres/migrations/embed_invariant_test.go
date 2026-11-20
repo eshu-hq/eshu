@@ -312,12 +312,12 @@ import (
 // fleet identity epoch).
 // #11021 adds 319_reducer_waiting_items_scope_idx.sql (the scope probe
 // the 2e purge sweep needs for parked waits of retired scopes).
-// #10879 phase 1 adds 320_fact_work_item_leases.sql (the lease sidecar:
+// #10879 phase 1 adds 321_fact_work_item_leases.sql (the lease sidecar:
 // fencing-triple mirror with fillfactor 70 and the per-stage conflict
 // unique; main columns stay authoritative) and
-// 321_fact_work_item_leases_backfill.sql (the idempotent live-lease
-// backfill, split per #7961; renumbered 317/318 to 320/321: #11018
-// owns 317/318, #11021 owns 319).
+// 322_fact_work_item_leases_backfill.sql (the idempotent live-lease
+// backfill, split per #7961; renumbered 317/318 to 321/322: #11018
+// owns 317/318, #11021 owns 319, #11039 owns 320).
 const (
 	goldenBootstrapDefinitionsDigest = "aa406f04c47579003f677564ba4fb0ab0fc45ed83d5fbf998f50a424f8edb2ad"
 	goldenBootstrapDefinitionsCount  = 349

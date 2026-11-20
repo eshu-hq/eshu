@@ -32,8 +32,8 @@ that never changes availability, yet each one rewrites six indexes.
 
 ## Decision 1: lease shape
 
-New table `fact_work_item_leases` (migrations 319/320 — 319 holds the
-table and its indexes, 320 the idempotent backfill, split per #7961 so no
+New table `fact_work_item_leases` (migrations 320/321 — 320 holds the
+table and its indexes, 321 the idempotent backfill, split per #7961 so no
 file holds a table lock through bulk DML):
 
 - `work_item_id TEXT PRIMARY KEY REFERENCES fact_work_items(work_item_id)

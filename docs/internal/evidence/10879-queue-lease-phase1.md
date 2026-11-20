@@ -36,9 +36,9 @@ database with the QA row count (88,189 live claimed of 264,567):
 
 | Phase | Wall time |
 | --- | --- |
-| `CREATE TABLE` (+FK, fillfactor 70, migration 319) | 2.8 ms (catalog-only) |
-| Backfill `INSERT ... SELECT` 88,189 live leases (migration 320, shipped file) | 796 ms |
-| `CREATE UNIQUE INDEX` (conflict unique, migration 319) | 0.7 ms (empty table) |
+| `CREATE TABLE` (+FK, fillfactor 70, migration 320) | 2.8 ms (catalog-only) |
+| Backfill `INSERT ... SELECT` 88,189 live leases (migration 321, shipped file) | 796 ms |
+| `CREATE UNIQUE INDEX` (conflict unique, migration 320) | 0.7 ms (empty table) |
 | Idempotent backfill replay with 200 concurrent heartbeats | 148 ms, heartbeats unblocked |
 | 10x scale (2.65M rows): load 59 s, backfill 881,890 rows 19.2 s | linear, no lock errors |
 | Rollback `DROP TABLE` | 167 ms; main row count unchanged 2,646,670 |

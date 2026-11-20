@@ -1,4 +1,4 @@
--- 319_fact_work_item_leases.sql: sidecar lease table for the reducer queue
+-- 320_fact_work_item_leases.sql: sidecar lease table for the reducer queue
 -- (#10879, phase 1 dual-write cutover).
 --
 -- The fencing triple (lease_owner, claim_until, last_attempt_at) moves here
