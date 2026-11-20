@@ -534,3 +534,52 @@ func assertCatalogCollectionLength(t *testing.T, body map[string]any, key string
 		t.Fatalf("len(%s) = %d, want %d", key, len(rows), want)
 	}
 }
+
+// TestListCatalogNilHandlerServesEmptyCatalog pins the graceful-degradation
+// path: a nil handler still answers 200 with empty collections, mirroring
+// the nil-handler form of listRepositories.
+func TestListCatalogNilHandlerServesEmptyCatalog(t *testing.T) {
+	t.Parallel()
+
+	var handler *Handler
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	assertCatalogCollectionLength(t, body, "repositories", 0)
+	assertCatalogCollectionLength(t, body, "workloads", 0)
+	assertCatalogCollectionLength(t, body, "services", 0)
+}
+
+// TestListCatalogWithoutGraphBackendServesContentRepositories pins the
+// content-index fallback: without a graph backend the catalog still answers
+// 200 from the content store (empty here), flagged for the content index.
+func TestListCatalogWithoutGraphBackendServesContentRepositories(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog", nil)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	assertCatalogCollectionLength(t, body, "repositories", 0)
+	if got, want := body["truncated"], false; got != want {
+		t.Fatalf("truncated = %#v, want %#v", got, want)
+	}
+}

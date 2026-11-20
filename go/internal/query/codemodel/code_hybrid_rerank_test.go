@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
 // rerankRepoID is the repository every synthetic rerank row belongs to.
@@ -99,6 +101,94 @@ func TestCodeHybridRerankRanksAllRowsOfAMaximumPage(t *testing.T) {
 	wantTop := fmt.Sprintf("entity-%03d", CodeSearchRankedWindow-1)
 	if top := mapString(got[0], "entity_id"); top != wantTop {
 		t.Errorf("top row = %s, want %s (the strongest match has the highest entity id)", top, wantTop)
+	}
+}
+
+// unprojectableRerankRows returns rows that carry no entity_id, so the
+// curated search-document projection drops every one of them.
+func unprojectableRerankRows() []map[string]any {
+	return []map[string]any{
+		{"repo_id": rerankRepoID, "file_path": "service/a.go", "entity_type": "function"},
+		{"repo_id": rerankRepoID, "file_path": "service/b.go", "entity_type": "function"},
+		{"repo_id": rerankRepoID, "file_path": "service/c.go", "entity_type": "function"},
+	}
+}
+
+// TestScoreCodeWindowReturnsEmptyScoresWhenNothingProjects pins that a
+// window with no projectable document scores nothing instead of erroring,
+// and that the repeat window is served from the window-score cache.
+func TestScoreCodeWindowReturnsEmptyScoresWhenNothingProjects(t *testing.T) {
+	t.Parallel()
+
+	ranker := NewCodeHybridRanker(true)
+	rows := unprojectableRerankRows()
+
+	scores, err := ranker.ScoreCodeWindow(context.Background(), rerankRepoID, rerankQuery, rows)
+	if err != nil {
+		t.Fatalf("ScoreCodeWindow() error = %v, want nil", err)
+	}
+	if len(scores) != 0 {
+		t.Fatalf("scores = %#v, want empty when no row projects", scores)
+	}
+
+	cached, err := ranker.ScoreCodeWindow(context.Background(), rerankRepoID, rerankQuery, rows)
+	if err != nil {
+		t.Fatalf("ScoreCodeWindow() repeat error = %v, want nil", err)
+	}
+	if len(cached) != 0 {
+		t.Fatalf("cached scores = %#v, want empty", cached)
+	}
+}
+
+// TestCodeHybridRerankKeepsLexicalOrderWhenNothingProjects pins that a page
+// with no projectable document keeps its lexical order with applied=false,
+// so the caller falls back to the lexical truth basis.
+func TestCodeHybridRerankKeepsLexicalOrderWhenNothingProjects(t *testing.T) {
+	t.Parallel()
+
+	ranker := NewCodeHybridRanker(true)
+	rows := unprojectableRerankRows()
+
+	got, applied := ranker.Rerank(context.Background(), rerankRepoID, rerankQuery, rows)
+	if applied {
+		t.Fatal("Rerank applied = true, want false when no row projects")
+	}
+	if len(got) != len(rows) {
+		t.Fatalf("Rerank returned %d rows, want %d (no row may be dropped)", len(got), len(rows))
+	}
+	for i := range got {
+		if got[i]["file_path"] != rows[i]["file_path"] {
+			t.Fatalf("row %d file_path = %#v, want %#v (lexical order kept)", i, got[i]["file_path"], rows[i]["file_path"])
+		}
+	}
+}
+
+// TestEntityIDFromDocumentPrefersContentEntityHandle pins the recovery order:
+// the content_entity graph handle wins, then the entity refs, then empty.
+func TestEntityIDFromDocumentPrefersContentEntityHandle(t *testing.T) {
+	t.Parallel()
+
+	withHandle := searchdocs.Document{
+		GraphHandles: []searchdocs.GraphHandle{
+			{Kind: "file", ID: "repo:service/a.go"},
+			{Kind: "content_entity", ID: "entity-1"},
+		},
+		EntityRefs: []searchdocs.EntityRef{{ID: "entity-ref-1"}},
+	}
+	if got := EntityIDFromDocument(withHandle); got != "entity-1" {
+		t.Fatalf("EntityIDFromDocument() = %q, want entity-1", got)
+	}
+
+	withRefOnly := searchdocs.Document{
+		GraphHandles: []searchdocs.GraphHandle{{Kind: "file", ID: "repo:service/a.go"}},
+		EntityRefs:   []searchdocs.EntityRef{{ID: ""}, {ID: "entity-ref-2"}},
+	}
+	if got := EntityIDFromDocument(withRefOnly); got != "entity-ref-2" {
+		t.Fatalf("EntityIDFromDocument() = %q, want entity-ref-2", got)
+	}
+
+	if got := EntityIDFromDocument(searchdocs.Document{}); got != "" {
+		t.Fatalf("EntityIDFromDocument() = %q, want empty", got)
 	}
 }
 
