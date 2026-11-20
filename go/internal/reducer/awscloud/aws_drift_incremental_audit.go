@@ -7,13 +7,51 @@ import (
 	"context"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
+
+// Closed outcomes for the #11032 audits denominator. The set is closed by
+// design: only these three values ever label
+// eshu_dp_aws_drift_incremental_audits_total, so the PromQL strike rule can
+// distinguish a clean audit from no audit and a broken audit from a clean
+// one without a new label value ever escaping the bounded-label contract.
+const (
+	// AWSDriftAuditOutcomeClean marks an audit whose replay agrees with the
+	// full run: the delta would have missed nothing.
+	AWSDriftAuditOutcomeClean = "clean"
+	// AWSDriftAuditOutcomeCorrecting marks an audit whose replay misses keys
+	// the full run re-derived: the delta-correctness defect class.
+	AWSDriftAuditOutcomeCorrecting = "correcting"
+	// AWSDriftAuditOutcomeFailed marks an audit whose reconstruction itself
+	// errored before any comparison ran.
+	AWSDriftAuditOutcomeFailed = "failed"
+)
+
+// RecordAWSDriftAudit records one audit_due reconstruction on the #11032
+// denominator counter. Only the closed outcomes above emit; any other value
+// (including empty) records nothing, so a caller bug cannot mint a novel
+// label value. Nil instruments are a no-op.
+func RecordAWSDriftAudit(ctx context.Context, instruments *telemetry.Instruments, outcome string) {
+	if instruments == nil {
+		return
+	}
+	switch outcome {
+	case AWSDriftAuditOutcomeClean, AWSDriftAuditOutcomeCorrecting, AWSDriftAuditOutcomeFailed:
+	default:
+		return
+	}
+	instruments.AWSDriftIncrementalAudits.Add(ctx, 1,
+		metric.WithAttributes(attribute.String("outcome", outcome)))
+}
 
 // recordAuditCorrections reconstructs what a delta run would have admitted
 // on the same loaded rows and counts what it missed (#10878 D6, #11018 P1).
@@ -49,11 +87,30 @@ func (h AWSCloudRuntimeDriftHandler) recordAuditCorrections(
 				slog.String("error", err.Error()),
 			)
 		}
+		h.recordAuditOutcome(ctx, 0, err)
 		return
 	}
 	deltaAdmitted := admittedAWSCloudRuntimeDriftCandidates(deltaEval)
-	RecordAWSDriftAuditCorrections(ctx, h.Instruments,
-		CountAuditCorrections(correlationKeys(deltaAdmitted), correlationKeys(fullAdmitted)))
+	h.recordAuditOutcome(ctx,
+		CountAuditCorrections(correlationKeys(deltaAdmitted), correlationKeys(fullAdmitted)), nil)
+}
+
+// recordAuditOutcome emits the #11032 denominator point for one finished
+// audit_due reconstruction plus the corrections magnitude on success. A
+// reconstruction error records failed and no corrections, so a broken audit
+// never reads as clean. It never fails the run: observability must not break
+// classification.
+func (h AWSCloudRuntimeDriftHandler) recordAuditOutcome(ctx context.Context, corrections int, reconstructErr error) {
+	if reconstructErr != nil {
+		RecordAWSDriftAudit(ctx, h.Instruments, AWSDriftAuditOutcomeFailed)
+		return
+	}
+	if corrections > 0 {
+		RecordAWSDriftAudit(ctx, h.Instruments, AWSDriftAuditOutcomeCorrecting)
+	} else {
+		RecordAWSDriftAudit(ctx, h.Instruments, AWSDriftAuditOutcomeClean)
+	}
+	RecordAWSDriftAuditCorrections(ctx, h.Instruments, corrections)
 }
 
 // correlationKeys renders the candidate correlation keys CountAuditCorrections

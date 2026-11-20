@@ -31,7 +31,7 @@ import (
 // go/internal/runtime/deploy_checkout_test.go: every helper fails closed on
 // any other commit, so a skew between the pins surfaces as a test failure,
 // not a silent drift.
-const expectedDeployCheckoutCommit = "1dbb815f6fd152cdd34a29d5a77c1580f2ae4b33"
+const expectedDeployCheckoutCommit = "0a645a87b45e876dc7b4de14935fbae794b8dcf9"
 
 // deployCheckoutForContract resolves the eshu-deploy checkout the census rule
 // test reads observability rule files from. It fails closed: an absent
@@ -157,11 +157,21 @@ const (
 var metricNameRe = regexp.MustCompile(`\beshu_dp_[a-z0-9_]+\b`)
 
 // checkIDAnchorCensusAlerts returns every way the two rule files fail the
-// contract: an alert missing from either file, an expression, duration or
-// severity that differs between them, an expression that omits a required
-// metric or reads a metric the reducer does not register, or an alert without
-// a summary, description and runbook.
+// id-anchor census contract. It delegates to checkRuleFilesForAlerts, which
+// see for the exact failure classes.
 func checkIDAnchorCensusAlerts(standalone, operator []byte, registered map[string]bool) []string {
+	return checkRuleFilesForAlerts(standalone, operator, registered, idAnchorCensusAlerts)
+}
+
+// checkRuleFilesForAlerts returns every way the two rule files fail the
+// contract for the named alerts: an alert missing from either file, an
+// expression, duration or severity that differs between them, an expression
+// that omits a required fragment or reads a metric the reducer does not
+// register, or an alert without a summary, description and runbook. alerts
+// maps each alert name to the expression fragments its rule must contain
+// (metric selectors for the census alerts, selector plus window offset for
+// the drift strike alert).
+func checkRuleFilesForAlerts(standalone, operator []byte, registered map[string]bool, alerts map[string][]string) []string {
 	var problems []string
 	byFile := map[string]map[string]alertRule{}
 	for name, raw := range map[string][]byte{"standalone": standalone, "operator": operator} {
@@ -173,14 +183,14 @@ func checkIDAnchorCensusAlerts(standalone, operator []byte, registered map[strin
 		rules := map[string]alertRule{}
 		for _, group := range groups {
 			for _, rule := range group.Rules {
-				if _, ok := idAnchorCensusAlerts[rule.Alert]; ok {
+				if _, ok := alerts[rule.Alert]; ok {
 					rules[rule.Alert] = rule
 				}
 			}
 		}
 		byFile[name] = rules
 	}
-	for alert, metrics := range idAnchorCensusAlerts {
+	for alert, metrics := range alerts {
 		standaloneRule, inStandalone := byFile["standalone"][alert]
 		operatorRule, inOperator := byFile["operator"][alert]
 		if !inStandalone || !inOperator {
@@ -229,6 +239,7 @@ func registeredCensusMetrics(t *testing.T) map[string]bool {
 	inst.GraphIDAnchorCensusLastSuccess.Record(ctx, 1)
 	inst.GraphIDAnchorCensusPasses.Add(ctx, 1)
 	inst.GraphIDAnchorCensusDuration.Record(ctx, 1)
+	inst.AWSDriftIncrementalAudits.Add(ctx, 1)
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &collected); err != nil {
 		t.Fatalf("collect: %v", err)
