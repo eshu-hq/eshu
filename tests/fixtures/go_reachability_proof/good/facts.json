@@ -1,0 +1,5 @@
+{
+  "vulnerability.go_module_evidence": 2,
+  "vulnerability.go_call_reachability": 2,
+  "scanner_worker.warning": 1
+}

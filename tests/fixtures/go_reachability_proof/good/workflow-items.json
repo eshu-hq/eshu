@@ -1,0 +1,9 @@
+{
+  "items": [
+    {
+      "work_item_id": "scanner_worker:remote-e2e-go-reachability:scheduled:go-reachability:repository:r_ea78e8bb",
+      "collector_kind": "scanner_worker",
+      "state": "completed"
+    }
+  ]
+}

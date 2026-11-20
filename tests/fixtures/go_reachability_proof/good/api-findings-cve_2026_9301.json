@@ -1,0 +1,29 @@
+{
+  "data": {
+    "findings": [
+      {
+        "cve_id": "CVE-2026-9301",
+        "advisory_id": "GO-2026-9301",
+        "package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+        "repository_id": "repository:r_ea78e8bb",
+        "observed_version": "v1.0.0",
+        "runtime_reachability": "not_called",
+        "evidence_path": ["vulnerability.go_call_reachability"],
+        "cvss_score": 5.3,
+        "provenance": {
+          "selected_severity_source": "osv-go",
+          "selected_severity_score": 5.3,
+          "selected_severity_score_source": "derived_from_vector",
+          "selected_severity_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+          "selected_severity_label": "medium"
+        }
+      }
+    ],
+    "count": 1
+  },
+  "truth": {
+    "capability": "supply_chain.impact_findings.list",
+    "profile": "comprehensive"
+  },
+  "error": null
+}

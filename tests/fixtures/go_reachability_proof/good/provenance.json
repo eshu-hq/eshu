@@ -1,0 +1,13 @@
+{
+  "eshu_commit": "f8b2a3c37d25ed2142027705cdce5e9fcbb8906a",
+  "component_id": "eshu.scanner.go-reachability",
+  "seed_image": "ghcr.io/eshu-hq/scanner-go-reachability@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "seed_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "component_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "core_version": "v0.1.0",
+  "backend": "nornicdb",
+  "queue_terminal_state": "completed",
+  "metrics_handle": ":29471/metrics",
+  "evidence_mode": true,
+  "source_evidence_only": true
+}

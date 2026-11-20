@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "proof": "eshu-hq/eshu#10032",
+  "description": "Wave 4A item 1: committed expectation for the go-reachability remote e2e verifier. Module set, reachability levels, and the scoped toolchain warning come from the recorded #10030 tuples; the per-CVE wire values mirror the golden snapshot query-shape pins, including the merged #10043 analysis_failed + missing_evidence mapping.",
+  "source": {
+    "recorded_tuples": "go/internal/reducer/supplychain/core/testdata/recorded-10030/emitted.json",
+    "snapshot": "testdata/golden/e2e-20repo-snapshot.json",
+    "mapping": "merged eshu-hq/eshu#10043 (unfinished govulncheck scan rewrites module_only to analysis_failed with missing_evidence)"
+  },
+  "module_set": [
+    {
+      "repository_id": "repository:r_ea78e8bb",
+      "root_module": "github.com/acme/orders-api",
+      "module_path": "github.com/acme/lib-common",
+      "observed_version": "v1.0.0",
+      "relative_path": "go.mod",
+      "scan": "finished"
+    },
+    {
+      "repository_id": "repository:r_ea78e8bb",
+      "root_module": "github.com/acme/orders-legacy",
+      "module_path": "github.com/acme/legacy-lib",
+      "observed_version": "v0.1.0",
+      "relative_path": "legacy/go.mod",
+      "scan": "unfinished"
+    }
+  ],
+  "warning": {
+    "reason": "toolchain_unsupported",
+    "relative_path": "legacy/go.mod",
+    "detail": "a go or toolchain requirement is above the pinned toolchain; this module is not analyzed for reachability",
+    "missing_evidence": "govulncheck scan toolchain_unsupported at legacy/go.mod"
+  },
+  "fact_counts": {
+    "vulnerability.go_module_evidence": 2,
+    "vulnerability.go_call_reachability": 2,
+    "scanner_worker.warning": 1
+  },
+  "findings": [
+    {
+      "cve_id": "CVE-2026-9229",
+      "shape": "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9229&profile=comprehensive",
+      "required_response_fields": ["findings", "count"],
+      "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "evidence_path", "cvss_score", "provenance"],
+      "results_field": "findings",
+      "minimum_results": 1,
+      "maximum_results": 1,
+      "required_values": {
+        "findings[].cve_id": "CVE-2026-9229",
+        "findings[].advisory_id": "GO-2026-9229",
+        "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+        "findings[].repository_id": "repository:r_ea78e8bb",
+        "findings[].observed_version": "v1.0.0",
+        "findings[].runtime_reachability": "symbol_reachable",
+        "findings[].evidence_path[]": "vulnerability.go_call_reachability",
+        "findings[].cvss_score": 7.5,
+        "findings[].priority_reason_codes[]": "cvss_v3_high",
+        "findings[].provenance.selected_severity_source": "osv-go",
+        "findings[].provenance.selected_severity_score": 7.5,
+        "findings[].provenance.selected_severity_score_source": "derived_from_vector",
+        "findings[].provenance.selected_severity_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+        "findings[].provenance.selected_severity_label": "high"
+      }
+    },
+    {
+      "cve_id": "CVE-2026-9301",
+      "shape": "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9301&profile=comprehensive",
+      "required_response_fields": ["findings", "count"],
+      "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "evidence_path", "cvss_score", "provenance"],
+      "results_field": "findings",
+      "minimum_results": 1,
+      "maximum_results": 1,
+      "required_values": {
+        "findings[].cve_id": "CVE-2026-9301",
+        "findings[].advisory_id": "GO-2026-9301",
+        "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+        "findings[].repository_id": "repository:r_ea78e8bb",
+        "findings[].observed_version": "v1.0.0",
+        "findings[].runtime_reachability": "not_called",
+        "findings[].evidence_path[]": "vulnerability.go_call_reachability"
+      }
+    },
+    {
+      "cve_id": "CVE-2026-9401",
+      "shape": "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9401&profile=comprehensive",
+      "required_response_fields": ["findings", "count"],
+      "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "reachability", "evidence_path", "cvss_score", "provenance"],
+      "results_field": "findings",
+      "minimum_results": 1,
+      "maximum_results": 1,
+      "required_values": {
+        "findings[].cve_id": "CVE-2026-9401",
+        "findings[].advisory_id": "GO-2026-9401",
+        "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/legacy-lib",
+        "findings[].repository_id": "repository:r_ea78e8bb",
+        "findings[].observed_version": "v0.1.0",
+        "findings[].runtime_reachability": "analysis_failed",
+        "findings[].reachability.state": "missing_evidence",
+        "findings[].reachability.missing_evidence[]": "govulncheck scan toolchain_unsupported at legacy/go.mod",
+        "findings[].evidence_path[]": "vulnerability.go_module_evidence"
+      }
+    }
+  ]
+}
