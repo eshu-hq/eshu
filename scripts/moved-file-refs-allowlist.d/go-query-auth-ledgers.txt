@@ -12,7 +12,4 @@ docs/internal/evidence/5167-code-family-batch-2b.md:go/internal/query/auth_scope
 docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/auth_scoped_routes_code_flow.go
 docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
 docs/internal/evidence/5167-freshness-family-allowlist.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
-docs/internal/evidence/5167-generations-grant-binding.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
 docs/internal/evidence/5167-impact-grant.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
-docs/internal/evidence/5167-index-status-grant.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go
-docs/internal/evidence/5167-ledger-disclosure.md:go/internal/query/auth_scoped_routes_pending_row_filtering.go

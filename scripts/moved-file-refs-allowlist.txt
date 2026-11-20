@@ -47,7 +47,6 @@ docs/internal/evidence/6546-language-query-extension-filter.md:go/internal/query
 # that PR's `git diff --name-only <merge-base>..HEAD`). Repointing to the
 # #6061 code/owners move destination would falsify that historical claim
 # about a prior, already-merged PR's diff scope.
-docs/internal/evidence/5992-codeowners-ownership-edges-ifa-fixtures.md:go/internal/reducer/codeowners_ownership_materialization.go
 
 # A dated "Runtime impact of the extraction seam" analysis for #6061's
 # symbol-runtime extraction: it names this exact path as the file the
@@ -91,10 +90,6 @@ docs/internal/design/restructure-research.md:go/internal/reducer/shared_projecti
 # root paths as they stood when the evidence was captured; repointing would
 # falsify the record. The live pointers are go/internal/query/freshness/ and
 # the renamed root tests service_changed_since_*_test.go.
-docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/query/freshness_service_changed_since.go
-docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/query/freshness_service_changed_since_ambiguous_test.go
-docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/query/freshness_service_changed_since.go
-docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/query/freshness_service_changed_since_shared_ownership_test.go
 
 # Two dated CHANGELOG entries describing the OpenAPI surface as it stood when
 # each release shipped, before #6642 nested the fragments. A changelog records
@@ -146,13 +141,11 @@ go/internal/query/querycontract/README.md:go/internal/query/querycontract/rowval
 # design notes' existing LINE rows for the same reason.
 docs/internal/design/5385-workload-identity-key.md:go/internal/graph/mutations.go
 docs/internal/design/5385-workload-identity-options.md:go/internal/graph/mutations.go
-docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md:go/internal/graph/mutations.go
 scripts/docs-citations-baseline.txt:go/internal/graph/mutations.go
 # #6818 tracing move evidence: this row pins the BEFORE state of the moved
 # file by its blob hash at the pre-move path, so the no-regression comparison
 # stays reproducible after the branch is gone. Repointing it to the new path
 # would compare the new file with itself and falsify the record.
-docs/internal/evidence/6818-query-package-moves.md:go/internal/query/queryspan/handlerspan.go
 # #6818 selector move evidence: same BEFORE-state pin as the tracing rows
 # above. These dated evidence and design docs describe the tree as it stood
 # when written; repointing would falsify the record.
@@ -160,11 +153,9 @@ docs/internal/evidence/5167-code-family-batch-1.md:go/internal/query/queryselect
 # #6818 deployment move evidence: same BEFORE-state pin as the rows above.
 # These dated evidence and design docs describe the tree as it stood when
 # written; repointing would falsify the record.
-docs/internal/evidence/6782-slice3-differential-oracle.md:go/internal/query/impacttrace/cloud_resource_dependencies.go
 docs/internal/evidence/6794-context-incoming-anchor.md:go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
 docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/impacttrace/workload_selection.go
 docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md:go/internal/query/impacttrace/scoped_selector_live_test.go
-docs/internal/evidence/6811-deployment-anchor-reads.md:go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
 docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace/impact_anchor_resolve.go
 docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace/workload_selection.go
 # #6694 cypher edge leaf moves: edge_writer_*.go -> cypher/edge/writer/*.go,
@@ -184,43 +175,21 @@ docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/e
 docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md:go/internal/ifa/materializededges/materialized_edges_handles_route.go
 docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_logging.go
 docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_rationale_labels.go
-docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
-docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_rationale_nondelta_scope_test.go
-docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_retract_scope.go
-docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_retract.go
-docs/internal/evidence/6184-graph-rebuild-artifact-visibility-v133.md:go/internal/storage/cypher/edge_writer_unroutable.go
-docs/internal/evidence/6212-deferred-ifa-defects.md:go/internal/ifa/materializededges/materialized_edges_handles_route.go
-docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/storage/cypher/edge_writer_retract_scope.go
-docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/storage/cypher/edge_writer_retract.go
-docs/internal/evidence/6228-direct-family-coverage.md:go/internal/storage/cypher/materialized_edge_endpoints.go
-docs/internal/evidence/6228-direct-family-coverage.md:go/internal/storage/cypher/materialized_edge_families.go
-docs/internal/evidence/6228-iam-can-assume.md:go/internal/ifa/materializededges/materialized_edges_iam_can_assume.go
-docs/internal/evidence/6228-iam-can-assume.md:go/internal/storage/cypher/materialized_edge_families.go
-docs/internal/evidence/6228-workload-cloud-relationship.md:go/internal/ifa/materializededges/materialized_edges_workload_cloud_relationship.go
-docs/internal/evidence/6228-workload-cloud-relationship.md:go/internal/storage/cypher/materialized_edge_families.go
 docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_logging.go
 docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
 docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_retract_scope.go
-docs/internal/evidence/6309-direct-family-review-followups.md:go/internal/ifa/materializededges/materialized_edges_iam_instance_profile_role.go
-docs/internal/evidence/6309-direct-family-review-followups.md:go/internal/storage/cypher/materialized_edge_families.go
 docs/internal/measurements.jsonl:go/internal/storage/cypher/edge_writer_retract_repo.go
 go/internal/ifa/evidence-5993-materialized-edge-dispatch.md:go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_logging.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_repo.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_sql.go
-docs/internal/evidence/5984-edge-writer-unroutable-rows.md:go/internal/storage/cypher/edge_writer.go
 
 # #6695 repo leaf move: dated evidence notes that inventory the source paths
 # as they stood when those moves landed. Repointing would falsify the record
 # of where each leaf moved from. The live pointers are
 # go/internal/collector/repo/git/docs/ and
 # go/internal/collector/repo/git/snapshot_entity_buckets.go.
-docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive.go
-docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive_tar.go
-docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive_helpers.go
-docs/internal/evidence/6695-collector-diagram-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_diagram.go
-docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/gitrepo/git_snapshot_entity_buckets.go
 
 # #6695 document/registry leaf moves: dated evidence notes that cite the
 # emitter source paths as they stood when that evidence was written.
@@ -230,8 +199,6 @@ docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/git
 # go/internal/collector/registry/oci/identity.go, and
 # go/internal/collector/registry/oci/runtime/transport.go.
 docs/internal/evidence/5847-container-image-identity-retire.md:go/internal/collector/ociregistry/ociruntime/config_provenance.go
-docs/internal/evidence/6590-tier-cardinality.md:go/internal/collector/ociregistry/identity.go
-docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/ociregistry/ociruntime/transport.go
 # ... and the burn-down row that mirrors that citation. The baseline records the
 # doc's citation verbatim, so it necessarily carries the same historical path;
 # rewriting it here without rewriting the doc would desynchronise the two.
@@ -255,9 +222,6 @@ scripts/docs-citations-baseline.txt:go/internal/projector/tfstate_canonical.go
 #
 # The 6627-* notes each pin an explicit `Base:` SHA and describe the tree as it
 # stood for that slice's move.
-docs/internal/evidence/6627-projector-incident-routing-intent-package-move.md:go/internal/projector/scope_generation_intents.go
-docs/internal/evidence/6627-projector-package-source-intent-package-move.md:go/internal/projector/scope_generation_intents.go
-docs/internal/evidence/6627-projector-workload-cloud-intent-package-move.md:go/internal/projector/scope_generation_intents.go
 # AGENTS-evidence-history.md states in its own header that every entry is
 # "preserved verbatim" from the prior single-file AGENTS.md.
 go/internal/storage/cypher/AGENTS-evidence-history.md:go/internal/projector/tfstate_ownership_outcome.go
@@ -284,7 +248,6 @@ go/internal/storage/cypher/evidence-4367-iam-variable-retract.md:go/cmd/reducer/
 # backend-diff dispositions). Repointing would falsify the record of which
 # file stamped the gauge reads under test. The live pointer is
 # go/internal/storage/cypher/edge/writer/provenance_counts.go.
-docs/internal/evidence/7711-backend-diff-dispositions.md:go/internal/storage/cypher/provenance_counts.go
 
 # #6777 telemetry contract nest: dated evidence notes that record the
 # service-scope changed-since span attribute and grant-refusal vocabulary as
@@ -293,8 +256,6 @@ docs/internal/evidence/7711-backend-diff-dispositions.md:go/internal/storage/cyp
 # record of where that contract lived when #5167 landed. The live pointer is
 # go/internal/telemetry/contract/zzzz_service_changed_since.go.
 docs/internal/evidence/5167-freshness-family-allowlist.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
-docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
-docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/telemetry/contract_zzzz_service_changed_since.go
 
 # #6777: synthetic fixture, not a reference. The test writes this path into a
 # temp repo to keep covering the gate's still-supported flat contract_*.go arm;
@@ -305,7 +266,6 @@ scripts/test-verify-collector-authoring-gate.sh:go/internal/telemetry/contract_j
 # querycontract, as the tree stood then. #6597 later moved this one into
 # querycontract/entity/repo_identity.go; repointing would misstate what #6060
 # promoted.
-docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal/query/querycontract/entity_repo_identity.go
 
 # #6693 step 22 scope/completion: dated #5709/#6488 evidence notes that record
 # the cross-scope completion and quiescence files at their root paths, as the
@@ -314,7 +274,6 @@ docs/internal/evidence/6060-seam-querycontract-promotion-evidence.md:go/internal
 # go/internal/storage/postgres/scope/completion/fanout.go,
 # producer_readiness.go, quiescence.go, and quiescence_live_test.go.
 docs/internal/evidence/5709-cross-scope-readiness-floor.md:go/internal/storage/postgres/cross_scope_completion_fanout.go
-docs/internal/evidence/6488-ack-fanout-lock-order.md:go/internal/storage/postgres/cross_scope_completion_fanout.go
 docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/cross_scope_producer_readiness.go
 docs/internal/evidence/5709-cross-scope-readiness-floor.md:go/internal/storage/postgres/scope_quiescence.go
 docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/scope_quiescence_live_test.go
@@ -338,7 +297,6 @@ docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/sco
 # projector_queue_ack.go (the Ack and its post-commit hook) to keep the
 # storage/postgres dirgate count at 321. The #6693 crossplane-leaf note lists
 # the files that move touched at the time; repointing would falsify that record.
-docs/internal/evidence/6693-crossplane-leaf.md:go/internal/storage/postgres/projector_queue_crossplane_redrive_hook.go
 
 # #6694 canonical/node slice: dated evidence notes and run artifacts that
 # record the canonical writer source paths as they stood when the evidence
@@ -350,9 +308,7 @@ docs/internal/evidence/6693-crossplane-leaf.md:go/internal/storage/postgres/proj
 docs/internal/evidence/5346-sql-migrates-performance.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
 docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/6541-directory-query-s2-corpus-timing.md:go/internal/storage/cypher/canonical_node_cypher.go
-docs/internal/evidence/6541-directory-file-ownership.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/module-node-identity-6106-review-follow-ups.md:go/internal/storage/cypher/canonical_node_cypher.go
-docs/internal/evidence/module-identity-hotpath-trace.txt:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/7130-ack-superseded-generation-guard.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/7212-schema-closed-anchor.md:go/internal/storage/cypher/canonical_node_cypher.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/canonical_node_cypher.go
@@ -366,15 +322,10 @@ go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/
 testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_artifact_writer.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_canonical_writer.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/storage/cypher/package_registry_event_writer.go
-docs/internal/evidence/6738-semantic-grouped-writes.md:go/internal/storage/cypher/semantic_entity.go
-docs/internal/evidence/6738-semantic-grouped-writes.md:go/internal/storage/cypher/semantic_entity_group_split_test.go
-docs/internal/evidence/6782-slice3-differential-oracle.md:go/internal/storage/cypher/semantic_entity_statements.go
-docs/internal/evidence/8359-semantic-contains-edge-retract.md:go/internal/storage/cypher/semantic_entity.go
 go/internal/storage/cypher/evidence-4367-semantic-retract-dispatch.md:go/internal/storage/cypher/semantic_entity.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_statements.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_nornicdb_test.go
 # #6694 canonical slice: dated evidence records describing paths as they stood.
-docs/internal/evidence/5994-documentation-sqltable-match-label.md:go/internal/storage/cypher/canonical_documentation_edges.go
 docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
 # #6694 edge/writer leaf: the 6228 slice-D note records the alias consts as
 # placed "beside the existing writer" at the old root path. Repointing would
@@ -383,7 +334,6 @@ go/internal/storage/cypher/edge/writer/evidence-6228-slice-d-taint-writers.md:go
 # #6694 edge/writer leaf: the 6228 determinism note's No-Regression section
 # records the const-export rename edit against the old root writer path.
 # Repointing would falsify which file that evidence was gathered on.
-docs/internal/evidence/6228-kubernetes-correlation-determinism.md:go/internal/storage/cypher/kubernetes_correlation_edge_writer.go
 
 # #6696 leaf 1 renamed awscloud/services to awscloud/service. These three
 # pointers record the tree as it stood at the time: a released CHANGELOG entry,
@@ -392,7 +342,6 @@ docs/internal/evidence/6228-kubernetes-correlation-determinism.md:go/internal/st
 # history.
 CHANGELOG.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/collector/awscloud/services/ec2/ami_identity.go
-docs/internal/evidence/5717-ami-node-class.md:go/internal/collector/awscloud/services/ec2/ami_identity.go
 
 # #8733 deleted the last reducer compat shims (compat_projection.go,
 # compat_decode.go, compat_correlation.go, compat_cloud.go) after their final
@@ -404,12 +353,10 @@ go/internal/reducer/evidence-6626-batch6-bucket3-decode-testonly.md:go/internal/
 go/internal/reducer/evidence-6626-batch6-bucket4-k8s-correlation.md:go/internal/reducer/compat_cloud.go
 go/internal/reducer/evidence-6626-batch6-bucket5-shared-projection-row.md:go/internal/reducer/compat_correlation.go
 docs/internal/evidence/4630-input-invalid-quarantine-read-surface.md:go/internal/reducer/compat_decode.go
-docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/reducer/compat_decode.go
 # #6696 security leaf consolidated the acm/guardduty mismatch tail into
 # catalog/security.go and catalog/security_threat.go. This dated evidence
 # note records the tree as it stood when the #6901 rename landed.
 # Repointing would falsify which file that evidence was gathered on.
-docs/internal/evidence/6696-aws-constants-mismatch-leaf.md:go/internal/collector/awscloud/constants_acm.go
 # Jira satellite extraction: the in-tree envelope builders are deleted and
 # collection now runs from eshu-hq/eshu-collector-jira (producer record:
 # go/internal/facts/work_item.go). The 4786 contract-integration matrix
@@ -423,23 +370,18 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/j
 # evidence note names client.go at its pre-extraction in-tree path as the
 # file the performance gate flagged. There is no in-tree successor path to
 # repoint at, so the note stays as the pre-extraction evidence record.
-docs/internal/evidence/7110-collector-transient-transport.md:go/internal/collector/confluence/client.go
 # Tempo satellite extraction: the in-tree command package and observer leaf
 # are deleted, and the binary now ships from eshu-hq/eshu-collector-tempo
 # (producer record: go/internal/facts/observability.go). The #6695 package-move
 # evidence note below names go/cmd/collector-tempo files as the reverse
 # importers of the tempo leaf move; repointing would falsify the recorded
 # inventory of that already-merged slice.
-docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/config.go
-docs/internal/evidence/6695-collector-tempo-package-move.md:go/cmd/collector-tempo/service.go
 # Loki satellite extraction: the in-tree command package and observer leaf
 # are deleted, and the binary now ships from eshu-hq/eshu-collector-loki
 # (producer record: go/internal/facts/observability.go). The #6695 package-move
 # evidence note below names go/cmd/collector-loki files as the reverse
 # importers of the loki leaf move; repointing would falsify the recorded
 # inventory of that already-merged slice.
-docs/internal/evidence/6695-collector-loki-package-move.md:go/cmd/collector-loki/config.go
-docs/internal/evidence/6695-collector-loki-package-move.md:go/cmd/collector-loki/service.go
 # Same extraction: the 4786 contract-integration matrix cells name the loki
 # observer envelope at its pre-extraction in-tree path as the helper-map for
 # the observability row. There is no in-tree successor path to repoint at --
@@ -452,12 +394,10 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/collector/o
 # in-tree path as the file the record-mode branch lived in. There is no
 # in-tree successor path to repoint at, so the note stays as the
 # pre-extraction evidence record.
-docs/internal/evidence/6965-record-pseudonymization.md:go/cmd/collector-aws-cloud/main.go
 # AWS-cloud satellite extraction (#8852): the 6693 evidence note names
 # service.go at its pre-extraction in-tree path as the file whose symbols
 # the note was gathered on. No in-tree successor path exists, so the note
 # stays as the pre-extraction evidence record.
-docs/internal/evidence/6693-cloud-aws-leaf.md:go/cmd/collector-aws-cloud/service.go
 # Terraform-state satellite extraction (#8868): the in-tree command is
 # deleted and collection now runs from
 # eshu-hq/eshu-collector-terraform-state. The 5837 evidence note names
@@ -468,8 +408,6 @@ docs/internal/evidence/5837-aws-drift-reopen.md:go/cmd/collector-terraform-state
 # names config.go and service.go at their pre-extraction in-tree paths as
 # the files the nil-resolver guard evidence was gathered on. No in-tree
 # successor paths exist, so the note stays as the pre-extraction record.
-docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/config.go
-docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraform-state/service.go
 # GC #9670: four dead #8869 vault entries stood here. The 6627 package-move
 # note no longer names the planner sources (verified with the gate's own
 # grep semantics), so the entries could never fire. Removed to hold the
@@ -479,20 +417,12 @@ docs/internal/evidence/5870-nil-schema-resolver-guard.md:go/cmd/collector-terraf
 # in-tree paths as the files the cutover evidence was gathered on. No in-tree
 # successor paths exist, so the record stays as the pre-extraction evidence
 # record.
-docs/internal/evidence/8869-collector-vault-live-census.md:go/cmd/collector-vault-live/extraction_census_test.go
-docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/map.go
-docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/collector/vaultlive/snapshot.go
-docs/internal/evidence/8869-collector-vault-live-census.md:go/internal/coordinator/vault/live/planner.go
 # MCP satellite extraction (#9670): dated evidence/design notes keep pre-extraction wiring paths as the record they were gathered on; the parser fixture models a synthetic repo where the mcp candidate is load-bearing. No in-tree successors; repointing would falsify.
 docs/internal/design/6642-query-move-cost.md:go/cmd/mcp-server/wiring_router.go
 docs/internal/evidence/4045-evidence-bundle-api-performance.md:go/cmd/mcp-server/wiring_router.go
 docs/internal/evidence/5052-keyword-search-scope-id.md:go/cmd/mcp-server/wiring_router.go
 docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/mcp-server/wiring_router.go
 docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/mcp-server/wiring_test.go
-docs/internal/evidence/6693-cloud-aws-leaf.md:go/cmd/mcp-server/status_store_wiring.go
-docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/mcp-server/wiring.go
-docs/internal/evidence/7957-snapshot-export-qualification.md:go/cmd/mcp-server/postgres_error_wire_test.go
-docs/internal/evidence/8833-cleanup-proofs.md:go/cmd/mcp-server/semantic_search_vector_wiring.go
 go/internal/query/AGENTS-evidence-history-3.md:go/cmd/mcp-server/wiring.go
 go/internal/reducer/code/call/go_package_test.go:go/cmd/mcp-server/wiring.go
 # #8856: dated security-review record names the reviewed in-tree path; no in-tree successor, repointing would falsify.
