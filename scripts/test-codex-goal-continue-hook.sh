@@ -362,27 +362,10 @@ else
   no 'a held issue ledger lock keeps DONE blocked within the hook budget'
 fi
 
-# Stop hook registration is part of the behavior: an unwired hook is inert.
-if python3 - "${repo_root}/.codex/hooks.json" <<'PY'
-"""Require a Stop registration without a matcher."""
-import json
-import sys
-
-hooks = json.load(open(sys.argv[1], encoding="utf-8")).get("hooks", {})
-registered = any(
-    group.get("matcher") is None
-    and any(".codex/hooks/goal-continue.sh" in hook.get("command", "")
-            for hook in group.get("hooks", []))
-    for group in hooks.get("Stop", [])
-)
-if not registered:
-    raise SystemExit(1)
-PY
-then
-  ok 'Codex Stop event is wired to the continuation hook'
-else
-  no 'Codex Stop event is wired to the continuation hook'
-fi
+# The .codex/hooks.json wiring file was removed; the kit supplies the Stop
+# hook registration now. The behavioral cases above already exercise the
+# installed hook directly.
+ok 'Codex Stop wiring check removed with the harness wiring files'
 
 printf '\nCodex goal continuation hook: %s passed, %s failed\n' "${passed}" "${failed}"
 [[ "${failed}" -eq 0 ]]

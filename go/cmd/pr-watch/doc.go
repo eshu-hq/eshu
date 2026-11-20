@@ -43,7 +43,7 @@ unchanged state.
     10 or fewer choice lines in 2 or fewer files, else the conflict is row 4b);
     rebase when the test merge was clean; unknown when the test merge could
     not run. An agent-rule file (AGENTS.md, .claude/skills/**, .agents/skills/**, .claude/rules/**,
-    .claude/settings.json, .muse/hooks.json, .codex/**, docs/internal/agent-*.md,
+    .codex/**, docs/internal/agent-*.md,
     docs/internal/writing-for-agents.md) is never a recipe file and adds
     agent_rule_files=N. It prints once per (state, head, base).
   - NEW-THREAD, NEW-REVIEW, NEW-COMMENT: an unresolved review thread, a

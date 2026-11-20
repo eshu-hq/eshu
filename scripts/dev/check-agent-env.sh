@@ -33,10 +33,11 @@ for tool in gh rg pre-commit go make muse; do
   if command -v "$tool" >/dev/null 2>&1; then ok "tool: $tool"; else note "tool missing (needed for PR/issue or gate work): $tool"; fi
 done
 
-for path in AGENTS.md .agent-kit-version .muse/hooks.json .muse/hooks \
-  .claude/settings.json .codex/hooks.json .cursor/hooks.json .opencode/opencode.jsonc \
-  scripts/goal-role-router.py scripts/test-muse-hooks.sh; do
+for path in AGENTS.md .agent-kit-version scripts/test-muse-hooks.sh; do
   if [[ -e "$path" ]]; then ok "committed path: $path"; else bad "committed path missing (incomplete clone?): $path"; fi
+done
+for path in .muse/hooks.json .muse/hooks; do
+  if [[ -e "$path" ]]; then ok "installer path: $path"; else note "installer path missing: $path (run the eshu-agent-kit installer: install.sh --hooks --repo)"; fi
 done
 
 # The shared agent material is installed by the eshu-agent-kit, not committed.

@@ -172,8 +172,7 @@ func agentRuleFile(file string) bool {
 		strings.HasPrefix(file, ".claude/rules/"),
 		strings.HasPrefix(file, ".codex/"):
 		return true
-	case file == ".claude/settings.json", file == ".muse/hooks.json",
-		file == "docs/internal/writing-for-agents.md":
+	case file == "docs/internal/writing-for-agents.md":
 		return true
 	case path.Dir(file) == "docs/internal" && strings.HasPrefix(base, "agent-") && strings.HasSuffix(base, ".md"):
 		return true

@@ -8,11 +8,10 @@ gates:
     tier: pre-pr
     blocking: true
     triggers:
-      - ".codex/hooks.json"
       # The goal-continuation hook and its libs live in the eshu-agent-kit;
-      # the installer materializes them locally, so this repo tracks only
-      # its own Codex wiring. The kit pin selects the gate that runs the
-      # installed hook.
+      # the installer materializes them locally. This repo tracks no Codex
+      # wiring file. The kit pin selects the gate that runs the installed
+      # hook.
       - ".agent-kit-version"
       - "scripts/test-codex-goal-continue-hook.sh"
       - ".github/workflows/verify-agent-hygiene.yml"

@@ -94,7 +94,7 @@ func TestClassifyConflictFollowsTheRecipeList(t *testing.T) {
 	// under them would not resolve until the installer had run.
 	for _, agent := range []string{
 		"AGENTS.md", "go/cmd/pr-watch/AGENTS.md", ".claude/rules/x.md",
-		".claude/settings.json", ".muse/hooks.json", ".codex/config.toml", "docs/internal/agent-guide.md",
+		"docs/internal/agent-guide.md",
 		"docs/internal/writing-for-agents.md",
 	} {
 		cases = append(cases, struct {

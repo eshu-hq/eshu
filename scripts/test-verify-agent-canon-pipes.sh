@@ -60,8 +60,6 @@ canon_scripts=(
   "scripts/test-issue-capture-hook-gate-cases.sh"
   "scripts/lib/test-issue-capture-fake-gh.sh"
   "scripts/test-muse-hooks.sh"
-  "scripts/test-cursor-hooks.sh"
-  "scripts/test-cursor-hooks-helper-cases.sh"
   "scripts/test-verify-agent-canon-pipes.sh"
   # The CI kit-checkout script is an agent-canon trigger (it carries the REF
   # pin), so the drift check requires it here too.

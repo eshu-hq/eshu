@@ -59,14 +59,6 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-private-identifiers') }}
         run: scripts/test-verify-agent-hygiene.sh
 
-      - name: Run Codex spawn guard test
-        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
-        run: python3 scripts/test-codex-spawn-guard.py
-
-      - name: Run goal role routing test
-        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
-        run: python3 scripts/test-goal-role-router.py
-
       - name: Run diff-fragment gate test mirror
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' || contains(fromJSON(inputs.plan_gates || '[]'), 'no-diff-fragments') }}
         run: scripts/test-verify-no-diff-fragments.sh
@@ -129,10 +121,6 @@ jobs:
       - name: Run Muse hooks port test mirror
         if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
         run: scripts/test-muse-hooks.sh
-
-      - name: Run Cursor hooks port test mirror
-        if: ${{ github.event_name != 'pull_request' || inputs.plan_mode != 'smoke' }}
-        run: scripts/test-cursor-hooks.sh
 
       # Static self-guard for the canon scripts' assertion idiom: fails if
       # the racy printf-piped-to-quiet-rg form (#8278) reappears. Mirrors

@@ -11,23 +11,12 @@ gates:
       - "go/**"
       # The shared agent material (skills, role bindings, harness hooks) lives
       # in the eshu-agent-kit and is installed locally by its installer, so
-      # those trees are not tracked here. What remains tracked is this repo's
-      # own harness wiring.
-      - ".codex/config.toml"
-      - ".codex/hooks.json"
-      - ".claude/settings.json"
-      # The Muse port: wrappers in .muse/hooks/ translate the Muse envelope
-      # onto the same .claude files, and .muse/hooks.json carries Muse's own
-      # (event, matcher, command) wiring, asserted by test-muse-hooks.sh.
-      - ".muse/hooks/**"
-      - ".muse/hooks.json"
+      # those trees are not tracked here. This repo tracks no harness wiring
+      # files: the .codex/.claude/.muse/.cursor/.opencode wiring was removed
+      # and the kit supplies the hook scripts and registrations.
       - "scripts/test-muse-hooks.sh"
       - "AGENTS.md"
       - "scripts/verify-agent-canon.sh"
-      - "scripts/guard-codex-spawn.py"
-      - "scripts/test-codex-spawn-guard.py"
-      - "scripts/goal-role-router.py"
-      - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
       # The skill-census cases are a sourced companion, so it is a trigger
       # path in its own right -- otherwise deleting a case from it would
@@ -80,17 +69,8 @@ gates:
       - ".github/workflows/verify-agent-hygiene.yml"
       - ".pre-commit-config.yaml"
       - "scripts/verify-no-ai-attribution.sh"
-      # The Cursor port: .cursor/hooks.json routes Cursor events through
-      # scripts/cursor-hook.py onto the same .claude/hooks files, asserted by
-      # test-cursor-hooks.sh. Trigger paths for the same reason as Muse's.
-      - ".cursor/hooks.json"
-      - "scripts/cursor-hook.py"
-      - "scripts/test-cursor-hooks.sh"
-      # The adapter's helper-link and worktree module, and the mirror's sourced
-      # companion (split out at the 500-line cap): trigger paths in their own
-      # right, so editing either alone selects the gate that runs them.
-      - "scripts/cursor_hook_family.py"
-      - "scripts/test-cursor-hooks-helper-cases.sh"
+      # The Cursor adapter moved to the eshu-agent-kit with the other agent
+      # scripts; no Cursor paths remain tracked here.
       # The pipe-idiom self-guard: a static scan that fails if the racy
       # printf-piped-to-quiet-rg assertion idiom (#8278) reappears in any
       # canon script. A trigger path so editing it alone selects the gate
@@ -110,18 +90,9 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
     self_test_triggers:
-      - ".codex/config.toml"
-      - ".codex/hooks.json"
-      - ".claude/settings.json"
-      - ".muse/hooks/**"
-      - ".muse/hooks.json"
       - "scripts/test-muse-hooks.sh"
       - "AGENTS.md"
       - "scripts/verify-agent-canon.sh"
-      - "scripts/guard-codex-spawn.py"
-      - "scripts/test-codex-spawn-guard.py"
-      - "scripts/goal-role-router.py"
-      - "scripts/test-goal-role-router.py"
       - "scripts/test-verify-agent-hygiene.sh"
       # The CI kit-checkout pin: a REF-only bump changes the hook content the
       # self-test runs against, so it must select the self-test too.
@@ -152,11 +123,6 @@ gates:
       - ".github/workflows/verify-agent-hygiene.yml"
       - ".pre-commit-config.yaml"
       - "scripts/verify-no-ai-attribution.sh"
-      - ".cursor/hooks.json"
-      - "scripts/cursor-hook.py"
-      - "scripts/test-cursor-hooks.sh"
-      - "scripts/cursor_hook_family.py"
-      - "scripts/test-cursor-hooks-helper-cases.sh"
       - "scripts/test-verify-agent-canon-pipes.sh"
       - "scripts/lib/test-agent-alias-cases.sh"
       - "specs/ci-gates.v1.yaml"
@@ -167,7 +133,7 @@ gates:
       # change selects it -- but running only the canon mirror would skip the
       # behavioural hook suite, and an exit-code or routing regression would
       # first appear in Actions despite being credential-free.
-      test_command: "bash scripts/test-verify-agent-hygiene.sh && python3 scripts/test-codex-spawn-guard.py && python3 scripts/test-goal-role-router.py && bash scripts/test-agent-hooks.sh && bash scripts/test-agent-hooks-fake-gate.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-issue-capture-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-cursor-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
+      test_command: "bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh && bash scripts/test-agent-hooks-fake-gate.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh && bash scripts/test-issue-capture-hook.sh && bash scripts/test-muse-hooks.sh && bash scripts/test-verify-agent-canon-pipes.sh"
     ci:
       workflow: verify-agent-hygiene.yml
       job: "Agent hygiene gate"
