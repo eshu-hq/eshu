@@ -4,7 +4,8 @@ The scope-remainder convert arm carried a correlated applied-scope
 `EXISTS` that let the planner pick a Nested Loop Semi Join re-probing
 the chunk per expansion row: 41,400 outer loops x 600 same-scope applied
 rows = 24,840,000 `winners_keyed_chunk_idents_all_idx` probes, 50.2M
-local buffer hits, ~24.1s of a ~22s slow tick (diagnosed on the retained
+local buffer hits: ~24.1s old-arm EXPLAIN at chunk 500, ~22.6s slow tick
+at shipped chunk 200 (diagnosed on the retained
 `d5_diagfast` pre-slow-tick database, pending 2599). The arm now
 precomputes the chunk-applied `(scope_id, generation_id)` set once per
 tick in an explicit `AS MATERIALIZED` CTE (which the planner cannot
