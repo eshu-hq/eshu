@@ -17,7 +17,7 @@ applied-delete stays bounded by its consumed-scope-row outer and the
 restrict stays a single-level anti join (both EXPLAIN-cleared at the
 slow alignment), so only the convert routes through the set.
 
-## Performance Evidence (#10839 convert fix)
+## Performance Evidence (#10839 convert fix):
 
 Shim (no production edit, old arm derived from the shipped constant):
 retained `d5_diagfast` (pending 2599) and `d5_diagslow` (pending 2099),
@@ -58,7 +58,7 @@ conservation, empty residual), writer envelope
 fallback watermark, and both scope-plan tests including the new
 slow-window plan guard (RED on the pre-fix tree, GREEN after).
 
-## No-Observability-Change (#10839 convert fix)
+## No-Observability-Change (#10839 convert fix):
 
 The convert runs through the same instrumented `ExecContext` path as
 before, so the existing `eshu_dp_postgres_query_duration_seconds`
