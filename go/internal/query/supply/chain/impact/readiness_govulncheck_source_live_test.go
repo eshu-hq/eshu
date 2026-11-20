@@ -135,6 +135,85 @@ func TestReadinessReportsGovulncheckSourceStateLive(t *testing.T) {
 	}
 }
 
+// seedGovulncheckModuleEvidence writes one active go_module_evidence fact
+// into an already-seeded scope (the generation seedGovulncheckWarningScope
+// created and activated), so the scope holds the module row a module-scoped
+// warning joins through.
+func seedGovulncheckModuleEvidence(t *testing.T, ctx context.Context, db *sql.DB, scopeID, payload string) {
+	t.Helper()
+	if _, err := db.ExecContext(ctx, `INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+VALUES ($1 || '-evidence-1', $1, $1 || '-gen', 'vulnerability.go_module_evidence', $1 || '-evidence-key-1', 'vulnerability_intelligence', $1 || '-evidence-1', clock_timestamp(), clock_timestamp(), FALSE, $2::jsonb)`, scopeID, payload); err != nil {
+		t.Fatalf("seed govulncheck module evidence: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "ANALYZE fact_records"); err != nil {
+		t.Fatalf("analyze fact_records: %v", err)
+	}
+}
+
+// TestReadinessScopesGovulncheckWarningToItsModuleLive is the #11002 mirror
+// proof for the govulncheck source-state row: a module-scoped warning
+// (non-blank relative_path) contributes only when a go_module_evidence row
+// in the same scope names that go.mod — the same rows the reducer joins
+// through — while a warning for a go.mod with no evidence joins nothing and
+// adds no row. Blank relative_path keeps repository scope (see
+// TestReadinessReportsGovulncheckSourceStateLive, whose warning has none).
+func TestReadinessScopesGovulncheckWarningToItsModuleLive(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("ESHU_GOVULNCHECK_READINESS_PROOF_DSN"))
+	var optIn string
+	if dsn != "" {
+		if os.Getenv("ESHU_GOVULNCHECK_READINESS_PROOF_DISPOSABLE") != "1" {
+			t.Fatal("ESHU_GOVULNCHECK_READINESS_PROOF_DSN is set without ESHU_GOVULNCHECK_READINESS_PROOF_DISPOSABLE=1")
+		}
+		optIn = os.Getenv("ESHU_GOVULNCHECK_READINESS_PROOF_DISPOSABLE")
+	} else {
+		dsn = strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+		optIn = os.Getenv("ESHU_POSTGRES_DISPOSABLE")
+	}
+	if dsn == "" {
+		t.Skip("set ESHU_GOVULNCHECK_READINESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the govulncheck readiness proof")
+	}
+	ctx, db := postgresproof.OpenDisposableBootstrapDatabase(t, dsn, optIn, 5*time.Minute, func(ctx context.Context, db *sql.DB) error {
+		return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
+	})
+	// A module-scoped warning backed by module evidence for that go.mod.
+	seedGovulncheckWarningScope(t, ctx, db, "govulncheck-modwarn-scope", `{"analyzer": "go_reachability", "target_kind": "repository",
+		"target_locator_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+		"reason": "toolchain_unsupported", "warning_class": "scanner_worker_warning",
+		"analysis_status": "not_scanned", "coverage_status": "unsupported",
+		"repository_id": "`+govulncheckReadinessRepositoryID+`", "relative_path": "tools/go.mod"}`)
+	seedGovulncheckModuleEvidence(t, ctx, db, "govulncheck-modwarn-scope", `{"repository_id": "`+govulncheckReadinessRepositoryID+`",
+		"relative_path": "tools/go.mod", "module_path": "example.com/othermod",
+		"required_version": "v1.2.3", "ecosystem": "go-module"}`)
+	// A module-scoped warning for a go.mod with no evidence joins nothing.
+	seedGovulncheckWarningScope(t, ctx, db, "govulncheck-orphanwarn-scope", `{"analyzer": "go_reachability", "target_kind": "repository",
+		"target_locator_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+		"reason": "no_go_toolchain", "warning_class": "scanner_worker_warning",
+		"analysis_status": "not_scanned", "coverage_status": "unsupported",
+		"repository_id": "`+govulncheckReadinessRepositoryID+`", "relative_path": "missing/go.mod"}`)
+
+	store := NewPostgresReadinessStore(db)
+	snapshot, err := store.ReadSupplyChainImpactReadiness(ctx, ReadinessQuery{RepositoryID: govulncheckReadinessRepositoryID})
+	if err != nil {
+		t.Fatalf("ReadSupplyChainImpactReadiness(): %v", err)
+	}
+	var govulncheck []packet.SourceState
+	for _, state := range snapshot.SourceStates {
+		if state.Source == "govulncheck" {
+			govulncheck = append(govulncheck, state)
+		}
+	}
+	if len(govulncheck) != 1 {
+		t.Fatalf("govulncheck source states = %#v, want exactly the evidenced module warning's row", snapshot.SourceStates)
+	}
+	got := govulncheck[0]
+	if got.LastErrorClass != "toolchain_unsupported" {
+		t.Fatalf("govulncheck last_error_class = %q, want toolchain_unsupported", got.LastErrorClass)
+	}
+	if got.WarningCount != 1 {
+		t.Fatalf("govulncheck warning_count = %d, want 1", got.WarningCount)
+	}
+}
+
 // TestReadinessKeepsStoredGovulncheckSourceStateLive pins the other half of
 // the #10029 condition: when scanner results did write a govulncheck source
 // state for the scope, the synthetic candidate stays out. (A stored row with

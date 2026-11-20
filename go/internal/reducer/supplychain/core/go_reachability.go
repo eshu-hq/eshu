@@ -229,13 +229,25 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 				sort.Strings(finding.MissingEvidence)
 			}
 			// An unfinished go_reachability scan names its failure class
-			// on every finding of its repository (#10029 R2): the scan
+			// on the findings of its scope (#10029 R2, #11002): the scan
 			// produced no reachability fact, so without this join the
-			// verdict reads as a bare evidence gap with no cause.
+			// verdict reads as a bare evidence gap with no cause. A warning
+			// with a blank relative_path covers the repository; a warning
+			// naming a go.mod joins only the findings whose module evidence
+			// rows include that file.
 			if finding.RepositoryID != "" {
-				if rows := warningsByRepo[finding.RepositoryID]; len(rows) > 0 {
-					finding.MissingEvidence = append(finding.MissingEvidence, rows...)
-					sort.Strings(finding.MissingEvidence)
+				if warnings := warningsByRepo[finding.RepositoryID]; len(warnings) > 0 {
+					joined := make([]string, 0, len(warnings))
+					for _, warning := range warnings {
+						if warning.relativePath != "" && !goModuleEvidenceRowsIncludeRelativePath(moduleRows, warning.relativePath) {
+							continue
+						}
+						joined = append(joined, warning.message)
+					}
+					if len(joined) > 0 {
+						finding.MissingEvidence = append(finding.MissingEvidence, payloadcore.UniqueSortedStrings(joined)...)
+						sort.Strings(finding.MissingEvidence)
+					}
 				}
 			}
 			findings = append(findings, finding)
