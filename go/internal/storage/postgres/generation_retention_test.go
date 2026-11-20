@@ -85,6 +85,11 @@ func TestGenerationRetentionRowCountsAreGenerationAware(t *testing.T) {
 		// fact-join scalar subquery.
 		"LEFT JOIN package_manifest_consumption_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
 		"LEFT JOIN package_registry_identity_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
+		// #10875: the security-alert reconciliation arm counts on the
+		// same envelope, so its pre-count charges the orphan keys its
+		// delete removes.
+		"SELECT candidate.generation_id, 'security_alert_reconciliation_keys'",
+		"LEFT JOIN security_alert_reconciliation_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
 	} {
 		if !strings.Contains(generationRetentionRowCountsQuery, want) {
 			t.Fatalf("row-count query missing %q:\n%s", want, generationRetentionRowCountsQuery)

@@ -26,11 +26,15 @@ import (
 // blocks per Ack through pg_stat_statements; wall time is reported,
 // never gated.
 const (
-	ajCostScopes          = 200
-	ajCostRounds          = 4
-	ajCostMaxExtraWAL     = 6.0
-	ajCostMaxExtraBlocks  = 40.0
-	ajCostStatementsOnAck = 9
+	ajCostScopes         = 200
+	ajCostRounds         = 4
+	ajCostMaxExtraWAL    = 6.0
+	ajCostMaxExtraBlocks = 40.0
+	// 9 Ack statements plus the #10876 in-transaction generation_active
+	// wait wake. The wake is load-bearing (a parked waiter otherwise
+	// strands until the audit), and the WAL/blocks bounds above still
+	// hold, so the pin moves with the feature instead of against it.
+	ajCostStatementsOnAck = 10
 )
 
 // ajCostSample is one measured batch of Acks.

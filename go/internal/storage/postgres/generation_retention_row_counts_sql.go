@@ -51,7 +51,9 @@ package postgres
 // (1.15M probes, 5.7 s for the manifest arm over a 100-generation QA
 // batch) and under-counted orphans the delete still removed; the direct
 // legs measured 80 ms custom and 48 ms generic on the same batch
-// (#10512).
+// (#10512). The security-alert reconciliation leg (#10875) follows the
+// same envelope on its migration-315 partition index, so its pre-count
+// charges the orphan keys its delete removes.
 // content_file_secret_lines hangs off
 // content_files, whose doomed keys already live in doomed_files: a secret
 // row dies exactly when its key is doomed, so that arm joins doomed_files
@@ -441,6 +443,15 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN scope_generations AS generation
   ON generation.generation_id = candidate.generation_id
 LEFT JOIN relationship_reference_candidate_keys AS keys
+  ON keys.scope_id = generation.scope_id
+ AND keys.generation_id = candidate.generation_id
+GROUP BY candidate.generation_id
+UNION ALL
+SELECT candidate.generation_id, 'security_alert_reconciliation_keys' AS table_name, COUNT(keys.fact_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN scope_generations AS generation
+  ON generation.generation_id = candidate.generation_id
+LEFT JOIN security_alert_reconciliation_keys AS keys
   ON keys.scope_id = generation.scope_id
  AND keys.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id

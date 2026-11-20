@@ -64,6 +64,14 @@ func TestFactKeyOrphanCensusCountsPlantedOrphansLive(t *testing.T) {
 	testfixtures.SeedScope(t, ctx, database, scope)
 	envelopes := factKeyEnvelopes(scope, active, 20)
 	writeFactsWithKeys(t, ctx, SQLDB{DB: database}, envelopes)
+	// The envelope families own no security-alert facts, so the fourth
+	// sidecar gets one live key by hand; without it the loops below cannot
+	// tell a clean fourth table from a missing seeder (#10875).
+	if _, err := database.ExecContext(ctx, `INSERT INTO security_alert_reconciliation_keys
+    (fact_id, scope_id, generation_id, key_kind, key_value)
+VALUES ($1, $2, $3, 'package', 'pkg-census-live')`, envelopes[0].FactID, scope, active); err != nil {
+		t.Fatalf("seed live security-alert key: %v", err)
+	}
 	for _, table := range factKeyTables {
 		if factKeyRowsFor(t, ctx, database, table, scope, active) == 0 {
 			t.Fatalf("fixture wrote no %s rows", table)

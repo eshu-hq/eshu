@@ -162,8 +162,12 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"package_manifest_consumption_keys":     2,
 		"package_registry_identity_keys":        2,
 		"relationship_reference_candidate_keys": 1,
-		"content_file_secret_lines":             2,
-		"shared_projection_unroutable_intents":  3,
+		// #10875: the security-alert reconciliation sidecar; this
+		// fixture seeds none, but the arm must still report it (the
+		// len(totals) check below pins the arm set).
+		"security_alert_reconciliation_keys":   0,
+		"content_file_secret_lines":            2,
+		"shared_projection_unroutable_intents": 3,
 		// #8300: the fingerprint sidecar on fact_work_items; this fixture writes none.
 		"deployable_unit_reopen_fingerprints": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
@@ -210,7 +214,7 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 	if result.GenerationsPruned != 1 {
 		t.Fatalf("GenerationsPruned = %d, want 1", result.GenerationsPruned)
 	}
-	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "producer_activation_obligations", "generation_commit_fences", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "security_alert_target_read_states", "security_alert_unread_repositories", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
+	for _, table := range []string{"fact_records", "content_file_references", "content_entities", "infra_resource_entities", "content_files", "shared_projection_intents", "activation_obligations", "producer_activation_obligations", "generation_commit_fences", "admission_decisions", "admission_decision_evidence", "code_reachability_rows", "code_reachability_repository_watermarks", "code_root_verdicts", "container_image_identity_cutovers", "deferred_backfill_partition_memo", "eshu_search_document_projection_state", "eshu_search_index_documents", "eshu_search_index_stats", "eshu_search_index_terms", "eshu_search_vector_metadata", "eshu_search_vector_scope_state", "eshu_search_vector_values", "reducer_input_invalid_facts", "security_alert_target_read_states", "security_alert_unread_repositories", "package_manifest_consumption_keys", "package_registry_identity_keys", "relationship_reference_candidate_keys", "security_alert_reconciliation_keys", "content_file_secret_lines", "shared_projection_unroutable_intents"} {
 		if got := result.RowsPruned[table]; got != want[table] {
 			t.Errorf("RowsPruned[%s] = %d, want %d", table, got, want[table])
 		}
