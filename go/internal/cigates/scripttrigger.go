@@ -135,8 +135,9 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     session and found two instances where the wrapper directly execs a
 //     script neither its own triggers nor the sourcing walk could see —
 //     perf-evidence's "perf-evidence)" case execs
-//     scripts/verify-performance-evidence.sh, and nancy's "nancy)" case execs
-//     scripts/dev/nancy-local.sh. Both are now closed the same way this
+//     scripts/verify-performance-evidence.sh, and (until the nancy gate's
+//     deletion in #10989) nancy's "nancy)" case execed
+//     scripts/dev/nancy-local.sh. Both were closed the same way this
 //     package always closes a check-8 finding: by adding the delegated script
 //     as an explicit trigger on its gate (specs/ci-gates.v1.yaml), not by
 //     teaching the walk to parse a wrapper's dispatch logic. A general

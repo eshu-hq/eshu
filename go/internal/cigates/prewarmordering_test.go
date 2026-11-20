@@ -200,7 +200,7 @@ jobs:
 }
 
 // TestCheckSetupGoPrewarmOrdering_ModuleToolTouch_Violation proves
-// golangci-lint/govulncheck/gosec/nancy count as a module-graph touch too,
+// golangci-lint/govulncheck/gosec count as a module-graph touch too,
 // not only a literal `go <verb>` -- the security-scan.yml and go-core shape
 // #6615's audit found.
 func TestCheckSetupGoPrewarmOrdering_ModuleToolTouch_Violation(t *testing.T) {

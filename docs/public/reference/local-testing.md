@@ -179,13 +179,13 @@ the npm commands fail loudly (run `npm ci` first) rather than skipping silently.
 
 For dependency or deploy changes, a security preflight mirrors the
 credential-free `security-scan.yml` jobs (#4217) — changed-package gosec,
-govulncheck, nancy, and an optional Trivy filesystem scan — selected by changed path:
+govulncheck, and an optional Trivy filesystem scan — selected by changed path:
 
 ```bash
 make security-preflight      # or: bash scripts/dev/security-preflight.sh
 ```
 
-govulncheck and nancy need network for their advisory databases; Trivy is
+govulncheck needs network for its advisory database; Trivy is
 optional and the `trivy-fs` gate prints setup guidance and defers to CI when
 `trivy` is not installed (never a silent pass). **CI remains authoritative** for
 SARIF uploads, the Trivy image scan, and release/package security checks — those stay CI-only.
@@ -242,7 +242,7 @@ to select workflows and gates on the exact head:
   replay, race, and reducer-contention gates remain path-filtered and blocking.
 - **Path-selected (heavy):** the whole-module Go build/lint/vet/test and the
   sharded `go-race` lanes (`test.yml`), the two-OS binary build (`build.yml`),
-  the Go-source security scanners (`govulncheck`/`gosec`/`nancy` in
+  the Go-source security scanners (`govulncheck`/`gosec` in
   `security-scan.yml`), the Go MCP drift jobs (`mcp-tool-count`/`mcp-test-suite`),
   and end-to-end tests all **skip a docs-only PR** — one whose every
   changed file is `docs/**`, markdown at any depth (`*.md`, `**/*.md`),
@@ -330,7 +330,7 @@ have to remember the matching verifier — the selector picks it.
 | CLI (`go/cmd/eshu/**`, `go/internal/cli/**`) | evidence continuity (its spec's proof refs cite tests in these packages) | — |
 | CI gate registry helpers (`go/internal/cigates/**`) | evidence continuity (its trigger self-check is built on this package's glob and workflow parsing) | — |
 | Facts / contracts (`go/internal/facts/**`, `specs/*.v1.yaml`) | fact-kind registry, contract source-of-truth, evidence continuity | — |
-| `go.mod` / `go.sum` | nothing extra (the whole-module Go gates always run) | pre-push runs changed-file gosec; `make security-preflight` runs whole-module gosec, govulncheck, nancy |
+| `go.mod` / `go.sum` | nothing extra (the whole-module Go gates always run) | pre-push runs changed-file gosec; `make security-preflight` runs whole-module gosec, govulncheck |
 | Deploy / runtime (`Dockerfile`, `deploy/**`, `docker-compose*`) | — | `make security-preflight` (Trivy fs); golden-corpus + e2e are CI-only (Docker) |
 
 Run `bash scripts/dev/select-gates.sh --base origin/main --tier pre-pr --explain`

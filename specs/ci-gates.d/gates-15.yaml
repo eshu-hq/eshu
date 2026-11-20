@@ -168,10 +168,10 @@ gates:
 
   # Non-blocking since the owner decision to move macOS CI to nightly +
   # workflow_dispatch (macos.yml has no pull_request or push trigger).
-  # Evidence: of 29 macOS CI failures since 2026-09-21, 0 were
-  # macOS-only (each also failed on the Linux go-race lane), at ~2,800
-  # macOS-minutes/day. The triggers below keep the local path selection for
-  # `ci-gates select`; the row is not awaited by required-gates-complete.
+  # Evidence: of 29 macOS CI failures since 2026-09-21, 0 were macOS-only
+  # (each also failed on the Linux go-race lane), at ~30 macOS-minutes/day
+  # for the single nightly run. The triggers below keep the local path
+  # selection for `ci-gates select`; the row is not awaited by required-gates-complete.
   - id: macos-build
     name: macOS build verification (nightly)
     category: build
@@ -187,7 +187,7 @@ gates:
       job: "macos"
     requirements:
       - go
-    ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~2,800 macOS-min/day)"
+    ci_only_reason: "requires macOS hosted runner; nightly/dispatch only and non-blocking (0 of 29 macOS failures since 2026-09-21 were macOS-only, ~30 macOS-min/day for the single nightly run)"
   # ─── EVIDENCE / LEDGER / DRIFT ─────────────────────────────────────────────
   - id: root-cause-evidence
     name: Root-cause claims carry observed evidence
