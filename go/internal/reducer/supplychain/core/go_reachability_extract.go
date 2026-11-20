@@ -203,14 +203,22 @@ func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (ma
 		if reason == "" {
 			continue
 		}
-		relativePath := payloadcore.DerefStringTrimmed(warning.RelativePath)
+		// The match key stays raw: repository scope iff the path is absent or
+		// whitespace-only, otherwise byte-equal against the evidence rows
+		// (#11002). Trimming happens only in the blank check, never in the
+		// match.
+		relativePath := payloadcore.DerefString(warning.RelativePath)
 		dedupKey := repositoryID + "\x00" + reason + "\x00" + relativePath
 		if _, ok := seen[dedupKey]; ok {
 			continue
 		}
 		seen[dedupKey] = struct{}{}
+		message := "govulncheck scan " + reason
+		if strings.TrimSpace(relativePath) != "" {
+			message += " at " + relativePath
+		}
 		out[repositoryID] = append(out[repositoryID], goReachabilityWarning{
-			message:      "govulncheck scan " + reason,
+			message:      message,
 			relativePath: relativePath,
 		})
 	}
@@ -224,7 +232,7 @@ func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (ma
 // a warning for a file none of the rows names joins nothing (#11002).
 func goModuleEvidenceRowsIncludeRelativePath(rows []goModuleEvidenceRow, relativePath string) bool {
 	for _, row := range rows {
-		if strings.TrimSpace(row.relativePath) == relativePath {
+		if row.relativePath == relativePath {
 			return true
 		}
 	}

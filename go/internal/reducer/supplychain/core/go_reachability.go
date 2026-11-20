@@ -239,7 +239,10 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 				if warnings := warningsByRepo[finding.RepositoryID]; len(warnings) > 0 {
 					joined := make([]string, 0, len(warnings))
 					for _, warning := range warnings {
-						if warning.relativePath != "" && !goModuleEvidenceRowsIncludeRelativePath(moduleRows, warning.relativePath) {
+						// Blank (absent or whitespace-only) paths are
+						// repository scope; anything else must byte-match
+						// one of the finding's go.mod rows (#11002).
+						if strings.TrimSpace(warning.relativePath) != "" && !goModuleEvidenceRowsIncludeRelativePath(moduleRows, warning.relativePath) {
 							continue
 						}
 						joined = append(joined, warning.message)

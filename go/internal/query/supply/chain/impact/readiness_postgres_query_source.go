@@ -390,7 +390,7 @@ govulncheck_scanner_state_candidates AS (
                 AND evidence.is_tombstone = FALSE
                 AND evidence_generation.status = 'active'
                 AND evidence.payload->>'repository_id' = $11
-                AND TRIM(evidence.payload->>'relative_path') = TRIM(warn.payload->>'relative_path')
+                AND evidence.payload->>'relative_path' = warn.payload->>'relative_path'
           )
       )
       AND NOT EXISTS (

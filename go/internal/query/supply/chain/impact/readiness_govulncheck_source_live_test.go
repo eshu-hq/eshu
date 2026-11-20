@@ -190,6 +190,16 @@ func TestReadinessScopesGovulncheckWarningToItsModuleLive(t *testing.T) {
 		"reason": "no_go_toolchain", "warning_class": "scanner_worker_warning",
 		"analysis_status": "not_scanned", "coverage_status": "unsupported",
 		"repository_id": "`+govulncheckReadinessRepositoryID+`", "relative_path": "missing/go.mod"}`)
+	// A whitespace-padded path is non-blank, so it takes module scope, but
+	// it byte-matches no evidence row and must join nothing (#11002).
+	seedGovulncheckWarningScope(t, ctx, db, "govulncheck-paddedwarn-scope", `{"analyzer": "go_reachability", "target_kind": "repository",
+		"target_locator_hash": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+		"reason": "toolchain_unsupported", "warning_class": "scanner_worker_warning",
+		"analysis_status": "not_scanned", "coverage_status": "unsupported",
+		"repository_id": "`+govulncheckReadinessRepositoryID+`", "relative_path": " tools/go.mod "}`)
+	seedGovulncheckModuleEvidence(t, ctx, db, "govulncheck-paddedwarn-scope", `{"repository_id": "`+govulncheckReadinessRepositoryID+`",
+		"relative_path": "tools/go.mod", "module_path": "example.com/paddedmod",
+		"required_version": "v1.2.3", "ecosystem": "go-module"}`)
 
 	store := NewPostgresReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(ctx, ReadinessQuery{RepositoryID: govulncheckReadinessRepositoryID})

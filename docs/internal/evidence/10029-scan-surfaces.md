@@ -11,10 +11,12 @@ rides the explain, list, MCP, and console surfaces.
   `extractGoReachabilityWarningsWithQuarantine`, joined in
   `classifyGoVulnerabilityReachabilityWithQuarantine` by `repository_id`
   (the emitter stamps it on the warning payload) and scoped by
-  `relative_path` (#11002): a blank or absent warning path keeps repository
-  scope, while a warning naming a go.mod joins only the findings whose
-  `go_module_evidence` rows include that file. Each unfinished
-  `go_reachability` scan contributes `govulncheck scan <reason>` to its
+  `relative_path` (#11002): a blank or whitespace-only warning path keeps
+  repository scope, while a non-blank path byte-matches (no trimming, no
+  case or separator folding) the `go_module_evidence` rows behind each
+  finding and joins only the findings with a matching row, rendered as
+  `govulncheck scan <reason> at <relative_path>`. Each unfinished
+  `go_reachability` scan contributes its scoped warning text to its
   scope's findings, which rides `Reachability.MissingEvidence` through
   the existing writer payload and query decode. Warnings without a
   repository, finished scans (`analysis_status: completed`), and other
