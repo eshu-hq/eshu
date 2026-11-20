@@ -54,6 +54,19 @@ func PadQueueFakeRow(row []any, columns int) []any {
 	if columns == 11 && len(row) == 10 {
 		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
 	}
+	// Reducer claim rows now also return the prior verdict's failure
+	// evidence (class, message, details) between claimed_at and payload
+	// (#11075). Older fixtures predate that output; zero-fill the triple so
+	// they keep exercising the no-prior-failure behavior they were written
+	// for. Dedicated failure-evidence tests stage explicit values and assert
+	// them exactly. Ten-column fixtures first gain the last_attempt_at token
+	// above, then the triple; both insertions land before the payload.
+	if columns == 14 && len(row) == 10 {
+		row = append(row[:9:9], append([]any{row[8], "", "", ""}, row[9:]...)...)
+	}
+	if columns == 14 && len(row) == 11 {
+		row = append(row[:11:11], append([]any{"", "", ""}, row[11:]...)...)
+	}
 	// Retention candidate rows carry ten columns: the #7981 identity triple
 	// then the #7802 delta_protected flag. Six-column fixtures zero-fill the
 	// triple (a zero identity never matches) and the flag; nine-column

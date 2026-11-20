@@ -224,7 +224,12 @@ const (
 	// request paths with identifiers are never used.
 	MetricDimensionRoute        = "route"
 	MetricDimensionFailureClass = "failure_class"
-	MetricDimensionFactKind     = "fact_kind"
+	// MetricDimensionAttempt labels deferral-classification counters with the
+	// reducer attempt bucket that produced the verdict ("1", "2", "3plus").
+	// Producers MUST use AttemptBucketForCount; raw attempt numbers are not
+	// allowed. The bucket set is closed, so it stays low-cardinality.
+	MetricDimensionAttempt  = "attempt"
+	MetricDimensionFactKind = "fact_kind"
 	// MetricDimensionSourceFileKind labels content-entity emission counters with
 	// a bounded classification of the originating source file:
 	//   "code"             — ordinary source file parsed by the language engine

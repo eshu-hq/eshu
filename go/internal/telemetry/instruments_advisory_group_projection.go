@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -71,6 +72,16 @@ var (
 //     completion seconds per projection intent, including the winners
 //     watermark wait. A rising tail means the graph trails the winners
 //     read model.
+//   - eshu_dp_advisory_group_projection_first_claim_lag_seconds{domain}:
+//     cycle start to claim seconds per watermark-wait verdict (#11075).
+//   - eshu_dp_advisory_group_projection_post_claim_deferral_seconds{domain}:
+//     first deferral to verdict seconds per wait verdict (#11075).
+//   - eshu_dp_advisory_group_projection_watermark_age_seconds{domain}:
+//     watermark age seconds at the verdict (#11075).
+//   - eshu_dp_advisory_group_projection_watermark_gap_seconds{domain}:
+//     bound-minus-watermark seconds at the verdict (#11075).
+//   - eshu_dp_advisory_group_projection_watermark_waits_total{domain,
+//     failure_class,attempt}: wait verdicts by class and attempt bucket.
 func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.AdvisoryGroupProjectionGroups, err = meter.Int64Counter(
@@ -124,6 +135,44 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 		metric.WithExplicitBucketBoundaries(advisoryGroupProjectionLagBuckets...),
 	); err != nil {
 		return fmt.Errorf("register AdvisoryGroupProjectionLag histogram: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionFirstClaimLag, err = meter.Float64Histogram(
+		"eshu_dp_advisory_group_projection_first_claim_lag_seconds",
+		metric.WithDescription("Seconds from the advisory-group projection repair-cycle start (COALESCE(reopened_at, created_at)) to the claim that produced the watermark-wait verdict (#11075). The pre-claim half of the wait split: queue residency before the handler ever evaluated the row."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(advisoryGroupWatermarkWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionFirstClaimLag histogram: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionPostClaimDeferral, err = meter.Float64Histogram(
+		"eshu_dp_advisory_group_projection_post_claim_deferral_seconds",
+		metric.WithDescription("Seconds from the first winners-watermark deferral of the current repair cycle to the verdict (#11075). The post-claim half of the wait split: the deferral clock the stale bound measures. Zero on a first deferral; past 1800 s the verdict flips to stale."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(advisoryGroupWatermarkWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionPostClaimDeferral histogram: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionWatermarkAge, err = meter.Float64Histogram(
+		"eshu_dp_advisory_group_projection_watermark_age_seconds",
+		metric.WithDescription("Seconds from the canonical winners watermark the verdict read to the verdict time (#11075). A maintainer stall reads as age growing past 1800 s; a slow-but-advancing maintainer reads as a small age with a positive gap."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(advisoryGroupWatermarkWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkAge histogram: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionWatermarkGap, err = meter.Float64Histogram(
+		"eshu_dp_advisory_group_projection_watermark_gap_seconds",
+		metric.WithDescription("Seconds the canonical winners watermark still trails the repair-cycle bound at the verdict (#11075): the per-row E-R the watermark must close before the intent reconciles."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(advisoryGroupWatermarkWaitBuckets...),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkGap histogram: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionWatermarkWaits, err = meter.Int64Counter(
+		"eshu_dp_advisory_group_projection_watermark_waits_total",
+		metric.WithDescription("Advisory-group projection winners-watermark wait verdicts (#11075), by failure class (advisory_group_winners_watermark_not_ready or advisory_group_winners_watermark_stale) and attempt bucket (1, 2, 3plus). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only."),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkWaits counter: %w", err)
 	}
 	return nil
 }
@@ -196,4 +245,43 @@ func (inst *Instruments) RecordAdvisoryGroupLag(ctx context.Context, domain stri
 		return
 	}
 	inst.AdvisoryGroupProjectionLag.Record(ctx, seconds, metric.WithAttributes(AttrDomain(domain)))
+}
+
+// RecordAdvisoryGroupWatermarkWait records one winners-watermark wait
+// verdict (#11075): the pre-claim queue residency, the post-claim deferral
+// the stale bound measures, the watermark age and bound gap at the verdict,
+// and the verdict itself by failure class and attempt bucket. A nil
+// Instruments records nothing. Negative samples (clock skew) are dropped
+// per signal rather than recorded.
+func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
+	ctx context.Context,
+	domain string,
+	failureClass string,
+	attemptBucket string,
+	firstClaimLagSeconds float64,
+	postClaimDeferralSeconds float64,
+	watermarkAgeSeconds float64,
+	watermarkGapSeconds float64,
+) {
+	if inst == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{AttrDomain(domain)}
+	if inst.AdvisoryGroupProjectionFirstClaimLag != nil && firstClaimLagSeconds >= 0 {
+		inst.AdvisoryGroupProjectionFirstClaimLag.Record(ctx, firstClaimLagSeconds, metric.WithAttributes(attrs...))
+	}
+	if inst.AdvisoryGroupProjectionPostClaimDeferral != nil && postClaimDeferralSeconds >= 0 {
+		inst.AdvisoryGroupProjectionPostClaimDeferral.Record(ctx, postClaimDeferralSeconds, metric.WithAttributes(attrs...))
+	}
+	if inst.AdvisoryGroupProjectionWatermarkAge != nil && watermarkAgeSeconds >= 0 {
+		inst.AdvisoryGroupProjectionWatermarkAge.Record(ctx, watermarkAgeSeconds, metric.WithAttributes(attrs...))
+	}
+	if inst.AdvisoryGroupProjectionWatermarkGap != nil && watermarkGapSeconds >= 0 {
+		inst.AdvisoryGroupProjectionWatermarkGap.Record(ctx, watermarkGapSeconds, metric.WithAttributes(attrs...))
+	}
+	if inst.AdvisoryGroupProjectionWatermarkWaits != nil {
+		inst.AdvisoryGroupProjectionWatermarkWaits.Add(ctx, 1, metric.WithAttributes(
+			AttrDomain(domain), AttrFailureClass(failureClass), AttrAttempt(attemptBucket),
+		))
+	}
 }

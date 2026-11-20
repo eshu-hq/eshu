@@ -135,16 +135,26 @@ func TestAdvisoryGroupHandlerWatermarkWaitEventuallyCountsAttempts(t *testing.T)
 	t.Parallel()
 	ctx := context.Background()
 
-	// Past the bounded wait the deferral stops being an expected wait and
-	// counts against the retry budget, so a dead winners maintainer
-	// dead-letters visibly instead of the intent waiting in silence.
+	// Past the bounded post-claim deferral the wait stops being an expected
+	// wait and counts against the retry budget, so a dead winners maintainer
+	// dead-letters visibly instead of the intent waiting in silence. The
+	// marker dates the cycle's first deferral 31 minutes back (#11075): the
+	// stale clock measures from the first deferral, not from enqueue.
 	stale := &fakeWinnersReader{watermark: handlerTestEnqueuedAt.Add(-time.Hour)}
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-0001"))
+	intent.Failure = &reducercontract.FailureRecord{
+		FailureClass: WinnersWatermarkNotReadyFailureClass,
+		Message:      "prior deferral",
+		Details: "advisory group projection waiting for supply chain impact winners rebuilt at 2026-11-09T11:00:00Z " +
+			"to reach the intent enqueue time 2026-11-09T12:00:00Z\n" +
+			"winners-watermark-deferral: first-deferred-at=2026-11-09T12:00:00Z cycle-started-at=2026-11-09T12:00:00Z",
+	}
 	handler := Handler{
 		Winners: stale,
 		Writer:  &fakeWriter{},
 		Now:     func() time.Time { return handlerTestEnqueuedAt.Add(winnersWatermarkMaxWait + time.Minute) },
 	}
-	_, err := handler.Handle(ctx, advisoryGroupIntent(EntityKey("CVE-2026-0001")))
+	_, err := handler.Handle(ctx, intent)
 	if err == nil {
 		t.Fatal("stale watermark past the bound: want error")
 	}
@@ -157,6 +167,162 @@ func TestAdvisoryGroupHandlerWatermarkWaitEventuallyCountsAttempts(t *testing.T)
 	var classified interface{ FailureClass() string }
 	if !errors.As(err, &classified) || classified.FailureClass() == WinnersWatermarkNotReadyFailureClass {
 		t.Fatalf("past the bound the failure class must leave the non-counting class: %v", err)
+	}
+}
+
+// TestAdvisoryGroupHandlerBornStaleUnderBacklogDefersNotReady is the
+// #11075 phase-2 failing-first regression for candidate (a): an attempt-1
+// intent whose pre-claim queue residency already exceeds the 30-minute bound
+// must defer in the non-counting not_ready class, never stale. The intent
+// models a reopened row (ancient enqueue, recent cycle start per
+// COALESCE(reopened_at, created_at)): the lag numerator is the cycle start,
+// not created_at, and the bound keys on the cycle start, not the original
+// enqueue. The watermark below is hours behind the bound while the maintainer
+// ticks (the phase-1 stall/slow regime); a single evaluation cannot tell
+// slow-but-advancing from stalled, so the clock — not the watermark age —
+// decides: zero deferrals performed means not_ready.
+func TestAdvisoryGroupHandlerBornStaleUnderBacklogDefersNotReady(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	createdAt := handlerTestEnqueuedAt.Add(-8 * 24 * time.Hour)
+	cycleStart := handlerTestEnqueuedAt
+	now := cycleStart.Add(45 * time.Minute)
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-born-stale"))
+	intent.EnqueuedAt = createdAt
+	intent.CycleStartedAt = cycleStart
+	intent.AttemptCount = 1
+	claimedAt := cycleStart.Add(44 * time.Minute)
+	intent.ClaimedAt = &claimedAt
+	// Watermark older than the cycle start: still waiting, but the row has
+	// performed zero deferrals.
+	winners := &fakeWinnersReader{watermark: cycleStart.Add(-time.Hour)}
+	handler := Handler{Winners: winners, Writer: &fakeWriter{}, Now: func() time.Time { return now }}
+	_, err := handler.Handle(ctx, intent)
+	if err == nil {
+		t.Fatal("born-stale under backlog: want a deferral error")
+	}
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("attempt-1 with 45min pre-claim lag: want expected wait (not_ready), got %v", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %q (pre-claim residency must not consume the stale bound)", err, WinnersWatermarkNotReadyFailureClass)
+	}
+}
+
+// TestAdvisoryGroupHandlerRecentDeferralWithOldWatermarkDefersNotReady pins
+// that the stale clock measures post-claim deferral, not row age: a row the
+// handler first deferred 5 minutes ago stays not_ready even though the row
+// is 45 minutes old and the watermark is 85 minutes old. A watermark age
+// alone never trips stale; only sustained deferral does.
+func TestAdvisoryGroupHandlerRecentDeferralWithOldWatermarkDefersNotReady(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cycleStart := handlerTestEnqueuedAt
+	now := cycleStart.Add(45 * time.Minute)
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-recent-deferral"))
+	intent.AttemptCount = 1
+	claimedAt := cycleStart.Add(44 * time.Minute)
+	intent.ClaimedAt = &claimedAt
+	intent.Failure = &reducercontract.FailureRecord{
+		FailureClass: WinnersWatermarkNotReadyFailureClass,
+		Message:      "prior deferral",
+		Details: "advisory group projection waiting for supply chain impact winners rebuilt at 2026-11-09T11:20:00Z " +
+			"to reach the intent enqueue time 2026-11-09T12:00:00Z\n" +
+			"winners-watermark-deferral: first-deferred-at=2026-11-09T12:40:00Z cycle-started-at=2026-11-09T12:00:00Z",
+	}
+	winners := &fakeWinnersReader{watermark: cycleStart.Add(-40 * time.Minute)}
+	handler := Handler{Winners: winners, Writer: &fakeWriter{}, Now: func() time.Time { return now }}
+	_, err := handler.Handle(ctx, intent)
+	if err == nil {
+		t.Fatal("recent deferral: want a deferral error")
+	}
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("5min post-claim deferral with 85min-old watermark: want expected wait (not_ready), got %v", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %q", err, WinnersWatermarkNotReadyFailureClass)
+	}
+}
+
+// TestAdvisoryGroupHandlerSustainedDeferralPastBoundCountsAttempts guards the
+// dead-maintainer property the bound exists to guarantee (#11075): a row
+// deferred for 45 minutes past its first deferral still waiting on a stuck
+// watermark must classify stale — retryable but counting, so the budget, not
+// the wait, ends it and the intent dead-letters visibly.
+func TestAdvisoryGroupHandlerSustainedDeferralPastBoundCountsAttempts(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cycleStart := handlerTestEnqueuedAt
+	now := cycleStart.Add(45 * time.Minute)
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-dead-maintainer"))
+	intent.AttemptCount = 1
+	claimedAt := cycleStart.Add(44 * time.Minute)
+	intent.ClaimedAt = &claimedAt
+	intent.Failure = &reducercontract.FailureRecord{
+		FailureClass: WinnersWatermarkNotReadyFailureClass,
+		Message:      "prior deferral",
+		Details: "advisory group projection waiting for supply chain impact winners rebuilt at 2026-11-09T11:20:00Z " +
+			"to reach the intent enqueue time 2026-11-09T12:00:00Z\n" +
+			"winners-watermark-deferral: first-deferred-at=2026-11-09T12:00:00Z cycle-started-at=2026-11-09T12:00:00Z",
+	}
+	winners := &fakeWinnersReader{watermark: cycleStart.Add(-40 * time.Minute)}
+	handler := Handler{Winners: winners, Writer: &fakeWriter{}, Now: func() time.Time { return now }}
+	_, err := handler.Handle(ctx, intent)
+	if err == nil {
+		t.Fatal("sustained deferral past the bound: want an error")
+	}
+	if reducercontract.IsExpectedWait(err) {
+		t.Fatalf("45min post-claim deferral: the wait must stop being an expected wait, got %v", err)
+	}
+	if !reducercontract.IsRetryable(err) {
+		t.Fatalf("past the bound the error stays retryable so the budget, not the wait, ends it: %v", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkStaleFailureClass {
+		t.Fatalf("failure class = %v, want %q (dead maintainer must surface visibly)", err, WinnersWatermarkStaleFailureClass)
+	}
+}
+
+// TestAdvisoryGroupHandlerStaleMarkerFromPriorCycleStartsFresh pins the
+// cycle scoping of the deferral marker: a reopen resets the stale clock even
+// when a prior cycle's marker is still readable, so a freshly reopened row
+// never inherits an expired deferral window.
+func TestAdvisoryGroupHandlerStaleMarkerFromPriorCycleStartsFresh(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	cycleStart := handlerTestEnqueuedAt
+	now := cycleStart.Add(45 * time.Minute)
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-reopened"))
+	intent.EnqueuedAt = handlerTestEnqueuedAt.Add(-8 * 24 * time.Hour)
+	intent.CycleStartedAt = cycleStart
+	intent.AttemptCount = 1
+	claimedAt := cycleStart.Add(44 * time.Minute)
+	intent.ClaimedAt = &claimedAt
+	intent.Failure = &reducercontract.FailureRecord{
+		FailureClass: WinnersWatermarkNotReadyFailureClass,
+		Message:      "prior cycle deferral",
+		Details: "advisory group projection waiting for supply chain impact winners rebuilt at 2026-11-01T11:20:00Z " +
+			"to reach the intent enqueue time 2026-11-01T12:00:00Z\n" +
+			"winners-watermark-deferral: first-deferred-at=2026-11-01T12:00:00Z cycle-started-at=2026-11-01T12:00:00Z",
+	}
+	winners := &fakeWinnersReader{watermark: cycleStart.Add(-time.Hour)}
+	handler := Handler{Winners: winners, Writer: &fakeWriter{}, Now: func() time.Time { return now }}
+	_, err := handler.Handle(ctx, intent)
+	if err == nil {
+		t.Fatal("reopened row: want a deferral error")
+	}
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("marker from a prior cycle: want expected wait (fresh clock), got %v", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %q", err, WinnersWatermarkNotReadyFailureClass)
 	}
 }
 
@@ -408,6 +574,97 @@ func TestAdvisoryGroupHandlerLagStartsAtCycleBound(t *testing.T) {
 		}
 	}
 	t.Fatal("no lag_seconds sample: the handler did not record projection lag")
+}
+
+// TestAdvisoryGroupHandlerWatermarkWaitTelemetrySplitsPreAndPostClaim pins
+// the #11075 wait split: one deferral verdict emits the pre-claim queue
+// residency, the post-claim deferral, the watermark age and bound gap, and
+// a verdict count by failure class and attempt bucket.
+func TestAdvisoryGroupHandlerWatermarkWaitTelemetrySplitsPreAndPostClaim(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+	cycleStart := handlerTestEnqueuedAt
+	now := cycleStart.Add(45 * time.Minute)
+	claimedAt := cycleStart.Add(44 * time.Minute)
+	watermark := cycleStart.Add(-time.Hour)
+	intent := advisoryGroupIntent(EntityKey("CVE-2026-telemetry"))
+	intent.EnqueuedAt = cycleStart.Add(-8 * 24 * time.Hour)
+	intent.CycleStartedAt = cycleStart
+	intent.ClaimedAt = &claimedAt
+	handler := Handler{
+		Winners:     &fakeWinnersReader{watermark: watermark},
+		Writer:      &fakeWriter{},
+		Instruments: inst,
+		Now:         func() time.Time { return now },
+	}
+	if _, err := handler.Handle(ctx, intent); err == nil {
+		t.Fatal("wait telemetry: want a deferral error")
+	}
+
+	wantHist := map[string]float64{
+		"eshu_dp_advisory_group_projection_first_claim_lag_seconds":     44 * 60,
+		"eshu_dp_advisory_group_projection_post_claim_deferral_seconds": 0,
+		"eshu_dp_advisory_group_projection_watermark_age_seconds":       105 * 60,
+		"eshu_dp_advisory_group_projection_watermark_gap_seconds":       60 * 60,
+	}
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &metrics); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, scope := range metrics.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			want, ok := wantHist[m.Name]
+			if !ok {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("%s: want histogram data, got %T", m.Name, m.Data)
+			}
+			if len(hist.DataPoints) != 1 || hist.DataPoints[0].Count != 1 {
+				t.Fatalf("%s: want exactly one sample, got %+v", m.Name, hist.DataPoints)
+			}
+			if got := hist.DataPoints[0].Sum; got < want-1 || got > want+1 {
+				t.Fatalf("%s sum = %v, want ~%v", m.Name, got, want)
+			}
+			seen[m.Name] = true
+		}
+	}
+	for name := range wantHist {
+		if !seen[name] {
+			t.Fatalf("no %s sample: the wait verdict did not record the full split", name)
+		}
+	}
+	foundWait := false
+	for _, scope := range metrics.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_advisory_group_projection_watermark_waits_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				continue
+			}
+			for _, point := range sum.DataPoints {
+				class, _ := point.Attributes.Value(attribute.Key("failure_class"))
+				attempt, _ := point.Attributes.Value(attribute.Key("attempt"))
+				if class.AsString() == WinnersWatermarkNotReadyFailureClass &&
+					attempt.AsString() == telemetry.AttemptBucketFirst && point.Value == 1 {
+					foundWait = true
+				}
+			}
+		}
+	}
+	if !foundWait {
+		t.Fatal("no watermark_waits_total{not_ready, attempt=1} sample: the verdict count is missing")
+	}
 }
 
 func TestAdvisoryGroupHandlerPackageLessWinnersReportEdgeless(t *testing.T) {

@@ -10,12 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
-
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
@@ -129,99 +126,6 @@ func (q ReducerQueue) maxAttempts() int {
 	}
 
 	return 3
-}
-
-func claimedAtValue(intent reducercontract.Intent) time.Time {
-	if intent.ClaimedAt == nil {
-		return time.Time{}
-	}
-	return intent.ClaimedAt.UTC()
-}
-
-func scanReducerIntent(rows db.Rows) (reducercontract.Intent, error) {
-	var intentID string
-	var scopeID string
-	var generationID string
-	var domain string
-	var attemptCount int
-	var claimEpoch int64
-	var enqueuedAt time.Time
-	var availableAt time.Time
-	var cycleStartedAt time.Time
-	var claimedAt time.Time
-	var rawPayload []byte
-
-	if err := rows.Scan(
-		&intentID,
-		&scopeID,
-		&generationID,
-		&domain,
-		&attemptCount,
-		&claimEpoch,
-		&enqueuedAt,
-		&availableAt,
-		&cycleStartedAt,
-		&claimedAt,
-		&rawPayload,
-	); err != nil {
-		return reducercontract.Intent{}, err
-	}
-
-	payload, err := payloadstore.UnmarshalPayload(rawPayload)
-	if err != nil {
-		return reducercontract.Intent{}, err
-	}
-
-	entityKey, _ := payload["entity_key"].(string)
-	reason, _ := payload["reason"].(string)
-	factID, _ := payload["fact_id"].(string)
-	sourceSystem, _ := payload["source_system"].(string)
-	intentPayload := make(map[string]any, len(payload))
-	for key, value := range payload {
-		intentPayload[key] = value
-	}
-
-	domainValue, err := reducer.ParseDomain(domain)
-	if err != nil {
-		return reducercontract.Intent{}, err
-	}
-	claimedAt = claimedAt.UTC()
-
-	intent := reducercontract.Intent{
-		IntentID:        intentID,
-		ScopeID:         scopeID,
-		GenerationID:    generationID,
-		SourceSystem:    sourceSystem,
-		Domain:          domainValue,
-		Cause:           reason,
-		AttemptCount:    attemptCount,
-		ClaimEpoch:      claimEpoch,
-		EntityKeys:      nil,
-		RelatedScopeIDs: []string{scopeID},
-		Payload:         intentPayload,
-		Status:          reducer.IntentStatusClaimed,
-		EnqueuedAt:      enqueuedAt.UTC(),
-		AvailableAt:     availableAt.UTC(),
-		CycleStartedAt:  cycleStartedAt.UTC(),
-		ClaimedAt:       &claimedAt,
-	}
-	if entityKey != "" {
-		intent.EntityKeys = []string{entityKey}
-	}
-	if reason == "" {
-		intent.Cause = "projector emitted shared work"
-	}
-	if sourceSystem == "" {
-		intent.SourceSystem = "unknown"
-	}
-	if factID != "" && len(intent.EntityKeys) == 0 {
-		intent.EntityKeys = []string{factID}
-	}
-	if err := intent.Validate(); err != nil {
-		return reducercontract.Intent{}, err
-	}
-
-	return intent, nil
 }
 
 func (q ReducerQueue) retryable(cause error, failureClass string, attemptCount int) bool {
