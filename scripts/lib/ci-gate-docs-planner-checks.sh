@@ -81,7 +81,7 @@ EOF
 # on lockstep-only PRs: selected through the registry, skipped at runtime.
 run_lockstep_checks() {
 	local t="$1" s="$2" m="$3" manifest="$4"
-	local wf entry line lockstep_quantifier ok_all=1
+	local wf entry line lockstep_quantifier lockstep_block ok_all=1
 	for wf in "${t}" "${s}" "${m}"; do
 		if ! rg -q -- "^[[:space:]]+id: lockstep$" "${wf}"; then
 			bad "$(basename "${wf}") has no dorny lockstep step (P1: lockstep-only PRs strand code-gated lanes)"
@@ -112,9 +112,19 @@ run_lockstep_checks() {
 					;;
 			esac
 		done < <(rg -nF "needs.changes.outputs.code == 'true'" "${wf}" || true)
+		# Entries resolve through the shared generated lockstep filter (#10980)
+		# as well as legacy inline blocks; filter_block_for is the caller's
+		# resolver, shared so the two cannot disagree about what "the
+		# workflow's lockstep filter" means.
+		lockstep_block="$(filter_block_for "${wf}" lockstep lockstep)"
+		if [[ -z "${lockstep_block}" ]]; then
+			bad "$(basename "${wf}") lockstep filter resolves to nothing (neither shared file nor inline block)"
+			ok_all=0
+			continue
+		fi
 		while IFS= read -r entry; do
 			case "${entry}" in ''|\#*) continue;; esac
-			if ! rg -qF -- "              - '${entry}'" "${wf}"; then
+			if ! rg -qF -- "- '${entry}'" <<<"${lockstep_block}"; then
 				bad "$(basename "${wf}") lockstep filter lacks manifest entry ${entry}"
 				ok_all=0
 			fi

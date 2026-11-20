@@ -490,6 +490,13 @@ gates:
       - "scripts/dev/trivy-fs-local.sh"
       - "scripts/lib/trivy-skip-dirs.sh"
       - "specs/trivy-skip-dirs.txt"
+      # #10980: the generated leaf filters and their specs inputs. The drift
+      # check proves the files match the specs, so a PR changing either side
+      # without the other must run this gate.
+      - "specs/ci-docs-set-patterns.txt"
+      - "specs/ci-docs-lockstep-paths.txt"
+      - ".github/leaf-code-filter.yml"
+      - ".github/leaf-lockstep-filter.yml"
       - "scripts/test-verify-ci-gates-registry.sh"
       - "scripts/verify-live-required-status-checks.sh"
       - "scripts/test-verify-live-required-status-checks.sh"
