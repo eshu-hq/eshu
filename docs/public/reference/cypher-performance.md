@@ -1197,7 +1197,7 @@ ledger:5998-delta-per-label-probe-empty in the repository's measurement ledger,
 one image, so this path is justified by its own same-store pair rather than by
 comparison against the whole-repository figures, which came from a different
 host. The empty-store half of the DELETE pair comes from an earlier session
-than the seeded figure, which `docs/internal/evidence/5998-rationale-retract-probe-guard.md`
+than the seeded figure, which (#5998)
 records explicitly. It runs on every incremental sync rather than once per generation, so it
 fires far more often than the whole-repository retract. `executeGuardedRationaleDeltaRetracts` pairs each
 per-label retract statement with its own `BuildProbeRationaleEdgeStatementsByFilePath`

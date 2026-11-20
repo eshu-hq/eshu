@@ -43,7 +43,7 @@ cd go && go test ./internal/query -run TestEntityMap -count=1
 ```
 
 **Query-plan safety proof (entity-map traversal is one of the 16 registered
-handler plan shapes)** — `docs/internal/evidence/5270-queryplan-handler-coverage.md`
+handler plan shapes)** — (#5270)
 documents an isolated 362/362-shape live `PROFILE` pass on Neo4j confirming
 no `AllNodesScan`/`CartesianProduct`/unbounded expansion in the registered
 entity-map traversal shape. Reproduce (requires Docker):

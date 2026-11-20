@@ -447,7 +447,7 @@ join the scope's active generation, so a superseded generation's index rows
 are read-invisible; they are derived from facts the hold keeps anyway.
 
 - **Census:** run the attribution query
-  (`docs/internal/evidence/7932-storage-attribution.sql`) on a replica with
+  (#7932) on a replica with
   the deployed settings to confirm the bytes sit in superseded generations'
   index rows rather than live bloat.
 - **Flag:** `ESHU_GENERATION_RETENTION_SEARCH_INDEX_SUPERSEDED_SWEEP_ENABLED`

@@ -311,22 +311,22 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_ack_attempt_fencing_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_batch_exactness_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_capability_reset_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_fixed_schema_performance_live_test.go
     tag: perf5854_ack
@@ -343,7 +343,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_ack_ordering_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_ack_performance_helpers_live_test.go
     tag: perf5854_ack
@@ -356,7 +356,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_claim_epoch_fencing_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_fixed_schema_performance_live_test.go
     tag: perf5854_ack
@@ -369,7 +369,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_claim_latch_service_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_claim_legacy_performance_helpers_live_test.go
     tag: perf5854_ack
@@ -382,12 +382,12 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_claim_trigger_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cloud_reopen_ordering_postgres_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "B-7 exact package and Go event proof; evidence in docs/internal/evidence/7533-golden-corpus-identity-proof.md"
+    reason: "B-7 exact package and Go event proof"
     runner: golden-corpus-identity
 
   - file: go/internal/storage/postgres/container_image_identity_cutover_backfill_live_test.go
@@ -405,7 +405,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_cutover_migration_rerun_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_cutover_work_item_lock_live_test.go
     tag: ~
@@ -414,7 +414,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_failure_fencing_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_held_support_postgres_live_test.go
     tag: ~
@@ -423,7 +423,7 @@ tests:
   - file: go/internal/storage/postgres/container_image_identity_legacy_cleanup_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/container_image_identity_marker_lock_performance_live_test.go
     tag: perf5854_ack

@@ -6,7 +6,7 @@ record) and Exploit-DB is not used (eshu-hq/eshu#9881 closed not planned).
 The EUVD and Exploit-DB rows and notes below are retained as history.**
 
 Status: Accepted with changes (arbiter ruling 2026-11-03,
-[the ruling](../evidence/9872-new-source-adr-arbiter-ruling.md)). This record
+the ruling (#9872)). This record
 approves no code, schema change, or deployment. Four owner questions stay open
 and are marked `OWNER_DECISION_PENDING`.
 

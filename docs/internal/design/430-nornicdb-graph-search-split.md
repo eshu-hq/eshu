@@ -87,7 +87,7 @@ on that container the production canonical projection writer and the `sql_table`
 blast-radius reads both ran green over Bolt. The two warming knobs and
 `NORNICDB_PERSIST_SEARCH_INDEXES` were left at their defaults there and are still
 unexercised on this digest. See the v1.3.2 alignment evidence in
-[`docs/internal/evidence/6162-nornicdb-v132-alignment.md`](../evidence/6162-nornicdb-v132-alignment.md)
+(#6162)
 and the v1.3.3 alignment evidence in
 [`docs/internal/evidence/6162-nornicdb-v133-alignment.md`](../evidence/6162-nornicdb-v133-alignment.md).
 The canonical graph lane uses this graph-only policy:
@@ -221,7 +221,7 @@ index rebuild.
 First measured run via `go/cmd/search-bench` over a live content corpus
 (`repository:repo-AQ`, 27,822 curated documents), Eshu commit `3d8dbb0e1`.
 Full record:
-[searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md](../evidence/searchbench-evidence/issue-2235-search-lane-latency-2026-06-13.md).
+(#2235).
 
 Measured keyword latency:
 
@@ -240,7 +240,7 @@ and Postgres content search remains the search lane.
 Update (inverted index): the in-process lane now serves BM25 from an inverted
 index, cutting p50 from ~19.5 ms to ~0.53 ms (~37×) over the same corpus — now
 faster than the Postgres baseline at the median with a tighter tail (record:
-[searchbench-evidence/issue-2237-inverted-index-2026-06-13.md](../evidence/searchbench-evidence/issue-2237-inverted-index-2026-06-13.md)).
+(#2237)).
 The decision stays `defer_search_change` pending a quality-based comparison; the
 remaining gaps are a labeled query suite to measure recall/ranking quality, a
 search-enabled NornicDB to measure that arm, and an ANN index for the vector
@@ -358,7 +358,7 @@ warming lazy for deliberate proof runs, and disable search-index persistence.
 Runtime package tests enforce those defaults and the public environment
 reference so the old whole-graph BM25 startup policy cannot drift back
 silently. The exact image, runtime version, graph-truth, and restart evidence
-live in [NornicDB v1.3.2 Alignment](../evidence/6162-nornicdb-v132-alignment.md)
+live in NornicDB v1.3.2 Alignment (#6162)
 and [NornicDB v1.3.3 Alignment](../evidence/6162-nornicdb-v133-alignment.md).
 
 No-Observability-Change: this phase does not add an Eshu runtime signal because

@@ -107,7 +107,7 @@ probe on `service_id`. Laptop-local `EXPLAIN (ANALYZE, BUFFERS)` on an
 80,492-row lineage table put the scope-aware resolve at about 0.04 ms slower
 than the single-pick resolve it replaced (median 0.047 ms before, 0.072 to
 0.084 ms after, under 0.3 ms in every sample); see
-`docs/internal/evidence/6475-service-lineage-readers.md`. No whole-graph or
+(#6475). No whole-graph or
 cross-service scan is performed.
 
 Observability Evidence: each request emits one

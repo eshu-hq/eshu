@@ -192,5 +192,5 @@ The work queue is **not** split by this decision.
 This record respects earlier decisions on data ownership, on keeping the
 database as the queue, and on collectors having no database access.
 Technical evidence behind the numbers above: the #10862 baseline
-(`docs/internal/evidence/10862-qa-reducer-baseline-2026-11-18.md`) and
+(#10862) and
 `evidence-5088-relationship-reference-keys.md`.

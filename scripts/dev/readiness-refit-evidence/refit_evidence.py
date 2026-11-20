@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Re-derive the evidence tables of the pooled readiness refit (#9519).
 
-Each subcommand reproduces one table of
-docs/internal/evidence/9519-readiness-pooled-refit.md from run directories
+Each subcommand reproduces one table of the (#9519) refit from run directories
 (run.json, jobs.json, shardN.log; see fetch.sh and trim_inputs.py). They reuse
 the refresher's parser and the planner's v2.Scorer, imported from the
 scripts/lib of the checkout this script runs in, so run it from the root of a

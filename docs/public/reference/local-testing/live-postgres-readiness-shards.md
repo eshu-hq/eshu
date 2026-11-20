@@ -241,7 +241,7 @@ five-shard cut, run before the #9436 refit, found that the planner accepted
 exactly the plans that had a valid cut, except at the edge where a window is
 about to close: there the planner can raise on a cut that another cut would
 fix (#9390). The method and figures are in
-`docs/internal/evidence/9390-five-shard-cut-enumeration.md`. Until #9390
+. Until #9390
 lands, a spread raise at the edge of a window is not proof that no cut exists.
 
 **What to do, in order.**
@@ -465,7 +465,7 @@ unchanged prices, cap, and guards.
 
 The arbiter ruled HOLD: six shards, the 30-minute cap, no per-shard retry, no timeout
 raise (ruling: `docs/internal/arbiter/9532-draw-hold-ruling-2026-11-08.md`; shim
-numbers: `docs/internal/evidence/9532-slow-draw-shim.md`). The 1.5x
+numbers: (#9532)). The 1.5x
 slow-draw premise is dead: October slows were cold-cache runs before the restore step,
 plus fast-draw mispricing since fixed by the pooled-p75 refits.
 

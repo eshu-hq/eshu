@@ -93,7 +93,7 @@ measured on the QA copy before locking constants.
 
 **Operator response (PAGE).** Confirm on the primary catalogs (sizes plus an
 exact `count(*)`), then follow the Decision-1 rebuild playbook in the
-#10874 evidence note (`docs/internal/evidence/10874-search-index-partition-bloat.md`):
+#10874 evidence note:
 per-leaf `REINDEX INDEX CONCURRENTLY` measured first on a physical copy, heap
 shrink only as a gated second step. Never `VACUUM FULL`, non-concurrent
 `REINDEX`, `CLUSTER`, or `DETACH` a live leaf.

@@ -94,8 +94,7 @@ generations / 925 scopes (Gate time: 5,581 / 229).
 2. Telemetry split: locked recount and planning count separately
    observable; aggregated count_rows cannot evidence Gate 3.
 3. Live-Postgres concurrency proof: concurrent fact insert during
-   drain/prune (#8206 style, docs/internal/evidence/
-   8206-retention-insert-wait-hook.md), eligibility flips between
+   drain/prune (#8206 style), eligibility flips between
    drain and admission, crash-resume idempotency with no orphan
    keys/content, EvalPlanQual drop.
 4. >=3 consecutive live cycles on the rebuilt binary at backlog shape

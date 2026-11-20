@@ -245,7 +245,7 @@ No label carries a canonical key, scope, repository, or CVE.
 - Then read the resweep duration by `path`. A keyed tick follows the number of
   changed keys. The synthetic scale harness measured about 0.36 seconds for one
   keyed tick at its 1x corpus, and about 5.6 seconds for the full resweep on the
-  same corpus (`docs/internal/evidence/9805-winners-keyed-resweep-scale.md`). On
+  same corpus (#9805). On
   the QA baseline, a different corpus on a different host, the full resweep took
   about 40 seconds per statement before this change (#9774), nearly all of it
   the read. Do not

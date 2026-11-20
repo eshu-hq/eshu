@@ -184,7 +184,7 @@ rounds stay in the evidence note for the record.)
   statistics entry, which Eshu expects to be a hard case for the module.
   Eshu's real workload is mixed and far lower-rate, where the overhead
   matters less in absolute milliseconds.
-- Raw rounds, harness, and caveats: `docs/internal/evidence/7596-pg-stat-statements-overhead.md`.
+- Raw rounds, harness, and caveats: (#7596).
   Ledger rows: `7650-select-lat-delta-median-pct`,
   `7650-select-lat-delta-mean-pct`, `7650-select-lat-delta-sd-pct`,
   `7650-write-lat-delta-median-pct`, `7650-write-lat-delta-mean-pct`,

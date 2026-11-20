@@ -318,7 +318,7 @@ treat a sustained spike as an accuracy alarm. The paired error log
 `missing_field` so an operator can locate the fact and the dropped field. On
 the code-call path a paired WARN (`code call file quarantined, edges excluded`)
 names the files as `repo_id:relative_path` (up to 32; `quarantined_file_count`
-holds the total); see the #7736 F4 note in `docs/internal/evidence/7165-emitted-full-successor-drain.md`.
+holds the total); see the #7736 F4 note in (#7165).
 
 - `eshu_dp_reducer_input_invalid_facts_total` — reducer handler decode
   quarantine. Labels: `domain` (the reducer domain that consumed the fact),

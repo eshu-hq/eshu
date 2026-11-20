@@ -2,22 +2,22 @@ tests:
   - file: go/internal/storage/postgres/readiness/wait/store_clear_fence_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.27s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.27s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_fence_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.61s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.61s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.50s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.50s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/readiness/wait/store_settle_fence_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.68s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.68s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/readiness_wait_supersession_live_test.go
     tag: ~
@@ -42,7 +42,7 @@ tests:
   - file: go/internal/storage/postgres/recovery_replay_superseded_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL liveness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_fact_batch_insert_fence_live_test.go
     tag: ~
@@ -63,17 +63,17 @@ tests:
   - file: go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL fanout proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_fk_compatibility_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL fanout proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_reenqueue_live_test.go
     tag: ~
@@ -82,27 +82,27 @@ tests:
   - file: go/internal/storage/postgres/reducer_queue_cross_scope_readiness_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL readiness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL readiness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_pre_activation_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL readiness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL readiness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL readiness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.33s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.33s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/resolved_corpus_fence_snapshot_live_test.go
     tag: ~
@@ -200,27 +200,27 @@ tests:
   - file: go/internal/storage/postgres/service_catalog_corpus_fence_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.17s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.17s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/service_changed_since_scope_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.37s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.37s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/service_materialization_scope_replay_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 6.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 6.44s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/service_materialization_scope_writer_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 4.65s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 4.65s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/shared_intents_generation_pending_index_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.09s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.09s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/shared_intents_absent_acceptance_drain_live_test.go
     tag: ~
@@ -233,32 +233,32 @@ tests:
   - file: go/internal/storage/postgres/shared_intents_upsert_created_at_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_contention_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 16.44s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_healed_key_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.45s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.45s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/shared_projection_acceptance_monotonic_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 3/3 named Go test passes with -json -race (summed test elapsed 11.36s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 3/3 named Go test passes with -json -race (summed test elapsed 11.36s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/status_active_work_semantics_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 8/8 named Go test passes with -json -race (summed test elapsed 25.26s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 8/8 named Go test passes with -json -race (summed test elapsed 25.26s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/status_blockage_leases_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 15.24s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 15.24s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supersede_prior_failure_cost_live_test.go
     tag: ~
@@ -267,7 +267,7 @@ tests:
   - file: go/internal/storage/postgres/failure_text_bound_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL claim proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/projector_queue_reclaim_cost_live_test.go
     tag: ~
@@ -276,12 +276,12 @@ tests:
   - file: go/internal/storage/postgres/projector_queue_reclaim_evidence_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL claim proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_fidelity_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL claim proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_memory_live_test.go
     tag: ~
@@ -294,7 +294,7 @@ tests:
   - file: go/internal/storage/postgres/supersede_prior_failure_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL claim proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL claim proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/supersede_prior_failure_wal_live_test.go
     tag: ~
@@ -303,22 +303,22 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_capped_scope_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.36s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.36s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_convergence_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 8.62s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 8.62s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_enrichment_9878_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9878: reducer-contention verified locally 4/4 named Go test passes (summed test elapsed 7.7s, disposable PostgreSQL 18.6); docs/internal/evidence/9878-enrichment-retrigger.md"
+    reason: "#9878: reducer-contention verified locally 4/4 named Go test passes (summed test elapsed 7.7s, disposable PostgreSQL 18.6)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_fleet_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 11.44s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 11.44s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_h3_diff_live_test.go
     tag: ~
@@ -338,17 +338,17 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 9/9 named Go test passes with -json -race (summed test elapsed 10.71s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 9/9 named Go test passes with -json -race (summed test elapsed 10.71s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 8.84s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 8.84s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9779: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 5.04s); docs/internal/evidence/9779-scoped-holder-pass.md"
+    reason: "#9779: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 5.04s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_rekey_live_test.go
     tag: ~
@@ -398,32 +398,32 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_scoped_packages_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9779: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 0.14s); docs/internal/evidence/9779-scoped-holder-pass.md"
+    reason: "#9779: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 0.14s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_scoped_write_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9779: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 0.18s); docs/internal/evidence/9779-scoped-holder-pass.md"
+    reason: "#9779: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (summed test elapsed 0.18s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_owed_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 4.43s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 4.43s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_races_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 37.96s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 37.96s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_state_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 6.43s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 7/7 named Go test passes with -json -race (summed test elapsed 6.43s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_stranded_continuation_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10060: reducer-contention family (fanOutLiveDB); 5 stranded-continuation proofs verified locally on disposable postgres:18 including -race; docs/internal/evidence/10060-stranded-continuation.md"
+    reason: "#10060: reducer-contention family (fanOutLiveDB); 5 stranded-continuation proofs verified locally on disposable postgres:18 including -race"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_suppression_composition_live_test.go
     tag: ~
@@ -443,52 +443,52 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_writer_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "dev-1-5: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.99s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "dev-1-5: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 1.99s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_cve_shard_writer_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10354: 5.2 full-shard writer proof (real writer at 334-CVE volume, idempotent replay, retraction, upsert EXPLAIN); docs/internal/evidence/10354-cve-baseline-delta-tail.md; reducer-contention runs the named proof with the disposable pair and the skip-is-failure switch (guard TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate). Local run about 5s on postgres:18; wall time is logged, not gated"
+    reason: "#10354: 5.2 full-shard writer proof (real writer at 334-CVE volume, idempotent replay, retraction, upsert EXPLAIN); reducer-contention runs the named proof with the disposable pair and the skip-is-failure switch (guard TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate). Local run about 5s on postgres:18; wall time is logged, not gated"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fencing_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 18.66s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 6/6 named Go test passes with -json -race (summed test elapsed 18.66s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_manifest_chain_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9874 ruling D1-D3 and #10105 review P2: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6); docs/internal/evidence/9874-lockfile-retrigger.md"
+    reason: "#9874 ruling D1-D3 and #10105 review P2: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_manifest_trigger_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9874: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6); docs/internal/evidence/9874-lockfile-retrigger.md"
+    reason: "#9874: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_out_of_stamp_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10415: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 2/2, 4.69s + 0.14s, disposable PostgreSQL 18.6); docs/internal/evidence/10415-fullpass-fallback.md"
+    reason: "#10415: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 2/2, 4.69s + 0.14s, disposable PostgreSQL 18.6)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_scope_pass_state_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10460: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 2/2, 4.13s + 0.15s, disposable PostgreSQL 18.6); docs/internal/evidence/10460-stale-generation-overlap.md (sequential #10422 proof covered by docs/internal/evidence/10422-stale-generation-fence.md)"
+    reason: "#10460: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 2/2, 4.13s + 0.15s, disposable PostgreSQL 18.6) (sequential #10422 proof)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_manifest_alert_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10061: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6); docs/internal/evidence/10061-alert-scope-reopen.md"
+    reason: "#10061: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_go_fence_chain_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10055: commit-skew fence chain proofs run in the reducer contention gate through the TestGoFence filter; docs/internal/evidence/10055-commit-skew-fence.md"
+    reason: "#10055: commit-skew fence chain proofs run in the reducer contention gate through the TestGoFence filter"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 7.98s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 7.98s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_helpers_live_test.go
     tag: ~
@@ -497,22 +497,22 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_concurrency_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "lane-9774: reducer-contention verified 5/5 named Go test passes with -json -race (summed test elapsed 15.03s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "lane-9774: reducer-contention verified 5/5 named Go test passes with -json -race (summed test elapsed 15.03s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_isolated_schema_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_audit_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_chunk_oldest_live_test.go
     tag: ~
@@ -522,32 +522,32 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_chunked_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 5 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-chunked-consume-linearity.md"
+    reason: "#9805: reducer-contention enrolled 5 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_contract_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_horizon_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10706: reducer-contention covers 9 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/10706-winners-horizon-f1-f4-fixes.md"
+    reason: "#10706: reducer-contention covers 9 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_parity_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 2 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_protocol_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 4 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 4 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_scale_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (smoke corpus); docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed (smoke corpus)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_scope_plan_live_test.go
     tag: ~
@@ -557,12 +557,12 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_convert_slow_plan_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10839: reducer-contention covers 1 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/10839-convert-fixed-cost.md"
+    reason: "#10839: reducer-contention covers 1 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_trigger_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9805-winners-keyed-resweep.md"
+    reason: "#9805: reducer-contention enrolled 3 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_dirty_versioned_upsert_live_test.go
     tag: ~
@@ -577,17 +577,17 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_winners_stale_copy_pin_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10765: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml (the TestSupplyChainImpact...WinnersResweep...Live alternation); local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/9695b-holder-fanout.md"
+    reason: "#10765: reducer-contention enrolled 1 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml (the TestSupplyChainImpact...WinnersResweep...Live alternation); local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_stale_scan_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10416: reducer-contention enrolled 7 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed; docs/internal/evidence/10416-slice1-winners-split-scan.md"
+    reason: "#10416: reducer-contention enrolled 7 named Go test(s) in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_write_on_change_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "lane-9774: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.68s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "lane-9774: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.68s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_quiet_absolute_reprove_live_test.go
     tag: ~
@@ -620,12 +620,12 @@ tests:
   - file: go/internal/storage/postgres/value_flow_refresh_ack_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_rekey_live_test.go
     tag: ~

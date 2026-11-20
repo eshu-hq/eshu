@@ -54,12 +54,12 @@ cd go && go test ./internal/query -run 'TestInvestigateResource|TestResourceInve
 `TestResourceInvestigationScopedSelectorAuthorizesBeforeEveryLimit`.
 
 **Live NornicDB correctness fix** —
-`docs/internal/evidence/5287-resource-investigation-nornicdb.md` (fixes two
+(#5287) (fixes two
 multi-clause reads in `go/internal/query/impact_resource_investigation.go`
 that corrupted graph truth on the pinned NornicDB backend).
 
 **Selector bound fix** —
-`docs/internal/evidence/5562-resource-investigation-selector-bounds.md`
+(#5562)
 (replaces an unlabeled `MATCH (n)` selector read with per-label direct
 reads).
 

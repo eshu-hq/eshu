@@ -113,7 +113,7 @@ owners retract by `evidence_source`, then the `Repository` orphan sweep
 deletes it. `eshu_dp_canonical_repository_stubs_created_total{writer}` and
 the `canonical repository stub created` log now count it, and the live test
 asserts the stub's shape, the count and the reap
-(`docs/internal/evidence/7446-repository-stub-counter.md`). A re-point or
+(#7446). A re-point or
 re-arm stays gated on production retirement counts.
 
 ## Lock order and transaction scope

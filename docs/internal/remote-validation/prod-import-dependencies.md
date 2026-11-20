@@ -53,7 +53,7 @@ cd go && go test ./internal/query -run TestImportDependency -count=1
 ```
 
 **Query-plan bound coverage across the 244 valid request-shape combinations** —
-`docs/internal/evidence/5561-import-investigation-bounds.md` records the #5561
+ records the #5561
 fix for `POST /api/v0/code/imports/investigate` timeouts, replacing a single
 query-plan registration with per-shape coverage (21-repository control
 returning in <=5.7ms after the fix).

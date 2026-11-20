@@ -85,7 +85,7 @@ This phase changes deployment configuration only.
   `severity_label` today.
   Item 1.1's change, shared golden, publication proof, rollout effect, and
   readback plan are in
-  [the OSV severity fields evidence note](../evidence/osv-severity-fields-rollout.md).
+  the OSV severity fields evidence note (#9692).
 
 ### Item 1.4 details
 

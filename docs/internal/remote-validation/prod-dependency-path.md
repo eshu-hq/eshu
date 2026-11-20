@@ -40,7 +40,7 @@ mangled hops on the pinned NornicDB backend.
 cd go && go test ./internal/query -run 'ExplainDependencyPath|ImpactAnchor' -count=1
 ```
 
-**Live NornicDB before/after proof** — `docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`
+**Live NornicDB before/after proof** — (#5286)
 documents a live-backend regression (the label-disjunction anchor returned
 zero rows / mangled hops; the per-label resolved-id anchor returns a correct
 shortest path) measured through `TestLiveByIdImpactAnchorReads`, plus a

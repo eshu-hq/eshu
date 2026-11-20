@@ -2,7 +2,7 @@ tests:
   - file: go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 10.15s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 10.15s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/vulnerability_suppression_lineage_index_upgrade_live_test.go
     tag: integration

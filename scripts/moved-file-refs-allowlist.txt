@@ -173,11 +173,6 @@ docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/e
 docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer_row_metadata.go
 docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer.go
 docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md:go/internal/ifa/materializededges/materialized_edges_handles_route.go
-docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_logging.go
-docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_rationale_labels.go
-docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_logging.go
-docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
-docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_retract_scope.go
 docs/internal/measurements.jsonl:go/internal/storage/cypher/edge_writer_retract_repo.go
 go/internal/ifa/evidence-5993-materialized-edge-dispatch.md:go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_logging.go
@@ -231,7 +226,6 @@ go/internal/storage/cypher/AGENTS-evidence-history.md:go/internal/projector/tfst
 # The live pointers are go/internal/storage/cypher/edge/writer/provenance.go
 # (writers and templates) and
 # go/internal/storage/cypher/edge/writer/derived_from.go.
-docs/internal/evidence/5457-provenance-edges.md:go/internal/storage/cypher/provenance_edge_writer.go
 docs/internal/evidence/6564-tag-history-grant-binding.md:go/internal/storage/cypher/provenance_edge_writer.go
 
 # #6778 filename destutter: dated evidence notes that record
@@ -306,7 +300,6 @@ docs/internal/evidence/5709-quiescence-probe.md:go/internal/storage/postgres/sco
 # templates), .../retract_labels.go (retract label sets), .../metadata.go
 # (entity-metadata helpers), and .../check.go (code-target checker).
 docs/internal/evidence/5346-sql-migrates-performance.md:go/internal/storage/cypher/canonical_node_writer_retract_labels.go
-docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/6541-directory-query-s2-corpus-timing.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/module-node-identity-6106-review-follow-ups.md:go/internal/storage/cypher/canonical_node_cypher.go
 docs/internal/evidence/7130-ack-superseded-generation-guard.md:go/internal/storage/cypher/canonical_node_cypher.go

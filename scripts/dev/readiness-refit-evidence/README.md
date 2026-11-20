@@ -1,8 +1,7 @@
 # Readiness refit evidence
 
 These scripts and archived inputs re-derive the evidence tables of the pooled
-readiness weights refit (#9519, #9473, PR #9564). The tables are in
-`docs/internal/evidence/9519-readiness-pooled-refit.md`. They exist so a
+readiness weights refit (#9519, #9473, PR #9564). The tables are recorded in (#9519). They exist so a
 reader can check those figures after GitHub's run-log retention ends (#9570).
 
 ## Reproduce

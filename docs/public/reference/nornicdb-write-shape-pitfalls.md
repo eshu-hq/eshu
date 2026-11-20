@@ -190,7 +190,7 @@ v1.3.3. This was not measured on Neo4j.
 Never guard a write with `EXISTS {}`/`NOT EXISTS {}` over a pattern that only
 references row values. Anchor the check on an indexed property with
 `OPTIONAL MATCH` and filter on the bound variable. Evidence:
-`docs/internal/evidence/6798-file-create-missing-index.md`.
+(#6798).
 
 ## Pitfall: A Bare-Label `DETACH DELETE` Scans The Whole Store, Even When Nothing Matches
 
@@ -412,4 +412,4 @@ NornicDB unless the preamble's test-only backend knob names Neo4j, with
 `ESHU_NEO4J_URI` for that leg's container). Both are RED on NornicDB with the old
 conditional row maps and GREEN on both backends with the fix. The audit table
 covering every writer is in the repository at
-`docs/internal/evidence/6782-unwind-missing-row-key-audit.md`.
+(#6782).

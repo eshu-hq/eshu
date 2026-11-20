@@ -82,7 +82,7 @@ recent shipped work grouped by feature area.
   the old 30-minute job cap, so healthy runs were cancelled at the cap in
   about a third of attempts. Both jobs now use `timeout-minutes: 45`;
   measurement and rationale are in
-  `docs/internal/evidence/10505-golden-corpus-job-cap.md`. No gate
+  (#10505). No gate
   assertion or snapshot tolerance changes.
 
 ### The Ack journal cost gate no longer reads environment drift as journal cost
@@ -130,7 +130,7 @@ recent shipped work grouped by feature area.
   rows carrying fan-out debt, and the runtime generation guard lets the spared
   stale intent execute and drain its list. Manifest markers keep their
   completion-stamp behavior. See
-  [stranded-continuation evidence](docs/internal/evidence/10060-stranded-continuation.md).
+  stranded-continuation evidence (#10060).
 
 ### SAML sign-in no longer panics or misreads NameID on incomplete assertions
 
@@ -1011,7 +1011,7 @@ recent shipped work grouped by feature area.
   5.7%) against the 1440 s budget. Replayed on the wave's own cut, shard 2
   predicted +25.2% over its measured 958 s. A second wave on the refreshed cut
   is not yet checked. Evidence:
-  `docs/internal/evidence/8930-readiness-weights-refresh.md`.
+  (#8930).
 
 ### Parser: pip constraints files
 
@@ -1882,7 +1882,7 @@ recent shipped work grouped by feature area.
   `400 invalid_argument` with the redacted graph message when the graph rejects
   the statement as malformed, instead of a 500. Postgres and internal error text
   in other 5xx bodies is listed in
-  `docs/internal/evidence/7253-graph-read-error-public-text.md`; the writer-pool
+  (#7253); the writer-pool
   half is fixed in the next entry.
 
 ### Postgres writer-pool failures no longer echo the connection target or server message

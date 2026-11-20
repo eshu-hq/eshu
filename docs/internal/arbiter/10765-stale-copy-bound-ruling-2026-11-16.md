@@ -55,7 +55,7 @@ Checked on `origin/main` at 2d8328d60b.
 - The repair counter is `eshu_dp_supply_chain_impact_stale_copy_repairs_total{transition}`
   in `go/internal/telemetry/instruments_supply_chain_impact_winners.go`, with the
   transition value `active_to_retracted`. Its evidence note is
-  `docs/internal/evidence/10765-stale-copy-repair-counter.md`.
+  (#10765).
 - The bound text is in `docs/public/reference/http-api/vulnerability-impact.md:209`
   and the "Retraction freshness" section of
   `docs/public/reference/telemetry/supply-chain-impact-winners.md`.

@@ -105,10 +105,8 @@ docs/internal/evidence/5426-golden-corpus-coverage.md	615
 docs/internal/evidence/5441-edge-node-properties.md	1011
 docs/internal/evidence/5490-k8sresource-candidate-index.md	507
 docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md	746
-docs/internal/evidence/5813-5801-scanner-diagnostic-and-source-label-dedup.md	556
 docs/internal/evidence/5837-aws-drift-reopen.md	1502
 docs/internal/evidence/5847-container-image-identity-retire.md	926
-docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
 docs/public/contributing-language-support.md	503
 docs/public/operate/hosted-governance.md	671

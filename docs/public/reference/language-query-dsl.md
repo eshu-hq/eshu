@@ -261,7 +261,7 @@ are in
 `docs/internal/evidence/6541-directory-query-s2.md` and
 `docs/internal/evidence/6541-directory-query-s2-corpus-timing.md`; the #6703
 ownership-check measurements are in
-`docs/internal/evidence/6703-directory-file-ownership.md`.
+(#6703).
 
 ## Capability Mapping
 

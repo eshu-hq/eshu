@@ -107,7 +107,7 @@ resource. This note records how that interacts with the budget.
   `eshu mcp setup` opts the `claude` and `codex` platforms in. Rollback is
   switching the connection or the process default back to `dual`.
 - Not decided here, and not implemented: flipping the default to `structured`.
-  The [hosted result-shape measurement](../evidence/8800-hosted-result-shape-measurement.md)
+  The hosted result-shape measurement (#8800)
   proves the Claude three-size token-slope criterion for its tested
   configuration and the four requested answer facts for both clients. The
   Codex token-slope criterion remains unproved after two complete matrices.
@@ -118,7 +118,7 @@ resource. This note records how that interacts with the budget.
   negotiation is already implemented
   ([#8953](https://github.com/eshu-hq/eshu/pull/8953)); the supported revision
   remains `2024-11-05`.
-- The [structured result-contract proof](../evidence/8800-structured-result-contract.md)
+- The structured result-contract proof (#8800)
   at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
   required failures and two advisory timing warnings. Runtime code and gate
   inputs are unchanged by its documentation-only evidence record.
@@ -141,7 +141,7 @@ resource. This note records how that interacts with the budget.
 
 Issue #10653 (replacing #8800) gates the `structured` default flip on the
 rows in the live table,
-[10653-result-shape-status](../evidence/10653-result-shape-status.md),
+(#10653),
 which is the only maintained copy of row status. This section keeps just the
 closed-proof summary so the two cannot diverge.
 

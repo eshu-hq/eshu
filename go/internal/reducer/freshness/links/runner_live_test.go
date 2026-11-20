@@ -4,7 +4,7 @@
 package links_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8836 changed-since poison, non-counting outcome and busy-slot runner proofs; six-root race proof on PostgreSQL 18.6 recorded in docs/internal/evidence/8836-readiness-enrollment.md.
+//eshu:readiness:reason #8836 changed-since poison, non-counting outcome and busy-slot runner proofs; six-root race proof on PostgreSQL 18.6 (#8836).
 //eshu:readiness:env ESHU_POSTGRES_TEST_DSN
 
 import (

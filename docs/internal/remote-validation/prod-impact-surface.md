@@ -55,7 +55,7 @@ cd go && go test ./internal/query -run TestFindBlastRadius -count=1
 ```
 
 **Live NornicDB before/after correctness proof** —
-`docs/internal/evidence/5279-blast-radius-nornicdb.md` records the #5279 fix
+ records the #5279 fix
 that rewrote all four `target_type` branches to a NornicDB-safe shape, with a
 19-repo before/after read against an isolated Compose NornicDB instance
 (literal-alias-text corruption before, correct affected-repo/tier output

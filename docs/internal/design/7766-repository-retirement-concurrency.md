@@ -5,7 +5,7 @@ Companions: [Repository Retirement](7766-repository-retirement.md) (the
 design and the two deliverables), [Reducer Reopen And Replay Writers](7766-repository-retirement-reducer-writers.md),
 [Runner](7766-repository-retirement-runner.md),
 [Proof And Rollout](7766-repository-retirement-proof-and-rollout.md), and the
-[evidence note](../evidence/7766-retirement-prove-first-results.md).
+evidence note (#7766).
 
 This file holds the intent-delete barrier that replaced the shared-projection
 horizon, the invariants that make the phase 2 order safe, the folded commit
@@ -16,7 +16,7 @@ the #7852 fence, and the lock-order rule are in
 the [arbiter ruling on the prove-first results](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6082885964),
 the arbiter ruling, round 3 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6084044833)),
 and the arbiter ruling, round 4 ([posted on #7766](https://github.com/eshu-hq/eshu/issues/7766#issuecomment-6085855231)). Measurements are in the
-[evidence note](../evidence/7766-retirement-prove-first-results.md) and summarized in
+evidence note (#7766) and summarized in
 [Prove-First Results](7766-repository-retirement-proof-and-rollout.md#prove-first-results).
 
 Source check: origin/main f4f14a4096, 2026-10-19, re-anchored from

@@ -38,7 +38,7 @@ cd go && go test ./internal/query -run TestPackageRegistryListVersions -count=1
 ```
 
 **Shared live version-count correctness fix** —
-`docs/internal/evidence/5167-package-registry-version-count-nornicdb.md`
+(#5167)
 (fixes the shared `OPTIONAL MATCH ... count(v)` version-aggregation defect on
 the pinned NornicDB build that both the packages and versions surfaces
 depend on).

@@ -400,7 +400,7 @@ rides the new counter's closed label, never a group, CVE, or advisory id.
 
 No-Regression Evidence: #10564 chunk 25 to 5; committed measurements in
 `docs/internal/evidence/10564-chunk5-production.md` with raw EXPLAIN in
-`10564-chunk5-explain-25id.txt` / `10564-chunk5-explain-5id.txt`.
+(#10564).
 Production hot scopes match
 about 138k finding rows per 25-id chunk (6.44 s cold, 72% I/O read over a
 193 GB heap with 4 GB shared buffers) and breached the 10 s guard three

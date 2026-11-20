@@ -34,7 +34,6 @@
 # --- FIXTURE records ---
 FIXTURE testdata/fixtures
 FIXTURE testdata/report-odu/
-FIXTURE tests/fixtures/aws_runtime_drift
 FIXTURE tests/fixtures/ecosystems/cpp_comprehensive/
 FIXTURE tests/fixtures/ecosystems/crossplane_comprehensive/
 FIXTURE tests/fixtures/ecosystems/helm_comprehensive/
@@ -215,20 +214,12 @@ LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.g
 LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
 LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
-LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/awscloud/awsruntime/source.go:177
-LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/git_source_processing.go:217
-LINE docs/internal/evidence/5457-provenance-edges.md go/internal/storage/cypher/oci_registry_canonical_writer.go:35
 LINE docs/internal/evidence/5709-quiescence-probe.md go/internal/storage/postgres/reducer_queue_claim_query.go:25
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/collector/ociregistry/ociruntime/config_provenance.go:56
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/projector/container_image_identity_intents.go:36
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/query/container_image_identities.go:144
 LINE docs/internal/evidence/5847-container-image-identity-retire.md go/internal/query/container_image_identity_aggregates.go:113
 LINE docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md go/internal/storage/postgres/shared_intents.go:161
-LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_logging.go:232
-LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go:22
-LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go:37
-LINE docs/internal/evidence/6296-nornicdb-helm-pin-v123.md go/internal/query/code_relationships_nornicdb_optional_match_live_test.go:16
-LINE docs/internal/evidence/6307-batch-reducer-ack-after-fail.md go/internal/reducer/crossscope/readiness_floor.go:372
 LINE docs/internal/measurements.jsonl go/internal/storage/cypher/edge_writer_retract_repo.go:112
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128

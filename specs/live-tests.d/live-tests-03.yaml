@@ -68,17 +68,17 @@ tests:
   - file: go/internal/reducer/containerimage/container_image_identity_cutover_cache_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_cutover_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_held_cutover_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_legacy_cutover_performance_helpers_live_test.go
     tag: perf5854_legacy
@@ -91,7 +91,7 @@ tests:
   - file: go/internal/reducer/containerimage/container_image_identity_support_writer_demotion_postgres_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "B-7 exact package and Go event proof; evidence in docs/internal/evidence/7533-golden-corpus-identity-proof.md"
+    reason: "B-7 exact package and Go event proof"
     runner: golden-corpus-identity
 
   - file: go/internal/reducer/containerimage/container_image_identity_support_writer_postgres_live_test.go
@@ -101,27 +101,27 @@ tests:
   - file: go/internal/reducer/containerimage/container_image_identity_unmapped_config_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_multichunk_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_atomic_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_deadlock_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/containerimage/container_image_identity_writer_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled containerimage group; 15 named tests in eight files passed with -race -count=1 on fresh PostgreSQL 18.6; 8.495s process wall on a shared host"
     runner: postgres-scheduled
   - file: go/internal/reducer/deployable_unit_retract_scope_live_test.go
     tag: live_nornicdb_answer_truth

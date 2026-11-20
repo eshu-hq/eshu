@@ -49,7 +49,7 @@ cd go && go test ./internal/query -run TestCallGraphMetricsResponseUsesGlobalRan
 cd go && go test ./internal/query -run TestCallGraphMetrics -count=1
 ```
 
-**Performance evidence record** — `docs/internal/evidence/5564-call-graph-metrics.md` documents the
+**Performance evidence record** — (#5564) documents the
 one-pass rewrite (#5564) that replaced two repeated-expansion query shapes exceeding a 75-second
 deadline on 42,197 `CALLS` relationships with a single indexed-edge read.
 

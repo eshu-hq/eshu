@@ -21,7 +21,7 @@ the 25,000-row scan refusal before the Go filter. No new index was added. New
 queryplan pins `QP-CODE-IMPORT-PREFIX-ROWS` and
 `QP-CODE-IMPORT-PREFIX-PACKAGES` bind the exact production shapes; the old
 pins are untouched. Full proof (setup, PROFILE tables, row counts):
-`docs/internal/evidence/10657-import-prefix-profile.md`.
+(#10657).
 
 Performance Evidence: the direct and package prefix reads are index-seeking
 at any corpus size the 25,000-row scan refusal admits; the source-module

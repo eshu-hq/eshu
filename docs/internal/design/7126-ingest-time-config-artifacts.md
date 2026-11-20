@@ -427,7 +427,7 @@ route stays above 1 s unless those stages change, which is outside PR3.
 Merge order (cap ruling): the acceptance reads, then PR3a, PR-cap-1 and
 PR3b-1a. PR-cap-2 is independent. PR3a is implemented in the package
 `go/internal/content/artifacts`; the evidence note
-`docs/internal/evidence/7126-neutral-content-package.md` records its row order
+(#7126) records its row order
 and tie count. PR3a waited because PR1 edits the loader, hydration, kustomize, HCL and
 Ansible files, PR1b edits the HCL files and adds `prefilter/`, and PR2 edits
 the hydration and stats files and adds a batched read. PR1b and PR2 are

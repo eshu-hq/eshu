@@ -209,7 +209,7 @@ the whole page through `searchhybrid.Backend.RankAll`, which is bounded by that
 index cap rather than the public retrieval limit of 100. Before #7746 a page of
 101 to 200 projectable rows failed that limit and stayed in lexical order. A
 200-row page now costs about twice a 100-row page (see
-`docs/internal/evidence/7746-ranker-determinism.md`). It adds no Cypher, graph
+(#7746)). It adds no Cypher, graph
 write, queue, lease, or goroutine, and runs after the Postgres/graph
 round-trips it reorders, so it introduces no new hot-path scan.
 `go test ./internal/query -run CodeSearch...` proves a known fixture is

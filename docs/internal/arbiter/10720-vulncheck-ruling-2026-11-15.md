@@ -2,7 +2,7 @@
 
 Date: 2026-11-15. Refs #10720. Part of #9209. Arbiter: a separate-context
 deepest-tier model given the raw measurements in
-[10720-vulncheck-nvd-compat-probe.md](../evidence/10720-vulncheck-nvd-compat-probe.md)
+(#10720)
 and the accepted design in
 [10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
 It re-ran no probe and used no credential. This file records its ruling. A

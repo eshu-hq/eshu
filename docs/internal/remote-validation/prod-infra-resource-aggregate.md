@@ -124,9 +124,9 @@ cd go && go test ./internal/query -run 'TestInfraAggregate|TestInfraResourceAggr
 ```
 
 **Live per-label-anchoring correctness fix** —
-`docs/internal/evidence/5280-5281-infra-aggregate-and-code-flow-index.md`
+(#5280)
 (graph infra aggregates anchoring, part of the #5267 console-recovery epic)
-and `docs/internal/evidence/5384-infra-scope-shape-a.md` (scoped-token
+and (#5384) (scoped-token
 authorization predicate fix for `infra/resources/count` and `/inventory`).
 
 ## Notes

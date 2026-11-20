@@ -6,7 +6,7 @@ ruling](10671-collector-118-107-ruling-2026-11-16.md). Earlier baseline ruling:
 [10728-baseline-ruling-2026-11-16.md](10728-baseline-ruling-2026-11-16.md).
 Design: [10728-baseline-pacing.md](../design/10728-baseline-pacing.md).
 Measurement tables:
-[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md)
+(#10671)
 (M11). The arbiter verified collector origin/main `a4f7b31` and Eshu origin/main
 `bd7fc98` and edited nothing in either repository. Measurements ran on a `git
 archive` copy of the collector in a local scratch directory that is not
@@ -123,8 +123,7 @@ Every figure and its method:
 8. **Trip-line arithmetic.** The trip opens above 15,000 CVE-keyed dirty rows an
    hour for two hours (`nvd_baseline_tripline.go`). The only measured dirty-row
    ratio is 0.25 rows a fact with every CVE planted to yield a finding
-   ([10729-baseline-disposable-proof.md](../evidence/10729-baseline-disposable-proof.md)
-   section 2, n = 80 facts). 15,000 / 0.25 = 60,000 facts an hour, or 84 hours
+   (#10729, section 2, n = 80 facts). 15,000 / 0.25 = 60,000 facts an hour, or 84 hours
    for the corpus, at any chunk size. Today's lane runs at about 3,300 facts an
    hour, 18 times under that.
 9. **Pace arithmetic.** Slow-start runs 2, 4, then 8 chunks in the first three

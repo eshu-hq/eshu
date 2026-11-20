@@ -32,7 +32,7 @@ tests:
   - file: go/internal/storage/postgres/retention/relationships/plan_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)"
+    reason: "#10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (#10823)"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/relationships/prune_claimed_live_test.go
     tag: ~

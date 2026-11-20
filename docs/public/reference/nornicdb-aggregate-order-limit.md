@@ -37,7 +37,7 @@ resolve aggregates for the returned page in a second statement. Proof:
 `go/internal/query/codequery/registry_bundles_live_test.go`
 (an env-gated live test that skips unless its live-proof environment gate is
 set), and
-`docs/internal/evidence/5167-code-bundles-grant.md`.
+(#5167).
 
 A second trap surfaced by the same work: this build **silently ignores a
 syntactically invalid `WHERE` predicate and returns every row**. A guard test

@@ -2,7 +2,7 @@
 
 Date: 2026-11-15. Refs #10720, #10722, #10671. Part of #9209. Arbiter: a
 separate-context deepest-tier model, given the raw measurements in
-[10720-vulncheck-nvd-compat-probe.md](../evidence/10720-vulncheck-nvd-compat-probe.md),
+(#10720),
 the first ruling in
 [10720-vulncheck-ruling-2026-11-15.md](10720-vulncheck-ruling-2026-11-15.md),
 and the owner's decision below. The coordinator records this file; the arbiter

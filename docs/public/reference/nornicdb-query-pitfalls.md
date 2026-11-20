@@ -702,7 +702,7 @@ per label) plus the single-clause projection contract.
 Both by-id impact reads were fixed this way (#5286,
 `go/internal/query/impact/deployment/impact_anchor_resolve.go`, `go/internal/query/impact/handler.go`, guard test
 `TestImpactAnchorResolveCypherIsPerLabelUnion`, live proof
-`docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`):
+(#5286)):
 `trace-resource-to-code` folds the label resolution into the traversal as a
 `CALL{UNION}` of per-label inline-property anchors (one round-trip), and
 `explain-dependency-path` resolves both endpoints' labels in one `CALL{UNION}`
@@ -718,7 +718,7 @@ OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
 dropped every row, both replaced with single-clause per-label reads joined in Go
 (`go/internal/query/impact/trace_deployment_oci.go`, guard test
 `TestOCIRegistryTruthQueriesAreNornicDBSafe`, live proof
-`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`).
+(#5287)).
 
 The change-surface variable-length impact traversals (`/change-surface`,
 `/change-surface/investigate`) were fixed the same way (#5287): the investigate
@@ -731,7 +731,7 @@ and a raw `relationships(path)` projection unwound per-edge in Go for the legacy
 read (`go/internal/query/impact/change_surface_response.go`,
 `go/internal/query/impact/change_surface_legacy.go`, guard test
 `TestChangeSurfaceTraversalQueriesAreNornicDBSafe`, live proof
-`docs/internal/evidence/5287-change-surface-nornicdb.md`). Two supporting
+(#5287)). Two supporting
 findings from that proof:
 
 - A **bare untyped** variable-length traversal `(start)-[*1..N]->(impacted)`
@@ -750,7 +750,7 @@ findings from that proof:
 
 `go test ./internal/query -run 'TestBlastRadius|TestFindBlastRadius|TestMergeBlastRadius' -count=1`
 (the query-shape guard fails on the pre-#5279 multi-clause shapes) plus the live
-Bolt-HTTP before/after in `docs/internal/evidence/5279-blast-radius-nornicdb.md`.
+Bolt-HTTP before/after in (#5279).
 
 ### Upstream fix (pinned until merged into NornicDB main)
 

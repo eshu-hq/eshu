@@ -8,7 +8,7 @@ links in the original were made repo-relative, two environment names rephrased f
 Tracker created under section 3: eshu-hq/eshu#10508 (KEV alias-group unit
 pin). Section 5 was discharged by the coordinator before recording: the
 four `9878Live` tests pass on this tree (see
-`docs/internal/evidence/9878-enrichment-retrigger.md`).
+(#9878)).
 
 **#9878 closes when the four decisions below are recorded and the required
 proof in §5 is in the closure PR. No decision trades accuracy, performance,
@@ -62,17 +62,17 @@ The acceptance line at
 [:120](../../../docs/internal/design/9878-enrichment-refresh-decision.md)
 names resweep p95 and list/aggregate p95. The implementation that landed
 touches neither surface (diff fact above;
-[evidence note](../../../docs/internal/evidence/9878-enrichment-retrigger.md)
+evidence note (#9878)
 records zero shared code with resweep/read SQL). Measuring those paths
 before/after a label-only diff on a shared host would measure host noise,
 not this change — the note's own n=1 disclaimer
-([:114](../../../docs/internal/evidence/9878-enrichment-retrigger.md))
+(:114 (#9878))
 says as much. The AC is therefore re-scoped, not waived: proof is required
 for the touched path, and it exists — allocation-identical microbenchmarks
 on `BenchmarkKEVEPSSRescoreBuild9878` and `BenchmarkWritePayloadWithDigest`
 before/after at 1x/5x/10x
-([:123](../../../docs/internal/evidence/9878-enrichment-retrigger.md),
-[:132](../../../docs/internal/evidence/9878-enrichment-retrigger.md)),
+(:123 (#9878),
+:132 (#9878)),
 with the resweep mechanism itself already barred by the recorded adopt-bar
 (p95 ≤ 224ms at 10x vs 30s,
 [decision :41](../../../docs/internal/design/9878-enrichment-refresh-decision.md))
@@ -84,8 +84,8 @@ nothing about p95 and must not be cited as if it does. Binding conditions:
 (a) closure text claims only "no-regression by construction plus allocation
 parity on the touched path" — never "p95 no-regression proven";
 (b) the evidence note's `NOT_CHECKED` for a quiet-host p95 series
-([:128](../../../docs/internal/evidence/9878-enrichment-retrigger.md),
-[:155](../../../docs/internal/evidence/9878-enrichment-retrigger.md))
+(:128 (#9878),
+:155 (#9878))
 stays as written — it becomes a noted residual owned by the CI latency
 gate and the winners watermark gauges, not a #9878 blocker and not a
 silent deletion.
@@ -146,7 +146,7 @@ KEV/EPSS-specific test in core is rejected: core no longer owns this
 collector, so such a test would fake the collector to prove a generic
 seam. One repair is mandatory in the closure PR: the in-repo citations
 to `freshness_skip_9878_test.go`
-([evidence note :29](../../../docs/internal/evidence/9878-enrichment-retrigger.md))
+(evidence note :29 (#9878))
 and `vulnruntime/freshness.go`
 ([decision :64](../../../docs/internal/design/9878-enrichment-refresh-decision.md))
 now dangle in this repo; repoint them to the satellite `freshness.go` /

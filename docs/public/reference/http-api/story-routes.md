@@ -128,7 +128,7 @@ fails if the Go kind list or ref predicate drifts from the migration. The
 ingest cost is one btree entry for a matching row only (documentation facts with
 no refs); other rows evaluate `fact_kind IN (...)` and skip the index.
 
-Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+Proof commands for this change are in (#7126).
 
 No-Observability-Change: the read keeps its `count_documentation_source_only_facts`
 span; only the statement text and its index change. No metric, log key, queue,
@@ -248,14 +248,14 @@ kinds (non-tombstoned), and the source-only statement carries those kinds as a
 literal `IN` list inside its per-(scope, kind) LATERAL so the planner proves the
 index predicate in custom and generic plans
 (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`); the #7126
-measurements are in `docs/internal/evidence/7126-story-read-cost.md`. The row reads are single-kind probes
+measurements are in (#7126). The row reads are single-kind probes
 served by migration 152 (links) and migration 155 (record and transition issue
 ids). Ingest cost: migration 123 adds one btree entry per non-tombstoned
 support-kind fact, migration 152 one more per non-tombstoned
 `work_item.external_link`, migration 155 one per non-tombstoned `work_item.record`
 or `work_item.transition`; other kinds pay none of them.
 
-Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+Proof commands for this change are in (#7126).
 
 No-Regression Evidence:
 

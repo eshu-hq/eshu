@@ -44,7 +44,7 @@ cd go && go test ./internal/query/kubernetes -run TestKubernetesCorrelation -cou
 ```
 
 **Scoped-token grant filtering and performance/observability evidence** —
-`docs/internal/evidence/5167-w6-scoped-cloud-routes.md` (#5167 W6 promotes
+ (#5167 W6 promotes
 this route, among others, onto the scoped-token allowlist binding reads to
 `AllowedRepositoryIDs`/`AllowedScopeIDs`).
 
