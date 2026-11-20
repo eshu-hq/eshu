@@ -10,4 +10,6 @@
 // PrintVersionFlag gives service binaries a shared early-exit path for
 // --version and -v probes before they open datastores or telemetry providers;
 // blank application names fall back to "eshu".
+//
+// Fixture (Refs #10981): go-only trigger-table proof marker; no behavior change.
 package buildinfo
