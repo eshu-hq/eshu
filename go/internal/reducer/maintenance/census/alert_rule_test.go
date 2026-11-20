@@ -31,7 +31,7 @@ import (
 // go/internal/runtime/deploy_checkout_test.go: every helper fails closed on
 // any other commit, so a skew between the pins surfaces as a test failure,
 // not a silent drift.
-const expectedDeployCheckoutCommit = "1dbb815f6fd152cdd34a29d5a77c1580f2ae4b33"
+const expectedDeployCheckoutCommit = "0a645a87b45e876dc7b4de14935fbae794b8dcf9"
 
 // deployCheckoutForContract resolves the eshu-deploy checkout the census rule
 // test reads observability rule files from. It fails closed: an absent
@@ -239,6 +239,7 @@ func registeredCensusMetrics(t *testing.T) map[string]bool {
 	inst.GraphIDAnchorCensusLastSuccess.Record(ctx, 1)
 	inst.GraphIDAnchorCensusPasses.Add(ctx, 1)
 	inst.GraphIDAnchorCensusDuration.Record(ctx, 1)
+	inst.AWSDriftIncrementalAudits.Add(ctx, 1)
 	var collected metricdata.ResourceMetrics
 	if err := reader.Collect(ctx, &collected); err != nil {
 		t.Fatalf("collect: %v", err)

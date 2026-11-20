@@ -16,7 +16,7 @@ import (
 // satellite cutover). The pin
 // advances only with a reviewed deploy cutover; tests fail on any other
 // commit instead of asserting against drifted assets.
-const expectedDeployCheckoutCommit = "1dbb815f6fd152cdd34a29d5a77c1580f2ae4b33"
+const expectedDeployCheckoutCommit = "0a645a87b45e876dc7b4de14935fbae794b8dcf9"
 
 // deployCheckoutRoot resolves the eshu-deploy checkout every repointed
 // contract test reads deploy assets from. It fails closed: an absent

@@ -26,11 +26,10 @@ const driftStrikeSingleWindowExpr = `sum(increase(eshu_dp_aws_drift_incremental_
 // fragments its rule must contain: the correcting-outcome selector (a plain
 // corrections_total expression cannot tell a clean audit from no audit) and
 // the second-window offset (a single window without offset fires on any one
-// correcting audit and proves nothing about consecutiveness). The live test
-// reading both deploy rule files lands with the deploy PR (eshu-deploy side
-// of #11032, sequenced after the eshu counter); until then this map drives
-// the fixture tests below, which pin the exact contract the deploy PR must
-// satisfy.
+// correcting audit and proves nothing about consecutiveness). This map drives
+// the fixture tests below, which pin the exact contract the deploy PR had to
+// satisfy, and the live tests at the bottom, which prove both deploy rule
+// files at the pinned checkout still satisfy it.
 var driftAuditStrikeAlerts = map[string][]string{
 	"EshuAWSDriftConsecutiveCorrectingAudits": {
 		`eshu_dp_aws_drift_incremental_audits_total{outcome="correcting"}`,
@@ -76,8 +75,9 @@ spec:
 `
 
 // driftStrikeRegistered is the closed metric universe the strike expression
-// may read: the denominator counter the reducer registers. The live test
-// will swap this for the telemetry-exported set once the deploy files exist.
+// may read: the denominator counter the reducer registers. The fixture tests
+// use this hand-written set; the live tests below use registeredCensusMetrics
+// so the check runs against the metric names telemetry actually exports.
 var driftStrikeRegistered = map[string]bool{
 	"eshu_dp_aws_drift_incremental_audits_total": true,
 }
@@ -152,6 +152,66 @@ func TestDriftStrikeAlertCheckFailsOnPlantedViolations(t *testing.T) {
 		},
 	} {
 		problems := strings.Join(checkDriftAuditStrikeAlerts([]byte(tc.standalone), []byte(tc.operator), driftStrikeRegistered), "\n")
+		if !strings.Contains(problems, tc.want) {
+			t.Errorf("%s: problems = %q, want one containing %q", tc.name, problems, tc.want)
+		}
+	}
+}
+
+// TestDriftStrikeAlertsAreInBothRuleFiles is the live #11032 contract,
+// modeled on TestIDAnchorCensusAlertsAreInBothRuleFiles: both deploy rule
+// files at the pinned checkout carry EshuAWSDriftConsecutiveCorrectingAudits
+// with driftStrikeExpr verbatim, and every eshu_dp_* metric the expression
+// reads is registered by the reducer (via registeredCensusMetrics, not a
+// hand-written set).
+func TestDriftStrikeAlertsAreInBothRuleFiles(t *testing.T) {
+	t.Parallel()
+
+	standalone := ruleFileForContract(t, "hosted-operations-alerts.yaml")
+	operator := ruleFileForContract(t, "hosted-operations-prometheus-rule.yaml")
+	for name, raw := range map[string][]byte{"standalone": standalone, "operator": operator} {
+		if !strings.Contains(string(raw), driftStrikeExpr) {
+			t.Fatalf("%s rule file does not carry driftStrikeExpr verbatim, so the live check would prove nothing", name)
+		}
+	}
+	for _, problem := range checkDriftAuditStrikeAlerts(standalone, operator, registeredCensusMetrics(t)) {
+		t.Error(problem)
+	}
+}
+
+// TestDriftStrikeAlertLiveCheckFailsOnPlantedViolation proves the live check
+// has teeth against the real rule files: each planted defect in a copy of
+// the pinned pair is reported.
+func TestDriftStrikeAlertLiveCheckFailsOnPlantedViolation(t *testing.T) {
+	t.Parallel()
+
+	standalone := ruleFileForContract(t, "hosted-operations-alerts.yaml")
+	operator := ruleFileForContract(t, "hosted-operations-prometheus-rule.yaml")
+	registered := registeredCensusMetrics(t)
+	for name, raw := range map[string][]byte{"standalone": standalone, "operator": operator} {
+		if !strings.Contains(string(raw), driftStrikeExpr) {
+			t.Fatalf("%s rule file does not carry driftStrikeExpr verbatim, so the planted clause drop would test nothing", name)
+		}
+	}
+	for _, tc := range []struct {
+		name                 string
+		standalone, operator string
+		want                 string
+	}{
+		{
+			"single window without offset in both live files",
+			strings.Replace(string(standalone), driftStrikeExpr, driftStrikeSingleWindowExpr, 1),
+			strings.Replace(string(operator), driftStrikeExpr, driftStrikeSingleWindowExpr, 1),
+			"does not read offset 25h",
+		},
+		{
+			"alert dropped from the live operator file",
+			string(standalone),
+			strings.ReplaceAll(string(operator), "alert: EshuAWSDriftConsecutiveCorrectingAudits", "alert: EshuSomethingElse"),
+			"operator=false",
+		},
+	} {
+		problems := strings.Join(checkDriftAuditStrikeAlerts([]byte(tc.standalone), []byte(tc.operator), registered), "\n")
 		if !strings.Contains(problems, tc.want) {
 			t.Errorf("%s: problems = %q, want one containing %q", tc.name, problems, tc.want)
 		}
