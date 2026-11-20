@@ -83,4 +83,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// security_alert_reconciliation_keys sidecar and its backfill marker.
 	// 314 is #10947's shared-projection first-shortfall anchor.
 	"relationship_lookup_keys",
+	// Migration 316 (#10876) adds the reducer waiting set-aside: one row
+	// per parked item keyed by waits-for kind+key, plain table plus two
+	// indexes, no queue-table change. 315 is #10875's relationship
+	// lookup keys.
+	"reducer_waiting_items",
 }

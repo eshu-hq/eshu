@@ -74,6 +74,7 @@ var registrationSteps = []func(){
 	registerHybridRerank,
 	registerRepositoryRetirementSplit,
 	registerOwnGateWake,
+	registerReducerWaiting,
 	registerInfraSearchKey,
 	registerConfigArtifactDerives,
 	registerClaimQuota,

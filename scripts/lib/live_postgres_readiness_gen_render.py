@@ -91,12 +91,21 @@ FRAGMENT_NAMES = (
 # two entries earlier into part4 (part4 +10 lines, part5 unchanged at 497
 # lines with no seed row, part6 back under budget with seed headroom);
 # six fragments pinned.
+# Rebalanced 2026-11-20 for #10876: the two waiting-set-aside live proofs push
+# part5 to 101 rows (507 lines over the 499 budget). The third cut moves one
+# entry later into part4 (88 rows/442 lines) and the fourth cut moves one
+# entry earlier into part6 (part5 99 rows/497 lines with no seed row, part6
+# 98 rows/492 lines, 497 with the stale-red seed); six fragments pinned.
+# Rebalanced 2026-11-20 for #10876 winners wake: the two winners-wake live
+# proofs push part5 to 502 lines. The fourth cut moves one entry later into
+# part4 (part4 447 lines, part5 back to 497 with no seed row); six
+# fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/manifest_less_dirty_rule_live_test.go",
-    "go/internal/storage/postgres/retention/relationships/eligibility_live_test.go",
+    "go/internal/storage/postgres/membership/observations_live_test.go",
+    "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

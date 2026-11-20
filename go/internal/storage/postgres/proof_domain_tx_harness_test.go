@@ -172,6 +172,12 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 
 func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
+	// #10876: the activation reopens parked waits in the same transaction.
+	// No waits are parked in the proof domain, so the wake is a no-op
+	// (0, 0). Matched by the waiting-table name plus the reopen CTE so a
+	// genuinely unknown statement still falls through to the error below.
+	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
+		return newProofRows([][]any{{int64(0), int64(0)}}), nil
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
 	case query == unchangedGenerationCandidateQuery:

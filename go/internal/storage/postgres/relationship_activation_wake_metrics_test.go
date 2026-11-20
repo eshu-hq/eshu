@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,7 +40,11 @@ func (d *wakeScriptDB) ExecContext(_ context.Context, query string, _ ...any) (s
 	return fakeResultWithRowsAffected{rowsAffected: 1}, nil
 }
 
-func (d *wakeScriptDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (d *wakeScriptDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if strings.Contains(query, "reducer_waiting_items") {
+		// #10876: the activation wake finds no parked waits in these scripts.
+		return &waitingWakeCountRows{}, nil
+	}
 	return newRelationshipRows(nil), nil
 }
 

@@ -442,7 +442,23 @@ func (s *RelationshipStore) lockAndWake(
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected()
+	woken, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	// #10876: the same activation reopens parked resolution waits for this
+	// scope generation in the same transaction, under the same lock order.
+	// The wake key is the wait's own (scope, generation); the claim gate and
+	// the handler re-check the exact requirement, so the wake is a hint. An
+	// empty key skips the wake, mirroring the phase Upsert guard: the wake
+	// statement would reject it and fail the activation.
+	if wakeKey := waitingScopeGenerationKey(scopeID, generationID); wakeKey != "" {
+		if _, _, err := wakeWaitingByKey(ctx, tx, s.instruments, WaitingWakeSiteInTx,
+			WaitingKindRelationshipGenerationActive, wakeKey, now); err != nil {
+			return 0, err
+		}
+	}
+	return woken, nil
 }
 
 // classifyActivationError makes lock_timeout and deadlock retryable and

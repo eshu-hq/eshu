@@ -220,6 +220,15 @@ func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, arg
 		query: query,
 		args:  append([]any(nil), args...),
 	})
+	// #10876: an activation or phase publish reopens parked waits in the
+	// same transaction. No waits are parked in these fixtures, so the wake
+	// is a no-op (0, 0). Matched by the waiting-table name plus the reopen
+	// CTE, ahead of the scripted rows, so the wake never consumes a staged
+	// response and a genuinely unknown statement still yields the empty
+	// row below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &waitingWakeCountRows{}, nil
+	}
 	if len(r.queryRows) > 0 {
 		rows := r.queryRows[0]
 		r.queryRows = r.queryRows[1:]

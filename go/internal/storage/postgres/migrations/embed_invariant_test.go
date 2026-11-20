@@ -296,9 +296,12 @@ import (
 // (the version-1 family/marker columns on
 // relationship_reference_candidate_keys plus the
 // security_alert_reconciliation_keys sidecar and its backfill marker).
+// #10876 adds 316_reducer_waiting_items.sql (the reducer waiting set-aside:
+// one row per parked item keyed by waits_for kind+key, plain table plus two
+// indexes, no queue-table change).
 const (
-	goldenBootstrapDefinitionsDigest = "a1926d78a5f514dcf91a703ed989ba4358ac849ff883d1cb5b103d33e01f2a20"
-	goldenBootstrapDefinitionsCount  = 341
+	goldenBootstrapDefinitionsDigest = "b4b5aabf6d234148306b1d09a420b48dc92d50339a587b47de60e884225ac945"
+	goldenBootstrapDefinitionsCount  = 342
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

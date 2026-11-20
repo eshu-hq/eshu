@@ -135,6 +135,11 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.stored}}, nil
 	case stampWinnersWatermarkSQL:
 		return &phaseFakeRows{row: []any{int64(0)}}, nil
+	case wakeWinnersWatermarkQuery:
+		// #10876: every committed keyed tick wakes the advisory waits its
+		// stamp covers in-transaction. No waits are parked in these
+		// fixtures, so the wake is a no-op (0, 0).
+		return &phaseFakeRows{row: []any{int64(0), int64(0)}}, nil
 	case selectWinnersKeyedTickClockSQL:
 		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
 	case selectWinnersKeyedRemainingMinSQL:

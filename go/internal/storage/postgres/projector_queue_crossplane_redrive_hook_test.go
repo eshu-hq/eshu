@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +37,9 @@ func (f crossplaneRedriveHookOrderFake) ExecContext(context.Context, string, ...
 func (f crossplaneRedriveHookOrderFake) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if query == deltaBaselineFenceQuery { // #7319 Ack fence read: no row keeps the existing path.
 		return &recordingRows{}, nil
+	}
+	if strings.Contains(query, "reducer_waiting_items") { // #10876 wake: no waits parked here.
+		return &waitingWakeCountRows{}, nil
 	}
 	return nil, errors.New("query not expected in this test")
 }

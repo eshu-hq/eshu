@@ -255,6 +255,17 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{rows: [][]any{{int64(0)}}}, nil
 	}
 
+	// #10876: the phase publish wakes parked phase_committed waits, on the
+	// outer queryer when the caller passes no transaction. No waits are
+	// parked in these fixtures, so the wake is a no-op (0, 0), independent
+	// of FIFO order like the arms above: the wake must not consume a
+	// scripted response staged for a later query. Matched by the
+	// waiting-table name plus the reopen CTE so a genuinely unknown
+	// statement still falls through to the error below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
+	}
+
 	// The fan-in's under-lock generation re-read (backfill.LoadActiveGenerationForScope)
 	// is answered from the SAME rows the fixture already staged for the
 	// corpus-wide backfill.ActiveRepositoryGenerationsQuery below, rather than from the
@@ -276,6 +287,12 @@ func (f *fakeExecQueryer) QueryContext(
 	}
 
 	if len(f.queryResponses) == 0 {
+		if query == waitingSatisfiedQuery {
+			// #10876: the set-aside re-check on a fake with no staged
+			// provider state answers unsatisfied: the wait parks and the
+			// provider wake (or a staged live test) reopens it later.
+			return &queueFakeRows{rows: [][]any{{false}}}, nil
+		}
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
 		}

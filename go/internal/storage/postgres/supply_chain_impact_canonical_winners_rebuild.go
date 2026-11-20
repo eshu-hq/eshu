@@ -229,6 +229,16 @@ func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	if err != nil {
 		return none, err
 	}
+	// #10876: the resweep commit is the providing save for the
+	// winners_watermark wait kind. The wake runs in the same transaction;
+	// the waiting set is narrow (advisory only) and the maintainer commits
+	// on a 30-second cadence, inside the measured coarse-wake budget.
+	if watermark, ok := materializedAt.(time.Time); ok && !watermark.IsZero() {
+		if _, err := wakeWinnersWatermark(ctx, tx, s.Instruments, WaitingWakeSiteInTx,
+			watermark.UTC(), time.Now().UTC()); err != nil {
+			return none, fmt.Errorf("wake winners waiting items: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners resweep: %w", err)
 	}

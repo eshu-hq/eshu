@@ -86,6 +86,33 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
         ),
+        "go/internal/storage/postgres/reducer_waiting_cross_scope_orders_live_test.go": (
+            "TestCrossScopeProducerBothOrdersLive",
+            "TestCrossScopeProducerMultiProducerLive",
+            "TestCrossScopeProducerWakeNonInterferenceLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_cross_scope_park_live_test.go": (
+            "TestCrossScopeProducerWaitParksDomainOnlyLive",
+            "TestCrossScopeProducerWaitReopensOnReducerAckLive",
+            "TestCrossScopeProducerWaitReopensOnProjectorActivationLive",
+            "TestCrossScopeProducerAuditSatisfiesQuiescentWaitLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_cross_scope_race_live_test.go": (
+            "TestCrossScopeProducerConcurrentWakeRaceLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_live_test.go": (
+            "TestWaitingSetAsideParksWithBackstopLive",
+            "TestWaitingBothOrdersEquivalenceLive",
+            "TestWaitingAuditFindsMissedWakeLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_race_live_test.go": (
+            "TestWaitingConcurrentClaimAndWakeLive",
+            "TestWaitingDeferShareImprovementLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_winners_wake_live_test.go": (
+            "TestWinnersKeyedTickWakesParkedAdvisoryWaitLive",
+            "TestWinnersAuditReopenedWaitConvergesOnNextTickLive",
+        ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
             "TestActivationWakesOwnGateConsumersLive",
         ),

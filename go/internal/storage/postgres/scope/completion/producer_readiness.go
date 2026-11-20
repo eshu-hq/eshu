@@ -12,9 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // crossScopeProducerCollectorKindByDomain maps a producer REDUCER domain to the
@@ -69,14 +67,11 @@ import (
 // more probe query, so the set should grow only with evidence that the missing
 // kind actually publishes the output a consumer reads.
 //
-// The consequence is stated plainly rather than defended: a digest whose
-// identity is published by an aws/ECR scope is still answered early, so #5709 is
-// narrowed on that path, not closed. See
-// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
-var crossScopeProducerCollectorKindByDomain = map[reducercontract.Domain]scope.CollectorKind{
-	reducer.DomainContainerImageIdentity: scope.CollectorOCIRegistry,
-	reducer.DomainCICDRunCorrelation:     scope.CollectorCICDRun,
-}
+// The producer-to-collector-kind map itself lives in crossscope
+// (producerCollectorKindByDomain, via CollectorKindForProducerDomain): one
+// shared source for the floor, the #11000 park, the audit, and both Ack-path
+// wakes, so none of them can drift apart on which scope kind a producer
+// publishes through. See crossscope/producer_kinds.go for the grounding.
 
 // CrossScopeProducerReadinessStore implements
 // crossscope.ProducerReadiness over the shared fact store.
@@ -181,15 +176,15 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 	// answers had to stay per producer.
 	readyByKind := make(map[string]bool, len(producers))
 	for _, producer := range producers {
-		kind, mapped := crossScopeProducerCollectorKindByDomain[producer]
+		kind, mapped := crossscope.CollectorKindForProducerDomain(producer)
 		if !mapped {
 			// No resolvable scope kind, so there is no activation to wait for.
 			readiness[producer] = true
 			continue
 		}
-		ready, cached := readyByKind[string(kind)]
+		ready, cached := readyByKind[kind]
 		if !cached {
-			report, err := ProducerScopeQuiescence(ctx, s.DB, []string{string(kind)})
+			report, err := ProducerScopeQuiescence(ctx, s.DB, []string{kind})
 			if err != nil {
 				return nil, fmt.Errorf(
 					"check producer scope quiescence for consumer %s producer kind %s: %w", consumer, kind, err,
@@ -200,7 +195,7 @@ func (s CrossScopeProducerReadinessStore) CrossScopeProducersReady(
 			// for nothing. A registered kind with nothing quiescent is the
 			// #5709 case and holds this producer back.
 			ready = len(report.Registered) == 0 || len(report.Quiescent) > 0
-			readyByKind[string(kind)] = ready
+			readyByKind[kind] = ready
 		}
 		readiness[producer] = ready
 	}
@@ -234,11 +229,11 @@ func crossScopeProducerDomainsFor(consumer reducercontract.Domain) []reducercont
 func crossScopeProducerCollectorKinds(producers []reducercontract.Domain) []string {
 	kinds := make([]string, 0, len(producers))
 	for _, producer := range producers {
-		kind, ok := crossScopeProducerCollectorKindByDomain[producer]
+		kind, ok := crossscope.CollectorKindForProducerDomain(producer)
 		if !ok {
 			continue
 		}
-		kinds = append(kinds, string(kind))
+		kinds = append(kinds, kind)
 	}
 	slices.Sort(kinds)
 	return slices.Compact(kinds)

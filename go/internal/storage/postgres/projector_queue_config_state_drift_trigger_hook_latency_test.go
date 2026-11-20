@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,9 @@ func (ackLatencyFakeDB) ExecContext(context.Context, string, ...any) (sql.Result
 func (f ackLatencyFakeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if query == deltaBaselineFenceQuery { // #7319 Ack fence read: no row keeps the existing path.
 		return &recordingRows{}, nil
+	}
+	if strings.Contains(query, "reducer_waiting_items") { // #10876 wake: no waits parked here.
+		return &waitingWakeCountRows{}, nil
 	}
 	return nil, errors.New("query not expected in this benchmark-style test")
 }

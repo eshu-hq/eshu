@@ -47,6 +47,14 @@ func (d *ackStatementDB) QueryContext(_ context.Context, query string, args ...a
 	case activateAndJournalProjectorGenerationQuery:
 		return &valueRows{rows: [][]any{d.journalRow}}, nil
 	}
+	// #10876: the activation reopens parked generation_active waits in the
+	// same transaction. No waits are parked in these journal fixtures, so
+	// the wake is a no-op (0, 0). Matched by the waiting-table name plus
+	// the reopen CTE so a genuinely unexpected statement still surfaces as
+	// an empty row the wake scan rejects.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &valueRows{rows: [][]any{{int64(0), int64(0)}}}, nil
+	}
 	return &valueRows{}, nil
 }
 
@@ -124,8 +132,10 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 		t.Fatalf("Ack() error = %v", err)
 	}
 	want := ackFlagOffStatements()
-	if len(database.calls) != len(want)+2 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+2)
+	// #10876: the activation reopens parked generation_active waits in the
+	// same transaction, after both obligation inserts.
+	if len(database.calls) != len(want)+3 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+3)
 	}
 	for i, query := range want {
 		if database.calls[i].query != query {
@@ -135,6 +145,13 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 	if !strings.Contains(database.calls[7].query, "INSERT INTO activation_obligations") ||
 		!strings.Contains(database.calls[8].query, "INSERT INTO producer_activation_obligations") {
 		t.Fatalf("obligation statements = %q, %q", database.calls[7].query, database.calls[8].query)
+	}
+	wake := database.calls[9]
+	if !strings.Contains(wake.query, "reducer_waiting_items") || !strings.Contains(wake.query, "reopened") {
+		t.Fatalf("last statement = %q, want the waiting-wake after the obligations", wake.query)
+	}
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("wake args = %v, want (now, generation_active, key)", wake.args)
 	}
 	for _, call := range database.calls {
 		for _, banned := range []string{"changed_since", "advisory", "RETURNING generation_id"} {
@@ -161,8 +178,10 @@ func TestProjectorAckWithJournalOnReplacesOnlyTwoStatements(t *testing.T) {
 	want := ackFlagOffStatements()
 	want[5] = supersedeProjectorActiveGenerationReturningQuery
 	want[6] = activateAndJournalProjectorGenerationQuery
-	if len(database.calls) != len(want)+2 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+2)
+	// #10876: the activation reopens parked generation_active waits in the
+	// same transaction, after both obligation inserts.
+	if len(database.calls) != len(want)+3 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+3)
 	}
 	for i, query := range want {
 		if database.calls[i].query != query {
@@ -172,6 +191,13 @@ func TestProjectorAckWithJournalOnReplacesOnlyTwoStatements(t *testing.T) {
 	args := database.calls[6].args
 	if len(args) != 4 || args[1] != "scope-1" || args[2] != "generation-1" || args[3] != "generation-0" {
 		t.Fatalf("activate-and-journal args = %v, want (now, scope-1, generation-1, generation-0)", args)
+	}
+	wake := database.calls[9]
+	if !strings.Contains(wake.query, "reducer_waiting_items") || !strings.Contains(wake.query, "reopened") {
+		t.Fatalf("last statement = %q, want the waiting-wake after the obligations", wake.query)
+	}
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("wake args = %v, want (now, generation_active, key)", wake.args)
 	}
 }
 

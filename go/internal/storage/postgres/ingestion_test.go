@@ -427,6 +427,15 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 	if rows, ok, err := f.recheckRead(query); ok {
 		return rows, err
 	}
+	// #10876: the phase publish wakes parked phase_committed waits in the
+	// same transaction. No waits are parked in these fixtures, so the wake
+	// is a no-op (0, 0). Matched by the waiting-table name plus the reopen
+	// CTE, ahead of the staged positional responses, so the wake never
+	// consumes a scripted response and a genuinely unknown statement still
+	// falls through to the error below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
+	}
 	if len(f.queryResponses) > 0 {
 		rows := f.queryResponses[0]
 		f.queryResponses = f.queryResponses[1:]
