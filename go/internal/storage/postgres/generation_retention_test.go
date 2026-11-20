@@ -90,6 +90,18 @@ func TestGenerationRetentionRowCountsAreGenerationAware(t *testing.T) {
 		// delete removes.
 		"SELECT candidate.generation_id, 'security_alert_reconciliation_keys'",
 		"LEFT JOIN security_alert_reconciliation_keys AS keys\n  ON keys.scope_id = generation.scope_id\n AND keys.generation_id = candidate.generation_id",
+		// #10878: the reopen fingerprint/epoch arms cascade through
+		// fact_work_items by work_item_id like the #8300 arm.
+		"SELECT candidate.generation_id, 'aws_drift_reopen_fingerprints'",
+		"LEFT JOIN aws_drift_reopen_fingerprints AS fp\n  ON fp.work_item_id = work.work_item_id",
+		"SELECT candidate.generation_id, 'container_identity_reopen_epochs'",
+		"LEFT JOIN container_identity_reopen_epochs AS fp\n  ON fp.work_item_id = work.work_item_id",
+		// #10877: the corpus-narrow reopen fingerprint arms (migration 321),
+		// same cascade shape as the #8300 arm.
+		"SELECT candidate.generation_id, 'workload_materialization_reopen_fingerprints'",
+		"LEFT JOIN workload_materialization_reopen_fingerprints AS fp\n  ON fp.work_item_id = work.work_item_id",
+		"SELECT candidate.generation_id, 'service_catalog_correlation_reopen_fingerprints'",
+		"LEFT JOIN service_catalog_correlation_reopen_fingerprints AS fp\n  ON fp.work_item_id = work.work_item_id",
 	} {
 		if !strings.Contains(generationRetentionRowCountsQuery, want) {
 			t.Fatalf("row-count query missing %q:\n%s", want, generationRetentionRowCountsQuery)

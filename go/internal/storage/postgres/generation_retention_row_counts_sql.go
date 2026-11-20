@@ -86,7 +86,10 @@ package postgres
 // work items by work_item_id, so the arm joins through the work item's
 // (scope_id, generation_id) probe and then the fingerprint PRIMARY KEY.
 // Both probes stay index-only and the cost follows the batch, measured
-// with EXPLAIN ANALYZE before landing like the arms above.
+// with EXPLAIN ANALYZE before landing like the arms above. The
+// aws_drift_reopen_fingerprints (#10878, migration 317) and
+// container_identity_reopen_epochs (#10878, migration 318) arms repeat the
+// shape verbatim: same cascade through fact_work_items by work_item_id.
 //
 // The #8943 arms count the security-alert read state (security_alert_target_read_states)
 // and its unread-repository children, both cascade children of scope_generations
@@ -470,17 +473,7 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN shared_projection_unroutable_intents AS row
   ON row.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
-UNION ALL
-SELECT candidate.generation_id, 'deployable_unit_reopen_fingerprints' AS table_name, COUNT(fp.work_item_id) AS row_count
-FROM generation_retention_row_counts AS candidate
-LEFT JOIN scope_generations AS generation
-  ON generation.generation_id = candidate.generation_id
-LEFT JOIN fact_work_items AS work
-  ON work.scope_id = generation.scope_id
- AND work.generation_id = candidate.generation_id
-LEFT JOIN deployable_unit_reopen_fingerprints AS fp
-  ON fp.work_item_id = work.work_item_id
-GROUP BY candidate.generation_id
+` + generationRetentionRowCountsReopenLegs + `
 UNION ALL
 SELECT candidate.generation_id, 'security_alert_target_read_states' AS table_name, COUNT(state.generation_id) AS row_count
 FROM generation_retention_row_counts AS candidate

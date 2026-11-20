@@ -170,6 +170,14 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		"shared_projection_unroutable_intents": 3,
 		// #8300: the fingerprint sidecar on fact_work_items; this fixture writes none.
 		"deployable_unit_reopen_fingerprints": 0,
+		// #10878: the reopen fingerprint/epoch sidecars; this fixture
+		// writes none either (the len(totals) check pins the arm set).
+		"aws_drift_reopen_fingerprints":    0,
+		"container_identity_reopen_epochs": 0,
+		// #10877: the corpus-narrow reopen fingerprints (migration 321);
+		// this fixture writes none either.
+		"workload_materialization_reopen_fingerprints":    0,
+		"service_catalog_correlation_reopen_fingerprints": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,
