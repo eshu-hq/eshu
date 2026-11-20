@@ -441,6 +441,84 @@ func TestSortStringSetEmpty(t *testing.T) {
 	}
 }
 
+// TestBatchMergeEntitiesUIDErrorPropagates pins that a failing executor on
+// the UID-identity path surfaces a wrapped batch uid entity merge error,
+// mirroring TestBatchMergeEntitiesPropagatesError on the name-identity path.
+func TestBatchMergeEntitiesUIDErrorPropagates(t *testing.T) {
+	t.Parallel()
+
+	executor := &batchRecordingExecutor{errAtCall: errors.New("uid write failed")}
+	err := BatchMergeEntities(context.Background(), executor, "Function", []BatchEntityRow{
+		{FilePath: "/f", Name: "n", LineNumber: 1, UID: "func:n"},
+	}, DefaultBatchSize)
+	if err == nil {
+		t.Fatal("error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "batch uid entity merge") {
+		t.Fatalf("error = %q, want batch uid entity merge wrap", err.Error())
+	}
+}
+
+// TestBatchMergeEntitiesRejectsInvalidExtraKey pins that an extra property
+// key outside the Cypher-safe alphabet aborts the merge before any write.
+func TestBatchMergeEntitiesRejectsInvalidExtraKey(t *testing.T) {
+	t.Parallel()
+
+	executor := &batchRecordingExecutor{}
+	err := BatchMergeEntities(context.Background(), executor, "Function", []BatchEntityRow{
+		{FilePath: "/f", Name: "n", LineNumber: 1, Extra: map[string]any{"bad key": "v"}},
+	}, DefaultBatchSize)
+	if err == nil {
+		t.Fatal("error = nil, want non-nil for invalid extra key")
+	}
+	if !strings.Contains(err.Error(), "invalid Cypher property key") {
+		t.Fatalf("error = %q, want invalid Cypher property key", err.Error())
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("executor calls = %d, want 0", len(executor.calls))
+	}
+}
+
+// TestBatchMergeFilesPropagatesError pins that a failing executor surfaces
+// a wrapped batch file merge error.
+func TestBatchMergeFilesPropagatesError(t *testing.T) {
+	t.Parallel()
+
+	executor := &batchRecordingExecutor{errAtCall: errors.New("file write failed")}
+	err := BatchMergeFiles(context.Background(), executor, []BatchFileRow{
+		{FilePath: "/f", Name: "f"},
+	}, DefaultBatchSize)
+	if err == nil {
+		t.Fatal("error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "batch file merge") {
+		t.Fatalf("error = %q, want batch file merge wrap", err.Error())
+	}
+}
+
+// TestBatchMergeRelationshipsPropagatesError pins that a failing executor
+// surfaces a wrapped batch relationship merge error naming the rel type.
+func TestBatchMergeRelationshipsPropagatesError(t *testing.T) {
+	t.Parallel()
+
+	executor := &batchRecordingExecutor{errAtCall: errors.New("rel write failed")}
+	err := BatchMergeRelationships(context.Background(), executor, []BatchRelationshipRow{
+		{
+			SourceLabel: "Class",
+			SourceKey:   map[string]any{"name": "Child"},
+			TargetLabel: "Class",
+			TargetKey:   map[string]any{"name": "Parent"},
+			RelType:     "INHERITS",
+		},
+	}, DefaultBatchSize)
+	if err == nil {
+		t.Fatal("error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "batch relationship merge INHERITS") {
+		t.Fatalf("error = %q, want batch relationship merge wrap", err.Error())
+	}
+}
+
 type batchRecordingExecutor struct {
 	calls     []CypherStatement
 	errAtCall error
