@@ -112,5 +112,14 @@ services:
     environment:
       ESHU_MCP_ALLOW_UNAUTHENTICATED: "true"
 
+  # NornicDB is not on the proof's read or write path (single-backend
+  # Neo4j run), but base-stack depends_on chains still reference it, and
+  # Compose merges depends_on additively. Keep it running idle on
+  # non-colliding host ports rather than fighting the merge.
+  nornicdb:
+    ports:
+      - "27475:7474"
+      - "27688:7687"
+
 volumes:
   neo4j_data:
