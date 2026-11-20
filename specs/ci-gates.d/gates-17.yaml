@@ -68,3 +68,27 @@ gates:
     requirements:
       - credentials
     ci_only_reason: "scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test"
+
+  - id: template-collector-caller
+    name: Collector template thin-caller contract
+    category: hygiene
+    layer: hygiene
+    purpose: "Fails when the collector template CI stops being a thin caller of the pinned go-collector-ci reusable (inline lanes, mutable tags) (#10986)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "templates/collector/.github/workflows/ci.yml"
+      - "scripts/ci/test-template-collector-caller.sh"
+      - ".github/workflows/static-contract-gates.yml"
+      - ".github/static-contract-filters.yml"
+      - "specs/ci-gates.v1.yaml"
+      - "specs/ci-gates.d/**"
+    local:
+      command: "bash scripts/ci/test-template-collector-caller.sh"
+      test_command: "bash scripts/ci/test-template-collector-caller.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify template-collector-caller gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: ""

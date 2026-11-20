@@ -77,6 +77,7 @@ jobs:
       buildcacheprune: ${{ steps.filter.outputs.buildcacheprune }}
       workflowscriptcheckout: ${{ steps.filter.outputs.workflowscriptcheckout }}
       readinessderive: ${{ steps.filter.outputs.readinessderive }}
+      templatecollectorcaller: ${{ steps.filter.outputs.templatecollectorcaller }}
       matrix: ${{ steps.gate-matrix.outputs.matrix }}
       any: ${{ steps.gate-matrix.outputs.any }}
     steps:
@@ -185,6 +186,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.buildcacheprune }}" "buildcacheprune" "Verify GHCR build cache prune gate" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "bash scripts/ci/test-prune-ghcr-buildcache.sh" "ghcr-buildcache-prune"
           append_gate "${{ steps.filter.outputs.workflowscriptcheckout }}" "workflowscriptcheckout" "Verify workflow script checkout gate" "bash scripts/test-verify-workflow-script-checkout.sh" "bash scripts/verify-workflow-script-checkout.sh" "workflow-script-checkout"
           append_gate "${{ steps.filter.outputs.readinessderive }}" "readinessderive" "Verify live-readiness registration drift gate" "python3 scripts/test-live-postgres-readiness-child-env.py && bash scripts/test-generate-live-postgres-readiness.sh" "bash scripts/verify-live-postgres-readiness-drift.sh" "live-readiness-registration-drift"
+          append_gate "${{ steps.filter.outputs.templatecollectorcaller }}" "templatecollectorcaller" "Verify template-collector-caller gate" "bash scripts/ci/test-template-collector-caller.sh" "bash scripts/ci/test-template-collector-caller.sh" "template-collector-caller"
           # The observed cold sweep took 25m31s for 73 configurations. Its old
           # 30m job expired during a 3m35s cache save, after vet passed. A 40m
           # envelope covers that recorded sweep, bounded restore, setup/cleanup, and

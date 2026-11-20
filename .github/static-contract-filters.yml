@@ -517,3 +517,10 @@ readinessderive:
   - 'specs/live-tests.d/**'
   - '.github/workflows/live-postgres-readiness.yml'
   - 'go/**/*.go'
+templatecollectorcaller:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - 'templates/collector/.github/workflows/ci.yml'
+  - 'scripts/ci/test-template-collector-caller.sh'

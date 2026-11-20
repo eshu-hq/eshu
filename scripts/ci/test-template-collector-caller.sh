@@ -7,9 +7,11 @@
 # reject a stale inline caller and a bare-tag pin.
 #
 # Run: bash scripts/ci/test-template-collector-caller.sh (no network, no Go build).
-# CI wiring is tracked in #10999 and sequenced after #10988 merges (shared
-# matrix/filter/registry surface); until then this file runs standalone and
-# template drift is undetected in CI.
+# CI wiring: the templatecollectorcaller cell in
+# .github/workflows/static-contract-gates.yml runs this file as both its test
+# mirror and its gate (#10999); the registry row template-collector-caller
+# and the dorny filter key of the same name keep it selected on template or
+# script edits.
 set -euo pipefail
 LC_ALL=C
 root="$(cd "$(dirname "$0")/../.." && pwd)"
