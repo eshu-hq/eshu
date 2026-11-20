@@ -26,13 +26,26 @@ import (
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
 type ProjectorQueue struct {
-	database          db.ExecQueryer
-	LeaseOwner        string
-	LeaseDuration     time.Duration
-	RetryDelay        time.Duration
-	MaxAttempts       int
-	ClaimSourceSystem string
-	Now               func() time.Time
+	database      db.ExecQueryer
+	LeaseOwner    string
+	LeaseDuration time.Duration
+	RetryDelay    time.Duration
+	MaxAttempts   int
+	// AdmissionMaxAttempts bounds how many backpressure admission-timeout
+	// waits one projector work item may consume before it dead-letters
+	// (#10671). Admission waits (reducer queue above the admission marks)
+	// retry against this budget instead of the shared projection attempt
+	// budget, so a chunk stuck behind a full queue for hours retries
+	// instead of dead-lettering after 3x5min waits, while the budget stays
+	// finite per #10485. Zero/unset falls back to
+	// defaultProjectorAdmissionMaxAttempts; there is no disable mode.
+	// Only the ingester wires this from
+	// ESHU_REDUCER_ADMISSION_MAX_ATTEMPTS: cmd/projector and
+	// bootstrap-index never produce admission-timeout failures, so they
+	// keep the default.
+	AdmissionMaxAttempts int
+	ClaimSourceSystem    string
+	Now                  func() time.Time
 
 	// MaxRetryDelay caps the exponential-backoff retry term computed by
 	// Fail. Zero/unset falls back to a 1-hour cap (see retryMaxDelay).
@@ -284,14 +297,23 @@ func (q ProjectorQueue) Fail(
 	}
 
 	retryable := failure.IsRetryable(cause)
-	willRetry := retryable && work.AttemptCount < q.maxAttempts()
+	willRetry, admissionRetry := q.retryDecision(work, cause)
 
 	if willRetry {
 		// Retry path: keep the existing retryable class and preserve any
 		// detailed failure context the error carries for diagnosis.
 		_, failureMessage, failureDetails := queuestore.QueueFailureMetadata(cause, "projection_retryable")
 		now := q.now()
-		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, work.AttemptCount, q.jitterSource())
+		// Admission waits back off on the admission counter, not the raw
+		// claim count: the 5-minute waits already pace the retries, and
+		// the projection budget refund below keeps one shared exponential
+		// from punishing backpressured items twice. The formula is
+		// unchanged; only the attempt input differs by cause.
+		backoffAttempt := work.AttemptCount
+		if admissionRetry {
+			backoffAttempt = work.AdmissionWaitAttempts
+		}
+		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, backoffAttempt, q.jitterSource())
 		args := []any{
 			now,
 			"projection_retryable",
@@ -303,7 +325,11 @@ func (q ProjectorQueue) Fail(
 			q.LeaseOwner,
 			work.AttemptCount,
 		}
-		result, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...)
+		retryQuery := retryProjectorWorkQuery
+		if admissionRetry {
+			retryQuery = retryProjectorWorkWithAdmissionWaitQuery
+		}
+		result, err := q.database.ExecContext(ctx, retryQuery, args...)
 		if err != nil {
 			return fmt.Errorf("fail projector work: %w", err)
 		}
@@ -314,10 +340,16 @@ func (q ProjectorQueue) Fail(
 		if rowsAffected != 1 {
 			return ErrProjectorClaimRejected
 		}
-		if q.Instruments != nil && q.Instruments.ProjectorRetrySurge != nil {
-			q.Instruments.ProjectorRetrySurge.Add(ctx, 1, metric.WithAttributes(
-				telemetry.AttrFailureClass("projection_retryable"),
-			))
+		if q.Instruments != nil {
+			if admissionRetry {
+				if q.Instruments.ProjectorAdmissionWaitRetries != nil {
+					q.Instruments.ProjectorAdmissionWaitRetries.Add(ctx, 1)
+				}
+			} else if q.Instruments.ProjectorRetrySurge != nil {
+				q.Instruments.ProjectorRetrySurge.Add(ctx, 1, metric.WithAttributes(
+					telemetry.AttrFailureClass("projection_retryable"),
+				))
+			}
 		}
 		return nil
 	}

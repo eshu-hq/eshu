@@ -121,4 +121,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 324 (#10879 follow-up) reconciles backfill-raced mirror
 	// rows with a locking anti-join; DML-only per #7961.
 	"fact_work_item_leases_reconcile",
+	// Migration 325 (#10671) adds the projector admission-wait counter
+	// on fact_work_items so admission-timeout failures retry against
+	// their own finite budget instead of the shared projection budget.
+	"projector_admission_wait_attempts",
 }

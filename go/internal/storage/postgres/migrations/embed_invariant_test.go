@@ -322,9 +322,12 @@ import (
 // 324_fact_work_item_leases_reconcile.sql (#10879 follow-up) reconciles
 // backfill-raced mirror rows with a locking anti-join on the pinned
 // orphan predicate; DML-only per #7961.
+// 325_projector_admission_wait_attempts.sql (#10671) adds the projector
+// admission-wait counter on fact_work_items: NOT NULL DEFAULT 0,
+// metadata-only, no backfill.
 const (
-	goldenBootstrapDefinitionsDigest = "0faafc5f44688ec57e34d6986e77fdfbc5268501ee5072c0361b920071893332"
-	goldenBootstrapDefinitionsCount  = 350
+	goldenBootstrapDefinitionsDigest = "5cab52cd15aefc50a44bea3e54fcb5f349671a8e9fe9a7da1f2682a37f796f0a"
+	goldenBootstrapDefinitionsCount  = 351
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

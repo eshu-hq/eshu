@@ -12,7 +12,7 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | --- | --- | --- |
 | [API, auth, and MCP](env-registry/api-and-auth.md) | Listen addresses, authentication, browser sessions, OIDC and GitHub login, and the MCP server. | 56 |
 | [Runtime and storage](env-registry/runtime-and-storage.md) | Shared runtime settings, Postgres, the graph backend, and backend conformance test knobs. | 65 |
-| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 105 |
+| [Reducer and projection](env-registry/reducer-and-projection.md) | The reducer, projector, workflow coordinator, push hooks, and semantic providers. | 106 |
 | [Ingester and collector framework](env-registry/collectors-platform.md) | The ingester's git collector, the component package manager, and the component-extension collector. | 46 |
 | [Observability, delivery, and security collectors](env-registry/collectors-signals.md) | CI/CD run, security alert, and vulnerability collectors. Jira now collects from its extracted satellite (eshu-hq/eshu-collector-jira). Tempo now collects from its extracted satellite (eshu-hq/eshu-collector-tempo). Loki now collects from its extracted satellite (eshu-hq/eshu-collector-loki). Vulnerability intelligence now collects from its extracted satellite (eshu-hq/eshu-collector-vulnerability-intelligence). SBOM attestation now collects from its extracted satellite (eshu-hq/eshu-collector-sbom-attestation). PagerDuty now collects from its extracted satellite (eshu-hq/eshu-collector-pagerduty). Security alert now collects from its extracted satellite (eshu-hq/eshu-collector-security-alerts). Grafana now collects from its extracted satellite (eshu-hq/eshu-collector-grafana). Prometheus/Mimir now collects from its extracted satellite (eshu-hq/eshu-collector-prometheus-mimir). | 28 |
 
@@ -35,6 +35,6 @@ Subsystem anchors such as `#api` and `#auth` moved to the family pages when this
 | [`postgres`](env-registry/runtime-and-storage.md#postgres) | 21 | Runtime and storage |
 | [`projector`](env-registry/reducer-and-projection.md#projector) | 3 | Reducer and projection |
 | [`push-hooks`](env-registry/reducer-and-projection.md#push-hooks) | 1 | Reducer and projection |
-| [`reducer`](env-registry/reducer-and-projection.md#reducer) | 71 | Reducer and projection |
+| [`reducer`](env-registry/reducer-and-projection.md#reducer) | 72 | Reducer and projection |
 | [`runtime`](env-registry/runtime-and-storage.md#runtime) | 13 | Runtime and storage |
 | [`semantic`](env-registry/reducer-and-projection.md#semantic) | 6 | Reducer and projection |

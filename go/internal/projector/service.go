@@ -33,8 +33,17 @@ type ScopeGenerationWork struct {
 	Scope      scope.IngestionScope
 	Generation scope.ScopeGeneration
 	// AttemptCount is the durable number of claims already consumed for this
-	// scope generation work item.
+	// scope generation work item. It increments on every claim, so it is a
+	// pure monotonic claim fence under the shared "ingester" lease owner.
 	AttemptCount int
+	// AdmissionWaitAttempts is the durable number of those claims that
+	// ended in a backpressure admission-timeout wait (reducer queue above
+	// the admission marks) rather than a genuine projection failure.
+	// Fail refunds admission waits from the projection attempt budget:
+	// the projection budget is measured as AttemptCount minus
+	// AdmissionWaitAttempts, while admission-timeout failures retry
+	// against their own finite admission budget (#10671).
+	AdmissionWaitAttempts int
 }
 
 // ProjectorWorkSource claims one scope generation at a time.

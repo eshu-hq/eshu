@@ -112,11 +112,15 @@ FRAGMENT_NAMES = (
 # and scope-idx enrollments push part5 to 507 lines. The fourth cut moves two
 # entries later into part4 (part4 487 lines, part5 back to 497 with no seed
 # row); six fragments pinned.
+# Rebalanced 2026-11-20 for #10671: the admission-budget live enrollment
+# pushes part5 to 502 lines. The fourth cut moves one entry later into
+# part4 (part4 492 lines, part5 back to 497 with no seed row); six
+# fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go",
+    "go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

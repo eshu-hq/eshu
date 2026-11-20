@@ -39,6 +39,7 @@ func TestProjectorQueueClaimReturnsScopeGenerationWork(t *testing.T) {
 					"repo-123",
 					"generation-456",
 					1,
+					0,
 					time.Date(2026, time.April, 12, 10, 0, 0, 0, time.UTC),
 					time.Date(2026, time.April, 12, 10, 5, 0, 0, time.UTC),
 					"pending",
@@ -73,6 +74,11 @@ func TestProjectorQueueClaimReturnsScopeGenerationWork(t *testing.T) {
 	if got, want := work.AttemptCount, 1; got != want {
 		t.Fatalf("Claim().AttemptCount = %d, want %d", got, want)
 	}
+	// #10671: the claim populates the admission-wait counter alongside
+	// the attempt fence; the fixture row carries zero waits.
+	if got, want := work.AdmissionWaitAttempts, 0; got != want {
+		t.Fatalf("Claim().AdmissionWaitAttempts = %d, want %d", got, want)
+	}
 	if got, want := work.Scope.ActiveGenerationID, "generation-active"; got != want {
 		t.Fatalf("Claim().Scope.ActiveGenerationID = %q, want %q", got, want)
 	}
@@ -102,6 +108,7 @@ func TestProjectorQueueClaimPopulatesScopeMetadataFromPayload(t *testing.T) {
 					"repo-123",
 					"generation-456",
 					2,
+					0,
 					time.Date(2026, time.April, 12, 10, 0, 0, 0, time.UTC),
 					time.Date(2026, time.April, 12, 10, 5, 0, 0, time.UTC),
 					"pending",

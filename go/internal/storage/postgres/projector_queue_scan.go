@@ -39,6 +39,7 @@ func scanProjectorWork(rows db.Rows) (projector.ScopeGenerationWork, error) {
 		&work.Scope.PartitionKey,
 		&work.Generation.GenerationID,
 		&work.AttemptCount,
+		&work.AdmissionWaitAttempts,
 		&work.Generation.ObservedAt,
 		&work.Generation.IngestedAt,
 		&generationStatus,

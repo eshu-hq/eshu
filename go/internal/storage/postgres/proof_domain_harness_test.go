@@ -62,14 +62,17 @@ type proofWorkItem struct {
 	domain       string
 	status       string
 	attemptCount int
-	scopeID      string
-	generationID string
-	leaseOwner   string
-	visibleAt    time.Time
-	createdAt    time.Time
-	updatedAt    time.Time
-	claimUntil   time.Time
-	payload      []byte
+	// admissionWaitAttempts mirrors fact_work_items.admission_wait_attempts
+	// (#10671): incremented once per admission-timeout retry.
+	admissionWaitAttempts int
+	scopeID               string
+	generationID          string
+	leaseOwner            string
+	visibleAt             time.Time
+	createdAt             time.Time
+	updatedAt             time.Time
+	claimUntil            time.Time
+	payload               []byte
 }
 
 func newProofDomainDB(t *testing.T, now time.Time) *proofDomainDB {
@@ -120,7 +123,11 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 		if len(args) != 9 {
 			return nil, fmt.Errorf("projector retry args = %d, want 9", len(args))
 		}
-		return database.retryProjectorWork(args[5].(string), args[6].(string), args[7].(string), args[4].(time.Time))
+		// #10671: the admission-twin retry UPDATE carries the
+		// admission_wait_attempts increment; model it so the harness
+		// counter matches production row state.
+		admissionRetry := strings.Contains(query, "admission_wait_attempts")
+		return database.retryProjectorWork(args[5].(string), args[6].(string), args[7].(string), args[4].(time.Time), admissionRetry)
 	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'succeeded'"):
 		if len(args) != 4 {
 			return nil, fmt.Errorf("reducer ack args = %d, want 4", len(args))
@@ -449,6 +456,7 @@ func (database *proofDomainDB) claimProjectorWork(
 			scopeRow.PartitionKey,
 			generationRow.GenerationID,
 			item.attemptCount,
+			item.admissionWaitAttempts,
 			generationRow.ObservedAt,
 			generationRow.IngestedAt,
 			string(generationRow.Status),

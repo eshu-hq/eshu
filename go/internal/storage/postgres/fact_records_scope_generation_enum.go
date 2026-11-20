@@ -12,7 +12,7 @@ import (
 )
 
 // listScopeGenerationWorkQuery enumerates the ACTIVE generation of every scope
-// that has facts in fact_records and hydrates each into the exact 16-column
+// that has facts in fact_records and hydrates each into the exact 17-column
 // projection scanProjectorWork consumes, so the B-12 determinism re-drain (issue
 // #5008) reuses the same scanner the projector claim path uses.
 //
@@ -33,8 +33,9 @@ import (
 // (nothing live to re-drain) rather than letting the commit path abort.
 //
 // The projection mirrors the tail of claimProjectorWorkQuery (see
-// projector_queue_claim_sql.go) column-for-column, with attempt_count the literal
-// 0 — a corpus re-drain has no lease/retry history to carry.
+// projector_queue_claim_sql.go) column-for-column, with attempt_count and
+// admission_wait_attempts the literals 0 — a corpus re-drain has no
+// lease/retry history to carry (#10671 keeps the two counters adjacent).
 //
 // ORDER BY (scope_id, generation_id) makes the enumeration deterministic so a
 // re-drain at N=1 and a re-drain at N=4 are handed byte-identical work
@@ -59,6 +60,7 @@ SELECT
     scope.collector_kind,
     scope.partition_key,
     generation.generation_id,
+    0,
     0,
     generation.observed_at,
     generation.ingested_at,
