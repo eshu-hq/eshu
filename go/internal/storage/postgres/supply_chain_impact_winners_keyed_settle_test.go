@@ -94,6 +94,69 @@ func TestWinnersDirtyGateFailsIsConjunction(t *testing.T) {
 	}
 }
 
+// TestWinnersDirtyTailStallNoiseRescuesMedianHealthyP95Spike pins the #11060
+// hardening: a stratum that trips both gate arms is still a pass when the
+// median statement cost is healthy and only a few stalled statements inflate
+// the nearest-rank p95 (runner oversubscription: 4-writer p50 1.04ms vs p95
+// 6.6ms over n=60). A uniform regression (low dispersion) or a median shift
+// (p50 past the reference) stays a failure, and degenerate inputs never
+// read as noise (fail-closed: the gate failure stands).
+func TestWinnersDirtyTailStallNoiseRescuesMedianHealthyP95Spike(t *testing.T) {
+	t.Parallel()
+
+	if winnersDirtyTailStallDispersion != 3.0 {
+		t.Errorf("tail-stall dispersion = %v, want 3.0: a uniform 2x cost drift must not read as noise",
+			winnersDirtyTailStallDispersion)
+	}
+	cases := []struct {
+		name                string
+		p50, p95, reference time.Duration
+		wantNoise           bool
+	}{
+		{"11060 flake is noise", 1040 * time.Microsecond, 6600 * time.Microsecond, 3890 * time.Microsecond, true},
+		{"uniform drift is not noise", 2500 * time.Microsecond, 5000 * time.Microsecond, 3410 * time.Microsecond, false},
+		{"median shift is not noise", 4500 * time.Microsecond, 7000 * time.Microsecond, 3890 * time.Microsecond, false},
+		{"healthy p95 is not noise", 1000 * time.Microsecond, 2000 * time.Microsecond, 3890 * time.Microsecond, false},
+		{"boundary dispersion is noise", 1000 * time.Microsecond, 3000 * time.Microsecond, 2500 * time.Microsecond, true},
+		{"zero p50 never reads as noise", 0, 6600 * time.Microsecond, 3890 * time.Microsecond, false},
+		{"zero reference never reads as noise", 1040 * time.Microsecond, 6600 * time.Microsecond, 0, false},
+	}
+	for _, tc := range cases {
+		if got := winnersDirtyIsTailStallNoise(tc.p50, tc.p95, tc.reference); got != tc.wantNoise {
+			t.Errorf("%s: tail-stall noise = %v, want %v (p50 %s, p95 %s, reference %s)",
+				tc.name, got, tc.wantNoise, tc.p50, tc.p95, tc.reference)
+		}
+	}
+}
+
+// TestWinnersDirtyStratumFailsComposesGateAndNoise pins the decision the live
+// gate enforces: the hybrid conjunction fails a stratum, and the tail-stall
+// signature rescues only a median-healthy p95 spike. The #11060 flake
+// (both arms tripped, median healthy) passes; a beyond-serialization
+// collapse with a shifted median still fails.
+func TestWinnersDirtyStratumFailsComposesGateAndNoise(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                string
+		p50, p95, reference time.Duration
+		ratio, maxRatio     float64
+		wantFail            bool
+	}{
+		{"11060 flake rescued", 1040 * time.Microsecond, 6600 * time.Microsecond, 3890 * time.Microsecond, 4.7, 3.5, false},
+		{"collapse with median shift fails", 4500 * time.Microsecond, 7000 * time.Microsecond, 3890 * time.Microsecond, 5.0, 3.5, true},
+		{"uniform drift fails", 2500 * time.Microsecond, 5000 * time.Microsecond, 3410 * time.Microsecond, 3.6, 3.0, true},
+		{"clean pass stays pass", 1000 * time.Microsecond, 2000 * time.Microsecond, 3890 * time.Microsecond, 1.4, 3.5, false},
+		{"absolute-only excursion stays pass", 1000 * time.Microsecond, 5000 * time.Microsecond, 3410 * time.Microsecond, 1.5, 3.0, false},
+	}
+	for _, tc := range cases {
+		if got := winnersDirtyStratumFails(tc.p50, tc.p95, tc.reference, tc.ratio, tc.maxRatio); got != tc.wantFail {
+			t.Errorf("%s: stratum fails = %v, want %v (p50 %s, p95 %s vs %s, ratio %.2f vs %.1f)",
+				tc.name, got, tc.wantFail, tc.p50, tc.p95, tc.reference, tc.ratio, tc.maxRatio)
+		}
+	}
+}
+
 // TestWinnersDirtyContentionRatioIsQuotient pins the estimator the relative
 // gate depends on: stratum p95 over the same-run control p95. A non-positive
 // control is +Inf (fail-closed: a missing control never passes the gate).
