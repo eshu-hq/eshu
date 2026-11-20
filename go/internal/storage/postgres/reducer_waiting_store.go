@@ -360,7 +360,7 @@ func wakeGenerationActiveWaits(
 	}
 	if _, _, err := wakeWaitingByKey(ctx, database, instruments, site,
 		WaitingKindGenerationActive, wakeKey, now); err != nil {
-		return fmt.Errorf("wake waiting items: %w", err)
+		return fmt.Errorf("wake generation_active waits: %w", err)
 	}
 	return nil
 }

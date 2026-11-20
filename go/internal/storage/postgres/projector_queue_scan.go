@@ -158,6 +158,11 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 	if err := rows.Err(); err != nil {
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
+	// The wake below runs its own queries on the pool: release the claim
+	// rows first (this file closes rows before follow-up queries elsewhere).
+	if err := rows.Close(); err != nil {
+		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
+	}
 
 	// #11015: the sweep above retires superseded generations in the same
 	// statement, so their parked generation_active waits never see an
