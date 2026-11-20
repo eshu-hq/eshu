@@ -98,6 +98,22 @@ paging; no issue is filed anywhere. When it fires, inspect the delta
 filter/diff path the audit replays (the config-anchor moves the audit exists
 to correct), not the audit itself; never restart broadly to clear it.
 
+No-Regression Evidence: baseline is the audit path without the denominator
+(one corrections point only when misses exist); after is one additional
+`audits_total` increment per `audit_due` reconstruction at the 24h audit
+cadence. Backend: in-process OTEL meter only (no Postgres, no new DB write,
+no new table or migration). Input shape: a single audit reconstruction;
+terminal row counts: exactly one point per audit (`clean`, `correcting`, or
+`failed`). Telemetry evidence: handler tests pin one-point-per-audit semantics
+and delta/skip/fallback silence. Safe because the emit is observability-only
+(never fails the run), runs only on the daily audit path (never delta, skip,
+or fallback), and touches no writer, fence, retire, lock, or queue path.
+
+Observability Evidence: the new `eshu_dp_aws_drift_incremental_audits_total`
+counter (closed outcomes `clean|correcting|failed`, bounded labels) plus this
+alert rule and runbook; reducer telemetry coverage row updated in
+`telemetry-coverage-reducer-core.md`.
+
 ## Health Versus Completeness
 
 Process health is not answer readiness. `/healthz`, `/readyz`, and Kubernetes
