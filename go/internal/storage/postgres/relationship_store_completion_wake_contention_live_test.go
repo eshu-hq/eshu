@@ -17,6 +17,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // TestCompletionWakeLockTimeoutClassifiedLive is the F2 bound proof: behind
@@ -276,13 +278,53 @@ func TestCompletionWakeMetricsLive(t *testing.T) {
 	if err := reader.Collect(ctx, &rm); err != nil {
 		t.Fatalf("collect metrics: %v", err)
 	}
+	// One wake transaction per gated domain (#10877): the first wake reopens
+	// the DU item and noops the two empty domains; the settled re-run noops
+	// all three.
 	if got := completionWakeMetricValue(t, rm, "eshu_dp_reducer_completion_wake_total", "outcome", "reopened"); got != 1 {
 		t.Errorf("completion_wake{reopened} = %d, want 1", got)
 	}
-	if got := completionWakeMetricValue(t, rm, "eshu_dp_reducer_completion_wake_total", "outcome", "noop"); got != 1 {
-		t.Errorf("completion_wake{noop} = %d, want 1", got)
+	if got := completionWakeMetricValue(t, rm, "eshu_dp_reducer_completion_wake_total", "outcome", "noop"); got != 5 {
+		t.Errorf("completion_wake{noop} = %d, want 5 (2 empty domains on the first wake, 3 on the settled re-run)", got)
 	}
 	if got := completionWakeMetricValue(t, rm, "eshu_dp_correlation_reopened_total", "domain", "deployable_unit_correlation"); got < 1 {
 		t.Errorf("correlation_reopened{deployable_unit_correlation} = %d, want >= 1", got)
+	}
+
+	// #10877: the same wake reopens workload and service-catalog items whose
+	// recorded input changed. Seed both with fingerprints on the current
+	// input, land a late row, and wake: both domains must count a reopen.
+	wlClaim := claimFingerprintGateItem(t, ctx, db, "wl-wake-a", w.a.scopeID, w.a.genID,
+		reducercontract.DomainWorkloadMaterialization, w.at.Add(2*time.Minute))
+	_, _, _, wlFP, err := store.GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(ctx, []string{"repo-a"})
+	if err != nil {
+		t.Fatalf("narrowed fingerprinted read for workload wake: %v", err)
+	}
+	if err := store.RecordWorkloadMaterializationReopenFingerprint(ctx, wlClaim.workItemID, wlClaim.claimedAt, wlFP); err != nil {
+		t.Fatalf("record workload wake fingerprint: %v", err)
+	}
+	ackFingerprintGateItem(t, ctx, db, "wl-wake-a", w.at.Add(2*time.Minute))
+	scClaim := claimFingerprintGateItem(t, ctx, db, "sc-wake-a", w.a.scopeID, w.a.genID,
+		reducercontract.DomainServiceCatalogCorrelation, w.at.Add(2*time.Minute))
+	_, _, _, scFP, err := store.GetFingerprintedResolvedRelationshipsForReposWithRestrictedFence(ctx, []string{"repo-a"})
+	if err != nil {
+		t.Fatalf("narrowed fingerprinted read for service catalog wake: %v", err)
+	}
+	if err := store.RecordServiceCatalogCorrelationReopenFingerprint(ctx, scClaim.workItemID, scClaim.claimedAt, scFP); err != nil {
+		t.Fatalf("record service catalog wake fingerprint: %v", err)
+	}
+	ackFingerprintGateItem(t, ctx, db, "sc-wake-a", w.at.Add(2*time.Minute))
+	upsertFingerprintGateDeploysFrom(t, ctx, db, w.b.genID, "repo-b-wake", "repo-a")
+	if _, err := store.ReopenDeployableUnitCorrelationsForRepos(ctx, []string{"repo-a", "repo-b-wake"}); err != nil {
+		t.Fatalf("late-arrival completion wake: %v", err)
+	}
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("collect metrics after late-arrival wake: %v", err)
+	}
+	if got := completionWakeMetricValue(t, rm, "eshu_dp_correlation_reopened_total", "domain", "workload_materialization"); got < 1 {
+		t.Errorf("correlation_reopened{workload_materialization} = %d, want >= 1", got)
+	}
+	if got := completionWakeMetricValue(t, rm, "eshu_dp_correlation_reopened_total", "domain", "service_catalog_correlation"); got < 1 {
+		t.Errorf("correlation_reopened{service_catalog_correlation} = %d, want >= 1", got)
 	}
 }

@@ -298,7 +298,12 @@ import (
 // security_alert_reconciliation_keys sidecar and its backfill marker).
 // #10876 adds 316_reducer_waiting_items.sql (the reducer waiting set-aside:
 // one row per parked item keyed by waits_for kind+key, plain table plus two
-// indexes, no queue-table change). #10878 adds
+// indexes, no queue-table change). #10877 adds
+// 321_corpus_narrow_fingerprints.sql (the workload and service-catalog
+// reopen fingerprint tables for the per-item read-set waits with
+// late-arrival restart; renumbered 314 to 317 onto the
+// #10874/#10947/#10875/#10876 base, then 317 to 319 onto the base
+// carrying #10878's 317/318). #10878 adds
 // 317_aws_drift_reopen_fingerprints.sql (the changed-evidence gate for the
 // aws_cloud_runtime_drift reopen: one row per succeeded work item carrying
 // the ARN snapshot and fingerprint, mirroring #8283's 193) and
@@ -309,8 +314,8 @@ import (
 // 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
 // sweep needs for parked waits of retired scopes).
 const (
-	goldenBootstrapDefinitionsDigest = "de48e80ed184e377400e12ae4a58187040ac2eb2e885fb6d161e04463efacc2e"
-	goldenBootstrapDefinitionsCount  = 346
+	goldenBootstrapDefinitionsDigest = "aa406f04c47579003f677564ba4fb0ab0fc45ed83d5fbf998f50a424f8edb2ad"
+	goldenBootstrapDefinitionsCount  = 347
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

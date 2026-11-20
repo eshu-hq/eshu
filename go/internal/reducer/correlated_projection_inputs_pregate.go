@@ -103,8 +103,10 @@ func (l CorrelatedWorkloadProjectionInputLoader) deferUnlessReadyForBulkLoad(
 	// Corpus-wide probe: one aggregate read, no bulk load. Skipped for fused
 	// loaders, whose verdict comes from the by-repos read's own statement
 	// snapshot (#6740) and for which ResolutionsCompleteLookup stays
-	// unconsumed by contract.
+	// unconsumed by contract. The narrowed restricted read is fused the same
+	// way (#10877), so restricted loaders skip it too.
 	if _, fused := l.ResolvedLoader.(CorpusFencedResolvedRelationshipLoader); !fused &&
+		!isRestrictedCorpusFencedLoader(l.ResolvedLoader) &&
 		l.ResolutionsCompleteLookup != nil {
 		complete, err := l.ResolutionsCompleteLookup(ctx)
 		if err != nil {
@@ -157,6 +159,12 @@ type workloadMaterializationResolutionNotReadyError struct {
 	// producerDetail names the own generation's deployment_mapping producer
 	// state on an own-gate deferral (#7597); empty otherwise.
 	producerDetail string
+	// repoIDs and blockingScopeIDs carry the narrowed wait key (#10877):
+	// the normalized read set and the verdict-time blocking set the
+	// restricted read ran under. Empty on the global path, which parks on
+	// the coarse wait.
+	repoIDs          []string
+	blockingScopeIDs []string
 }
 
 func (e workloadMaterializationResolutionNotReadyError) Error() string {

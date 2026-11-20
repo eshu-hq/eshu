@@ -449,6 +449,11 @@ var migrationShippedChecksums = map[string]string{
 	// aws_drift_reopen_fingerprints gate; 317 shipped, so the column lands
 	// here instead of amending it (#7002).
 	"320_aws_drift_reopen_fingerprints_audit_clock.sql": "a2c25f09dcd452158528d4d56fe9066c47ec3677ae33dd16d64636da442b2cdd",
+	// #10877: the workload/service-catalog reopen fingerprint tables for the
+	// per-item read-set waits with late-arrival restart (renumbered 314
+	// to 317 onto the #10876 base, then 317 to 319 onto the base
+	// carrying #10878's 317/318).
+	"321_corpus_narrow_fingerprints.sql": "503be2664ff2a0daf8f68c2f837c8fdedf18a581d33b5fb85d2fee9b8dc288b0",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

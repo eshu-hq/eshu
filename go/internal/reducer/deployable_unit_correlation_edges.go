@@ -22,14 +22,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
-// DeployableUnitCorrelationResolutionNotReadyFailureClass classifies a
-// deferral of deployable-unit correlation work whose own relationship
-// generation has not activated yet.
-//
-// The storage queue registers this as a non-counting retry class because the
-// intent is waiting on an upstream phase, not failing on its own merits.
-const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
-
 // deployableUnitCorrelationResolutionNotReadyError defers an intent until its
 // own relationship generation activates.
 type deployableUnitCorrelationResolutionNotReadyError struct {
@@ -45,37 +37,16 @@ type deployableUnitCorrelationResolutionNotReadyError struct {
 	// producerDetail names the own deployment_mapping producer state on an
 	// own-gate deferral (#7597); empty otherwise.
 	producerDetail string
+	// repoIDs and blockingScopeIDs carry the narrowed wait key (#10877):
+	// the normalized read set and the verdict-time blocking set the
+	// restricted read ran under. Empty on the global path, which parks on
+	// the coarse wait.
+	repoIDs          []string
+	blockingScopeIDs []string
 }
 
-func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
-	msg := fmt.Sprintf(
-		"cross-repo resolution not active for scope %s generation %s; deferring deployable unit correlation rather than evaluating against a partial resolved set",
-		e.scopeID,
-		e.generationID,
-	)
-	if e.cause != nil {
-		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
-	}
-	if len(e.holdingScopeIDs) > 0 {
-		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
-	}
-	if e.producerDetail != "" {
-		msg += "; " + e.producerDetail
-	}
-	return msg
-}
-
-// Unwrap exposes the fence lookup failure to errors.Is/As without changing
-// the retryable failure class.
-func (e deployableUnitCorrelationResolutionNotReadyError) Unwrap() error {
-	return e.cause
-}
-
-func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { return true }
-
-func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
-	return DeployableUnitCorrelationResolutionNotReadyFailureClass
-}
+// The deployableUnitCorrelationResolutionNotReadyError methods live in
+// correlated_restricted_fence.go beside the narrowed-wait carrier methods.
 
 // FingerprintedCorpusFencedResolvedRelationshipLoader is the fused
 // corpus-fenced by-repos read that also returns the input fingerprint its
@@ -137,10 +108,20 @@ func deployableUnitCorpusFenceDeferral(
 		}
 	}
 	if !read.complete {
+		repoIDs, blockingScopeIDs, narrowed := corpusWaitNarrowing(read)
+		holdingScopeIDs := accepted.IncompleteScopeIDs(ctx, incompleteScopesLookup)
+		if narrowed {
+			// The restricted fence names exactly the scopes that held
+			// this read; report them instead of the corpus-wide holder
+			// list so the deferral stays actionable.
+			holdingScopeIDs = blockingScopeIDs
+		}
 		return deployableUnitCorrelationResolutionNotReadyError{
-			scopeID:         intent.ScopeID,
-			generationID:    intent.GenerationID,
-			holdingScopeIDs: accepted.IncompleteScopeIDs(ctx, incompleteScopesLookup),
+			scopeID:          intent.ScopeID,
+			generationID:     intent.GenerationID,
+			holdingScopeIDs:  holdingScopeIDs,
+			repoIDs:          repoIDs,
+			blockingScopeIDs: blockingScopeIDs,
 		}
 	}
 	return nil

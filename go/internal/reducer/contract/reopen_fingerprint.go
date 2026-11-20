@@ -116,3 +116,38 @@ type ContainerIdentityReopenFingerprintRecorder interface {
 		epoch ContainerIdentityReopenEpoch,
 	) error
 }
+
+// WorkloadMaterializationLogicVersion is declared in change_signal.go
+// (#10878, same value and bump contract); it is not redeclared here.
+// ServiceCatalogCorrelationLogicVersion is the version of the
+// service_catalog_correlation handler logic a recorded fingerprint was taken
+// under (#10877). Same bump rule as WorkloadMaterializationLogicVersion.
+const ServiceCatalogCorrelationLogicVersion = 1
+
+// WorkloadMaterializationReopenFingerprintRecorder stores the
+// ResolvedReadFingerprint of a workload_materialization run that is about to
+// succeed, so the deferred-maintenance reopen can restart the item when a
+// late-arriving foreign scope changes its resolved input (#10877). Same
+// claim-fenced write contract as
+// DeployableUnitReopenFingerprintRecorder.
+type WorkloadMaterializationReopenFingerprintRecorder interface {
+	RecordWorkloadMaterializationReopenFingerprint(
+		ctx context.Context,
+		workItemID string,
+		claimedAt time.Time,
+		fingerprint ResolvedReadFingerprint,
+	) error
+}
+
+// ServiceCatalogCorrelationReopenFingerprintRecorder stores the
+// ResolvedReadFingerprint of a service_catalog_correlation run that is about
+// to succeed (#10877). Same claim-fenced write contract as
+// DeployableUnitReopenFingerprintRecorder.
+type ServiceCatalogCorrelationReopenFingerprintRecorder interface {
+	RecordServiceCatalogCorrelationReopenFingerprint(
+		ctx context.Context,
+		workItemID string,
+		claimedAt time.Time,
+		fingerprint ResolvedReadFingerprint,
+	) error
+}

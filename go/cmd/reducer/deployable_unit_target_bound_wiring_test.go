@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -132,6 +133,20 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	args ...any,
 ) (db.Rows, error) {
 	switch {
+	// The restricted fused read (#10877) carries its blocking set in the
+	// same statement, so it must match before the global fused read and
+	// before the generic generation-status branch: its blocking CTE also
+	// queries relationship_generations with an active-status filter.
+	case strings.Contains(query, "blocking AS MATERIALIZED"):
+		f.readDeployableUnitInputs = true
+		row := deployableUnitRestrictedFencedResolvedRow()
+		if strings.Contains(query, "input_fingerprint") {
+			// The handler reads through the fingerprinted restricted
+			// read: the fingerprint follows the verdict-time blocking
+			// set, per the scanner's column order.
+			row = append([]any{row[0], row[1], "fixture-fingerprint"}, row[2:]...)
+		}
+		return &resolvedRelationshipRows{rows: [][]any{row}}, nil
 	// The fused fence-and-read statement embeds the generation-status
 	// predicate, so it must match before the own-generation readiness probe.
 	case strings.Contains(query, "WITH fence AS MATERIALIZED"):
@@ -155,10 +170,24 @@ func (f *deployableUnitTargetBoundDB) QueryContext(
 	return f.fakeReducerDB.QueryContext(ctx, query, args...)
 }
 
+// deployableUnitRestrictedFencedResolvedRow is the restricted corpus-fenced
+// by-repos row shape (#10877): complete verdict, verdict-time blocking set,
+// then the same ten resolved columns the global row carries. The fake
+// answers with no blocking scopes, so the corpus reads complete.
+func deployableUnitRestrictedFencedResolvedRow() []any {
+	return append([]any{true, array.StringArray{}}, deployableUnitFencedResolvedColumns()...)
+}
+
 // deployableUnitFencedResolvedRow is the corpus-fenced by-repos row shape:
 // complete verdict, source/target repo and entity keys, relationship type,
 // confidence, evidence count, rationale, resolution source, details.
 func deployableUnitFencedResolvedRow() []any {
+	return append([]any{true}, deployableUnitFencedResolvedColumns()...)
+}
+
+// deployableUnitFencedResolvedColumns are the ten resolved columns both
+// fenced row shapes carry after their verdict prefix.
+func deployableUnitFencedResolvedColumns() []any {
 	details, err := json.Marshal(map[string]any{
 		"evidence_kinds": []string{"ARGOCD_APPLICATION_SOURCE"},
 	})
@@ -166,7 +195,6 @@ func deployableUnitFencedResolvedRow() []any {
 		panic(err)
 	}
 	return []any{
-		true,
 		sql.NullString{String: "repo-deployments", Valid: true},
 		sql.NullString{String: "repo-edge-api", Valid: true},
 		sql.NullString{String: "repo-deployments", Valid: true},
@@ -204,6 +232,8 @@ func (r *resolvedRelationshipRows) Scan(dest ...any) error {
 		switch target := dest[i].(type) {
 		case *bool:
 			*target = row[i].(bool)
+		case *array.StringArray:
+			*target = row[i].(array.StringArray)
 		case *sql.NullString:
 			*target = row[i].(sql.NullString)
 		case *string:

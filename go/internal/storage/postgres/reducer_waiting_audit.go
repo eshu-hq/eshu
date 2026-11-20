@@ -293,7 +293,7 @@ func AuditWaitingItems(
 		satisfied, err := waitingSatisfied(
 			ctx, database, row.kind,
 			scopeID, generationID, producerDomain,
-			row.key.EnqueuedAt, row.workItemID, row.key.Domains, row.firstSeen,
+			row.key.EnqueuedAt, row.workItemID, row.key.Domains, row.key.BlockingScopeIDs, row.firstSeen,
 		)
 		if err != nil {
 			return reopened, reconciled, missed, err

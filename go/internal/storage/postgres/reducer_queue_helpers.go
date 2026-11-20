@@ -300,7 +300,9 @@ func (q ReducerQueue) failIntent(
 			))
 		}
 		if parkWait {
-			if _, err := setAsideWaiting(ctx, q.database, q.Instruments, intent, waitEntry, parkDomains, now); err != nil {
+			// #10877/#11000: the narrowed corpus wait keys on the cause,
+			// else the per-domain producer wait.
+			if _, err := setAsideWaitingForCause(ctx, q.database, q.Instruments, intent, waitEntry, cause, parkDomains, now); err != nil {
 				return fmt.Errorf("park waiting reducer work: %w", err)
 			}
 		}

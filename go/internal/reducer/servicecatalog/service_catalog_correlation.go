@@ -115,6 +115,11 @@ type ServiceCatalogCorrelationHandler struct {
 	// It is optional: a nil loader leaves the generation ownership-only,
 	// preserving the Stage-1 contract.
 	DeploymentRelationshipLoader CorpusFencedResolvedRelationshipLoader
+	// ReopenFingerprintRecorder stores the narrowed read's input fingerprint
+	// on success, after every generation commit, so the deferred-maintenance
+	// reopen can restart the item when a late-arriving scope changes its
+	// input (#10877 parity with #8283). Nil records nothing.
+	ReopenFingerprintRecorder reducercontract.ServiceCatalogCorrelationReopenFingerprintRecorder
 	// RuntimeInstanceLoader, when set alongside MaterializationWriter, supplies the
 	// materialized runtime instances for each correlated service's repository so
 	// the runtime evidence family (#1986) is materialized into the same generation
@@ -214,7 +219,7 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	// open fence defers the intent with nothing written, so the retry never
 	// re-writes correlation facts and never commits a service generation
 	// built from a partial resolved set.
-	serviceWrites, err := h.prepareServiceMaterializations(ctx, intent, decisions)
+	serviceWrites, resolvedFingerprint, resolvedFingerprinted, err := h.prepareServiceMaterializations(ctx, intent, decisions)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
@@ -234,6 +239,9 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 	if err := h.commitServiceGenerations(ctx, serviceWrites, decisions); err != nil {
 		return reducercontract.Result{}, fmt.Errorf("commit service materialization generations: %w", err)
 	}
+	if err := h.recordServiceCatalogReopenFingerprint(ctx, intent, resolvedFingerprint, resolvedFingerprinted); err != nil {
+		return reducercontract.Result{}, err
+	}
 
 	return reducercontract.Result{
 		IntentID:        intent.IntentID,
@@ -243,36 +251,6 @@ func (h ServiceCatalogCorrelationHandler) Handle(ctx context.Context, intent red
 		CanonicalWrites: writeResult.FactsWritten,
 		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
-}
-
-// prepareServiceMaterializations builds the per-service ownership writes and
-// attaches the corpus-fenced deployment and dependency families and the
-// readiness-fenced runtime family. It performs reads only, so Handle runs it
-// before any write; an open corpus fence or runtime fence returns its
-// retryable deferral unwrapped. It returns nil writes when
-// MaterializationWriter is nil, preserving the existing correlation contract.
-func (h ServiceCatalogCorrelationHandler) prepareServiceMaterializations(
-	ctx context.Context,
-	intent reducercontract.Intent,
-	decisions []ServiceCatalogCorrelationDecision,
-) ([]ServiceMaterializationWrite, error) {
-	if h.MaterializationWriter == nil {
-		return nil, nil
-	}
-	writes := buildServiceOwnershipMaterializations(intent.IntentID, intent.ScopeID, decisions)
-	if err := h.attachServiceRelationshipEvidence(ctx, intent.ScopeID, intent.GenerationID, writes, decisions); err != nil {
-		return nil, err
-	}
-	// The runtime fence and read run after the corpus fence and before any
-	// write (#7816): an in-flight WorkloadInstance producer defers the intent
-	// with nothing written, and the read never runs while the fence is open.
-	if err := h.checkServiceRuntimeReadiness(ctx, intent, writes, decisions); err != nil {
-		return nil, err
-	}
-	if err := h.attachServiceRuntimeEvidence(ctx, writes, decisions); err != nil {
-		return nil, err
-	}
-	return writes, nil
 }
 
 // commitServiceGenerations writes the additive per-service evidence generation

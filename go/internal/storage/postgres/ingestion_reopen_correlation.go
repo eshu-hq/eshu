@@ -78,6 +78,8 @@ import (
 //     hit at all. The writer's stable fact key makes the replay idempotent.
 var crossScopeCorrelationReopenDomains = []reducercontract.Domain{
 	reducer.DomainDeployableUnitCorrelation,
+	reducer.DomainWorkloadMaterialization,
+	reducer.DomainServiceCatalogCorrelation,
 	reducer.DomainKubernetesCorrelationMaterialization,
 	reducer.DomainContainerImageIdentity,
 	reducer.DomainAWSCloudRuntimeDrift,
@@ -162,7 +164,8 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 // reopenCorrelationDomain lists and reopens the succeeded work items of one
 // correlation domain as one relationship.backfill.reopen block. The correlation
 // domains are not gated on the partition memo, so skipped_by_memo is always 0.
-// deployable_unit_correlation (#8283), aws_cloud_runtime_drift (#10878),
+// deployable_unit_correlation (#8283), workload_materialization and
+// service_catalog_correlation (#10877), aws_cloud_runtime_drift (#10878),
 // and container_image_identity (#10878) are behind the changed-evidence
 // gate: their listings return each candidate's input_changed verdict, and
 // the unchanged ones are counted as skipped_unchanged instead of re-opened.
@@ -181,7 +184,8 @@ func (s IngestionStore) reopenCorrelationDomain(
 	}()
 
 	var workItemIDs []string
-	gated := domain == string(reducer.DomainDeployableUnitCorrelation) ||
+	gatedQuery, mapGated := backfill.ListCorpusReopenCandidatesQueries[domain]
+	gated := mapGated ||
 		domain == string(reducer.DomainAWSCloudRuntimeDrift) ||
 		domain == string(reducer.DomainContainerImageIdentity)
 	if gated {
@@ -191,7 +195,7 @@ func (s IngestionStore) reopenCorrelationDomain(
 		case string(reducer.DomainContainerImageIdentity):
 			workItemIDs, skippedUnchanged, err = listContainerIdentityReopenCandidates(ctx, s.database, domain)
 		default:
-			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidates(ctx, s.database, domain)
+			workItemIDs, skippedUnchanged, err = listCorpusReopenCandidates(ctx, s.database, gatedQuery, domain)
 		}
 	} else {
 		workItemIDs, err = listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
@@ -222,6 +226,21 @@ func (s IngestionStore) reopenCorrelationDomain(
 	return nil
 }
 
+// listCorpusReopenCandidates runs one domain's changed-evidence listing and
+// returns the items to re-open plus the count left succeeded.
+func listCorpusReopenCandidates(
+	ctx context.Context,
+	queryer db.Queryer,
+	query string,
+	domain string,
+) ([]string, int, error) {
+	rows, err := queryer.QueryContext(ctx, query, domain)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list %s reopen candidates: %w", domain, err)
+	}
+	return backfill.ScanDeployableUnitReopenCandidates(rows)
+}
+
 // listDeployableUnitReopenCandidates runs the changed-evidence listing and
 // returns the items to re-open plus the count left succeeded (#8283).
 func listDeployableUnitReopenCandidates(
@@ -229,11 +248,7 @@ func listDeployableUnitReopenCandidates(
 	queryer db.Queryer,
 	domain string,
 ) ([]string, int, error) {
-	rows, err := queryer.QueryContext(ctx, backfill.ListDeployableUnitReopenCandidatesQuery, domain)
-	if err != nil {
-		return nil, 0, fmt.Errorf("list %s reopen candidates: %w", domain, err)
-	}
-	return backfill.ScanDeployableUnitReopenCandidates(rows)
+	return listCorpusReopenCandidates(ctx, queryer, backfill.ListDeployableUnitReopenCandidatesQuery, domain)
 }
 
 func listSucceededReducerWorkItemIDsForDomain(

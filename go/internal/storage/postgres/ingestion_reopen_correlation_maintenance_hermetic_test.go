@@ -179,14 +179,24 @@ func runHermeticDeferredMaintenanceObserved(
 // genuinely gone.
 //
 // deployable_unit_correlation issues the changed-evidence listing (#8283),
-// which composes the same floor fragments, so both shipped constants count.
-// aws_cloud_runtime_drift and container_image_identity issue their own
-// changed-evidence listings (#10878), so all four shipped constants count.
+// which composes the same floor fragments, so the shipped constants count.
+// The narrowed domains issue their own gated listings (#10877), and
+// aws_cloud_runtime_drift and container_image_identity issue theirs
+// (#10878); all count the same way, matched by identity with the
+// production constants.
 func isCorrelationListing(query string) bool {
-	return query == listSucceededReducerWorkItemsByDomainQuery ||
+	if query == listSucceededReducerWorkItemsByDomainQuery ||
 		query == backfill.ListDeployableUnitReopenCandidatesQuery ||
 		query == backfill.ListAWSDriftReopenCandidatesQuery ||
-		query == listContainerIdentityReopenCandidatesQuery
+		query == listContainerIdentityReopenCandidatesQuery {
+		return true
+	}
+	for _, gated := range backfill.ListCorpusReopenCandidatesQueries {
+		if query == gated {
+			return true
+		}
+	}
+	return false
 }
 
 // correlationListingDomains returns the $1 domain argument of every correlation

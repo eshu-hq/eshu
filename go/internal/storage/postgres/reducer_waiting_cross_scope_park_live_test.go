@@ -291,3 +291,39 @@ func TestCrossScopeProducerAuditSatisfiesQuiescentWaitLive(t *testing.T) {
 		t.Fatalf("wait keys after audit = %q, want none", keys)
 	}
 }
+
+// TestCrossScopeProducerWaitForCauseThreadsDomainsLive pins the
+// #10877/#11000 union seam (R2): a ProducerNotReady cause through
+// setAsideWaitingForCause with explicit domains parks per-domain rows,
+// never a scope-pinned row. A regression that drops the producerDomains
+// threading parks nothing (the empty-domain producer branch keeps the
+// legacy single-key path only for entries that name a domain), so parked
+// stays false and the key assertion never runs.
+func TestCrossScopeProducerWaitForCauseThreadsDomainsLive(t *testing.T) {
+	ctx := context.Background()
+	base, _ := openWaitingDB(t, ctx)
+	clock := time.Now().UTC().Truncate(time.Second)
+
+	consumerScope := "waiting-union-consumer"
+	addOwnGateGenerationSeed(t, ctx, base, consumerScope, "g0", "g1", clock)
+	busyProducerScope(t, ctx, base, "waiting-union-producer", scope.CollectorOCIRegistry, "p0", "p1", "union-keeper", clock)
+	addOwnGateItem(t, ctx, base, "wait-union-direct", consumerScope, "g1", reducer.DomainCICDRunCorrelation, clock)
+	_, intent := claimWaitingRow(t, ctx, base, &clock, reducer.DomainCICDRunCorrelation)
+
+	entry, ok := WaitingDeferralByClass()[crossscope.ProducerNotReadyFailureClass]
+	if !ok {
+		t.Fatal("no deferral entry for the cross-scope producer class")
+	}
+	cause := crossScopeProducerNotReady(reducer.DomainCICDRunCorrelation,
+		intent.ScopeID, intent.GenerationID, reducer.DomainContainerImageIdentity)
+	parked, err := setAsideWaitingForCause(ctx, SQLDB{DB: base}, nil, intent, entry,
+		cause, []reducercontract.Domain{reducer.DomainContainerImageIdentity}, clock)
+	if err != nil || !parked {
+		t.Fatalf("setAsideWaitingForCause with domains = (%v, %v), want (true, nil)", parked, err)
+	}
+	keys := crossScopeWaitKeys(t, ctx, base, "wait-union-direct")
+	if len(keys) != 1 {
+		t.Fatalf("wait keys = %q, want exactly one domain-only key", keys)
+	}
+	assertDomainOnlyKey(t, keys[0], string(reducer.DomainContainerImageIdentity))
+}

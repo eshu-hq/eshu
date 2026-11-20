@@ -108,11 +108,15 @@ FRAGMENT_NAMES = (
 # part5 (502 lines over the 499 budget) while part6 has 7 lines of headroom
 # left, so the fourth cut moves one entry later into part4 (part4 477
 # lines, part5 back to 497 with no seed row); six fragments pinned.
+# Rebalanced 2026-11-20 for #10877 (rebase onto 04ca0abc82): the audit-clock
+# and scope-idx enrollments push part5 to 507 lines. The fourth cut moves two
+# entries later into part4 (part4 487 lines, part5 back to 497 with no seed
+# row); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/migration_169_reader_bound_live_test.go",
+    "go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

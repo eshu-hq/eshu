@@ -149,7 +149,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	}
 	// The corpus fence and the foreign read share one statement snapshot when
 	// the store offers it (#6740); see the workload loader for the rationale.
-	read, err := readDeployableUnitResolvedInput(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
+	read, err := readDeployableUnitRestrictedInput(ctx, h.ResolvedLoader, h.ResolutionsCompleteLookup, intent, candidates)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
 	}

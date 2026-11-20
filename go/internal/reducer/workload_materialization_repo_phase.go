@@ -268,6 +268,26 @@ type repositoryEdgeKeepSource struct {
 	environments map[string][]string
 }
 
+// recordWorkloadMaterializationReopenFingerprint stores the narrowed read's
+// input fingerprint on a run that is about to succeed, fenced on its exact
+// claim (#10877 parity with the deployable-unit #8283 path). A nil recorder,
+// an unfingerprinted read, or an unclaimed run records nothing.
+func (h WorkloadMaterializationHandler) recordWorkloadMaterializationReopenFingerprint(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	inputs WorkloadProjectionInputs,
+) error {
+	if h.ReopenFingerprintRecorder == nil || !inputs.ResolvedFingerprinted || intent.ClaimedAt == nil {
+		return nil
+	}
+	if err := h.ReopenFingerprintRecorder.RecordWorkloadMaterializationReopenFingerprint(
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), inputs.ResolvedFingerprint,
+	); err != nil {
+		return fmt.Errorf("record workload materialization reopen fingerprint: %w", err)
+	}
+	return nil
+}
+
 // loadProjectionInputs loads this intent's inputs and the retract keep source.
 // A nil InputLoader uses the correlated loader, which supplies scope truth.
 func (h WorkloadMaterializationHandler) loadProjectionInputs(

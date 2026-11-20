@@ -488,6 +488,19 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// default to no candidates, like the listings above.
 		return &queueFakeRows{}, nil
 	}
+	if query == backfill.ListCorpusReopenCandidatesQueries["workload_materialization"] ||
+		query == backfill.ListCorpusReopenCandidatesQueries["service_catalog_correlation"] {
+		// The narrowed gated listings (#10877): default to no candidates,
+		// like the deployable_unit_correlation listing above. Matched by
+		// identity with the production constants.
+		return &queueFakeRows{}, nil
+	}
+	if query == reopenWaitingRowsQuery || query == wakeNarrowedCorpusWaitsForScopeQuery {
+		// The waiting wakes (coarse #10876, narrowed #10877): no parked
+		// waits in these fixtures, so both report a zero wake. Matched by
+		// identity with the production constants.
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
+	}
 	if query == listSucceededReducerWorkItemsByDomainQuery {
 		// Cross-scope correlation reopen listing (one call per domain in
 		// CrossScopeCorrelationReopenDomains, now issued on the ingester's

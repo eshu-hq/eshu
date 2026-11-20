@@ -102,6 +102,7 @@ TABLE = {
             "TestCrossScopeProducerWaitReopensOnReducerAckLive",
             "TestCrossScopeProducerWaitReopensOnProjectorActivationLive",
             "TestCrossScopeProducerAuditSatisfiesQuiescentWaitLive",
+            "TestCrossScopeProducerWaitForCauseThreadsDomainsLive",
         ),
         "go/internal/storage/postgres/reducer_waiting_cross_scope_race_live_test.go": (
             "TestCrossScopeProducerConcurrentWakeRaceLive",
@@ -110,6 +111,11 @@ TABLE = {
             "TestWaitingSetAsideParksWithBackstopLive",
             "TestWaitingBothOrdersEquivalenceLive",
             "TestWaitingAuditFindsMissedWakeLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_narrow_live_test.go": (
+            "TestNarrowedWaitSelectiveWakeLive",
+            "TestNarrowedWaitAuditReopensSatisfiedLive",
+            "TestNarrowedWaitConcurrentConvergenceLive",
         ),
         "go/internal/storage/postgres/reducer_waiting_race_live_test.go": (
             "TestWaitingConcurrentClaimAndWakeLive",
@@ -138,6 +144,10 @@ TABLE = {
             "TestCompletionWakeRunningItemReplayBitLive",
             "TestCompletionWakeClaimedMissingFingerprintNotFlaggedLive",
             "TestCompletionWakeRetryConvergesAfterLostWakeLive",
+        ),
+        "go/internal/storage/postgres/relationship_store_restricted_fence_live_test.go": (
+            "TestRestrictedFenceBlockingScopesLive",
+            "TestRestrictedFenceReadMatchesGlobalLive",
         ),
         "go/internal/storage/postgres/reopen_stamp_grace_live_test.go": (
             "TestDeadLetterReplayGetsBoundedFreshReadinessGraceLive",

@@ -60,9 +60,11 @@ type DeployableUnitCorrelationWaker interface {
 	ReopenDeployableUnitCorrelationsForRepos(ctx context.Context, repoIDs []string) (CompletionWakeResult, error)
 }
 
-// wakeDeployableUnitCorrelations reopens the deployable_unit_correlation
-// items whose recorded input no longer holds over this pass's repository
-// scope (#8294). It runs on every pass that resolved rows, never gated on
+// wakeDeployableUnitCorrelations reopens the gated correlation items
+// (deployable_unit_correlation plus workload_materialization and
+// service_catalog_correlation, #10877) whose recorded input no longer holds
+// over this pass's repository scope (#8294). It runs on every pass that
+// resolved rows, never gated on
 // Inserted: the per-row inserts autocommit before the wake, so a pass whose
 // wake failed (or that crashed between upsert and wake) retries with
 // Inserted 0, and only re-running the wake lets that retry converge. The
@@ -84,7 +86,7 @@ func (h *CrossRepoRelationshipHandler) wakeDeployableUnitCorrelations(
 		return fmt.Errorf("reopen deployable_unit_correlation items for appended resolved rows: %w", err)
 	}
 	slog.InfoContext(
-		ctx, "cross-repo completion wake reopened deployable_unit_correlation items",
+		ctx, "cross-repo completion wake reopened gated correlation items",
 		log.ScopeID(scopeID),
 		log.GenerationID(generationID),
 		log.Domain("cross_repo_resolution"),

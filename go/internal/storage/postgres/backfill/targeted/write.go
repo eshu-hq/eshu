@@ -175,15 +175,22 @@ func (s Store) ReopenTargetedMaintenanceWorkItems(
 	}
 	for _, domain := range s.CorrelationDomains {
 		block := startTargetedReopenBlock(ctx, tracer)
-		// deployable_unit_correlation alone is behind the changed-evidence
-		// gate (#8283); the other correlation domains keep their
-		// unconditional partition-scoped reopen.
+		// The gated domains sit behind the changed-evidence gate (#8283,
+		// #10877); the other correlation domains keep their unconditional
+		// partition-scoped reopen.
 		var workItemIDs []string
 		skippedUnchanged := 0
-		if domain == string(reducer.DomainDeployableUnitCorrelation) {
+		switch domain {
+		case string(reducer.DomainDeployableUnitCorrelation):
 			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidatesForPartitions(
 				ctx, tx, domain, affected, s.Queries.DeployableUnit)
-		} else {
+		case string(reducer.DomainWorkloadMaterialization):
+			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidatesForPartitions(
+				ctx, tx, domain, affected, s.Queries.WorkloadMaterialization)
+		case string(reducer.DomainServiceCatalogCorrelation):
+			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidatesForPartitions(
+				ctx, tx, domain, affected, s.Queries.ServiceCatalogCorrelation)
+		default:
 			workItemIDs, err = listSucceededReducerWorkItemIDsForDomainAndPartitions(ctx, tx, domain, affected, s.Queries.Correlation)
 		}
 		if err != nil {
