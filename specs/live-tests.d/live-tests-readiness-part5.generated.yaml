@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/membership/observations_sweep_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7774/#7840 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); not_listed rows of a selector whose cycle marker is fresh are never deleted, so a guard-tripped selector whose rows all expired still evaluates instead of tripping the mass-miss guard, while not_listed rows of abandoned selectors (stale or missing marker) are reclaimed and counted apart; a reclaimed selector that revives re-confirms from pending below the mass-miss guard threshold and trips like a first-ever evaluation above it until the drift shrinks; a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.70-1.97s of test time on postgres:18.6 on 2026-10-09; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/migration_169_reader_bound_live_test.go
     tag: ~
     class: postgres_ci
@@ -43,6 +38,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#9777 step 2 disposable PostgreSQL proof that the change-driven replan folds end to end: changed records union the stored names, resolve to the same owned targets the production reader and planner derive (npm scopes, Maven group:artifact via package_id, PyPI normalization, Go case, swift path), withdrawn records retract through the same path, and the drain commits exactly the covered rows with the watermark over them; isolated bootstrap schema"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/osv_slot_supersession_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9432 proof that two consecutive windows over one pinned _slot scope leave exactly one active generation: window one's generation superseded, window two's active with active_generation_id pointing at it, and the active fact union equal to window two's targets; untagged and gated by the projector claim proof DSN env Skip; Postgres only; about 5s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/owned_package_resolver_live_test.go
     tag: ~

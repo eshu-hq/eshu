@@ -46,6 +46,9 @@ TABLE = {
         "go/internal/storage/postgres/osv_delta_replan_live_test.go": (
             "TestOSVDeltaReplanFoldingDifferentialLive",
         ),
+        "go/internal/storage/postgres/osv_slot_supersession_live_test.go": (
+            "TestProjectorAckSupersedesSlotScopePredecessor",
+        ),
         "go/internal/storage/postgres/owned_package_resolver_live_test.go": (
             "TestResolveOwnedPackageNamesDifferentialLive",
             "TestResolveOwnedPackageNamesMatchesTheFeedLive",
