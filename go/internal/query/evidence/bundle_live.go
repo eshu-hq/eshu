@@ -70,11 +70,16 @@ func (h *Handler) getLiveEvidenceBundle(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Retain the existing collector fact and registry selections. The live
-	// bundle does not expose Terraform-state serials or warnings, so omit only
-	// those reads; required status reads and their errors remain unchanged.
-	selection := status.FullSnapshotSelection()
-	selection.SkipTerraformStateEvidence = true
+	// The live bundle renders collector readbacks but never renders registry
+	// collector snapshots, so it reads collector fact evidence while skipping
+	// the registryMetadataTargetStatusQuery scan over fact_records (#10973).
+	// The live bundle does not expose Terraform-state serials or warnings, so
+	// omit those reads too; required status reads and their errors remain
+	// unchanged.
+	selection := status.SnapshotSelection{
+		IncludeCollectorFactEvidence: true,
+		SkipTerraformStateEvidence:   true,
+	}
 	_, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), selection)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, liveEvidenceBundleCapability) {

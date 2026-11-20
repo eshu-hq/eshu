@@ -44,13 +44,32 @@ func loadStatusReportFiltered(
 
 // operatorStatusSelection is the snapshot selection for status routes that
 // render collector, queue, health, readiness, or governance sections from the
-// full report but never read Report.TerraformState: operations, hosted
-// readiness, operator control plane, freshness causality, collectors,
-// collector readiness, governance, and answer narration. It omits only the
+// full report but never read Report.TerraformState or the registry collector
+// snapshots: operations, hosted readiness, operator control plane, collectors,
+// collector readiness, governance, and answer narration. It omits the
 // Terraform-state serial and warning reads (#7009), so a failure in those reads
 // no longer fails these routes and they skip the warning scan over fact_records.
+// It also omits the registry collector snapshots: no route served through this
+// selection renders RegistryCollectors (only status.RenderJSON/RenderText admin
+// surfaces do, and they do not use this selection), so every snapshot skips the
+// registryMetadataTargetStatusQuery scan over fact_records. At the QA shape
+// (~89M fact_records rows) that scan alone costs ~0.9s warm on a read replica
+// against the 5s statusSnapshotLimit, tripping 500s on slow samples (#10973).
 func operatorStatusSelection() status.SnapshotSelection {
-	return status.FullSnapshotSelection().WithoutTerraformStateEvidence()
+	return status.SnapshotSelection{
+		IncludeCollectorFactEvidence: true,
+		SkipTerraformStateEvidence:   true,
+	}
+}
+
+// causalityStatusSelection is the snapshot selection for GET
+// /api/v0/status/freshness-causality, which renders generations, transitions,
+// domain backlogs, queue, and coordinator sections only: neither collector
+// fact evidence nor registry snapshots (#10973).
+func causalityStatusSelection() status.SnapshotSelection {
+	return status.SnapshotSelection{
+		SkipTerraformStateEvidence: true,
+	}
 }
 
 // ingesterStatusSelection is the snapshot selection for the ingester list and

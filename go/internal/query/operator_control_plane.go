@@ -37,8 +37,8 @@ const operatorControlPlaneDomainLimit = 256
 // collector-family promotion verdicts with the newest proof artifact, and
 // dead-letter state classed by reducer domain and collector-generation commit.
 // It loads exactly one status snapshot (the /api/v0/status/pipeline read path
-// without the Terraform-state reads it never renders) and projects it in
-// memory, adding no database cost.
+// without the Terraform-state and registry reads it never renders) and
+// projects it in memory, adding no database cost.
 //
 // Scoped tokens receive the same aggregate counts with raw correlation IDs and
 // instance-scoped labels redacted; shared tokens see the full read model.
