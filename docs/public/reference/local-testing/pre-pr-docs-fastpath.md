@@ -193,7 +193,6 @@ no-private-identifiers
 capability-inventory-docs
 docs-catalog-metadata
 required-doc-sections
-docs-prose-quality
 docs-contradiction
 docs-refs
 measurement-citations

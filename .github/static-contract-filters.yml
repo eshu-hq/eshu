@@ -304,6 +304,17 @@ docsclienvrefs:
   - 'scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh'
   - 'scripts/docs-cli-env-refs-baseline.txt'
   - 'scripts/docs-cli-env-refs-ceiling.txt'
+mcpclientauthdoc:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - 'docs/public/operate/mcp-client-auth.md'
+  - 'go/internal/cli/mcpsetup/doc_lockstep_test.go'
+  - 'go/internal/cli/mcpsetup/snippet.go'
+  - 'go/internal/cli/mcpsetup/setup.go'
+  - 'scripts/verify-mcp-client-auth-doc.sh'
+  - 'scripts/test-verify-mcp-client-auth-doc.sh'
 querydoccommitrefs:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

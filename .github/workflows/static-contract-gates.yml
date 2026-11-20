@@ -62,6 +62,7 @@ jobs:
       changelogunreleased: ${{ steps.filter.outputs.changelogunreleased }}
       docsrefs: ${{ steps.filter.outputs.docsrefs }}
       docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
+      mcpclientauthdoc: ${{ steps.filter.outputs.mcpclientauthdoc }}
       querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
       doccitations: ${{ steps.filter.outputs.doccitations }}
       movedfilerefs: ${{ steps.filter.outputs.movedfilerefs }}
@@ -162,6 +163,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.changelogunreleased }}" "changelogunreleased" "Verify changelog-unreleased gate" "bash scripts/test-verify-changelog-unreleased.sh && bash scripts/test-changelog-union-merge.sh" "bash scripts/verify-changelog-unreleased.sh" "changelog-unreleased"
           append_gate "${{ steps.filter.outputs.docsrefs }}" "docsrefs" "Verify docs-refs gate" "bash scripts/test-verify-docs-refs.sh" "bash scripts/verify-docs-refs.sh" "docs-refs"
           append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh" "docs-cli-env-refs"
+          append_gate "${{ steps.filter.outputs.mcpclientauthdoc }}" "mcpclientauthdoc" "Verify MCP client-auth doc gate" "bash scripts/test-verify-mcp-client-auth-doc.sh" "bash scripts/verify-mcp-client-auth-doc.sh" "mcp-client-auth-doc"
           append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh" "query-doc-commit-refs"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh" "doc-citations"
           append_gate "${{ steps.filter.outputs.movedfilerefs }}" "movedfilerefs" "Verify moved-file-refs gate" "bash scripts/test-verify-moved-file-refs.sh" "bash scripts/verify-moved-file-refs.sh" "moved-file-refs"
