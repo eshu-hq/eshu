@@ -22,7 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// GoVulnerabilityReachability names one of the five Go-vulnerability
+// GoVulnerabilityReachability names one of the six Go-vulnerability
 // reachability levels Eshu publishes per (advisory, module, repository) tuple.
 type GoVulnerabilityReachability string
 
@@ -47,6 +47,14 @@ const (
 	// available evidence (for example, a govulncheck run with imports-only
 	// analysis or a finding without trace data).
 	GoVulnReachabilityUnknown GoVulnerabilityReachability = "unknown"
+	// GoVulnReachabilityAnalysisFailed means a govulncheck scan that should
+	// have produced reachability evidence for this finding did not finish:
+	// the reducer joined at least one unfinished-scan scanner_worker.warning
+	// for the finding's scope, and the underlying fact state (not_called,
+	// module_only, or unknown) cannot be trusted. A finished scan's
+	// reachable verdict (symbol or import level) is never rewritten: the
+	// fact wins over any joined warning.
+	GoVulnReachabilityAnalysisFailed GoVulnerabilityReachability = "analysis_failed"
 )
 
 // GoVulnerabilityFinding is the reducer-owned classification for one Go
@@ -155,6 +163,10 @@ type GoVulnerabilityCallFrame struct {
 //  4. module_only          — module evidence exists for the vulnerable module
 //     but no govulncheck reachability evidence is available.
 //  5. unknown              — module evidence is missing or partial.
+//  6. analysis_failed      — an unfinished-scan warning joined the finding
+//     while its fact state was not_called, module_only, or unknown; the
+//     unfinished scan's verdict is untrustworthy. Reachable fact states
+//     (symbol or import level) are never rewritten by a joined warning.
 func ClassifyGoVulnerabilityReachability(envelopes []facts.Envelope) []GoVulnerabilityFinding {
 	findings, _, _ := classifyGoVulnerabilityReachabilityWithQuarantine(envelopes)
 	return findings
@@ -228,13 +240,16 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 				finding.MissingEvidence = append(finding.MissingEvidence, "advisory affected-range evidence missing")
 				sort.Strings(finding.MissingEvidence)
 			}
-			// An unfinished go_reachability scan names its failure class
-			// on the findings of its scope (#10029 R2, #11002): the scan
-			// produced no reachability fact, so without this join the
-			// verdict reads as a bare evidence gap with no cause. A warning
-			// with a blank relative_path covers the repository; a warning
-			// naming a go.mod joins only the findings whose module evidence
-			// rows include that file.
+			// An unfinished go_reachability scan rewrites an untrustworthy
+			// verdict to analysis_failed (#10043): the scan produced no
+			// reachability fact for the finding's scope, so a not_called,
+			// module_only, or unknown verdict cannot be trusted. A
+			// finished scan's reachable verdict (symbol or import level)
+			// wins untouched: the fact stands and the warning stays out
+			// of MissingEvidence. A warning with a blank relative_path
+			// covers the repository; a warning naming a go.mod joins only
+			// the findings whose module evidence rows include that file
+			// (#10029 R2, #11002).
 			if finding.RepositoryID != "" {
 				if warnings := warningsByRepo[finding.RepositoryID]; len(warnings) > 0 {
 					joined := make([]string, 0, len(warnings))
@@ -248,8 +263,24 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 						joined = append(joined, warning.message)
 					}
 					if len(joined) > 0 {
-						finding.MissingEvidence = append(finding.MissingEvidence, payloadcore.UniqueSortedStrings(joined)...)
-						sort.Strings(finding.MissingEvidence)
+						switch finding.Reachability {
+						case GoVulnReachabilitySymbolReachable, GoVulnReachabilityPackageImportReachable:
+							// A finished scan proved reachability: the fact
+							// wins, so the warning neither flips the
+							// verdict nor names missing evidence.
+						case GoVulnReachabilityNotCalled, GoVulnReachabilityModuleOnly, GoVulnReachabilityUnknown:
+							finding.Reachability = GoVulnReachabilityAnalysisFailed
+							finding.Reason = "govulncheck scan did not finish, so Eshu cannot classify reachability"
+							finding.MissingEvidence = append(finding.MissingEvidence, payloadcore.UniqueSortedStrings(joined)...)
+							finding.MissingEvidence = append(finding.MissingEvidence, "govulncheck call-graph evidence missing")
+							finding.MissingEvidence = payloadcore.UniqueSortedStrings(finding.MissingEvidence)
+							sort.Strings(finding.MissingEvidence)
+						default:
+							// Any other verdict keeps its fact state: only the
+							// three known untrustworthy states flip to
+							// analysis_failed. Listed so the switch stays
+							// exhaustive over GoVulnerabilityReachability.
+						}
 					}
 				}
 			}

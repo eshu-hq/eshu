@@ -129,11 +129,26 @@ changing anything here.
   emitter (eshu-scanner-worker) must never write `import` or `module` for a
   symbol-level scan. `stdlib` advisories have no `go_module_evidence` row, so
   they produce no impact finding. A failed govulncheck run emits no
-  reachability fact and reads `unknown`; the reducer joins the run's
+  reachability fact; when the reducer joins the run's
   `scanner_worker.warning` (emitter-stamped `repository_id`, unfinished
-  `analysis_status`, `go_reachability` analyzer) into the finding as
-  `govulncheck scan <reason>`, which rides `Reachability.MissingEvidence`
-  to every read surface (#10029 R2). The join is scoped by the warning's
+  `analysis_status`, `go_reachability` analyzer) into a finding whose fact
+  state is `not_called`, `module_only`, or `unknown`, the verdict reads
+  `analysis_failed` (`Reachability` state `missing_evidence`), with the
+  warning rendered as `govulncheck scan <reason>`, which rides
+  `Reachability.MissingEvidence` to every read surface (#10029 R2, #10043).
+  A reachable fact verdict (`symbol_reachable`,
+  `package_import_reachable`) wins untouched and takes no warning entry.
+  No-Regression Evidence (#10043): throwaway `ClassifyGoVulnerabilityReachability`
+  bench, 200 findings + 1 joined warning, same host (linux/arm64, go1.26.6),
+  base 86b2adcfa7 vs head — finished leg 760us/894KB/10671 allocs vs
+  747us/888KB/10271 allocs (reachable wins, warning no longer appended);
+  failed leg 480us/559KB/6859 allocs vs 505us/581KB/7259 allocs (~125ns and
+  ~110B per flipped finding for one extra append plus the reason string).
+  O(1) extra work per joined finding; the classifier runs once per reducer
+  pass. No-Observability-Change: no new metric, span, log key, queue, lane,
+  or knob; the signal rides the existing `Reachability.State` /
+  `RuntimeReachability` fields end to end.
+  The join is scoped by the warning's
   `relative_path` (#11002): blank or whitespace-only keeps repository
   scope, while a non-blank path byte-matches (no trimming, no case or
   separator folding) the `go_module_evidence` rows behind each finding and
