@@ -66,8 +66,51 @@ services:
       core-api:
         condition: service_started
 
+  # Single-backend proof graph (arbiter amendment to #10031): the shared
+  # neo4j overlay is not included (it redefines services with bare build
+  # contexts and profile-gates the coordinator), so the proof defines the
+  # pinned Neo4j service itself and flips the graph writers to it.
+  neo4j:
+    image: neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${ESHU_NEO4J_PASSWORD:-change-me}
+      NEO4J_PLUGINS: '[]'
+      NEO4J_server_memory_heap_initial__size: ${ESHU_NEO4J_HEAP_INITIAL_SIZE:-512m}
+      NEO4J_server_memory_heap_max__size: ${ESHU_NEO4J_HEAP_MAX_SIZE:-512m}
+      NEO4J_server_memory_pagecache_size: ${ESHU_NEO4J_PAGECACHE_SIZE:-512m}
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${ESHU_NEO4J_PASSWORD:-change-me} RETURN 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: on-failure
+
+  db-migrate:
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+  bootstrap-index:
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
   mcp-server:
     # Loopback proof harness only: the high-range host port is still the
     # operator's loopback. Never enable this where the port is public.
     environment:
       ESHU_MCP_ALLOW_UNAUTHENTICATED: "true"
+
+volumes:
+  neo4j_data:
