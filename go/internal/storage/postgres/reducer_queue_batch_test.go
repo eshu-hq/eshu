@@ -290,7 +290,7 @@ func TestClaimBatchOrdersSearchDocumentCatchupAfterGraphTruth(t *testing.T) {
 			t.Fatalf("same-conflict representative window missing search-document deprioritization order %q:\n%s", want, query)
 		}
 	}
-	if !strings.Contains(query, "ORDER BY candidate.reclaim_rank ASC, candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC") {
+	if !strings.Contains(query, "ORDER BY candidate.reclaim_rank ASC, gate_boost ASC, candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC") {
 		t.Fatalf("batch claim query missing domain-priority and fairness ordering:\n%s", query)
 	}
 	// #10568 reserved search-doc slot: the claim carries a bounded

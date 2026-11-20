@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/membership/observations_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7625 disposable PostgreSQL 18 proof of repository selection observations: the org partition read excludes other orgs, repository_ref scopes, and other collectors; over three cycles the stored rows equal membership.Evaluate's projection (a repeated state keeps state_since and adds a cycle, a changed state restarts both); a replayed or older batch changes nothing; explicit selected rows sit beside org rows; and eight writers released by a start barrier (four on one selector, four on a second) neither deadlock nor double-count. Enrolled in the live-postgres-readiness runner; 1.47-1.57s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/membership/observations_sweep_live_test.go
     tag: ~
     class: postgres_ci
@@ -318,6 +313,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8009 queue-fence proof that a stale reducer ACK cannot change its successor's row: the superseded-only ACK is rejected and leaves the row claimed, the duplicate-claim batch acks the survivor, and the expiry-interleave replacement claim completes while the stale heartbeat and ACK are rejected; disposable PostgreSQL databases through postgresproof with the production expiry helper; enrolled in the live-postgres-readiness runner; TestReducerQueueAckBatchFencesSupersededClaimLive 5.30s and TestReducerQueueExpiryInterleaveLive 10.27s (15.9s package) on local PostgreSQL 16.15 on 2026-10-12; CI PostgreSQL 18: TestReducerQueueAckBatchFencesSupersededClaimLive 2.160s and TestReducerQueueExpiryInterleaveLive 2.160s (242/242 PASS) in run 38359196081 on 2026-10-13"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_queue_batch_gate_priority_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10972 drain-gated priority tier: a live generation a gate waits on must win a claim slot ahead of older ordinary backlog (capped at one per batch, FIFO among gating generations), and non-gating relative order plus auto-expiry on drain must hold; disposable PostgreSQL through postgresproof with the production claim path"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go
     tag: ~
