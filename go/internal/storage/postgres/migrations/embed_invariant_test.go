@@ -298,10 +298,16 @@ import (
 // security_alert_reconciliation_keys sidecar and its backfill marker).
 // #10876 adds 316_reducer_waiting_items.sql (the reducer waiting set-aside:
 // one row per parked item keyed by waits_for kind+key, plain table plus two
-// indexes, no queue-table change).
+// indexes, no queue-table change). #10878 adds
+// 317_aws_drift_reopen_fingerprints.sql (the changed-evidence gate for the
+// aws_cloud_runtime_drift reopen: one row per succeeded work item carrying
+// the ARN snapshot and fingerprint, mirroring #8283's 193) and
+// 318_container_identity_reopen_epochs.sql (the same gate for
+// container_image_identity: one row per succeeded work item carrying the
+// fleet identity epoch).
 const (
-	goldenBootstrapDefinitionsDigest = "b4b5aabf6d234148306b1d09a420b48dc92d50339a587b47de60e884225ac945"
-	goldenBootstrapDefinitionsCount  = 342
+	goldenBootstrapDefinitionsDigest = "2a730658b386c4c89914771e9cf2a19a57b2ac15e1180c440b42c84d25f4364c"
+	goldenBootstrapDefinitionsCount  = 344
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

@@ -67,12 +67,32 @@ type activeContainerImageSLSAFactLoader interface {
 	ListActiveContainerImageSLSAFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
+// ContainerIdentityEpochLoader probes the identity epoch the run just
+// read: the count, max observed_at, and ordered-set fingerprint of the
+// active identity set. The FactStore implements it against the same probe
+// query the epoch cache uses, so the recorded value matches the reopen
+// listing's recomputation for identical input.
+type ContainerIdentityEpochLoader interface {
+	ProbeContainerIdentityEpoch(
+		ctx context.Context,
+	) (reducercontract.ContainerIdentityReopenEpoch, error)
+}
+
 // ContainerImageIdentityHandler joins Git/runtime image references with active
 // OCI registry facts and publishes image-reference-keyed identity decisions.
 type ContainerImageIdentityHandler struct {
 	FactLoader  factload.FactLoader
 	Writer      ContainerImageIdentityWriter
 	Instruments *telemetry.Instruments
+	// EpochLoader probes the identity epoch for the reopen fingerprint
+	// record below. Nil disables recording: the run still succeeds, and
+	// the next maintenance pass re-opens the item (absence re-opens,
+	// #10878 decision 4).
+	EpochLoader ContainerIdentityEpochLoader
+	// ReopenFingerprintRecorder stores the probed epoch after the durable
+	// writes, fenced on the run's exact claim (#10878). Nil disables
+	// recording, with the same reopen-on-next-pass consequence.
+	ReopenFingerprintRecorder reducercontract.ContainerIdentityReopenFingerprintRecorder
 	// ProvenanceEdgeWriter projects exact_digest decisions with a resolved
 	// source repository into canonical ContainerImage-[:BUILT_FROM]->
 	// Repository graph edges (issue #5457). When nil the projection is
@@ -211,6 +231,9 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent reduce
 	if err := h.projectEffectiveContainerImageIdentityEdges(ctx, intent, writeResult); err != nil {
 		return reducercontract.Result{}, err
 	}
+	if err := h.recordReopenEpoch(ctx, intent); err != nil {
+		return reducercontract.Result{}, err
+	}
 
 	h.emitCounters(ctx, counts)
 	h.emitRetirementCounters(ctx, writeResult, retirement.HeldByReason)
@@ -238,6 +261,29 @@ func (h ContainerImageIdentityHandler) Handle(ctx context.Context, intent reduce
 		CanonicalWrites: writeResult.CanonicalWrites,
 		SubSignals:      subSignals,
 	}, nil
+}
+
+// recordReopenEpoch stores the identity epoch of a run that is about to
+// succeed, fenced on its exact claim (#10878). It runs after every durable
+// write, so a crash before it leaves the previous row, which no longer
+// matches and re-opens the item. An unclaimed run, or a run without an
+// epoch loader or recorder, records nothing: without a claim there is
+// nothing to fence the write on — the next maintenance pass re-opens the
+// item.
+func (h ContainerImageIdentityHandler) recordReopenEpoch(ctx context.Context, intent reducercontract.Intent) error {
+	if h.ReopenFingerprintRecorder == nil || h.EpochLoader == nil || intent.ClaimedAt == nil {
+		return nil
+	}
+	epoch, err := h.EpochLoader.ProbeContainerIdentityEpoch(ctx)
+	if err != nil {
+		return fmt.Errorf("probe container identity epoch: %w", err)
+	}
+	if err := h.ReopenFingerprintRecorder.RecordContainerIdentityReopenEpoch(
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), epoch,
+	); err != nil {
+		return fmt.Errorf("record container identity reopen epoch: %w", err)
+	}
+	return nil
 }
 
 func (h ContainerImageIdentityHandler) emitRetirementCounters(

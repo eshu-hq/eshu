@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #8283 deployable_unit_correlation changed-evidence gate through the real RunDeferredRelationshipMaintenance on the full bootstrap schema: unchanged input stays succeeded and is counted in eshu_dp_correlation_reopen_skipped_total (G1; on the ungated tree it re-opened, the RED), a dependency generation advance, a row appended under an already-active generation, a missing fingerprint row, a logic-version mismatch, a generation leaving the active set and a new matching scope all re-open (R1-R5), an append outside the repository set re-opens only its reader (G3, forced-change canary), container_image_identity stays ungated, and input that moves between the fenced read and the success write keeps the read-time value and re-opens on the next pass (C2); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 9.7 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #8283 deployable_unit_correlation changed-evidence gate through the real RunDeferredRelationshipMaintenance on the full bootstrap schema: unchanged input stays succeeded and is counted in eshu_dp_correlation_reopen_skipped_total (G1; on the ungated tree it re-opened, the RED), a dependency generation advance, a row appended under an already-active generation, a missing fingerprint row, a logic-version mismatch, a generation leaving the active set and a new matching scope all re-open (R1-R5), an append outside the repository set re-opens only its reader (G3, forced-change canary), the container_image_identity control carries no epoch row so the #10878 gate re-opens it as missing, and input that moves between the fenced read and the success write keeps the read-time value and re-opens on the next pass (C2); isolated schema per subtest from ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN; 9.7 s on local PostgreSQL 18.6 on 2026-10-17; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 import (
@@ -21,9 +21,11 @@ import (
 // The #8283 changed-evidence gate proofs. A succeeded
 // deployable_unit_correlation item re-opens on a maintenance pass only when
 // its fingerprint row is missing or its resolved input changed since the
-// fenced read of its last success; every other cross-scope correlation domain
-// keeps its unconditional reopen. Gated on ESHU_REDUCER_FAIRNESS_PROOF_DSN or
-// ESHU_POSTGRES_DSN, on the full production bootstrap schema.
+// fenced read of its last success. The container_image_identity control item
+// below carries no epoch row, so the #10878 gate treats it as missing and
+// re-opens it: the assertions hold with or without the container gate.
+// Gated on ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN, on the full
+// production bootstrap schema.
 
 // fingerprintGateWorld is the seeded corpus every gate case starts from:
 // consumer scope A (repo-a) whose deployable_unit_correlation item reads
@@ -179,7 +181,7 @@ SET logic_version = logic_version - 1 WHERE work_item_id = 'duc-a'`); err != nil
 				t.Errorf("duc-c status after maintenance = %q, want %q", got, tc.wantC)
 			}
 			if got := workItemStatus(t, ctx, db, "identity-a"); got != "pending" {
-				t.Errorf("container_image_identity status after maintenance = %q, want pending (ungated domain)", got)
+				t.Errorf("container_image_identity status after maintenance = %q, want pending (no epoch row, gate treats missing as changed)", got)
 			}
 			if got := correlationReopenSkippedValue(t, rm, string(reducer.DomainDeployableUnitCorrelation)); got != tc.wantSkipped {
 				t.Errorf("eshu_dp_correlation_reopen_skipped_total{deployable_unit_correlation} = %d, want %d", got, tc.wantSkipped)

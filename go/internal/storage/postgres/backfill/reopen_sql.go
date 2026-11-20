@@ -70,6 +70,12 @@ const ScopeReplayFloorJoins = scopeReplayFloorJoins
 const scopeReplayFloorStage = `WHERE work.stage = 'reducer'
 `
 
+// ScopeReplayFloorStage is scopeReplayFloorStage exported for the
+// container-identity reopen listing, which composes its query in the parent
+// postgres package so it can reuse probeIdentityEpochQuery without a
+// cross-package copy (#10878).
+const ScopeReplayFloorStage = scopeReplayFloorStage
+
 // scopeReplayFloorJoinsAndStage joins the work item to its generation row and
 // the scope's floor row, then opens the WHERE clause on the reducer stage.
 const scopeReplayFloorJoinsAndStage = scopeReplayFloorJoins + scopeReplayFloorStage
@@ -84,6 +90,10 @@ const scopeReplayFloorBound = `  AND work.status = 'succeeded'
       >= (floor.floor_ingested_at, floor.floor_generation_id)
 ORDER BY work.updated_at ASC, work.work_item_id ASC
 `
+
+// ScopeReplayFloorBound is scopeReplayFloorBound exported for the same
+// composer as ScopeReplayFloorStage (see above).
+const ScopeReplayFloorBound = scopeReplayFloorBound
 
 // ListSucceededReducerWorkItemsByDomainQuery selects the succeeded reducer work
 // items for one domain that are still worth replaying. It is the

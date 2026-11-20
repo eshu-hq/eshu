@@ -88,4 +88,12 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// indexes, no queue-table change. 315 is #10875's relationship
 	// lookup keys.
 	"reducer_waiting_items",
+	// Migration 317 (#10878) adds the changed-evidence gate table for the
+	// aws_cloud_runtime_drift reopen: one row per succeeded work item
+	// carrying the ARN snapshot and fingerprint, mirroring #8283's 193.
+	"aws_drift_reopen_fingerprints",
+	// Migration 318 (#10878) adds the same gate for
+	// container_image_identity: one row per succeeded work item carrying
+	// the fleet identity epoch.
+	"container_identity_reopen_epochs",
 }

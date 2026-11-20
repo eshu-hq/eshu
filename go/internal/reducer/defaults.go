@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -436,6 +437,14 @@ type DefaultHandlers struct {
 	// ContainerImageIdentityGenerationCheck disambiguates an activation-epoch miss (issue #6502):
 	// pending defers, superseded acks superseded, missing surfaces loudly. Nil keeps the legacy loud error.
 	ContainerImageIdentityGenerationCheck GenerationFreshnessCheck
+	// ContainerImageIdentityEpochLoader probes the identity epoch for the
+	// reopen fingerprint record (#10878). Nil disables recording: the run
+	// still succeeds, and the next maintenance pass re-opens the item.
+	ContainerImageIdentityEpochLoader containerimage.ContainerIdentityEpochLoader
+	// ContainerImageIdentityReopenRecorder stores the probed epoch after the
+	// durable writes, fenced on the run's exact claim (#10878). Nil
+	// disables recording, with the same reopen-on-next-pass consequence.
+	ContainerImageIdentityReopenRecorder reducercontract.ContainerIdentityReopenFingerprintRecorder
 
 	// PackageProvenanceEdgeWriter projects exact/derived package-ownership and
 	// package-publication decisions into canonical PUBLISHES graph edges

@@ -15,12 +15,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
+
+// AWSDriftSnapshotLoader reads the ARN snapshot of one AWS scope
+// generation: one payload identity per ARN plus the input fingerprint over
+// the snapshot. The Postgres evidence loader implements it against the
+// same payload-hash expression the reopen listing fingerprints, so the
+// recorded value matches the listing's recomputation for identical input.
+type AWSDriftSnapshotLoader interface {
+	LoadAWSDriftARNSnapshot(
+		ctx context.Context,
+		scopeID string,
+		generationID string,
+	) (reducercontract.AWSDriftReopenSnapshot, error)
+}
 
 // AWSCloudRuntimeDriftEvidenceLoader supplies the joined AWS cloud,
 // Terraform-state, and Terraform-config rows classified by the
@@ -125,6 +139,38 @@ type AWSCloudRuntimeDriftHandler struct {
 	// process clock; tests inject a deterministic one. See
 	// AWSCloudRuntimeDriftWrite.EvidenceAsOf.
 	Now func() time.Time
+	// SnapshotLoader reads the ARN snapshot of the generation the run just
+	// classified, for the reopen fingerprint record below. Nil disables
+	// recording: the run still succeeds, and the next maintenance pass
+	// re-opens the item (absence re-opens, #10878 decision 4).
+	SnapshotLoader AWSDriftSnapshotLoader
+	// ReopenFingerprintRecorder stores the ARN snapshot after the durable
+	// write, fenced on the run's exact claim (#10878). Nil disables
+	// recording, with the same reopen-on-next-pass consequence.
+	ReopenFingerprintRecorder reducercontract.AWSDriftReopenFingerprintRecorder
+	// IncrementalPlan narrows one run to its change signal (#10878, first
+	// domain). Nil keeps the full-generation behavior. A delta plan
+	// classifies only the diff's ARNs and bounds EvaluatedARNs to the
+	// diff, so the generation-authoritative retire retracts removed ARNs
+	// without touching untouched ones (never widened, per the
+	// delta-generation dead-letter rule). A skip plan short-circuits in
+	// Handle: it returns a succeeded empty result without loading
+	// evidence. Tests set this field directly to pin handler behavior
+	// under a fixed plan; production leaves it nil and sets
+	// IncrementalPlanSource, which builds the plan per run.
+	IncrementalPlan *AWSDriftIncrementalPlan
+	// IncrementalPlanSource builds the run's plan inside Handle from the
+	// previously recorded snapshot, the fresh load, and the audit clock
+	// (#10878). Nil keeps the static IncrementalPlan (or full behavior
+	// when that is nil too). Production wires AWSDriftIncrementalPlanner
+	// here; a source error fails open to a counted full run.
+	IncrementalPlanSource AWSDriftIncrementalPlanSource
+	// EvidenceCache shares one evidence load per input version across
+	// concurrent workers on the same generation. Nil loads directly.
+	// Production wires one shared cache; the run's fresh snapshot
+	// fingerprint keys the shared load, so a moved version reloads
+	// rather than risk a stale set.
+	EvidenceCache *AWSDriftEvidenceCache
 }
 
 // Handle executes one AWS runtime drift publication intent.
@@ -178,9 +224,33 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 		return reducercontract.Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
 	}
 
-	rows, err := h.EvidenceLoader.LoadAWSCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
+	plan, freshSnapshot, hasFresh := h.resolveIncrementalPlan(ctx, intent, evidenceAsOf)
+	if plan != nil && plan.Mode == AWSDriftIncrementalModeSkip {
+		h.recordIncrementalSkip(ctx, plan)
+		return reducercontract.Result{
+			IntentID:        intent.IntentID,
+			Domain:          intent.Domain,
+			Status:          reducercontract.ResultStatusSucceeded,
+			EvidenceSummary: "aws cloud runtime drift skipped: input unchanged",
+		}, nil
+	}
+
+	inputVersion := ""
+	if hasFresh {
+		inputVersion = freshSnapshot.Fingerprint
+	}
+	rows, err := h.loadDriftEvidenceShared(ctx, intent, inputVersion)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load aws cloud runtime drift evidence: %w", err)
+	}
+
+	// A delta plan narrows the loaded rows to the diff before
+	// classification and bounds the retire set to the diff's keys, so
+	// untouched ARNs are neither reclassified nor retired.
+	evaluatedARNs := evaluatedAWSCloudRuntimeDriftARNs(rows)
+	if plan != nil && plan.Mode == AWSDriftIncrementalModeDelta {
+		rows, _ = FilterAddressedRowsToDiff(rows, plan.Diff)
+		evaluatedARNs = plan.Diff.ChangedKeys()
 	}
 
 	candidates := cloudruntime.BuildCandidates(rows, intent.ScopeID)
@@ -192,6 +262,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
+	h.recordIncrementalClassified(ctx, plan, len(evaluatedARNs))
 
 	decision, err := h.applyStatePendingWaitPostLoad(ctx, readinessSignal, admitted, intent, evidenceAsOf)
 	if err != nil {
@@ -215,7 +286,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 		Summary:       summary,
 		EvidenceAsOf:  evidenceAsOf,
 		FencingToken:  fencingToken,
-		EvaluatedARNs: evaluatedAWSCloudRuntimeDriftARNs(rows),
+		EvaluatedARNs: evaluatedARNs,
 	})
 	if err != nil {
 		if isAWSCloudRuntimeDriftWriteSuperseded(err) {
@@ -225,6 +296,9 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	}
 
 	cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
+	if err := h.recordReopenSnapshot(ctx, intent, freshSnapshot, hasFresh); err != nil {
+		return reducercontract.Result{}, err
+	}
 	h.logAdmittedBatch(ctx, intent, len(candidates), admitted, summary, writeResult.CanonicalWrites, factwrite.Now(h.Now).Sub(evidenceAsOf))
 
 	return reducercontract.Result{
@@ -238,6 +312,44 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 		),
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
+}
+
+// recordReopenSnapshot stores the ARN snapshot of a run that is about to
+// succeed, fenced on its exact claim (#10878). It runs after the durable
+// write, so a crash before it leaves the previous row, which no longer
+// matches and re-opens the item. An unclaimed run, or a run without a
+// recorder, records nothing: without a claim there is nothing to fence the
+// write on — the next maintenance pass re-opens the item. preloaded is the
+// fresh snapshot the run's plan was built from: reusing it records exactly
+// the input the plan diffed instead of reloading the same generation and
+// risking a mid-run input move. Without one the snapshot loads here, which
+// needs the snapshot loader.
+func (h AWSCloudRuntimeDriftHandler) recordReopenSnapshot(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	preloaded reducercontract.AWSDriftReopenSnapshot,
+	hasPreloaded bool,
+) error {
+	if h.ReopenFingerprintRecorder == nil || intent.ClaimedAt == nil {
+		return nil
+	}
+	snapshot := preloaded
+	if !hasPreloaded {
+		if h.SnapshotLoader == nil {
+			return nil
+		}
+		var err error
+		snapshot, err = h.SnapshotLoader.LoadAWSDriftARNSnapshot(ctx, intent.ScopeID, intent.GenerationID)
+		if err != nil {
+			return fmt.Errorf("load aws drift arn snapshot: %w", err)
+		}
+	}
+	if err := h.ReopenFingerprintRecorder.RecordAWSDriftReopenFingerprint(
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), snapshot,
+	); err != nil {
+		return fmt.Errorf("record aws drift reopen fingerprint: %w", err)
+	}
+	return nil
 }
 
 func admittedAWSCloudRuntimeDriftCandidates(evaluation engine.Evaluation) []model.Candidate {

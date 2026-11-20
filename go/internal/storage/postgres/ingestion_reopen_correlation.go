@@ -52,10 +52,9 @@ import (
 //     quiescence, and on the corpus fence, but none of those sees a foreign
 //     scope's resolved rows changing after this item succeeded: success is
 //     never re-opened by the handler itself. The reopen replays it so it reads
-//     the changed rows. It is the one domain here behind the changed-evidence
-//     gate (#8283): a succeeded item re-opens only when its fingerprint row is
-//     missing or no longer matches its current resolved input (see
-//     reopenCorrelationDomain).
+//     the changed rows. It is behind the changed-evidence gate (#8283): a
+//     succeeded item re-opens only when its fingerprint row is missing or no
+//     longer matches its current resolved input (see reopenCorrelationDomain).
 //   - kubernetes_correlation_materialization writes RUNS_IMAGE edges by joining a
 //     live workload's image digest against the cross-scope active OCI manifest
 //     facts. If the OCI registry scope's generation is not active yet the digest
@@ -92,7 +91,10 @@ var crossScopeCorrelationReopenDomains = []reducercontract.Domain{
 // Identity remains because it consumes raw cross-scope OCI facts whose source
 // activation has no reducer-domain ACK event. Its replay ACK then drives CI/CD
 // and supply-chain through durable completion events. CI/CD and supply-chain
-// themselves are deliberately absent from blanket replay.
+// themselves are deliberately absent from blanket replay. Identity is behind
+// the changed-evidence gate (#10878): the gate compares the fleet identity
+// epoch, so a quiet fleet skips the replay while any active-set change still
+// re-opens every recorded item.
 func CrossScopeCorrelationReopenDomains() []string {
 	domains := make([]string, 0, len(crossScopeCorrelationReopenDomains))
 	for _, domain := range crossScopeCorrelationReopenDomains {
@@ -160,9 +162,10 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 // reopenCorrelationDomain lists and reopens the succeeded work items of one
 // correlation domain as one relationship.backfill.reopen block. The correlation
 // domains are not gated on the partition memo, so skipped_by_memo is always 0.
-// deployable_unit_correlation alone is behind the changed-evidence gate
-// (#8283): its listing returns each candidate's input_changed verdict, and the
-// unchanged ones are counted as skipped_unchanged instead of re-opened.
+// deployable_unit_correlation (#8283), aws_cloud_runtime_drift (#10878),
+// and container_image_identity (#10878) are behind the changed-evidence
+// gate: their listings return each candidate's input_changed verdict, and
+// the unchanged ones are counted as skipped_unchanged instead of re-opened.
 func (s IngestionStore) reopenCorrelationDomain(
 	ctx context.Context,
 	tracer trace.Tracer,
@@ -178,9 +181,18 @@ func (s IngestionStore) reopenCorrelationDomain(
 	}()
 
 	var workItemIDs []string
-	gated := domain == string(reducer.DomainDeployableUnitCorrelation)
+	gated := domain == string(reducer.DomainDeployableUnitCorrelation) ||
+		domain == string(reducer.DomainAWSCloudRuntimeDrift) ||
+		domain == string(reducer.DomainContainerImageIdentity)
 	if gated {
-		workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidates(ctx, s.database, domain)
+		switch domain {
+		case string(reducer.DomainAWSCloudRuntimeDrift):
+			workItemIDs, skippedUnchanged, err = listAWSDriftReopenCandidates(ctx, s.database, domain)
+		case string(reducer.DomainContainerImageIdentity):
+			workItemIDs, skippedUnchanged, err = listContainerIdentityReopenCandidates(ctx, s.database, domain)
+		default:
+			workItemIDs, skippedUnchanged, err = listDeployableUnitReopenCandidates(ctx, s.database, domain)
+		}
 	} else {
 		workItemIDs, err = listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
 	}

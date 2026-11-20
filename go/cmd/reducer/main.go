@@ -387,6 +387,11 @@ func buildReducerService(
 		SSMHostBounds:                         loadSSMHostBounds(getenv),
 		ContainerImageIdentityWriter:          containerImageIdentityWriterFor(database),
 		ContainerImageIdentityGenerationCheck: postgres.NewGenerationFreshnessCheck(database),
+		// The reopen epoch record (#10878): the epoch loader is the same
+		// fact store the handler reads, so the recorded epoch is the set
+		// the run classified; the recorder is claim-fenced on the run.
+		ContainerImageIdentityEpochLoader:    factStore,
+		ContainerImageIdentityReopenRecorder: postgres.NewIngestionStore(database),
 		// PackageProvenanceEdgeWriter / ContainerImageProvenanceEdgeWriter
 		// (issue #5457) and ContainerImageDerivedFromEdgeWriter (issue #5460)
 		// share one ProvenanceEdgeWriter instance -- it implements all three
