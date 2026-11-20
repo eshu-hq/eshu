@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -404,5 +405,201 @@ func TestReducerQueue10879OnePerGroupLeaseUnique(t *testing.T) {
 	}
 	if live != 1 {
 		t.Fatalf("lease rows = %d, want exactly the claimed one", live)
+	}
+}
+
+// shippedBackfillSQL reads the committed 323 migration file, and
+// shippedReconcileSQL the committed 324 file, so the test exercises the
+// exact bytes bootstrap runs, not copies.
+func shippedBackfillSQL(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("migrations/323_fact_work_item_leases_backfill.sql")
+	if err != nil {
+		t.Fatalf("read shipped 323 backfill: %v", err)
+	}
+	return string(raw)
+}
+
+func shippedReconcileSQL(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("migrations/324_fact_work_item_leases_reconcile.sql")
+	if err != nil {
+		t.Fatalf("read shipped 324 reconcile: %v", err)
+	}
+	return string(raw)
+}
+
+// TestReducerQueue10879BackfillReconcilesTerminalizedRows proves the shipped
+// 323+324 sequence removes mirror rows whose main row terminalized after
+// the scan (the backfill race): a live row copied by the scan, then
+// finished without mirror cleanup, survives a 323-only re-run (the RED
+// half) and is removed by 324, while live rows keep their mirror entries
+// and the same-key sibling stays claimable.
+func TestReducerQueue10879BackfillReconcilesTerminalizedRows(t *testing.T) {
+	ctx := context.Background()
+	conn, schemaName := setupLeaseTestSchema(t, ctx)
+	now := time.Now().UTC()
+	if seeded := seedReducerQueue10862Replay(t, ctx, conn, schemaName, now); seeded < 8000 {
+		t.Fatalf("seed = %d, want >= 8000", seeded)
+	}
+	queue := leaseTestQueue(conn, "backfill-race-owner")
+
+	orphans := func() int {
+		t.Helper()
+		var n int
+		if err := conn.conn.QueryRowContext(ctx,
+			`SELECT count(*) FROM fact_work_item_leases l
+			  LEFT JOIN fact_work_items w USING (work_item_id)
+			  WHERE w.work_item_id IS NULL
+			     OR NOT (w.stage = 'reducer' AND w.status IN ('claimed', 'running'))`,
+		).Scan(&n); err != nil {
+			t.Fatalf("count orphan leases: %v", err)
+		}
+		return n
+	}
+
+	// Hand-seed a same-key pair on a real scope/identity quad: a live row
+	// the scan will copy plus a pending sibling old enough to be the
+	// deterministic oldest claim candidate (seed tail is 2026-10-19).
+	var scopeID, generationID, domain, conflictDomain string
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT scope_id, generation_id, domain, conflict_domain
+		 FROM fact_work_items WHERE domain = 'supply_chain_impact' LIMIT 1`,
+	).Scan(&scopeID, &generationID, &domain, &conflictDomain); err != nil {
+		t.Fatalf("read seed quad: %v", err)
+	}
+	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := conn.ExecContext(ctx, `INSERT INTO fact_work_items (
+	    work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
+	    conflict_key, status, attempt_count, lease_owner, claim_until,
+	    last_attempt_at, payload, created_at, updated_at
+	) VALUES
+	    ('backfill-race-terminalized', $1, $2, 'reducer', $3, $4,
+	     'backfill-race-k', 'claimed', 1, 'backfill-race-owner',
+	     $5, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-sibling', $1, $2, 'reducer', $3, $4,
+	     'backfill-race-k', 'pending', 1, NULL,
+	     NULL, NULL, '{}'::jsonb, $6, $6)`,
+		scopeID, generationID, domain, conflictDomain, now, old); err != nil {
+		t.Fatalf("seed same-key pair: %v", err)
+	}
+
+	backfill := shippedBackfillSQL(t)
+	reconcile := shippedReconcileSQL(t)
+	if _, err := conn.ExecContext(ctx, backfill); err != nil {
+		t.Fatalf("first backfill: %v", err)
+	}
+	if rows := liveLeaseRows(t, ctx, conn); rows["backfill-race-terminalized"] == "" {
+		t.Fatalf("first backfill missed the live row: %v", rows)
+	}
+
+	// The race: the main row finishes after the scan copied it, the way a
+	// main-only writer would (no mirror cleanup).
+	if _, err := conn.ExecContext(ctx,
+		`UPDATE fact_work_items
+		 SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
+		     last_attempt_at = NULL
+		 WHERE work_item_id = 'backfill-race-terminalized'`); err != nil {
+		t.Fatalf("terminalize main row: %v", err)
+	}
+
+	// 323 alone cannot reconcile: the orphan survives a backfill re-run.
+	// This is the RED half — it pins the defect 324 exists to fix.
+	if _, err := conn.ExecContext(ctx, backfill); err != nil {
+		t.Fatalf("second backfill: %v", err)
+	}
+	if n := orphans(); n != 1 {
+		t.Fatalf("orphan lease rows after 323-only re-run = %d, want 1", n)
+	}
+
+	if _, err := conn.ExecContext(ctx, reconcile); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n := orphans(); n != 0 {
+		t.Fatalf("orphan lease rows after 324 reconcile = %d, want 0", n)
+	}
+
+	// No wedge: the same-key sibling must now be claimable.
+	got, claimed, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("post-reconcile claim err = %v", err)
+	}
+	if !claimed {
+		t.Fatal("post-reconcile claim deferred, want the sibling")
+	}
+	if got.IntentID != "backfill-race-sibling" {
+		t.Fatalf("post-reconcile claim took %q, want backfill-race-sibling", got.IntentID)
+	}
+}
+
+// TestReducerQueue10879ReconcileCleansPreexistingOrphan covers databases
+// that already applied 323 before 324 existed: a planted orphan is cleaned
+// by running only 324, and the wedged key becomes claimable again.
+func TestReducerQueue10879ReconcileCleansPreexistingOrphan(t *testing.T) {
+	ctx := context.Background()
+	conn, schemaName := setupLeaseTestSchema(t, ctx)
+	now := time.Now().UTC()
+	if seeded := seedReducerQueue10862Replay(t, ctx, conn, schemaName, now); seeded < 8000 {
+		t.Fatalf("seed = %d, want >= 8000", seeded)
+	}
+	queue := leaseTestQueue(conn, "backfill-race-owner")
+
+	var scopeID, generationID, domain, conflictDomain string
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT scope_id, generation_id, domain, conflict_domain
+		 FROM fact_work_items WHERE domain = 'supply_chain_impact' LIMIT 1`,
+	).Scan(&scopeID, &generationID, &domain, &conflictDomain); err != nil {
+		t.Fatalf("read seed quad: %v", err)
+	}
+	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := conn.ExecContext(ctx, `INSERT INTO fact_work_items (
+	    work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
+	    conflict_key, status, attempt_count, lease_owner, claim_until,
+	    last_attempt_at, payload, created_at, updated_at
+	) VALUES
+	    ('backfill-race-terminalized', $1, $2, 'reducer', $3, $4,
+	     'backfill-race-k', 'claimed', 1, 'backfill-race-owner',
+	     $5, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-sibling', $1, $2, 'reducer', $3, $4,
+	     'backfill-race-k', 'pending', 1, NULL,
+	     NULL, NULL, '{}'::jsonb, $6, $6)`,
+		scopeID, generationID, domain, conflictDomain, now, old); err != nil {
+		t.Fatalf("seed same-key pair: %v", err)
+	}
+
+	// The old world: 323 ran, then the main row finished without cleanup.
+	if _, err := conn.ExecContext(ctx, shippedBackfillSQL(t)); err != nil {
+		t.Fatalf("323 backfill: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx,
+		`UPDATE fact_work_items
+		 SET status = 'succeeded', lease_owner = NULL, claim_until = NULL,
+		     last_attempt_at = NULL
+		 WHERE work_item_id = 'backfill-race-terminalized'`); err != nil {
+		t.Fatalf("terminalize main row: %v", err)
+	}
+
+	// Only 324 runs now: it must clean the pre-existing orphan.
+	if _, err := conn.ExecContext(ctx, shippedReconcileSQL(t)); err != nil {
+		t.Fatalf("324 reconcile: %v", err)
+	}
+	var n int
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT count(*) FROM fact_work_item_leases l
+		  LEFT JOIN fact_work_items w USING (work_item_id)
+		  WHERE w.work_item_id IS NULL
+		     OR NOT (w.stage = 'reducer' AND w.status IN ('claimed', 'running'))`,
+	).Scan(&n); err != nil {
+		t.Fatalf("count orphan leases: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("orphan lease rows after 324-only run = %d, want 0", n)
+	}
+	got, claimed, err := queue.Claim(ctx)
+	if err != nil {
+		t.Fatalf("post-reconcile claim err = %v", err)
+	}
+	if !claimed || got.IntentID != "backfill-race-sibling" {
+		t.Fatalf("post-reconcile claim = (%q, %v), want (backfill-race-sibling, true)", got.IntentID, claimed)
 	}
 }

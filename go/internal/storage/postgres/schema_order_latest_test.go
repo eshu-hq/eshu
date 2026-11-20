@@ -118,4 +118,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 323 (#10879 phase 1) is the idempotent live-lease
 	// backfill, split from 322 per #7961.
 	"fact_work_item_leases_backfill",
+	// Migration 324 (#10879 follow-up) reconciles backfill-raced mirror
+	// rows with a locking anti-join; DML-only per #7961.
+	"fact_work_item_leases_reconcile",
 }
