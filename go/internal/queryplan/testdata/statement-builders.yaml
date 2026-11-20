@@ -730,93 +730,28 @@ builders:
           source_sha256: 859f49c5e59199350d80aaeae51ac46c535520583b5b30ece45921d83b9884a7
           exempt: NornicDB-only path -- PhaseGroupExecutor is wired only when graphBackend == GraphBackendNornicDB, so no Neo4j gated run executes it; drain and probe texts derive from the caller's statement at runtime
 read_exemptions:
-  - callsite: internal/query/impact/blast_radius.go:(*Handler).enrichBlastRadiusTiers
-    anchor: "MATCH (a:Repository)<-[:CONTAINS]-(tier:Tier) WHERE a.id IN $repo_ids"
-    reason: B-7 captures contain zero Tier node writes, so the tier lookup returns nothing on either backend
-  - callsite: internal/query/secrets/grant_posture.go:GraphIAMGrantPostureStore.groupedGrantCounts
-    anchor: "MATCH (:CloudResource)-[rel:GRANTS_ACCESS_TO]->(:ExternalPrincipal) WHERE rel.scope_id = $scope_id"
-    reason: zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends zero GRANTS_ACCESS_TO writes in B-7 captures; the bucket aggregation scans an empty edge set on both backends
-  - callsite: internal/query/impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationWorkloads
-    anchor: "MATCH (instance:WorkloadInstance)-[rel:USES]->(resource:TerraformResource)"
-    reason: bound resource node is created but no USES edge to it exists in B-7 captures
-  - callsite: internal/query/impact/deployment/cloud_resource_candidates.go:LoadUncorrelatedCloudResourceCandidatesBounded
-    anchor: "WHERE coalesce(n.resource_type, '') <> 'aws_appsync_api_key' AND coalesce(n.data_type, '') <> 'aws_appsync_api_key' AND (coalesce(n.name, '') CONTAINS $query"
-    reason: probe names (api-svc, deployable-config) match no CloudResource node name in B-7 writes; anchor tracks the legacy-key suppression prefix added to the WHERE
-  - callsite: internal/query/impact/entity_map_resolver.go:(*Handler).resolveEntityMapStart
-    anchor: "MATCH (n:Repository {id: $from}) WHERE"
-    reason: binds a slug (deployable-config) as a node id; no Repository has that literal id
+# D13 (#10890) removed the gate's query/demo-answers phases, so the
+# 35 query-phase-only read exemptions below were deleted as stale
+# (Refs #11067); the cutover lane owns query truth now and re-adds
+# exemptions it needs with its own execution proof.
   - callsite: internal/storage/cypher/sweep/orphan/queries.go:(*OrphanSweepStore).readCandidateOrphanNodes
     anchor: "WHERE n.evidence_source IS NOT NULL AND n.evidence_source <> 'projector/canonical' AND n.id > $cursor"
     reason: janitor sweep; empty is the healthy state (no non-canonical Repository nodes) on both backends across 7 executions each
-  - callsite: internal/query/compare/workload_lookup.go:(*Handler).fetchWorkload
-    anchor: "MATCH (w:Workload) WHERE w.id = $workload_id"
-    reason: "#5385 ladder rung 1 binds workload: handles (recorded workload:deployable-source), which structurally match no post-flip workload:<repo_id>:<name> id; the name rung resolves them (recorded non-empty under fetchWorkloadByName)"
-  - callsite: internal/query/entity/service_workload_resolution.go:(*Handler).serviceWorkloadCandidatesFromQuery
-    anchor: "MATCH (w:Workload) WHERE w.id = $service_id"
-    reason: "#5385 ladder rung 1 binds workload: handles (recorded workload:api-svc), which structurally match no post-flip node id; the stripped-name rung resolves them (recorded non-empty with the bare name)"
-  - callsite: internal/query/infra_relationship_filter.go:(*InfraHandler).probeInfraRelationshipAnchors
-    anchor: "MATCH (n) WHERE n.id = $entity_id"
-    reason: bound entity id aws:s3 bucket never written in B-7 captures; probe-by-id over an absent entity; callsite follows the probe split out of getRelationships, whose fallback (n) arm keeps this shape
-  - callsite: internal/query/impact/change_surface_investigation.go:(*Handler).resolveChangeSurfaceTarget
-    anchor: "MATCH (n:Workload {id: $target})"
-    reason: no Workload node carries the bound id (repository:r_3eddcea1) in B-7 captures bound id workload:repository:r_3eddcea1 never written anywhere in B-7 captures
-  - callsite: internal/query/codequery/routes/graph.go:DirectionRows
-    anchor: "]->(callee) WHERE coalesce(handler.id, handler.uid) = $handler_id"
-    reason: bound handler uid content-entity:e_7d39105f8ee2 never written in B-7 captures
-  - callsite: internal/query/codequery/routes/graph.go:DirectionRows
-    anchor: "]-(caller) WHERE coalesce(handler.id, handler.uid) = $handler_id"
-    reason: bound handler uid content-entity:e_7d39105f8ee2 never written in B-7 captures
-  - callsite: internal/query/impact/resource_investigation_reads.go:(*Handler).ResourceInvestigationRepoPaths
-    anchor: "]->(repo:Repository) WHERE coalesce(resource.id, resource.uid, resource.resource_id, resource.name) = $resource_id"
-    reason: bound resource has no outgoing edges in B-7 captures, so no path reaches a Repository
-  - callsite: internal/query/repository/context_helpers.go:queryRepoRelationshipOverviewDirection
-    anchor: "MATCH (r:Repository {id: $repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(target:Repository)"
-    reason: r_98a4c8a8 is only ever a CORRELATES target in B-7 writes, never a source
-  - callsite: internal/query/repository/context_helpers.go:queryRepoConsumers
-    anchor: "MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(consumer:Repository)"
-    reason: B-7 writes no dependency edge pointing into r_ea78e8bb; the repo is only ever a dependency source
-  - callsite: internal/query/repository/context_helpers.go:queryRepoRelationshipOverviewDirection
-    anchor: "MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)"
-    reason: B-7 writes no dependency edge pointing into r_ea78e8bb; the repo is only ever a dependency source
-  - callsite: internal/query/repository/infrastructure.go:QueryRepoInfrastructureFromGraph
-    anchor: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)"
-    reason: K8s/Terraform writes cover nine other repos but never the bound repos (r_1f68383d, r_ea78e8bb)
-  - callsite: internal/query/repository/deployment_evidence.go:queryRepoDeploymentEvidenceDirection
-    anchor: "MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)"
-    reason: B-7 artifact creates never touch the bound repos (r_d5318f0f, r_ea78e8bb); 11 executions per backend, all empty
   - callsite: internal/reducer/projected_source_edge_backfill.go:(ProjectedSourceEdgeBackfillReader).EnumerateProjectedSourceEdges
     anchor: "MATCH (s:CloudResource)-[r]->() WHERE r.evidence_source IN $evidence_sources"
     reason: scan runs at line 2 of the reducer leg, before any aws/gcp rels are written (first write at line 720); azure/observability/security-group sources have no B-7 writers at all
   - callsite: cmd/reducer/workload_dependency_lookup.go:neo4jWorkloadDependencyLookup.ListWorkloadDependencyEdges
     anchor: "MATCH (source:Workload)-[rel:DEPENDS_ON]->(target:Workload) WHERE source.repo_id IN $repo_ids"
     reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload-to-Workload DEPENDS_ON exists (59/58 executions, all empty)
-  - callsite: internal/query/impact/exposure_path.go:(*Handler).exposurePathCandidates
-    anchor: "MATCH path = (src)-[:CALLS*"
-    reason: anchor Function exists but four of the seven bound sink rel types are never written and no CALLS path reaches a sink in B-7 captures
   - callsite: internal/reducer/projected_source_edge_backfill.go:(ProjectedSourceEdgeBackfillReader).EnumerateProjectedSourceEdges
     anchor: "MATCH (s:SecurityGroupRule)-[r]->() WHERE r.evidence_source IN $evidence_sources"
     reason: scan runs before any matching rels are written in the reducer leg; azure/observability/security-group sources have no B-7 writers at all
-  - callsite: internal/query/impact/entity_map_traversal.go:(*Handler).entityMapNeighborhoodRows
-    anchor: "MATCH (start:Repository {id: $from_id})<-[rel:DEFINES]-(entity)"
-    reason: zero incoming-to-Repository DEFINES writes in B-7 captures; every DEFINES edge points outward
-  - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipSourceToolBreakdown
-    anchor: "MATCH (s:WorkloadInstance)-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
-    reason: every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction
   - callsite: internal/storage/cypher/edge/writer/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
     anchor: "MATCH ()-[r:READS_CONFIG_FROM]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; B-7 captures contain zero READS_CONFIG_FROM writes (no write statement names the verb and no execution reports a READS_CONFIG_FROM relationship created)
   - callsite: internal/storage/cypher/edge/writer/provenance_counts.go:(*ProvenanceCountStore).EdgesBySourceTool
     anchor: "MATCH ()-[r:RUNS_ON]->() WHERE r.source_tool IS NOT NULL"
     reason: provenance gauge refresher count read (#7062), 7 executions per backend per capture run, all empty; every RUNS_ON write in B-7 sets rel.source_tool = null, so IS NOT NULL matches nothing by construction (same cause as the WorkloadInstance RUNS_ON read above)
-  - callsite: internal/query/relationships_catalog.go:(*InfraHandler).relationshipEdges
-    anchor: "MATCH (s:Workload)-[r:DEPENDS_ON]->(t)"
-    reason: B-7 corpus writes DEPENDS_ON only between Repository nodes; no Workload DEPENDS_ON edges exist at all
-  - callsite: internal/query/impact/trace_deployment_oci.go:fetchOCIImageTagRows
-    anchor: "WHERE tag.image_ref IN $image_refs"
-    reason: tag observations are written only for supply-chain-demo:1.0.0; the probe refs match no TagObservation node. Statement text updated for #6590's LIMIT $row_limit bound (ORDER BY gained digest, repository_id, tag as tie-breaks for the bounded-read continuation; the row cause is unchanged -- the probe refs still match nothing)
-  - callsite: internal/query/impact/deployment/workload_selection.go:ResolveWorkloadSelector
-    anchor: "WHERE w.id = $service_name"
-    reason: no Workload node carries the bound service ids in B-7 writes
   - callsite: internal/reducer/code/value/affected/gate.go:countRepos
     anchor: "UNWIND $principal_uids AS principal_uid"
     reason: bound principal uids never written (zero cloud-action writes with those uids); the first hop matches nothing
@@ -826,42 +761,6 @@ read_exemptions:
   - callsite: internal/storage/cypher/edge/writer/shell_exec.go:(*EdgeWriter).readShellCommandKeys
     anchor: "MATCH (target:ShellCommand {path: file_path}) WHERE target.evidence_source = $evidence_source"
     reason: the delta-scoped variant, executed only by the #10022 delta-reader leg (the corpus's sole git delta; the git collector emits the shell-exec follow-up on every delta); zero ShellCommand creates in B-7 captures, so the file-path predicate matches nothing
-  - callsite: internal/query/impact/deployment/flux_bindings.go:FetchFluxDeploymentSourceTargetBindings
-    anchor: "MATCH (repo:Repository {id: source_id})-[sourceRel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)"
-    reason: zero FLUX_GIT_REPOSITORY_SOURCE artifact writes in B-7 captures
-  - callsite: internal/query/codequery/wrapper_bypass_read.go:(*CodeHandler).runWrapperGraphRows
-    anchor: "WHERE member.repo_id = $repo_id MATCH (member)-[:HANDLES_ROUTE]->(ep:Endpoint)"
-    reason: outlier router-cohort read bound to repository:r_3eddcea1; 4 executions per backend, all empty on both backends; the captures' sole r_3eddcea1 Function (content-entity:e_58b8ce80af37) carries no HANDLES_ROUTE edge — all 20 HANDLES_ROUTE writes reference other repos' functions; #6929 dropped the coalesce() wrapper on the repo-scope predicate (it defeated the function_repo_id index), so this pinned statement text tracks the bare-equality form
-  - callsite: internal/query/codequery/wrapper_bypass_read.go:(*CodeHandler).runWrapperGraphRows
-    anchor: "WHERE member.repo_id = $repo_id MATCH (member)<-[:CONTAINS]-(impl)-[:IMPLEMENTS]->(iface)"
-    reason: outlier interface-cohort read bound to repository:r_3eddcea1; 4 executions per backend, all empty on both backends; the captures contain zero IMPLEMENTS edge writes; #6929 dropped the coalesce() wrapper on the repo-scope predicate (it defeated the function_repo_id index), so this pinned statement text tracks the bare-equality form
-  - callsite: internal/query/repository/deployment_evidence.go:queryRepoDeploymentEvidenceDirection
-    anchor: "MATCH (r:Repository {id: $repo_id})<-[:EVIDENCES_REPOSITORY_RELATIONSHIP]-(artifact:EvidenceArtifact)"
-    reason: incoming-evidence read; 22 executions per backend (4 bound to r_ea78e8bb), all empty on both backends; zero EvidenceArtifact creates touch r_ea78e8bb (the sibling outgoing variant is already exempt for the same repo)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
-    anchor: "[*2..2]->(impacted)"
-    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-2 statement returns empty on both backends by corpus construction; non-empty depth-2 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
-    anchor: "[*3..3]->(impacted)"
-    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-3 statement returns empty on both backends by corpus construction; non-empty depth-3 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceOutgoing.func1
-    anchor: "[*4..4]->(impacted)"
-    reason: per-depth change-surface read (#7677); the differential capture corpus anchors expose depth-1 paths only, so the depth-4 statement returns empty on both backends by corpus construction; non-empty depth-4 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
-    anchor: "<-[:DEPENDS_ON*2..2]-"
-    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-2 statement returns empty on both backends by corpus construction; non-empty depth-2 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
-    anchor: "<-[:DEPENDS_ON*3..3]-"
-    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-3 statement returns empty on both backends by corpus construction; non-empty depth-3 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/query/impact/change_surface_traversal.go:(*Handler).RunChangeSurfaceRepositoryConsumers.func1
-    anchor: "<-[:DEPENDS_ON*4..4]-"
-    reason: per-depth consumers read (#7677); the differential capture corpus anchors expose depth-1 DEPENDS_ON paths only, so the depth-4 statement returns empty on both backends by corpus construction; non-empty depth-4 execution is proven by the ordered-equality shim on the live QA anchor (#7677)
-  - callsite: internal/graph/legacy/workload/detect.go:Detect
-    anchor: "MATCH (w:Workload) WHERE 'workload:' + w.name = w.id AND w.generation_id IS NULL AND w.id > $after"
-    reason: "#8795 operator probe for pre-#5385 name-only Workload nodes (the hosted readiness leftover count, offered on Neo4j only); the B-7 corpus writes every Workload with a workload:<repo_id>:<name> id and a generation_id, so the candidate page is empty on every execution; adding a legacy-shaped node to the corpus would move the node-count snapshot for a state the platform no longer produces"
-  - callsite: internal/query/ssm_host_inventory_committed.go:readSSMCommittedSeeds
-    anchor: "MATCH (seed) WHERE ($all_scopes OR seed.scope_id IN $scope_ids)"
-    reason: "committed-seed legs (#9602); the unlabeled anchor covers both label members (SSMHostApplication and SSMHostPlatform) as one dispatch family. The B-7 corpus carries no SSM host fixtures by design, so both legs return empty on both backends; adding SSM fixtures would move the node-count snapshot for data the corpus does not model"
   - callsite: cmd/reducer/ecs_binding_lookups.go:(neo4jECSBindingInstanceLookup).ListECSBindingInstanceEnvironments
     anchor: "MATCH (w:Workload)<-[:INSTANCE_OF]-(i:WorkloadInstance) WHERE w.name IN $names"
     reason: "ECS declaration binder (#9661) single-instance-environment leg; the B-7 corpus binds ECS service names (deployable-source, supply-chain-demo) with no matching materialized WorkloadInstance environments at reducer time, so the read returns empty (one execution per pair, all empty on neo4j); empty is fail-closed by design, the environment falls back to the fact-tag and terragrunt legs"

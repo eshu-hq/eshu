@@ -241,16 +241,16 @@ func TestLoadBuilderManifestCanonicalizesBareReceiver(t *testing.T) {
 		t.Fatalf("LoadBuilderManifest() error = %v", err)
 	}
 	for _, exemption := range manifest.ReadExemptions {
-		if !strings.HasPrefix(exemption.Callsite, "internal/query/secrets/grant_posture.go:") {
+		if !strings.HasPrefix(exemption.Callsite, "cmd/reducer/workload_dependency_lookup.go:") {
 			continue
 		}
-		want := "internal/query/secrets/grant_posture.go:(GraphIAMGrantPostureStore).groupedGrantCounts"
+		want := "cmd/reducer/workload_dependency_lookup.go:(neo4jWorkloadDependencyLookup).ListWorkloadDependencyEdges"
 		if exemption.Callsite != want {
 			t.Fatalf("loaded callsite = %q, want canonical %q", exemption.Callsite, want)
 		}
 		return
 	}
-	t.Fatal("bare-receiver grant_posture exemption not found in manifest")
+	t.Fatal("bare-receiver workload_dependency_lookup exemption not found in manifest")
 }
 
 // TestCanonicalCallsiteSymbol pins the receiver-form contract both
