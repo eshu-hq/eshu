@@ -122,9 +122,10 @@ export ESHU_MCP_PORT="${ESHU_MCP_PORT:-28087}"
 export ESHU_WORKFLOW_COORDINATOR_HTTP_PORT="${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-28089}"
 export ESHU_WORKFLOW_COORDINATOR_METRICS_PORT="${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-29471}"
 # The graph backend publishes the Neo4j-compatible ports on the host; remap
-# them too so the proof stack never collides with another live Eshu stack.
-export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-27474}"
-export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-27687}"
+# them too so the proof stack never collides with another live Eshu stack
+# (or with zombie bindings orphaned by killed runs).
+export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-27574}"
+export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-27787}"
 export ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE="${seed_image}"
 proof_services="postgres db-migrate bootstrap-index workflow-coordinator collector-go-reachability eshu mcp-server"
 
