@@ -459,8 +459,9 @@ var migrationShippedChecksums = map[string]string{
 	// #7961 -- table-locking DDL and bulk DML must not share a file;
 	// renumbered 317/318 to 322/323: #11018 owns 317/318, #11021 owns
 	// 319, the #10878 follow-up owns 320, #10877 owns 321).
-	"322_fact_work_item_leases.sql":          "541cc6ff710aa9f7cdf694d0cf3036ee78f0d88f48e70179db4313eef349b99f",
-	"323_fact_work_item_leases_backfill.sql": "10f360f9d4c8af993a9d0472bafdea20ff0826bc006367648fb0cb0f35200709",
+	"322_fact_work_item_leases.sql":           "541cc6ff710aa9f7cdf694d0cf3036ee78f0d88f48e70179db4313eef349b99f",
+	"323_fact_work_item_leases_backfill.sql":  "10f360f9d4c8af993a9d0472bafdea20ff0826bc006367648fb0cb0f35200709",
+	"324_fact_work_item_leases_reconcile.sql": "358b2f8b50dc184d4df0ad7b6d5d0251c0ca6f12481c4cea76c8974cdd2afc5c",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

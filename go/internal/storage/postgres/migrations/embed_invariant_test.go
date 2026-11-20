@@ -319,9 +319,12 @@ import (
 // backfill, split per #7961; renumbered 317/318 to 322/323: #11018
 // owns 317/318, #11021 owns 319, the #10878 follow-up owns 320,
 // #10877 owns 321).
+// 324_fact_work_item_leases_reconcile.sql (#10879 follow-up) reconciles
+// backfill-raced mirror rows with a locking anti-join on the pinned
+// orphan predicate; DML-only per #7961.
 const (
-	goldenBootstrapDefinitionsDigest = "43814886f1fd287db6291acffb50188832b34257f4265487eaad3cd87baa3f92"
-	goldenBootstrapDefinitionsCount  = 349
+	goldenBootstrapDefinitionsDigest = "0faafc5f44688ec57e34d6986e77fdfbc5268501ee5072c0361b920071893332"
+	goldenBootstrapDefinitionsCount  = 350
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
