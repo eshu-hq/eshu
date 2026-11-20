@@ -28,8 +28,9 @@ const freshnessCausalityStatusCapability = "operations.freshness_causality_statu
 // getFreshnessCausality returns the freshness causality read model: why answers
 // are stale (by closed cause), the generation lifecycle including retired
 // generations, and pending projection work. It loads one status snapshot (the
-// /api/v0/status/pipeline read path without the Terraform-state reads it never
-// renders) and projects it in memory, adding no database cost. Scoped tokens
+// /api/v0/status/pipeline read path without the Terraform-state, collector
+// fact evidence, and registry reads it never renders) and projects it in
+// memory, adding no database cost. Scoped tokens
 // receive the same aggregate counts and cause observations with raw
 // scope/generation identifiers withheld from transitions.
 func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +39,7 @@ func (h *StatusHandler) getFreshnessCausality(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	raw, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), operatorStatusSelection())
+	raw, report, err := loadStatusReportFiltered(r.Context(), h.StatusReader, time.Now(), status.DefaultOptions(), causalityStatusSelection())
 	if err != nil {
 		if WriteGraphReadError(w, r, err, freshnessCausalityStatusCapability) {
 			return

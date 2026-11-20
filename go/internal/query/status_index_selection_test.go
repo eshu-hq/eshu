@@ -21,7 +21,11 @@ import (
 type selectionRecordingReader struct {
 	snapshot              statuspkg.RawSnapshot
 	omitTerraformOnSkip   bool
+	omitFactOnSkip        bool
+	omitRegistryOnSkip    bool
 	returnedTerraformRows int
+	returnedFactRows      int
+	returnedRegistryRows  int
 	lastSelection         statuspkg.SnapshotSelection
 	filteredCallCount     int
 }
@@ -45,7 +49,15 @@ func (r *selectionRecordingReader) ReadStatusSnapshotFiltered(
 		raw.TerraformStateLastSerials = nil
 		raw.TerraformStateRecentWarnings = nil
 	}
+	if r.omitFactOnSkip && !selection.IncludeCollectorFactEvidence {
+		raw.CollectorFactEvidence = nil
+	}
+	if r.omitRegistryOnSkip && !selection.IncludeRegistryCollectors {
+		raw.RegistryCollectors = nil
+	}
 	r.returnedTerraformRows = len(raw.TerraformStateLastSerials) + len(raw.TerraformStateRecentWarnings)
+	r.returnedFactRows = len(raw.CollectorFactEvidence)
+	r.returnedRegistryRows = len(raw.RegistryCollectors)
 	return raw, nil
 }
 
