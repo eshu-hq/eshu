@@ -160,6 +160,9 @@ func TestSweepSweepsAGenerationAfterTheHoldingPurgeRollsBackLive(t *testing.T) {
 		t.Fatalf("generation after the purge rolled back = %+v, want every row restored {3 2 1 0}", got)
 	}
 
+	// The cancelled purge and the released holder shed their locks
+	// asynchronously, so sweep only after the rows are provably free.
+	f.awaitCandidatesUnlocked(t, generation)
 	second := f.sweep(t)
 	if got := second.Skipped; got[relationshipretention.SkipLockBusy] != 0 || got[relationshipretention.SkipLockTimeout] != 0 ||
 		second.GenerationsSwept != 1 || second.Batches != 1 {
