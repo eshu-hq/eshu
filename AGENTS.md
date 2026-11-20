@@ -502,6 +502,9 @@ telemetry work for a prose-only edit.
 - You declared the performance impact of runtime-affecting work. A runtime PR
   includes performance proof or no-regression evidence.
 - You considered edge cases and concurrency behavior.
+- Every new setting names its live reader, every new client call names its
+  live-server test, every new port names its listener; a declared-but-unwired
+  contract blocks readiness.
 - You recorded telemetry, or explicit no-observability-change evidence.
 - You updated docs for contract changes.
 - You ran and cited focused verification.
