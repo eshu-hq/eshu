@@ -457,7 +457,7 @@ var migrationShippedChecksums = map[string]string{
 	// #10879 phase 1: the reducer lease sidecar (fencing triple mirror with
 	// fillfactor 70 and the conflict unique; backfill split into 320 per
 	// #7961 -- table-locking DDL and bulk DML must not share a file;
-	// renumbered 317/318 to 319/320: open PR #11018 owns 317/318).
+	// renumbered 317/318 to 319/320: #11018 owns 317/318).
 	"319_fact_work_item_leases.sql":          "85f81cb9deccf64e6b87f405be144722dda17906b7f6f725a29562554ccf4e1b",
 	"320_fact_work_item_leases_backfill.sql": "a0328447baef368223768570402757dff4370bc2e88889dbb3b0fca4a120232e",
 }
