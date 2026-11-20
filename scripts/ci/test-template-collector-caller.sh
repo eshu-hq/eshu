@@ -7,8 +7,9 @@
 # reject a stale inline caller and a bare-tag pin.
 #
 # Run: bash scripts/ci/test-template-collector-caller.sh (no network, no Go build).
-# CI wiring is a coordinator followup against the 9315-C gate inventory; this
-# file runs standalone until then.
+# CI wiring is tracked in #10999 and sequenced after #10988 merges (shared
+# matrix/filter/registry surface); until then this file runs standalone and
+# template drift is undetected in CI.
 set -euo pipefail
 LC_ALL=C
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -20,12 +21,30 @@ check() { # $1=name $2...=command; records PASS/FAIL, never aborts the suite
 	if "$@" >/dev/null 2>&1; then printf 'PASS %s\n' "${name}"; else printf 'FAIL %s\n' "${name}"; fail=1; fi
 }
 
+inline_lane_bodies() { # $1=file; print every run: step body outside changes/ci-complete
+	local file="$1"
+	python3 - "${file}" <<'EOF'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1])) or {}
+jobs = doc.get('jobs') or {}
+for name, job in jobs.items():
+    if name in ('changes', 'ci-complete'):
+        continue
+    steps = job.get('steps') if isinstance(job, dict) else None
+    for step in steps or []:
+        if isinstance(step, dict) and 'run' in step and step['run'] is not None:
+            print(step['run'])
+EOF
+}
+
 is_thin_caller() { # $1=file; true when the reusable pin is present and no inline lane bodies exist
 	local file="$1"
 	rg -q 'uses:\s*eshu-hq/\.github/\.github/workflows/go-collector-ci\.yml@[0-9a-f]{40}\s+#\s*v[0-9]+' "${file}" || return 1
-	# An inline lane body is a run step invoking a lane tool. Input names
-	# (golangci-lint-version:) and comments ride along, so only run steps count.
-	! rg '^\s*(-\s*)?run:' "${file}" |
+	# An inline lane body is a run step invoking a lane tool. Bodies are
+	# read parsed (block scalars included), not grepped: a `run: |` header
+	# line alone never names the tool. Input names (golangci-lint-version:)
+	# live under `with:`, never under a printed body, so only run steps count.
+	! inline_lane_bodies "${file}" |
 		rg -v '^\s*#' |
 		rg -q 'go\s+(build|test|vet|mod)\b|golangci-lint\s+run|shellcheck|docker\s+build|govulncheck|gosec\s|actionlint( |$)' || return 1
 	return 0
@@ -42,7 +61,8 @@ has_stable_jobs() { # $1=file
 
 all_uses_pinned() { # $1=file; every uses: carries a 40-hex SHA, never a mutable tag
 	local file="$1"
-	! rg -N '^\s*-\s*uses:' "${file}" | rg -v '@[0-9a-f]{40}([[:space:]]|#|$)' | rg -q . || return 1
+	# Reusable-call jobs name `uses:` without a list dash; both spellings count.
+	! rg -N '^\s*(-\s*)?uses:' "${file}" | rg -v '@[0-9a-f]{40}([[:space:]]|#|$)' | rg -q . || return 1
 	return 0
 }
 
@@ -90,8 +110,41 @@ jobs:
     steps:
       - run: echo ok
 EOF
+cat >"${work}/blockscalar.yml" <<'EOF'
+jobs:
+  lanes:
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@4d01ab90baf5dd77c21cc1ee6bdf701332613449 # v2
+    with: {}
+  smuggled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: quiet build
+        run: |
+          go test ./... -count=1
+  ci-complete:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+EOF
+cat >"${work}/dashless-tag.yml" <<'EOF'
+jobs:
+  lanes:
+    uses: eshu-hq/.github/.github/workflows/go-collector-ci.yml@4d01ab90baf5dd77c21cc1ee6bdf701332613449 # v2
+    with: {}
+  evil:
+    uses: eshu-hq/.github/.github/workflows/other.yml@v2
+  ci-complete:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+EOF
 if is_thin_caller "${work}/stale.yml"; then printf 'FAIL negative-stale-rejected\n'; fail=1; else printf 'PASS negative-stale-rejected\n'; fi
 if is_thin_caller "${work}/baretag.yml"; then printf 'FAIL negative-baretag-rejected\n'; fail=1; else printf 'PASS negative-baretag-rejected\n'; fi
+if is_thin_caller "${work}/blockscalar.yml"; then printf 'FAIL negative-blockscalar-rejected\n'; fail=1; else printf 'PASS negative-blockscalar-rejected\n'; fi
 if all_uses_pinned "${work}/stale.yml"; then printf 'FAIL negative-unpinned-rejected\n'; fail=1; else printf 'PASS negative-unpinned-rejected\n'; fi
+if all_uses_pinned "${work}/dashless-tag.yml"; then printf 'FAIL negative-dashless-tag-rejected\n'; fail=1; else printf 'PASS negative-dashless-tag-rejected\n'; fi
+if all_uses_pinned "${work}/blockscalar.yml"; then printf 'PASS positive-dashless-pin-accepted\n'; else printf 'FAIL positive-dashless-pin-accepted\n'; fail=1; fi
 
 exit "${fail}"

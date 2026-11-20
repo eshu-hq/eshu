@@ -143,8 +143,10 @@ jobs:
       run-shell: ${{ github.event_name != 'pull_request' || needs.changes.outputs.shell == 'true' || needs.changes.outputs.workflow == 'true' }}
       # Filter-only (see the image note above): the Dockerfile builds the
       # actual collector, so any Dockerfile or cmd change runs a real
-      # image build (no push) in the lane.
-      run-image: ${{ needs.changes.outputs.image == 'true' }}
+      # image build (no push) in the lane. The weekly sweep runs every
+      # lane as a record, so off-PR events bypass the filter like the
+      # other run-* inputs.
+      run-image: ${{ github.event_name != 'pull_request' || needs.changes.outputs.image == 'true' }}
       # No boundary gate in the template; each port defines its own
       # boundary-command (import bans, fail-closed guards) when it lands.
       run-boundary: false
