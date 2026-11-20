@@ -93,7 +93,12 @@ var goPackageSubcommands = map[string]struct{}{
 // local.test_command now run `go test ./internal/cigates -run
 // TestPgStatementReportContract`, and the row plus the static-contract dorny
 // filter carry `go/internal/cigates/**` as a trigger.
-const goPackageGateCount = 35
+// #10988 raised this from 35 to 36: collector-cutover-rollback's
+// local.command and local.test_command now run `go test
+// ./internal/cigates -run TestCollectorCutoverRollbackContract`, and the row
+// plus the static-contract dorny filter carry `go/internal/cigates/**` as a
+// trigger.
+const goPackageGateCount = 36
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

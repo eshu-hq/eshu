@@ -456,6 +456,7 @@ collectorcutoverrollback:
   - 'scripts/test-collector-cutover-rollback*.sh'
   - 'scripts/lib/collector-cutover-rollback-*'
   - 'scripts/lib/test-collector-cutover-rollback-*'
+  - 'go/internal/cigates/**'
 dockerpublish: [
   'docs/internal/ci-service-image-mirrors.md', '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**',
   '.github/static-contract-filters.yml', '.github/workflows/docker-publish.yml', '.github/workflows/security-scan.yml', 'scripts/ci/promote-moving-tags.sh',
