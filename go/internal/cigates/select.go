@@ -82,6 +82,20 @@ func selectGate(g Gate, changed []string, requestedTier Tier) Selection {
 		}
 	}
 
+	// A shell-only or JSON/config-only change cannot affect Go compilation,
+	// so the local lane skips the Go compile lanes while every
+	// proven-consumer lane keeps running. RequiredGates is untouched: CI's
+	// `code` filter still runs these jobs, so narrowing merge enforcement
+	// awaits the CI-side change (#9315 followup).
+	if changeClassSkipsGoLane(g, changed) {
+		return Selection{
+			Gate:     g,
+			Selected: false,
+			Reason: fmt.Sprintf("%s change cannot affect Go compilation — gate %q skipped in local lane",
+				changeClassName(changed), g.ID),
+		}
+	}
+
 	// Check triggers against changed paths. A docs-set path only selects
 	// through a trigger that can match docs-set paths alone, so nested
 	// markdown and scoped JSON no longer pull in code gates (#9200).

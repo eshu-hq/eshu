@@ -43,6 +43,7 @@ filesystems; a real read of a correctly spelled docs-set path remains guarded.
 | `glob.go` | `MatchGlob` — doublestar matcher, no external deps |
 | `registry_layer.go` | `Layer`, the seven layer questions, and `DescriptionCheck` — every gate declares a testing layer and a one-line purpose ([#7337](https://github.com/eshu-hq/eshu/issues/7337)) |
 | `layer_index.go` | `RenderLayerIndex` — the "Gates by layer" section of the generated gates reference |
+| `changeset.go` | Shell-only / JSON-config-only change classes — the local lane skips the Go compile lanes (`go-build`, `go-lint`, `go-vet`, `go-fmt`) for such changes unless a lane names a changed file as a literal trigger ([#10982](https://github.com/eshu-hq/eshu/issues/10982)) |
 
 ## Registry format
 

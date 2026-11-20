@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+//go:generate ../../../scripts/generate-ci-lockstep.sh
+
 // docsSetPatterns is the CI docs set: changed paths that cannot affect
 // compiled, tested, or scanned behavior. It mirrors the dorny/paths-filter
 // `code` negations in test.yml, security-scan.yml, and mcp-schema-drift.yml
@@ -36,75 +38,11 @@ var docsSetPatterns = []string{
 	".agents/**",
 }
 
-// lockstepDocsPaths are docs-set-shaped files whose content is an asserted
-// Go test input (family tables, exported surfaces, doc fences, runbooks,
-// evidence JSON). Editing one can break a unit test, so they stay code in
-// every selection layer. The canonical list lives in
-// specs/ci-docs-lockstep-paths.txt; TestLockstepPathsMatchManifest pins this
-// copy to it, and TestDocsTestInputsStayCode discovers new test inputs.
-var lockstepDocsPaths = []string{
-	"AGENTS.md",
-	"docs/internal/design/430-nornicdb-graph-search-split.md",
-	"docs/internal/design/5351-ifa-materialized-edge-known-gaps.md",
-	"docs/internal/evidence/8874-eshu-cli-contract.md",
-	"docs/internal/remote-validation/inventory.generated.json",
-	"docs/public/deployment/credential-file-cleanup.md",
-	"docs/public/deployment/service-runtimes-collectors.md",
-	"docs/public/deployment/service-runtimes.md",
-	"docs/public/languages/admitted-files.md",
-	"docs/public/observability/telemetry-coverage-runtime-surfaces.md",
-	"docs/public/operate/3am-operator-runbook.md",
-	"docs/public/reference/assistant-fast-path-hooks.md",
-	"docs/public/reference/env-registry.md",
-	"docs/public/reference/environment-collectors-supply-chain.md",
-	"docs/public/reference/environment-collectors.md",
-	"docs/public/reference/environment-ingestion-queues.md",
-	"docs/public/reference/first-run-evidence.md",
-	"docs/public/reference/generated/replay-coverage.md",
-	"docs/public/reference/graph-backend-installation.md",
-	"docs/public/reference/http-api.md",
-	"docs/public/reference/http-api/collector-terminal-failure.md",
-	"docs/public/reference/hybrid-retrieval-production-gate.md",
-	"docs/public/reference/local-performance-envelope.md",
-	"docs/public/reference/mcp-cookbook.md",
-	"docs/public/reference/mcp-prompt-surface-audit.md",
-	"docs/public/reference/mcp-tool-contract-matrix.md",
-	"docs/public/reference/nornicdb-tuning.md",
-	"docs/public/reference/reducer-claim-latency-gate.md",
-	"docs/public/reference/searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json",
-	"docs/public/reference/searchbench-evidence/issue-417-nornicdb-hybrid-retrieval-prototype-v1.json",
-	"docs/public/reference/searchbench-evidence/issue-420-link-prediction-evaluation-v1.json",
-	"docs/public/reference/searchbench-evidence/issue-421-rerank-protocol-evaluation-v1.json",
-	"docs/public/reference/telemetry/metrics.md",
-	"go/cmd/README.md",
-	"go/cmd/audit-preflight/testdata/codegraphcontext-already-tracked.md",
-	"go/cmd/audit-preflight/testdata/gitnexus-missing.md",
-	"go/cmd/audit-preflight/testdata/graphify-foundation-exists.md",
-	"go/cmd/audit-preflight/testdata/incomplete.md",
-	"go/cmd/eshu/cli_extraction_inventory.md",
-	"go/cmd/ifa/README.md",
-	"go/internal/ask/catalog/README.md",
-	"go/internal/cli/demo/README.md",
-	"go/internal/cli/hookpreflight/AGENTS.md",
-	"go/internal/cli/hookpreflight/README.md",
-	"go/internal/collector/README.md",
-	"go/internal/content/artifacts/README.md",
-	"go/internal/deploy/testdata/8871-eshu-deploy-census.md",
-	"go/internal/deploy/testdata/8871-eshu-deploy-contract.md",
-	"go/internal/facts/FACT_KIND_REGISTRIES.md",
-	"go/internal/ifa/README.md",
-	"go/internal/ifa/materializededges/README.md",
-	"go/internal/ifa/testdata/5998-rationale-relative-path.md",
-	"go/internal/query/repository/README.md",
-	"go/internal/reducer/AGENTS.md",
-	"go/internal/reducer/README.md",
-	"go/internal/reducer/testdata/5998-rationale-relative-path.md",
-	"go/internal/runtime/README.md",
-	"go/internal/runtime/testdata/8894-component-extension-activations.md",
-	"go/internal/storage/postgres/evidence-holder-covering-index-h3.md",
-	"go/internal/workflow/parity/contention/README.md",
-	"testdata/golden/documentation-positive.md",
-}
+// lockstepDocsPaths, the docs-set-shaped files whose content is an asserted Go
+// test input, lives in lockstep_manifest_generated.go: it is generated from
+// the canonical specs/ci-docs-lockstep-paths.txt by
+// scripts/generate-ci-lockstep.sh (see the //go:generate directive above),
+// never hand-edited. TestDocsTestInputsStayCode discovers new test inputs.
 
 // IsDocsSetPath reports whether path is in the CI docs set: prose and scoped
 // config that cannot affect compiled, tested, or scanned behavior. Lockstep
