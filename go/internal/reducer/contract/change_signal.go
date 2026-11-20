@@ -266,6 +266,41 @@ func ComputeSearchRepoFingerprint(count int64, maxIndexedAt string, docKeys []st
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// EmptyARNInputFingerprint is the fingerprint value of an AWS scope
+// generation carrying no ARN: the store's SQL coalesces an empty row set
+// to this exact value, so it is never NULL and compares equal to itself
+// on both sides of the reopen gate.
+const EmptyARNInputFingerprint = "empty-arn-input"
+
+// ComputeARNInputFingerprint renders the input fingerprint of one AWS
+// scope generation's ARN snapshot: the hex SHA-256 of the sorted
+// "arn newline payload-hash" pairs joined by newlines. It is the Go twin
+// of backfill.AWSDriftARNFingerprintSQL: the record path loads the
+// per-ARN hashes with AWSDriftSnapshotRowsSQL (the same expression) and
+// fingerprints them here, so the stored value matches what the listing
+// recomputes in SQL for identical input. Hex digests never contain a
+// newline, so the separator is unambiguous.
+func ComputeARNInputFingerprint(snapshot map[string]string) string {
+	if len(snapshot) == 0 {
+		return EmptyARNInputFingerprint
+	}
+	arns := make([]string, 0, len(snapshot))
+	for arn := range snapshot {
+		arns = append(arns, arn)
+	}
+	sort.Strings(arns)
+	h := sha256.New()
+	for i, arn := range arns {
+		if i > 0 {
+			h.Write([]byte("\n"))
+		}
+		h.Write([]byte(arn))
+		h.Write([]byte("\n"))
+		h.Write([]byte(snapshot[arn]))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
 // unionSortedStrings returns the sorted union of two string sets.
 func unionSortedStrings(a, b []string) []string {
 	set := make(map[string]struct{}, len(a)+len(b))

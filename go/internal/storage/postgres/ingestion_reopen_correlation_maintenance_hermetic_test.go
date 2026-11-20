@@ -180,9 +180,13 @@ func runHermeticDeferredMaintenanceObserved(
 //
 // deployable_unit_correlation issues the changed-evidence listing (#8283),
 // which composes the same floor fragments, so both shipped constants count.
+// aws_cloud_runtime_drift and container_image_identity issue their own
+// changed-evidence listings (#10878), so all four shipped constants count.
 func isCorrelationListing(query string) bool {
 	return query == listSucceededReducerWorkItemsByDomainQuery ||
-		query == backfill.ListDeployableUnitReopenCandidatesQuery
+		query == backfill.ListDeployableUnitReopenCandidatesQuery ||
+		query == backfill.ListAWSDriftReopenCandidatesQuery ||
+		query == listContainerIdentityReopenCandidatesQuery
 }
 
 // correlationListingDomains returns the $1 domain argument of every correlation

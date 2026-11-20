@@ -436,6 +436,12 @@ var migrationShippedChecksums = map[string]string{
 	// #10876: the reducer waiting set-aside (waits_for kind+key, #10876;
 	// renumbered 313 to 316 onto origin/main carrying #10874/#10947/#10875).
 	"316_reducer_waiting_items.sql": "21cadebc4c4f8f27a6cce75e7caad4a7904702497507f31f60e0d13eeb0ce472",
+	// #10878: the changed-evidence gate for the aws_cloud_runtime_drift
+	// reopen (aws_drift_reopen_fingerprints, mirroring #8283's 193).
+	"317_aws_drift_reopen_fingerprints.sql": "8ee6f519fcecd4e4545565f0ceb143376fda653eeca4f4d5fc08ecfd5b165042",
+	// #10878: the changed-evidence gate for the container_image_identity
+	// reopen (container_identity_reopen_epochs, same #8283 mirror).
+	"318_container_identity_reopen_epochs.sql": "544baf1c36975f2425793f10b13c76be04d267e1fdb609e89a431b885afe8dbe",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

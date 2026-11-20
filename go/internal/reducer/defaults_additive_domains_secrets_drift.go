@@ -52,13 +52,15 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		handlers.AWSCloudRuntimeDriftFencingTokenIssuer != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
 		awsRuntimeDrift.Handler = awscloud.AWSCloudRuntimeDriftHandler{
-			EvidenceLoader:     handlers.AWSCloudRuntimeDriftEvidenceLoader,
-			Writer:             handlers.AWSCloudRuntimeDriftWriter,
-			Instruments:        handlers.Instruments,
-			Logger:             handlers.AWSCloudRuntimeDriftLogger,
-			ReadinessChecker:   handlers.AWSCloudRuntimeDriftReadinessChecker,
-			ReadinessWaits:     handlers.ReadinessWaits,
-			FencingTokenIssuer: handlers.AWSCloudRuntimeDriftFencingTokenIssuer,
+			EvidenceLoader:            handlers.AWSCloudRuntimeDriftEvidenceLoader,
+			Writer:                    handlers.AWSCloudRuntimeDriftWriter,
+			Instruments:               handlers.Instruments,
+			Logger:                    handlers.AWSCloudRuntimeDriftLogger,
+			ReadinessChecker:          handlers.AWSCloudRuntimeDriftReadinessChecker,
+			ReadinessWaits:            handlers.ReadinessWaits,
+			FencingTokenIssuer:        handlers.AWSCloudRuntimeDriftFencingTokenIssuer,
+			SnapshotLoader:            handlers.AWSCloudRuntimeDriftSnapshotLoader,
+			ReopenFingerprintRecorder: handlers.AWSCloudRuntimeDriftReopenRecorder,
 		}
 		definitions = append(definitions, awsRuntimeDrift)
 	}

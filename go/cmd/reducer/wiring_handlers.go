@@ -101,6 +101,20 @@ func buildReducerDriftHandlers(
 	// evidence loader keeps its orchestration and takes only the
 	// overlaid config leg through the seam.
 	driftOverlay := postgres.TerraformDriftOverlay{Store: postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger)}
+	// awsDriftEvidenceLoader joins current AWS resources to active state by
+	// ARN. It also serves the ARN snapshot for the reopen fingerprint
+	// record (#10878): the same join input the handler classified.
+	awsDriftEvidenceLoader := postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
+		DB:             database,
+		ConfigResolver: tfstatebackend.NewResolver(driftOverlay),
+		// The anchor resolves through the overlay, so its config must
+		// come from the overlay too — otherwise a delta-active scope's
+		// base definitions read as unmanaged (#10006 P1-1).
+		OverlaidConfig: driftOverlay.LoadDriftConfig,
+		Tracer:         tracer,
+		Logger:         logger,
+		Instruments:    instruments,
+	}
 	return reducer.DriftHandlers{
 		TerraformBackendResolver: tfstatebackend.NewResolver(driftOverlay),
 		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
@@ -133,17 +147,12 @@ func buildReducerDriftHandlers(
 		// AWS runtime drift joins current AWS resource facts to active
 		// Terraform-state resources by ARN, then resolves the state backend to
 		// the owning config snapshot before classifying unmanaged resources.
-		AWSCloudRuntimeDriftEvidenceLoader: postgres.PostgresAWSCloudRuntimeDriftEvidenceLoader{
-			DB:             database,
-			ConfigResolver: tfstatebackend.NewResolver(driftOverlay),
-			// The anchor resolves through the overlay, so its config must
-			// come from the overlay too — otherwise a delta-active scope's
-			// base definitions read as unmanaged (#10006 P1-1).
-			OverlaidConfig: driftOverlay.LoadDriftConfig,
-			Tracer:         tracer,
-			Logger:         logger,
-			Instruments:    instruments,
-		},
+		AWSCloudRuntimeDriftEvidenceLoader: awsDriftEvidenceLoader,
+		// The reopen fingerprint record (#10878): the snapshot loader is the
+		// same evidence loader above, so the recorded snapshot is the input
+		// the handler classified; the recorder is claim-fenced on the run.
+		AWSCloudRuntimeDriftSnapshotLoader:   awsDriftEvidenceLoader,
+		AWSCloudRuntimeDriftReopenRecorder:   postgres.NewIngestionStore(database),
 		AWSCloudRuntimeDriftWriter:           awsCloudRuntimeDriftWriterFor(database),
 		AWSCloudRuntimeDriftReadinessChecker: postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},
 		// FencingTokenIssuer must be wired whenever the writer is (#5875 P1):

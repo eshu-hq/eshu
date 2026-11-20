@@ -118,7 +118,10 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 	t.Run("correlation", func(t *testing.T) {
 		t.Parallel()
 		recorder, tracer := recordingTracer()
-		ids := queueFakeRows{rows: [][]any{{"wi-1"}, {"wi-2"}, {"wi-3"}}}
+		// container_image_identity is changed-evidence gated (#10878): the
+		// listing returns (work_item_id, input_changed). All-changed input
+		// re-opens every item, preserving the never-memo-gated contract.
+		ids := queueFakeRows{rows: [][]any{{"wi-1", true}, {"wi-2", true}, {"wi-3", true}}}
 		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{ids}})
 		if err := store.ReopenSucceededReducerWorkItems(
 			context.Background(), tracer, nil, []string{"container_image_identity"},
@@ -128,6 +131,23 @@ func TestReopenBlockSpansReportReopenedAndSkippedCounts(t *testing.T) {
 		got := singleReopenSpan(t, recorder)
 		if got.domain != "container_image_identity" || got.ints["reopened"] != 3 || got.ints["skipped_by_memo"] != 0 {
 			t.Fatalf("reopen span = %+v, want container_image_identity reopened=3 skipped_by_memo=0", got)
+		}
+	})
+	t.Run("correlation_unchanged_skips", func(t *testing.T) {
+		t.Parallel()
+		recorder, tracer := recordingTracer()
+		// Unchanged input leaves every item succeeded and counts the skips
+		// on the span (#10878): the gate's quiet-fleet convergence.
+		ids := queueFakeRows{rows: [][]any{{"wi-1", false}, {"wi-2", false}}}
+		store := NewIngestionStore(&fakeTx{queryResponses: []queueFakeRows{ids}})
+		if err := store.ReopenSucceededReducerWorkItems(
+			context.Background(), tracer, nil, []string{"container_image_identity"},
+		); err != nil {
+			t.Fatalf("reopen error = %v, want nil", err)
+		}
+		got := singleReopenSpan(t, recorder)
+		if got.domain != "container_image_identity" || got.ints["reopened"] != 0 || got.ints["skipped_unchanged"] != 2 {
+			t.Fatalf("reopen span = %+v, want container_image_identity reopened=0 skipped_unchanged=2", got)
 		}
 	})
 }

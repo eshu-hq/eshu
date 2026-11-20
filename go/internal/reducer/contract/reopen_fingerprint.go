@@ -51,3 +51,61 @@ type DeployableUnitReopenFingerprintRecorder interface {
 		fingerprint ResolvedReadFingerprint,
 	) error
 }
+
+// AWSDriftReopenSnapshot is the ARN snapshot an aws_cloud_runtime_drift run
+// read (#10878, first domain). ARNIDs and ARNPayloadHashes are parallel
+// arrays in ascending ARN order; Fingerprint is
+// ComputeARNInputFingerprint over the snapshot map. The next run diffs the
+// recorded snapshot against its fresh load to narrow to changed ARNs.
+type AWSDriftReopenSnapshot struct {
+	ScopeID          string
+	GenerationID     string
+	ARNIDs           []string
+	ARNPayloadHashes []string
+	Fingerprint      string
+}
+
+// AWSDriftReopenFingerprintRecorder stores the AWSDriftReopenSnapshot of an
+// aws_cloud_runtime_drift run that is about to succeed, so the
+// deferred-maintenance reopen can leave the item succeeded while its ARN
+// input is unchanged (#10878). The write is fenced on the exact claim
+// (workItemID plus claimedAt, the claim's last_attempt_at) and must return
+// an error wrapping ErrExecutionClaimRejected when that claim no longer
+// holds the item. An unclaimed run records nothing.
+type AWSDriftReopenFingerprintRecorder interface {
+	RecordAWSDriftReopenFingerprint(
+		ctx context.Context,
+		workItemID string,
+		claimedAt time.Time,
+		snapshot AWSDriftReopenSnapshot,
+	) error
+}
+
+// ContainerIdentityReopenEpoch is the identity epoch a
+// container_image_identity run read (#10878, first domain): the count, max
+// observed_at, and ordered-set SHA-256 the probe query already returns for
+// the active identity set. MaxObservedAt is nil on an empty set; the probe
+// scans NULL to the zero time so the empty-set epoch stays stable and
+// cacheable (#8607).
+type ContainerIdentityReopenEpoch struct {
+	EpochCount         int64
+	EpochMaxObservedAt *time.Time
+	EpochFingerprint   string
+}
+
+// ContainerIdentityReopenFingerprintRecorder stores the
+// ContainerIdentityReopenEpoch of a container_image_identity run that is
+// about to succeed, so the deferred-maintenance reopen can leave the item
+// succeeded while the fleet-wide identity epoch is unchanged (#10878). The
+// write is fenced on the exact claim (workItemID plus claimedAt, the
+// claim's last_attempt_at) and must return an error wrapping
+// ErrExecutionClaimRejected when that claim no longer holds the item. An
+// unclaimed run records nothing.
+type ContainerIdentityReopenFingerprintRecorder interface {
+	RecordContainerIdentityReopenEpoch(
+		ctx context.Context,
+		workItemID string,
+		claimedAt time.Time,
+		epoch ContainerIdentityReopenEpoch,
+	) error
+}

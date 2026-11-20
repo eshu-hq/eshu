@@ -478,6 +478,16 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// default to no candidates, like the generic correlation listing below.
 		return &queueFakeRows{}, nil
 	}
+	if query == backfill.ListAWSDriftReopenCandidatesQuery {
+		// aws_cloud_runtime_drift's changed-evidence listing (#10878):
+		// default to no candidates, like the listings above.
+		return &queueFakeRows{}, nil
+	}
+	if query == listContainerIdentityReopenCandidatesQuery {
+		// container_image_identity's changed-evidence listing (#10878):
+		// default to no candidates, like the listings above.
+		return &queueFakeRows{}, nil
+	}
 	if query == listSucceededReducerWorkItemsByDomainQuery {
 		// Cross-scope correlation reopen listing (one call per domain in
 		// CrossScopeCorrelationReopenDomains, now issued on the ingester's

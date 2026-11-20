@@ -9,6 +9,7 @@ import (
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/runtime/declaration"
@@ -84,6 +85,15 @@ type DriftHandlers struct {
 	// silently falling back to the host clock, so the registry must not
 	// register the domain with a writer wired but no issuer.
 	AWSCloudRuntimeDriftFencingTokenIssuer awscloud.AWSCloudRuntimeDriftFencingTokenIssuer
+	// AWSCloudRuntimeDriftSnapshotLoader reads the ARN snapshot of the
+	// generation the run just classified, for the reopen fingerprint record
+	// (#10878). Optional: nil disables recording, and the next maintenance
+	// pass re-opens the item.
+	AWSCloudRuntimeDriftSnapshotLoader awscloud.AWSDriftSnapshotLoader
+	// AWSCloudRuntimeDriftReopenRecorder stores the ARN snapshot after the
+	// durable write, fenced on the run's exact claim (#10878). Optional,
+	// with the same reopen-on-next-pass consequence.
+	AWSCloudRuntimeDriftReopenRecorder reducercontract.AWSDriftReopenFingerprintRecorder
 
 	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing

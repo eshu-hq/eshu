@@ -184,3 +184,30 @@ func TestSearchDocumentsRepoFingerprint(t *testing.T) {
 		t.Fatal("NeedsReindex = true on matching fingerprint with no dirty keys, want false")
 	}
 }
+
+// TestComputeARNInputFingerprintPinsDigest pins the Go twin of
+// backfill.AWSDriftARNFingerprintSQL: deterministic, order-independent,
+// content-sensitive, and the empty set digests to the sentinel the SQL
+// COALESCE emits (#10878). The SQL twin was proven byte-identical on
+// disposable Postgres (13cb793e… for the three-ARN fixture).
+func TestComputeARNInputFingerprintPinsDigest(t *testing.T) {
+	snap := map[string]string{"arn:b": "h2", "arn:a": "h1", "arn:c": "h3"}
+	a := ComputeARNInputFingerprint(snap)
+	b := ComputeARNInputFingerprint(map[string]string{"arn:c": "h3", "arn:a": "h1", "arn:b": "h2"})
+	if a != b {
+		t.Fatalf("fingerprint order-dependent: %q vs %q", a, b)
+	}
+	if len(a) != 64 {
+		t.Fatalf("fingerprint %q is not a hex sha256", a)
+	}
+	moved := ComputeARNInputFingerprint(map[string]string{"arn:b": "h2", "arn:a": "hX", "arn:c": "h3"})
+	if moved == a {
+		t.Fatal("fingerprint ignores a payload-hash change, want mismatch")
+	}
+	if got := ComputeARNInputFingerprint(nil); got != EmptyARNInputFingerprint {
+		t.Fatalf("empty fingerprint = %q, want sentinel %q", got, EmptyARNInputFingerprint)
+	}
+	if got := ComputeARNInputFingerprint(map[string]string{}); got != EmptyARNInputFingerprint {
+		t.Fatalf("empty-map fingerprint = %q, want sentinel %q", got, EmptyARNInputFingerprint)
+	}
+}

@@ -3172,11 +3172,31 @@ type Instruments struct {
 	CorrelationReopened                    metric.Int64Counter
 	// CorrelationReopenSkipped counts succeeded correlation work items the
 	// deferred-maintenance reopen left succeeded because their recorded input
-	// fingerprint still matches their current resolved input (#8283), labeled
-	// by domain and reason=input_unchanged. Only deployable_unit_correlation
-	// is gated today. Read it beside eshu_dp_correlation_reopened_total: a wave
-	// that skips every item means the reopen saw no changed input.
-	CorrelationReopenSkipped               metric.Int64Counter
+	// fingerprint still matches their current resolved input (#8283, #10878),
+	// labeled by domain and reason=input_unchanged. deployable_unit_correlation
+	// and aws_cloud_runtime_drift are gated today. Read it beside
+	// eshu_dp_correlation_reopened_total: a wave that skips every item means
+	// the reopen saw no changed input.
+	CorrelationReopenSkipped metric.Int64Counter
+	// AWSDriftIncrementalChangedKeys counts the ARN keys one
+	// aws_cloud_runtime_drift run classified, labeled by mode=delta|full
+	// (#10878 AC6). Delta runs dominate at steady state; a full run reports
+	// the whole generation size.
+	AWSDriftIncrementalChangedKeys metric.Int64Counter
+	// AWSDriftIncrementalSkipped counts aws_cloud_runtime_drift runs that
+	// re-derived nothing because the ARN snapshot matched the last success,
+	// labeled by reason=input_unchanged (#10878 AC6).
+	AWSDriftIncrementalSkipped metric.Int64Counter
+	// AWSDriftIncrementalFallbackFull counts aws_cloud_runtime_drift runs
+	// that re-derived the whole generation because the change signal was
+	// unreadable, labeled by the closed fallback reason (#10878 AC6,
+	// #10861-D3 (b) counting). Sustained nonzero here is a defect.
+	AWSDriftIncrementalFallbackFull metric.Int64Counter
+	// AWSDriftIncrementalAuditCorrections counts the admitted candidates a
+	// daily #10861-D3 audit found the delta run missed: full-minus-delta on
+	// correlation keys (#10878 AC3). Two consecutive correcting audits are a
+	// defect and an alert per D3.
+	AWSDriftIncrementalAuditCorrections    metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter
 
@@ -8068,10 +8088,42 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CorrelationReopenSkipped, err = meter.Int64Counter(
 		"eshu_dp_correlation_reopen_skipped_total",
-		metric.WithDescription("Total succeeded correlation reducer work items the deferred-maintenance reopen left succeeded because their recorded input fingerprint matches their current resolved input (#8283), labeled by domain and reason=input_unchanged."),
+		metric.WithDescription("Total succeeded correlation reducer work items the deferred-maintenance reopen left succeeded because their recorded input fingerprint matches their current resolved input (#8283, #10878), labeled by domain and reason=input_unchanged."),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationReopenSkipped counter: %w", err)
+	}
+
+	inst.AWSDriftIncrementalChangedKeys, err = meter.Int64Counter(
+		"eshu_dp_aws_drift_incremental_changed_keys_total",
+		metric.WithDescription("Total ARN keys one aws_cloud_runtime_drift run classified, labeled by mode=delta|full (#10878 AC6)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSDriftIncrementalChangedKeys counter: %w", err)
+	}
+
+	inst.AWSDriftIncrementalSkipped, err = meter.Int64Counter(
+		"eshu_dp_aws_drift_incremental_skipped_total",
+		metric.WithDescription("Total aws_cloud_runtime_drift runs that re-derived nothing because the ARN snapshot matched the last success, labeled by reason=input_unchanged (#10878 AC6)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSDriftIncrementalSkipped counter: %w", err)
+	}
+
+	inst.AWSDriftIncrementalFallbackFull, err = meter.Int64Counter(
+		"eshu_dp_aws_drift_incremental_fallback_full_total",
+		metric.WithDescription("Total aws_cloud_runtime_drift runs that re-derived the whole generation because the change signal was unreadable, labeled by the closed fallback reason (#10878 AC6)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSDriftIncrementalFallbackFull counter: %w", err)
+	}
+
+	inst.AWSDriftIncrementalAuditCorrections, err = meter.Int64Counter(
+		"eshu_dp_aws_drift_incremental_audit_corrections_total",
+		metric.WithDescription("Total admitted candidates a daily aws_cloud_runtime_drift audit found the delta run missed: full-minus-delta on correlation keys (#10878 AC3)."),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSDriftIncrementalAuditCorrections counter: %w", err)
 	}
 
 	inst.IaCReachabilityMaterializationDuration, err = meter.Float64Histogram(
