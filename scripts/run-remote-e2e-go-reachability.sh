@@ -110,8 +110,11 @@ neo4j_overlay="${ESHU_DEPLOY_CHECKOUT}/compose/docker-compose.neo4j.yml"
 
 compose() {
 	# The neo4j overlay goes after base+fragment (backend topology) and
-	# before the proof overlay so proof scoping wins on conflicts.
-	docker compose -p "${project}" -f "${base_compose}" -f "${fragment}" -f "${neo4j_overlay}" -f "${proof_deps_overlay}" "$@"
+	# before the proof overlay so proof scoping wins on conflicts. It
+	# profile-gates workflow-coordinator (like the OCI driver's
+	# component-extension-collector profile): enable it so the service
+	# stays in the project.
+	docker compose -p "${project}" --profile workflow-coordinator -f "${base_compose}" -f "${fragment}" -f "${neo4j_overlay}" -f "${proof_deps_overlay}" "$@"
 }
 
 # Remap every published host port into a high range so the proof stack never
