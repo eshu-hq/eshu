@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	chain "github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
@@ -93,6 +94,160 @@ func TestGoldenSnapshot10030RecordedReachabilityPinsAreNonVacuous(t *testing.T) 
 					tc.mutatedReachability, tc.shapeKey, result.Detail)
 			}
 		})
+	}
+}
+
+// TestGoldenSnapshot10030RecordedFailedReachabilityPinIsNonVacuous proves the
+// #10030 failed-scan snapshot pin (CVE-2026-9401 analysis_failed) evaluates
+// real reducer output instead of passing on an empty or hand-written body.
+// The recorded scanner-worker envelopes carry no reachability fact for the
+// legacy module — only the toolchain_unsupported warning — so the #10043
+// mapping must surface runtime_reachability=analysis_failed with
+// reachability.state=missing_evidence. The test builds the response body from
+// REAL reducer output (the recorded envelopes joined with a synthetic
+// GO-2026-9401 advisory mirroring the core recorded-10030 triple and the
+// legacy package-consumption fact), asserts EvaluateQueryShape passes, then
+// asserts two mutations are rejected: the sibling not_called verdict (one
+// scan's answers must not collapse across advisories) and a reachable state
+// (the missing-evidence pin must be load-bearing, not decorative).
+func TestGoldenSnapshot10030RecordedFailedReachabilityPinIsNonVacuous(t *testing.T) {
+	const (
+		shapeKey = "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9401&profile=comprehensive"
+		cveID    = "CVE-2026-9401"
+	)
+	snapshot, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	shape, ok := snapshot.QueryShapes.HTTP[shapeKey]
+	if !ok {
+		t.Fatalf("query_shapes.http missing %q", shapeKey)
+	}
+	finding := build10030RecordedFailedImpactFinding(t)
+	if finding.RuntimeReachability != string(core.GoVulnReachabilityAnalysisFailed) {
+		t.Fatalf("%s RuntimeReachability = %q, want analysis_failed (reducer verdict moved)",
+			cveID, finding.RuntimeReachability)
+	}
+	if finding.Reachability == nil || finding.Reachability.State != core.SupplyChainReachabilityMissingEvidence {
+		t.Fatalf("%s reachability = %#v, want missing_evidence (reducer enrichment moved)",
+			cveID, finding.Reachability)
+	}
+	raw, err := json.Marshal(recorded10030FindingsBody(finding))
+	if err != nil {
+		t.Fatalf("marshal real reducer body: %v", err)
+	}
+	if result := EvaluateQueryShape(shapeKey, shape, raw); !result.OK {
+		t.Fatalf("real reducer output failed %s: %s", shapeKey, result.Detail)
+	}
+
+	mutated := recorded10030WireItem(finding)
+	mutated["runtime_reachability"] = "not_called"
+	mutatedRaw, err := json.Marshal(map[string]any{
+		"findings": []any{mutated},
+		"count":    1,
+	})
+	if err != nil {
+		t.Fatalf("marshal mutated body: %v", err)
+	}
+	if result := EvaluateQueryShape(shapeKey, shape, mutatedRaw); result.OK {
+		t.Fatalf("mutated runtime_reachability=not_called passed %s unexpectedly: %s",
+			shapeKey, result.Detail)
+	}
+
+	mutatedState := recorded10030WireItem(finding)
+	mutatedState["reachability"] = map[string]any{"state": "reachable"}
+	mutatedStateRaw, err := json.Marshal(map[string]any{
+		"findings": []any{mutatedState},
+		"count":    1,
+	})
+	if err != nil {
+		t.Fatalf("marshal state-mutated body: %v", err)
+	}
+	if result := EvaluateQueryShape(shapeKey, shape, mutatedStateRaw); result.OK {
+		t.Fatalf("mutated reachability.state=reachable passed %s unexpectedly: %s",
+			shapeKey, result.Detail)
+	}
+}
+
+// build10030RecordedFailedImpactFinding replays the reducer inputs for the
+// #10030 failed-scan tuple: the five RECORDED scanner-worker envelopes (the
+// legacy module evidence and the toolchain_unsupported warning are the two
+// that matter here), a synthetic GO-2026-9401/CVE-2026-9401 advisory pair
+// mirroring the core recorded-10030 triple (the committed cassette carries
+// no 9401 advisory facts), and the legacy-lib package-consumption fact. It
+// requires exactly the one failed tuple, so a duplicate, a collapse into a
+// sibling advisory, or a dropped finding fails here.
+func build10030RecordedFailedImpactFinding(t *testing.T) core.SupplyChainImpactFinding {
+	t.Helper()
+
+	envelopes := load10030RecordedScannerEnvelopes(t)
+	envelopes = append(envelopes, recorded10030FailedAdvisoryEnvelopes()...)
+	envelopes = append(envelopes, facts.Envelope{
+		FactID:   "orders-legacy-lib-consumption",
+		FactKind: correlation.PackageConsumptionFactKind,
+		Payload: map[string]any{
+			"package_id":        "gomod://proxy.golang.org/github.com/acme/legacy-lib",
+			"relationship_kind": "consumption",
+			"repository_id":     "repository:r_ea78e8bb",
+			"dependency_range":  "v0.1.0",
+			"canonical_writes":  1,
+			"evidence_fact_ids": []any{"manifest-lock-1"},
+		},
+	})
+
+	findings := core.BuildSupplyChainImpactFindings(envelopes)
+	if len(findings) != 1 {
+		t.Fatalf("recorded failed findings = %d, want exactly the 9401 tuple: %#v", len(findings), findings)
+	}
+	finding := findings[0]
+	if finding.CVEID != "CVE-2026-9401" {
+		t.Fatalf("recorded failed finding CVE = %q, want CVE-2026-9401: %#v", finding.CVEID, finding)
+	}
+	return finding
+}
+
+// recorded10030FailedAdvisoryEnvelopes returns the synthetic advisory-side
+// facts (vulnerability.cve plus vulnerability.affected_package with the
+// affected range the core recorded-10030 triple pins) for the failed
+// GO-2026-9401/CVE-2026-9401 tuple. The committed vulnerability-intelligence
+// cassette carries no 9401 advisory facts, so the pin body builds them the
+// same way the core classifier test does; the scanner envelopes above stay
+// the single recorded-scanner truth input.
+func recorded10030FailedAdvisoryEnvelopes() []facts.Envelope {
+	const osvID = "GO-2026-9401"
+	const cveID = "CVE-2026-9401"
+	const modulePath = "github.com/acme/legacy-lib"
+	return []facts.Envelope{
+		{
+			FactID:   "recorded-10030-cve-" + osvID,
+			FactKind: chain.VulnerabilityCVEFactKind,
+			Payload: map[string]any{
+				"cve_id":      cveID,
+				"advisory_id": osvID,
+				"cvss_score":  7.5,
+				"aliases":     []any{osvID, cveID},
+			},
+		},
+		{
+			FactID:   "recorded-10030-affected-" + osvID,
+			FactKind: chain.VulnerabilityAffectedPackageFactKind,
+			Payload: map[string]any{
+				"advisory_id":  osvID,
+				"cve_id":       cveID,
+				"ecosystem":    "go",
+				"package_name": modulePath,
+				"module_path":  modulePath,
+				"package_id":   "gomod://proxy.golang.org/" + modulePath,
+				"affected_ranges": []any{map[string]any{
+					"type": "SEMVER",
+					"events": []any{
+						map[string]any{"introduced": "0"},
+						map[string]any{"fixed": "0.1.1"},
+					},
+				}},
+				"fixed_versions": []any{"0.1.1"},
+			},
+		},
 	}
 }
 
@@ -233,11 +388,12 @@ func recorded10030FindingsBody(finding core.SupplyChainImpactFinding) map[string
 // object the findings list route serves. The keys are the wire names the
 // query side decodes (impact/findings_decode.go DecodeFindingRow reads
 // cve_id, advisory_id, package_id, repository_id, observed_version,
-// runtime_reachability, evidence_path, cvss_score, priority_reason_codes and
-// the provenance selected_* block); every value comes straight from the
-// reducer struct, so no hand-written verdict can satisfy the pins.
+// runtime_reachability, reachability, evidence_path, cvss_score,
+// priority_reason_codes and the provenance selected_* block); every value
+// comes straight from the reducer struct, so no hand-written verdict can
+// satisfy the pins.
 func recorded10030WireItem(finding core.SupplyChainImpactFinding) map[string]any {
-	return map[string]any{
+	item := map[string]any{
 		"cve_id":                finding.CVEID,
 		"advisory_id":           finding.AdvisoryID,
 		"package_id":            finding.PackageID,
@@ -255,6 +411,47 @@ func recorded10030WireItem(finding core.SupplyChainImpactFinding) map[string]any
 			"selected_severity_label":        finding.SeverityLabel,
 		},
 	}
+	if block := recorded10030ReachabilityBlock(finding); block != nil {
+		item["reachability"] = block
+	}
+	return item
+}
+
+// recorded10030ReachabilityBlock projects the finding's REAL reachability
+// enrichment onto the wire object the findings list route serves
+// (querycontract/packet ReachabilityResult: state plus the missing_evidence
+// array among others). It mirrors the reducer's own payload encoder
+// (supplyChainReachabilityPayload), so the failed-scan pin asserts the same
+// state and missing-evidence entries the live finding persists.
+func recorded10030ReachabilityBlock(finding core.SupplyChainImpactFinding) map[string]any {
+	reachability := finding.Reachability
+	if reachability == nil || reachability.State == "" {
+		return nil
+	}
+	block := map[string]any{
+		"state":             string(reachability.State),
+		"confidence":        reachability.Confidence,
+		"source":            reachability.Source,
+		"evidence":          reachability.Evidence,
+		"reason":            reachability.Reason,
+		"language_maturity": reachability.LanguageMaturity,
+	}
+	if len(reachability.MissingEvidence) > 0 {
+		block["missing_evidence"] = stringsToAny10030(reachability.MissingEvidence)
+	}
+	if reachability.ScanLevel != "" {
+		block["scan_level"] = reachability.ScanLevel
+	}
+	if reachability.ScanMode != "" {
+		block["scan_mode"] = reachability.ScanMode
+	}
+	if reachability.ScannerVersion != "" {
+		block["scanner_version"] = reachability.ScannerVersion
+	}
+	if reachability.TraceCount != nil {
+		block["trace_count"] = *reachability.TraceCount
+	}
+	return block
 }
 
 func stringsToAny10030(values []string) []any {

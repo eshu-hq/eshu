@@ -18,8 +18,9 @@ import (
 // wire shape fails here. The three (repository, module, advisory) tuples the
 // recording carries must classify distinctly: the scanned orders-api module
 // proves symbol reachability for GO-2026-9229 and not_called for
-// GO-2026-9301, while the unscanned legacy module carries only module
-// evidence plus the toolchain_unsupported warning for GO-2026-9401.
+// GO-2026-9301, while the unscanned legacy module carries module evidence
+// plus the toolchain_unsupported warning for GO-2026-9401, which #10043
+// rewrites from module_only to analysis_failed.
 
 const (
 	recorded10030RepositoryID = "repository:r_ea78e8bb"
@@ -128,8 +129,10 @@ func recorded10030Advisories(t *testing.T) []facts.Envelope {
 
 // TestRecorded10030TuplesClassifyDistinctly proves the classifier keeps the
 // three recorded (repository, module, advisory) tuples apart: the scanned
-// tuple carries call proof, the unscanned legacy tuple carries only the
-// warning, and the failed tuple cannot borrow the scanned tuple's proof.
+// tuple carries call proof, the uncalled tuple carries not_called proof, and
+// the legacy failed tuple — module evidence plus the joined
+// toolchain_unsupported warning — classifies analysis_failed per #10043
+// instead of borrowing the scanned tuple's proof.
 func TestRecorded10030TuplesClassifyDistinctly(t *testing.T) {
 	t.Parallel()
 
@@ -168,8 +171,12 @@ func TestRecorded10030TuplesClassifyDistinctly(t *testing.T) {
 		t.Fatalf("not_called tuple must not miss call-graph proof: %#v", uncalled.MissingEvidence)
 	}
 	failed := byTuple[recorded10030RepositoryID+"\x00"+recorded10030LegacyModule+"\x00GO-2026-9401"]
-	if failed.Reachability != GoVulnReachabilityModuleOnly {
-		t.Fatalf("failed tuple reachability = %q, want module_only", failed.Reachability)
+	// #10043: the joined toolchain_unsupported warning rewrites the
+	// non-reachable module_only verdict to analysis_failed — the
+	// unfinished scan produced no reachability fact for this scope, so a
+	// module_only verdict would overclaim finished-scan knowledge.
+	if failed.Reachability != GoVulnReachabilityAnalysisFailed {
+		t.Fatalf("failed tuple reachability = %q, want analysis_failed", failed.Reachability)
 	}
 	if !containsString(failed.MissingEvidence, "govulncheck call-graph evidence missing") {
 		t.Fatalf("failed tuple MissingEvidence = %#v, want the missing call-proof gap", failed.MissingEvidence)
