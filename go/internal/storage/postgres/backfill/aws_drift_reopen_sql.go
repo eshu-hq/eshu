@@ -163,6 +163,16 @@ SET scope_id = EXCLUDED.scope_id,
 WHERE aws_drift_reopen_fingerprints.claimed_at <= EXCLUDED.claimed_at
 `
 
+// LoadAWSDriftRecordedSnapshotQuery reads this run's previously recorded
+// reopen snapshot: the parallel ARN arrays plus the record time (the
+// per-run plan's audit clock). $1 work_item_id. No row means the item
+// never recorded: absence re-opens, never skips.
+const LoadAWSDriftRecordedSnapshotQuery = `
+SELECT arn_ids, arn_payload_hashes, recorded_at
+FROM aws_drift_reopen_fingerprints
+WHERE work_item_id = $1
+`
+
 // ScanAWSDriftReopenCandidates reads a ListAWSDriftReopenCandidatesQuery
 // result into the work items to re-open, in listing order, and the count
 // left succeeded because their input did not change.

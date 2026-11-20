@@ -61,6 +61,8 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 			FencingTokenIssuer:        handlers.AWSCloudRuntimeDriftFencingTokenIssuer,
 			SnapshotLoader:            handlers.AWSCloudRuntimeDriftSnapshotLoader,
 			ReopenFingerprintRecorder: handlers.AWSCloudRuntimeDriftReopenRecorder,
+			IncrementalPlanSource:     handlers.AWSCloudRuntimeDriftIncrementalPlanSource,
+			EvidenceCache:             handlers.AWSCloudRuntimeDriftEvidenceCache,
 		}
 		definitions = append(definitions, awsRuntimeDrift)
 	}

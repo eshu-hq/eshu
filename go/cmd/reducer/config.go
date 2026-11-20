@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/liveness"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance/orphan"
@@ -81,6 +82,8 @@ const (
 	graphOrphanSweepLeaseTTLEnv     = "ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL"
 
 	driftPriorConfigDepthEnv = "ESHU_DRIFT_PRIOR_CONFIG_DEPTH"
+
+	awsDriftEvidenceCacheMaxBytesEnv = "ESHU_AWS_DRIFT_EVIDENCE_CACHE_MAX_BYTES"
 
 	defaultGenerationRetentionPollInterval = time.Hour
 
@@ -472,6 +475,31 @@ func identityCacheMaxBytes(getenv func(string) string) int64 {
 		return 0 // use default
 	}
 	return val // negative → disable, positive → override
+}
+
+// awsDriftEvidenceCacheMaxBytes reads ESHU_AWS_DRIFT_EVIDENCE_CACHE_MAX_BYTES.
+// Empty, zero, negative, or non-integer input returns the evidence-based
+// default (awscloud.DefaultAWSDriftEvidenceCacheMaxBytes) with a WARN log so
+// a typo cannot disable sharing or blow the budget — operator error is
+// observable but non-fatal.
+func awsDriftEvidenceCacheMaxBytes(getenv func(string) string, logger *slog.Logger) int64 {
+	raw := strings.TrimSpace(getenv(awsDriftEvidenceCacheMaxBytesEnv))
+	if raw == "" {
+		return awscloud.DefaultAWSDriftEvidenceCacheMaxBytes
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n <= 0 {
+		if logger != nil {
+			logger.LogAttrs(
+				context.Background(), slog.LevelWarn,
+				"invalid ESHU_AWS_DRIFT_EVIDENCE_CACHE_MAX_BYTES; falling back to default",
+				slog.String("raw", raw),
+				slog.String(telemetry.LogKeyFailureClass, "env_parse"),
+			)
+		}
+		return awscloud.DefaultAWSDriftEvidenceCacheMaxBytes
+	}
+	return n
 }
 
 // parsePriorConfigDepth converts the ESHU_DRIFT_PRIOR_CONFIG_DEPTH env value

@@ -115,6 +115,21 @@ func buildReducerDriftHandlers(
 		Logger:         logger,
 		Instruments:    instruments,
 	}
+	// The reopen fingerprint record (#10878): the snapshot loader is the
+	// same evidence loader above, so the recorded snapshot is the input
+	// the handler classified; the recorder is claim-fenced on the run.
+	awsDriftIngestionStore := postgres.NewIngestionStore(database)
+	// The per-run incremental plan (#10878): this work item's previously
+	// recorded snapshot against the fresh load above plus the audit
+	// clock. Any unreadable signal fails open to a counted full run.
+	awsDriftIncrementalSource := &awscloud.AWSDriftIncrementalPlanner{
+		Snapshots: awsDriftEvidenceLoader,
+		Recorded:  awsDriftIngestionStore,
+	}
+	// The shared evidence cache (#10878 AC5): one cache for the whole
+	// service, so concurrent workers on one input version share exactly
+	// one evidence load, keyed by the run's fresh snapshot fingerprint.
+	awsDriftEvidenceCache := awscloud.NewAWSDriftEvidenceCache(awsDriftEvidenceCacheMaxBytes(getenv, logger))
 	return reducer.DriftHandlers{
 		TerraformBackendResolver: tfstatebackend.NewResolver(driftOverlay),
 		DriftEvidenceLoader: postgres.PostgresDriftEvidenceLoader{
@@ -151,10 +166,12 @@ func buildReducerDriftHandlers(
 		// The reopen fingerprint record (#10878): the snapshot loader is the
 		// same evidence loader above, so the recorded snapshot is the input
 		// the handler classified; the recorder is claim-fenced on the run.
-		AWSCloudRuntimeDriftSnapshotLoader:   awsDriftEvidenceLoader,
-		AWSCloudRuntimeDriftReopenRecorder:   postgres.NewIngestionStore(database),
-		AWSCloudRuntimeDriftWriter:           awsCloudRuntimeDriftWriterFor(database),
-		AWSCloudRuntimeDriftReadinessChecker: postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},
+		AWSCloudRuntimeDriftSnapshotLoader:        awsDriftEvidenceLoader,
+		AWSCloudRuntimeDriftReopenRecorder:        awsDriftIngestionStore,
+		AWSCloudRuntimeDriftIncrementalPlanSource: awsDriftIncrementalSource,
+		AWSCloudRuntimeDriftEvidenceCache:         awsDriftEvidenceCache,
+		AWSCloudRuntimeDriftWriter:                awsCloudRuntimeDriftWriterFor(database),
+		AWSCloudRuntimeDriftReadinessChecker:      postgres.PostgresAWSCloudRuntimeDriftReadinessChecker{DB: database},
 		// FencingTokenIssuer must be wired whenever the writer is (#5875 P1):
 		// AWSCloudRuntimeDriftHandler.Handle hard-errors without one rather
 		// than silently falling back to the host clock.

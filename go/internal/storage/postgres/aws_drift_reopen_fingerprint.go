@@ -109,6 +109,52 @@ func (s IngestionStore) RecordAWSDriftReopenFingerprint(
 	return nil
 }
 
+// LoadAWSDriftRecordedSnapshot reads this run's previously recorded reopen
+// snapshot for the per-run incremental plan: the ARN-to-payload-identity
+// map zipped from the recorded parallel arrays, plus the record time (the
+// plan's audit clock). ok=false means the work item never recorded: absence
+// re-opens, never skips (#10878 decision 4). A length-mismatched row is an
+// error, not a truncation: the planner fails open to a full run and the
+// record path heals the row.
+func (s IngestionStore) LoadAWSDriftRecordedSnapshot(
+	ctx context.Context,
+	workItemID string,
+) (map[string]string, time.Time, bool, error) {
+	if s.database == nil {
+		return nil, time.Time{}, false, fmt.Errorf("ingestion database is required")
+	}
+	rows, err := s.database.QueryContext(ctx, backfill.LoadAWSDriftRecordedSnapshotQuery, workItemID)
+	if err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("list aws drift recorded snapshot: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, time.Time{}, false, fmt.Errorf("list aws drift recorded snapshot: %w", err)
+		}
+		return nil, time.Time{}, false, nil
+	}
+	var arnIDs, arnPayloadHashes array.StringArray
+	var recordedAt time.Time
+	if err := rows.Scan(&arnIDs, &arnPayloadHashes, &recordedAt); err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("scan aws drift recorded snapshot: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, time.Time{}, false, fmt.Errorf("iterate aws drift recorded snapshot: %w", err)
+	}
+	if len(arnIDs) != len(arnPayloadHashes) {
+		return nil, time.Time{}, false, fmt.Errorf(
+			"aws drift recorded snapshot length mismatch: %d ids vs %d hashes",
+			len(arnIDs), len(arnPayloadHashes),
+		)
+	}
+	prev := make(map[string]string, len(arnIDs))
+	for i, arn := range arnIDs {
+		prev[arn] = arnPayloadHashes[i]
+	}
+	return prev, recordedAt, true, nil
+}
+
 // listAWSDriftReopenCandidates runs the changed-evidence listing and
 // returns the items to re-open plus the count left succeeded (#10878).
 func listAWSDriftReopenCandidates(

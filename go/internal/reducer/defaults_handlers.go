@@ -94,6 +94,18 @@ type DriftHandlers struct {
 	// durable write, fenced on the run's exact claim (#10878). Optional,
 	// with the same reopen-on-next-pass consequence.
 	AWSCloudRuntimeDriftReopenRecorder reducercontract.AWSDriftReopenFingerprintRecorder
+	// AWSCloudRuntimeDriftIncrementalPlanSource builds the run's
+	// incremental plan per Handle call from the previously recorded
+	// snapshot, the fresh load, and the audit clock (#10878). Optional:
+	// nil keeps the full-generation behavior. Production wires
+	// AWSDriftIncrementalPlanner here; the registration below copies it
+	// onto the handler alongside the snapshot loader.
+	AWSCloudRuntimeDriftIncrementalPlanSource awscloud.AWSDriftIncrementalPlanSource
+	// AWSCloudRuntimeDriftEvidenceCache shares one evidence load per input
+	// version across concurrent workers. Optional: nil loads directly.
+	// Production wires one shared cache; the registration below copies it
+	// onto the handler.
+	AWSCloudRuntimeDriftEvidenceCache *awscloud.AWSDriftEvidenceCache
 
 	// Multi-cloud runtime drift adapters (issues #1997, #1998). Both must be
 	// non-nil for the registry to register DomainMultiCloudRuntimeDrift; missing
