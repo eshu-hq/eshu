@@ -109,6 +109,33 @@ func TestGoScanProvenanceAbsentStaysAbsent(t *testing.T) {
 	if finding.TraceCount != nil {
 		t.Fatalf("TraceCount = %v, want nil", *finding.TraceCount)
 	}
+
+	// Payload quadrant: the same provenance-absent fact through the impact
+	// findings must emit an explain payload with no scan keys at all.
+	const absentRepo = "repo://example/absent"
+	absentModule := "example.com/vuln"
+	absentPackageID := "gomod://proxy.golang.org/" + absentModule
+	impact := BuildSupplyChainImpactFindings([]facts.Envelope{
+		packageConsumptionFactWithRange("consume-absent", absentPackageID, absentRepo, "v1.2.3"),
+		goModuleEvidenceEnvelope(t, absentRepo, "go.mod", absentModule, "v1.2.3", false, "", ""),
+		vulnerabilityCVEFact("cve-absent", "GO-2024-9999", 7.5),
+		vulnerabilityAffectedPackageGoRangeFact("affected-absent", "GO-2024-9999", absentPackageID, absentModule, "v9.9.9"),
+		goReachabilityEnvelope(t, absentRepo, "GO-2024-9999", absentModule, "v1.2.3", absentModule+"/inner", "DangerousCall", "symbol"),
+	})
+	byCVE := supplyChainImpactFindingsByCVE(impact)
+	got, ok := byCVE["GO-2024-9999"]
+	if !ok {
+		t.Fatalf("no impact finding for GO-2024-9999: %#v", impact)
+	}
+	payload := supplyChainReachabilityPayload(got.Reachability)
+	if payload == nil {
+		t.Fatalf("reachability payload is nil")
+	}
+	for _, key := range []string{"scan_level", "scan_mode", "scanner_version", "trace_count"} {
+		if _, present := payload[key]; present {
+			t.Fatalf("payload carries %q = %v, want key absent", key, payload[key])
+		}
+	}
 }
 
 // goReachabilityEnvelopeWithProvenance builds a
