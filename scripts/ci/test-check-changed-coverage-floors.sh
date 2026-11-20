@@ -29,26 +29,9 @@ stub_bin="${tmp_root}/stub-bin"
 mkdir -p "${stub_bin}"
 cat >"${stub_bin}/go" <<'STUB'
 #!/usr/bin/env bash
-# $GO_STUB_MODE: pass (write profile, exit 0) or fail (exit 1).
-# Records post-`test` args to $GO_STUB_ARGS, profile path from -coverprofile=.
 echo "$@" >>"${GO_STUB_ARGS}"
-if [[ "${GO_STUB_MODE:-pass}" == "fail" ]]; then
-	printf 'FAIL\texample.com/go/alpha\n' >&2
-	exit 1
-fi
-profile=""
-for arg in "$@"; do
-	case "${arg}" in
-	-coverprofile=*)
-		profile="${arg#-coverprofile=}"
-		;;
-	esac
-done
-cat >"${profile}" <<'PROFILE'
-mode: count
-example.com/go/alpha/a.go:1.1,2.1 8 1
-example.com/go/alpha/a.go:3.1,4.1 2 0
-PROFILE
+[ "${GO_STUB_MODE:-pass}" = fail ] && { printf 'FAIL\texample.com/go/alpha\n' >&2; exit 1; }
+for arg in "$@"; do case "$arg" in -coverprofile=*) printf 'mode: count\nexample.com/go/alpha/a.go:1.1,2.1 8 1\nexample.com/go/alpha/a.go:3.1,4.1 2 0\n' >"${arg#-coverprofile=}";; esac; done
 STUB
 chmod +x "${stub_bin}/go"
 
