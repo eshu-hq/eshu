@@ -214,6 +214,7 @@ LINE docs/internal/design/package-restructure.md go/internal/payloadusage/load.g
 LINE docs/internal/design/package-restructure.md go/internal/reducer/intent.go:9
 LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter.go:273
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
+LINE docs/internal/evidence/6296-nornicdb-helm-pin-v123.md go/internal/query/code_relationships_nornicdb_optional_match_live_test.go:16
 LINE docs/internal/measurements.jsonl go/internal/storage/cypher/edge_writer_retract_repo.go:112
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128

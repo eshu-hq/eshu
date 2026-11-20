@@ -55,7 +55,6 @@
 # #088 is an applied Postgres migration; its comment records the production
 # file name as it stood when the migration was authored. Applied migrations
 # are immutable, so this reference is never repointed.
-docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
 go/internal/storage/postgres/migrations/088_reducer_work_item_reopened_at.sql:go/internal/reducer/code_call_materialization.go
 
 # go/internal/query/** belongs to the query lanes, not this #6061 materialization
@@ -157,6 +156,8 @@ docs/internal/design/5385-workload-identity-key.md:go/internal/query/impacttrace
 docs/internal/audit/2026-06-09-repo-technical-audit.md:go/internal/storage/cypher/edge_writer_sql.go
 docs/internal/design/2222-resolution-provenance-code-edges.md:go/internal/storage/cypher/edge_writer_code_call_labels.go
 docs/internal/design/2248-retention-semantics-generations-facts-content.md:go/internal/storage/cypher/edge_writer_retract.go
+docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_logging.go
+docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_rationale_labels.go
 docs/internal/measurements.jsonl:go/internal/storage/cypher/edge_writer_retract_repo.go
 go/internal/ifa/evidence-5993-materialized-edge-dispatch.md:go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_logging.go
@@ -291,6 +292,7 @@ go/internal/storage/cypher/evidence-4367-semantic-retract-dispatch.md:go/interna
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_statements.go
 go/internal/storage/cypher/evidence-5156-variable-semantic-owned.md:go/internal/storage/cypher/semantic_entity_nornicdb_test.go
 # #6694 canonical slice: dated evidence records describing paths as they stood.
+docs/internal/evidence/6649-calls-degree-floor.md:go/internal/storage/cypher/canonical_code_call_edges.go
 # #6694 edge/writer leaf: the 6228 slice-D note records the alias consts as
 # placed "beside the existing writer" at the old root path. Repointing would
 # claim the 6228 tree looked like the post-move tree.

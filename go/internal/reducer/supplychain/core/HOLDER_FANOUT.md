@@ -444,3 +444,21 @@ Observability Evidence (#10681 capped probe): probe errors still count at
 the existing FanOutReadSiteHolders site with no new counter, label, span,
 or log field. max_id_mass_rows now saturates at the 10001 cap by design
 (hot stays hot; exact max above threshold is sacrificed and documented).
+
+No-Regression Evidence (#10990 evidence-pointer hygiene): the 14
+hot-path-adjacent files this lane touches changed comment bytes only —
+every added/removed line is a `//` doc-comment token swap from
+`docs/internal/evidence/<name>` to `(#NNNN)` (verified by `git diff`
+inspection; zero code rows changed). Baseline is the pre-change tree at
+merge-base 6d4f9bb7b4 with `go build ./...` exit 0 and the focused suites
+green. After is this head: `go build ./...` exit 0; migrations manifest,
+goldengate, queryplan source-coverage (digest re-pinned to the edited
+comment-only source), fragments (13 tests), and methodology --static
+green. Backend/version: none exercised — no runtime behavior changed, so
+no backend measurement applies; input shape is comment-only hunks;
+zero code rows added or removed. The change is safe because comments do
+not execute and the compiler plus focused tests pin behavior identical.
+
+No-Observability-Change (#10990 evidence-pointer hygiene): no new or
+changed metric, span, log line, label, queue stage, lock, claim, lease,
+or status field; all telemetry sites are untouched.

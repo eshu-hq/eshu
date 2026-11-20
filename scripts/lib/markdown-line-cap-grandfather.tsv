@@ -100,6 +100,7 @@ docs/internal/design/package-restructure.md	2463
 docs/internal/design/restructure-research.md	506
 docs/internal/evidence/5490-k8sresource-candidate-index.md	507
 docs/internal/evidence/5837-aws-drift-reopen.md	1502
+docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/public/contributing-language-support.md	503
 docs/public/operate/hosted-governance.md	671
 docs/public/reference/cypher-performance.md	1821
