@@ -29,3 +29,22 @@ func DecodeScannerWorkerAnalysis(env facts.Envelope) (scannerworkerv1.Analysis, 
 	}
 	return analysis, nil
 }
+
+// DecodeScannerWorkerWarning decodes one scanner_worker.warning envelope
+// into the typed scannerworkerv1.Warning struct through the contracts seam,
+// returning a self-classifying *factDecodeError when the payload is missing a
+// required field (analyzer, target_kind, target_locator_hash, reason,
+// warning_class, analysis_status, coverage_status) or is otherwise
+// malformed. It is the single decode site for the scanner_worker.warning
+// kind on the reducer side: the Go reachability warning join decodes through
+// here, and a missing required field is routed through
+// partitionDecodeFailures so it dead-letters as a per-fact input_invalid
+// quarantine rather than a silent empty-string identity or a whole-intent
+// abort.
+func DecodeScannerWorkerWarning(env facts.Envelope) (scannerworkerv1.Warning, error) {
+	warning, err := factschema.DecodeScannerWorkerWarning(FactschemaEnvelope(env))
+	if err != nil {
+		return scannerworkerv1.Warning{}, factdecode.NewFactDecodeError(factschema.FactKindScannerWorkerWarning, err)
+	}
+	return warning, nil
+}

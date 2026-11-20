@@ -33,6 +33,10 @@ func ReachabilityFromFinding(finding map[string]any) *ReportReachability {
 		Reason:           strings.TrimSpace(stringFromMap(raw, "reason")),
 		LanguageMaturity: strings.TrimSpace(stringFromMap(raw, "language_maturity")),
 		MissingEvidence:  stringSliceFromAny(raw["missing_evidence"]),
+		ScanLevel:        strings.TrimSpace(stringFromMap(raw, "scan_level")),
+		ScanMode:         strings.TrimSpace(stringFromMap(raw, "scan_mode")),
+		ScannerVersion:   strings.TrimSpace(stringFromMap(raw, "scanner_version")),
+		TraceCount:       intPtrFromAny(raw["trace_count"]),
 	}
 }
 

@@ -137,6 +137,14 @@ type ReportReachability struct {
 	Reason           string   `json:"reason,omitempty"`
 	LanguageMaturity string   `json:"language_maturity,omitempty"`
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
+	// ScanLevel, ScanMode, ScannerVersion, and TraceCount are the
+	// govulncheck scan provenance behind a Go verdict (#10029). They are
+	// present only when the server reported them; other ecosystems and
+	// pre-provenance facts leave them empty, keeping the prior shape.
+	ScanLevel      string `json:"scan_level,omitempty"`
+	ScanMode       string `json:"scan_mode,omitempty"`
+	ScannerVersion string `json:"scanner_version,omitempty"`
+	TraceCount     *int   `json:"trace_count,omitempty"`
 }
 
 // EvidenceHandle points at a stored fact behind a finding, so an operator can
