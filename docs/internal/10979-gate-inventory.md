@@ -1,21 +1,21 @@
 # 10979 gate inventory: keep / convert-to-test / delete
 
-Refs #10979. Part of #9315. Worktree `drive/10979` off `origin/main` (ac1389af4c).
-Method: every id in `specs/ci-gates.v1.yaml` + `specs/ci-gates.d/*.yaml` + `hygiene_hooks` enumerated 2026-11-19.
+Refs #10979. Part of #9315. Worktree `drive/10979` off `origin/main` (04ca0abc82).
+Method: every id in `specs/ci-gates.v1.yaml` + `specs/ci-gates.d/*.yaml` + `hygiene_hooks` enumerated 2026-11-19, refreshed 2026-11-20 (nancy deleted #10989, docs-prose-quality deleted + mcp-client-auth-doc wired #10987, replay-coverage-static-mirror deleted #10988, template-collector-caller added #10999, code-coverage-floors added #10983).
 Rule (epic): a gate stays iff it judges changed code by running or analyzing it.
 Static = compares the tree to committed lists/counts/docs/specs without running the subject code.
 `selftest=Y` means the registry row carries a `test_command` (seeded RED/GREEN proof the check catches failures).
 `last catch` is the motivating regression/issue or the seeded self-test; NOT-PROVEN marks CI-history lookups in F4.
 
-## Count reconciliation (170 ids, zero unknown)
+## Count reconciliation (169 ids, zero unknown)
 
-- 160 gates in `specs/ci-gates.d/gates-01..17.yaml` (all classified below).
+- 159 gates in `specs/ci-gates.d/gates-01..17.yaml` (all classified below; per-file 01..17: 17/13/13/18/12/10/9/3/7/10/2/1/3/15/17/5/4).
 - 10 `hygiene_hooks` in `specs/ci-gates.v1.yaml` (all dynamic pre-commit mirrors; all keep; final section).
 - 2 `required_status_checks` contexts (`go-core-complete`, `go-race-complete`) are aggregate umbrellas, not gates.
 - 15 `merge_group_slim_gates` name existing gates only (no new ids); the `merge-group-slim` job is live on PRs
   (`test.yml:247`, PR-plan gated) and `rg merge_group .github/workflows` is empty: slim rows stay.
 
-## Summary: dynamic=99 static=61 | keep=149 convert-to-test=6 delete-or-wire-candidates=5
+## Summary: dynamic=100 static=59 | keep=152 convert-to-test=5 delete-or-wire-candidates=2
 
 No in-tree deletions or conversions are implemented in this turn: every non-keep row needs either
 consumer proof (epic acceptance) or arbiter decision 3 (contract-class presumption), recorded as F1/F2.
@@ -103,7 +103,7 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | collector-entrypoints-generated | static-parity | pre-pr | B | test.yml / verify-contracts | Y | verify-collector-entrypoints-generated.s | keep | Seeded self-test; born of #2298; slim twin dedup -> F3 |
 | capability-surface-inventory | static-parity | pre-pr | B | mcp-schema-drift.yml / Verify capability inventory | N | precommit-go.sh | keep | Runs precommit-go surface analysis; NO self-test; catch history NOT-PROVEN -> F4 |
 
-## gates-05.yaml (13 gates)
+## gates-05.yaml (12 gates)
 
 | gate | class | tier | B | ci job | T | verifier | disposition | evidence / last catch |
 |---|---|---|---|---|---|---|---|---|
@@ -115,7 +115,6 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | supply-chain-impact-live | dynamic | pre-pr | B | reducer-contention-gate.yml / reducer contention gate | Y | (go test/toolchain) | keep | runs Go tests |
 | docs-catalog-metadata | static-docs | pre-pr | B | test.yml / docs-helm-hygiene | Y | verify-docs-catalog.sh | keep | Seeded self-test; #9461 repoint 2026-10-29 |
 | required-doc-sections | static-docs | pre-pr | B | test.yml / docs-helm-hygiene | Y | verify-required-doc-sections.sh | keep | Seeded self-test; regression-born #9037 |
-| docs-prose-quality | static-docs | pre-pr | a | - / - | Y | verify-docs-prose-quality.sh | DELETE-CANDIDATE (followup) | Advisory, NO CI workflow; burn-down baseline; needs consumer proof -> F1 |
 | docs-contradiction | static-docs | pre-pr | a | - / - | Y | verify-docs-contradiction.sh | keep | Advisory BUT wired into pre-push floor (cigates/select.go, pre-push.sh); born of #5340 |
 | docs-refs | static-docs | pre-pr | B | static-contract-gates.yml / Verify docs-refs gate | Y | verify-docs-refs.sh | keep | Seeded self-test; #9497 deploy-checkout repoint 2026-10-29 |
 | docs-cli-env-refs | dynamic | pre-pr | B | static-contract-gates.yml / Verify docs CLI/env refs gate | Y | verify-docs-cli-env-refs.sh | keep | runs script analyzer on changed code |
@@ -130,13 +129,13 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | measurement-citations | static-docs | pre-pr | B | static-contract-gates.yml / Verify measurement-citations gat | Y | verify-measurement-citations.sh | keep | Seeded self-test; #9370 bare-host reject 2026-10-28 |
 | remote-validation-artifacts | static-contract | pre-pr | B | static-contract-gates.yml / Verify remote-validation-artifac | Y | generate-remote-validation-inventory.sh | keep | Seeded self-test; born of #5988 |
 | maturity-drift-guard | static-contract | pre-pr | B | static-contract-gates.yml / Verify maturity-drift-guard gate | Y | verify-maturity-drift-guard.sh | keep | Seeded self-test |
-| mcp-client-auth-doc | static-docs | pre-pr | a | - / - | Y | verify-mcp-client-auth-doc.sh | WIRE-OR-DELETE (followup) | Advisory, NO CI workflow; Go lockstep test exists (mcpsetup); wire into CI or delete -> F1 |
+| mcp-client-auth-doc | static-docs | pre-pr | a | static-contract-gates.yml / Verify MCP client-auth doc gate | Y | verify-mcp-client-auth-doc.sh | keep | Advisory BUT wired into static-contract matrix #10987; Go lockstep test exists (mcpsetup) |
 | docs-build-changed | dynamic | pre-push | B | test.yml / docs-helm-hygiene | Y | verify-docs-build-changed.sh | keep | runs script analyzer on changed code |
 | docs-only-ci-skip | dynamic | pre-pr | B | test.yml / docs-helm-hygiene | Y | verify-docs-only-ci-skip.sh | keep | runs script analyzer on changed code |
 | frontend-format-changed | dynamic | pre-push | a | frontend.yml / Prettier format check (issue #3763) | Y | verify-frontend-format-changed.sh | keep | runs script analyzer on changed code |
 | console-e2e | dynamic | pre-push | B | frontend.yml / Console (apps/console) | Y | precommit-console.sh | keep | runs console test suite |
 
-## gates-07.yaml (10 gates)
+## gates-07.yaml (9 gates)
 
 | gate | class | tier | B | ci job | T | verifier | disposition | evidence / last catch |
 |---|---|---|---|---|---|---|---|---|
@@ -147,7 +146,6 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | npm-audit | dynamic | pre-push | B | frontend.yml / npm audit (fail on high/critical) | Y | verify-npm-audit-exceptions.sh | keep | runs frontend toolchain (typecheck/test/build/audit) |
 | gosec-changed | dynamic | pre-push | B | security-scan.yml / gosec (Go static analysis) | Y | precommit-go.sh | keep | runs Go toolchain (build/vet/lint/audit) on code |
 | govulncheck | dynamic | pre-push | B | security-scan.yml / govulncheck (Go vulnerability database) | Y | precommit-go.sh | keep | runs Go toolchain (build/vet/lint/audit) on code |
-| nancy | dynamic | pre-push | a | security-scan.yml / nancy (Sonatype dep CVE + license scan) | Y | precommit-go.sh | DELETE-CANDIDATE (followup): non-blocking; purpose states it scans nothing without creds; needs run-history proof -> F1 | DELETE-CANDIDATE (followup): non-blocking; purpose states it scans nothing without creds; needs run-history proof -> F1 |
 | trivy-fs | dynamic | pre-push | a | security-scan.yml / Trivy filesystem scan (vuln + secret + c | N | trivy-fs-local.sh | keep | runs script analyzer on changed code |
 | golden-corpus-mirror | static-mirror | pre-pr | B | golden-corpus-gate.yml / static mirror | N | test-verify-golden-corpus-gate.sh | CONVERT-TO-TEST (followup) | local.command IS the hermetic self-test script; row adds only a CI job -> F2 |
 
@@ -159,7 +157,7 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | golden-corpus-gate-neo4j | dynamic | ci-heavy | B | golden-corpus-gate.yml / corpus-gate | Y | verify-golden-corpus-gate.sh | keep | runs script analyzer on changed code |
 | live-backend-tests | dynamic | ci-heavy | B | live-backend-tests.yml / live-backend (nornicdb and neo4j) | Y | run-live-backend-tests.sh | keep | runs script analyzer on changed code |
 
-## gates-09.yaml (8 gates)
+## gates-09.yaml (7 gates)
 
 | gate | class | tier | B | ci job | T | verifier | disposition | evidence / last catch |
 |---|---|---|---|---|---|---|---|---|
@@ -170,7 +168,6 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | golden-corpus-differential | dynamic | ci-heavy | B | golden-corpus-gate.yml / differential nornicdb vs neo4j | Y | verify-golden-corpus-gate.sh | keep | runs Go analyzer on code |
 | golden-corpus-filter-exhaustive | static-config | pre-pr | B | test.yml / verify-contracts | Y | verify-golden-corpus-filter-exhaustive.s | keep | Seeded self-test; guards CI path-filter completeness; fixed 3 PR failures 2026-11-18 |
 | replay-coverage-gate | static-contract | pre-pr | B | replay-coverage-gate.yml / coverage-gate (blocking) | Y | verify-replay-coverage-gate.sh | keep | Seeded self-test; blocking coverage manifest |
-| replay-coverage-static-mirror | static-mirror | pre-pr | B | replay-coverage-gate.yml / static mirror | N | (CI-only) | CONVERT-TO-TEST (followup) | Empty local.command; owns CI job only; fold into replay-coverage-gate self-test -> F2 |
 
 ## gates-10.yaml (10 gates)
 
@@ -208,7 +205,7 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | ifa-load-saturation | dynamic | pre-pr | B | static-contract-gates.yml / Verify Ifa P5 load/saturation ga | Y | (go test/toolchain) | keep | runs Go tests |
 | cassette-author | dynamic | pre-pr | B | static-contract-gates.yml / Verify cassette author gate | Y | verify-cassette-author.sh | keep | runs script analyzer on changed code |
 
-## gates-14.yaml (14 gates)
+## gates-14.yaml (15 gates)
 
 | gate | class | tier | B | ci job | T | verifier | disposition | evidence / last catch |
 |---|---|---|---|---|---|---|---|---|
@@ -216,6 +213,7 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | parserfixture-tests | dynamic | pre-pr | B | test.yml / go-race-complete | N | (go test/toolchain) | keep | runs Go tests |
 | authz-scoped-route-tests | dynamic | pre-pr | B | replay-coverage-gate.yml / coverage-gate (blocking) | N | go-test-run-guard.sh | keep | runs script analyzer on changed code |
 | code-coverage-report | dynamic | pre-pr | a | code-coverage-report.yml / Generate Go code coverage report | Y | generate-code-coverage-report.sh | keep | runs script analyzer on changed code |
+| code-coverage-floors | dynamic | pre-pr | B | code-coverage-report.yml / Package coverage floors | Y | test-verify-coverage-floors.sh | keep | Blocks coverage regression on changed packages via per-package floors; local IS hermetic self-test; born of #10983 |
 | e2e-tests | dynamic | ci-heavy | B | e2e-tests.yml / test | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
 | trivy-image | dynamic | ci-heavy | a | security-scan.yml / Trivy image scan (ghcr.io/eshu-hq/eshu) | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
 | docker-image-build | dynamic | ci-heavy | B | docker-publish.yml / build-and-push-image | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
@@ -238,7 +236,7 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | ocr-sandbox-proof | dynamic | ci-heavy | a | ocr-sandbox-proof.yml / OCR sandbox proof | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
 | docker-publish | dynamic | manual | a | docker-publish.yml / build-and-push-image | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
 | satellite-gates | dynamic | ci-heavy | B | docker-publish.yml / verify-satellite-gates | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
-| macos-build | dynamic | ci-heavy | a | macos.yml / macos | N | (CI-only) | KEEP-SCHEDULED (followup): 0 of 29 failures macOS-only since 2026-09-21 at ~2800 macos-min/day; delete-case for closing PR -> F1 | KEEP-SCHEDULED (followup): 0 of 29 failures macOS-only since 2026-09-21 at ~2800 macos-min/day; delete-case for closing PR -> F1 |
+| macos-build | dynamic | ci-heavy | a | macos.yml / macos | N | (CI-only) | KEEP-SCHEDULED (followup): 0 of 29 failures macOS-only since 2026-09-21 at ~30 macOS-min/day for the single nightly run; delete-case for closing PR -> F1 | KEEP-SCHEDULED (followup): 0 of 29 failures macOS-only since 2026-09-21 at ~30 macOS-min/day for the single nightly run; delete-case for closing PR -> F1 |
 | root-cause-evidence | static-docs | pre-pr | a | static-contract-gates.yml / Verify root-cause-evidence gate | Y | verify-root-cause-evidence.sh | keep | Seeded self-test; advisory; merge-ref diff fix 2026-11-06 |
 | pg-statement-report | static-mirror | pre-pr | B | static-contract-gates.yml / Verify pg-statement-report gate | N | test-pg-statement-report.sh | CONVERT-TO-TEST (followup) | local IS stub-psql contract test already; row adds only a CI job -> F2 |
 | collector-cutover-rollback | static-mirror | pre-pr | B | static-contract-gates.yml / Verify collector-cutover-rollbac | N | test-collector-cutover-rollback.sh | CONVERT-TO-TEST (followup) | local IS stubbed order/refusal/idempotence test; #9331; row adds only CI job -> F2 |
@@ -259,13 +257,14 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 | changelog-unreleased | static-config | pre-push | B | static-contract-gates.yml / Verify changelog-unreleased gate | Y | verify-changelog-unreleased.sh | keep | Seeded self-test; regression-born #9096 (union-merge) |
 | nornicdb-ci-off | static-config | pre-push | B | verify-agent-hygiene.yml / Agent hygiene gate | Y | verify-nornicdb-ci-off.py | keep | Seeded self-test; #7331 owner-order guard; gaps closed 2026-11-06 |
 
-## gates-17.yaml (3 gates)
+## gates-17.yaml (4 gates)
 
 | gate | class | tier | B | ci job | T | verifier | disposition | evidence / last catch |
 |---|---|---|---|---|---|---|---|---|
 | codex-goal-continuation | dynamic | pre-pr | B | verify-agent-hygiene.yml / Agent hygiene gate | N | test-codex-goal-continue-hook.sh | keep | executes logic self-test |
 | ghcr-buildcache-prune | static-config | pre-pr | B | static-contract-gates.yml / Verify GHCR build cache prune ga | N | test-prune-ghcr-buildcache.sh | keep | local IS hermetic self-test; born of #9632 |
 | ghcr-buildcache-prune-run | dynamic | ci-heavy | a | ghcr-buildcache-prune.yml / GHCR build cache prune | N | (CI-only) | keep | CI-only proof (needs hosted service, registry, or schedule) |
+| template-collector-caller | dynamic | pre-pr | B | static-contract-gates.yml / Verify template-collector-caller | Y | test-template-collector-caller.sh | keep | Thin-caller contract: collector template CI stays a thin caller of the pinned reusable (no inline lanes/mutable tags); wired by #10999 for #10986 |
 
 ## hygiene_hooks (10 ids, all dynamic pre-commit mirrors, all keep)
 
@@ -284,19 +283,21 @@ Conversions additionally touch the CI selector (`go/internal/cigates`), workflow
 
 ## Followups for closing PRs
 
-- F1 (delete/wire, each needs consumer proof in its PR): `docs-prose-quality` (advisory, no workflow),
-  `mcp-client-auth-doc` (wire into CI or delete; Go lockstep test exists), `nancy` (scans nothing
-  without creds per its purpose), `golden-corpus-gate` NornicDB off-cell (#7331), `macos-build`
-  (0/29 macOS-only failures; cost case).
+- F1 (delete/wire, each needs consumer proof in its PR): `golden-corpus-gate` NornicDB off-cell (#7331),
+  `macos-build` (0/29 macOS-only failures; ~30 macOS-min/day single nightly run).
+  Closed 2026-11-20: `docs-prose-quality` deleted + `mcp-client-auth-doc` wired into the static-contract
+  matrix (#10987), `nancy` deleted (#10989).
 - F2 (convert-to-test, one PR each with selector+workflow+docs updates): `heredoc-budget`,
-  `golden-corpus-mirror`, `replay-coverage-static-mirror`, `ifa-replay-drive`, `pg-statement-report`,
-  `collector-cutover-rollback`.
-- F3 (dedup audit): `slim-collector-entrypoints` vs `collector-entrypoints-generated` run the same
-  verifier on different lanes; confirm both lanes still needed after queue-select decisions.
+  `golden-corpus-mirror`, `ifa-replay-drive`, `pg-statement-report`, `collector-cutover-rollback`.
+  Closed 2026-11-20: `replay-coverage-static-mirror` folded into go test (#10988).
+- F3 (dedup audit, concluded 2026-11-19 #10987): `slim-collector-entrypoints` vs
+  `collector-entrypoints-generated` share one verifier but differ in triggers, tier, and CI job;
+  not a dedup — both lanes stay, no code change.
 - F4 (CI-history lookup): last-caught proof for `mcp-schema-drift`, `capability-surface-inventory`
   (no self-test); query failed-run history before their closing PRs.
 
 ## Focused proof (this turn, inventory-only change)
 
-- `bash scripts/verify-ci-gates-registry.sh --drift` → `PASS: ci-gates registry integrity + drift check` (exit 0, 2026-11-19; table adds no registry rows).
-- Census: `rg` count of gate ids across `specs/ci-gates.d` = 160; `hygiene_hooks` = 10; total 170.
+- `bash scripts/verify-ci-gates-registry.sh --drift` → `PASS: ci-gates registry integrity + drift check` (exit 0, 2026-11-20; table adds no registry rows).
+- Census: `rg` count of gate ids across `specs/ci-gates.d` = 159; `hygiene_hooks` = 10; total 169, zero unknown.
+- Id-set equality: `/tmp/check-10979-inventory.sh` asserts the doc id set equals the registry id set; RED before refresh (2 missing, 3 unknown), GREEN after.
