@@ -149,14 +149,10 @@ func (q ProjectorQueue) Ack(
 	}
 	// #10876: the same activation reopens parked generation_active waits for
 	// this scope generation in the same transaction. A missed wake still
-	// resolves through the audit and the 10-minute backstop. An empty key
-	// skips the wake, mirroring the phase Upsert guard: the wake statement
-	// would reject it and fail the Ack, and no parked wait names a blank key.
-	if wakeKey := waitingScopeGenerationKey(work.Scope.ScopeID, work.Generation.GenerationID); wakeKey != "" {
-		if _, _, err := wakeWaitingByKey(ctx, tx, q.Instruments, WaitingWakeSiteInTx,
-			WaitingKindGenerationActive, wakeKey, now); err != nil {
-			return fmt.Errorf("ack projector work: wake waiting items: %w", err)
-		}
+	// resolves through the audit and the 10-minute backstop.
+	if err := wakeGenerationActiveWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx,
+		work.Scope.ScopeID, work.Generation.GenerationID, now); err != nil {
+		return fmt.Errorf("ack projector work: %w", err)
 	}
 	// #11000: the same activation reopens parked producer-terminal waits for
 	// the producer domains this scope kind publishes, keyed by domain alone.

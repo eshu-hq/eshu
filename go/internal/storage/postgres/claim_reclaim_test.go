@@ -254,8 +254,14 @@ func TestProjectorQueueClaimScopesBySourceSystem(t *testing.T) {
 		t.Fatal("Claim() ok = false, want true")
 	}
 
-	if got, want := len(db.queries), 1; got != want {
+	// #11015: Claim issues the claim statement plus the terminal-wait probe
+	// for parked generation_active waits on superseded generations (zero
+	// rows parked here).
+	if got, want := len(db.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if got, want := db.queries[1].query, terminalGenerationActiveWaitKeysQuery; got != want {
+		t.Fatalf("second query = %q, want the terminal generation wait probe", got)
 	}
 	query := db.queries[0].query
 	for _, want := range []string{

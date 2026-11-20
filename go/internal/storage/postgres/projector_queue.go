@@ -308,6 +308,19 @@ func (q ProjectorQueue) Fail(
 		))
 	}
 
+	// #11015: the terminal Fail is a providing save for parked
+	// generation_active waits on this scope generation: it will never
+	// activate, so the waiter must observe the terminal truth instead of
+	// sitting out the 10-minute backstop. The post-commit wake is the
+	// established #10876 pattern for non-transactional queue settles; a
+	// waiter that parks after this Fail is covered by the set-aside
+	// re-check, and a missed wake by the audit and the backstop. The retry
+	// path above keeps the generation pending and wakes nothing.
+	if err := wakeGenerationActiveWaits(ctx, q.database, q.Instruments, WaitingWakeSiteInTx,
+		work.Scope.ScopeID, work.Generation.GenerationID, q.now()); err != nil {
+		return fmt.Errorf("fail projector work: %w", err)
+	}
+
 	return nil
 }
 

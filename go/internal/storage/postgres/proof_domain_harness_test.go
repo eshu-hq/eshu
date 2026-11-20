@@ -180,6 +180,12 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 	// genuinely unknown statement still falls through to the error below.
 	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
 		return newProofRows([][]any{{int64(0), int64(0)}}), nil
+	// #11015: the post-claim probe lists parked generation_active waits
+	// on terminal generations. No waits are parked in the proof domain,
+	// so it answers zero keys; exact constant so an unknown statement
+	// still falls through to the error below.
+	case query == terminalGenerationActiveWaitKeysQuery:
+		return newProofRows(nil), nil
 	// Exact query matches come before the substring matches below: the
 	// summary's grouped history CTE contains "GROUP BY status" and
 	// "FROM scope_generations" too (#7009).

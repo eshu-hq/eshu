@@ -143,7 +143,6 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
@@ -156,6 +155,18 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
 	if err := rows.Err(); err != nil {
+		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
+	}
+	// Release the claim rows first: the wake below runs its own queries.
+	if err := rows.Close(); err != nil {
+		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
+	}
+	// #11015: the sweep above retires superseded generations in the same
+	// statement, so their parked generation_active waits never see an
+	// activation wake. Reopen them now; a waiter that parks after this
+	// wake is covered by the set-aside re-check, which shares the
+	// terminal predicate.
+	if err := wakeTerminalGenerationActiveWaits(ctx, q.database, q.Instruments, work.Scope.ScopeID, now); err != nil {
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
 
