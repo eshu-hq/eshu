@@ -107,7 +107,7 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `required-gates.yml` | Live ruleset audit only (fan-in and aggregate job deleted #10584; aggregate disabled 2026-11-03; RETAINED per #10977) | The ruleset requires only `go-core-complete` and `go-race-complete`, read directly with no publisher. Named consumer: the Main Health watcher reads the newest completed scheduled audit run and fails closed without it. Restore the trusted-publisher trust boundary if an aggregator returns. |
 | `scorecard-example-conformance.yml` | Blocking separate example module | Main Go module does not cover this; retain. |
 | `sdk-go.yml` | Blocking two separate SDK modules | Not duplicate main-module builds; retain. |
-| `security-scan.yml` | Blocking gosec/govulncheck; advisory Trivy/Nancy | Preserve blocking vulnerability checks; schedule costly advisory scans where signal supports it. |
+| `security-scan.yml` | Blocking gosec/govulncheck; advisory Trivy | Preserve blocking vulnerability checks; schedule costly advisory scans where signal supports it. |
 | `static-contract-gates.yml` | Thirty-plus mainly blocking static contracts, advisory root-cause guard | Highest maintenance duplication: registry, filters, commands and check labels. Derive scheduling/matrix metadata from registry in follow-up; retire checks only with demonstrated replacement proof. |
 | `test.yml` | Blocking Go core/race/docs; separate lint plugin module | Primary Go authority; plugin module is distinct, not redundant. |
 | `verify-agent-hygiene.yml` | Five blocking agent/process contracts | Retain current enforcement; evaluate maintenance against concrete failure history. |
