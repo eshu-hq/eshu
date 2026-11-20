@@ -3173,8 +3173,9 @@ type Instruments struct {
 	// CorrelationReopenSkipped counts succeeded correlation work items the
 	// deferred-maintenance reopen left succeeded because their recorded input
 	// fingerprint still matches their current resolved input (#8283, #10878),
-	// labeled by domain and reason=input_unchanged. deployable_unit_correlation
-	// and aws_cloud_runtime_drift are gated today. Read it beside
+	// labeled by domain and reason=input_unchanged.
+	// deployable_unit_correlation, aws_cloud_runtime_drift, and
+	// container_image_identity are gated today. Read it beside
 	// eshu_dp_correlation_reopened_total: a wave that skips every item means
 	// the reopen saw no changed input.
 	CorrelationReopenSkipped metric.Int64Counter
@@ -3194,8 +3195,12 @@ type Instruments struct {
 	AWSDriftIncrementalFallbackFull metric.Int64Counter
 	// AWSDriftIncrementalAuditCorrections counts the admitted candidates a
 	// daily #10861-D3 audit found the delta run missed: full-minus-delta on
-	// correlation keys (#10878 AC3). Two consecutive correcting audits are a
-	// defect and an alert per D3.
+	// correlation keys (#10878 AC3). The comparison replays the delta over
+	// the audit's own loaded rows, so it counts the same-evidence misses the
+	// audit exists to correct (config-anchor moves that never move the ARN
+	// snapshot). Sustained nonzero means the skip path is systematically
+	// blind to a real input class and needs a design pass; filing that as a
+	// defect is follow-up work, not an automatic rule.
 	AWSDriftIncrementalAuditCorrections    metric.Int64Counter
 	IaCReachabilityMaterializationDuration metric.Float64Histogram
 	IaCReachabilityRows                    metric.Int64Counter

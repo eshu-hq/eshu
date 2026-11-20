@@ -5,7 +5,6 @@ package awscloud
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -54,10 +53,14 @@ const awsDriftAuditInterval = 24 * time.Hour
 
 // AWSDriftIncrementalRun is one handler invocation's change signal: the
 // ARN-to-payload-identity snapshots around the run plus the audit clock.
-// Snapshots map ARN to the payload identity the evidence loader read for
-// it (the AWS fact plus the matched state/config identity), exactly the
-// keys contract.DiffARNRecords compares. A nil PrevSnapshot means no
-// recorded snapshot exists.
+// Snapshots map ARN to the collapsed aws-fact payload identity for it
+// (the D4 collapse rule: one identity per ARN, shared by the SQL pair
+// fragment and the Go map twin). State/config inputs are NOT in the
+// fingerprint: a state- or config-only move leaves the snapshot identical,
+// so the skip/no-reopen gate holds only while the audit is fresh — an
+// audit-stale row re-opens in the listing and audits daily, and the audit
+// counts what the delta would have missed (#11018 P1). A nil PrevSnapshot
+// means no recorded snapshot exists.
 type AWSDriftIncrementalRun struct {
 	PrevSnapshot map[string]string
 	NextSnapshot map[string]string
@@ -76,7 +79,10 @@ type AWSDriftIncrementalPlan struct {
 // PlanAWSDriftIncrementalRun narrows one run to its change signal (#10878
 // decision 2). Precedence: a forced full run wins (counted fallback), then
 // the daily audit, then missing-snapshot reopen, then skip-or-delta on the
-// ARN diff. It never reports skip-on-missing: absence re-opens.
+// ARN diff. It never reports skip-on-missing: absence re-opens. The daily
+// audit plan carries the prev-vs-fresh diff so the handler can reconstruct
+// what a delta run would have missed and count audit corrections (#10878
+// D6); fallback plans carry none, so they never emit.
 func PlanAWSDriftIncrementalRun(run AWSDriftIncrementalRun) AWSDriftIncrementalPlan {
 	now := run.Now
 	if now.IsZero() {
@@ -85,8 +91,12 @@ func PlanAWSDriftIncrementalRun(run AWSDriftIncrementalRun) AWSDriftIncrementalP
 	if run.ForceFullRun {
 		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeFull, Reason: AWSDriftIncrementalReasonFallbackForced}
 	}
+	// DiffARNRecords is nil-safe: a missing side diffs as all-added or
+	// all-removed. Fallback plans leave Diff zero, so only delta and
+	// audit_due plans feed the corrections reconstruction.
+	diff := reducercontract.DiffARNRecords(run.PrevSnapshot, run.NextSnapshot)
 	if run.LastAuditAt.IsZero() || now.Sub(run.LastAuditAt) >= awsDriftAuditInterval {
-		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeFull, Reason: AWSDriftIncrementalReasonAuditDue}
+		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeFull, Reason: AWSDriftIncrementalReasonAuditDue, Diff: diff}
 	}
 	if len(run.PrevSnapshot) == 0 && len(run.NextSnapshot) == 0 {
 		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeSkip, Reason: AWSDriftIncrementalReasonInputUnchanged}
@@ -94,7 +104,6 @@ func PlanAWSDriftIncrementalRun(run AWSDriftIncrementalRun) AWSDriftIncrementalP
 	if len(run.PrevSnapshot) == 0 {
 		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeFull, Reason: AWSDriftIncrementalReasonFallbackNoSnapshot}
 	}
-	diff := reducercontract.DiffARNRecords(run.PrevSnapshot, run.NextSnapshot)
 	if !diff.HasChanges() {
 		return AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeSkip, Reason: AWSDriftIncrementalReasonInputUnchanged}
 	}
@@ -102,15 +111,16 @@ func PlanAWSDriftIncrementalRun(run AWSDriftIncrementalRun) AWSDriftIncrementalP
 }
 
 // FilterAddressedRowsToDiff narrows loaded evidence rows to the ARN diff
-// for a delta run: added and changed ARNs are (re)classified, removed ARNs
-// flow through so the generation-authoritative retire removes their stale
-// findings. Unchanged ARNs never reach the delta writer. The second return
-// is the sorted removed-ARN list for the retract path. A full run ignores
-// this helper and classifies every row.
+// for a delta run: added and changed ARNs are (re)classified, while removed
+// ARNs have no current row to flow through — their stale findings retract
+// through the generation-authoritative retire, whose bound is the diff's
+// ChangedKeys (EvaluatedARNs), not this helper. Unchanged ARNs never reach
+// the delta writer. A full run ignores this helper and classifies every
+// row.
 func FilterAddressedRowsToDiff(
 	rows []cloudruntime.AddressedRow,
 	diff reducercontract.ARNRecordDiff,
-) (kept []cloudruntime.AddressedRow, removed []string) {
+) (kept []cloudruntime.AddressedRow) {
 	changed := make(map[string]struct{}, len(diff.Added)+len(diff.Changed)+len(diff.Removed))
 	for _, arn := range diff.Added {
 		changed[arn] = struct{}{}
@@ -126,22 +136,20 @@ func FilterAddressedRowsToDiff(
 			kept = append(kept, row)
 		}
 	}
-	removed = append([]string(nil), diff.Removed...)
-	sort.Strings(removed)
-	return kept, removed
+	return kept
 }
 
 // AWSDriftRecordedSnapshotLoader reads this run's previously recorded
 // reopen snapshot: the row recordReopenSnapshot wrote for an earlier claim
-// of the same work item, plus when it was recorded (the audit clock).
-// ok=false means no row exists: absence re-opens, never skips (#10878
-// decision 4). IngestionStore implements it against
-// aws_drift_reopen_fingerprints.
+// of the same work item, plus when its last full run completed (the audit
+// clock: last_audit_at, never the last delta's record time). ok=false means
+// no row exists: absence re-opens, never skips (#10878 decision 4).
+// IngestionStore implements it against aws_drift_reopen_fingerprints.
 type AWSDriftRecordedSnapshotLoader interface {
 	LoadAWSDriftRecordedSnapshot(
 		ctx context.Context,
 		workItemID string,
-	) (prev map[string]string, recordedAt time.Time, ok bool, err error)
+	) (prev map[string]string, lastAuditAt time.Time, ok bool, err error)
 }
 
 // AWSDriftIncrementalPlanSource builds one run's incremental plan in
@@ -184,7 +192,7 @@ func (p *AWSDriftIncrementalPlanner) PlanIncrementalRun(
 			Mode: AWSDriftIncrementalModeFull, Reason: AWSDriftIncrementalReasonFallbackForced,
 		}, reducercontract.AWSDriftReopenSnapshot{}, nil
 	}
-	prev, recordedAt, ok, err := p.Recorded.LoadAWSDriftRecordedSnapshot(ctx, workItemID)
+	prev, lastAuditAt, ok, err := p.Recorded.LoadAWSDriftRecordedSnapshot(ctx, workItemID)
 	if err != nil {
 		// An unreadable previous snapshot fails open to a counted full
 		// run, never to a skip.
@@ -199,15 +207,14 @@ func (p *AWSDriftIncrementalPlanner) PlanIncrementalRun(
 	if err != nil {
 		return fullFallbackPlan(now), reducercontract.AWSDriftReopenSnapshot{}, nil
 	}
-	// The audit clock is the last successful run's record time: a scope
-	// quiet longer than the audit interval takes a full audit on its next
-	// run. A scope running deltas within the day defers its audit; the
-	// follow-up for a last-full-run (rather than last-run) clock is
-	// tracked on the lane issue.
+	// The audit clock is the last successful FULL run's completion time
+	// (last_audit_at): a scope quiet longer than the audit interval takes
+	// a full audit on its next run. Hourly deltas do not move it, so a
+	// churning scope still audits daily (#11018 P1).
 	return PlanAWSDriftIncrementalRun(AWSDriftIncrementalRun{
 		PrevSnapshot: prev,
 		NextSnapshot: snapshotToARNMap(fresh),
-		LastAuditAt:  recordedAt,
+		LastAuditAt:  lastAuditAt,
 		Now:          now,
 	}), fresh, nil
 }
@@ -365,7 +372,9 @@ func EstimateAWSDriftEvidenceBytes(rows []cloudruntime.AddressedRow) int64 {
 	return total
 }
 
-// recordIncrementalSkip counts a skip-plan run (#10878 AC6). Nil
+// recordIncrementalSkip counts a skip-plan run (#10878 AC6): the snapshot
+// matched the last success and the audit clock is fresh, so the run
+// re-derived nothing — no evidence load, no classification, no write. Nil
 // instruments emit nothing: the skip itself is the behavior, the counter
 // is its observability.
 func (h AWSCloudRuntimeDriftHandler) recordIncrementalSkip(ctx context.Context, plan *AWSDriftIncrementalPlan) {

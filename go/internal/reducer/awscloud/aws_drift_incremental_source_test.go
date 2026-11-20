@@ -36,12 +36,15 @@ func (s *stubAWSDriftIncrementalPlanSource) PlanIncrementalRun(
 }
 
 // stubAWSDriftRecordedSnapshotLoader returns the previously recorded reopen
-// snapshot for one work item: the "previous" half of the per-run plan.
+// snapshot for one work item: the "previous" half of the per-run plan, plus
+// the audit clock (lastAuditAt defaults to recordedAt, so tests that do not
+// separate the two keep the old last-run behavior).
 type stubAWSDriftRecordedSnapshotLoader struct {
-	prev       map[string]string
-	recordedAt time.Time
-	ok         bool
-	err        error
+	prev        map[string]string
+	recordedAt  time.Time
+	lastAuditAt time.Time
+	ok          bool
+	err         error
 }
 
 func (s *stubAWSDriftRecordedSnapshotLoader) LoadAWSDriftRecordedSnapshot(
@@ -51,7 +54,7 @@ func (s *stubAWSDriftRecordedSnapshotLoader) LoadAWSDriftRecordedSnapshot(
 	if s.err != nil {
 		return nil, time.Time{}, false, s.err
 	}
-	return s.prev, s.recordedAt, s.ok, nil
+	return s.prev, s.lastAuditAt, s.ok, nil
 }
 
 // TestAWSCloudRuntimeDriftHandlerSkipsThroughWiredPlanSource pins the
@@ -132,6 +135,23 @@ func TestAWSCloudRuntimeDriftHandlerNarrowsThroughWiredPlanSource(t *testing.T) 
 	if len(writer.write.EvaluatedARNs) != 1 || writer.write.EvaluatedARNs[0] != "arn:chg" {
 		t.Fatalf("EvaluatedARNs = %v, want [arn:chg]", writer.write.EvaluatedARNs)
 	}
+	// The classified set is the delta claim through the wired source: the
+	// writer must carry exactly the changed ARN's candidate, so a broken
+	// narrowing filter fails this suite too.
+	if len(writer.write.Candidates) != 1 {
+		t.Fatalf("Candidates = %d, want 1 (only arn:chg classified)", len(writer.write.Candidates))
+	}
+	for _, c := range writer.write.Candidates {
+		if c.CorrelationKey == "arn:keep" {
+			t.Fatalf("Candidates carry untouched arn:keep: %+v", writer.write.Candidates)
+		}
+	}
+	if writer.write.Candidates[0].CorrelationKey != "arn:chg" {
+		t.Fatalf("Candidates[0].CorrelationKey = %q, want arn:chg", writer.write.Candidates[0].CorrelationKey)
+	}
+	if writer.write.Summary.OrphanedResources != 1 {
+		t.Fatalf("Summary.OrphanedResources = %d, want 1", writer.write.Summary.OrphanedResources)
+	}
 }
 
 // TestAWSCloudRuntimeDriftHandlerSourceErrorFailsOpen pins fail-open
@@ -175,9 +195,10 @@ func plannerTestSnapshots(
 	return &stubAWSDriftSnapshotLoader{
 			snapshot: fresh,
 		}, &stubAWSDriftRecordedSnapshotLoader{
-			prev:       prev,
-			recordedAt: recordedAt,
-			ok:         ok,
+			prev:        prev,
+			recordedAt:  recordedAt,
+			lastAuditAt: recordedAt,
+			ok:          ok,
 		}
 }
 
@@ -227,6 +248,50 @@ func TestAWSDriftIncrementalPlannerMissingPrevReopensFull(t *testing.T) {
 	}
 	if plan.Reason != AWSDriftIncrementalReasonFallbackNoSnapshot {
 		t.Fatalf("Reason = %q, want %q", plan.Reason, AWSDriftIncrementalReasonFallbackNoSnapshot)
+	}
+}
+
+// TestAWSDriftIncrementalPlannerAuditClockIgnoresDeltaRuns pins the audit
+// clock (#10878 D5, #11018 P1): the planner audits off the last FULL run,
+// never the last run. A scope churning deltas hourly still audits once the
+// last full run is older than the interval, even though a delta recorded
+// minutes ago.
+func TestAWSDriftIncrementalPlannerAuditClockIgnoresDeltaRuns(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	snap := map[string]string{"arn:1": "p1"}
+	snapshots, recorded := plannerTestSnapshots(
+		snapshotWithARNs(snap), snap, now.Add(-time.Minute), true,
+	)
+	recorded.lastAuditAt = now.Add(-25 * time.Hour)
+	planner := &AWSDriftIncrementalPlanner{Snapshots: snapshots, Recorded: recorded}
+	plan, _, err := planner.PlanIncrementalRun(t.Context(), "aws:scope", "gen-1", "work-1", now)
+	if err != nil {
+		t.Fatalf("PlanIncrementalRun() error = %v, want nil", err)
+	}
+	if plan.Mode != AWSDriftIncrementalModeFull || plan.Reason != AWSDriftIncrementalReasonAuditDue {
+		t.Fatalf("plan = %+v, want full/audit_due (last full 25h ago despite fresh delta)", plan)
+	}
+}
+
+// TestAWSDriftIncrementalPlannerFreshAuditSuppressesAudit pins the other
+// half of the audit clock: a recent full run suppresses the audit even when
+// the recorded row is older than the interval.
+func TestAWSDriftIncrementalPlannerFreshAuditSuppressesAudit(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	snap := map[string]string{"arn:1": "p1"}
+	snapshots, recorded := plannerTestSnapshots(
+		snapshotWithARNs(snap), snap, now.Add(-25*time.Hour), true,
+	)
+	recorded.lastAuditAt = now.Add(-time.Hour)
+	planner := &AWSDriftIncrementalPlanner{Snapshots: snapshots, Recorded: recorded}
+	plan, _, err := planner.PlanIncrementalRun(t.Context(), "aws:scope", "gen-1", "work-1", now)
+	if err != nil {
+		t.Fatalf("PlanIncrementalRun() error = %v, want nil", err)
+	}
+	if plan.Mode != AWSDriftIncrementalModeSkip {
+		t.Fatalf("plan = %+v, want skip (audit fresh despite stale recorded row)", plan)
 	}
 }
 

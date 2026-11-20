@@ -5,10 +5,12 @@ package awscloud
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 )
@@ -65,6 +67,21 @@ func TestPlanAWSDriftIncrementalRunMissingPrevReopensFull(t *testing.T) {
 	}
 }
 
+// TestAWSDriftAuditIntervalMatchesReopenListingSQL pins the planner/listing
+// twin (#11018 P1): the reopen listing's audit-stale leg must use the same
+// 24h interval as the planner's audit clock, or scopes would audit on one
+// cadence and reopen on another.
+func TestAWSDriftAuditIntervalMatchesReopenListingSQL(t *testing.T) {
+	t.Parallel()
+	if awsDriftAuditInterval != 24*time.Hour {
+		t.Fatalf("awsDriftAuditInterval = %v, want 24h", awsDriftAuditInterval)
+	}
+	want := "INTERVAL '24 hours'"
+	if !strings.Contains(backfill.ListAWSDriftReopenCandidatesQuery, want) {
+		t.Fatalf("reopen listing lacks %q: the audit-stale leg must twin the planner interval", want)
+	}
+}
+
 // TestPlanAWSDriftIncrementalRunDailyAudit pins the #10861-D3 daily audit:
 // a stale audit forces a full run even when the input did not change.
 func TestPlanAWSDriftIncrementalRunDailyAudit(t *testing.T) {
@@ -98,13 +115,16 @@ func TestFilterAddressedRowsToDiffMatchesFullMinusUnchanged(t *testing.T) {
 		LastAuditAt:  time.Now().Add(-time.Hour),
 		Now:          time.Now(),
 	})
-	kept, removed := FilterAddressedRowsToDiff(rows, plan.Diff)
+	kept := FilterAddressedRowsToDiff(rows, plan.Diff)
 	if len(kept) != 2 {
 		t.Fatalf("kept = %d rows, want 2 (changed + removed for retract)", len(kept))
 	}
-	if len(removed) != 1 || removed[0] != "arn:gone" {
-		t.Fatalf("removed = %v, want [arn:gone]", removed)
-	}
+	// Removed ARNs retract through the diff's ChangedKeys (the retire
+	// bound), not through the filtered rows: the helper carries no
+	// removed-ARN return.
+	assertStringSliceEqual(t, "diff removed", plan.Diff.Removed, []string{"arn:gone"})
+	assertStringSliceEqual(t, "changed keys", plan.Diff.ChangedKeys(),
+		[]string{"arn:chg", "arn:gone", "arn:new"})
 	for _, row := range kept {
 		if row.ARN == "arn:keep" {
 			t.Fatalf("unchanged arn:keep must not flow to the delta writer")
@@ -172,6 +192,23 @@ func TestAWSCloudRuntimeDriftHandlerDeltaNarrowsWriter(t *testing.T) {
 	if len(writer.write.EvaluatedARNs) != 1 || writer.write.EvaluatedARNs[0] != "arn:chg" {
 		t.Fatalf("EvaluatedARNs = %v, want [arn:chg]", writer.write.EvaluatedARNs)
 	}
+	// The classified set is the delta claim: the writer must carry exactly
+	// the changed ARN's candidate, so a broken narrowing filter (keep-all
+	// rows) fails this suite, not just the helper unit test.
+	if len(writer.write.Candidates) != 1 {
+		t.Fatalf("Candidates = %d, want 1 (only arn:chg classified)", len(writer.write.Candidates))
+	}
+	for _, c := range writer.write.Candidates {
+		if c.CorrelationKey == "arn:keep" {
+			t.Fatalf("Candidates carry untouched arn:keep: %+v", writer.write.Candidates)
+		}
+	}
+	if writer.write.Candidates[0].CorrelationKey != "arn:chg" {
+		t.Fatalf("Candidates[0].CorrelationKey = %q, want arn:chg", writer.write.Candidates[0].CorrelationKey)
+	}
+	if writer.write.Summary.OrphanedResources != 1 {
+		t.Fatalf("Summary.OrphanedResources = %d, want 1", writer.write.Summary.OrphanedResources)
+	}
 }
 
 // TestAWSCloudRuntimeDriftHandlerSkipLoadsNothing pins the skip path: an
@@ -230,6 +267,7 @@ type stubAWSDriftReopenRecorder struct {
 	workItemID string
 	claimedAt  time.Time
 	snapshot   reducercontract.AWSDriftReopenSnapshot
+	fullRun    bool
 	calls      int
 	err        error
 }
@@ -239,11 +277,13 @@ func (s *stubAWSDriftReopenRecorder) RecordAWSDriftReopenFingerprint(
 	workItemID string,
 	claimedAt time.Time,
 	snapshot reducercontract.AWSDriftReopenSnapshot,
+	fullRun bool,
 ) error {
 	s.calls++
 	s.workItemID = workItemID
 	s.claimedAt = claimedAt
 	s.snapshot = snapshot
+	s.fullRun = fullRun
 	return s.err
 }
 
@@ -284,6 +324,50 @@ func TestAWSCloudRuntimeDriftHandlerRecordsSnapshotAfterWrite(t *testing.T) {
 	}
 	if recorder.snapshot.Fingerprint != "fp-1" {
 		t.Fatalf("recorded fingerprint = %q, want fp-1", recorder.snapshot.Fingerprint)
+	}
+	if !recorder.fullRun {
+		t.Fatal("record fullRun = false, want true: a full-behavior run must advance the audit clock")
+	}
+}
+
+// TestAWSCloudRuntimeDriftHandlerDeltaRecordPreservesAuditClock pins the
+// D5 record distinction: a delta run records its snapshot without advancing
+// the audit clock, so hourly deltas never defer the daily audit.
+func TestAWSCloudRuntimeDriftHandlerDeltaRecordPreservesAuditClock(t *testing.T) {
+	t.Parallel()
+	claimedAt := time.Now().Add(-time.Minute).UTC()
+	recorder := &stubAWSDriftReopenRecorder{}
+	plan := PlanAWSDriftIncrementalRun(AWSDriftIncrementalRun{
+		PrevSnapshot: map[string]string{"arn:1": "p1"},
+		NextSnapshot: map[string]string{"arn:1": "p2"},
+		LastAuditAt:  time.Now().Add(-time.Hour),
+		Now:          time.Now(),
+	})
+	if plan.Mode != AWSDriftIncrementalModeDelta {
+		t.Fatalf("plan Mode = %q, want delta", plan.Mode)
+	}
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader:            &stubAWSCloudRuntimeDriftEvidenceLoader{},
+		Writer:                    &stubAWSCloudRuntimeDriftFindingWriter{},
+		FencingTokenIssuer:        &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{9}},
+		ReopenFingerprintRecorder: recorder,
+		IncrementalPlan:           &plan,
+		SnapshotLoader: &stubAWSDriftSnapshotLoader{
+			snapshot: reducercontract.AWSDriftReopenSnapshot{Fingerprint: "fp-delta"},
+		},
+	}
+	intent := reducercontract.Intent{
+		IntentID: "intent-aws-delta-record", ScopeID: "aws:scope", GenerationID: "gen-9",
+		SourceSystem: "aws", Domain: reducercontract.DomainAWSCloudRuntimeDrift, Cause: "test",
+	}.WithStatus(reducercontract.IntentStatusClaimed, claimedAt)
+	if _, err := handler.Handle(t.Context(), intent); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("record calls = %d, want 1", recorder.calls)
+	}
+	if recorder.fullRun {
+		t.Fatal("record fullRun = true, want false: a delta run must preserve the audit clock")
 	}
 }
 

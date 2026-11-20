@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -81,6 +82,7 @@ func (s IngestionStore) RecordAWSDriftReopenFingerprint(
 	workItemID string,
 	claimedAt time.Time,
 	snapshot reducercontract.AWSDriftReopenSnapshot,
+	fullRun bool,
 ) error {
 	arnIDs := snapshot.ARNIDs
 	if arnIDs == nil {
@@ -93,7 +95,7 @@ func (s IngestionStore) RecordAWSDriftReopenFingerprint(
 	result, err := s.database.ExecContext(ctx, backfill.RecordAWSDriftReopenFingerprintQuery,
 		workItemID, claimedAt.UTC(), snapshot.ScopeID, snapshot.GenerationID,
 		array.StringArray(arnIDs), array.StringArray(hashes), snapshot.Fingerprint,
-		reducercontract.AWSRuntimeDriftLogicVersion,
+		reducercontract.AWSRuntimeDriftLogicVersion, fullRun,
 	)
 	if err != nil {
 		return fmt.Errorf("record aws drift reopen fingerprint: %w", err)
@@ -111,11 +113,13 @@ func (s IngestionStore) RecordAWSDriftReopenFingerprint(
 
 // LoadAWSDriftRecordedSnapshot reads this run's previously recorded reopen
 // snapshot for the per-run incremental plan: the ARN-to-payload-identity
-// map zipped from the recorded parallel arrays, plus the record time (the
-// plan's audit clock). ok=false means the work item never recorded: absence
-// re-opens, never skips (#10878 decision 4). A length-mismatched row is an
-// error, not a truncation: the planner fails open to a full run and the
-// record path heals the row.
+// map zipped from the recorded parallel arrays, plus the last full run's
+// completion time (last_audit_at, the plan's audit clock). A NULL clock
+// (never audited) reads as the zero time, which the planner treats as
+// audit-due. ok=false means the work item never recorded: absence re-opens,
+// never skips (#10878 decision 4). A length-mismatched row is an error, not
+// a truncation: the planner fails open to a full run and the record path
+// heals the row.
 func (s IngestionStore) LoadAWSDriftRecordedSnapshot(
 	ctx context.Context,
 	workItemID string,
@@ -135,8 +139,8 @@ func (s IngestionStore) LoadAWSDriftRecordedSnapshot(
 		return nil, time.Time{}, false, nil
 	}
 	var arnIDs, arnPayloadHashes array.StringArray
-	var recordedAt time.Time
-	if err := rows.Scan(&arnIDs, &arnPayloadHashes, &recordedAt); err != nil {
+	var lastAuditAt sql.NullTime
+	if err := rows.Scan(&arnIDs, &arnPayloadHashes, &lastAuditAt); err != nil {
 		return nil, time.Time{}, false, fmt.Errorf("scan aws drift recorded snapshot: %w", err)
 	}
 	if err := rows.Err(); err != nil {
@@ -152,7 +156,7 @@ func (s IngestionStore) LoadAWSDriftRecordedSnapshot(
 	for i, arn := range arnIDs {
 		prev[arn] = arnPayloadHashes[i]
 	}
-	return prev, recordedAt, true, nil
+	return prev, lastAuditAt.Time, true, nil
 }
 
 // listAWSDriftReopenCandidates runs the changed-evidence listing and

@@ -37,9 +37,14 @@ import (
 // domain's version, and a change that cannot MUST NOT.
 const (
 	// AWSRuntimeDriftLogicVersion versions the AWS runtime-drift change
-	// signal: the ARN-set fingerprint plus the per-ARN payload identity,
-	// the matched active tfstate generation per ARN, resolved config
-	// anchor commits, and this version.
+	// signal: the ARN-set fingerprint plus the collapsed per-ARN aws-fact
+	// payload identity (the D4 collapse rule: one identity per ARN) and
+	// this version. State/config inputs are NOT in the fingerprint: a
+	// state- or config-only move leaves it identical, and the daily audit
+	// (audit-stale reopen in the listing, audit_due full run, corrections
+	// counter) bounds that staleness instead (#11018 P1). Migration 317 is
+	// unshipped, so no recorded row exists to invalidate: the version
+	// stays 1.
 	AWSRuntimeDriftLogicVersion = 1
 	// SupplyChainImpactLogicVersion versions the supply-chain marked key:
 	// the dirty (CVE, package, PURL) set deriving the scoped stamp.
@@ -58,11 +63,12 @@ const (
 )
 
 // ARNRecordDiff is the delta snapshot of one AWS generation diff: ARNs
-// keyed by their payload identity (content hash of the AWS fact plus the
-// matched tfstate/config identity for that ARN). Added and Changed ARNs are
-// (re)classified; Removed ARNs retract their findings. A delta generation
-// carrying this diff carries changed files only, so a narrowed retract must
-// never widen to a whole-repo delete.
+// keyed by their collapsed aws-fact payload identity (one identity per
+// ARN; state/config moves do not change it and are bounded by the daily
+// audit instead). Added and Changed ARNs are (re)classified; Removed ARNs
+// retract their findings. A delta generation carrying this diff carries
+// changed files only, so a narrowed retract must never widen to a
+// whole-repo delete.
 type ARNRecordDiff struct {
 	Added   []string
 	Changed []string

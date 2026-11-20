@@ -65,6 +65,59 @@ The AWS runtime drift domain now runs on its change signal end to end:
   caught a real defect first (missing `CROSS JOIN current_epoch`,
   `missing FROM-clause entry for table "current_epoch"`), fixed and
   re-proven clean.
+- Round-1 review fixes (#11018): per-ARN state-fold STOPPED on the D2
+  cost gate (see below); the shipped
+  posture is audit-bounded staleness — the fingerprint stays aws-only
+  (D4-collapsed), skip/no-reopen additionally requires a fresh audit
+  (listing audit-stale leg + planner `last_audit_at` clock), and the wired
+  audit counts what a delta would have missed.
+- Performance Evidence: D2 shim (disposable Postgres 18.6, bootstrap
+  schema verbatim, ~1KB aws payloads, 70% state coverage, 2 warmups +
+  7 reps, medians): N=2000 current-snapshot 6.82ms vs candidate 352.32ms
+  vs full legs (resources 3.85ms + state 10.98ms) 14.83ms → candidate
+  2376% of full (bar: ≤25%); N=8000 current 18.35ms vs candidate 89.7ms
+  (lucky plan) –5302.5ms (sort spill, temp files) vs full 51.72ms →
+  173%–10253%. The aws-only status quo itself is 35–46% of full, so the
+  literal bar is unsatisfiable for ANY per-ARN fold. Plans show index
+  probes only (keyset, state ARN, active-generation indexes; zero seq
+  scans) but the final join degrades to nested-loop-with-filter under
+  missing stats and recomputes per outer row — an estimate-fragile shape
+  unsafe for the hot path. Two intermediate shapes rejected with numbers
+  along the way (correlated scalar subqueries: 853ms at N=2000; O(N²)
+  join filters: >60s hangs). VERDICT PER D2: STOP the fold, numbers
+  recorded here; re-escalated to the arbiter for bar interpretation vs
+  scope-level save-time state epoch vs audit-bound acceptance.
+  Functional legs proven before stopping: row-set equality
+  current==candidate (2000/8000 rows), state-only change flips the
+  candidate fingerprint with identical aws payloads.
+- No-Regression Evidence: the shipped D3/D4/D5/D6 shapes keep the
+  current cost class (single index scans + sorts; no new per-ARN probes):
+  D4 collapses the pair set the listing already scans (one row per ARN
+  instead of one per fact row — fewer groups, same scan); the D3
+  audit-stale leg adds two timestamp compares on the already-joined
+  fingerprint row after the existing OR short-circuits; D5 adds one
+  nullable column written once per run under the existing claim fence;
+  D6 replays classification only on the daily audit run. Hermetic suites
+  green (`contract`, `awscloud` + `-race`, `backfill`, `migrations`,
+  `telemetry`, reducer root, `cmd/reducer`); live Postgres proofs green
+  (`TestAWSDriftFingerprintCollapsesDuplicateARNsLive` RED pre-fix with
+  SQL 2-pair vs Go 1-pair digests → GREEN post-fix, plus determinism
+  across physical row orders and the hermetic same-fragment guard;
+  `TestAWSDriftReopenFingerprintAuditClockLive` full-sets /
+  later-claim-delta-preserves / later-full-advances;
+  `TestAWSDriftReopenCandidatesAuditStaleLive` NULL/stale re-opens,
+  fresh skips with equal fingerprints; D7 filter-bypass mutation turns
+  both hardened handler tests RED, revert GREEN). Migration path: 317
+  untouched (shipped — #7002), column lands in new guarded migration
+  320 (metadata-only ALTER, no rewrite); bootstrap applies 345→346 clean
+  on live Postgres.
+- Observability Evidence: the wired `audit_corrections_total` counter
+  is covered by production-path tests with a real meter (audit with a
+  config-only miss emits exactly 1; delta, fallback-full, and zero-miss
+  audits record no point); the skip/changed-keys/fallback counters keep
+  their existing tests. Sustained nonzero corrections means the skip path
+  is systematically blind to a real input class (counter semantics only;
+  defect filing is follow-up work).
 - Concurrency proof (AC5 + AC4 ride): 16 callers on one input version
   share exactly one load; a moved version reloads; over-cap payloads pass
   through without caching (`TestAWSDriftEvidenceCache*`, `-race` in the
@@ -91,7 +144,9 @@ The AWS runtime drift domain now runs on its change signal end to end:
 - NOT_CHECKED on live QA (no QA DSN on this box): real changed-ARN
   fraction between consecutive active AWS generations, per-domain p95
   full-run seconds for the audit budget, no-change-run skip timing, and
-  the first two-consecutive-correcting-audits watch. The acceptance run is
+  the first sustained-nonzero-`audit_corrections` watch (counter semantics
+  only: filing a defect off it is follow-up work, not an automatic rule —
+  see the round-1 note above). The acceptance run is
   a live wave on this branch: green `required-gates-complete` plus the
   counter dashboard showing skip > 0, `fallback_full` == 0, and zero
   `audit_corrections` on the first daily audit.

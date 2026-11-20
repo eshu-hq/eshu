@@ -99,4 +99,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 319 (#11021) adds the scope probe the 2e purge sweep needs
 	// for parked waits of retired scopes.
 	"reducer_waiting_items_scope_idx",
+	// Migration 320 (#10878 follow-up) adds the audit clock to the drift
+	// reopen fingerprints: last_audit_at per succeeded work item, NULL
+	// meaning never audited and therefore due.
+	"aws_drift_reopen_fingerprints_audit_clock",
 }

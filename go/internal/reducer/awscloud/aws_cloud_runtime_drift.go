@@ -249,7 +249,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	// untouched ARNs are neither reclassified nor retired.
 	evaluatedARNs := evaluatedAWSCloudRuntimeDriftARNs(rows)
 	if plan != nil && plan.Mode == AWSDriftIncrementalModeDelta {
-		rows, _ = FilterAddressedRowsToDiff(rows, plan.Diff)
+		rows = FilterAddressedRowsToDiff(rows, plan.Diff)
 		evaluatedARNs = plan.Diff.ChangedKeys()
 	}
 
@@ -262,6 +262,9 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
+	if plan != nil && plan.Mode == AWSDriftIncrementalModeFull && plan.Reason == AWSDriftIncrementalReasonAuditDue {
+		h.recordAuditCorrections(ctx, intent, rows, admitted, plan.Diff)
+	}
 	h.recordIncrementalClassified(ctx, plan, len(evaluatedARNs))
 
 	decision, err := h.applyStatePendingWaitPostLoad(ctx, readinessSignal, admitted, intent, evidenceAsOf)
@@ -296,7 +299,8 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	}
 
 	cloudruntime.RecordEvaluation(ctx, h.Instruments, evaluation)
-	if err := h.recordReopenSnapshot(ctx, intent, freshSnapshot, hasFresh); err != nil {
+	fullRun := plan == nil || plan.Mode == AWSDriftIncrementalModeFull
+	if err := h.recordReopenSnapshot(ctx, intent, freshSnapshot, hasFresh, fullRun); err != nil {
 		return reducercontract.Result{}, err
 	}
 	h.logAdmittedBatch(ctx, intent, len(candidates), admitted, summary, writeResult.CanonicalWrites, factwrite.Now(h.Now).Sub(evidenceAsOf))
@@ -323,12 +327,14 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 // fresh snapshot the run's plan was built from: reusing it records exactly
 // the input the plan diffed instead of reloading the same generation and
 // risking a mid-run input move. Without one the snapshot loads here, which
-// needs the snapshot loader.
+// needs the snapshot loader. fullRun marks a complete re-derivation, which
+// advances the row's audit clock; a delta preserves it (#11018 P1).
 func (h AWSCloudRuntimeDriftHandler) recordReopenSnapshot(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	preloaded reducercontract.AWSDriftReopenSnapshot,
 	hasPreloaded bool,
+	fullRun bool,
 ) error {
 	if h.ReopenFingerprintRecorder == nil || intent.ClaimedAt == nil {
 		return nil
@@ -345,7 +351,7 @@ func (h AWSCloudRuntimeDriftHandler) recordReopenSnapshot(
 		}
 	}
 	if err := h.ReopenFingerprintRecorder.RecordAWSDriftReopenFingerprint(
-		ctx, intent.IntentID, intent.ClaimedAt.UTC(), snapshot,
+		ctx, intent.IntentID, intent.ClaimedAt.UTC(), snapshot, fullRun,
 	); err != nil {
 		return fmt.Errorf("record aws drift reopen fingerprint: %w", err)
 	}

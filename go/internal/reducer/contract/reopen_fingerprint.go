@@ -72,12 +72,19 @@ type AWSDriftReopenSnapshot struct {
 // (workItemID plus claimedAt, the claim's last_attempt_at) and must return
 // an error wrapping ErrExecutionClaimRejected when that claim no longer
 // holds the item. An unclaimed run records nothing.
+//
+// fullRun distinguishes a complete re-derivation (audit_due, fallback, or
+// first run: each satisfies the daily audit purpose) from a narrowed delta:
+// a full run advances the row's audit clock (last_audit_at) to this run,
+// while a delta preserves the existing clock under the same claimed_at
+// fence, so hourly deltas never defer the daily audit (#11018 P1).
 type AWSDriftReopenFingerprintRecorder interface {
 	RecordAWSDriftReopenFingerprint(
 		ctx context.Context,
 		workItemID string,
 		claimedAt time.Time,
 		snapshot AWSDriftReopenSnapshot,
+		fullRun bool,
 	) error
 }
 
