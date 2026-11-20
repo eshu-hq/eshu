@@ -9186,6 +9186,44 @@
         "maximum_results": 1,
         "results_field": "findings"
       },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9301&profile=comprehensive": {
+        "description": "#10030 recorded scanner proof: the orders-api go.mod pins lib-common v1.0.0 inside the affected range of GO-2026-9301, whose vulnerable symbol Uncalled nothing calls. The real govulncheck symbol-level scan folds to not_called, so the persisted finding must surface runtime_reachability=not_called with minimum_results:1, maximum_results:1. The CVE-2026-9229 sibling shape on the same module pins symbol_reachable; together they prove one scan's answers do not collapse across advisories.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "evidence_path", "cvss_score", "provenance"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-9301",
+          "findings[].advisory_id": "GO-2026-9301",
+          "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+          "findings[].repository_id": "repository:r_ea78e8bb",
+          "findings[].observed_version": "v1.0.0",
+          "findings[].runtime_reachability": "not_called",
+          "findings[].evidence_path[]": "vulnerability.go_call_reachability"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
+      "GET /api/v0/supply-chain/impact/findings?limit=10&cve_id=CVE-2026-9401&profile=comprehensive": {
+        "description": "#10030 recorded scanner proof: the orders-legacy legacy/go.mod pins legacy-lib v0.1.0 inside the affected range of GO-2026-9401, but the govulncheck scan never finished for that scope (toolchain_unsupported: the legacy root requires go 1.99, above the pinned toolchain). The joined warning rewrites the untrustworthy module_only verdict to analysis_failed (#10043), so the persisted finding must surface runtime_reachability=analysis_failed with reachability.state=missing_evidence and the scoped toolchain warning in reachability.missing_evidence, minimum_results:1, maximum_results:1. The CVE-2026-9229/9301 sibling shapes pin the finished-scan verdicts; together the three prove a failed scan reads as missing evidence, never as a clean verdict.",
+        "truth_class": "deterministic",
+        "required_response_fields": ["findings", "count"],
+        "result_item_required_fields": ["cve_id", "advisory_id", "package_id", "repository_id", "observed_version", "runtime_reachability", "reachability", "evidence_path", "cvss_score", "provenance"],
+        "required_json_values": {
+          "findings[].cve_id": "CVE-2026-9401",
+          "findings[].advisory_id": "GO-2026-9401",
+          "findings[].package_id": "gomod://proxy.golang.org/github.com/acme/legacy-lib",
+          "findings[].repository_id": "repository:r_ea78e8bb",
+          "findings[].observed_version": "v0.1.0",
+          "findings[].runtime_reachability": "analysis_failed",
+          "findings[].reachability.state": "missing_evidence",
+          "findings[].reachability.missing_evidence[]": "govulncheck scan toolchain_unsupported at legacy/go.mod",
+          "findings[].evidence_path[]": "vulnerability.go_module_evidence"
+        },
+        "minimum_results": 1,
+        "maximum_results": 1,
+        "results_field": "findings"
+      },
       "GET /api/v0/supply-chain/impact/findings?limit=50&cve_id=CVE-2026-00000": {
         "description": "#5736 non-vacuous default-profile floor: the synthetic github_actions_workflows fixture pins supply-chain-demo-lib@1.2.2 in package-lock.json, matching CVE-2026-00000's exact affected version. The query deliberately omits profile so the API applies its default precise profile; minimum_results:1, maximum_results:1, and the detection_profile pins make a regression that empties, broadens, or misclassifies the default path fail the live gate. The ceiling is measured against the deterministic one-row live response and prevents a mixed precise/comprehensive result set from satisfying the any-element required_json_values checks. This uses the npm lockfile chain rather than an OS-package finding, preserving the epic's explicit comprehensive-profile convention for established DPKG/APK golden assertions.",
         "truth_class": "deterministic",

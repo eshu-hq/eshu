@@ -1,0 +1,192 @@
+[
+ {
+  "FactID": "ff465df33bb5356bf929e1446fd7c9edcf34035125c4882873a9983cc45e1230",
+  "ScopeID": "go-reachability://repository:r_ea78e8bb",
+  "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+  "FactKind": "vulnerability.go_module_evidence",
+  "StableFactKey": "3a9fadb0a167bfe7061e6a8bbe7be5f02539ecf1b0759ae8efa25d4d4f367bd7",
+  "SchemaVersion": "1.0.0",
+  "CollectorKind": "scanner_worker",
+  "FencingToken": 1,
+  "SourceConfidence": "reported",
+  "ObservedAt": "2026-06-25T00:00:00Z",
+  "Payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "indirect": false,
+   "line_number": 5,
+   "module_path": "github.com/acme/lib-common",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "required_version": "v1.0.0",
+   "root_go_version": "1.21",
+   "root_module_path": "github.com/acme/orders-api",
+   "source": "go_module_manifest",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb"
+  },
+  "IsTombstone": false,
+  "SourceRef": {
+   "SourceSystem": "scanner_worker",
+   "ScopeID": "go-reachability://repository:r_ea78e8bb",
+   "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+   "FactKey": "3a9fadb0a167bfe7061e6a8bbe7be5f02539ecf1b0759ae8efa25d4d4f367bd7",
+   "SourceURI": "file:///tmp/record10030-work/orders-api.git",
+   "SourceRecordID": "go.mod#github.com/acme/lib-common@v1.0.0"
+  }
+ },
+ {
+  "FactID": "3dd5652970db4f3ebe9bcb024233965d96de4324022add594653777e72cbcc08",
+  "ScopeID": "go-reachability://repository:r_ea78e8bb",
+  "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+  "FactKind": "vulnerability.go_module_evidence",
+  "StableFactKey": "abdb7e4c2b76a0e13026980bb9cf06dbc1749236612dce7e4acea764f2707b20",
+  "SchemaVersion": "1.0.0",
+  "CollectorKind": "scanner_worker",
+  "FencingToken": 1,
+  "SourceConfidence": "reported",
+  "ObservedAt": "2026-06-25T00:00:00Z",
+  "Payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "indirect": false,
+   "line_number": 5,
+   "module_path": "github.com/acme/legacy-lib",
+   "relative_path": "legacy/go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "required_version": "v0.1.0",
+   "root_go_version": "1.99",
+   "root_module_path": "github.com/acme/orders-legacy",
+   "source": "go_module_manifest",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb"
+  },
+  "IsTombstone": false,
+  "SourceRef": {
+   "SourceSystem": "scanner_worker",
+   "ScopeID": "go-reachability://repository:r_ea78e8bb",
+   "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+   "FactKey": "abdb7e4c2b76a0e13026980bb9cf06dbc1749236612dce7e4acea764f2707b20",
+   "SourceURI": "file:///tmp/record10030-work/orders-api.git",
+   "SourceRecordID": "legacy/go.mod#github.com/acme/legacy-lib@v0.1.0"
+  }
+ },
+ {
+  "FactID": "0944e149246f3491b22e5aa8a63d691d04324b96d3b0cf31d547e6ffda5235d3",
+  "ScopeID": "go-reachability://repository:r_ea78e8bb",
+  "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+  "FactKind": "vulnerability.go_call_reachability",
+  "StableFactKey": "e25104f394aec5f286bd5befe4842f99a4851f71b46c271fd5d1324a97d255e2",
+  "SchemaVersion": "1.0.0",
+  "CollectorKind": "scanner_worker",
+  "FencingToken": 1,
+  "SourceConfidence": "reported",
+  "ObservedAt": "2026-06-25T00:00:00Z",
+  "Payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "deepest_module": "github.com/acme/lib-common",
+   "deepest_package": "github.com/acme/lib-common",
+   "deepest_symbol": "Identity[string]",
+   "osv_id": "GO-2026-9229",
+   "reachability_level": "symbol",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "scan_level": "symbol",
+   "scan_mode": "source",
+   "scanner_version": "v1.9.0",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "trace": [
+    {
+     "function": "main",
+     "module": "github.com/acme/orders-api",
+     "package": "github.com/acme/orders-api",
+     "position": "main.go:11:18"
+    },
+    {
+     "function": "Identity[string]",
+     "module": "github.com/acme/lib-common",
+     "package": "github.com/acme/lib-common",
+     "position": "common.go:9:6",
+     "version": "v1.0.0"
+    }
+   ],
+   "trace_count": 1
+  },
+  "IsTombstone": false,
+  "SourceRef": {
+   "SourceSystem": "scanner_worker",
+   "ScopeID": "go-reachability://repository:r_ea78e8bb",
+   "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+   "FactKey": "e25104f394aec5f286bd5befe4842f99a4851f71b46c271fd5d1324a97d255e2",
+   "SourceURI": "file:///tmp/record10030-work/orders-api.git",
+   "SourceRecordID": "go.mod#GO-2026-9229#github.com/acme/lib-common"
+  }
+ },
+ {
+  "FactID": "8fadda7626bccf01f25c9d96f8613d4d6d66c2bb0ef7fed12e03e096538922b6",
+  "ScopeID": "go-reachability://repository:r_ea78e8bb",
+  "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+  "FactKind": "vulnerability.go_call_reachability",
+  "StableFactKey": "100908b9b4bd5ea38e15eca12c944a8bdcd0d374e08c1674bc325ccf4309d2fe",
+  "SchemaVersion": "1.0.0",
+  "CollectorKind": "scanner_worker",
+  "FencingToken": 1,
+  "SourceConfidence": "reported",
+  "ObservedAt": "2026-06-25T00:00:00Z",
+  "Payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "deepest_module": "github.com/acme/lib-common",
+   "deepest_package": "github.com/acme/lib-common",
+   "osv_id": "GO-2026-9301",
+   "reachability_level": "not_called",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "scan_level": "symbol",
+   "scan_mode": "source",
+   "scanner_version": "v1.9.0",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "trace": [],
+   "trace_count": 0
+  },
+  "IsTombstone": false,
+  "SourceRef": {
+   "SourceSystem": "scanner_worker",
+   "ScopeID": "go-reachability://repository:r_ea78e8bb",
+   "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+   "FactKey": "100908b9b4bd5ea38e15eca12c944a8bdcd0d374e08c1674bc325ccf4309d2fe",
+   "SourceURI": "file:///tmp/record10030-work/orders-api.git",
+   "SourceRecordID": "go.mod#GO-2026-9301#github.com/acme/lib-common"
+  }
+ },
+ {
+  "FactID": "bd0b64e8c55d23664edd1f8165c564a4db51925aabc8dee73318fb8d72e18105",
+  "ScopeID": "go-reachability://repository:r_ea78e8bb",
+  "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+  "FactKind": "scanner_worker.warning",
+  "StableFactKey": "19e989de259e264a9929fcf8895760018bb364394bba3e541389b62529c3eff5",
+  "SchemaVersion": "1.0.0",
+  "CollectorKind": "scanner_worker",
+  "FencingToken": 1,
+  "SourceConfidence": "reported",
+  "ObservedAt": "2026-06-25T00:00:00Z",
+  "Payload": {
+   "analysis_status": "not_scanned",
+   "analyzer": "go_reachability",
+   "collector_instance_id": "collector-vulnintel-orders",
+   "coverage_status": "unsupported",
+   "detail": "a go or toolchain requirement is above the pinned toolchain; this module is not analyzed for reachability",
+   "reason": "toolchain_unsupported",
+   "relative_path": "legacy/go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "target_kind": "repository",
+   "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776",
+   "warning_class": "scanner_worker_warning"
+  },
+  "IsTombstone": false,
+  "SourceRef": {
+   "SourceSystem": "scanner_worker",
+   "ScopeID": "go-reachability://repository:r_ea78e8bb",
+   "GenerationID": "cassette-vulnintel-orders-go-alias-gen1",
+   "FactKey": "19e989de259e264a9929fcf8895760018bb364394bba3e541389b62529c3eff5",
+   "SourceURI": "file:///tmp/record10030-work/orders-api.git",
+   "SourceRecordID": "toolchain_unsupported#legacy/go.mod"
+  }
+ }
+]

@@ -41,15 +41,14 @@ const goldenCassetteDebianImageScopeID = "vulnerability_intelligence:supply-chai
 // known_exploited enrichment facts for the same CVE populate the finding's
 // risk signals (EPSSProbability, EPSSPercentile, KnownExploited,
 // PriorityReason). It also proves the sibling standalone kinds
-// (affected_product, reference, source_snapshot, go_module_evidence,
-// go_call_reachability, warning) decode without error and without
-// perturbing this finding, since they are schema-valid coverage facts the
-// current reducer does not join into any finding (affected_product is
-// shadowed because this CVE already has an affected_package; reference,
-// source_snapshot, and warning have no case in
-// addSupplyChainImpactIndexEntry; go_module_evidence/go_call_reachability
-// require a gomod-ecosystem affected_package to key against, which this
-// debian/deb chain does not provide).
+// (affected_product, reference, source_snapshot, warning) decode without
+// error and without perturbing this finding, since they are schema-valid
+// coverage facts the current reducer does not join into any finding
+// (affected_product is shadowed because this CVE already has an
+// affected_package; reference, source_snapshot, and warning have no case in
+// addSupplyChainImpactIndexEntry). The scope carries no Go facts: the
+// synthetic debian Go pair was deleted in #10030 (no real counterpart),
+// and real scanner output lives in the orders-api scope.
 func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 	t.Parallel()
 
@@ -124,11 +123,13 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 }
 
 // TestGoldenCassetteDebianImageChainEnvelopesDecodeWithoutQuarantine proves
-// every envelope the cassette backfill adds (all 9 previously-missing
-// vulnerability_intelligence kinds) decodes cleanly through
-// buildSupplyChainImpactFindingsWithQuarantine with zero quarantined facts
-// and no fatal error, so none of the new cassette payloads will surface as
-// an input_invalid dead-letter or abort the golden-corpus gate's replay.
+// every envelope the cassette carries in the debian-image scope decodes
+// cleanly through buildSupplyChainImpactFindingsWithQuarantine with zero
+// quarantined facts and no fatal error, so none of the cassette payloads
+// will surface as an input_invalid dead-letter or abort the golden-corpus
+// gate's replay. The scope carries no Go facts since #10030 deleted the
+// synthetic pair (no real counterpart); real scanner output is covered by
+// the recorded-10030 tests.
 func TestGoldenCassetteDebianImageChainEnvelopesDecodeWithoutQuarantine(t *testing.T) {
 	t.Parallel()
 
@@ -147,10 +148,11 @@ func TestGoldenCassetteDebianImageChainEnvelopesDecodeWithoutQuarantine(t *testi
 }
 
 // goldenCassetteDebianImageChainEnvelopes returns the exact fact set (fact
-// kind + payload) the cassette backfill transcribes verbatim into the new
+// kind + payload) the cassette carries in the
 // "vulnerability_intelligence:supply-chain-demo:debian-image" scope. Every
 // envelope shares goldenCassetteDebianImageScopeID because a cassette scope
-// has no per-fact ScopeID (see the file doc comment above).
+// has no per-fact ScopeID (see the file doc comment above). The scope
+// carries no Go facts since #10030 deleted the synthetic pair.
 func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 	const scopeID = goldenCassetteDebianImageScopeID
 	return []facts.Envelope{
@@ -282,51 +284,6 @@ func goldenCassetteDebianImageChainEnvelopes() []facts.Envelope {
 				"criteria":          "cpe:2.3:a:debian:openssl:3.0.11:*:*:*:*:*:*:*",
 				"match_criteria_id": "supply-chain-demo-debian-openssl-00010",
 				"vulnerable":        true,
-			},
-		},
-		{
-			// Standalone: no gomod-ecosystem affected_package exists in this
-			// cassette to key classifyGoVulnerabilityReachabilityWithQuarantine's
-			// advisoryByModule lookup against, so this decodes cleanly and
-			// raises kind coverage but joins no finding (per the task's
-			// explicit "do not force-fit" allowance for the two Go kinds).
-			FactID:   "debian-go-module-evidence-scd-00010",
-			FactKind: chain.VulnerabilityGoModuleEvidenceFactKind,
-			ScopeID:  scopeID,
-			Payload: map[string]any{
-				"repository_id":    "repository:supply-chain-demo/example-go-service",
-				"relative_path":    "go.mod",
-				"module_path":      "github.com/eshu-hq/supply-chain-demo-module",
-				"required_version": "v1.4.0",
-				"indirect":         false,
-				"line_number":      9,
-			},
-		},
-		{
-			// Standalone, same rationale as go_module_evidence above: no
-			// matching go advisory/module pair exists in this cassette.
-			FactID:   "debian-go-call-reachability-scd-00010",
-			FactKind: chain.VulnerabilityGoCallReachabilityFactKind,
-			ScopeID:  scopeID,
-			Payload: map[string]any{
-				"repository_id":      "repository:supply-chain-demo/example-go-service",
-				"osv_id":             "GO-2026-00010",
-				"deepest_module":     "github.com/eshu-hq/supply-chain-demo-module",
-				"deepest_package":    "github.com/eshu-hq/supply-chain-demo-module/internal/vuln",
-				"deepest_symbol":     "Vulnerable",
-				"reachability_level": "symbol",
-				"trace": []any{
-					map[string]any{
-						"module":   "github.com/eshu-hq/supply-chain-demo-service",
-						"package":  "github.com/eshu-hq/supply-chain-demo-service/cmd/demo",
-						"function": "main",
-					},
-					map[string]any{
-						"module":   "github.com/eshu-hq/supply-chain-demo-module",
-						"package":  "github.com/eshu-hq/supply-chain-demo-module/internal/vuln",
-						"function": "Vulnerable",
-					},
-				},
 			},
 		},
 		{

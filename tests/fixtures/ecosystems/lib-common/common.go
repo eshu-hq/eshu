@@ -9,3 +9,9 @@ package lib
 func Identity[T any](value T) T {
 	return value
 }
+
+// Uncalled is a second exported entry point nothing calls. It gives the
+// re-recorded supply-chain-demo cassette a real not_called symbol.
+func Uncalled() string {
+	return "unreached"
+}
