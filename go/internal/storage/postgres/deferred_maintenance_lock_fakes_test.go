@@ -232,6 +232,13 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 	case strings.Contains(query, "deployment_mapping") && !tx.workServed:
 		tx.workServed = true
 		return &queueFakeRows{rows: tx.database.succeededWorkIDs}, nil
+	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
+		// #10876: the phase publish wakes parked phase_committed waits in
+		// the same transaction. No waits are parked in these fixtures, so
+		// the wake is a no-op (0, 0). Matched by the waiting-table name
+		// plus the reopen CTE so a genuinely unknown statement still
+		// reaches the empty row below.
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
 	}
 	return &queueFakeRows{}, nil
 }

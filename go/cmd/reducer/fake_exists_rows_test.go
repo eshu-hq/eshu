@@ -115,6 +115,38 @@ type fakeCountRows struct {
 	read  bool
 }
 
+// fakeWakeCountRows returns the one-row (reopened, cleared) result of a
+// #10876 waiting-wake statement. Startup wiring tests park no waits, so the
+// wake is a no-op (0, 0).
+type fakeWakeCountRows struct {
+	read bool
+}
+
+func (r *fakeWakeCountRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (r *fakeWakeCountRows) Scan(dest ...any) error {
+	if len(dest) != 2 {
+		return fmt.Errorf("scan: got %d dest, want 2", len(dest))
+	}
+	for _, d := range dest {
+		count, ok := d.(*int64)
+		if !ok {
+			return fmt.Errorf("unsupported scan dest type %T", d)
+		}
+		*count = 0
+	}
+	return nil
+}
+
+func (r *fakeWakeCountRows) Err() error   { return nil }
+func (r *fakeWakeCountRows) Close() error { return nil }
+
 func (r *fakeCountRows) Next() bool {
 	if r.read {
 		return false

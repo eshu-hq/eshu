@@ -1,4 +1,9 @@
 tests:
+  - file: go/internal/storage/postgres/retention/relationships/classify_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10823 disposable PostgreSQL 18 proof that classification re-checks a generation row under its own lock: an activation that commits after the classification statement took its snapshot and before it locks the row (staged by gating the shipped statement on an advisory lock the test holds) leaves the generation unclaimed with no lock held on the now active row, and a whole pass over the same race counts it as left for a later pass, never as swept, with every row intact"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/retention/relationships/eligibility_live_test.go
     tag: ~
     class: postgres_ci

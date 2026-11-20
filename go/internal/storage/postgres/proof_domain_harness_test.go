@@ -171,6 +171,15 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 
 func (database *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
+	// #10876: the activation reopens parked waits in the same transaction.
+	// No waits are parked in the proof domain, so the wake is a no-op
+	// (0, 0). This arm leads the switch because the wake's
+	// "work.stage = 'reducer'" predicate would otherwise fall into the
+	// reducer-claim arm below, whose 7-arg shape the 3-arg wake cannot
+	// satisfy. Matched by the waiting-table name plus the reopen CTE so a
+	// genuinely unknown statement still falls through to the error below.
+	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
+		return newProofRows([][]any{{int64(0), int64(0)}}), nil
 	// Exact query matches come before the substring matches below: the
 	// summary's grouped history CTE contains "GROUP BY status" and
 	// "FROM scope_generations" too (#7009).

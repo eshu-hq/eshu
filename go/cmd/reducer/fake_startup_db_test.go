@@ -31,6 +31,13 @@ func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...an
 		}
 		return &fakeGenerationRows{value: &scopeGenID, read: false}, nil
 	}
+	// #10876: the phase publish wakes parked phase_committed waits. No waits
+	// are parked in startup wiring tests, so the wake is a no-op (0, 0).
+	// Matched by the waiting-table name plus the reopen CTE so a genuinely
+	// unknown statement still falls through to the error below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &fakeWakeCountRows{}, nil
+	}
 	if strings.Contains(query, "FROM fact_records") {
 		return &fakeEmptyRows{}, nil
 	}
