@@ -250,45 +250,6 @@ gates:
       - network
     ci_only_reason: ""
 
-  - id: nancy
-    name: nancy (Sonatype dep CVE + license scan)
-    category: security
-    layer: hygiene
-    purpose: "Runs Sonatype nancy for Go dependency CVE/license issues; non-blocking since missing credentials mean it scans nothing today."
-    tier: pre-push
-    # Advisory, not blocking (#5791, #5804): Sonatype's OSS Index rejects ALL
-    # anonymous requests with 401 Unauthorized, and neither this repo's CI nor
-    # local dev has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured, so nancy
-    # cannot perform a real scan anywhere today — CI's identical unpiped
-    # invocation has never scanned anything either (it silently audits 0
-    # dependencies and reports success). Mirrors the trivy-fs entry below:
-    # a security scanner that cannot always run must be informational, not a
-    # gate that blocks every contributor on a condition outside their
-    # control. Reclassify back to blocking once #5804 wires real credentials.
-    blocking: false
-    triggers:
-      - "go/go.mod"
-      - "go/go.sum"
-      - "scripts/dev/precommit-go.sh"
-      - "scripts/lib/go-toolchain.sh"
-      - "scripts/lib/precommit-go-filecap.sh"
-      - "scripts/lib/cgo-cflags.sh"
-      - "scripts/lib/precommit-go-gosec.sh"
-      - "scripts/dev/nancy-local.sh"
-      - "scripts/test-nancy-local.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/ci/go-install-retry.sh"
-    local:
-      command: "bash scripts/dev/precommit-go.sh nancy"
-      test_command: "bash scripts/test-nancy-local.sh"
-    ci:
-      workflow: security-scan.yml
-      job: "nancy (Sonatype dep CVE + license scan)"
-    requirements:
-      - go
-      - network
-    ci_only_reason: ""
-
   - id: trivy-fs
     name: Trivy filesystem scan (vuln + secret + config)
     category: security

@@ -4,7 +4,7 @@
 # capability surface-inventory drift) so they are caught at commit time instead
 # of on GitHub.
 #
-# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|nancy|surface|cache-paths> [files...]
+# Usage: scripts/dev/precommit-go.sh <fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|surface|cache-paths> [files...]
 #   lint-all / fmt-all run over the whole module (./...); the pre-pr gate
 #   (scripts/dev/pre-pr.sh) uses them to mirror CI before the first push.
 #
@@ -99,9 +99,9 @@ collect_dirs() {
 # The gate then dies on the INSTALL, before the scanner ever runs.
 #
 # Clearing GOROOT restores the self-consistent host toolchain the design note
-# above already intends. The `go` calls that run inside go/ (capability-inventory,
-# nancy-local's `go list`) need no such treatment: they see the directive, switch
-# to 1.26.6, and their driver and GOROOT agree.
+# above already intends. The `go` calls that run inside go/
+# (capability-inventory) need no such treatment: they see the directive,
+# switch to 1.26.6, and their driver and GOROOT agree.
 #
 # scripts/test-precommit-go-toolchain-isolation.sh is the regression guard;
 # removing `env -u GOROOT` from any call site turns it red.
@@ -148,17 +148,6 @@ ensure_govulncheck() {
 	go_install_tool \
 		"golang.org/x/vuln/cmd/govulncheck@latest" \
 		|| die "failed to install govulncheck"
-	printf '%s' "${bin}"
-}
-
-ensure_nancy() {
-	local bin="${tool_cache_dir}/nancy"
-	# Always reinstall @latest (see ensure_govulncheck) to match CI and avoid
-	# freezing a stale nancy in the cache.
-	note "installing nancy@latest (local toolchain)"
-	go_install_tool \
-		"github.com/sonatype-nexus-community/nancy@latest" \
-		|| die "failed to install nancy"
 	printf '%s' "${bin}"
 }
 
@@ -375,18 +364,7 @@ case "${cmd}" in
 		PATH="$(dirname "${bin}"):${PATH}" bash "${script_root}/scripts/ci/govulncheck-replace-recheck.sh" "${go_dir}" \
 			|| die "govulncheck: replaced-module re-check failed (see output above)"
 		;;
-	nancy)
-		# nancy is declared ADVISORY (specs/ci-gates.v1.yaml, #5791/#5804): OSS
-		# Index currently 401s every anonymous request and no OSS Index
-		# credentials exist anywhere in this repo, so it cannot reliably
-		# perform a real scan today. The actual sleuth/classification logic
-		# lives in scripts/dev/nancy-local.sh (unit-tested directly with fake
-		# `go`/`nancy` binaries in scripts/test-nancy-local.sh); this case only
-		# installs the real nancy binary and delegates.
-		bin="$(ensure_nancy)"
-		bash "${repo_root}/scripts/dev/nancy-local.sh" "${go_dir}" "${worktree_cache_dir}" "${bin}"
-		;;
 	*)
-		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|nancy|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
+		die "unknown subcommand '${cmd}' (want fmt|lint|lint-all|fmt-all|filecap|filecap-all|dirgate|dirgate-all|gosec|gosec-all|gosec-changed|govulncheck|surface|perf-evidence|telemetry|measurement-citations|cache-paths)"
 		;;
 esac

@@ -131,7 +131,7 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     same job, by a scripts/ci/go-mod-download-retry.sh step for that same
 //     module BEFORE the first step that actually touches the module graph
 //     (a literal `go build/test/vet/run/install/list/mod/generate`, or
-//     golangci-lint/govulncheck/gosec/nancy). Registry-independent — this
+//     golangci-lint/govulncheck/gosec). Registry-independent — this
 //     walks every workflow file directly, not gate-by-gate, so it also
 //     catches a job no gate's ci.job happens to name. See
 //     checkSetupGoPrewarmOrdering for why "somewhere in the job" (what the

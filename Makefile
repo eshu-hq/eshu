@@ -29,7 +29,7 @@ pre-pr-full: ## Like pre-pr but with whole-module race and advisory gates for hi
 frontend-preflight: ## Run the selected frontend gates (typecheck/test/build/a11y/eslint/audit) for changed paths
 	@bash scripts/dev/frontend-preflight.sh
 
-security-preflight: ## Run the selected security gates (gosec/govulncheck/nancy/trivy-fs) for changed paths
+security-preflight: ## Run the selected security gates (gosec/govulncheck/trivy-fs) for changed paths
 	@bash scripts/dev/security-preflight.sh
 
 prove: ## Run the credential-free Ifá conformance mirror (contract test/hermetic mirrors/coverage, plus the path-selected Docker matrix)

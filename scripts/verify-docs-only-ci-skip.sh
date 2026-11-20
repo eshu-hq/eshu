@@ -315,7 +315,7 @@ if job_alwayson "${s}" trivy-fs; then
 else
 	bad "security-scan.yml trivy-fs must NOT be code-gated (it is the only secret scan)"
 fi
-for j in govulncheck gosec nancy; do
+for j in govulncheck gosec; do
 	if job_gated "${s}" "${j}"; then ok "security-scan.yml ${j} (Go scanner) is code-gated"
 	else bad "security-scan.yml ${j} carries needs:changes"; fi
 done
@@ -418,7 +418,7 @@ run_predicate_quantifier_check "${t}" "${s}" "${m}"
 gated_jobs_for() {
 	case "$1" in
 	test.yml) printf '%s\n' "go-core|verify-contracts|go-race-complete" ;;
-	security-scan.yml) printf '%s\n' "gosec (Go static analysis)|govulncheck (Go vulnerability database)|nancy (Sonatype dep CVE + license scan)" ;;
+	security-scan.yml) printf '%s\n' "gosec (Go static analysis)|govulncheck (Go vulnerability database)" ;;
 	mcp-schema-drift.yml) printf '%s\n' "Verify ReadOnlyTools count|Full MCP test suite|MCP router eval report" ;;
 	esac
 }
