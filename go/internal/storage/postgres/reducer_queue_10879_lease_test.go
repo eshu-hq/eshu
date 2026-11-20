@@ -429,6 +429,41 @@ func shippedReconcileSQL(t *testing.T) string {
 	return string(raw)
 }
 
+// assertMirrorMatchesStampedLive fails unless the mirror holds exactly the
+// fully-stamped live reducer leases. Orphan checks alone cannot catch an
+// overbroad reconcile (deleting everything leaves zero orphans); the count
+// equality pins the preservation direction.
+func assertMirrorMatchesStampedLive(t *testing.T, ctx context.Context, conn reducerClaimBenchmarkConn) {
+	t.Helper()
+	var mirror, stampedLive int
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT (SELECT count(*) FROM fact_work_item_leases),
+		  (SELECT count(*) FROM fact_work_items WHERE stage = 'reducer'
+		    AND status IN ('claimed', 'running')
+		    AND lease_owner IS NOT NULL AND claim_until IS NOT NULL
+		    AND last_attempt_at IS NOT NULL)`,
+	).Scan(&mirror, &stampedLive); err != nil {
+		t.Fatalf("count mirror vs stamped live: %v", err)
+	}
+	if mirror != stampedLive {
+		t.Fatalf("mirror rows = %d, stamped live rows = %d, want equal", mirror, stampedLive)
+	}
+}
+
+// assertKeepRowsSurvive pins preservation per-row: the three hand-seeded
+// live leases must still carry their owner after the reconcile. The replay
+// seed never stamps the lease triple, so without these the count check
+// above would compare 0 == 0 and an unconditional wipe would pass it.
+func assertKeepRowsSurvive(t *testing.T, ctx context.Context, conn reducerClaimBenchmarkConn) {
+	t.Helper()
+	kept := liveLeaseRows(t, ctx, conn)
+	for _, id := range []string{"backfill-race-keep-1", "backfill-race-keep-2", "backfill-race-keep-3"} {
+		if kept[id] != "backfill-keep-owner" {
+			t.Fatalf("live mirror row %q = %q, want backfill-keep-owner", id, kept[id])
+		}
+	}
+}
+
 // TestReducerQueue10879BackfillReconcilesTerminalizedRows proves the shipped
 // 323+324 sequence removes mirror rows whose main row terminalized after
 // the scan (the backfill race): a live row copied by the scan, then
@@ -469,6 +504,10 @@ func TestReducerQueue10879BackfillReconcilesTerminalizedRows(t *testing.T) {
 		t.Fatalf("read seed quad: %v", err)
 	}
 	old := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	// Keep rows: fully-stamped live leases on distinct keys. The replay
+	// seed never stamps the lease triple, so without these the mirror
+	// would hold only the terminalized row and the preservation check
+	// would compare 0 == 0 (an overbroad DELETE would pass it).
 	if _, err := conn.ExecContext(ctx, `INSERT INTO fact_work_items (
 	    work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
 	    conflict_key, status, attempt_count, lease_owner, claim_until,
@@ -479,8 +518,17 @@ func TestReducerQueue10879BackfillReconcilesTerminalizedRows(t *testing.T) {
 	     $5, $5, '{}'::jsonb, $5, $5),
 	    ('backfill-race-sibling', $1, $2, 'reducer', $3, $4,
 	     'backfill-race-k', 'pending', 1, NULL,
-	     NULL, NULL, '{}'::jsonb, $6, $6)`,
-		scopeID, generationID, domain, conflictDomain, now, old); err != nil {
+	     NULL, NULL, '{}'::jsonb, $6, $6),
+	    ('backfill-race-keep-1', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k1', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-keep-2', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k2', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-keep-3', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k3', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5)`,
+		scopeID, generationID, domain, conflictDomain, now, old, now.Add(time.Hour)); err != nil {
 		t.Fatalf("seed same-key pair: %v", err)
 	}
 
@@ -518,6 +566,8 @@ func TestReducerQueue10879BackfillReconcilesTerminalizedRows(t *testing.T) {
 	if n := orphans(); n != 0 {
 		t.Fatalf("orphan lease rows after 324 reconcile = %d, want 0", n)
 	}
+	assertMirrorMatchesStampedLive(t, ctx, conn)
+	assertKeepRowsSurvive(t, ctx, conn)
 
 	// No wedge: the same-key sibling must now be claimable.
 	got, claimed, err := queue.Claim(ctx)
@@ -562,8 +612,17 @@ func TestReducerQueue10879ReconcileCleansPreexistingOrphan(t *testing.T) {
 	     $5, $5, '{}'::jsonb, $5, $5),
 	    ('backfill-race-sibling', $1, $2, 'reducer', $3, $4,
 	     'backfill-race-k', 'pending', 1, NULL,
-	     NULL, NULL, '{}'::jsonb, $6, $6)`,
-		scopeID, generationID, domain, conflictDomain, now, old); err != nil {
+	     NULL, NULL, '{}'::jsonb, $6, $6),
+	    ('backfill-race-keep-1', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k1', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-keep-2', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k2', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5),
+	    ('backfill-race-keep-3', $1, $2, 'reducer', $3, $4,
+	     'backfill-keep-k3', 'claimed', 1, 'backfill-keep-owner',
+	     $7, $5, '{}'::jsonb, $5, $5)`,
+		scopeID, generationID, domain, conflictDomain, now, old, now.Add(time.Hour)); err != nil {
 		t.Fatalf("seed same-key pair: %v", err)
 	}
 
@@ -595,6 +654,9 @@ func TestReducerQueue10879ReconcileCleansPreexistingOrphan(t *testing.T) {
 	if n != 0 {
 		t.Fatalf("orphan lease rows after 324-only run = %d, want 0", n)
 	}
+	assertMirrorMatchesStampedLive(t, ctx, conn)
+	assertKeepRowsSurvive(t, ctx, conn)
+	assertMirrorMatchesStampedLive(t, ctx, conn)
 	got, claimed, err := queue.Claim(ctx)
 	if err != nil {
 		t.Fatalf("post-reconcile claim err = %v", err)
