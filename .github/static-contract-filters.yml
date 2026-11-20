@@ -443,6 +443,7 @@ pgstatementreport:
   - 'docs/public/reference/postgres-diagnostics.md'
   - 'scripts/pg-statement-report.sh'
   - 'scripts/test-pg-statement-report.sh'
+  - 'go/internal/cigates/**'
 collectorcutoverrollback:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

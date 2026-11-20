@@ -89,7 +89,11 @@ var goPackageSubcommands = map[string]struct{}{
 // local.test_command now run `go test ./cmd/ifa -run
 // TestIfaReplayDriveMirrorContract`, and the row plus the static-contract
 // dorny filter carry `go/cmd/ifa/**` as a trigger.
-const goPackageGateCount = 34
+// #10988 raised this from 34 to 35: pg-statement-report's local.command and
+// local.test_command now run `go test ./internal/cigates -run
+// TestPgStatementReportContract`, and the row plus the static-contract dorny
+// filter carry `go/internal/cigates/**` as a trigger.
+const goPackageGateCount = 35
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.
