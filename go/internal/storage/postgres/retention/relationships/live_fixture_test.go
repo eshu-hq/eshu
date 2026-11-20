@@ -203,6 +203,27 @@ func (f *liveFixture) holdRows(t *testing.T, lockingSelect string, args ...any) 
 	return release
 }
 
+// awaitCandidatesUnlocked blocks until no session holds the generation's
+// candidate rows, then releases immediately without changing them. Rollback
+// returns to the client before the server has necessarily shed every lock,
+// so a wait-free sweep issued right after a release can still observe
+// lock_busy and flake; acquiring the rows first turns that race into a
+// proof — when this returns, a following sweep cannot meet a held row. A
+// timeout here means a lock is genuinely stuck, not merely slow to release.
+func (f *liveFixture) awaitCandidatesUnlocked(t *testing.T, generationID string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(f.ctx, 15*time.Second)
+	defer cancel()
+	tx, err := f.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin unlock waiter: %v", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT 1 FROM relationship_candidates WHERE generation_id = $1 FOR UPDATE`, generationID); err != nil {
+		t.Fatalf("candidate rows of %s stayed locked: %v", generationID, err)
+	}
+}
+
 // eligibilityMatrix seeds the E1 to E8 matrix of the design. Every generation
 // carries 3 evidence rows and 2 candidate rows (E5 and E6 are evidence only, as
 // specified), and E2 also carries 2 resolved rows, which this slice must leave.
