@@ -20,14 +20,13 @@
 #      same first-column cell value must not repeat.
 #
 # Scope is deliberately unconditional: EVERY docs/public/**/*.md page is
-# scanned, not just docs-catalog "reference"/"proof" types the way
-# verify-docs-prose-quality.sh filters — a reference page (php.md,
-# collector-reducer-readiness.md) is exactly where a stale capability-status
-# paragraph is most likely to drift from a table row that was kept current, so
-# filtering by page type would miss the two contradictions this gate exists
-# to catch.
+# scanned, not just docs-catalog "reference"/"proof" types — a reference page
+# (php.md, collector-reducer-readiness.md) is exactly where a stale
+# capability-status paragraph is most likely to drift from a table row that
+# was kept current, so filtering by page type would miss the two
+# contradictions this gate exists to catch.
 #
-# Advisory first (like docs-prose-quality): reports findings but exits 0
+# Advisory first: reports findings but exits 0
 # unless DOCS_CONTRADICTION_ENFORCE=true. See
 # docs/public/reference/docs-contradiction.md.
 #

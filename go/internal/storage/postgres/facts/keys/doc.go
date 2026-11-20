@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package factkeys deletes the three per-fact key sidecars
-// (relationship_reference_candidate_keys, package_manifest_consumption_keys
-// and package_registry_identity_keys) explicitly, so a fact delete does not
+// Package factkeys deletes the four per-fact key sidecars
+// (relationship_reference_candidate_keys, package_manifest_consumption_keys,
+// package_registry_identity_keys and security_alert_reconciliation_keys)
+// explicitly, so a fact delete does not
 // rely on their per-fact foreign key cascade (#7420). That cascade fires one
 // trigger per deleted fact per table and dominates a large generation prune.
 //

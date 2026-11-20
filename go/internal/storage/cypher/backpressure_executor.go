@@ -250,6 +250,39 @@ func (e *BackpressureExecutor) ExecuteCountProbe(ctx context.Context, stmt State
 	return pe.ExecuteCountProbe(ctx, stmt)
 }
 
+// ExecuteCountedWrite runs one counted write under the same in-flight bound
+// as Execute, so counted writes cannot bypass the ceiling (#10938). It
+// returns a joined unsupported error when inner lacks CountedWriteExecutor,
+// keeping the capability absence indistinguishable from the probe flavors.
+func (e *BackpressureExecutor) ExecuteCountedWrite(ctx context.Context, stmt Statement) (int64, error) {
+	cw, ok := e.inner.(CountedWriteExecutor)
+	if !ok {
+		return 0, errors.Join(errInnerNoExecuteProbe, ErrCountedWriteUnsupported)
+	}
+	release, err := e.gate.Acquire(ctx, string(stmt.Operation))
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	return cw.ExecuteCountedWrite(ctx, stmt)
+}
+
+// ExecuteCountedWriteGroup runs a counted group write under the same
+// in-flight bound as ExecuteGroup, so the grouped counted path cannot bypass
+// the ceiling either (#10938).
+func (e *BackpressureExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []Statement) ([]int64, error) {
+	cw, ok := e.inner.(CountedWriteGroupExecutor)
+	if !ok {
+		return nil, errors.Join(errInnerNoExecuteProbe, ErrCountedWriteUnsupported)
+	}
+	release, err := e.gate.Acquire(ctx, groupOperationLabel(stmts))
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return cw.ExecuteCountedWriteGroup(ctx, stmts)
+}
+
 // executeOnlyBackpressureWrapper wraps BackpressureExecutor but intentionally
 // does not implement GroupExecutor or ProbeExecutor. Use it when the inner
 // executor does not support grouped writes so callers that type-assert

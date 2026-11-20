@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	postgresdb "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // This file holds the ProjectorQueue Ack/Fail lifecycle unit tests. The
@@ -24,10 +25,26 @@ import (
 // under the repo's 500-line cap after the exponential-backoff-with-jitter
 // change added assertions and comments to several retry tests.
 
+// waitingWakeCountRows stubs the one-row (reopened, cleared) result of a
+// #10876 waiting-wake statement for hermetic Ack/activation tests.
+type waitingWakeCountRows struct {
+	reopened, cleared int64
+	done              bool
+}
+
+func (r *waitingWakeCountRows) Next() bool   { ok := !r.done; r.done = true; return ok }
+func (r *waitingWakeCountRows) Err() error   { return nil }
+func (r *waitingWakeCountRows) Close() error { return nil }
+func (r *waitingWakeCountRows) Scan(dest ...any) error {
+	*dest[0].(*int64) = r.reopened
+	*dest[1].(*int64) = r.cleared
+	return nil
+}
+
 func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
+	db := &recordingExecQueryer{queryRows: []postgresdb.Rows{&recordingRows{}, &waitingWakeCountRows{}}}
 	queue := NewProjectorQueue(db, "projector-1", 30*time.Second)
 	queue.Now = func() time.Time {
 		return time.Date(2026, time.April, 12, 14, 30, 0, 0, time.UTC)
@@ -135,6 +152,27 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 			}
 		}
 	}
+	// #10876: the activation reopens parked generation_active waits in the
+	// same transaction. The delta-baseline fence query runs first; the wake
+	// is the waiting-table query.
+	var wake *struct {
+		query string
+		args  []any
+	}
+	for i := range db.queries {
+		if strings.Contains(db.queries[i].query, "reducer_waiting_items") {
+			wake = &struct {
+				query string
+				args  []any
+			}{db.queries[i].query, db.queries[i].args}
+		}
+	}
+	if wake == nil {
+		t.Fatalf("Ack() runs no waiting-table wake query (%d queries)", len(db.queries))
+	}
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("Ack() wake args = %v, want (now, generation_active, key)", wake.args)
+	}
 }
 
 func TestProjectorQueueFailMarksGenerationFailedWithoutClearingOtherActiveGeneration(t *testing.T) {
@@ -173,6 +211,21 @@ func TestProjectorQueueFailMarksGenerationFailedWithoutClearingOtherActiveGenera
 		if !strings.Contains(query, want) {
 			t.Fatalf("Fail() query missing %q:\n%s", want, query)
 		}
+	}
+	// #11015: the terminal Fail reopens parked generation_active waits for
+	// the retired generation; the retry path (sibling Fail tests) wakes
+	// nothing. The wake is the waiting-table query.
+	var wake *recordedExecCall
+	for i := range db.queries {
+		if strings.Contains(db.queries[i].query, "reducer_waiting_items") {
+			wake = &db.queries[i]
+		}
+	}
+	if wake == nil {
+		t.Fatalf("Fail() runs no waiting-table wake query (%d queries)", len(db.queries))
+	}
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("Fail() wake args = %v, want (now, generation_active, key)", wake.args)
 	}
 }
 
@@ -224,6 +277,12 @@ func TestProjectorQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T
 	// deterministic with no added jitter term.
 	if got, want := db.execs[0].args[4], queue.Now().Add(2*queue.RetryDelay); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
+	}
+	// #11015: the retry path keeps the generation pending and wakes nothing.
+	for _, q := range db.queries {
+		if strings.Contains(q.query, "reducer_waiting_items") {
+			t.Fatalf("retry Fail() runs a waiting-table wake query, want none")
+		}
 	}
 }
 

@@ -79,6 +79,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/current-cell' \
 		'/tmp/ifa-fault-injection.*/logs/*.log' \
 		'/tmp/ifa-fault-injection.*/logs/expirelease-barrier.*' \
+		'/tmp/ifa-fault-injection.*/logs/*-kill-snapshot.txt' \
 		'if-no-files-found: error' \
 		'retention-days: 7'; do
 		rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
@@ -133,8 +134,12 @@ test_ifa_fault_failure_artifact_contract() {
 		|| fail "cleanup does not pass the built graph-dump binary to failure diagnostics"
 	rg --fixed-strings --quiet -- 'bash scripts/ci/compose.sh -p "${compose_project}" -f "${compose_file}" -- logs --no-color' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain complete Compose service logs"
-	rg --fixed-strings --quiet -- 'COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message' "${diagnostics_lib}" \
+	rg --fixed-strings --quiet -- 'COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, lease_owner, claim_until, last_attempt_at, next_attempt_at, reopened_at, created_at, updated_at, failure_class, failure_message' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain durable work-item state"
+	for kill_evidence in "logs/reducer-\${current_cell}-before.log" "logs/reducer-\${current_cell}-after.log" "logs/\${current_cell}-kill-snapshot.txt" '*-lock-"${current_cell}".log'; do
+		rg --fixed-strings --quiet -- "${kill_evidence}" "${diagnostics_lib}" \
+			|| fail "failure diagnostics do not retain generic kill-window evidence: ${kill_evidence}"
+	done
 	local envelope_field
 	for envelope_field in fact_id scope_id generation_id fact_kind stable_fact_key schema_version \
 		collector_kind fencing_token source_confidence source_system source_fact_key source_uri \

@@ -410,7 +410,7 @@ discipline.
   now run as dynamic path-filtered gates inside `static-contract-gates.yml`,
   alongside MCP schema + capability inventory (`mcp-schema-drift.yml`) and
   golden-corpus correlation edges (`golden-corpus-gate.yml`).
-- Security: trivy (fs), gosec, govulncheck, nancy (`security-scan.yml`).
+- Security: trivy (fs), gosec, govulncheck (`security-scan.yml`).
 - Docs build `mkdocs --strict`, license headers, whitespace hygiene
   (`test.yml`).
 - Frontend typecheck / lint / test / e2e-mock (`frontend.yml`, path-filtered).

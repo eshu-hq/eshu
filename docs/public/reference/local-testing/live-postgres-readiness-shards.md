@@ -1,7 +1,7 @@
 # Live PostgreSQL readiness shards
 
 The `live-postgres-readiness` workflow runs the enrolled PostgreSQL proofs in
-six parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
+eight parallel jobs, cut from `specs/live-postgres-readiness-weights.v2.json`
 (present since #9240). The four-job v1 cut is the fallback, used only when the
 v2 file is absent. Each job keeps the 30-minute cap (1800 s). This page
 explains the cut and calibration.
@@ -21,14 +21,14 @@ The plan is the flat `package|test` list from
 `live_postgres_readiness_results.py list-packages`, in canonical inventory
 order. `scripts/lib/live_postgres_readiness_weights.py` reads the committed model.
 With v1, it cuts the plan into four contiguous slices using the existing
-longest-leg objective. With v2, it cuts into six contiguous slices using
+longest-leg objective. With v2, it cuts into eight contiguous slices using
 measured first-use and repeat-row costs and the guard-constrained objective. Every proof is in exactly one slice. A new test
 enters the plan at its inventory position and the cut moves with it, so no one
 edits a pinned table.
 
 The runner (`plan` and `report`) and the aggregate (`verify` and `select`) all
 call the same cut function with the same weights file from the same checkout.
-The aggregate requires exactly the active model's four or six reports to
+The aggregate requires exactly the active model's four or eight reports to
 be the exact union of the plan. A report cut under different weights fails with `plan mismatch`.
 
 ## What the prediction counts
@@ -90,12 +90,12 @@ priced above the budget cannot be split and fails the gate.
 job. The budget, drift, seeded-overflow, and appended-tail cases
 (`scripts/lib/live_postgres_readiness_weights_budget_cases.py`) load the
 model the way the workflow's `matrix` step does: the committed default path,
-v2 and six shards when the v2 file is present, v1 and four shards only when
+v2 and eight shards when the v2 file is present, v1 and four shards only when
 it is absent. Their first case fails if the contract's model or shard count
 differs from the `matrix` output or from the committed v2 `shard_count`. Before
 #9100 these cases ran on the v1 four-shard cut while CI ran five shards.
 
-The statements below about six jobs, six-shard cuts, and the "no shard
+The statements below about eight jobs, eight-shard cuts, and the "no shard
 partition fits the job budget" error describe the v2 model. Three cases
 assert v2-only results and skip, with a stated reason, when the v2 file is
 absent and the loader returns v1: the drift-survives-a-rejected-plan case and
@@ -118,10 +118,10 @@ while the live plan itself still fit. Each case now asserts what it is named for
 
 - The appended-tail case prices ten tail tests to fill the last shard's own headroom
   on the live cut, then requires a clean budget and every job at or under 1440 s. A tail
-  whose test seconds pass the six jobs' combined budget must still fail with "no shard partition fits the job budget".
+  whose test seconds pass the eight jobs' combined budget must still fail with "no shard partition fits the job budget".
 - The seeded case runs on a fixed synthetic plan of 20 packages x 20 tests with round
-  prices: 20 tests at 60 s seeded into the first package push the six-way count split to
-  2030 s, past the 1800 s cap, and the weighted cut holds every job at or under 1440 s.
+  prices: 20 tests at 60 s seeded into the first package push the eight-way count split to
+  1820 s, past the 1800 s cap, and the weighted cut holds every job at 1010 s, under 1440 s.
   The live count split and the live fit are still asserted, unseeded, on the live plan.
 - The drift cases (#10171) measure what a change adds, not the pool: 41 added
   unpriced tests fail with "41 tests this change adds have no weight (limit
@@ -272,13 +272,14 @@ The v2 model landed in #9240 with five shards; #9460 moved it to six when the
 five-leg cut saturated at about 1270 s predicted mean and shard 1 started
 hitting the 30-minute cap on `main` itself (see
 [When a shard is still too slow](#when-a-shard-is-still-too-slow)).
+
 `specs/live-postgres-readiness-weights.v2.json` is present, so the default
-matrix is `1/6` through `6/6`. The plan job computes it
+matrix is `1/8` through `8/8`. The plan job computes it
 from the same checkout used by the runner and aggregate. Without the v2 file
 the matrix falls back to `1/4` through `4/4`.
 A malformed present v2 file fails the plan and the selected aggregate; it never
-falls back to v1. A present valid v2 file changes all six check names to `/6`
-and requires six matching reports. The selected aggregate fails if the plan,
+falls back to v1. A present valid v2 file changes all eight check names to `/8`
+and requires eight matching reports. The selected aggregate fails if the plan,
 a shard, or report selection fails.
 
 To produce a v2 file (the first one, or a refit), collect at least three
@@ -314,8 +315,8 @@ Review the source run and job IDs, successful terminal states, complete rows,
 first-use/repeat identification, predicted row and job maxima, defaults, and
 exact ordered test coverage. Then add only the sorted
 `specs/live-postgres-readiness-weights.v2.json` file in a standalone PR. Its
-six-way CI run is the first observed wall-time proof; diagnose a timeout or
-spread failure before merging. The six-leg model uses one more SQL runner and may consume more aggregate
+eight-way CI run is the first observed wall-time proof; diagnose a timeout or
+spread failure before merging. The eight-leg model uses one more SQL runner and may consume more aggregate
 runner seconds; the plan job also adds setup time. No speedup or fixed
 wall-time result is promised.
 
@@ -357,13 +358,11 @@ the refit PR body.
 
 Source history (#9473): each source run is read at its own commit. A tree
 without a v2 weights file ran the four-shard v1 model. A tree with one ran the
-`shard_count` that file declares, which must be 5 or 6 and pass every other v2
-schema check. The run's shard jobs must report that same count, and its rows
-are re-planned at that count. A pool may mix five- and six-shard runs, because
-test prices do not depend on the cut and row kinds are classified per run. The
-refit output is always six-shard, and the committed file, the planner, the CI
-reader and the drift gates still accept only six. The pricing line names each
-source's shard count.
+`shard_count` that file declares (5, 6, or 8) passing every other v2 schema check.
+The run's jobs must report that count; its rows are re-planned at it. A pool may
+mix counts, because prices do not depend on the cut. The refit output is always
+eight-shard, and the committed file, planner, CI reader and drift gates still
+accept only eight.
 
 ### Inventories and cache eras
 
@@ -396,7 +395,7 @@ A pooled refit PR must meet these gates:
 
 - Declare the pool before the fit: every green `main` push run of
   `live-postgres-readiness.yml` in one cache era with one runner profile, at
-  any inventory, five- or six-shard, in run-ID order. The minimum is
+  any inventory, six- or eight-shard, in run-ID order. The minimum is
   4 runs, there is no maximum, and no run is skipped for its outcome. If the
   pool fails the cold fit, do not re-select runs; take the failure to the
   issue.

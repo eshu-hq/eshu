@@ -48,6 +48,11 @@ across package boundaries.
   each active acceptance run. It must stay equal to the dead-code query's
   `run_gate` (`deadCodeIncomingBoundQuery` in `internal/query`);
   `TestDeadCodeRunGateMatchesReachabilityLoaderGate` there enforces it.
+- `LatestCompletedIntentTime` is the #10870 idle cursor: the newest
+  `completed_at` across the traversed domains, served by two backward
+  LIMIT-1 index-only scans on the existing
+  `shared_projection_intents_pending_idx`. `LatestCompletedIntentTimeSQL`
+  exposes the exact statement to the live plan-shape proof.
 
 See `doc.go` for the godoc contract.
 
@@ -95,6 +100,17 @@ intent-row join with `GROUP BY`: the runner re-polls nearly back to back
 inputs remain), and on the QA replica that shape took 4.7 to 8.4 s per call.
 The shipped statement took 702.7 ms warm and 5,266 ms cold (`LIMIT 10`). See
 `docs/internal/evidence/7547-reachability-loader-gate.md`.
+
+The #10870 idle probe (`codeReachabilityIntentCursorSQL`) is the cheap gate
+in front of that candidate statement: two per-domain newest-`completed_at`
+scans, each an Index Only Scan Backward with LIMIT 1 on the existing
+`shared_projection_intents_pending_idx`, so an idle cycle costs O(1) probe
+buffers however many runs are ready. Keep it parameter-free (the domains are
+the same literals the gate admits) and off the watermark table; the
+`TestIntentCursorProbeSQLStaysIndexFriendly` guard pins the shape, and the
+live proof (`idle_probe_live_test.go`) pins the plan and the execution
+buffer ceiling at fixture scale. Pickup bounds live with the runner; see
+`go/internal/reducer/codeintel/README.md`.
 
 ## Gotchas / invariants
 

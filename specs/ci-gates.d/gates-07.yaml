@@ -250,45 +250,6 @@ gates:
       - network
     ci_only_reason: ""
 
-  - id: nancy
-    name: nancy (Sonatype dep CVE + license scan)
-    category: security
-    layer: hygiene
-    purpose: "Runs Sonatype nancy for Go dependency CVE/license issues; non-blocking since missing credentials mean it scans nothing today."
-    tier: pre-push
-    # Advisory, not blocking (#5791, #5804): Sonatype's OSS Index rejects ALL
-    # anonymous requests with 401 Unauthorized, and neither this repo's CI nor
-    # local dev has OSS_INDEX_USERNAME/OSS_INDEX_TOKEN configured, so nancy
-    # cannot perform a real scan anywhere today — CI's identical unpiped
-    # invocation has never scanned anything either (it silently audits 0
-    # dependencies and reports success). Mirrors the trivy-fs entry below:
-    # a security scanner that cannot always run must be informational, not a
-    # gate that blocks every contributor on a condition outside their
-    # control. Reclassify back to blocking once #5804 wires real credentials.
-    blocking: false
-    triggers:
-      - "go/go.mod"
-      - "go/go.sum"
-      - "scripts/dev/precommit-go.sh"
-      - "scripts/lib/go-toolchain.sh"
-      - "scripts/lib/precommit-go-filecap.sh"
-      - "scripts/lib/cgo-cflags.sh"
-      - "scripts/lib/precommit-go-gosec.sh"
-      - "scripts/dev/nancy-local.sh"
-      - "scripts/test-nancy-local.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - "scripts/ci/go-install-retry.sh"
-    local:
-      command: "bash scripts/dev/precommit-go.sh nancy"
-      test_command: "bash scripts/test-nancy-local.sh"
-    ci:
-      workflow: security-scan.yml
-      job: "nancy (Sonatype dep CVE + license scan)"
-    requirements:
-      - go
-      - network
-    ci_only_reason: ""
-
   - id: trivy-fs
     name: Trivy filesystem scan (vuln + secret + config)
     category: security
@@ -359,9 +320,10 @@ gates:
       - "scripts/lib/golden-corpus-capture-leg-cases.sh"
       - "scripts/lib/stage-differential-capture.sh"
       - "scripts/test-stage-differential-capture.sh"
+      - "go/cmd/golden-corpus-gate/**"
     local:
-      command: "bash scripts/test-verify-golden-corpus-gate.sh"
-      test_command: ""
+      command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
+      test_command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
       pre_push: deferred
       pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (this is the static mirror; the live golden-corpus cell never ran locally at all -- it is path-triggered and Docker-only). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via golden-corpus-gate.yml (required-gates-complete)."
     ci:

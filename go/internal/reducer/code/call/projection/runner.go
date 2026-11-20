@@ -112,9 +112,14 @@ type RefreshFenceLookup interface {
 
 // Runner processes code-call shared intents one repo/run at a time.
 type Runner struct {
-	IntentReader        IntentReader
-	LeaseManager        sharedintent.PartitionLeaseManager
-	EdgeWriter          sharedintent.EdgeWriter
+	IntentReader IntentReader
+	LeaseManager sharedintent.PartitionLeaseManager
+	EdgeWriter   sharedintent.EdgeWriter
+	// UnroutableWriter persists one durable dead-letter row per active
+	// intent when a shortfall park reaches its elapsed bound (#10947),
+	// BEFORE MarkIntentsCompleted. A nil sink keeps an expired park open
+	// instead of completing without the durable record (#5984).
+	UnroutableWriter    worker.UnroutableWriter
 	AcceptedGen         sharedintent.AcceptedGenerationLookup
 	AcceptedGenPrefetch sharedintent.AcceptedGenerationPrefetch
 	ReadinessLookup     gpphase.ReadinessLookup
@@ -190,16 +195,32 @@ func (r *Runner) runOneCycle(ctx context.Context) (worker.PartitionProcessResult
 }
 
 func (r *Runner) processOnce(ctx context.Context, now time.Time) (result worker.PartitionProcessResult, retErr error) {
-	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount())
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
+	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount(), blockedReason)
 }
 
 func (r *Runner) runOneCycleSequential(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
 	var cycleResult worker.PartitionProcessResult
 	for partitionID := 0; partitionID < r.Config.partitionCount(); partitionID++ {
 		if ctx.Err() != nil {
 			return cycleResult, nil
 		}
-		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount())
+		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount(), blockedReason)
 		worker.MergePartitionProcessResult(&cycleResult, result)
 		if err != nil {
 			return cycleResult, err
@@ -209,6 +230,14 @@ func (r *Runner) runOneCycleSequential(ctx context.Context, now time.Time) (work
 }
 
 func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
+	blockedReason, err := r.gateCycle(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blockedReason != "" {
+		return r.blockedCycleResult(ctx, blockedReason), nil
+	}
+	r.recordCodeCallLaneReleased(ctx)
 	partitionCount := r.Config.partitionCount()
 	work := make(chan int, partitionCount)
 	for partitionID := 0; partitionID < partitionCount; partitionID++ {
@@ -230,7 +259,7 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (work
 				if ctx.Err() != nil {
 					return
 				}
-				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount)
+				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount, blockedReason)
 				mu.Lock()
 				worker.MergePartitionProcessResult(&cycleResult, result)
 				if err != nil {
@@ -244,20 +273,23 @@ func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (work
 	return cycleResult, errors.Join(errs...)
 }
 
+// processPartitionOnce runs one partition of a cycle whose lane-gate answer
+// was already evaluated by the cycle entry point (runOneCycleSequential,
+// runOneCycleConcurrent, or processOnce) and is passed by value as
+// blockedReason (#10871). A non-empty reason parks the partition without
+// touching a lease; an empty reason was proven open this cycle, so the
+// partition proceeds without re-probing.
 func (r *Runner) processPartitionOnce(
 	ctx context.Context,
 	now time.Time,
 	partitionID int,
 	partitionCount int,
+	blockedReason string,
 ) (result worker.PartitionProcessResult, retErr error) {
 	cycleStart := time.Now()
 	acceptanceTelemetry := worker.AcceptanceTelemetry{
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
-	}
-	blockedReason, err := r.projectionLaneBlocked(ctx)
-	if err != nil {
-		return worker.PartitionProcessResult{}, err
 	}
 	if blockedReason != "" {
 		r.recordCodeCallLaneBlocked(ctx, blockedReason)
@@ -265,7 +297,6 @@ func (r *Runner) processPartitionOnce(
 		r.recordCodeCallTiming(ctx, result)
 		return result, nil
 	}
-	r.recordCodeCallLaneReleased(ctx)
 
 	claimStart := time.Now()
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
@@ -447,13 +478,34 @@ func (r *Runner) processPartitionOnce(
 		}
 
 		writeStart := time.Now()
-		writtenRows, groups, err := r.writeActiveRows(ctx, active)
+		writeReport, groups, err := r.writeActiveRows(ctx, active)
 		if err != nil {
-			return result, err
+			// The write failed before anything completed, so anchor the
+			// terminal submitted/matched counts on the visit result for
+			// the terminal series; the #10947 bound below decides whether
+			// this shortfall keeps parking or dead-letters and completes.
+			result.WriteDurationSeconds = time.Since(writeStart).Seconds()
+			result.CodeCallSubmittedRows = writeReport.SubmittedRows
+			result.CodeCallMatchedRows = writeReport.MatchedRows
+			expired, boundErr := r.expireShortfallParkIfDue(ctx, now, active, err)
+			if boundErr != nil {
+				r.recordShortfallTerminalCounts(ctx, writeReport)
+				return result, boundErr
+			}
+			if !expired {
+				r.recordShortfallTerminalCounts(ctx, writeReport)
+				return result, err
+			}
+			// Expired and dead-lettered: fall through to the shared
+			// completion path below, which marks the batch (stale plus
+			// active) completed and records the cycle. The duration and
+			// count assignments below cover this path unchanged.
 		}
 		result.WriteDurationSeconds = time.Since(writeStart).Seconds()
 		writtenGroups = groups
-		result.UpsertedRows = writtenRows
+		result.UpsertedRows = writeReport.SubmittedRows
+		result.CodeCallSubmittedRows = writeReport.SubmittedRows
+		result.CodeCallMatchedRows = writeReport.MatchedRows
 	}
 	// #7736 F5 drain-forced-retract marker: a pure-drain cycle (nothing
 	// kept, drainable rows present) runs retract on the drained scope before

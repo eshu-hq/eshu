@@ -247,6 +247,34 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{}, nil
 	}
 
+	// The version-1 key fallback probe (issue #10875) always resolves to zero
+	// missing rows here, independent of FIFO order: fixtures model a corpus
+	// whose sidecar state the loader path under test does not manage, so the
+	// probe must not consume a scripted response staged for a later query.
+	if query == backfill.DeferredRelationshipKeyFallbackProbeSQL {
+		return &queueFakeRows{rows: [][]any{{int64(0)}}}, nil
+	}
+
+	// #10876: the phase publish wakes parked phase_committed waits, on the
+	// outer queryer when the caller passes no transaction. No waits are
+	// parked in these fixtures, so the wake is a no-op (0, 0), independent
+	// of FIFO order like the arms above: the wake must not consume a
+	// scripted response staged for a later query. Matched by the
+	// waiting-table name plus the reopen CTE so a genuinely unknown
+	// statement still falls through to the error below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
+	}
+
+	// #11015: the projector Claim sweep wake lists parked generation_active
+	// waits on terminal generations. No waits are parked in these fixtures,
+	// so the probe answers zero keys, independent of FIFO order like the
+	// arms above: it must not consume a scripted response staged for the
+	// claim itself.
+	if query == terminalGenerationActiveWaitKeysQuery {
+		return &queueFakeRows{}, nil
+	}
+
 	// The fan-in's under-lock generation re-read (backfill.LoadActiveGenerationForScope)
 	// is answered from the SAME rows the fixture already staged for the
 	// corpus-wide backfill.ActiveRepositoryGenerationsQuery below, rather than from the
@@ -268,6 +296,12 @@ func (f *fakeExecQueryer) QueryContext(
 	}
 
 	if len(f.queryResponses) == 0 {
+		if query == waitingSatisfiedQuery {
+			// #10876: the set-aside re-check on a fake with no staged
+			// provider state answers unsatisfied: the wait parks and the
+			// provider wake (or a staged live test) reopens it later.
+			return &queueFakeRows{rows: [][]any{{false}}}, nil
+		}
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
 		}
@@ -484,15 +518,3 @@ type fakeResult struct{}
 func (fakeResult) LastInsertId() (int64, error) { return 0, nil }
 
 func (fakeResult) RowsAffected() (int64, error) { return 1, nil }
-
-type retryableReducerTestError struct {
-	message string
-}
-
-func (e retryableReducerTestError) Error() string {
-	return e.message
-}
-
-func (e retryableReducerTestError) Retryable() bool {
-	return true
-}

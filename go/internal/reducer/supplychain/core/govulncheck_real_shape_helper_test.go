@@ -272,9 +272,10 @@ func deriveGoRunFacts(
 			"target_kind":         "repository",
 			"target_locator_hash": "sha256:" + strings.Repeat("0", 64),
 			"reason":              class,
-			"warning_class":       class,
+			"warning_class":       "scanner_worker_warning",
 			"analysis_status":     "partial",
 			"coverage_status":     "incomplete",
+			"repository_id":       repositoryID,
 		},
 	}
 	return nil, &warning

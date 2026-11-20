@@ -21,22 +21,23 @@ fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
 | `eshu_dp_reducer_run_duration_seconds` | histogram | Handler execution window after a worker starts a work item. |
 | `eshu_dp_reducer_queue_wait_seconds` | histogram | Time visible in the reducer queue before handler start. |
 | `eshu_dp_reducer_batch_claim_size` | histogram | Batch claim size where batched reducer claiming is used. |
-| `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. Completed handler wall time lands on `eshu_dp_reducer_handler_duration_seconds` by domain (the non-enforcing #8211 measurement behind the future handler deadline); handlers abandoned at shutdown never return, so they count on `eshu_dp_reducer_handler_abandoned_total` by domain instead, with an ERROR `reducer execution failed` log line (`failure_class="reducer_handler_abandoned_at_shutdown"`). |
+| `eshu_dp_reducer_batch_buffer_depth` | gauge | Current reducer batch prefetch items claimed and hold-heartbeated but not yet executing (`queue="reducer"`). A nonzero steady value with idle workers means the buffer holds prefetched work; stuck above the configured depth means a pop-side leak. |
+| `eshu_dp_reducer_batch_buffer_dwell_seconds` | histogram | Time a prefetched item waits in the buffer between claim and worker execution start. Dropped items (evicted or drained) record none; a dwell climbing past the 60s claim lease means the hold heartbeat is the only thing keeping the claim alive. |
+| `eshu_dp_reducer_batch_buffer_hold_heartbeat_failed_total` | counter | Reducer batch prefetch items evicted after their hold heartbeat failed during the buffer dwell, by `domain`. A rising rate means leases are dying in the buffer faster than workers drain it. |
+| `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. Completed handler wall time lands on `eshu_dp_reducer_handler_duration_seconds` by domain (the #10866 bound-setting measurement; histogram top bucket 3600s); handlers released without returning count on `eshu_dp_reducer_handler_abandoned_total` (shutdown release) or `eshu_dp_reducer_handler_timed_out_total` (expired per-domain bound, `failure_class="reducer_handler_timeout"`) by domain instead, with an ERROR `reducer execution failed` log line carrying the class. The configured bound per domain is exported on `eshu_dp_reducer_handler_timeout_seconds` (0 = unbounded); alert `eshu_dp_reducer_batch_worker_execution_age_seconds > on(domain) eshu_dp_reducer_handler_timeout_seconds` plus `increase(eshu_dp_reducer_handler_timed_out_total[10m]) > 0`. |
 
 `eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK completed. `ack_claim_rejected` marks a rejected single-item ACK, and each superseded claim dropped from a batch ACK (one record per dropped claim,
 carrying its work item id); a successor whose ACK committed in such a batch is
 recorded as `succeeded` with its result. `ack_outcome_unknown` marks a batch
 whose ACK may have committed only some of its surviving items, or an ACK cut
-short by shutdown. `ack_abandoned_to_lease_expiry` marks an ACK, single-item
-or batch, that kept failing with a Postgres deadlock
+short by shutdown. `ack_abandoned_to_lease_expiry` marks an ACK, single-item or batch, that kept failing with a Postgres deadlock
 (40P01) or serialization failure (40001) through its five attempts: the claim
 stays leased and is reclaimed when the lease expires, and the run keeps
 draining. A steady rate of it points at lock contention on the queue rows, not
 at a stopping process. Inspect durable queue state before treating any of these
 as completed work.
 
-Compare queue wait with run duration before changing worker counts. High queue
-age with low run duration points to claim, routing, or conflict-domain pressure.
+Compare queue wait with run duration before changing worker counts. High queue age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.
 
 ## Package-Consumption Sidecar Repair
@@ -55,8 +56,7 @@ High run duration points to the handler, store, or graph-write path.
 | `eshu_dp_graph_id_anchor_census_passes_total` | counter | Census passes by closed `outcome`: `ok` or `failed` (graph error or the `ESHU_ID_ANCHOR_CENSUS_TIMEOUT` deadline). |
 | `eshu_dp_graph_id_anchor_census_duration_seconds` | histogram | Wall time of each census pass by the same outcome. The pass scanned 1,130,424 nodes in about 1.95 s on QA (image sha-57167b0, 2026-10-08). |
 
-The reducer emits a structured elected-pass log with `ready`,
-`dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;
+The reducer emits a structured elected-pass log with `ready`, `dirty_scopes_capped`, `cursor_updated_unixtime`, and `duration_seconds`;
 contention and failure have separate structured logs. A progress-sampling
 failure warns and leaves the progress gauges stale without failing the repair pass.
 Storage writes key=value process logs for each completed scope during the
@@ -325,7 +325,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_projection_step_seconds` | histogram | Shared projection substeps such as selection, load, retract, write, replay, and mark-completed. |
 | `eshu_dp_shared_projection_stale_intents_total` | counter | Stale shared projection intents drained during processing, by `domain`, `runner`, and a closed `reason`: `acceptance_mismatch` (the intent's generation differs from the accepted generation for its acceptance key), `generation_superseded` (the intent was blocked on a prerequisite phase row and its scope generation is superseded, so the row will never publish), or `covered_by_full_successor` (the intent's superseded generation is covered by a newer emitted full generation, so replaying it would be a wasted retract/write cycle), or `acceptance_absent_generation_gone` (the intent has no acceptance row and its scope generation row is gone, so it can never become authoritative; #7853). A steady `generation_superseded` rate is orphan cleanup, not a stall; a steady `covered_by_full_successor` rate is skipped replays draining a superseded backlog, not a stall; a steady `acceptance_absent_generation_gone` rate is generation-gone orphan cleanup, not a stall. Intents with no acceptance row whose generation still exists (torn writes) are never drained; they log one WARN per cycle, `shared projection intents have no acceptance row but their scope generation still exists`, with `torn_write_count`. The shared projection log line `shared projection skipped intents until their prerequisite graph phase is committed` and its `blocked_intent_wait_seconds` cover only intents on generations that are not superseded, so a large wait there is a real prerequisite-phase stall. |
 | `eshu_dp_shared_projection_partition_heartbeat_missed_total` | counter | Shared projection partition lease heartbeat failures by domain. A non-zero rate means a slow partition cycle's lease may be reclaimed by another worker while the original holder is still processing. |
-| `eshu_dp_shared_projection_lane_blocked_total` | counter | Partition cycles a lane-wide gate held shut before lease claim (#7133). Labels: `domain` (`code_calls`, `repo_dependency`) and `reason` (`canonical_code_quiescence`, `reducer_graph_work_active`). A steady rate while that domain's pending intents stay flat is a wedged lane; the `code call projection lane blocked` warning names the blocking scope ids. |
+| `eshu_dp_shared_projection_lane_blocked_total` | counter | Cycles a lane-wide gate held shut before lease claim (#7133). For `code_calls` the count is per-cycle (#10871: one shared gate answer per cycle, not one per partition); `repo_dependency` counts per quiescence-blocked cycle. Labels: `domain` (`code_calls`, `repo_dependency`) and `reason` (`canonical_code_quiescence`, `reducer_graph_work_active`). A steady rate while that domain's pending intents stay flat is a wedged lane; the `code call projection lane blocked` warning names the blocking scope ids. |
 | `eshu_dp_shared_projection_lane_blocking_scopes` | gauge | Scopes last seen holding the lane-wide gate, by `domain` and `reason`. The code-call runner samples it when a blocked episode starts and at most once a minute after that, and sets that reason's series to zero on release or when the lane switches to a different blocked reason; the `code call projection lane released` line records either close with the closed `blocked_reason` and `blocked_seconds`. |
 | `eshu_dp_shared_acceptance_lookup_duration_seconds` | histogram | Shared acceptance lookup latency. |
 | `eshu_dp_shared_acceptance_lookup_errors_total` | counter | Shared acceptance lookup failures. |
@@ -338,7 +338,7 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_edge_write_group_statement_count` | histogram | Statements per shared edge write group (labels: bounded `domain`, `execution_mode`). |
 | `eshu_dp_shared_edge_target_miss_total` | counter | Shared edge write batches deferred on an absent graph target (label: bounded `domain`). |
 | `eshu_dp_shared_edge_runs_on_retract_omissions_total` | counter | Impossible `RUNS_ON` retract roles omitted by bounded `domain` and `reason`; use the structured omission log for source and repository context. |
-| `eshu_dp_code_call_edge_batches_total` | counter | Isolated code-call edge batch volume. |
+| `eshu_dp_code_call_edge_batches_total` | counter | Isolated code-call edge batch volume; per-visit verified row counts ride `eshu_dp_code_call_edge_submitted_rows_total` (rows attempted, by `domain`) and `eshu_dp_code_call_edge_matched_rows_total` (rows whose `MATCH` bound and whose `MERGE` committed, by `domain`) (#10938 — a shortfall on an enforced relationship parks the visit and counts on `eshu_dp_shared_edge_target_miss_total`). |
 | `eshu_dp_code_call_edge_batch_duration_seconds` | histogram | Isolated code-call edge batch latency. |
 | `eshu_dp_shared_projection_partition_visits_total` | counter | Shared-projection partition visits by `domain` and closed `outcome` (`visited`, `backoff_skipped`, `lease_held`, `error`) (#7724). Every cell records one outcome per cycle, and every outcome except `backoff_skipped` is one lease claim attempt: this is the idle-claim signal. |
 | `eshu_dp_shared_projection_partition_backoff_seconds` | gauge | Current per-partition backoff delay by `domain` and `partition_id` (#7724; bounded 11×8 grid). Zero means full cadence; `T_max` (default 30s) means pinned. |

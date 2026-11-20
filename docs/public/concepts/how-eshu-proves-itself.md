@@ -49,7 +49,7 @@ Four systems cover the three-part motto:
   hardware.
 - **Telemetry coverage and security lanes** prove the operational and supply-
   chain side: every new metric, span, or pipeline stage is checked against a
-  documented contract, and gosec/govulncheck/nancy/Trivy cover the dependency
+  documented contract, and gosec/govulncheck/Trivy cover the dependency
   and image surface.
 
 These are not four unrelated test suites bolted together. They share

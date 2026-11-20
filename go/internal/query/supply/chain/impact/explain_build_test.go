@@ -453,3 +453,94 @@ func TestTrimExplanationFilter(t *testing.T) {
 		t.Errorf("filter not fully trimmed: %+v", trimmed)
 	}
 }
+
+// TestBuildExplanationShowsGoScanProvenanceAndWarningClass pins the #10029
+// explain surface: a Go finding whose reachability carries govulncheck scan
+// provenance shows scan level, scanner version, and trace count in the
+// explained finding, and a scanner warning's failure class joined into
+// Reachability.MissingEvidence by the reducer surfaces in the explanation's
+// missing-evidence rows, agreeing with the stored facts.
+func TestBuildExplanationShowsGoScanProvenanceAndWarningClass(t *testing.T) {
+	t.Parallel()
+
+	traceCount := 3
+	row := FindingRow{
+		FindingID: "finding-go-1",
+		CVEID:     "CVE-2026-3903",
+		Status:    "affected_exact",
+		Reachability: &packet.ReachabilityResult{
+			State:            "unknown",
+			Confidence:       "unknown",
+			Source:           "govulncheck",
+			Evidence:         "module_only",
+			Reason:           "dependency evidence exists, but call or runtime reachability is not proven",
+			LanguageMaturity: "implemented",
+			MissingEvidence:  []string{"govulncheck scan toolchain_unsupported"},
+			ScanLevel:        "symbol",
+			ScannerVersion:   "v1.9.0",
+			TraceCount:       &traceCount,
+		},
+		MissingEvidence: []string{"govulncheck call-graph evidence missing", "govulncheck scan toolchain_unsupported"},
+	}
+	result := BuildExplanation(
+		packet.ExplanationFilter{FindingID: "finding-go-1"},
+		ExplanationRow{Finding: row},
+		packet.ReadinessEnvelope{},
+	)
+	if result.Finding == nil || result.Finding.Reachability == nil {
+		t.Fatal("explained finding reachability = nil, want the stored envelope")
+	}
+	reachability := result.Finding.Reachability
+	if reachability.ScanLevel != "symbol" {
+		t.Errorf("reachability.scan_level = %q, want symbol", reachability.ScanLevel)
+	}
+	if reachability.ScannerVersion != "v1.9.0" {
+		t.Errorf("reachability.scanner_version = %q, want v1.9.0", reachability.ScannerVersion)
+	}
+	if reachability.TraceCount == nil || *reachability.TraceCount != 3 {
+		t.Errorf("reachability.trace_count = %v, want 3", reachability.TraceCount)
+	}
+	found := false
+	for _, reason := range result.MissingEvidence {
+		if reason == "govulncheck scan toolchain_unsupported" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("explanation missing evidence = %v, want the warning failure class named", result.MissingEvidence)
+	}
+}
+
+// TestBuildFindingResultPreservesGoScanProvenance pins the list surface:
+// the finding row conversion keeps the stored reachability envelope
+// (including scan provenance) intact for list responses.
+func TestBuildFindingResultPreservesGoScanProvenance(t *testing.T) {
+	t.Parallel()
+
+	traceCount := 1
+	row := FindingRow{
+		FindingID: "finding-go-2",
+		Status:    "affected_exact",
+		Reachability: &packet.ReachabilityResult{
+			State:          "not_called",
+			Source:         "govulncheck",
+			ScanLevel:      "symbol",
+			ScanMode:       "source",
+			ScannerVersion: "v1.9.0",
+			TraceCount:     &traceCount,
+		},
+	}
+	got := BuildFindingResult(&row)
+	if got.Reachability == nil {
+		t.Fatal("finding result reachability = nil, want the stored envelope")
+	}
+	if got.Reachability.ScanLevel != "symbol" || got.Reachability.ScanMode != "source" {
+		t.Errorf("reachability provenance = %+v, want symbol/source", got.Reachability)
+	}
+	if got.Reachability.ScannerVersion != "v1.9.0" {
+		t.Errorf("reachability.scanner_version = %q, want v1.9.0", got.Reachability.ScannerVersion)
+	}
+	if got.Reachability.TraceCount == nil || *got.Reachability.TraceCount != 1 {
+		t.Errorf("reachability.trace_count = %v, want 1", got.Reachability.TraceCount)
+	}
+}

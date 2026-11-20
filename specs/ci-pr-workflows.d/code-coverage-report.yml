@@ -8,7 +8,9 @@ workflows:
   - main
   jobs:
   - coverage-report
+  - package-floors
   - static-mirror
   job_names:
     coverage-report: Generate Go code coverage report
+    package-floors: Package coverage floors
     static-mirror: static mirror

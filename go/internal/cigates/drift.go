@@ -131,7 +131,7 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     same job, by a scripts/ci/go-mod-download-retry.sh step for that same
 //     module BEFORE the first step that actually touches the module graph
 //     (a literal `go build/test/vet/run/install/list/mod/generate`, or
-//     golangci-lint/govulncheck/gosec/nancy). Registry-independent — this
+//     golangci-lint/govulncheck/gosec). Registry-independent — this
 //     walks every workflow file directly, not gate-by-gate, so it also
 //     catches a job no gate's ci.job happens to name. See
 //     checkSetupGoPrewarmOrdering for why "somewhere in the job" (what the
@@ -170,6 +170,13 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     marker must name a workflow job whose `if` is permanently false, so the
 //     row and the job cannot disagree. See checkDisabledMarkers
 //     (jobownership_names.go).
+//
+//  17. Generated leaf filter freshness (#10980): .github/leaf-code-filter.yml
+//     and .github/leaf-lockstep-filter.yml must equal the output of the
+//     generator over specs/ci-docs-set-patterns.txt and
+//     specs/ci-docs-lockstep-paths.txt. A hand edit to generated output, or a
+//     specs edit without regenerating, forks CI selection from the single
+//     source. See checkLeafFilterFreshness (leaffilters.go).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -197,6 +204,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkGeneratorInputCoverageForDrift(repoRoot, reg)...)
 	errs = append(errs, checkGeneratorOutputCoverage(repoRoot, reg)...)
 	errs = append(errs, checkDisabledMarkers(repoRoot, reg)...)
+	errs = append(errs, checkLeafFilterFreshness(repoRoot)...)
 
 	return errs
 }

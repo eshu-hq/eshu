@@ -253,6 +253,31 @@ type jsonNumber interface {
 	Int64() (int64, error)
 }
 
+// intPtrFromAny reads an integer out of a JSON-decoded value, or nil when
+// the value is absent or another type. The report uses pointers where "not
+// reported" and "reported zero" must stay distinguishable (a govulncheck
+// trace_count of 0 is a reported value; a missing key stays omitted).
+func intPtrFromAny(value any) *int {
+	var n int
+	switch typed := value.(type) {
+	case int:
+		n = typed
+	case int64:
+		n = int(typed)
+	case float64:
+		n = int(typed)
+	case jsonNumber:
+		count, err := typed.Int64()
+		if err != nil {
+			return nil
+		}
+		n = int(count)
+	default:
+		return nil
+	}
+	return &n
+}
+
 // boolPtrFromAny returns a pointer to the bool value, or nil when the value is
 // absent or another type. The report uses pointers where "not reported" and
 // "reported false" must stay distinguishable.

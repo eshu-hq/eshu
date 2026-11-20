@@ -99,7 +99,7 @@ hygiene_hooks:
 # disk; the drift check fails on a stale entry or an unregistered workflow.
 non_gate_workflows:
   - file: required-gates.yml
-    reason: "scheduled/manual live-ruleset audit (verify-live-ruleset); the workflow_run fan-in and aggregate publisher were deleted in #10584, never a PR gate"
+    reason: "scheduled/manual live-ruleset audit (verify-live-ruleset), retained per #10977: named consumer is the Main Health watcher, which reads its newest completed scheduled run and fails closed without it; the workflow_run fan-in and aggregate publisher were deleted in #10584, never a PR gate"
   - file: live-postgres-readiness-calibration.yml
     reason: "manual six-shard calibration for #9100; evidence only, never a PR or main-push acceptance gate"
   - file: main-health.yml

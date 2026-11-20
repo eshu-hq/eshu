@@ -64,13 +64,13 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     is unaffected.
 //   - CI-only gates (Local == nil) are skipped: no local command means no
 //     script to derive.
-//   - heredoc-budget's local.command references a scripts/ file through a
-//     relative token ("-baseline ../scripts/heredoc-budget-baseline.txt")
-//     that extractScriptPaths does not recognise — it only matches a leading
-//     "scripts/" prefix, not "../scripts/". That file is already an explicit
-//     trigger on the heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing
-//     goes unselected today; widen extractScriptPaths if that stops being
-//     true.
+//   - No committed gate command references a scripts/ file through a
+//     relative token today ("-baseline ../scripts/..." retired with #10988,
+//     which re-pointed heredoc-budget's local.command at its go test).
+//     extractScriptPaths only matches a leading "scripts/" prefix, not
+//     "../scripts/". The baseline file stays an explicit trigger on the
+//     heredoc-budget gate (specs/ci-gates.v1.yaml), so nothing goes
+//     unselected; widen extractScriptPaths if a relative token returns.
 //   - sourcedScripts (and therefore the transitive walk below) only resolves
 //     a `source`/`.` line whose LITERAL TEXT contains "scripts/". A line that
 //     sources a computed or variable path — for example
@@ -90,12 +90,14 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     directly, NOT the case libs that file transitively sources — 11 such
 //     lines name a lib this way, reached by 7 gates:
 //     parser-relationship-kit, operator-dashboard and maturity-drift-guard
-//     (one line each), telemetry-coverage (two), and three gates that share
-//     two test harnesses — scripts/test-verify-golden-corpus-gate.sh carries
-//     five and is BOTH golden-corpus-mirror's local.command and
-//     golden-corpus-gate's local.test_command, and
-//     scripts/test-verify-ifa-fault-injection.sh carries one. That sharing is
-//     why 11 distinct lines make 16 gate-line pairs. All 16 pairs resolve to
+//     (one line each), telemetry-coverage (two), and three gates reached
+//     through shared test harnesses — scripts/test-verify-golden-corpus-gate.sh
+//     carries five as the local.test_command of both golden-corpus-gate rows
+//     (the mirror exercises the same script through its
+//     TestGoldenCorpusMirrorContract go test since #10988, so it contributes
+//     no direct pair), and scripts/test-verify-ifa-fault-injection.sh carries
+//     one. That sharing is why 11 distinct lines make 16 gate-line pairs.
+//     All 16 pairs resolve to
 //     a file that is independently an explicit trigger on that gate (verified
 //     against specs/ci-gates.v1.yaml), so no gate is false-green from this
 //     gap today. The other 26 of the 37 sit in transitively-sourced case
@@ -133,8 +135,9 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     session and found two instances where the wrapper directly execs a
 //     script neither its own triggers nor the sourcing walk could see —
 //     perf-evidence's "perf-evidence)" case execs
-//     scripts/verify-performance-evidence.sh, and nancy's "nancy)" case execs
-//     scripts/dev/nancy-local.sh. Both are now closed the same way this
+//     scripts/verify-performance-evidence.sh, and (until the nancy gate's
+//     deletion in #10989) nancy's "nancy)" case execed
+//     scripts/dev/nancy-local.sh. Both were closed the same way this
 //     package always closes a check-8 finding: by adding the delegated script
 //     as an explicit trigger on its gate (specs/ci-gates.v1.yaml), not by
 //     teaching the walk to parse a wrapper's dispatch logic. A general

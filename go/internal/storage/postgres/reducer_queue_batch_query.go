@@ -215,15 +215,26 @@ source_heads AS MATERIALIZED (
     WHERE sh.src_rn = 1
 ),
 candidate AS (
-    -- #10916: every column this CTE reads (work_item_id, domain,
-    -- conflict_domain, ckey, updated_at) already rides on reps from base,
-    -- snapshot-identical by construction, so candidate reads reps directly
-    -- instead of joining back to fact_work_items by primary key. The lock
-    -- arms below keep their fact_work_items lock_target probes: those
-    -- re-read the live row for the EvalPlanQual recheck, which a snapshot
-    -- column cannot replace.
+    -- #10916: every column this CTE reads (work_item_id, generation_id,
+    -- domain, conflict_domain, ckey, updated_at) already rides on reps from
+    -- base, snapshot-identical by construction, so candidate reads reps
+    -- directly instead of joining back to fact_work_items by primary key.
+    -- The lock arms below keep their fact_work_items lock_target probes:
+    -- those re-read the live row for the EvalPlanQual recheck, which a
+    -- snapshot column cannot replace.
     SELECT
         reps.work_item_id,
+        reps.generation_id,
+        -- #10865 reclaim_rank: expired claimed/running holds sort first at
+        -- the batch LIMIT (projector #10480 twin). Only status is tested
+        -- because base already admits solely unleased rows (claim_until IS
+        -- NULL or past), so no live lease can reach this CASE — every
+        -- claimed/running row here is an expired (or anomalous NULL-lease)
+        -- hold awaiting reclaim. Without this lead the hold rewrites its
+        -- own updated_at at claim time and sorts after older pending rows
+        -- at every updated_at tie-break, starving behind any backlog
+        -- deeper than the batch.
+        CASE WHEN reps.status IN ('claimed', 'running') THEN 0 ELSE 1 END AS reclaim_rank,
         CASE WHEN reps.domain = 'eshu_search_document' THEN 1 ELSE 0 END AS reducer_domain_priority,
         COALESCE(source_counts.reducer_source_inflight_count, 0) AS reducer_source_inflight_count,
         CASE WHEN reps.work_item_id = source_heads.work_item_id THEN 0 ELSE 1 END AS reducer_source_fair_rank,
@@ -272,140 +283,32 @@ var claimReducerWorkBatchQuery = `
 WITH ` + reducerClaimReadinessRequirementsCTE() + `,
 ` + reducerClaimStaleGateCTEs() + `,
 ` + reducerClaimBatchCandidateChainCTEs() + `,
-locked_search_doc_reserved AS MATERIALIZED (
-    -- #10568 search_doc_reserved: one reserved claim slot per batch for the
-    -- oldest ready eshu_search_document candidate. The claim orders by
-    -- reducer_domain_priority ASC first and eshu_search_document is the only
-    -- priority-1 domain, so any priority-0 backlog deeper than the batch LIMIT
-    -- starves it outright. The reserved arm takes at most one row (k = 1); the
-    -- rest arm below fills the remaining LIMIT - 1 slots with the unchanged
-    -- ordering, and takes the full LIMIT when no search-doc candidate is ready
-    -- (zero idle capacity loss). Advisory impact is bounded structurally: at
-    -- most 1 batch slot per claim whenever a search-doc row is ready, 0
-    -- otherwise, regardless of advisory backlog depth or worker count.
-    -- This arm locks via the same lock_target predicates with identical
-    -- EvalPlanQual row-self lease/visibility/status recheck as locked_rest,
-    -- so a row another worker claimed between our snapshot and this lock is
-    -- dropped in either arm. SKIP LOCKED never blocks, so the second locking
-    -- arm adds no deadlock edge: workers still never wait on each other.
-    -- MATERIALIZED: the rest arm anti-joins this output, so it must be
-    -- evaluated once with its locks taken once, not inlined per reference.
-    -- The lock is a per-candidate LATERAL primary-key probe, not a join the
-    -- planner can reorder: referencing candidate from two arms materializes
-    -- it, and with stale statistics a plain join flips to an outer scan over
-    -- every lock_target row with the candidate re-scanned per row (measured
-    -- +37 ms of lock tail on the stale-heavy fixture, unbounded at
-    -- production table size). LATERAL fixes the candidate side as the outer
-    -- loop whatever the statistics say. The ordered subquery (OFFSET 0
-    -- keeps its order as the outer loop's path) lets LIMIT stop pulling
-    -- candidates once the arm fills, so rows are lock-probed in claim order
-    -- and SKIP LOCKED passes over a concurrently locked candidate to the
-    -- next one exactly as the plain join did.
-    SELECT ordered_candidate.*
-    FROM (
-        SELECT candidate.*
-        FROM candidate
-        WHERE candidate.reducer_domain_priority = 1
-        ORDER BY candidate.updated_at ASC, candidate.work_item_id ASC
-        OFFSET 0
-    ) AS ordered_candidate
-    JOIN LATERAL (
-        SELECT lock_target.work_item_id
-        FROM fact_work_items AS lock_target
-        WHERE lock_target.stage = 'reducer'
-          AND lock_target.work_item_id = ordered_candidate.work_item_id
-          -- #10863: recheck the stale-generation gate on the locked row,
-          -- beside the lease rechecks below, so hand-out refusal does not
-          -- rest on the snapshot candidate set alone.
-          AND NOT EXISTS (
-              SELECT 1
-              FROM stale_reducer_candidates AS gate_stale
-              WHERE gate_stale.work_item_id = lock_target.work_item_id
-          )
-          AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
-          AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
-          -- #6828: stamp-clock visibility, matching the base candidate filter
-          -- above; a Go-only recheck here would reintroduce the skew flake by
-          -- dropping trigger-reopened rows the base filter admitted.
-          AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
-        FOR UPDATE OF lock_target SKIP LOCKED
-    ) AS lock_target ON true
-    ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC
-    LIMIT 1
-),
-locked_rest AS (
-    -- Same per-candidate LATERAL lock as the reserved arm (see its comment):
-    -- the candidate side stays the outer loop and lock_target is probed by
-    -- primary key, so stale statistics cannot flip this arm into an outer
-    -- scan over fact_work_items.
-    SELECT ordered_candidate.*
-    FROM (
-        SELECT candidate.*
-        FROM candidate
-        -- Anti-join the reserved row so it is never claimed twice in one
-        -- batch. A LEFT JOIN ... IS NULL keeps the lock/claim tail free of
-        -- per-row SubPlan gates (NOT EXISTS would add one); the join is on
-        -- this statement's own reserved output, so no concurrent-write
-        -- hazard.
-        LEFT JOIN locked_search_doc_reserved AS search_doc_taken
-          ON search_doc_taken.work_item_id = candidate.work_item_id
-        WHERE search_doc_taken.work_item_id IS NULL
-        -- #8024: reducer_domain_inflight_count ASC sits after the fairness
-        -- ranks and before the updated_at tie-break, so a ready row of a
-        -- domain with no inflight work takes a slot ahead of an older
-        -- same-source backlog without disturbing the #3385 cross-domain
-        -- interleave (which ties at 0 = 0 when neither domain holds leases).
-        ORDER BY candidate.reducer_domain_priority ASC, candidate.reducer_source_inflight_count ASC, candidate.reducer_source_fair_rank ASC, candidate.reducer_domain_fair_rank ASC, candidate.reducer_domain_inflight_count ASC, candidate.updated_at ASC, candidate.work_item_id ASC
-        OFFSET 0
-    ) AS ordered_candidate
-    JOIN LATERAL (
-        SELECT lock_target.work_item_id
-        FROM fact_work_items AS lock_target
-        -- Re-apply the row-self lease/visibility/status predicates on the
-        -- ACTUAL locked row. candidate is evaluated from the statement
-        -- snapshot, but under Read Committed the FOR UPDATE row lock
-        -- re-fetches the latest committed version of lock_target and re-runs
-        -- THIS locking level's quals against it (EvalPlanQual recheck).
-        -- Without these predicates the only qual is the id join to the
-        -- snapshot candidate set, so a row another worker claimed and
-        -- committed between our snapshot and this lock still matches and its
-        -- fresh lease would be overwritten (lease theft / duplicate work).
-        -- Re-checking status and claim_until/visible_at here drops such a
-        -- row exactly as the pre-rewrite query did when FOR UPDATE SKIP
-        -- LOCKED sat directly on the predicate-bearing candidate SELECT.
-        -- These are a strict subset of base's WHERE, so in the uncontended
-        -- case (lock_target == the snapshot row) they are a no-op and the
-        -- claimed candidate set is unchanged.
-        WHERE lock_target.stage = 'reducer'
-          AND lock_target.work_item_id = ordered_candidate.work_item_id
-          -- #10863: recheck the stale-generation gate on the locked row,
-          -- beside the lease rechecks below, so hand-out refusal does not
-          -- rest on the snapshot candidate set alone.
-          AND NOT EXISTS (
-              SELECT 1
-              FROM stale_reducer_candidates AS gate_stale
-              WHERE gate_stale.work_item_id = lock_target.work_item_id
-          )
-          AND lock_target.status IN ('pending', 'retrying', 'claimed', 'running')
-          AND (lock_target.claim_until IS NULL OR lock_target.claim_until <= $1)
-          -- #6828: stamp-clock visibility, matching the base candidate filter
-          -- above; a Go-only recheck here would reintroduce the skew flake by
-          -- dropping trigger-reopened rows the base filter admitted.
-          AND (lock_target.visible_at IS NULL OR lock_target.visible_at <= $1 OR (lock_target.status = 'pending' AND lock_target.visible_at <= clock_timestamp()))
-        FOR UPDATE OF lock_target SKIP LOCKED
-    ) AS lock_target ON true
-    -- #10568: the fairness keys are spelled unqualified here: ORDER BY binds
-    -- simple names to this SELECT's output columns (ordered_candidate.*), so
-    -- the sort is identical to the qualified form, and the literal stays the
-    -- pinned source-fairness contract. The inner copy above stays
-    -- candidate-qualified for clarity beside the reserved anti-join, whose
-    -- output carries the same column names.
-    ORDER BY reducer_domain_priority ASC, reducer_source_inflight_count ASC, reducer_source_fair_rank ASC, reducer_domain_fair_rank ASC, reducer_domain_inflight_count ASC, updated_at ASC, work_item_id ASC
-    -- The reserved arm took COUNT(*) rows (0 or 1); the rest arm fills what
-    -- remains of the batch. The scalar subquery plans as an InitPlan, not a
-    -- per-row SubPlan, and falls back to the full $8 when nothing reserved.
-    LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))
-),
+-- #10972: gate-waited generations. A drain gate holds its lane while its last
+-- committed chunk is still draining, so that chunk's generation waits in the
+-- queue behind unrelated backlog (measured: one vuln generation pending 8h+
+-- while the same machinery drains other sources ~30x faster). This CTE names
+-- the generations a gate currently waits on so the rest arm below can spend
+-- one batch slot unblocking them instead of deepening the hold. It sits after
+-- 'candidate' (not in the shared upstream chain) so the funnel counts, which
+-- compose only through 'candidate', and the frozen pre-#10916 chain the
+-- rejoin-removal guard compares, stay byte-identical. It is a UNION of
+-- per-gate arms; the NVD baseline drain is the first arm. A year qualifies
+-- while its checkpoint is incomplete and names a last committed chunk: a
+-- drained generation drops out on its own because none of its rows are live
+-- candidates anymore (its work items are terminal), and a completed year
+-- drops out by the year_complete fence. Claim-time fences (stale, readiness,
+-- live-lease) still apply in the lock arms, so a waited-on row that fails
+-- any of them is not claimable here either. MATERIALIZED like the other
+-- gate sets: read once per claim.
+gate_waited_generations AS MATERIALIZED (
+    SELECT c.last_generation_id AS waited_generation_id,
+           MIN(c.updated_at) AS gate_wait_since
+    FROM vulnerability_nvd_baseline_checkpoints AS c
+    WHERE NOT c.year_complete
+      AND c.last_generation_id <> ''
+    GROUP BY c.last_generation_id
+),` + reducerClaimBatchReservedArmCTE() + `,
+` + reducerClaimBatchRestArmCTE() + `,
 locked AS (
     SELECT * FROM locked_search_doc_reserved
     UNION ALL

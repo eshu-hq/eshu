@@ -23,6 +23,12 @@ TABLE = {
         "go/internal/storage/postgres/migration_169_reader_bound_live_test.go": (
             "TestMigration169PhasedBackfillReaderBoundLive",
         ),
+        "go/internal/storage/postgres/nvd_baseline_plan_admission_live_test.go": (
+            "TestWorkflowControlBaselinePlansLive",
+        ),
+        "go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go": (
+            "TestWorkflowControlBaselinePlansLockingLive",
+        ),
         "go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go": (
             "TestNVDBaselineTwoPassesConvergeToOneRowSetLive",
         ),

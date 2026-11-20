@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
@@ -48,9 +49,9 @@ var _ CodeFlowReadAdmission = codeFlowReadAdmissionWitness{}
 // codeFlowReadAdmissionMethodSet reflects the live
 // CodeFlowReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeFlowReadAdmissionMethodSet(t *testing.T) []string {
+func codeFlowReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeFlowReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -73,7 +74,7 @@ func TestCodeFlowReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeFlowReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeFlowReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeFlowReadAdmissionContractVersion, "v0")
 	}
-	got := codeFlowReadAdmissionMethodSet(t)
+	got := codeFlowReadAdmissionMethodSet(t, (*CodeFlowReadAdmission)(nil))
 	if len(got) != len(frozenCodeFlowReadAdmission) {
 		t.Fatalf("CodeFlowReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeFlowReadAdmission, len(frozenCodeFlowReadAdmission), CodeFlowReadAdmissionContractVersion)
 	}
@@ -81,5 +82,56 @@ func TestCodeFlowReadAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenCodeFlowReadAdmission[i] {
 			t.Errorf("CodeFlowReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenCodeFlowReadAdmission[i], CodeFlowReadAdmissionContractVersion)
 		}
+	}
+}
+
+// TestCodeFlowReadAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the one re-declared flow read, with no search, list,
+// ledger, stored-summary, or snapshot surface riding along. The frozen
+// method-set contract test pins the exact name; this test pins the
+// exclusion the arbiter ruling demands.
+func TestCodeFlowReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*CodeFlowReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 1 {
+		t.Fatalf("CodeFlowReadAdmission has %d methods, want exactly 1: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"RunSingle", "Search", "Snapshot",
+			"Ledger", "Summary",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("CodeFlowReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededCodeFlowDrift is a deliberately widened copy of the pin: the
+// one frozen flow read plus a single-row graph read, which the flow
+// lane keeps OUT. It never ships; it proves the frozen-set comparison
+// below can see a one-method widening.
+type seededCodeFlowDrift interface {
+	CodeFlowReadAdmission
+	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+// TestCodeFlowReadAdmissionSeededDriftIsDetected is the RED half of
+// the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeFlowReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := codeFlowReadAdmissionMethodSet(t, (*seededCodeFlowDrift)(nil))
+	if reflect.DeepEqual(got, frozenCodeFlowReadAdmission) {
+		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeFlowReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeFlowReadAdmission)+1)
 	}
 }

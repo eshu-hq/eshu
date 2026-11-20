@@ -75,12 +75,41 @@ FRAGMENT_NAMES = (
 # part6 to 99 rows (497 lines, 502 with the stable seed over the 499 budget).
 # The fifth cut moves three entries later (part5 97 rows/487 lines, part6
 # 96 rows/482 lines, 487 with the seed); six fragments pinned.
+# Rebalanced 2026-11-18 for #10828: the two per-year plan-row enrollments in
+# the postgres package plus main's R6 convergence proof push part5 to 100
+# rows (502 lines over the 499 budget). The fourth cut moves three entries
+# earlier into part4 (part4 85 rows/427 lines, part5 97 rows/487 lines, still
+# room for a seed row); six fragments pinned.
+# Rebalanced 2026-11-19 for #10873: the two unchanged-skip enrollments sort
+# past trigger_bootstrap into part6 (100 rows, 502 lines over the 499
+# budget). The fifth cut moves two entries later into part5 (part5 97 to 99
+# rows/497 lines with no seed row, part6 98 rows/492 lines, 497 with the
+# stale-red seed); six fragments pinned.
+# Rebalanced 2026-11-19 for #10873 review P2: enrolling the proof-file
+# regression and matrix pushes part6 to 502 lines with the stale-red seed.
+# The fifth cut moves two entries later into part5 and the fourth cut moves
+# two entries earlier into part4 (part4 +10 lines, part5 unchanged at 497
+# lines with no seed row, part6 back under budget with seed headroom);
+# six fragments pinned.
+# Rebalanced 2026-11-20 for #10876: the two waiting-set-aside live proofs push
+# part5 to 101 rows (507 lines over the 499 budget). The third cut moves one
+# entry later into part4 (88 rows/442 lines) and the fourth cut moves one
+# entry earlier into part6 (part5 99 rows/497 lines with no seed row, part6
+# 98 rows/492 lines, 497 with the stale-red seed); six fragments pinned.
+# Rebalanced 2026-11-20 for #10876 winners wake: the two winners-wake live
+# proofs push part5 to 502 lines. The fourth cut moves one entry later into
+# part4 (part4 447 lines, part5 back to 497 with no seed row); six
+# fragments pinned.
+# Rebalanced for #10972 (rebase onto 750bee0f04): the gate-priority proof
+# sorts into part5 (502 lines over the 499 budget) while part6 has no seed
+# headroom left, so the fourth cut moves one entry later into part4 (part4
+# 472 lines, part5 back to 497 with no seed row); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go",
-    "go/internal/storage/postgres/repository_retirements_derived_race_live_test.go",
+    "go/internal/storage/postgres/membership/observations_sweep_live_test.go",
+    "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499

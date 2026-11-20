@@ -33,6 +33,35 @@ func TestBoolPointerVal(t *testing.T) {
 	}
 }
 
+// TestIntPointerVal proves int payloads pass through in every Go numeric
+// shape (float64 from a JSON decode, int and int64 from an in-memory map),
+// and that missing or non-numeric values decode nil so an absent
+// trace_count stays distinct from a reported zero.
+func TestIntPointerVal(t *testing.T) {
+	t.Parallel()
+
+	if got := intPointerVal(map[string]any{"v": 3.0}, "v"); got == nil || *got != 3 {
+		t.Errorf("float64 3 must decode to 3: %v", got)
+	}
+	if got := intPointerVal(map[string]any{"v": 3}, "v"); got == nil || *got != 3 {
+		t.Errorf("int 3 must decode to 3: %v", got)
+	}
+	if got := intPointerVal(map[string]any{"v": int64(4)}, "v"); got == nil || *got != 4 {
+		t.Errorf("int64 4 must decode to 4: %v", got)
+	}
+	if intPointerVal(map[string]any{"v": 0.0}, "v") == nil {
+		t.Error("reported zero must decode set, not nil")
+	} else if got := intPointerVal(map[string]any{"v": 0.0}, "v"); *got != 0 {
+		t.Errorf("reported zero must decode to 0: %v", got)
+	}
+	if intPointerVal(map[string]any{}, "v") != nil {
+		t.Error("missing keys must decode nil")
+	}
+	if intPointerVal(map[string]any{"v": "3"}, "v") != nil {
+		t.Error("non-numeric values must decode nil")
+	}
+}
+
 // TestSupplyChainSchemaEnvelope proves an empty schema version
 // normalizes to the legacy default while explicit versions survive.
 func TestSupplyChainSchemaEnvelope(t *testing.T) {
@@ -81,6 +110,62 @@ func TestDecodeSupplyChainComponentEvidence(t *testing.T) {
 	})
 	if unknown.Matched || unknown.Err != nil {
 		t.Errorf("unknown kinds must stay unmatched: %+v", unknown)
+	}
+}
+
+// TestDecodeFindingRowKeepsGoScanProvenance proves the writer-to-reader
+// round trip for #10028 R1: the scan keys the reducer explain payload
+// emits survive DecodeFindingRow onto the packet reachability block, and
+// pre-provenance writer maps stay absent there.
+func TestDecodeFindingRowKeepsGoScanProvenance(t *testing.T) {
+	t.Parallel()
+
+	withProvenance := `{
+		"cve_id": "GO-2024-9999", "package_id": "gomod://proxy.golang.org/example.com/vuln",
+		"ecosystem": "go", "observed_version": "v1.2.3",
+		"impact_status": "affected_exact", "match_reason": "go_module_evidence",
+		"reachability": {"state": "reachable", "confidence": "strong",
+			"source": "govulncheck",
+			"scan_level": "symbol", "scan_mode": "source",
+			"scanner_version": "v1.9.0", "trace_count": 3}
+	}`
+	row, err := DecodeFindingRow("finding-prov", "high", []byte(withProvenance))
+	if err != nil {
+		t.Fatalf("DecodeFindingRow failed: %v", err)
+	}
+	if row.Reachability == nil {
+		t.Fatalf("reachability block lost: %+v", row)
+	}
+	got := row.Reachability
+	if got.ScanLevel != "symbol" {
+		t.Errorf("ScanLevel = %q, want symbol", got.ScanLevel)
+	}
+	if got.ScanMode != "source" {
+		t.Errorf("ScanMode = %q, want source", got.ScanMode)
+	}
+	if got.ScannerVersion != "v1.9.0" {
+		t.Errorf("ScannerVersion = %q, want v1.9.0", got.ScannerVersion)
+	}
+	if got.TraceCount == nil || *got.TraceCount != 3 {
+		t.Errorf("TraceCount = %v, want 3", got.TraceCount)
+	}
+
+	withoutProvenance, err := DecodeFindingRow("finding-absent", "high", []byte(
+		`{"cve_id": "GO-2024-9998",
+		  "reachability": {"state": "reachable", "confidence": "strong",
+			"source": "govulncheck"}}`))
+	if err != nil {
+		t.Fatalf("DecodeFindingRow failed: %v", err)
+	}
+	absent := withoutProvenance.Reachability
+	if absent == nil {
+		t.Fatalf("reachability block lost: %+v", withoutProvenance)
+	}
+	if absent.ScanLevel != "" || absent.ScanMode != "" || absent.ScannerVersion != "" {
+		t.Errorf("provenance must stay blank, got %+v", absent)
+	}
+	if absent.TraceCount != nil {
+		t.Errorf("TraceCount = %v, want nil", absent.TraceCount)
 	}
 }
 

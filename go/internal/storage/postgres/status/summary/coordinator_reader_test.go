@@ -243,3 +243,83 @@ func TestCoordinatorScrapeNeverRunsALiveStatement(t *testing.T) {
 		t.Fatalf("missing scrape ran %d live statements, coordinator %#v; want none and nil", missing.liveRuns.Load(), snap.Coordinator)
 	}
 }
+
+// TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow is the #10872
+// no-herd contract for the coordinator section: the StoredActiveWorkOnly
+// scrape selection serves a stored row instead of the live coordinator
+// statements, even with the reader flag off. A fresh row is served as
+// model/fresh with its durations advanced, a stale row as last_row/stale,
+// and a missing row runs the live statement (reason flag_off) —
+// writer-off deployments have no stored row, and zeros would hide real
+// coordinators.
+func TestCoordinatorScrapeWithTheReaderOffServesTheStoredRow(t *testing.T) {
+	t.Parallel()
+	good := liveCoordinator(t)
+	selection := scrapeSelection()
+	read := func(q *coordQueryer) statuspkg.RawSnapshot {
+		t.Helper()
+		snap, err := readerStore(q, false).ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, selection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return snap
+	}
+
+	stored := liveCoordinator(t)
+	stored.OldestPendingAge = 40 * time.Second
+	fresh := &coordQueryer{installed: true, row: coordStoredRow(t, sourceTestNow.Add(-12*time.Second), pgstatus.CoordinatorSummarySourceSHA256(), stored)}
+	snap := read(fresh)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceModel || src.Reason != statuspkg.ActiveWorkReasonFresh || src.Stale || src.Age != 12*time.Second {
+		t.Fatalf("flag-off fresh coordinator source = %+v, want model/fresh at age 12s", src)
+	}
+	if fresh.liveRuns.Load() != 0 {
+		t.Fatalf("flag-off fresh coordinator scrape ran %d live statements, want 0", fresh.liveRuns.Load())
+	}
+	want := liveCoordinator(t)
+	want.OldestPendingAge = 52 * time.Second
+	if !reflect.DeepEqual(snap.Coordinator, want) {
+		t.Fatalf("flag-off fresh coordinator\n got: %#v\nwant: %#v", snap.Coordinator, want)
+	}
+
+	stale := &coordQueryer{installed: true, row: coordStoredRow(t, sourceTestNow.Add(-300*time.Second), pgstatus.CoordinatorSummarySourceSHA256(), good)}
+	snap = read(stale)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceLastRow || !src.Stale || src.Age != 300*time.Second {
+		t.Fatalf("flag-off stale coordinator source = %+v, want last_row, stale, age 300s", src)
+	}
+	if stale.liveRuns.Load() != 0 || snap.Coordinator == nil || snap.Coordinator.ActiveClaims != 3 {
+		t.Fatalf("flag-off stale coordinator scrape ran %d live statements, coordinator %#v", stale.liveRuns.Load(), snap.Coordinator)
+	}
+
+	// No stored row and the reader flag off: the scrape runs the live
+	// statements (reason flag_off) instead of presenting a zero snapshot —
+	// writer-off deployments have no stored row, and zeros would hide real
+	// coordinators (#10872).
+	missing := &coordQueryer{installed: true}
+	snap = read(missing)
+	if src := snap.CoordinatorSource; src.Source != statuspkg.ActiveWorkSourceLive || src.Reason != statuspkg.ActiveWorkReasonFlagOff || src.Stale {
+		t.Fatalf("flag-off missing coordinator source = %+v, want live/flag_off, not stale", src)
+	}
+	if missing.liveRuns.Load() != 8 {
+		t.Fatalf("flag-off missing coordinator scrape ran %d live statements, want the full live read (8)", missing.liveRuns.Load())
+	}
+	if want := liveCoordinator(t); !reflect.DeepEqual(snap.Coordinator, want) {
+		t.Fatalf("flag-off missing coordinator\n got: %#v\nwant live: %#v", snap.Coordinator, want)
+	}
+}
+
+// TestCoordinatorScrapeWithTheReaderOffProbeErrorFailsTheRead states the
+// fail-closed probe contract for the coordinator section (#10872): a database
+// error on the servability probe with the reader flag off fails the scrape,
+// like any other failed status read, and never falls back to the live
+// statements.
+func TestCoordinatorScrapeWithTheReaderOffProbeErrorFailsTheRead(t *testing.T) {
+	t.Parallel()
+	q := &coordQueryer{installed: true}
+	q.clockErr = errors.New("probe clock read failed")
+	if _, err := readerStore(q, false).ReadStatusSnapshotFiltered(context.Background(), sourceTestNow, scrapeSelection()); err == nil {
+		t.Fatal("ReadStatusSnapshotFiltered() error = nil, want the probe clock read failure")
+	}
+	if q.liveRuns.Load() != 0 {
+		t.Fatalf("coordinator live statements ran %d times after a probe database error, want 0", q.liveRuns.Load())
+	}
+}

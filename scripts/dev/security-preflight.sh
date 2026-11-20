@@ -2,14 +2,14 @@
 # Security preflight (#4217): run the credential-free security gates the changed
 # paths select, via the shared gate registry — the local mirror of the
 # credential-free security-scan.yml jobs (whole-module gosec, govulncheck,
-# nancy, and the optional Trivy filesystem scan). Run it before pushing a
+# and the optional Trivy filesystem scan). Run it before pushing a
 # dependency or deploy change so those failures surface locally instead of on CI.
 #
 # Usage: scripts/dev/security-preflight.sh [--base <ref>]
 #
-# Tool installs (gosec/govulncheck/nancy) are handled by precommit-go.sh and
-# cached under .git/eshu-precommit. govulncheck/nancy need network for their
-# advisory databases. Trivy is optional: if absent, the trivy-fs gate prints
+# Tool installs (gosec/govulncheck) are handled by precommit-go.sh and
+# cached under .git/eshu-precommit. govulncheck needs network for its
+# advisory database. Trivy is optional: if absent, the trivy-fs gate prints
 # setup guidance and defers to CI rather than passing silently.
 #
 # CI remains authoritative for SARIF uploads, the Trivy image scan, and

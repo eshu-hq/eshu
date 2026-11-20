@@ -243,7 +243,13 @@ func TestLockstepFilterMatchesManifest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		steps := DornyFilterSteps(raw)
+		// Steps resolve through the shared leaf filter files: the workflows
+		// consume .github/leaf-code-filter.yml and
+		// .github/leaf-lockstep-filter.yml instead of inline copies (#10980).
+		steps, err := DornyFilterStepsResolved(root, raw)
+		if err != nil {
+			t.Fatalf("%s dorny filters do not resolve: %v", file, err)
+		}
 		step, ok := DornyFilterStepWithKey(steps, "lockstep")
 		if !ok {
 			t.Fatalf("%s has no dorny lockstep filter", file)

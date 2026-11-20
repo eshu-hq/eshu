@@ -71,8 +71,10 @@ type UnroutableRow struct {
 	GenerationID     string
 	EvidenceSource   string
 	// Reason is one of the bounded unroutable reasons: the
-	// UnroutableReason* constants above or UnusableDeltaScopeReason
-	// (unusable_delta_scope) in unusable_delta.go.
+	// UnroutableReason* constants above, UnusableDeltaScopeReason
+	// (unusable_delta_scope) in unusable_delta.go, or
+	// UnroutableReasonCodeCallShortfallWaitExceeded
+	// (code_call_shortfall_wait_exceeded) in shortfall_wait.go.
 	Reason string
 	// DecidedAt is when the writer rejected the row.
 	DecidedAt time.Time
@@ -92,4 +94,14 @@ type WriteReport struct {
 	// ordinary path, including for a batch made only of control rows that
 	// carry no edge by design (see CarriesNoEdge) — those are not losses.
 	UnroutableRows []UnroutableRow
+	// SubmittedRows counts the routed edge rows the write attempted: the
+	// rows that reached a statement. Control and unroutable rows never
+	// appear here, exactly as they never reach a statement.
+	SubmittedRows int
+	// MatchedRows counts the rows whose MATCH bound and whose MERGE
+	// committed, summed over the batch's counted-write statements (#10938).
+	// Meaningful only when the domain's executor reported counts; zero
+	// otherwise. A shortfall against SubmittedRows is a lost edge the batch
+	// must not complete.
+	MatchedRows int
 }

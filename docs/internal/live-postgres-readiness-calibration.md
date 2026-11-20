@@ -1,36 +1,37 @@
 # Live PostgreSQL readiness calibration
 
 Issue #9100 uses a separate, manual GitHub Actions workflow to measure one
-reviewed six-shard schedule. This is source-bound calibration collection only; the existing weight refitter
-does not consume these six-shard dispatch results. A separate reviewed fit is
+reviewed eight-shard schedule. This is source-bound calibration collection only; the existing weight refitter
+does not consume these eight-shard dispatch results. A separate reviewed fit is
 needed before any acceptance change. The existing
 readiness acceptance workflow, its 15% spread guard, 1440-second modeled job
 limit, 608-second row limit (#9469; 675 seconds before), and 30-minute hosted
 job timeout stay in force.
 
 The fixed input is
-`specs/live-postgres-readiness-calibration.v1.json`. Its 34 runner rows cover
-702 unique tests in canonical inventory order. The committed row identity SHA-256
-is `a203de14ef00ae93c0ccb274b65460a9b0e8680e0c0d25f47316ba1d49707a0c`.
-The reviewed source manifest had SHA-256
-`f00e9933ca1c2a913c42c667e080f8542118fa4acc67651bc56b8092ebec5ba9`;
-the committed JSON has identical values with shorter formatting to stay under
-the repository's 500-line limit. The runner uses these exact rows; it does not
+`specs/live-postgres-readiness-calibration.v1.json`. Its 38 runner rows cover
+1101 unique tests in canonical inventory order. The committed row identity SHA-256
+is `25c0bfd74d50b08da8f8a5472d878b468635394616a188b86fc7010c38386a99`.
+There is no separate proposal file this round: the PR-reviewed manifest is the
+reviewed source, so the reviewed-source pin equals the rows digest. The runner
+uses these exact rows; it does not
 recompute cuts or split a row from the current cost model. Inventory drift fails
 before any proof starts.
 
-The offline proposal has **not run on hosted runners**. Its observed-overlay
-model, based on acceptance run `40784513987` at source SHA
-`2e3ba9fc40ec89a552e28ac25038646571df8b4e`, left only 20.8 seconds
-below the 1440-second modeled job limit. A hosted
-run can exceed either that estimate or the 30-minute job timeout. The six-shard
-committed-model spread is above 15%, so these runs cannot be called acceptance
+The offline proposal has **not run on hosted runners**. Its planner cut,
+based on acceptance run `44446666633` at source SHA
+`52b0d1cf12cb5fc2a2b222106d5999b823121337`, prices the eight jobs at 826 to
+873 s against the 1440-second modeled job limit at 3.98% spread. A hosted
+run can exceed either that estimate or the 30-minute job timeout. Until the
+dispatched pair lands, these runs cannot be called acceptance
 proof or used to weaken the existing gate.
 
 ## Frozen inventory and drift
 
-The manifest is a snapshot of the readiness inventory at the source SHA above;
-its `source_inventory_sha256` pins that inventory independently of the rows.
+The manifest is a snapshot of the readiness inventory at its own `source_sha`
+field (`b9800bdd1e7bceabd1165a3124f8ad07429c99f0`), pinned independently of the
+rows by `source_inventory_sha256`. That snapshot SHA differs from the planner-cut
+source SHA above, which names where the prices came from, not what is frozen.
 The live inventory keeps growing as live tests are enrolled, so the manifest
 will not match it for long. That is deliberate: `load()` refuses a dispatch
 whose live inventory differs from the snapshot ("ordered coverage differs from
@@ -60,11 +61,11 @@ source commit. Do not rerun a single run ID as a replacement for a second run.
 Save each run under a directory named by its numeric run ID, with these files:
 
 - `run.json`: full GitHub Actions run API response.
-- `jobs.json`: complete, unpaginated jobs API response including all seven jobs
+- `jobs.json`: complete, unpaginated jobs API response including all nine jobs
   and steps.
-- `shard1.log` through `shard6.log`: full job logs for the corresponding
+- `shard1.log` through `shard8.log`: full job logs for the corresponding
   calibration shard job IDs.
-- `shard1.json` through `shard6.json`: downloaded
+- `shard1.json` through `shard8.json`: downloaded
   `calibration-shard-RUN_ID-ATTEMPT-N` artifact reports.
 
 For each ID, use `gh api repos/eshu-hq/eshu/actions/runs/ID` for `run.json` and

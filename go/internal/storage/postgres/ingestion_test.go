@@ -100,7 +100,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	// The scope upsert likewise runs as a query since #7766 folded the
 	// retirement marker gate into it (WITH gate AS ... RETURNING the gate
 	// state): the gate and the write share one statement snapshot.
-	if got, want := len(commitTx.execs), 7; got != want {
+	if got, want := len(commitTx.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	for index, want := range []string{
@@ -110,6 +110,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 		"DELETE FROM relationship_reference_candidate_keys",
 		"DELETE FROM package_manifest_consumption_keys",
 		"DELETE FROM package_registry_identity_keys",
+		"DELETE FROM security_alert_reconciliation_keys",
 		"INSERT INTO fact_work_items",
 	} {
 		if !strings.Contains(commitTx.execs[index].query, want) {
@@ -128,7 +129,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	if !foundGatedScopeUpsert {
 		t.Fatalf("transaction queries = %#v, want the gated scope upsert with the retirement marker CTE", commitTx.queries)
 	}
-	if got, want := commitTx.execs[6].args[3], "source_local"; got != want {
+	if got, want := commitTx.execs[7].args[3], "source_local"; got != want {
 		t.Fatalf("projector domain arg = %v, want %v", got, want)
 	}
 	foundFactRecordsQuery := false
@@ -330,7 +331,7 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
 	// longer appears in db.tx.execs. The scope upsert likewise runs as a
 	// query since #7766 folded the retirement marker gate into it.
-	if got, want := len(database.tx.execs), 8; got != want {
+	if got, want := len(database.tx.execs), 9; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if got := database.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
@@ -425,6 +426,15 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 	if rows, ok, err := f.recheckRead(query); ok {
 		return rows, err
+	}
+	// #10876: the phase publish wakes parked phase_committed waits in the
+	// same transaction. No waits are parked in these fixtures, so the wake
+	// is a no-op (0, 0). Matched by the waiting-table name plus the reopen
+	// CTE, ahead of the staged positional responses, so the wake never
+	// consumes a scripted response and a genuinely unknown statement still
+	// falls through to the error below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
 	}
 	if len(f.queryResponses) > 0 {
 		rows := f.queryResponses[0]

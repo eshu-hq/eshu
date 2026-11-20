@@ -1,6 +1,6 @@
 # storage/postgres/facts/keys
 
-Explicit deletes for the three per-fact key sidecars that the ingestion key
+Explicit deletes for the four per-fact key sidecars that the ingestion key
 writers fill next to `fact_records`:
 
 | Table | Owning fact kinds | Writer |
@@ -8,6 +8,7 @@ writers fill next to `fact_records`:
 | `relationship_reference_candidate_keys` | `content`, `file`, `gcp_cloud_relationship` | `refreshRelationshipReferenceCandidateKeys` |
 | `package_manifest_consumption_keys` | git `content_entity` dependency Variables | `refreshPackageManifestConsumptionKeys` |
 | `package_registry_identity_keys` | `package_registry.package` | `refreshPackageRegistryIdentityKeys` |
+| `security_alert_reconciliation_keys` | `security_alert.repository_alert`, `reducer_package_consumption_correlation`, `reducer_supply_chain_impact_finding` | `refreshSecurityAlertReconciliationKeys` |
 
 ## Why this package exists
 
@@ -23,8 +24,8 @@ are now the only thing that removes key rows with their facts.
 ## Contract
 
 - `Deletes()` returns the tables in lock order: relationship, manifest,
-  registry. The package key scope rebuild clears manifest then registry keys;
-  the reversed order deadlocks against it.
+  registry, security alert. The package key scope rebuild clears manifest then
+  registry keys; the reversed order deadlocks against it.
 - `DeleteGenerations` deletes whole generations by `(scope_id,
   generation_id)`, one statement per generation and table, and writes each
   table's deleted rows into the caller's `RowsPruned` map.

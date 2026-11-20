@@ -24,6 +24,7 @@ trap 'rm -rf "${tmp}"' EXIT
 mkdir -p "${tmp}/scripts/lib" "${tmp}/.github/workflows" "${tmp}/specs"
 cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
+cp "${repo_root}/scripts/lib/ci-gate-leaf-filter-refs.sh" "${tmp}/scripts/lib/ci-gate-leaf-filter-refs.sh"
 cp "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh" "${tmp}/scripts/lib/ci-gate-docs-planner-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
 mkdir -p "${tmp}/scripts/ci" "${tmp}/specs/ci-pr-workflows.d"
@@ -32,6 +33,9 @@ for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml sdk-go.yml;
 	cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"
 done
 cp "${repo_root}/specs/ci-docs-lockstep-paths.txt" "${tmp}/specs/ci-docs-lockstep-paths.txt"
+mkdir -p "${tmp}/.github"
+cp "${repo_root}/.github/leaf-code-filter.yml" "${tmp}/.github/leaf-code-filter.yml"
+cp "${repo_root}/.github/leaf-lockstep-filter.yml" "${tmp}/.github/leaf-lockstep-filter.yml"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -51,22 +55,20 @@ else
 fi
 
 # --- #9200 positive proof, failing case: drop the '!**/*.md' negation from
-# all three code: filters. Byte-identity still holds, so guard 1 stays green;
-# the new docs-set check must fail instead. ---
-for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
-python3 - "${tmp}/.github/workflows/${target_wf}" <<'PY'
+# the shared code filter. Single-source consumption still holds, so guard 1
+# stays green; the docs-set check must fail instead. ---
+python3 - "${tmp}/.github/leaf-code-filter.yml" <<'PY'
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "              - '!**/*.md'\n"
+needle = "  - '!**/*.md'\n"
 assert content.count(needle) == 1, "expected exactly one '!**/*.md' negation line"
 with open(path, "w") as f:
 	f.write(content.replace(needle, "", 1))
 PY
-done
 if out="$(run_scratch 2>&1)"; then
-	no "missing nested-markdown negation in all three filters must fail"
+	no "missing nested-markdown negation in the shared filter must fail"
 else
 	if rg -F 'code: filter lacks' < <(printf '%s\n' "${out}") >/dev/null; then
 		ok "docs-set check fails and names the missing '!**/*.md' negation"
@@ -75,9 +77,7 @@ else
 		printf '%s\n' "${out}" >&2
 	fi
 fi
-for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
-	cp "${repo_root}/.github/workflows/${target_wf}" "${tmp}/.github/workflows/${target_wf}"
-done
+cp "${repo_root}/.github/leaf-code-filter.yml" "${tmp}/.github/leaf-code-filter.yml"
 
 # --- #9200 planner proof, failing case: drop the nested-markdown ignore from
 # the build fragment. ---

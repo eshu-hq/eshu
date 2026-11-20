@@ -855,6 +855,14 @@ func (database *relationshipTestDB) QueryContext(_ context.Context, query string
 		scopeID := args[0].(string)
 		return database.queryResolved(scopeID, ""), nil
 
+	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
+		// #10876: the activation/commit wakes parked waits in the same
+		// transaction. No waits are parked in these fixtures, so the wake
+		// is a no-op (0, 0). Matched by the waiting-table name plus the
+		// reopen CTE so a genuinely unknown statement still falls through
+		// to the error below.
+		return &waitingWakeCountRows{}, nil
+
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

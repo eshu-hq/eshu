@@ -414,11 +414,11 @@ and `eshu-diagnostic-rigor`.
   keeps the registry the single readable answer to "what selects
   this gate": a reviewer reads `triggers:` and knows the whole selection
   surface without also reading the gate's local command and every script it
-  sources. (The two most recent additions, #5934 review: `perf-evidence` and
-  `nancy` each run a `scripts/dev/precommit-go.sh` subcommand that execs
-  another script directly rather than sourcing it, so neither was visible to
-  the sourcing walk below — see checkScriptTriggerCoverage's doc comment for
-  the audit that found them.)
+  sources. (The most recent addition, #5934 review: `perf-evidence` runs a
+  `scripts/dev/precommit-go.sh` subcommand that execs another script directly
+  rather than sourcing it, so it was not visible to the sourcing walk below —
+  see checkScriptTriggerCoverage's doc comment for the audit that found it;
+  the nancy `nancy` subcommand did the same until the gate's deletion in #10989.)
 
   Sourcing, and Python import (#9479), is followed transitively: golden-corpus-lock-cases.sh is the real
   case, sourced directly by scripts/test-verify-golden-corpus-gate.sh and

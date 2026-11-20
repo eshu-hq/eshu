@@ -228,7 +228,9 @@ that reads the value:
   With `derive_from_owned_packages.slot_progress` on an in-tree OSV instance the
   page follows persisted progress instead of the bucket (`owned_target_slot_progress`,
   #9776); `*postgres.WorkflowControlStore` is asserted to implement
-  `coordinator.SlotProgressStore` at build time.
+  `coordinator.SlotProgressStore` at build time. A second assertion does the
+  same for `coordinator.BaselinePlanStore`, the store method that writes the NVD
+  baseline per-year plan row in the admission transaction (#10828).
 - Freshness-triggered (webhook) planners never read this field, and
   bootstrap instances ignore it: their plan key is the fixed `bootstrap` and
   their derived-target rotation stays on the global reconcile interval. The

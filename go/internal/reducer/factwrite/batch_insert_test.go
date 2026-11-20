@@ -119,6 +119,37 @@ func TestBatchInsertFactsChunksAtBatchSize(t *testing.T) {
 	}
 }
 
+// TestBatchInsertFactsRepeatedStableFactIDUpserts pins the late-write shape
+// a handler timeout can produce (#10866): the timed-out pass already wrote a
+// stable fact and the retry writes it again. Both passes must issue a
+// plain upsert — no pre-rejection of the duplicate, and every statement must
+// carry the ON CONFLICT clause that makes the second pass converge instead
+// of failing on the fact_id key.
+func TestBatchInsertFactsRepeatedStableFactIDUpserts(t *testing.T) {
+	t.Parallel()
+
+	row := Row{
+		FactID:        "fact-stable-1",
+		StableFactKey: "stable-1",
+		Payload:       `{"state":"reconciled"}`,
+	}
+
+	rec := &recordingExecer{}
+	for pass := 0; pass < 2; pass++ {
+		if err := BatchInsertFacts(context.Background(), rec, []Row{row}); err != nil {
+			t.Fatalf("pass %d BatchInsertFacts returned %v, want nil: a repeated stable fact must upsert, not fail", pass, err)
+		}
+	}
+	if len(rec.queries) != 2 {
+		t.Fatalf("got %d statements for 2 passes of the same stable fact, want 2 upserts", len(rec.queries))
+	}
+	for i, q := range rec.queries {
+		if !strings.Contains(q, "ON CONFLICT") {
+			t.Errorf("pass %d statement lost its ON CONFLICT clause: the repeat would fail instead of converging", i)
+		}
+	}
+}
+
 // TestBatchInsertFactsEmptyIsANoOp pins that an empty batch issues no statement.
 func TestBatchInsertFactsEmptyIsANoOp(t *testing.T) {
 	t.Parallel()

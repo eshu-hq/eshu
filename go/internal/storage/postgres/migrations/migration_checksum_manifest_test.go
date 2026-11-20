@@ -421,6 +421,21 @@ var migrationShippedChecksums = map[string]string{
 	"309_supply_chain_impact_winners_dirty_staging.sql":           "963ee79c83d78425336901d89f1de03af88eaf060a6eb541e692d5c0908c6aec",
 	"310_supply_chain_impact_winners_staging_capture.sql":         "5a2c3a4ab72315528c184382a6d0937ce8f8facf6efcfb21e3c598c703d6d3f2",
 	"311_supply_chain_impact_winners_scanner_staging_capture.sql": "5b5602347f33b713035f71cf99147ebd7c4f728b2c4abe7cbd15cdd025eae558",
+	// #10828: the NVD baseline per-year plan row table (migration 312; 311
+	// is #10837 direction C's scanner staging capture).
+	"312_vulnerability_nvd_baseline_plans.sql": "940c733be9bddf69e1fd474c359e0513335671eb9d96e11af5cc2df171a3b8ab",
+	// #10874: per-leaf autovacuum reloptions for the search index terms
+	// leaves plus the documents table (migration 313).
+	"313_search_index_terms_autovacuum_reloptions.sql": "4401f6cf97d36d4717217bd4e8f2397b740bc5ad551783bf475f6605eb5cffdb",
+	// #10947: the durable COALESCE-once first-shortfall anchor for the
+	// code-call CALLS shortfall park bound (migration 314).
+	"314_shared_projection_intents_first_shortfall_at.sql": "5d978f63acf8e76e2df51fa0458fe87823c560a3f07a563b4ae2808623c53e42",
+	// #10875: relationship lookup key v1 columns plus the
+	// security_alert_reconciliation_keys sidecar (migration 315).
+	"315_relationship_lookup_keys.sql": "578769fd865c5317351cfe33f7c4e25479af23a54d4bc2c91853e065eb28ca02",
+	// #10876: the reducer waiting set-aside (waits_for kind+key, #10876;
+	// renumbered 313 to 316 onto origin/main carrying #10874/#10947/#10875).
+	"316_reducer_waiting_items.sql": "21cadebc4c4f8f27a6cce75e7caad4a7904702497507f31f60e0d13eeb0ce472",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

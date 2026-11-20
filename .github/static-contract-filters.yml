@@ -4,17 +4,11 @@ openapi: [
   'specs/capability-catalog.v1.yaml', 'specs/capability-matrix.v1.yaml', 'scripts/*verify-openapi*.sh', 'scripts/lib/*verify-openapi*.sh',
   '.github/openapi-known-drift.txt',
 ]
-route:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'go/internal/query/**'
-  - 'scripts/*verify-route-coverage*.sh'
-  - 'scripts/test-gate-fetch-base-guard.sh'
-  - 'scripts/lib/test-gate-fetch-base-guard-route-cases.sh'
-  - 'scripts/lib/test-merge-ref-fixture.sh'
-  - 'scripts/lib/gate-diff-base.sh'
+# route: deleted in #10980. No append_gate call and no job outputs reference
+# a `route` filter key, and no registry gate owns the route-coverage scripts
+# it listed, so dorny computed an output nothing read. If route coverage
+# needs a gate again, add the gate (with triggers) and the append_gate row
+# together so the drift check keeps them in lockstep.
 edge:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -221,6 +215,7 @@ ifareplaydrive:
   - '.github/static-contract-filters.yml'
   - 'scripts/verify-ifa-replay-drive.sh'
   - 'scripts/test-verify-ifa-replay-drive.sh'
+  - 'go/cmd/ifa/**'
   - 'scripts/lib/cgo-cflags.sh'
   - 'scripts/lib/ifa_mirror_pins.sh'
   - 'scripts/lib/ifa_private_data_pattern.sh'
@@ -304,6 +299,17 @@ docsclienvrefs:
   - 'scripts/lib/test-verify-docs-cli-env-refs-segment-cases.sh'
   - 'scripts/docs-cli-env-refs-baseline.txt'
   - 'scripts/docs-cli-env-refs-ceiling.txt'
+mcpclientauthdoc:
+  - '.github/workflows/static-contract-gates.yml'
+  - 'specs/ci-gates.v1.yaml'
+  - 'specs/ci-gates.d/**'
+  - '.github/static-contract-filters.yml'
+  - 'docs/public/operate/mcp-client-auth.md'
+  - 'go/internal/cli/mcpsetup/doc_lockstep_test.go'
+  - 'go/internal/cli/mcpsetup/snippet.go'
+  - 'go/internal/cli/mcpsetup/setup.go'
+  - 'scripts/verify-mcp-client-auth-doc.sh'
+  - 'scripts/test-verify-mcp-client-auth-doc.sh'
 querydoccommitrefs:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -431,6 +437,7 @@ pgstatementreport:
   - 'docs/public/reference/postgres-diagnostics.md'
   - 'scripts/pg-statement-report.sh'
   - 'scripts/test-pg-statement-report.sh'
+  - 'go/internal/cigates/**'
 collectorcutoverrollback:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'
@@ -443,6 +450,7 @@ collectorcutoverrollback:
   - 'scripts/test-collector-cutover-rollback*.sh'
   - 'scripts/lib/collector-cutover-rollback-*'
   - 'scripts/lib/test-collector-cutover-rollback-*'
+  - 'go/internal/cigates/**'
 dockerpublish: [
   'docs/internal/ci-service-image-mirrors.md', '.github/workflows/static-contract-gates.yml', 'specs/ci-gates.v1.yaml', 'specs/ci-gates.d/**',
   '.github/static-contract-filters.yml', '.github/workflows/docker-publish.yml', '.github/workflows/security-scan.yml', 'scripts/ci/promote-moving-tags.sh',

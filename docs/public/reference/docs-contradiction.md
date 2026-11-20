@@ -17,8 +17,7 @@ implemented (Known Limitations), and
 `docs/public/reference/collector-reducer-readiness.md` listed two
 "Kubernetes live" rows in the same table with contradictory current-state
 text. This gate exists to catch that class of drift before it lands, on any
-`docs/public/**/*.md` page — not just the docs-catalog page types
-`verify-docs-prose-quality.sh` checks.
+`docs/public/**/*.md` page — not just a subset of docs-catalog page types.
 
 Run the advisory gate locally:
 
@@ -43,7 +42,7 @@ DOCS_CONTRADICTION_ENFORCE=true bash scripts/verify-docs-contradiction.sh
 Every `docs/public/**/*.md` page is scanned, unconditionally. A reference or
 proof page is exactly where a stale capability-status paragraph is most
 likely to drift from a table row someone kept current, so this gate does not
-filter by docs-catalog `type` the way the prose-quality gate does. A page
+filter by docs-catalog `type`. A page
 carrying a generated or do-not-edit marker is skipped — source truth and
 drift gates own that content instead.
 

@@ -212,6 +212,104 @@ func (i *InstrumentedExecutor) ExecuteCountProbe(ctx context.Context, stmt State
 	return count, err
 }
 
+// ExecuteCountedWrite forwards to Inner when it implements
+// CountedWriteExecutor, under the same `neo4j.execute` span and
+// `Neo4jQueryDuration{operation=write}` point as Execute: a counted write is a
+// write, and its statement keeps its own operation label. Returns an error
+// without attempting the write when Inner lacks the capability, mirroring
+// ExecuteGroup's fail-closed check.
+func (i *InstrumentedExecutor) ExecuteCountedWrite(ctx context.Context, stmt Statement) (int64, error) {
+	cw, ok := i.Inner.(CountedWriteExecutor)
+	if !ok {
+		return 0, fmt.Errorf("inner executor does not support ExecuteCountedWrite: %w", ErrCountedWriteUnsupported)
+	}
+	stmt, skip := GuardStatementIndexKeys(ctx, stmt, i.Instruments)
+	if skip {
+		return 0, fmt.Errorf("counted write statement guarded by oversized index keys")
+	}
+	start := time.Now()
+
+	var span trace.Span
+	if i.Tracer != nil {
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute",
+			trace.WithAttributes(
+				attribute.String("db.system", "neo4j"),
+				attribute.String("db.operation", string(stmt.Operation)),
+			),
+		)
+		defer span.End()
+	}
+
+	count, err := cw.ExecuteCountedWrite(ctx, stmt)
+
+	if i.Instruments != nil {
+		duration := time.Since(start).Seconds()
+		i.Instruments.Neo4jQueryDuration.Record(ctx, duration, metric.WithAttributes(
+			attribute.String("operation", "write"),
+		))
+	}
+
+	i.recordStatementBatchMetrics(ctx, stmt)
+
+	if err != nil && span != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	return count, err
+}
+
+// ExecuteCountedWriteGroup forwards to Inner when it implements
+// CountedWriteGroupExecutor, under the same `neo4j.execute_group` span and
+// `Neo4jQueryDuration{operation=write_group}` point as ExecuteGroup.
+// Statements guarded by GuardStatementsIndexKeys keep ExecuteGroup's shape:
+// the group runs with the survivors. Callers reconcile the returned counts
+// against the surviving statements, never the pre-guard input, so a guarded
+// statement surfaces as a short-slice counting error at the writer instead
+// of a silent skew.
+func (i *InstrumentedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []Statement) ([]int64, error) {
+	cw, ok := i.Inner.(CountedWriteGroupExecutor)
+	if !ok {
+		return nil, fmt.Errorf("inner executor does not support ExecuteCountedWriteGroup: %w", ErrCountedWriteUnsupported)
+	}
+	stmts = GuardStatementsIndexKeys(ctx, stmts, i.Instruments)
+	if len(stmts) == 0 {
+		return nil, nil
+	}
+
+	start := time.Now()
+
+	var span trace.Span
+	if i.Tracer != nil {
+		ctx, span = i.Tracer.Start(
+			ctx, "neo4j.execute_group",
+			trace.WithAttributes(
+				attribute.String("db.system", "neo4j"),
+				attribute.Int("db.statement_count", len(stmts)),
+			),
+		)
+		defer span.End()
+	}
+
+	counts, err := cw.ExecuteCountedWriteGroup(ctx, stmts)
+
+	if i.Instruments != nil && i.Instruments.Neo4jQueryDuration != nil {
+		duration := time.Since(start).Seconds()
+		i.Instruments.Neo4jQueryDuration.Record(ctx, duration, metric.WithAttributes(
+			attribute.String("operation", "write_group"),
+		))
+	}
+	for _, stmt := range stmts {
+		i.recordStatementBatchMetrics(ctx, stmt)
+	}
+
+	if err != nil && span != nil {
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	return counts, err
+}
+
 // recordStatementBatchMetrics emits one bounded row-count signal per UNWIND
 // statement. Grouped Neo4j writes use this to expose the same phase and label
 // clues available to NornicDB phase-group logs without splitting the transaction.

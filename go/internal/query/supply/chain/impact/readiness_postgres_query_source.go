@@ -325,6 +325,55 @@ configured_vulnerability_source_state_candidates AS (
         ) AS snapshot
     ) AS committed
 ),
+-- govulncheck scanner state (#10029): one aggregate source-state row per
+-- scope whose unfinished go_reachability scanner_worker.warning facts name
+-- a repository the request anchors ($11). The govulncheck scan path writes
+-- no vulnerability_source_states row of its own, so without this candidate
+-- readiness never reports the govulncheck source even while the warnings (and
+-- the findings' missing evidence) prove a run went partial. A scope a
+-- stored govulncheck row already covers keeps that row: the NOT EXISTS arm
+-- below skips it, so this candidate only ADDS a row scanner results did not
+-- write. Finished scans (analysis completed) report nothing unscanned and
+-- contribute no row; an image analyzer's warnings speak for that analyzer,
+-- not for govulncheck. Freshness is partial, never failed: the warnings prove
+-- at least one module went unscanned, and the per-module fatality stays on
+-- the warning facts and the findings' missing evidence, not on this
+-- repository aggregate.
+govulncheck_scanner_state_candidates AS (
+    SELECT
+        NULLIF(TRIM(MAX(warn.payload->>'collector_instance_id')), '') AS collector_instance_id,
+        warn.scope_id AS scope_id,
+        'govulncheck' AS source,
+        'gomod' AS ecosystem,
+        NULL::timestamptz AS window_start,
+        NULL::timestamptz AS window_end,
+        MAX(warn.observed_at) AS last_attempt_at,
+        NULL::timestamptz AS last_success_at,
+        NULL::timestamptz AS next_retry_at,
+        MIN(TRIM(warn.payload->>'reason')) AS last_error_class,
+        'partial' AS freshness_state,
+        'pending' AS terminal_status,
+        0 AS result_count,
+        COUNT(*)::int AS warning_count,
+        MAX(warn.observed_at) AS updated_at,
+        FALSE AS coverage_eligible,
+        FALSE AS coverage_zero,
+        FALSE AS coverage_missing,
+        FALSE AS multi_cve_target
+    FROM scanner_worker_warning_active AS warn
+    WHERE $11 <> ''
+      AND warn.payload->>'analyzer' = 'go_reachability'
+      AND warn.payload->>'repository_id' = $11
+      AND COALESCE(TRIM(warn.payload->>'analysis_status'), '') <> 'completed'
+      AND NULLIF(TRIM(warn.payload->>'reason'), '') IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1
+          FROM vulnerability_source_states AS state
+          WHERE state.source = 'govulncheck'
+            AND state.scope_id = warn.scope_id
+      )
+    GROUP BY warn.scope_id
+),
 vulnerability_source_state_candidates AS (
     SELECT *, NULL::jsonb AS derived_detail FROM configured_vulnerability_source_state_candidates
     UNION ALL
@@ -333,6 +382,8 @@ vulnerability_source_state_candidates AS (
     SELECT * FROM nvd_rolling_window_state_candidates
     UNION ALL
     SELECT * FROM ghsa_rolling_window_state_candidates
+    UNION ALL
+    SELECT *, NULL::jsonb AS derived_detail FROM govulncheck_scanner_state_candidates
 ),
 vulnerability_source_state AS (
     SELECT

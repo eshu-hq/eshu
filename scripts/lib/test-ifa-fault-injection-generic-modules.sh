@@ -21,6 +21,7 @@ run_ifa_fault_injection_generic_modules() {
 	for module in \
 		"table_lock_cases_lib:run_ifa_fault_injection_generic_table_lock_cases" \
 		"shared_intent_lock_cases_lib:run_ifa_fault_injection_generic_shared_intent_lock_cases" \
+		"blocked_claim_cases_lib:run_ifa_fault_injection_generic_blocked_claim_cases" \
 		"family_drive_cases_lib:run_ifa_fault_injection_generic_family_drive_cases" \
 		"runner_lease_hold_cases_lib:run_ifa_fault_injection_generic_runner_lease_hold_cases" \
 		"runner_lease_audit_cases_lib:run_ifa_fault_injection_generic_runner_lease_audit_cases"; do

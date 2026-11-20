@@ -163,6 +163,10 @@ func (database *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context,
 			return &graphProjectionBoolRows{idx: -1}, nil
 		}
 		return &graphProjectionBoolRows{data: []bool{true}, idx: -1}, nil
+	case strings.Contains(query, "reducer_waiting_items"):
+		// #10876: the phase publish wakes parked phase_committed waits; no
+		// waits are parked in these store tests.
+		return &waitingWakeCountRows{}, nil
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

@@ -65,6 +65,7 @@ func TestCodeCallProjectionRunnerReleasesLeaseWithLiveContext(t *testing.T) {
 		time.Date(2026, time.July, 13, 20, 0, 0, 0, time.UTC),
 		0,
 		1,
+		"",
 	); err != nil {
 		t.Fatalf("processPartitionOnce() error = %v", err)
 	}

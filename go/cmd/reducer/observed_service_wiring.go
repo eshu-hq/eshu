@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	stagedaudit "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/staged/audit"
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -127,6 +128,31 @@ func buildObservedReducerService(
 		closeStaleAccess()
 		return reducer.Service{}, nil, nil, nil, fmt.Errorf("register batch worker occupancy gauge: %w", err)
 	}
+	// Export the configured per-domain handler bounds (0 = unbounded) so the
+	// hosted alert can compare live execution age against the bound that
+	// applies to it (#10866). The snapshot is taken by value: the bounds are
+	// operator configuration fixed at startup.
+	if err := telemetry.RegisterReducerHandlerTimeoutGauge(instruments, meter, reducerHandlerTimeoutBounds{service: serviceRunner}); err != nil {
+		closeStaleAccess()
+		return reducer.Service{}, nil, nil, nil, fmt.Errorf("register handler timeout gauge: %w", err)
+	}
 	serviceRunner.Executor = newActiveWorkerExecutor(serviceRunner.Executor, activeWorkers)
 	return serviceRunner, graphRefresher, postgresRefresher, closeStaleAccess, nil
+}
+
+// reducerHandlerTimeoutBounds adapts a built reducer.Service to
+// telemetry.HandlerTimeoutBounds for the timeout gauge (#10866). It holds
+// the Service by value: the bounds are operator configuration fixed at
+// startup, so the gauge snapshots the same values the run enforces.
+type reducerHandlerTimeoutBounds struct {
+	service reducer.Service
+}
+
+func (b reducerHandlerTimeoutBounds) HandlerTimeoutBounds(_ context.Context) (map[string]float64, error) {
+	domains := reducercontract.KnownDomains()
+	configured := make(map[string]float64, len(domains))
+	for _, domain := range domains {
+		configured[string(domain)] = b.service.HandlerTimeoutFor(domain).Seconds()
+	}
+	return configured, nil
 }

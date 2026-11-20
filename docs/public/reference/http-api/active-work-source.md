@@ -182,21 +182,25 @@ down, slow, or running another version.
 
 ## Runtime `/metrics` scrape
 
-A runtime's `/metrics` scrape reads the stored row with the same fences and
-never runs the live statement, because a scrape from every pod would turn a
-stopped writer into a herd of expensive statements. A fresh row is served; a
-stale or missing row serves the newest row that process can decode, stale
-included, with its ages advanced to the read: a pod that restarts while the
-writer is down serves the stored counts with their true age, not zeros. A
+A runtime's `/metrics` scrape reads the stored row with the same fences. With
+the reader on it never runs the live statement, because a scrape from every
+pod would turn a stopped writer into a herd of expensive statements. A fresh
+row is served; a stale row serves the newest row that process can decode,
+stale included, with its ages advanced to the read: a pod that restarts while
+the writer is down serves the stored counts with their true age, not zeros. A
 foreign, miscounted, or undecodable row serves an empty summary when the process
-has no other decodable row. `eshu_runtime_status_summary_stale{service_name,model_key}`
+has no other decodable row. With the reader off the scrape serves a servable
+stored row the same way, and otherwise runs the live statement
+(`reason: flag_off`) instead of presenting zeros: writer-off deployments have
+no stored row, and zeros would hide a real backlog (#10872). `eshu_runtime_status_summary_stale{service_name,model_key}`
 is `0` for a fresh row and `1` otherwise, and
 `eshu_runtime_status_summary_age_seconds{service_name,model_key}` is the served
-row's age (`NaN` for the empty summary). The scrape reads two rows, so each gauge
+row's age (`NaN` for the empty summary). The scrape reads up to two rows per
+model (the servability probe plus the serve read), so each gauge
 appears twice: `model_key="active_work_summary"` for the stage, queue, and domain
 gauges, and `model_key="coordinator_snapshot"` for the `eshu_runtime_coordinator_*`
 gauges. A scrape that can decode no coordinator row renders no coordinator gauge
 and reports the marker stale with a `NaN` age. A database error fails the
 scrape like any other failed status read
-(`eshu_runtime_status_snapshot_available 0`). With the reader off neither gauge
-is rendered and the scrape is unchanged.
+(`eshu_runtime_status_snapshot_available 0`). A store built without a summary
+reader fails the scrape read instead of running the live statement.

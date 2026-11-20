@@ -357,7 +357,14 @@ func TestDocsOnlyAggregateIsPlannable(t *testing.T) {
 			var code, lockstep []string
 			codeEvery := true
 			lockEvery := false
-			for _, step := range DornyFilterSteps(raw) {
+			// Steps resolve through the shared leaf filter files (#10980):
+			// an unresolvable reference fails this test rather than reading
+			// the workflow as unfiltered.
+			resolved, err := DornyFilterStepsResolved(root, raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, step := range resolved {
 				if pats, ok := step.Filters["code"]; ok && code == nil {
 					code, codeEvery = pats, step.Every
 				}

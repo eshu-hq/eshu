@@ -4,7 +4,7 @@
 ``ActiveBudgetContractTest`` next to the v1 mechanics in
 ``live_postgres_readiness_balance_cases``. Every case here loads the model
 the way the workflow's ``shards.py matrix`` step does: the committed default
-path, which prefers a present v2 file (six shards) and falls back to v1 (four
+path, which prefers a present v2 file (eight shards) and falls back to v1 (four
 shards) only when v2 is absent. The shard count comes from
 ``live_postgres_readiness_reports.shard_ids``, the same derivation the matrix,
 report, select, and verify commands use. A contract run on a retired model
@@ -108,9 +108,9 @@ def synthetic_model(test: dict[str, int] | None = None) -> v2.WeightsV2:
 def synthetic_plan() -> list[str]:
     """Return a fixed plan of 20 packages with 20 tests each.
 
-    Under ``synthetic_model`` the six-shard count split scores 990 to 1050 s
-    per shard and the weighted cut scores 1000 to 1010 s, so the plan fits
-    before anything is seeded.
+    Under ``synthetic_model`` both the eight-shard count split and the
+    weighted cut score 800 s per shard, so the plan fits before anything
+    is seeded.
     """
     return [f"./internal/synthetic/pkg{package:02d}|TestSynthetic{package:02d}x{test:02d}Live"
             for package in range(SYNTHETIC_PACKAGES) for test in range(SYNTHETIC_TESTS)]
@@ -295,8 +295,8 @@ class ActiveBudgetContractTest(unittest.TestCase):
         # Size the tail to the tail shard's headroom on the live cut (#9371).
         # Past that headroom the live plan's package lumps decide whether any
         # cut meets the budget and the 15% spread, which is the live-plan
-        # fit case's question, not this one's. At six shards the spread guard
-        # binds before the budget for single-package growth (#9460: a full
+        # fit case's question, not this one's. At eight shards the spread guard
+        # still binds before the budget for single-package growth (#9460: a full
         # headroom fill trips the 15% spread), so halve the budget headroom
         # to keep the absorbed tail inside both guards.
         skip_unless_v2(self, self.weights)

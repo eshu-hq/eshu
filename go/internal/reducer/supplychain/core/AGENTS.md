@@ -129,8 +129,15 @@ changing anything here.
   emitter (eshu-scanner-worker) must never write `import` or `module` for a
   symbol-level scan. `stdlib` advisories have no `go_module_evidence` row, so
   they produce no impact finding. A failed govulncheck run emits no
-  reachability fact and reads `unknown`; the reducer does not join
-  `scanner_worker.warning`, so the failure class is not on the finding.
+  reachability fact and reads `unknown`; the reducer joins the run's
+  `scanner_worker.warning` (emitter-stamped `repository_id`, unfinished
+  `analysis_status`, `go_reachability` analyzer) into the finding as
+  `govulncheck scan <reason>`, which rides `Reachability.MissingEvidence`
+  to every read surface (#10029 R2).
+  Scan provenance (`scan_level`, `scan_mode`, `scanner_version`,
+  `trace_count`) rides the typed decode to the explain payload, one key
+  each and only when the fact reports it; pre-provenance facts emit none
+  of the keys (#10028).
 - The OS advisory grouping pass (#9914, `groupOSAdvisoriesByUpstream`) is the
   only place a distro record is filed under a CVE id. Keep it in the index
   build: never in verdict code, never by changing the producer's `cve_id`, and

@@ -161,6 +161,11 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	// real ImageDigest instead of the os_package's own opaque ScopeID
 	// (decodeScannerWorkerAnalysis, factschema_decode_scannerworker.go).
 	"FactKindScannerWorkerAnalysis": "scanner_worker.analysis.v1.schema.json",
+	// scanner_worker.warning (#10029 R2): the Go reachability warning join
+	// decodes unfinished go_reachability scans by repository_id to name the
+	// failure class in Reachability.MissingEvidence
+	// (decodeScannerWorkerWarning, factschema_decode_scannerworker.go).
+	"FactKindScannerWorkerWarning": "scanner_worker.warning.v1.schema.json",
 	// code family: the two git-collector kinds whose outer envelope the
 	// code-graph-core reducer decode seam decodes
 	// (factschema_decode_codegraph.go). Bare (non-namespaced) wire kinds.

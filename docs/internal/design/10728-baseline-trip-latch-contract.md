@@ -92,7 +92,12 @@ the fold in `go/internal/coordinator/vulnerability/nvd_baseline_trip_latch.go`
   latch and `ObserveNVDBaselineTrip` is the only place the condition is seen;
   the loop must stop planning for that run until the row is deleted, or the
   lane would keep planning off a latch that can no longer count. Load's
-  signature does not change.
+  signature does not change. (8) Read the per-year plan rows (#10828,
+  `ReadNVDBaselinePlans`) on the same tick as the latch load, from the same
+  run id, and fail the tick on a read error: an empty map from a failed read
+  would plan a second chunk for a year that already has one in flight. The
+  rows are not part of the latch and carry no trip state; see
+  `10809-baseline-resume-position.md`, "Per-year plan row".
 - Conservative semantics, by design. (a) A hot sample that loses its write to
   an operator `Close` is dropped, not retried, so the next sample lands about
   two hours after the stored time, reads as a missed hour, and restarts the

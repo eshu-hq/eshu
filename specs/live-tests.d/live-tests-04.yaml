@@ -19,6 +19,11 @@ tests:
     reason: "#7533 exact nine-test NornicDB conformance enrollment on pinned v1.3.3; combined local race run at a7623da9 had package 1.342s and process 2.367s; hosted proof pending"
     runner: backend-conformance-nornicdb
     backends: nornicdb
+  - file: go/internal/storage/cypher/edge/writer/code_call_matched_count_live_test.go
+    tag: ~
+    class: scheduled
+    reason: "untagged live proof gated by env Skip (#10938); deterministic seeded fixture with run-unique uids and cleanup; proves all four code-call templates report matched==submitted in steady state and an absent callee parks via the real WriteEdges path; measured 0.35s locally against Neo4j; NornicDB RETURN-count semantics unproven so Neo4j-only until that proof lands"
+    backends: neo4j
   - file: go/internal/storage/cypher/edge/writer/deployable_unit_verify_live_test.go
     tag: live_nornicdb_answer_truth
     class: ci

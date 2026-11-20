@@ -440,6 +440,11 @@ func registerPostgresQueueGauges(
 			return err
 		}
 	}
+	if expiredObs, ok := queueObs.(telemetry.ReducerClaimedExpiredObserver); ok {
+		if err := registerReducerClaimedExpiredGauges(refresher, instruments, meter, expiredObs); err != nil {
+			return err
+		}
+	}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {
 		return fmt.Errorf("register queue observable gauges: %w", err)
 	}

@@ -361,6 +361,14 @@ type ReachabilityResult struct {
 	Reason           string   `json:"reason,omitempty"`
 	LanguageMaturity string   `json:"language_maturity,omitempty"`
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
+	// ScanLevel, ScanMode, ScannerVersion, and TraceCount carry the
+	// govulncheck scan provenance behind a Go verdict (#10028). They are
+	// present only when the scan reported them; other ecosystems and
+	// pre-provenance facts leave them empty.
+	ScanLevel      string `json:"scan_level,omitempty"`
+	ScanMode       string `json:"scan_mode,omitempty"`
+	ScannerVersion string `json:"scanner_version,omitempty"`
+	TraceCount     *int   `json:"trace_count,omitempty"`
 }
 
 // SuppressionDecisionRow is the API-shaped suppression decision

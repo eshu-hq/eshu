@@ -155,19 +155,6 @@ if rg --fixed-strings --quiet -- 'out="${tool_cache_dir}/gosec' "${precommit_scr
 	fail "mutable gosec result in shared tool cache"
 fi
 
-# #5791/#5804: the nancy case must delegate its sleuth/classification logic
-# to scripts/dev/nancy-local.sh, which has its own executable regression
-# suite (scripts/test-nancy-local.sh) exercising real exit codes for the
-# empty-stdin, transport/auth-failure, clean-scan, genuine-finding, and
-# go-list-failure cases with fake `go`/`nancy` binaries — a source-text-only
-# assertion here previously let a broken pipeline (missing stdin redirect)
-# pass silently (PR #5806 review), so this file only checks the delegation
-# shape, not the classification logic itself.
-# shellcheck disable=SC2016
-require_precommit "nancy delegates to nancy-local.sh" 'bash "${repo_root}/scripts/dev/nancy-local.sh"'
-# shellcheck disable=SC2016
-reject_precommit "nancy no longer runs unpiped inline" '&& "${bin}" sleuth --no-color ) \'
-
 require "registry-owned whole-module prelude" '--pre-pr-whole-module'
 reject "raw whole-module fmt" 'step_fmt()'
 reject "raw whole-module lint" 'step_lint()'

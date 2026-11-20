@@ -37,7 +37,7 @@ func statementLabel(statement string) string {
 	case strings.Contains(statement, "INSERT INTO generation_retention_events"):
 		return "event"
 	case strings.HasPrefix(statement, factkeys.DeleteMarker):
-		return "fact_key" // #7420: three per pruned generation
+		return "fact_key" // #7420: four per pruned generation since #10875
 	case strings.Contains(statement, "del_activations"):
 		return "ledger_delete"
 	case strings.Contains(statement, "doomed AS MATERIALIZED"):
@@ -152,14 +152,15 @@ func TestGenerationRetentionNarrowsTheLockSetForAnOverLimitBatch(t *testing.T) {
 		t.Fatalf("over-limit batch statements = %v, want to start %v", overLabels, wantOverHead)
 	}
 	// After the re-lock, the prune sequence is the base one: one event and
-	// three key sidecar deletes (#7420) per pruned generation, then the same
-	// deletes in the same order.
+	// four key sidecar deletes (#7420, plus the #10875 security-alert
+	// sidecar) per pruned generation, then the same deletes in the same
+	// order.
 	withoutEvents := func(labels []string) []string {
 		return slices.DeleteFunc(slices.Clone(labels), func(l string) bool { return l == "event" || l == "fact_key" })
 	}
 	overTail, normalTail := overLabels[len(wantOverHead):], normalLabels[len(wantNormalHead):]
 	if !slices.Equal(withoutEvents(overTail), withoutEvents(normalTail)) ||
-		len(overTail)-len(withoutEvents(overTail)) != 1+3 || len(normalTail)-len(withoutEvents(normalTail)) != 2+6 {
+		len(overTail)-len(withoutEvents(overTail)) != 1+4 || len(normalTail)-len(withoutEvents(normalTail)) != 2+8 {
 		t.Fatalf("over-limit prune sequence %v differs from the normal one %v beyond one event per generation", overTail, normalTail)
 	}
 	for _, query := range over.queries {

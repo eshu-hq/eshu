@@ -94,9 +94,9 @@ func (codeLanguageQueryReadAdmissionResignedWitness) ListEntityMetadataByIDsForA
 // codeLanguageQueryReadAdmissionMethodSet reflects the live
 // CodeLanguageQueryReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func codeLanguageQueryReadAdmissionMethodSet(t *testing.T) []string {
+func codeLanguageQueryReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*CodeLanguageQueryReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -119,7 +119,7 @@ func TestCodeLanguageQueryReadAdmissionContractIsVersioned(t *testing.T) {
 	if CodeLanguageQueryReadAdmissionContractVersion != "v0" {
 		t.Errorf("CodeLanguageQueryReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", CodeLanguageQueryReadAdmissionContractVersion, "v0")
 	}
-	got := codeLanguageQueryReadAdmissionMethodSet(t)
+	got := codeLanguageQueryReadAdmissionMethodSet(t, (*CodeLanguageQueryReadAdmission)(nil))
 	if len(got) != len(frozenCodeLanguageQueryReadAdmission) {
 		t.Fatalf("CodeLanguageQueryReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenCodeLanguageQueryReadAdmission, len(frozenCodeLanguageQueryReadAdmission), CodeLanguageQueryReadAdmissionContractVersion)
 	}
@@ -174,5 +174,31 @@ func TestCodeLanguageQueryReadAdmissionWireShapesAreSealed(t *testing.T) {
 				t.Errorf("CodeLanguageQueryReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
 			}
 		}
+	}
+}
+
+// seededCodeLanguageQueryDrift is a deliberately widened copy of the pin:
+// the four frozen language reads plus a single-row graph read, which the
+// language-query lane keeps OUT. It never ships; it proves the frozen-set
+// comparison below can see a one-method widening.
+type seededCodeLanguageQueryDrift interface {
+	CodeLanguageQueryReadAdmission
+	RunSingle(context.Context, string, map[string]any) (map[string]any, error)
+}
+
+// TestCodeLanguageQueryReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on a
+// clean tree precisely because the guard fires on drift — a guard that
+// cannot see the seeded method is no guard.
+func TestCodeLanguageQueryReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := codeLanguageQueryReadAdmissionMethodSet(t, (*seededCodeLanguageQueryDrift)(nil))
+	if reflect.DeepEqual(got, frozenCodeLanguageQueryReadAdmission) {
+		t.Fatal("seeded widening (RunSingle) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenCodeLanguageQueryReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenCodeLanguageQueryReadAdmission)+1)
 	}
 }

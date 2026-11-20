@@ -283,14 +283,26 @@ import (
 // 310_supply_chain_impact_winners_staging_capture.sql (the 272 capture
 // triggers as plain staging INSERTs) and
 // 311_supply_chain_impact_winners_scanner_staging_capture.sql (the 272a
-// scanner capture triggers as plain staging INSERTs, public-only).
-const goldenBootstrapDefinitionsDigest = "bc31bcb76537c50eb091658d17026dc169b32d1058d871d924e0a8d52aadb134"
-
-// goldenBootstrapDefinitionsCount pins the definition count alongside the
-// digest so a truncated embed pattern (e.g. matching embed.go itself, or
-// silently dropping files) fails loudly even in the unlikely case of a hash
-// collision.
-const goldenBootstrapDefinitionsCount = 337
+// scanner capture triggers as plain staging INSERTs, public-only). #10828
+// adds 312_vulnerability_nvd_baseline_plans.sql (the per-year plan row the
+// admission transaction writes for each inserted baseline chunk; one CREATE
+// TABLE, no index). #10874 adds
+// 313_search_index_terms_autovacuum_reloptions.sql (the per-leaf
+// autovacuum reloptions for the search index terms leaves plus the
+// documents table; one catalog-only DO block, no rewrite).
+// #10947 adds 314_shared_projection_intents_first_shortfall_at.sql (the
+// durable COALESCE-once first-shortfall anchor for the code-call CALLS
+// shortfall park bound). #10875 adds 315_relationship_lookup_keys.sql
+// (the version-1 family/marker columns on
+// relationship_reference_candidate_keys plus the
+// security_alert_reconciliation_keys sidecar and its backfill marker).
+// #10876 adds 316_reducer_waiting_items.sql (the reducer waiting set-aside:
+// one row per parked item keyed by waits_for kind+key, plain table plus two
+// indexes, no queue-table change).
+const (
+	goldenBootstrapDefinitionsDigest = "b4b5aabf6d234148306b1d09a420b48dc92d50339a587b47de60e884225ac945"
+	goldenBootstrapDefinitionsCount  = 342
+)
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
 	defs := BootstrapDefinitions()

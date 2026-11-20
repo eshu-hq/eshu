@@ -73,6 +73,81 @@ func TestSearchIndexInstrumentsRecordBoundedLabels(t *testing.T) {
 	})
 }
 
+func TestSearchIndexPartitionInstrumentsRecordClosedLabels(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	if inst.SearchIndexPartitionBytes == nil {
+		t.Fatal("SearchIndexPartitionBytes gauge was not registered")
+	}
+	if inst.SearchIndexPartitionEstimatedRows == nil {
+		t.Fatal("SearchIndexPartitionEstimatedRows gauge was not registered")
+	}
+	if inst.SearchIndexPartitionBytesPerRow == nil {
+		t.Fatal("SearchIndexPartitionBytesPerRow gauge was not registered")
+	}
+
+	ctx := context.Background()
+	inst.SearchIndexPartitionBytes.Record(ctx, 207544205312, metric.WithAttributes(
+		attribute.String("partition", "p29"),
+		attribute.String("component", "total"),
+	))
+	inst.SearchIndexPartitionEstimatedRows.Record(ctx, 386974, metric.WithAttributes(
+		attribute.String("partition", "p29"),
+	))
+	inst.SearchIndexPartitionBytesPerRow.Record(ctx, 536256.0, metric.WithAttributes(
+		attribute.String("partition", "p29"),
+		attribute.String("component", "total"),
+	))
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(ctx, &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := searchIndexPartitionGaugeValue(t, rm, "eshu_dp_search_index_partition_bytes", map[string]string{
+		"partition": "p29", "component": "total",
+	}); got != 207544205312 {
+		t.Fatalf("partition bytes = %d, want 207544205312", got)
+	}
+	if got := searchIndexPartitionGaugeValue(t, rm, "eshu_dp_search_index_partition_estimated_rows", map[string]string{
+		"partition": "p29",
+	}); got != 386974 {
+		t.Fatalf("partition estimated rows = %d, want 386974", got)
+	}
+}
+
+func searchIndexPartitionGaugeValue(
+	t *testing.T,
+	rm metricdata.ResourceMetrics,
+	name string,
+	wantAttrs map[string]string,
+) int64 {
+	t.Helper()
+	for _, scope := range rm.ScopeMetrics {
+		for _, metricRecord := range scope.Metrics {
+			if metricRecord.Name != name {
+				continue
+			}
+			gauge, ok := metricRecord.Data.(metricdata.Gauge[int64])
+			if !ok {
+				t.Fatalf("%s data type = %T, want Int64 gauge", name, metricRecord.Data)
+			}
+			for _, point := range gauge.DataPoints {
+				if searchIndexMetricPointHasAttrs(point.Attributes.ToSlice(), wantAttrs) {
+					return point.Value
+				}
+			}
+		}
+	}
+	t.Fatalf("gauge %s with attrs %#v not found", name, wantAttrs)
+	return 0
+}
+
 func searchIndexCounterValue(
 	t *testing.T,
 	rm metricdata.ResourceMetrics,

@@ -118,7 +118,8 @@ nothing (`recordCodeCallTiming` skips zero waits) and logged nothing. New
 signals:
 
 - `eshu_dp_shared_projection_lane_blocked_total{domain,reason}`: every
-  blocked partition cycle for `code_calls`, and every quiescence-blocked cycle
+  blocked cycle for `code_calls` (per-cycle since #10871: one shared gate
+  answer per cycle, not one per partition), and every quiescence-blocked cycle
   for `repo_dependency`. The `reason` values are
   `canonical_code_quiescence` and `reducer_graph_work_active`.
 - `eshu_dp_shared_projection_lane_blocking_scopes{domain,reason}`: the

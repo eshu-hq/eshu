@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // frozenCodeDeadCodeReadAdmission pins the exact method set behind the
@@ -43,6 +45,18 @@ var frozenCodeDeadCodeReadAdmission = []string{
 	"RepositoryRelationshipReadModel func(context.Context, string) (repository.RepositoryRelationshipReadModel, error)",
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 }
+
+// codeDeadCodeReadAdmissionContractWitness proves CodeDeadCodeReadAdmission
+// is satisfiable with the minimal shape: the graph reader plus the
+// guarded Postgres content reader the dead-code legs run against today,
+// no wider store surface. It is distinct from the pin-file mirror of the
+// same shape so the contract test stands on its own declaration.
+type codeDeadCodeReadAdmissionContractWitness struct {
+	querycontract.GraphQuery
+	*ContentReader
+}
+
+var _ CodeDeadCodeReadAdmission = codeDeadCodeReadAdmissionContractWitness{}
 
 // codeDeadCodeReadAdmissionMethodSet reflects the live
 // CodeDeadCodeReadAdmission method set into sorted "name signature"

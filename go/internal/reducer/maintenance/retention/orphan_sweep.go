@@ -68,9 +68,16 @@ func (r *Runner) sweepOrphansIfDue(ctx context.Context, deadline time.Duration, 
 		// census reports no table and leaves the gauge as it was.
 		r.recordOrphanSweepMetrics(ctx, result)
 		r.recordOrphanSweepFailure(ctx, err)
+		// The size census still runs: a sweep failure must not blind the
+		// partition watch (#10874).
+		r.censusPartitionSizesIfDue(ctx, true)
 		return
 	}
 	r.recordOrphanSweep(ctx, result)
+	// The per-partition size census rides the orphan-sweep cadence: reaching
+	// here means this pass was due, so the catalog-only read runs now,
+	// after the prune transaction, holding no row lock (#10874).
+	r.censusPartitionSizesIfDue(ctx, true)
 }
 
 func (r *Runner) now() time.Time {

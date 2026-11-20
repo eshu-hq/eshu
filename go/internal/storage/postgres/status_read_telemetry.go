@@ -198,14 +198,31 @@ func (r *StatusSummaryReader) coordinatorModel() *summary.ModelReader[*statuspkg
 
 // readActiveWork returns the active-work summary and where it came from: the
 // stored row when every fence passes, otherwise the live statement. A
-// selection that asks for the stored summary only (the runtime /metrics scrape)
-// never reaches the live statement while the reader is on; see readActiveWorkScrape.
+// selection that asks for the stored summary only (the runtime /metrics
+// scrape) runs the stored path when the reader is on; with the reader flag
+// off it serves a stored row only when the model query returns one, and
+// otherwise falls through to the live statement below (reason flag_off)
+// instead of presenting a zero queue on writer-off deployments, where no
+// stored row can ever exist (#10872).
 func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
 	if s.startupErr != nil {
 		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, s.startupErr
 	}
-	if selection.StoredActiveWorkOnly && s.summaryReader.active().Enabled() {
-		return s.readActiveWorkScrape(ctx)
+	if selection.StoredActiveWorkOnly {
+		reader := s.summaryReader.active()
+		if reader == nil {
+			return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+		}
+		if reader.Enabled() {
+			return s.readActiveWorkScrape(ctx)
+		}
+		servable, err := s.activeWorkStoredServable(ctx)
+		if err != nil {
+			return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, err
+		}
+		if servable {
+			return s.readActiveWorkScrape(ctx)
+		}
 	}
 	result, err := s.summaryReader.active().Read(ctx, asOf, summary.Hooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
@@ -236,17 +253,43 @@ func (s StatusStore) readActiveWork(ctx context.Context, asOf time.Time, selecti
 	}, err
 }
 
-// readActiveWorkScrape answers the scrape path: a fresh stored row, else the
-// newest row the process can decode (a stale one included), else the zero
-// summary, and never the live statement. The marker carries Stale for the last two and the row's age at
-// this read. A database error fails the read, like every other status read.
+// activeWorkStoredServable reports whether the stored active-work summary
+// has a servable row right now: it runs only the cheap model-row select,
+// without recording anything. A database error is returned, never hidden:
+// like every other status read, a failed model query fails the scrape
+// instead of falling back to live.
+func (s StatusStore) activeWorkStoredServable(ctx context.Context) (bool, error) {
+	q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
+	selection, err := summary.Select(ctx, q, summary.SelectConfig{
+		ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
+		StaleAfter: s.summaryReader.activeWork.Config.StaleAfter, DecodeStale: true,
+	})
+	if err := done(err); err != nil {
+		return false, err
+	}
+	return selection.Stored != nil, nil
+}
+
+// readActiveWorkScrape answers the scrape path when the caller already knows
+// a stored row is servable (reader on, or reader off with a current row):
+// a fresh stored row, else the newest row the process can decode (a stale
+// one included), else the zero summary — and never the live statement. The
+// marker carries Stale for the last two and the row's age at this read; a
+// database error fails the read, like every other status read, as does a
+// store built without a summary reader. Callers with the reader flag off
+// and no servable row fall through to the live statement instead of calling
+// here (#10872).
 func (s StatusStore) readActiveWorkScrape(ctx context.Context) (activeWorkSummary, statuspkg.ActiveWorkSource, error) {
-	result, err := s.summaryReader.active().ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
+	reader := s.summaryReader.active()
+	if reader == nil {
+		return activeWorkSummary{}, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+	}
+	result, err := reader.ReadScrape(ctx, summary.ScrapeHooks[activeWorkSummary]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadActiveWorkSummaryModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelActiveWorkSummary, SourceSHA256: ActiveWorkSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.activeWork.Config.StaleAfter, DecodeStale: true,
+				StaleAfter: reader.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},
@@ -334,16 +377,32 @@ func (s StatusStore) readTerraformState(ctx context.Context, asOf time.Time) (st
 // the live workflow statements for the whole answer (#8828). The row has its
 // own as_of and digest, so this decision is independent of the other models.
 // A selection that asks for the stored summary only (the runtime /metrics
-// scrape) never reaches the live statements while the reader is on; see
-// readCoordinatorScrape. Durations in a stored row are advanced from its as_of
-// to the read; counts stay true at as_of, and the source marker's Age is the
-// freshness bound of the whole section.
+// scrape) runs the stored path when the reader is on; with the reader flag
+// off it serves a stored row only when the model query returns one, and
+// otherwise falls through to the live statements below (reason flag_off)
+// instead of presenting a zero snapshot on writer-off deployments (#10872).
+// Durations in a stored row are advanced from its as_of to the read; counts
+// stay true at as_of, and the source marker's Age is the freshness bound of
+// the whole section.
 func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, selection statuspkg.SnapshotSelection) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
 	if s.startupErr != nil {
 		return nil, statuspkg.ActiveWorkSource{}, s.startupErr
 	}
-	if selection.StoredActiveWorkOnly && s.summaryReader.coordinatorModel().Enabled() {
-		return s.readCoordinatorScrape(ctx)
+	if selection.StoredActiveWorkOnly {
+		reader := s.summaryReader.coordinatorModel()
+		if reader == nil {
+			return nil, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+		}
+		if reader.Enabled() {
+			return s.readCoordinatorScrape(ctx)
+		}
+		servable, err := s.coordinatorStoredServable(ctx)
+		if err != nil {
+			return nil, statuspkg.ActiveWorkSource{}, err
+		}
+		if servable {
+			return s.readCoordinatorScrape(ctx)
+		}
 	}
 	result, err := s.summaryReader.coordinatorModel().Read(ctx, asOf, summary.Hooks[*statuspkg.CoordinatorSnapshot]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
@@ -377,17 +436,41 @@ func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, select
 	}, err
 }
 
-// readCoordinatorScrape answers the scrape path: a fresh stored row, else the
-// newest row the process can decode (a stale one included), else no snapshot,
-// and never the live statements. The marker carries Stale for the last two and
-// the row's age at this read; the durations are advanced by that age.
+// coordinatorStoredServable reports whether the stored coordinator snapshot
+// has a servable row right now: it runs only the cheap model-row select,
+// without recording anything. A database error is returned, never hidden:
+// like every other status read, a failed model query fails the scrape
+// instead of falling back to live.
+func (s StatusStore) coordinatorStoredServable(ctx context.Context) (bool, error) {
+	q, done := s.read(ctx, statusReadCoordinatorModel)
+	selection, err := summary.Select(ctx, q, summary.SelectConfig{
+		ModelKey: summary.ModelCoordinatorSnapshot, SourceSHA256: CoordinatorSummarySourceSHA256(),
+		StaleAfter: s.summaryReader.coordinator.Config.StaleAfter, DecodeStale: true,
+	})
+	if err := done(err); err != nil {
+		return false, err
+	}
+	return selection.Stored != nil, nil
+}
+
+// readCoordinatorScrape answers the scrape path when the caller already knows
+// a stored row is servable (reader on, or reader off with a current row):
+// a fresh stored row, else the newest row the process can decode (a stale
+// one included), else no snapshot — and never the live statements. The marker
+// carries Stale for the last two and the row's age at this read; the durations
+// are advanced by that age. Callers with the reader flag off and no servable
+// row fall through to the live statements instead of calling here (#10872).
 func (s StatusStore) readCoordinatorScrape(ctx context.Context) (*statuspkg.CoordinatorSnapshot, statuspkg.ActiveWorkSource, error) {
-	result, err := s.summaryReader.coordinatorModel().ReadScrape(ctx, summary.ScrapeHooks[*statuspkg.CoordinatorSnapshot]{
+	reader := s.summaryReader.coordinatorModel()
+	if reader == nil {
+		return nil, statuspkg.ActiveWorkSource{}, summary.ErrScrapeReaderDisabled
+	}
+	result, err := reader.ReadScrape(ctx, summary.ScrapeHooks[*statuspkg.CoordinatorSnapshot]{
 		Select: func(ctx context.Context) (summary.Selection, error) {
 			q, done := s.read(ctx, statusReadCoordinatorModel)
 			selection, err := summary.Select(ctx, q, summary.SelectConfig{
 				ModelKey: summary.ModelCoordinatorSnapshot, SourceSHA256: CoordinatorSummarySourceSHA256(),
-				StaleAfter: s.summaryReader.coordinator.Config.StaleAfter, DecodeStale: true,
+				StaleAfter: reader.Config.StaleAfter, DecodeStale: true,
 			})
 			return selection, done(err)
 		},

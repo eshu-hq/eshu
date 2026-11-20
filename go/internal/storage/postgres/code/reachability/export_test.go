@@ -23,3 +23,7 @@ var (
 // store_route_liveness_live_test.go, so they run the exact production text,
 // including its seeded mutations.
 const ListPendingCodeReachabilityInputsSQL = listPendingCodeReachabilityInputsSQL
+
+// LatestCompletedIntentTimeSQL exposes the #10870 idle-probe statement to
+// the live plan-shape proof, so it runs the exact production text.
+const LatestCompletedIntentTimeSQL = codeReachabilityIntentCursorSQL

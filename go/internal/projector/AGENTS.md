@@ -374,7 +374,9 @@ editing inside it. Three rules that are easy to get wrong from here:
 - **Claim conflicts keep workers running (#7108)** — `ErrWorkClaimConflict`
   from `Claim` means the storage layer's bounded deadlock/serialization retries
   ran out and nothing changed. `recoverClaimConflict` logs it and waits one poll
-  interval; every other Claim error still stops the service.
+  interval; every other Claim error still stops the service. The conflict wait
+  is always exactly one base `PollInterval` and never advances the idle
+  backoff counter (#10869): contention is not emptiness.
 - **Ack waits for a busy scope without stopping the service (#6738)** —
   `ErrWorkAckDeferred` means Ack hit its store lock timeout behind a same-scope
   ingestion commit and changed nothing. `AckWhenScopeFree` renews the lease with

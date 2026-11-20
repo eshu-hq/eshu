@@ -256,7 +256,7 @@ repos:
         # specs/ci-gates.d/ holds every gate row, and scripts/ holds the commands and
         # the modules they import, so an edit or a new module there runs the drift
         # check at commit time (#9615); about 1.5 s warm.
-        files: '^(specs/ci-gates\.v1\.yaml|specs/ci-gates\.d/.*|specs/trivy-skip-dirs\.txt|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/.*|\.github/workflows/.*\.ya?ml)$'
+        files: '^(specs/ci-gates\.v1\.yaml|specs/ci-gates\.d/.*|specs/trivy-skip-dirs\.txt|specs/ci-docs-set-patterns\.txt|specs/ci-docs-lockstep-paths\.txt|go/internal/cigates/.*|go/cmd/ci-gates/.*|\.pre-commit-config\.yaml|scripts/.*|\.github/workflows/.*\.ya?ml|\.github/leaf-code-filter\.yml|\.github/leaf-lockstep-filter\.yml)$'
         pass_filenames: false
         require_serial: true
 

@@ -15,10 +15,9 @@ architecture decision in
 That decision owns the site structure and the basic page templates. This guide
 owns voice, page boundaries, diagrams, headings, and code examples.
 
-The [prose-quality reference](reference/prose-quality.md) describes the checks
-the repository can automate. Passing that check does not prove that a page has
-the right purpose or tells a coherent story. Review those qualities by reading
-the page as its intended reader.
+Automated checks catch shape problems. Passing them does not prove that a page
+has the right purpose or tells a coherent story. Review those qualities by
+reading the page as its intended reader.
 
 The [docs-catalog metadata reference](reference/docs-catalog.md) defines the
 hidden metadata block at the top of public pages. Set its `type` to the page
@@ -223,7 +222,6 @@ Before opening a documentation pull request:
 
 ```bash
 bash scripts/verify-docs-catalog.sh
-bash scripts/verify-docs-prose-quality.sh
 bash scripts/verify-docs-contradiction.sh
 bash scripts/verify-docs-refs.sh
 bash scripts/verify-docs-cli-env-refs.sh

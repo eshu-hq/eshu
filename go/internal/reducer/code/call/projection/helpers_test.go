@@ -15,11 +15,17 @@ import (
 )
 
 type fakeCodeCallIntentStore struct {
-	mu                      sync.Mutex
-	pendingByDomain         []sharedintent.Row
-	pendingByAcceptance     map[string][]sharedintent.Row
-	marked                  []string
-	leaseGranted            bool
+	mu                  sync.Mutex
+	pendingByDomain     []sharedintent.Row
+	pendingByAcceptance map[string][]sharedintent.Row
+	marked              []string
+	leaseGranted        bool
+	// shortfallStamps is the fake's durable first-shortfall anchor per
+	// intent (#10947). StampCodeCallShortfallOnce fills it COALESCE-once,
+	// mirroring the Postgres column; tests pre-seed it to simulate a park
+	// that started on an earlier cycle.
+	shortfallStamps         map[string]time.Time
+	stampErr                error
 	claims                  int
 	afterClaim              func(int)
 	domainLimitRequests     []int
@@ -225,6 +231,51 @@ func (f *fakeCodeCallIntentStore) MarkIntentsCompleted(_ context.Context, intent
 	return int64(len(intentIDs)), nil
 }
 
+// StampCodeCallShortfallOnce records the first-shortfall anchor COALESCE-once:
+// an intent stamped on an earlier park keeps its original stamp, and the
+// returned map carries every requested id so the caller can take the oldest
+// (#10947).
+func (f *fakeCodeCallIntentStore) StampCodeCallShortfallOnce(_ context.Context, intentIDs []string, now time.Time) (map[string]time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.stampErr != nil {
+		return nil, f.stampErr
+	}
+	if f.shortfallStamps == nil {
+		f.shortfallStamps = make(map[string]time.Time, len(intentIDs))
+	}
+	stamps := make(map[string]time.Time, len(intentIDs))
+	for _, intentID := range intentIDs {
+		stamp, ok := f.shortfallStamps[intentID]
+		if !ok {
+			stamp = now.UTC()
+			f.shortfallStamps[intentID] = stamp
+		}
+		stamps[intentID] = stamp
+	}
+	return stamps, nil
+}
+
+// capturingCodeCallUnroutableWriter records the dead-letter rows the runner
+// persists on shortfall-park expiry (#10947).
+type capturingCodeCallUnroutableWriter struct {
+	mu   sync.Mutex
+	rows []sharedintent.UnroutableRow
+	err  error
+}
+
+func (w *capturingCodeCallUnroutableWriter) WriteUnroutableIntents(_ context.Context, rows []sharedintent.UnroutableRow) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.err != nil {
+		return w.err
+	}
+	w.rows = append(w.rows, rows...)
+	return nil
+}
+
 func (f *fakeCodeCallIntentStore) ClaimPartitionLease(_ context.Context, _ string, _, _ int, _ string, _ time.Duration) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -269,7 +320,10 @@ func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ 
 		rows:           append([]sharedintent.Row(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
-	return sharedintent.WriteReport{}, nil
+	// Mirror the production writer's happy path: every row the tests hand
+	// to the fake routes and matches, so the report carries full counts
+	// (#10938). Tests that need a shortfall script shortfallCodeCallWriter.
+	return sharedintent.WriteReport{SubmittedRows: len(rows), MatchedRows: len(rows)}, nil
 }
 
 type flakyCodeCallProjectionEdgeWriter struct {

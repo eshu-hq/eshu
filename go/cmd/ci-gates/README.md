@@ -424,7 +424,7 @@ runs the hook/preflight/workflow lockstep check: every local pre-commit hook
 must map to a gate `hook_id` or a `hygiene_hooks` entry, every gate `hook_id`
 must exist at a tier-consistent stage, and every workflow must be a gate
 `ci.workflow` or a `non_gate_workflows` entry. Used by the `gate-registry-drift`
-pre-commit hook and the `verify-ci-gate-registry.yml` workflow.
+pre-commit hook and the `verify-ci-gate-registry.yml` workflow. The same drift check proves the shared generated leaf filters match their specs inputs (`leaffilters.go`); regenerate with `ci-gates generate-leaf-filters --repo-root` ([#10980](https://github.com/eshu-hq/eshu/issues/10980)).
 
 ### uncovered
 

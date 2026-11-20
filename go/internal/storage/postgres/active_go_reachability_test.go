@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 )
 
@@ -114,14 +115,16 @@ func TestGoReachabilityScopeIDsMirrorScannerComponent(t *testing.T) {
 }
 
 // TestGoReachabilityEvidenceKindsAreTheTwoLoaderKinds pins the kind list the
-// probe carries: exactly the two govulncheck evidence kinds the cross-scope
-// stage loads, in chain-package spelling.
+// probe carries: the two govulncheck evidence kinds plus the
+// scanner_worker.warning kind the cross-scope stage loads so the reducer can
+// join a failed scan's failure class (#10029 R2), in chain-package spelling.
 func TestGoReachabilityEvidenceKindsAreTheTwoLoaderKinds(t *testing.T) {
 	t.Parallel()
 
 	want := []string{
 		chain.VulnerabilityGoModuleEvidenceFactKind,
 		chain.VulnerabilityGoCallReachabilityFactKind,
+		facts.ScannerWorkerWarningFactKind,
 	}
 	got := goReachabilityEvidenceKinds()
 	if len(got) != len(want) {

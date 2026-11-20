@@ -22,6 +22,7 @@ var factKeyTablesInOrder = []string{
 	"relationship_reference_candidate_keys",
 	"package_manifest_consumption_keys",
 	"package_registry_identity_keys",
+	"security_alert_reconciliation_keys",
 }
 
 // factKeyTestRows answers each key sidecar delete statement with a distinct
@@ -30,6 +31,7 @@ var factKeyTestRows = map[string]int64{
 	"relationship_reference_candidate_keys": 5,
 	"package_manifest_consumption_keys":     2,
 	"package_registry_identity_keys":        1,
+	"security_alert_reconciliation_keys":    3,
 }
 
 func factKeyTestPolicy() GenerationRetentionPolicy {
@@ -128,7 +130,7 @@ func TestGenerationRetentionDeletesFactKeysBeforeGenerations(t *testing.T) {
 	}
 	// The pre-count names the key tables too: generation-a counted 4
 	// manifest keys, generation-b none, and no other key table appears.
-	wantCounted := map[string]int64{factKeyTablesInOrder[0]: 0, factKeyTablesInOrder[1]: 4, factKeyTablesInOrder[2]: 0}
+	wantCounted := map[string]int64{factKeyTablesInOrder[0]: 0, factKeyTablesInOrder[1]: 4, factKeyTablesInOrder[2]: 0, factKeyTablesInOrder[3]: 0}
 	if !maps.Equal(result.FactKeyRowsCounted, wantCounted) {
 		t.Errorf("FactKeyRowsCounted = %v, want %v", result.FactKeyRowsCounted, wantCounted)
 	}

@@ -16,4 +16,5 @@ SET rel.confidence = row.confidence,
     rel.reason = row.reason,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source,
-    rel.call_kind = row.call_kind`
+    rel.call_kind = row.call_kind
+RETURN count(rel) AS matched`

@@ -157,10 +157,10 @@ func (r *Runner) shouldSkipCodeCallRetract(
 	return !hasCompleted, nil
 }
 
-func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (int, int, error) {
+func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (sharedintent.WriteReport, int, error) {
 	groups := groupCodeCallUpsertRows(rows)
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return sharedintent.WriteReport{}, 0, nil
 	}
 
 	sources := make([]string, 0, len(groups))
@@ -169,26 +169,36 @@ func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (
 	}
 	sort.Strings(sources)
 
-	writtenRows := 0
+	var total sharedintent.WriteReport
+	doneSources := 0
 	for _, source := range sources {
 		group := groups[source]
 		if len(group) == 0 {
 			continue
 		}
-		// #5984: this handler has no unroutable-intent sink wired, so the write
-		// report is deliberately discarded here and the rejected rows remain
-		// visible only through the writer's WARN and
+		// #5984: this handler has no unroutable-intent sink wired, so the
+		// unroutable rows of the report are deliberately not persisted here
+		// and remain visible only through the writer's WARN and
 		// eshu_dp_shared_edge_unroutable_rows_total counter. That is unchanged
-		// behaviour for this path, not a new loss -- but it IS a remaining gap,
-		// and the compile-forced report is what makes it visible instead of
-		// implicit. Wiring the sink here needs this handler's own proof.
-		if _, err := r.EdgeWriter.WriteEdges(ctx, reducercontract.DomainCodeCalls, group, source); err != nil {
-			return 0, 0, fmt.Errorf("write code call edges for %s: %w", source, err)
+		// behaviour for this path, not a new loss. The matched-vs-submitted
+		// counts (#10938) ARE consumed: they flow into the visit result and
+		// telemetry, and a shortfall on an enforced relationship returns the
+		// park error below, failing the cycle before anything completes.
+		// The accumulated report is preserved on error (#10947): the
+		// writer returns the reconciled counts alongside the shortfall
+		// error, and the shortfall bound needs those terminal
+		// submitted/matched counts even though the batch did not complete.
+		report, err := r.EdgeWriter.WriteEdges(ctx, reducercontract.DomainCodeCalls, group, source)
+		total.UnroutableRows = append(total.UnroutableRows, report.UnroutableRows...)
+		total.SubmittedRows += report.SubmittedRows
+		total.MatchedRows += report.MatchedRows
+		if err != nil {
+			return total, doneSources, fmt.Errorf("write code call edges for %s: %w", source, err)
 		}
-		writtenRows += len(group)
+		doneSources++
 	}
 
-	return writtenRows, len(sources), nil
+	return total, len(sources), nil
 }
 
 func (r *Runner) wait(ctx context.Context, interval time.Duration) error {

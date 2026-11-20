@@ -122,6 +122,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"direction",
 		"class",
 		"site",
+		"wake_site",
 		"search_path",
 		"trigger",
 		"quota_kind",

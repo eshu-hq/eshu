@@ -27,13 +27,9 @@ type terraformStatusRoute struct {
 	want statuspkg.SnapshotSelection
 }
 
-// fullWithoutTerraform is every optional status section except the
-// Terraform-state serial and warning reads.
-var fullWithoutTerraform = statuspkg.SnapshotSelection{
-	IncludeCollectorFactEvidence: true,
-	IncludeRegistryCollectors:    true,
-	SkipTerraformStateEvidence:   true,
-}
+// Operator-route selections live in status_fact_registry_selection_test.go:
+// collectorEvidenceWithoutRegistry for routes that render collector readbacks,
+// neitherFactNorRegistry for freshness causality (#10973).
 
 // ingesterWithoutTerraform keeps the ingester routes' existing omission of the
 // fact_records aggregates and adds the Terraform-state omission.
@@ -46,16 +42,16 @@ var ingesterWithoutTerraform = statuspkg.SnapshotSelection{SkipTerraformStateEvi
 // get_collector_readiness, get_hosted_governance_status, and
 // get_answer_narration_status dispatch to these paths.
 var terraformFreeStatusRoutes = []terraformStatusRoute{
-	{"/api/v0/status/operations", fullWithoutTerraform},
-	{"/api/v0/status/hosted-readiness", fullWithoutTerraform},
-	{"/api/v0/status/operator-control-plane", fullWithoutTerraform},
-	{"/api/v0/status/freshness-causality", fullWithoutTerraform},
-	{"/api/v0/status/collectors", fullWithoutTerraform},
-	{"/api/v0/collectors", fullWithoutTerraform},
-	{"/api/v0/status/collector-readiness", fullWithoutTerraform},
-	{"/api/v0/collector-readiness", fullWithoutTerraform},
-	{"/api/v0/status/governance", fullWithoutTerraform},
-	{"/api/v0/status/answer-narration", fullWithoutTerraform},
+	{"/api/v0/status/operations", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/hosted-readiness", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/operator-control-plane", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/freshness-causality", neitherFactNorRegistry},
+	{"/api/v0/status/collectors", collectorEvidenceWithoutRegistry},
+	{"/api/v0/collectors", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/collector-readiness", collectorEvidenceWithoutRegistry},
+	{"/api/v0/collector-readiness", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/governance", collectorEvidenceWithoutRegistry},
+	{"/api/v0/status/answer-narration", collectorEvidenceWithoutRegistry},
 	{"/api/v0/status/ingesters", ingesterWithoutTerraform},
 	{"/api/v0/ingesters", ingesterWithoutTerraform},
 	{"/api/v0/status/ingesters/repository", ingesterWithoutTerraform},

@@ -76,7 +76,29 @@ var goPackageSubcommands = map[string]struct{}{
 // #8756 raised this from 28 to 29: mcp-router-eval runs `go test` on
 // ./internal/mcp/router/eval/, and carries go/internal/mcp/** (which holds that
 // package) as a trigger.
-const goPackageGateCount = 31
+// #10988 raised this from 31 to 32: golden-corpus-mirror's local.command and
+// local.test_command now run `go test ./cmd/golden-corpus-gate -run
+// TestGoldenCorpusMirrorContract` (the converted hermetic self-test), and the
+// row carries `go/cmd/golden-corpus-gate/**` as an explicit trigger.
+// #10988 raised this from 32 to 33: replay-coverage-gate's local.test_command
+// now runs `go test ./cmd/replay-coverage-gate -run
+// TestReplayCoverageMirrorContract` (replay-coverage-static-mirror was
+// deleted; the parent row already carries `go/cmd/replay-coverage-gate/**`
+// as a trigger).
+// #10988 raised this from 33 to 34: ifa-replay-drive's local.command and
+// local.test_command now run `go test ./cmd/ifa -run
+// TestIfaReplayDriveMirrorContract`, and the row plus the static-contract
+// dorny filter carry `go/cmd/ifa/**` as a trigger.
+// #10988 raised this from 34 to 35: pg-statement-report's local.command and
+// local.test_command now run `go test ./internal/cigates -run
+// TestPgStatementReportContract`, and the row plus the static-contract dorny
+// filter carry `go/internal/cigates/**` as a trigger.
+// #10988 raised this from 35 to 36: collector-cutover-rollback's
+// local.command and local.test_command now run `go test
+// ./internal/cigates -run TestCollectorCutoverRollbackContract`, and the row
+// plus the static-contract dorny filter carry `go/internal/cigates/**` as a
+// trigger.
+const goPackageGateCount = 36
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

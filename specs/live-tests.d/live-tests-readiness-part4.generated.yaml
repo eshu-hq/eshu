@@ -99,6 +99,11 @@ tests:
     class: postgres_ci
     reason: "#10084 two-shard completion: a committed shard opens epoch 1 and waits holding no advisory lock while a join-only refused-only shard joins, leads the maintenance pass, and marks completion; a join-only arrival before any open epoch records nothing; a waiter cancelled mid-wait returns promptly; disposable database from ESHU_POSTGRES_DSN; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/deferred_partition_load_cost_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10971 disposable PostgreSQL 18 cost measurement for the deferred partition load: legacy-only vs shipped (legacy plus keyed arms) per-partition latency and buffers plus the fallback probe COUNT on a migrated schema with a 2000-fact seed at production bind widths, with a legacy-subset-shipped set assertion; reads ESHU_POSTGRES_TEST_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/delta_union_base_live_test.go
     tag: ~
     class: postgres_ci
@@ -408,5 +413,60 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8750 disposable PostgreSQL 18 proof that the destructive-successor guard re-reads its prior on the commit transaction after the scope row lock: a same-scope commit or Ack that lands between the pre-tx sizing and the lock is re-sized (W1, W2), an unchanged scope costs one read (W3), and the held scope row blocks a concurrent commit and Ack until the guarded commit ends (W4); reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/ingestion_vulnerability_successor_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9694 disposable PostgreSQL 18 proof of the vulnerability-intelligence commit path: an unchanged hint skips, drift commits, a trusted 3-to-1 shrink stores, an untrusted under-half or empty successor is refused and counted, repeated refusals hold the scope stale until a commit passes, and concurrent commits on one scope serialize on the scope row without deadlock or a stored refused successor; reuses the #7978 bootstrapped proof schema; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/maintenance/repository_reindex_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7620 disposable PostgreSQL 18 proof of the per-repository reindex watermarks: one request stores one row per distinct scope, sixteen concurrent requests over overlapping scope sets in opposite orders all succeed and store the largest returned value per scope, a future-seeded value is not moved backward, and the per-cycle read returns only rows newer than the fleet watermark (a mutant that locks rows in input order fails with SQLSTATE 40P01). Enrolled in the live-postgres-readiness runner; 2.01s of test time on postgres:18 on 2026-10-07; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/maintenance/requests_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7620 disposable PostgreSQL 18 proof that the reindex watermark upsert returns a monotonic database-clock stamp: sequential requests never go backward, sixteen concurrent requests store the largest returned value, and a future-seeded value is not moved backward (a mutant without GREATEST fails this proof). Enrolled in the live-postgres-readiness runner; 1.23s of test time, 3s wall with a warm build cache, on postgres:18.6-alpine on tmpfs on 2026-10-06; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/manifest_dependency_read_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#9611 disposable PostgreSQL proof that the per-(package manager, name) probe texts of ListActivePackageManifestDependencyFacts return the same ordered rows as the pre-#9611 flat texts through the same paging and delta overlay path, on a delta-active and a no-delta corpus, for the plain and Maven-family reads; reads ESHU_PACKAGE_CONSUMPTION_SCOPE_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/manifest_less_dirty_rule_answer_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8243 disposable PostgreSQL 18 same-answer proof: the real loader returns the identical fact ids under the previous and the narrowed manifest-less rule while binding fewer producer scopes, and the rejected naive superseded rule loses the hole scope; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/manifest_less_dirty_rule_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8243 disposable PostgreSQL 18 proof of the narrowed manifest-less dirty rule: every lifecycle fixture that can still need a producer (pending, uncovered writer, the supersede-then-delta hole, rows without a marked full) stays in the real loader's producer set on all three manifest reads, only covered superseded or failed generations leave it, and the rule agrees with UncoveredProjectionWriters; enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/known_scopes_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof of the github_org host filter on KnownScopes: with host github.com only the org's github.com scopes are known (HTTPS and normalized SSH remotes), and gitlab.com, GitHub Enterprise, and remote-less scopes drop out; with an empty host the read keeps the slug-only org partition. Enrolled in the live-postgres-readiness runner; 1.58-1.61s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/known_scopes_prefix_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7765 disposable PostgreSQL 18 proof of the gitlab_group path-prefix partition on KnownScopes: only the nested group's git repository scopes are known (sibling group, lookalike prefix, underscore-prefix scope, another host's same-path scope, repository_ref, and remote-less scopes drop out), a gitlab_group upsert round-trips through the widened selector_kind CHECK, and the bootstrap applies twice. Enrolled in the live-postgres-readiness runner; 2.0-2.1s of test time on postgres:18-alpine on 2026-10-15; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/live_read_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof that the SQL live filter in ReadLiveScopeObservations keeps exactly the rows selection.Live keeps, at and around the liveness window boundary, so the Go predicate and the SQL cannot drift. Enrolled in the live-postgres-readiness runner; 1.38-1.39s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/observations_classification_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#8454 disposable PostgreSQL 18 proof of the upstream classification probe storage: classifications round-trip through the store read, a stale probe never overwrites a newer verdict, relisting a scope clears its verdict, and the CHECK rejects a verdict outside the closed set. Enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/membership/observations_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#7625 disposable PostgreSQL 18 proof of repository selection observations: the org partition read excludes other orgs, repository_ref scopes, and other collectors; over three cycles the stored rows equal membership.Evaluate's projection (a repeated state keeps state_since and adds a cycle, a changed state restarts both); a replayed or older batch changes nothing; explicit selected rows sit beside org rows; and eight writers released by a start barrier (four on one selector, four on a second) neither deadlock nor double-count. Enrolled in the live-postgres-readiness runner; 1.47-1.57s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
     runner: live-postgres-readiness
 # Generated by scripts/generate-live-postgres-readiness.py; do not hand-edit.

@@ -232,6 +232,12 @@ func (w *EdgeWriter) WriteEdges(
 	if err := checkRoutedBatchTargets(ctx, w, domain, evidenceSource, rows, routedRows, routeOrder); err != nil {
 		return report, err
 	}
+	// Code-call batches verify matched-vs-submitted counts atomically with
+	// the write; that whole path lives in writeCodeCallBatch so WriteEdges
+	// keeps its shape for every other domain (#10938).
+	if domain == reducercontract.DomainCodeCalls {
+		return w.writeCodeCallBatch(ctx, evidenceSource, rows, routedRows, routeOrder, droppedRows, report)
+	}
 	writtenRows := 0
 	for _, cypher := range routeOrder {
 		writtenRows += len(routedRows[cypher])
@@ -272,9 +278,6 @@ func (w *EdgeWriter) WriteEdges(
 				w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, stmts[i:end])
 				w.recordGroupedWrite(ctx, domain, "group", duration, stmts[i:end])
 				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
-				if domain == reducercontract.DomainCodeCalls {
-					w.recordCodeCallBatch(ctx, duration)
-				}
 			}
 		} else {
 			start := time.Now()
@@ -300,9 +303,6 @@ func (w *EdgeWriter) WriteEdges(
 			duration := time.Since(start).Seconds()
 			w.reportRepositoryStubs(ctx, domain, evidenceSource, stubs, []sourcecypher.Statement{stmt})
 			w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []sourcecypher.Statement{stmt})
-			if domain == reducercontract.DomainCodeCalls {
-				w.recordCodeCallBatch(ctx, duration)
-			}
 		}
 	}
 	if err := w.executeArtifactStatements(ctx, domain, evidenceSource, len(rows), artifactStmts, writtenRows, droppedRows, len(routeOrder), bs); err != nil {

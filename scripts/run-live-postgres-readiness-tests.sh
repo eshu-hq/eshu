@@ -11,7 +11,7 @@
 #
 # With --shard N/TOTAL (one CI matrix leg) the runner executes only that
 # time-weighted contiguous slice of the enrolled proofs through the shards
-# planner (cuts from the active weights model: six legs from
+# planner (cuts from the active weights model: eight legs from
 # specs/live-postgres-readiness-weights.v2.json, four from the v1 fallback)
 # and leaves a fail-closed per-shard JSON report instead of the suite
 # summary; the aggregator job verifies every leg's report covers the plan.
@@ -45,7 +45,7 @@ else
   [[ -n "${report_path}" ]] || die "--shard requires --report PATH"
 fi
 if [[ "${calibration_mode}" -eq 1 ]]; then
-  [[ "${shard}" =~ ^[1-6]/6$ ]] || die "calibration requires --shard N/6"
+  [[ "${shard}" =~ ^[1-8]/8$ ]] || die "calibration requires --shard N/8"
   [[ "${GITHUB_RUN_ID:-}" =~ ^[1-9][0-9]*$ && "${GITHUB_RUN_ATTEMPT:-}" =~ ^[1-9][0-9]*$ ]] ||
     die "calibration requires GitHub run ID and attempt"
   [[ -n "${ESHU_NEO4J_URI:-}" && -n "${ESHU_NEO4J_USERNAME:-}" &&

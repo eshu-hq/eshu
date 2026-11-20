@@ -104,10 +104,10 @@ that workflow. Automation workflows are explicitly outside the gate registry.
 | `reducer-contention-gate.yml` | Blocking contention and supply-chain queries | Distinct concurrency proof; retain. |
 | `refresh-cassettes.yml` | Opt-in label/manual credentialed cassette authoring | Necessary authoring automation, not routine PR gating. |
 | `replay-coverage-gate.yml` | Three blocking replay/auth coverage gates | Distinct replay/security proof; retain. |
-| `required-gates.yml` | Live ruleset audit only (fan-in and aggregate job deleted #10584; aggregate disabled 2026-11-03) | The ruleset requires only `go-core-complete` and `go-race-complete`, read directly with no publisher. Restore the trusted-publisher trust boundary if an aggregator returns. |
+| `required-gates.yml` | Live ruleset audit only (fan-in and aggregate job deleted #10584; aggregate disabled 2026-11-03; RETAINED per #10977) | The ruleset requires only `go-core-complete` and `go-race-complete`, read directly with no publisher. Named consumer: the Main Health watcher reads the newest completed scheduled audit run and fails closed without it. Restore the trusted-publisher trust boundary if an aggregator returns. |
 | `scorecard-example-conformance.yml` | Blocking separate example module | Main Go module does not cover this; retain. |
 | `sdk-go.yml` | Blocking two separate SDK modules | Not duplicate main-module builds; retain. |
-| `security-scan.yml` | Blocking gosec/govulncheck; advisory Trivy/Nancy | Preserve blocking vulnerability checks; schedule costly advisory scans where signal supports it. |
+| `security-scan.yml` | Blocking gosec/govulncheck; advisory Trivy | Preserve blocking vulnerability checks; schedule costly advisory scans where signal supports it. |
 | `static-contract-gates.yml` | Thirty-plus mainly blocking static contracts, advisory root-cause guard | Highest maintenance duplication: registry, filters, commands and check labels. Derive scheduling/matrix metadata from registry in follow-up; retire checks only with demonstrated replacement proof. |
 | `test.yml` | Blocking Go core/race/docs; separate lint plugin module | Primary Go authority; plugin module is distinct, not redundant. |
 | `verify-agent-hygiene.yml` | Five blocking agent/process contracts | Retain current enforcement; evaluate maintenance against concrete failure history. |

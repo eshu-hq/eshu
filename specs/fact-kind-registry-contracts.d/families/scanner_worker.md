@@ -18,4 +18,4 @@
 | Kind | Producers | Reducer consumers | Read surface | Payload schema |
 | --- | --- | --- | --- | --- |
 | `scanner_worker.analysis` | `scanner-worker` | `core/core_handle_scanner_worker` | `GET /api/v0/supply-chain/impact/findings` | `sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json` |
-| `scanner_worker.warning` | `scanner-worker` | `none (read_only)` | `GET /api/v0/supply-chain/impact/findings` | `sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json` |
+| `scanner_worker.warning` | `scanner-worker` | `core/core_handle_scanner_worker` | `GET /api/v0/supply-chain/impact/findings` | `sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json` |

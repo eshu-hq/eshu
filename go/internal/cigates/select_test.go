@@ -75,15 +75,13 @@ func TestSelect_FrontendLane(t *testing.T) {
 }
 
 // TestSelect_SecurityLane proves the #4217 security-gate selection: a go.sum
-// change selects the dependency scanners (govulncheck + nancy), and a Dockerfile
+// change selects the dependency scanner (govulncheck), and a Dockerfile
 // change selects the Trivy filesystem scan, all under category=security.
 func TestSelect_SecurityLane(t *testing.T) {
 	t.Parallel()
 	reg := buildRegistry([]cigates.Gate{
 		gate("govulncheck", cigates.TierPrePush, cigates.CategorySecurity,
 			[]string{"go/go.mod", "go/go.sum", "go/**/*.go"}, localCmd("bash scripts/dev/precommit-go.sh govulncheck"), ""),
-		gate("nancy", cigates.TierPrePush, cigates.CategorySecurity,
-			[]string{"go/go.mod", "go/go.sum"}, localCmd("bash scripts/dev/precommit-go.sh nancy"), ""),
 		gate("trivy-fs", cigates.TierPrePush, cigates.CategorySecurity,
 			[]string{"Dockerfile", "deploy/**"}, localCmd("bash scripts/dev/trivy-fs-local.sh"), ""),
 		gate("go-lint", cigates.TierPreCommit, cigates.CategoryHygiene,
@@ -94,10 +92,8 @@ func TestSelect_SecurityLane(t *testing.T) {
 		reg.Select([]string{"go/go.sum"}, cigates.TierPrePush),
 		[]cigates.Category{cigates.CategorySecurity},
 	))
-	for _, id := range []string{"govulncheck", "nancy"} {
-		if _, ok := depSel[id]; !ok {
-			t.Errorf("go.sum change should select %q", id)
-		}
+	if _, ok := depSel["govulncheck"]; !ok {
+		t.Error("go.sum change should select govulncheck")
 	}
 	if _, ok := depSel["trivy-fs"]; ok {
 		t.Error("go.sum change should NOT select trivy-fs (Dockerfile/deploy trigger)")

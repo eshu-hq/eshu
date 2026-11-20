@@ -260,11 +260,12 @@ func checkScript(repoRoot, gateID, command string) error {
 // Only words beginning with "scripts/" are treated as script refs. Words that
 // start with "go/" are Go package paths passed to the toolchain, not files to
 // stat. A word that references a scripts/ file through a relative prefix
-// ("../scripts/foo.txt") is not recognised — heredoc-budget's local.command
-// is the one gate command in the registry with that shape, and its file is
-// covered by an explicit registry trigger instead of being derived here (see
-// checkScriptTriggerCoverage's doc comment in scripttrigger.go, which also
-// documents this function's other narrowings in full).
+// ("../scripts/foo.txt") is not recognised — no committed gate command has
+// that shape since #10988 re-pointed heredoc-budget at its go test, and the
+// baseline file stays covered by an explicit registry trigger instead of
+// being derived here (see checkScriptTriggerCoverage's doc comment in
+// scripttrigger.go, which also documents this function's other narrowings in
+// full).
 //
 // A command starting with "cd " is skipped BEFORE the word loop below runs at
 // all — not because that loop found no "scripts/" word. A "cd "-prefixed

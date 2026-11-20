@@ -21,6 +21,7 @@ gates:
       - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/verify-ifa-replay-drive.sh"
       - "scripts/test-verify-ifa-replay-drive.sh"
+      - "go/cmd/ifa/**"
       # No scripts/lib trigger here, and that is a deliberate gap rather than
       # an oversight: this mirror sources nothing from that directory today.
       # An earlier draft of this change carried "scripts/lib/ifa_mirror_*.sh"
@@ -35,8 +36,8 @@ gates:
       # jobs on a path the registry selects no gate for is the same
       # divergence as #6164, pointed the other way.
     local:
-      command: "bash scripts/test-verify-ifa-replay-drive.sh"
-      test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
+      command: "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1"
+      test_command: "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa replay-drive mirror gate"
@@ -135,6 +136,35 @@ gates:
     ci:
       workflow: code-coverage-report.yml
       job: "Generate Go code coverage report"
+    requirements:
+      - go
+    ci_only_reason: ""
+
+  - id: code-coverage-floors
+    name: Go Package Coverage Floors
+    category: exactness
+    layer: unit
+    purpose: "Blocks coverage regression on changed Go packages via per-package floors; the scheduled whole-module floor rises toward 90% with a published ranking (#10983)."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-coverage-floors.sh"
+      - "scripts/test-verify-coverage-floors.sh"
+      - "scripts/ci/check-changed-coverage-floors.sh"
+      - "scripts/ci/test-check-changed-coverage-floors.sh"
+      - "specs/coverage-floors.v1.yaml"
+      - ".github/workflows/code-coverage-report.yml"
+    # No self_test_triggers: like the ifa-replay-drive mirror above, the local
+    # command already IS the hermetic self-test, so there is no distinct
+    # verifier self-test to scope (the loader rejects self_test_triggers
+    # without a distinct test_command).
+    local:
+      command: "bash scripts/test-verify-coverage-floors.sh && bash scripts/ci/test-check-changed-coverage-floors.sh"
+      test_command: "bash scripts/test-verify-coverage-floors.sh && bash scripts/ci/test-check-changed-coverage-floors.sh"
+    ci:
+      workflow: code-coverage-report.yml
+      job: "Package coverage floors"
     requirements:
       - go
     ci_only_reason: ""

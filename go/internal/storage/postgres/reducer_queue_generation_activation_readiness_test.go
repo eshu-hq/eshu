@@ -40,8 +40,13 @@ func TestReducerQueueFailDefersGenerationActivationPastAttemptBudget(t *testing.
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	// #10876: the deferral parks one wait row naming the generation the
+	// projector Ack will activate.
+	if got := database.execs[1].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
+		t.Fatalf("second exec is not the wait-row park:\n%s", got)
 	}
 	query := database.execs[0].query
 	for _, want := range []string{"UPDATE fact_work_items", "status = 'retrying'", "failure_class = $2"} {

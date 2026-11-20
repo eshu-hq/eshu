@@ -170,7 +170,7 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 	// constant. Outside the tree only such selectors count: a literal
 	// *_not_ready class there belongs to another queue (collectors), not this
 	// one.
-	consts := reducerTreeConstants(reducerDir, parsedFiles)
+	consts, aliases := reducerTreeConstants(reducerDir, parsedFiles)
 	internalDir := filepath.Join(reducerDir, "..")
 	outsideFiles := parseReducerClassReferencesOutsideTree(t, fset, internalDir, parsedFiles)
 
@@ -201,7 +201,7 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 					retryable[key] = true
 				}
 			case "FailureClass":
-				class, unresolvedIdent, isReducerSelector := reducerSelectorClass(file, fn, consts)
+				class, unresolvedIdent, isReducerSelector := reducerSelectorClass(file, fn, consts, aliases)
 				if !isReducerSelector {
 					if !inTree {
 						continue

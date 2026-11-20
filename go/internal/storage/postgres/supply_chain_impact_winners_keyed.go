@@ -177,10 +177,48 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			result.Path = telemetry.SupplyChainImpactWinnersPathFull
 		}
 	}
+	// #10876: the tick's watermark-advance save is the providing save for the
+	// winners_watermark wait kind, so the wake runs in this same transaction,
+	// after every stamp site (idle S, keyed S-or-horizon, fallback full) and
+	// before the commit: the stamp the wake carries is the committed
+	// watermark the result re-read on every path. The waiting set is narrow
+	// (advisory only) and the maintainer commits on a 30-second cadence, so
+	// the coarse range scan stays inside the provider transaction. A tick that
+	// lost the claim consumed and stamped nothing and returns before this
+	// point, so there is never a wake without its stamp.
+	if err := s.wakeWinnersWaits(ctx, tx, result.Watermark); err != nil {
+		return none, err
+	}
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseCommit, tx.Commit); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners keyed resweep: %w", err)
 	}
 	return result, nil
+}
+
+// wakeWinnersWaits reopens the advisory waits the tick's committed watermark
+// covers, in the tick's transaction. It pins the save's lock wait first
+// (#7597: lock_timeout 2s) and maps lock_timeout/deadlock aborts to the
+// retryable class-less contention error, so a contended tick rolls back and
+// re-ticks on the maintainer's cadence instead of wedging behind a parked
+// consumer's Fail. A zero watermark means no stamp committed and wakes
+// nothing.
+func (s SupplyChainImpactWinnersStore) wakeWinnersWaits(
+	ctx context.Context,
+	tx db.Transaction,
+	watermark time.Time,
+) error {
+	if watermark.IsZero() {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, winnersWakeLockTimeoutSQL,
+		fmt.Sprintf("%dms", defaultWinnersWakeLockTimeout.Milliseconds())); err != nil {
+		return classifyWinnersWakeError(fmt.Errorf("pin winners wake lock timeout: %w", err))
+	}
+	if _, err := wakeWinnersWatermark(ctx, tx, s.Instruments, WaitingWakeSiteInTx,
+		watermark.UTC(), time.Now().UTC()); err != nil {
+		return classifyWinnersWakeError(err)
+	}
+	return nil
 }
 
 // runKeyedOrFull expands the admitted window to identifiers, applies the cap,

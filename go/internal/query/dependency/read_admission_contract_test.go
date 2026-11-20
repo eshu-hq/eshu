@@ -31,6 +31,17 @@ var frozenDependencyReadAdmission = []string{
 	"Run func(context.Context, string, map[string]interface {}) ([]map[string]interface {}, error)",
 }
 
+// dependencyReadAdmissionWitness proves DependencyReadAdmission is
+// satisfiable with the minimal shape: the single bounded graph read,
+// no wider store surface.
+type dependencyReadAdmissionWitness struct{}
+
+func (dependencyReadAdmissionWitness) Run(context.Context, string, map[string]any) ([]map[string]any, error) {
+	return nil, nil
+}
+
+var _ DependencyReadAdmission = dependencyReadAdmissionWitness{}
+
 // dependencyReadAdmissionMethodSet reflects the live DependencyReadAdmission
 // method set into sorted "name signature" strings for comparison with the
 // frozen list.

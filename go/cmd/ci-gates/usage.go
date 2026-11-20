@@ -9,7 +9,7 @@ import (
 )
 
 func usage(w io.Writer) {
-	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|await|queue-select|contexts|audit-scripts|validate|uncovered|layers|fragments|compare|review-attest|reuse|pr-plan> [flags]")
+	_, _ = fmt.Fprintln(w, "usage: ci-gates <select|run|await|queue-select|contexts|audit-scripts|validate|uncovered|layers|fragments|compare|review-attest|reuse|pr-plan|generate-leaf-filters> [flags]")
 	_, _ = fmt.Fprintln(w, "  select    --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--explain] [--json]")
 	_, _ = fmt.Fprintln(w, "  run       --registry <path> --tier <tier> [--base <ref>] [--paths-from <file|->] [--category <list>] [--repo-root <path>]")
 	_, _ = fmt.Fprintln(w, "  await     --registry <path> --repo-root <path> --repo <owner/name> --pr <number> --head-sha <sha> [--poll-interval 30s] [--timeout 55m]")
@@ -24,4 +24,5 @@ func usage(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "  review-attest <capture|verify> --base <ref> --claims-file <path> --review-packet <path> --verdict <path> --receipt <path>")
 	_, _ = fmt.Fprintln(w, "  pr-plan  --registry <trusted-path> --repo-root <trusted-root> --repo <owner/name> --pr <number> --head-sha <sha>  (JSON schema v1)")
 	_, _ = fmt.Fprintln(w, "  reuse     --registry <path> --repo <owner/name> --pr <number> --head-sha <sha>")
+	_, _ = fmt.Fprintln(w, "  generate-leaf-filters --repo-root <path>")
 }

@@ -239,7 +239,7 @@ jobs:
     # 30-minute leg budget (#7864). The ledger-selected suite grows with
     # enrollment, so each leg runs one contiguous slice of the plan. The cuts
     # use the same committed model in plan, runner, and aggregate. The
-    # present v2 weights file cuts six row-aware legs; without it the
+    # present v2 weights file cuts eight row-aware legs; without it the
     # matrix falls back to four v1 legs. The shard contract fails
     # above 80% of this cap, so a near-cap leg needs a measured refit.
     timeout-minutes: 30
@@ -247,7 +247,7 @@ jobs:
     # wall for 4 webhook-listener tests with ~0 s of test time, #9460), so
     # the shards restore the shared plain-build cache go-core populates
     # instead of compiling the tree six times over. Restore-only: the store
-    # is nearly full and six shard saves would add eviction pressure for no
+    # is nearly full and eight shard saves would add eviction pressure for no
     # benefit, since go-core already saves this key space. The gobuildrace-
     # entries are not a fallback: race objects differ from plain builds
     # (#9462), and these legs run plain `go test -count=1`.
@@ -355,6 +355,8 @@ jobs:
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
           ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_GOVULNCHECK_READINESS_PROOF_DISPOSABLE: '1'
+          ESHU_GOVULNCHECK_READINESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GRAPH_BACKEND: neo4j
           ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE: '1'
           ESHU_GROUPED_INVENTORY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
@@ -385,6 +387,8 @@ jobs:
           ESHU_REACHABILITY_COMPLETED_INDEX_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DISPOSABLE: '1'
           ESHU_REACHABILITY_EDGES_SCOPE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REACHABILITY_IDLE_PROBE_PROOF_DISPOSABLE: '1'
+          ESHU_REACHABILITY_IDLE_PROBE_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DISPOSABLE: '1'
           ESHU_READINESS_CONTAINER_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RECOVERY_DELTA_ACTIVE_PROOF_DISPOSABLE: '1'
@@ -393,6 +397,8 @@ jobs:
           ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: '1'
           ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_REDUCER_GATE_PRIORITY_PROOF_DISPOSABLE: '1'
+          ESHU_REDUCER_GATE_PRIORITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_REDUCER_HEARTBEAT_PROOF_DISPOSABLE: '1'
           ESHU_REDUCER_HEARTBEAT_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_RUNTIME_ENVIRONMENT_EVIDENCE_POSTGRES_DISPOSABLE: '1'

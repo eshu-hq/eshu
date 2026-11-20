@@ -88,6 +88,21 @@ type GoVulnerabilityFinding struct {
 	// CallTrace preserves govulncheck-compatible call-frame evidence in stack
 	// order (entry point first, vulnerable symbol last).
 	CallTrace []GoVulnerabilityCallFrame
+	// ScanLevel is the depth of the govulncheck scan that produced this
+	// finding ("module", "package", or "symbol"). Blank when the fact
+	// predates the provenance fields.
+	ScanLevel string
+	// ScanMode is how the scanned code was read ("source" or "binary").
+	// Blank when the fact predates the provenance fields.
+	ScanMode string
+	// ScannerVersion is the govulncheck release that produced this
+	// finding. Blank when the fact predates the provenance fields.
+	ScannerVersion string
+	// TraceCount is the number of call traces the scanner found for this
+	// (advisory, module) pair; CallTrace carries only one of them. Nil
+	// when the fact predates the provenance fields, distinct from a
+	// reported 0.
+	TraceCount *int
 	// Reachability is the classification produced by this reducer.
 	Reachability GoVulnerabilityReachability
 	// Reason names the rule that produced the classification, so the API can
@@ -164,6 +179,11 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 		return nil, nil, err
 	}
 	quarantined := append(moduleQuarantined, reachQuarantined...)
+	warningsByRepo, warnQuarantined, err := extractGoReachabilityWarningsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	quarantined = append(quarantined, warnQuarantined...)
 	advisories := extractGoAffectedPackages(envelopes)
 
 	moduleByRepoModule := groupGoModuleEvidence(modules)
@@ -207,6 +227,16 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 			if !applicability.applicable && !applicability.hasRangeEvidence {
 				finding.MissingEvidence = append(finding.MissingEvidence, "advisory affected-range evidence missing")
 				sort.Strings(finding.MissingEvidence)
+			}
+			// An unfinished go_reachability scan names its failure class
+			// on every finding of its repository (#10029 R2): the scan
+			// produced no reachability fact, so without this join the
+			// verdict reads as a bare evidence gap with no cause.
+			if finding.RepositoryID != "" {
+				if rows := warningsByRepo[finding.RepositoryID]; len(rows) > 0 {
+					finding.MissingEvidence = append(finding.MissingEvidence, rows...)
+					sort.Strings(finding.MissingEvidence)
+				}
 			}
 			findings = append(findings, finding)
 		}
@@ -255,6 +285,10 @@ func classifyGoVulnerabilityForModuleAdvisory(
 		finding.PackagePath = best.deepestPackage
 		finding.Symbol = best.deepestSymbol
 		finding.CallTrace = best.trace
+		finding.ScanLevel = best.scanLevel
+		finding.ScanMode = best.scanMode
+		finding.ScannerVersion = best.scannerVersion
+		finding.TraceCount = best.traceCount
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, best.factID)
 		if finding.ModulePath == "" {
 			finding.ModulePath = best.deepestModule

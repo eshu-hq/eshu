@@ -4,10 +4,13 @@
 package query
 
 import (
+	"context"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
 // frozenStatusGovernanceReadAdmission pins the exact method set behind the
@@ -37,12 +40,23 @@ var frozenStatusGovernanceReadAdmission = []string{
 	"Summary func(context.Context) (governanceaudit.Summary, error)",
 }
 
+// statusGovernanceReadAdmissionWitness proves
+// StatusGovernanceReadAdmission is satisfiable with the minimal shape:
+// one Summary read, no wider audit surface.
+type statusGovernanceReadAdmissionWitness struct{}
+
+func (statusGovernanceReadAdmissionWitness) Summary(context.Context) (governanceaudit.Summary, error) {
+	return governanceaudit.Summary{}, nil
+}
+
+var _ StatusGovernanceReadAdmission = statusGovernanceReadAdmissionWitness{}
+
 // statusGovernanceReadAdmissionMethodSet reflects the live
 // StatusGovernanceReadAdmission method set into sorted "name signature"
 // strings for comparison with the frozen list.
-func statusGovernanceReadAdmissionMethodSet(t *testing.T) []string {
+func statusGovernanceReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*StatusGovernanceReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -63,7 +77,7 @@ func TestStatusGovernanceReadAdmissionContractIsVersioned(t *testing.T) {
 	if StatusGovernanceReadAdmissionContractVersion != "v0" {
 		t.Errorf("StatusGovernanceReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", StatusGovernanceReadAdmissionContractVersion, "v0")
 	}
-	got := statusGovernanceReadAdmissionMethodSet(t)
+	got := statusGovernanceReadAdmissionMethodSet(t, (*StatusGovernanceReadAdmission)(nil))
 	if len(got) != len(frozenStatusGovernanceReadAdmission) {
 		t.Fatalf("StatusGovernanceReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenStatusGovernanceReadAdmission, len(frozenStatusGovernanceReadAdmission), StatusGovernanceReadAdmissionContractVersion)
 	}
@@ -92,6 +106,44 @@ func TestStatusGovernanceReadAdmissionWireShapesAreSealed(t *testing.T) {
 			if strings.Contains(name, banned) {
 				t.Errorf("StatusGovernanceReadAdmission.%s contains %q: list, append, tenant, and snapshot legs stay out of this pin", name, banned)
 			}
+		}
+	}
+}
+
+// seededStatusGovernanceDrift is a deliberately widened copy of the pin:
+// the one frozen read plus a detailed-event List the governance route
+// never issues. It never ships; it proves the frozen-set comparison
+// below can see a one-method widening.
+type seededStatusGovernanceDrift interface {
+	StatusGovernanceReadAdmission
+	List(context.Context) ([]governanceaudit.Summary, error)
+}
+
+// TestStatusGovernanceReadAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestStatusGovernanceReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := statusGovernanceReadAdmissionMethodSet(t, (*seededStatusGovernanceDrift)(nil))
+	if reflect.DeepEqual(got, frozenStatusGovernanceReadAdmission) {
+		t.Fatal("seeded widening (List) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenStatusGovernanceReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenStatusGovernanceReadAdmission)+1)
+	}
+	for _, want := range frozenStatusGovernanceReadAdmission {
+		found := false
+		for _, have := range got {
+			if have == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seeded drift dropped frozen entry %q: the seed must only widen, never narrow", want)
 		}
 	}
 }

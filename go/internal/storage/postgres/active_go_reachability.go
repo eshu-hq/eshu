@@ -27,13 +27,17 @@ import (
 // reader build the same scope id.
 var canonicalGoRepositoryIDPattern = regexp.MustCompile(`^repository:r_[0-9a-f]{8}$`)
 
-// goReachabilityEvidenceKinds returns the two govulncheck evidence kinds the
-// cross-scope Go stage loads, in chain-package spelling. The probe binds them
-// as the fact_kind arm of the (scope_id, generation_id, fact_kind) probe.
+// goReachabilityEvidenceKinds returns the govulncheck evidence kinds plus
+// the scanner_worker.warning kind the cross-scope Go stage loads, in
+// chain-package spelling. The probe binds them as the fact_kind arm of the
+// (scope_id, generation_id, fact_kind) probe. The warning kind is how a
+// failed scan's failure class reaches the pass: the reducer joins the
+// warning's reason into Reachability.MissingEvidence (#10029 R2).
 func goReachabilityEvidenceKinds() []string {
 	return []string{
 		chain.VulnerabilityGoModuleEvidenceFactKind,
 		chain.VulnerabilityGoCallReachabilityFactKind,
+		facts.ScannerWorkerWarningFactKind,
 	}
 }
 

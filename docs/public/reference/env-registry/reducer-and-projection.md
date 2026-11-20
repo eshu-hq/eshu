@@ -104,10 +104,11 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` | int | `100` | Hysteresis floor for graph-write backpressure; admission resumes only after retrying-state reducer depth falls below this value. Must be less than ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK. |
 | `ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED` | bool | `false` | Runs the batch-claim funnel census query per claim (#10565 box 6). Off by default: the census replays the claim chain a second time per claim, and its production-scale cost is unproven. Leave it off until the QA-lane delta proof clears the flip threshold. Accepts strconv.ParseBool values (true/false and 1/0/t/f spellings); any other value stops startup with an error that names the variable. |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | int | — | Work items claimed per cycle (default adaptive to workers and backend). |
+| `ESHU_REDUCER_BATCH_PREFETCH_DEPTH` | int | — | Reducer batch lookahead buffer depth (#10867). Unset keeps the worker count (capped by the claim size); explicit 0 disables the buffer and keeps idle-only claiming; an unset, unparsable or negative value keeps the default. |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | string | — | Single reducer claim domain. Deprecated; use `ESHU_REDUCER_CLAIM_DOMAINS`. |
 | `ESHU_REDUCER_CLAIM_DOMAINS` | string | — | Comma-separated reducer domains for multi-domain claims. |
-| `ESHU_REDUCER_HANDLER_TIMEOUT` | duration | — | Default bound on one reducer handler execution. Recorded but not enforced yet (#8211 step a). Invalid values fail startup. |
-| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | string | — | Per-domain reducer handler bounds as domain=duration,... . Recorded but not enforced yet (#8211 step a). Bad entries and duplicate domains fail startup. |
+| `ESHU_REDUCER_HANDLER_TIMEOUT` | duration | — | Default bound on one reducer handler execution. Enforced by the reducer service (#10866): overtime frees the worker and fails the intent with the counting reducer_handler_timeout class. Explicit 0s disables the bound; unset is also unbounded. Invalid values fail startup. |
+| `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES` | string | — | Per-domain reducer handler bounds as domain=duration,... . An explicit domain=0s exempts that domain from the default bound. Overtime fails with the counting reducer_handler_timeout class. Bad entries and duplicate domains fail startup. |
 | `ESHU_REDUCER_MAX_ATTEMPTS` | int | `3` | Maximum retry attempts for reducer work items. |
 | `ESHU_REDUCER_RETRY_DELAY` | duration | `30s` | Delay between reducer work-item retries. |
 | `ESHU_REDUCER_WORKERS` | int | — | Concurrent reducer workers (default derived from CPU count and backend). |

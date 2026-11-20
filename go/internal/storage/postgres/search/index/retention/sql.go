@@ -314,6 +314,42 @@ ORDER BY generation.superseded_at, generation.generation_id
 LIMIT $1
 `
 
+// partitionSizeCensusQuery reads one catalog-only size pass over the terms
+// leaves (#10874): per leaf the total relation size, the heap size, the
+// index share (total minus heap minus toast), and an estimated live row
+// count. It scans no heap and takes no count(*): the ratio is a
+// suspect-detector, never a byte-exact claim (live reltuples was 6x off
+// exact on p29), so the runner pairs a suspect verdict with an exact
+// count on the copy before any rebuild proposal. Estimated rows prefer
+// n_live_tup when the stats row exists and is positive, else reltuples.
+const partitionSizeCensusQuery = `-- retention: search index partition size census
+SELECT child.oid::regclass::text,
+    pg_total_relation_size(child.oid),
+    pg_relation_size(child.oid),
+    pg_total_relation_size(child.oid) - pg_relation_size(child.oid) - COALESCE(pg_relation_size(toast.oid), 0),
+    CASE WHEN stats.n_live_tup > 0 THEN stats.n_live_tup ELSE GREATEST(child.reltuples::bigint, 0) END
+FROM pg_inherits AS inheritance
+JOIN pg_class AS child ON child.oid = inheritance.inhrelid
+LEFT JOIN pg_class AS toast ON toast.oid = child.reltoastrelid
+LEFT JOIN pg_stat_user_tables AS stats ON stats.relid = child.oid
+WHERE inheritance.inhparent = to_regclass('eshu_search_index_terms')
+ORDER BY 1
+`
+
+// partitionParitySnapshotQuery returns one row per leaf: the exact live row
+// count and a checksum over the full primary key in index order. The
+// copy-rebuild runbook snapshots every in-scope leaf before and after the
+// rebuild-equivalent operation; equal rows plus an equal checksum is the
+// search-parity proof (#10874). leaf must be a regclass text from
+// termsLeavesQuery; it is never caller input.
+func partitionParitySnapshotQuery(leaf string) string {
+	return `-- retention: search index partition parity snapshot
+SELECT count(*),
+    COALESCE(sum(hashtext(relation.scope_id || relation.generation_id || relation.term_key || relation.document_id)::bigint), 0)
+FROM ` + leaf + ` AS relation
+`
+}
+
 // termsLeavesQuery lists the leaf partitions of eshu_search_index_terms as
 // regclass text, which PostgreSQL quotes and schema-qualifies as the
 // search_path needs, so the census can name each leaf safely. It returns no

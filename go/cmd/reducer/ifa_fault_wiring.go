@@ -172,6 +172,38 @@ func (a *ifaExecutorRetryArmedExecutor) ExecuteProbe(ctx context.Context, stmt s
 	return pe.ExecuteProbe(ctx, stmt)
 }
 
+// ExecuteCountedWrite fires only the token carried by this call's context,
+// exactly like Execute: the armed lane stays a signal, not silent noise, for
+// code-call batches too. Without a token it delegates to inner; an inner
+// without the seam fails closed with the shared unsupported sentinel, which
+// the writer maps to a retryable counting error (#10938).
+func (a *ifaExecutorRetryArmedExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	if consumeIfaExecutorRetryFault(ctx) {
+		return 0, &ifaExecutorRetryArmedError{}
+	}
+	cw, ok := a.inner.(sourcecypher.CountedWriteExecutor)
+	if !ok {
+		return 0, fmt.Errorf("ifa executor retry seam: inner executor does not support counted writes: %w", sourcecypher.ErrCountedWriteUnsupported)
+	}
+	return cw.ExecuteCountedWrite(ctx, stmt)
+}
+
+// ExecuteCountedWriteGroup fires only the token carried by this group call's
+// context, then delegates the complete atomic counted group on the retry
+// attempt (#10938). Token and delegation semantics mirror ExecuteGroup;
+// the counts align with stmts only when the whole group commits, which the
+// retry seam below guarantees.
+func (a *ifaExecutorRetryArmedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	if consumeIfaExecutorRetryFault(ctx) {
+		return nil, &ifaExecutorRetryArmedError{}
+	}
+	cw, ok := a.inner.(sourcecypher.CountedWriteGroupExecutor)
+	if !ok {
+		return nil, fmt.Errorf("ifa executor retry seam: inner executor does not support counted writes: %w", sourcecypher.ErrCountedWriteUnsupported)
+	}
+	return cw.ExecuteCountedWriteGroup(ctx, stmts)
+}
+
 func consumeIfaExecutorRetryFault(ctx context.Context) bool {
 	token, ok := ctx.Value(ifaExecutorRetryFaultContextKey{}).(*ifaExecutorRetryFaultToken)
 	return ok && token != nil && token.armed.CompareAndSwap(true, false)

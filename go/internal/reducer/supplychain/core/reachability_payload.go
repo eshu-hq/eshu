@@ -22,5 +22,19 @@ func supplyChainReachabilityPayload(reachability *SupplyChainReachability) map[s
 	if len(reachability.MissingEvidence) > 0 {
 		out["missing_evidence"] = payloadcore.UniqueSortedStrings(reachability.MissingEvidence)
 	}
+	// Scan provenance is opt-in per key so facts written before #10028
+	// (and non-Go findings) keep the exact prior shape.
+	if reachability.ScanLevel != "" {
+		out["scan_level"] = reachability.ScanLevel
+	}
+	if reachability.ScanMode != "" {
+		out["scan_mode"] = reachability.ScanMode
+	}
+	if reachability.ScannerVersion != "" {
+		out["scanner_version"] = reachability.ScannerVersion
+	}
+	if reachability.TraceCount != nil {
+		out["trace_count"] = *reachability.TraceCount
+	}
 	return out
 }

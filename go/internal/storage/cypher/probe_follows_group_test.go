@@ -15,9 +15,9 @@ import (
 )
 
 // fullyCapableExecutor implements Executor, GroupExecutor, ProbeExecutor,
-// and CountProbeExecutor so TestWrapperProbeFollowsGroup can wrap it with
-// every Executor-decorator type in this package and observe which
-// capabilities each wrapper exposes.
+// CountProbeExecutor, and both counted-write seams so
+// TestWrapperProbeFollowsGroup can wrap it with every Executor-decorator type
+// in this package and observe which capabilities each wrapper exposes.
 type fullyCapableExecutor struct{}
 
 func (fullyCapableExecutor) Execute(context.Context, Statement) error { return nil }
@@ -32,9 +32,22 @@ func (fullyCapableExecutor) ExecuteCountProbe(context.Context, Statement) (int64
 	return 7, nil
 }
 
+func (fullyCapableExecutor) ExecuteCountedWrite(context.Context, Statement) (int64, error) {
+	return 7, nil
+}
+
+func (fullyCapableExecutor) ExecuteCountedWriteGroup(_ context.Context, stmts []Statement) ([]int64, error) {
+	counts := make([]int64, len(stmts))
+	for i := range counts {
+		counts[i] = 7
+	}
+	return counts, nil
+}
+
 // wrapperProbeFollowsGroupCase names one Executor-decorator type in this
 // package and states whether it is expected to expose GroupExecutor,
-// ProbeExecutor, and CountProbeExecutor when wrapping a fully-capable inner.
+// ProbeExecutor, CountProbeExecutor, and the counted-write seams when
+// wrapping a fully-capable inner.
 type wrapperProbeFollowsGroupCase struct {
 	name string
 	// build constructs the wrapper around a fully-capable inner and returns
@@ -42,19 +55,21 @@ type wrapperProbeFollowsGroupCase struct {
 	// through type assertion -- the same mechanism every real caller
 	// (EdgeWriter.RetractEdges, canonical writers) uses.
 	build func(inner fullyCapableExecutor) Executor
-	// wantGroup, wantProbe, and wantCount state the wrapper's documented
-	// intent. The review F7 invariant under test is
-	// wantGroup == wantProbe == wantCount for every row: this package's
-	// contract (writer.go's ProbeExecutor and CountProbeExecutor docs)
-	// requires every wrapper that forwards GroupExecutor to forward both
-	// probe flavors the same way, and every wrapper that deliberately hides
-	// GroupExecutor (an execute-only surface) to hide both probe flavors
-	// too. A wrapper that forwarded GroupExecutor but not CountProbeExecutor
-	// would silently downgrade the #8657 file-less wipe guard to
-	// probe_unsupported with all tests green.
-	wantGroup bool
-	wantProbe bool
-	wantCount bool
+	// wantGroup, wantProbe, wantCount, and wantCountedWrite state the
+	// wrapper's documented intent. The review F7 invariant under test is
+	// wantGroup == wantProbe == wantCount == wantCountedWrite for every row:
+	// this package's contract (writer.go's ProbeExecutor and CountProbeExecutor
+	// docs, counted_write.go) requires every wrapper that forwards
+	// GroupExecutor to forward both probe flavors and both counted-write
+	// seams the same way, and every wrapper that deliberately hides
+	// GroupExecutor (an execute-only surface) to hide them all too. A
+	// wrapper that forwarded GroupExecutor but not ExecuteCountedWriteGroup
+	// would silently downgrade the #10938 code-call write to fail-closed
+	// with all tests green.
+	wantGroup        bool
+	wantProbe        bool
+	wantCount        bool
+	wantCountedWrite bool
 }
 
 // wrapperProbeFollowsGroupCases names every Executor-decorator type in this
@@ -80,54 +95,60 @@ var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{
 		build: func(inner fullyCapableExecutor) Executor {
 			return NewBackpressureExecutor(inner, 4, nil)
 		},
-		wantGroup: true,
-		wantProbe: true,
-		wantCount: true,
+		wantGroup:        true,
+		wantProbe:        true,
+		wantCount:        true,
+		wantCountedWrite: true,
 	},
 	{
 		name: "ExecuteOnlyBackpressureExecutor",
 		build: func(inner fullyCapableExecutor) Executor {
 			return ExecuteOnlyBackpressureExecutor(NewBackpressureExecutor(inner, 4, nil))
 		},
-		wantGroup: false,
-		wantProbe: false,
-		wantCount: false,
+		wantGroup:        false,
+		wantProbe:        false,
+		wantCount:        false,
+		wantCountedWrite: false,
 	},
 	{
 		name: "ExecuteOnlyExecutor",
 		build: func(inner fullyCapableExecutor) Executor {
 			return ExecuteOnlyExecutor{Inner: inner}
 		},
-		wantGroup: false,
-		wantProbe: false,
-		wantCount: false,
+		wantGroup:        false,
+		wantProbe:        false,
+		wantCount:        false,
+		wantCountedWrite: false,
 	},
 	{
 		name: "InstrumentedExecutor",
 		build: func(inner fullyCapableExecutor) Executor {
 			return &InstrumentedExecutor{Inner: inner}
 		},
-		wantGroup: true,
-		wantProbe: true,
-		wantCount: true,
+		wantGroup:        true,
+		wantProbe:        true,
+		wantCount:        true,
+		wantCountedWrite: true,
 	},
 	{
 		name: "RetryingExecutor",
 		build: func(inner fullyCapableExecutor) Executor {
 			return &RetryingExecutor{Inner: inner}
 		},
-		wantGroup: true,
-		wantProbe: true,
-		wantCount: true,
+		wantGroup:        true,
+		wantProbe:        true,
+		wantCount:        true,
+		wantCountedWrite: true,
 	},
 	{
 		name: "TimeoutExecutor",
 		build: func(inner fullyCapableExecutor) Executor {
 			return TimeoutExecutor{Inner: inner}
 		},
-		wantGroup: true,
-		wantProbe: true,
-		wantCount: true,
+		wantGroup:        true,
+		wantProbe:        true,
+		wantCount:        true,
+		wantCountedWrite: true,
 	},
 }
 
@@ -152,9 +173,11 @@ func TestWrapperProbeFollowsGroup(t *testing.T) {
 			_, gotGroup := wrapped.(GroupExecutor)
 			_, gotProbe := wrapped.(ProbeExecutor)
 			_, gotCount := wrapped.(CountProbeExecutor)
+			_, gotCountedWrite := wrapped.(CountedWriteExecutor)
+			_, gotCountedWriteGroup := wrapped.(CountedWriteGroupExecutor)
 
-			if gotGroup != gotProbe || gotProbe != gotCount {
-				t.Fatalf("%s: GroupExecutor=%v, ProbeExecutor=%v, CountProbeExecutor=%v -- Probe-follows-Group violated (writer.go's ProbeExecutor and CountProbeExecutor docs require these to match)", tc.name, gotGroup, gotProbe, gotCount)
+			if gotGroup != gotProbe || gotProbe != gotCount || gotCount != gotCountedWrite || gotCountedWrite != gotCountedWriteGroup {
+				t.Fatalf("%s: GroupExecutor=%v, ProbeExecutor=%v, CountProbeExecutor=%v, CountedWriteExecutor=%v, CountedWriteGroupExecutor=%v -- Probe-follows-Group violated (writer.go's ProbeExecutor and CountProbeExecutor docs plus counted_write.go require these to match)", tc.name, gotGroup, gotProbe, gotCount, gotCountedWrite, gotCountedWriteGroup)
 			}
 			if gotGroup != tc.wantGroup {
 				t.Errorf("%s: GroupExecutor exposed = %v, want %v", tc.name, gotGroup, tc.wantGroup)
@@ -164,6 +187,9 @@ func TestWrapperProbeFollowsGroup(t *testing.T) {
 			}
 			if gotCount != tc.wantCount {
 				t.Errorf("%s: CountProbeExecutor exposed = %v, want %v", tc.name, gotCount, tc.wantCount)
+			}
+			if gotCountedWrite != tc.wantCountedWrite || gotCountedWriteGroup != tc.wantCountedWrite {
+				t.Errorf("%s: counted-write exposed = (%v, %v), want %v", tc.name, gotCountedWrite, gotCountedWriteGroup, tc.wantCountedWrite)
 			}
 		})
 	}

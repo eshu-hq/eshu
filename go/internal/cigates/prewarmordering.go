@@ -26,7 +26,7 @@ var setupGoUsesRE = regexp.MustCompile(`(^|/)actions/setup-go(@|$)`)
 // violation message name what tripped it.
 var goTouchRE = regexp.MustCompile(`(?:^|[^\w./-])go\s+(build|test|vet|run|install|list|mod|generate)\b`)
 
-var moduleTouchingToolRE = regexp.MustCompile(`\b(golangci-lint|govulncheck|gosec|nancy)\b`)
+var moduleTouchingToolRE = regexp.MustCompile(`\b(golangci-lint|govulncheck|gosec)\b`)
 
 // ghExpressionRE matches a GitHub Actions expression token, e.g.
 // "${{ matrix.sum }}" -- this check has no workflow-evaluation engine and

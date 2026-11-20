@@ -1,7 +1,7 @@
 name: Live PostgreSQL Readiness Calibration
 
 # Manual calibration only. This workflow does not supply the main-push or PR
-# readiness acceptance check, and its six fixed shards are not a gate change.
+# readiness acceptance check, and its eight fixed shards are not a gate change.
 on:
   workflow_dispatch:
 
@@ -14,13 +14,13 @@ env:
 
 jobs:
   calibration-shards:
-    name: readiness-calibration (postgres18) shard (${{ matrix.shard }}/6)
+    name: readiness-calibration (postgres18) shard (${{ matrix.shard }}/8)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     services:
       postgres:
         image: ghcr.io/eshu-hq/ci-postgres-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c
@@ -90,11 +90,14 @@ jobs:
           export ESHU_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j
           export ESHU_NEO4J_URI='neo4j://127.0.0.1:7687'
           export ESHU_NEO4J_USERNAME=neo4j ESHU_NEO4J_PASSWORD=local-proof-only
-          # Behavior-gated excuse (#9468): remove when #9468 unskips the fence proof.
-          export LIVE_READINESS_EXTRA_SKIP=TestProtectedScanTargetsDoNotCollapseSameDigestFindingsLive
-          echo "calibration-start shard=${{ matrix.shard }}/6"
+          # Behavior-gated excuse (#10054), mirroring the acceptance lane:
+          # the derived-scope plan proof only runs with
+          # ESHU_RETIREMENT_EXPLAIN=1, so it skips in the ordinary lane.
+          # Remove when the gate opens.
+          export LIVE_READINESS_EXTRA_SKIP=TestRetirementDerivedStatementPlansLive
+          echo "calibration-start shard=${{ matrix.shard }}/8"
           bash scripts/run-live-postgres-readiness-tests.sh --calibration \
-            --shard '${{ matrix.shard }}/6' --report calibration-shard-report.json
+            --shard '${{ matrix.shard }}/8' --report calibration-shard-report.json
       - name: Upload calibration shard report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4

@@ -66,3 +66,34 @@ by a future backfill projection for that generation; no automated restore
 path exists today. The index writer upserts are idempotent, so a rebuild
 converges without
 touching any other generation. There is no eager rebuild after a sweep.
+
+## Per-partition size census (#10874)
+
+After each due orphan sweep, still outside any retention transaction, the
+runner takes one catalog-only size pass over the 64 `eshu_search_index_terms`
+leaves (`pg_class`/`pg_inherits` only: no heap scan, no `count(*)`, no row
+lock) and records it on three gauges — `eshu_dp_search_index_partition_bytes`
+(by `partition` `p00`-`p63`, `component` `heap`/`index`/`total`),
+`eshu_dp_search_index_partition_estimated_rows` (by `partition`), and
+`eshu_dp_search_index_partition_bytes_per_row` (by `partition`, `component` `total`-only) —
+plus the `census_search_index_partition_sizes` phase on
+`eshu_dp_generation_retention_phase_duration_seconds`. A failed census lands on
+`eshu_dp_generation_retention_failures_total{reason="search_index_partition_size_census"}`
+without failing the pass; the gauges keep their last census. A leaf that trips
+a suspect threshold logs one `generation retention search index partition size
+suspect` WARN line per pass (`partition`, `leaf`, `suspect`, byte and row
+counts, `bytes_per_row`); scope and generation identifiers never reach metric
+labels.
+
+A suspect verdict is a detector, not a reclaim figure: estimated rows come
+from `n_live_tup` (else `reltuples`), which read 6x off exact on p29. The
+initial WARN threshold is 4 GiB total with 8 KiB/row, PAGE (operator action) is
+16 GiB with 32 KiB/row; calibrate both against the all-64-leaf distribution
+measured on the QA copy before locking constants.
+
+**Operator response (PAGE).** Confirm on the primary catalogs (sizes plus an
+exact `count(*)`), then follow the Decision-1 rebuild playbook in the
+#10874 evidence note (`docs/internal/evidence/10874-search-index-partition-bloat.md`):
+per-leaf `REINDEX INDEX CONCURRENTLY` measured first on a physical copy, heap
+shrink only as a gated second step. Never `VACUUM FULL`, non-concurrent
+`REINDEX`, `CLUSTER`, or `DETACH` a live leaf.

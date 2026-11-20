@@ -49,6 +49,42 @@ jobs:
       - name: Validate coverage report contract
         run: bash scripts/test-generate-code-coverage-report.sh
 
+  # Per-package no-regression floors (#10983, part of #9315). Unlike the
+  # advisory whole-module run below, this job is ON the PR path: it tests
+  # only the Go packages the PR changed and fails a package that measures
+  # below its checked-in floor in specs/coverage-floors.v1.yaml. Hermetic by
+  # construction -- env_gated packages (live DSN, deploy checkout) are never
+  # tested here, and a PR with no Go changes passes in seconds.
+  package-floors:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'package-floors') }}
+    name: Package coverage floors
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      # The floors check runs full `go test` on covering packages, which since
+      # #10988 includes mirror-contract self-tests that shell out to scripts
+      # needing rg (same class as the replay-coverage fix on #11004).
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Check changed packages against coverage floors
+        env:
+          ESHU_FLOORS_BASE_REF: ${{ github.base_ref }}
+        run: bash scripts/ci/check-changed-coverage-floors.sh
+
   coverage-report:
     if: ${{ (github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'coverage-report')) && (github.event_name != 'pull_request') }}
     name: Generate Go code coverage report
@@ -97,6 +133,26 @@ jobs:
           ESHU_CODE_COVERAGE_REPORT_OUT: code-coverage.md
           ESHU_CODE_COVERAGE_SHIELD_OUT: code-coverage-shield.json
         run: bash scripts/generate-code-coverage-report.sh
+      # Rising whole-module floor plus the published package ranking (#10983,
+      # part of #9315). Fails the scheduled run when the module drops below
+      # the checked-in floor; the ranking artifact and summary size the climb
+      # toward 90%.
+      - name: Check whole-module floor and publish ranking
+        run: |
+          bash scripts/verify-coverage-floors.sh \
+            --profile "${{ github.workspace }}/go-code-coverage.out" \
+            --floors specs/coverage-floors.v1.yaml \
+            --ranking-out coverage-ranking.tsv
+          {
+            echo "## Coverage floor and ranking"
+            echo ""
+            echo "whole-module floor: $(sed -n 's/^whole_module_floor: //p' specs/coverage-floors.v1.yaml)% (see specs/coverage-floors.v1.yaml)"
+            echo ""
+            echo "Lowest-coverage packages (pct, statements, covered, package):"
+            echo '```'
+            head -20 coverage-ranking.tsv
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -106,4 +162,5 @@ jobs:
             go-code-coverage.out
             code-coverage.md
             code-coverage-shield.json
+            coverage-ranking.tsv
           if-no-files-found: error

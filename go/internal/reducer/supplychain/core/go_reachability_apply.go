@@ -28,6 +28,10 @@ func applyGoSupplyChainReachability(
 	if goFinding.Reachability != "" {
 		finding.RuntimeReachability = string(goFinding.Reachability)
 	}
+	finding.GoScanLevel = goFinding.ScanLevel
+	finding.GoScanMode = goFinding.ScanMode
+	finding.GoScannerVersion = goFinding.ScannerVersion
+	finding.GoTraceCount = goFinding.TraceCount
 	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, goFinding.EvidenceFactIDs...)
 	finding.EvidencePath = append(finding.EvidencePath, goSupplyChainReachabilityEvidencePath(goFinding)...)
 	finding.EvidenceFactIDs = payloadcore.UniqueSortedStrings(finding.EvidenceFactIDs)

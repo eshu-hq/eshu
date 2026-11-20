@@ -95,7 +95,7 @@ func TestCodeCallProjectionRunnerFileAndWholeRefreshInterleaveDrains(t *testing.
 			if !wholeFirst {
 				fencedPartitionID, leadingPartitionID = wholePartitionID, filePartitionID
 			}
-			blocked, err := runner.processPartitionOnce(context.Background(), now, fencedPartitionID, partitionCount)
+			blocked, err := runner.processPartitionOnce(context.Background(), now, fencedPartitionID, partitionCount, "")
 			if err != nil {
 				t.Fatalf("processPartitionOnce(fenced) error = %v", err)
 			}
@@ -112,7 +112,7 @@ func TestCodeCallProjectionRunnerFileAndWholeRefreshInterleaveDrains(t *testing.
 			// either order: the whole-scope load takes the whole unit, the
 			// file load takes its partition.
 			for _, partitionID := range []int{leadingPartitionID, fencedPartitionID} {
-				if _, err := runner.processPartitionOnce(context.Background(), now, partitionID, partitionCount); err != nil {
+				if _, err := runner.processPartitionOnce(context.Background(), now, partitionID, partitionCount, ""); err != nil {
 					t.Fatalf("processPartitionOnce(%d) error = %v", partitionID, err)
 				}
 			}

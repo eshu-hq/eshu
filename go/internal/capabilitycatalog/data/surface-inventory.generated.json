@@ -753,6 +753,11 @@
     },
     {
       "category": "api_route",
+      "name": "GET /readyz",
+      "readiness": "implemented"
+    },
+    {
+      "category": "api_route",
       "name": "PATCH /api/v0/auth/admin/sign-in-policy",
       "readiness": "implemented"
     },
@@ -2422,6 +2427,11 @@
     {
       "category": "command",
       "name": "collector-synth-zero",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
+      "name": "core-api",
       "readiness": "implemented"
     },
     {

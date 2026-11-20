@@ -271,6 +271,9 @@ TABLE = {
         "go/internal/storage/postgres/deferred_maintenance_barrier_two_shard_live_test.go": (
             "TestDeferredMaintenanceBarrierTwoShardCompletionLive",
         ),
+        "go/internal/storage/postgres/deferred_partition_load_cost_live_test.go": (
+            "TestDeferredPartitionLoadCostLive",
+        ),
         "go/internal/storage/postgres/delta_union_base_live_test.go": (
             "TestResolveDeltaBasesMatchesPerScopeRuleLive",
         ),

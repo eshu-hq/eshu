@@ -97,6 +97,14 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{}, nil
 	}
 
+	// The version-1 key fallback probe (issue #10875) always resolves to zero
+	// missing rows here, independent of FIFO order: fixtures model a corpus
+	// whose sidecar state the loader path under test does not manage, so the
+	// probe must not consume a scripted response staged for a later query.
+	if query == DeferredRelationshipKeyFallbackProbeSQL {
+		return &queueFakeRows{rows: [][]any{{int64(0)}}}, nil
+	}
+
 	if len(f.queryResponses) == 0 {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

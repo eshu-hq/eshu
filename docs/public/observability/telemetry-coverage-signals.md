@@ -133,7 +133,7 @@ Each documented bucket set maps a short name to the exact boundary values in `go
 | projector-run-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | projector-ack-wait-seconds | 1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600 |
 | projector-stage-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
-| reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900 |
+| reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900, 1800, 3600 |
 | package-manifest-backfill-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300 |
 | retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |
 | retention-batch-count | 1, 2, 4, 8, 16, 32, 64, 100 |

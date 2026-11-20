@@ -244,7 +244,7 @@ func TestCodeCallProjectionRunnerIndexedCandidateFenceSpansAcceptanceUnit(t *tes
 		},
 	}
 
-	result, err := runner.processPartitionOnce(context.Background(), now, filePartitionID, partitionCount)
+	result, err := runner.processPartitionOnce(context.Background(), now, filePartitionID, partitionCount, "")
 	if err != nil {
 		t.Fatalf("processPartitionOnce(file) error = %v", err)
 	}

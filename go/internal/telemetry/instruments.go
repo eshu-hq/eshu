@@ -69,6 +69,22 @@ type ProjectorMarkedWriteObserver interface {
 	ProjectorMarkedWriteOldestAge(ctx context.Context) (float64, error)
 }
 
+// ReducerClaimedExpiredObserver reports the reducer reclaim backlog
+// (#10865): how many reducer work items sit on an expired claimed or running
+// lease, and the age of the oldest such lease. A QueueObserver that also
+// implements it gets the eshu_dp_reducer_claimed_expired and
+// eshu_dp_reducer_claimed_expired_oldest_age_seconds gauges on the same
+// collection cadence as the queue depth gauges.
+type ReducerClaimedExpiredObserver interface {
+	// ReducerClaimedExpiredCounts returns how many reducer work items hold
+	// an expired claimed or running lease and the age in seconds of the
+	// oldest such lease. Zero/zero means no reclaim backlog is outstanding;
+	// the counted rows are the expired-lease rows the claim floats first
+	// (a claimed row with no lease stamped is excluded, and counted rows
+	// can still wait behind claim gates).
+	ReducerClaimedExpiredCounts(ctx context.Context) (count int64, oldestAgeSeconds float64, err error)
+}
+
 // CorpusFenceObserver reports the state of the global relationship
 // completeness fence that defers the correlation consumers (#8247): how many
 // active scopes hold it, how many consumers are deferred on
@@ -217,6 +233,23 @@ type Instruments struct {
 	// only (a bounded closed set). A non-zero rate means handlers are
 	// wedging past process shutdown instead of observing their context.
 	ReducerHandlerAbandoned metric.Int64Counter
+	// ReducerHandlerTimedOut counts reducer intents whose handler never
+	// returned before its configured per-domain bound expired, so the
+	// worker stopped the lease heartbeat and failed the intent for retry
+	// with the counting reducer_handler_timeout class (#10866). Labeled by
+	// domain only (a bounded closed set). A non-zero rate means bound
+	// pressure: handlers run longer than the configured bound, so either
+	// the work genuinely needs longer (raise the bound) or the handler is
+	// wedging (fix cancellation or split the work). Handlers that return at
+	// the bound instead of abandoning also count here, and additionally
+	// record their duration on ReducerHandlerDuration.
+	ReducerHandlerTimedOut metric.Int64Counter
+	// ReducerHandlerTimeoutSeconds exports the configured per-domain handler
+	// bound in seconds for every known domain, so an alert can compare the
+	// live execution age against the bound that applies to it (#10866).
+	// Zero means unbounded. The value is operator configuration, not a
+	// measurement; it changes only on redeploy.
+	ReducerHandlerTimeoutSeconds metric.Float64ObservableGauge
 	// ProjectorRetrySurge counts every projector work-item retry scheduled
 	// via ProjectorQueue.Fail's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set from queuestore.QueueFailureMetadata/
@@ -384,6 +417,18 @@ type Instruments struct {
 	// cycle (0 on productive ones: immediate re-poll, no wait) so it
 	// never goes stale behind a drain.
 	SharedProjectionCycleBackoff metric.Float64Gauge
+	// CodeReachabilityProjectionCycles counts code-reachability projection
+	// runner cycles by closed kind (probe_skip, probe_triggered_full,
+	// audit_full, drain_full, productive). Registered by
+	// registerCodeReachabilityIdle.
+	CodeReachabilityProjectionCycles metric.Int64Counter
+	// CodeReachabilityProjectionInputsFound counts projected inputs by the
+	// closed trigger that surfaced them (probe, audit). Registered by
+	// registerCodeReachabilityIdle.
+	CodeReachabilityProjectionInputsFound metric.Int64Counter
+	// CodeReachabilityProjectionBackoff is the current idle backoff delay
+	// in seconds. Registered by registerCodeReachabilityIdle.
+	CodeReachabilityProjectionBackoff metric.Float64Gauge
 	// SharedProjectionPartitionsAtMaxBackoff counts partitions pinned at
 	// T_max backoff, sampled each cycle (#7724).
 	SharedProjectionPartitionsAtMaxBackoff metric.Int64Gauge
@@ -746,6 +791,10 @@ type Instruments struct {
 	// call (#10728): planned, held, or complete. Labels stay
 	// outcome-only; the hold reason rides the plan span.
 	NVDBaselinePlans metric.Int64Counter
+	// NVDBaselinePlanRows counts the per-year plan rows the guarded workflow
+	// admission wrote or declined to write for NVD baseline chunks (#10828):
+	// recorded or not_inserted. Labels stay outcome-only.
+	NVDBaselinePlanRows metric.Int64Counter
 	// NVDBaselineTripTransitions counts NVD baseline trip-line transitions
 	// (#10728): opened, paged, eligible, closed, or close_refused. Labels stay
 	// transition-only.
@@ -792,7 +841,20 @@ type Instruments struct {
 	NVDBaselineHeldYears metric.Int64Gauge
 	// NVDBaselineChunkCycle records each committed chunk's plan-to-drained
 	// time in seconds (#10814).
-	NVDBaselineChunkCycle            metric.Float64Histogram
+	NVDBaselineChunkCycle metric.Float64Histogram
+	// NVDBaselineETA records the estimated seconds until the baseline run
+	// commits its remaining records at the sampler's trailing six-hour
+	// rate (remaining records over that rate, started years only; #10746).
+	NVDBaselineETA metric.Float64Gauge
+	// NVDBaselineOldestNotDoneAge records the age in seconds of the run's
+	// oldest not-done chunk, labeled by the closed drain phase it waits in
+	// (#10746).
+	NVDBaselineOldestNotDoneAge metric.Float64Gauge
+	// NVDBaselineDrainProbeTimeouts counts the drain probe reads that hit
+	// their statement timeout or context deadline on one plan tick
+	// (#10746). Unlabeled: the held years are already visible on
+	// eshu_dp_nvd_baseline_held_years.
+	NVDBaselineDrainProbeTimeouts    metric.Int64Counter
 	SecurityAlertProviderRequests    metric.Int64Counter
 	SecurityAlertFactsEmitted        metric.Int64Counter
 	SecurityAlertRateLimited         metric.Int64Counter
@@ -2469,10 +2531,12 @@ type Instruments struct {
 	ReducerQueueWaitDuration               metric.Float64Histogram
 	// ReducerHandlerDuration records reducer handler wall time, from
 	// Executor.Execute entry to return, labeled by domain (#8211). It is the
-	// non-enforcing measurement behind the future handler deadline: only
-	// handlers that return are recorded, so a stuck handler that is
-	// abandoned at shutdown lands on ReducerHandlerAbandoned instead and its
-	// elapsed time is visible on the abandonment log line.
+	// measurement behind the handler bound (#10866): only handlers that
+	// return are recorded, so a stuck handler that is abandoned at shutdown
+	// lands on ReducerHandlerAbandoned (and one released by its bound lands
+	// on ReducerHandlerTimedOut) instead, with its elapsed time visible on
+	// the release log line. A cooperative timeout — the handler returning at
+	// the bound — records here as well as on ReducerHandlerTimedOut.
 	ReducerHandlerDuration   metric.Float64Histogram
 	SearchIndexWriteDuration metric.Float64Histogram
 	// GCPMaterializationDuration measures GCP resource and relationship
@@ -2519,6 +2583,19 @@ type Instruments struct {
 	// superseded sweep deleted from a still-existing superseded generation,
 	// by table (terms, documents, stats).
 	SearchIndexSupersededRowsSwept metric.Int64Counter
+	// SearchIndexPartitionBytes is the per-leaf size census gauge (#10874):
+	// pg_total_relation_size by partition (p00-p63) and component
+	// (heap, index, total). The partition label is closed; scope_id and
+	// generation_id never appear in labels.
+	SearchIndexPartitionBytes metric.Int64Gauge
+	// SearchIndexPartitionEstimatedRows is the per-leaf estimated live rows
+	// gauge (#10874), by partition (p00-p63). A suspect-detector from
+	// n_live_tup-or-reltuples, never a byte-exact claim.
+	SearchIndexPartitionEstimatedRows metric.Int64Gauge
+	// SearchIndexPartitionBytesPerRow is the per-leaf total-bytes-per-row
+	// gauge (#10874), by partition (p00-p63). The WARN/PAGE thresholds read
+	// this series.
+	SearchIndexPartitionBytesPerRow metric.Float64Gauge
 	// RelationshipRetentionOrphanGenerations is the distinct orphan
 	// generations of the relationship tables the last census listed, by
 	// table (#10823); it saturates at the census list limit. The census
@@ -2897,6 +2974,17 @@ type Instruments struct {
 	// Reducer batch claim metric
 	BatchClaimSize metric.Int64Histogram
 
+	// Reducer batch prefetch buffer metrics (#10867). The claimer holds up
+	// to BatchPrefetchDepth claimed items with a lease heartbeat each until
+	// a worker pops them, so the 3 AM question "are leases held safely in
+	// the buffer or expiring?" is answered by depth (current buffered items,
+	// queue=reducer), dwell (claim-to-execution-start per executed item;
+	// dropped items record none), and hold-heartbeat failures (evictions by
+	// domain).
+	BatchBufferDepth               metric.Int64UpDownCounter
+	BatchBufferDwell               metric.Float64Histogram
+	BatchBufferHoldHeartbeatFailed metric.Int64Counter
+
 	// Reducer batch-claim funnel metrics (#10565 box 6): candidates in,
 	// representatives after the fence, and drops by closed reason. The
 	// funnel reconciles per claim: candidates = admitted + over_limit +
@@ -2994,6 +3082,16 @@ type Instruments struct {
 	SharedEdgeWriteGroupStatementCount metric.Int64Histogram
 	CodeCallEdgeBatches                metric.Int64Counter
 	CodeCallEdgeDuration               metric.Float64Histogram
+	// CodeCallEdgeSubmittedRows counts code-call edge rows a partition
+	// visit's write attempted: the rows that reached a statement (#10938).
+	// The label is the bounded projection domain; evidence source and
+	// sample intent stay in the accompanying structured log.
+	CodeCallEdgeSubmittedRows metric.Int64Counter
+	// CodeCallEdgeMatchedRows counts code-call rows whose MATCH bound and
+	// whose MERGE committed (#10938). A shortfall against the submitted
+	// series on an enforced relationship parks the visit instead of
+	// completing it; the park itself counts on SharedEdgeTargetMiss.
+	CodeCallEdgeMatchedRows metric.Int64Counter
 	// CodeCallDeltaScopeUnusable counts delta-generation repositories whose
 	// code-call file scope could not be built (#10023), labeled by the closed
 	// reason set in registerCodeCallDeltaScopeUnusable. Registered by that
@@ -3394,6 +3492,15 @@ type Instruments struct {
 	// graph-write bound means a marked write is stuck; zero means none is
 	// outstanding.
 	ProjectorMarkedWriteOldestAgeSeconds metric.Float64ObservableGauge
+	// ReducerClaimedExpired reports how many reducer work items sit on an
+	// expired claimed or running lease (#10865). Any nonzero value names the
+	// reclaim backlog the claim floats first; it drains as claims reclaim.
+	ReducerClaimedExpired metric.Int64ObservableGauge
+	// ReducerClaimedExpiredOldestAgeSeconds reports the age, in seconds, of
+	// the oldest expired reducer claim lease (#10865). A value climbing past
+	// the claim lease duration means an expired hold is waiting behind the
+	// backlog instead of being reclaimed; zero means none is outstanding.
+	ReducerClaimedExpiredOldestAgeSeconds metric.Float64ObservableGauge
 
 	// CorpusFenceHolders reports how many active scopes hold the global
 	// relationship completeness fence (#8247): a retired-or-pending current
@@ -3541,6 +3648,22 @@ type Instruments struct {
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
 	ReducerOwnGateWake metric.Int64Counter
+	// ReducerWaitingWake counts #10876 waiting-set-aside wake statements by
+	// site (in_tx, audit) and outcome (reopened, noop, error), once per
+	// statement. Registered by registerReducerWaitingInstruments.
+	ReducerWaitingWake metric.Int64Counter
+	// ReducerWaitingMissedWake counts #10876 waits the audit reopened a full
+	// audit interval after they parked. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
+	// recorded by the waiting audit each cycle. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingCount metric.Int64Gauge
+	// ReducerWaitingOldestAge is the oldest parked-wait age in seconds by
+	// reason (failure_class), recorded by the waiting audit each cycle.
+	// Registered by registerReducerWaitingInstruments.
+	ReducerWaitingOldestAge metric.Int64Gauge
 	// ReducerStaleSweptRows counts fact_work_items rows the #10863
 	// periodic stale-generation sweep terminalized as superseded.
 	// Registered by registerReducerStaleSweepInstruments.
@@ -3750,6 +3873,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerHandlerAbandoned counter: %w", err)
+	}
+
+	inst.ReducerHandlerTimedOut, err = meter.Int64Counter(
+		"eshu_dp_reducer_handler_timed_out_total",
+		metric.WithDescription("Total reducer intents released because the handler never returned before its configured per-domain bound expired"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerHandlerTimedOut counter: %w", err)
 	}
 
 	inst.ProjectorRetrySurge, err = meter.Int64Counter(
@@ -6797,7 +6928,11 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register ProjectorStageDuration histogram: %w", err)
 	}
 
-	reducerRunBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900}
+	// The top buckets cover the observed stuck-work ages: the QA baseline
+	// for #10866 saw a 1,510s supply-chain run and a 36,553s security-alert
+	// loop, both beyond the old 900s ceiling, so p99 for bound-setting must
+	// resolve above it.
+	reducerRunBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900, 1800, 3600}
 	inst.ReducerRunDuration, err = meter.Float64Histogram(
 		"eshu_dp_reducer_run_duration_seconds",
 		metric.WithDescription("Reducer intent execution duration"),
@@ -6940,6 +7075,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
 		return nil, err
 	}
+	if err := registerReducerWaitingInstruments(meter, inst); err != nil {
+		return nil, err
+	}
 	if err := registerReducerStaleSweepInstruments(meter, inst); err != nil {
 		return nil, err
 	}
@@ -7025,6 +7163,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSharedProjectionCycle(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCodeReachabilityIdle(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerRecoveryDeltaActiveScopes(meter, inst); err != nil {
@@ -7498,6 +7639,33 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register BatchClaimSize histogram: %w", err)
 	}
 
+	// batchBufferDwellBuckets spans the sub-lease dwell range up to the
+	// 60s claim lease: a dwell past the lease means the hold heartbeat is
+	// the only thing keeping the claim alive.
+	batchBufferDwellBuckets := []float64{0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.BatchBufferDepth, err = meter.Int64UpDownCounter(
+		"eshu_dp_reducer_batch_buffer_depth",
+		metric.WithDescription("Current reducer batch prefetch items claimed and hold-heartbeated but not yet executing"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferDepth counter: %w", err)
+	}
+	inst.BatchBufferDwell, err = meter.Float64Histogram(
+		"eshu_dp_reducer_batch_buffer_dwell_seconds",
+		metric.WithDescription("Time a prefetched item waits in the batch buffer between claim and worker execution start"),
+		metric.WithExplicitBucketBoundaries(batchBufferDwellBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferDwell histogram: %w", err)
+	}
+	inst.BatchBufferHoldHeartbeatFailed, err = meter.Int64Counter(
+		"eshu_dp_reducer_batch_buffer_hold_heartbeat_failed_total",
+		metric.WithDescription("Reducer batch prefetch items evicted after their hold heartbeat failed during the buffer dwell"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register BatchBufferHoldHeartbeatFailed counter: %w", err)
+	}
+
 	// batchClaimFunnelBuckets bounds the per-claim funnel histograms. A live
 	// backlog holds thousands of candidates while a quiet queue holds none,
 	// so the set spans the batch-claim-count range up past the 12,327-row
@@ -7630,6 +7798,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CodeCallEdgeBatches counter: %w", err)
+	}
+
+	inst.CodeCallEdgeSubmittedRows, err = meter.Int64Counter(
+		"eshu_dp_code_call_edge_submitted_rows_total",
+		metric.WithDescription("Total code-call edge rows a partition visit's write attempted, by domain (#10938)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeCallEdgeSubmittedRows counter: %w", err)
+	}
+
+	inst.CodeCallEdgeMatchedRows, err = meter.Int64Counter(
+		"eshu_dp_code_call_edge_matched_rows_total",
+		metric.WithDescription("Total code-call rows whose MATCH bound and whose MERGE committed, by domain (#10938)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeCallEdgeMatchedRows counter: %w", err)
 	}
 
 	codeCallBatchBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
@@ -8420,6 +8604,11 @@ func RegisterObservableGauges(
 				return err
 			}
 		}
+		if expiredObs, ok := queueObs.(ReducerClaimedExpiredObserver); ok {
+			if err := registerReducerClaimedExpiredGauges(inst, meter, expiredObs); err != nil {
+				return err
+			}
+		}
 	}
 
 	if workerObs != nil {
@@ -8507,6 +8696,59 @@ func registerProjectorMarkedWriteGauges(inst *Instruments, meter metric.Meter, m
 		return fmt.Errorf("register ProjectorMarkedWriteOldestAgeSeconds gauge: %w", err)
 	}
 	return nil
+}
+
+// registerReducerClaimedExpiredGauges registers the #10865 reclaim-backlog
+// count and oldest-age gauges backed by expiredObs.
+func registerReducerClaimedExpiredGauges(inst *Instruments, meter metric.Meter, expiredObs ReducerClaimedExpiredObserver) error {
+	var err error
+	inst.ReducerClaimedExpired, err = meter.Int64ObservableGauge(
+		"eshu_dp_reducer_claimed_expired",
+		metric.WithDescription("Reducer work items sitting on an expired claimed or running lease; the reclaim backlog the claim floats first, zero when none is outstanding"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, _, err := expiredObs.ReducerClaimedExpiredCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ReducerClaimedExpired gauge: %w", err)
+	}
+	inst.ReducerClaimedExpiredOldestAgeSeconds, err = meter.Float64ObservableGauge(
+		"eshu_dp_reducer_claimed_expired_oldest_age_seconds",
+		metric.WithDescription("Age in seconds of the oldest expired reducer claim lease; zero means no reclaim backlog is outstanding"),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(ctx context.Context, o metric.Float64Observer) error {
+			_, age, err := expiredObs.ReducerClaimedExpiredCounts(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(age)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ReducerClaimedExpiredOldestAgeSeconds gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterReducerClaimedExpiredObservableGauges registers the #10865
+// reclaim-backlog count and oldest-age gauges backed by expiredObs. The
+// reducer serves it from the Postgres gauge snapshot refreshed in the
+// background (cmd/reducer), so a scrape never queries Postgres and the
+// count-and-age statement runs once per refresh interval, never per claim.
+func RegisterReducerClaimedExpiredObservableGauges(inst *Instruments, meter metric.Meter, expiredObs ReducerClaimedExpiredObserver) error {
+	if inst == nil {
+		return fmt.Errorf("instruments are required")
+	}
+	if expiredObs == nil {
+		return nil
+	}
+	return registerReducerClaimedExpiredGauges(inst, meter, expiredObs)
 }
 
 // RegisterCorpusFenceObservableGauges registers the #8247 completeness-fence

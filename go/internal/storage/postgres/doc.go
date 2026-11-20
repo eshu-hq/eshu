@@ -307,6 +307,11 @@
 // stale hosted work. IngestionStore re-checks and locks the same active tenant
 // grant before claimed source facts are written, so grant revocation waits for
 // the commit transaction instead of racing past it.
+// WorkflowControlStore.CreateRunWithWorkItemsRecordingBaselinePlans is the
+// guarded admission plus the NVD baseline per-year plan rows (#10828): the same
+// transaction and per-instance advisory lock, one extra upsert after the
+// work-item insert for the chunks the insert accepted, and nothing for a chunk
+// the guard or the insert dropped.
 //
 // State-only addresses absent from the prior-config address set keep
 // PreviouslyDeclaredInConfig=false and surface as added_in_state — the

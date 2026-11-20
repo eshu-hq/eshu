@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -306,6 +307,71 @@ func TestIfaExecutorRetryArmedExecutorExecuteProbeErrorsWithoutProbeSupport(t *t
 	}
 	if found {
 		t.Fatal("ExecuteProbe() found = true, want false on the unsupported path")
+	}
+}
+
+// TestIfaExecutorRetryArmedExecutorBindsCountedFaultToArmingContext proves
+// counted writes consume the armed fault token exactly like Execute: the
+// armed call fails, the token is spent, and the retry passes the counts
+// through from inner (#10938).
+func TestIfaExecutorRetryArmedExecutorBindsCountedFaultToArmingContext(t *testing.T) {
+	t.Parallel()
+
+	inner := &countedFakeSession{counts: []int64{3, 3}}
+	armed := &ifaExecutorRetryArmedExecutor{inner: inner}
+	statement := sourcecypher.Statement{Cypher: "UNWIND $rows AS row MATCH (a) WHERE a.id = row.id MERGE (a)-[r:CALLS]->(b) RETURN count(r)"}
+
+	armedCtx := armed.Arm(context.Background())
+	if _, err := armed.ExecuteCountedWrite(armedCtx, statement); err == nil {
+		t.Fatal("armed ExecuteCountedWrite() error = nil, want the scripted fault")
+	}
+	count, err := armed.ExecuteCountedWrite(armedCtx, statement)
+	if err != nil {
+		t.Fatalf("retry ExecuteCountedWrite() error = %v, want nil after the token is spent", err)
+	}
+	if count != 3 {
+		t.Fatalf("retry ExecuteCountedWrite() = %d, want the inner scripted count 3", count)
+	}
+	if got := inner.singleCalls; got != 1 {
+		t.Fatalf("inner single counted calls = %d, want 1 (fault fired above the seam)", got)
+	}
+
+	armedGroupCtx := armed.Arm(context.Background())
+	if _, err := armed.ExecuteCountedWriteGroup(armedGroupCtx, []sourcecypher.Statement{statement, statement}); err == nil {
+		t.Fatal("armed ExecuteCountedWriteGroup() error = nil, want the scripted fault")
+	}
+	counts, err := armed.ExecuteCountedWriteGroup(armedGroupCtx, []sourcecypher.Statement{statement, statement})
+	if err != nil {
+		t.Fatalf("retry ExecuteCountedWriteGroup() error = %v, want nil after the token is spent", err)
+	}
+	if len(counts) != 2 {
+		t.Fatalf("retry ExecuteCountedWriteGroup() = %v, want 2 aligned counts", counts)
+	}
+}
+
+// TestIfaExecutorRetryArmedExecutorCountedPassesThroughUnarmed proves an
+// unarmed counted call delegates to inner without firing, and an inner
+// without the seam fails closed with the shared unsupported sentinel.
+func TestIfaExecutorRetryArmedExecutorCountedPassesThroughUnarmed(t *testing.T) {
+	t.Parallel()
+
+	inner := &countedFakeSession{counts: []int64{5}}
+	armed := &ifaExecutorRetryArmedExecutor{inner: inner}
+	statement := sourcecypher.Statement{Cypher: "RETURN 1"}
+	count, err := armed.ExecuteCountedWrite(context.Background(), statement)
+	if err != nil {
+		t.Fatalf("unarmed ExecuteCountedWrite() error = %v, want nil", err)
+	}
+	if count != 5 {
+		t.Fatalf("unarmed ExecuteCountedWrite() = %d, want 5", count)
+	}
+
+	seamless := &ifaExecutorRetryArmedExecutor{inner: ifaWiringTestExecutor{}}
+	if _, err := seamless.ExecuteCountedWrite(context.Background(), statement); !errors.Is(err, sourcecypher.ErrCountedWriteUnsupported) {
+		t.Fatalf("counted write without inner seam err = %v, want ErrCountedWriteUnsupported", err)
+	}
+	if _, err := seamless.ExecuteCountedWriteGroup(context.Background(), []sourcecypher.Statement{statement}); !errors.Is(err, sourcecypher.ErrCountedWriteUnsupported) {
+		t.Fatalf("counted group without inner seam err = %v, want ErrCountedWriteUnsupported", err)
 	}
 }
 

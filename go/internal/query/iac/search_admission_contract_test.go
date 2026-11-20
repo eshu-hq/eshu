@@ -4,8 +4,10 @@
 package iac
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -27,10 +29,13 @@ var frozenIaCInventorySearchAdmission = []string{
 
 // iaCInventorySearchAdmissionMethodSet reflects the live
 // IaCInventorySearchAdmission method set into sorted "name signature"
-// strings for comparison with the frozen list.
-func iaCInventorySearchAdmissionMethodSet(t *testing.T) []string {
+// strings for comparison with the frozen list. The iface parameter
+// forces every caller — including the seeded-drift RED proof below —
+// through this same guard comparison, so a passing suite proves the
+// guard itself can see drift rather than proving a private copy can.
+func iaCInventorySearchAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*IaCInventorySearchAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -51,7 +56,7 @@ func TestIaCInventorySearchAdmissionContractIsVersioned(t *testing.T) {
 	if IaCInventorySearchAdmissionContractVersion != "v0" {
 		t.Errorf("IaCInventorySearchAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", IaCInventorySearchAdmissionContractVersion, "v0")
 	}
-	got := iaCInventorySearchAdmissionMethodSet(t)
+	got := iaCInventorySearchAdmissionMethodSet(t, (*IaCInventorySearchAdmission)(nil))
 	if len(got) != len(frozenIaCInventorySearchAdmission) {
 		t.Fatalf("IaCInventorySearchAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenIaCInventorySearchAdmission, len(frozenIaCInventorySearchAdmission), IaCInventorySearchAdmissionContractVersion)
 	}
@@ -59,6 +64,57 @@ func TestIaCInventorySearchAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenIaCInventorySearchAdmission[i] {
 			t.Errorf("IaCInventorySearchAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenIaCInventorySearchAdmission[i], IaCInventorySearchAdmissionContractVersion)
 		}
+	}
+}
+
+// TestIaCInventorySearchAdmissionWireShapesAreSealed proves the seal
+// on the pin: exactly the one re-declared search read, with no
+// graph, catalog, mutation, or ledger surface riding along. The
+// frozen method-set contract test pins the exact name; this test pins
+// the exclusion the arbiter ruling demands.
+func TestIaCInventorySearchAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*IaCInventorySearchAdmission)(nil)).Elem()
+	if rt.NumMethod() != 1 {
+		t.Fatalf("IaCInventorySearchAdmission has %d methods, want exactly 1: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Run", "List", "Get", "Match", "Delete", "Write", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("IaCInventorySearchAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededIaCInventorySearchDrift is a deliberately widened copy of the
+// pin: the one frozen search read plus a catalog-list read, which the
+// resources leg answers through the sibling dead-content pin, never
+// this one. It never ships; it proves the frozen-set comparison below
+// can see a one-method widening.
+type seededIaCInventorySearchDrift interface {
+	IaCInventorySearchAdmission
+	ListInventoryCandidates(context.Context) ([]string, error)
+}
+
+// TestIaCInventorySearchAdmissionSeededDriftIsDetected is the RED half
+// of the seeded-drift pair: the same reflect comparison the contract
+// test runs must report a mismatch on the planted widening. It passes
+// on a clean tree precisely because the guard fires on drift — a
+// guard that cannot see the seeded method is no guard.
+func TestIaCInventorySearchAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := iaCInventorySearchAdmissionMethodSet(t, (*seededIaCInventorySearchDrift)(nil))
+	if reflect.DeepEqual(got, frozenIaCInventorySearchAdmission) {
+		t.Fatal("seeded widening (ListInventoryCandidates) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenIaCInventorySearchAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenIaCInventorySearchAdmission)+1)
 	}
 }
 

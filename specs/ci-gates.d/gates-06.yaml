@@ -272,7 +272,7 @@ gates:
     name: MCP client-auth doc lockstep guard
     category: exactness
     layer: contract
-    purpose: "Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; advisory, not yet wired into CI."
+    purpose: "Checks the MCP client-auth doc stays word-for-word in step with the mcpsetup Go source; advisory, wired into the static-contract matrix."
     tier: pre-pr
     blocking: false
     triggers:
@@ -284,15 +284,17 @@ gates:
       - "scripts/test-verify-mcp-client-auth-doc.sh"
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
+      - ".github/workflows/static-contract-gates.yml"
+      - ".github/static-contract-filters.yml"
     local:
       command: "bash scripts/verify-mcp-client-auth-doc.sh"
       test_command: "bash scripts/test-verify-mcp-client-auth-doc.sh"
     ci:
-      workflow: ""
-      job: ""
+      workflow: static-contract-gates.yml
+      job: "Verify MCP client-auth doc gate"
     requirements: []
     ci_only_reason: ""
-    local_only_reason: "New gate for issue #5169 (F-8); not yet wired into a CI workflow job. Follows the docs-contradiction precedent: register local-first, then wire a static-contract-gates.yml job (the docs-refs pattern) once proven stable."
+    local_only_reason: ""
 
   - id: docs-build-changed
     name: Verify Docs Build (changed)
@@ -359,6 +361,7 @@ gates:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/lib/ci-gate-docs-planner-checks.sh"
+      - "scripts/lib/ci-gate-leaf-filter-refs.sh"
       - "specs/ci-pr-workflows.d/build.yml"
       - "scripts/test-verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip-docs-set.sh"

@@ -98,7 +98,9 @@ func (e ifaLeaseExpiryReducerExecutor) Execute(ctx context.Context, intent reduc
 	return e.inner.Execute(context.WithValue(ctx, ifaLeaseExpiryContextKey{}, record), intent)
 }
 
-// wrapGraph keeps the source executor's advertised Group/Probe capabilities.
+// wrapGraph keeps the source executor's advertised Group/Probe capabilities,
+// plus the #10938 counted-write seam when inner implements both counted
+// interfaces (half-bundle counts as absent: the writer needs the pair).
 // Production's grouped/probe-capable canonical chain uses the combined adapter.
 func (b *ifaLeaseExpiryBarrier) wrapGraph(inner sourcecypher.Executor) sourcecypher.Executor {
 	if b == nil {
@@ -107,6 +109,20 @@ func (b *ifaLeaseExpiryBarrier) wrapGraph(inner sourcecypher.Executor) sourcecyp
 	base := ifaLeaseExpiryGraphExecutor{inner: inner, barrier: b}
 	_, group := inner.(sourcecypher.GroupExecutor)
 	_, probe := inner.(sourcecypher.ProbeExecutor)
+	_, counted := inner.(sourcecypher.CountedWriteExecutor)
+	_, countedGroup := inner.(sourcecypher.CountedWriteGroupExecutor)
+	if counted && countedGroup {
+		switch {
+		case group && probe:
+			return ifaLeaseExpiryGraphGroupProbeCountedExecutor{ifaLeaseExpiryGraphGroupProbeExecutor{ifaLeaseExpiryGraphGroupExecutor{base}}}
+		case group:
+			return ifaLeaseExpiryGraphGroupCountedExecutor{ifaLeaseExpiryGraphGroupExecutor{base}}
+		case probe:
+			return ifaLeaseExpiryGraphProbeCountedExecutor{ifaLeaseExpiryGraphProbeExecutor{base}}
+		default:
+			return ifaLeaseExpiryGraphCountedExecutor{base}
+		}
+	}
 	switch {
 	case group && probe:
 		return ifaLeaseExpiryGraphGroupProbeExecutor{ifaLeaseExpiryGraphGroupExecutor{base}}
@@ -156,6 +172,89 @@ func (e ifaLeaseExpiryGraphGroupProbeExecutor) ExecuteGroup(ctx context.Context,
 
 func (e ifaLeaseExpiryGraphGroupProbeExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
 	return e.inner.(sourcecypher.ProbeExecutor).ExecuteProbe(ctx, stmt)
+}
+
+// errLeaseExpiryNoExecuteCountedWrite is the counted-write counterpart of
+// errDifferentialNoExecuteGroup: a counted-capable adapter whose inner lost
+// the seam reports unsupported instead of running unverified.
+var errLeaseExpiryNoExecuteCountedWrite = errors.New("ifa lease expiry inner executor does not support counted writes")
+
+// ifaLeaseExpiryGraphCountedExecutor carries the #10938 counted-write seam
+// through the lease-expiry barrier: one inner call per logical call, and
+// afterSuccess runs exactly once on inner success (never on error). A
+// barrier error discards the counts: the batch is unverified, so it must
+// fail rather than report counts from a held lease.
+type ifaLeaseExpiryGraphCountedExecutor struct{ ifaLeaseExpiryGraphExecutor }
+
+func (e ifaLeaseExpiryGraphCountedExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	cw, ok := e.inner.(sourcecypher.CountedWriteExecutor)
+	if !ok {
+		return 0, errLeaseExpiryNoExecuteCountedWrite
+	}
+	count, err := cw.ExecuteCountedWrite(ctx, stmt)
+	if err != nil {
+		return 0, err
+	}
+	if err := e.barrier.afterSuccess(ctx); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (e ifaLeaseExpiryGraphCountedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	cw, ok := e.inner.(sourcecypher.CountedWriteGroupExecutor)
+	if !ok {
+		return nil, errLeaseExpiryNoExecuteCountedWrite
+	}
+	counts, err := cw.ExecuteCountedWriteGroup(ctx, stmts)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.barrier.afterSuccess(ctx); err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
+// The three composites below pair the counted seam with the existing
+// Group/Probe shapes by single-level embedding: each embeds exactly one
+// adapter, so no selector is ambiguous, and the counted methods are the only
+// ones defined at the outer level.
+
+type ifaLeaseExpiryGraphGroupCountedExecutor struct {
+	ifaLeaseExpiryGraphGroupExecutor
+}
+
+func (e ifaLeaseExpiryGraphGroupCountedExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWrite(ctx, stmt)
+}
+
+func (e ifaLeaseExpiryGraphGroupCountedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWriteGroup(ctx, stmts)
+}
+
+type ifaLeaseExpiryGraphProbeCountedExecutor struct {
+	ifaLeaseExpiryGraphProbeExecutor
+}
+
+func (e ifaLeaseExpiryGraphProbeCountedExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWrite(ctx, stmt)
+}
+
+func (e ifaLeaseExpiryGraphProbeCountedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWriteGroup(ctx, stmts)
+}
+
+type ifaLeaseExpiryGraphGroupProbeCountedExecutor struct {
+	ifaLeaseExpiryGraphGroupProbeExecutor
+}
+
+func (e ifaLeaseExpiryGraphGroupProbeCountedExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWrite(ctx, stmt)
+}
+
+func (e ifaLeaseExpiryGraphGroupProbeCountedExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	return ifaLeaseExpiryGraphCountedExecutor{e.ifaLeaseExpiryGraphExecutor}.ExecuteCountedWriteGroup(ctx, stmts)
 }
 
 // afterSuccess is a one-shot rendezvous; the CAS occurs after the real graph

@@ -141,6 +141,33 @@ def _plan(root: Path, commit: str) -> list[str]:
     return runs
 
 
+def _history_weights(path: Path) -> wt.Weights | wt.WeightsV2:
+    """Load another commit's weights, tolerating its retired shard count.
+
+    Drift measurement only reads the file's test key set, so the
+    history-tolerant v2 parse (every other check unchanged) is the right
+    tool for a base that predates the active count. Anything else malformed
+    still raises ValueError for the caller to refuse.
+    """
+    import json
+
+    import live_postgres_readiness_v2 as v2
+
+    try:
+        return wt.load_weights(path)
+    except ValueError:
+        # Mirror the loader's v1/v2 sibling preference: the base's own
+        # count lives in its v2 file when one exists.
+        target = path.with_name(path.name[:-8] + ".v2.json") if path.name.endswith(".v1.json") else path
+        candidate = target if target.exists() else path
+        parsed = json.loads(candidate.read_text(encoding="utf-8"),
+                            object_pairs_hook=wt._unique_object,
+                            parse_constant=wt._reject_constant)
+        if isinstance(parsed, dict) and parsed.get("schema_version") == 2:
+            return v2.weights_from_json(parsed, history=True)
+        raise
+
+
 def load_base_drift(repo: Path, commit: str) -> wt.Drift:
     """Measure the drift of ``commit``'s plan against ``commit``'s weights.
 
@@ -154,7 +181,7 @@ def load_base_drift(repo: Path, commit: str) -> wt.Drift:
         if not weights_path.exists():
             raise BaseUnavailable(f"{WEIGHTS_V1} is absent at {commit}: no weights to measure")
         try:
-            weights = wt.load_weights(weights_path)
+            weights = _history_weights(weights_path)
             return wt.drift_report(_plan(root, commit), weights)
         except ValueError as error:
             raise BaseUnavailable(f"weights or plan at {commit} are unusable: {error}")

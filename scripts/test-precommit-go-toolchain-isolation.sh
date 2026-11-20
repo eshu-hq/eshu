@@ -102,7 +102,7 @@ count_lines() {
 #   - `install`: runs at the caller's cwd (repo root, no go.mod), so it does NOT
 #     switch toolchains — with GOROOT set it reproduces the compile mismatch and
 #     exits 1; with GOROOT clear it materialises the requested stub binary.
-#   - anything else (`list` from nancy-local.sh, `run` for the surface gate):
+#   - anything else (`list` from the gosec package expansion, `run` for the surface gate):
 #     runs inside go/, where the real toolchain switches cleanly, so GOROOT is
 #     recorded but never fatal.
 # Explanatory comments stay OUT of the heredoc body: the heredoc-budget gate
@@ -113,8 +113,9 @@ count_lines() {
 #   no go.mod), so it never switches toolchains — GOROOT set means the compile
 #   mismatch and exit 1; GOROOT clear means it copies in the stub binary named
 #   by the module@version argument.
-#   `list` models nancy-local.sh's dependency listing, which runs inside go/
-#   where the real toolchain switches cleanly, so GOROOT is recorded, not fatal.
+#   `list` models the gosec package expansion (`go list -e -find ...`), which
+#   runs inside go/ where the real toolchain switches cleanly, so GOROOT is
+#   recorded, not fatal.
 write_fake_go() {
 	mkdir -p "${fake_bin}"
 	# Written as TWO heredocs on purpose — do not merge them back into one. Each
@@ -161,7 +162,6 @@ write_stub() {
 
 write_stubs() {
 	write_stub govulncheck 'printf "No vulnerabilities found.\n"; exit 0'
-	write_stub nancy 'printf "audited 1 dependency, no issues\n"; exit 0'
 	write_stub golangci-lint 'exit 0'
 	# gosec must leave a well-formed empty JSON result (Issues, Stats.files > 0)
 	# where -out points: run_gosec fails closed on anything else (#8335).
@@ -189,7 +189,6 @@ make_mini_repo() {
 		>"${mini}/.github/workflows/test.yml"
 	printf 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1\n' \
 		>"${mini}/.github/workflows/security-scan.yml"
-	cp "${repo_root}/scripts/dev/nancy-local.sh" "${mini}/scripts/dev/nancy-local.sh"
 	printf '%s' "${mini}"
 }
 
@@ -273,15 +272,14 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Cases 1-4 — one per ensure_* install site in precommit-go.sh.
+# Cases 1-3 — one per ensure_* install site in precommit-go.sh.
 # ---------------------------------------------------------------------------
 run_case govulncheck govulncheck
-run_case nancy nancy
 run_case lint-all golangci-lint
 run_case gosec-all gosec
 
 # ---------------------------------------------------------------------------
-# Case 5 — structural backstop.
+# Case 4 — structural backstop.
 #
 # The behavioural cases above only reach the install sites that today's
 # subcommands call. This asserts the property directly on the source so a
@@ -307,7 +305,7 @@ run_case gosec-all gosec
 # (`$GO install ...`, `"${go}" install ...`) and a `go install` written after a
 # `#` that is inside a quoted string. A line pattern cannot tell either one
 # apart from the real thing. The call-site count below is the second net for
-# both: adding a tool moves it off 4 and turns this file red until someone adds
+# both: adding a tool moves it off 3 and turns this file red until someone adds
 # a behavioural case for that tool.
 install_pattern='^[^#]*\bgo install[[:space:]]'
 # The matching lines are captured to a file so the GOROOT check below is a plain
@@ -329,14 +327,14 @@ fi
 # Match call sites only: the helper's own definition line is `go_install_tool()`,
 # so requiring a non-"(" character after the name excludes it.
 call_sites="$(count_lines '^[[:space:]]*go_install_tool[^(]' "${script}")"
-if [ "${call_sites}" -ne 4 ]; then
-	fail "expected 4 go_install_tool call sites (golangci-lint, gosec, govulncheck, nancy), found ${call_sites} — if a tool was added or removed, update this count AND add a behavioural case above"
+if [ "${call_sites}" -ne 3 ]; then
+	fail "expected 3 go_install_tool call sites (golangci-lint, gosec, govulncheck), found ${call_sites} — if a tool was added or removed, update this count AND add a behavioural case above"
 else
-	pass "all 4 ensure_* install sites route through go_install_tool"
+	pass "all 3 ensure_* install sites route through go_install_tool"
 fi
 
 # ---------------------------------------------------------------------------
-# Case 6 -- the toolchain pin (#9098).
+# Case 5 -- the toolchain pin (#9098).
 #
 # A host go newer than go/go.mod (GOTOOLCHAIN=local, or auto, which never
 # switches down) makes golangci-lint and gosec load packages with the wrong

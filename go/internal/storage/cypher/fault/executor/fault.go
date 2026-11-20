@@ -352,6 +352,11 @@ func (fe *FaultingExecutor) ExecuteCountProbe(ctx context.Context, stmt cypher.S
 	return pe.ExecuteCountProbe(ctx, stmt)
 }
 
+// Counted-write fault coverage lives beside the seam in counted_write.go: a
+// counted write is a mutating write, so the Layer 4 fault vocabulary
+// (fail-graph-write-once-then-succeed, restart-between-phase-groups)
+// covers it identically to Execute/ExecuteGroup.
+
 // maybeFailOnce fires the scripted fail-graph-write-once-then-succeed fault
 // the first time ordinal (or any statement in stmts, for an operation-match
 // trigger) matches. A sync/atomic CompareAndSwap gate makes firing safe under

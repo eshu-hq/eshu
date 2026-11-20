@@ -114,6 +114,88 @@ func (e liveExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement
 	return nil
 }
 
+// ExecuteCountedWrite satisfies cypher.CountedWriteExecutor for the offline
+// tier (#10938): run the mutating statement and report its MatchedCountColumn
+// value, failing closed unless exactly one row reports the column — the same
+// strictness as the production runner.
+func (e liveExecutor) ExecuteCountedWrite(ctx context.Context, stmt cypher.Statement) (int64, error) {
+	counts, err := e.ExecuteCountedWriteGroup(ctx, []cypher.Statement{stmt})
+	if err != nil {
+		return 0, err
+	}
+	return counts[0], nil
+}
+
+// ExecuteCountedWriteGroup satisfies cypher.CountedWriteGroupExecutor for the
+// offline tier (#10938): one managed write transaction reporting one matched
+// count per statement, aligned with stmts.
+func (e liveExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []cypher.Statement) ([]int64, error) {
+	if len(stmts) == 0 {
+		return nil, nil
+	}
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
+	defer func() { _ = session.Close(ctx) }()
+
+	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+		counts := make([]int64, 0, len(stmts))
+		for _, stmt := range stmts {
+			result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
+			if runErr != nil {
+				return nil, runErr
+			}
+			count, collectErr := collectTierMatchedCount(ctx, result)
+			if collectErr != nil {
+				return nil, collectErr
+			}
+			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+				return nil, consumeErr
+			}
+			counts = append(counts, count)
+		}
+		return counts, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("execute counted write group: %w", err)
+	}
+	counts, ok := rawCounts.([]int64)
+	if !ok {
+		return nil, fmt.Errorf("counted write group returned an unexpected count shape")
+	}
+	return counts, cypher.CountedWriteCounts(stmts, counts)
+}
+
+// collectTierMatchedCount drains one counted write statement's RETURN rows
+// and returns its MatchedCountColumn value (#10938). A `RETURN count(...)`
+// template yields exactly one row on both supported backends; zero rows or
+// more than one fails the batch closed.
+func collectTierMatchedCount(ctx context.Context, result neo4jdriver.ResultWithContext) (int64, error) {
+	var count int64
+	rows := 0
+	for result.Next(ctx) {
+		record := result.Record()
+		if record == nil {
+			continue
+		}
+		value, found := record.Get(cypher.MatchedCountColumn)
+		if !found {
+			return 0, fmt.Errorf("counted write statement did not return %q", cypher.MatchedCountColumn)
+		}
+		n, ok := cypher.CountProbeIntValue(value)
+		if !ok {
+			return 0, fmt.Errorf("counted write statement returned a non-integer %q value", cypher.MatchedCountColumn)
+		}
+		count = n
+		rows++
+	}
+	if err := result.Err(); err != nil {
+		return 0, err
+	}
+	if rows != 1 {
+		return 0, fmt.Errorf("counted write statement returned %d rows, want exactly 1", rows)
+	}
+	return count, nil
+}
+
 // RunWrite executes one bounded retract-drain iteration and returns its rows
 // and delete counters through the production NornicDB DrainReader contract.
 func (e liveExecutor) RunWrite(

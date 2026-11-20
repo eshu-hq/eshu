@@ -115,6 +115,34 @@ type RunAdmission struct {
 	// cursor still advances past it and the next cycle re-proves it from
 	// scratch. Nil when every planned binding admitted.
 	AdmissionSkipped map[string]map[string]int
+	// BaselinePlansRecorded counts the NVD baseline per-year plan rows the
+	// admission wrote in the same transaction as the work items
+	// (eshu-hq/eshu#10828): one per baseline chunk the work-item table
+	// accepted. A plan for a chunk the open-target guard, a terminal-run skip,
+	// or the insert dropped writes no row and is not counted here, so the gap
+	// between the plans a caller supplied and this count is the chunks that
+	// did not land. Zero when the caller supplied no plans.
+	BaselinePlansRecorded int
+}
+
+// NVDBaselinePlan names one NVD baseline chunk a guarded admission was handed
+// to remember (eshu-hq/eshu#10828): the baseline run and year it belongs to and
+// the chunk's scope id. The store writes the per-year plan row in the admission
+// transaction, only for a chunk whose work item the insert accepted, so the row
+// commits or rolls back with that item.
+//
+// The coordinator derives it from the work item's scope id and the store
+// re-checks it against that scope id and against the admitted items before it
+// opens a transaction; a plan that disagrees with either is refused.
+type NVDBaselinePlan struct {
+	// BaselineRunID is the baseline run the chunk belongs to: the run segment of
+	// the chunk's scope id.
+	BaselineRunID string
+	// Year is the CVE year lane the chunk covers: the year segment of the scope id.
+	Year int
+	// ScopeID is the chunk's scope id, the (collector_kind, scope_id) key of its
+	// work item. The planner reads the work item's state through it.
+	ScopeID string
 }
 
 // ExpiredStaleRunItem names one work item the run-age bound moved to

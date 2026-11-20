@@ -220,12 +220,16 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, fmt.Errorf("load reducer handler timeout overrides: %w", err)
 	}
-	if (handlerTimeout > 0 || len(handlerTimeoutOverrides) > 0) && logger != nil {
-		logger.Warn(
-			"reducer handler timeouts are recorded but not enforced yet",
-			"default", handlerTimeout.String(),
-			"overrides", len(handlerTimeoutOverrides),
-		)
+	if logger != nil {
+		if handlerTimeoutsEnforced(handlerTimeout, handlerTimeoutOverrides) {
+			logger.Info(
+				"reducer handler timeouts enforced",
+				"default", handlerTimeout.String(),
+				"overrides", len(handlerTimeoutOverrides),
+			)
+		} else {
+			logger.Info("reducer handler timeouts disabled")
+		}
 	}
 	if len(claimDomains) > 0 && logger != nil {
 		logger.Info(
@@ -512,9 +516,14 @@ func buildReducerService(
 			Logger:       logger,
 		},
 		CodeCallProjectionRunner: &projection.Runner{
-			IntentReader:        intentStore,
-			LeaseManager:        intentStore,
-			EdgeWriter:          edgeWriter,
+			IntentReader: intentStore,
+			LeaseManager: intentStore,
+			EdgeWriter:   edgeWriter,
+			// #10947: durable dead-letter row per active intent when a
+			// shortfall park reaches its elapsed bound, written BEFORE
+			// MarkIntentsCompleted. Shares the #5984 unroutable store with
+			// the shared runner.
+			UnroutableWriter:    postgres.NewSharedProjectionUnroutableIntentStore(database),
 			AcceptedGen:         postgres.NewAcceptedGenerationLookup(database),
 			AcceptedGenPrefetch: acceptedGenerationPrefetch,
 			ReadinessLookup:     graphProjectionReadinessLookup,
@@ -535,7 +544,7 @@ func buildReducerService(
 			graphProjectionReadinessPrefetch,
 			repoDependencyCfg, tracer, instruments, logger,
 		),
-		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),
+		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, getenv, instruments, logger),
 		GraphProjectionPhaseRepairer: graphProjectionPhaseRepairerFor(
 			graphProjectionRepairQueue, database, graphProjectionStateStore, repairCfg, clk, instruments, logger,
 		),
@@ -560,6 +569,7 @@ func buildReducerService(
 		RetryMaxAttempts:       retryCfg.MaxAttempts,
 		Workers:                workers,
 		BatchClaimSize:         loadReducerBatchClaimSize(getenv, workers, graphBackend),
+		BatchPrefetchDepth:     loadReducerBatchPrefetchDepth(getenv, workers, loadReducerBatchClaimSize(getenv, workers, graphBackend)),
 		Tracer:                 tracer,
 		Instruments:            instruments,
 		Logger:                 logger,

@@ -108,14 +108,15 @@ class ToolsWorkflowTest(unittest.TestCase):
     def test_existing_blocking_cell_runs_image_regressions(self) -> None:
         """New image checks must run inside the unchanged Docker Hub gate cell."""
         source = WORKFLOW.read_text(encoding="utf-8")
-        # 31st cell is workflowscriptcheckout (#8008), not an image check.
-        # 32nd cell is the readinessderive drift gate (#7859), not an image check.
-        # 34th cell is the collectorcutoverrollback test mirror (#8895), not an image check.
-        # 35th cell is the changelogunreleased gate (#9096), not an image check.
-        # 36th cell is buildcacheprune (#9632), the GHCR build-cache prune self-test, not an image check.
+        # Non-image-check cells (ordinals are file order; older comments that
+        # numbered them differently went stale as cells were added/retired):
+        # mcpclientauthdoc (#10987), workflowscriptcheckout (#8008),
+        # readinessderive drift gate (#7859), collectorcutoverrollback test
+        # mirror (#8895), changelogunreleased (#9096), buildcacheprune (#9632,
+        # GHCR build-cache prune self-test).
         # claudrules scope gate retired (#10448), not an image check, no longer counted.
         # D13: route-coverage cell retired with the deleted go/cmd/api surface.
-        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 34)
+        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 35)
         cell = next(
             line for line in source.splitlines()
             if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.dockerhublogin }}"')

@@ -135,7 +135,12 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 		t.Fatalf("batch claim query lost the domain-priority CASE %q", priorityCASE)
 	}
 
-	const priorityOrderLead = "ORDER BY candidate.reducer_domain_priority ASC"
+	// #10865: reclaim_rank leads the claim ORDER BY ahead of the domain
+	// priority, so an expired hold is reclaimed before priority-0 backlog;
+	// priority-1 still leads among non-expired rows. #10972 inserts the
+	// gate-boosted slot between them: at most one drain-gated row per batch
+	// jumps ahead of the fairness order without disturbing it.
+	const priorityOrderLead = "ORDER BY candidate.reclaim_rank ASC, gate_boost ASC, candidate.reducer_domain_priority ASC"
 	if !strings.Contains(query, priorityOrderLead) {
 		t.Fatalf("batch claim query no longer leads its claim ORDER BY with %q", priorityOrderLead)
 	}
@@ -144,7 +149,7 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 	// at a single LIMIT $8: the reserved arm takes at most one priority-1
 	// row and the rest arm fills LIMIT minus that take.
 	for _, want := range []string{
-		"ORDER BY ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
+		"ORDER BY ordered_candidate.reclaim_rank ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC\n    LIMIT 1",
 		"LIMIT ($8 - (SELECT COUNT(*) FROM locked_search_doc_reserved))",
 	} {
 		if !strings.Contains(query, want) {

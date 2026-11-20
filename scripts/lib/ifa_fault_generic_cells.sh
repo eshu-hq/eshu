@@ -22,8 +22,12 @@
 # well under the 500-line cap with room for the families still to land, and
 # so it is obvious which mechanism a new family opts into:
 #   - ifa_fault_generic_shared_intent_lock.sh -- the shared_intent_lock
-#     blocker (precondition + acquire/release). The ONE mechanism this PR
-#     wires to a real consumer (code_calls, rationale_edges).
+#     blocker (precondition + acquire/release). The ONE mechanism this body
+#     wires to live consumers (code_calls, rationale_edges, plus the later
+#     inheritance_edges and shell_exec migrations).
+#   - ifa_fault_generic_blocked_claim.sh -- the shared_intent_lock kill
+#     proof: blocked-claim census before SIGKILL, post-kill hold recheck,
+#     kill-window snapshot, and per-row monotonic re-execution (#10955).
 #   - ifa_fault_generic_table_lock.sh -- the table_lock:<name> blocker
 #     (precondition + acquire/release). Built and unit-tested; UNEXERCISED in
 #     this PR (deployable_unit_edges stays cell_kind=custom on its own
@@ -73,10 +77,11 @@
 # cell_kind=custom) takes three steps once its blocker_kind is proven live:
 #   1. Add or correct its row in scripts/lib/ifa_family_registry/rows/ --
 #      blocker_kind, wait_stage/wait_key, and (for blocker_kind=
-#      shared_intent_lock) an IFA_FAMILY_RETRY_BASELINE_VAR entry so the kill
-#      cell can prove a durable retry above baseline instead of dying with
-#      "declares no IFA_FAMILY_RETRY_BASELINE_VAR row" (see
-#      _ifa_generic_require_retry_baseline below).
+#      shared_intent_lock) an IFA_FAMILY_RETRY_BASELINE_VAR entry so the
+#      fault-free baseline cell can record the durable retry count the
+#      family converges with. The kill cell itself proves per-row monotonic
+#      re-execution above its own kill-time snapshot (#10955), not a count
+#      above that baseline.
 #   2. Flip that row's cell_kind to generic only after proving the matching
 #      mechanism file's precondition (_ifa_generic_require_intent_writer for
 #      shared_intent_lock, _ifa_generic_require_table_domain_written for
@@ -105,6 +110,10 @@ fi
 if ! declare -F _ifa_generic_table_lock_start >/dev/null; then
 	# shellcheck source=scripts/lib/ifa_fault_generic_table_lock.sh
 	source "${_ifa_generic_cells_lib_dir}/ifa_fault_generic_table_lock.sh"
+fi
+if ! declare -F ifa_fault_wait_for_blocked_claim >/dev/null; then
+	# shellcheck source=scripts/lib/ifa_fault_generic_blocked_claim.sh
+	source "${_ifa_generic_cells_lib_dir}/ifa_fault_generic_blocked_claim.sh"
 fi
 if ! declare -F ifa_fault_wait_for_claimed_projection_intent >/dev/null; then
 	# shellcheck source=scripts/lib/ifa_fault_generic_runner_wait.sh
@@ -179,13 +188,16 @@ _ifa_generic_baseline_key() {
 # Handler-stage rows poll fact_work_items. Runner-stage lease holds require an
 # exact labeled holder plus ordered release/drain, which custom cells own; this
 # dispatcher fails closed rather than calling the waiter without that holder.
+# An optional 4th arg widens the watched statuses to also include pending --
+# the kill body uses it for its drive-produced check before the reducer even
+# starts, where no row can be claimed yet by construction.
 _ifa_generic_wait_for_claimed() {
-	local family="$1" cell="$2" budget="$3" wait_stage wait_key
+	local family="$1" cell="$2" budget="$3" include_pending="${4:-0}" wait_stage wait_key
 	wait_stage="$(ifa_family_wait_stage "${family}")" || return 1
 	wait_key="$(ifa_family_wait_key "${family}")" || return 1
 	case "${wait_stage}" in
 	handler)
-		ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}"
+		ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${budget}" "${wait_key}" "${include_pending}"
 		;;
 	runner)
 		printf '_ifa_generic_wait_for_claimed: %s wait_stage=runner requires a custom runner-lease cell; generic cell %s does not own the holder lifecycle\n' "${family}" "${cell}" >&2
@@ -225,8 +237,26 @@ _ifa_generic_cell_killworker_body() {
 	# shared_intent_lock path locks the table before the reducer starts, so this
 	# family's rows have to be enqueued already or the wait has nothing to latch.
 	_ifa_generic_drive_family "${family}" "${cell}"
-	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid="" claimed_before
+	local projector_pid reducer_pid_before reducer_pid_after lock_holder_pid="" claimed_before="" killed_rows="" census_state=""
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
+	# The drive must have produced this family's rows BEFORE any blocker is
+	# taken or any reducer starts: the shared drive plus _ifa_generic_drive_family
+	# above are the only producers, and a blocker aimed at an empty queue
+	# latches on nothing. This is the include_pending form -- no row can be
+	# claimed yet with no reducer running, so claimed/running alone would fail
+	# even on a healthy drive. Contexts and intent rows are built inside
+	# Handle, so they cannot be asserted from shell here; the blocked-claim
+	# census below transitively proves intentRows > 0 by parking a backend on
+	# the Upsert that consumes them, and the fault-free baseline tuple is the
+	# standing proof the drive yields intents at all.
+	local wait_key drive_produced
+	wait_key="$(ifa_family_wait_key "${family}")" \
+		|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- refusing to scope the kill window to an unknown domain"
+	[[ -n "${wait_key}" ]] \
+		|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- the kill window cannot be scoped to no domain"
+	drive_produced="$(_ifa_generic_wait_for_claimed "${family}" "${cell}" "${CLAIMED_ROW_WAIT_TIMEOUT}" 1)" \
+		|| die "${cell}: drive produced no ${wait_key} work before the reducer even started -- the kill window would latch on nothing"
+	printf '%s: drive produced %s pending/claimed/running %s row(s) before the kill window\n' "${cell}" "${drive_produced}" "${wait_key}"
 	case "${blocker_kind}" in
 	shared_intent_lock)
 		ifa_fault_start_shared_intent_lock "${cell}" "${blocker_arg}" lock_holder_pid \
@@ -238,11 +268,27 @@ _ifa_generic_cell_killworker_body() {
 		;;
 	esac
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_pid_before "${bin_dir}/eshu-reducer"
-	claimed_before="$(_ifa_generic_wait_for_claimed "${family}" "${cell}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
-		|| die "${cell}: no ${family} row was claimed before the kill -- non-vacuous precondition failed"
-	printf '%s: non-vacuous: %s claimed/running %s row(s) observed before kill\n' "${cell}" "${claimed_before}" "${family}"
+	case "${blocker_kind}" in
+	shared_intent_lock)
+		ifa_fault_wait_for_blocked_claim "${cell}" "${blocker_arg}" "${wait_key}" "${CLAIMED_ROW_WAIT_TIMEOUT}" killed_rows census_state \
+			|| die "${cell}: blocker did not engage -- refusing to SIGKILL a reducer with no claim parked behind the lock"
+		;;
+	*)
+		claimed_before="$(_ifa_generic_wait_for_claimed "${family}" "${cell}" "${CLAIMED_ROW_WAIT_TIMEOUT}")" \
+			|| die "${cell}: no ${family} row was claimed before the kill -- non-vacuous precondition failed"
+		printf '%s: non-vacuous: %s claimed/running %s row(s) observed before kill\n' "${cell}" "${claimed_before}" "${family}"
+		;;
+	esac
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid_before}" KILL \
 		|| die "${cell}: could not stop, join, and untrack the killed reducer"
+	_ifa_generic_write_kill_snapshot "${cell}" "${blocker_kind}" "${blocker_arg}" "${wait_key}" "${killed_rows}" "${census_state}" "${claimed_before}" \
+		|| die "${cell}: could not write the kill-window snapshot -- refusing to assert recovery without kill-window evidence"
+	case "${blocker_kind}" in
+	shared_intent_lock)
+		ifa_fault_assert_blocked_claims_still_held "${cell}" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}" "${killed_rows}" \
+			|| die "${cell}: blocker did not engage on ${wait_key} row (acked before kill)"
+		;;
+	esac
 	case "${blocker_kind}" in
 	shared_intent_lock) ifa_fault_release_shared_intent_lock "${cell}" "${blocker_arg}" "${lock_holder_pid}" ;;
 	table_lock) _ifa_generic_table_lock_release "${cell}" "${blocker_arg}" "${lock_holder_pid}" ;;
@@ -251,7 +297,12 @@ _ifa_generic_cell_killworker_body() {
 	run_drain_gate "${cell}"
 	assert_no_dead_letters "${cell}"
 	_ifa_generic_assert_edges "${family}" || die "${cell}: recovered graph does not match the expected edge set"
-	[[ "${blocker_kind}" == "shared_intent_lock" ]] && _ifa_generic_require_retry_baseline "${cell}" "${family}"
+	case "${blocker_kind}" in
+	shared_intent_lock)
+		ifa_fault_assert_killed_claims_reexecuted "${cell}" "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${wait_key}" "${killed_rows}" \
+			|| die "${cell}: ${family} killed claims were not re-executed with a new attempt by the replacement"
+		;;
+	esac
 	capture_digest "${cell}"
 	# Captured, NOT inlined into the call. Inside "$(...)" the helper's die exits
 	# only the substitution subshell: set -e does not fire on a failing
@@ -271,39 +322,16 @@ _ifa_generic_cell_killworker_body() {
 	printf '%s: cell wall time: %ss\n' "${cell}" "${wall_times[${cell}]}"
 }
 
-# _ifa_generic_require_retry_baseline proves a shared_intent_lock family's
-# kill cell genuinely re-executed the interrupted work ABOVE its fault-free
-# retry baseline. F-5(b): a missing IFA_FAMILY_RETRY_BASELINE_VAR row must
-# DIE here, not print a notice and pass. The old code printed
-# "no retry-baseline variable registered ... this cell does NOT prove a
-# durable retry above baseline" and returned success -- so a family that
-# forgot the row got a kill cell silently downgraded to ordinary baseline
-# recovery, which is exactly the vacuous-cell class the whole precondition
-# machinery exists to prevent, arriving through a different door. Only
-# shared_intent_lock families reach this (the sole caller guards on it);
-# blocker_kind=none has no retry to prove, and the bespoke/custom families
-# do not use this dispatcher.
-_ifa_generic_require_retry_baseline() {
-	local cell="$1" family="$2" retry_var
-	retry_var="$(ifa_family_retry_baseline_var "${family}")" \
-		|| die "${cell}: ${family}: ifa_family_retry_baseline_var accessor failed -- refusing to silently skip the retry-above-baseline proof"
-	[[ -n "${retry_var}" ]] \
-		|| die "${cell}: ${family} is a shared_intent_lock family but declares no IFA_FAMILY_RETRY_BASELINE_VAR row -- its kill cell cannot prove a durable retry above baseline and must not pass claiming it did (register the row in ifa_family_registry/rows/)"
-	# Captured, not inlined into the call. An unchecked
-	# "$(ifa_family_wait_key ...)" yields empty on accessor failure and hands
-	# ifa_fault_assert_retried_above an empty domain, which still fails the cell
-	# but blames "did not re-execute above baseline" -- a statement about the
-	# reducer -- when the real fault is a missing registry row. Same fail-closed
-	# shape the drive/assert loops already use; this one call had been left out.
-	local wait_key
-	wait_key="$(ifa_family_wait_key "${family}")" \
-		|| die "${cell}: ${family}: ifa_family_wait_key accessor failed -- refusing to run the retry-above-baseline proof against an unknown domain"
-	[[ -n "${wait_key}" ]] \
-		|| die "${cell}: ${family} declares an empty IFA_FAMILY_WAIT_KEY -- the retry-above-baseline proof would be scoped to no domain and could not fail on this family"
-	ifa_fault_assert_retried_above "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" \
-		"${!retry_var}" 15 "${wait_key}" \
-		|| die "${cell}: ${family} did not re-execute above its fault-free retry baseline"
-}
+# _ifa_generic_require_retry_baseline was retired by #10955. It compared a
+# final-state attempt_count > 1 domain COUNT against a fault-free baseline
+# that is itself 0 or 1, so a kill window that never engaged reported a
+# recovery failure. The kill body now proves per-exact-row monotonic
+# re-execution above its own kill-time snapshot instead
+# (ifa_fault_assert_killed_claims_reexecuted, with the blocked-claim census
+# and post-kill hold recheck in front of it). The IFA_FAMILY_RETRY_BASELINE_VAR
+# rows stay: the generic BASELINE cell still records the fault-free durable
+# retry count through them. This note stands where the function stood so the
+# next reader does not reintroduce a final-state baseline poll on this path.
 
 # _ifa_generic_cell_killworker_none is blocker_kind=none's thin wrapper --
 # too small to earn its own mechanism file. No precondition: there is no

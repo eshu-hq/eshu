@@ -67,4 +67,25 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// touches the versioned log's conflict arbiter anymore.
 	"supply_chain_impact_winners_staging_capture",
 	"supply_chain_impact_winners_scanner_staging_capture",
+	// Migration 312 (#10828) adds the per-year NVD baseline plan row the
+	// admission transaction writes for each inserted baseline chunk. 311 is
+	// #10837 direction C's scanner staging capture.
+	"vulnerability_nvd_baseline_plans",
+	// Migration 313 (#10874) sets per-leaf autovacuum reloptions on the
+	// search-index terms leaves and documents table: catalog-only SET, no
+	// rewrite, replay is a no-op.
+	"search_index_terms_autovacuum_reloptions",
+	// Migration 314 (#10947) adds the durable COALESCE-once first-shortfall
+	// anchor for the code-call CALLS shortfall park bound.
+	"shared_projection_intents_first_shortfall_at",
+	// Migration 315 (#10875) adds the version-1 family/marker columns on
+	// relationship_reference_candidate_keys plus the
+	// security_alert_reconciliation_keys sidecar and its backfill marker.
+	// 314 is #10947's shared-projection first-shortfall anchor.
+	"relationship_lookup_keys",
+	// Migration 316 (#10876) adds the reducer waiting set-aside: one row
+	// per parked item keyed by waits-for kind+key, plain table plus two
+	// indexes, no queue-table change. 315 is #10875's relationship
+	// lookup keys.
+	"reducer_waiting_items",
 }

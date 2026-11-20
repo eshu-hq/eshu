@@ -272,6 +272,11 @@ func TestContainerImageIdentityFirstGenerationSupersededWhileNullLive(t *testing
 	}
 	seedClaimMaintenanceWork(t, db, scopeID, newerGen, "pending", "pending", time.Hour, nil)
 	projectorQueue := NewProjectorQueue(SQLDB{DB: db}, "projector-7916-superseded", time.Minute)
+	// #11015: freeze the projector clock on the test clock so the
+	// Claim-sweep wake's visible_at is ordered against the same clock the
+	// reducer claim observes, instead of relying on wall-clock skew staying
+	// under a minute.
+	projectorQueue.Now = func() time.Time { return now }
 	claimedProjector, ok, err := projectorQueue.Claim(ctx)
 	if err != nil || !ok || claimedProjector.Generation.GenerationID != newerGen {
 		t.Fatalf("projector Claim = (%q, %v, %v), want newer generation", claimedProjector.Generation.GenerationID, ok, err)

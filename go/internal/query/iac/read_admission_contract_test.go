@@ -4,8 +4,10 @@
 package iac
 
 import (
+	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -62,10 +64,13 @@ var _ IaCReadAdmission = &iaCReadAdmissionWitness{}
 
 // iaCReadAdmissionMethodSet reflects the live IaCReadAdmission
 // method set into sorted "name signature" strings for comparison
-// with the frozen list.
-func iaCReadAdmissionMethodSet(t *testing.T) []string {
+// with the frozen list. The iface parameter forces every caller —
+// including the seeded-drift RED proof below — through this same
+// guard comparison, so a passing suite proves the guard itself can
+// see drift rather than proving a private copy can.
+func iaCReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*IaCReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -88,7 +93,7 @@ func TestIaCReadAdmissionContractIsVersioned(t *testing.T) {
 	if IaCReadAdmissionContractVersion != "v0" {
 		t.Errorf("IaCReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", IaCReadAdmissionContractVersion, "v0")
 	}
-	got := iaCReadAdmissionMethodSet(t)
+	got := iaCReadAdmissionMethodSet(t, (*IaCReadAdmission)(nil))
 	if len(got) != len(frozenIaCReadAdmission) {
 		t.Fatalf("IaCReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenIaCReadAdmission, len(frozenIaCReadAdmission), IaCReadAdmissionContractVersion)
 	}
@@ -96,5 +101,56 @@ func TestIaCReadAdmissionContractIsVersioned(t *testing.T) {
 		if got[i] != frozenIaCReadAdmission[i] {
 			t.Errorf("IaCReadAdmission method set differs at index %d: got %q, want %q: bump %s with the shape change", i, got[i], frozenIaCReadAdmission[i], IaCReadAdmissionContractVersion)
 		}
+	}
+}
+
+// TestIaCReadAdmissionWireShapesAreSealed proves the seal on the pin:
+// exactly the eight re-declared IaC reads, with no content-search,
+// repository-match, mutation, or ledger surface riding along. The
+// frozen method-set contract test pins the exact names; this test
+// pins the exclusion the arbiter ruling demands.
+func TestIaCReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*IaCReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 8 {
+		t.Fatalf("IaCReadAdmission has %d methods, want exactly 8: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Match", "Search", "Delete", "Create", "Update", "Write", "Ledger", "Sync",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("IaCReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededIaCDrift is a deliberately widened copy of the pin: the eight
+// frozen IaC reads plus a repository-resolve read, which the dead
+// fallback answers through the sibling dead-content pin, never this
+// one. It never ships; it proves the frozen-set comparison below can
+// see a one-method widening.
+type seededIaCDrift interface {
+	IaCReadAdmission
+	ResolveRepository(context.Context, string) ([]string, error)
+}
+
+// TestIaCReadAdmissionSeededDriftIsDetected is the RED half of the
+// seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on
+// a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestIaCReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := iaCReadAdmissionMethodSet(t, (*seededIaCDrift)(nil))
+	if reflect.DeepEqual(got, frozenIaCReadAdmission) {
+		t.Fatal("seeded widening (ResolveRepository) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenIaCReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenIaCReadAdmission)+1)
 	}
 }

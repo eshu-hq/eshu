@@ -168,6 +168,16 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 	if query == tryClaimSupplyChainImpactWinnersResweepSQL {
 		return tx.claim, tx.claimErr
 	}
+	// #10876: the resweep commit is the providing save for the
+	// winners-watermark wait kind, so it wakes parked waits in the same
+	// transaction. No waits are parked in these fixtures, so the wake is a
+	// no-op (0, 0). Matched by the waiting-table name plus the reopen CTE
+	// so the claim and rebuild arms above keep their exact-match
+	// discipline and a genuinely unknown statement still reaches the
+	// scripted counts cursor below.
+	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		return winnersCounts(int64(0), int64(0)), nil
+	}
 	return tx.counts, tx.rebuildErr
 }
 
@@ -230,8 +240,13 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	if got.Inserted != 1 || got.Updated != 2 || got.Deleted != 3 || got.Unchanged != 4 || got.Skipped || !got.PreviousWatermark.Equal(previous) {
 		t.Fatalf("ResweepWinners() = %+v, want 1/2/3/4 and previous watermark %v", got, previous)
 	}
-	if len(tx.queries) != 2 || tx.queries[0] != tryClaimSupplyChainImpactWinnersResweepSQL || tx.queries[1] != rebuildSupplyChainImpactWinnersSQL {
-		t.Fatalf("queries = %q, want the claim, then the rebuild: the claim must precede the rebuild's snapshot", tx.queries)
+	// #10876: the resweep commit wakes parked winners-watermark waits in
+	// the same transaction, after the rebuild whose watermark it carries.
+	if len(tx.queries) != 3 || tx.queries[0] != tryClaimSupplyChainImpactWinnersResweepSQL || tx.queries[1] != rebuildSupplyChainImpactWinnersSQL {
+		t.Fatalf("queries = %q, want the claim, then the rebuild, then the winners wake: the claim must precede the rebuild's snapshot", tx.queries)
+	}
+	if wake := tx.queries[2]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
+		t.Fatalf("queries[2] = %q, want the winners-watermark wake", wake)
 	}
 	if len(tx.args[1]) != 1 || tx.args[1][0] != stamp {
 		t.Fatalf("rebuild args = %v, want the stamp", tx.args[1])

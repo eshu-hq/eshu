@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main //nolint:filelength // 519 lines (base 498): reducer env/flag loading for the claim path; the #10565 funnel flag loader stays next to the flags it describes.
+package main //nolint:filelength // 544 lines (base 498): reducer env/flag loading for the claim path; the #10565 funnel flag loader stays next to the flags it describes.
 
 import (
 	"context"
@@ -30,6 +30,7 @@ const (
 	reducerMaxAttemptsEnv                   = "ESHU_REDUCER_MAX_ATTEMPTS"
 	reducerWorkersEnv                       = "ESHU_REDUCER_WORKERS"
 	reducerBatchClaimEnv                    = "ESHU_REDUCER_BATCH_CLAIM_SIZE"
+	reducerBatchPrefetchDepthEnv            = "ESHU_REDUCER_BATCH_PREFETCH_DEPTH"
 	reducerBatchClaimFunnelEnabledEnv       = "ESHU_REDUCER_BATCH_CLAIM_FUNNEL_ENABLED"
 	reducerClaimDomainEnv                   = "ESHU_REDUCER_CLAIM_DOMAIN"
 	reducerClaimDomainsEnv                  = "ESHU_REDUCER_CLAIM_DOMAINS"
@@ -157,6 +158,30 @@ func loadReducerBatchClaimSize(getenv func(string) string, workers int, graphBac
 		n = 4
 	}
 	return n
+}
+
+// loadReducerBatchPrefetchDepth resolves the lookahead buffer depth (#10867):
+// unset, unparsable, or negative keeps the worker count capped by the claim
+// size; explicit 0 disables the buffer and keeps idle-only claiming; a
+// positive value is capped by the claim size so one ClaimBatch call never
+// hands out more than it asked for.
+func loadReducerBatchPrefetchDepth(getenv func(string) string, workers int, batchClaimSize int) int {
+	defaultDepth := workers
+	if defaultDepth > batchClaimSize {
+		defaultDepth = batchClaimSize
+	}
+	if getenv == nil {
+		return defaultDepth
+	}
+	if raw := strings.TrimSpace(getenv(reducerBatchPrefetchDepthEnv)); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n >= 0 {
+			if n > batchClaimSize {
+				return batchClaimSize
+			}
+			return n
+		}
+	}
+	return defaultDepth
 }
 
 func loadReducerClaimDomain(getenv func(string) string) (reducercontract.Domain, error) {

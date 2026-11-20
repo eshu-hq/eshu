@@ -58,7 +58,7 @@ func (r *bundleSelectionReader) ReadStatusSnapshotFiltered(
 	return raw, nil
 }
 
-func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
+func TestEvidenceBundleSelectsFactEvidenceWithoutTerraformAndRegistry(t *testing.T) {
 	fixed := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	raw := evidenceBundleFixtureSnapshot()
 	raw.TerraformStateLastSerials = []tfstate.LocatorSerial{{SafeLocatorHash: "safe-hash", Serial: 42, ObservedAt: fixed}}
@@ -76,8 +76,10 @@ func TestEvidenceBundleSelectsAllExceptTerraformState(t *testing.T) {
 	if bundleRec.Code != http.StatusOK {
 		t.Fatalf("bundle status = %d, want 200 despite unused Terraform read error: %s", bundleRec.Code, bundleRec.Body.String())
 	}
-	wantSelection := statuspkg.FullSnapshotSelection()
-	wantSelection.SkipTerraformStateEvidence = true
+	wantSelection := statuspkg.SnapshotSelection{
+		IncludeCollectorFactEvidence: true,
+		SkipTerraformStateEvidence:   true,
+	}
 	if reader.calls != 1 || reader.selection != wantSelection {
 		t.Fatalf("bundle selection/calls = %+v/%d, want %+v/1", reader.selection, reader.calls, wantSelection)
 	}
@@ -161,8 +163,10 @@ func TestEvidenceBundleSelectedReadPreservesFailures(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
-			want := statuspkg.FullSnapshotSelection()
-			want.SkipTerraformStateEvidence = true
+			want := statuspkg.SnapshotSelection{
+				IncludeCollectorFactEvidence: true,
+				SkipTerraformStateEvidence:   true,
+			}
 			if rec.Code != tc.wantStatus || tc.reader.calls != 1 || tc.reader.selection != want {
 				t.Fatalf("status/selection/calls = %d/%+v/%d, want %d/%+v/1", rec.Code, tc.reader.selection, tc.reader.calls, tc.wantStatus, want)
 			}

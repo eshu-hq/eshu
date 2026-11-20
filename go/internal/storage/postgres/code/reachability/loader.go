@@ -190,6 +190,51 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	return inputs, nil
 }
 
+// LatestCompletedIntentTime implements the #10870 idle-probe half of
+// CodeReachabilityInputLoader: the newest completed_at across the traversed
+// code-edge intent domains. ok is false when no completed intent exists in
+// either domain. The single-row statement is two index-tip probes (see
+// codeReachabilityIntentCursorSQL), O(1) in the number of ready runs.
+func (s *CodeReachabilityStore) LatestCompletedIntentTime(
+	ctx context.Context,
+) (time.Time, bool, error) {
+	rows, err := s.database.QueryContext(ctx, codeReachabilityIntentCursorSQL)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("query code reachability intent cursor: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var codeCalls, inheritanceEdges sql.NullTime
+	if rows.Next() {
+		if err := rows.Scan(&codeCalls, &inheritanceEdges); err != nil {
+			return time.Time{}, false, fmt.Errorf("scan code reachability intent cursor: %w", err)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return time.Time{}, false, err
+	}
+	latest, ok := codeReachabilityIntentCursorMax(codeCalls, inheritanceEdges)
+	if !ok {
+		return time.Time{}, false, nil
+	}
+	return latest, true, nil
+}
+
+// codeReachabilityIntentCursorMax folds the two per-domain probe maxima,
+// ignoring domains with no completed intent.
+func codeReachabilityIntentCursorMax(codeCalls, inheritanceEdges sql.NullTime) (time.Time, bool) {
+	latest := time.Time{}
+	ok := false
+	for _, candidate := range []sql.NullTime{codeCalls, inheritanceEdges} {
+		if !candidate.Valid {
+			continue
+		}
+		if !ok || candidate.Time.After(latest) {
+			latest, ok = candidate.Time, true
+		}
+	}
+	return latest, ok
+}
+
 // codeReachabilityRootsHaveRailsController reports whether any loaded root
 // carries the ruby.rails_controller_action kind, gating the repo-wide Ruby
 // class-registry load to Ruby repositories with controller roots.

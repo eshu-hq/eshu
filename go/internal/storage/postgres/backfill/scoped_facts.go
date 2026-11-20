@@ -304,6 +304,36 @@ func escapeLikeLiteral(value string) string {
 	return value
 }
 
+// backfillNonRepoIDAnchorRawTerms returns the raw non-repo_id anchors for
+// the deferred backfill's keyed $8 parameter in
+// ListDeferredScopedRelationshipFactRecordsQuery: the same alias anchors the
+// $1 LIKE terms wrap, without LIKE escaping, without %...% wrapping, and
+// without the unconditional markers (the keyed path reads the precomputed
+// um_* bits for those). The keyed anchor arm tests each raw anchor with
+// position(anchor in reference_key) > 0, preserving the $1 LIKE-superset
+// semantics as a substring match (issue #10875). Empty anchors are dropped:
+// position(” in x) is 1, which would match every sidecar row.
+func backfillNonRepoIDAnchorRawTerms(catalog []relationships.CatalogEntry) []string {
+	anchors := relationships.CatalogNonRepoIDPayloadAnchors(catalog)
+	seen := make(map[string]struct{}, len(anchors))
+	terms := make([]string, 0, len(anchors))
+	for _, anchor := range anchors {
+		anchor = strings.ToLower(strings.TrimSpace(anchor))
+		if anchor == "" {
+			continue
+		}
+		if _, ok := seen[anchor]; ok {
+			continue
+		}
+		seen[anchor] = struct{}{}
+		terms = append(terms, anchor)
+	}
+	if len(terms) == 0 {
+		return nil
+	}
+	return terms
+}
+
 // backfillNonRepoIDAnchorTerms returns the non-repo_id LIKE terms for the
 // deferred backfill's $1 parameter in ListDeferredScopedRelationshipFactRecordsQuery:
 // relationships.CatalogNonRepoIDPayloadAnchors (name and slug tokens, never the

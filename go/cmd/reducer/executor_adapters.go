@@ -30,6 +30,19 @@ type cypherRunner interface {
 	RunCypherGroup(ctx context.Context, stmts []sourcecypher.Statement) error
 }
 
+// cypherCountedWriteRunner is the optional capability a cypherRunner can add
+// to execute mutating statements that report sourcecypher.MatchedCountColumn
+// (#10938). It is intentionally NOT folded into cypherRunner: widening
+// cypherRunner would force every fake and adapter that only ever writes
+// without reading counts to implement a read primitive it has no use for.
+// neo4jSessionRunner (neo4j_wiring.go) implements this interface by
+// collecting the statement's RETURN row, so the counted-write seam is real
+// in production on both Bolt-speaking backends.
+type cypherCountedWriteRunner interface {
+	RunCypherCountedWrite(ctx context.Context, cypher string, params map[string]any) (int64, error)
+	RunCypherCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error)
+}
+
 // cypherProber is the narrow read-only capability
 // cypherRunnerStatementExecutor.ExecuteProbe needs from its wrapped runner
 // (#5998 rationale retract probe guard). It is intentionally NOT folded into
@@ -55,6 +68,15 @@ type reducerNeo4jExecutor struct {
 	session cypherRunner
 	retry   *sourcecypher.RetryingExecutor
 }
+
+// reducerNeo4jExecutor carries the #10938 counted-write seam: without these
+// forwards the whole production chain bottoms out here and every code-call
+// batch fails closed, so a future edit that removes one fails the build
+// (see the compile-time assertions below) rather than silently wedging the
+// lane. RetryingExecutor owns all retries; each forward is one inner call.
+var _ sourcecypher.CountedWriteExecutor = reducerNeo4jExecutor{}
+
+var _ sourcecypher.CountedWriteGroupExecutor = reducerNeo4jExecutor{}
 
 // newReducerNeo4jExecutor builds a reducerNeo4jExecutor around session with
 // its own persistent RetryingExecutor. instruments may be nil (no retry
@@ -99,6 +121,26 @@ func (e reducerNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcecy
 // and silently fall back to the unconditional DELETE it exists to skip.
 func (e reducerNeo4jExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
 	return e.retry.ExecuteProbe(ctx, stmt)
+}
+
+// ExecuteCountedWrite forwards to the same persistent RetryingExecutor
+// object as Execute and ExecuteGroup (#10938) -- same object, same reason:
+// the counted-write seam must survive from EdgeWriter down to the session
+// runner, and reducerNeo4jExecutor is the layer where the production chain
+// would otherwise bottom out with ErrCountedWriteUnsupported and wedge every
+// code-call batch in retry-then-dead-letter. RetryingExecutor owns retries;
+// a runner without the seam fails closed there (never silent completion).
+func (e reducerNeo4jExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	return e.retry.ExecuteCountedWrite(ctx, stmt)
+}
+
+// ExecuteCountedWriteGroup forwards to the same persistent RetryingExecutor
+// object (#10938), same rationale as ExecuteCountedWrite: the group path is
+// the one executeCodeCallCountedStatements prefers, and the counts align
+// with stmts only when the whole group commits, which is exactly what the
+// retry seam guarantees.
+func (e reducerNeo4jExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	return e.retry.ExecuteCountedWriteGroup(ctx, stmts)
 }
 
 // reducerCypherExecutor adapts a cypherRunner to the reducer.CypherExecutor
@@ -269,6 +311,31 @@ func (e cypherRunnerStatementExecutor) ExecuteProbe(ctx context.Context, stmt so
 		return false, fmt.Errorf("cypher runner %T does not support ExecuteProbe (no QueryCypherExists)", e.runner)
 	}
 	return prober.QueryCypherExists(ctx, stmt.Cypher, stmt.Parameters)
+}
+
+// ExecuteCountedWrite type-asserts the wrapped runner against
+// cypherCountedWriteRunner and, when supported, delegates to
+// RunCypherCountedWrite (#10938). When the runner lacks the capability this
+// fails closed with an unsupported error the code-call writer maps to a
+// counting error — an unverified batch never completes silently.
+func (e cypherRunnerStatementExecutor) ExecuteCountedWrite(ctx context.Context, stmt sourcecypher.Statement) (int64, error) {
+	cw, ok := e.runner.(cypherCountedWriteRunner)
+	if !ok {
+		return 0, fmt.Errorf("cypher runner %T does not support counted writes: %w", e.runner, sourcecypher.ErrCountedWriteUnsupported)
+	}
+	return cw.RunCypherCountedWrite(ctx, stmt.Cypher, stmt.Parameters)
+}
+
+// ExecuteCountedWriteGroup type-asserts the wrapped runner against
+// cypherCountedWriteRunner and, when supported, delegates to
+// RunCypherCountedWriteGroup (#10938), with the same fail-closed mapping as
+// ExecuteCountedWrite.
+func (e cypherRunnerStatementExecutor) ExecuteCountedWriteGroup(ctx context.Context, stmts []sourcecypher.Statement) ([]int64, error) {
+	cw, ok := e.runner.(cypherCountedWriteRunner)
+	if !ok {
+		return nil, fmt.Errorf("cypher runner %T does not support counted writes: %w", e.runner, sourcecypher.ErrCountedWriteUnsupported)
+	}
+	return cw.RunCypherCountedWriteGroup(ctx, stmts)
 }
 
 type nornicDBSemanticObservedExecutor struct {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -268,10 +269,13 @@ func (entityReadAdmissionResignedWitness) GetFileContent(context.Context, string
 
 // entityReadAdmissionMethodSet reflects the live EntityReadAdmission
 // method set into sorted "name signature" strings for comparison with
-// the frozen list.
-func entityReadAdmissionMethodSet(t *testing.T) []string {
+// the frozen list. The iface parameter forces every caller —
+// including the seeded-drift RED proof below — through this same guard
+// comparison, so a passing suite proves the guard itself can see drift
+// rather than proving a private copy can.
+func entityReadAdmissionMethodSet(t *testing.T, iface any) []string {
 	t.Helper()
-	rt := reflect.TypeOf((*EntityReadAdmission)(nil)).Elem()
+	rt := reflect.TypeOf(iface).Elem()
 	var got []string
 	for i := 0; i < rt.NumMethod(); i++ {
 		m := rt.Method(i)
@@ -294,7 +298,7 @@ func TestEntityReadAdmissionContractIsVersioned(t *testing.T) {
 	if EntityReadAdmissionContractVersion != "v0" {
 		t.Errorf("EntityReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", EntityReadAdmissionContractVersion, "v0")
 	}
-	got := entityReadAdmissionMethodSet(t)
+	got := entityReadAdmissionMethodSet(t, (*EntityReadAdmission)(nil))
 	if len(got) != len(frozenEntityReadAdmission) {
 		t.Fatalf("EntityReadAdmission method set = %q (len %d), want frozen %q (len %d): bump %s with the shape change", got, len(got), frozenEntityReadAdmission, len(frozenEntityReadAdmission), EntityReadAdmissionContractVersion)
 	}
@@ -319,5 +323,56 @@ func TestEntityReadAdmissionRejectsResignedMethod(t *testing.T) {
 	}
 	if !reflect.TypeOf(entityReadAdmissionWitness{}).Implements(pin) {
 		t.Errorf("entityReadAdmissionWitness does not implement EntityReadAdmission: the minimal shape must satisfy the pin")
+	}
+}
+
+// TestEntityReadAdmissionWireShapesAreSealed proves the seal on the
+// pin: exactly the thirty re-declared entity reads, with no mutation,
+// snapshot, ledger, or other-family surface riding along. The frozen
+// method-set contract test pins the exact names; this test pins the
+// exclusion the arbiter ruling demands.
+func TestEntityReadAdmissionWireShapesAreSealed(t *testing.T) {
+	t.Parallel()
+
+	rt := reflect.TypeOf((*EntityReadAdmission)(nil)).Elem()
+	if rt.NumMethod() != 30 {
+		t.Fatalf("EntityReadAdmission has %d methods, want exactly 30: the seal forbids any wider surface", rt.NumMethod())
+	}
+	for i := range rt.NumMethod() {
+		name := rt.Method(i).Name
+		for _, banned := range []string{
+			"Delete", "Create", "Update", "Revoke", "Upsert", "Grant", "Snapshot", "Ledger",
+		} {
+			if strings.Contains(name, banned) {
+				t.Errorf("EntityReadAdmission.%s contains %q: that leg stays out of this pin", name, banned)
+			}
+		}
+	}
+}
+
+// seededEntityDrift is a deliberately widened copy of the pin: the
+// thirty frozen entity reads plus the graph-entities inventory list,
+// which the entity pin keeps OUT by construction (that route rides
+// the GraphEntityInventory pin). It never ships; it proves the
+// frozen-set comparison below can see a one-method widening.
+type seededEntityDrift interface {
+	EntityReadAdmission
+	ListGraphEntities(context.Context) ([]string, error)
+}
+
+// TestEntityReadAdmissionSeededDriftIsDetected is the RED half of the
+// seeded-drift pair: the same reflect comparison the contract test
+// runs must report a mismatch on the planted widening. It passes on
+// a clean tree precisely because the guard fires on drift — a guard
+// that cannot see the seeded method is no guard.
+func TestEntityReadAdmissionSeededDriftIsDetected(t *testing.T) {
+	t.Parallel()
+
+	got := entityReadAdmissionMethodSet(t, (*seededEntityDrift)(nil))
+	if reflect.DeepEqual(got, frozenEntityReadAdmission) {
+		t.Fatal("seeded widening (ListGraphEntities) matches the frozen set: the comparison cannot see drift")
+	}
+	if len(got) != len(frozenEntityReadAdmission)+1 {
+		t.Fatalf("seeded drift method set len = %d, want frozen len + 1 (%d): the seed is malformed", len(got), len(frozenEntityReadAdmission)+1)
 	}
 }
