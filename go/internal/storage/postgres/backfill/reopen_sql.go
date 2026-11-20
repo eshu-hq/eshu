@@ -109,7 +109,7 @@ const ScopeReplayFloorBound = scopeReplayFloorBound
 // per-drain replay would resurrect the entire ingestion history into 'pending'
 // on every drain, growing linearly with generation count, and the reducer would
 // then re-terminalize it — pure churn. Measured on 900 scopes x 25 generations
-// (docs/internal/evidence/5426-reopen-bound-proof.sql): 22 551 rows unbounded
+// (#5426): 22 551 rows unbounded
 // versus 903 with the floor, per domain; 135 000 versus 5 400 across the six
 // domains measured before completion-driven replay removed CI/CD and supply.
 // See the historical six-domain evidence table in this package's README.

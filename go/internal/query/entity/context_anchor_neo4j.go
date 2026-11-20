@@ -62,7 +62,7 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 //
 // The inline `{uid: $x}` map is what makes Neo4j seek: a plain
 // `MATCH (e:A|B) WHERE e.id = $x` disjunction plans as UnionNodeByLabelsScan
-// (docs/internal/evidence/7057-relationship-uid-anchor.md). The label
+// (#7057). The label
 // disjunction is unsafe on NornicDB (#7006), so only the Neo4j dialect uses
 // this clause.
 //
@@ -81,7 +81,7 @@ var neo4jContextAnchor = buildNeo4jEntityContextAnchor()
 // cleared plan cache, and a first-label hit pays about +41 ms while the plan
 // is not cached. The widened form's cost (cold compile, warm paired delta,
 // QA PROFILE) is in
-// docs/internal/evidence/7212-wide-entity-anchor.md. Neo4j keeps a plan until
+// (#7212). Neo4j keeps a plan until
 // its statistics diverge (dbms.cypher.statistics_divergence_threshold,
 // checked at most every dbms.cypher.min_replan_interval), so at most one
 // request per caller shape pays the compile per plan epoch.

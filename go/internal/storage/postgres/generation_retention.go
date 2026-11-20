@@ -33,7 +33,7 @@ const (
 // generationRetentionWorkMemStatement raises work_mem for the retention
 // transaction only. #6809 set it for the grouped prunes, which aggregated one
 // pass over every live fact of a kind and sorted it on disk at the default 4MB
-// (docs/internal/evidence/6809-retention-content-prune-plan.md). Since #7279 the
+// (#6809). Since #7279 the
 // statements aggregate only the batch's candidate keys (one DISTINCT or GROUP
 // BY per kind, bounded by BatchGenerationLimit generations, about 300k facts on
 // the first QA backlog), and 64MB keeps those aggregates in memory.

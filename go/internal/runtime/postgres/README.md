@@ -143,7 +143,7 @@ per set, and zero business rows read; no mixed-member result was accepted.
 The final follow-up edit classified TLS failures as permanent and did not
 change successful selection. Raced integration after that edit passed. This
 is a local saturated-member selection measurement, not a full endpoint test.
-The later [fixed-corpus endpoint runs](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md#reader-fleet-follow-up-2026-10-03)
+The later [fixed-corpus endpoint runs](../../../../(#7033)#reader-fleet-follow-up-2026-10-03)
 measure the legacy and opt-in fleet paths separately. The deployed QA
 `<1s` budget is still unmet. The fixture, volumes, and network were removed.
 
@@ -179,7 +179,7 @@ Every status snapshot transaction runs `SET LOCAL jit = off` (#7009) as control
 SQL right after it begins: no reader query-start event, no `business_query`
 observation; the `transaction_control` stage times it. `phase=jit` names a
 failed SET; `jit=off` on the span confirms it.
-See [the JIT evidence](../../../../docs/internal/evidence/7009-status-snapshot-jit-off.md).
+See the JIT evidence (#7009).
 The semantic extraction status route requests only its semantic status section
 inside this same fenced, read-only repeatable-read transaction. Selection does
 not bypass replay checks, deadlines, transaction cleanup, or reader telemetry.
@@ -435,7 +435,7 @@ repeatable-read snapshot, and an aggregate six-connection cap across two
 reader hosts; this is
 concurrency and exactness proof for the new package. It has no existing
 production-path latency baseline in these primitive tests. The final
-[API/MCP status comparison](../../../../docs/internal/evidence/7009-postgres-read-routing.md)
+API/MCP status comparison (#7009)
 measures snapshot cost; end-to-end checkpoint cost, 100-engineer saturation
 and deployed benefit remain NOT_CHECKED.
 

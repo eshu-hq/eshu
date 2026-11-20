@@ -28,7 +28,7 @@ import (
 // (scope_generations_scope_generation_idx on PostgreSQL 18.6) with the other
 // predicates as a filter, under a nested loop over the pairs. It carries no
 // dedicated index dependency. Performance Evidence:
-// docs/internal/evidence/10003-delta-overlay-helper.md.
+// (#10003).
 const deltaUnionBaseQuery = `
 SELECT target.scope_id, base.generation_id, base.status
 FROM unnest($1::text[], $2::text[]) AS target(scope_id, union_base_commit_sha)

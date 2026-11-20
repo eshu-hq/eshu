@@ -100,7 +100,7 @@ commit logs the `successor_guard` stage and counts
 `eshu_dp_ingestion_successor_guard_decisions_total` by `kind`, `rule`, and
 `outcome`; a refused delta leaves the prior generation active and the next
 sync recollects. The sizing evidence is in
-`docs/internal/evidence/8750-successor-guard-sizing.md`.
+(#8750).
 
 ## Reducer manifest dependency read (#9991)
 
@@ -117,7 +117,7 @@ each decision on
 `eshu_dp_package_manifest_dependency_read_delta_union_total` and logs a WARN
 line for a refused base or a mismatch. Other `facts_active_*` readers that
 join only the active generation still see delta-only rows (#10003; listed in
-`docs/internal/evidence/9991-manifest-read-delta-union.md`).
+(#9991)).
 
 ## Security-alert reconciliation on a refused base (#10193)
 

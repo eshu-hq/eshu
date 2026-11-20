@@ -175,7 +175,7 @@ file. The report was regenerated rather than derived, via
 squash-merges per `docs/internal/agent-guide.md`, so a branch commit citation
 here would be orphaned from `main` the moment this lands). An earlier revision
 of this note incorrectly called `c5fb1de4e8` in
-`docs/internal/evidence/5299-service-story-identity.md` a broken reference; that
+(#5299) a broken reference; that
 document retains it as the named baseline for its measured base/candidate
 comparison. The coverage check reports "skipping" rather than failing, so a
 stale count can still merge silently.

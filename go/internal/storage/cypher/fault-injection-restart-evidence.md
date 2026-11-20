@@ -133,7 +133,7 @@ dependent pending item after its four-minute drain; the baseline had zero
 cross-scope GCP relationships. The migration PR does not touch the graph retry
 classifier, and the fault driver creates fresh databases and completes bootstrap
 before this cell. The current Compose default points at the v1.3.3 digest
-recorded in `docs/internal/evidence/6162-nornicdb-v133-alignment.md`; this
+recorded in (#6162); this
 failure log alone does not prove the running container digest.
 
 At upstream v1.3.3 tag commit `a9956536c2cc902e3463aeb9fbc43c695e3dabb0`,

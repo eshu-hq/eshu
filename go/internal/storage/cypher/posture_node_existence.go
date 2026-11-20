@@ -22,7 +22,7 @@ import (
 // applied" from "matched, set silently dropped") but the property is never
 // written. The identical statement anchored with `MERGE` persists correctly.
 // A single-property UNIQUE constraint on the anchored property does NOT fix
-// the no-op (measured; see docs/internal/evidence/5652-nornic-bare-match-writeloss.md).
+// the no-op (measured; see (#5652)).
 //
 // MERGE is not a safe blind substitute here: every one of these four writers
 // has an explicit never-create contract (a candidate uid whose CloudResource

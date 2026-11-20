@@ -91,7 +91,7 @@ func hasTopLevelComma(s string) bool {
 // On NornicDB v1.3.3 a positive label test in the WHERE of a single
 // variable-length MATCH that opens its frame is ignored and the IN labels()
 // terms are evaluated (probes D03 and J05 in
-// docs/internal/evidence/6786-nornicdb-label-predicates.md, and the live tests
+// (#6786), and the live tests
 // named on labelTestPairExempt). That holds only for those rows: in the
 // WHERE of a second MATCH (H02), of an OPTIONAL MATCH (H05) or with a negation
 // (D04) the label test is evaluated and drops rows. So

@@ -3,8 +3,8 @@
 This page holds the rule that withholds a secret which runs past the label
 window (#9799), its limits, and its measured cost. The label and value rules it
 builds on are in [README.md](README.md#label-and-value-redaction). The decision
-is in `docs/internal/evidence/9799-multiline-arbiter-ruling.md`, and the
-measurements are in `docs/internal/evidence/9799-ocr-multiline-secret-runs.md`.
+is in (#9799), and the
+measurements are in (#9799).
 The code is `secret_runs.go`.
 
 A secret that runs past the window (#9799). A PEM key body is 12 to 50 lines and
@@ -104,7 +104,7 @@ short placeholder and not the line. The run scan reads each region a fixed
 number of times. `TestExtendSecretRunsIsLinear` pins 200,000 token lines,
 200,000 seed lines, and one 1 MiB token. The per-measure method, the docs-corpus
 false-positive table, and the real-tesseract numbers are in
-`docs/internal/evidence/9799-ocr-multiline-secret-runs.md`.
+(#9799).
 
 No-Regression Evidence (#9799): `go test -race ./internal/collector/document/ocr/...
 -count=1` passes, and `bash scripts/prove-ocr-sandbox.sh --platform linux/arm64`

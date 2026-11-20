@@ -22,7 +22,7 @@ import (
 // intermediate), so a stale finding for a package the repository no longer
 // declares is re-derived (#10059).
 //
-// Performance Evidence: docs/internal/evidence/10059-repository-reopen.md
+// Performance Evidence: (#10059)
 // (PG 18, synthetic finding census at 1x, 5x, and 10x; under the 10 s
 // holder-read statement timeout).
 const findRepositoryFindingHoldersQuery = `

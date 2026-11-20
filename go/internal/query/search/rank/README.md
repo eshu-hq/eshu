@@ -49,7 +49,7 @@ scorer reads full stored bodies, so the cost grows with body size:
 about 18.8 ms and 23.7 MB with 3 KB bodies, and 23.7 ms and 31.6 MB with
 4,090-byte bodies, on linux/arm64. The walk work alone, all a `graph_name` or
 `lexical` page pays, is about 0.9 ms and 2.5 MB. Bounding the scoring input
-is a possible follow-up. See `docs/internal/evidence/7746-rank-cursor.md`.
+is a possible follow-up. See (#7746).
 
 ## Telemetry
 

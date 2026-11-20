@@ -58,4 +58,4 @@ Never `internal/reducer`.
 
 - `docs/public/reference/telemetry/id-anchor-census.md`
 - `go/cmd/reducer/background-maintenance.md`
-- `docs/internal/evidence/7212-id-anchor-census.md`
+- (#7212)

@@ -9,7 +9,7 @@
    `retry.go` — bounded claim-fence admission retries
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
    caller, which owns the transaction and runs the reset operations
-4. `docs/internal/evidence/4594-graph-rebuild-from-facts.md` — the measured
+4. (#4594) — the measured
    before/after, and the failures that are still open
 5. `docs/public/operate/graph-rebuild-from-facts.md` — the operator runbook
 

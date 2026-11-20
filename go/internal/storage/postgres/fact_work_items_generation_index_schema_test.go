@@ -16,7 +16,7 @@ import (
 // existing candidate index leads with scope_id, so each probe scans the
 // whole table (measured 158 ms and 33,976 buffers for a 100-generation
 // QA batch generic plan, against 1.3 ms and 316 buffers behind this
-// index; docs/internal/evidence/10525-retention-planning-count.md). The
+// index; (#10525)). The
 // build must stay a sole CONCURRENTLY statement: the migration
 // coordinator runs such a file in autocommit without the bootstrap
 // lock_timeout (#7004), and PostgreSQL rejects a concurrent build inside

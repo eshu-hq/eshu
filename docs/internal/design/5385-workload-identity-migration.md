@@ -99,7 +99,7 @@ the id template stays as it is.
 > node is `MERGE`d in place, only the path template remains, and
 > `workload_materialization` retracts its own stale `DEFINES` and
 > repository-side `EXPOSES_ENDPOINT` edges on full generations
-> (`docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`).
+> (#7285).
 
 Only the path template knows a retired identity: the `r.id` values it matches
 belong to a repository whose path was re-onboarded under a new `repo_id`
@@ -484,4 +484,4 @@ The delete is a graph production data change, so it runs only after an operator
 reviews the dry run. The statement and its safe set are described in the
 [leftover retirement runbook](../../public/operate/legacy-workload-retirement-runbook.md);
 the backend scope (Neo4j only) and the measured cost are in
-`docs/internal/evidence/8795-legacy-workload-retirement.md`.
+(#8795).

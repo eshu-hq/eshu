@@ -14,7 +14,7 @@
 // of a multi-node MATCH -- so the language filter selected nothing. The
 // bisection that established it is recorded in
 // docs/public/reference/nornicdb-path-predicate-pitfalls.md and in
-// docs/internal/evidence/6546-language-query-extension-filter.md.
+// (#6546).
 //
 // This file seeds one polyglot repository and asks each builder for one
 // language at a time. A Go query must return the Go rows and nothing else; a

@@ -76,7 +76,7 @@ RETURNING generation.scope_id, generation.generation_id
 // shared_projection_intents_pending_idx); the per-generation probe then reads
 // the generation's outstanding intents through
 // shared_projection_intents_generation_pending_idx. No index was added
-// (docs/internal/evidence/7265-liveness-recovery-progress-window.md).
+// (#7265).
 const generationIntentProgressingPredicate = `EXISTS (
           SELECT 1
           FROM shared_projection_intents AS progress_intent

@@ -141,7 +141,7 @@
   `query/entity/testdata/neo4j_wide_anchor.cypher` and the pinned SHA-256 in the
   same change, and say in the PR that the anchor's width moved past the
   measured 124 labels
-  (`docs/internal/evidence/7212-wide-entity-anchor.md`).
+  (#7212).
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

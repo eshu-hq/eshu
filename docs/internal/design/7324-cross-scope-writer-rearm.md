@@ -25,7 +25,7 @@ the writer of that relationship (anchored on the source, scoped by
 Same-id edge loss does not reproduce on current main: #7304 removed the by-id
 delete, and `TestLiveRepositoryRetryKeepsReducerEdges` proves every reducer
 family survives a retry, a new full generation and (since this change) a
-delta generation (`docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`).
+delta generation (#7285).
 
 ## The one exception
 
@@ -181,6 +181,6 @@ and no new lock. It does not serialise anything.
 - The path-less stub re-created under a retired id (observed above).
 - Repair of edges already lost on the QA environment is an owner-consented replay.
 
-No-Regression Evidence: the retry shape (same generation, FirstGeneration=false, DeltaProjection=false, 6 files, 3 directories, 17 reducer edge families on the Repository) was timed on neo4j:2026-community 2026.09.0 through `CanonicalNodeWriter.Write`, 40 timed writes per run after 5 warm-ups, 7 interleaved before/after pairs of test binaries (before = origin/main 182a31124 production sources, after = this change). Median of per-pair medians: atomic_group 29.815 ms before vs 30.339 ms after; phase_group 37.164 ms before vs 36.454 ms after. Median paired delta: -0.2 ms (atomic) and -0.3 ms (phase), inside host noise at load average 14-16. PROFILE of the unchanged cleanup statement: NodeUniqueIndexSeek(Locking) on repository_path, then Filter, then DetachDelete. Steady state is 0 rows and 1 db hit; a retirement of a degree-20 node is 23 db hits. Details are in `docs/internal/evidence/7324-repository-path-conflict-retirement.md`.
+No-Regression Evidence: the retry shape (same generation, FirstGeneration=false, DeltaProjection=false, 6 files, 3 directories, 17 reducer edge families on the Repository) was timed on neo4j:2026-community 2026.09.0 through `CanonicalNodeWriter.Write`, 40 timed writes per run after 5 warm-ups, 7 interleaved before/after pairs of test binaries (before = origin/main 182a31124 production sources, after = this change). Median of per-pair medians: atomic_group 29.815 ms before vs 30.339 ms after; phase_group 37.164 ms before vs 36.454 ms after. Median paired delta: -0.2 ms (atomic) and -0.3 ms (phase), inside host noise at load average 14-16. PROFILE of the unchanged cleanup statement: NodeUniqueIndexSeek(Locking) on repository_path, then Filter, then DetachDelete. Steady state is 0 rows and 1 db hit; a retirement of a degree-20 node is 23 db hits. Details are in (#7324).
 
 Observability Evidence: the new counter `eshu_dp_canonical_repository_retirements_total{outcome=clean|dropped_relationships}` and the `canonical repository retired` log (WARN with relationships dropped; fields scope_id, generation_id, repo_id, path, nodes_deleted, relationships_deleted, deletes_counted, outcome). The live Neo4j run logged `level=WARN nodes_deleted=1 relationships_deleted=20 deletes_counted=true outcome=dropped_relationships` and incremented the counter once per executor shape; a steady-state retry recorded nothing.

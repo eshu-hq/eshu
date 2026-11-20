@@ -179,7 +179,7 @@ func PathHopPredicates(req Request, access querycontract.RepositoryAccessFilter)
 // shape docs/public/reference/nornicdb-path-predicate-pitfalls.md records as safe was
 // measured on an older build and is not safe on the current pin. It carries the
 // grant on both endpoints like every other builder in the family, and the parse
-// failure is tracked in docs/internal/evidence/5167-code-family-batch-2b.md.
+// failure is tracked in (#5167).
 //
 // It does NOT carry the path-wide grant conjunct its Neo4j sibling gained
 // (PathHopPredicates), because a list-membership test inside

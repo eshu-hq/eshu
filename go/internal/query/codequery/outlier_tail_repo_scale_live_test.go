@@ -5,7 +5,7 @@
 // (Proof limits / NOT_CHECKED) measured the outlier CALLS fan-out's committed 250-key
 // batch only against seeds whose maximum out-degree is 64 -- far below
 // the QA tail (max out-degree 521,
-// docs/internal/evidence/6649-calls-degree-floor.md) and the registry
+// (#6649)) and the registry
 // audit bound (250 keys x corpus CALLS degree floor 1125 = 281,250 rows
 // from one statement). This file reuses the #6929/#7297 base seed plus
 // the #7325 density seed, then adds a deterministic high-degree tail

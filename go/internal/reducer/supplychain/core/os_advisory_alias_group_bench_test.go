@@ -103,7 +103,7 @@ func aliasBenchSparseEnvelopes(n int) []facts.Envelope {
 // every record pays before the grouping pass reads it. It is a reported
 // seam cost, not the bar: the proof's denominator is the raw-unmarshal
 // floor and the governing bars are whole-pass share (<1%) and heap
-// (<12.8 MiB at 10x) — see docs/internal/evidence/9209-3-2-advisory-group-cost.md.
+// (<12.8 MiB at 10x) — see (#9209).
 func BenchmarkAliasGroupingTypedDecodeFloor(b *testing.B) {
 	envelopes := aliasBenchEnvelopes(1000)
 	cves := make([]facts.Envelope, 0, 1000)

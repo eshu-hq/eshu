@@ -100,7 +100,7 @@ type NonHotDisposition struct {
 // (1125) on the QA Neo4j 2026.08.1, 2026-09-26. It supersedes the 8 measured
 // on synthetic B-7 fixtures. Method, distributions, and the PROFILE showing
 // the covered Neo4j reads stay cheap at this degree are in
-// docs/internal/evidence/6649-calls-degree-floor.md. Re-measure and raise it
+// (#6649). Re-measure and raise it
 // when the corpus changes materially; never lower an entry to fit.
 const nonHotCorpusMaxCALLSDegree = 1125
 

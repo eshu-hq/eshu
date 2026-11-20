@@ -162,7 +162,7 @@ type handlesRouteEdgeAccumulator struct {
 // stored http_method, safe to assert. A route served by two-or-more methods
 // on the same path (GET+POST /widgets) has NO documented write-order
 // guarantee for which row's SET wins (see
-// docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md's
+// (#5995)'s
 // "HANDLES_ROUTE write-order rationale" appendix), so asserting a value
 // there would be flaky by construction -- that edge's Properties stays nil.
 //

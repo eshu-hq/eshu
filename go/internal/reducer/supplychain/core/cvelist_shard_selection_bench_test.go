@@ -10,7 +10,7 @@ import (
 
 // Committable 5.2 coverage for eshu-hq/eshu#10354 (Phase 5 5.2), carried
 // from the deleted 5.1 scratch shim
-// (docs/internal/evidence/9961-shard-scoped-generations.md). Full-shard
+// (#9961). Full-shard
 // provenance selection runs the real selectAdvisoryProvenance path with
 // NVD-deferred CVEs resolving CNA severity from cve_list, one selection
 // per record of a 1,000-record shard. 5.1 scratch measured ≈0.76–0.79 ms

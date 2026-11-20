@@ -269,7 +269,7 @@ tests:
   - file: go/internal/query/admin/store/changedsincepoisonedlinks_live_test.go
     tag: ~
     class: scheduled
-    reason: changed-since poisoned/retrying link query plan-shape proof at 5,000 cursor rows (#7290, docs/internal/evidence/7290-changed-since-poisoned-links-read.md); untagged and gated by env Skip (ESHU_POSTGRES_DSN); Postgres-only, no build tag, so it does not enter the graph-backend live-backend CI plan; unmeasured cost — promote to blocking with timing evidence
+    reason: changed-since poisoned/retrying link query plan-shape proof at 5,000 cursor rows (#7290); untagged and gated by env Skip (ESHU_POSTGRES_DSN); Postgres-only, no build tag, so it does not enter the graph-backend live-backend CI plan; unmeasured cost — promote to blocking with timing evidence
   - file: go/internal/query/cloud_inventory_account_alias_live_test.go
     tag: ~
     class: scheduled

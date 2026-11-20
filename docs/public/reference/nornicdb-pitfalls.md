@@ -487,7 +487,7 @@ this backend behaviour changes — run it against the pin before changing a quer
 of this shape, and again after moving the pin. If
 `TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` fails, the executor
 boundary has moved and the shapes above need re-measuring rather than a quick
-edit. See `docs/internal/evidence/5167-code-family-batch-1.md` for the
+edit. See (#5167) for the
 before/after and the fan-in timing.
 
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row

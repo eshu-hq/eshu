@@ -239,7 +239,7 @@ func clonePresentCloudResourceBackfillFields(row map[string]any) map[string]any 
 // per process, before the marker exists; a process that starts after the
 // marker is recorded exits at already_complete. Moving the backfill into the
 // projector would remove the duplicate pass; no issue is filed for it yet
-// (see docs/internal/evidence/6793-infra-read-model.md).
+// (see (#6793)).
 func StartInfraInventoryBackfill(ctx context.Context, db *sql.DB, logger *slog.Logger, instruments *telemetry.Instruments) {
 	if db == nil {
 		return

@@ -37,7 +37,7 @@ var activeGenerationForRequestedScope = strings.Replace(
 // by cost: one hashed seq scan of the phase table when it is small,
 // primary-key index-only probes when it is large. The generation probe is the scope_generations_scope_latest_lookup_idx
 // read LoadActiveGenerationForScope uses. Measured plans and timings are in
-// docs/internal/evidence/8082-fanin-unchanged-partitions.md.
+// (#8082).
 var ListUnchangedPartitionsNeedingPublicationQuery = `
 SELECT checked.scope_id, checked.generation_id, checked.readiness_missing, checked.generation_advanced
 FROM (

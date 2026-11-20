@@ -268,6 +268,6 @@ or log line; the lib entries add no signal.
 - Gate record: [#9382](https://github.com/eshu-hq/eshu/issues/9382).
 - Design rationale: `docs/internal/design/9728-ocr-engine-backend.md` (OCR
   lane) and the whisper.cpp backend README for the transcript lane.
-- Arbiter ruling for this wiring: `docs/internal/evidence/8879-caller-choice-arbiter-ruling.md`.
+- Arbiter ruling for this wiring: (#8879).
 - Runbook for future cutover work: the satellite collector runbook merged for
   the extracted collectors.

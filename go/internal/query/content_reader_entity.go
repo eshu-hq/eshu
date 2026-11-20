@@ -122,7 +122,7 @@ func (cr *ContentReader) GetEntityContentInRepositories(
 // common name under a 1000-repository grant measured ~31 ms with the array
 // parameter and ~168 ms with string_to_array, which the generic plan
 // re-evaluates on every heap recheck. Custom plans measure the same for both.
-// See docs/internal/evidence/5167-code-relationships-grant.md.
+// See (#5167).
 func (cr *ContentReader) SearchEntitiesByNameInRepositories(
 	ctx context.Context,
 	repoIDs []string,

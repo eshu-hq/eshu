@@ -39,7 +39,7 @@ Isolated NornicDB instance, 100,000 `KustomizeOverlay` nodes across 5,000 repos
 | p90    | 385.3us | 311.5us |
 
 The pinned NornicDB Bolt transport returns no `PROFILE`/`EXPLAIN` plan tree
-(documented in `docs/internal/evidence/5410-sql-relationships-performance.md`),
+(documented in (#5410)),
 so wall-clock on the discriminating shape is the recorded proof, per that note's
 own fallback.
 

@@ -5,7 +5,7 @@ package offlinetier_test
 
 // canonical_file_edge_writeloss_live_test.go is the P0 follow-up regression
 // for the File-edge write-loss defect documented in
-// docs/internal/evidence/5652-nornic-bare-match-writeloss.md Part 2:
+// (#5652) Part 2:
 // node.FileUpdateExistingCypher's WITH-chained REPO_CONTAINS/CONTAINS
 // MERGE clauses (after a preceding node SET) silently no-op on the pinned
 // v1.1.11 image. Unlike the Refresh/retract DELETE statements (Defect 2,

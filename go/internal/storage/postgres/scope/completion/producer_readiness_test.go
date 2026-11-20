@@ -185,7 +185,7 @@ func TestCrossScopeProducerCollectorKindsSkipsUnmappedProducers(t *testing.T) {
 
 // TestCrossScopeProducersReadyUsesTheProvenQuiescenceProbe pins the binding
 // between the store and scope_quiescence.go. The probe is the only shape with a
-// committed EXPLAIN proof (docs/internal/evidence/5709-quiescence-probe.md);
+// committed EXPLAIN proof (#5709);
 // a store that grew its own SQL would ship an unproven query on a write-hot
 // table.
 func TestCrossScopeProducersReadyUsesTheProvenQuiescenceProbe(t *testing.T) {

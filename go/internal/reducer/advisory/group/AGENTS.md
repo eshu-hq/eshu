@@ -8,7 +8,7 @@ Scoped rules for this directory. The root `AGENTS.md` still applies.
 - `go/internal/reducer/AGENTS.md`.
 - `go/internal/storage/cypher/edge/writer/advisory_group.go` for the Cypher
   this contract drives.
-- `docs/internal/evidence/9209-3-2-advisory-group-cost.md` for the grouping
+- (#9209) for the grouping
   cost basis.
 
 ## Invariants

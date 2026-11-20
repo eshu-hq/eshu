@@ -35,7 +35,7 @@ import (
 // That shape does not execute as written on the pinned NornicDB executor.
 // Traced and proven against the real backend (see
 // ResourceAttributeRemoveCypherByType's doc comment below for
-// the full trace and docs/internal/evidence/5441-edge-node-properties.md for
+// the full trace and (#5441) for
 // the empirical reproduction): a MERGE statement with no WITH/RETURN routes
 // to executeMerge (pkg/cypher/merge.go), whose standalone-SET boundary is
 // delimited only by a following WITH or RETURN -- it has no REMOVE
@@ -109,7 +109,7 @@ SET r.id = row.uid,
 // per go/go.mod, verified directly against that resolved module -- not a
 // fork checkout -- after review round 9's P0 fix cited a fork-HEAD-only file
 // that does not exist at the pinned version (#5441 review round 9 follow-up;
-// see docs/internal/evidence/5441-edge-node-properties.md for the durable
+// see (#5441) for the durable
 // note on why the pinned module, not a local fork checkout, is the citation
 // source of truth going forward):
 //   - `pkg/cypher/ast_builder.go` parseRemove (v1.0.45 line 664) parses only

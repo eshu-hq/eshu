@@ -288,7 +288,7 @@ chunk per planner run" bound.
   the scope, and its `supply_chain_impact` reducer item is done, read by key
   from the checkpoint's `last_scope_id` and `last_generation_id` by
   `NVDBaselineDrainProbe` (no new index; EXPLAIN proof in
-  [10814-baseline-drain-probe.md](../evidence/10814-baseline-drain-probe.md)).
+  (#10814)).
   The baseline loop enforces this, not the tick, because cadence is per-target
   config (`refresh_interval` in `intelligence_scheduler.go`).
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
@@ -408,7 +408,7 @@ wires the recorders and the plan-time latch load into the service.
   counted one per row by scope family in a separate
   `NVDScopeRowsPerHour` field and are not folded into the 15k comparison
   (decided in #10767, with the reasoning and what would reopen it in
-  `docs/internal/evidence/10767-trip-inflow.md`; weighting by fan-out stays a
+  (#10767); weighting by fan-out stays a
   separate ruling). A raw sequence high-water
   delta was rejected: it counts every source, and the measured all-source
   inflow (M6) is 60k to 109k rows an hour against the 15k threshold.

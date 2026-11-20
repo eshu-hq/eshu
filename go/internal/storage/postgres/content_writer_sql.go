@@ -27,7 +27,7 @@ const (
 // writes a new row version for an identical re-upsert: every index entry,
 // including the two large trigram GIN indexes, is inserted again and the row
 // is logged, so an unchanged findings-heavy replay wrote tens of MiB of WAL per
-// 50-row batch (docs/internal/evidence/8915-content-file-upsert-guard.md). The
+// 50-row batch (#8915). The
 // row compare is NULL-safe (IS DISTINCT FROM), and content is compared on its
 // own so an edit that kept its content_hash still writes.
 //

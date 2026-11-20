@@ -220,7 +220,7 @@ func (w ContentWriter) classifyFileBatch(ctx context.Context, batch []preparedFi
 // round trip and a plan, about 0.1 to 0.3 ms on a local database), so it is a
 // small share of a large batch and a visible one of a small batch: measured
 // shares of upsert_files were 0.01% to 1.45% from 500 rows up and several
-// percent for 1 to 50 rows (docs/internal/evidence/8950-upsert-outcome-counter.md).
+// percent for 1 to 50 rows (#8950).
 // Sampling gates the counters, never the write (#8942): every batch is
 // classified for the write verdict regardless of size. A batch of at least
 // contentFileOutcomeMinBatchRows rows is always counted; a smaller one is

@@ -20,7 +20,7 @@ import (
 // (go/internal/storage/postgres/reducer_queue_readiness_sql.go) to exempt
 // retrying rows from the retry budget; that enrollment landed with its own
 // attempt_count-freeze theory-proof
-// (docs/internal/evidence/5709-attempt-count-freeze.md).
+// (#5709).
 //
 // Both registered cross-scope consumers produce this class:
 // ci_cd_run_correlation and supply_chain_impact. Each samples

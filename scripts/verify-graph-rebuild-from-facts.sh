@@ -333,7 +333,7 @@ echo "  load_at_finish=$(uptime | sed 's/.*averages: //')"
 echo
 
 # Record the verdict instead of exiting on it. Pass 1 fails today for reasons
-# recorded in docs/internal/evidence/4594-graph-rebuild-from-facts.md, and under
+# recorded in (#4594), and under
 # `set -e` a bare call here ended the run right there -- so the resumability
 # proof this gate advertises never once executed. The two passes answer different
 # questions; a red answer to the first is not a reason to skip the second. The

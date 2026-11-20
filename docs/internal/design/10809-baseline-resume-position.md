@@ -176,4 +176,4 @@ only access path), and nothing on the checkpoint row.
   #10746, so no row is written today.
 - Not here. The planner wiring and the per-tick read (#10746), the adaptive
   interval (#10814), and row retention (#10831). Evidence:
-  `docs/internal/evidence/10828-baseline-plan-row.md`.
+  (#10828).

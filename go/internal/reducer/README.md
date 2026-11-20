@@ -174,7 +174,7 @@ is otherwise unchanged.
 
 The dedicated-resolver benchmark, the #3624 import-path-cache measurement, and
 their observability notes moved to
-[`docs/internal/evidence/3487-cross-repo-call-resolver-benchmark-evidence.md`](../../../docs/internal/evidence/3487-cross-repo-call-resolver-benchmark-evidence.md)
+(#3487)
 (issue #5786). The coverage table above stays in this file:
 `go/internal/accuracygate/golden_gate_test.go`
 (`TestAccuracyResolverMatrixMatchesPublishedDoc`) reads this file directly and
@@ -367,7 +367,7 @@ values each counter carries.
   statement, so a foreign scope that retires and re-activates mid-pass cannot
   pair a passing verdict with a partial set (#6740). Other stores keep the
   pre-read fence plus post-read recheck (#6730), which has that window. See
-  `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
+  (#6740).
 - **A deployable-unit success records what it read** (#8283) — with a
   `FingerprintedCorpusFencedResolvedRelationshipLoader`, the fused read also
   returns the input fingerprint its statement computed, and the handler hands
@@ -397,7 +397,7 @@ values each counter carries.
   activation transaction reopens those dead letters (storage/postgres
   `RelationshipStore`); one still dead-lettered while the generation is active
   is replayed by `failure_class` (3 AM runbook). See
-  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
+  (#7597).
 - **Non-counting failures record `deferred`** — `Service.IsDeferredFailureClass`
   (wired to `postgres.IsNonCountingReducerRetryFailureClass`) turns a
   retryable failure in a non-counting class into

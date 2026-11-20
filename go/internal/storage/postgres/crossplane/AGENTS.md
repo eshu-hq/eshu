@@ -30,7 +30,7 @@
   `AND generation.status = 'active'`) written exactly once, keep `$6` free,
   and keep the DISTINCT `(scope_id, generation_id)` branch (the per-claim
   shape costs about 7x on the active leg and drove the base leg to a 3.5 s
-  custom plan; see `docs/internal/evidence/10094-crossplane-redrive-delta-base.md`).
+  custom plan; see (#10094)).
   Never add a hand-copied base predicate or an overlay in this package.
 - Keep the leg order in `runLegs`: every key's active leg, then ONE
   delta-active scope lookup, then every key's base leg. Moving the lookup

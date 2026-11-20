@@ -46,4 +46,4 @@ No metrics, spans, or logs: this package holds types only.
 
 ## Related docs
 
-- Design rationale: `docs/internal/evidence/9209-3-2-advisory-group-cost.md`
+- Design rationale: (#9209)

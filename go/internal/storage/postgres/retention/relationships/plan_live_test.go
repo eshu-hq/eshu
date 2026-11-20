@@ -182,7 +182,7 @@ func requirePlan(t *testing.T, label string, nodes []planNode, indexes, noSeqSca
 // size and visibility map coverage (the evidence note records both), so a pin
 // would fail on a plan that costs the same.
 //
-// Like the purge's plan flip (docs/internal/evidence/10820-census-2e-purge.md),
+// Like the purge's plan flip (#10820),
 // the delete plans hold while a batch is a small share of the table: verified
 // on PostgreSQL 18, and this test pins it against a server upgrade or a
 // statement edit.

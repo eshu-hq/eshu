@@ -57,7 +57,7 @@ const plannedRunQuery = `SELECT EXISTS (SELECT 1 FROM workflow_runs WHERE run_id
 // scope_generations_scope_idx (scope_id, status, ingested_at DESC), bounded by
 // retention, and filters on source_commit_sha from the heap. NULL with skew means
 // retention pruned that history. Any change here needs a fresh
-// EXPLAIN (ANALYZE, BUFFERS): docs/internal/evidence/10055-commit-skew-fence.md.
+// EXPLAIN (ANALYZE, BUFFERS): (#10055).
 const pageQuery = `
 WITH candidates AS (
     SELECT scope.scope_id,

@@ -451,8 +451,8 @@ expected.
 
 The original baseline and the current measurement, including per-label and
 domain-by-domain breakdowns, are in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md` and
-`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`.
+(#4594) and
+(#6184).
 
 ## How long it takes
 

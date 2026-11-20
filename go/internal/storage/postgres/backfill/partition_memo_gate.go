@@ -58,8 +58,8 @@ import (
 // (~910 calls carrying one candidate, rather than ~29 carrying 32), so the CTE
 // now runs roughly 31x more often — about 2 s of aggregate CPU per pass. That
 // cost is accepted to keep the check inside the transaction whose memo write it
-// gates; the measurement and the rejected hoisting alternative are in
-// docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md.
+// gates; the measurement and the rejected hoisting alternative are recorded
+// in (#6136).
 const ListArgoCDBearingPartitionsQuery = LatestGenerationCTE + `
 SELECT DISTINCT fact.scope_id, fact.generation_id
 FROM fact_records AS fact

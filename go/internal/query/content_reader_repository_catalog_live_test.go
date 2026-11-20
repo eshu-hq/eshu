@@ -104,7 +104,7 @@ func TestMatchRepositoriesByIDsLive(t *testing.T) {
 // projection over a 10,000-repository catalog at grant sizes 1, 100 and
 // 5,000 (#8837 acceptance criterion). Plans and timings are logged, not
 // gated; the figures feed
-// docs/internal/evidence/8837-security-alert-grant-scope.md.
+// (#8837).
 func TestMatchRepositoriesByIDsPlanLive(t *testing.T) {
 	f := newGrantCatalogLiveFixture(t)
 	f.seedRepositoryCatalog(10000)

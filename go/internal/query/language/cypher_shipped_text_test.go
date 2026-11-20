@@ -123,8 +123,8 @@ func TestLanguageQueryUnscopedCypherTextIsFrozen(t *testing.T) {
 				t.Fatalf("%s builder's unscoped text moved off its frozen baseline.\n got: %q\nwant: %q\n"+
 					"An unscoped caller's statement is not supposed to change. If it must, "+
 					"re-measure the route and update this baseline and the claims in "+
-					"docs/internal/evidence/5167-code-family-batch-2.md and "+
-					"docs/internal/evidence/6546-language-query-extension-filter.md together.", tc.label, got, tc.want)
+					"(#5167) and "+
+					"(#6546) together.", tc.label, got, tc.want)
 			}
 		})
 	}

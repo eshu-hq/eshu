@@ -56,7 +56,7 @@ cd go && go test ./internal/mcp -run TestEveryRegisteredToolHasDispatchRoute -co
 ```
 
 **Design and write-path documentation** —
-`docs/internal/evidence/4630-input-invalid-quarantine-read-surface.md`
+(#4630)
 records the reducer's best-effort idempotent quarantine writer
 (`ReducerInputInvalidFactStore.WriteQuarantinedFacts`,
 `go/internal/storage/postgres/reducer_input_invalid_facts.go`) that this read

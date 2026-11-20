@@ -58,7 +58,7 @@ truth; reducers admit user-facing truth.
   Kelvin sign U+212A never folds onto an ASCII letter (#9584). It equals
   `strings.ToLower` on every ASCII input. `ContainsNonASCII` reports a name
   that holds any non-ASCII byte; the ingester counts those rows.
-  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` names the
+  (#9584) names the
   callers outside this package that were converted and the known folds not
   yet converted (#9622).
 - `NormalizePyPIName` and `PyPINameSeparatorRun` are the one PEP 503 fold.
@@ -118,7 +118,7 @@ truth; reducers admit user-facing truth.
   the search API answering `packageid:newtonsoft.json` and
   `packageid:Newtonsoft.Json` with the same record while the flat container
   serves only the lowercased blob: see
-  `docs/internal/evidence/9594-nuget-unicode-comparison.md`.
+  (#9594).
   Under that fold U+0130 stays apart from "i" (it lowercases to "i" plus
   U+0307; [UnicodeData](https://www.unicode.org/Public/UNIDATA/UnicodeData.txt):
   `0130` maps up to `0049 0307`, `212A` maps down to `006B`), so Eshu and the

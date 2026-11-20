@@ -26,7 +26,7 @@ const securityAlertCollectionStateStage = "security_alert_collection_state"
 // one target and about 36 ms for 50 targets with 2,000 work items each. On an
 // unvacuumed table the lateral read takes 102.7 ms warm and 523 ms on a first
 // run with JIT, reading 102,396 buffers
-// (docs/internal/evidence/8803-security-alert-empty-answer-truth.md). Past
+// (#8803). Past
 // this deadline the answer fails closed to collector_state_unavailable rather
 // than holding the request.
 const securityAlertCollectionStateTimeout = time.Second

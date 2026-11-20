@@ -47,8 +47,8 @@ This package generates the replacement from one table:
   bound, so the bound sits below 172. Every length to 120 was measured on
   the key probe with QA's statistics of 2026-11-04; the evidence notes say
   what moves that and how to re-check. See
-  `docs/internal/evidence/9994-cve-key-probe-chunking.md` and
-  `docs/internal/evidence/9914-os-advisory-upstream-grouping.md`.
+  (#9994) and
+  (#9914).
 - Bounded (suppression, platform materialization, workload identity,
   service catalog): one statement per kind evaluates every applicable arm
   over a kind-partial anchor. The suppression statement also reads the upstream
@@ -57,7 +57,7 @@ This package generates the replacement from one table:
   file cell is a guard cell (`codegraph/v1.File` carries none of them).
 
 A kind changes class only with a new census. The census and the per-index
-justification live in `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
+justification live in (#8880).
 
 ## Exactness
 

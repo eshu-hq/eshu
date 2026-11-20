@@ -135,7 +135,7 @@ type CrossScopeProducerReadinessStore struct {
 // projecting it. It does not prove any of the three 092c conditions directly,
 // and a producer whose identity reducer has not yet written its support set
 // still reads as ready here. That residual window is recorded in
-// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
+// (#5709).
 //
 // The probe runs at most once per DISTINCT declared producer collector kind,
 // and every kind is probed: a per-producer answer cannot short-circuit at the

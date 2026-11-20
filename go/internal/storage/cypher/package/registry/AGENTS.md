@@ -27,5 +27,5 @@
 ## Evidence and change history
 
 Behavior-preserving moves record their proof in
-`docs/internal/evidence/6694-semantic-registry-leaf.md`. Add new dated
+(#6694). Add new dated
 entries there for template or dispatch changes.

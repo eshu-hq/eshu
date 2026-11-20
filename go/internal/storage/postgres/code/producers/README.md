@@ -45,9 +45,9 @@ and `internal/parser/golang/module_import_path.go`.
   does not. Since #8243 that leg skips a superseded or failed generation whose
   write start is at or before the write start of the scope's newest activated
   full generation; a full without a write-start marker covers nothing. See
-  `docs/internal/evidence/8243-narrow-dirty-rule.md`,
-  `docs/internal/evidence/7760-generation-tag.md`, and
-  `docs/internal/evidence/7609-manifest-generation.md`.
+  (#8243),
+  (#7760), and
+  (#7609).
 - `WithInstruments` counts every row each read sees into
   `eshu_dp_producer_manifest_tag_outcomes_total` by `kind`
   (`package|composer|gomod`) and `outcome`.
@@ -61,6 +61,6 @@ path or one of its prefixes. The candidate list is a superset on purpose: an
 extra scope only adds files the exact key match then rejects. The ways the
 anchor can still miss a definition (go.mod dropped from the content store, a
 store out of step with the active generation) are in
-`docs/internal/evidence/7623-go-module-anchored-loader.md`.
+(#7623).
 
 See `doc.go` for the godoc contract.

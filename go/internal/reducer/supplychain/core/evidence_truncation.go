@@ -92,7 +92,7 @@ func (t supplyChainImpactTruncation) causes() []string {
 // must not be marked partial for its own size.
 //
 // The default is a documented permanent constraint, not a tuning guess: the
-// evidence note docs/internal/evidence/7154-capped-scope-convergence.md holds
+// evidence note (#7154) holds
 // the measured bytes per envelope and the resulting memory bound. A var, not a
 // const, so tests can lower it without seeding a hundred thousand rows.
 var maxSupplyChainImpactEvidenceEnvelopesPerIntent = 100_000

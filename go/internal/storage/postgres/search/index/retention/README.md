@@ -105,7 +105,7 @@ sequenceDiagram
   read the whole 10M-row leaf (104,476 buffers, 26 s); the shipped walk read
   2,443 buffers on that leaf once vacuumed, and 365,199-486,545 buffers over
   all 64 leaves and the documents table at 31,021 pairs
-  (`docs/internal/evidence/7427-search-index-orphan-guard.md`).
+  (#7427).
 - Dead index entries a pre-delete left (before VACUUM) are walked once per
   census: 2,800,330 heap fetches on the first walk, then 33,141 buffers for
   the shipped census statement on that leaf once their kill bits are set.
@@ -145,7 +145,7 @@ sequenceDiagram
 - The terms walk measured Index Scan on the leaf primary key, Index
   Searches 1, and runtime pruning (Subplans Removed: 63) under a generic plan;
   the first and a late batch cost the same. See
-  `docs/internal/evidence/7427-search-index-predelete.md`.
+  (#7427).
 - A generation is drained only when a from-start page returns no row. A short
   page is not enough: the re-sweep catches a row inserted behind the cursor.
 - Never run a batch inside the retention prune transaction or under its scope
@@ -167,7 +167,7 @@ sequenceDiagram
   a pruned generation's terms, so never admit an undrained generation to the
   prune. The documents and stats keys stay. Orphan tests drop the documents
   key only inside their isolated test schema. Deploy runbook and lock-order
-  proof: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
+  proof: (#7427).
 - The census interpolates a relation name; it comes only from
   `pg_inherits` as regclass text (PostgreSQL quotes it) or a fixed table
   name, never from input.

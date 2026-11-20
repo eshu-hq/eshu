@@ -56,7 +56,7 @@ Scoped instructions for the config-artifact read model (#7126). The root
   `TestDeriveWritesInOneTransactionUnderTheLock` (hermetic) and
   `derive_race_live_test.go` (`TestDeriveTwoDerivesOfOneRepositorySerializeLive`),
   not by `derive_order_live_test.go` (mutation table in
-  `docs/internal/evidence/8155-derive-core.md`). `lockRepository` and
+  (#8155)). `lockRepository` and
   `repoLockKey` (`lock.go`) are the one definition of the repository lock;
   every writer of a repository's rows or state row, the walker included,
   takes it through them, never a second copy of the key

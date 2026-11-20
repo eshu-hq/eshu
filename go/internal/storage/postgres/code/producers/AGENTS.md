@@ -5,7 +5,7 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Postgres storage conventions.
 3. `../../facts_active_code_call_symbols.go`, the loader that calls this package.
-4. `docs/internal/evidence/7623-go-module-anchored-loader.md` for the proof that
+4. (#7623) for the proof that
    the Go rule matches the corpus-wide scan and for its named limits.
 
 ## Invariants
@@ -38,8 +38,8 @@
   parsers' `ProducerPackage` and `ProducerPackageName` apply the same constant,
   so each anchor and its `package_id` stamp agree. Keep it a row filter: it
   needs no index
-  (`docs/internal/evidence/8223-composer-fixture-manifests.md`,
-  `docs/internal/evidence/8244-package-json-fixture-manifests.md`).
+  ((#8223),
+  (#8244)).
 - Composer names and npm names must stay disjoint (`composer.ValidPackageName`
   requires one `/` and no leading `@`); `PackageScopeIDs` routes on it.
 - Never import the parent `postgres` package from non-test code.

@@ -37,11 +37,6 @@ docs/superpowers/plans/2026-06-22-authz-token-lifecycle-3460-3461.md:go/cmd/api/
 
 # Dated evidence notes. Each records a measurement, transcript, or decision
 # against the tree as it stood at write time.
-docs/internal/evidence/10820-census-2e-purge.md:go/cmd/api/main.go
-docs/internal/evidence/4045-evidence-bundle-api-performance.md:go/cmd/api/wiring_router.go
-docs/internal/evidence/5052-keyword-search-scope-id.md:go/cmd/api/wiring_router.go
-docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/api/wiring_handlers.go
-docs/internal/evidence/8874-s4-endpoint-decisions.md:go/cmd/api/wiring.go
 
 # Dated issue notes embedded in public reference docs. Each records the
 # verification command or emitter of a landed change; editing the recorded

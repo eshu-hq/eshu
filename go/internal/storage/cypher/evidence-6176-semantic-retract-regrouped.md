@@ -20,7 +20,7 @@ under-apply on NornicDB v1.1.11, leaving semantic nodes such as `Variable` in
 the graph with nothing reporting a failure (#4367,
 `evidence-4367-semantic-retract-dispatch.md`). #5323 measured the grouped
 retract correct on 1.2.1 and 1.2.2 against a 1.1.9 control that still fails.
-`docs/internal/evidence/6176-grouped-semantic-retract-version-floor.md` added
+(#6176) added
 the v1.1.11 measurement the earlier work skipped and set the floor at 1.2.1.
 The repository owner has since settled the compatibility question: v1.2.3 —
 the build the deployment actually runs — is the supported backend, and it is
@@ -252,7 +252,7 @@ v1.1.11 container (`@sha256:51b6174a`, host Bolt port 17813) too, and the
 mutation above goes RED there as well, so the harness is live and biting on
 that backend. This harness therefore does **not** reproduce the under-
 application that
-`docs/internal/evidence/6176-grouped-semantic-retract-version-floor.md`
+(#6176)
 measured through the `internal/replay/offlinetier` shim. That is a difference
 between two harnesses, not a contradiction of the floor: it is **not** evidence
 that v1.1.11 is safe, and the 1.2.1 floor stands on the offlinetier

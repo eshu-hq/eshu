@@ -309,7 +309,7 @@ this package's `ManifestFor`; it differs only in the unpinned image, which
 `seed` stamps. The core pins reach a cluster only through a new eshu image
 build; the deployment chart `seed.image` entries and that image bump land in
 one sync (see the arbiter ruling in
-`docs/internal/evidence/8878-close-out-arbiter-ruling.md`, decision 3).
+(#8878), decision 3).
 
 No-Regression Evidence (satellite re-pin): RED-first.
 `TestManifestArtifactPinsPublishTimeDigestContract`,

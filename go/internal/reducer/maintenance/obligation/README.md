@@ -73,5 +73,5 @@ Never `internal/reducer`.
 ## Related docs
 
 - `go/internal/storage/postgres/activation/README.md`
-- `docs/internal/evidence/7584-partition-scoped-maintenance.md`
+- (#7584)
 - `docs/public/observability/telemetry-coverage.md`

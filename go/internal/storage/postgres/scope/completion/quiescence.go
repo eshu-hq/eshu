@@ -31,7 +31,7 @@ import (
 // The columns the planner has to resolve are the same either way, so both ride
 // fact_work_items_scope_generation_idx (scope_id-anchored) rather than scanning
 // the work-items table. The EXPLAIN in
-// docs/internal/evidence/5709-quiescence-probe.md is what establishes that;
+// (#5709) is what establishes that;
 // the resemblance on its own would not.
 //
 // Keeping the scope filter in a CTE aliased AS s is what leaves the correlation
@@ -42,7 +42,7 @@ import (
 // expression in the target list lets PostgreSQL 16 hash the subquery instead of
 // correlating it, which turns the probe into one sequential scan of
 // fact_work_items: 5.16 ms against 0.30 ms for the same seed. See
-// docs/internal/evidence/5709-quiescence-probe.md for both plans.
+// (#5709) for both plans.
 const producerScopeQuiescenceSQL = `WITH registered AS (
     SELECT s.scope_id, s.active_generation_id
     FROM ingestion_scopes AS s

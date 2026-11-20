@@ -17,8 +17,7 @@ import (
 
 // corpusFenceStubLoader models the production RelationshipStore during a
 // foreign scope's retired-or-pending relationship generation: the unfenced
-// by-repos read silently omits that scope's rows (docs/internal/evidence/
-// 6740-corpus-fence-snapshot.md, "Negative control"), while the fused read
+// by-repos read silently omits that scope's rows ((#6740), "Negative control"), while the fused read
 // reports the fence as open.
 type corpusFenceStubLoader struct {
 	// partial is what the unfenced read returns while the fence is open: the

@@ -145,7 +145,7 @@ see [Graph-read safety](telemetry/graph-read-safety.md).
   per-branch statement.
 - Before/after timings, cold and warm:
   (#7215) and
-  `docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md`.
+  (#7231).
 
 Do not move the list-`EXISTS` form onto NornicDB without a live NornicDB proof
 that it no longer leaks.

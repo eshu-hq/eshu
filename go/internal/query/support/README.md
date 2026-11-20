@@ -51,7 +51,7 @@ package.
   `fact_records` to the active scope and generation it read 60,000 buffers at one
   million facts (30 to 64 ms); the shipped shape reads about 2,000 (1 to 3 ms).
   Keep each `OFFSET 0` and the LATERAL probes; see
-  `docs/internal/evidence/7463-story-target-support-incident-routing.md`.
+  (#7463).
 - The source-only correlation set is `MATERIALIZED`, is read per active
   scope generation through `fact_records_scope_generation_idx` (never every
   retained generation of the kind: 932,000 buffers at 24 retained generations
@@ -74,5 +74,5 @@ package.
 ## Related docs
 
 - [Story routes](../../../../docs/public/reference/http-api/story-routes.md)
-- [Evidence note](../../../../docs/internal/evidence/7463-story-target-support-incident-routing.md)
-- [Jira issue-link evidence note](../../../../docs/internal/evidence/7464-story-target-support-jira-issue-link.md)
+- Evidence note (#7463)
+- Jira issue-link evidence note (#7464)

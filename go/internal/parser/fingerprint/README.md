@@ -24,7 +24,7 @@ truly unknown languages keep comment leaves in the stream.
 
 Tunables (`SketchRegs=128`, `ShingleK=5`, `LSHBands=32`, `LSHRows=4`) are
 fixed by the #6834 theory proof in
-`docs/internal/evidence/6834-code-divergence-theory.md`. Do not change them
+(#6834). Do not change them
 without re-running the precision study and updating that evidence doc.
 
 ## Notes

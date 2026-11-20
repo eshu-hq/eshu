@@ -65,7 +65,7 @@ func TestReadinessRepoArmExecutableTextIsPinned(t *testing.T) {
 		t.Errorf("the executable SQL of the readiness repository arms changed.\n"+
 			"first difference: %s\n"+
 			"If the change is deliberate, regenerate with -update-repo-arm-golden and attach the plan proof "+
-			"(docs/internal/evidence/7088-readiness-repo-scope.md).", firstDifference(got, string(want)))
+			"(#7088).", firstDifference(got, string(want)))
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 // nornicdbBrokenAndOrPattern matches an AND or OR keyword whose immediately
 // preceding character is a newline or a tab rather than a space -- the exact
 // shape proven live to break NornicDB v1.3.3 (#6786,
-// docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md): on
+// (#6786)): on
 // that pinned image, `WHERE x = $a\n\tAND y = $b` (or `\nAND`, with no space
 // immediately before AND/OR) can silently drop the WHOLE WHERE clause, not
 // just the AND/OR term itself. `\n  AND` and `\n\t AND` (a space directly
@@ -64,7 +64,7 @@ func AssertCypherHasNoBrokenAndOr(t cypherAssertionT, cypher string) {
 //     labels(x) is wrong in every position: ignored after a pattern, zero rows
 //     on a single-node MATCH.
 //
-// Evidence: docs/internal/evidence/6786-nornicdb-label-predicates.md.
+// Evidence: (#6786).
 var (
 	labelPredicateClauseKeyword = regexp.MustCompile(`\b(OPTIONAL\s+MATCH|MATCH|WITH|WHERE|RETURN|UNWIND|CALL|UNION|ORDER\s+BY|SKIP|LIMIT|CREATE|MERGE|SET|DETACH\s+DELETE|DELETE|REMOVE|FOREACH)\b`)
 	labelPredicateRelationship  = regexp.MustCompile(`-\[|\]-|--|->|<-`)

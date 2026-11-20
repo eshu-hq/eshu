@@ -206,8 +206,8 @@ implements
 `PhaseGroupExecutor`, each phase executes as a bounded group. Otherwise phases
 run sequentially.
 
-`repository_cleanup` only retires a different-id `Repository` at this path (skipped for first-generation and delta scopes); it never deletes the node the upsert re-MERGEs, whose reducer and cross-scope edges a retry cannot rebuild (#7285, `docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`).
-A retirement that deleted a node is reported from the backend write summary on `eshu_dp_canonical_repository_retirements_total{outcome}` and the `canonical repository retired` log (contract A, #7324, `docs/internal/design/7324-cross-scope-writer-rearm.md`); `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners` pins that no other statically visible statement deletes a projector-owned `Repository` or drops edges with one, and that every incoming `Repository`-edge delete is `evidence_source`-scoped; the orphan sweep's plain `DELETE n` of disconnected, non-projector `Repository` stubs (runtime-built label) is the documented exception it cannot see. The retirement statement collects its incident edges before the delete and binds the retired id (`RETURN retired_id, dropped`) and the report splits them per direction and owner class on `eshu_dp_canonical_repository_retired_relationships_total{direction,class}` with `dropped_incoming`/`dropped_outgoing` and the capped per-type map on the log; executors that never consumed the record (notably the NornicDB phase-group path, which stays unattributed) log `attribution=false` and move only the outcome counter (`docs/internal/evidence/7324-repository-path-conflict-retirement.md`). The retired ids reach the writer's `RetiredRepositoryObserver` port (projector, ingester, and bootstrap-index wiring inject the `deployable_unit_correlation` fingerprint invalidation, #8316); the bare NornicDB shape reports no id and relies on the gap reconciliation instead.
+`repository_cleanup` only retires a different-id `Repository` at this path (skipped for first-generation and delta scopes); it never deletes the node the upsert re-MERGEs, whose reducer and cross-scope edges a retry cannot rebuild (#7285, (#7285)).
+A retirement that deleted a node is reported from the backend write summary on `eshu_dp_canonical_repository_retirements_total{outcome}` and the `canonical repository retired` log (contract A, #7324, `docs/internal/design/7324-cross-scope-writer-rearm.md`); `TestRepositoryIncomingEdgesAreDeletedOnlyByTheirOwners` pins that no other statically visible statement deletes a projector-owned `Repository` or drops edges with one, and that every incoming `Repository`-edge delete is `evidence_source`-scoped; the orphan sweep's plain `DELETE n` of disconnected, non-projector `Repository` stubs (runtime-built label) is the documented exception it cannot see. The retirement statement collects its incident edges before the delete and binds the retired id (`RETURN retired_id, dropped`) and the report splits them per direction and owner class on `eshu_dp_canonical_repository_retired_relationships_total{direction,class}` with `dropped_incoming`/`dropped_outgoing` and the capped per-type map on the log; executors that never consumed the record (notably the NornicDB phase-group path, which stays unattributed) log `attribution=false` and move only the outcome counter (#7324). The retired ids reach the writer's `RetiredRepositoryObserver` port (projector, ingester, and bootstrap-index wiring inject the `deployable_unit_correlation` fingerprint invalidation, #8316); the bare NornicDB shape reports no id and relies on the gap reconciliation instead.
 Directory rows
 use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with
@@ -241,7 +241,7 @@ Delta canonical materializations skip `repository_cleanup` and negative
 full-generation stale cleanup. Deleted files are removed by positive
 `IN $file_paths` worklist chunks (the prior `UNWIND $file_paths AS file_path`
 seed plus compound WHERE cost 87–216s per execution on NornicDB v1.3.3 at
-600k-node scale; see `docs/internal/evidence/6715-retract-in-worklist.md`),
+600k-node scale; see (#6715)),
 changed files update in
 place, now-empty deleted-file ancestor directories are removed leaf-first, and
 post-upsert entity cleanup is label-scoped plus `n.path IN $file_paths` so
@@ -256,7 +256,7 @@ keep-list cleanup stays a single statement). Reshaped by #6715:
 deleted-file/directory statements now seed with positive `IN $file_paths` /
 `IN $directory_paths` instead of the `UNWIND` seed, keeping the same chunks
 (UNWIND-seeded compound: 87–216s/execution on NornicDB v1.3.3; IN: 8.5–9s;
-`docs/internal/evidence/6715-retract-in-worklist.md`).
+(#6715)).
 
 No-Observability-Change: chunked delta retracts still flow through the existing
 NornicDB phase-group sequential retract path, statement summaries, retry/error
@@ -687,7 +687,7 @@ target-bound activation record.
 Observability Evidence: no new metric name is introduced by the writer; the
 reducer projection domain owns the bounded-enum node/edge/skip counters and the
 per-phase-duration completion log documented in
-`docs/internal/evidence/1347-1379-1381-secrets-iam-edge-promotion.md`.
+(#1347).
 
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
@@ -911,7 +911,7 @@ one label would make the delta path's much higher call volume invisible.
   exists via a separate read before the row ever reaches the write, so a
   missing bucket node is dropped before the statement runs rather than
   fabricated by `MERGE`. See `posture_node_existence.go` and
-  `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`. Unknown
+  (#5652). Unknown
   exposure rows set `s3_internet_exposure_state=unknown` and remove the
   boolean `s3_internet_exposed` property. Retract removes only
   `s3_internet_exposure_*` properties scoped by reducer evidence source and
@@ -1790,7 +1790,7 @@ makes it interleaving-sensitive again) and `r.ifa_teeth_write_order`
 `scripts/verify-ifa-determinism.sh --teeth` uses at least one of these two
 deliberately non-idempotent values to prove the graph-determinism matrix
 actually catches a real non-idempotent write. See
-`docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md` for the
+(#4396) for the
 fuller writeup of why these values diverge across worker counts.
 
 ## Shared-writer row-key default-fill backstop (#5714/#5055)
@@ -1813,7 +1813,7 @@ query/join consumer would treat as real data).
 Prove-theory-first: before choosing between an in-Cypher `coalesce` rewrite
 (Option B) and this Go-side default-fill (Option A), both were measured live
 against the pinned NornicDB image — see
-`docs/internal/evidence/5714-cloudresource-row-key-defaults.md` for the shim,
+(#5714) for the shim,
 its output, and why Option A was chosen even though both were proven viable.
 `TestCloudResourceRowKeyDefaultsCoversEverySetKey` is the static lockstep
 guard keeping `cloudResourceRowKeyDefaults` and the Cypher's `SET` clause from

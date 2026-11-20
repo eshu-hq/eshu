@@ -7,7 +7,7 @@ package ownership
 // their cost depends on the number of checked keys and their owner fan-in, not
 // on the caller's grant size. Live measurements run on Neo4j
 // (neo4j:2026-community), the owner-mandated test backend since 2026-09-25;
-// see docs/internal/evidence/5167-impact-grant.md.
+// see (#5167).
 //
 // Measured on Neo4j, through Checker, uncached (a unique $nonce per run):
 //

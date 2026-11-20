@@ -254,7 +254,7 @@ const (
 
 // anchorProbe6702Class names the per-pass outcome the #6702 instrumented
 // probe distinguishes. H1a/H1b are the two documented consumer-load residual
-// windows from docs/internal/evidence/5709-supply-chain-consumer.md; H2 is
+// windows from (#5709); H2 is
 // writer variance (every identity row ambiguous). Healthy and the armed-but-
 // silent case are recorded so a passing gate run is evidence too, not just
 // reds.

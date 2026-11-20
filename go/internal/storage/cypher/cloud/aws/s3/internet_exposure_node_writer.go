@@ -23,7 +23,7 @@ const s3InternetExposureNodeLabel = "CloudResource:S3InternetExposure"
 // sourcecypher.FilterRowsToExistingCloudResourceUIDs already confirmed exists via a
 // separate read, so MERGE always matches and never creates. See
 // posture_node_existence.go and
-// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
+// (#5652).
 const canonicalS3InternetExposureNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (resource:CloudResource {uid: row.uid})
 SET resource.s3_internet_exposure_state = row.state,

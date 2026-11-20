@@ -108,7 +108,7 @@ entity, never to a fact of one of the five edges above — `RUNS_ON` and
 `DEPLOYS_FROM` land in different resolver candidate buckets even for the same
 ArgoCD Application, so it would have shipped as a permanently-empty property
 on every edge, forever, with no real producer. See
-`docs/internal/evidence/5441-edge-node-properties.md` for the full mechanism
+(#5441) for the full mechanism
 probe and the cross-candidate join a real fix would need.
 
 ## Canonical `source_tool` vocabulary

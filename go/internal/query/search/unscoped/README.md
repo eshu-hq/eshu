@@ -45,7 +45,7 @@ Figures at the default 2000 ms budget (each phase limit scales with the budget):
 
 The entity figures are triple A of the #7009 S1 shim on `content_entities` in
 the QA environment (figures in
-`docs/internal/evidence/7009-unscoped-entity-search-figures.md`; arbiter
+(#7009); arbiter
 ruling round 2, R2.1). An ordered entity window costs bytes, not rows
 (0.3 ms plus 0.34 us per row plus 10.2 ns per byte), so 400 ms walks about
 35,000 rows; the rare bitmap tails cost 400-462 ms warm, so the tail gets

@@ -318,7 +318,7 @@ const listContentFilePathsSQL = `SELECT relative_path FROM content_files WHERE r
 // deletes cannot remove a fresh row of this Write. The exception is a writer
 // whose lease expired but is still running, which the guard does not cover and
 // which can upsert after this read (see the known limits in
-// docs/internal/evidence/7447-content-full-snapshot-reap.md).
+// (#7447)).
 func (w ContentWriter) staleContentFilePaths(ctx context.Context, mat content.Materialization) ([]string, error) {
 	if !mat.FullSnapshot {
 		return nil, nil

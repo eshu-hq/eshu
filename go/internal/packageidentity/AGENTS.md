@@ -40,7 +40,7 @@
   those readers (`reconciliation_triage.go`, `owned_package_manager_aliases.go`,
   the vulnerability-intelligence config, the Artifactory parser, the parity
   classifier) fold with `LowerASCII` too. The evidence note
-  `docs/internal/evidence/9584-consumption-key-ascii-fold.md` lists the
+  (#9584) lists the
   converted packages and the folds left alone that the census of the swept
   packages and the reviews found. The locale folds that remain are not
   identity and stay locale-folded: language labels, JVM code identifiers,

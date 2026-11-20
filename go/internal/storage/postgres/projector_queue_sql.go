@@ -383,7 +383,7 @@ const replaySkippedNoneCTE = `SELECT 0::bigint AS n`
 // transaction made pending or claimed is dropped, not reset twice. The UPDATE
 // reads the ids through = ANY(ARRAY(...)) to probe the primary key; IN (SELECT
 // ...) planned a scan of every terminal row. AS MATERIALIZED measured no plan
-// change. See docs/internal/evidence/8205-replay-lock-order.md.
+// change. See (#8205).
 //
 // The replay stamps reopened_at with the replay timestamp (#9320): every row it
 // touches was dead_letter or failed, so it becomes outstanding again and its

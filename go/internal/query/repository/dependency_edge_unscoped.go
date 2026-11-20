@@ -81,7 +81,7 @@ func dependencyEdgeCount(row map[string]any) (int64, bool) {
 // edges: 0.0045s median for this read against 0.635s for the per-edge read,
 // with identical flattened row sets at LIMIT 50001, 100 and 7. On Neo4j 2026
 // both shapes cost about 5ms. Evidence:
-// docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md.
+// (#6786).
 //
 // Keep it exactly this shape. A WHERE clause (including a grant predicate)
 // disables the fast path, which is why scoped callers stay on the per-edge

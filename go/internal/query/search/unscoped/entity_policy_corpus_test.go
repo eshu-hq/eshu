@@ -9,7 +9,7 @@ import (
 )
 
 // The entity policy corpus is a key space shaped like the content_entities
-// measurements of the #7009 S1 shim (docs/internal/evidence/7009-unscoped-entity-search-figures.md),
+// measurements of the #7009 S1 shim (#7009),
 // scaled down so the fake stays small. Positions and costs are synthetic; no
 // row of a real corpus is in it.
 const (

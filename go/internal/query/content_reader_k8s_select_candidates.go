@@ -69,7 +69,7 @@ func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) kubernetes.SelectMat
 // lower(metadata->>'kind') = 'service' pushdown and rejected it: without a
 // supporting expression index it forces a whole-table Seq Scan (a
 // platform-wide, not per-repo, cost). See
-// docs/internal/evidence/5490-k8sresource-candidate-index.md.
+// (#5490).
 //
 // This query is served by the partial index
 // content_entities_k8s_select_partial_idx (migration 077,

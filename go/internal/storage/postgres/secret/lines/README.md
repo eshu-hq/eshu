@@ -148,7 +148,7 @@ flowchart LR
 - `go/internal/storage/postgres/migrations/138_content_file_secret_lines.sql`
 - `go/internal/query/content_reader_security_secrets.go` (the gated read)
 - `go/cmd/bootstrap-index/bootstrap_finalize.go` (the caller)
-- `docs/internal/evidence/7125-secret-lines-side-table.md`
+- (#7125)
 
 ## Shared pool composition
 

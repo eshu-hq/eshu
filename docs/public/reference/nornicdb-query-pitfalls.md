@@ -285,7 +285,7 @@ branch (`go/cmd/reducer/evidence-6634-workload-dependency-incoming-lookup.md`).
 #6794 measured a NON-empty first branch on
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.3.3`: the related-repository read
 returned only its one outgoing row and dropped the three incoming rows
-(`docs/internal/evidence/6794-context-incoming-anchor.md`). `UNION ALL` was
+(#6794). `UNION ALL` was
 not measured on v1.3.3. Wrapping the union in `CALL {...} RETURN ...`
 returned every branch on auto-commit reads in every case tried.
 
@@ -321,7 +321,7 @@ costs far more than its row count explains, even for a bound node with no
 edges. The mirrored `(r:Repository {id: $repo_id})<-[rel:T1|T2]-(source:Repository)`
 returns the same rows in milliseconds. The engine source was not read, so the
 plan is inferred from timing only. #6794 measured both on one seeded graph
-(`docs/internal/evidence/6794-context-incoming-anchor.md`); on a
+(#6794); on a
 production-scale instance the right-anchored reads ran past the 10s API
 deadline and repository context rendered no incoming rows.
 
@@ -588,7 +588,7 @@ MATCH (n) WHERE any(l IN labels(n) WHERE l IN ['Repository']) RETURN n.id       
 A property equality `AND`ed with the label test (`WHERE s:R AND s.id = 'r1'`)
 happened to evaluate correctly; do not rely on it. The full probe matrix,
 rows per backend, and the production exposure audit are in
-`docs/internal/evidence/6786-nornicdb-label-predicates.md`.
+(#6786).
 
 The probes must read in auto-commit mode (`session.Run`), as production does:
 in a managed transaction v1.3.3 rejects every `CALL { … }` subquery with

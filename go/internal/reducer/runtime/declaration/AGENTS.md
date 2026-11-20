@@ -8,7 +8,7 @@ Scoped rules for this directory. The root `AGENTS.md` still applies.
 - `go/internal/reducer/AGENTS.md`.
 - `go/internal/storage/cypher/edge/writer/runtime_declaration.go` for the
   Cypher this handler drives.
-- `docs/internal/evidence/8816-runtime-declaration-graph.md` for the PROFILE
+- (#8816) for the PROFILE
   numbers behind the schema and retract shapes.
 
 ## Invariants

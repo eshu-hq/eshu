@@ -56,7 +56,7 @@ families become handle rows (one key table, `traceSections`) and the derived
 families are omitted. Every non-full family is reported in `section_detail`
 and returned for `truth.omissions`. The HTTP default is full; the MCP adapter
 defaults to handles. Measurements are in
-`docs/internal/evidence/7174-trace-deployment-chain-size-bound.md`.
+(#7174).
 
 ## Dependencies
 

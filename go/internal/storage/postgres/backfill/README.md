@@ -199,7 +199,7 @@ call.
   `PublishDeferredBackfillPartitions`, which the partition-scoped pass calls,
   still publishes every partition. The invariant is on
   `splitUnchangedDeferredPartitions` in `fanin_unchanged.go`. Evidence is in
-  `docs/internal/evidence/8082-fanin-unchanged-partitions.md`.
+  (#8082).
 - Differentials derive from the shipped constants. A hand-frozen copy
   drifts and goes false-green.
 - `DecideSuccessor` does no I/O and never refuses on its lower bound alone:
@@ -214,7 +214,7 @@ call.
 ## Related docs
 
 - `docs/public/architecture.md` (pipeline: sync to query surface)
-- `docs/internal/evidence/8750-successor-guard-sizing.md` (successor guard
+- (#8750) (successor guard
   sizing)
 - `docs/public/reference/cypher-performance.md` for hot-path query work
 

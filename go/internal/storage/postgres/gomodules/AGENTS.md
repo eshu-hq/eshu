@@ -37,7 +37,7 @@
 - The fence leaves the facts and the superseded generation in place. Only repository
   retirement deletes them.
 - Keep the CASE guard on `evidence_left_at`: the subquery must run only for a skewed row.
-  The EXPLAIN in `docs/internal/evidence/10055-commit-skew-fence.md` holds its loop count.
+  The EXPLAIN in (#10055) holds its loop count.
 - `HolderReopener` is injected because no subpackage imports the postgres root. A store with
   no reopener refuses to fence.
 

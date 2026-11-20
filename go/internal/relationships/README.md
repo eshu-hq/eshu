@@ -221,7 +221,7 @@ overridable place instead of scattered literals.
   `DestinationNamespace`, was scoped and then deliberately removed before
   merge: its only producer attaches the value to a `RelRunsOn` fact, never
   to a fact of a repo-relationship type, so it would never populate — see
-  the `Candidate` doc comment and `docs/internal/evidence/5441-edge-node-properties.md`.
+  the `Candidate` doc comment and (#5441).
 - `ResolvedRelationship` — canonical relationship emitted after resolution;
   carries `ResolutionSource` (`inferred` or `assertion`) (`models.go:199`).
   Mirrors `Candidate`'s `SourceRevision`/`FirstPartyRefVersion` fields,

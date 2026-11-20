@@ -88,7 +88,7 @@ var schemaPerformanceIndexes = []string{
 	// 15.722s -> 0.074s pair quoted for grant-1/50 elsewhere is the
 	// rewrite-plus-index total against origin/main, not this index's share of
 	// it. Full record:
-	// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md. Read "the
+	// (#6541). Read "the
 	// index changes reads only" in the schema-compatibility note
 	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a
 	// writer on the previous fingerprint writes the identical graph" -- which
@@ -125,7 +125,7 @@ var schemaPerformanceIndexes = []string{
 	// INDEXES). The pinned NornicDB Bolt transport returns no PROFILE/EXPLAIN
 	// plan metadata (reproduced: both return zero rows and a nil plan),
 	// matching the documented limitation in
-	// docs/internal/evidence/5410-sql-relationships-performance.md, so
+	// (#5410), so
 	// wall-clock timing on this discriminating shape is the available proof,
 	// not a plan-tree db-hit count.
 	"CREATE INDEX kustomize_overlay_repo_id IF NOT EXISTS FOR (ko:KustomizeOverlay) ON (ko.repo_id)",
@@ -156,7 +156,7 @@ var schemaPerformanceIndexes = []string{
 	// read "runtime = $r AND version_major < $n" (#8816, read by #8817). On the
 	// pinned Neo4j a PROFILE over 10,000 declarations in 1,000 repositories
 	// plans a NodeIndexSeek on this index (10,066 db hits for a 50-row page);
-	// see docs/internal/evidence/8816-runtime-declaration-graph.md. NornicDB
+	// see (#8816). NornicDB
 	// registers a composite index under its first property only (see the
 	// module_name_lookup comment in schema_tables.go), so there it backs the
 	// runtime equality alone.

@@ -5,7 +5,7 @@ The `runtime_declaration_projection` reducer domain (#8816) writes one
 repository: `Repository-[:DECLARES_RUNTIME]->RuntimeDeclaration`. This page
 records the schema those writes depend on and the measured plans. The proof
 behind the retract scope is in the repository evidence note
-`docs/internal/evidence/8816-runtime-declaration-graph.md`.
+(#8816).
 
 ## Schema
 

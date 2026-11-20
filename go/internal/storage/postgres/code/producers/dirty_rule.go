@@ -38,7 +38,7 @@ package producerstore
 // Before #8243, superseded generations that never activated kept 512 to 784
 // of 812 QA repository scopes dirty per read and cost each package leg 4 to 6
 // seconds of definition scan; see
-// docs/internal/evidence/8243-narrow-dirty-rule.md. The newest-full lookup is
+// (#8243). The newest-full lookup is
 // a LEFT JOIN LATERAL, one index probe per repository scope: a correlated
 // subquery per never-activated row ran 8,750 times on a QA-shaped corpus, and
 // a MATERIALIZED per-scope CTE misestimated into a nested loop.

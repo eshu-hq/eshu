@@ -82,7 +82,7 @@ down from 6.499 and 76.626 seconds on the same input
 (`ledger:5975-two-call-normal-base`, `ledger:5975-two-call-normal-candidate`,
 `ledger:5975-two-call-race-base`, `ledger:5975-two-call-race-candidate`).
 Canonical output remains byte-identical. See
-[`docs/internal/evidence/5975-canonicalize-odu-performance.md`](../../../docs/internal/evidence/5975-canonicalize-odu-performance.md).
+(#5975).
 
 No-Observability-Change: the sorter is a synchronous in-memory helper beneath
 fixture recorders, API/MCP replay, input tapes, graph dumps, synthetic data, and

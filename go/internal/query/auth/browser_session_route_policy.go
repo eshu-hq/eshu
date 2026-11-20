@@ -214,7 +214,7 @@ func ScopedBearerRouteDenialReason(
 		return ""
 	}
 	// The break-it-to-prove-it run recorded in
-	// docs/internal/evidence/5167-freshness-family-allowlist.md flips the
+	// (#5167) flips the
 	// literal below to "", which restores the unconditional admission an
 	// all-scope bearer had before this function existed, and must turn the
 	// hosted_multi_tenant refusal cases red. The trailing marker is what that run seds on, so keep
@@ -271,7 +271,7 @@ func ScopedRouteNeedsNoCallerGrant(r *http.Request) bool {
 		return true
 	default:
 		// The break-it-to-prove-it run recorded in
-		// docs/internal/evidence/6450-all-scope-browser-session-admission.md
+		// (#6450)
 		// flips the literal below to true, which reopens the pre-#6450
 		// admission on every allowlisted route and confirms the #6450
 		// regression tests go red. The trailing marker is what that run

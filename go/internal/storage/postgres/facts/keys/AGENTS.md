@@ -5,7 +5,7 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Postgres storage conventions ("Key sidecar deletes
    (#7420)").
-3. `docs/internal/evidence/7420-key-sidecar-explicit-deletes.md` for the
+3. (#7420) for the
    measured plans.
 
 ## Invariants

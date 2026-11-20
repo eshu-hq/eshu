@@ -212,7 +212,7 @@ a `path` index or constraint. A separate probe found that NornicDB does seek a
 with the other predicates the retract uses. No other query anchors these three
 labels on `path`; they anchor on `uid`. The retract's label scan is a
 pre-existing performance gap, not a regression from this change. See
-`docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`.
+(#7097).
 
 This moves the NornicDB schema fingerprint, so the first
 `eshu-bootstrap-data-plane` run after the upgrade re-applies the schema on an
@@ -389,7 +389,7 @@ indexes: a bulk-load regime with a finalizer, gated by a state row.
   `ready`: findings are silently missing. `eshu-bootstrap-index` must therefore
   not run through a transaction-mode pooler. Eshu's deployment has no pooler;
   the same leak class is recorded for `eshu.infra_inventory_writer` in
-  `docs/internal/evidence/6793-infra-read-model-fence.md`.
+  (#6793).
 - Right after the schema applies and before any content write, bootstrap-index
   moves `content_file_secret_lines_state` to `not_built` and increments its
   `epoch`. From then until the finalizer publishes `ready`, the hardcoded-secret

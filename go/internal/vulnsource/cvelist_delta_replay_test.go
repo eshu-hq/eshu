@@ -10,7 +10,7 @@ import (
 
 // Committable 5.2 coverage for eshu-hq/eshu#10354 (Phase 5 5.2), carried
 // from the deleted 5.1 scratch shims
-// (docs/internal/evidence/9961-shard-scoped-generations.md). A heavy
+// (#9961). A heavy
 // real-world CVE List delta day touches ~2,000 CVEs; dirty-shard fan-in,
 // not per-shard cost, bounds the daily work.
 func TestCVEListDeltaCountsHeavyDay(t *testing.T) {

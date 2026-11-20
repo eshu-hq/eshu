@@ -458,7 +458,7 @@ unchanged.
 
 Conflict domain and concurrency: the conflict key is `(scope_id, service_id)`,
 `scope_id` being the writing intent's ingestion scope (#6475;
-`docs/internal/evidence/6475-service-lineage-scope.md`). One active generation per
+(#6475)). One active generation per
 key is enforced by `service_materialization_generations_active_service_idx`;
 supersede and activate filter on `scope_id`, so no scope retires another's rows
 and unattributed (`NULL`) legacy rows are never superseded. One transaction runs

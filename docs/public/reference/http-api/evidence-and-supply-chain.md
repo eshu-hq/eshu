@@ -1155,8 +1155,8 @@ improved identical 20,000-row insert/update tests without changing table
 contents. The retained real-handler integration test completed 15 hot-digest
 list requests at a 636.833 microsecond median and returned the full 200-resource
 budget its single-digest page is entitled to. Full commands and lifecycle proof
-are in `docs/internal/evidence/5469-tiered-version-resolution.md` and
-`docs/internal/evidence/5789-per-digest-bound.md`.
+are in (#5469) and
+(#5789).
 
 Observability: `version_resolution_tier`/`version_resolution_corroboration`
 are produced by `supplyChainVersionResolution` from the enriched finding row.

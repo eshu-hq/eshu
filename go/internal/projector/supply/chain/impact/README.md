@@ -63,7 +63,7 @@ the manifest marker predicate (`manifest_trigger.go`) reads a few payload keys
 from the already-decoded map, most selective first, and decodes no JSON. Its
 worst case (a generation of non-dependency Variables) is measured by
 `BenchmarkManifestDependencyTriggerNoDependency`; see
-`docs/internal/evidence/9874-lockfile-retrigger.md`.
+(#9874).
 
 ## Telemetry
 

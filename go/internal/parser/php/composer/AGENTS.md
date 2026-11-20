@@ -6,7 +6,7 @@
 2. `doc.go` - godoc contract
 3. `manifest.go` - producer rule and the shared `ManifestName`
 4. `lock.go` - consumer rule and the longest-prefix lookup
-5. `docs/internal/evidence/7601-php-package-keys.md` - measurements and rulings
+5. (#7601) - measurements and rulings
 
 ## Invariants
 

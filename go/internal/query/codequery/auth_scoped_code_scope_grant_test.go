@@ -24,7 +24,7 @@ import (
 // `r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids` matches
 // nothing and the caller gets an empty page for a repository they may read.
 // The identity distinction, and the rebinding that closes it, are the #5052
-// keyword-search defect (docs/internal/evidence/5052-keyword-search-scope-id.md).
+// keyword-search defect (#5052).
 //
 // These tests run every family of the batch through a scope-only grant. They
 // are red on a build where the grant is not resolved: the content routes bind

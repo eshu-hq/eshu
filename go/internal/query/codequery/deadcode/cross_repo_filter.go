@@ -217,7 +217,7 @@ func crossRepoDeadCodeUnknownReasons(
 // buffers at 0, 20 and 200 retained generations, against 22.3/89.2/630.4 ms and
 // 39,403/154,603/1,150,489 buffers for the shape that scanned the group.
 //
-// [#5167 hidden-consumer walk]: ../../../docs/internal/evidence/5167-cross-repo-hidden-consumer-walk.md
+// [#5167 hidden-consumer walk]: ../../../(#5167)
 //
 // Five details are load-bearing:
 //

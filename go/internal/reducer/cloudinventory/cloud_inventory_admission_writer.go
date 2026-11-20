@@ -214,7 +214,7 @@ func cloudInventoryAdmissionBasePayload(
 		// payload that never had the key at all. See
 		// TestCloudInventoryAdmissionPayloadIncludesAccountIDForEveryProvider's
 		// blank-AccountID case and
-		// docs/internal/evidence/5238-account-alias-rollout-gap-signal.md.
+		// (#5238).
 		"account_id":            resource.AccountID,
 		"source_fact_kinds":     resource.FactKinds,
 		"management_origin":     string(resource.ManagementOrigin),

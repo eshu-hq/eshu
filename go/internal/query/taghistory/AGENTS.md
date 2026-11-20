@@ -11,7 +11,7 @@ NornicDB build and on upstream v1.3.1 for a seed whose correct answer was two
 rows. A "simplification" that merges them silently withholds every row a scoped
 caller is entitled to. If you believe the backend has been fixed, prove it on
 the pinned build first and record the run in
-`docs/internal/evidence/6564-tag-history-grant-binding.md`.
+(#6564).
 
 ## Never make a page look complete when it is not
 
@@ -127,7 +127,7 @@ the history early for any store holding pre-#5459 observations.
 
 Changing any statement's text invalidates the live proof in the evidence doc.
 Re-run `TestTagHistoryKeysetNornicDBLive` on the pinned build and update
-`docs/internal/evidence/6564-tag-history-keyset-pagination.md` in the same
+(#6564) in the same
 change.
 
 ## Dependencies

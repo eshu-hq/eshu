@@ -154,7 +154,7 @@ func BenchmarkPostureExistenceReaderLive_N2000Stress(b *testing.B) {
 // does not return PROFILE metadata (confirmed: PROFILE/EXPLAIN produce a nil
 // ProfiledPlan over Bolt on this backend; the SAME limitation is already
 // documented for the #5410 SQL-relationships live benchmark, see
-// docs/internal/evidence/5410-sql-relationships-performance.md). A materially
+// (#5410)). A materially
 // higher ns/op here than the small-store benchmark would indicate the read is
 // NOT index-backed (a full :CloudResource label scan); a comparable ns/op
 // confirms it is.

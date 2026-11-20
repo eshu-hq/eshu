@@ -405,7 +405,7 @@ func countSupplyChainImpactCrossScopeProducerFacts(envelopes []facts.Envelope) m
 // appears in a later stage reads as "no floor" here. That is the safe
 // direction: a missed gate leaves the pre-floor behaviour, where a wrong gate
 // would defer a pass that could never resolve anything. It is recorded as a
-// residual window in docs/internal/evidence/5709-supply-chain-consumer.md.
+// residual window in (#5709).
 func (h SupplyChainImpactHandler) crossScopeProducerLookupPlanned(filter SupplyChainImpactFactFilter) bool {
 	if _, ok := h.FactLoader.(activeSupplyChainImpactFactLoader); !ok {
 		return false

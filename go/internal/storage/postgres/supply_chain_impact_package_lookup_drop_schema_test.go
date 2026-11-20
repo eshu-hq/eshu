@@ -20,7 +20,7 @@ import (
 // old index from existing deployments (migration 293) and from the Go
 // bootstrap fragment so a fresh isolated schema never builds it; the probe
 // and analyzeWinnersKeyedIdentsSQL are unchanged. The census and fixture
-// proof are in docs/internal/evidence/10544-retire-package-lookup-idx.md.
+// proof are in (#10544).
 func TestSupplyChainImpactPackageLookupIndexRetired(t *testing.T) {
 	t.Parallel()
 

@@ -11,7 +11,7 @@
 // construction, on both backends.
 //
 // Run against a fresh container per backend (see
-// docs/internal/evidence/6786-nornicdb-label-predicates.md):
+// (#6786)):
 //
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:28020 ESHU_LIVE_GRAPH_BACKEND=nornicdb \
 //	  go test ./internal/query/repository -tags live_nornicdb_label_predicates \

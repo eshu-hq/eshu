@@ -17,7 +17,7 @@
 // The tests named ...MustNotLeak... assert the behaviour the route needs. They
 // FAILED against the builders as shipped before batch 2b -- that failure was
 // the measurement, recorded in
-// docs/internal/evidence/5167-code-family-batch-2b-proofs.md -- and they pass
+// (#5167) -- and they pass
 // now that the grant sits in each statement's anchoring MATCH. The
 // ...FixShape... tests keep the candidate rewrites beside them, so a regression
 // that moves a predicate back onto an OPTIONAL MATCH reds the pair together.

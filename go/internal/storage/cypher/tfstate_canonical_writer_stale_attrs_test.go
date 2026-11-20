@@ -79,7 +79,7 @@ func TestTerraformStateStaleContentPropsRemoved(t *testing.T) {
 // r.evidence_source and leaving the stale attribute in place on the real
 // backend -- see TestTerraformResourceWriterLiveClearsStaleAttributeOnRefresh
 // in tfstate_canonical_writer_stale_attrs_live_test.go and
-// docs/internal/evidence/5441-edge-node-properties.md for the backend-level
+// (#5441) for the backend-level
 // proof this fixture cannot provide on its own.
 type fakeTerraformResourceGraph struct {
 	nodes map[string]map[string]any // uid -> properties

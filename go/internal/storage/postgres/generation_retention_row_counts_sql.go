@@ -51,7 +51,7 @@ package postgres
 // (1.15M probes, 5.7 s for the manifest arm over a 100-generation QA
 // batch) and under-counted orphans the delete still removed; the direct
 // legs measured 80 ms custom and 48 ms generic on the same batch
-// (docs/internal/evidence/10512-retention-row-counts.md).
+// (#10512).
 // content_file_secret_lines hangs off
 // content_files, whose doomed keys already live in doomed_files: a secret
 // row dies exactly when its key is doomed, so that arm joins doomed_files
@@ -76,7 +76,7 @@ package postgres
 // shares; without it both statements read the whole table (QA shim:
 // 158 ms and 33,976 buffers generic for a 100-generation batch, against
 // 1.3 ms and 316 buffers behind the index;
-// docs/internal/evidence/10525-retention-planning-count.md). The store
+// (#10525)). The store
 // refuses the cycle while that index is unusable, like migration 292.
 //
 // The #8300 arm counts deployable_unit_reopen_fingerprints (#8283), a

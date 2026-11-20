@@ -309,5 +309,5 @@ The figures above predate the signed-query guard. Its first paired comparison
 found +1.8% and -1.1% on the unchanged five-file fixture corpus. A final
 paired comparison of the shared URL classifier found +0.8–0.9% per five-file
 pass and +4.2–8.0% on an ordinary pip-index URL microcase, with one extra
-allocation in that case. See [signed-query proof](../../../../docs/internal/evidence/9303-dockerfile-signed-query-proof.md)
+allocation in that case. See signed-query proof (#9303)
 for the source hashes, query controls, and interpretation.

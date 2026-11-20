@@ -65,7 +65,7 @@ const LockClass = 10823
 
 // BatchGenerations is the most generations one batch transaction removes; the
 // rows of a batch are bounded separately, by BatchRows. Measured on a local
-// PostgreSQL 18 (docs/internal/evidence/10823-relationship-retention.md): a batch
+// PostgreSQL 18 (#10823): a batch
 // of 50 generations of 53 rows is about 2,650 rows. On a calm host (load average
 // about 20) it commits in 52 to 57 ms at p50 and 109 to 127 ms at p95 when a
 // generation's rows sit together. Over rows scattered at random, in a busier
@@ -129,7 +129,7 @@ const lockTimeoutSetting = "500ms"
 // 1.2 s on a first pass) with no orphans on 3.6 million evidence rows after
 // VACUUM, and 2.4 to 8.5 s with 2 million orphan rows among 5.6 million, the
 // slow end when the planner read the evidence table with a parallel sequential
-// scan (docs/internal/evidence/10823-relationship-retention.md). A census that
+// scan (#10823). A census that
 // outlives this bound fails the pass and is retried at the next poll. The bound
 // has about seven times the headroom of the slowest first run (8.5 s). Re-runs
 // on a busier host were slower. With orphans (1.1 million evidence rows, together

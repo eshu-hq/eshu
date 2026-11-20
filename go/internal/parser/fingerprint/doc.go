@@ -4,7 +4,7 @@
 // Package fingerprint computes language-generic tree-sitter leaf-walk
 // fingerprints over function body nodes for the code-divergence report
 // (epic #6833, theory proof in
-// docs/internal/evidence/6834-code-divergence-theory.md).
+// (#6834)).
 //
 // A fingerprint captures four fields: the exact token stream hash
 // (comments excluded), the alpha-renamed hash (identifiers and literals

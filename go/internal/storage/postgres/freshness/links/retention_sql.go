@@ -28,7 +28,7 @@ const (
 // is exact, and the plan reads changed_since_links once whatever its
 // statistics. With statistics taken at 5 scopes, a per-scope LATERAL (with or
 // without OFFSET 0) planned one sequential scan of the links per scope
-// (docs/internal/evidence/7127-changed-since-ledger-retention.md, and the
+// ((#7127), and the
 // planted RED of TestRetentionStatementPlanShape).
 const retentionDoomedLinksCTE = `
 doomed AS MATERIALIZED (

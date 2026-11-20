@@ -47,7 +47,7 @@ type Delete struct {
 // buffers that track the generation instead of the table. A fact_id-only page
 // delete was rejected: it chose a sequential scan of the package keys and a
 // primary key walk whose buffers grow with the table
-// (docs/internal/evidence/7420-key-sidecar-explicit-deletes.md).
+// (#7420).
 func Deletes() []Delete {
 	return []Delete{
 		statements(RelationshipReferenceTable),

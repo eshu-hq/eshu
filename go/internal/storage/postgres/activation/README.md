@@ -238,7 +238,7 @@ wall delta, and this run is the pre-PR Ack measurement. The scope-update
 statement's own `pg_stat_statements` line is empty in every receipt (the
 harness compared the raw constant to the normalized text), so the hold figure
 is the client-side measurement only. The partition-scoped callback's cost is in
-`docs/internal/evidence/7584-partition-scoped-maintenance.md` (a cost harness on a
+(#7584) (a cost harness on a
 tiny-facts fixture). What is proven here is correctness on PostgreSQL 18 (disposable
 `postgres@sha256:54451ecb…`, disposable database, full bootstrap): the live
 test functions listed above plus the two quiet-generation proofs (38 in all),

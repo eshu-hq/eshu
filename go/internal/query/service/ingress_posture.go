@@ -290,7 +290,7 @@ func plural(n int, singular, pluralForm string) string {
 // distinct from an edge absent from the base set entirely (missing data). The
 // prior single multi-clause OPTIONAL MATCH aggregation is mis-executed on the
 // pinned NornicDB build (returns a null edge_id and reports every edge as
-// protected); see docs/internal/evidence/5287-ingress-posture-nornicdb.md (#5287).
+// protected); see (#5287).
 func loadServiceIngressPosture(
 	ctx context.Context,
 	graph querycontract.GraphQuery,

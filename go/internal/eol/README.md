@@ -6,7 +6,7 @@
 and joins it against declared runtime versions, so a read path can report
 whether a repository's runtime is still supported without any network access
 (issue #9163, research in
-`docs/internal/evidence/8820-eol-snapshot-research.md`).
+(#8820)).
 
 One fact is one answer: a declared runtime plus major/minor version resolves
 to `supported`, `eol`, `support-ending`, or `unknown`, and every answer

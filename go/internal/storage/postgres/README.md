@@ -146,7 +146,7 @@ High-signal invariants for this package:
   atomically ack by superseding stale active generation, superseding older
   terminal same-scope generations, activating the target generation, updating
   the scope pointer, and marking work succeeded. A superseded generation is terminal (#7130): Claim sweeps,
-  Heartbeat stops and Ack refuses it; see `docs/internal/evidence/7130-ack-superseded-generation-guard.md`. Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320; its `updated_at` is the old row's own, the claim or heartbeat time for a claimed or running row); see `docs/internal/evidence/7320-supersede-prior-failure.md`. The fold is a measured cost: about 7 to 8 microseconds, 986 bytes of WAL and 0.14 heap pages per superseded row that carries 800 bytes of details, paid once per row. #7319: Ack also runs `deltaBaselineFenceQuery` as its own statement after the scope-row lock and the work update, and refuses a delta whose `delta_baseline_commit_sha` is not the active commit (rollback, then `markProjectorDeltaBaselineRefusedQuery`); `ReadDeltaBaseline`/`RefuseDeltaBaseline` serve the preflight; see `docs/internal/evidence/7319-delta-baseline-fence.md`. #8780: the fence read also returns `target.delta_union_base_commit_sha` (migration 210) for refusal logs and `failure_details` only, never the decision; the union target read, `CountFacts`, the completeness ACTIVE read, and the successor-guard anchor resolve a delta's base at `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, and `IngestionStore.DeltaSyncBaseline` (one statement: the active row plus the newest activated full's commit) replaces `LastProjectedCommitSHA`; see `docs/internal/evidence/8780-cumulative-delta.md`. #7389: `MarkProjectionWriteStarted` sets `scope_generations.projection_write_started_at` to the latest write start, also on a replayed `failed` generation (migration 149; migration 150 sets fillfactor 90 so the update is HOT), and the heartbeat supersede carries its whole predicate on the `locked_generation` CTE (`FOR NO KEY UPDATE OF generation SKIP LOCKED`) so a committed marker is seen by the EvalPlanQual recheck; `IngestionStore.UncoveredProjectionWriters` feeds the collector's `graph_dirty` full snapshot; see `docs/internal/evidence/7389-superseded-writer-overlay.md`. #7469: the claim sweep's first branch and Ack's obsolete-generation supersede spare a generation that started writing (`projection_write_started_at IS NULL`), and the oldest-ready subquery holds a newer row behind an older same-scope marked generation with waiting (`pending`, `retrying`) work, reading both the snapshot and the sweep's lock-time `marker_spared` flag, so the marked retry runs first; terminal marked rows never hold (they heal through `graph_dirty`); see `docs/internal/evidence/7469-marked-supersede-guard.md`. #7473: the claim sweep's first branch spares a full generation (`is_delta` false) unless a newer full exists, and the oldest-ready subquery holds a newer delta behind an older same-scope full with waiting (`pending`, `retrying`) work, so the full projects first; terminal fulls never hold; Ack's obsolete-generation supersede deliberately stays full-blind as the misordering backstop; see `docs/internal/evidence/7473-full-survives-delta.md`.
+  Heartbeat stops and Ack refuses it; see (#7130). Every supersede of a work row (four projector writers and the reducer inactive-generation sweep) keeps `failure_class` and `failure_message` as the supersede marker and folds the old row's failure into `failure_details.prior_failure` through the `priorFailureStaleSQL` and `priorFailureWorkSQL` constants (#7320; its `updated_at` is the old row's own, the claim or heartbeat time for a claimed or running row); see (#7320). The fold is a measured cost: about 7 to 8 microseconds, 986 bytes of WAL and 0.14 heap pages per superseded row that carries 800 bytes of details, paid once per row. #7319: Ack also runs `deltaBaselineFenceQuery` as its own statement after the scope-row lock and the work update, and refuses a delta whose `delta_baseline_commit_sha` is not the active commit (rollback, then `markProjectorDeltaBaselineRefusedQuery`); `ReadDeltaBaseline`/`RefuseDeltaBaseline` serve the preflight; see (#7319). #8780: the fence read also returns `target.delta_union_base_commit_sha` (migration 210) for refusal logs and `failure_details` only, never the decision; the union target read, `CountFacts`, the completeness ACTIVE read, and the successor-guard anchor resolve a delta's base at `COALESCE(delta_union_base_commit_sha, delta_baseline_commit_sha)`, and `IngestionStore.DeltaSyncBaseline` (one statement: the active row plus the newest activated full's commit) replaces `LastProjectedCommitSHA`; see (#8780). #7389: `MarkProjectionWriteStarted` sets `scope_generations.projection_write_started_at` to the latest write start, also on a replayed `failed` generation (migration 149; migration 150 sets fillfactor 90 so the update is HOT), and the heartbeat supersede carries its whole predicate on the `locked_generation` CTE (`FOR NO KEY UPDATE OF generation SKIP LOCKED`) so a committed marker is seen by the EvalPlanQual recheck; `IngestionStore.UncoveredProjectionWriters` feeds the collector's `graph_dirty` full snapshot; see (#7389). #7469: the claim sweep's first branch and Ack's obsolete-generation supersede spare a generation that started writing (`projection_write_started_at IS NULL`), and the oldest-ready subquery holds a newer row behind an older same-scope marked generation with waiting (`pending`, `retrying`) work, reading both the snapshot and the sweep's lock-time `marker_spared` flag, so the marked retry runs first; terminal marked rows never hold (they heal through `graph_dirty`); see (#7469). #7473: the claim sweep's first branch spares a full generation (`is_delta` false) unless a newer full exists, and the oldest-ready subquery holds a newer delta behind an older same-scope full with waiting (`pending`, `retrying`) work, so the full projects first; terminal fulls never hold; Ack's obsolete-generation supersede deliberately stays full-blind as the misordering backstop; see (#7473).
 - #7127 PR-3b (dark): with `ProjectorQueue.ChangedSinceJournalEnabled` (the
   ingester and bootstrap-index set it from `ESHU_CHANGED_SINCE_LINK_ENABLED`)
   Ack also journals the activation into `changed_since_activations`
@@ -162,15 +162,15 @@ High-signal invariants for this package:
   INFO with `scope_id` and `generation_id`, sampled: the first skip in the
   process, then at most one a minute, with `gate_skipped_since_last_log`.
   See `freshness/links/README.md` ("Ack writer") and
-  `docs/internal/evidence/7127-changed-since-ack-journal.md`.
+  (#7127).
 - Generation liveness reopens `source_local` only for blockage that replay can
   advance. Exact cross-repository `repo_dependency` source runs stay owned by
   the shared resolver before and after backward evidence commits; the stuck-age
   gauge uses the same exclusion. Other domains and lookalike source runs remain
-  recoverable. #7265: blockage must also have stopped moving. A generation whose actionable outstanding intent sits in a `projection_domain` queue that completed any intent after `now - ProgressWindow` (default 10m) is draining: the sweep skips it without spending budget and the gauge counts it `draining`. Both queries embed `generationIntentProgressingPredicate`; the progress probe never filters on `source_run_id`. See `docs/internal/evidence/7265-liveness-recovery-progress-window.md`.
+  recoverable. #7265: blockage must also have stopped moving. A generation whose actionable outstanding intent sits in a `projection_domain` queue that completed any intent after `now - ProgressWindow` (default 10m) is draining: the sweep skips it without spending budget and the gauge counts it `draining`. Both queries embed `generationIntentProgressingPredicate`; the progress probe never filters on `source_run_id`. See (#7265).
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
-  source-local projection is in flight. A reducer claim fences unleased older-generation rows read-only at hand-out (#10863 gate in `reducer_claim_stale_gate_sql.go`); the periodic standalone sweep (`ReducerStaleGenerationSweeper`) supersedes them out of band, and status/drain/observer reads exclude those inactive rows from live readiness. Gate and sweep share the readiness hold (#4445/#7664 own-or-active OR, so no live row becomes claimable early and no pending gate is terminalized early) and the conditional Crossplane spare (#10106/#10269: fenced while a newer sibling is pending, retrying, or in flight; superseded only against a locked newer pending/retrying carrier; a sole stale row stays claimable for the runtime rebind). Measured on the #10862 replay widened to 4,000 scopes: 67.0 ms / 29,684 buffers clean and 69.6 ms / 31,447 stale versus the shipped sweep's 83.3 / 85,476 and 275 / 299,980, hand-out identical (EXCEPT 0/0); see `docs/internal/evidence/10863-claim-supersede-out.md`.
+  source-local projection is in flight. A reducer claim fences unleased older-generation rows read-only at hand-out (#10863 gate in `reducer_claim_stale_gate_sql.go`); the periodic standalone sweep (`ReducerStaleGenerationSweeper`) supersedes them out of band, and status/drain/observer reads exclude those inactive rows from live readiness. Gate and sweep share the readiness hold (#4445/#7664 own-or-active OR, so no live row becomes claimable early and no pending gate is terminalized early) and the conditional Crossplane spare (#10106/#10269: fenced while a newer sibling is pending, retrying, or in flight; superseded only against a locked newer pending/retrying carrier; a sole stale row stays claimable for the runtime rebind). Measured on the #10862 replay widened to 4,000 scopes: 67.0 ms / 29,684 buffers clean and 69.6 ms / 31,447 stale versus the shipped sweep's 83.3 / 85,476 and 275 / 299,980, hand-out identical (EXCEPT 0/0); see (#10863).
   The #10060 holder fan-out debt-spare rule lives in [`HOLDER_FANOUT.md`](../../reducer/supplychain/core/HOLDER_FANOUT.md).
 - Workflow, AWS pagination, AWS scan-status, webhook, incident freshness, and
   hosted tenant/workspace grant stores use fencing, coalescing, or idempotent
@@ -253,7 +253,7 @@ candidate increased the exact 500-row production batch median from 4.207 ms to
 production search over 1.6 million rows completed in 1,503.519 ms on the named
 local proof profile, so the accepted change does not alter free-text search.
 The full measurements and rejected-candidate ledger are in
-[`docs/internal/evidence/5275-documentation-query-plans.md`](../../../../docs/internal/evidence/5275-documentation-query-plans.md).
+(#5275).
 
 No-Regression Evidence: the unfiltered and fully selective list shapes return
 the same 51-row and 66-row digests before and after their indexes. The
@@ -531,7 +531,7 @@ strict predicate. `TestCloudResourceOwnerPageIndexesApplyAndReapplyLive` uses
 the real migration 086 definition on a populated store and proves first apply,
 reapply, connection restart, clean rollback, invalid concurrent-build cleanup,
 and successful rebuild. Query and route proof commands are retained in
-`docs/internal/evidence/5469-tiered-version-resolution.md`.
+(#5469).
 
 Migration `074_graph_node_owner_backfill_state.sql` records completion of the
 one-time CloudResource upgrade backfill. `ownerstore.GraphNodeOwnerBackfillStore`
@@ -685,7 +685,7 @@ Primary groups:
   `reducer.aws_runtime_drift_evidence_load` span names the statement that held
   it (#7666). The state join probes
   `fact_records_terraform_state_resource_arn_idx` (migration 180) once per AWS
-  ARN; see `docs/internal/evidence/7666-aws-drift-arn-index.md`.
+  ARN; see (#7666).
 - `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
   resource rows with `resource.fingerprint`, `resource.identity_kind`, and
   `resource.type`; it does not put raw ARNs, Terraform addresses, or
@@ -966,8 +966,8 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   the `TestRecoveryReplay*`, `TestReducerClaimSweep*`, admin `*Replay*`,
   `TestPoisonRecovery*`, `TestRetentionCascade*`, `TestProjectorAckSupersede*`
   and `TestSkipRepository*` proofs after an edit. See
-  `docs/internal/evidence/8205-replay-lock-order.md` and
-  `docs/internal/evidence/8261-unordered-lockers.md`.
+  (#8205) and
+  (#8261).
 - A `*_producer_dead_lettered` or `*_producer_missing` dead letter on
   `deployable_unit_correlation` or `workload_materialization` means the scope
   generation's `deployment_mapping` item is dead-lettered or absent (#7597).
@@ -984,7 +984,7 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   letter reopened: relationship generation already active`). Both count on
   `eshu_dp_reducer_own_gate_wake_total{site, outcome}`. Operator replays
   stamp `reopened_at` too (#9320), but they do not wake consumers. See
-  `docs/internal/evidence/7597-own-gate-producer-terminal.md`.
+  (#7597).
 - `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs means a
   heartbeat or ack arrived after lease expiry; the original worker must stop and
   not retry the ack.
@@ -1024,7 +1024,7 @@ No-regression and observability proof for this retry class lives in
   `eshu_dp_package_manifest_backfill_scope_rebuilds_total` carry the same
   signals as metrics. Migration 181's partial index keeps every page an
   ordered index range scan. Evidence:
-  `docs/internal/evidence/7663-backfill-page-lock.md`.
+  (#7663).
 
 ## Extension points
 
@@ -1080,7 +1080,7 @@ on an unclassified or unpaired fact delete. Retention refuses the cycle with
 is missing, invalid or misshapen, as for the #7279 key indexes. Migrations 188 to 190 drop
 the per-fact foreign keys, so these deletes alone remove key rows with their
 facts; `factkeys.OrphanCensusSQL` counts any orphan (see `facts/keys/README.md`).
-Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
+Evidence: (#7420).
 
 Detailed query, queue, fact-readback, runtime, and fencing invariants live in
 [`gotchas-and-invariants.md`](gotchas-and-invariants.md). Keep that companion
@@ -1246,7 +1246,7 @@ resource names verbatim, so every needed token is a substring of
   because the deploy edge resolves the intermediate config repoURL against the
   catalog before the target. Adding a config repo cannot create a spurious edge: a deploy target must
   still be a catalog entry. A config repo can be a target through discovery and self-reference evidence;
-  the only hard skip is a template source resolving to the control repo. Proof: `docs/internal/evidence/9209-catalog-anchor-namespace-token.md`, `docs/internal/evidence/9781-argocd-content-markers.md`.
+  the only hard skip is a template source resolving to the control repo. Proof: (#9209), (#9781).
 
 Over-selection is safe; under-selection would drop correlation truth. Accuracy is
 pinned by `TestCatalogPayloadAnchorsSelectsEveryExtractorFamily` (one matching
@@ -1646,7 +1646,7 @@ Treat the absolutes as a LOWER BOUND on the fan-in's production cost. The
 benchmark calls `writeDeferredBackfillInBatches` with an empty
 `catalogFingerprint`, which skips the memo write and therefore skips the
 per-partition ArgoCD probe entirely — the probe measured at 2.34 ms per call in
-`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md`. Benchmarking
+(#6136). Benchmarking
 the fan-in's real cost requires a non-empty fingerprint, and the benchmark's
 `latencyBackfillDB` deliberately errors on the probe query rather than guessing
 its column shape, so that run fails with a named error until someone adds it.
@@ -2019,7 +2019,7 @@ the superseded-exclusion shape this replaced, 20.3 ms for the replay floor
 unbounded, 951 superseded-exclusion, 903 floor. Expected delta versus unbounded:
 `floor \ unbounded = 0`, `unbounded \ floor = 21 648`, no kept row on a
 superseded generation, and the never-activated scope's row kept. Script:
-`docs/internal/evidence/5426-reopen-bound-proof.sql`.
+(#5426).
 
 Performance Evidence (failed-generation exclusion, PR #5850 P2): same script,
 same run, so each run yields a PAIRED gap. Over six consecutive runs on
@@ -2109,7 +2109,7 @@ items at this corpus size, including two domains that write graph edges
 remove CI/CD and supply-chain from blanket replay; four domains remain, with
 identity retained because raw OCI activation has no reducer ACK. The floor
 still bounds those four at O(active scopes); it does not remove their replay.
-`docs/internal/evidence/5426-reopen-update-cost.sql` remains for history; its
+(#5426) remains for history; its
 server-side `UPDATE` loop excludes exactly the round-trips that dominate here.
 
 On the ingester those drains are paced by ingestion, not by a timer.
@@ -3754,4 +3754,4 @@ nested loops whenever the last `ANALYZE` had not seen the repository, the
 normal case during bootstrap: 230-1,735 s per repository on the reference host.
 Stage-log fields: `stale_fingerprint_entities`, `stale_band_entities`,
 `fingerprint_rows_deleted`, `band_rows_deleted`. See
-[the #7230 evidence](../../../../docs/internal/evidence/7230-fingerprint-reap-plan-cliff.md).
+the #7230 evidence.

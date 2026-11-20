@@ -32,7 +32,7 @@
 # The regression-sensitive check is the per-request Postgres work budget in
 # testdata/benchmarks/read-api-route-work-budgets.txt (buffers differ 10.7x-12.7x
 # between the same RED and GREEN; see
-# docs/internal/evidence/6797-read-api-work-metric-shim.md).
+# (#6797)).
 #
 # Which routes are RED-provable: the work budget is proven against the 14 routes
 # the RED/GREEN pair (59c605e48 vs 925e8016f) actually changed. The rule applied

@@ -38,7 +38,7 @@ ORDER BY fact.payload->>'arn' ASC, fact.fact_id ASC
 // index (278,044 buffers). The fenced form holds 1,625-2,668 buffers with
 // fresh, absent, or stale table statistics, so it needs no expression
 // statistics object.
-// Evidence: docs/internal/evidence/7666-aws-drift-arn-index.md.
+// Evidence: (#7666).
 //
 // The text from the start through the aws_generation_arns CTE is shared with
 // the #7666 row differential's reference statement, which derives it from

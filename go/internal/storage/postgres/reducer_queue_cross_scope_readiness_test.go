@@ -27,7 +27,7 @@ func TestCrossScopeProducerNotReadyIsNonCounting(t *testing.T) {
 // TestReducerQueueClaimDoesNotCountCrossScopeReadinessDefers asserts the claim
 // query's attempt-count CASE keeps attempt_count for a retrying row in the
 // cross-scope readiness class. The freeze behavior is proven end-to-end against
-// Postgres in docs/internal/evidence/5709-attempt-count-freeze.md; this guards
+// Postgres in (#5709); this guards
 // that the shared single-source class list still renders the class into the
 // claim query so the two never drift.
 func TestReducerQueueClaimDoesNotCountCrossScopeReadinessDefers(t *testing.T) {

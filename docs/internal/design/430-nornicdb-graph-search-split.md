@@ -89,7 +89,7 @@ blast-radius reads both ran green over Bolt. The two warming knobs and
 unexercised on this digest. See the v1.3.2 alignment evidence in
 (#6162)
 and the v1.3.3 alignment evidence in
-[`docs/internal/evidence/6162-nornicdb-v133-alignment.md`](../evidence/6162-nornicdb-v133-alignment.md).
+(#6162).
 The canonical graph lane uses this graph-only policy:
 
 - `NORNICDB_SEARCH_BM25_ENABLED=false`;
@@ -359,7 +359,7 @@ Runtime package tests enforce those defaults and the public environment
 reference so the old whole-graph BM25 startup policy cannot drift back
 silently. The exact image, runtime version, graph-truth, and restart evidence
 live in NornicDB v1.3.2 Alignment (#6162)
-and [NornicDB v1.3.3 Alignment](../evidence/6162-nornicdb-v133-alignment.md).
+and NornicDB v1.3.3 Alignment (#6162).
 
 No-Observability-Change: this phase does not add an Eshu runtime signal because
 it removes ambient NornicDB search-index work from the canonical graph startup

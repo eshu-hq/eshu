@@ -46,7 +46,7 @@ func (w *evidenceFieldWinner) consider(value string, confidence float64) {
 // #5441 review round 2, P1-2: measured, not assumed (Prove-The-Theory-First).
 // See BenchmarkResolveCandidateAggregation
 // (resolver_edge_fields_bench_test.go) and the before/after in
-// docs/internal/evidence/5441-edge-node-properties.md — this guard measured
+// (#5441) — this guard measured
 // as a no-op on that benchmark's realistic-confidence fixture (no fact ever
 // reaches exactly 1.0), which is expected: it only pays off for the narrow
 // case of an explicit, maximum-confidence fact appearing before others in a

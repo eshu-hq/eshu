@@ -5,7 +5,7 @@ package offlinetier_test
 
 // canonical_refresh_edge_writeloss_live_test.go is the P0 follow-up regression
 // for the two write-loss defects documented in
-// docs/internal/evidence/5652-nornic-bare-match-writeloss.md Part 3 (the
+// (#5652) Part 3 (the
 // UNWIND-batched node.RefreshCurrent*Cypher DELETE statements in
 // go/internal/storage/cypher/canonical/node/templates.go). It drives the REAL
 // production CanonicalNodeWriter through the REAL NornicDB PhaseGroupExecutor

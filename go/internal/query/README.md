@@ -238,7 +238,7 @@ span, metric, log line, or runtime knob, reusing the same instrumented
 `statusReader` and `neo4jReader` dependencies the three source routes already
 read through. Full measurements, backend/corpus details, and the raw-sample
 ledger references are recorded in
-[`docs/internal/evidence/4045-evidence-bundle-api-performance.md`](../../../docs/internal/evidence/4045-evidence-bundle-api-performance.md).
+(#4045).
 
 No-Regression Evidence: focused relationship context, evidence drilldown, and
 OpenAPI tests cover both Postgres read-model and graph-backed rows:
@@ -417,9 +417,9 @@ the 2-second `cloudResourceListInteractiveSLO`. The 20,000-row live route proof
 still returns the bounded 200 resources for a single-digest page, at a 636.833
 microsecond median across 15 runs. Exact commands and index build/write
 measurements live in
-[`docs/internal/evidence/5789-per-digest-bound.md`](../../../docs/internal/evidence/5789-per-digest-bound.md)
+(#5789)
 and
-[`docs/internal/evidence/5469-tiered-version-resolution.md`](../../../docs/internal/evidence/5469-tiered-version-resolution.md).
+(#5469).
 The Kubernetes runtime probe partitions its 200 serialized-reference slots
 over at most 200 finding rows. Every non-empty digest occurrence receives at
 least one slot; remaining slots are assigned deterministically across sorted
@@ -438,7 +438,7 @@ classify truncation and remain bounded at 400 candidates; scoped reads stay at
 200-reference quota, while 50 findings sharing a digest receive four refs each
 and remain below the MCP response budget. The implementation, failure model, and
 pinned-backend latency evidence are recorded in
-[`docs/internal/evidence/5834-kubernetes-runtime-probe.md`](../../../docs/internal/evidence/5834-kubernetes-runtime-probe.md).
+(#5834).
 The administrative `POST /api/v0/supply-chain/impact/suppressions` route is
 deliberately outside the scoped-token allowlist. It requires an all-scopes
 authenticated subject, derives source and author server-side, validates a
@@ -1411,7 +1411,7 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 - [read-models.md](read-models.md) for route-specific read-model bounds,
   evidence, and investigation-route contracts.
 - [dead-code-reachability.md](dead-code-reachability.md) for dead-code language roots, exactness blockers, and candidate paging rules.
-- [evidence-notes.md](evidence-notes.md) and [dashboard correctness evidence](../../../docs/internal/evidence/5244-5253-dashboard-correctness.md)
+- [evidence-notes.md](evidence-notes.md) and dashboard correctness evidence (#5244)
   for issue-specific no-regression, performance, and observability proof.
 - `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
 - `docs/public/reference/dead-code-reachability-spec.md` for the dead-code

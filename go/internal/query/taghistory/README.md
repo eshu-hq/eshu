@@ -29,7 +29,7 @@ window runs one keyset statement and then `BuiltFromCypher`, and the join
 happens in Go.
 
 Do not collapse them into a multi-clause read. See
-`docs/internal/evidence/6564-tag-history-grant-binding.md`.
+(#6564).
 
 ## Two things that are load-bearing, not cosmetic
 

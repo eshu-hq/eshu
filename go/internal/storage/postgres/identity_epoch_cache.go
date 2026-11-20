@@ -278,7 +278,7 @@ func (c *IdentityEpochCache) settleWaiter(
 	if flight.err != nil {
 		// One load error fails every joinable waiter, each losing one queue
 		// attempt (standard singleflight sharing). The tradeoff against
-		// re-probing is in docs/internal/evidence/7805-identity-epoch-flight.md,
+		// re-probing is in (#7805),
 		// the paragraph that opens "A load error is shared".
 		c.inst.IdentityCacheFlightWaiterTotal.Add(ctx, 1,
 			metric.WithAttributes(telemetry.AttrOutcome(identityWaiterSharedError)))

@@ -20,7 +20,7 @@
 //
 // Run against BOTH builds. The v1.2.1 pin and v1.3.1 must agree here; the
 // shapes that disagree are recorded in
-// docs/internal/evidence/6541-directory-query-s2.md.
+// (#6541).
 //
 //	docker run -d --name eshu-6541 -e NORNICDB_EMBEDDING_ENABLED=false \
 //	  -e NORNICDB_NO_AUTH=true -p 127.0.0.1:17955:7687 \

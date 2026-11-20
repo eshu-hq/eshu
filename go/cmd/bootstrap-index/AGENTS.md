@@ -133,7 +133,7 @@ moves `active_set_id`; a stale worker cannot publish or retire current support.
 The earlier v2 `fact_records` writer used an evidence-read watermark and a
 guarded upsert. Its three implementation traps remain useful for another domain
 that cannot use active-set replacement; they are recorded in
-`docs/internal/evidence/5847-container-image-identity-retire.md`:
+(#5847):
 
 - A zero watermark must be a hard error. It is what rows carry by table default,
   so a domain that forgets it looks fenced and behaves unfenced.

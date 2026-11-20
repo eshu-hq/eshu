@@ -97,4 +97,4 @@ no meter provider, so there is no metric.
   measurement in `search_key_scale_live_test.go` runs with
   `ESHU_INFRA_SEARCH_KEY_SCALE=1`).
 
-Evidence: `docs/internal/evidence/7245-infra-search-key-dark.md`.
+Evidence: (#7245).

@@ -75,7 +75,7 @@ type cloudResourceRowKeyDefault struct {
 // row map omits — issue #5714/#5055's shared-writer backstop (Option A,
 // chosen over an in-Cypher `coalesce` rewrite after both were measured live
 // against the pinned NornicDB image: see
-// docs/internal/evidence/5714-cloudresource-row-key-defaults.md).
+// (#5714)).
 //
 // Every present-and-set CloudResource row builder (AWS, Azure, GCP) already
 // supplies all of these keys explicitly (the #4995/#5450/#5714 precedent), so

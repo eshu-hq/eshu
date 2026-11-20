@@ -6,8 +6,7 @@
 // the swept repository's noise members: only the 11-node signal fixture has
 // real outgoing CALLS edges. This file extends that seed with deterministic
 // CALLS out-degree approximating the #6649 QA reference distribution
-// (mean 2.71, p50 1, p90 5, p99 21, docs/internal/evidence/
-// 6649-calls-degree-floor.md), then proves the outlier CALLS-fanout's
+// (mean 2.71, p50 1, p90 5, p99 21, (#6649)), then proves the outlier CALLS-fanout's
 // committed 250-key batch (outlierCalleeEdgeBatchSize,
 // wrapper_bypass_track.go) returns byte-identical rows and findings to a
 // 50-key batch at that density, through the real, unmodified production

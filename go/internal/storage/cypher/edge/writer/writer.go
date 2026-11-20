@@ -371,7 +371,7 @@ func batchCypherForDomain(domain string) (string, error) {
 // bucket-array reallocation once the map crosses Go's load-factor threshold;
 // pre-sizing avoids it. Theory proved and measured before implementing —
 // see "Map Bucket-Growth Pre-Sizing" in
-// docs/internal/evidence/5441-edge-node-properties.md for the throwaway-shim
+// (#5441) for the throwaway-shim
 // numbers and the recovered before/after/pre-sized benchmark table.
 const (
 	repoDependencyRowMapCapacity   = 14 // 3 base + evidence_type + source_tool + 9 copyRepoRelationshipMetadata keys.

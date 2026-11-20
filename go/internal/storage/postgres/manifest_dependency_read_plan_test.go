@@ -40,7 +40,7 @@ func manifestDependencyFakeRow(i int) []any {
 // TestListActivePackageManifestDependencyFactsPassesCacheDescribeEveryPage is
 // the regression guard for #9586. The fake sees only the exec-mode argument;
 // the custom plan it buys is proven on PostgreSQL in
-// docs/internal/evidence/9586-manifest-read-custom-plan.md.
+// (#9586).
 //
 // Under pgx's default QueryExecModeCacheStatement each SQL text becomes a
 // named prepared statement, and PostgreSQL switches it to the generic plan

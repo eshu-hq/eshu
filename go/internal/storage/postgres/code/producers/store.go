@@ -35,7 +35,7 @@ import (
 // Its case folding is ASCII classes with !~, never ~*, so no fold or locale
 // differs between the two dialects. It is a row filter on the bitmap scan the
 // path predicate already drives, not a new index
-// (docs/internal/evidence/8244-package-json-fixture-manifests.md).
+// (#8244).
 //
 // content_files holds the latest projected content of each repository, stamped
 // with the writing generation (#7760). A stored manifest can be ahead of the
@@ -77,7 +77,7 @@ import (
 // and 758 ms cold over 155k buffers. Materialized, content_files is read once
 // through content_files_relative_path_trgm_idx: 15 to 21 ms and 3,497 buffers
 // for the same 469 rows. See
-// docs/internal/evidence/7601-anchored-symbol-definition-loader.md.
+// (#7601).
 const PackageManifestsQuery = `
 WITH manifest AS MATERIALIZED (
     SELECT repo_id, content, generation_id
@@ -168,7 +168,7 @@ JOIN scope_generations AS generation
 // locale differs between the two dialects and the anchor and the package_id
 // stamp agree. It is a row filter on the one bitmap scan the path predicate
 // already drives, not a new index
-// (docs/internal/evidence/8223-composer-fixture-manifests.md). Nested manifests
+// (#8223). Nested manifests
 // (monorepo packages) are included, because the parser stamps each class with
 // its nearest composer.json name.
 const ComposerManifestsQuery = `

@@ -205,4 +205,4 @@ pre-read for that `Write`. A whole `Write` with the sampling policy measured
 between -1.7% and +5.1% of an unobserved writer across the benchmark shapes in two
 independent runs. That spread is the noise floor of an alternating comparison;
 the expected cost is about 0.1 ms per eighth of the small batches. See the
-evidence note, `docs/internal/evidence/8950-upsert-outcome-counter.md`.
+evidence note, (#8950).

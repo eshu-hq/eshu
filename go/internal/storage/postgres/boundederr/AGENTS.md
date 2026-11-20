@@ -5,7 +5,7 @@
 1. `go/internal/storage/postgres/boundederr/doc.go` -- the contract and why the
    bound sits at the driver seam.
 2. `go/internal/storage/postgres/boundederr/README.md` -- surface and limits.
-3. `docs/internal/evidence/7253-postgres-store-error-public-text.md` -- the
+3. (#7253) -- the
    theory proof, the before/after, and the residual sites.
 
 ## Invariants

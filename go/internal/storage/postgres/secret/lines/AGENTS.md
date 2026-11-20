@@ -6,7 +6,7 @@
 2. `session.go` - `DeferredSessionSQL` and `Ready`
 3. `state.go` - the epoch state machine SQL
 4. `backfill.go` - `Finalize` and its batch transaction
-5. `docs/internal/evidence/7125-secret-lines-side-table.md`
+5. (#7125)
 
 ## Invariants you must not break
 

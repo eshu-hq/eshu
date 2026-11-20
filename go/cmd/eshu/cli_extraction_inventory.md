@@ -145,7 +145,7 @@ against the registry. Inventory: `ESHU_SERVICE_URL`, `ESHU_API_KEY`,
 ## Decided questions (arbiter verdict recorded)
 
 The three open questions are decided by the arbiter verdict recorded in
-`docs/internal/evidence/8874-cli-open-questions-verdict.md` (base
+(#8874) (base
 `origin/main` `9922b49`; `go/cmd/eshu/` re-pinned at 146 entries at
 that base):
 

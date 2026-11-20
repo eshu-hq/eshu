@@ -55,8 +55,8 @@ Callers run the deletes in their own transaction, before the fact delete.
 Plans stay on each table's `(scope_id, generation_id, fact_id)` partition
 index (migrations 058, 182, 183) at 5% and 20% shares, under stale
 statistics, and under forced generic plans. See
-`docs/internal/evidence/7420-key-sidecar-explicit-deletes.md`,
-`docs/internal/evidence/7420-drop-key-sidecar-fks.md` and the live
+(#7420),
+(#7420) and the live
 proofs in the parent package (`generation_retention_fact_keys_*_test.go`).
 
 No-Observability-Change: timing and row counts are reported by the caller

@@ -63,8 +63,8 @@ var schemaConstraints = []string{
 	// SHOW INDEXES still lists only module_name_lookup, while the same
 	// statement with the properties reversed, ON (m.lang, m.name), takes the
 	// free Module:lang key and appears immediately. So the composite index
-	// would be DDL that provably does nothing; see
-	// docs/internal/evidence/module-node-identity-name-and-language.md.
+	// would be DDL that provably does nothing (see the (#4594) module
+	// identity record: identity is (name, language)).
 	"CREATE INDEX module_name_lookup IF NOT EXISTS FOR (m:Module) ON (m.name)",
 	"CREATE CONSTRAINT struct_cpp IF NOT EXISTS FOR (cstruct: Struct) REQUIRE (cstruct.name, cstruct.path, cstruct.line_number) IS UNIQUE",
 	"CREATE CONSTRAINT enum_cpp IF NOT EXISTS FOR (cenum: Enum) REQUIRE (cenum.name, cenum.path, cenum.line_number) IS UNIQUE",
@@ -148,7 +148,7 @@ var schemaConstraints = []string{
 	// file, line, runtime, token position), the graph key the #8815 arbiter
 	// ruling fixed for runtime_declaration.version (#8816). Composite so the
 	// reducer MERGE is a unique-index seek on Neo4j (MergeUniqueNode in the
-	// PROFILE recorded in docs/internal/evidence/8816-runtime-declaration-graph.md).
+	// PROFILE recorded in (#8816)).
 	"CREATE CONSTRAINT runtime_declaration_identity IF NOT EXISTS FOR (d:RuntimeDeclaration) REQUIRE (d.repo_id, d.relative_path, d.line_number, d.runtime, d.order_index) IS UNIQUE",
 
 	// Platform identity

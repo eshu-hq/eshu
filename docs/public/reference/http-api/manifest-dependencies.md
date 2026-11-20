@@ -53,7 +53,7 @@ repo/count/truncation attributes, the
 `eshu_dp_manifest_dependency_list_errors_total` metrics, plus the store-level
 `read=repository` manifest read and delta-union metrics on the shared
 package-manifest read path. Performance Evidence:
-`docs/internal/evidence/10660-manifest-scope-read-plan.md`: the scope-first
+(#10660): the scope-first
 probe over the #121 repo-scoped partial index serves a 96,030-row
 fleet-shaped corpus in 0.8 ms with no sequential scan and no new index; the
 dev filter is a residual predicate on the already scope-probed rows.

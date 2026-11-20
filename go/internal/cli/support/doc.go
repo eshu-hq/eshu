@@ -12,7 +12,7 @@
 // dependencies and mounts additively in the serving eshu-api wiring
 // (formerly in-tree go/cmd/api wiring, retired with the D13 removal).
 //
-// The wire rules live in docs/internal/evidence/8874-s4-endpoint-decisions.md:
+// The wire rules live in (#8874):
 // bounded bodies, strict single-object decoding (unknown fields and trailing
 // values fail with 400), per-route required-field checks, envelope errors,
 // differential parity with the local functions, and no MCP tools (these are

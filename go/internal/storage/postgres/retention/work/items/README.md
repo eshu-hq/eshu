@@ -54,7 +54,7 @@ slower than the earlier two-probe statement in any measured window (median
 of three runs). A full walk deleted about 156,000 rows in about 300 batches;
 a second walk deleted 0. Without the `OFFSET 0` fence the planner chose a
 hash semi-join over a full sequential scan (127 ms with a temp spill).
-Details: `docs/internal/evidence/8829-workflow-work-item-retention.md`.
+Details: (#8829).
 
 ## Tests
 

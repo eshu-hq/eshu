@@ -8,7 +8,7 @@ shape. Companion to [NornicDB Pitfalls](nornicdb-pitfalls.md): none of the
 ten matches an existing `## Pitfall:` section there or on the query,
 write-shape, path-predicate, or order-limit companions, so this index is the
 reference listing. Status and evidence come from the #6786 exposure table
-(`docs/internal/evidence/6786-nornicdb-400-409-exposure.md`); X1–X11 are
+(#6786); X1–X11 are
 Eshu-found shapes outside `#400`–`#409` and are tracked there.
 
 | Defect | Shape to avoid | What goes wrong | Safe shape / Eshu status |

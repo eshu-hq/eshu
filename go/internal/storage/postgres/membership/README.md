@@ -235,7 +235,7 @@ Performance Evidence: the gitlab_group prefix partition read
 (`starts_with(lower(payload->>'repo_slug'), $1)` with `$1` the lowercased
 group path plus `/`, same host predicate) was re-measured on PostgreSQL
 18.6 with 20,000 seeded scopes before any index decision; scripts and raw
-output are in `docs/internal/evidence/7765-gitlab-group-prefix-read.md`.
+output are in (#7765).
 Baseline (prove-first shim on the same shape): sub-millisecond small-set
 reads with a 0.9 ms contended read. After: the group read returns exactly
 the 900 nested scopes (sibling, lookalike, underscore-prefix, other-host,

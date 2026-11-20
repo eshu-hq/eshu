@@ -140,7 +140,7 @@ to `partial_reasons` and leaves an empty section; more than 50 runtimes adds
 
 The route's p95 budget is 1,000 ms on the local profiles and 1,500 ms in
 production. The measured p95, the plans and the signals are in
-`docs/internal/evidence/8817-runtime-declaration-query.md`. The handler opens
+(#8817). The handler opens
 the `query.runtime_declarations` span and records
 `eshu_dp_runtime_declaration_query_duration_seconds` (by `operation` and
 `outcome`) and `eshu_dp_runtime_declaration_query_excluded_total` (by

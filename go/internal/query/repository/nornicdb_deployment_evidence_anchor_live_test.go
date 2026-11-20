@@ -9,7 +9,7 @@
 // anchor at the arrow head of an incoming relationship into the bound
 // repository -- the shape #6794 proved costs disproportionate time on
 // NornicDB and that this backend can also return the wrong row set for (see
-// docs/internal/evidence/6794-context-incoming-anchor.md and the "A Pattern
+// (#6794) and the "A Pattern
 // Anchored At The Arrow Head Scans Its Tail Label" pitfall in
 // docs/public/reference/nornicdb-query-pitfalls.md).
 //

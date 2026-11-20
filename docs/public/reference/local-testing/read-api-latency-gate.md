@@ -335,7 +335,7 @@ catalog, platform, and PostgreSQL version. Buffers
 separate the pre- and post-fix status routes by 10.7x to 12.7x while the
 statement count moves only 29.1 to 26.0, and they do not depend on runner CPU
 speed (evidence:
-`docs/internal/evidence/6797-read-api-work-metric-shim.md`). The table is
+(#6797)). The table is
 generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 `scripts/refresh-read-api-work-budgets.sh REPORT.json...` renders it with
 `calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`, `rows = ceil(max*2.0)` over
@@ -429,7 +429,7 @@ workflow whose trigger can write to the default branch's Actions cache scope,
 which is what CodeQL's `actions/cache-poisoning/poisonable-step` flags; see the
 workflow's own `workflow_dispatch` comment). Three RED runs against real
 pre-fix commits are already recorded verbatim in
-`docs/internal/evidence/6797-read-api-work-metric-shim.md`. To keep a stack for
+(#6797). To keep a stack for
 debugging locally, run the script with `--keep`; it leaves Postgres and
 NornicDB up with the seeded corpus and retains the live-gate lock. `eshu-api`
 is stopped on exit either way, so start your own build against the kept stack to

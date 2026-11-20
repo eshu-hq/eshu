@@ -297,7 +297,7 @@ const valueFlowInputsFenceStatusList = `('pending', 'claimed', 'running', 'retry
 // names what holds the singleton. Built from the exported domain lists, not
 // a hand-copied literal, so the SQL and the test-covered lists cannot drift
 // apart. See
-// docs/internal/evidence/6923-value-flow-single-solve.md for the EXPLAIN
+// (#6923) for the EXPLAIN
 // (ANALYZE, BUFFERS) proof (index range scans only, sub-millisecond at B-7
 // scale) and docs/internal/design/6785-value-flow-cloud-sink-refresh.md for
 // why the writer set is eight domains (six reducer, two shared), not four.

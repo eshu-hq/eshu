@@ -10,7 +10,7 @@ package ownership
 // statement cost does not depend on the caller's grant size.
 //
 // Historical, NornicDB only (measured on the pinned NornicDB build before the
-// 2026-09-25 Neo4j rule; docs/internal/evidence/5167-impact-grant.md):
+// 2026-09-25 Neo4j rule; (#5167)):
 // the grant-anchored alternatives (UNWIND $grant_ids AS g MATCH (owner {repo_id: g})
 // -[...]->(n) WHERE n.uid IN $uids) cost 6-10 s at grant 128 x 2000 keys for
 // CloudResource and WorkloadInstance and 32-106 s for TerraformStateResource,

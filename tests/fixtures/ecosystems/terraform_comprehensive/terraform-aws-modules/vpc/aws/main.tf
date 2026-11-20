@@ -36,7 +36,7 @@ terraform {
 # maxModulePrefixDepth, a fixture heavy enough for a rare production shape
 # that unit/integration coverage already proves precisely (including the
 # depth-comparison fix itself). See
-# docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md
+# (#5572)
 # for that explicit scoping decision.
 resource "aws_security_group" "vpc_endpoints" {
   name        = "vpc-endpoints-sg"

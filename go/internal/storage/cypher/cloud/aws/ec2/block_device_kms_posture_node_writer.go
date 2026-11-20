@@ -23,7 +23,7 @@ const ec2BlockDeviceKMSPostureNodeLabel = "CloudResource:EC2BlockDeviceKMSPostur
 // sourcecypher.FilterRowsToExistingCloudResourceUIDs already confirmed exists via a
 // separate read, so MERGE always matches and never creates. See
 // posture_node_existence.go and
-// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
+// (#5652).
 const canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher = `UNWIND $rows AS row
 MERGE (resource:CloudResource {uid: row.uid})
 SET resource.ec2_block_device_kms_state = row.state,

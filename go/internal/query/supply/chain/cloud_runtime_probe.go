@@ -45,7 +45,7 @@ const CloudRuntimeProbeMaxDigests = 200
 // first and filtering after took 0.449 ms and returned nothing, reporting a
 // genuinely running vulnerable image as not running. Eligibility inside the
 // bound took 93 ms and returned the 50 rows
-// (docs/internal/evidence/5789-per-digest-bound.md).
+// (#5789).
 //
 // Work stays bounded at len(digests) x the per-digest limit, at most 2000 rows,
 // and the ordered scan keeps that row set reproducible run to run: a security

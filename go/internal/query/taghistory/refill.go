@@ -37,7 +37,7 @@ import (
 // withheld" and no finer. It is not sized from the pre-#6705 NornicDB
 // per-lookup latency arithmetic alone (1135-2247ms per BuiltFromCypher call
 // on a 5,000-10,000 image NornicDB store,
-// docs/internal/evidence/6564-tag-history-grant-binding.md) -- that number
+// (#6564)) -- that number
 // measured a NornicDB build, not the pinned Neo4j backend, and multiplying a
 // per-call latency by a read count is exactly the reasoning the shared
 // deadline now makes unnecessary for the timeout question. The corpus-scale
@@ -78,7 +78,7 @@ type ScopedPage struct {
 // uses -- one of the keyset statements then BuiltFromCypher -- because the
 // pinned NornicDB build returns zero rows for the multi-clause grant join this
 // would otherwise be written as
-// (docs/internal/evidence/6564-tag-history-grant-binding.md).
+// (#6564).
 //
 // # The window is MaxLimit-sized, not limit-sized
 //

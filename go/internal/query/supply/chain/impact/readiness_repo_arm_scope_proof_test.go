@@ -37,14 +37,14 @@ const (
 	// target repository. The fixed cost of the other CTEs on this corpus is
 	// ~7.5k shared buffers; the pre-#7088 whole statement read 238,642 on it
 	// (custom plan; evidence table in
-	// docs/internal/evidence/7088-readiness-repo-scope.md), mostly arm 2
+	// (#7088)), mostly arm 2
 	// probing ~300 content_entity rows per noise scope, and arm 1 without the
 	// generation in its Index Cond read ~30k on the target's old generations.
 	repoArmStatementBufferLimit = 20000
 	// repoArmDependencyScanBufferLimit bounds the shared buffers of the three
 	// dependency-variable reads themselves, under custom and generic plans.
 	// Bounded, they read 588 buffers on this corpus (evidence table in
-	// docs/internal/evidence/7088-readiness-repo-scope.md); the pre-#7088
+	// (#7088)); the pre-#7088
 	// dependency-variable reads read 211,558 (custom) and 204,290 (generic).
 	repoArmDependencyScanBufferLimit = 2000
 )

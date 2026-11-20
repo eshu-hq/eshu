@@ -74,7 +74,7 @@ store drains the fact stream, writes no generation, fact, document, or term
 row, and logs `refresh_skipped=true` with a closed `refresh_skip_reason`. A
 reconciliation that matches the `active` generation re-opens its projector work
 instead and stamps `reconcile_reason` and `reconcile_requested_at` on it; an unchanged sweep reconcile can skip the parse as well ([Reconciliation Sweep](reconciliation-sweep.md#skipping-the-parse-of-an-unchanged-repository); see
-`docs/internal/evidence/7978-reconcile-no-duplicate-generation.md`).
+(#7978)).
 
 The hint is a fast-path optimization, not the authority. An empty hint, a
 missing scope ID, or a default-branch change never triggers that skip. A retry of an already published or

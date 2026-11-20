@@ -33,7 +33,7 @@ Read `doc.go` and `README.md` first.
   whole fact corpus is rejected before any store runs. Widening a gate
   enables unbounded reads.
 - The probes MUST keep eligibility inside the bound
-  (docs/internal/evidence/5789-per-digest-bound.md): bounding candidates
+  (#5789): bounding candidates
   first and authorizing after returns wrong answers on crowded pages.
 - The packet route MUST compose through `ImpactPacketResponder`
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to

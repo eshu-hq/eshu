@@ -25,7 +25,7 @@ import (
 // Writing the quiescent flag as a NOT EXISTS expression in the target list
 // instead lets PostgreSQL 16 hash the subquery rather than correlate it, which
 // sequentially scans fact_work_items -- 5.16 ms against 0.30 ms on the same seed
-// (docs/internal/evidence/5709-quiescence-probe.md).
+// (#5709).
 func TestProducerScopeQuiescenceSQLShape(t *testing.T) {
 	t.Parallel()
 

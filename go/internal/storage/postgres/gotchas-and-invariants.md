@@ -38,7 +38,7 @@ operational lessons that future storage changes still need to respect.
   of nine or more elements is hashed. Prove the trap with `PREPARE` under both
   forced plan modes first. `ListActivePackageManifestDependencyFacts` carries
   the measurements (#9586,
-  `docs/internal/evidence/9586-manifest-read-custom-plan.md`).
+  (#9586)).
 - `ListFactsByKindAndPayloadValue` is only for top-level JSON payload fields
   that are part of a reducer domain's truth contract. Do not use it to paper
   over missing parser metadata or to guess at nested payload shape.
@@ -156,7 +156,7 @@ operational lessons that future storage changes still need to respect.
   legacy, or mismatched base keeps the delta-only rows and counts
   `eshu_dp_package_manifest_dependency_read_delta_union_total`. All
   statements share one read-only repeatable-read snapshot; see
-  `docs/internal/evidence/9991-manifest-read-delta-union.md`.
+  (#9991).
   Stored sbt rows have no sidecar keys until the reducer's marker-gated sbt
   repair adds them (#8961). It writes the sidecar outside the dirty fence on
   purpose: it only inserts, under the scope row lock, so readiness never flips.
@@ -174,7 +174,7 @@ operational lessons that future storage changes still need to respect.
   `deltaUnionBasePrunedQuery`, batched; the projector and the successor guard
   bind one pair). Never copy the rule, the overlay, or the target lookup into
   a reader, and keep a probe failure a refusal (#8181); see
-  `docs/internal/evidence/10003-delta-overlay-helper.md`.
+  (#10003).
 - `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
   enrichment after Maven or Gradle dependency evidence has already proven a
   canonical repository and resolver-backed API package prefix. The query is
@@ -267,7 +267,7 @@ operational lessons that future storage changes still need to respect.
   split. The LEFT JOIN always yields at least the fence row; rows with a NULL
   `relationship_type` are filler, and no row at all is an error, never a
   verdict. No-Regression Evidence and plans:
-  `docs/internal/evidence/6740-corpus-fence-snapshot.md`.
+  (#6740).
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
@@ -362,7 +362,7 @@ operational lessons that future storage changes still need to respect.
   add it to `retiredArms` so the guard, the bounded statements, and the
   exactness tests see it. The frozen pre-#8880 statement is the differential
   oracle (`supply_chain_impact_evidence_live_test.go`); see
-  `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`.
+  (#8880).
   The planner ignores a partial index's statistics, so a `payload->>'key' = ANY`
   probe is estimated at 1/200 per id, and the sum falls at 200 ids. A plan flip can
   therefore sit below a length that plans well: the CVE probe walked at 172 to 199
@@ -431,7 +431,7 @@ operational lessons that future storage changes still need to respect.
   batched base read drains and closes its cursor before the retention probe). Do not move
   the recheck, do not compare a subset of the tuple, and do not widen it to
   un-hinted generations here (that is a separate issue).
-  See `docs/internal/evidence/8750-successor-guard-sizing.md`.
+  See (#8750).
 
 ## Owned-package alias expansion evidence (#9285)
 

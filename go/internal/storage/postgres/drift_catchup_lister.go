@@ -39,7 +39,7 @@ const defaultCatchUpListLimit = 500
 // size); the scope_kind equality shape, backed by
 // ingestion_scopes_active_state_snapshot_idx (migration 091), stays flat at
 // ~0.6-1.2 ms regardless of total corpus size. See
-// docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
+// (#5593) for
 // the full EXPLAIN (ANALYZE, BUFFERS) ladder.
 //
 // scope_kind is INLINED as a SQL literal here, NOT bound as a query

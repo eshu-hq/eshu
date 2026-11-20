@@ -67,7 +67,7 @@ repo-wide one-hop enumeration reads plus the 50-key-chunked UNWIND
 callee-edges read through the pinned `runWrapperGraphRows` runner.
 Identical canonical findings on NornicDB and Neo4j community 2026.05.0.
 Full-corpus PROFILE was remote-gated under #6840
-(docs/internal/evidence/6834-code-divergence-theory.md §11/§13); the
+((#6834) §11/§13); the
 remote-validation run is still pending, so the production tier stays
 unclaimed until `docs/internal/remote-validation/code-divergence.md`
 exists.

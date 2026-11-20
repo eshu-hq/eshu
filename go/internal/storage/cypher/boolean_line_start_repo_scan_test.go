@@ -128,7 +128,7 @@ func scanForLineLedBooleanOperators(t *testing.T) (hits []string, scannedFiles i
 
 // TestNoLineLedBooleanOperatorsInCypherAcrossRepo is the repo-wide static
 // guard for the NornicDB v1.3.3 WHERE-parsing defect recorded as X4 in
-// docs/internal/evidence/6786-nornicdb-400-409-exposure.md. It fails when any
+// (#6786). It fails when any
 // production Cypher string puts AND, OR or XOR directly after a newline or a
 // tab, the shape gofmt-indented raw strings produce naturally.
 func TestNoLineLedBooleanOperatorsInCypherAcrossRepo(t *testing.T) {

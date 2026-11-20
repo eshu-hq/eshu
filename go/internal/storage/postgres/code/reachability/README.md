@@ -99,7 +99,7 @@ intent-row join with `GROUP BY`: the runner re-polls nearly back to back
 (`ESHU_SHARED_PROJECTION_POLL_INTERVAL`, default 500 ms, and no wait while
 inputs remain), and on the QA replica that shape took 4.7 to 8.4 s per call.
 The shipped statement took 702.7 ms warm and 5,266 ms cold (`LIMIT 10`). See
-`docs/internal/evidence/7547-reachability-loader-gate.md`.
+(#7547).
 
 The #10870 idle probe (`codeReachabilityIntentCursorSQL`) is the cheap gate
 in front of that candidate statement: two per-domain newest-`completed_at`

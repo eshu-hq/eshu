@@ -181,7 +181,7 @@ older than the fence contains no call to it, and an unfenced writer has none to
 make. Both need those pods stopped before bootstrap records the marker.
 
 The full working is in
-`docs/internal/evidence/module-node-identity-6106-review-follow-ups.md`.
+(#6106).
 
 ## Anti-patterns specific to this package
 

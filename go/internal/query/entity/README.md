@@ -74,7 +74,7 @@ id, an id-only or id != uid node on a uid label) answers 404 on Neo4j, and the
 census counts it. `TestNeo4jEntityContextAnchorAgreesWithTheCensusOnEveryLabel`
 and the live `TestLiveNeo4jSchemaClosedAnchorAgreesWithTheCensus` hold the
 anchor and `anchor.Classify` together on every census label. Evidence:
-`docs/internal/evidence/7212-schema-closed-anchor.md`.
+(#7212).
 `neo4jAnchorRankOrder` ranks the loop's constrained labels first, in loop
 order, then the rest alphabetically. An id shared by two old loop labels
 resolves to the one the loop tried first; otherwise the earlier label in this
@@ -82,7 +82,7 @@ order wins. `Directory` has no id or uid index and is not in the anchor; the
 canonical writer keys it on `path` and never sets `id`.
 `TestNeo4jEntityContextAnchorIsTheMeasuredStatement` pins
 the statement to the text measured in
-`docs/internal/evidence/7212-wide-entity-anchor.md`.
+(#7212).
 
 Resolution attribution (#7212): `GetEntityContext` records how each request was
 answered in `context_resolution.go`. `resolved_by` is `anchor` (an anchor

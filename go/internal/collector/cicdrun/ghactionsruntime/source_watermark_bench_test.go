@@ -53,7 +53,7 @@ func BenchmarkNextClaimedWithoutWatermarkStore(b *testing.B) {
 // SourceConfig.Watermarks wired to an in-memory Store, so every call does a
 // real Load, detectRunBackfillGap, and Save against it (the same amount of
 // store work a Postgres-backed store would do, minus network/disk latency --
-// see docs/internal/evidence/5429-cicd-run-watermark.md for the Postgres
+// see (#5429) for the Postgres
 // query-plan proof of that added latency, ~0.02-0.03ms per point query at
 // 50k representative rows).
 func BenchmarkNextClaimedWithInMemoryWatermarkStore(b *testing.B) {

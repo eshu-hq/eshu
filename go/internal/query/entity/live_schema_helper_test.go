@@ -8,7 +8,7 @@
 // and resolving which backend/database a run targets from environment
 // variables. NornicDB's read-predicate behavior differs materially with the
 // schema applied versus a bare container -- see
-// docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md -- so
+// (#6786) -- so
 // every live test in this file's sibling MUST apply schema first.
 package entity
 

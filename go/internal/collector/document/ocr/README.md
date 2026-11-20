@@ -159,7 +159,7 @@ bounded Cyrillic and Greek homoglyph table, and separators (space, `-`, `_`,
 matches `pwd` as a substring and `pins` not at all; OCR matches `pwd` and `pins`
 as whole words. Both keep the same six-entry source-name list, which a change
 must edit in both packages together. The decision and its reasons are in
-`docs/internal/evidence/9793-fold-vs-edit-distance-arbiter-ruling.md`. A probe
+(#9793). A probe
 of `containsMarkerWord` and `containsSensitiveKeyword` on both merged trees
 gave these results (true means the text is a label):
 
@@ -222,7 +222,7 @@ window of 2 left the rest in clear. `extendSecretRuns` in `secret_runs.go` runs
 after the window and row passes and only turns a region from kept to withheld,
 through four clauses: chain, tail, symbol, and seed. The rule, its thresholds,
 its limits, and its measured cost are in [SECRET_RUNS.md](SECRET_RUNS.md). The
-decision is `docs/internal/evidence/9799-multiline-arbiter-ruling.md`.
+decision is (#9799).
 
 The tradeoff is deliberate. Up to 2 ordinary lines after any marker region are
 hidden, including after a line that already holds its value, such as
@@ -471,7 +471,7 @@ readback surfaces already carry the emitted documentation facts.
 ## Related docs
 
 - `SECRET_RUNS.md` (the secret run rule, its limits, and its cost, #9799)
-- `docs/internal/evidence/9799-multiline-arbiter-ruling.md`
+- (#9799)
 - `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 - `go/internal/collector/preflight/picture/README.md`
 - `docs/public/reference/local-testing.md`

@@ -163,7 +163,7 @@ identical.
 - **The batch-wide cross-scope resolved count disarms the floor for every
   run in the same `Handle` pass**, not per-run — a documented residual gap
   (`TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved`,
-  `docs/internal/evidence/5709-cross-scope-readiness-floor.md`). Do not
+  (#5709)). Do not
   "fix" this locally without reading that evidence doc first; closing it
   needs a different, per-digest contract than #5709 specifies.
 
@@ -172,7 +172,7 @@ identical.
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
 - `go/internal/reducer/crossscope/README.md` — the shared cross-scope readiness floor this package's `Handle` calls
 - `docs/internal/design/package-restructure.md` — the #6061 restructure
-- `docs/internal/evidence/5709-cross-scope-readiness-floor.md` — the residual-window disclosure for the batch-wide resolved-count gap above
+- (#5709) — the residual-window disclosure for the batch-wide resolved-count gap above
 
 No-Regression Evidence: #6061 moves the `ci_cd_run_correlation` reducer
 domain (10 non-test + 20 test files) out of the reducer root into this new

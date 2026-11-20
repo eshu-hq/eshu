@@ -132,7 +132,7 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 // ingestion_scopes_pkey, relationship_generations_pkey, and
 // fact_work_items_scope_generation_idx (scope_id, generation_id, ...),
 // filtering the generation's few reducer rows on stage and domain. Evidence:
-// docs/internal/evidence/7597-own-gate-producer-terminal.md.
+// (#7597).
 const resolutionProducerStateSQL = `
 SELECT COALESCE(s.active_generation_id, ''),
        COALESCE(w.work_item_id, ''), COALESCE(w.status, ''), COALESCE(w.failure_class, ''),

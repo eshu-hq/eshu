@@ -233,7 +233,7 @@ the issue id: 9.7 ms and 6,959 buffers at 50,000 links against 952 ms and 344,51
 without it, and about 45 ms against 1.04 s with 100 transitions on each of 5,000
 linked issues. The source-only count now subtracts linked issues (26 to 48-51 ms
 on the plan-proof corpus), a cost only a story that found no evidence pays. See
-`docs/internal/evidence/7464-story-target-support-jira-issue-link.md`.
+(#7464).
 
 Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
 statement served by the existing migration 003 indexes (no new migration), and
@@ -241,7 +241,7 @@ the source-only count carries the correlation set, read per active generation. A
 about one million facts and 24 retained generations the routing read measures
 0.4 ms custom and 0.2 ms generic, and the source-only count 75 to 230 ms.
 The measurements, rejected shapes and proof commands are in
-`docs/internal/evidence/7463-story-target-support-incident-routing.md`.
+(#7463).
 
 Performance Evidence: migration 123 adds a partial index over the twelve support
 kinds (non-tombstoned), and the source-only statement carries those kinds as a

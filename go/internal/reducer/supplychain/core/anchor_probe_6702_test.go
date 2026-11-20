@@ -207,7 +207,7 @@ func TestProbe6702EndToEndH2AllTierC(t *testing.T) {
 // TestProbe6702EndToEndH1bNoFloor drives probe plus classify over a pass
 // with no pinned-digest identity evidence at all and an unarmed floor: the
 // later-stage no-floor residual window from
-// docs/internal/evidence/5709-supply-chain-consumer.md.
+// (#5709).
 func TestProbe6702EndToEndH1bNoFloor(t *testing.T) {
 	t.Parallel()
 

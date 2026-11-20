@@ -25,7 +25,7 @@ import (
 // A refused, legacy, or mismatched base keeps the delta-only rows; see
 // overlayDeltaBase. Every statement runs on one read-only
 // repeatable-read snapshot.
-// Performance Evidence: docs/internal/evidence/9991-manifest-read-delta-union.md.
+// Performance Evidence: (#9991).
 //
 // The query filters fact.is_tombstone = FALSE so a manifest dependency fact
 // tombstoned within a still-active generation is never surfaced as live. The
@@ -42,7 +42,7 @@ import (
 // folded entity index (#9611); see listActivePackageManifestDependencyFactsQuery.
 // The keyset cursor, ordering, page size, and statements per read are
 // unchanged. Performance Evidence:
-// docs/internal/evidence/9611-manifest-read-name-probe.md.
+// (#9611).
 //
 // Case-Fold Evidence (#9568): the entity_name prefilter folds the stored name
 // with LOWER(TRIM(entity_name) COLLATE "C"). The LOWER under COLLATE "C" is

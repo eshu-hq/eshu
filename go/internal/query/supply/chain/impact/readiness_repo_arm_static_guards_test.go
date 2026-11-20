@@ -59,7 +59,7 @@ func TestReadinessRepoArmCTEsAreComposedIntoTheShippedStatement(t *testing.T) {
 // fences (both package_manifest_active arms and the gap CTE). Without the
 // fence the planner flattens the LATERAL subquery and starts from the fact
 // index again, the pre-#7088 plan (see
-// docs/internal/evidence/7088-readiness-repo-scope.md).
+// (#7088)).
 func TestReadinessRepoArmLateralProbesKeepTheirOffsetFence(t *testing.T) {
 	t.Parallel()
 

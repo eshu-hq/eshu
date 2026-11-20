@@ -71,4 +71,4 @@ Postgres 18 (`ESHU_POSTGRES_DSN`): commit with state, replay, rollback,
 retention cascade, retention against concurrent commits of the same target,
 concurrent claims of one target, and two claims racing on one generation id,
 under the race detector. See
-`docs/internal/evidence/8943-security-alert-org-read-state.md`.
+(#8943).

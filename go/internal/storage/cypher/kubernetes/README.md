@@ -54,7 +54,7 @@ statement metadata keys are unchanged.
 ## No-Regression Evidence
 
 No-Regression Evidence: the move changes no statement text, parameter shape,
-row cloning, batching, or dispatch order — `docs/internal/evidence/6694-kubernetes-node-writers.md`
+row cloning, batching, or dispatch order — (#6694)
 pins each one with the focused suites below.
 
 `go test ./internal/storage/cypher/kubernetes -count=1` (moved writer,

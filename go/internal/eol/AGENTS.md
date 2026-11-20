@@ -5,7 +5,7 @@
 1. `README.md` — purpose and the status table.
 2. `resolve.go` — `Resolve` is the authority on status boundaries and cycle
    matching; `snapshot.go` — normalization and the embed seam.
-3. `docs/internal/evidence/8820-eol-snapshot-research.md` — the source,
+3. (#8820) — the source,
    slug mapping, and licence the snapshot vendors.
 4. `go/internal/collector/repo/runtime/declaration/AGENTS.md` — the sibling
    producer package; this package must not grow imports toward it.

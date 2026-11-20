@@ -241,5 +241,5 @@ Evidence: `go/internal/query/content_reader_code_topic.go`,
 `go/internal/query/codequery/topic.go`,
 `go/internal/storage/postgres/schema_content_store.go`,
 `go/internal/storage/postgres/content_store_writes.go`,
-`docs/internal/evidence/7033-exact-code-topic-parallel.md`, and the private
+(#7033), and the private
 admission/copy-preflight records under run `eshu7033-20261005-NAsTAI`.
