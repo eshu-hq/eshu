@@ -309,8 +309,8 @@ import (
 // 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
 // sweep needs for parked waits of retired scopes).
 const (
-	goldenBootstrapDefinitionsDigest = "96d32a001e2df28ec733ba586ddd6153b873abb1fd17231262155ca7a0c3ec5f"
-	goldenBootstrapDefinitionsCount  = 345
+	goldenBootstrapDefinitionsDigest = "b5a20ed75e968076fe36008d819cddafa223ebaa739d3fd52279711ab662bfb3"
+	goldenBootstrapDefinitionsCount  = 346
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

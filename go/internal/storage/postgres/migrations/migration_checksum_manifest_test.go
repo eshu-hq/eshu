@@ -445,6 +445,10 @@ var migrationShippedChecksums = map[string]string{
 	// #11021: the scope probe the 2e purge sweep needs for parked waits
 	// of retired scopes.
 	"319_reducer_waiting_items_scope_idx.sql": "fa91e1d7cf4e5b07585291a93fa2a555a6ce18a2489bf193eb12dc0464bdd87d",
+	// #10878 follow-up: the audit clock (last_audit_at) for the
+	// aws_drift_reopen_fingerprints gate; 317 shipped, so the column lands
+	// here instead of amending it (#7002).
+	"320_aws_drift_reopen_fingerprints_audit_clock.sql": "a2c25f09dcd452158528d4d56fe9066c47ec3677ae33dd16d64636da442b2cdd",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

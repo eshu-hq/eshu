@@ -56,12 +56,16 @@ func (r *recordedSnapshotFakeRows) Scan(dest ...any) error {
 			if err := target.Scan(row[i]); err != nil {
 				return err
 			}
-		case *time.Time:
+		case *sql.NullTime:
+			if row[i] == nil {
+				*target = sql.NullTime{}
+				continue
+			}
 			value, ok := row[i].(time.Time)
 			if !ok {
-				return errors.New("want time.Time")
+				return errors.New("want time.Time or nil")
 			}
-			*target = value
+			*target = sql.NullTime{Time: value, Valid: true}
 		default:
 			return errors.New("unsupported scan target")
 		}
@@ -74,13 +78,14 @@ func (r *recordedSnapshotFakeRows) Close() error { return nil }
 
 // TestLoadAWSDriftRecordedSnapshotReturnsRecordedMap pins the per-run
 // plan's "previous" half: the recorded parallel arrays zip back into the
-// ARN-to-payload-identity map plus the record time (the audit clock).
+// ARN-to-payload-identity map plus the last full run's completion time (the
+// audit clock, last_audit_at — never the last delta's record time).
 func TestLoadAWSDriftRecordedSnapshotReturnsRecordedMap(t *testing.T) {
 	t.Parallel()
-	recordedAt := time.Now().UTC().Truncate(time.Second)
+	lastAuditAt := time.Now().UTC().Truncate(time.Second)
 	store := NewIngestionStore(&recordedSnapshotFakeDB{
 		rows: &recordedSnapshotFakeRows{values: [][]any{
-			{`{"arn:1","arn:2"}`, `{"h1","h2"}`, recordedAt},
+			{`{"arn:1","arn:2"}`, `{"h1","h2"}`, lastAuditAt},
 		}},
 	})
 	prev, got, ok, err := store.LoadAWSDriftRecordedSnapshot(context.Background(), "work-1")
@@ -93,8 +98,33 @@ func TestLoadAWSDriftRecordedSnapshotReturnsRecordedMap(t *testing.T) {
 	if len(prev) != 2 || prev["arn:1"] != "h1" || prev["arn:2"] != "h2" {
 		t.Fatalf("prev = %v, want map[arn:1:h1 arn:2:h2]", prev)
 	}
-	if !got.Equal(recordedAt) {
-		t.Fatalf("recordedAt = %v, want %v", got, recordedAt)
+	if !got.Equal(lastAuditAt) {
+		t.Fatalf("lastAuditAt = %v, want %v", got, lastAuditAt)
+	}
+}
+
+// TestLoadAWSDriftRecordedSnapshotNullClockReadsZero pins the never-audited
+// shape: a NULL last_audit_at reads as the zero time, which the planner
+// treats as audit-due rather than erroring the scan.
+func TestLoadAWSDriftRecordedSnapshotNullClockReadsZero(t *testing.T) {
+	t.Parallel()
+	store := NewIngestionStore(&recordedSnapshotFakeDB{
+		rows: &recordedSnapshotFakeRows{values: [][]any{
+			{`{"arn:1"}`, `{"h1"}`, nil},
+		}},
+	})
+	prev, got, ok, err := store.LoadAWSDriftRecordedSnapshot(context.Background(), "work-1")
+	if err != nil {
+		t.Fatalf("LoadAWSDriftRecordedSnapshot() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("ok = false, want true for a recorded row")
+	}
+	if len(prev) != 1 || prev["arn:1"] != "h1" {
+		t.Fatalf("prev = %v, want map[arn:1:h1]", prev)
+	}
+	if !got.IsZero() {
+		t.Fatalf("lastAuditAt = %v, want zero for a never-audited row", got)
 	}
 }
 

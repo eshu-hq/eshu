@@ -34,6 +34,15 @@ import (
 // change rehashes. The digest is sha256, not md5: OpenSSL FIPS rejects md5
 // in production SQL (#6753, TestProductionSQLHasNoMD5Calls).
 //
+// State/config inputs are NOT in the identity (the per-ARN fold was
+// stopped on the D2 cost gate: the robust fenced all-ARN shape costs ~24x
+// the full load legs at N=2000 and is plan-unstable at N=8000 (2x-100x with
+// sort spill under missing stats), against a 25% bar the aws-only snapshot
+// itself already exceeds at 35-46%): a state- or config-only move leaves
+// the fingerprint identical, and the daily audit (the audit-stale reopen
+// leg above, the audit_due full run, the audit corrections counter) bounds
+// that staleness instead (#11018 P1).
+//
 // A generation-id fingerprint would miss an append under an already-active
 // generation (the #8283 option (i) lesson); the ARN+payload fingerprint
 // catches appends, removals, and in-place content changes alike.
@@ -42,6 +51,27 @@ import (
 // payload column expression payloadExpr.
 func awsDriftPayloadHashSQL(payloadExpr string) string {
 	return `encode(sha256(convert_to(` + payloadExpr + `::text, 'UTF8')), 'hex')`
+}
+
+// awsDriftARNPairsSQL lists one row per ARN with its collapsed aws payload
+// identity: the digest of the sorted DISTINCT payload hashes for that ARN.
+// Duplicate fact rows for one ARN collapse to the same identity here and in
+// the Go map twin (LoadAWSDriftARNSnapshot), so the maintenance listing and
+// the recorded row converge instead of reopening every pass (#11018 P2).
+// Both fingerprint statements derive from this one fragment, so they can
+// never compute it two different ways.
+func awsDriftARNPairsSQL(scopeIDExpr, generationIDExpr string) string {
+	return `SELECT pair.arn AS arn,
+       encode(sha256(convert_to(string_agg(pair.payload_hash, E'\n' ORDER BY pair.payload_hash), 'UTF8')), 'hex') AS payload_hash
+FROM (
+  SELECT DISTINCT fact.payload->>'arn' AS arn, ` + awsDriftPayloadHashSQL("fact.payload") + ` AS payload_hash
+  FROM fact_records AS fact
+  WHERE fact.scope_id = ` + scopeIDExpr + `
+    AND fact.generation_id = ` + generationIDExpr + `
+    AND fact.fact_kind = 'aws_resource'
+    AND btrim(COALESCE(fact.payload->>'arn', '')) <> ''
+) AS pair
+GROUP BY pair.arn`
 }
 
 // AWSDriftARNFingerprintSQL returns the scalar subquery that computes the
@@ -56,32 +86,22 @@ func AWSDriftARNFingerprintSQL(scopeIDExpr, generationIDExpr string) string {
     SELECT encode(sha256(convert_to(
       string_agg(pair.arn || E'\n' || pair.payload_hash, E'\n' ORDER BY pair.arn COLLATE "C"), 'UTF8')), 'hex')
     FROM (
-      SELECT fact.payload->>'arn' AS arn,
-             ` + awsDriftPayloadHashSQL("fact.payload") + ` AS payload_hash
-      FROM fact_records AS fact
-      WHERE fact.scope_id = ` + scopeIDExpr + `
-        AND fact.generation_id = ` + generationIDExpr + `
-        AND fact.fact_kind = 'aws_resource'
-        AND btrim(COALESCE(fact.payload->>'arn', '')) <> ''
-      GROUP BY fact.payload->>'arn', ` + awsDriftPayloadHashSQL("fact.payload") + `
+      ` + awsDriftARNPairsSQL(scopeIDExpr, generationIDExpr) + `
     ) AS pair
   ), '` + reducercontract.EmptyARNInputFingerprint + `')`
 }
 
 // AWSDriftSnapshotRowsSQL lists one AWS scope generation's ARN snapshot:
-// one row per ARN with its payload identity, in ARN order. The record path
-// stores these rows; the next run diffs them against its fresh load to
-// narrow to changed ARNs. $1 scope_id, $2 generation_id.
-const AWSDriftSnapshotRowsSQL = `
-SELECT fact.payload->>'arn' AS arn,
-       encode(sha256(convert_to(fact.payload::text, 'UTF8')), 'hex') AS payload_hash
-FROM fact_records AS fact
-WHERE fact.scope_id = $1
-  AND fact.generation_id = $2
-  AND fact.fact_kind = 'aws_resource'
-  AND btrim(COALESCE(fact.payload->>'arn', '')) <> ''
-GROUP BY fact.payload->>'arn', encode(sha256(convert_to(fact.payload::text, 'UTF8')), 'hex')
-ORDER BY fact.payload->>'arn' ASC
+// exactly one row per ARN with its collapsed payload identity (the D4
+// collapse rule: duplicate fact rows for one ARN share one identity), in
+// ARN order. The record path stores these rows; the next run diffs them
+// against its fresh load to narrow to changed ARNs. $1 scope_id, $2
+// generation_id.
+var AWSDriftSnapshotRowsSQL = `SELECT pair.arn AS arn, pair.payload_hash AS payload_hash
+FROM (
+  ` + awsDriftARNPairsSQL("$1", "$2") + `
+) AS pair
+ORDER BY pair.arn ASC
 `
 
 // awsDriftReopenSelect is the gated listing's select list: every
@@ -89,13 +109,20 @@ ORDER BY fact.payload->>'arn' ASC
 // the fingerprint subquery runs only for an item that has a row under the
 // current logic version. The current fingerprint renders over the scope's
 // active generation: a supersession carrying different ARNs (or different
-// payloads) mismatches the recorded value and re-opens the item.
+// payloads) mismatches the recorded value and re-opens the item. The audit
+// leg re-opens audit-stale rows even when the fingerprint matches: a NULL
+// last_audit_at (never audited) or one older than the audit interval forces
+// the daily full run through the listing, so scopes that would otherwise
+// skip forever still audit (#11018 P1). The interval is the SQL twin of
+// awscloud.awsDriftAuditInterval (24h); a test pins their equality.
 var awsDriftReopenSelect = `SELECT work.work_item_id,
        (fingerprint.work_item_id IS NULL
         OR fingerprint.logic_version IS DISTINCT FROM ` +
 	strconv.Itoa(reducercontract.AWSRuntimeDriftLogicVersion) + `
         OR fingerprint.arn_fingerprint IS DISTINCT FROM ` +
-	AWSDriftARNFingerprintSQL("work.scope_id", "scope.active_generation_id") + `) AS input_changed
+	AWSDriftARNFingerprintSQL("work.scope_id", "scope.active_generation_id") + `
+        OR fingerprint.last_audit_at IS NULL
+        OR fingerprint.last_audit_at < clock_timestamp() - INTERVAL '24 hours') AS input_changed
 `
 
 // awsDriftReopenFingerprintJoin attaches each candidate's recorded row plus
@@ -132,7 +159,10 @@ var ListAWSDriftReopenCandidatesQuery = scopeReplayFloorCTE +
 //
 // $1 work_item_id, $2 claimed_at (the claim's last_attempt_at), $3
 // scope_id, $4 generation_id, $5 arn_ids, $6 arn_payload_hashes, $7
-// arn_fingerprint, $8 logic_version.
+// arn_fingerprint, $8 logic_version, $9 full_run. A full run advances the
+// row's audit clock (last_audit_at) to this run; a delta leaves it NULL on
+// insert and preserves the existing value on conflict, so hourly deltas
+// never defer the daily audit (#11018 P1).
 const RecordAWSDriftReopenFingerprintQuery = `
 WITH claimant AS MATERIALIZED (
     SELECT work_item_id
@@ -147,9 +177,10 @@ WITH claimant AS MATERIALIZED (
 )
 INSERT INTO aws_drift_reopen_fingerprints (
     work_item_id, scope_id, generation_id, arn_ids, arn_payload_hashes,
-    arn_fingerprint, logic_version, claimed_at, recorded_at
+    arn_fingerprint, logic_version, claimed_at, recorded_at, last_audit_at
 )
-SELECT claimant.work_item_id, $3, $4, $5::text[], $6::text[], $7, $8, $2, clock_timestamp()
+SELECT claimant.work_item_id, $3, $4, $5::text[], $6::text[], $7, $8, $2, clock_timestamp(),
+    CASE WHEN $9 THEN clock_timestamp() ELSE NULL END
 FROM claimant
 ON CONFLICT (work_item_id) DO UPDATE
 SET scope_id = EXCLUDED.scope_id,
@@ -159,16 +190,18 @@ SET scope_id = EXCLUDED.scope_id,
     arn_fingerprint = EXCLUDED.arn_fingerprint,
     logic_version = EXCLUDED.logic_version,
     claimed_at = EXCLUDED.claimed_at,
-    recorded_at = EXCLUDED.recorded_at
+    recorded_at = EXCLUDED.recorded_at,
+    last_audit_at = COALESCE(EXCLUDED.last_audit_at, aws_drift_reopen_fingerprints.last_audit_at)
 WHERE aws_drift_reopen_fingerprints.claimed_at <= EXCLUDED.claimed_at
 `
 
 // LoadAWSDriftRecordedSnapshotQuery reads this run's previously recorded
-// reopen snapshot: the parallel ARN arrays plus the record time (the
-// per-run plan's audit clock). $1 work_item_id. No row means the item
+// reopen snapshot: the parallel ARN arrays plus the last full run's
+// completion time (last_audit_at, the per-run plan's audit clock — never
+// the last delta's record time). $1 work_item_id. No row means the item
 // never recorded: absence re-opens, never skips.
 const LoadAWSDriftRecordedSnapshotQuery = `
-SELECT arn_ids, arn_payload_hashes, recorded_at
+SELECT arn_ids, arn_payload_hashes, last_audit_at
 FROM aws_drift_reopen_fingerprints
 WHERE work_item_id = $1
 `
