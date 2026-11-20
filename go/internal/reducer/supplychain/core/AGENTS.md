@@ -131,6 +131,10 @@ changing anything here.
   they produce no impact finding. A failed govulncheck run emits no
   reachability fact and reads `unknown`; the reducer does not join
   `scanner_worker.warning`, so the failure class is not on the finding.
+  Scan provenance (`scan_level`, `scan_mode`, `scanner_version`,
+  `trace_count`) rides the typed decode to the explain payload, one key
+  each and only when the fact reports it; pre-provenance facts emit none
+  of the keys (#10028).
 - The OS advisory grouping pass (#9914, `groupOSAdvisoriesByUpstream`) is the
   only place a distro record is filed under a CVE id. Keep it in the index
   build: never in verdict code, never by changing the producer's `cve_id`, and
