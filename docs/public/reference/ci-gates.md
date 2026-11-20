@@ -39,7 +39,7 @@ An **Odù** is one of its scenarios: a set of recorded facts whose expected
 results are derived from the inputs rather than written by hand. See
 [the Ifá conformance platform](../concepts/ifa-conformance-platform.md).
 
-### Hygiene: Is the change well-formed? (59 gates)
+### Hygiene: Is the change well-formed? (60 gates)
 
 - `go-fmt` (blocking): Checks Go source is formatted with gofumpt so diffs stay consistent.
 - `go-lint` (blocking): Runs golangci-lint across the Go module to catch style and correctness issues.
@@ -100,6 +100,7 @@ results are derived from the inputs rather than written by hand. See
 - `tagged-builds` (blocking): Compiles every build-tag combination that ordinary go build/vet/test skip, so dead tagged code can't silently rot.
 - `codex-goal-continuation` (blocking): Exercises Codex Stop-hook error continuation and per-session goal progress handling.
 - `ghcr-buildcache-prune` (blocking): Fails when the eshu-buildcache prune deletes a tagged, recent or newest-4 version, names another package, or hides an API error (#9632).
+- `template-collector-caller` (blocking): Fails when the collector template CI stops being a thin caller of the pinned go-collector-ci reusable (inline lanes, mutable tags) (#10986).
 
 ### Unit: Does the code do what its tests say? (8 gates)
 
@@ -380,6 +381,7 @@ results are derived from the inputs rather than written by hand. See
 | `codex-goal-continuation` | Codex goal continuation hook behavior | hygiene | pre-pr | true | `bash scripts/test-codex-goal-continue-hook.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 6 path(s): .codex/hooks.json, .agent-kit-version, scripts/test-codex-goal-continue-hook.sh, … |
 | `ghcr-buildcache-prune` | GHCR build cache prune self-test | hygiene | pre-pr | true | `bash scripts/ci/test-prune-ghcr-buildcache.sh` | static-contract-gates.yml / Verify GHCR build cache prune gate | 6 path(s): .github/workflows/ghcr-buildcache-prune.yml, scripts/ci/prune-ghcr-buildcache.sh, scripts/ci/test-prune-ghcr-buildcache.sh, … |
 | `ghcr-buildcache-prune-run` | GHCR build cache prune (daily) | hygiene | ci-heavy | false | — (CI-only: scheduled delete against the live GHCR package with packages: write; the blocking ghcr-buildcache-prune row runs its hermetic self-test) | ghcr-buildcache-prune.yml / GHCR build cache prune | 2 path(s): .github/workflows/ghcr-buildcache-prune.yml, scripts/ci/prune-ghcr-buildcache.sh |
+| `template-collector-caller` | Collector template thin-caller contract | hygiene | pre-pr | true | `bash scripts/ci/test-template-collector-caller.sh` | static-contract-gates.yml / Verify template-collector-caller gate | 6 path(s): templates/collector/.github/workflows/ci.yml, scripts/ci/test-template-collector-caller.sh, .github/workflows/static-contract-gates.yml, … |
 | `codex-spawn-guard` | *(alias — pre-commit mirror of the agent-canon Codex spawn guard test, also run locally and in CI)* | — | — | — | — | — | — |
 | `goal-role-routing` | *(alias — pre-commit mirror of agent-canon goal router behavior, also run in the local test command and CI hygiene workflow)* | — | — | — | — | — | — |
 | `no-ai-attribution-message` | *(alias — commit-msg-stage variant of the no-ai-attribution gate (same check, different stage))* | — | — | — | — | — | — |

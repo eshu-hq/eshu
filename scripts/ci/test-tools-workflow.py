@@ -113,10 +113,11 @@ class ToolsWorkflowTest(unittest.TestCase):
         # mcpclientauthdoc (#10987), workflowscriptcheckout (#8008),
         # readinessderive drift gate (#7859), collectorcutoverrollback test
         # mirror (#8895), changelogunreleased (#9096), buildcacheprune (#9632,
-        # GHCR build-cache prune self-test).
+        # GHCR build-cache prune self-test), templatecollectorcaller (#10999,
+        # collector template thin-caller self-test).
         # claudrules scope gate retired (#10448), not an image check, no longer counted.
         # D13: route-coverage cell retired with the deleted go/cmd/api surface.
-        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 35)
+        self.assertEqual(source.count('          append_gate "${{ steps.filter.outputs.'), 36)
         cell = next(
             line for line in source.splitlines()
             if line.lstrip().startswith('append_gate "${{ steps.filter.outputs.dockerhublogin }}"')
