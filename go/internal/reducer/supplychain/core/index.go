@@ -76,6 +76,13 @@ type supplyChainImpactIndex struct {
 	// affectedProducts because their NVD configuration or node is negated.
 	negatedProductsExcluded int
 
+	// evidenceTruncated is true when the evidence load stopped short (the
+	// same truncated-load kill switch the alias grouping pass reads as
+	// disabled). The product path's newest-copy admission stays off then: a
+	// partial load may have cut the winning copy, so every product stays as
+	// today rather than dropping on incomplete evidence (#10735).
+	evidenceTruncated bool
+
 	// osUpstream holds what the OS advisory grouping pass counted and did
 	// (#9914); see groupOSAdvisoriesByUpstream.
 	osUpstream osUpstreamGrouping

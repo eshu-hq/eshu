@@ -170,6 +170,16 @@ func TestProductPathCountsARecordsOwnCVEFactAsNative(t *testing.T) {
 		}
 	}
 	products := nvdProductEnvelopes(cve, 8.6)[1:]
+	// The products are attributable to the record's own scope, the way
+	// production envelopes are scoped: the newest-copy admission keeps a
+	// product only when its scope holds an admitted copy (#10735). The
+	// native-vs-copy question this test pins is unchanged.
+	for i := range products {
+		if products[i].FactKind == chain.VulnerabilityAffectedProductFactKind {
+			products[i].ScopeID = own.ScopeID
+			products[i].GenerationID = own.GenerationID
+		}
+	}
 	want := BuildSupplyChainImpactFindings(append(slices.Clone(products), own))
 	if len(want) != 1 || want[0].AdvisoryID != id {
 		t.Fatalf("baseline = %#v, want one product finding named %s", want, id)

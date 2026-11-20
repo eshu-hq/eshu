@@ -14,10 +14,25 @@ import (
 // and image evidence that anchors it, with the retraction decision applied.
 func productRetractionFinding(t *testing.T, cves ...facts.Envelope) SupplyChainImpactFinding {
 	t.Helper()
+	return scopedProductRetractionFinding(t, "", "", cves...)
+}
 
+// scopedProductRetractionFinding is productRetractionFinding with the product
+// fact held in the given scope and generation, so the product is attributable
+// to the copy recorded there. The product path's newest-copy admission keeps a
+// product only when its own scope holds an admitted copy (#10735); a test with
+// scoped copies must scope its product the same way production envelopes are
+// scoped, or the product is an orphan and forms no finding. An empty scope
+// keeps the legacy scopeless shape for single-copy groups.
+func scopedProductRetractionFinding(t *testing.T, scopeID, generationID string, cves ...facts.Envelope) SupplyChainImpactFinding {
+	t.Helper()
+
+	product := vulnerabilityAffectedProductFact("product-1", "CVE-2026-2100", testImpactProductCriteria, testImpactMatchCriteriaID, true)
+	product.ScopeID = scopeID
+	product.GenerationID = generationID
 	envelopes := append([]facts.Envelope{}, cves...)
 	envelopes = append(envelopes,
-		vulnerabilityAffectedProductFact("product-1", "CVE-2026-2100", testImpactProductCriteria, testImpactMatchCriteriaID, true),
+		product,
 		sbomComponentCPEImpactFact("component-1", "doc-1", testImpactProductCriteria),
 		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
 		containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
@@ -165,23 +180,27 @@ func scopedProductCVE(factID, status, modifiedAt string) facts.Envelope {
 }
 
 // TestRejectedNewestCopyOverStaleLiveCopyLendsNoSeverity pins the stale-copy
-// edge of #10764: two copies of one NVD record, the older Analyzed at 9.8 and
-// the newer Rejected, are one retracted record. The retraction annotation
-// already reads the newest copy, so the severity read must too: the superseded
-// live copy must not lend its CVSS to a finding the record has withdrawn. Both
-// fact id orders run, because the ranked representative (lowest fact id among
-// equal ranks) is the stale copy in one and the Rejected copy in the other.
+// edge of #10764 under the #10735 newest-copy election: two copies of one NVD
+// record, the older Analyzed at 9.8 and the newer Rejected, are one retracted
+// record. The retraction annotation already reads the newest copy, and now the
+// representative and severity do too: the superseded live copy must not lend
+// its CVSS to a finding the record has withdrawn. Both fact id orders run, so
+// the result cannot depend on which copy sorts first.
 func TestRejectedNewestCopyOverStaleLiveCopyLendsNoSeverity(t *testing.T) {
 	t.Parallel()
 
 	for name, ids := range map[string][2]string{
-		"stale copy is the ranked representative":    {"nvd-a-old", "nvd-b-new"},
-		"rejected copy is the ranked representative": {"nvd-b-old", "nvd-a-new"},
+		// The ranked representative is the elected newest copy either way; the
+		// names record which copy sorts first by fact id.
+		"stale copy sorts first":    {"nvd-a-old", "nvd-b-new"},
+		"rejected copy sorts first": {"nvd-b-old", "nvd-a-new"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			finding := productRetractionFinding(t,
+			// The product is attributable to the winning (newer, Rejected)
+			// copy's scope, the way a production envelope is scoped (#10735).
+			finding := scopedProductRetractionFinding(t, "scope-"+ids[1], "generation-"+ids[1],
 				scopedProductCVE(ids[0], "Analyzed", "2026-01-01T00:00:00Z"),
 				scopedProductCVE(ids[1], "Rejected", "2026-06-01T00:00:00Z"),
 			)
@@ -206,7 +225,9 @@ func TestRejectedNewestCopyOverStaleLiveCopyLendsNoSeverity(t *testing.T) {
 func TestRestoredNewestCopyOverStaleRejectedCopyKeepsSeverity(t *testing.T) {
 	t.Parallel()
 
-	finding := productRetractionFinding(t,
+	// The product is attributable to the winning (newer, live) copy's scope,
+	// the way a production envelope is scoped (#10735).
+	finding := scopedProductRetractionFinding(t, "scope-nvd-new", "generation-nvd-new",
 		scopedProductCVE("nvd-old", "Rejected", "2026-01-01T00:00:00Z"),
 		scopedProductCVE("nvd-new", "Analyzed", "2026-06-01T00:00:00Z"),
 	)
@@ -220,13 +241,12 @@ func TestRestoredNewestCopyOverStaleRejectedCopyKeepsSeverity(t *testing.T) {
 }
 
 // TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy pins the
-// superseded-representative guard in severityObservation: two live copies of
-// one NVD record, the older at 9.8 with the lower fact id (so it is the ranked
-// representative) and the newer at 5.0, are one record whose newest copy says
-// 5.0. The superseded representative must lend nothing, and the newest copy
-// must supply the score, so the finding reads 5.0. A guard that left the stale
-// representative's tier in place would keep the 9.8, and one that blanked it
-// without giving the newest copy a turn would read 0.
+// newest-copy election on the product path (#10735): two live copies of one
+// NVD record, the older at 9.8 with the lower fact id and the newer at 5.0,
+// are one record whose newest copy says 5.0. The elected newest copy supplies
+// the representative and the score, so the finding reads 5.0; the superseded
+// copy lends nothing. severityObservation's superseded-representative guard
+// covers the same outcome for a representative that lost the election.
 func TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy(t *testing.T) {
 	t.Parallel()
 
@@ -235,7 +255,9 @@ func TestStaleLiveRepresentativeLendsNoSeverityBesideItsNewerLiveCopy(t *testing
 	newer.Payload["cvss_score"] = 5.0
 	newer.Payload["severity_label"] = "MEDIUM"
 
-	finding := productRetractionFinding(t, stale, newer)
+	// The product is attributable to the winning (newer) copy's scope, the
+	// way a production envelope is scoped (#10735).
+	finding := scopedProductRetractionFinding(t, "scope-nvd-b-new", "generation-nvd-b-new", stale, newer)
 
 	if finding.AdvisoryRetraction != nil {
 		t.Fatalf("both copies are live but the finding is retracted: %#v", finding.AdvisoryRetraction)

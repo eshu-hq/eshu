@@ -179,6 +179,10 @@ type osAdvisoryJoinKey struct {
 type supplyChainImpactBuildStats struct {
 	// negatedProductsExcluded counts NVD CPE matches left out as negated.
 	negatedProductsExcluded int
+	// productsDroppedByNewestCopy counts NVD CPE matches the product path's
+	// newest-copy admission dropped: a product whose own scope and
+	// generation holds no admitted NVD copy forms no finding (#10735).
+	productsDroppedByNewestCopy int
 	// osAdvisoryJoins counts the OS advisory facts the pass loaded, by
 	// vendor and by whether any installed os_package row joined them. A
 	// vendor with loaded advisories and zero joins is the #9848 failure
@@ -436,6 +440,7 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	subSignals[aliasAdvisoryGroupsQuarantinedSubSignal] = float64(stats.aliasGroupsQuarantined())
 	h.recordOSRepresentativeOutcomes(ctx, stats, subSignals)
 	subSignals[negatedProductsExcludedSubSignal] = float64(stats.negatedProductsExcluded)
+	subSignals[productsDroppedByNewestCopySubSignal] = float64(stats.productsDroppedByNewestCopy)
 	subSignals[osAdvisoriesConsideredSubSignal] = float64(stats.osAdvisoriesConsidered())
 	subSignals[osAdvisoriesJoinedSubSignal] = float64(stats.osAdvisoriesJoined())
 	subSignals[osAdvisoriesJoinedViaSourceSubSignal] = float64(stats.osAdvisoriesJoinedViaSource)
