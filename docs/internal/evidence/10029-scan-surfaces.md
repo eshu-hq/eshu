@@ -54,9 +54,23 @@ rides the explain, list, MCP, and console surfaces.
 | Full `./internal/storage/postgres/` suite | 1 pre-existing env failure (`TestSchemaBootstrapCoordinationDefaultsFitTheJobDeadline` needs `ESHU_DEPLOY_CHECKOUT`, absent here; fails identically on base) |
 
 Backend/version: hermetic Go suites plus disposable PostgreSQL 18
-(`pg-10029-proof`, local Docker) for the two readiness live tests; no live
-backend beyond that; no Cypher, graph write, queue, lease, worker, batching,
-migration, or concurrency change.
+(local Docker) for the two readiness live tests; no live backend beyond
+that; no Cypher, graph write, queue, lease, worker, batching, migration,
+or concurrency change.
+
+No-Regression Evidence: `go test ./internal/reducer/supplychain/core/
+./internal/query/supply/chain/impact/ ./internal/cli/vulnscan/
+./internal/mcp/ ./internal/reducer/schemadecode/ ./internal/payloadusage/
+-count=1` all ok on the rebased head (core 1.048s, impact 0.026s plus
+5.6s for the 2 live govulncheck tests on disposable PG, mcp 3.884s);
+storage reachability subset and placeholder-contract tests ok;
+`go test -race` on the changed packages green via the pre-push floor;
+`go vet`/`gofmt`/`git diff --check` clean. Input shape: in-memory
+fixtures plus the recorded warning payloads and the seeded live rows.
+The hot-path delta is one extra kind on the existing
+(scope,generation,fact_kind) probe plus one filtered aggregate CTE that
+only scans rare warning rows, so no new index and no measurement beyond
+the suite timings is owed; no allocator, lock, or I/O shape changed.
 
 No-Observability-Change: no new metric, span, log key, queue, reducer lane,
 graph write, route, or runtime knob. Operators see the new payload keys and
