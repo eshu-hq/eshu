@@ -10,3 +10,15 @@ services:
       collector-security-alerts-preflight:
         condition: service_completed_successfully
         required: false
+
+  # The shared runtime gates workflow-coordinator on
+  # collector-security-alerts-preflight, whose binary is not shipped in a
+  # locally built eshu image (hosted deployments run it from a pinned
+  # external image). The go-reachability proof does not use security
+  # alerts, so the preflight is stubbed to a no-op here instead of
+  # failing container creation and aborting the bring-up. The
+  # required:false above documents the intent; the stub makes `up`
+  # succeed because Compose still creates every service in the graph.
+  collector-security-alerts-preflight:
+    entrypoint: ["/bin/sh", "-c", "exit 0"]
+    command: []
