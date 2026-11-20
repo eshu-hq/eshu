@@ -74,7 +74,22 @@ func winnersDirtyKeyOrderClause(alias string) string {
 // instead of the INSERT, so they measure the expansion-fan-out join and its
 // sort without inserting. The shipped statement concatenates this arm, so
 // the explained join cannot drift from the join the tick runs.
+//
+// The scope-applied test is a once-per-tick MATERIALIZED set, probed by
+// (scope_id, generation_id): the chunk join runs once over the expansion
+// instead of once per expansion row. A correlated applied-scope EXISTS lets
+// the planner pick the nested-loop shape that re-probes the chunk per
+// expansion row (41,400 outer loops firing one probe per same-scope applied
+// row, #10839), so the set stays an explicit MATERIALIZED CTE the planner
+// cannot inline. The NOT-chunk-match remainder predicate is unchanged.
 var convertWinnersKeyedScopeRemainderSelectSQL = `
+WITH chunk_applied AS MATERIALIZED (
+    SELECT si.scope_id, si.generation_id
+    FROM ` + winnersKeyedScopeIdentsTable + ` AS si
+    JOIN ` + winnersKeyedChunkIdentsTable + ` AS chunk
+      ON (chunk.package_id, chunk.repository_id, chunk.subject_digest, chunk.c0, chunk.advisory_id)
+       = (si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id)
+)
 SELECT 'fact', MIN(c.source), si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 FROM ` + winnersKeyedConsumedTable + ` AS c
 JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
@@ -82,10 +97,9 @@ JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
 WHERE c.kind = 'scope'
   AND NOT ` + winnersKeyedChunkIdentMatch("si") + `
   AND EXISTS (
-      SELECT 1 FROM ` + winnersKeyedScopeIdentsTable + ` AS applied
-      WHERE applied.scope_id = c.scope_id AND applied.generation_id = c.generation_id
-        AND ` + winnersKeyedChunkIdentMatch("applied") + `
-  )
+    SELECT 1 FROM chunk_applied AS ca
+    WHERE ca.scope_id = c.scope_id AND ca.generation_id = c.generation_id
+)
 GROUP BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 ORDER BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
 `
