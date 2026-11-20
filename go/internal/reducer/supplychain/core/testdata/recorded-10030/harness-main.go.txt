@@ -1,0 +1,202 @@
+// Command record10030 drives the REAL scanner-worker go-reachability
+// analyzer (goreachability.NewAnalyzer + DefaultStage) over the edited
+// orders-api fixture staged as a bare git remote, and dumps the emitted
+// envelopes as JSON. Throwaway proof harness for eshu-hq/eshu#10030; it is
+// not committed to either repo.
+//
+// Usage:
+//   go run . <fixture-orders-api-dir> <proxy-dir> <vulndb-dir> <tool-dir> <out.json>
+//
+// Env inputs (mirrors the golden_corpus_git recipe for deterministic HEAD):
+//   fixture identity "Golden Gate <gate@eshu.local>", fixed dates,
+//   commit message "initial".
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+
+	"github.com/eshu-hq/eshu-scanner-worker/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu-scanner-worker/go/internal/collector/scannerworker/goreachability"
+)
+
+const (
+	repositoryID = "repository:r_ea78e8bb"
+	scopeID      = "go-reachability://repository:r_ea78e8bb"
+	instanceID   = "collector-vulnintel-orders"
+	generationID = "cassette-vulnintel-orders-go-alias-gen1"
+	fixedTime    = "2026-06-25T00:00:00Z"
+)
+
+func gitEnv() []string {
+	return []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + os.TempDir(),
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_SYSTEM=/dev/null",
+		"GIT_ATTR_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Golden Gate",
+		"GIT_AUTHOR_EMAIL=gate@eshu.local",
+		"GIT_COMMITTER_NAME=Golden Gate",
+		"GIT_COMMITTER_EMAIL=gate@eshu.local",
+		"GIT_AUTHOR_DATE=2026-08-04T12:00:00Z",
+		"GIT_COMMITTER_DATE=2026-08-04T12:00:00Z",
+	}
+}
+
+func git(dir string, args ...string) string {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = gitEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "git %v failed in %s: %v\n%s\n", args, dir, err, out)
+		os.Exit(1)
+	}
+	return string(out)
+}
+
+func copyDir(dst, src string) {
+	out, err := exec.Command("cp", "-R", src+"/.", dst).CombinedOutput()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cp failed: %v\n%s\n", err, out)
+		os.Exit(1)
+	}
+}
+
+func main() {
+	if len(os.Args) != 6 {
+		fmt.Fprintln(os.Stderr, "usage: record10030 <fixture-dir> <proxy-dir> <vulndb-dir> <tool-dir> <out.json>")
+		os.Exit(2)
+	}
+	fixtureDir, proxyDir, vulnDBDir, toolDir, outPath := os.Args[1], os.Args[2], os.Args[3], os.Args[4], os.Args[5]
+
+	work := "/tmp/record10030-work"
+	_ = os.RemoveAll(work)
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		panic(err)
+	}
+
+	// Stage the fixture as a git repo with the golden_corpus_git recipe.
+	repoDir := filepath.Join(work, "orders-api")
+	if err := os.MkdirAll(repoDir, 0o755); err != nil {
+		panic(err)
+	}
+	copyDir(repoDir, fixtureDir)
+	git(repoDir, "-c", "init.defaultBranch=main", "-c", "init.templateDir=", "init", "--object-format=sha1")
+	git(repoDir, "config", "user.email", "gate@eshu.local")
+	git(repoDir, "config", "user.name", "Golden Gate")
+	git(repoDir, "config", "commit.gpgsign", "false")
+	git(repoDir, "config", "core.autocrlf", "false")
+	git(repoDir, "config", "core.excludesfile", "/dev/null")
+	git(repoDir, "config", "core.hooksPath", "/dev/null")
+	git(repoDir, "config", "i18n.commitEncoding", "utf-8")
+	git(repoDir, "add", "-A")
+	git(repoDir, "commit", "-m", "initial")
+	sha := git(repoDir, "rev-parse", "HEAD")
+	sha = sha[:len(sha)-1] // trim newline
+
+	// Publish as a bare remote and clone from it.
+	bareDir := filepath.Join(work, "orders-api.git")
+	git(work, "init", "--bare", "--object-format=sha1", bareDir)
+	git(repoDir, "push", bareDir, "main:main")
+	head := git(bareDir, "rev-parse", "main")
+	head = head[:len(head)-1]
+	if head != sha {
+		fmt.Fprintf(os.Stderr, "bare HEAD %s != work HEAD %s\n", head, sha)
+		os.Exit(1)
+	}
+	cloneURL := "file://" + bareDir
+	fmt.Printf("staged HEAD %s clone %s\n", sha, cloneURL)
+
+	now, err := time.Parse(time.RFC3339, fixedTime)
+	if err != nil {
+		panic(err)
+	}
+	target, err := scannerworker.TargetScopeForComponent(scopeID, repositoryID, "run-1", generationID)
+	if err != nil {
+		panic(err)
+	}
+	limits, err := scannerworker.DefaultResourceLimits(scannerworker.AnalyzerGoReachability)
+	if err != nil {
+		panic(err)
+	}
+	input := scannerworker.ClaimInput{
+		WorkItemID:   "work-1",
+		ClaimID:      "claim-1",
+		FencingToken: 1,
+		OwnerID:      "owner-1",
+		Analyzer:     scannerworker.AnalyzerGoReachability,
+		Target:       target,
+		Limits:       limits,
+		GenerationID: generationID,
+		Attempt:      1,
+		ClaimedAt:    now,
+		ObservedAt:   now,
+	}
+	lookup := func(key string) (string, bool) {
+		switch key {
+		case "GOPROXY":
+			return "file://" + proxyDir, true
+		case "GOVULNDB":
+			return "file://" + vulnDBDir, true
+		case "GOSUMDB":
+			return "off", true
+		}
+		return "", false
+	}
+	stage, err := goreachability.DefaultStage(goreachability.Options{
+		ToolchainDir: toolDir,
+		TempRoot:     work,
+		Lookup:       lookup,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "DefaultStage: %v\n", err)
+		os.Exit(1)
+	}
+	analyzer, err := goreachability.NewAnalyzer(goreachability.Config{
+		CollectorInstanceID: instanceID,
+		Target: goreachability.TargetConfig{
+			ScopeID:         scopeID,
+			RepositoryID:    repositoryID,
+			CloneURL:        cloneURL,
+			SourceCommitSHA: sha,
+		},
+		Token: goreachability.ParseHostToken(map[string]any{"token": "record10030", "scope_id": scopeID}),
+		Options: goreachability.Options{
+			AllowedSchemes: []string{"file"},
+			TempRoot:       work,
+			Stage:          stage,
+		},
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "NewAnalyzer: %v\n", err)
+		os.Exit(1)
+	}
+	result, err := analyzer.Analyze(context.Background(), input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Analyze: %v\n", err)
+		os.Exit(1)
+	}
+	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
+		fmt.Fprintf(os.Stderr, "ValidateFactOutput: %v\n", err)
+		os.Exit(1)
+	}
+	raw, err := json.MarshalIndent(result.Output.Facts, "", " ")
+	if err != nil {
+		panic(err)
+	}
+	if err := os.WriteFile(outPath, append(raw, '\n'), 0o644); err != nil {
+		panic(err)
+	}
+	fmt.Printf("emitted %d facts completion=%+v\n", len(result.Output.Facts), result.Completion)
+	for _, fact := range result.Output.Facts {
+		fmt.Printf("fact kind=%s key=%s\n", fact.FactKind, fact.StableFactKey)
+	}
+}
