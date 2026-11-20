@@ -45,10 +45,22 @@ type SupplyChainReachability struct {
 	Reason           string
 	LanguageMaturity string
 	MissingEvidence  []string
+	// ScanLevel, ScanMode, ScannerVersion, and TraceCount are the
+	// govulncheck scan provenance behind a Go verdict (#10028): which
+	// scan depth and mode ran, which scanner release ran it, and how
+	// many call traces it found. Other ecosystems leave them empty.
+	ScanLevel      string
+	ScanMode       string
+	ScannerVersion string
+	TraceCount     *int
 }
 
 func withSupplyChainReachability(finding SupplyChainImpactFinding) SupplyChainImpactFinding {
 	reachability := supplyChainReachabilityForFinding(finding)
+	reachability.ScanLevel = finding.GoScanLevel
+	reachability.ScanMode = finding.GoScanMode
+	reachability.ScannerVersion = finding.GoScannerVersion
+	reachability.TraceCount = finding.GoTraceCount
 	finding.Reachability = &reachability
 	return finding
 }

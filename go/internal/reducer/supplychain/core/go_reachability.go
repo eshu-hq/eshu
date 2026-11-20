@@ -88,6 +88,21 @@ type GoVulnerabilityFinding struct {
 	// CallTrace preserves govulncheck-compatible call-frame evidence in stack
 	// order (entry point first, vulnerable symbol last).
 	CallTrace []GoVulnerabilityCallFrame
+	// ScanLevel is the depth of the govulncheck scan that produced this
+	// finding ("module", "package", or "symbol"). Blank when the fact
+	// predates the provenance fields.
+	ScanLevel string
+	// ScanMode is how the scanned code was read ("source" or "binary").
+	// Blank when the fact predates the provenance fields.
+	ScanMode string
+	// ScannerVersion is the govulncheck release that produced this
+	// finding. Blank when the fact predates the provenance fields.
+	ScannerVersion string
+	// TraceCount is the number of call traces the scanner found for this
+	// (advisory, module) pair; CallTrace carries only one of them. Nil
+	// when the fact predates the provenance fields, distinct from a
+	// reported 0.
+	TraceCount *int
 	// Reachability is the classification produced by this reducer.
 	Reachability GoVulnerabilityReachability
 	// Reason names the rule that produced the classification, so the API can
@@ -255,6 +270,10 @@ func classifyGoVulnerabilityForModuleAdvisory(
 		finding.PackagePath = best.deepestPackage
 		finding.Symbol = best.deepestSymbol
 		finding.CallTrace = best.trace
+		finding.ScanLevel = best.scanLevel
+		finding.ScanMode = best.scanMode
+		finding.ScannerVersion = best.scannerVersion
+		finding.TraceCount = best.traceCount
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, best.factID)
 		if finding.ModulePath == "" {
 			finding.ModulePath = best.deepestModule

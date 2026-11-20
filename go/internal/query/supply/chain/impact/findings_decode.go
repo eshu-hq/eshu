@@ -111,6 +111,29 @@ func decodeSupplyChainReachability(payload map[string]any) *packet.ReachabilityR
 		Reason:           querycontract.StringVal(raw, "reason"),
 		LanguageMaturity: querycontract.StringVal(raw, "language_maturity"),
 		MissingEvidence:  querycontract.StringSliceVal(raw, "missing_evidence"),
+		ScanLevel:        querycontract.StringVal(raw, "scan_level"),
+		ScanMode:         querycontract.StringVal(raw, "scan_mode"),
+		ScannerVersion:   querycontract.StringVal(raw, "scanner_version"),
+		TraceCount:       intPointerVal(raw, "trace_count"),
+	}
+}
+
+// intPointerVal decodes an optional JSON number (float64 after a decode
+// round trip, or a Go int in an in-memory map) into a nil-when-absent
+// *int, so a reported 0 stays distinct from a missing key.
+func intPointerVal(raw map[string]any, key string) *int {
+	switch v := raw[key].(type) {
+	case float64:
+		n := int(v)
+		return &n
+	case int:
+		n := v
+		return &n
+	case int64:
+		n := int(v)
+		return &n
+	default:
+		return nil
 	}
 }
 

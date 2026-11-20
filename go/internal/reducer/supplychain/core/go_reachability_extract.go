@@ -35,6 +35,15 @@ type goReachabilityRow struct {
 	deepestSymbol  string
 	level          string
 	trace          []GoVulnerabilityCallFrame
+	// scanLevel, scanMode, scannerVersion, and traceCount are the scan
+	// provenance the govulncheck emitter recorded for this
+	// (advisory, module) pair (#10028). They ride the row so the
+	// classifier can preserve them on the finding and the explain
+	// payload can report which scan produced the verdict.
+	scanLevel      string
+	scanMode       string
+	scannerVersion string
+	traceCount     *int
 }
 
 type goAffectedPackageRow struct {
@@ -118,6 +127,10 @@ func extractGovulncheckReachabilityRowsWithQuarantine(envelopes []facts.Envelope
 			deepestSymbol:  payloadcore.DerefString(finding.DeepestSymbol),
 			level:          payloadcore.DerefString(finding.ReachabilityLevel),
 			trace:          goVulnerabilityCallFramesFromTyped(finding.Trace),
+			scanLevel:      payloadcore.DerefString(finding.ScanLevel),
+			scanMode:       payloadcore.DerefString(finding.ScanMode),
+			scannerVersion: payloadcore.DerefString(finding.ScannerVersion),
+			traceCount:     finding.TraceCount,
 		})
 	}
 	return out, quarantined, nil

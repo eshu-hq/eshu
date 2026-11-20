@@ -84,6 +84,62 @@ func TestDecodeSupplyChainComponentEvidence(t *testing.T) {
 	}
 }
 
+// TestDecodeFindingRowKeepsGoScanProvenance proves the writer-to-reader
+// round trip for #10028 R1: the scan keys the reducer explain payload
+// emits survive DecodeFindingRow onto the packet reachability block, and
+// pre-provenance writer maps stay absent there.
+func TestDecodeFindingRowKeepsGoScanProvenance(t *testing.T) {
+	t.Parallel()
+
+	withProvenance := `{
+		"cve_id": "GO-2024-9999", "package_id": "gomod://proxy.golang.org/example.com/vuln",
+		"ecosystem": "go", "observed_version": "v1.2.3",
+		"impact_status": "affected_exact", "match_reason": "go_module_evidence",
+		"reachability": {"state": "reachable", "confidence": "strong",
+			"source": "govulncheck",
+			"scan_level": "symbol", "scan_mode": "source",
+			"scanner_version": "v1.9.0", "trace_count": 3}
+	}`
+	row, err := DecodeFindingRow("finding-prov", "high", []byte(withProvenance))
+	if err != nil {
+		t.Fatalf("DecodeFindingRow failed: %v", err)
+	}
+	if row.Reachability == nil {
+		t.Fatalf("reachability block lost: %+v", row)
+	}
+	got := row.Reachability
+	if got.ScanLevel != "symbol" {
+		t.Errorf("ScanLevel = %q, want symbol", got.ScanLevel)
+	}
+	if got.ScanMode != "source" {
+		t.Errorf("ScanMode = %q, want source", got.ScanMode)
+	}
+	if got.ScannerVersion != "v1.9.0" {
+		t.Errorf("ScannerVersion = %q, want v1.9.0", got.ScannerVersion)
+	}
+	if got.TraceCount == nil || *got.TraceCount != 3 {
+		t.Errorf("TraceCount = %v, want 3", got.TraceCount)
+	}
+
+	withoutProvenance, err := DecodeFindingRow("finding-absent", "high", []byte(
+		`{"cve_id": "GO-2024-9998",
+		  "reachability": {"state": "reachable", "confidence": "strong",
+			"source": "govulncheck"}}`))
+	if err != nil {
+		t.Fatalf("DecodeFindingRow failed: %v", err)
+	}
+	absent := withoutProvenance.Reachability
+	if absent == nil {
+		t.Fatalf("reachability block lost: %+v", withoutProvenance)
+	}
+	if absent.ScanLevel != "" || absent.ScanMode != "" || absent.ScannerVersion != "" {
+		t.Errorf("provenance must stay blank, got %+v", absent)
+	}
+	if absent.TraceCount != nil {
+		t.Errorf("TraceCount = %v, want nil", absent.TraceCount)
+	}
+}
+
 // TestDecodeFindingRow proves the finding decoder projects payload
 // fields, decodes nested reachability and suppression blocks, and
 // infers the legacy detection profile.

@@ -88,9 +88,19 @@ type SupplyChainImpactFinding struct {
 	// PriorityScore: it never changes impact_status or missing-evidence truth.
 	ExploitedTier       string
 	RuntimeReachability string
-	Reachability        *SupplyChainReachability
-	RepositoryID        string
-	SubjectDigest       string
+	// GoScanLevel, GoScanMode, GoScannerVersion, and GoTraceCount stash
+	// the govulncheck scan provenance applyGoSupplyChainReachability
+	// joined for this finding (#10028). withSupplyChainReachability
+	// copies them onto the Reachability enrichment so the explain
+	// payload reports which scan produced the verdict. Blank/nil when
+	// no Go reachability fact joined.
+	GoScanLevel      string
+	GoScanMode       string
+	GoScannerVersion string
+	GoTraceCount     *int
+	Reachability     *SupplyChainReachability
+	RepositoryID     string
+	SubjectDigest    string
 	// ScanTargetID is the immutable authorization boundary for a derived
 	// image scan. It is empty for legacy repository and image findings.
 	ScanTargetID string
