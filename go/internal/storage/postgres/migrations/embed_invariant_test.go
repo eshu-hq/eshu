@@ -305,10 +305,11 @@ import (
 // 318_container_identity_reopen_epochs.sql (the same gate for
 // container_image_identity: one row per succeeded work item carrying the
 // fleet identity epoch). #11021 adds
+// indexes, no queue-table change). #11021 adds
 // 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
 // sweep needs for parked waits of retired scopes).
 const (
-	goldenBootstrapDefinitionsDigest = "1dbbb62dea11962932b9864208e08cc98f4af50f92e30af2c6e6196eb5dd9897"
+	goldenBootstrapDefinitionsDigest = "96d32a001e2df28ec733ba586ddd6153b873abb1fd17231262155ca7a0c3ec5f"
 	goldenBootstrapDefinitionsCount  = 345
 )
 

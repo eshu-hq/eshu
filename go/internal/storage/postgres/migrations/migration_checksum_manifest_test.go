@@ -445,7 +445,6 @@ var migrationShippedChecksums = map[string]string{
 	// #11021: the scope probe the 2e purge sweep needs for parked waits
 	// of retired scopes.
 	"319_reducer_waiting_items_scope_idx.sql": "fa91e1d7cf4e5b07585291a93fa2a555a6ce18a2489bf193eb12dc0464bdd87d",
-
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
