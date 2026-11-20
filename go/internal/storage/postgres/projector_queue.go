@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
@@ -185,6 +188,53 @@ func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWor
 	}
 }
 
+// claimConflictClass returns the failure_class for a retryable claim
+// conflict, or "" when err is nil or not a deadlock/serialization failure.
+// Kept next to Claim: the claim loop is its only caller.
+func claimConflictClass(err error) string {
+	var pgErr *pgconn.PgError
+	if err == nil || !errors.As(err, &pgErr) {
+		return ""
+	}
+	switch pgErr.Code {
+	case "40P01":
+		return "deadlock"
+	case "40001":
+		return "serialization_failure"
+	default:
+		return ""
+	}
+}
+
+// claimConflictDelay returns attempt*base plus jitter in [0, base).
+func (q ProjectorQueue) claimConflictDelay(attempt int) time.Duration {
+	base := q.ClaimConflictBackoff
+	if base <= 0 {
+		base = defaultProjectorClaimConflictBackoff
+	}
+	jitter := time.Duration(q.jitterSource()() * float64(base))
+	return time.Duration(attempt)*base + jitter
+}
+
+// recordClaimConflictRetry emits the retry counter and a warning log that an
+// operator can join to the Postgres deadlock report by failure_class.
+func (q ProjectorQueue) recordClaimConflictRetry(ctx context.Context, class string, attempt int, err error) {
+	if q.Instruments != nil && q.Instruments.QueueClaimConflictRetries != nil {
+		q.Instruments.QueueClaimConflictRetries.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("queue", "projector"),
+			attribute.String(telemetry.MetricDimensionFailureClass, class),
+		))
+	}
+	slog.WarnContext(ctx, "projector claim conflict; retrying claim",
+		slog.String("queue", "projector"),
+		slog.String(telemetry.LogKeyFailureClass, class),
+		slog.Int("attempt", attempt),
+		slog.Int("max_attempts", projectorClaimConflictAttempts),
+		slog.String("lease_owner", q.LeaseOwner),
+		slog.String("error", err.Error()),
+	)
+}
+
 // Heartbeat renews one claimed projector work item so long-running projection
 // work keeps exclusive ownership until Ack or Fail completes.
 func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGenerationWork) error {
@@ -311,15 +361,14 @@ func (q ProjectorQueue) Fail(
 	// #11015: the terminal Fail is a providing save for parked
 	// generation_active waits on this scope generation: it will never
 	// activate, so the waiter must observe the terminal truth instead of
-	// sitting out the 10-minute backstop. The post-commit wake is the
-	// established #10876 pattern for non-transactional queue settles; a
-	// waiter that parks after this Fail is covered by the set-aside
-	// re-check, and a missed wake by the audit and the backstop. The retry
-	// path above keeps the generation pending and wakes nothing.
-	if err := wakeGenerationActiveWaits(ctx, q.database, q.Instruments, WaitingWakeSiteInTx,
-		work.Scope.ScopeID, work.Generation.GenerationID, q.now()); err != nil {
-		return fmt.Errorf("fail projector work: %w", err)
-	}
+	// sitting out the 10-minute backstop. A waiter that parks after this
+	// Fail is covered by the set-aside re-check, and a missed wake by the
+	// audit and the backstop. The retry path above keeps the generation
+	// pending and wakes nothing.
+	// #11016: the dead-letter above committed, so the post-commit wake is
+	// best-effort: a failure is logged and metered, never returned.
+	wakeGenerationActiveWaitsBestEffort(ctx, q.database, q.Instruments,
+		"fail", work.Scope.ScopeID, work.Generation.GenerationID, q.now())
 
 	return nil
 }

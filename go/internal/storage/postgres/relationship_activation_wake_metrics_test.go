@@ -41,6 +41,10 @@ func (d *wakeScriptDB) ExecContext(_ context.Context, query string, _ ...any) (s
 }
 
 func (d *wakeScriptDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if query == terminalGenerationActiveWaitKeysQuery {
+		// #11016: the terminal-wait probe finds no parked waits in these scripts.
+		return &recordingRows{}, nil
+	}
 	if strings.Contains(query, "reducer_waiting_items") {
 		// #10876: the activation wake finds no parked waits in these scripts.
 		return &waitingWakeCountRows{}, nil

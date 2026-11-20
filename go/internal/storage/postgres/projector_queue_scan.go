@@ -5,21 +5,15 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgconn"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // scanProjectorWork decodes one claimed projector work row (scope, active
@@ -147,6 +141,10 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 		if err := rows.Err(); err != nil {
 			return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 		}
+		// #11016: an empty claim still ran the sweep above, which may have
+		// retired other scopes' generations; probe best-effort, like the
+		// claimed path below.
+		wakeTerminalGenerationActiveWaitsBestEffort(ctx, q.database, q.Instruments, "claim-empty", "", now)
 		return projector.ScopeGenerationWork{}, false, nil
 	}
 
@@ -161,62 +159,13 @@ func (q ProjectorQueue) claimOnce(ctx context.Context) (projector.ScopeGeneratio
 	if err := rows.Close(); err != nil {
 		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
 	}
-	// #11015: the sweep above retires superseded generations in the same
-	// statement, so their parked generation_active waits never see an
-	// activation wake. Reopen them now; a waiter that parks after this
-	// wake is covered by the set-aside re-check, which shares the
-	// terminal predicate.
-	if err := wakeTerminalGenerationActiveWaits(ctx, q.database, q.Instruments, work.Scope.ScopeID, now); err != nil {
-		return projector.ScopeGenerationWork{}, false, fmt.Errorf("claim projector work: %w", err)
-	}
+	// #11016: the sweep above retires superseded generations in the same
+	// statement, in every scope it scanned. Reopen their parked waits now,
+	// best-effort: the claim already committed, so a probe failure is
+	// logged and metered, never returned.
+	wakeTerminalGenerationActiveWaitsBestEffort(ctx, q.database, q.Instruments, "claim", work.Scope.ScopeID, now)
 
 	return work, true, nil
-}
-
-// claimConflictClass returns the failure_class for a retryable claim
-// conflict, or "" when err is nil or not a deadlock/serialization failure.
-func claimConflictClass(err error) string {
-	var pgErr *pgconn.PgError
-	if err == nil || !errors.As(err, &pgErr) {
-		return ""
-	}
-	switch pgErr.Code {
-	case "40P01":
-		return "deadlock"
-	case "40001":
-		return "serialization_failure"
-	default:
-		return ""
-	}
-}
-
-// claimConflictDelay returns attempt*base plus jitter in [0, base).
-func (q ProjectorQueue) claimConflictDelay(attempt int) time.Duration {
-	base := q.ClaimConflictBackoff
-	if base <= 0 {
-		base = defaultProjectorClaimConflictBackoff
-	}
-	jitter := time.Duration(q.jitterSource()() * float64(base))
-	return time.Duration(attempt)*base + jitter
-}
-
-// recordClaimConflictRetry emits the retry counter and a warning log that an
-// operator can join to the Postgres deadlock report by failure_class.
-func (q ProjectorQueue) recordClaimConflictRetry(ctx context.Context, class string, attempt int, err error) {
-	if q.Instruments != nil && q.Instruments.QueueClaimConflictRetries != nil {
-		q.Instruments.QueueClaimConflictRetries.Add(ctx, 1, metric.WithAttributes(
-			attribute.String("queue", "projector"),
-			attribute.String(telemetry.MetricDimensionFailureClass, class),
-		))
-	}
-	slog.WarnContext(ctx, "projector claim conflict; retrying claim",
-		slog.String("queue", "projector"),
-		slog.String(telemetry.LogKeyFailureClass, class),
-		slog.Int("attempt", attempt),
-		slog.Int("max_attempts", projectorClaimConflictAttempts),
-		slog.String("lease_owner", q.LeaseOwner),
-		slog.String("error", err.Error()),
-	)
 }
 
 // sleepContext waits for d or until ctx ends, returning ctx.Err() on cancel.
@@ -337,6 +286,12 @@ func (q ProjectorQueue) supersedeRunningWork(
 	// single-connection pool would serialize the heal behind these open
 	// rows. The deferred Close stays as the error-path safety net.
 	_ = rows.Close()
+
+	// #11016: this generation just turned terminal (or already was); reopen
+	// its parked generation_active waits, best-effort: the supersede
+	// already committed and the worker stops on the error below.
+	wakeGenerationActiveWaitsBestEffort(ctx, q.database, q.Instruments,
+		"heartbeat", work.Scope.ScopeID, work.Generation.GenerationID, now)
 
 	class := "projector_superseded_by_newer_generation"
 	if generationStatus == "superseded" {
