@@ -68,6 +68,28 @@ addition is the one startup event `runtime.commit_listener.listening`
 (with `addr`) when the commit listener is enabled. The Prometheus handler
 serves on `/metrics` (public, behind the same auth chain).
 
+## Performance Evidence: commit listener (issue #11064)
+
+- Baseline: no :8089 listener existed, so every CommitClaimFacts call
+  failed at dial time (connection refused); there is no prior
+  per-request cost to regress against.
+- After: one bounded second HTTP server serving only the
+  `workflow.v1/CommitClaimFacts` protocol route through the pre-existing
+  `extensionhost` commit handler and claim-plane fence. No new hot
+  loops, no Cypher/SQL schema or index changes, no new worker pools;
+  when `ESHU_COMMIT_LISTEN` is unset the primary serve path is
+  byte-identical to before (dark by default, proven by
+  `TestCommitListenerDarkByDefault`).
+- Input shape: framed client envelopes capped at
+  `workflow.MaxCommitClaimFactsBytes`; handler ack happens only after
+  the commit is durable. Join shutdown (`joinCoreServers`) drains both
+  servers on cancel and reports the first fatal error — proven by the
+  `TestJoinCoreServers*` lifecycle tests.
+- Telemetry: one startup event (`runtime.commit_listener.listening`
+  with `addr`); per-request rows flow through the existing satellite
+  log. Observability Evidence: the startup event above, present only
+  when the listener is enabled.
+
 ## No-regression proof (Wave-6 review findings)
 
 No-Regression Evidence: `TestCoreOuterMiddlewareV1CarriesNoDeprecation`
