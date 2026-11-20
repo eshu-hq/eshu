@@ -100,11 +100,15 @@ FRAGMENT_NAMES = (
 # proofs push part5 to 502 lines. The fourth cut moves one entry later into
 # part4 (part4 447 lines, part5 back to 497 with no seed row); six
 # fragments pinned.
+# Rebalanced for #10972 (rebase onto 750bee0f04): the gate-priority proof
+# sorts into part5 (502 lines over the 499 budget) while part6 has no seed
+# headroom left, so the fourth cut moves one entry later into part4 (part4
+# 472 lines, part5 back to 497 with no seed row); six fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/membership/observations_live_test.go",
+    "go/internal/storage/postgres/membership/observations_sweep_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"

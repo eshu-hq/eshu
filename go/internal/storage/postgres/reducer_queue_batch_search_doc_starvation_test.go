@@ -137,8 +137,10 @@ func TestClaimBatchSearchDocumentStarvationMechanismPinnedToShippedQuery(t *test
 
 	// #10865: reclaim_rank leads the claim ORDER BY ahead of the domain
 	// priority, so an expired hold is reclaimed before priority-0 backlog;
-	// priority-1 still leads among non-expired rows.
-	const priorityOrderLead = "ORDER BY candidate.reclaim_rank ASC, candidate.reducer_domain_priority ASC"
+	// priority-1 still leads among non-expired rows. #10972 inserts the
+	// gate-boosted slot between them: at most one drain-gated row per batch
+	// jumps ahead of the fairness order without disturbing it.
+	const priorityOrderLead = "ORDER BY candidate.reclaim_rank ASC, gate_boost ASC, candidate.reducer_domain_priority ASC"
 	if !strings.Contains(query, priorityOrderLead) {
 		t.Fatalf("batch claim query no longer leads its claim ORDER BY with %q", priorityOrderLead)
 	}

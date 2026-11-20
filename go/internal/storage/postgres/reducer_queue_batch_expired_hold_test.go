@@ -364,10 +364,10 @@ func TestClaimBatchExpiredHoldOrderedFirstInShippedQuery(t *testing.T) {
 		t.Fatalf("batch claim query lost the expired-lease reclaim rank %q", reclaimCASE)
 	}
 	for _, want := range []string{
-		"ORDER BY candidate.reclaim_rank ASC, candidate.reducer_domain_priority ASC",
+		"ORDER BY candidate.reclaim_rank ASC, gate_boost ASC, candidate.reducer_domain_priority ASC",
 		"ORDER BY candidate.reclaim_rank ASC, candidate.updated_at ASC, candidate.work_item_id ASC",
 		"ORDER BY ordered_candidate.reclaim_rank ASC, ordered_candidate.updated_at ASC, ordered_candidate.work_item_id ASC",
-		"ORDER BY reclaim_rank ASC, reducer_domain_priority ASC",
+		"ORDER BY reclaim_rank ASC, gate_boost ASC, reducer_domain_priority ASC",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("batch claim query no longer orders expired holds first with %q", want)

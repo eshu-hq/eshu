@@ -33,6 +33,12 @@ TABLE = {
             "TestReducerQueueAckBatchFencesSupersededClaimLive",
             "TestReducerQueueExpiryInterleaveLive",
         ),
+        "go/internal/storage/postgres/reducer_queue_batch_gate_priority_live_test.go": (
+            "TestClaimBatchGatePriorityBoostsDrainingGenerationLive",
+            "TestClaimBatchGatePriorityCapsAtOneBoostedRowLive",
+            "TestClaimBatchGatePriorityExpiresOnDrainLive",
+            "TestClaimBatchGatePriorityIgnoresSupersededGenerationLive",
+        ),
         "go/internal/storage/postgres/reducer_queue_code_call_delta_scope_live_test.go": (
             "TestCodeCallDeltaScopeUnusableDeadLettersOnFirstAttemptLive",
         ),

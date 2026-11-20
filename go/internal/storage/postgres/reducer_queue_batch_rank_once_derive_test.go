@@ -9,11 +9,14 @@ import (
 )
 
 // candidateLockedBoundary is the byte sequence in claimReducerWorkBatchQuery
-// that closes the read-only `candidate` CTE and opens the data-modifying lock
+// that closes the trailing gate-waited CTE and opens the data-modifying lock
 // tail: since #10568 that tail starts with the reserved-slot arm
 // `locked_search_doc_reserved` (FOR UPDATE OF ... SKIP LOCKED), followed by
 // `locked_rest` and the `locked` UNION. deriveReadOnlyCandidateSelect
-// truncates the shipped query here.
+// truncates the shipped query here, so the derived query carries the
+// trailing gate_waited CTE along unused: harmless (it never feeds
+// `candidate`), and it keeps the rejoin-removal guard comparing the
+// unchanged shared prefix.
 const candidateLockedBoundary = "),\nlocked_search_doc_reserved AS"
 
 // readOnlyCandidateTail replaces the shipped query's lock/claim
@@ -24,7 +27,10 @@ const candidateLockedBoundary = "),\nlocked_search_doc_reserved AS"
 // prepends at most one reserved search-doc row ahead of this order, which
 // also displaces the last row this order would have taken at LIMIT $8) and
 // still consumes $3/$4 — which belong only to the omitted `claimed` UPDATE —
-// so the parameter list is identical to the live query.
+// so the parameter list is identical to the live query. It deliberately
+// mirrors the pre-#10972 order: the differential's job is rejoin-removal
+// equivalence, and the gate tier's boost ordering is pinned instead by the
+// dedicated TestClaimBatchGatePriority* live tests, which run the real claim.
 const readOnlyCandidateTail = `
 SELECT work_item_id
 FROM candidate
