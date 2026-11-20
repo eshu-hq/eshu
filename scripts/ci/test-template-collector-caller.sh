@@ -7,6 +7,7 @@
 # reject a stale inline caller and a bare-tag pin.
 #
 # Run: bash scripts/ci/test-template-collector-caller.sh (no network, no Go build).
+# Needs rg and mikefarah yq v4 (both in ci-tools; yq also required by the repo floors).
 # CI wiring: the templatecollectorcaller cell in
 # .github/workflows/static-contract-gates.yml runs this file as both its test
 # mirror and its gate (#10999); the registry row template-collector-caller
@@ -25,18 +26,10 @@ check() { # $1=name $2...=command; records PASS/FAIL, never aborts the suite
 
 inline_lane_bodies() { # $1=file; print every run: step body outside changes/ci-complete
 	local file="$1"
-	python3 - "${file}" <<'EOF'
-import sys, yaml
-doc = yaml.safe_load(open(sys.argv[1])) or {}
-jobs = doc.get('jobs') or {}
-for name, job in jobs.items():
-    if name in ('changes', 'ci-complete'):
-        continue
-    steps = job.get('steps') if isinstance(job, dict) else None
-    for step in steps or []:
-        if isinstance(step, dict) and 'run' in step and step['run'] is not None:
-            print(step['run'])
-EOF
+	# Parsed extraction (block scalars included), never grep: yq is mikefarah
+	# v4 in ci-tools and required by the repo floors, so it is available
+	# everywhere this suite runs (local, PR cells, push runs).
+	yq eval '.jobs | select(type == "!!map") | to_entries[] | select(.key != "changes" and .key != "ci-complete") | .value | select(type == "!!map") | .steps | select(type == "!!seq") | .[] | select(type == "!!map" and has("run") and .run != null) | .run' "${file}"
 }
 
 is_thin_caller() { # $1=file; true when the reusable pin is present and no inline lane bodies exist
@@ -69,10 +62,7 @@ all_uses_pinned() { # $1=file; every uses: carries a 40-hex SHA, never a mutable
 }
 
 yaml_parses() { # $1=file
-	python3 - "$1" <<'EOF'
-import sys, yaml
-yaml.safe_load(open(sys.argv[1]))
-EOF
+	yq eval '.' "$1" >/dev/null
 }
 
 readme_names_reusable() { # $1=template dir; the porter-facing README must point at the reusable lane source
