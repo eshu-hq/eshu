@@ -304,10 +304,12 @@ import (
 // the ARN snapshot and fingerprint, mirroring #8283's 193) and
 // 318_container_identity_reopen_epochs.sql (the same gate for
 // container_image_identity: one row per succeeded work item carrying the
-// fleet identity epoch).
+// fleet identity epoch). #11021 adds
+// 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
+// sweep needs for parked waits of retired scopes).
 const (
-	goldenBootstrapDefinitionsDigest = "2a730658b386c4c89914771e9cf2a19a57b2ac15e1180c440b42c84d25f4364c"
-	goldenBootstrapDefinitionsCount  = 344
+	goldenBootstrapDefinitionsDigest = "1dbbb62dea11962932b9864208e08cc98f4af50f92e30af2c6e6196eb5dd9897"
+	goldenBootstrapDefinitionsCount  = 345
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
