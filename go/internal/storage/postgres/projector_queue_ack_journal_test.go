@@ -134,19 +134,31 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 	want := ackFlagOffStatements()
 	// #10876: the activation reopens parked generation_active waits in the
 	// same transaction, after both obligation inserts.
-	if len(database.calls) != len(want)+3 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+3)
+	// #11016: the obsolete-generations maintenance is followed by the
+	// terminal-wait probe in the same transaction, before the activation.
+	if len(database.calls) != len(want)+4 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+4)
 	}
-	for i, query := range want {
+	for i, query := range want[:6] {
 		if database.calls[i].query != query {
 			t.Fatalf("statement %d = %q, want the shipped %q", i, database.calls[i].query, query)
 		}
 	}
-	if !strings.Contains(database.calls[7].query, "INSERT INTO activation_obligations") ||
-		!strings.Contains(database.calls[8].query, "INSERT INTO producer_activation_obligations") {
-		t.Fatalf("obligation statements = %q, %q", database.calls[7].query, database.calls[8].query)
+	probe := database.calls[6]
+	if probe.query != terminalGenerationActiveWaitKeysQuery {
+		t.Fatalf("statement 6 = %q, want the terminal-wait probe after the maintenance", probe.query)
 	}
-	wake := database.calls[9]
+	if len(probe.args) != 0 {
+		t.Fatalf("probe args = %v, want none: the probe covers every scope", probe.args)
+	}
+	if database.calls[7].query != want[6] {
+		t.Fatalf("statement 7 = %q, want the shipped %q", database.calls[7].query, want[6])
+	}
+	if !strings.Contains(database.calls[8].query, "INSERT INTO activation_obligations") ||
+		!strings.Contains(database.calls[9].query, "INSERT INTO producer_activation_obligations") {
+		t.Fatalf("obligation statements = %q, %q", database.calls[8].query, database.calls[9].query)
+	}
+	wake := database.calls[10]
 	if !strings.Contains(wake.query, "reducer_waiting_items") || !strings.Contains(wake.query, "reopened") {
 		t.Fatalf("last statement = %q, want the waiting-wake after the obligations", wake.query)
 	}
@@ -160,7 +172,7 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 			}
 		}
 	}
-	if got := len(database.calls[6].args); got != 3 {
+	if got := len(database.calls[7].args); got != 3 {
 		t.Fatalf("activate statement args = %d, want 3", got)
 	}
 }
@@ -180,19 +192,27 @@ func TestProjectorAckWithJournalOnReplacesOnlyTwoStatements(t *testing.T) {
 	want[6] = activateAndJournalProjectorGenerationQuery
 	// #10876: the activation reopens parked generation_active waits in the
 	// same transaction, after both obligation inserts.
-	if len(database.calls) != len(want)+3 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+3)
+	// #11016: the obsolete-generations maintenance is followed by the
+	// terminal-wait probe in the same transaction, before the activation.
+	if len(database.calls) != len(want)+4 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+4)
 	}
-	for i, query := range want {
+	for i, query := range want[:6] {
 		if database.calls[i].query != query {
 			t.Fatalf("statement %d = %q, want %q", i, database.calls[i].query, query)
 		}
 	}
-	args := database.calls[6].args
+	if database.calls[6].query != terminalGenerationActiveWaitKeysQuery {
+		t.Fatalf("statement 6 = %q, want the terminal-wait probe after the maintenance", database.calls[6].query)
+	}
+	if database.calls[7].query != want[6] {
+		t.Fatalf("statement 7 = %q, want %q", database.calls[7].query, want[6])
+	}
+	args := database.calls[7].args
 	if len(args) != 4 || args[1] != "scope-1" || args[2] != "generation-1" || args[3] != "generation-0" {
 		t.Fatalf("activate-and-journal args = %v, want (now, scope-1, generation-1, generation-0)", args)
 	}
-	wake := database.calls[9]
+	wake := database.calls[10]
 	if !strings.Contains(wake.query, "reducer_waiting_items") || !strings.Contains(wake.query, "reopened") {
 		t.Fatalf("last statement = %q, want the waiting-wake after the obligations", wake.query)
 	}
@@ -221,7 +241,7 @@ func TestProjectorAckJournalPrior(t *testing.T) {
 			if err := ackJournalQueue(database, true).Ack(context.Background(), ackWorkForLockTimeoutTest(), runtime.Result{}); err != nil {
 				t.Fatalf("Ack() error = %v", err)
 			}
-			if got := database.calls[6].args[3]; got != tc.want {
+			if got := database.calls[7].args[3]; got != tc.want {
 				t.Fatalf("prior = %q, want %q", got, tc.want)
 			}
 		})

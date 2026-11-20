@@ -38,6 +38,9 @@ func (f crossplaneRedriveHookOrderFake) QueryContext(_ context.Context, query st
 	if query == deltaBaselineFenceQuery { // #7319 Ack fence read: no row keeps the existing path.
 		return &recordingRows{}, nil
 	}
+	if query == terminalGenerationActiveWaitKeysQuery { // #11016 probe: no terminal waits parked here.
+		return &recordingRows{}, nil
+	}
 	if strings.Contains(query, "reducer_waiting_items") { // #10876 wake: no waits parked here.
 		return &waitingWakeCountRows{}, nil
 	}

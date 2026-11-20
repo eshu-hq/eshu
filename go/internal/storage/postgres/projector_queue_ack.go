@@ -125,6 +125,14 @@ func (q ProjectorQueue) Ack(
 			return fmt.Errorf("ack projector work: %s: %w", step.op, err)
 		}
 	}
+	// #11016: the maintenance above supersedes older pending/failed
+	// generations while only the activated generation is woken below. Probe
+	// for terminal waits in the same transaction so the maintenance victims
+	// reopen here instead of waiting out the audit. In-tx, so a failure
+	// still rolls back and returns: nothing committed yet.
+	if err := wakeTerminalGenerationActiveWaits(ctx, tx, q.Instruments, now); err != nil {
+		return fmt.Errorf("ack projector work: superseded generation waits: %w", err)
+	}
 	var activated bool
 	journalOutcome := ""
 	if q.ChangedSinceJournalEnabled {

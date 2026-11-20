@@ -178,6 +178,12 @@ func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...a
 	// genuinely unknown statement still falls through to the error below.
 	case strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened"):
 		return newProofRows([][]any{{int64(0), int64(0)}}), nil
+	// #11016: the in-tx terminal-wait probe lists parked generation_active
+	// waits on terminal generations. No waits are parked in the proof
+	// domain, so it answers zero keys; exact constant so a genuinely
+	// unknown statement still falls through to the error below.
+	case query == terminalGenerationActiveWaitKeysQuery:
+		return newProofRows(nil), nil
 	case query == deltaBaselineFenceQuery:
 		return newProofRows(proofDeltaBaselineFenceRows(tx.state, args)), nil
 	case query == unchangedGenerationCandidateQuery:

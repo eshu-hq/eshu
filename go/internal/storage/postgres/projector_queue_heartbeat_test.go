@@ -129,8 +129,18 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	if got, want := len(database.execs), 0; got != want {
 		t.Fatalf("exec count = %d, want %d: a superseded heartbeat must not renew", got, want)
 	}
-	if got, want := len(database.queries), 1; got != want {
+	// #11016: the supersede also reopens the generation's parked
+	// generation_active waits: the supersede statement plus the wake.
+	if got, want := len(database.queries), 2; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	wake := database.queries[1]
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("supersede wake args = %v, want (now, generation_active, key)", wake.args)
+	}
+	key, _ := wake.args[2].(string)
+	if !strings.Contains(key, "scope-123") || !strings.Contains(key, "generation-old") {
+		t.Fatalf("supersede wake key = %q, want the superseded scope generation", key)
 	}
 
 	supersedeWorkQuery := database.queries[0].query
@@ -192,6 +202,9 @@ type recordingExecQueryer struct {
 	results    []sql.Result
 	// queryRows are returned by QueryContext in order; empty rows once used up.
 	queryRows []db.Rows
+	// wakeErr, when set, fails the waiting-table wake statement so tests can
+	// prove a post-commit wake failure never fails the committed operation.
+	wakeErr error
 }
 
 type recordedExecCall struct {
@@ -227,7 +240,17 @@ func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, arg
 	// response and a genuinely unknown statement still yields the empty
 	// row below.
 	if strings.Contains(query, "reducer_waiting_items") && strings.Contains(query, "reopened") {
+		if r.wakeErr != nil {
+			return nil, r.wakeErr
+		}
 		return &waitingWakeCountRows{}, nil
+	}
+	// #11016: the terminal-wait probe lists parked generation_active waits
+	// on terminal generations. No waits are parked in these fixtures, so
+	// it answers zero keys without consuming a staged response, like the
+	// wake arm above.
+	if query == terminalGenerationActiveWaitKeysQuery {
+		return &recordingRows{}, nil
 	}
 	if len(r.queryRows) > 0 {
 		rows := r.queryRows[0]

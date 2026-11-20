@@ -24,6 +24,14 @@ type claimConflictQueryer struct {
 	mu       sync.Mutex
 	outcomes []claimConflictOutcome
 	calls    int
+	// probeErr, when set, fails the post-claim terminal-wait probe so
+	// tests can prove a probe failure never fails the committed claim.
+	probeErr error
+	// emptyClaim answers the claim with no rows so tests can prove an
+	// empty sweep still probes.
+	emptyClaim bool
+	// probeCalls counts terminal-wait probe queries served.
+	probeCalls int
 }
 
 type claimConflictOutcome struct {
@@ -42,9 +50,16 @@ func (f *claimConflictQueryer) QueryContext(_ context.Context, query string, _ .
 	// answer zero parked waits without consuming a scripted outcome or
 	// counting toward the bounded attempts below.
 	if query == terminalGenerationActiveWaitKeysQuery {
+		f.probeCalls++
+		if f.probeErr != nil {
+			return nil, f.probeErr
+		}
 		return &queueFakeRows{}, nil
 	}
 	f.calls++
+	if f.emptyClaim {
+		return &queueFakeRows{}, nil
+	}
 	if len(f.outcomes) == 0 {
 		return &queueFakeRows{rows: [][]any{claimConflictRow()}}, nil
 	}

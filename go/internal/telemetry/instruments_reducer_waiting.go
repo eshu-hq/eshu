@@ -32,7 +32,8 @@ const (
 	// WaitingWakeOutcomeNoop means the wake statement ran and reopened nobody.
 	WaitingWakeOutcomeNoop = "noop"
 	// WaitingWakeOutcomeError means the wake statement failed; the providing
-	// save rolls back (in-tx) or the audit logs and retries next cycle.
+	// save rolls back (in-tx), the post-commit caller logs and keeps the
+	// committed outcome (#11016), or the audit logs and retries next cycle.
 	WaitingWakeOutcomeError = "error"
 )
 
