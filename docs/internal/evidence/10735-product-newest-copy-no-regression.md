@@ -45,9 +45,17 @@ count the loader already bounds. No per-unit regression on either path.
 
 Observability Evidence: the per-pass dropped count rides the
 `Result.SubSignals` key `products_dropped_by_newest_copy` (0 when none, so a
-clean pass is visible), asserted by
+clean pass is visible; per pass, no CVE id, includes matches that would not
+have produced a finding), asserted by
 `TestProductPathReportsDroppedProducts` (drops, clean-pass zero, and both
-guards), and the vulnerability-index-build row of
+guards) plus `TestDerivedPassReportsNewestCopyDrops` (derived-pass drops reach
+the sub-signal and sum across targets, #11048), and the vulnerability-index-build row of
 `docs/public/observability/telemetry-coverage-reducer-domains.md` names it
 (net-zero rows; no new instrument or label).
 `scripts/verify-telemetry-coverage.sh` passes on the change.
+
+## #11048 derived-pass sub-signal: no-regression note
+
+No-Regression Evidence: `BenchmarkOSAdvisoryJoinTargets` (`-benchtime=100x -count=2`, go1.26.6 linux/arm64, shared host so allocations carry the weight) on this head (72707586ad) vs clean merge-base (4ed854efb0): targets-5x 162.0k/162.5k ns/target vs 160.8k; targets-10x 159.2k/159.4k vs 158.3k/158.5k; counted 165.0k/165.3k vs 163.9k/163.4k (within host noise, +1.2% worst-case pairing, +0.9% worst-of-means); allocs identical per sub-benchmark (counted 125082/125082 vs 125086/125080). The change adds one integer addition per target plus one map merge per pass — no hot-path shape change — and the numbers confirm no per-unit regression.
+
+Observability Evidence: the derived-pass drops now ride the same `products_dropped_by_newest_copy` sub-signal (0 when none; per pass, no CVE id, includes matches that would not have produced a finding), pinned by `TestDerivedPassReportsNewestCopyDrops` (RED-first, sub-signal emission plus cross-target summation through the shared-index cache path). `scripts/verify-telemetry-coverage.sh` passes with the new row.

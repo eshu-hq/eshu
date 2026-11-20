@@ -237,11 +237,12 @@ func buildAuthorizedSupplyChainImpactFindings(
 		joins = make(map[osAdvisoryJoinKey]int)
 	}
 	representatives := maps.Clone(stats.osRepresentativeOutcomes)
-	findings, targetQuarantined, err := buildAuthorizedScanImpactFindingsWithQuarantine(
+	findings, targetQuarantined, targetDropped, err := buildAuthorizedScanImpactFindingsWithQuarantine(
 		staticFindings, loaded.asAuthorized.Targets, joins, representatives,
 	)
 	stats.osAdvisoryJoins = joins
 	stats.osRepresentativeOutcomes = representatives
+	stats.productsDroppedByNewestCopy += targetDropped
 	// Recompute over the final set: target findings settle through the same
 	// selection, so their unmatched-release verdicts count beside static.
 	stats.osReleaseNotInAdvisory = countOSReleaseNotInAdvisory(findings)
