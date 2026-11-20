@@ -355,6 +355,8 @@ jobs:
           ESHU_FLUX_EVIDENCE_IDENTITY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GENERATION_RETENTION_PROOF_DISPOSABLE: '1'
           ESHU_GENERATION_RETENTION_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
+          ESHU_GOVULNCHECK_READINESS_PROOF_DISPOSABLE: '1'
+          ESHU_GOVULNCHECK_READINESS_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable
           ESHU_GRAPH_BACKEND: neo4j
           ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE: '1'
           ESHU_GROUPED_INVENTORY_PROOF_DSN: postgres://postgres:local-proof-only@127.0.0.1:15432/postgres?sslmode=disable

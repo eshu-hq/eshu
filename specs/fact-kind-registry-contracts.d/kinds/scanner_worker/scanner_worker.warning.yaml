@@ -7,7 +7,6 @@ payload_schema: sdk/go/factschema/schema/scanner_worker.warning.v1.schema.json
 payload_schema_registered: true
 producers:
     - scanner-worker
-disposition: read_only
-no_reducer_reason: Consumed by read surfaces only; no reducer domain decodes it.
-no_reducer_evidence: read consumption in query read model
+reducer_bindings:
+    - core/core_handle_scanner_worker
 declaration: go/internal/facts/scanner_worker.go:68

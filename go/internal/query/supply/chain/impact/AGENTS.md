@@ -282,6 +282,17 @@ its doubles; never redeclare them.
   `decodeSupplyChainComponentEvidence`, and extend the decode tests.
   If the sdk struct does not declare a field the response reads, the
   read stays raw with a struct-gap comment (advisory precedent).
+- Govulncheck scanner state (#10029) is a synthetic source-state
+  candidate, not a stored row: the scan path writes no
+  `vulnerability_source_states` row, so
+  `govulncheck_scanner_state_candidates` builds one aggregate partial
+  `govulncheck`/`gomod` row per scope from unfinished
+  `go_reachability` warnings naming the request repository
+  (`payload->>'repository_id' = $11`), with `last_error_class` naming
+  the failure class. A scope a stored govulncheck row covers keeps that
+  row (`NOT EXISTS`); a finished scan and another analyzer's warnings
+  contribute nothing; the row fires only on repository-anchored reads.
+  The envelope reports `govulncheck:partial` in its incomplete reasons.
 - Touching a family-local copy: change the root source and the copy
   together and grep for both names — they are duplicated by
   necessity, not by choice.

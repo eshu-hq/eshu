@@ -35,8 +35,8 @@ func TestPartialRunNeverReadsNotCalledOrReachable(t *testing.T) {
 	if len(reach) != 0 {
 		t.Fatalf("failed run emitted %d reachability facts, want none", len(reach))
 	}
-	if warning == nil || warning.Payload["warning_class"] != "toolchain_unsupported" {
-		t.Fatalf("failed run warning = %#v, want warning_class toolchain_unsupported", warning)
+	if warning == nil || warning.Payload["reason"] != "toolchain_unsupported" {
+		t.Fatalf("failed run warning = %#v, want reason toolchain_unsupported", warning)
 	}
 
 	full := loadGovulncheckStream(t, "xtext_v0_3_5_symbol_source.jsonl")
@@ -56,10 +56,13 @@ func TestPartialRunNeverReadsNotCalledOrReachable(t *testing.T) {
 			t.Fatalf("%s: MissingEvidence = %#v, want the govulncheck gap named", osv, got.Reachability.MissingEvidence)
 		}
 	}
-	// Known gap, owned by the query/readiness lane (#10002 design ruling):
-	// the reducer neither loads nor joins scanner_worker.warning (it carries
-	// target_locator_hash, not repository_id), so the failure class
-	// toolchain_unsupported does not reach Reachability.MissingEvidence here.
+	// R2 (eshu-hq/eshu#10029) closed the known gap the #10002 design ruling
+	// left here: the reducer now joins scanner_worker.warning (the emitter
+	// carries repository_id on the warning payload) into
+	// Reachability.MissingEvidence, so the failure class toolchain_unsupported
+	// reaches Reachability.MissingEvidence. TestGoWarning* pins the join and
+	// its boundaries; this test keeps the verdict-shape half (a partial run
+	// never reads not_called or reachable).
 }
 
 // TestStdlibFindingsStaySilentWithoutToolchainEvidence documents what the

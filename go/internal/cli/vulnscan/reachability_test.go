@@ -110,3 +110,79 @@ func TestBuildVulnScanReportPreservesJSTSReachabilityConfidence(t *testing.T) {
 		t.Fatalf("Reachability.Confidence = %q, want %q", got, want)
 	}
 }
+
+// TestBuildVulnScanReportPreservesScanProvenance pins the #10029 console
+// surface: a Go finding whose reachability carries govulncheck scan
+// provenance shows scan level, scan mode, scanner version, and trace count,
+// while a provenance-absent finding keeps the prior shape with none of the
+// keys.
+func TestBuildVulnScanReportPreservesScanProvenance(t *testing.T) {
+	t.Parallel()
+
+	report := BuildReport(Result{
+		Command:        "vuln-scan repo",
+		ReadinessState: "ready_with_findings",
+		RepositoryID:   "repo://example/scan-provenance",
+		Count:          2,
+		Findings: []map[string]any{
+			{
+				"finding_id":           "finding-go-provenance",
+				"cve_id":               "CVE-2026-3903",
+				"impact_status":        "affected_exact",
+				"confidence":           "exact",
+				"runtime_reachability": "not_called",
+				"reachability": map[string]any{
+					"state":             "not_called",
+					"confidence":        "strong",
+					"source":            "govulncheck",
+					"evidence":          "not_called",
+					"reason":            "govulncheck proved the vulnerable surface is not called from any entry point",
+					"language_maturity": "implemented",
+					"scan_level":        "symbol",
+					"scan_mode":         "source",
+					"scanner_version":   "v1.9.0",
+					"trace_count":       float64(3),
+				},
+			},
+			{
+				"finding_id":           "finding-go-legacy",
+				"cve_id":               "CVE-2026-3904",
+				"impact_status":        "affected_exact",
+				"confidence":           "exact",
+				"runtime_reachability": "module_only",
+				"reachability": map[string]any{
+					"state":             "unknown",
+					"confidence":        "unknown",
+					"source":            "govulncheck",
+					"evidence":          "module_only",
+					"language_maturity": "implemented",
+				},
+			},
+		},
+	}, time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+
+	got := report.Findings[0].Reachability
+	if got == nil {
+		t.Fatal("Reachability = nil, want envelope")
+	}
+	if got.ScanLevel != "symbol" {
+		t.Fatalf("Reachability.ScanLevel = %q, want %q", got.ScanLevel, "symbol")
+	}
+	if got.ScanMode != "source" {
+		t.Fatalf("Reachability.ScanMode = %q, want %q", got.ScanMode, "source")
+	}
+	if got.ScannerVersion != "v1.9.0" {
+		t.Fatalf("Reachability.ScannerVersion = %q, want %q", got.ScannerVersion, "v1.9.0")
+	}
+	if got.TraceCount == nil || *got.TraceCount != 3 {
+		t.Fatalf("Reachability.TraceCount = %v, want 3", got.TraceCount)
+	}
+
+	legacy := report.Findings[1].Reachability
+	if legacy == nil {
+		t.Fatal("legacy Reachability = nil, want envelope")
+	}
+	if legacy.ScanLevel != "" || legacy.ScanMode != "" || legacy.ScannerVersion != "" || legacy.TraceCount != nil {
+		t.Fatalf("legacy Reachability = %+v, want no provenance keys", legacy)
+	}
+}

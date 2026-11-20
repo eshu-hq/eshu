@@ -179,6 +179,11 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 		return nil, nil, err
 	}
 	quarantined := append(moduleQuarantined, reachQuarantined...)
+	warningsByRepo, warnQuarantined, err := extractGoReachabilityWarningsWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	quarantined = append(quarantined, warnQuarantined...)
 	advisories := extractGoAffectedPackages(envelopes)
 
 	moduleByRepoModule := groupGoModuleEvidence(modules)
@@ -222,6 +227,16 @@ func classifyGoVulnerabilityReachabilityWithQuarantine(envelopes []facts.Envelop
 			if !applicability.applicable && !applicability.hasRangeEvidence {
 				finding.MissingEvidence = append(finding.MissingEvidence, "advisory affected-range evidence missing")
 				sort.Strings(finding.MissingEvidence)
+			}
+			// An unfinished go_reachability scan names its failure class
+			// on every finding of its repository (#10029 R2): the scan
+			// produced no reachability fact, so without this join the
+			// verdict reads as a bare evidence gap with no cause.
+			if finding.RepositoryID != "" {
+				if rows := warningsByRepo[finding.RepositoryID]; len(rows) > 0 {
+					finding.MissingEvidence = append(finding.MissingEvidence, rows...)
+					sort.Strings(finding.MissingEvidence)
+				}
 			}
 			findings = append(findings, finding)
 		}

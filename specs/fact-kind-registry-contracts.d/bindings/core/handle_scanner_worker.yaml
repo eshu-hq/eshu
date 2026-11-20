@@ -5,4 +5,5 @@ reducer_dir: go/internal/reducer/supplychain/core
 symbol: Handle
 kinds:
     - scanner_worker.analysis
+    - scanner_worker.warning
 declaration: go/internal/reducer/supplychain/core/fact_bindings.go:42

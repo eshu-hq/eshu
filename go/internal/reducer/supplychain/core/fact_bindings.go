@@ -42,7 +42,7 @@ var SBOMAttestationHandleBinding = contract.Bind(contract.Binding{
 var ScannerWorkerHandleBinding = contract.Bind(contract.Binding{
 	ID: "core/core_handle_scanner_worker", FamilyID: "scanner_worker",
 	ReducerDir: "go/internal/reducer/supplychain/core", Symbol: "Handle",
-	Kinds: []string{"scanner_worker.analysis"},
+	Kinds: []string{"scanner_worker.analysis", "scanner_worker.warning"},
 })
 
 // SecurityAlertHandleBinding declares this package's verified reducer consumption of

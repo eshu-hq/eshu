@@ -4,6 +4,8 @@
 package core
 
 import (
+	"strings"
+
 	vulnerabilityv1 "github.com/eshu-hq/eshu-sdk/factschema/vulnerability/v1"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -45,6 +47,16 @@ type goReachabilityRow struct {
 	scannerVersion string
 	traceCount     *int
 }
+
+// goReachabilityWarningAnalyzer names the scanner_worker.warning producer
+// whose failures join Go findings. The warning kind is shared with image
+// analyzers; only go_reachability warnings speak for govulncheck verdicts.
+const goReachabilityWarningAnalyzer = "go_reachability"
+
+// goReachabilityWarningCompletedStatus names the analysis_status of a
+// finished scan. Such a warning reports that nothing was left unscanned, so
+// it is not missing evidence and joins no finding.
+const goReachabilityWarningCompletedStatus = "completed"
 
 type goAffectedPackageRow struct {
 	cveID            string
@@ -132,6 +144,56 @@ func extractGovulncheckReachabilityRowsWithQuarantine(envelopes []facts.Envelope
 			scannerVersion: payloadcore.DerefString(finding.ScannerVersion),
 			traceCount:     finding.TraceCount,
 		})
+	}
+	return out, quarantined, nil
+}
+
+// extractGoReachabilityWarningsWithQuarantine indexes unfinished
+// go_reachability scans by repository: each scanner_worker.warning carrying a
+// repository_id and a non-completed analysis_status contributes one
+// "govulncheck scan <reason>" row naming the failure class that stopped the
+// scan. A warning that names no repository (a pre-contract emitter) joins
+// nothing, a finished scan reports no gap, and another analyzer's warnings
+// speak for that analyzer, not for govulncheck. A warning missing a required
+// identity field is routed through factdecode.PartitionDecodeFailures into
+// the returned quarantine list rather than silently excluded; any OTHER
+// decode error is returned fatally.
+func extractGoReachabilityWarningsWithQuarantine(envelopes []facts.Envelope) (map[string][]string, []factdecode.QuarantinedFact, error) {
+	out := make(map[string][]string)
+	var quarantined []factdecode.QuarantinedFact
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.ScannerWorkerWarningFactKind || envelope.IsTombstone {
+			continue
+		}
+		warning, err := schemadecode.DecodeScannerWorkerWarning(envelope)
+		if err != nil {
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(envelope, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+		if warning.Analyzer != goReachabilityWarningAnalyzer {
+			continue
+		}
+		repositoryID := strings.TrimSpace(payloadcore.DerefString(warning.RepositoryID))
+		if repositoryID == "" {
+			continue
+		}
+		if strings.TrimSpace(warning.AnalysisStatus) == goReachabilityWarningCompletedStatus {
+			continue
+		}
+		reason := strings.TrimSpace(warning.Reason)
+		if reason == "" {
+			continue
+		}
+		out[repositoryID] = append(out[repositoryID], "govulncheck scan "+reason)
+	}
+	for repositoryID := range out {
+		out[repositoryID] = payloadcore.UniqueSortedStrings(out[repositoryID])
 	}
 	return out, quarantined, nil
 }

@@ -272,3 +272,75 @@ func TestDispatchToolSupplyChainImpactExplainPreservesAmbiguousScopeEnvelope(t *
 		t.Fatalf("missing_evidence = %#v, want ambiguous_scope", data["missing_evidence"])
 	}
 }
+
+// TestDispatchToolSupplyChainImpactExplainPreservesScanProvenance pins the
+// #10029 MCP surface: when the explain route returns a Go finding whose
+// reachability carries govulncheck scan provenance and a scanner warning
+// failure class, the MCP tool passes every key through instead of dropping
+// or reshaping the envelope.
+func TestDispatchToolSupplyChainImpactExplainPreservesScanProvenance(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{
+				"outcome": "finding_explained",
+				"finding": map[string]any{
+					"finding_id": "finding-go-1", "impact_status": "unknown",
+					"reachability": map[string]any{
+						"state":            "unknown",
+						"source":           "govulncheck",
+						"scan_level":       "symbol",
+						"scanner_version":  "v1.9.0",
+						"trace_count":      float64(3),
+						"missing_evidence": []string{"govulncheck scan toolchain_unsupported"},
+					},
+				},
+				"missing_evidence": []string{"govulncheck scan toolchain_unsupported"},
+			},
+			"truth": map[string]any{
+				"level":      "exact",
+				"capability": "supply_chain.impact_explanation.read",
+				"profile":    "production",
+				"basis":      "semantic_facts",
+			},
+			"error": nil,
+		})
+	})
+
+	result, err := dispatchTool(
+		context.Background(),
+		mux,
+		"explain_supply_chain_impact",
+		map[string]any{"finding_id": "finding-go-1"},
+		"",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err != nil {
+		t.Fatalf("dispatchTool() error = %v, want nil", err)
+	}
+	data, ok := result.Envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope.Data = %T, want map[string]any", result.Envelope.Data)
+	}
+	finding, ok := data["finding"].(map[string]any)
+	if !ok {
+		t.Fatalf("finding = %T, want map[string]any", data["finding"])
+	}
+	reachability, ok := finding["reachability"].(map[string]any)
+	if !ok {
+		t.Fatalf("reachability = %T, want map[string]any", finding["reachability"])
+	}
+	for key, want := range map[string]any{
+		"scan_level": "symbol", "scanner_version": "v1.9.0", "trace_count": float64(3),
+	} {
+		if got := reachability[key]; got != want {
+			t.Fatalf("reachability[%q] = %#v, want %#v", key, got, want)
+		}
+	}
+	if !stringSliceContains(stringsOf(data["missing_evidence"]), "govulncheck scan toolchain_unsupported") {
+		t.Fatalf("missing_evidence = %#v, want the warning failure class", data["missing_evidence"])
+	}
+}
