@@ -95,10 +95,12 @@ func codeDecodeCases() []decodeCase {
 			name: "ScannerWorkerWarning", kind: "scanner_worker.warning", target: &scannerworkerv1.Warning{},
 			decode:        func(env facts.Envelope) (any, error) { return DecodeScannerWorkerWarning(env) },
 			requiredField: "reason",
-			spotFields: map[string]any{"analyzer": "go_reachability", "target_kind": "repository",
+			spotFields: map[string]any{
+				"analyzer": "go_reachability", "target_kind": "repository",
 				"target_locator_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 				"reason":              "toolchain_unsupported", "warning_class": "scanner_worker_warning",
-				"analysis_status": "not_scanned", "coverage_status": "unsupported"},
+				"analysis_status": "not_scanned", "coverage_status": "unsupported",
+			},
 		},
 		{
 			name: "RuntimeDeclarationVersion", kind: "runtime_declaration.version", target: &runtimedeclarationv1.Version{},
