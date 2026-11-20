@@ -167,7 +167,11 @@ func buildAuthorizedScanImpactFindingsWithQuarantine(
 			addOSAdvisoryJoins(joins, countOSAdvisoryJoins(index))
 		}
 		index.osRepresentativeOutcomes = representatives
-		targetFindings := coalesceAndSortSupplyChainImpactFindings(appendSupplyChainImpactIndexFindings(nil, index))
+		// The derived pass reads committed winners, so its load is complete and
+		// the newest-copy admission applies; its dropped count stays local to
+		// the fleet-wide build stats the caller returns.
+		targetClassified, _ := appendSupplyChainImpactIndexFindings(nil, index)
+		targetFindings := coalesceAndSortSupplyChainImpactFindings(targetClassified)
 		var targetOSRows []supplychainmodel.OSPackage
 		for _, rows := range index.osPackages {
 			targetOSRows = append(targetOSRows, rows...)

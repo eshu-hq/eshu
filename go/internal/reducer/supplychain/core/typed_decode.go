@@ -134,6 +134,8 @@ func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) (supplychai
 	return supplychainmodel.AffectedProduct{
 		FactID:          envelope.FactID,
 		CVEID:           payloadcore.DerefString(product.CVEID),
+		ScopeID:         envelope.ScopeID,
+		GenerationID:    envelope.GenerationID,
 		Criteria:        payloadcore.DerefString(product.Criteria),
 		MatchCriteriaID: payloadcore.DerefString(product.MatchCriteriaID),
 		Vulnerable:      product.Vulnerable != nil && *product.Vulnerable,

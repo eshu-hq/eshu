@@ -52,9 +52,15 @@ func withZonedStamps(input []facts.Envelope) []facts.Envelope {
 
 // determinismSubjects returns the Odùs worth permuting: every one that reaches
 // a finding, plus the cross-window combination, where the newest-copy logic
-// compares three windows' copies of the same CVEs. Each stamp format appears,
+// compares the windows' copies of the same CVEs. Each stamp format appears,
 // because the reducer reads the recorded zone-less stamp and an RFC 3339 stamp
 // through different parses before it ranks the copies.
+//
+// The newest-copy Odù itself is not a subject: stacked on eshu-hq/eshu#10735 it
+// reaches zero findings (the widget product lives only in the older window, so
+// kept R-B10 drops it), and the anti-vacuity guard below forbids a zero-finding
+// subject. The two-window scope combination stays covered through a component
+// for a CVE only one window carries, which still reaches its retracted finding.
 func determinismSubjects(t *testing.T) []determinismSubject {
 	t.Helper()
 
@@ -64,20 +70,20 @@ func determinismSubjects(t *testing.T) []determinismSubject {
 	zonedEverything := everything
 	zonedEverything.Facts = withZonedStamps(everything.Facts)
 
-	newestCopy := catalogOdu(t, VulnCollectorNewestCopyOduName)
-	zonedNewestCopy := newestCopy
-	zonedNewestCopy.Facts = withZonedStamps(newestCopy.Facts)
+	twoWindows := adHocOdu(t, []string{vulnWindow1Scope, vulnWindow2Scope}, vulnLegacyToolCPE)
+	zonedTwoWindows := twoWindows
+	zonedTwoWindows.Facts = withZonedStamps(twoWindows.Facts)
 
 	return []determinismSubject{
 		{"product path", catalogOdu(t, VulnCollectorOduName), 1},
 		{"rejected", catalogOdu(t, VulnCollectorRejectedOduName), 1},
-		{"newest copy, zone-less as recorded", newestCopy, 1},
-		{"newest copy, RFC 3339 stamps", zonedNewestCopy, 1},
+		{"two windows, single-copy component", twoWindows, 1},
+		{"two windows, single-copy component, RFC 3339 stamps", zonedTwoWindows, 1},
 		{"severity tiers", adHocOdu(t, []string{vulnWindow1Scope, vulnKEVScope, vulnEPSSScope},
 			vulnWidgetCPE, vulnVectorOnlyCPE, vulnLabelOnlyCPE), 3},
 		{"older window selected", adHocOdu(t, []string{vulnWindowXScope}, vulnBaselineOnlyCPE), 1},
-		{"every window, zone-less as recorded", everything, 5},
-		{"every window, RFC 3339 stamps", zonedEverything, 5},
+		{"every window, zone-less as recorded", everything, 4},
+		{"every window, RFC 3339 stamps", zonedEverything, 4},
 	}
 }
 

@@ -38,6 +38,12 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope, configs ...suppl
 // matches a pass excluded as negated; 0 when none, so a clean pass is visible (#9696).
 const negatedProductsExcludedSubSignal = "negated_affected_products_excluded"
 
+// productsDroppedByNewestCopySubSignal is the Result.SubSignals key counting
+// NVD CPE matches the product path's newest-copy admission dropped: a product
+// whose own scope and generation holds no admitted NVD copy forms no finding.
+// 0 when none, so a clean pass is visible (#10735).
+const productsDroppedByNewestCopySubSignal = "products_dropped_by_newest_copy"
+
 // buildSupplyChainImpactFindingsWithQuarantine is the quarantine-aware
 // counterpart BuildSupplyChainImpactFindings delegates to. It wraps
 // buildSupplyChainImpactFindingsAndExclusions, which Handle calls so the intent
@@ -57,7 +63,11 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope, con
 		return nil, nil, supplyChainImpactBuildStats{}, err
 	}
 	index.osRepresentativeOutcomes = make(map[osRepresentativeOutcomeKey]int)
-	findings := appendSupplyChainImpactIndexFindings(nil, index)
+	// The truncated-load kill switch guards the alias graph and the product
+	// path's newest-copy admission alike: both must not decide on a partial
+	// load (#10407 D2, #10735).
+	index.evidenceTruncated = aliasGroupConfigOrDefault(configs).disabled
+	findings, productsDropped := appendSupplyChainImpactIndexFindings(nil, index)
 	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
 	if err != nil {
 		return nil, nil, supplyChainImpactBuildStats{}, err
@@ -71,6 +81,7 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope, con
 	findings = coalesceAndSortSupplyChainImpactFindings(findings)
 	return findings, quarantined, supplyChainImpactBuildStats{
 		negatedProductsExcluded:     index.negatedProductsExcluded,
+		productsDroppedByNewestCopy: productsDropped,
 		osAdvisoryJoins:             countOSAdvisoryJoins(index),
 		osRepresentativeOutcomes:    index.osRepresentativeOutcomes,
 		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),

@@ -261,6 +261,79 @@ func newestCopyAdvisoryInputs(
 	return kept, out
 }
 
+// newestCopyAdmittedProductScopes elects one winner per (payload source,
+// advisory id) over the group's native observations with the unchanged
+// newestCopyAfter election, and returns the scopes holding an admitted copy:
+// the winner plus every same-key copy it beats only on the FactID tiebreak
+// (equal SourceUpdatedAt instant, same lifecycle), so an equal-lastModified
+// tie keeps every tied copy's products and no StableID hash decides the
+// product set (#10735). The product path keeps a product only when its own
+// scope and generation is in this set; a product whose scope holds no
+// admitted copy is an orphan and drops.
+//
+// The election spans every native source, not NVD alone: a same-group copy of
+// another source with no same-key rival is its key's winner and admits its
+// own scope, so a distro record's own cve fact (#9914) or a cve_list row
+// (#10717) keeps driving the product finding it drives today. Only a scope
+// whose copies all lost (or that holds no copy at all) loses its products.
+// Scopes are per-collector in production, so a stale NVD scope shares no
+// scope with another source's winner; the only groups where every scope is
+// admitted are the single-copy groups that read exactly as before.
+func newestCopyAdmittedProductScopes(
+	native []supplychainmodel.ImpactCVE,
+) map[advisoryCopyScope]bool {
+	var observations []supplychainmodel.ImpactCVE
+	for _, cve := range native {
+		if cve.UpstreamCopy {
+			continue
+		}
+		observations = append(observations, cve)
+	}
+	if len(observations) == 0 {
+		return nil
+	}
+	winner := make(map[advisoryCopyKey]int, len(observations))
+	for i, cve := range observations {
+		key := advisoryCopyKey{source: cve.Source, advisoryID: cve.AdvisoryID}
+		if prior, seen := winner[key]; !seen || newestCopyAfter(cve, observations[prior]) {
+			winner[key] = i
+		}
+	}
+	admitted := make(map[advisoryCopyScope]bool, len(observations))
+	for key, wi := range winner {
+		for _, cve := range observations {
+			if (advisoryCopyKey{source: cve.Source, advisoryID: cve.AdvisoryID}) != key {
+				continue
+			}
+			if newestCopyTiedOnWinnerInstant(cve, observations[wi]) {
+				admitted[advisoryCopyScope{scope: cve.ScopeID, generation: cve.GenerationID}] = true
+			}
+		}
+	}
+	return admitted
+}
+
+// newestCopyTiedOnWinnerInstant reports whether candidate loses to the
+// elected winner on the FactID tiebreak alone: the same SourceUpdatedAt
+// instant (equal parsed instants, or both empty or unparseable) and the same
+// lifecycle (both live or both retracted). The winner ties with itself, so
+// the winner's own scope is always admitted.
+func newestCopyTiedOnWinnerInstant(
+	candidate, winner supplychainmodel.ImpactCVE,
+) bool {
+	candidateAt, candidateOK := newestCopyInstant(candidate.SourceUpdatedAt)
+	winnerAt, winnerOK := newestCopyInstant(winner.SourceUpdatedAt)
+	if candidateOK != winnerOK {
+		return false
+	}
+	if candidateOK && !candidateAt.Equal(winnerAt) {
+		return false
+	}
+	candidateRetracted := advisoryRetractionCode(candidate.Status, candidate.WithdrawnAt) != ""
+	winnerRetracted := advisoryRetractionCode(winner.Status, winner.WithdrawnAt) != ""
+	return candidateRetracted == winnerRetracted
+}
+
 // matchAffectedForCVE pairs one CVE observation with the affected_package
 // fact of its own advisory copy. A package in the CVE fact's scope and
 // generation wins over the first unmatched package in input order, so after

@@ -133,8 +133,17 @@ type AffectedRangeEvent struct {
 // future node-id contract, and only the negate flags change a result (see
 // Negated).
 type AffectedProduct struct {
-	FactID          string
-	CVEID           string
+	FactID string
+	CVEID  string
+	// ScopeID names the scope that holds this product fact. It pairs the
+	// fact with the advisory copy recorded in the same scope and
+	// generation, so the newest-copy rule admits a product only when its
+	// own scope holds an admitted NVD copy of the advisory, and drops an
+	// orphan whose scope holds none.
+	ScopeID string
+	// GenerationID names the generation that holds this product fact,
+	// qualifying ScopeID the way the loader scopes facts.
+	GenerationID    string
 	Criteria        string
 	MatchCriteriaID string
 	Vulnerable      bool

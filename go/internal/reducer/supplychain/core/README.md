@@ -23,7 +23,7 @@ id, so the reducer does not evaluate it. The NVD collector emits a match negated
 only when every occurrence is, so order does not matter. The operators are
 decoded but change no result. Each pass reports the excluded count as
 `Result.SubSignals["negated_affected_products_excluded"]` (0 when none; per
-pass, no CVE id, includes matches that would not have produced a finding).
+pass, no CVE id, includes matches that would not have produced a finding). The NVD product path reads the newest copy before matching (#10735): one winner per (source, advisory id) by greatest `modified_at` (unzoned NVD stamps read as UTC), then live over retracted, then greater fact id; the winner plus the copies it beats only on fact id admit their scopes, and a product is kept only when its own scope and generation holds an admitted copy (orphans drop; equal-stamp ties keep every tied copy's products so no hash decides the set). The elected copy supplies the representative and the severity; the finding id does not move. An unreadable CVE key or a truncated load keeps every product. Each pass reports the dropped count as `Result.SubSignals["products_dropped_by_newest_copy"]` (0 when none).
 
 For package advisories, an attached SBOM image path preserves package and
 image evidence while the ecosystem matcher decides version truth. In-range

@@ -9,7 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
-func appendSupplyChainImpactIndexFindings(findings []SupplyChainImpactFinding, index supplyChainImpactIndex) []SupplyChainImpactFinding {
+// appendSupplyChainImpactIndexFindings classifies every group the index holds
+// and returns the findings plus the products the newest-copy admission
+// dropped: a product whose own scope and generation holds no admitted NVD
+// copy forms no finding (#10735).
+func appendSupplyChainImpactIndexFindings(findings []SupplyChainImpactFinding, index supplyChainImpactIndex) ([]SupplyChainImpactFinding, int) {
+	var dropped int
 	cveGroups := groupSupplyChainCVEsByID(index.cves)
 	if findings == nil {
 		findings = make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
@@ -38,15 +43,32 @@ func appendSupplyChainImpactIndexFindings(findings []SupplyChainImpactFinding, i
 		if len(native.observations) == 0 {
 			continue
 		}
-		representative, retraction := native.representative(), native.retraction(index)
-		severity := native.severityObservation(representative)
+		// Newest copy first (#10735): the elected copy alone supplies the
+		// product set, the representative, and the severity, so a superseded
+		// copy lends nothing. The two guards keep today's behavior: an
+		// unreadable sibling may still assert the advisory, and a truncated
+		// load may have cut the winning copy.
+		reduced := native
+		admissionActive := false
+		var admitted map[advisoryCopyScope]bool
+		if _, unreadable := index.unreadableCVEs[cveID]; !unreadable && !index.evidenceTruncated {
+			admissionActive = true
+			admitted = newestCopyAdmittedProductScopes(native.observations)
+			reduced.observations = newestCopyCVEByRecord(native.observations)
+		}
+		representative, retraction := reduced.representative(), native.retraction(index)
+		severity := reduced.severityObservation(representative)
 		for _, product := range products {
+			if admissionActive && !admitted[advisoryCopyScope{scope: product.ScopeID, generation: product.GenerationID}] {
+				dropped++
+				continue
+			}
 			finding := classifySupplyChainImpactProduct(representative, severity, product, index)
 			finding.AdvisoryRetraction = retraction
 			findings = appendSupplyChainImpactFinding(findings, finding)
 		}
 	}
-	return findings
+	return findings, dropped
 }
 
 // allUpstreamCopies reports whether every package reached this group only
