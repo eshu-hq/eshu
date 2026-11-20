@@ -309,7 +309,7 @@ import (
 // 319_reducer_waiting_items_scope_idx.sql (the scope probe the 2e purge
 // sweep needs for parked waits of retired scopes).
 const (
-	goldenBootstrapDefinitionsDigest = "b5a20ed75e968076fe36008d819cddafa223ebaa739d3fd52279711ab662bfb3"
+	goldenBootstrapDefinitionsDigest = "de48e80ed184e377400e12ae4a58187040ac2eb2e885fb6d161e04463efacc2e"
 	goldenBootstrapDefinitionsCount  = 346
 )
 
