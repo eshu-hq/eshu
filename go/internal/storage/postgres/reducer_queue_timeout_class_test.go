@@ -100,10 +100,12 @@ func TestReducerQueueFailRetriesTimeoutClassWithinAttemptBudget(t *testing.T) {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -113,7 +115,7 @@ func TestReducerQueueFailRetriesTimeoutClassWithinAttemptBudget(t *testing.T) {
 			t.Fatalf("retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], "reducer_handler_timeout"; got != want {
+	if got, want := db.queries[0].args[1], "reducer_handler_timeout"; got != want {
 		t.Fatalf("failure class = %v, want %v: the timeout class must survive the retry row", got, want)
 	}
 }
@@ -146,20 +148,22 @@ func TestReducerQueueFailDeadLettersTimeoutClassWhenBudgetExhausted(t *testing.T
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "status = 'dead_letter'") {
-		t.Fatalf("exhausted timeout should dead-letter, query:\n%s", db.execs[0].query)
+	if !strings.Contains(db.queries[0].query, "status = 'dead_letter'") {
+		t.Fatalf("exhausted timeout should dead-letter, query:\n%s", db.queries[0].query)
 	}
 	// A self-classifying error wins over the triage fallback: the dead
 	// letter keeps reducer_handler_timeout (not retry_exhausted), so the
 	// operator sees that bound pressure — not generic transient pressure —
 	// consumed the budget.
-	if got, want := db.execs[0].args[1], "reducer_handler_timeout"; got != want {
+	if got, want := db.queries[0].args[1], "reducer_handler_timeout"; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
+	if details, _ := db.queries[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
 		t.Fatalf("dead-letter details = %q, want disposition=retryable", details)
 	}
 }

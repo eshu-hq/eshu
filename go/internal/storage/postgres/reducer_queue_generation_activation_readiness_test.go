@@ -40,15 +40,25 @@ func TestReducerQueueFailDefersGenerationActivationPastAttemptBudget(t *testing.
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(database.execs), 2; got != want {
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries while the
+	// wait-row park stays an exec. The park then re-checks satisfaction,
+	// so the Fail issues two queries and one exec in total.
+	if got, want := len(database.queries), 2; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
+	}
+	if got := database.queries[1].query; got != waitingSatisfiedQuery {
+		t.Fatalf("second query is not the park satisfaction re-check:\n%s", got)
+	}
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	// #10876: the deferral parks one wait row naming the generation the
 	// projector Ack will activate.
-	if got := database.execs[1].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
-		t.Fatalf("second exec is not the wait-row park:\n%s", got)
+	if got := database.execs[0].query; !strings.Contains(got, "INSERT INTO reducer_waiting_items") {
+		t.Fatalf("exec is not the wait-row park:\n%s", got)
 	}
-	query := database.execs[0].query
+	query := database.queries[0].query
 	for _, want := range []string{"UPDATE fact_work_items", "status = 'retrying'", "failure_class = $2"} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
@@ -57,7 +67,7 @@ func TestReducerQueueFailDefersGenerationActivationPastAttemptBudget(t *testing.
 	if strings.Contains(query, "dead_letter") {
 		t.Fatalf("not-yet-active deferral past the budget must not dead-letter:\n%s", query)
 	}
-	if got, want := database.execs[0].args[1], reducercontract.GenerationActivationNotReadyFailureClass; got != want {
+	if got, want := database.queries[0].args[1], reducercontract.GenerationActivationNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }

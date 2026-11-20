@@ -100,10 +100,12 @@ func TestReducerQueueFailDefersSharedEdgeTargetMissPastAttemptBudget(t *testing.
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	query := database.execs[0].query
+	query := database.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -114,7 +116,7 @@ func TestReducerQueueFailDefersSharedEdgeTargetMissPastAttemptBudget(t *testing.
 			t.Fatalf("deferred retry query missing %q (the intent was dead-lettered at the retry budget):\n%s", want, query)
 		}
 	}
-	if got, want := database.execs[0].args[1], reducer.SharedEdgeTargetNotReadyFailureClass; got != want {
+	if got, want := database.queries[0].args[1], reducer.SharedEdgeTargetNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }
@@ -177,8 +179,10 @@ func TestReducerQueueFailDeadLettersUnverifiedDeployableUnitEdgeAtBudget(t *test
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if len(database.execs) != 1 || !strings.Contains(database.execs[0].query, "dead_letter") {
-		t.Fatalf("Fail() at the budget did not dead-letter the unverified edge: %+v", database.execs)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if len(database.queries) != 1 || !strings.Contains(database.queries[0].query, "dead_letter") {
+		t.Fatalf("Fail() at the budget did not dead-letter the unverified edge: %+v", database.queries)
 	}
 }
 

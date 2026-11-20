@@ -404,13 +404,15 @@ func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.
 	}); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if !strings.Contains(db.execs[0].query, "status = 'retrying'") {
-		t.Fatalf("readiness backlog should retry, query:\n%s", db.execs[0].query)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if !strings.Contains(db.queries[0].query, "status = 'retrying'") {
+		t.Fatalf("readiness backlog should retry, query:\n%s", db.queries[0].query)
 	}
-	if got := db.execs[0].args[1]; got != secretsiam.SecretsIAMEndpointNotReadyFailureClass {
+	if got := db.queries[0].args[1]; got != secretsiam.SecretsIAMEndpointNotReadyFailureClass {
 		t.Fatalf("failure class = %v, want %v", got, secretsiam.SecretsIAMEndpointNotReadyFailureClass)
 	}
-	if got := db.execs[0].args[1]; got == sourcecypher.GraphWriteTimeoutFailureClass {
+	if got := db.queries[0].args[1]; got == sourcecypher.GraphWriteTimeoutFailureClass {
 		t.Fatalf("readiness backlog must not be labeled a graph-write class, got %v", got)
 	}
 }

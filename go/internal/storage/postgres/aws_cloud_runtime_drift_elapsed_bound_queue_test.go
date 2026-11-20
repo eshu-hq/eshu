@@ -36,8 +36,21 @@ type awsCloudRuntimeDriftElapsedBoundQueueDB struct {
 }
 
 func (database *awsCloudRuntimeDriftElapsedBoundQueueDB) QueryContext(
-	_ context.Context, query string, _ ...any,
+	_ context.Context, query string, args ...any,
 ) (db.Rows, error) {
+	// #10879 phase 1: the retry terminal statement reports its match
+	// count through QueryContext instead of ExecContext (it has no
+	// FROM claimed CTE, so it must be recognized before the claim
+	// shape gate below). It carries the same SET status = 'retrying'
+	// UPDATE the ExecContext arm used to see, so simulate it here and
+	// report matched=1.
+	if strings.Contains(query, "SET status = 'retrying'") && strings.Contains(query, "AS matched") {
+		database.status = "retrying"
+		if len(args) > 1 {
+			database.failureClass, _ = args[1].(string)
+		}
+		return &queueFakeRows{rows: [][]any{{int64(1)}}}, nil
+	}
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
