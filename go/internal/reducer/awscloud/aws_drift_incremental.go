@@ -250,8 +250,10 @@ func fullFallbackPlan(now time.Time) AWSDriftIncrementalPlan {
 
 // snapshotToARNMap renders a recorded reopen snapshot's parallel ARN
 // arrays back into the ARN-to-payload-identity map the plan diffs. A
-// shorter hashes slice (a corrupt row) drops the unhashable ARNs from the
-// next set: they diff as removed, retracting rather than skipping.
+// shorter hashes slice drops the unhashable ARNs from the next set: they
+// diff as removed, retracting rather than skipping. (Only code-built fresh
+// snapshots reach this function; corrupt recorded rows error strictly at
+// load time.)
 func snapshotToARNMap(snap reducercontract.AWSDriftReopenSnapshot) map[string]string {
 	out := make(map[string]string, len(snap.ARNIDs))
 	for i, arn := range snap.ARNIDs {

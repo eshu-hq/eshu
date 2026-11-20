@@ -275,6 +275,51 @@ func TestAWSDriftIncrementalPlannerFreshLoadErrorFailsOpen(t *testing.T) {
 	}
 }
 
+// TestAWSCloudRuntimeDriftHandlerRecordsWiredFreshSnapshot pins the
+// record-reuse path the delta claims: with a wired plan source, a
+// succeeding run records the fresh snapshot the plan was built from
+// instead of reloading the same generation, so the snapshot loader stays
+// quiet (#10878 review).
+func TestAWSCloudRuntimeDriftHandlerRecordsWiredFreshSnapshot(t *testing.T) {
+	t.Parallel()
+	claimedAt := time.Now().Add(-time.Minute).UTC()
+	snapshotLoader := &stubAWSDriftSnapshotLoader{
+		snapshot: snapshotWithARNs(map[string]string{"arn:1": "p1"}),
+	}
+	recorder := &stubAWSDriftReopenRecorder{}
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader:            &stubAWSCloudRuntimeDriftEvidenceLoader{},
+		Writer:                    &stubAWSCloudRuntimeDriftFindingWriter{},
+		FencingTokenIssuer:        &stubAWSCloudRuntimeDriftFencingTokenIssuer{tokens: []int64{11}},
+		SnapshotLoader:            snapshotLoader,
+		ReopenFingerprintRecorder: recorder,
+		IncrementalPlanSource: &stubAWSDriftIncrementalPlanSource{
+			plan: AWSDriftIncrementalPlan{Mode: AWSDriftIncrementalModeDelta},
+			snapshot: func() reducercontract.AWSDriftReopenSnapshot {
+				snap := snapshotWithARNs(map[string]string{"arn:1": "p1"})
+				snap.Fingerprint = "fp-X"
+				return snap
+			}(),
+		},
+	}
+	intent := reducercontract.Intent{
+		IntentID: "intent-aws-wired-record", ScopeID: "aws:scope", GenerationID: "gen-9",
+		SourceSystem: "aws", Domain: reducercontract.DomainAWSCloudRuntimeDrift, Cause: "test",
+	}.WithStatus(reducercontract.IntentStatusClaimed, claimedAt)
+	if _, err := handler.Handle(t.Context(), intent); err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if snapshotLoader.calls != 0 {
+		t.Fatalf("snapshot calls = %d, want 0 (fresh snapshot reused)", snapshotLoader.calls)
+	}
+	if recorder.calls != 1 {
+		t.Fatalf("record calls = %d, want 1", recorder.calls)
+	}
+	if recorder.snapshot.Fingerprint != "fp-X" {
+		t.Fatalf("recorded fingerprint = %q, want fp-X", recorder.snapshot.Fingerprint)
+	}
+}
+
 func snapshotWithARNs(ids map[string]string) reducercontract.AWSDriftReopenSnapshot {
 	snap := reducercontract.AWSDriftReopenSnapshot{Fingerprint: "fp-test"}
 	for arn, hash := range ids {
