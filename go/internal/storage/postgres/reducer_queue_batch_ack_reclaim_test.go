@@ -359,7 +359,10 @@ func TestReducerQueueAckBatchNamesSupersededClaims(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &fakeExecQueryer{execResults: []sql.Result{rowsAffectedResult{rowsAffected: tc.rowsAffected}}}
+			// #10879 phase 1: the unrelated block reports its match count
+			// through QueryContext, so each case stages its matched count
+			// instead of a RowsAffected exec result.
+			database := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{tc.rowsAffected}}}}}
 			queue := ReducerQueue{
 				database:      database,
 				LeaseOwner:    "reducer-8007",

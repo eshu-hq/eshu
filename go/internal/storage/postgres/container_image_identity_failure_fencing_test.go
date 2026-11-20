@@ -35,10 +35,12 @@ func TestReducerQueueFailContainerImageIdentityBindsTerminalAttempt(t *testing.T
 	if err := queue.Fail(context.Background(), intent, errors.New("synthetic terminal failure")); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("Fail() statements = %d, want 1", len(db.execs))
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if len(db.queries) != 1 {
+		t.Fatalf("Fail() statements = %d, want 1", len(db.queries))
 	}
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, fragment := range []string{
 		"status = 'dead_letter'",
 		"container_image_identity_v2_authorized_status = CASE",
@@ -49,7 +51,7 @@ func TestReducerQueueFailContainerImageIdentityBindsTerminalAttempt(t *testing.T
 			t.Fatalf("container identity terminal Fail query missing %q:\n%s", fragment, query)
 		}
 	}
-	if got := db.execs[0].args[6]; got != int64(71) {
+	if got := db.queries[0].args[6]; got != int64(71) {
 		t.Fatalf("container identity terminal Fail epoch arg = %v, want 71", got)
 	}
 }
@@ -82,10 +84,12 @@ func TestReducerQueueFailContainerImageIdentityBindsRetryAttempt(t *testing.T) {
 	); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("Fail() statements = %d, want 1", len(db.execs))
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if len(db.queries) != 1 {
+		t.Fatalf("Fail() statements = %d, want 1", len(db.queries))
 	}
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, fragment := range []string{
 		"status = 'retrying'",
 		"container_image_identity_v2_authorized_status = CASE",
@@ -96,7 +100,7 @@ func TestReducerQueueFailContainerImageIdentityBindsRetryAttempt(t *testing.T) {
 			t.Fatalf("container identity retry Fail query missing %q:\n%s", fragment, query)
 		}
 	}
-	if got := db.execs[0].args[7]; got != int64(11) {
+	if got := db.queries[0].args[7]; got != int64(11) {
 		t.Fatalf("container identity retry Fail epoch arg = %v, want 11", got)
 	}
 }

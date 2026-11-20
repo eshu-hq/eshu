@@ -39,10 +39,12 @@ func TestReducerQueueFailDefersCloudAdmissionReadinessPastAttemptBudget(t *testi
 	if err := queue.Fail(context.Background(), intent, cause); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(database.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	query := database.execs[0].query
+	query := database.queries[0].query
 	for _, want := range []string{"UPDATE fact_work_items", "status = 'retrying'", "failure_class = $2"} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
@@ -51,7 +53,7 @@ func TestReducerQueueFailDefersCloudAdmissionReadinessPastAttemptBudget(t *testi
 	if strings.Contains(query, "dead_letter") {
 		t.Fatalf("readiness miss past the budget must not dead-letter:\n%s", query)
 	}
-	if got, want := database.execs[0].args[1], reducer.CloudAdmissionNotReadyFailureClass; got != want {
+	if got, want := database.queries[0].args[1], reducer.CloudAdmissionNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }

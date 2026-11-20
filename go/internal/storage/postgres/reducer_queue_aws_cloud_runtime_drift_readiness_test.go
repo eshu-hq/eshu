@@ -92,11 +92,13 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d (a non-counting defer, not a dead-letter)", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d (a non-counting defer, not a dead-letter)", got, want)
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -108,7 +110,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], awscloud.AWSCloudRuntimeDriftStatePendingFailureClass; got != want {
+	if got, want := db.queries[0].args[1], awscloud.AWSCloudRuntimeDriftStatePendingFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }
@@ -142,11 +144,13 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBud
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d (a non-counting defer, not a dead-letter)", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d (a non-counting defer, not a dead-letter)", got, want)
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -158,7 +162,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBud
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass; got != want {
+	if got, want := db.queries[0].args[1], awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 }

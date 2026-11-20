@@ -53,11 +53,7 @@ var RetireTableDispositions = map[string]RetireTableEntry{
 	"fact_records":                            {Table: "fact_records", KeyColumns: []string{"scope_id", "generation_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/005:3-4)"},
 	"fact_work_items":                         {Table: "fact_work_items", KeyColumns: []string{"scope_id", "generation_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/005:3-4)"},
 	"fact_replay_events":                      {Table: "fact_replay_events", KeyColumns: []string{"scope_id", "generation_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "references fact_work_items; cascades with the generation"},
-<<<<<<< HEAD
 	"fact_work_item_leases":                   {Table: "fact_work_item_leases", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "work_item_id PK references fact_work_items ON DELETE CASCADE (migrations/322); cascades with the queue row"},
-=======
-	"fact_work_item_leases":                   {Table: "fact_work_item_leases", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "work_item_id PK references fact_work_items ON DELETE CASCADE (migrations/320); cascades with the queue row"},
->>>>>>> 48b2718f95 (Renumber 319/320 to 320/321: #11021 owns 319)
 	"shared_projection_acceptance":            {Table: "shared_projection_acceptance", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/011); deleted only after 2b (invariant I3)"},
 	"graph_projection_phase_state":            {Table: "graph_projection_phase_state", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/012)"},
 	"graph_projection_phase_repair_queue":     {Table: "graph_projection_phase_repair_queue", KeyColumns: []string{"scope_id"}, RemoveSteps: []string{"2d"}, Disposition: "2d", Reason: "generation FK cascade (migrations/013)"},

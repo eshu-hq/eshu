@@ -22,7 +22,7 @@ func (leaseTestRetryableError) Error() string   { return "lease test retryable" 
 func (leaseTestRetryableError) Retryable() bool { return true }
 
 // setupLeaseTestSchema builds a disposable queue schema including the #10879
-// lease table. It fails RED until migration 320 exists.
+// lease table. It fails RED until migration 321 exists.
 func setupLeaseTestSchema(
 	t *testing.T,
 	ctx context.Context,
@@ -124,7 +124,7 @@ func claimOneSupplyChainItem(
 	return intent
 }
 
-// TestReducerQueue10879LeaseTableBackfillsLiveLeases proves migration 320
+// TestReducerQueue10879LeaseTableBackfillsLiveLeases proves migration 321
 // creates the lease table with the production shape and backfills exactly the
 // live reducer leases, leaving terminal rows out.
 func TestReducerQueue10879LeaseTableBackfillsLiveLeases(t *testing.T) {
