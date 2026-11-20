@@ -213,6 +213,14 @@ func TestGoAnalysisFailedContract(t *testing.T) {
 					}
 				}
 			}
+			if tc.wantGo == GoVulnReachabilityAnalysisFailed {
+				if !stringSliceContains(impact.EvidencePath, chain.VulnerabilityGoModuleEvidenceFactKind) {
+					t.Fatalf("analysis_failed EvidencePath = %#v, want the module evidence kind", impact.EvidencePath)
+				}
+				if stringSliceContains(impact.EvidencePath, chain.VulnerabilityGoCallReachabilityFactKind) {
+					t.Fatalf("analysis_failed EvidencePath = %#v, want no call-graph evidence kind", impact.EvidencePath)
+				}
+			}
 		})
 	}
 }
