@@ -21,12 +21,16 @@ trap 'rm -rf "${tmp}"' EXIT
 mkdir -p "${tmp}/scripts/lib" "${tmp}/.github/workflows" "${tmp}/specs"
 cp "${repo_root}/${script_rel}" "${tmp}/scripts/verify-docs-only-ci-skip.sh"
 cp "${repo_root}/scripts/lib/ci-gate-predicate-quantifier.sh" "${tmp}/scripts/lib/ci-gate-predicate-quantifier.sh"
+cp "${repo_root}/scripts/lib/ci-gate-leaf-filter-refs.sh" "${tmp}/scripts/lib/ci-gate-leaf-filter-refs.sh"
 cp "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh" "${tmp}/scripts/lib/ci-gate-docs-planner-checks.sh"
 cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
 mkdir -p "${tmp}/scripts/ci" "${tmp}/specs/ci-pr-workflows.d"
 cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
 for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml sdk-go.yml; do cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"; done
 cp "${repo_root}/specs/ci-docs-lockstep-paths.txt" "${tmp}/specs/ci-docs-lockstep-paths.txt"
+mkdir -p "${tmp}/.github"
+cp "${repo_root}/.github/leaf-code-filter.yml" "${tmp}/.github/leaf-code-filter.yml"
+cp "${repo_root}/.github/leaf-lockstep-filter.yml" "${tmp}/.github/leaf-lockstep-filter.yml"
 for wf in build.yml security-scan.yml mcp-schema-drift.yml test.yml; do
 	cp "${repo_root}/.github/workflows/${wf}" "${tmp}/.github/workflows/${wf}"
 done
@@ -64,24 +68,32 @@ if run_scratch >/dev/null 2>&1; then no 'missing Go umbrella assertion call must
 else ok 'missing Go umbrella assertion call fails'; fi
 cp "${repo_root}/.github/workflows/test.yml" "${tmp}/.github/workflows/test.yml"
 
-# --- guard 1 (byte-identity), failing case: drop the .agents/** negation from
-# only ONE of the three copies (the exact #5818-shaped drift — a fix applied to
-# one filter copy and not the other two). ---
+# --- guard 1 (single source), failing case: repoint ONE workflow's filter
+# step at a private inline copy missing the .agents/** negation (the exact
+# #5818-shaped drift — a fix applied to one filter copy and not the shared
+# source). The consumption guard must fail even though the private bytes are
+# almost identical: private copies are the drift, not a drift symptom. ---
 python3 - "${tmp}/.github/workflows/mcp-schema-drift.yml" <<'PY'
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "              - '!.agents/**'\n"
-assert content.count(needle) == 1, "expected exactly one !.agents/** negation line"
+needle = "          filters: .github/leaf-code-filter.yml\n"
+assert content.count(needle) == 1, "expected exactly one shared code filter reference"
+inline = (
+	"          filters: |\n"
+	"            code:\n"
+	"              - '**'\n"
+	"              - '!docs/**'\n"
+)
 with open(path, "w") as f:
-	f.write(content.replace(needle, "", 1))
+	f.write(content.replace(needle, inline, 1))
 PY
 if out="$(run_scratch 2>&1)"; then
-	no "guard 1 should fail when one of the three code: filters drifts from the other two"
+	no "guard 1 should fail when one workflow regresses to a private code: filter copy"
 else
-	if rg -F 'code: filter has drifted' < <(printf '%s\n' "${out}") >/dev/null; then
-		ok "guard 1 fails and names the drift when one code: filter copy loses !.agents/**"
+	if rg -F 'does not consume .github/leaf-code-filter.yml' < <(printf '%s\n' "${out}") >/dev/null; then
+		ok "guard 1 fails and names the workflow that left the shared code filter"
 	else
 		no "guard 1 failed for the wrong reason; got:"
 		printf '%s\n' "${out}" >&2
@@ -89,9 +101,9 @@ else
 fi
 cp "${repo_root}/.github/workflows/mcp-schema-drift.yml" "${tmp}/.github/workflows/mcp-schema-drift.yml"
 if run_scratch >/dev/null 2>&1; then
-	ok "guard 1 passes again after restoring the mutated filter copy"
+	ok "guard 1 passes again after restoring the shared filter reference"
 else
-	no "guard 1 should pass again once the mutated filter copy is restored"
+	no "guard 1 should pass again once the shared filter reference is restored"
 fi
 
 # --- guard 2 (trigger superset), failing case: give a code-gated job's registry
@@ -131,33 +143,31 @@ else
 fi
 
 # --- guard 2 non-vacuity proof (#5841 P1): a NEW negation the filter does NOT
-# carry today — not one of the five hard-coded shapes a prior version of this
+# carry today - not one of the five hard-coded shapes a prior version of this
 # checker enumerated by name (docs/*, mkdocs.yml, .agents/*, .github/*.md,
-# *.md) — added IDENTICALLY to all three code: filter copies (byte-identity
+# *.md) - added once to the shared code filter (single-source consumption
 # stays intact, so guard 1 stays green) that happens to swallow an EXISTING
 # code-gated gate's trigger whole: '!go/internal/query/**' fully covers
 # query-plan-regression's "go/internal/query/**" trigger (ci.job
 # "verify-contracts", code-gated in test.yml). A matcher hard-coded to
-# today's five negation cases cannot see this — "go/internal/query/**"
+# today's five negation cases cannot see this - "go/internal/query/**"
 # matches none of them and falls through to "not swallowed", the exact false
 # "ok" the review flagged. The registry-driven matcher instead parses
 # whatever negations the filter actually carries, so it catches this without
 # needing a code change for the new negation shape. ---
-for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
-	python3 - "${tmp}/.github/workflows/${target_wf}" <<'PY'
+python3 - "${tmp}/.github/leaf-code-filter.yml" <<'PY'
 import sys
 path = sys.argv[1]
 with open(path) as f:
 	content = f.read()
-needle = "              - '!.agents/**'\n"
+needle = "  - '!.agents/**'\n"
 assert content.count(needle) == 1, "expected exactly one !.agents/** negation line"
-mutated = needle + "              - '!go/internal/query/**'\n"
+mutated = needle + "  - '!go/internal/query/**'\n"
 with open(path, "w") as f:
 	f.write(content.replace(needle, mutated, 1))
 PY
-done
 if out="$(run_scratch 2>&1)"; then
-	no "guard 2 should fail when a NEW negation, added identically to all three filters, swallows an existing code-gated trigger whole"
+	no "guard 2 should fail when a NEW negation in the shared filter swallows an existing code-gated trigger whole"
 else
 	if rg -F "trigger 'go/internal/query/**' is swallowed by the code filter's own negations" < <(printf '%s\n' "${out}") >/dev/null; then
 		ok "guard 2 fails and names the swallowed trigger for a NEW negation not in the old hard-coded case list"
@@ -166,13 +176,11 @@ else
 		printf '%s\n' "${out}" >&2
 	fi
 fi
-for target_wf in test.yml security-scan.yml mcp-schema-drift.yml; do
-	cp "${repo_root}/.github/workflows/${target_wf}" "${tmp}/.github/workflows/${target_wf}"
-done
+cp "${repo_root}/.github/leaf-code-filter.yml" "${tmp}/.github/leaf-code-filter.yml"
 if run_scratch >/dev/null 2>&1; then
-	ok "guard 2 passes again after restoring all three filters"
+	ok "guard 2 passes again after restoring the shared filter"
 else
-	no "guard 2 should pass again once all three filters are restored"
+	no "guard 2 should pass again once the shared filter is restored"
 fi
 
 # --- negation_swallows_trigger LIVE shape proof (#5841 P1): the code: filter

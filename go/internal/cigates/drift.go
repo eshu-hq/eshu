@@ -170,6 +170,13 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     marker must name a workflow job whose `if` is permanently false, so the
 //     row and the job cannot disagree. See checkDisabledMarkers
 //     (jobownership_names.go).
+//
+//  17. Generated leaf filter freshness (#10980): .github/leaf-code-filter.yml
+//     and .github/leaf-lockstep-filter.yml must equal the output of the
+//     generator over specs/ci-docs-set-patterns.txt and
+//     specs/ci-docs-lockstep-paths.txt. A hand edit to generated output, or a
+//     specs edit without regenerating, forks CI selection from the single
+//     source. See checkLeafFilterFreshness (leaffilters.go).
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -197,6 +204,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkGeneratorInputCoverageForDrift(repoRoot, reg)...)
 	errs = append(errs, checkGeneratorOutputCoverage(repoRoot, reg)...)
 	errs = append(errs, checkDisabledMarkers(repoRoot, reg)...)
+	errs = append(errs, checkLeafFilterFreshness(repoRoot)...)
 
 	return errs
 }

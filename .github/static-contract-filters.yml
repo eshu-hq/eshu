@@ -4,17 +4,11 @@ openapi: [
   'specs/capability-catalog.v1.yaml', 'specs/capability-matrix.v1.yaml', 'scripts/*verify-openapi*.sh', 'scripts/lib/*verify-openapi*.sh',
   '.github/openapi-known-drift.txt',
 ]
-route:
-  - '.github/workflows/static-contract-gates.yml'
-  - 'specs/ci-gates.v1.yaml'
-  - 'specs/ci-gates.d/**'
-  - '.github/static-contract-filters.yml'
-  - 'go/internal/query/**'
-  - 'scripts/*verify-route-coverage*.sh'
-  - 'scripts/test-gate-fetch-base-guard.sh'
-  - 'scripts/lib/test-gate-fetch-base-guard-route-cases.sh'
-  - 'scripts/lib/test-merge-ref-fixture.sh'
-  - 'scripts/lib/gate-diff-base.sh'
+# route: deleted in #10980. No append_gate call and no job outputs reference
+# a `route` filter key, and no registry gate owns the route-coverage scripts
+# it listed, so dorny computed an output nothing read. If route coverage
+# needs a gate again, add the gate (with triggers) and the append_gate row
+# together so the drift check keeps them in lockstep.
 edge:
   - '.github/workflows/static-contract-gates.yml'
   - 'specs/ci-gates.v1.yaml'

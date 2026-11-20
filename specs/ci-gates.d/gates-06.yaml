@@ -361,6 +361,7 @@ gates:
       - "scripts/lib/ci-gates-resolved-fixtures.sh"
       - "scripts/verify-docs-only-ci-skip.sh"
       - "scripts/lib/ci-gate-docs-planner-checks.sh"
+      - "scripts/lib/ci-gate-leaf-filter-refs.sh"
       - "specs/ci-pr-workflows.d/build.yml"
       - "scripts/test-verify-docs-only-ci-skip.sh"
       - "scripts/test-verify-docs-only-ci-skip-docs-set.sh"

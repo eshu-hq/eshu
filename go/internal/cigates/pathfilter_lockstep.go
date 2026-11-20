@@ -62,6 +62,81 @@ func DornyFilterSteps(raw []byte) []DornyFilterStep {
 	return steps
 }
 
+// DornyFilterStepsResolved returns every dorny/paths-filter step in raw
+// workflow file bytes, resolving external `filters:` file references
+// against root (the repository checkout the workflow belongs to). Inline
+// blocks keep working exactly as in DornyFilterSteps. A dangling, escaping,
+// or malformed reference is an error, never an empty step: callers proving
+// CI selection must fail closed rather than read a renamed filter as
+// "nothing selected".
+func DornyFilterStepsResolved(root string, raw []byte) ([]DornyFilterStep, error) {
+	var wf pathFilterWorkflowFile
+	if err := yaml.Unmarshal(raw, &wf); err != nil {
+		return nil, fmt.Errorf("parse workflow: %w", err)
+	}
+	keys := make([]string, 0, len(wf.Jobs))
+	for key := range wf.Jobs {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var steps []DornyFilterStep
+	for _, key := range keys {
+		for _, step := range wf.Jobs[key].Steps {
+			if !strings.Contains(step.Uses, "dorny/paths-filter") {
+				continue
+			}
+			s, ok := step.With["filters"].(string)
+			if !ok {
+				continue
+			}
+			var filters map[string][]string
+			if err := yaml.Unmarshal([]byte(s), &filters); err != nil || len(filters) == 0 {
+				resolved, err := resolveDornyFiltersRef(root, s)
+				if err != nil {
+					return nil, fmt.Errorf("job %q dorny filters: %w", key, err)
+				}
+				filters = resolved
+			}
+			q, _ := step.With["predicate-quantifier"].(string)
+			steps = append(steps, DornyFilterStep{Filters: filters, Every: q == "every", Job: key})
+		}
+	}
+	return steps, nil
+}
+
+// resolveDornyFiltersRef reads a dorny `filters:` file reference relative to
+// a repository checkout root. The reference must be a clean relative path
+// that stays inside the checkout; absolute paths, parent escapes, and
+// multi-line values are rejected. It shares its confinement rules with
+// dornyFiltersFile: a filter that escapes the repository must fail the drift
+// gate loudly, never resolve against another checkout's tree.
+func resolveDornyFiltersRef(root, ref string) (map[string][]string, error) {
+	if strings.Contains(ref, "\n") || ref == "" || filepath.IsAbs(ref) || filepath.Clean(ref) != ref || strings.HasPrefix(ref, "..") {
+		return nil, fmt.Errorf("invalid dorny filters reference %q", ref)
+	}
+	clean, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root for dorny filters %q: %w", ref, err)
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(clean, ref))
+	if err != nil {
+		return nil, fmt.Errorf("resolve dorny filters %q: %w", ref, err)
+	}
+	rel, err := filepath.Rel(clean, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil, fmt.Errorf("dorny filters %q escapes repository", ref)
+	}
+	content, err := os.ReadFile(resolved) // #nosec G304 -- path is repository-confined.
+	if err != nil {
+		return nil, fmt.Errorf("read dorny filters %q: %w", ref, err)
+	}
+	var filters map[string][]string
+	if err := yaml.Unmarshal(content, &filters); err != nil || len(filters) == 0 {
+		return nil, fmt.Errorf("dorny filters %q are empty or malformed: %v", ref, err)
+	}
+	return filters, nil
+}
+
 // DornyFilterStepWithKey returns the first dorny step whose filters contain
 // key, or false when no step carries it. Missing is distinct from empty:
 // callers proving CI selection must fail loudly on false rather than treat

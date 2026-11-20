@@ -20,9 +20,10 @@
 # and required-check-safe. Runs in the always-on docs-helm-hygiene job.
 #
 # It also guards the #5818 regression class directly: test.yml, security-scan.yml,
-# and mcp-schema-drift.yml each carry their own copy of the same dorny/paths-filter
-# `code` block, and #5818 burned ~118 runner-minutes on a five-markdown-file PR
-# because `code` evaluated true and every heavy Go lane ran.
+# and mcp-schema-drift.yml must all consume the single generated
+# .github/leaf-code-filter.yml (a private copy is how #5818 burned ~118
+# runner-minutes on a five-markdown-file PR: `code` evaluated true and every
+# heavy Go lane ran). Content freshness is the Go drift gate's job.
 #
 # #5896 found it: dorny@v3 defaults to `predicate-quantifier: some`, under which
 # `**` matches first and NO negation subtracts, however it is anchored. The
@@ -45,6 +46,10 @@ set -uo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 wf="${repo_root}/.github/workflows"
 . "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh"
+# shellcheck source=scripts/lib/ci-gate-leaf-filter-refs.sh
+. "${repo_root}/scripts/lib/ci-gate-leaf-filter-refs.sh"
+declare -F step_filters_ref >/dev/null ||
+	{ printf 'verify-docs-only-ci-skip: ci-gate-leaf-filter-refs.sh did not define step_filters_ref (source missing or failed) \u2014 aborting\n' >&2; exit 1; }
 registry="$(mktemp)"
 trap 'rm -f "${registry}"' EXIT
 ci_gates_flat_view "${repo_root}/specs/ci-gates.v1.yaml" "${registry}" "${repo_root}" || exit 1
@@ -82,20 +87,6 @@ job_alwayson() { ! job_gated "$1" "$2"; }
 # missing source would skip the #5896 guard and still exit 0.
 declare -F run_predicate_quantifier_check >/dev/null ||
 	{ printf 'verify-docs-only-ci-skip: ci-gate-predicate-quantifier.sh did not define run_predicate_quantifier_check (source missing or failed) — aborting\n' >&2; exit 1; }
-
-# code_filter_block <file> — the dorny/paths-filter `code:` key and its `- '...'`
-# negation list, verbatim (comments excluded), for byte-identity comparison
-# across the three workflows that duplicate this filter.
-code_filter_block() {
-	awk '
-		/^[[:space:]]*code:[[:space:]]*$/ { grab = 1; print; next }
-		grab {
-			if ($0 !~ /^[[:space:]]*- /) { exit }
-			print
-			next
-		}
-	' "$1"
-}
 
 # registry_gated_triggers <workflow> <job...> — every `triggers:` path entry in
 # specs/ci-gates.v1.yaml for a gate whose `ci.workflow` is <workflow> and whose
@@ -373,22 +364,39 @@ run_docs_set_checks "${t}" "${s}" "${m}" "${repo_root}/specs/ci-pr-workflows.d"
 
 run_lockstep_checks "${t}" "${s}" "${m}" "${repo_root}/specs/ci-docs-lockstep-paths.txt"
 
-# --- #5818 regression guard 1: the three `code` filter copies must stay
-# byte-identical. #5818 happened because the fix (excluding a nested markdown
-# tree) only needed to land once conceptually, but the filter is duplicated
-# byte-for-byte three times; a future edit to only one copy is exactly this
-# drift. ---
-block_test="$(code_filter_block "${t}")"
-block_sec="$(code_filter_block "${s}")"
-block_mcp="$(code_filter_block "${m}")"
-if [[ -z "${block_test}" || -z "${block_sec}" || -z "${block_mcp}" ]]; then
-	bad "could not extract a code: filter block from test.yml, security-scan.yml, and mcp-schema-drift.yml"
-elif [[ "${block_test}" == "${block_sec}" && "${block_sec}" == "${block_mcp}" ]]; then
-	ok "test.yml, security-scan.yml, and mcp-schema-drift.yml carry byte-identical code: filters"
-else
-	bad "the code: filter has drifted between test.yml, security-scan.yml, and mcp-schema-drift.yml (#5818 regression class) — diff:"
-	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_sec}") >&2 || true
-	diff <(printf '%s\n' "${block_test}") <(printf '%s\n' "${block_mcp}") >&2 || true
+# --- #5818 regression guard 1: the `code` filter has ONE source. #5818
+# happened because the fix (excluding a nested markdown tree) only needed to
+# land once conceptually, but the filter was duplicated byte-for-byte in three
+# workflows; a future edit to only one copy is exactly this drift. Since
+# #10980 the three changes/filter steps consume the single generated
+# .github/leaf-code-filter.yml (and the lockstep steps the generated
+# .github/leaf-lockstep-filter.yml), so this guard proves the consumption:
+# every workflow references the shared files, which carry the expected keys.
+# Content freshness (specs -> files) is the Go drift gate's job
+# (checkLeafFilterFreshness, seeded RED/GREEN in leaffilters_test.go); this
+# guard owns the wiring, so a workflow that regresses to a private copy fails
+# here even when its bytes still match. ---
+single_source_ok=1
+for wf_file in "${t}" "${s}" "${m}"; do
+	if [[ "$(step_filters_ref "${wf_file}" filter)" != "${SHARED_CODE_FILTER}" ]]; then
+		bad "$(basename "${wf_file}") changes/filter step does not consume ${SHARED_CODE_FILTER} (#5818 regression class: a private filter copy forks selection silently)"
+		single_source_ok=0
+	fi
+	if [[ "$(step_filters_ref "${wf_file}" lockstep)" != "${SHARED_LOCKSTEP_FILTER}" ]]; then
+		bad "$(basename "${wf_file}") changes/lockstep step does not consume ${SHARED_LOCKSTEP_FILTER} (a private lockstep copy strands lockstep-only PRs silently)"
+		single_source_ok=0
+	fi
+done
+if [[ ! -f "${repo_root}/${SHARED_CODE_FILTER}" ]] || ! rg -q -- '^code:$' "${repo_root}/${SHARED_CODE_FILTER}"; then
+	bad "${SHARED_CODE_FILTER} is missing or has no code: key"
+	single_source_ok=0
+fi
+if [[ ! -f "${repo_root}/${SHARED_LOCKSTEP_FILTER}" ]] || ! rg -q -- '^lockstep:$' "${repo_root}/${SHARED_LOCKSTEP_FILTER}"; then
+	bad "${SHARED_LOCKSTEP_FILTER} is missing or has no lockstep: key"
+	single_source_ok=0
+fi
+if [[ "${single_source_ok}" -eq 1 ]]; then
+	ok "test.yml, security-scan.yml, and mcp-schema-drift.yml consume the single shared code/lockstep filters"
 fi
 
 # --- #5896 regression guard: without predicate-quantifier: 'every' the `!`

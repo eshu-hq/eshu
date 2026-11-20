@@ -24,8 +24,17 @@ func fullCodeApplicable(root string, paths []string, truncated bool) (bool, erro
 	if err != nil {
 		return false, err
 	}
+	// Steps resolve through the shared leaf filter files as well as inline
+	// blocks: test.yml consumes .github/leaf-code-filter.yml and
+	// .github/leaf-lockstep-filter.yml instead of carrying its own copies
+	// (#10980). An unresolvable reference fails closed here, so a renamed
+	// filter reads as an unproven policy rather than an empty one.
+	steps, err := cigates.DornyFilterStepsResolved(root, raw)
+	if err != nil {
+		return false, fmt.Errorf("build test code filter has an unrecognized selection policy: %w", err)
+	}
 	var code, lockstep *cigates.DornyFilterStep
-	for _, step := range cigates.DornyFilterSteps(raw) {
+	for _, step := range steps {
 		if _, ok := step.Filters["code"]; ok && code == nil {
 			s := step
 			code = &s

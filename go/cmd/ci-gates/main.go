@@ -12,6 +12,8 @@
 //	ci-gates queue-select --registry <path> --repo-root <path> --repo <owner/name> --base-ref <branch> --merge-group-branch <branch> --head-sha <sha> --workflow <file>
 //	ci-gates audit-scripts --registry <path> --repo-root <path> [--unreferenced-only] [--json]
 //	ci-gates validate --registry <path> --repo-root <path>
+//
+//	ci-gates generate-leaf-filters --repo-root <path>
 package main
 
 import (
@@ -64,6 +66,8 @@ func main() {
 		err = runReuse(args)
 	case "pr-plan":
 		err = runPRPlan(args)
+	case "generate-leaf-filters":
+		err = runGenerateLeafFilters(args)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "ci-gates: unknown subcommand %q\n", sub)
 		usage(os.Stderr)
