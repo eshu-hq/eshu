@@ -17,7 +17,7 @@ Scoped to `go/internal/collector/repo/git/rest`. Follow the root
 - A change to the attempt budget, the 60 s in-call cap, the 1 h hint cap, or
   the 20-cycle cap needs a measured reason and a matching update to
   `TestRetryBudgetConstantsArePinned`, `README.md`, and the evidence note
-  `docs/internal/evidence/8084-github-discovery-retry.md`. There is no
+  (#8084). There is no
   operator knob by ruling.
 - Reuse `sdk.IsTransientTransportError` and `sdk.TransportFailureClass`. Only
   the HTTP/2 stream reset is added here.

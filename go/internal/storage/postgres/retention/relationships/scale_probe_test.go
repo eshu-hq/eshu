@@ -400,7 +400,7 @@ func probeBytesPerRow(walBytes string, rows int64) string {
 }
 
 // TestRelationshipRetentionScaleProbe is the measurement behind the
-// docs/internal/evidence/10823-relationship-retention.md note. It is a manual
+// (#10823) note. It is a manual
 // probe, not a proof, and is deliberately not a *_live_test.go file: it skips
 // unless ESHU_RELATIONSHIP_RETENTION_PROBE names a scale, so no CI job runs it.
 // Run it against a disposable PostgreSQL (ESHU_POSTGRES_DSN and

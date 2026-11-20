@@ -447,7 +447,7 @@ only their package qualifier changed).
   `testdata/readiness_repo_arm_probes.golden`; a deliberate edit to either
   statement regenerates it with `-update-repo-arm-golden` and carries the plan
   proof. Evidence:
-  `docs/internal/evidence/7088-readiness-repo-scope.md`.
+  (#7088).
 - Image-reference targets batch the current digest set and active registry identity
   lookups. SBOM component counts join each active component to its active
   document by scope, generation, and document ID; the subject digest is on the

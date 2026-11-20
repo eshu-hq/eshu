@@ -32,7 +32,7 @@ import (
 //     depth and its oldest row age, per collector instance.
 //   - Fetch bytes emit from the satellite delta poller at enablement, never
 //     in-tree: this package records nothing for them. See the enablement
-//     note in docs/internal/evidence/9777-osv-delta-replan-drain.md.
+//     note in #9777.
 //
 // Nothing emits in-tree while the per-instance osv_delta_replan flag is off:
 // the instruments register at startup, and the record method returns early

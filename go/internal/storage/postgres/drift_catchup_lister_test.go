@@ -31,7 +31,7 @@ import (
 // lister only ever targets one scope_kind, so there is no reason to bind
 // it -- inlining the literal removes the failure mode instead of documenting
 // it. See drift_catchup_lister.go's doc comment and
-// docs/internal/evidence/5593-config-state-drift-catchup-lister-query.md for
+// (#5593) for
 // the LIKE-vs-equality measurement and the plan-mode proof.
 func TestIngestionStoreListActiveStateSnapshotScopesReturnsBoundedPendingScopes(t *testing.T) {
 	t.Parallel()

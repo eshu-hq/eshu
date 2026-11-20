@@ -76,9 +76,8 @@ const (
 	// local server, derived from the budget above rather than chosen. It is a
 	// floor and not the final value: ResolveLocalPostgresMaxConnections raises
 	// it when the operator configures a larger per-process pool. Configuration
-	// can never lower it, which is why the scope note in
-	// docs/internal/evidence/eshulocal-connection-budget.md says the budget
-	// cannot be reduced below the invariant by environment.
+	// can never lower it: the budget cannot be reduced below the invariant
+	// by environment.
 	LocalPostgresMaxConnections = localPostgresPoolHolderCount*localPostgresPerProcessPoolConns + localPostgresReservedConns
 )
 

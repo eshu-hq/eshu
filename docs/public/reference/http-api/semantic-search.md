@@ -165,7 +165,7 @@ Reranking fails closed to the baseline order when it is not requested
 signals, weights, and fusion are documented in
 [`internal/searchrerank`](https://github.com/eshu-hq/eshu/tree/main/go/internal/searchrerank).
 The accept decision and measured nDCG lift are recorded in
-[issue-2678 graph-rerank evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md).
+(#2678).
 
 ## Modes
 
@@ -227,7 +227,7 @@ reached) is verified by
 Benchmark Evidence: `go test ./internal/searchrerank -run Benchmark -v -count=1`
 scores baseline vs reranked nDCG@3 over a labeled fixture suite and gates the
 accept decision recorded in
-[issue-2678 graph-rerank evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/searchbench-evidence/2678-graph-rerank.md):
+(#2678):
 mean nDCG@3 0.7232 -> 1.0000 with no regression and the no-signal case held
 neutral.
 

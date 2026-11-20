@@ -79,7 +79,7 @@ func TestRunsOnConcurrentWritersOneEdgePerPairLive(t *testing.T) {
 // with the cross-repo tuple.
 //
 // It holds on Neo4j, the proof backend (see
-// docs/internal/evidence/6671-runs-on-concurrent-writers.md). It hard-fails
+// (#6671)). It hard-fails
 // because a lost cross-repo tuple is not reaped by RetractRepoRunsOnEdgesCypher,
 // so it would be an accuracy defect, not noise to log.
 func TestRunsOnConcurrentWritersCrossRepoTupleWinsLive(t *testing.T) {

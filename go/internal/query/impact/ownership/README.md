@@ -48,7 +48,7 @@ per request, and `RowLimit` (800) caps one chunk's owner rows; the cap is at
 least the largest page a route builds, so an ordinary page is never capped. Keys past it
 are ungranted and the response reports `truncated`. The measurements, and the
 grant-anchored shapes they ruled out, are in
-`docs/internal/evidence/5167-impact-grant.md`.
+(#5167).
 
 ## Dependencies
 

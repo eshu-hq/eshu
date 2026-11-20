@@ -4,7 +4,7 @@
 
 1. `go/internal/reducer/codedivergence/README.md` — pipeline and scaling bounds
 2. `go/internal/reducer/codedivergence/doc.go` — the package contract
-3. `docs/internal/evidence/6834-code-divergence-theory.md` §5 and §6 — the measured precision, threshold, and K=200 budget this package implements
+3. (#6834) §5 and §6 — the measured precision, threshold, and K=200 budget this package implements
 4. `go/internal/reducer/AGENTS.md` — intent lifecycle, generation supersession, domain registration invariants
 5. `go/internal/query/codedivergence/AGENTS.md` — suppression catalogue rules reused here, not duplicated
 

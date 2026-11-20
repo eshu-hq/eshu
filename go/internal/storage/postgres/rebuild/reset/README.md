@@ -145,7 +145,7 @@ ordering guarantee. The canonical-code quiescence gates now preserve the
 measured `CALLS`, `CORRELATES_DEPLOYABLE_UNIT`, `HANDLES_ROUTE`, and `RUNS_IN`
 lanes in a single pass, but workload-instance deployment materialization still
 has identity drift under clean and interrupted rebuilds. See
-`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`.
+(#6184).
 
 ## Verification
 

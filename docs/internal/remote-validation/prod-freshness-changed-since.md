@@ -46,7 +46,7 @@ cd go && go test ./internal/query/freshness -run TestChangedSince -count=1
 ```
 
 **Single-owner selector and sequenced-response correctness (design/regression
-evidence)** — `docs/internal/evidence/5261-changed-since-repository-truth.md`
+evidence)** — (#5261)
 documents the failing-first proof that a dual `scope_id`+`repository`
 selector could desynchronize displayed identity from evidence ownership, the
 fix (API and store both reject simultaneous selectors; a successful

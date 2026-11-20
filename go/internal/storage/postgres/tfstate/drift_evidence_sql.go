@@ -194,7 +194,7 @@ LIMIT 1
 // generation_id order, and EXPLAIN (ANALYZE, VERBOSE) showed the CTE fully
 // inlined into a Nested Loop against scope_generations (no separate CTE Scan
 // node) — see
-// docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md
+// (#5572)
 // for the full plan output from both the broken and fixed query text.
 // Exposing `ingested_at` from the CTE and ordering the OUTER SELECT by it
 // directly reuses the same scope_generations_scope_latest_lookup_idx index

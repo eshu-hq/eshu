@@ -9,7 +9,7 @@ and the two deliverables),
 [Table Census](7766-repository-retirement-table-census.md),
 [Surfaces](7766-repository-retirement-surfaces.md), and
 [Corrections And Open Items](7766-repository-retirement-corrections.md). The
-[evidence note](../evidence/7766-retirement-prove-first-results.md) indexes the results,
+evidence note (#7766) indexes the results,
 and the directory [7766-retirement-prove-first/](../evidence/7766-retirement-prove-first/)
 holds the raw per-run outputs, the fixture SQL, and the shell wrappers. The Go
 drivers are described, not committed.
@@ -112,7 +112,7 @@ P1, P2, and P9 ran on 2026-10-08. **P1 and P9 failed as originally designed,
 and the design was amended per the arbiter ruling on the #7766 prove-first
 results.** P2 passed only after the gate was folded into the scope upsert. The
 tables, the environment, and the method are in the
-[evidence note](../evidence/7766-retirement-prove-first-results.md), and the raw per-run
+evidence note (#7766), and the raw per-run
 outputs are in its directory. What they show:
 
 - **P1, design form, commit mode.** Cold p99 (the maximum at n=20): R79 22.3 ms,
@@ -253,7 +253,7 @@ Gates are from `specs/ci-gates.v1.yaml`.
 
 | PR | Content | Gates |
 | --- | --- | --- |
-| 1 | These design files, the evidence note (`docs/internal/evidence/7766-retirement-prove-first-results.md`), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
+| 1 | These design files, the evidence note (#7766), and its raw outputs, SQL, and shell wrappers (`docs/internal/evidence/7766-retirement-prove-first/`) | markdown-file-cap, docs-*, doc-citations, measurement-citations |
 | 2 | Refactor: move the retention prune steps and SQL to a leaf under `storage/postgres/retention/` (it holds only `statements/` today) with no behavior change, so the runner can call the same step list. `generation_retention.go` is 474 lines against the 500-line cap at `f4f14a4096`. Moving files out of `storage/postgres` needs no dirgate action; growth needs a `Dirgate-Growth:` commit trailer (`go/cmd/dirgate`). Deliverable 2 consumes it; Deliverable 1 does not depend on it. | go-file-cap, go-dir-gate, reducer-contention, package-docs |
 | 3 | Marker migration (`repository_retirements`, number 207 at this check) + leaf `storage/postgres/retirement` (marker store, folded commit gate, commit-path benchmark for P2'); gates in `ingestion.go` (499 lines at `f4f14a4096`, one under the cap: extract the finalized-skip rollback helper first and share it), backfill (the deferred engine, the targeted pass, and the per-commit source filter, with P11), recovery skip reasons, reindex refusal; refusal counter. No `claimed_at` change. | migration-immutability, reducer-contention, telemetry-coverage, go-file-cap |
 | 4 | Webhook handoff gate (`collector/repo/git`, edits only; 70 non-test files) | go-dir-gate, telemetry-coverage |

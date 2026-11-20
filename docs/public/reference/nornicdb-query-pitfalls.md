@@ -285,7 +285,7 @@ branch (`go/cmd/reducer/evidence-6634-workload-dependency-incoming-lookup.md`).
 #6794 measured a NON-empty first branch on
 `ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.3.3`: the related-repository read
 returned only its one outgoing row and dropped the three incoming rows
-(`docs/internal/evidence/6794-context-incoming-anchor.md`). `UNION ALL` was
+(#6794). `UNION ALL` was
 not measured on v1.3.3. Wrapping the union in `CALL {...} RETURN ...`
 returned every branch on auto-commit reads in every case tried.
 
@@ -321,7 +321,7 @@ costs far more than its row count explains, even for a bound node with no
 edges. The mirrored `(r:Repository {id: $repo_id})<-[rel:T1|T2]-(source:Repository)`
 returns the same rows in milliseconds. The engine source was not read, so the
 plan is inferred from timing only. #6794 measured both on one seeded graph
-(`docs/internal/evidence/6794-context-incoming-anchor.md`); on a
+(#6794); on a
 production-scale instance the right-anchored reads ran past the 10s API
 deadline and repository context rendered no incoming rows.
 
@@ -588,7 +588,7 @@ MATCH (n) WHERE any(l IN labels(n) WHERE l IN ['Repository']) RETURN n.id       
 A property equality `AND`ed with the label test (`WHERE s:R AND s.id = 'r1'`)
 happened to evaluate correctly; do not rely on it. The full probe matrix,
 rows per backend, and the production exposure audit are in
-`docs/internal/evidence/6786-nornicdb-label-predicates.md`.
+(#6786).
 
 The probes must read in auto-commit mode (`session.Run`), as production does:
 in a managed transaction v1.3.3 rejects every `CALL { … }` subquery with
@@ -702,7 +702,7 @@ per label) plus the single-clause projection contract.
 Both by-id impact reads were fixed this way (#5286,
 `go/internal/query/impact/deployment/impact_anchor_resolve.go`, `go/internal/query/impact/handler.go`, guard test
 `TestImpactAnchorResolveCypherIsPerLabelUnion`, live proof
-`docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`):
+(#5286)):
 `trace-resource-to-code` folds the label resolution into the traversal as a
 `CALL{UNION}` of per-label inline-property anchors (one round-trip), and
 `explain-dependency-path` resolves both endpoints' labels in one `CALL{UNION}`
@@ -718,7 +718,7 @@ OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
 dropped every row, both replaced with single-clause per-label reads joined in Go
 (`go/internal/query/impact/trace_deployment_oci.go`, guard test
 `TestOCIRegistryTruthQueriesAreNornicDBSafe`, live proof
-`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`).
+(#5287)).
 
 The change-surface variable-length impact traversals (`/change-surface`,
 `/change-surface/investigate`) were fixed the same way (#5287): the investigate
@@ -731,7 +731,7 @@ and a raw `relationships(path)` projection unwound per-edge in Go for the legacy
 read (`go/internal/query/impact/change_surface_response.go`,
 `go/internal/query/impact/change_surface_legacy.go`, guard test
 `TestChangeSurfaceTraversalQueriesAreNornicDBSafe`, live proof
-`docs/internal/evidence/5287-change-surface-nornicdb.md`). Two supporting
+(#5287)). Two supporting
 findings from that proof:
 
 - A **bare untyped** variable-length traversal `(start)-[*1..N]->(impacted)`
@@ -750,7 +750,7 @@ findings from that proof:
 
 `go test ./internal/query -run 'TestBlastRadius|TestFindBlastRadius|TestMergeBlastRadius' -count=1`
 (the query-shape guard fails on the pre-#5279 multi-clause shapes) plus the live
-Bolt-HTTP before/after in `docs/internal/evidence/5279-blast-radius-nornicdb.md`.
+Bolt-HTTP before/after in (#5279).
 
 ### Upstream fix (pinned until merged into NornicDB main)
 

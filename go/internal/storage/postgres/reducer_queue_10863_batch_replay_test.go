@@ -22,7 +22,7 @@ import (
 // #10863 acceptance 1/2/6 on the built code: run it on both builds and
 // pair drain percentiles only with drain percentiles (they fall as depth
 // falls). The recorded same-method pair lives in
-// docs/internal/evidence/10863-claim-supersede-out.md. Operator-gated on
+// (#10863). Operator-gated on
 // ESHU_REDUCER_CLAIM_BENCH_DSN like the other claim benches; it never
 // touches QA.
 func TestReducerQueue10863BatchClaimReplay(t *testing.T) {

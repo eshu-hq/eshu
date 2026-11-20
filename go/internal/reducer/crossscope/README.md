@@ -157,7 +157,7 @@ documented under "Ordering assumption" above, for the same reason
 (`ValueFlowInputsNotReadyFailureClass` is also enrolled in
 `nonCountingReducerRetryFailureClasses`, so `attempt_count` freezes on every
 defer and only elapsed time can end the wait). See
-`docs/internal/evidence/6923-value-flow-single-solve.md` for the fence's
+(#6923) for the fence's
 EXPLAIN proof and `code/value/refresh/README.md` for the handler side.
 
 ## Telemetry

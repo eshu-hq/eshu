@@ -165,7 +165,7 @@ introduces it, so `Extract` does not judge segments only one at a time (#9786).
   `redaction_class`, and warning metadata as a marker segment, and emit no
   mention facts.
 - The window also reaches back (#9792, ruled in
-  `docs/internal/evidence/9792-backward-window-arbiter-ruling.md`). A speech
+  (#9792)). A speech
   engine can put a value ahead of its label as well as behind it ("swordfish.",
   then "is the password"), and the pinned `base.en` produced a value two
   lettered segments before its keyword ("swordfish" | "right it out" | "that is

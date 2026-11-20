@@ -206,7 +206,7 @@ func (cr *ContentReader) MatchRepositories(ctx context.Context, selector string)
 // statement however many grants the caller holds. Callers bound the id set
 // before reading. The scope_id disjunct probes the primary key; the id
 // expression has no index, so that disjunct filters the repository-kind rows.
-// Evidence: docs/internal/evidence/8837-security-alert-grant-scope.md.
+// Evidence: (#8837).
 func (cr *ContentReader) MatchRepositoriesByIDs(ctx context.Context, ids []string) ([]RepositoryCatalogEntry, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil

@@ -61,7 +61,7 @@ type repositoryDependencyEdge struct {
 // needs a WHERE-free statement, and a scoped caller's grant is a WHERE
 // predicate, so scoped callers keep this shape and still pay that
 // expansion. See RepositoryDependencyGroupedEdgeCypher and
-// docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md.
+// (#6786).
 //
 // Keep both endpoint labels. Dropping them to seed from unlabelled endpoints
 // is slower, and moving them into `WHERE s:Repository AND t:Repository` is

@@ -425,7 +425,7 @@ Graph in 12.232 seconds; the complete bearer sweep passed 37/37 routes in
 named intermediate checkpoint values, not the final browser-run acceptance
 table. The final runner identity and route timings are recorded in the
 repository-only evidence note
-`docs/internal/evidence/5244-5253-dashboard-correctness.md`, so later
+(#5244), so later
 console-only proof reruns do not silently overwrite this query-shape checkpoint
 or manufacture a cross-run comparison.
 
@@ -802,7 +802,7 @@ in 0.180405s and 0.180382s; both returned HTTP 200, 416 bytes, and byte-identica
 responses. The intermediate browser sweep then passed Code Graph in 9.122s,
 down from the prior failing 16.086s route, with its live-canvas workflow passing
 and zero console errors. The exact final-image acceptance result is recorded in
-[Dashboard Correctness and Bounded-Read Evidence](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/5244-5253-dashboard-correctness.md#final-live-console-and-corpus-proof).
+[Dashboard Correctness and Bounded-Read Evidence](https://github.com/eshu-hq/eshu/blob/main/(#5244)#final-live-console-and-corpus-proof).
 Since the backend fix makes the duplicated development-only reads cheap and
 settled, no frontend cache or request-sharing semantics were added.
 
@@ -1197,7 +1197,7 @@ ledger:5998-delta-per-label-probe-empty in the repository's measurement ledger,
 one image, so this path is justified by its own same-store pair rather than by
 comparison against the whole-repository figures, which came from a different
 host. The empty-store half of the DELETE pair comes from an earlier session
-than the seeded figure, which `docs/internal/evidence/5998-rationale-retract-probe-guard.md`
+than the seeded figure, which (#5998)
 records explicitly. It runs on every incremental sync rather than once per generation, so it
 fires far more often than the whole-repository retract. `executeGuardedRationaleDeltaRetracts` pairs each
 per-label retract statement with its own `BuildProbeRationaleEdgeStatementsByFilePath`
@@ -1802,7 +1802,7 @@ Warm Bolt medians were 1.246 ms for the old 500-row shape and 2.194 ms for the
 new 1,000-row shape; all new-shape samples stayed below 2.5 ms. The intended
 accuracy gain doubles the useful result set while keeping traversal depth and
 latency bounded. See the repository evidence note at
-`docs/internal/evidence/5410-sql-relationships-performance.md`
+(#5410)
 for the graph shape, samples, source-executor PROFILE result, and NornicDB
 PROFILE-display limitation.
 

@@ -7,7 +7,7 @@ corpus, with the reducer consequence stated). Parent ruling:
 [10671-cvelist-mirror-ruling-2026-11-15.md](10671-cvelist-mirror-ruling-2026-11-15.md).
 Design: [10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
 Measurements:
-[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
+(#10671).
 Environment identifiers are redacted per #7803.
 
 ## Ruling

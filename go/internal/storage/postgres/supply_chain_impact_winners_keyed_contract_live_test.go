@@ -62,7 +62,7 @@ func TestSupplyChainImpactWinnersResweepKeyedProbePlanLive(t *testing.T) {
 	// #10544 retirement parity: a fully bootstrapped database must carry the
 	// 291 keyed index and must not carry the retired triple-only
 	// package-lookup index, whose planner cost ties the 291 index at rows=1
-	// (see docs/internal/evidence/10544-retire-package-lookup-idx.md). The
+	// (see (#10544)). The
 	// seeded-violation arm plants the retired index and requires the same
 	// census to see it, so an absence assertion that could not detect the
 	// index would fail here instead of passing vacuously.

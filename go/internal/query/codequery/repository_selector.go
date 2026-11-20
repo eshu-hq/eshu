@@ -91,7 +91,7 @@ func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, rawSelector
 // stored identity is the canonical `repository:r_payments`. Nothing matches and
 // the caller reads an empty page from a repository they were granted -- the
 // same scope-versus-canonical mismatch #5052 fixed in keyword search
-// (docs/internal/evidence/5052-keyword-search-scope-id.md).
+// (#5052).
 //
 // The resolution is additive, so the fail-closed cases are untouched: a grant
 // that resolves to no repository still reads nothing, and a caller with no

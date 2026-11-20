@@ -129,7 +129,7 @@ the observed count, the ceiling, and the top statements, instead of leaving
 the total to grow silently. CI passes `-diff-executions-advisory-max=200`:
 observed advisory totals on this corpus were 12-70 across nine CI runs and
 four replayed capture artifacts (run IDs in
-`docs/internal/evidence/6782-executions-advisory.md`, "Calibration"), so 200
+(#6782), "Calibration"), so 200
 is a systemic-regression tripwire (~2.9x the observed max), not a tuning
 target. Within the ceiling (or with it disabled) the existing advisory
 finding behaves exactly as before — no ceiling finding is added.

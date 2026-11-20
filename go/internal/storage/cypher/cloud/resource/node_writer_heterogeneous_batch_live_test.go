@@ -28,7 +28,7 @@ import (
 // so the default package test run never requires Docker or a live graph
 // backend. Prove-theory-first for the shared-writer fix (Option A: writer
 // default-fill vs Option B: Cypher coalesce) is recorded in
-// docs/internal/evidence/5714-cloudresource-row-key-defaults.md; both were
+// (#5714); both were
 // measured viable against the pinned NornicDB image, and Option A was chosen
 // because it needs no Cypher rewrite and is unit-testable without a live
 // backend (TestCloudResourceNodeWriterDefaultFillsMissingRowKeys).

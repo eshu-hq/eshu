@@ -480,7 +480,7 @@ var (
 // empty variable scope clause needs Neo4j 5.23, the documented floor; bare
 // CALL { } is deprecated from 5.23. Nodes with no uid or id at all
 // (Parameter, Directory, name-keyed Module) were never matched by the old
-// predicate either; see docs/internal/evidence/7057-relationship-uid-anchor.md.
+// predicate either; see (#7057).
 // NornicDB readers keep their own label-resolved anchors and must not use this
 // clause.
 func Neo4jEntityIDAnchor(alias string, param string) string {

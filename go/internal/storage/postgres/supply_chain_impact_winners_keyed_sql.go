@@ -10,7 +10,7 @@ import "strings"
 // single-flight lock, builds a keyed active_facts through the keyed winners
 // index (migration 291), and runs the shipped winner select body over it, so a
 // tick costs the size of what changed instead of the size of the table. See
-// docs/internal/evidence/9805-winners-keyed-resweep.md.
+// (#9805).
 
 // Names of the transaction-scoped temp tables a keyed tick and an audit build.
 // Every one is created ON COMMIT DROP inside the transaction that uses it.

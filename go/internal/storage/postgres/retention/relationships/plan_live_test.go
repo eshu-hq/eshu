@@ -4,7 +4,7 @@
 package relationshipretention_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (docs/internal/evidence/10823-relationship-retention.md)
+//eshu:readiness:reason #10823 disposable PostgreSQL 18 plan guard: on a populated migrated schema (400k evidence rows, 8,000 live generations plus 100 orphans, VACUUM ANALYZE) the three delete statements pick and delete evidence and candidate rows through their generation index and primary key, delete a generation row through its primary key while probing its child rows through the generation indexes, and never sequentially scan a table they delete from or probe, and the settle read probes the evidence and candidate tables through their generation indexes, in the custom plan and in the generic plan a driver that caches prepared statements switches to after five runs (#10823)
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
@@ -182,7 +182,7 @@ func requirePlan(t *testing.T, label string, nodes []planNode, indexes, noSeqSca
 // size and visibility map coverage (the evidence note records both), so a pin
 // would fail on a plan that costs the same.
 //
-// Like the purge's plan flip (docs/internal/evidence/10820-census-2e-purge.md),
+// Like the purge's plan flip (#10820),
 // the delete plans hold while a batch is a small share of the table: verified
 // on PostgreSQL 18, and this test pins it against a server upgrade or a
 // statement edit.

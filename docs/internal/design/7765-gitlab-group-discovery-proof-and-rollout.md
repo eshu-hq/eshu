@@ -191,7 +191,7 @@ loaded, so only the same-session comparison counts.
 - The migration 092 and 130 triggers.
 
 The seed and query scripts and the raw outputs are committed with PR 1 as an
-evidence note, `docs/internal/evidence/7765-gitlab-group-prefix-read.md`. The
+evidence note (#7765). The
 store README gets the "Performance Evidence (#7765)" section in PR 1. Until
 then, the figures on this page are the only record.
 
@@ -316,7 +316,7 @@ Every PR runs focused tests, `eshu-code-review`, the review-attest receipt and
    - Files: `membership/{evaluate,identity,observer}.go` (`Partition` and the
      interface), `storage/postgres/membership/observations.go` (prefix
      constant), both READMEs, and
-     `docs/internal/evidence/7765-gitlab-group-prefix-read.md` (the seed and
+     (#7765, the seed and
      query scripts plus raw outputs).
    - The mechanical `KnownScopes` signature update to `(ctx, Partition)`, with
      no assertion changes:

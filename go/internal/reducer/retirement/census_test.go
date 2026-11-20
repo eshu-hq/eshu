@@ -234,7 +234,7 @@ func TestRetireTableDispositionsAreWellFormed(t *testing.T) {
 // is load-bearing: each reason must name the order, so a later edit that moves
 // the statement has to rewrite the claim as well. The positions come from the
 // writers' lock order and from the triggers that re-create the rows
-// (docs/internal/evidence/10820-census-2e-purge.md).
+// (#10820).
 func TestCensusRowsRecordTheirPurgeOrder(t *testing.T) {
 	t.Parallel()
 

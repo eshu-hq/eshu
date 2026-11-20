@@ -149,5 +149,5 @@ code moved.
 Issue #6923 changed this package's runtime behavior again after the move
 above: the inline fixpoint solve was removed and the handler's ACK became a
 value-flow-refresh producer instead. See
-`docs/internal/evidence/6923-value-flow-single-solve.md` for that change's
+(#6923) for that change's
 Performance Evidence and Observability Evidence.

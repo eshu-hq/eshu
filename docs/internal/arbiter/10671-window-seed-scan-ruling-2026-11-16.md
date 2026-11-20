@@ -8,7 +8,7 @@ Recorded by the coordinator; the arbiter does not edit files. Arbiter:
 (defect 6 filed #198). Design:
 [10671-nvd-feed-transport-fallback.md](../design/10671-nvd-feed-transport-fallback.md).
 Measurement tables:
-[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md)
+(#10671)
 (M12).
 
 Ruling (the arbiter's headline): the year seed keeps serving the window gap, but
@@ -78,7 +78,7 @@ The reviewer's blocker is real, and it is worse than stated because of paging.
 ## Measurements
 
 The tables and their method are copied into [the evidence note,
-M12](../evidence/10671-nvd-feed-measurements.md). The summary the decisions rest
+M12](#10671). The summary the decisions rest
 on:
 
 | What | Result |
@@ -221,7 +221,7 @@ record ids per window, not facts (see Unverified).
    - **Eshu issue B (#10816, docs):** record this ruling under
      `docs/internal/arbiter/`, amend design sections 1 and 5 (R7b is now
      measured; the tail; the new class), and add the figures to
-     `docs/internal/evidence/10671-nvd-feed-measurements.md`. Add
+     (#10671). Add
      `nvd_feed_before_seed`, `nvd_feed_covered_seed`, `nvd_feed_beyond_seed` and
      `nvd_feed_seed_unavailable` to the scope of eshu#10716; core reads no
      selector class today (the arbiter's `git grep nvd_transport origin/main`

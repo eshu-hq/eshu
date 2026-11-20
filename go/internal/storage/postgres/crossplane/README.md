@@ -303,7 +303,7 @@ stable-ID UPDATE that records replay debt. In 50 paired single-row PostgreSQL
 path p50 1.290555 ms. A concurrent insert winner takes a bounded third
 statement to update the winning row. The target-discovery query, claim fan-out,
 indexes, and worker count are unchanged. No repo-scale throughput claim follows.
-See [the #8948 evidence](../../../../../docs/internal/evidence/8948-crossplane-redrive-replay.md)
+See the #8948 evidence
 for direct live interleavings and the 501-target paged sweep measurement.
 
 Performance Evidence (#10094): the discovery text collapses claims to one
@@ -316,7 +316,7 @@ base at 18.8 ms, within the 25 ms bound then in force. At the rebased head
 a quiet-host worse-of-two measured added cost 26.854 ms, most of it the
 shared lookup's candidate aggregation rather than the base leg; the bound
 was recalibrated to 30 ms on that basis and the verdict passes. See
-[the #10094 evidence](../../../../../docs/internal/evidence/10094-crossplane-redrive-delta-base.md).
+the #10094 evidence.
 
 No-Regression Evidence (comment correction): relative to merged source
 `5e4089e538`, the after-tree has identical comment-stripped Go syntax in

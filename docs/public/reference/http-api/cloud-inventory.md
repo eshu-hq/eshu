@@ -271,7 +271,7 @@ These measurements bound only the in-process per-row loader on linux/arm64 with
 Go 1.26.10; they do not establish HTTP or MCP endpoint latency. The existing
 cloud inventory query span and duration metric cover the request path. The
 full method, controls, and sample values are recorded in
-`docs/internal/evidence/9298-cloud-inventory-allowlist-performance.md`.
+(#9298).
 
 No-Observability-Change: #9298 adds no metric, span, log, status, or queue stage. Operators can inspect the existing cloud inventory query duration/error signals and the returned bounded attributes; live QA truth remains unverified until current typed AWS facts are admitted.
 

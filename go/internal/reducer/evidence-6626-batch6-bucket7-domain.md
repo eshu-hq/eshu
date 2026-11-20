@@ -34,7 +34,7 @@ spells the canonical `reducercontract.Domain`:
 this note. No golden, spec, manifest, or inventory content changed.
 
 Deliberate remainder: `rg "reducer\.Domain"` still hits two historical
-evidence records (`docs/internal/evidence/5426-golden-corpus-coverage.md`,
+evidence records ((#5426),
 `go/internal/replay/schedulereplay/evidence-4367-projection-ordering.md`),
 which describe past code in prose. Rewriting them would falsify the record,
 and the evidence-continuity gate treats them as ledger, so they stay with

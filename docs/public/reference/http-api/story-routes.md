@@ -128,7 +128,7 @@ fails if the Go kind list or ref predicate drifts from the migration. The
 ingest cost is one btree entry for a matching row only (documentation facts with
 no refs); other rows evaluate `fact_kind IN (...)` and skip the index.
 
-Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+Proof commands for this change are in (#7126).
 
 No-Observability-Change: the read keeps its `count_documentation_source_only_facts`
 span; only the statement text and its index change. No metric, log key, queue,
@@ -233,7 +233,7 @@ the issue id: 9.7 ms and 6,959 buffers at 50,000 links against 952 ms and 344,51
 without it, and about 45 ms against 1.04 s with 100 transitions on each of 5,000
 linked issues. The source-only count now subtracts linked issues (26 to 48-51 ms
 on the plan-proof corpus), a cost only a story that found no evidence pays. See
-`docs/internal/evidence/7464-story-target-support-jira-issue-link.md`.
+(#7464).
 
 Performance Evidence: since #7463 the PagerDuty routing read is a second bounded
 statement served by the existing migration 003 indexes (no new migration), and
@@ -241,21 +241,21 @@ the source-only count carries the correlation set, read per active generation. A
 about one million facts and 24 retained generations the routing read measures
 0.4 ms custom and 0.2 ms generic, and the source-only count 75 to 230 ms.
 The measurements, rejected shapes and proof commands are in
-`docs/internal/evidence/7463-story-target-support-incident-routing.md`.
+(#7463).
 
 Performance Evidence: migration 123 adds a partial index over the twelve support
 kinds (non-tombstoned), and the source-only statement carries those kinds as a
 literal `IN` list inside its per-(scope, kind) LATERAL so the planner proves the
 index predicate in custom and generic plans
 (`TestServiceStoryTargetSupportUsesSupportKindsIndexLive`); the #7126
-measurements are in `docs/internal/evidence/7126-story-read-cost.md`. The row reads are single-kind probes
+measurements are in (#7126). The row reads are single-kind probes
 served by migration 152 (links) and migration 155 (record and transition issue
 ids). Ingest cost: migration 123 adds one btree entry per non-tombstoned
 support-kind fact, migration 152 one more per non-tombstoned
 `work_item.external_link`, migration 155 one per non-tombstoned `work_item.record`
 or `work_item.transition`; other kinds pay none of them.
 
-Proof commands for this change are in `docs/internal/evidence/7126-story-read-cost.md`.
+Proof commands for this change are in (#7126).
 
 No-Regression Evidence:
 

@@ -55,11 +55,10 @@ var tagHistoryRefillScaleCorpusSizes = []int{5000, 10000}
 //
 // It measures the withheld path's full RefillScopedPage call latency cold
 // (first call after seed) and warm (tagHistoryRefillScaleWarmTrials more
-// calls), and logs one machine-readable result line per corpus size so the
-// evidence doc can cite exact numbers rather than an impression.
+// calls), and logs one machine-readable result line per corpus size with the
+// exact numbers rather than an impression.
 //
-// Run against the isolated container docs/internal/evidence/6705-tag-history-refill-neo4j-scale.md
-// records:
+// Run against the isolated container:
 //
 //	ESHU_TAG_HISTORY_REFILL_SCALE_LIVE=1 \
 //	ESHU_NEO4J_URI=bolt://127.0.0.1:17705 \
@@ -313,8 +312,7 @@ func (g *refillScaleGraph) cleanup(seed refillScaleSeed) {
 //   - the granted page's full walk keeps every one of seed.grantedCount rows,
 //     so no granted row is lost at this scale.
 //
-// It logs one "tag_history_refill_scale result" line per variant so
-// docs/internal/evidence/6705-tag-history-refill-neo4j-scale.md can cite the
+// It logs one "tag_history_refill_scale result" line per variant with the
 // exact reported numbers instead of a paraphrase.
 func (g *refillScaleGraph) measure(t *testing.T, n int, seed refillScaleSeed) {
 	t.Helper()

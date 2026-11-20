@@ -50,7 +50,7 @@ const (
 	// must use a stable, domain-owned evidence source and retract only that
 	// identity. The original ci_cd_run_correlation projection was rescinded
 	// before this isolation existed; its historical reasoning is recorded in
-	// docs/internal/evidence/5428-built-from-projection-rescinded.md.
+	// (#5428).
 	BuiltFrom EdgeType = "BUILT_FROM"
 	// Calls is the "CALLS" graph relationship type.
 	Calls EdgeType = "CALLS"

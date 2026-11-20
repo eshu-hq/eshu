@@ -118,8 +118,7 @@ func (cr *ContentReader) CloudInventoryPreRolloutEvidenceExists(
 // matching row anywhere in the provider/access scope, so every active
 // generation must be visited before concluding false) costs about the same
 // as the primary query's own already-accepted zero-result cost on the same
-// corpus (~14.5ms vs ~15ms). See docs/internal/evidence/
-// 5238-account-alias-rollout-gap-signal.md for the full EXPLAIN ANALYZE
+// corpus (~14.5ms vs ~15ms). See (#5238) for the full EXPLAIN ANALYZE
 // output and methodology.
 func buildCloudInventoryPreRolloutProbeSQL(filter cloudInventoryFilter) (string, []any) {
 	args := []any{}

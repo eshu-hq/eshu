@@ -487,7 +487,7 @@ this backend behaviour changes — run it against the pin before changing a quer
 of this shape, and again after moving the pin. If
 `TestLiveNornicDBDeadCodeIncomingRejectsReturnDistinct` fails, the executor
 boundary has moved and the shapes above need re-measuring rather than a quick
-edit. See `docs/internal/evidence/5167-code-family-batch-1.md` for the
+edit. See (#5167) for the
 before/after and the fan-in timing.
 
 ## Pitfall: `OPTIONAL MATCH` + Aggregate Collapses Every Zero-Match Group Into One Row
@@ -591,7 +591,7 @@ and scoped-ecosystem branches: each captures its OLD `OPTIONAL MATCH`+
 returns every package (including zero-version ones with `version_count: 0`,
 and, for the scoped variant, excluding the private package) and, for the
 unscoped branch, resolves a zero-version package by exact `package_id`. See
-`docs/internal/evidence/5167-package-registry-version-count-nornicdb.md` for
+(#5167) for
 full before/after tables including the rejected candidates, the
 200-package corpus timing, and the scoped-ecosystem before/after.
 
@@ -777,7 +777,7 @@ static class-gate that fails any future `UNWIND`-batched bare-`MATCH`-then-
 Two other `UNWIND` shapes in the canonical File/Directory writer were flagged
 as suspect during the #5652 investigation but re-verified separately on a
 fresh, uncontaminated container and found NOT to be production bugs (details in
-`docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md`):
+(#5652)):
 
 - A `WITH`-chained multi-clause File update (`UNWIND ... MATCH ... SET ... WITH
   ... MATCH ... MERGE`) appeared to drop its post-`WITH` edge MERGEs, but this
@@ -800,7 +800,7 @@ fresh, uncontaminated container and found NOT to be production bugs (details in
   write-loss no production path exhibits. Use the Bolt driver, as the repo's
   live tests do. No fix ships and no rewrite is needed — production is Bolt.
   Evidence:
-  `docs/internal/evidence/5652-followup-file-directory-edge-writeloss-investigation.md`.
+  (#5652).
 - `UNWIND`-batched `MATCH ... DELETE` (the retract/refresh edge-cleanup
   statements) no-ops only under the atomic `ExecuteGroup` managed-transaction
   path. Production routes these with `OperationCanonicalRetract` through
@@ -982,7 +982,7 @@ the pinned image) is the backend-required live proof: it seeds a Class
 inheritance graph and asserts the route returns three `INHERITS` edges with an
 evaluated `type` and enriched file/repo metadata, where the pre-split shape
 returned zero. See
-`docs/internal/evidence/5681-nornicdb-optional-match-relationship-projection.md`
+(#5681)
 for the historical before/after and the isolated executor characterization.
 
 The replay-tier tests

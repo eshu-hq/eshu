@@ -102,8 +102,8 @@ cd "${repo_root}"; export GIT_TRACE2_EVENT=0 GIT_TRACE2_PERF=0 # #8673: keep fix
 # seconds. The deadline only bounds how long a genuinely slow or contended
 # machine gets before the gate fails loudly. Default is generous headroom over
 # the highest value agents have historically needed to bump it to under real
-# machine load (75s, see docs/internal/evidence/5426-golden-corpus-coverage.md
-# and docs/internal/evidence/5428-built-from-projection-rescinded.md) — raising
+# machine load (75s, see (#5426)
+# and (#5428)) — raising
 # it further only helps the genuinely-slow case, since the fast case never
 # waits that long anyway.
 : "${GATE_COLLECTOR_SETTLE_SECONDS:=90}"

@@ -110,5 +110,4 @@ func goReachabilityFactFilter(envelopes []facts.Envelope) GoReachabilityFactFilt
 	}
 }
 
-// Proof record (benchmark figures, EXPLAIN, lane-1 halves):
-// docs/internal/evidence/10095-cross-scope-go-loader.md.
+// Proof record (benchmark figures, EXPLAIN, lane-1 halves) for #10095.

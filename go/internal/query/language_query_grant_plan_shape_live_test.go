@@ -8,7 +8,7 @@
 // buildLanguageTypeEntityFilters for a scoped caller who named no repository.
 //
 // The measured timings live in
-// docs/internal/evidence/5167-code-family-batch-2-proofs.md. Numbers are not
+// (#5167). Numbers are not
 // what this pins -- they move with the machine. What it pins is the SHAPE the
 // numbers depend on, which is what a schema, statistics or builder change
 // would silently break:

@@ -160,7 +160,7 @@ their existing telemetry are untouched.
 No-Regression Evidence: #6686 adds `GenerationNotYetActiveError` and its
 sentinel and failure class. They are value types with no I/O; the behavior they
 carry is proven where the check and queue live (see
-`docs/internal/evidence/6686-reducer-pre-activation-deferral.md`).
+(#6686)).
 
 No-Observability-Change: #6686's error type registers no metric. A deferral is
 durable as `failure_class = generation_activation_not_ready` on

@@ -31,8 +31,7 @@ func (e *dispatchRecordingExecutor) ExecuteGroup(_ context.Context, _ []sourcecy
 
 // TestPhaseGroupExecutorRetractPhaseNeverUsesExecuteGroup is the regression
 // guard for the P0 #5652 follow-up (canonicalNodeRefreshCurrent*Cypher
-// DELETE write-loss investigation, docs/internal/evidence/
-// 5652-followup-file-directory-edge-writeloss-investigation.md). Live-proven
+// DELETE write-loss investigation (#5652). Live-proven
 // against the pinned NornicDB v1.1.11 image: the shipped UNWIND-batched
 // DELETE statements
 // (node.RefreshCurrentFileImportEdgesCypher/DirectoryFileEdgesCypher/

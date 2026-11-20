@@ -174,7 +174,7 @@ suites and the accepted gap.
 - #8852 (aws-cloud) and #8868 (terraform-state): closed 2026-10-28 with
   deployed QA proof; closing production comments quote live facts.
 - Removal: #9312; survey record
-  `docs/internal/evidence/8852-8868-collector-removal.md` (scope table,
+  (#8852/#8868) (scope table,
   verification matrix, revival recipe, coverage gap, waiver record).
 - Revival follow-up: #9288 (tier2/v25 drift E2E on the satellite, closed
   2026-10-28).

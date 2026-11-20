@@ -44,7 +44,7 @@ cd go && go test ./internal/query -run 'FetchDeploymentSources|SearchInfraResour
 ```
 
 **Live NornicDB OCI registry-truth before/after proof** —
-`docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md` documents a
+(#5287) documents a
 live-backend regression fix (the multi-clause digest/tag reads were corrupt
 or returned zero rows on the pinned NornicDB backend; the single-clause
 resolve-and-Go-join shape returns correct `image_id`/`match_strength`)
@@ -57,7 +57,7 @@ ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:17687 \
 ```
 
 **Accuracy contract and B-7 golden-corpus pass** —
-`docs/internal/evidence/5264-impact-deployment-graph.md` documents the
+(#5264) documents the
 subject-backbone accuracy contract, fail-closed completeness rules, and a
 421-check/0-failure B-7 golden-corpus run on the pinned NornicDB image.
 

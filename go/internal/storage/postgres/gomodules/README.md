@@ -63,7 +63,7 @@ count the fence returns.
 - Those rules are held by the live suite in `store_live_test.go` (6 live tests) and
   by mutations of `has_go_evidence`: each branch of the `OR`, each evidence kind,
   warnings counted as evidence, any-generation reads, and tombstones. Evidence:
-  `docs/internal/evidence/10027-go-modules-derivation.md`.
+  (#10027).
 - `HasGoEvidence` is set on every returned row with evidence, so the planner can raise
   its invariant alarm for a non-canonical remote that holds evidence. A dead remote is
   not this case: it is planned, and its claim fails (eshu-hq/eshu#10055).
@@ -75,7 +75,7 @@ count the fence returns.
   `fact_records_supply_chain_impact_repository_lookup_idx`, and reopens each, in one
   transaction with a 2s `lock_timeout`. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
-  `docs/internal/evidence/10055-commit-skew-fence.md`.
+  (#10055).
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).

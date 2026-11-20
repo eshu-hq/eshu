@@ -2,7 +2,7 @@ tests:
   - file: go/internal/query/content_reader_entity_search_plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/content_reader_search_scoped_workbound_guard_live_test.go
     tag: ~
@@ -15,7 +15,7 @@ tests:
   - file: go/internal/query/content_reader_security_secrets_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/content_reader_security_secrets_plan_live_test.go
     tag: ~
@@ -24,22 +24,22 @@ tests:
   - file: go/internal/query/content_reader_fingerprint_metadata_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/content_reader_language_inventory_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/documentation_facts_generation_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/documentation_facts_label_authz_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/documentation_facts_plan_live_test.go
     tag: ~
@@ -52,12 +52,12 @@ tests:
   - file: go/internal/query/documentation_related_generation_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/documentation_target_facts_differential_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; disposable template0 database; 9 query tests in 9 files, 33.881s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/query/documentation_source_only_live_test.go
     tag: ~
@@ -248,7 +248,7 @@ tests:
   - file: go/internal/query/infra_scope_neo4j_aggregate_live_test.go
     tag: live_infra_scope_neo4j
     class: scheduled
-    reason: "live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md — promote to blocking with timing evidence"
+    reason: "live Neo4j #7231 scoped count/inventory equivalence, no-leak and cold under-10 s budget proof; timing recorded in (#7231) — promote to blocking with timing evidence"
   - file: go/internal/query/infra_scope_grant_live_test.go
     tag: live_infra_scope_shape
     class: scheduled
@@ -390,7 +390,7 @@ tests:
   - file: go/internal/query/service_story_target_support_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 1.94s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 1.94s)"
     runner: reducer-contention
   - file: go/internal/query/service_story_target_support_writer_matrix_live_test.go
     tag: ~

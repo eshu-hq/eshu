@@ -357,4 +357,4 @@ scrapes status exports the same value, so read it with
 [Metrics](../telemetry/metrics.md).
 
 The query plan and the behavior proof for the read are in
-`docs/internal/evidence/8803-collector-terminal-failure-readiness.md`.
+(#8803).

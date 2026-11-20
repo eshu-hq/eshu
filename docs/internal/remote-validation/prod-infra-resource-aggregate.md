@@ -115,8 +115,8 @@ cd go && go test ./internal/query -run TestInfraResourceAggregate -count=1
 `go/internal/query/infra_resource_aggregates_read_model_test.go`,
 `go/internal/query/infra_resource_aggregates_read_model_readiness_test.go`,
 the live proofs in `go/internal/storage/postgres/infra/inventory/`, and the
-evidence notes `docs/internal/evidence/6793-infra-read-model.md` and
-`docs/internal/evidence/6793-infra-read-model-fence.md` (graph against table
+evidence notes (#6793) and
+(#6793) (graph against table
 differential, drift reconcile, and the rolling-upgrade fence).
 
 ```bash
@@ -124,9 +124,9 @@ cd go && go test ./internal/query -run 'TestInfraAggregate|TestInfraResourceAggr
 ```
 
 **Live per-label-anchoring correctness fix** —
-`docs/internal/evidence/5280-5281-infra-aggregate-and-code-flow-index.md`
+(#5280)
 (graph infra aggregates anchoring, part of the #5267 console-recovery epic)
-and `docs/internal/evidence/5384-infra-scope-shape-a.md` (scoped-token
+and (#5384) (scoped-token
 authorization predicate fix for `infra/resources/count` and `/inventory`).
 
 ## Notes

@@ -67,7 +67,7 @@ const BuiltFromMaxRows = 3 * BuiltFromMaxKeys
 // The join runs in Go on purpose: a two-MATCH grant join returned zero rows on
 // the pinned NornicDB and on upstream v1.3.1 for a seed whose answer was two
 // rows, while this single-clause read returned exactly the seeded edges on
-// both (docs/internal/evidence/6564-tag-history-grant-binding.md).
+// both (#6564).
 //
 // Anchor: the container_image_digest index. Keys: the window's distinct
 // non-empty resolved and previous digests, at most BuiltFromMaxKeys. Output:

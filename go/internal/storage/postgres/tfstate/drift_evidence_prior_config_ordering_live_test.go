@@ -17,7 +17,7 @@ import (
 
 // TestLoadPriorConfigAddressesPrefersMostRecentGenerationAgainstRealPostgres
 // is the permanent, re-runnable real-Postgres proof for the P2 finding in
-// docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md's
+// (#5572)'s
 // "Follow-up: two independent review findings" section. The throwaway
 // EXPLAIN run pasted there was disclosed honestly as prose, not committed
 // evidence — this test IS the committed evidence it points at.

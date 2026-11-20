@@ -170,7 +170,7 @@ acceptance evidence.
 > **Advisory known-bad:** `verify-graph-rebuild-from-facts.sh` **does not
 > pass today** on the established-cause failures — the `MATCH`-only `CALLS`
 > edge write, the resolver ordering, the `Module` key (the documented known
-> state in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`). The
+> state in (#4594)). The
 > intermittent `HANDLES_ROUTE`/`RUNS_IN` mismatch keeps its standing caveat
 > (evidence item 1b): a regression from #6074/#6085 is not ruled out, so a
 > red result there stays a signal until diffed against that breakdown.
@@ -178,7 +178,7 @@ acceptance evidence.
 > open): the strict bidirectional-identity assertion stays as written, and
 > the engine fix behind it (the `MATCH`-only `CALLS` edge write and the
 > non-deterministic indexing broken down in
-> `docs/internal/evidence/4594-graph-rebuild-from-facts.md`) rides a future
+> (#4594)) rides a future
 > graph-engine change with live Compose proof, tracked by #6184, rather than
 > this gate. Do not treat a red result here as a regression without diffing
 > it against that breakdown first.
@@ -215,7 +215,7 @@ environment. A single rebuild pass under-produces two families — one `CALLS` e
 and part of the `EvidenceArtifact` family — and indexing the same corpus twice
 does not produce the same graph, so the snapshot it compares against moves
 between runs. Each cause, with counts, is in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. Do not treat a red
+(#4594). Do not treat a red
 result here as a regression without diffing it against that breakdown first.
 
 For a no-credential proof of additional lanes against public, unauthenticated

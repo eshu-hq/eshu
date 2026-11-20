@@ -93,7 +93,7 @@ const (
 
 	// The #10820 leftover statements. Each table is plain TEXT-keyed with no
 	// foreign key, so the scope cascade never reaches it. The census rows
-	// (reducer/retirement/census.go) and docs/internal/evidence/10820-census-2e-purge.md
+	// (reducer/retirement/census.go) and (#10820)
 	// carry the per-table writer, key and lock-order evidence; the positions
 	// that matter are:
 	//

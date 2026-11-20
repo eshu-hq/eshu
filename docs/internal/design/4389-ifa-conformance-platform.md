@@ -535,7 +535,7 @@ row (`go/internal/reducer/gcp_resource_materialization_teeth.go`,
   cassette alone it was measured INERT (identical across every N); on the
   Tier 2 multi-scope fixture it is genuinely interleaving-sensitive (the
   591/622, 558/622, 488/622 measurement above,
-  `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`, relocated
+  (#4396), relocated
   from `go/internal/reducer/README.md`'s former teeth section).
 
 Both stamps compile to a zero-cost, zero-behavior no-op in every normal, CI,

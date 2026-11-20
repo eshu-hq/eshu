@@ -84,4 +84,4 @@ refresh-skip reasons), `pkg/log`, and OpenTelemetry metric and trace.
 ## Related docs
 
 - `docs/public/reference/reconciliation-sweep.md`
-- `docs/internal/evidence/7978-reconcile-no-duplicate-generation.md`
+- (#7978)

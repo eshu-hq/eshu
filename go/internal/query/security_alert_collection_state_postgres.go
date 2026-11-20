@@ -68,9 +68,9 @@ LIMIT $1`
 // freshness_hint is $3, shard.RetirementFreshnessHint, read by a primary-key
 // probe of scope_generations. A retired scope holds no data until its next
 // collection activates, so the classifier counts it as not yet committed.
-// Evidence: docs/internal/evidence/8803-security-alert-empty-answer-truth.md,
-// docs/internal/evidence/8840-security-alert-latest-work-item-index.md,
-// and docs/internal/evidence/8943-security-alert-org-read-state.md.
+// Evidence: (#8803),
+// (#8840),
+// and (#8943).
 const securityAlertTargetStatesQuery = `
 SELECT t.scope_id,
        COALESCE(w.status, ''),
@@ -123,7 +123,7 @@ ORDER BY t.scope_id`
 // replaced; a grant-scoped unanchored read passes grant slugs (#8837).
 // Containment
 // (payload @> ...) per slug is slower: it decompresses once per slug.
-// Evidence: docs/internal/evidence/8838-security-alert-target-set.md.
+// Evidence: (#8838).
 const securityAlertLatestCommittedGenerationLateral = `LEFT JOIN LATERAL (
     SELECT g.generation_id,
            CASE WHEN cardinality($2::text[]) > 0 THEN g.payload -> '` + scope.SecurityAlertTargetSetPayloadKey + `' END AS target_set
@@ -275,7 +275,7 @@ func (s PostgresSecurityAlertCollectionStateStore) SecurityAlertTargetStates(
 // Completed, failed, and succeeded rows are not read. The domain literal is
 // pinned here, not imported, because query must not depend on the reducer
 // packages (reducer/contract/domain.go DomainSecurityAlertReconciliation).
-// Evidence: docs/internal/evidence/8839-security-alert-reconciliation-queue.md.
+// Evidence: (#8839).
 const securityAlertReconciliationQueueStatesQuery = `
 SELECT scope_id,
        COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding,

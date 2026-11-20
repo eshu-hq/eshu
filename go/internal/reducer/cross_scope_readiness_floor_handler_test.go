@@ -399,7 +399,7 @@ const testCICDWaitingDigest = "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 //
 // Closing this needs per-digest readiness, a different contract than #5709
 // specifies and not built; see the residual-window section of
-// docs/internal/evidence/5709-cross-scope-readiness-floor.md.
+// (#5709).
 //
 // If the batch-wide count were ever narrowed to a per-run predicate, this test
 // fails: run-waiting would defer and Handle would return

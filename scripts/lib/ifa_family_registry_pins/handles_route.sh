@@ -13,7 +13,7 @@
 # runner_lease_hold: the custom kill cell blocks ClaimPartitionLease on the
 # production advisory key for DomainHandlesRoute, then proves process death
 # and replacement-runner recovery. See
-# docs/internal/evidence/6208-runner-lease-hold-live-theory.md.
+# (#6208).
 IFA_FAMILY_PIN_BLOCKER_KIND="runner_lease_hold"
 # wait_stage=runner: this family's intent rows are tagged
 # ProjectionDomain=DomainHandlesRoute="handles_route"

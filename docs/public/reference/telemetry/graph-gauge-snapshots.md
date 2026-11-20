@@ -55,4 +55,4 @@ No-Regression Evidence: the refresher issues the same read statements the
 callbacks used to issue, once per interval per gauge instead of once per scrape
 per gauge, so graph read load for these gauges drops with scrape frequency and
 no query shape, index, or graph write changes. See
-`docs/internal/evidence/7062-provenance-gauge-scrape.md`.
+(#7062).

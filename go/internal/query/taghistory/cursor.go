@@ -218,7 +218,7 @@ var ErrCursorSealingUnavailable = errors.New(
 // t.first_observed_at compares greater than it for every non-empty string. "No
 // timestamp" cannot be expressed as a string value at all, and those rows sort
 // LAST (measured on the pinned build, see
-// docs/internal/evidence/6564-tag-history-keyset-pagination.md), so NullAt
+// (#6564)), so NullAt
 // selects the null-tail statement instead of a string comparison.
 //
 // Residue this does NOT close, disclosed on every caller-facing surface --

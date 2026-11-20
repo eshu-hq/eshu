@@ -340,7 +340,7 @@ scope-wide retract `commitEdges` dispatches in
 relationship delete, proven effective on the pinned `neo4j:2026-community`
 backend: probe P1 ran it with the other retract shapes (bare `DELETE` and
 production retract both 1 → 0, sibling scope surviving; see
-`docs/internal/evidence/8517-retract-proof-neo4j2026.md` and the
+(#8517) and the
 `8517-retract-cloud-uses-neo4j2026` ledger row), so on re-materialization the
 earlier edge is reaped by scope and evidence source. No shape proved inert,
 so no hazard entry and no retract-by-node writer change were needed. While a

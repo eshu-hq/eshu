@@ -18,7 +18,7 @@ ownership boundary and exported surface.
 - `go/internal/reducer/cicdrun/README.md`
 - `go/internal/reducer/crossscope/README.md` (the cross-scope readiness floor `Handle` calls)
 - `docs/internal/design/package-restructure.md`
-- `docs/internal/evidence/5709-cross-scope-readiness-floor.md`
+- (#5709)
 
 ## Invariants
 
@@ -123,5 +123,5 @@ payload — those are not type-checked against this package's struct.
   every previously-written `BUILT_FROM` edge.
 - The batch-wide (not per-run) cross-scope resolved-count semantics in
   `Handle` — a documented residual gap of the #5709 floor, not a bug; see
-  `docs/internal/evidence/5709-cross-scope-readiness-floor.md` before
+  (#5709) before
   narrowing it to a per-run predicate.

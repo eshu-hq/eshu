@@ -100,7 +100,7 @@ The route opens one span named `query.runtime_declarations`
 
 Neither carries a repository id or runtime name. The measured p95 against
 the capability budget is recorded in
-`docs/internal/evidence/8817-runtime-declaration-query.md`.
+(#8817).
 
 ## Failed reads (#7674)
 

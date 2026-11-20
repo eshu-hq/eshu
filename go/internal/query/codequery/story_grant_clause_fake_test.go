@@ -23,7 +23,7 @@ import (
 // They bind it on the driving row's own repo_id, because the Repository aliases
 // only ever appear inside OPTIONAL MATCH clauses whose WHERE decides nothing --
 // measured against the pinned backend and written up in
-// docs/internal/evidence/5167-code-family-batch-2b.md.
+// (#5167).
 //
 // storyClauseGraph models the backend's actual behaviour rather than the
 // statement's apparent meaning:

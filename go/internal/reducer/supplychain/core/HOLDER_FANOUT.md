@@ -4,8 +4,8 @@ This is the detailed contract behind the "Convergence: the holder fan-out"
 bullet in `README.md`. The cost of the in-flight read and the signals an
 operator reads are stated in the README bullet "In-flight cost"; measurements
 and the defects found while proving it are in
-`docs/internal/evidence/9695b-holder-fanout.md`, and the 1.5a probes in
-`docs/internal/evidence/9695-advisory-retraction.md`.
+(#9695), and the 1.5a probes in
+(#9695).
 
 The winners table keeps one copy per
 canonical key, ordered by `priority_score`, then whether the row carries a
@@ -262,7 +262,7 @@ facts by the changed keys' repository id
 keeps only the alerts naming a changed package. Alerts a provider already
 closed (`provider_state` `dismissed`, `auto_dismissed`, or `fixed` — only
 the provider-state subset of what `securityAlertCanSeedImpact` refuses to
-seed from) do not reopen their scope. Evidence: `docs/internal/evidence/10061-alert-scope-reopen.md`.
+seed from) do not reopen their scope. Evidence: (#10061).
 
 Gap passes: when a delta in the diffed chain has a base that cannot be read
 (missing, pruned, or a legacy delta), its view is the delta's own rows, so a
@@ -277,8 +277,8 @@ advisory scope to rerun. The pass logs `sub_signal_manifest_trigger_prior_base_m
 the reopened count on `sub_signal_manifest_trigger_repository_holders`.
 `TestManifestTriggerPriorBaseMissingReopensRepositoryHolders` pins the
 behavior. A clean pass never touches the repository-keyed read.
-Evidence: `docs/internal/evidence/9874-lockfile-retrigger.md`,
-`docs/internal/evidence/10059-repository-reopen.md`.
+Evidence: (#9874),
+(#10059).
 
 Re-key (L2, #10408): the genuine pass fans out
 `union(ChangedCVEIDs, TouchedGroupIDs)` plus the owed-retry union with
@@ -399,8 +399,8 @@ reducer success line, following the `fanout_*` pattern — and the outcome
 rides the new counter's closed label, never a group, CVE, or advisory id.
 
 No-Regression Evidence: #10564 chunk 25 to 5; committed measurements in
-`docs/internal/evidence/10564-chunk5-production.md` with raw EXPLAIN in
-`10564-chunk5-explain-25id.txt` / `10564-chunk5-explain-5id.txt`.
+(#10564) with raw EXPLAIN in
+(#10564).
 Production hot scopes match
 about 138k finding rows per 25-id chunk (6.44 s cold, 72% I/O read over a
 193 GB heap with 4 GB shared buffers) and breached the 10 s guard three
@@ -432,7 +432,7 @@ read-only EXPLAIN attributes ~97% of plan cost to the group-members arm
 cross-id, superseded, tombstone, and unknown edges), the probe completes in
 13.2 ms, and EXPLAIN ANALYZE shows the Limit node stopping at 10001 of
 26000 heap rows (capped-probe lane; design B stops at 101 — see
-docs/internal/evidence/10681-design-b-fill-to-cap.md). Decision-equivalence
+(#10681)). Decision-equivalence
 to the uncapped probe is proven by unit test against the real planner, so
 split plans match except the accepted mid-band deviation (member counts in
 (100,10000] saturate to the cap, split-safe, pinned live); the change is
@@ -444,3 +444,21 @@ Observability Evidence (#10681 capped probe): probe errors still count at
 the existing FanOutReadSiteHolders site with no new counter, label, span,
 or log field. max_id_mass_rows now saturates at the 10001 cap by design
 (hot stays hot; exact max above threshold is sacrificed and documented).
+
+No-Regression Evidence (#10990 evidence-pointer hygiene): the 14
+hot-path-adjacent files this lane touches changed comment bytes only —
+every added/removed line is a `//` doc-comment token swap from
+`docs/internal/evidence/<name>` to `(#NNNN)` (verified by `git diff`
+inspection; zero code rows changed). Baseline is the pre-change tree at
+merge-base 6d4f9bb7b4 with `go build ./...` exit 0 and the focused suites
+green. After is this head: `go build ./...` exit 0; migrations manifest,
+goldengate, queryplan source-coverage (digest re-pinned to the edited
+comment-only source), fragments (13 tests), and methodology --static
+green. Backend/version: none exercised — no runtime behavior changed, so
+no backend measurement applies; input shape is comment-only hunks;
+zero code rows added or removed. The change is safe because comments do
+not execute and the compiler plus focused tests pin behavior identical.
+
+No-Observability-Change (#10990 evidence-pointer hygiene): no new or
+changed metric, span, log line, label, queue stage, lock, claim, lease,
+or status field; all telemetry sites are untouched.

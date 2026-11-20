@@ -30,8 +30,7 @@ import (
 // tail cursors plus both skip-counts arms. Plan shapes and wall times are
 // logged for the scale evidence note, not gated: dev-box walls are
 // order-of-magnitude evidence, and a full-table page-1 shape is the
-// honestly recorded expectation past ~50k active observations (see
-// docs/internal/evidence/9299-derivation-scale.md). The durable
+// honestly recorded expectation past ~50k active observations (#9299). The durable
 // assertions are the scale contracts: page 1 returns a bounded full
 // page, the mid-window page is full, and the tail page terminates short.
 func TestScannerDiscoveryScaleShapeLive(t *testing.T) {

@@ -125,7 +125,7 @@ func TestSupplyChainImpactCICDCorrelationAlsoDisarmsTheFloor(t *testing.T) {
 // Closing this needs per-digest readiness, a different contract than #5709
 // specifies and not built. Deferring the whole batch instead would be worse: it
 // holds back findings that already have their evidence, on a class that freezes
-// attempt_count. See docs/internal/evidence/5709-supply-chain-consumer.md.
+// attempt_count. See (#5709).
 //
 // If the batch-wide count were ever narrowed to a per-finding predicate, this
 // test fails: the pass would defer instead of writing.

@@ -98,8 +98,8 @@ key the reducer already resolves:
   interface, trait, and inherited methods stay unkeyed, and a class declared
   inside a condition (`if (!class_exists(...))`) gets no key of any kind.
 
-See `composer/README.md`, `docs/internal/evidence/7601-php-package-keys.md`, and
-`docs/internal/evidence/8280-package-key-call-shapes.md`.
+See `composer/README.md`, (#7601), and
+(#8280).
 
 ## Telemetry
 

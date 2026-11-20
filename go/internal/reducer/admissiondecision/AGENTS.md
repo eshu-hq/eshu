@@ -78,7 +78,7 @@ addition, not a rename" section.
   as a concrete path the `go/internal/reducer/**` glob must keep selecting.
   If this file moves again, repoint that literal in the same commit.
 - **`verify-doc-citations.sh`** — no `LINE` row exists for this file: the
-  one `docs/internal/evidence/5993-deployable-unit-correlation-extraction-seam.md`
+  one (#5993)
   used to carry was retired in the move that created this package, because a
   raw line citation whose path or line number shifts is new, un-baseline-able
   debt under this gate's burn-down rule (`-update` can reconcile immutable-base

@@ -73,7 +73,7 @@ const ifaTeethSequenceKey = "ifa_teeth_seq"
 // inert again, two independent process invocations reading
 // time.Now().UnixNano() are vanishingly unlikely to collide, so --teeth can
 // never flake green. See
-// docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md (relocated
+// (#4396) (relocated
 // from README.md's former teeth section) for the fuller writeup of both
 // properties' roles.
 var ifaTeethSequenceCounter atomic.Int64

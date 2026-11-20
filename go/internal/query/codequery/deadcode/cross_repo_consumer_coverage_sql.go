@@ -92,7 +92,7 @@ const CrossRepoDeadCodeCoverageGapCap = 25
 // 0.962 ms to 0.986 ms; the probe ran only for the 4 watermark-gated scopes.
 //
 // Plan class, measured on the QA replica (PostgreSQL 18.3, 819-row
-// ingestion_scopes, see docs/internal/evidence/7547-cross-repo-consumer-coverage.md):
+// ingestion_scopes, #7547):
 // the scope side is a cheap sequential scan on the custom plan (the generic plan,
 // from the sixth prepared execution on, used the partial index
 // ingestion_scopes_active_generation_idx; 799 of 819 scopes qualify, so the index

@@ -28,8 +28,7 @@ generations / 925 scopes (Gate time: 5,581 / 229).
 ## Decisions
 
 1. STOP-CONFIRMED, scope = whole lift. 223.07s is 44.6x the Gate 3
-   ScopeLockHold bar of 5s (docs/internal/evidence/
-   10525-retention-planning-count.md Gate 3 bars; arbiter/
+   ScopeLockHold bar of 5s ((#10525) Gate 3 bars; arbiter/
    10525-sequencing-ruling-2026-11-10.md trigger item 2). No second
    sample; a "check if cold" cycle at 168h costs another breach.
 2. REVERT the soft window to 2160h now
@@ -94,8 +93,7 @@ generations / 925 scopes (Gate time: 5,581 / 229).
 2. Telemetry split: locked recount and planning count separately
    observable; aggregated count_rows cannot evidence Gate 3.
 3. Live-Postgres concurrency proof: concurrent fact insert during
-   drain/prune (#8206 style, docs/internal/evidence/
-   8206-retention-insert-wait-hook.md), eligibility flips between
+   drain/prune (#8206 style), eligibility flips between
    drain and admission, crash-resume idempotency with no orphan
    keys/content, EvalPlanQual drop.
 4. >=3 consecutive live cycles on the rebuilt binary at backlog shape

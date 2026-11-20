@@ -81,7 +81,7 @@ func containerImageBuiltFromRows(decisions []ContainerImageIdentityDecision) []m
 	// ~38% regression, and removing the concatenation left the map behind. That is a
 	// deliberate trade -- a duplicate row still costs a MERGE round in the
 	// graph writer -- and it is recorded as a measured regression in
-	// docs/internal/evidence/5426-corroborated-vs-declared-environment.md
+	// (#5426)
 	// rather than left implied.
 	type builtFromKey struct{ digest, repositoryID string }
 	seen := make(map[builtFromKey]struct{}, len(decisions))

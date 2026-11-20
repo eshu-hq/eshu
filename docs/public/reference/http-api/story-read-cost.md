@@ -39,4 +39,4 @@ unread) and `deployment_artifacts_related_file_list_truncated_at_5000` go to
 [logs](../telemetry/logs.md).
 
 Measurements, the migration 122 to 124 write-cost figures and proof commands:
-`docs/internal/evidence/7126-story-read-cost.md`.
+(#7126).

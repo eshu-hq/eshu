@@ -258,10 +258,10 @@ manifest entry `QP-LANGUAGE-DIRECTORY` names it in `required_schema`, and the
 live planner gate profiles the statement against Neo4j with the index present
 and rejects any plan that is not anchored on it. Those historical measurements
 are in
-`docs/internal/evidence/6541-directory-query-s2.md` and
-`docs/internal/evidence/6541-directory-query-s2-corpus-timing.md`; the #6703
+(#6541) and
+(#6541); the #6703
 ownership-check measurements are in
-`docs/internal/evidence/6703-directory-file-ownership.md`.
+(#6703).
 
 ## Capability Mapping
 

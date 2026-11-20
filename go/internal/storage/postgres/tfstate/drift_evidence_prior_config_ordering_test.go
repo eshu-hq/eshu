@@ -37,7 +37,7 @@ import (
 // CTE Scan node), re-executed once per outer-loop iteration -- confirming
 // the CTE's own `ORDER BY ingested_at DESC` bounds membership only, never
 // the final row order, with or without inlining. See
-// docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md
+// (#5572)
 // for the full EXPLAIN output from both the broken and fixed query text.
 //
 // This test asserts the SQL constant text directly because the package's

@@ -15,7 +15,7 @@ import (
 // the language-query filter first, then exactly the statement's ORDER BY key,
 // so the ordered page is a btree descent that stops at LIMIT instead of an
 // ordered walk that heap-filters tens of thousands of other repositories'
-// rows. See docs/internal/evidence/7735-content-entities-page-read-index.md
+// rows. See (#7735)
 // for the EXPLAIN (ANALYZE, BUFFERS) ladder this migration is derived from
 // (80,234 page buffers become 13, 65 ms become 0.14 ms warm).
 func TestContentEntitiesRepoLanguageTypePathIndexMigration(t *testing.T) {

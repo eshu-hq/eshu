@@ -53,7 +53,7 @@ read and forwarders. The name-target resolver already lives in
   ORDER BY/LIMIT. Never move a grant into Go after the read: on a hub
   the row ceiling would be spent on ungranted neighbours and the
   granted ones dropped (measured, see
-  `docs/internal/evidence/5167-code-relationships-grant.md`). An
+  (#5167)). An
   unscoped caller renders no grant text, so its statements are
   byte-identical to the pre-#5167 ones.
 

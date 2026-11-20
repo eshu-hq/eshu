@@ -24,7 +24,7 @@ const (
 // sourcecypher.FilterRowsToExistingCloudResourceUIDs already confirmed exists via a
 // separate read, so MERGE always matches and never creates. See
 // posture_node_existence.go and
-// docs/internal/evidence/5652-nornic-bare-match-writeloss.md.
+// (#5652).
 const canonicalRDSPostureUpdateCypher = `UNWIND $rows AS row
 MERGE (r:CloudResource {uid: row.uid})
 SET r.rds_identifier = row.rds_identifier,

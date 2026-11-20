@@ -139,7 +139,7 @@ func (h SupplyChainImpactHandler) emitRekey(ctx context.Context, writeResult Sup
 // active while another scope has re-derived the same finding advisory_retracted;
 // winner selection ranks by priority score first, so until the stale copy's own
 // scope re-derives it, the default view can show the stale copy. The holder
-// fan-out (docs/internal/evidence/9695b-holder-fanout.md) reopens that scope,
+// fan-out (#9695) reopens that scope,
 // and the pass that follows is the repair: it finds the stored copy in the old
 // state and writes it in the new one. "Active" here means any state other than
 // advisory_retracted, so an operator copy leaving accepted_risk for a retraction

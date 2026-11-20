@@ -212,7 +212,7 @@ func QueryRepoInfrastructureFromGraph(ctx context.Context, reader querycontract.
 	// infrastructure row (#6786 X11). The WITH-attached label test is evaluated
 	// on v1.3.3 and keeps Neo4j's cheap label check; `'Label' IN labels(infra)`
 	// in the MATCH's WHERE is also correct but measured ~19x slower on Neo4j
-	// (docs/internal/evidence/6786-nornicdb-label-predicates.md). The list must
+	// (#6786). The list must
 	// stay equal to InfrastructureEntityTypes
 	// (TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes).
 	queryParams := querycontract.CopyMap(params)

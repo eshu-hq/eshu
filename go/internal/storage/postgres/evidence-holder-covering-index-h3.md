@@ -36,7 +36,7 @@ exceed the threshold alone (residual: keyset paging, not more splitting).
 Proof: `TestHolderAdaptiveSplitRowIdentityLive` (bidirectional EXCEPT 0/0
 split-vs-unsplit from the shipped constant) and `TestHolderMassProbeLive`
 (exact per-id masses, probe ~2.4 ms); full account in
-`docs/internal/evidence/10643-adaptive-split.md`. Telemetry: no new counter
+(#10643). Telemetry: no new counter
 or label (the outcome set stays closed and mass is unbounded cardinality);
 operators read `holder_statements`, `split_chunks`, `hot_ids`, and
 `max_id_mass_rows` on the fan-out span, the summary log line, and the

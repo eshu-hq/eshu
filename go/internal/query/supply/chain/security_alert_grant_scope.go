@@ -17,7 +17,7 @@ import (
 // the bound fails closed (bound_exceeded) instead of silently dropping grants,
 // which would misreport target membership the way a truncated target read
 // would. The bound covers the largest measured grant set (5,000;
-// docs/internal/evidence/8837-security-alert-grant-scope.md).
+// (#8837)).
 const securityAlertGrantCatalogMaxIDs = 5000
 
 // securityAlertGrantSlugs maps the scoped caller's grants to normalized

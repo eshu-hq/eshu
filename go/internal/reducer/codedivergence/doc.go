@@ -15,7 +15,7 @@
 // reducer_code_drifted_finding facts.
 //
 // Scaling bounds come from the #6834 theory proof
-// (docs/internal/evidence/6834-code-divergence-theory.md §5–§6): ship at
+// ((#6834) §5–§6): ship at
 // Jaccard ≥ 0.7 ([DriftedSimilarityThreshold]), at most
 // [MaxCandidatesPerEntity] (200) verifications per entity ordered by
 // shared-band count desc, partitioned by repo_id, and band buckets over

@@ -88,7 +88,7 @@ to this change rather than relying on PR/commit prose.
 - **Current live backend (Neo4j, renamed test):** The same test body is now
   `TestReducerGroupedRetrySeamLive`. It speaks Bolt and runs against the Neo4j
   image that `scripts/run-ifa-scheduled-proofs.sh` starts. The 2026-11-05
-  update in `docs/internal/evidence/7533-ifa-scheduled-live-proof.md` records
+  update in (#7533) records
   one local Neo4j run of it. No repeated-run Neo4j result is recorded here.
 - **Retry-budget boundary:**
   `TestRetryingExecutorExecuteGroupDoesNotRetryDriverBudgetExhaustion` uses the

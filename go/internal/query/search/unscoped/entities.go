@@ -98,7 +98,7 @@ var entityShape = shape[querycontract.EntitySearchHit, querycontract.SearchCurso
 	partialMessage: "unscoped entity search returned a partial result",
 	partialEvent:   "content_search.unscoped_entity_partial",
 	// These are triple A of the #7009 S1 shim, measured on content_entities
-	// in the QA environment (docs/internal/evidence/7009-unscoped-entity-search-figures.md
+	// in the QA environment ((#7009)
 	// repeats the figures it names; the full S1 run is not committed; arbiter
 	// ruling round 2, R2.1). Ordered window cost: an ordered
 	// window costs 0.3 ms plus 0.34 us per row plus 10.2 ns per byte, so a

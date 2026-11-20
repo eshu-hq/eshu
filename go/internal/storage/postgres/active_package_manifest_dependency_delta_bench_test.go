@@ -18,7 +18,7 @@ package postgres
 //	go test -tags perf9991_manifest_delta ./internal/storage/postgres \
 //	  -run TestManifestDeltaReadStatementCountsLive -count=1 -v
 //
-// Results: docs/internal/evidence/9991-manifest-read-delta-union.md.
+// Results: (#9991).
 
 import (
 	"context"

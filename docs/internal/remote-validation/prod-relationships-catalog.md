@@ -55,7 +55,7 @@ cd go && go test ./internal/query -run 'TestGetRelationshipsCatalog|TestGetRelat
 `TestGetRelationshipEdgesScopedGrantExcludesSharedWorkloadCollisionLeak`.
 
 **Scoped-token grant filtering and performance/observability evidence** —
-`docs/internal/evidence/5167-w6-scoped-cloud-routes.md` (this route is
+(#5167) (this route is
 explicitly named as one of the three hot-path Cypher files touched by #5167
 W6).
 

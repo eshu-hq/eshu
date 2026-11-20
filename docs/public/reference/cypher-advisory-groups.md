@@ -61,7 +61,7 @@ Postgres-to-graph parity proofs are
 `TestBoltAdvisoryGroupReconcileIsIdempotentAndRetracts` (live Neo4j),
 `TestAdvisoryGroupWinnersQualifyingLive` (live PostgreSQL), and
 `TestAdvisoryGroupParityLive` (both backends). The full evidence record
-is `docs/internal/evidence/10411-advisory-group-projection.md`.
+is (#10411).
 
 Observability Evidence: the domain records
 `eshu_dp_advisory_group_projection_groups_total{domain,outcome}`,

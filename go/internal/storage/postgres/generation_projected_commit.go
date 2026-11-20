@@ -425,7 +425,7 @@ func (s IngestionStore) FullReconcileState(ctx context.Context, scopeID string) 
 // No index: the rows are one scope's generations, read through the existing
 // scope indexes; p99 0.587 ms on a 1,500-generation scope, and the failure
 // class lookup runs only for returned rows
-// (docs/internal/evidence/7389-superseded-writer-overlay.md).
+// (#7389).
 const uncoveredProjectionWritersQuery = `
 WITH last_full AS (
     SELECT projection_write_started_at AS pws

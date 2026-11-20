@@ -45,7 +45,7 @@ cd go && go test ./internal/query -run DeploymentConfigInfluence -count=1
 `go/internal/query/openapi_deployment_config_influence_test.go`.
 
 **Fail-closed completeness contract (design evidence)** —
-`docs/internal/evidence/5264-impact-deployment-graph.md`'s
+(#5264)'s
 "Deployment-config influence" section documents the coverage-propagation and
 fail-closed-completeness rules this handler implements.
 

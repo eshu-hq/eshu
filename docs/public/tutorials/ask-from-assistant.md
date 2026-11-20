@@ -109,7 +109,7 @@ Codex). In Claude Code `router` used about one seventh of the input tokens of
 cache reads. `full` answered somewhat more questions in both clients, and
 `core_router` was the weakest surface on accuracy in both. The sample is small,
 so treat gaps of a few runs as noise. The numbers, the scoring rules, and the
-gaps are in the [validation note](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/8760-hosted-mcp-validation.md).
+gaps are in the validation note (#8760).
 
 In practice: keep `full` when the assistant handles a long tool list well or you
 want it to see every tool. Try `router` when tool-list size or input cost

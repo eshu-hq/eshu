@@ -101,7 +101,7 @@ defect in when the solve ran. Allowlist entry 36 (the `TAINT_FLOWS_TO`
 fixpoint writer excused for timing-dependent scope sets) is retired because
 this change removes the mechanism it excused and the stale-entry guard fails
 a run on an unmatched entry. See
-`docs/internal/evidence/6923-value-flow-single-solve.md` for the
+(#6923) for the
 prove-the-theory-first shims (capture analysis, fence EXPLAIN) and the
 performance/observability evidence.
 

@@ -4,7 +4,7 @@
 // Package eol joins repository runtime declarations against a vendored
 // endoflife.date snapshot, so a read path can answer whether a declared
 // runtime is still supported without any network access (issue #9163,
-// research in docs/internal/evidence/8820-eol-snapshot-research.md).
+// research in (#8820)).
 //
 // The snapshot directory holds one endoflife.date per-product JSON file for
 // each mapped slug plus a snapshot_date file with the UTC day of the fetch.

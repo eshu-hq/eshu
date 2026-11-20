@@ -57,7 +57,7 @@ import (
 // 300,000-file scope. jsonb_to_record needs an object payload, which every
 // file fact has by construction (the envelope payload is a map). A false
 // answer must test every file of the generation, so its cost is linear in
-// the file count (docs/internal/evidence/9986-workload-probe-plan.md).
+// the file count (#9986).
 func workloadCandidatePreconditionQuery() string {
 	return workloadCandidatePreconditionSQL
 }

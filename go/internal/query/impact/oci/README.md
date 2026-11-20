@@ -51,7 +51,7 @@ telemetry call path is unchanged.
 `AdvanceBoundedRead`, `KeyBatches`, and the truth builders are pure
 in-memory row shaping over an already-fetched page, not hot Cypher. No
 benchmark delta is claimed for the extraction itself; see
-`docs/internal/evidence/6590-oci-registry-truth-bound.md` for the row-limit
+(#6590) for the row-limit
 enforcement's own before/after measurement.
 
 ## Gotchas / invariants
@@ -77,4 +77,4 @@ From `go/`, run `go test ./internal/query/impact/... -count=1`, then
 
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 - [HTTP API](../../../../docs/public/reference/http-api.md)
-- [#6590 evidence](../../../../docs/internal/evidence/6590-oci-registry-truth-bound.md)
+- #6590 evidence

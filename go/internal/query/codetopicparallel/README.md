@@ -69,7 +69,7 @@ content and queue fingerprint was unchanged. This is a built endpoint result
 on the dedicated instance, not a deployed QA acceptance result. Those
 measurements remain bound to the pre-rebase source commit. The later
 guarded-reader integration has its own [historical pre-permit built endpoint
-comparison](../../../../docs/internal/evidence/7033-exact-code-topic-parallel.md):
+comparison](../../../../(#7033)):
 on the same dedicated corpus, baseline and candidate medians were 0.765572
 and 0.464944 seconds, with matching full responses. That result is bound to
 candidate `9b96896d595fecd700d8e4bdbc32435dee2cad1b`, before the

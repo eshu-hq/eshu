@@ -74,7 +74,7 @@ const tagObservationProjection = `RETURN t.tag AS tag,
 // parameters it needs, and because making correctness depend on a guard whose
 // behaviour varies by anchor shape on one build -- and is changing again
 // upstream -- is a bet with no upside here. The measurements are in
-// docs/internal/evidence/6564-tag-history-keyset-pagination.md.
+// (#6564).
 //
 // What IS live on this build and does constrain every statement here: a WHERE
 // comparing a property of one node to a property of ANOTHER node is not
@@ -103,7 +103,7 @@ const (
 	// NOT to collapse the predicate the way the empty-string guard does: with
 	// it the statement returns the timestamped rows after the key PLUS the tail,
 	// without it exactly the timestamped rows
-	// (docs/internal/evidence/6564-tag-history-keyset-pagination.md).
+	// (#6564).
 	AfterKeyCypher = `
 	MATCH (t:ContainerImageTagObservation {image_ref: $image_ref})
 	WHERE t.first_observed_at > $after_at

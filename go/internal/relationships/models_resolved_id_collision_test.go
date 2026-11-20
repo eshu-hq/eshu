@@ -44,8 +44,7 @@ func TestResolvedRelationshipIDRepoLevelCollision(t *testing.T) {
 }
 
 // BenchmarkResolvedRelationshipID bounds the per-row digest cost of the
-// #8299 identity digest (referenced by docs/internal/evidence/
-// 8299-resolved-id-no-regression.md).
+// #8299 identity digest.
 func BenchmarkResolvedRelationshipID(b *testing.B) {
 	row := ResolvedRelationship{
 		SourceRepoID:     "repo-a",

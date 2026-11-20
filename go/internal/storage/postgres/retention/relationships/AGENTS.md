@@ -7,7 +7,7 @@
 3. `../../AGENTS.md` for Postgres storage conventions.
 4. `../../repository_retirements_purge_sweep.go`: the #10820 purge this sweep's
    lock order must be read against, and
-   `docs/internal/evidence/10823-relationship-retention.md` for the measured
+   (#10823) for the measured
    plans, WAL figures and mutant results.
 
 ## Invariants

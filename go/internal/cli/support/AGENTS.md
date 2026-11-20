@@ -4,7 +4,7 @@
 
 1. `doc.go` for the package contract.
 2. `README.md` for ownership and invariants.
-3. `docs/internal/evidence/8874-s4-endpoint-decisions.md` for the
+3. (#8874) for the
    endpoint-vs-retain rationale behind each route.
 4. Parent `../AGENTS.md` for query-wide invariants (envelope negotiation,
    error codes) that the handlers reuse without redefining.

@@ -164,7 +164,7 @@ per-writer analysis, live before/after evidence, and two related-but-distinct
 NornicDB write-loss shapes found but not fixed in the same change (a
 `WITH`-chained multi-clause edge-MERGE no-op in `canonicalNodeFileUpdateExistingCypher`,
 and an `UNWIND`-batched `DELETE` no-op in the retract/refresh statements) are
-in `docs/internal/evidence/5652-nornic-bare-match-writeloss.md`.
+in (#5652).
 
 ## #5623 — MATCHES_STATE edge retract must run on delta cycles too
 

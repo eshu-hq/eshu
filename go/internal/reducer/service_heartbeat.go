@@ -302,7 +302,7 @@ type handlerOutcome struct {
 // fenced, but graph writes are only safe when the handler's writes are
 // idempotent or fenced; a non-idempotent late write can duplicate truth the
 // retry already re-committed (see the per-domain audit in
-// docs/internal/evidence/10866-reducer-handler-timeout.md). Domains without
+// (#10866)). Domains without
 // an audited write path get no shipped bound.
 func (s Service) executeHandler(
 	execCtx context.Context,

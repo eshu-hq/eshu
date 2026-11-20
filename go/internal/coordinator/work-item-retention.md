@@ -58,7 +58,7 @@ coverage gate can see their registration. One log line per pass:
 
 Operator page and runbook:
 `docs/public/reference/telemetry/workflow-work-item-retention.md`. Evidence:
-`docs/internal/evidence/8829-workflow-work-item-retention.md`.
+(#8829).
 
 ## Tests
 

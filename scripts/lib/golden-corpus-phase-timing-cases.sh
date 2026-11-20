@@ -29,7 +29,7 @@
 # No measurement is needed to prove that: any wait > 8 by construction, on any
 # host and any corpus. The "~4s -> ~23s" figure quoted around this change is an
 # illustrative local reading with no committed phase-timings.json, host, or
-# manifest behind it -- see docs/internal/evidence/5837-aws-drift-reopen.md,
+# manifest behind it -- see (#5837),
 # "Golden-gate phase-timing note", for the source-only proof and for what would
 # have to be captured to make that figure evidence.
 #

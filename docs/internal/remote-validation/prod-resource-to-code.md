@@ -43,7 +43,7 @@ cd go && go test ./internal/query -run TestTraceResourceToCode -count=1
 ```
 
 **Live NornicDB correctness fix** —
-`docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md` (fixes the
+(#5286) (fixes the
 `trace-resource-to-code` and `explain-dependency-path` by-id impact reads,
 both anchored on `impactAnchorLabelDisjunction`, on the pinned NornicDB
 backend).

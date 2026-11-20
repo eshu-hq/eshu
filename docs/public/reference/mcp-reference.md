@@ -329,7 +329,7 @@ where it ran:
   `docs/internal/design/7206-mcp-response-budget-fallback.md`.
 - A manual run on the other documented clients.
 - One week with no over-budget increase on a hosted deployment.
-- The [structured result-contract proof](https://github.com/eshu-hq/eshu/blob/main/docs/internal/evidence/8800-structured-result-contract.md)
+- The structured result-contract proof (#8800)
   at `9a43126e3f56aeb2c53814b9e6da913374619b5c` passed 629 checks with zero
   required failures and two advisory timing warnings. Its evidence note records
   the exact code, substrate and remaining limits.

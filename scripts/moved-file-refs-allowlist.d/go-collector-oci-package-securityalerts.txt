@@ -30,7 +30,6 @@ go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/securityalerts
 go/cmd/workflow-coordinator/REMOVAL_PREP.md:go/internal/collector/securityalerts/alertruntime/source.go
 # 6695 is a dated move record (base origin/main at effc33a4a0) naming the
 # collector config path as it stood at move time.
-docs/internal/evidence/6695-document-registry-package-move.md:go/cmd/collector-oci-registry/config.go
 # 4786 contract matrix cells name the emitters and helpers at their
 # pre-extraction in-tree paths. There is no in-tree successor path to
 # repoint at -- the emitters now live in the satellites -- so the cells stay

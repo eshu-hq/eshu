@@ -439,7 +439,7 @@
 // ErrTargetedMaintenanceNoMemoBaseline; every TargetedMaintenanceError has a
 // stable Reason for telemetry labels. Its correlation reopen is
 // partition-scoped: the fleet-wide correlation replay stays on the epoch whole
-// pass. See docs/internal/evidence/7584-partition-scoped-maintenance.md.
+// pass. See (#7584).
 //
 // Operator repository retirement fences and purges a repository's derived scopes
 // with it, mapped by the scope id built from the repository id, and a commit to a

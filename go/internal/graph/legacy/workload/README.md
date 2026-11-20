@@ -43,7 +43,7 @@ the reducer's handle ladder skips edges as `workload_handle_ambiguous`.
   readiness, the dry run, and the pre-delete verification, and the reads avoid
   the shapes `docs/public/reference/nornicdb-pitfalls.md` records as unreliable
   on NornicDB. Only Neo4j was tested, by owner direction. See
-  `docs/internal/evidence/8795-legacy-workload-retirement.md`.
+  (#8795).
 - `DeleteNeo4jCypher` takes each named node's write lock first and then
   re-evaluates every clause inside the statement, so the dry run is advisory
   and the delete is the gate. A writer that changes the node or its

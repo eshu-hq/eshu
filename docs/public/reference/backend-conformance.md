@@ -126,7 +126,7 @@ Transitive `CALLS` on `POST /api/v0/code/relationships` returns the start node
 and repeat depths on the Neo4j route, but each node once on the NornicDB
 breadth-first route (#6849). And the Class `INHERITS` count varies run to run
 on both backends, 22 or 23 on each, so it is not a backend divergence (#6850).
-Both are recorded in `docs/internal/evidence/6782-b7-neo4j-divergences.md`.
+Both are recorded in (#6782).
 
 ### Differential oracle contract
 

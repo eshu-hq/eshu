@@ -7,7 +7,7 @@ pacing design for the bounded one-time baseline. Criterion 1 (whether to hold
 the corpus) is settled YES by that ruling. Parent transport design:
 [10671-nvd-feed-transport-fallback.md](10671-nvd-feed-transport-fallback.md).
 Measurements:
-[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
+(#10671).
 
 Pace and resume (revised under #10816 to the arbiter's pace ruling of 2026-11-16,
 [10728-baseline-pace-ruling-2026-11-16.md](../arbiter/10728-baseline-pace-ruling-2026-11-16.md)):
@@ -120,7 +120,7 @@ about 151 hours, from the Modified-feed mean of M5) and its first correction
 under #10811 (1,256 budget bytes a fact and about 63 days, which differs from
 the measured figure only by id lengths). The tables, the byte breakdown and the
 limits are in M11 of
-[10671-nvd-feed-measurements.md](../evidence/10671-nvd-feed-measurements.md).
+(#10671).
 
 | Quantity | Measured |
 |---|---|
@@ -147,7 +147,7 @@ The target is the adaptive column: the whole baseline in under 36 hours and 2026
 and 2025 in under 9 hours. The 15-minute column is about 50,800 facts an hour,
 under the 60,000 an hour the trip line supports (15,000 dirty rows an hour at
 the one measured ratio of 0.25 rows a fact, from 80 planted facts in
-[10729-baseline-disposable-proof.md](../evidence/10729-baseline-disposable-proof.md)
+(#10729)
 section 2). The adaptive column assumes each chunk's collect, commit, projection
 and reducer pass finishes inside 5 minutes, which is not measured; if it is
 longer, the lane is cycle-bound, not unsafe.
@@ -288,7 +288,7 @@ chunk per planner run" bound.
   the scope, and its `supply_chain_impact` reducer item is done, read by key
   from the checkpoint's `last_scope_id` and `last_generation_id` by
   `NVDBaselineDrainProbe` (no new index; EXPLAIN proof in
-  [10814-baseline-drain-probe.md](../evidence/10814-baseline-drain-probe.md)).
+  (#10814)).
   The baseline loop enforces this, not the tick, because cadence is per-target
   config (`refresh_interval` in `intelligence_scheduler.go`).
 - **Adaptive interval.** The interval is `max(floor, 30 min / 2^streak)`.
@@ -408,7 +408,7 @@ wires the recorders and the plan-time latch load into the service.
   counted one per row by scope family in a separate
   `NVDScopeRowsPerHour` field and are not folded into the 15k comparison
   (decided in #10767, with the reasoning and what would reopen it in
-  `docs/internal/evidence/10767-trip-inflow.md`; weighting by fan-out stays a
+  (#10767); weighting by fan-out stays a
   separate ruling). A raw sequence high-water
   delta was rejected: it counts every source, and the measured all-source
   inflow (M6) is 60k to 109k rows an hour against the 15k threshold.
@@ -469,8 +469,7 @@ cap. The adaptive pace in section 4 adds `soft_quiet_streak` to that row
   6,983,745 bytes.
 - Dirty-log rows per committed NVD fact in QA. One measurement exists, 0.25 rows
   a fact on 80 planted facts
-  ([10729-baseline-disposable-proof.md](../evidence/10729-baseline-disposable-proof.md)
-  section 2); the live ratio is unmeasured (M6,
+  (#10729, section 2); the live ratio is unmeasured (M6,
   `10671-nvd-feed-measurements.md`, section "M6. The dirty log and who feeds
   it", first paragraph).
 - Chunk cycle time (collect, commit, projection, reducer) under 5 minutes,

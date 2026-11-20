@@ -51,7 +51,7 @@ emit_phase_timings_and_flags() {
 	# 8s effective ceiling (3s baseline + 5s absolute_slack_seconds) on ANY
 	# host — any wait fails by construction, a required failure with no
 	# pipeline slowdown behind it. See
-	# docs/internal/evidence/5837-aws-drift-reopen.md, "Golden-gate phase-timing
+	# (#5837), "Golden-gate phase-timing
 	# note"; the ~23s figure quoted elsewhere is illustrative, not captured.
 	# The orchestrator brackets that proof; everything bracketed is excluded here.
 	#

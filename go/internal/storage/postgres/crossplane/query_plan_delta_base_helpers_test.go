@@ -148,7 +148,7 @@ func crossplaneRedriveIndexCondHasGenerationANY(plan string) bool {
 // aggregation adds 12.633 ms over its pre-aggregation shape while the base
 // leg itself stays near 5.8 ms. The guard logs the p50s against this
 // bound; the pass verdict is recorded in
-// docs/internal/evidence/10094-crossplane-redrive-delta-base.md.
+// (#10094).
 const crossplaneRedriveAddedCostBoundMs = 30.0
 
 // testCrossplaneRedriveDeltaBasePlanLive extends the plan corpus with

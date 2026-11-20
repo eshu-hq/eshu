@@ -29,5 +29,5 @@
 // returned zero rows on the pinned NornicDB build and on upstream v1.3.1 for a
 // seed whose answer was two rows, while the two single-clause reads returned
 // exactly the seeded edges on both. See
-// docs/internal/evidence/6564-tag-history-grant-binding.md.
+// (#6564).
 package taghistory

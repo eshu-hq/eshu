@@ -442,7 +442,7 @@ knob was added.
   seek a `path` index for `path = $p` and for `IN` alone (separate review
   probe), so the retract is a pre-existing gap, not a shape that cannot be
   anchored
-  (`docs/internal/evidence/7097-nornicdb-narrow-uid-constraints.md`).
+  (#7097).
   Its fingerprint moved and the previous one stays compatible.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must

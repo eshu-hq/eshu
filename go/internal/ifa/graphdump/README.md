@@ -191,7 +191,7 @@ Evidence:` / `No-Observability-Change:`.)
   - **Multi-scope matrix (slice 6b, `scripts/verify-ifa-determinism.sh`,
     unmodified — no `--teeth`):** the demo-org Odù alone gives
     `concurrentreplay.Driver` exactly one work unit for ANY `-workers` count
-    (see `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`,
+    (see (#4396),
     relocated from `go/internal/reducer/README.md`'s former teeth section),
     so the recorded slice-5 run above proves repeatability, not a worker
     matrix. This run adds the
@@ -237,7 +237,7 @@ Evidence:` / `No-Observability-Change:`.)
         node identity, different process-relative sequence number) —
         confirming the counter is genuinely interleaving-sensitive on this
         9-work-unit fixture, unlike the single-scope run recorded in
-        `docs/internal/evidence/4396-ifa-p3-determinism-matrix-teeth.md`
+        (#4396)
         (relocated from `go/internal/reducer/README.md`'s former teeth
         section) where the counter alone was measured INERT (identical
         digest across every N). Example:

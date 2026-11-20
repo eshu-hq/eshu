@@ -140,7 +140,7 @@ custom and a forced generic plan. The page read it replaces read 2,259
 (custom) on both, and 157,469 and 157,465 (generic). The id lookup used the
 same plan on both images; the counts differ by at most 7 buffers (1.53%)
 between images. See
-`docs/internal/evidence/7247-language-query-anchored-metadata.md`.
+(#7247).
 
 Observability Evidence: the request span carries
 `eshu.language_query.metadata_path`, `eshu.language_query.metadata_rows_enriched`
@@ -152,7 +152,7 @@ counts the same rows (`metadata_anchored_telemetry_test.go`). The lookup's
 ## Related docs
 
 - `docs/public/reference/language-query-dsl.md`
-- `docs/internal/evidence/7247-language-query-anchored-metadata.md`
-- `docs/internal/evidence/6546-language-query-extension-filter.md`
-- `docs/internal/evidence/5167-code-family-batch-2.md`
+- (#7247)
+- (#6546)
+- (#5167)
 - `go/internal/query/read-models.md`

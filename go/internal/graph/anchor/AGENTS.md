@@ -3,7 +3,7 @@
 ## Read first
 
 1. `go/internal/graph/anchor/README.md` — the reachability definition.
-2. `docs/internal/evidence/7212-wide-entity-anchor.md` — why the set must stay
+2. (#7212) — why the set must stay
    closed and what the 2026-10-08 census measured.
 3. `go/internal/graph/schema_tables.go` and `schema_id_constraint.go` — the
    uid and id constrained label sets this package unions.

@@ -58,7 +58,7 @@ func terraformResourceBenchCleanup(tb testing.TB, runner *boltRetractTestRunner,
 // matching this package's other live benchmarks/tests.
 //
 // This is the committed, reproducible counterpart to the throwaway-harness
-// numbers in docs/internal/evidence/5441-edge-node-properties.md (#5441
+// numbers in (#5441) (#5441
 // review round 9 P2: "the cited benchmarks are not committed" -- fixed
 // here). Unlike the throwaway harness, this measures real network round
 // trips, not only in-process Go/data-structure cost.

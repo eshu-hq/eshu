@@ -25,11 +25,11 @@ package factimpact
 // 180-id tail does not. At 120 the walk costs 1.41 times the key probe, and every
 // shorter length costs less. Do not raise this without planning every length up to
 // the new value, under both plan modes at page costs 1.1 and 4, on QA or on a
-// heap-proportioned fixture (docs/internal/evidence/9994-cve-key-probe-chunking.md).
+// heap-proportioned fixture (#9994).
 //
 // Migration 283 now carries extended statistics on this expression (#10050),
 // which hold the probe on its index past the walk locally — but the estimate
 // stays ~10x under actual and QA-scale re-derivation is owed, so this bound
 // stays until that proof lands
-// (docs/internal/evidence/10050-cve-key-probe-statistics.md).
+// (#10050).
 const MaxCVEIDsPerStatement = 120

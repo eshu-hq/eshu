@@ -182,7 +182,7 @@ converge in one pass. Fleet-wide canonical quiescence restored all 116 `CALLS`,
 all 8 `CORRELATES_DEPLOYABLE_UNIT`, all 4 `HANDLES_ROUTE`, and all 4 `RUNS_IN`
 edges in both clean and interrupted NornicDB v1.3.2 runs. The remaining measured
 differences are `EXTENDS_BASE` and workload-instance deployment identities. See
-`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`
+(#6184)
 for the current-backend comparison; the table above remains the dated #4594
 baseline.
 
@@ -190,7 +190,7 @@ A separate limit applies to any comparison against a pre-wipe snapshot: indexing
 the same corpus is not deterministic. Three runs recorded pre-wipe totals of
 2,506/3,294, 2,504/3,289, and 2,505/3,288. Treat a couple of nodes of difference
 as indexer noise before reading it as a rebuild regression. Full breakdown in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+(#4594).
 
 There is deliberately no absolute target. Rebuild time scales with fact volume
 and graph write throughput, and a fixture corpus predicts nothing about an
@@ -210,7 +210,7 @@ No-Regression Evidence: first measurement of this operation — 26 s for 67 scop
 and 3,866 `fact_records` on NornicDB `eshu-nornicdb-pr290:3722b483c02c`, queue
 terminal with zero retrying and zero dead-letter rows, full conditions and
 per-label graph counts in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`. No prior baseline
+(#4594). No prior baseline
 exists to regress against; the rebuild path adds a bounded INSERT of one work
 item per active scope and no read-path query.
 

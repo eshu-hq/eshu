@@ -16,7 +16,7 @@
 # key for this projection domain. It gives this family a distinct
 # runner-stage kill/reclaim seam without reusing code_calls' first-stage
 # handler wait key. The three-run live theory proof is recorded in
-# docs/internal/evidence/6208-runner-lease-hold-live-theory.md.
+# (#6208).
 IFA_FAMILY_BLOCKER_KIND[handles_route]="runner_lease_hold"
 # wait_stage=runner, not handler: this family's intent rows are tagged
 # ProjectionDomain=DomainHandlesRoute="handles_route"

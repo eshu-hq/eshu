@@ -98,18 +98,9 @@ docs/internal/design/5007-cross-scope-node-ownership.md	914
 docs/internal/design/5385-workload-identity-key.md	1488
 docs/internal/design/package-restructure.md	2463
 docs/internal/design/restructure-research.md	506
-docs/internal/evidence/4594-graph-rebuild-from-facts.md	975
-docs/internal/evidence/5238-account-alias-rollout-gap-signal.md	677
-docs/internal/evidence/5244-5253-dashboard-correctness.md	641
-docs/internal/evidence/5426-golden-corpus-coverage.md	615
-docs/internal/evidence/5441-edge-node-properties.md	1011
 docs/internal/evidence/5490-k8sresource-candidate-index.md	507
-docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md	746
-docs/internal/evidence/5813-5801-scanner-diagnostic-and-source-label-dedup.md	556
 docs/internal/evidence/5837-aws-drift-reopen.md	1502
-docs/internal/evidence/5847-container-image-identity-retire.md	926
 docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
-docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
 docs/public/contributing-language-support.md	503
 docs/public/operate/hosted-governance.md	671
 docs/public/reference/cypher-performance.md	1821
@@ -125,3 +116,4 @@ docs/public/reference/search-benchmark-evidence.md	510
 docs/public/reference/security-intelligence.md	609
 docs/public/reference/telemetry/index.md	1269
 docs/public/services/collector-aws-cloud-scanners.md	505
+docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md	746

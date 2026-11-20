@@ -184,7 +184,7 @@ plan, which is cost-sensitive. The clearest measured case is the #5490
 K8sResource candidate fetch
 (`go/internal/query/content_reader_k8s_select_candidates.go`, migration
 `077_content_entities_k8s_select_partial_index.sql`); full ladder in
-`docs/internal/evidence/5490-k8sresource-candidate-index.md`:
+(#5490):
 
 | `random_page_cost` | Plan | Mean exec (ms) |
 | --- | --- | ---: |

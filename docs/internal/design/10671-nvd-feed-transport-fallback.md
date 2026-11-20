@@ -22,7 +22,7 @@ won.
 ## Context
 
 Measured 2026-11-15; every figure and its sample are in the
-[measurements note](../evidence/10671-nvd-feed-measurements.md).
+measurements note (#10671).
 
 - NVD windows fail on QA: the last success was 2026-11-13 17:10Z, and 14 window
   items are `failed_terminal`. The drain cursor is at 2026-10-17, **about 28 days**
@@ -144,7 +144,7 @@ path was selected (see Errors).
 **Seed read through the window tail (ruled 2026-11-16, not yet built).** Serving
 the gap by scanning year files per claim costs 47 to 62 s a claim against a lease
 shared by every page of a paged group, so a 6-page group cannot finish
-([measurements M12](../evidence/10671-nvd-feed-measurements.md); ruling:
+(measurements M12 (#10671); ruling:
 [10671-window-seed-scan-ruling-2026-11-16.md](../arbiter/10671-window-seed-scan-ruling-2026-11-16.md)).
 The ruling keeps the seed as the source for the gap and changes how it is read:
 
@@ -337,7 +337,7 @@ Follow-ups, all filed under epic #9209:
 - B. [eshu#10716](https://github.com/eshu-hq/eshu/issues/10716): kill switch,
   telemetry (transport label, feed-age gauge, guard and deadline counters),
   golden trace, wider cursor reader, NIST sunset watch (R5, R6, R8; watch
-  file `docs/internal/evidence/nvd-2.0-feeds-sunset.watch`).
+  file (#10716), upstream https://nvd.nist.gov/general/news).
 - C. [collector#100](https://github.com/eshu-hq/eshu-collector-vulnerability-intelligence/issues/100):
   year-feed seed through the baseline store, with the manifest, guard, and a
   dormant-year API cross-check (R7b, R12, R13, R15). Required before QA enable.

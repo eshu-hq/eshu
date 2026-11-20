@@ -31,7 +31,7 @@
 # (`go list` on a deleted package fails, so the verifier can no longer
 # enumerate it). The gate script's MCP serving leg still names it;
 # rewiring that leg to the satellite is sequenced separately (see
-# docs/internal/evidence/9670-mcp-server-removal.md), and the workflow
+#9670), and the workflow
 # filter keeps its mcp-server paths until then.
 #
 # `go list -deps` only -- no `go build`, no Docker, no credentials. Fast

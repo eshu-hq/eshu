@@ -15,7 +15,7 @@ and what stays in `code/value`, `storage/postgres`, and the reducer root.
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/code/value/refresh/README.md`
 - `docs/internal/design/6785-value-flow-cloud-sink-refresh.md`
-- `docs/internal/evidence/6923-value-flow-single-solve.md`
+- (#6923)
 
 ## Invariants
 

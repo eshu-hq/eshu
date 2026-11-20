@@ -224,7 +224,7 @@ const crossRepoDeadCodeConsumerPageRankMigration = "../storage/postgres/migratio
 // the page sentinel. Edit any one alone and Postgres goes back to ranking a
 // producer entity's whole consumer fan-in before it can emit that entity's first
 // row, which is 1,000,497 rows read for a 1,001-row answer on the corpus in
-// docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+// (#5167).
 //
 // Answered in output order is not the same as bounded by the cap. The cap bounds
 // rows RETURNED; the scan walks one entry per retained generation per position,

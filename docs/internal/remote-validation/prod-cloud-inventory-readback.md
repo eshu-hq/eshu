@@ -56,7 +56,7 @@ cd go && go test ./internal/query -run TestCloudInventoryResourceView -count=1
 ```
 
 **Scoped-token grant filtering (W6) performance/observability record** —
-`docs/internal/evidence/5167-w6-scoped-cloud-routes.md` (#5167) documents the scoped-token grant
+ (#5167) documents the scoped-token grant
 filtering added to cloud/ecosystem routes, including this readback family.
 
 **Contract declaration** — `go/internal/query/openapi_cloud_inventory_test.go`:

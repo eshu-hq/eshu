@@ -130,7 +130,7 @@ status counts and the newest in-flight last-workable time (the same four-term
 `GREATEST` as above, never `updated_at`). It reaches `fact_work_items` through
 `fact_work_items_scope_generation_idx` only; `TestReducerContentionGateSecurityAlertImpactProducerStatePlanUsesScopeGenerationIndex`
 is the guard on a 350,000-row backlog (execution 0.04 ms, planning 0.14 ms,
-one run on a shared host; see `docs/internal/evidence/8827-reconciliation-impact-fence.md`).
+one run on a shared host; see (#8827)).
 Unlike the repository fence it does not join `ingestion_scopes`: the
 reconciliation waits for the producer of its own generation, whether or not
 that generation is the scope's active one.

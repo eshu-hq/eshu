@@ -73,7 +73,7 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // never carried the fallback, but its two equalities never reached those
 // spellings either, so a csharp repository query found nothing; it binds the
 // same list now. The measurement behind the shape is in
-// docs/internal/evidence/6546-language-query-extension-filter.md and the live
+// (#6546) and the live
 // proof in TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
 //
 // Performance Evidence: the #6642 move changed no Cypher text, and every
@@ -113,9 +113,9 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // relative comparison. The ORDER BY tie-break keys were priced separately at
 // most ~0.5s (~6%) on the two widest cells, point estimate ~0.25-0.30s;
 // they are bounded, not free. Full record:
-// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md, summarised
+// (#6541), summarised
 // with the correctness proof on two NornicDB builds in
-// docs/internal/evidence/6541-directory-query-s2.md.
+// (#6541).
 // Observability Evidence: the span this route emits (SpanQueryLanguageQuery)
 // and its route/capability attributes are unchanged (see handler.go), and the
 // Directory branch adds Handler.logDirectoryRead, which records the grant
@@ -261,7 +261,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // the whole result, so the statement can return up to limit x len(repoIDs)
 // rows. sortAndTruncateDirectoryRows re-sorts and truncates, which is correct
 // under both that behaviour and Neo4j's global LIMIT. The measurements are in
-// docs/internal/evidence/6541-directory-query-s2.md and the live proof in
+// (#6541) and the live proof in
 // TestLiveNornicDBDirectoryLanguageQueryCountsNestedDirectories.
 //
 // The ORDER BY therefore carries all three keys, and they are

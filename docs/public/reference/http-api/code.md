@@ -105,7 +105,7 @@ caller class, unscoped and scoped. Exactness tests cover empty
 graphs, duplicate edges, dotted-module prefix collisions, language filters,
 paging, repository-path collisions, directionally scoped and multi-node cycles, rotation dedupe,
 enumeration-cap truncation, and overflow. Cold and immediate-repeat NornicDB timings are
-recorded in `docs/internal/evidence/5561-import-investigation-bounds.md` against
+recorded in (#5561) against
 the 1.5-second interactive SLO.
 
 Observability: the route emits `query.import_dependency_investigation` with

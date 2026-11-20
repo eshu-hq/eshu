@@ -111,4 +111,4 @@ fields:
   `unguarded_no_reader` and `skipped_no_scope_truth`)
 - `duration_s`
 
-Evidence: `docs/internal/evidence/7285-repository-cleanup-keeps-reducer-edges.md`.
+Evidence: (#7285).

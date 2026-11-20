@@ -3,7 +3,7 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md` for the
+2. (#8880) for the
    census, the per-index justification, and the measured plans.
 3. `../../facts_active_supply_chain_impact.go` for the loader that runs the
    catalog.
@@ -37,7 +37,7 @@
   cost comparison that moves with stored statistics, so it is not a fixed limit
   (`TestCVEProbeIsChunkedBelowThePlanFlip`,
   `TestSupplyChainImpactCVEBoundStaysBelowTheWalkLive`,
-  `docs/internal/evidence/9994-cve-key-probe-chunking.md`).
+  (#9994)).
 - `vulnerability_upstream_cve_id` reads KEV and EPSS only. Adding the cve,
   affected_package or affected_product kind is the #9914 widening, which needs its
   own budget measurement.

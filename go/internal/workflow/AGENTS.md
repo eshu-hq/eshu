@@ -30,7 +30,7 @@
   run earlier: `failed` takes it out of the open-target guard and out of
   reconciliation while its siblings stay claimable, so the next planner pass
   admits duplicates (#10091). The interleaving argument is in
-  `docs/internal/evidence/10091-terminal-item-run-status.md`.
+  (#10091).
 - **FamilyFairnessScheduler is not safe for concurrent use** — `Next` mutates
   `currentWeight` on each call. External locking is required if multiple
   goroutines share one instance.

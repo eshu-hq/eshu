@@ -130,7 +130,7 @@ func AccessParams(
 // repo_id rather than against the Repository aliases the projection binds.
 //
 // The alias choice is the whole fix, and it is a measured one (#5167 batch 2b,
-// docs/internal/evidence/5167-code-family-batch-2b.md). Both story builders
+// (#5167)). Both story builders
 // bind sourceRepo/targetRepo through OPTIONAL MATCH clauses, and a WHERE that
 // follows an OPTIONAL MATCH constrains the optional pattern rather than the
 // driving row set -- so the predicates this function used to emit on those

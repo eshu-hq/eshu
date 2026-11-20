@@ -128,7 +128,7 @@ func scanFileUnwindAliasHits(fset *token.FileSet, relPath string, file *ast.File
 
 // TestNoUnwindVariableReusedAsReturnAliasAcrossRepo is the repo-wide static
 // guard for the NornicDB v1.3.3 X9 defect recorded in
-// docs/internal/evidence/6786-nornicdb-400-409-exposure.md.
+// (#6786).
 func TestNoUnwindVariableReusedAsReturnAliasAcrossRepo(t *testing.T) {
 	t.Parallel()
 

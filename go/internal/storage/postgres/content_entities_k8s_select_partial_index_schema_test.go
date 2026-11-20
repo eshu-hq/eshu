@@ -12,7 +12,7 @@ import (
 // migration ships the measured, tuple-size-safe shape: a partial,
 // ORDER BY-aligned index scoped to K8sResource rows only, INCLUDE-ing only
 // the bounded entity_name column. See
-// docs/internal/evidence/5490-k8sresource-candidate-index.md for the
+// (#5490) for the
 // EXPLAIN ANALYZE ladder this migration is derived from, including the
 // PR #5745 codex P1 that rejected an earlier revision covering the
 // unbounded metadata JSONB.

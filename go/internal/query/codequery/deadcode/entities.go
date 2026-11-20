@@ -48,7 +48,7 @@ func DeadCodeResultEntityIDs(results []map[string]any) []string {
 // 2-14% above what a single probe costs on its own. The overhead over one probe
 // has the same sign in all four runs, so it is real rather than noise; it is
 // the OPTIONAL MATCH the pair did not pay for. See
-// docs/internal/evidence/5167-code-family-batch-1.md.
+// (#5167).
 //
 // Two clauses of it are load-bearing on NornicDB and must not be "tidied":
 //

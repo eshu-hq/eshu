@@ -174,7 +174,7 @@ func buildCloudResourceRuntimeDigestQuery(
 	// (one digest on 30,000 resources, 20 others on 100 each), the old shape
 	// returned 200 rows for exactly ONE digest and zero for the other twenty,
 	// so twenty findings silently kept their CI-declared tier. See
-	// docs/internal/evidence/5789-per-digest-bound.md.
+	// (#5789).
 	//
 	// Freshness and authorization run INSIDE the lateral, BEFORE the limit, so
 	// the bound counts ELIGIBLE rows. Bounding first and filtering after looks

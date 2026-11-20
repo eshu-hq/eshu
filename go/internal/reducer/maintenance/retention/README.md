@@ -111,7 +111,7 @@ Never `internal/reducer`.
   without the sweeper on a database where 191 applied; the image carrying
   191 must carry it. Retention keeps running through the migration (no
   quiesce step). Post-deploy census and runbook:
-  `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
+  (#7427).
 
 - A skipped-only pass retries soon (1m doubling per consecutive
   skipped-only pass, capped at the poll interval) instead of sleeping

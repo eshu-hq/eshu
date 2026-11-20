@@ -834,7 +834,7 @@ aggregation — which the pinned NornicDB build mis-executes (returns a null
 edge_id and reports every edge as protected). The WAF/ACM lookups are bounded by
 the (subset) protection-edge population, measured no-regression at 3,633 WAF
 edges (1.2 ms, ≈ the base label scan); see
-`docs/internal/evidence/5287-ingress-posture-nornicdb.md`. Before: the context returned no WAF/TLS posture. After: one bounded,
+(#5287). Before: the context returned no WAF/TLS posture. After: one bounded,
 edge-id-anchored read derives the posture inside the existing few-seconds context
 SLA. Baseline/after: derivation reuses the `WorkloadInstance-[:USES]->`
 `CloudResource` set the context already resolves; no new whole-graph scan is

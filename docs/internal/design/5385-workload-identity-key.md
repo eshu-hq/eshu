@@ -64,8 +64,7 @@ path explicitly accumulates several repository ids under one
 `(ScopeID, GenerationID)` key
 (`ingestion_backfill.go:294-338`), and a closed incident records why —
 "the ingestion commit path accepts multi-repo scopes; production git sync just
-happens to commit one repo per scope, so this had not fired there"
-(`docs/internal/evidence/deferred-backfill-shared-partition-dupkey.md:11-13`).
+happens to commit one repo per scope, so this had not fired there."
 That assumption has already misfired once in this pipeline, with a live Ifá gate
 run taking a `SQLSTATE 21000` rollback for it.
 

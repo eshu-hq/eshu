@@ -4,9 +4,9 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../../AGENTS.md` for Postgres storage conventions.
-3. `docs/internal/evidence/7427-search-index-predelete.md` for the measured
+3. (#7427) for the measured
    statement shape and the plan it must keep, and
-   `docs/internal/evidence/7427-search-index-orphan-guard.md` for the orphan
+   (#7427) for the orphan
    census plan and the c3 freshness change.
 
 ## Invariants

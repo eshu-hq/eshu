@@ -82,7 +82,7 @@ recent shipped work grouped by feature area.
   the old 30-minute job cap, so healthy runs were cancelled at the cap in
   about a third of attempts. Both jobs now use `timeout-minutes: 45`;
   measurement and rationale are in
-  `docs/internal/evidence/10505-golden-corpus-job-cap.md`. No gate
+  (#10505). No gate
   assertion or snapshot tolerance changes.
 
 ### The Ack journal cost gate no longer reads environment drift as journal cost
@@ -116,7 +116,7 @@ recent shipped work grouped by feature area.
   direct vs group-member matches. A per-pass candidate index replaces the
   findings-times-suppressions scan (44.7 ms to 1.30 ms on the
   spread-identity benchmark). See
-  [alias-suppression evidence](docs/internal/evidence/10409-alias-suppression.md).
+  alias-suppression evidence (#10409).
 
 ### A capped CVE holder fan-out no longer strands its remaining holders
 
@@ -130,7 +130,7 @@ recent shipped work grouped by feature area.
   rows carrying fan-out debt, and the runtime generation guard lets the spared
   stale intent execute and drain its list. Manifest markers keep their
   completion-stamp behavior. See
-  [stranded-continuation evidence](docs/internal/evidence/10060-stranded-continuation.md).
+  stranded-continuation evidence (#10060).
 
 ### SAML sign-in no longer panics or misreads NameID on incomplete assertions
 
@@ -272,7 +272,7 @@ recent shipped work grouped by feature area.
   walk, at whole-segment granularity, in time linear in the number of segments.
   An arbiter ruling fixed the look-back at two segments, because the pinned
   `base.en` returned a value two lettered segments before its keyword
-  (`docs/internal/evidence/9792-backward-window-arbiter-ruling.md`); a value
+  (#9792); a value
   three or more segments before its keyword keeps its text. The cost is
   ordinary speech: on the repository's own docs, 5.44% of sentences lost their
   text with the forward window alone and 8.06% do with the look-back
@@ -378,7 +378,7 @@ recent shipped work grouped by feature area.
   space or a misread character outside base64, and a table column are still not
   covered; `SECRET_RUNS.md` in the OCR package lists them. The
   arbiter ruling that accepts the rule and its thresholds is
-  `docs/internal/evidence/9799-multiline-arbiter-ruling.md`.
+  (#9799).
 
 ### Extension host: eshu-sdk collector v0.2.0-rc.3 pin
 
@@ -550,7 +550,7 @@ recent shipped work grouped by feature area.
   index for the coming version-threshold query (#8817). The extra follow-up
   fact moves `gitGenerationContentVersion` to `git-collector.v15`, so each
   repository re-collects once. Evidence:
-  `docs/internal/evidence/8816-runtime-declaration-graph.md`.
+  (#8816).
 
 ### CI: CHANGELOG.md rebases without conflicts
 
@@ -613,7 +613,7 @@ recent shipped work grouped by feature area.
   (19.88 to 19.75 ms for 1,024 targets with 5,000-repository sets). An anchored
   one adds about 0.2 ms and 14 buffers per covering target at 5,000
   incompressible repositories (0.09 to 0.34 ms for one target).
-  Evidence: `docs/internal/evidence/8838-security-alert-target-set.md`.
+  Evidence: (#8838).
 
 ### Security alerts: scoped unanchored reads classify over the caller's grants
 
@@ -629,7 +629,7 @@ recent shipped work grouped by feature area.
   Unscoped unanchored reads still evaluate every configured target. The
   catalog read takes 1.2 to 3.1 ms at grant sizes 1, 100, and 5,000 over a
   10,000-repository catalog.
-  Evidence: `docs/internal/evidence/8837-security-alert-grant-scope.md`.
+  Evidence: (#8837).
 ### Security alerts: empty answers wait for reducer reconciliation
 
 - **A collection-healthy security-alert empty answer now waits for
@@ -645,7 +645,7 @@ recent shipped work grouped by feature area.
   `target_incomplete` with reason `dead_lettered_domain`, fallback truth,
   and unavailable freshness. The per-scope queue read takes 47 to 48 ms
   over a 500,000-item backlog.
-  Evidence: `docs/internal/evidence/8839-security-alert-reconciliation-queue.md`.
+  Evidence: (#8839).
 
 ### Security alerts: org targets over 100 repositories are collected as shards
 
@@ -929,7 +929,7 @@ recent shipped work grouped by feature area.
   reads use the legacy scan, which applies the same policy. Neither migration
   locks `content_files`. On a 150k-file corpus the shipped function adds 7,956
   findings to 16,403 (none lost) and costs 24 to 33% more per derived file;
-  see `docs/internal/evidence/8833-detector-migration.md`.
+  see (#8833).
 - **`eshu_dp_content_policy_raw_rows`** counts raw credential lines still
   stored on governed paths; it is the exit signal of the #8813 cleanup runbook.
 
@@ -968,7 +968,7 @@ recent shipped work grouped by feature area.
   on targets that recovered from a run of terminal failures.
   Worst case, every write a `security_alert` row: about 9% more WAL per
   insert, claim, and completion at 4 and 8 clients.
-  Evidence: `docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+  Evidence: (#8840).
 
 ### Parser: hostile Cargo TOML no longer crashes the ingester
 
@@ -1011,7 +1011,7 @@ recent shipped work grouped by feature area.
   5.7%) against the 1440 s budget. Replayed on the wave's own cut, shard 2
   predicted +25.2% over its measured 958 s. A second wave on the refreshed cut
   is not yet checked. Evidence:
-  `docs/internal/evidence/8930-readiness-weights-refresh.md`.
+  (#8930).
 
 ### Parser: pip constraints files
 
@@ -1324,7 +1324,7 @@ recent shipped work grouped by feature area.
   `generation_id` or `commit_sha` still rewrites the row (#8950). One duplicate
   `(repo_id, path)` key inside a single batch is rejected before any statement
   runs, as the database already rejected it. Evidence:
-  `docs/internal/evidence/8915-content-file-upsert-guard.md`.
+  (#8915).
 
 ### Unchanged-content rewrites are now counted
 
@@ -1882,7 +1882,7 @@ recent shipped work grouped by feature area.
   `400 invalid_argument` with the redacted graph message when the graph rejects
   the statement as malformed, instead of a 500. Postgres and internal error text
   in other 5xx bodies is listed in
-  `docs/internal/evidence/7253-graph-read-error-public-text.md`; the writer-pool
+  (#7253); the writer-pool
   half is fixed in the next entry.
 
 ### Postgres writer-pool failures no longer echo the connection target or server message
@@ -2445,7 +2445,7 @@ recent shipped work grouped by feature area.
   is unaffected for the same reason.
 
   - No-Regression Evidence: see
-    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    (#5572)
     for the full complexity argument (zero new Postgres queries; the added
     per-entry work is the same O(directory depth) walk-up shape
     `modulePrefixForPath` already performs, doubled) and the green focused
@@ -2551,7 +2551,7 @@ recent shipped work grouped by feature area.
   checked atom presence, not which side attached it.
   - No-Regression Evidence / Observability Evidence: see the "Follow-up: both
     halves of a spurious mismatch pair now downgrade" section of
-    `docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md`
+    (#5572)
     for the complexity argument (zero new Postgres queries) and the green
     focused test run across `internal/correlation/drift/tfconfigstate`,
     `internal/storage/postgres`, `internal/reducer`, `internal/query`, and

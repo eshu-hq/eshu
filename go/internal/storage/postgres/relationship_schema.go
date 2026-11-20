@@ -425,7 +425,7 @@ ORDER BY COALESCE(r.source_entity_id, r.source_repo_id),
 // scans; real rows are never NULL there. When complete is false the planner
 // still evaluates the inner read and the join filter discards it: the same
 // cost today's read-then-recheck path pays, measured in
-// docs/internal/evidence/6740-corpus-fence-snapshot.md (a LATERAL gate and a
+// (#6740) (a LATERAL gate and a
 // scalar-subquery gate planned identically).
 const listResolvedByReposWithCorpusFenceSQL = `
 WITH fence AS MATERIALIZED (

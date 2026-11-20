@@ -62,4 +62,4 @@ for an instance with no acknowledgement. Both keep the
 `workflow_work_items_failed_terminal_instance_updated_idx` seek in index order
 with no Sort.
 
-Plan and cost: `docs/internal/evidence/8830-collector-terminal-failure-acknowledgement.md`.
+Plan and cost: (#8830).

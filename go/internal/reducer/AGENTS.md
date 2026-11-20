@@ -1156,7 +1156,7 @@ stage (`loadSupplyChainImpactScannerAnalysisScopeFacts`) runs right after the
 active-evidence stage and queries each LOADED os_package envelope's own
 ScopeID+GenerationID for its sibling analysis (every pair loads since #7154;
 the per-intent evidence budget bounds the total, see
-docs/internal/evidence/7154-capped-scope-convergence.md).
+(#7154)).
 
 No-regression (#5463): the sibling-load stage adds sequential scoped
 `loadFactsForKinds` reads per intent (bounded by the #7154 evidence budget, not

@@ -4,7 +4,7 @@
 
 1. `doc.go` for the contract, `README.md` for the ownership table and budget.
 2. Parent `../AGENTS.md` and `../../AGENTS.md` for query-wide invariants.
-3. `docs/internal/evidence/5167-impact-grant.md` before changing a statement
+3. (#5167) before changing a statement
    or the budget.
 
 ## Invariants

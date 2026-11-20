@@ -14,7 +14,7 @@ import (
 // maintainer still runs one full resweep at startup. Every later tick consumes
 // the winners dirty log and recomputes only the keys it names; a full-recompute
 // audit runs beside the keyed ticks and queues any key the capture missed. See
-// docs/internal/evidence/9805-winners-keyed-resweep.md.
+// (#9805).
 
 // WinnersDirtyIdentifier names one canonical key of the winners read model by
 // the five columns every candidate fact of that key shares: the package triple

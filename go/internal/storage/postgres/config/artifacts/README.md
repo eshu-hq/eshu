@@ -131,7 +131,7 @@ because each derive rewrites a repository's rows.
 ## The derive (PR3b-2b)
 
 `Deriver.DeriveRepository` runs protocol section 3 for one repository. The
-docs/internal/evidence/8155-derive-core.md note has the sequence diagram.
+(#8155) note has the sequence diagram.
 
 1. **Version first.** `contentVersionSQL` reads `v0 = coalesce(version, 0)`
    on the pool, before the list. Content committed later bumps the version
@@ -225,7 +225,7 @@ repository with content, in `repo_id` order. It is a separate file because the
 #7961 lock-shape gate refuses `CREATE TRIGGER` and bulk DML in one file; it
 holds ACCESS SHARE on `content_files` only, and `ON CONFLICT DO NOTHING` keeps
 a row a fenced write created first. The evidence is in
-`docs/internal/evidence/8155-content-version-fence.md`.
+(#8155).
 
 A Write waits on content rows, and on a version row only inside another
 transaction's COMMIT. The retention cost is the `OLD TABLE` capture: +0.11 to
@@ -386,7 +386,7 @@ under a millisecond absolute on every corpus repository; the monster stores
 5,000 rows in one repository, about 250x the R1 average, so typical
 repositories pass with two orders of margin. The A2 attribution that admits
 this slice (same R1 story, 7 serial reads on QA image sha-3d7cb9c6, 2026-10-19)
-is in `docs/internal/evidence/8155-2c2-write-derive-wiring.md`: the
+is in (#8155): the
 `deployment_artifacts` stage is 2.04 to 2.29 s of a 2.35 to 2.60 s route
 (83 to 91%), graph stages total at most 0.01 s, bodies byte-identical 7/7.
 

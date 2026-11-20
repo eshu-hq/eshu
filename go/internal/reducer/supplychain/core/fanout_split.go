@@ -26,7 +26,7 @@ const (
 	// fanOutHolderReadParallelism bounds how many holder-read statements of
 	// one pass run concurrently (#10643). Holder reads are I/O-read dominated
 	// (72% of exec in the production EXPLAIN behind
-	// docs/internal/evidence/10564-chunk5-production.md), so overlapping a
+	// (#10564)), so overlapping a
 	// few statements hides disk waits; one 5-id chunk splits into at most 5
 	// statements, so 4 drains a fully split chunk in about two waves while
 	// one pass holds at most 4 read transactions, far under the pool even

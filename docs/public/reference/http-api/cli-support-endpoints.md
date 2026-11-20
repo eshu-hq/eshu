@@ -63,4 +63,4 @@ per-endpoint request metrics middleware; auth flows through the standard
 API auth layer. These endpoints have no MCP tools and no capability-matrix
 entries: they are CLI support, not query capabilities. The per-family
 endpoint-vs-retain rationale lives in
-`docs/internal/evidence/8874-s4-endpoint-decisions.md`.
+(#8874).

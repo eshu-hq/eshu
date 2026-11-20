@@ -286,7 +286,7 @@ func hydrateCloudResourcePage(
 // writer (go/internal/storage/cypher/cloud/resource/node_writer.go) so no
 // FUTURE write can produce this literal, but a node written before that fix
 // deployed only self-heals on its next materialization (see this repo's
-// docs/internal/evidence/5714-cloudresource-row-key-defaults.md, "Data
+// (#5714), "Data
 // repair"). Removal trigger: safe to delete once every AWS/Azure scope has
 // re-materialized at least once post-deploy (the normal case within one
 // collector sync cycle) — at that point no node can still carry the literal,

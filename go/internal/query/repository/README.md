@@ -208,7 +208,7 @@ that fast path. Both paths return edges sorted by (source, target) and
 clipped to 50,000, and report truncation. `dependency_edge_unscoped.go` holds
 the unscoped probe, grouped read and loader; `dependency_edge_cap.go` holds the
 group-size read and the prefix computation. Measurements are in
-`docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md`.
+(#6786).
 
 Performance Evidence (#6786 review R2-F6): on NornicDB v1.3.3 with 500
 repositories of 200 files each, the grouped read costs 0.0045s median against
@@ -217,7 +217,7 @@ repositories of 200 files each, the grouped read costs 0.0045s median against
 0.60-0.66s (per-edge) to 0.013s.
 
 Performance Evidence (#6786 review R3-F2, recorded in
-`docs/internal/evidence/6786-repository-dependency-edge-transfer-cap.md`): on
+(#6786)): on
 the same graph with 75,000 and 150,000 Repository `DEPENDS_ON` edges, the
 capped read transfers 50,100 edges instead of all of them. The interleaved
 loader median moves 0.160s to 0.169s and 0.154s to 0.166s on NornicDB, and

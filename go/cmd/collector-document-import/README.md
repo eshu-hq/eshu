@@ -244,7 +244,7 @@ instruments above are untouched.
 
 - Gate record: [#9382](https://github.com/eshu-hq/eshu/issues/9382).
 - Design rationale: `docs/internal/design/9728-ocr-engine-backend.md`.
-- Arbiter ruling for this wiring: `docs/internal/evidence/8879-caller-choice-arbiter-ruling.md`
+- Arbiter ruling for this wiring: (#8879)
   (to be filed with the wiring PR).
 - Runbook for future cutover work: the satellite collector runbook merged for
   the extracted collectors.

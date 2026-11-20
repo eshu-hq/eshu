@@ -9,7 +9,7 @@ import "testing"
 // seeded-violation RED/GREEN pair for the #6786 X11 guard. Every RED case is a
 // shape measured live to be ignored or mis-evaluated on NornicDB v1.3.3, and
 // every GREEN case is a shape measured live to be evaluated correctly there
-// and on Neo4j (docs/internal/evidence/6786-nornicdb-label-predicates.md).
+// and on Neo4j (#6786).
 func TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations(t *testing.T) {
 	t.Parallel()
 

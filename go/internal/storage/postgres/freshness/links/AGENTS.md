@@ -6,7 +6,7 @@
 2. `../AGENTS.md` for Postgres storage conventions.
 3. `link_sql.go` and `journal_sql.go` for every statement, and `link.go` for
    the lock order.
-4. `docs/internal/evidence/7127-changed-since-link-writer.md` for the gates.
+4. (#7127) for the gates.
 
 ## Invariants
 

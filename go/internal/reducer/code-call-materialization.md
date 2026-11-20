@@ -247,7 +247,7 @@ from other indexers, a `scip-go gomod` key without a symbol) keeps the
 corpus-wide scan unchanged. No
 parser emits `package:` call keys yet, so resolution output is unchanged until
 the JavaScript and TypeScript parser change lands. Measurements are in
-`docs/internal/evidence/7601-anchored-symbol-definition-loader.md`.
+(#7601).
 
 ## Producer-anchored Go module keys (issue #7623)
 
@@ -272,7 +272,7 @@ repository was one of several declaring the same module, the remaining one can
 become the only candidate and the key resolves to it. Package, Go, and other keys run as three separate scans.
 The loader logs one `code call symbol definition load` line per load with the
 key and producer-scope counts and the per-leg durations. Measurements are in
-`docs/internal/evidence/7623-go-module-anchored-loader.md`.
+(#7623).
 
 Both scans read each file's `parsed_file_data` once, in a `LATERAL` subquery in
 the shared query head, and match the five definition arrays from that value.

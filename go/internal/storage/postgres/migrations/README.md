@@ -84,8 +84,8 @@ the #8950 metadata-only rewrite (lineage columns only) stays HOT on the new
 pages. Existing pages turn over as generations rewrite them, so the heap grows
 toward about 2x heap-alone while TOAST and the indexes stay flat. Keep each of
 these a single statement; see
-`docs/internal/evidence/7389-superseded-writer-overlay.md` and
-`docs/internal/evidence/8950-writer-prototype.md`. Migration 245 (#9320) adds
+(#7389) and
+(#8950). Migration 245 (#9320) adds
 the nullable `shared_projection_intents.reopened_at` column the same way: no
 default, backfill, CHECK, or index, one statement.
 Migration 279 (#9975) sets `fact_records` `autovacuum_vacuum_scale_factor = 0.02`
@@ -101,7 +101,7 @@ vacuum that is still running. Before a roll, check `pg_locks` for a granted
 `pg_read_all_stats` that row shows a NULL `backend_type`, and
 `pg_stat_progress_vacuum` filtered by the table returns nothing, so treat the
 NULL-typed row as a running vacuum.
-See `docs/internal/evidence/9975-fact-records-autovacuum-reloptions.md` for
+See (#9975) for
 the measured first-vacuum cost, the read-replica `503` risk, and the stop
 procedure.
 
@@ -189,7 +189,7 @@ its checksum. The header says the backfill "takes row locks only" and is
 On the production index set, the backfill costs about 0.65 to 0.89 ms and
 58 KB of WAL per row. The figures and the live proof
 (`../migration_169_reader_bound_live_test.go`) are in
-`docs/internal/evidence/7760-generation-tag.md`.
+(#7760).
 
 ## Migrations 188 to 190 deployment note (#7420)
 
@@ -255,7 +255,7 @@ and `package_registry_identity_keys`. Read these facts before rollout:
   `eshu_schema_migrations`) first: the tracked migrator skips recorded
   migrations, so without it the keys silently stay.
 
-Evidence: `docs/internal/evidence/7420-drop-key-sidecar-fks.md`.
+Evidence: (#7420).
 
 ## Migration 191 deployment note (#7427)
 
@@ -282,7 +282,7 @@ rollout:
   vacuum (`(to prevent wraparound)`) to finish. The roughly 0.4^12 all-fail
   estimate in the evidence note holds only for uncorrelated holders.
 - After the deploy, run
-  `docs/internal/evidence/7427-drop-terms-generation-fk-postdeploy.sql`
+  (#7427)
   (no terms key in `pg_constraint`, the 191 ledger row, the orphan census)
   and read `eshu_dp_search_index_orphan_generations{table}`.
 - Locks, measured on PostgreSQL 18.6: ACCESS EXCLUSIVE on the terms parent,
@@ -303,11 +303,11 @@ rollout:
 - A re-run finds no key and takes no table lock.
 - Rollback: a code-only rollback is safe to the PR2 image. An image older
   than PR1 relies on the cascade; run
-  `docs/internal/evidence/7427-drop-terms-generation-fk-reverse.sql` first
+  (#7427) first
   (NOT VALID, then VALIDATE, with `SET lock_timeout`). Its last step deletes
   the 191 ledger row so a later roll-forward drops the key again.
 
-Evidence: `docs/internal/evidence/7427-drop-terms-generation-fk.md`.
+Evidence: (#7427).
 
 ## Migrations 212 to 216: supply-chain runtime fallback indexes (#8835)
 
@@ -347,7 +347,7 @@ transaction per load call, across all of that call's pages: on one hosted
 deployment a single call held its transaction open for about 83 minutes. Raise the schema Job's deadline above the chart's 600 s
 default for this rollout. If the new code starts before an index is valid it
 returns the same rows, only slower; a missing 229 costs the most. Steps and
-progress signals: `docs/internal/evidence/8880-supply-chain-impact-id-resolution.md`
+progress signals: (#8880)
 (Deployment).
 
 ## Migration 233: security-alert latest work item index (#8840)
@@ -368,7 +368,7 @@ index there, and the prune keeps its plan. Only `security_alert` work items
 pay the extra B-tree entry. If the index is missing or invalid, the read
 returns the same rows, only slower, and past its 1 s deadline it fails
 closed. Main has since taken 230-232, so this branch takes 233. Evidence:
-`docs/internal/evidence/8840-security-alert-latest-work-item-index.md`.
+(#8840).
 
 ## Migrations 245 and 246: reopen-aware shared-intent age (#9320)
 
@@ -407,7 +407,7 @@ adds no unique constraint, conflict key, or blocking lock.
 
 No-Observability-Change: the read runs inside the existing status statement
 and its read telemetry; the writers keep their existing counters and logs.
-Evidence: `docs/internal/evidence/9320-reopen-stamp-writers.md`.
+Evidence: (#9320).
 
 ## Migration 271: owned-target slot progress (#9776)
 
@@ -446,7 +446,7 @@ tracked migrator rebuilds it. Numbered 280: 279 went to main's #9975
 autovacuum file on rebase, so this lane takes the next free slot;
 re-derive the digest, the count, and the manifest row if
 the number moves again. Evidence:
-`docs/internal/evidence/10005-crossplane-delta-overlay.md`.
+(#10005).
 
 ## Migration 283: vulnerability CVE key expression statistics (#10050)
 
@@ -473,7 +473,7 @@ it. `TestCVEIDExpressionStatisticsMigrationExists` pins the file's shape;
 with a DROP-object control, and
 `TestSupplyChainImpactSecurityAlertCVEProbeBeforeAfterStatsLive` pins the
 sibling probe. Evidence:
-`docs/internal/evidence/10050-cve-key-probe-statistics.md`.
+(#10050).
 
 No-Observability-Change: no new metric, span, log key, route, worker,
 lease, or runtime knob; the probe statements are unchanged and stay under

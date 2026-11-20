@@ -183,7 +183,7 @@ func (s FactStore) ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.En
 // first. A failed retention-probe statement returns a retryable error. A
 // legacy delta with no baseline (union_no_baseline) keeps its delta-only
 // rows, as the projector loads it.
-// Performance Evidence: docs/internal/evidence/10005-crossplane-delta-overlay.md.
+// Performance Evidence: (#10005).
 func (s FactStore) ListActiveCrossplaneSatisfiedByFacts(ctx context.Context, scopeID string) ([]facts.Envelope, error) {
 	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")

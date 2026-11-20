@@ -16,7 +16,7 @@ import (
 // full snapshot instead (delta_exceeds_base_half). It is the #7926 half rule.
 // The prove-the-theory shim measured the p95 touched/base ratio at 0.126 on
 // the four busiest repositories even with a 72 h old base
-// (docs/internal/evidence/8780-cumulative-delta.md), so the valve is a bound,
+// (#8780), so the valve is a bound,
 // not a tuning knob, and stays a constant.
 const deltaGrowthValveRatio = 0.5
 

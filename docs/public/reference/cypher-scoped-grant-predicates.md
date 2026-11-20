@@ -144,8 +144,8 @@ see [Graph-read safety](telemetry/graph-read-safety.md).
   equivalence check inside the new structure, not a comparison against the
   per-branch statement.
 - Before/after timings, cold and warm:
-  `docs/internal/evidence/7215-scoped-infra-neo4j-dialect.md` and
-  `docs/internal/evidence/7231-scoped-infra-aggregate-neo4j-dialect.md`.
+  (#7215) and
+  (#7231).
 
 Do not move the list-`EXISTS` form onto NornicDB without a live NornicDB proof
 that it no longer leaks.

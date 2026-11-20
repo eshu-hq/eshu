@@ -5,7 +5,7 @@
 1. `README.md` and `doc.go` in this directory.
 2. `go/internal/storage/postgres/freshness/links/README.md` for the ledger,
    the link transaction and its lock order.
-3. `docs/internal/evidence/7127-changed-since-link-writer.md` for gates
+3. (#7127) for gates
    G1-G16.
 
 ## Invariants

@@ -247,7 +247,7 @@ The read costs one more lookup per covering target on the same empty-answer
 read: the target's active generation, its read-state row, and the requested
 repositories' rows by primary key (about 0.5 ms for 50 targets with 2,000
 unread repositories per generation; see
-`docs/internal/evidence/8943-security-alert-org-read-state.md`).
+(#8943)).
 
 Prefer `repository`-scoped targets when the allowlist is a small part of a
 large organization. They cost the sum of `ceil(open alerts / 100)` requests

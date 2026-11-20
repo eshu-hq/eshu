@@ -398,10 +398,10 @@ This page does not claim acceptance against the 1 s target for any route.
 
 | Topic | Source |
 | --- | --- |
-| Change-planning coverage truth | `docs/internal/evidence/7246-change-planning-coverage-truth.md` |
-| Change-surface label test | `docs/internal/evidence/7246-change-surface-label-test.md` |
-| Scoped one-term code topic | `docs/internal/evidence/7246-code-topic-scoped-one-term.md` |
-| Capped workflow coverage | `docs/internal/evidence/7250-capped-workflow-coverage.md` |
-| Graph-summary degree page | `docs/internal/evidence/7251-neo4j-graph-summary-degree.md` |
-| Repository workload count | `docs/internal/evidence/7542-materialized-repository-workload-count.md` |
+| Change-planning coverage truth | (#7246) |
+| Change-surface label test | (#7246) |
+| Scoped one-term code topic | (#7246) |
+| Capped workflow coverage | (#7250) |
+| Graph-summary degree page | (#7251) |
+| Repository workload count | (#7542) |
 | Sweep, replay, and cold-epoch figures | Comments on GitHub issues #7246, #7250, #7251, and #7542. Each section names its comments by date. |

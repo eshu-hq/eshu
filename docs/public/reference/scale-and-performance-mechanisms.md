@@ -33,7 +33,7 @@ repository bitmap and finishes in 0.3 to 0.6 s. The age of the statistics does
 not decide the outcome. A bad-regime read occurred minutes after an analyze, at
 10:25 UTC, 3 minutes after the 10:22 autoanalyze in the table below.
 
-See `docs/internal/evidence/7246-code-topic-scoped-one-term.md`.
+See (#7246).
 
 ## A materialized CTE hides the literal
 
@@ -118,7 +118,7 @@ within the argument sets of the original sweep.
 Fully whitelisted `CloudResource` anchors pay about 7% more database hits. The
 time was under the 1 ms timer resolution.
 
-See `docs/internal/evidence/7246-change-surface-label-test.md`.
+See (#7246).
 
 ## A removed names read replaced by a count
 
@@ -143,7 +143,7 @@ not stated.
 | 7,097 | 3,805.3 ms (3,794.6 to 3,837.7) | about 2.8 ms |
 
 These are statement times, not endpoint latency. See
-`docs/internal/evidence/7542-materialized-repository-workload-count.md`.
+(#7542).
 
 ## Buffer-cache first touch
 
@@ -187,14 +187,14 @@ third bullet is a speed change.
   full page did, so a repository with exactly 5,000 files also read as
   unknown. Zero workflows with that marker means `state=unknown`, not absence.
   See [CI/CD workflow coverage](http-api/workflow-coverage.md) and
-  `docs/internal/evidence/7250-capped-workflow-coverage.md`.
+  (#7250).
 - Change-planning responses report known topic-pool caps. The pool holds up to
   4,000 rows. An empty page at a nonzero offset reports
   `candidate_pool_status=unknown_empty_page`. See
-  `docs/internal/evidence/7246-change-planning-coverage-truth.md`.
+  (#7246).
 - On Neo4j the graph-summary packet groups and ranks `CALLS` edges in the
   database. It keeps the 50,000-edge fail-closed result. A read-only profile on
   a 45,495-function graph took 632 and 680 ms before and 458 and 377 ms after
   (n=2 each). Database hits fell from 878,988 to 550,060. Host load was not
   stated. Planner statistics are not applicable to this graph read. See
-  `docs/internal/evidence/7251-neo4j-graph-summary-degree.md`.
+  (#7251).

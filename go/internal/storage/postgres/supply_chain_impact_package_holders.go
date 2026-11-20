@@ -28,7 +28,7 @@ import (
 // There is no DISTINCT and no ORDER BY on purpose: the text sort was most of
 // the statement at 10x; the store dedupes.
 //
-// Performance Evidence: docs/internal/evidence/9874-lockfile-retrigger.md
+// Performance Evidence: (#9874)
 // (PG 18.6, synthetic 50,000 active plus 50,000 superseded affected-package
 // rows: median 46.6 ms over 1,101 scopes, median 65.3 ms over 20,601 scopes;
 // under the 10 s holder-read statement timeout).
@@ -64,7 +64,7 @@ WHERE fact.fact_kind = 'vulnerability.affected_package'
 // findings pass's own consumption-key join, so an alert for an unchanged
 // package of the same repository is filtered there, not here.
 //
-// Performance Evidence: docs/internal/evidence/10061-alert-scope-reopen.md
+// Performance Evidence: (#10061)
 // (threshold stated before the probe there).
 const findAlertHolderCandidatesQuery = `
 SELECT fact.scope_id,

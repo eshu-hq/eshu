@@ -123,7 +123,7 @@ count (`go/internal/query/language/directory_nornicdb_live_test.go`) and
 `TestLiveNornicDBDirectoryLanguageQueryBreaksTiesDeterministically` for the
 membership half (`go/internal/query/language/directory_tie_nornicdb_live_test.go`),
 both under build tag `live_nornicdb_language_imports_grant`. Measurements:
-`docs/internal/evidence/6541-directory-query-s2.md`.
+(#6541).
 
 ## Pitfall: An `ORDER BY` Key Written As `<variable>.<property>` After An Aggregating `WITH` Is Ignored
 
@@ -355,7 +355,7 @@ not anchored, so `.go` also matches `x.gov`. A single-node pre-filter carried
 through `WITH` (`MATCH (f:File) WHERE … WITH f MATCH (f)<-[:REPO_CONTAINS]-(r)`)
 is honoured but exceeded the route's 10 s graph-read deadline on a 4,000-file
 store where the one-clause form answered in 2.8 ms. The measurement table is in
-`docs/internal/evidence/6546-language-query-extension-filter.md`.
+(#6546).
 
 ### Validation
 

@@ -21,7 +21,7 @@ import (
 )
 
 // The scale shape follows the #8816 evidence note
-// (docs/internal/evidence/8816-runtime-declaration-graph.md): ten declarations
+// (#8816): ten declarations
 // per repository, one in twelve runtimes per slot so node is a third of the
 // graph, and one declaration in ten with no resolved major (alias, unresolved
 // or range, rotating). ESHU_8817_PERF_REPOS sets the repository count (default
@@ -119,7 +119,7 @@ func (s perfScenario) run(t *testing.T, h http.Handler, iterations int) (cold ti
 // TestLivePerfListScenariosStayUnderTheCapabilityBudget measures the route end
 // to end (handler, Bolt, JSON) at scale and fails when any scenario's p95
 // exceeds the budget. It is a measurement harness: the numbers it logs are the
-// evidence recorded in docs/internal/evidence/8817-runtime-declaration-query.md.
+// evidence recorded in (#8817).
 func TestLivePerfListScenariosStayUnderTheCapabilityBudget(t *testing.T) {
 	repos := perfEnvInt("ESHU_8817_PERF_REPOS", 5000)
 	budget := time.Duration(perfEnvInt("ESHU_8817_P95_BUDGET_MS", 1000)) * time.Millisecond

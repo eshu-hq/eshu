@@ -175,7 +175,7 @@ func complexityCandidateProjection() string {
 // optional pattern, not the driving row set, so a grant predicate or a
 // repo.id equality appended there returns every Function in the corpus with
 // only the repository columns nulled; see
-// docs/internal/evidence/5167-code-family-batch-1.md), but it still anchored
+// (#5167)), but it still anchored
 // on Function first and filtered repo identity afterward, so every
 // repo-scoped or scoped-grant call paid a whole-corpus Function scan before
 // the repository filter ever applied. Proven live on QA (issue #7006):

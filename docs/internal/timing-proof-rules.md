@@ -98,7 +98,7 @@ recorded.
 
 ## Sources
 
-- [7127 ledger retention lock-hold evidence](evidence/7127-ledger-retention-lock-hold.md):
+- (#7127):
   the committed record of the control runs, the ratio sets and the clone leak.
 - #7127 PR-3d, arbiter ruling D: rule PD and the control canary.
 - #7127 PR-3d, arbiter ruling E: the withdrawn gate (ii), the deterministic

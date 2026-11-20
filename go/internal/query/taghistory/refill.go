@@ -37,18 +37,17 @@ import (
 // withheld" and no finer. It is not sized from the pre-#6705 NornicDB
 // per-lookup latency arithmetic alone (1135-2247ms per BuiltFromCypher call
 // on a 5,000-10,000 image NornicDB store,
-// docs/internal/evidence/6564-tag-history-grant-binding.md) -- that number
+// (#6564)) -- that number
 // measured a NornicDB build, not the pinned Neo4j backend, and multiplying a
 // per-call latency by a read count is exactly the reasoning the shared
 // deadline now makes unnecessary for the timeout question. The corpus-scale
 // question that arithmetic was standing in for -- whether four windows'
 // worth of graph work fits comfortably inside one
 // DefaultGraphReadTimeout budget on Neo4j at realistic scale, and whether the
-// count should change -- is measured directly in
-// docs/internal/evidence/6705-tag-history-refill-neo4j-scale.md.
+// count should change -- was measured for #6705 on Neo4j at realistic scale.
 //
 // Raising this constant multiplies the per-request work inside the SAME
-// shared budget; re-measure there before changing it.
+// shared budget; re-measure on Neo4j at realistic scale before changing it.
 //
 // Hitting the cap is never served as a complete page: Truncated stays true and
 // the cursor resumes at a key the scan reached, so following it continues the
@@ -79,7 +78,7 @@ type ScopedPage struct {
 // uses -- one of the keyset statements then BuiltFromCypher -- because the
 // pinned NornicDB build returns zero rows for the multi-clause grant join this
 // would otherwise be written as
-// (docs/internal/evidence/6564-tag-history-grant-binding.md).
+// (#6564).
 //
 // # The window is MaxLimit-sized, not limit-sized
 //

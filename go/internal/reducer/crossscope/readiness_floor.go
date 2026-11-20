@@ -258,7 +258,7 @@ func CheckProducerReadinessBeforeLoad(
 // per-digest readiness -- a different contract than #5709 specifies, and not
 // built. TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved pins
 // the behavior so it stays a known property;
-// docs/internal/evidence/5709-cross-scope-readiness-floor.md discloses it as a
+// (#5709) discloses it as a
 // residual window. Splitting the count per producer narrows the OTHER axis of
 // the same gap -- which producer the evidence came from -- and leaves this one
 // exactly where it was.

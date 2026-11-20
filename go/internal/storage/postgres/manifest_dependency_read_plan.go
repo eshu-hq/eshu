@@ -36,7 +36,7 @@ import (
 // with "cannot use QueryExecModeCacheDescribe with disabled description
 // cache", never return wrong rows). The cost is one replan per page.
 //
-// Performance Evidence: see docs/internal/evidence/9586-manifest-read-custom-plan.md.
+// Performance Evidence: see (#9586).
 const manifestDependencyQueryExecMode = pgx.QueryExecModeCacheDescribe
 
 // Read label values of the eshu_dp_package_manifest_dependency_read_*

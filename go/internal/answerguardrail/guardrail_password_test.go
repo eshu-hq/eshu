@@ -91,8 +91,8 @@ func TestUnsafeStringScreensPasswordKeysByTheirValue(t *testing.T) {
 		// the class back leaves them all green -- the swallowed run
 		// "string;password:hunter2" is not a declaration value, so the classifier
 		// still answers true. Five of these six go red when the scan is cut to
-		// the leftmost match, which is row 5 of the mutation table in
-		// docs/internal/evidence/publish-safety-screen-shape-coverage.md. That
+		// the leftmost match, which is row 5 of the (#6122) mutation table.
+		// That
 		// row reports six failures, but the sixth is a comma-and-space row
 		// elsewhere in this map -- the counts coincide, the sets do not.
 		//

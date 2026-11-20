@@ -22,8 +22,8 @@ import (
 // and that scope's next collector sync.
 //
 // This proves the documented rollout behavior (docs/public/reference/
-// http-api.md's Cloud Inventory Readback section, docs/internal/evidence/
-// 1997-1998-cloud-inventory-identity-admission.md's "Rollout window" note)
+// http-api.md's Cloud Inventory Readback section, the #1997/#1998
+// "Rollout window" record)
 // against a real Postgres jsonb read:
 //  1. account_id/project_id/subscription_id filters return ZERO rows against
 //     a pre-fix-shaped row (payload->>'account_id' on a missing key is SQL

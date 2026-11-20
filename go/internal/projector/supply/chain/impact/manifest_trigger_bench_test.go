@@ -14,7 +14,7 @@ import (
 // BenchmarkManifestDependencyTriggerNoDependency measures the #9874 worst
 // case: a git generation of only non-dependency content entities, so the
 // predicate visits every content_entity row and finds none. The sizes are
-// synthetic (see docs/internal/evidence/9874-lockfile-retrigger.md).
+// synthetic (see (#9874)).
 func BenchmarkManifestDependencyTriggerNoDependency(b *testing.B) {
 	for _, size := range []int{10_000, 50_000, 100_000} {
 		lookup := projectorintent.NewFactLookup(nonDependencyVariables(size))

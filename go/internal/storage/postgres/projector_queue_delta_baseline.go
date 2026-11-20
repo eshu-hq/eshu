@@ -351,7 +351,7 @@ func (q ProjectorQueue) refuseDeltaBaselineAck(
 //
 // Both sides are index scans: the primary key for the target and the partial
 // unique index scope_generations_active_scope_idx for the active row
-// (generic-plan measurement in docs/internal/evidence/7319-delta-baseline-fence.md).
+// (generic-plan measurement in (#7319)).
 // target.delta_union_base_commit_sha (#8780) is a diagnostic column on the
 // same primary-key row, read for refusal logs and failure details only; the
 // decision never reads it.

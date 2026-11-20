@@ -58,7 +58,7 @@ WHERE winner_fact_id IN ($1, $2)`, factA, factB).Scan(&winner.factID, &winner.sc
 // a retraction-aware tiebreak would let a stale retracted copy hide a restored
 // real vulnerability (#9695 probe V2). The bound is the holder fan-out, one
 // holder pass, and one winners resweep tick
-// (docs/internal/evidence/9695b-holder-fanout.md). The winners audit is not part
+// (#9695). The winners audit is not part
 // of it: it keeps the table equal to fact_records, where the stale copy is an
 // ordinary active fact. If a change makes this pin fail, it changed winner ordering, which needs its own
 // ruling, an index and keyset review, and a contract class decision.

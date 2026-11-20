@@ -29,7 +29,7 @@ import (
 // (github.com/orneryd/nornicdb v1.0.45, go/go.mod) per-property SET path
 // stores a nil RHS as a literal nil-valued property instead of removing it
 // (empirically verified in-process against that exact module -- see
-// docs/internal/evidence/5441-edge-node-properties.md), diverging from
+// (#5441)), diverging from
 // Cypher's remove-on-null semantics — "" is the only value this shared
 // writer treats uniformly across both backends.
 func copyRepoRelationshipMetadata(rowMap map[string]any, payload map[string]any, rowGenerationID string) {

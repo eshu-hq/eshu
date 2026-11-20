@@ -4,7 +4,7 @@
 
 1. `go/internal/query/codedivergence/README.md` — score contract and suppression catalogue
 2. `go/internal/query/codedivergence/doc.go` — the package contract
-3. `docs/internal/evidence/6834-code-divergence-theory.md` §5 and §8 — the measured precision, thresholds, and score invariant this package implements
+3. (#6834) §5 and §8 — the measured precision, thresholds, and score invariant this package implements
 4. `go/internal/query/codequery/divergence.go` — the HTTP handlers serving this contract
 
 ## Rules that shape this package

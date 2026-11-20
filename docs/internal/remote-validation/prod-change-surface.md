@@ -61,7 +61,7 @@ cd go && go test ./internal/query -run TestChangeSurfaceTraversalQueriesAreNorni
 cd go && go test ./internal/query -run "TestFindChangeSurfaceScopedGrantAndDeny|TestInvestigateChangeSurfaceScopedGrantAndDeny|TestAuthMiddlewareWithScopedTokensAllowsChangeSurfaceFamily|TestInvestigateChangeSurfaceScopedFiltersCrossTenantTopicEvidence" -count=1
 ```
 
-**NornicDB rewrite proof** — `docs/internal/evidence/5287-change-surface-nornicdb.md` (#5287)
+**NornicDB rewrite proof** — (#5287)
 documents the before/after Cypher rewrite of both `changeSurfaceImpactRows` (investigate) and
 `findChangeSurfaceImpactRows` (legacy `find_change_surface`) from multi-clause `MATCH ... MATCH
 path=...` shapes the pinned NornicDB build mis-executes, to a single anchored

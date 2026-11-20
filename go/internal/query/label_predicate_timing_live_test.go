@@ -4,7 +4,7 @@
 //go:build live_nornicdb_label_predicate_timing
 
 // Interleaved timing harness behind the #6786 X11 performance table in
-// docs/internal/evidence/6786-nornicdb-label-predicates.md. It seeds one
+// (#6786). It seeds one
 // repository whose one File CONTAINS 20,000 Functions, one node of each of
 // the 20 infrastructure labels, a DEFINES Workload and two OVERRIDES, then
 // times the pre-fix statement, the shipped statement and each rejected

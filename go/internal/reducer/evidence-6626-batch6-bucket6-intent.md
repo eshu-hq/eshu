@@ -29,12 +29,11 @@ file) is deleted with that file, and every caller now spells the canonical
 `intent_value.go`), plus this note. No golden, spec, manifest, README, or
 inventory content changed.
 
-Deliberate remainder: `rg "reducer\.Intent"` still hits two historical
-evidence records (`docs/internal/evidence/5837-aws-drift-reopen.md`,
-`docs/internal/evidence/reducer-ack-duplicate-claim.md`), which describe past
-code in prose. Rewriting them would falsify the record, and the
-evidence-continuity gate treats them as ledger, so they stay with this
-disclosure. Every Go source is clean.
+Deliberate remainder: `rg "reducer\.Intent"` hit two historical
+evidence records ((#5837), (#6162)), which describe past
+code in prose. Both records were deleted under #10990 (the B3 keep class
+is claim-anchored evidence only); the past-code description they carried
+is kept in this note, so this disclosure stands. Every Go source is clean.
 
 ## Why no regression
 

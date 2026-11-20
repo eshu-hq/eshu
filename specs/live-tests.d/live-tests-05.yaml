@@ -22,22 +22,22 @@ tests:
   - file: go/internal/storage/postgres/cross_scope_completion_ack_atomic_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL fanout proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL fanout proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_concurrency_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_index_lifecycle_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_performance_live_test.go
     tag: perf5854_ack && perf5740_completion
@@ -46,7 +46,7 @@ tests:
   - file: go/internal/storage/postgres/cross_scope_completion_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_scale_postgres_live_test.go
     tag: ~
@@ -55,42 +55,42 @@ tests:
   - file: go/internal/storage/postgres/cross_scope_completion_snapshot_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_upgrade_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/cross_scope_completion_workflow_image_postgres_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL ACK and completion proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL ACK and completion proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_behavior_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_catchup_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/ledger_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/satisfied_by_redrive_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/crossplane/query_plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; Crossplane 9 named tests in 5 files, 45.186s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/documentation_facts_write_index_live_test.go
     tag: ~
@@ -111,27 +111,27 @@ tests:
   - file: go/internal/storage/postgres/eshu_search_index_bm25_partition_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL search proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_plan_stability_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL search proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_bm25_posting_plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL search proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_contention_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL search proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_partition_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL search proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL search proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/eshu_search_index_term_copy_bench_live_test.go
     tag: ~
@@ -216,7 +216,7 @@ tests:
   - file: go/internal/storage/postgres/workload_candidate_precondition_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled disposable_storage workload candidate probe matrix and differential against ExtractWorkloadCandidates; explicit disposable PostgreSQL admin fixture; measured 0.2 s matrix and 21.2 s differential under -race on PostgreSQL 18.6; docs/internal/evidence/9986-workload-probe-plan.md"
+    reason: "linuxdynasty: postgres-scheduled disposable_storage workload candidate probe matrix and differential against ExtractWorkloadCandidates; explicit disposable PostgreSQL admin fixture; measured 0.2 s matrix and 21.2 s differential under -race on PostgreSQL 18.6"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/facts_cicd_run_history_latest_snapshot_live_test.go
     tag: ~
@@ -245,117 +245,117 @@ tests:
   - file: go/internal/storage/postgres/freshness/links/fence_breach_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: fence-breach invariant (#7127 PR-3a, arb-7127-g8 P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: fence-breach invariant (#7127 PR-3a, arb-7127-g8 P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/fence_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: fence ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: fence ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/journal_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: journal ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: journal ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/journal_sweeper_lock_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "#8932: sweeper generation lock: held generation skipped and journaled next pass, bounded 55P03 chain wait with unbounded RED; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/8932-sweeper-generation-lock.md"
+    reason: "#8932: sweeper generation lock: held generation skipped and journaled next pass, bounded 55P03 chain wait with unbounded RED; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/link_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: link ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: link ledger (#7127 PR-3a); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/lock_timeout_cost_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: generation lock-timeout cost, W11 opt-in samples (arb-7127-3e-wait W11); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: generation lock-timeout cost, W11 opt-in samples (arb-7127-3e-wait W11); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/lock_timeout_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: generation lock timeout, chain-walk holders + planted REDs (arb-7127-3e-wait W1/W2/W7/W8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: generation lock timeout, chain-walk holders + planted REDs (arb-7127-3e-wait W1/W2/W7/W8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: plan shape over 2M link-delta + 3.8M state rows (#7127 PR-3a G3/G4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: plan shape over 2M link-delta + 3.8M state rows (#7127 PR-3a G3/G4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/plan_stats_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: plan class under planted statistics (arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: plan class under planted statistics (arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/poison_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: poison bound (G16a/G16c); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: poison bound (G16a/G16c); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_fence_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: writer prior fence: rebase accuracy, backfill fence (arb-7127-3d C1-C3, C5); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: writer prior fence: rebase accuracy, backfill fence (arb-7127-3d C1-C3, C5); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: rebase plan shape, four statistics states + planted REDs (G3, arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: rebase plan shape, four statistics states + planted REDs (G3, arb-7127-g8 P1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/prior_wait_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: update-chain wait race: bounded 55P03, unbounded RED, control (arb-7127-3e-wait W3); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: update-chain wait race: bounded 55P03, unbounded RED, control (arb-7127-3e-wait W3); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/rekey_timing_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: re-key timing under absent statistics (arb-7127-g8 P2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: re-key timing under absent statistics (arb-7127-g8 P2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_bound_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: retention bound: no-orphan inversion, cursor + starvation (#7127 PR-3d, arb-7127-3d P3/P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: retention bound: no-orphan inversion, cursor + starvation (#7127 PR-3d, arb-7127-3d P3/P4); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: retention equality, row-limit, idempotency (ruling 2.8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: retention equality, row-limit, idempotency (ruling 2.8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_plan_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: retention plan shape over 2M rows (ruling 8.4 sweep); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: retention plan shape over 2M rows (ruling 8.4 sweep); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_race_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: retention concurrency vs writer + orphan purge (#7127 PR-3d); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: retention concurrency vs writer + orphan purge (#7127 PR-3d); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_timing_clone_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: timing-harness regression: dropped clone on maker exit (arb-7127-3d-e PE1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: timing-harness regression: dropped clone on maker exit (arb-7127-3d-e PE1); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/retention_timing_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: retention lock-hold timing, drain + lock-set probe (arb-7127-3d P8/PB4/PB7/PC1/PC2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: retention lock-hold timing, drain + lock-set probe (arb-7127-3d P8/PB4/PB7/PC1/PC2); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/scale_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: scale measurement G5-G8, fixture-loaded DB; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: scale measurement G5-G8, fixture-loaded DB; postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/scale_proof_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: scale proofs P3/P8b/P8c (arb-7127-g8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: scale proofs P3/P8b/P8c (arb-7127-g8); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/freshness/links/stale_stats_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: stale-statistics regression (G8 stall); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1; docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "linuxdynasty: stale-statistics regression (G8 stall); postgres-scheduled daily/manual PostgreSQL 18.6 runner; freshness-links group; -race -count=1"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/generation_prior_live_test.go
     tag: ~
@@ -364,7 +364,7 @@ tests:
   - file: go/internal/storage/postgres/generation_projected_commit_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "Verified daily PostgreSQL liveness proof; see docs/internal/evidence/7533-postgres-scheduled-live-proof.md"
+    reason: "Verified daily PostgreSQL liveness proof"
     runner: postgres-scheduled
   - file: go/internal/storage/postgres/generation_reconcile_state_live_test.go
     tag: ~
@@ -373,37 +373,37 @@ tests:
   - file: go/internal/storage/postgres/generation_retention_migrated_schema_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.57s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.57s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_narrow_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 4.82s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 4.82s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_prune_plan_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 15.81s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 15.81s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_row_attribution_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.49s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.49s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_key_index_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.85s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.85s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_probe_exact_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.83s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.83s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_probe_plan_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 4.12s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 4.12s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_probe_scale_live_test.go
     tag: ~
@@ -420,37 +420,37 @@ tests:
   - file: go/internal/storage/postgres/generation_retention_selects_eligible_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.66s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.66s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_lock_set_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 6.33s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 6.33s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_fairness_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.26s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 2/2 named Go test passes with -json -race (summed test elapsed 5.26s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_fingerprint_count_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: 2/2 named Go tests pass with -race against local postgres:18 (summed test elapsed 4.31s); docs/internal/evidence/8300-fingerprint-count-arm.md"
+    reason: "linuxdynasty: 2/2 named Go tests pass with -race against local postgres:18 (summed test elapsed 4.31s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_evalplanqual_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.32s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.32s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_retention_candidate_plan_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.29s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/generation_uncovered_writers_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.46s); docs/internal/evidence/7533-contention-live-proof.md"
+    reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 0.46s)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/graph/owner/backfill_live_test.go
     tag: ~
@@ -463,5 +463,5 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_runtime_filter_index_restart_live_test.go
     tag: ~
     class: verified_scheduled
-    reason: "linuxdynasty: postgres-scheduled disposable_storage tracked migration and concurrent writer proof; explicit disposable PostgreSQL admin fixture; docs/internal/evidence/8835-supply-runtime-and-enrollment.md"
+    reason: "linuxdynasty: postgres-scheduled disposable_storage tracked migration and concurrent writer proof; explicit disposable PostgreSQL admin fixture"
     runner: postgres-scheduled

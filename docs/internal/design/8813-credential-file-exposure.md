@@ -188,7 +188,7 @@ These decide what each policy costs for `*.tfvars`.
 | `.yarnrc.yml` | `redact` | marker | #8812 mode; bound in #8833 with or after the marker-arm migration |
 | `*.tfvars`, `*.tfvars.json` | `redact` | allowlist skeleton | #8833 |
 | `.npmrc` | `metadata` | none | #8978 |
-| `gradle-wrapper.properties` | `metadata` | none | #8822, [record](../evidence/8822-gradle-wrapper.md) |
+| `gradle-wrapper.properties` | `metadata` | none | #8822, record (#8822) |
 
 `.eshuignore` stays the override. A looser tfvars rule needs a new record.
 

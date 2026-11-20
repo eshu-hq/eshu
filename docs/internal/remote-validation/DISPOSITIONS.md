@@ -240,7 +240,7 @@ bypass the PR gate.
 
 ### Runtime and operator evidence
 
-The tracked [#5552 runtime record](../evidence/5552-capability-matrix-claim-honesty.md)
+The tracked #5552 runtime record
 binds the performance baseline, deployed result, terminal queue counts, and
 existing operator signals to the hot paths changed during requalification. The
 per-slug artifacts remain the authority for capability-specific assertions.

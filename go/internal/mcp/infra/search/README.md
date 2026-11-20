@@ -86,7 +86,7 @@ same query handler executes the request.
 - [MCP package](../../README.md)
 - [MCP route contract](../../contract/route/README.md)
 - [MCP ecosystem registration](../../ecosystem/README.md)
-- [Infra resource search anchoring evidence](../../../../../docs/internal/evidence/5271-infra-resource-search-anchoring.md)
+- Infra resource search anchoring evidence (#5271)
 - [HTTP API reference](../../../../../docs/public/reference/http-api.md)
 
 ## Verification

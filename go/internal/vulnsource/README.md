@@ -167,7 +167,7 @@ generation per dirty shard with its fact count (`Records` plus `References`,
 see `CVEListShardCounts`). This is the
 item 5.1 measurement substrate (#9961, plan §4.4): pure string accounting,
 no network, database, or workflow mutation. The measured verdict lives in
-`docs/internal/evidence/9961-shard-scoped-generations.md`.
+(#9961).
 
 ## GHSA rolling windows: performance and observability evidence (#10037)
 

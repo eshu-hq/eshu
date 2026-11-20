@@ -16,7 +16,7 @@ package postgres
 // on a vacuumed table, a sequential scan or
 // code_fingerprint_band_entity_idx bitmap scans on a table with an empty
 // visibility map, and the migration 111 lookup index only under a generic
-// plan (docs/internal/evidence/7254-code-fingerprint-band-entity-idx.md,
+// plan ((#7254),
 // #7254). The kept_buckets prefilter joins the same two columns before
 // the self-join: buckets over the cap nominate nothing, because joining
 // them is quadratic in the bucket size and a bucket bigger than the budget

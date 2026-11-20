@@ -33,7 +33,7 @@ var (
 // in the statement as a safety net -- the caller checks that separately),
 // immediately followed by SET. The statement reports success
 // (PropertiesSet=0, ContainsUpdates=false) while the property is never
-// written. See docs/internal/evidence/5652-nornic-bare-match-writeloss.md and
+// written. See (#5652) and
 // posture_node_existence.go.
 //
 // This replaced a `(?is)UNWIND\b.*?\bMATCH\s*\([^)]*\)\s*SET\b` regex: the

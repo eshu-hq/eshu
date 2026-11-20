@@ -22,7 +22,7 @@ Companions, one file per concern:
 - [Corrections And Open Items](7766-repository-retirement-corrections.md):
   corrections to the rulings, issues kept out of scope, and NOT_CHECKED.
 - Evidence note:
-  [7766-retirement-prove-first-results.md](../evidence/7766-retirement-prove-first-results.md)
+  (#7766)
   indexes the P1, P2, and P9 results. The directory
   [7766-retirement-prove-first/](../evidence/7766-retirement-prove-first/)
   holds the raw per-run outputs, the fixture SQL, and the shell wrappers. The Go

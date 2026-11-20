@@ -18,8 +18,7 @@ import (
 // orders oldest-eligible-first, scope_id tie-break, FOR UPDATE OF scope SKIP
 // LOCKED only on ingestion_scopes, so a held scope is skipped and replaced
 // without waiting. The locked_prunable leg re-checks status, superseded_at and
-// active_generation_id at lock time. Rationale/proofs:
-// docs/internal/evidence/7334-generation-retention-selection.md.
+// active_generation_id at lock time. Rationale/proofs: #7334.
 //
 // Uncovered writers (#7472) are eligible rows the reconcile probe still needs
 // (UncoveredProjectionWriters: wrote, never activated, newer than the scope's

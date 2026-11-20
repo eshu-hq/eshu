@@ -152,5 +152,5 @@ field was added, removed, or renamed by this move.
 
 - [Reducer package](../README.md)
 - [Package restructure design](../../../../docs/internal/design/package-restructure.md)
-- [#5346 SQL MIGRATES edge performance evidence](../../../../docs/internal/evidence/5346-sql-migrates-performance.md)
-- [#5410 SQL FK/write relationships evidence](../../../../docs/internal/evidence/5410-sql-relationships-performance.md)
+- #5346 SQL MIGRATES edge performance evidence
+- #5410 SQL FK/write relationships evidence

@@ -23,7 +23,7 @@ package postgres
 // not the whole manager's rows. deriveDeltaOverlayBaseQuery swaps the delta
 // base joins inside the probe, so the base pages take the same shape.
 //
-// Performance Evidence: docs/internal/evidence/9611-manifest-read-name-probe.md.
+// Performance Evidence: (#9611).
 // No-Observability-Change: the read_seconds and read_pages histograms keep
 // their plain and maven_family labels, because the constants keep their names.
 const listActivePackageManifestDependencyFactsQuery = `
@@ -106,7 +106,7 @@ LIMIT $5
 // base pages keep the same scope-first shape and the same dev filter.
 //
 // Performance Evidence:
-// docs/internal/evidence/10660-manifest-scope-read-plan.md (disposable
+// (#10660) (disposable
 // PostgreSQL 18.6, 96,030-row fleet-shaped corpus): the scope-first probe
 // serves through fact_records_content_entity_dependency_variable_repo_idx
 // (#121) in 0.8 ms with no sequential scan and no new index. The dev filter

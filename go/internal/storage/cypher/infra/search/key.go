@@ -165,7 +165,7 @@ const joinedVar = "infra_search_joined_key"
 //
 // Computing the key once costs +17 db hits per row on a 500-row batch,
 // against +41 for evaluating the join three times inline (PROFILE on the
-// pinned Neo4j, docs/internal/evidence/7245-infra-search-key-dark.md). The
+// pinned Neo4j, (#7245)). The
 // clause ends the statement: its WITH keeps only alias in scope, so it must
 // be appended last, which Statement does.
 func Clause(alias string) string {

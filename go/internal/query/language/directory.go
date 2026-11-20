@@ -198,7 +198,7 @@ func (h *Handler) allRepositoryIDs(ctx context.Context) ([]string, error) {
 // issue's earlier measurement of ONE repository against a candidate shape, not
 // of this read; the corpus run supersedes it. Either way the read is negligible
 // beside the 7.465s statement it finishes. Conditions and both figures:
-// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md.
+// (#6541).
 func (h *Handler) directoryRepositoryNames(ctx context.Context, repoIDs []string) (map[string]string, error) {
 	if len(repoIDs) == 0 {
 		return nil, nil

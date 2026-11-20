@@ -84,8 +84,7 @@ type ReducerGraphDrain struct {
 // scopes now cost no subquery at all. No new index: this runs once per
 // code-call cycle (the runner shares one gate answer across all partitions,
 // #10871) over a scope-count row set with short-circuit on first match, not
-// per edge. (#6184 review F3, #7133 plan evidence in
-// docs/internal/evidence/7133-code-quiescence-scope.md)
+// per edge. (#6184 review F3, #7133 plan evidence)
 const uncommittedCanonicalCodeScopePredicate = `
     scope.active_generation_id IS NOT NULL
       AND scope.collector_kind = ANY($3::text[])

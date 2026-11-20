@@ -2,9 +2,9 @@
 
 Split from `gotchas-supply-chain-and-vulnerabilities.md` to keep reducer
 documentation bounded. The format-cutover evidence is recorded in
-`docs/internal/evidence/5854-container-image-identity-cutover.md`; the
+(#5854); the
 digest-v3 canonicalization proof is in
-`docs/internal/evidence/5740-container-image-identity-canonicalization.md`.
+(#5740).
 
 ## Digest-first admission
 

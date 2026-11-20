@@ -86,7 +86,7 @@ for the same reason.
   Full design, concurrency analysis, and live-Postgres proof (failing before,
   passing after, for the interleaving, the retire, the readiness check, the
   reopen anchor, and the fencing token) are in
-  `docs/internal/evidence/5837-aws-drift-reopen.md`.
+  (#5837).
 - **Multi-cloud runtime drift shares one path keyed on `cloud_resource_uid`, but
   AWS publication stays exclusive to `DomainAWSCloudRuntimeDrift`** —
   `MultiCloudRuntimeDriftHandler` reuses the AWS structural join
@@ -141,7 +141,7 @@ for the same reason.
   (`PartialEvidence`) retract nothing. Never switch the keep-set predicate to
   `fact_id <> ALL($n)`: under pgx's cached generic plan it is a per-row array
   scan (1.6 s vs 144 ms at 10k rows);
-  see `docs/internal/evidence/6831-supply-chain-impact-replace-set.md`.
+  see (#6831).
 - **Supply-chain impact is evidence-first** —
   `SupplyChainImpactHandler` writes `reducer_supply_chain_impact_finding`
   facts only from explicit vulnerability, affected package, owned
@@ -206,7 +206,7 @@ for the same reason.
   `evidence_path`, `evidence_fact_ids`, `service_ids`, `workload_ids`,
   `catalog_entity_refs`, `catalog_owner_refs`, and `missing_evidence` remain
   the operator-facing signals. #5469 added CI-declared-artifact digest
-  selection here; see `docs/internal/evidence/5469-ci-declared-artifact-digest-selection.md`.
+  selection here; see (#5469).
 - **Go-vulnerability reachability is classified, not invented** —
   `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem
@@ -296,7 +296,7 @@ for the same reason.
   singleton `prod` context, so its hidden-then-expired transition proves the
   real reducer path; a production-finalized prod+stage aggregate stays visible.
   Performance Evidence:
-  `docs/internal/evidence/5466-env-scoped-suppression-scope.md` records the
+  (#5466) records the
   current-base benchmark and exact stable-sort equivalence proof.
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
@@ -385,7 +385,7 @@ for the same reason.
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
   #5735 added exact-DPKG/APK precise-profile admission here; see
-  `docs/internal/evidence/5735-os-package-precise-profile.md`.
+  (#5735).
 - **OS package evidence is vendor-gated** — `vulnerability.os_package`
   rows from RPM-family, Debian dpkg, and Alpine apk snapshots can seed
   supply-chain impact only when the row is vendor-class, carries distro and

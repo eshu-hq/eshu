@@ -68,7 +68,7 @@ WHERE generation.generation_id = $2`
 // planner legitimately prefers a hash join over a sequential scan even
 // though the production statements probe an index: the measured
 // production batch is 100 generations over a far larger generation
-// population (docs/internal/evidence/10512-retention-row-counts.md).
+// population (#10512).
 // With the filler the batch is 12 of 224 generations and each guarded
 // table holds roughly 50k rows, so the generation indexes win on cost
 // under cold, analyzed and forced-generic plans alike, with no planner

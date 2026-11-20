@@ -7,13 +7,9 @@
 # The 6695 observability-prometheus leaf evidence names the prometheus-mimir
 # command files and the shared inputtape acceptance test at their
 # pre-extraction in-tree paths as the leaf record.
-docs/internal/evidence/6695-observability-prometheus-leaf.md:go/cmd/collector-prometheus-mimir/service.go
-docs/internal/evidence/6695-observability-prometheus-leaf.md:go/cmd/collector-prometheus-mimir/config.go
-docs/internal/evidence/6695-observability-prometheus-leaf.md:go/internal/replay/inputtape/acceptance_test.go
 
 # The 6695 loki package-move evidence cites the shared inputtape acceptance
 # test (test-only) at its pre-extraction path as the move record.
-docs/internal/evidence/6695-collector-loki-package-move.md:go/internal/replay/inputtape/acceptance_test.go
 
 # REMOVAL_PREP.md is a dated importer census for #8875 (Verified at
 # 8ec6d11ddf, re-verified at 5e427b908d and 15caae83c5): it inventories the

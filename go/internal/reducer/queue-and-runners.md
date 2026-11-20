@@ -74,7 +74,7 @@ Residual risk: a released handler that later returns may still commit graph
 writes after `Fail` released the item. Queue mutations are rejected by the
 lease fence (#7142), but graph writes are only safe when the handler writes
 idempotently or under a fencing token. The per-domain audit lives in
-`docs/internal/evidence/10866-reducer-handler-timeout.md`; domains without
+(#10866); domains without
 an audited write path get no shipped bound.
 
 The #7816 runtime fence is untouched: it still treats a heartbeating producer

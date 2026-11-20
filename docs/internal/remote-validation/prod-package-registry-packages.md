@@ -44,7 +44,7 @@ cd go && go test ./internal/query -run TestPackageRegistryListPackages -count=1
 ```
 
 **Live NornicDB version-count correctness fix** —
-`docs/internal/evidence/5167-package-registry-version-count-nornicdb.md`
+(#5167)
 (fixes `GET /api/v0/package-registry/packages`'
 `OPTIONAL MATCH ... count(v)` group-collapse defect on the pinned NornicDB
 build).

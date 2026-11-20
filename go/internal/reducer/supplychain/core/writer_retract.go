@@ -308,7 +308,7 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 // connection caches prepared statements, and under a generic plan
 // <> ALL($param) is a linear per-row array scan -- measured 2889 ms for 20000
 // scope rows against a 10000-id keep set, versus 57 ms for the hashed subplan
-// this form always gets (docs/internal/evidence/6831-supply-chain-impact-replace-set.md).
+// this form always gets (#6831).
 // The keep set never carries NULL, so NOT IN has no NULL trap here.
 //
 // fencing_token <= $5 applies the insert's conflict guard to the retraction:

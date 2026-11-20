@@ -372,7 +372,7 @@ latency), on the same 10-run fetched page:
 ~1.4µs added per claim (~0.9%), within run-to-run noise. For the
 Postgres-backed production store
 (`go/internal/storage/postgres/cicd/watermark.go`), the theory-proof in
-`docs/internal/evidence/5429-cicd-run-watermark.md` measured each point
+(#5429) measured each point
 query (Load, Save) at ~0.02-0.03ms against 50,000 representative rows; two
 such queries per claim are negligible next to this package's own documented
 worst case of up to 200 additional bounded GitHub HTTP requests per claim

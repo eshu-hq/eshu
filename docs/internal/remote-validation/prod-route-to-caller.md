@@ -48,14 +48,13 @@ cd go && go test ./internal/query -run TestHandleRouteToCaller -count=1
 `TestHandleRouteToCallerResolvesJavaSpringHandler`.
 
 **Live NornicDB correctness fix** —
-`docs/internal/evidence/5287-route-to-caller-nornicdb.md` (fixes three
+(#5287) (fixes three
 multi-clause reads in `go/internal/query/code_route_to_caller_graph.go` that
 corrupted on the pinned NornicDB backend).
 
 **Workflow-level bounds evidence** —
-`docs/internal/evidence/route-to-caller-workflow-evidence.md` (#4089
-read-only workflow; bounded selector reads, `max_depth <= 5`, `limit + 1`
-caps, scoped-token in-grant path enforcement).
+(#4089 read-only workflow; bounded selector reads, `max_depth <= 5`,
+`limit + 1` caps, scoped-token in-grant path enforcement).
 
 ## Notes
 

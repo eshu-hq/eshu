@@ -125,7 +125,7 @@ func TestSecurityAlertReconciliationQueueStatesLive(t *testing.T) {
 // BUFFERS) for the shipped per-scope queue query over a 500,000-item
 // security_alert_reconciliation backlog (#8839 acceptance criterion). Plans
 // and timings are logged, not gated; the figures feed
-// docs/internal/evidence/8839-security-alert-reconciliation-queue.md.
+// (#8839).
 func TestSecurityAlertReconciliationQueuePlanLive(t *testing.T) {
 	f := newReconciliationQueueLiveFixture(t)
 	f.scope("scope-hot")

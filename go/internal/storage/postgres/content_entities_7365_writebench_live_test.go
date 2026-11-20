@@ -24,8 +24,7 @@ package postgres
 // ESHU_CONTENT_ENTITIES_BENCH_ROUNDS (default 2) for the A-B-B-A round count.
 // The test asserts parity (equal calls, rows, and side-table derivation), not
 // a timing bound: it is a diagnostic replay, so its medians are evidence, not
-// a gate. The #7365 verdict and the next diagnostic step live in
-// docs/internal/evidence/7365-entity-write-replay.md.
+// a gate. The #7365 verdict and the next diagnostic step are tracked on #7365.
 
 import (
 	"context"

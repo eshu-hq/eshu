@@ -37,24 +37,6 @@ docs/superpowers/plans/2026-06-22-authz-token-lifecycle-3460-3461.md:go/cmd/api/
 
 # Dated evidence notes. Each records a measurement, transcript, or decision
 # against the tree as it stood at write time.
-docs/internal/evidence/10619-grafana-mimir-removal.md:go/cmd/api/metrics_source.go
-docs/internal/evidence/10820-census-2e-purge.md:go/cmd/api/main.go
-docs/internal/evidence/4045-evidence-bundle-api-performance.md:go/cmd/api/wiring_router.go
-docs/internal/evidence/5052-keyword-search-scope-id.md:go/cmd/api/wiring_router.go
-docs/internal/evidence/5167-freshness-family-allowlist.md:go/cmd/api/wiring_handlers.go
-docs/internal/evidence/6693-cloud-aws-leaf.md:go/cmd/api/status_store_wiring.go
-docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/api/admin_identity_reads.go
-docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/api/governance_audit_store.go
-docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/api/governance_audit_store_test.go
-docs/internal/evidence/6693-governance-audit-leaf.md:go/cmd/api/seed_initial_admin_persistence_test.go
-docs/internal/evidence/6693-maintenance-leaf.md:go/cmd/api/wiring_router.go
-docs/internal/evidence/7957-snapshot-export-qualification.md:go/cmd/api/issue7033_canary_startup_live_test.go
-docs/internal/evidence/7957-snapshot-export-qualification.md:go/cmd/api/postgres_error_wire_test.go
-docs/internal/evidence/8155-stored-cutover.md:go/cmd/api/wiring_config_artifacts.go
-docs/internal/evidence/8833-cleanup-proofs.md:go/cmd/api/semantic_search_vector_wiring.go
-docs/internal/evidence/8874-s4-endpoint-decisions.md:go/cmd/api/wiring.go
-docs/internal/evidence/8875-claim-truth-scope.md:go/cmd/api/metrics_source.go
-docs/internal/evidence/8948-redrive-event-name-note.md:go/cmd/api/wiring.go
 
 # Dated issue notes embedded in public reference docs. Each records the
 # verification command or emitter of a landed change; editing the recorded

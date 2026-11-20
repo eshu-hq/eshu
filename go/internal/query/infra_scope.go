@@ -132,7 +132,7 @@ func (h *InfraHandler) writeEmptyInfraSearch(w http.ResponseWriter, r *http.Requ
 // while the relationships route copies it into 3 aliases on each of up to 15
 // anchor statements. Measured on neo4j:2026-community, a 5-repo + 5-scope
 // grant took 33.6 s to plan the search cold and 2.6 s warm; a 25 + 25 grant
-// never planned inside 240 s (docs/internal/evidence/7215-*.md).
+// never planned inside 240 s (#7215).
 //
 // The Neo4j dialect therefore:
 //
