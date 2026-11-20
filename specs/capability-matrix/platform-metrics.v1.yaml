@@ -1,6 +1,7 @@
 capabilities:
   - capability: platform_metrics.timeseries
     tools: [get_metrics_time_series]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: one_metric_window_2000_samples, verification: [{go_test: ./internal/query}], notes: bounded HTTP metric history read; returns fallback unavailable-empty when no Prometheus/Mimir source is configured}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: one_metric_window_2000_samples, verification: [{go_test: ./internal/query}], notes: bounded HTTP metric history read; graph sidecar unused}

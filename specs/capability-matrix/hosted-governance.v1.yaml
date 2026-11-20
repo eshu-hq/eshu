@@ -1,6 +1,7 @@
 capabilities:
   - capability: hosted_governance.status
     tools: [get_hosted_governance_status]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted governance status with local no-policy mode, safe reason codes, and no raw policy, source, credential, provider endpoint, prompt, or response data}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 100, max_scope_size: runtime_status, verification: [{go_test: ./internal/query}], notes: redacted governance status derived from runtime config and aggregate status readbacks; graph sidecar not required}

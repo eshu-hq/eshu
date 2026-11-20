@@ -65,8 +65,9 @@ func TestBuildAttachesAuthorizationCatalog(t *testing.T) {
 
 	matrix := Matrix{Capabilities: []MatrixCapability{
 		{
-			Capability: "code_search.content_search",
-			Tools:      []string{"find_code"},
+			Capability:      "code_search.content_search",
+			Tools:           []string{"find_code"},
+			AnsweringStores: []string{"content_search"},
 			Profiles: map[string]MatrixProfile{
 				"production": {Status: "supported", MaxTruthLevel: "exact"},
 			},

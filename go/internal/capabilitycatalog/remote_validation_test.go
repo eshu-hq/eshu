@@ -15,8 +15,9 @@ func matrixWithRemoteValidationRefs(refs ...matrixRefSpec) Matrix {
 	capabilities := make([]MatrixCapability, 0, len(refs))
 	for i, spec := range refs {
 		capabilities = append(capabilities, MatrixCapability{
-			Capability: spec.capability,
-			Tools:      []string{"some_tool"},
+			Capability:      spec.capability,
+			Tools:           []string{"some_tool"},
+			AnsweringStores: []string{"status_fixed"},
 			Profiles: map[string]MatrixProfile{
 				"production": {
 					Status: "supported",

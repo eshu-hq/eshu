@@ -7,6 +7,7 @@ graph_backends: [neo4j, nornicdb]
 capabilities:
   - capability: code_search.exact_symbol
     tools: [find_code]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: case-sensitive complete entity-name lookup through the content name index}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: repository-selected lookup uses the indexed graph and global lookup uses the content name index}
@@ -14,6 +15,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-exact}], notes: repository-selected indexed graph lookup or global content entity-name lookup}
   - capability: code_search.fuzzy_symbol
     tools: [find_code]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: case-sensitive literal substring entity-name lookup; global names require at least three Unicode characters}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: repository-selected substring uses the indexed graph and global substring uses the content name index}
@@ -21,6 +23,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-search-fuzzy}], notes: bounded case-sensitive literal substring lookup; this capability does not claim fuzzy scoring}
   - capability: code_search.symbol_lookup
     tools: [find_symbol]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index symbol definition lookup}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index symbol definition lookup; graph fallback available only when content store is absent}
@@ -28,6 +31,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-symbol-lookup}], notes: bounded content-index symbol definition lookup}
   - capability: code_divergence.findings
     tools: [find_code_divergence, report_code_divergence, investigate_code_divergence]
+    answering_stores: [fact_records_reducer, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded fingerprint equality groups with reasons that sum to the score and counted suppressions}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: single-repo equality grouping over narrow fingerprint columns, never source_cache}
@@ -35,6 +39,7 @@ capabilities:
       production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: production claim deferred; remote host unreachable (#6840); tools hidden from tools/list on production (#7726)}
   - capability: code_inventory.structural
     tools: [inspect_code_inventory]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index structural inventory for entities, top-level rows, dataclasses, documented functions, decorators, class methods, super calls, and function counts per file}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: content-index path avoids graph traversal on cold MCP calls}
@@ -42,6 +47,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-structural-inventory}], notes: use repo_id or file_path whenever prompt scope is known; broad scans remain capped and paged}
   - capability: code_flow.taint_path
     tools: [dispatch_taint_path, POST /api/v0/code/flow/taint-path]
+    answering_stores: [fact_records_collector, fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires active-generation fact_records from the value-flow collector/reducer path; lightweight profile returns unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded active-generation taint/interprocedural evidence, labeled derived_reducer_evidence, no semantic provider key required}
@@ -49,6 +55,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-flow-taint-path}], notes: bounded active-generation read; does not claim unsupported languages or whole-program taint}
   - capability: code_flow.reaching_def
     tools: [dispatch_reaching_def, POST /api/v0/code/flow/reaching-def]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires active-generation parser dataflow facts; lightweight profile returns unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded exact_parser_fact read over parser-emitted dataflow_functions def-use rows}
@@ -56,6 +63,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: "stays experimental by policy, not for lack of proof. A deployed golden-corpus run with ESHU_EMIT_DATAFLOW on returned five definitions at coverage.state exact with exact_parser_fact labels, so the runtime path #5692 wired does work end to end (and #5988 turned the flag on in the gate on 2026-08-09, making the capture possible). But value-flow emission is off by default and docs/public/reference/value-flow-emission.md requires it stay an explicitly-gated preview rather than be presented as GA, and production:supported would advertise general_availability. Promote only behind a gated maturity override (deployed proof issue 5970)"}
   - capability: code_flow.cfg_summary
     tools: [dispatch_cfg_summary, POST /api/v0/code/flow/cfg-summary]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires active-generation parser dataflow facts; lightweight profile returns unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded exact_parser_fact read over parser-emitted dataflow_functions CFG blocks and edges}
@@ -63,6 +71,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-flow-cfg-summary}], notes: bounded exact parser fact read; no semantic provider key required}
   - capability: code_flow.pdg_summary
     tools: [dispatch_pdg_summary, POST /api/v0/code/flow/pdg-summary]
+    answering_stores: [fact_records_collector, fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires active-generation parser dataflow facts; lightweight profile returns unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded partial_derived_summary combining available parser def-use and control-dependence rows; not a whole-program PDG}
@@ -70,6 +79,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-flow-pdg-summary}], notes: bounded partial summary; no semantic provider key required and no unsupported-language claim inflation}
   - capability: code_search.variable_lookup
     tools: [find_code]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived symbol metadata}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 700, max_scope_size: active_repo, verification: [{compose_e2e: scripts/verify-golden-corpus-gate.sh}], notes: a fresh golden-corpus run under ESHU_QUERY_PROFILE=local_authoritative returned four Variable-labeled matches through MCP and HTTP against the real graph stack}
@@ -77,6 +87,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-variable-lookup}], notes: durable semantic facts; deployed MCP find_code and HTTP variable lookup returned four Variable-labeled matches in the B-7 golden corpus run recorded by prod-variable-lookup}
   - capability: code_search.content_search
     tools: [search_file_content, search_dockerfile_installs]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms; graph sidecar unused for this capability"}
@@ -84,6 +95,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-content-search}], notes: "relational content search; unscoped file search accepts budget_ms 100..10000 per request and otherwise uses the configured server budget; scoped requests reject budget_ms"}
   - capability: code_search.topic_investigation
     tools: [investigate_code_topic]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "bounded content-index topic investigation with ranked files, symbols, coverage, and next-call handles. Caveat: an unscoped (no repo_id) search measured 16.1s (9 terms) and 33.1s (16 terms, this tool's own term ceiling) on a production-scale corpus during #7008's fan-out fix -- both exceed this row's p95_latency_ms budget. Tracked in #7033"}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: "bounded content-index topic investigation; relationship-story handles drill into graph only after entity anchors are chosen. Caveat: an unscoped (no repo_id) search measured 16.1s (9 terms) and 33.1s (16 terms, this tool's own term ceiling) on a production-scale corpus during #7008's fan-out fix -- both exceed this row's p95_latency_ms budget. Tracked in #7033"}
@@ -91,6 +103,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-topic-investigation}], notes: "bounded content-index topic investigation; use follow-up source reads for exact citations. Caveat: an unscoped (no repo_id) search measured 16.1s (9 terms) and 33.1s (16 terms, this tool's own term ceiling) on a live production-scale corpus during #7008's fan-out fix -- both exceed this row's 1500ms p95_latency_ms budget by 10-20x. Tracked in #7033"}
   - capability: graph_query.read_only_cypher
     tools: [execute_cypher_query]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: diagnostics-only read path requires graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: bounded_query_window, verification: [{go_test: ./internal/query}], notes: read-only Cypher capped by server-side LIMIT and timeout}
@@ -98,6 +111,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: bounded_query_window, verification: [{remote_validation: prod-read-only-cypher}], notes: diagnostics-only read path; prefer purpose-built tools for prompt contracts}
   - capability: symbol_graph.decorators
     tools: [execute_language_query]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-decorators}], notes: graph sidecar serves durable semantic facts}
@@ -105,6 +119,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-decorators}], notes: durable semantic facts}
   - capability: symbol_graph.argument_names
     tools: [execute_language_query]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-argument-names}], notes: graph sidecar serves durable semantic facts}
@@ -112,6 +127,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: "query handler proven by go_test; the deployed readback still drops declared parameters, but only for module-level functions. A deployed golden-corpus readback of ten python functions returned args for every method (self, and self plus env) and null for module-level functions that do declare parameters -- fetch_data(url), process_batch(urls) and calculate_sum(numbers) all came back null, while the genuinely parameterless stream_events() correctly did. Stays experimental until module-level function parameters survive projection (deployed proof issue 5970)"}
   - capability: symbol_graph.class_methods
     tools: [execute_language_query, analyze_code_relationships]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-class-methods}], notes: graph sidecar serves durable semantic facts}
@@ -119,6 +135,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-class-methods}], notes: durable semantic facts}
   - capability: symbol_graph.imports
     tools: [execute_language_query]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived imports}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-imports}], notes: graph sidecar serves durable semantic facts}
@@ -126,6 +143,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: multi_repo_platform, verification: [{go_test: ./internal/query}], notes: "the zero-IMPORTS-edge defect issue 5691 is fixed -- PR 5911 added the File-[:IMPORTS]->Module producer, and a deployed run returned 25 IMPORTS relationships from the graph. That readback went through /api/v0/code/imports/investigate, which is the sibling capability symbol_graph.import_dependencies, so it does not prove THIS row: this row advertises execute_language_query and no committed assertion exercises imports through that surface. Stays experimental until either a deployed execute_language_query proof exists or the tools mapping is corrected (deployed proof issue 5970)"}
   - capability: symbol_graph.import_dependencies
     tools: [investigate_import_dependencies]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: 0, max_scope_size: none, verification: [{go_test: ./internal/query/...}], notes: graph-backed dependency investigation requires authoritative graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: bounded graph import and cross-module relationship reads}
@@ -133,6 +151,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-import-dependencies}], notes: bounded graph import and cross-module relationship reads}
   - capability: symbol_graph.inheritance
     tools: [execute_language_query, analyze_code_relationships]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: semantic facts only}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-inheritance}], notes: graph sidecar serves durable semantic facts}
@@ -140,6 +159,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-symbol-graph-inheritance}], notes: "a deployed golden-corpus run returned declared INHERITS edges in both directions from /code/relationships, naming resolved parent and child classes at confidence 0.95, recorded by prod-symbol-graph-inheritance. Issue 5916 recorded the historical NornicDB literal-text defect. Issue 6262 pins the corrected relationship-seeded projection behavior; the v1.3.3 replay artifact asserts the node-only compound path directly (live proof on the pinned artifact), while the production NornicDB route keeps its split query shape"}
   - capability: code_quality.complexity
     tools: [calculate_cyclomatic_complexity, find_most_complex_functions]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived metric}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: parser-derived metric; graph sidecar unused}
@@ -147,6 +167,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-complexity}], notes: parser-derived metric}
   - capability: code_quality.refactoring
     tools: [inspect_code_quality]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: requires graph-backed semantic function metrics}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1200, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded graph read with repo/language scope, limit, offset, and truncation}
@@ -154,6 +175,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-code-quality-refactoring}], notes: bounded graph read over projected complexity, line count, and parameter count metrics}
   - capability: security.hardcoded_secrets
     tools: [investigate_hardcoded_secrets]
+    answering_stores: [read_table:content_file_secret_lines, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1200, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index secret candidate investigation with redacted findings}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1200, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded content-index secret candidate investigation; graph sidecar unused}
@@ -161,6 +183,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 2500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-hardcoded-secrets}], notes: bounded redacted secret candidate investigation; use citations only for exact redacted context}
   - capability: call_graph.direct_callers
     tools: [analyze_code_relationships]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-direct-callers-derived}], notes: non-authoritative local relationship view}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-direct-callers}], notes: graph sidecar serves authoritative CALLS edges}
@@ -168,6 +191,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-direct-callers}], notes: authoritative graph}
   - capability: call_graph.direct_callees
     tools: [analyze_code_relationships]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-direct-callees-derived}], notes: non-authoritative local relationship view}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-direct-callees}], notes: graph sidecar serves authoritative CALLS edges}
@@ -175,6 +199,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-direct-callees}], notes: authoritative graph}
   - capability: call_graph.relationship_story
     tools: [get_code_relationship_story]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: bounded content-derived relationship story with ambiguity candidates}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: bounded graph relationship story anchored by resolved entity id}
@@ -182,6 +207,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-story}], notes: bounded graph relationship story anchored by resolved entity id}
   - capability: call_graph.metrics
     tools: [inspect_call_graph_metrics]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query/...}], notes: call graph metric ranking requires authoritative CALLS graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: repo-anchored graph metrics for recursive and high-degree functions with bounded pages}
@@ -189,6 +215,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-graph-metrics}], notes: repo-anchored graph metrics for recursive and high-degree functions with bounded pages}
   - capability: call_graph.transitive_callers
     tools: [analyze_code_relationships]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-transitive-callers}], notes: must return structured unsupported-capability}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-transitive-callers}], notes: NornicDB graph sidecar serves authoritative graph at laptop scale}
@@ -196,6 +223,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-transitive-callers}], notes: authoritative graph}
   - capability: call_graph.transitive_callees
     tools: [analyze_code_relationships]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-transitive-callees}], notes: must return structured unsupported-capability}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-transitive-callees}], notes: graph sidecar serves authoritative graph at laptop scale}
@@ -203,6 +231,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-transitive-callees}], notes: authoritative graph}
   - capability: call_graph.call_chain_path
     tools: [find_function_call_chain]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-call-chain}], notes: requires authoritative graph mode}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-call-chain}], notes: graph sidecar shortestPath}
@@ -210,6 +239,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-call-chain-path}], notes: authoritative path query}
   - capability: call_graph.compare_code_paths
     tools: [compare_code_paths]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-compare-paths}], notes: requires authoritative graph mode}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query/codequery}, {go_test: ./internal/mcp/code/intel}], notes: bounded BFS over anchored one-hop reads}
@@ -217,6 +247,7 @@ capabilities:
       production: {status: unsupported, max_truth_level: unsupported, required_runtime: deployed_services, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query/codequery}], notes: production claim deferred until remote validation lands in docs/internal/remote-validation/code-divergence.md (#6840); tool hidden from tools/list on production (#7933)}
   - capability: call_graph.route_to_caller
     tools: [trace_route_callers]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: requires exact HANDLES_ROUTE graph truth and bounded CALLS traversal}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: active_repo, verification: [{go_test: ./internal/query/...}], notes: exact HANDLES_ROUTE handler resolution with bounded CALLS traversal and impact summaries}
@@ -224,6 +255,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-route-to-caller}], notes: exact HANDLES_ROUTE handler resolution with bounded CALLS traversal and impact summaries}
   - capability: code_to_cloud.trace_exposure_path
     tools: [trace_exposure_path]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-trace-exposure-path}], notes: requires authoritative graph mode for the bounded CALLS traversal}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 3000, max_scope_size: active_repo, verification: [{compose_e2e: scripts/verify-golden-corpus-gate.sh}], notes: a fresh golden-corpus run under ESHU_QUERY_PROFILE=local_authoritative resolved the source against the real graph stack and returned the bounded unresolved state without fabricating a cloud-sink path}
@@ -231,6 +263,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-trace-exposure-path}], notes: bounded symbol-level reachability over the call graph and cloud-sink catalog; derived not value-flow; the deployed B-7 read resolves the source and reports a bounded unresolved state when code-to-cloud bridge edges are unmaterialized, never fabricating a path}
   - capability: code_quality.dead_code
     tools: [find_dead_code, investigate_dead_code, find_cross_repo_dead_code]
+    answering_stores: [read_table:code_reachability_rows, content_search]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-dead-code}], notes: requires graph plus framework roots}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 10000, max_scope_size: indexed_workspace, verification: [{integration_test: local-authoritative-dead-code}], notes: graph-backed candidate scan with partial root modeling and language maturity metadata; cross-repo workflow classifies deterministic consumer evidence and returns ambiguous or stale ownership as unknown; exact promotion gated on dedicated dead-code fixtures, broader roots, reachability proof, and modeling every language construct that can affect reachability or returning named blockers}
@@ -238,6 +271,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-dead-code}], notes: graph-backed candidate scan with partial root modeling and language maturity metadata; cross-repo workflow classifies deterministic consumer evidence and returns ambiguous or stale ownership as unknown; exact promotion gated on dedicated dead-code fixtures, broader roots, reachability proof, and modeling every language construct that can affect reachability or returning named blockers}
   - capability: iac_quality.dead_iac
     tools: [find_dead_iac]
+    answering_stores: [read_table:iac_reachability_rows, content_search]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_repo, verification: [{integration_test: local-lightweight-unsupported-dead-iac}], notes: requires indexed IaC content and explicit repository scope}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{go_test: ./internal/query}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
@@ -245,6 +279,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 10000, max_scope_size: bounded_repo_scope, verification: [{remote_validation: prod-dead-iac}], notes: bounded content-derived candidate scan; exact cleanup requires reducer-materialized usage rows}
   - capability: iac_management.find_unmanaged_resources
     tools: [find_unmanaged_resources]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope, verification: [{integration_test: local-lightweight-unsupported-unmanaged-resources}], notes: requires reducer-materialized AWS runtime drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded active-generation read over reducer AWS runtime drift facts; response uses the issue 124 IaCManagementFinding taxonomy and graph projection remains a later ADR-shaped slice}
@@ -252,6 +287,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts with the issue 124 IaCManagementFinding taxonomy}
   - capability: iac_management.get_status
     tools: [get_iac_management_status]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope_plus_arn, verification: [{integration_test: local-lightweight-unsupported-iac-management-status}], notes: requires reducer-materialized AWS runtime drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{go_test: ./internal/query}], notes: exact ARN read over active reducer AWS runtime drift facts}
@@ -259,6 +295,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: exact ARN read over active reducer AWS runtime drift facts}
   - capability: iac_management.explain_status
     tools: [explain_iac_management_status]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope_plus_arn, verification: [{integration_test: local-lightweight-unsupported-iac-management-explain}], notes: requires reducer-materialized AWS runtime drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{go_test: ./internal/query}], notes: exact ARN read plus evidence grouping over active reducer AWS runtime drift facts}
@@ -266,6 +303,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1000, max_scope_size: aws_account_or_scope_plus_arn, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: exact ARN read plus evidence grouping over active reducer AWS runtime drift facts}
   - capability: iac_management.propose_terraform_import_plan
     tools: [propose_terraform_import_plan]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope, verification: [{integration_test: local-lightweight-unsupported-terraform-import-plan}], notes: requires reducer-materialized AWS runtime drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded response shaping over active reducer AWS runtime drift facts; never runs Terraform and refuses safety-gated findings}
@@ -273,6 +311,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded response shaping over active reducer AWS runtime drift facts; never runs Terraform and refuses safety-gated findings}
   - capability: aws_runtime_drift.findings.list
     tools: [list_aws_runtime_drift_findings]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: aws_account_or_scope, verification: [{integration_test: local-lightweight-unsupported-aws-runtime-drift-findings}], notes: requires reducer-materialized AWS runtime drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{go_test: ./internal/query}], notes: bounded active-generation read over reducer AWS runtime drift facts with exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status}
@@ -280,6 +319,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: aws_account_or_scope, verification: [{remote_validation: prod-aws-runtime-drift-read-model}], notes: bounded active-generation read over reducer AWS runtime drift facts with exact/derived/ambiguous/stale/unknown outcomes and rejected promotion status}
   - capability: terraform_config_state_drift.findings.list
     tools: [list_terraform_config_state_drift_findings]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: terraform_state_snapshot_scope, verification: [{integration_test: local-lightweight-unsupported-terraform-config-state-drift-findings}], notes: requires reducer-materialized Terraform config-vs-state drift facts}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: terraform_state_snapshot_scope, verification: [{go_test: ./internal/query}], notes: bounded active-generation read over reducer Terraform config-vs-state drift facts with exact/derived/ambiguous/unresolved outcomes; never runs Terraform}
@@ -287,6 +327,7 @@ capabilities:
       production: {status: experimental, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 5000, max_scope_size: terraform_state_snapshot_scope, verification: [{compose_e2e: terraform-config-state-drift-read-model}], notes: production validation pending; three deployed-services runs each hit a different structural break before returning a drift finding -- native discovery drops committed .tfstate via .gitignore exclusion (#5591), drift intents are only enqueued by bootstrap-index with no runtime re-trigger (#5593), and a bare local backend block with no path attribute yields no locator so ownership never resolves (#5594); the HTTP/MCP read surface itself is proven end to end on an empty result path (compose_e2e), never on a real drift finding}
   - capability: iac_inventory.resources.list
     tools: [list_iac_resources]
+    answering_stores: [fact_records_collector, graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: indexed_workspace, verification: [{integration_test: local-lightweight-unsupported-iac-resources}], notes: requires the authoritative Terraform/IaC graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded keyset-paginated list over the authoritative Terraform/IaC graph projection anchored on a single label}
@@ -294,6 +335,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-iac-resource-list}], notes: bounded keyset-paginated list over the authoritative Terraform/IaC graph projection}
   - capability: platform_impact.deployment_chain
     tools: [trace_deployment_chain, find_infra_resources, analyze_infra_relationships]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-chain}], notes: requires an authoritative platform graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local graph topology from the same query handlers as full-stack; instance_count is config-derived (instance_count_source configured_workload_instances, instance_count_evidence_tier config_only) and the runtime count live_instance_count exists only for Kubernetes (#5638)}
@@ -301,6 +343,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-deployment-chain}], notes: authoritative platform topology; instance_count is config-derived (instance_count_source configured_workload_instances, instance_count_evidence_tier config_only) and the runtime count live_instance_count exists only for Kubernetes (#5638)}
   - capability: platform_impact.deployment_config_influence
     tools: [investigate_deployment_config]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-deployment-config-influence}], notes: requires an authoritative platform graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded service deployment evidence packet with portable file handles}
@@ -314,6 +357,7 @@ capabilities:
     # narrative tools are bounded readbacks of the same authoritative context, so
     # they are declared surfaces of this capability rather than separate rows.
     tools: [get_repo_context, get_service_context, get_ecosystem_overview, get_repo_story, get_repo_summary, get_service_story, list_service_api_endpoints, list_service_downstream_consumers, get_service_intelligence_report, get_workload_context, get_workload_story, investigate_service]
+    answering_stores: [graph, fact_records_reducer, fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-context-overview}], notes: requires full platform context truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: authoritative local repository, service, workload, and ecosystem context plus bounded repo/service/workload story, summary, dossier, intelligence-report, and investigation readbacks over the same context truth}
@@ -321,6 +365,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-context-overview}], notes: authoritative repository, service, workload, and ecosystem context plus bounded story, summary, dossier, intelligence-report, and investigation readbacks over the same context truth}
   - capability: platform_impact.graph_summary_packet
     tools: [get_graph_summary_packet]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-graph-summary-packet}], notes: requires an authoritative graph for hot entities, relationship counts, and the ecosystem map}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: optional_repo_scope, verification: [{go_test: ./internal/query}], notes: bounded summary packet using an exact repository-scoped CALLS edge pass with a 50000-edge fail-closed ceiling, deterministic hot-entity degree ranking, per-type repo-anchored relationship counts, and per-label/repo-anchored ecosystem counts; without repo_id only the bounded per-label ecosystem counts are returned with a needs-repo note}
@@ -328,6 +373,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: optional_repo_scope, verification: [{remote_validation: prod-graph-summary-packet}], notes: bounded summary packet using an exact repository-scoped CALLS edge pass with a 50000-edge fail-closed ceiling, deterministic hot-entity degree ranking, per-type repo-anchored relationship counts, and per-label/repo-anchored ecosystem counts; without repo_id only the bounded per-label ecosystem counts are returned with a needs-repo note}
   - capability: platform_impact.relationships_catalog
     tools: [get_relationships_catalog, get_relationship_edges, list_relationship_edges]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-relationships-catalog}], notes: requires an authoritative graph for typed-edge verb counts and concrete edge slices}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: whole_graph, verification: [{go_test: ./internal/query}], notes: fixed typed-edge verb catalog, each verb counted with one anonymous relationship-type-indexed whole-graph aggregate, plus a bounded source-label-anchored per-verb concrete edge slice with LIMIT}
@@ -335,6 +381,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: whole_graph, verification: [{remote_validation: prod-relationships-catalog}], notes: fixed typed-edge verb catalog, each verb counted with one anonymous relationship-type-indexed whole-graph aggregate, plus a bounded source-label-anchored per-verb concrete edge slice with LIMIT}
   - capability: platform_impact.infra_resource_aggregate
     tools: [count_infra_resources, get_infra_resource_inventory]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-infra-resource-aggregate}], notes: requires the authoritative infrastructure graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: optional_category_provider_environment_or_resource_service_scope, verification: [{go_test: ./internal/query}], notes: bounded infrastructure resource aggregate (count and grouped inventory by provider, environment, resource_category, resource_service, or label) over the documented infrastructure labels; unscoped reads once the infra read model is ready (backfill marker present and no rolling-upgrade fence mark) count content-derived nodes from Postgres infra_resource_entities plus one graph pass for CloudResource, TerraformStateResource, and the Terraform-state TerraformModule and TerraformOutput nodes via an indexed evidence_source seek (truth basis hybrid, level derived); table-only categories (argocd, crossplane, helm, k8s) report content_index and category cloud reads only the graph (authoritative_graph); scoped reads, reads before the backfill, and reads while any fence mark exists stay on the per-label graph path (authoritative_graph)}
@@ -342,6 +389,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2500, max_scope_size: optional_category_provider_environment_or_resource_service_scope, verification: [{remote_validation: prod-infra-resource-aggregate}], notes: bounded infrastructure resource aggregate (count and grouped inventory by provider, environment, resource_category, resource_service, or label) over the documented infrastructure labels; unscoped reads once the infra read model is ready (backfill marker present and no rolling-upgrade fence mark) count content-derived nodes from Postgres infra_resource_entities plus one graph pass for CloudResource, TerraformStateResource, and the Terraform-state TerraformModule and TerraformOutput nodes via an indexed evidence_source seek (truth basis hybrid, level derived); table-only categories (argocd, crossplane, helm, k8s) report content_index and category cloud reads only the graph (authoritative_graph); scoped reads, reads before the backfill, and reads while any fence mark exists stay on the per-label graph path (authoritative_graph)}
   - capability: platform_impact.container_image_list
     tools: [list_container_images]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{go_test: ./internal/query}], notes: requires the authoritative container image graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_digest_repository_or_tag_scope, verification: [{go_test: ./internal/query}], notes: bounded container image (OCI) list over the authoritative (:ContainerImage) graph with deterministic ordering by digest then uid, limit+1 truncation, and offset continuation; optional digest, repository_id, and tag filters}
@@ -349,6 +397,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_digest_repository_or_tag_scope, verification: [{remote_validation: prod-container-image-list}], notes: bounded container image (OCI) list over the authoritative (:ContainerImage) graph with deterministic ordering by digest then uid, limit+1 truncation, and offset continuation; optional digest, repository_id, and tag filters}
   - capability: platform_impact.cloud_resource_list
     tools: [list_cloud_resources]
+    answering_stores: [read_table:graph_node_owner, fact_records_reducer, fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-cloud-resource-list}], notes: requires the authoritative cloud resource graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: optional_provider_resource_type_region_or_account_scope, verification: [{go_test: ./internal/query}], notes: bounded, filterable, keyset-paged list of CloudResource nodes ordered by resource_type then id; resource_type and arn are indexed and id is unique so the cursor resume stays selective}
@@ -356,6 +405,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2500, max_scope_size: optional_provider_resource_type_region_or_account_scope, verification: [{remote_validation: prod-cloud-resource-list}], notes: bounded, filterable, keyset-paged list of CloudResource nodes ordered by resource_type then id; resource_type and arn are indexed and id is unique so the cursor resume stays selective}
   - capability: platform_impact.catalog
     tools: [get_ecosystem_overview, count_repositories_by_language, list_repositories_by_language, get_repository_language_inventory]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded repository handles from the relational catalog; workload and service rows require graph truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded repository and workload handles from the local graph}
@@ -363,6 +413,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 3000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-catalog}], notes: bounded repository, workload, and service handles from the authoritative graph}
   - capability: relationship_evidence.drilldown
     tools: [get_repo_context, get_relationship_evidence]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-relationship-evidence}], notes: requires durable relationship read model}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: resolved_relationships drilldown by resolved_id}
@@ -370,6 +421,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-relationship-evidence}], notes: resolved_relationships drilldown by resolved_id}
   - capability: evidence_citation.packet
     tools: [build_evidence_citation_packet]
+    answering_stores: [content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: bounded_handle_batch, verification: [{go_test: ./internal/query}], notes: bounded Postgres content-store hydration for file and entity handles}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: bounded_handle_batch, verification: [{go_test: ./internal/query}], notes: graph sidecar unused; hydrates story and investigation handles from the content store}
@@ -377,6 +429,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1200, max_scope_size: bounded_handle_batch, verification: [{remote_validation: prod-evidence-citation-packet}], notes: bounded citation packet for source, docs, manifests, and deployment evidence}
   - capability: documentation_findings.list
     tools: [list_documentation_findings]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-findings}], notes: requires durable documentation finding facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: documentation_finding facts by filter}
@@ -384,6 +437,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-documentation-findings}], notes: documentation_finding facts by filter}
   - capability: documentation_findings.aggregate
     tools: [count_documentation_findings, get_documentation_finding_inventory]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-finding-aggregate}], notes: requires durable documentation finding facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_scope_finding_type_source_document_or_status_scope, verification: [{go_test: ./internal/query}], notes: bounded documentation finding aggregate (count and grouped inventory by status, truth_level, freshness_state, finding_type, or source_id) over permission-gated reducer facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -391,6 +445,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_scope_finding_type_source_document_or_status_scope, verification: [{remote_validation: prod-documentation-finding-aggregate}], notes: bounded documentation finding aggregate (count and grouped inventory by status, truth_level, freshness_state, finding_type, or source_id) over permission-gated reducer facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: documentation_facts.list
     tools: [list_documentation_facts]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-facts}], notes: requires durable collected documentation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_documentation_scope, verification: [{go_test: ./internal/query}], notes: bounded collected documentation facts by scope or document anchor}
@@ -398,6 +453,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: bounded_documentation_scope, verification: [{remote_validation: prod-documentation-facts}], notes: bounded collected documentation facts by scope or document anchor}
   - capability: documentation_evidence_packet.read
     tools: [get_documentation_evidence_packet]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-evidence-packet}], notes: requires durable documentation evidence packet facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: immutable documentation evidence packet by finding_id}
@@ -405,6 +461,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-documentation-evidence-packet}], notes: immutable documentation evidence packet by finding_id}
   - capability: documentation_evidence_packet.freshness
     tools: [check_documentation_evidence_packet_freshness]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-documentation-packet-freshness}], notes: requires durable documentation evidence packet facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 500, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: documentation evidence packet freshness by packet_id}
@@ -412,6 +469,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-documentation-packet-freshness}], notes: documentation evidence packet freshness by packet_id}
   - capability: package_registry.packages.list
     tools: [list_package_registry_packages]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-packages}], notes: requires package registry graph identity nodes}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: bounded_registry_scope, verification: [{go_test: ./internal/query}], notes: bounded package identity lookup by package_id or ecosystem/name; source ownership remains provenance-only}
@@ -419,6 +477,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: bounded_registry_scope, verification: [{remote_validation: prod-package-registry-packages}], notes: bounded package identity lookup by package_id or ecosystem/name; source ownership remains provenance-only}
   - capability: package_registry.versions.list
     tools: [list_package_registry_versions]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-versions}], notes: requires package registry graph identity nodes}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_id, verification: [{go_test: ./internal/query}], notes: package-version identity lookup anchored by Package.uid}
@@ -426,6 +485,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_id, verification: [{remote_validation: prod-package-registry-versions}], notes: package-version identity lookup anchored by Package.uid}
   - capability: package_registry.dependencies.list
     tools: [list_package_registry_dependencies]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-dependencies}], notes: requires package registry dependency graph nodes}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_or_version_id, verification: [{go_test: ./internal/query}], notes: bounded package-native dependency lookup anchored by Package.uid or PackageVersion.uid}
@@ -433,6 +493,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_version_id, verification: [{remote_validation: prod-package-registry-dependencies}], notes: bounded package-native dependency lookup anchored by Package.uid or PackageVersion.uid}
   - capability: package_registry.correlations.list
     tools: [list_package_registry_correlations]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-correlations}], notes: requires reducer package correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: package_or_repository_id, verification: [{go_test: ./internal/query}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
@@ -440,6 +501,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: package_or_repository_id, verification: [{remote_validation: prod-package-registry-correlations}], notes: bounded reducer package ownership, publication, and consumption correlation lookup anchored by Package.uid or Repository.id}
   - capability: package_registry.dependency_chains.list
     tools: [list_package_registry_dependency_chains]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-dependency-chains}], notes: requires reducer package correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_id, verification: [{go_test: ./internal/query}], notes: two-read repo-scoped join of canonical consumption correlations with provenance-only publication/ownership correlations; publisher legs are inferred provenance-only links, never asserted Repository edges}
@@ -447,6 +509,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_id, verification: [{remote_validation: prod-package-registry-dependency-chains}], notes: two-read repo-scoped join of canonical consumption correlations with provenance-only publication/ownership correlations; publisher legs are inferred provenance-only links, never asserted Repository edges}
   - capability: package_registry.packages.aggregate
     tools: [count_package_registry_packages, get_package_registry_package_inventory]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-package-registry-aggregate}], notes: requires the authoritative graph (:Package)}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_ecosystem_registry_namespace_package_manager_or_visibility_scope, verification: [{go_test: ./internal/query}], notes: bounded (:Package) aggregate (count and grouped inventory by ecosystem, registry, namespace, package_manager, or visibility) using cookbook Area-5 grouped count anchored on indexed properties; replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -454,6 +517,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_ecosystem_registry_namespace_package_manager_or_visibility_scope, verification: [{remote_validation: prod-package-registry-aggregate}], notes: bounded (:Package) aggregate (count and grouped inventory by ecosystem, registry, namespace, package_manager, or visibility) using cookbook Area-5 grouped count anchored on indexed properties; replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: dependencies.list
     tools: []
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-dependencies}], notes: requires the package-native dependency graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_package_and_ecosystem_scope, verification: [{go_test: ./internal/query}], notes: bounded forward and reverse package dependency inventory anchored on Package.normalized_name with deterministic keyset paging}
@@ -461,6 +525,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_package_and_ecosystem_scope, verification: [{remote_validation: prod-dependencies}], notes: bounded forward and reverse package dependency inventory anchored on Package.normalized_name with deterministic keyset paging}
   - capability: manifest.dependencies.list
     tools: []
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-manifest-dependencies}], notes: requires the authoritative store profile}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_id, verification: [{go_test: ./internal/query/manifest}, {go_test: ./internal/storage/postgres}], notes: bounded repository-scoped declared manifest dependency page anchored by repository_id with deterministic (observed_at, fact_id) keyset paging; rows are declared, not resolved}
@@ -468,6 +533,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_id, verification: [{go_test: ./internal/query/manifest}, {go_test: ./internal/storage/postgres}], notes: bounded repository-scoped declared manifest dependency page anchored by repository_id with deterministic (observed_at, fact_id) keyset paging; rows are declared, not resolved -- no remote_validation artifact exists yet for this new route so production relies on the focused Go test proof and the disposable-Postgres live proof (go/internal/storage/postgres/active_repository_manifest_dependency_live_test.go, specs/live-tests.d/live-tests-readiness-part3.generated.yaml) rather than adding an unbacked ref to the frozen remote-validation baseline}
   - capability: ci_cd.run_correlations.list
     tools: [list_ci_cd_run_correlations]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-ci-cd-run-correlations}], notes: requires reducer CI/CD run correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: run_or_commit_or_artifact_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer CI/CD run correlation lookup anchored by scope, repository, commit, provider plus provider run for run-only reads, artifact digest, or environment; repository-scoped list responses also summarize static workflow artifacts from the content read model without creating synthetic correlation rows}
@@ -475,6 +541,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: run_or_commit_or_artifact_scope, verification: [{remote_validation: prod-ci-cd-run-correlations}], notes: bounded reducer CI/CD run correlation lookup anchored by scope, repository, commit, provider plus provider run for run-only reads, artifact digest, or environment; repository-scoped list responses also summarize static workflow artifacts from the content read model without creating synthetic correlation rows}
   - capability: ci_cd.run_correlations.aggregate
     tools: [count_ci_cd_run_correlations, get_ci_cd_run_correlation_inventory]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-ci-cd-run-correlation-aggregate}], notes: requires reducer CI/CD run correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_run_or_commit_or_artifact_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer CI/CD run correlation aggregate (count and grouped inventory by outcome, environment, repository_id, or provider); replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -482,6 +549,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_run_or_commit_or_artifact_scope, verification: [{remote_validation: prod-ci-cd-run-correlation-aggregate}], notes: bounded reducer CI/CD run correlation aggregate (count and grouped inventory by outcome, environment, repository_id, or provider); replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: service_catalog.correlations.list
     tools: [list_service_catalog_correlations]
+    answering_stores: [fact_records_reducer, fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-service-catalog-correlations}], notes: requires reducer service catalog correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: catalog_entity_repository_service_workload_or_owner_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer service catalog ownership and drift lookup anchored by scope, entity, repository, service, workload, or owner}
@@ -489,6 +557,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: catalog_entity_repository_service_workload_or_owner_scope, verification: [{remote_validation: prod-service-catalog-correlations}], notes: bounded reducer service catalog ownership and drift lookup anchored by scope, entity, repository, service, workload, or owner}
   - capability: kubernetes.correlations.list
     tools: [list_kubernetes_correlations]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-kubernetes-correlations}], notes: requires reducer Kubernetes correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cluster_workload_namespace_image_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer Kubernetes workload ownership and drift lookup anchored by scope, cluster, workload object, namespace, image ref, or source digest}
@@ -496,6 +565,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cluster_workload_namespace_image_or_digest_scope, verification: [{remote_validation: prod-kubernetes-correlations}], notes: bounded reducer Kubernetes workload ownership and drift lookup anchored by scope, cluster, workload object, namespace, image ref, or source digest}
   - capability: observability.coverage.correlations.list
     tools: [list_observability_coverage_correlations]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-observability-coverage-correlations}], notes: requires reducer observability coverage correlation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_provider_signal_object_resource_or_service_scope_with_source_or_resource_class_filter, verification: [{go_test: ./internal/query}], notes: bounded reducer observability coverage lookup anchored by scope, provider, coverage signal, observability object, target resource, or target service; optional source_class and resource_class filters narrow the anchored page}
@@ -503,6 +573,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_provider_signal_object_resource_or_service_scope_with_source_or_resource_class_filter, verification: [{remote_validation: prod-observability-coverage-correlations}], notes: bounded reducer observability coverage lookup anchored by scope, provider, coverage signal, observability object, target resource, or target service; optional source_class and resource_class filters narrow the anchored page}
   - capability: secrets_iam.identity_trust_chains.list
     tools: [list_secrets_iam_identity_trust_chains]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-secrets-iam-identity-trust-chains}], notes: requires reducer secrets/IAM identity trust-chain facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_chain_workload_service_account_or_iam_role_scope_with_state_filter, verification: [{go_test: ./internal/query}], notes: bounded reducer secrets/IAM identity trust-chain lookup anchored by scope, chain, workload object, service account join key, or iam role fingerprint; optional state filter narrows the anchored page; provenance-only, no graph promotion}
@@ -510,6 +581,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_chain_workload_service_account_or_iam_role_scope_with_state_filter, verification: [{remote_validation: prod-secrets-iam-identity-trust-chains}], notes: bounded reducer secrets/IAM identity trust-chain lookup anchored by scope, chain, workload object, service account join key, or iam role fingerprint; optional state filter narrows the anchored page; provenance-only, no graph promotion; the deployed B-7 read returned an exact synthetic trust chain without enabling optional graph projection}
   - capability: secrets_iam.privilege_posture_observations.list
     tools: [list_secrets_iam_privilege_posture_observations]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-secrets-iam-privilege-posture-observations}], notes: requires reducer secrets/IAM privilege posture observation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_or_observation_scope_with_risk_severity_state_filter, verification: [{go_test: ./internal/query}], notes: bounded reducer secrets/IAM privilege posture observation lookup anchored by scope or observation; optional risk_type, severity, and state filters narrow the anchored page; provenance-only, never an exact path}
@@ -517,6 +589,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_or_observation_scope_with_risk_severity_state_filter, verification: [{remote_validation: prod-secrets-iam-privilege-posture-observations}], notes: bounded reducer secrets/IAM privilege posture observation lookup anchored by scope or observation; optional risk_type, severity, and state filters narrow the anchored page; provenance-only, never an exact path; the deployed B-7 read returned a synthetic wildcard-trust observation without enabling optional graph projection}
   - capability: secrets_iam.secret_access_paths.list
     tools: [list_secrets_iam_secret_access_paths]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-secrets-iam-secret-access-paths}], notes: requires reducer secrets/IAM secret access path facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_path_chain_or_vault_mount_scope_with_state_filter, verification: [{go_test: ./internal/query}], notes: bounded reducer secrets/IAM secret access path lookup anchored by scope, path, parent chain, or vault mount join key; optional state filter narrows the anchored page; reachability metadata only, never a secret value}
@@ -524,6 +597,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_path_chain_or_vault_mount_scope_with_state_filter, verification: [{remote_validation: prod-secrets-iam-secret-access-paths}], notes: bounded reducer secrets/IAM secret access path lookup anchored by scope, path, parent chain, or vault mount join key; optional state filter narrows the anchored page; reachability metadata only, never a secret value; the deployed B-7 read returned an exact synthetic access path without enabling optional graph projection}
   - capability: secrets_iam.posture_gaps.list
     tools: [list_secrets_iam_posture_gaps]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-secrets-iam-posture-gaps}], notes: requires reducer secrets/IAM posture gap facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_gap_or_service_account_scope_with_gap_type_state_filter, verification: [{go_test: ./internal/query}], notes: bounded reducer secrets/IAM posture gap lookup anchored by scope, gap, or service account join key; optional gap_type and state filters narrow the anchored page; surfaces missing, stale, hidden, or unsupported evidence rather than dropping it}
@@ -531,6 +605,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_gap_or_service_account_scope_with_gap_type_state_filter, verification: [{remote_validation: prod-secrets-iam-posture-gaps}], notes: bounded reducer secrets/IAM posture gap lookup anchored by scope, gap, or service account join key; optional gap_type and state filters narrow the anchored page; surfaces missing, stale, hidden, or unsupported evidence rather than dropping it; the deployed B-7 read preserved a synthetic unsupported policy-layer gap without enabling optional graph projection}
   - capability: secrets_iam.posture_summary.read
     tools: [count_secrets_iam_posture]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-secrets-iam-posture-summary}], notes: requires reducer secrets/IAM read-model facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: single_reducer_scope, verification: [{go_test: ./internal/query}], notes: bounded scope-anchored GROUP BY rollup of secrets/IAM read models (identity-chain state, privilege observation risk_type and severity, secret-access-path state, posture-gap type) as provenance-only counts; no fingerprints or evidence exposed}
@@ -538,6 +613,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: single_reducer_scope, verification: [{remote_validation: prod-secrets-iam-posture-summary}], notes: bounded scope-anchored GROUP BY rollup of secrets/IAM read models (identity-chain state, privilege observation risk_type and severity, secret-access-path state, posture-gap type) as provenance-only counts; no fingerprints or evidence exposed; the deployed B-7 read returned non-zero synthetic buckets without enabling optional graph projection}
   - capability: supply_chain.sbom_attestation_attachments.list
     tools: [list_sbom_attestation_attachments]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-sbom-attestation-attachments}], notes: requires reducer SBOM/attestation attachment facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: digest_or_document_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
@@ -545,6 +621,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: digest_or_document_scope, verification: [{remote_validation: prod-sbom-attestation-attachments}], notes: bounded reducer SBOM and attestation attachment lookup anchored by subject digest, document id, or document digest}
   - capability: supply_chain.sbom_attestation_attachments.aggregate
     tools: [count_sbom_attestation_attachments, get_sbom_attestation_attachment_inventory]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-sbom-attestation-attachment-aggregate}], notes: requires reducer SBOM/attestation attachment facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_subject_document_attachment_status_or_artifact_kind_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer SBOM and attestation attachment aggregate (count and grouped inventory by attachment_status, artifact_kind, or subject_digest); replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -552,6 +629,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_subject_document_attachment_status_or_artifact_kind_scope, verification: [{remote_validation: prod-sbom-attestation-attachment-aggregate}], notes: bounded reducer SBOM and attestation attachment aggregate (count and grouped inventory by attachment_status, artifact_kind, or subject_digest); replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: supply_chain.container_image_identities.list
     tools: [list_container_image_identities]
+    answering_stores: [read_table:container_image_identity_supports]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-container-image-identities}], notes: requires reducer container image identity facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: digest_ref_repository_or_outcome_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer container image identity lookup anchored by digest, image ref, repository id, or outcome}
@@ -559,6 +637,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: digest_ref_repository_or_outcome_scope, verification: [{remote_validation: prod-container-image-identities}], notes: bounded reducer container image identity lookup anchored by digest, image ref, repository id, or outcome}
   - capability: supply_chain.container_image_identities.aggregate
     tools: [count_container_image_identities, get_container_image_identity_inventory]
+    answering_stores: [read_table:container_image_identity_supports]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-container-image-identity-aggregate}], notes: requires reducer container image identity facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_digest_ref_repository_or_outcome_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer container image identity aggregate (count and grouped inventory by outcome, identity_strength, or repository_id); replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -566,6 +645,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_digest_ref_repository_or_outcome_scope, verification: [{remote_validation: prod-container-image-identity-aggregate}], notes: bounded reducer container image identity aggregate (count and grouped inventory by outcome, identity_strength, or repository_id); replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: supply_chain.advisory_evidence.list
     tools: [list_advisory_evidence]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-advisory-evidence}], notes: requires active vulnerability source facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_advisory_or_package_scope, verification: [{go_test: ./internal/query}], notes: bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id; does not imply impact}
@@ -573,6 +653,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_advisory_or_package_scope, verification: [{remote_validation: prod-advisory-evidence}], notes: bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id; preserves source disagreement without implying repository or image impact}
   - capability: supply_chain.advisory_catalog.list
     tools: []
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-advisory-catalog}], notes: requires active vulnerability source facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: bounded_catalog_page, verification: [{go_test: ./internal/query}], notes: browsable, summary-only CVE-intelligence catalog ordered by CVSS desc then advisory key with keyset pagination; rows are known intelligence and do not imply repository, image, workload, or deployment impact}
@@ -580,6 +661,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: bounded_catalog_page, verification: [{remote_validation: prod-advisory-catalog}], notes: browsable, summary-only CVE-intelligence catalog; rows are known intelligence and do not imply repository or image impact, which remains the impact findings surface}
   - capability: supply_chain.vulnerability_scanner.contract.read
     tools: [get_vulnerability_scanner_read_contract]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 100, max_scope_size: static_contract, verification: [{go_test: ./internal/query}], notes: static scanner read contract for supported, unsupported, provider-only, and missing-evidence driven filters}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 100, max_scope_size: static_contract, verification: [{go_test: ./internal/query}], notes: static scanner read contract; graph sidecar unused}
@@ -587,6 +669,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 200, max_scope_size: static_contract, verification: [{remote_validation: prod-vulnerability-scanner-contract}], notes: static scanner read contract; route handlers own runtime evidence and readiness envelopes}
   - capability: supply_chain.impact_findings.list
     tools: [list_supply_chain_impact_findings]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact}], notes: requires reducer supply-chain impact facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
@@ -594,6 +677,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
   - capability: supply_chain.impact_findings.aggregate
     tools: [count_supply_chain_impact_findings, get_supply_chain_impact_inventory]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact-aggregate}], notes: requires reducer supply-chain impact facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact aggregate (count and grouped inventory) over reducer impact facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -601,6 +685,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact-aggregate}], notes: bounded reducer impact aggregate (count and grouped inventory) over reducer impact facts; replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: supply_chain.impact_explanation.read
     tools: [explain_supply_chain_impact, export_supply_chain_impact_packet]
+    answering_stores: [fact_records_reducer, fact_records_collector]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact-explain}], notes: requires reducer supply-chain impact facts and bounded evidence fact ids}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: one_finding_or_advisory_package_repository_path, verification: [{go_test: ./internal/query}], notes: one reducer-owned finding explanation anchored by finding_id or advisory/CVE plus package, repository, or image digest; no whole-graph explain}
@@ -608,6 +693,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: one_finding_or_advisory_package_repository_path, verification: [{remote_validation: prod-supply-chain-impact-explain}], notes: one reducer-owned finding explanation anchored by finding_id or advisory/CVE plus package, repository, or image digest; hydrates only referenced evidence fact ids}
   - capability: supply_chain.security_alert_reconciliations.list
     tools: [list_security_alert_reconciliations]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-security-alert-reconciliations}], notes: requires reducer security alert reconciliation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_provider_package_or_advisory_scope, verification: [{go_test: ./internal/query}], notes: bounded provider alert reconciliation lookup anchored by repository, provider, package, CVE, or GHSA; provider state and reconciliation status filter anchored pages only}
@@ -615,6 +701,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_provider_package_or_advisory_scope, verification: [{remote_validation: prod-security-alert-reconciliations}], notes: bounded provider alert reconciliation lookup anchored by repository, provider, package, CVE, or GHSA; provider state and reconciliation status filter anchored pages only}
   - capability: supply_chain.security_alert_reconciliations.aggregate
     tools: [count_security_alert_reconciliations, get_security_alert_reconciliation_inventory]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-security-alert-reconciliation-aggregate}], notes: requires reducer security alert reconciliation facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_repository_provider_package_or_advisory_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer alert aggregate (count and grouped inventory by reconciliation_status, provider, provider_state, repository_id, or package_id); replaces page-and-iterate caller workflow for ecosystem totals questions}
@@ -622,6 +709,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: optional_repository_provider_package_or_advisory_scope, verification: [{remote_validation: prod-security-alert-reconciliation-aggregate}], notes: bounded reducer alert aggregate (count and grouped inventory by reconciliation_status, provider, provider_state, repository_id, or package_id); replaces page-and-iterate caller workflow for ecosystem totals questions}
   - capability: platform_impact.resource_to_code
     tools: [trace_resource_to_code]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-resource-to-code}], notes: requires an authoritative platform graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: exact when local graph infra and code relations converge}
@@ -629,6 +717,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-resource-to-code}], notes: exact only when infra and code relations converge}
   - capability: platform_impact.resource_investigation
     tools: [investigate_resource]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-resource-investigation}], notes: requires an authoritative platform graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded resource-first packet with ambiguity, workload usage, repository provenance, source handles, and next calls}
@@ -636,6 +725,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-resource-investigation}], notes: bounded resource-first packet with workload and provisioning graph evidence}
   - capability: platform_impact.dependency_path
     tools: [explain_dependency_path]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-dependency-path}], notes: requires full dependency graph truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 3000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-dependency-path}], notes: graph sidecar shortestPath over code-only edges; platform-wide dependency paths still require full-stack}
@@ -643,6 +733,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-dependency-path}], notes: exact only when dependency graph relations converge}
   - capability: platform_impact.environment_compare
     tools: [compare_environments]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-environment-compare}], notes: requires indexed environment truth in an authoritative graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 6000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: exact when compared environments are indexed in the local authoritative graph}
@@ -650,6 +741,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 8000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-environment-compare}], notes: exact only when compared environments are fully indexed}
   - capability: platform_impact.change_surface
     tools: [find_change_surface, investigate_change_surface]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-change-surface}], notes: requires hybrid platform truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: hybrid graph plus infra truth from the local authoritative graph}
@@ -657,6 +749,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-change-surface}], notes: hybrid graph plus infra truth}
   - capability: platform_impact.pre_change
     tools: [analyze_pre_change_impact]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-pre-change-impact}], notes: requires indexed content and hybrid platform truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: normalizes local diff or file-list inputs into bounded changed-path, content, and graph impact evidence}
@@ -664,6 +757,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-pre-change-impact}], notes: API and MCP accept normalized changed-file records; local git ref resolution happens in the CLI or caller}
   - capability: platform_impact.developer_change_plan
     tools: [plan_developer_change]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-developer-change-plan}], notes: requires indexed content and hybrid platform truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: builds a read-only developer_change_plan.v1 artifact from bounded pre-change impact evidence}
@@ -671,6 +765,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-developer-change-plan}], notes: API and MCP accept normalized changed-file records; local git ref resolution happens in the CLI or caller}
   - capability: platform_impact.contract_impact
     tools: [investigate_contract_impact]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host_plus_graph, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query}], notes: deterministic contract-impact reads require authoritative graph projection; no provider key or semantic output is required}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1500, max_scope_size: bounded_contract_scope, verification: [{go_test: ./internal/query}], notes: bounded HTTP provider contract lookup from deterministic Endpoint evidence; topic and grpc families return explicit unsupported states until projected}
@@ -678,6 +773,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 2000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-contract-impact}], notes: API and MCP expose deterministic contract-impact rows with truncation and provenance; scoped tokens remain fail-closed until tenant-filtered consumer projection lands}
   - capability: platform_impact.entity_map
     tools: [entity_map]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-entity-map}], notes: requires authoritative graph truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: typed entity resolver plus bounded relationship-family graph traversal}
@@ -685,6 +781,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-entity-map}], notes: typed entity resolver plus bounded relationship-family graph traversal}
   - capability: platform_impact.blast_radius
     tools: [find_blast_radius]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-blast-radius}], notes: requires hybrid platform truth}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: active_repo, verification: [{integration_test: local-authoritative-blast-radius}], notes: code-only blast radius from graph sidecar; hybrid code+infra truth still requires full-stack}
@@ -692,6 +789,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 7000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-impact-surface}], notes: hybrid graph plus infra truth}
   - capability: incident.context.read
     tools: [get_incident_context]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: incident_or_service_time_window, verification: [{go_test: ./internal/query}], notes: bounded active incident and incident-routing source fact read with explicit missing evidence slots; no provider API calls}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: incident_or_service_time_window, verification: [{go_test: ./internal/query}], notes: bounded active incident and incident-routing source fact read with explicit missing evidence slots; graph is not required}
@@ -699,6 +797,7 @@ capabilities:
       production: {status: supported, max_truth_level: derived, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: incident_or_service_time_window, verification: [{remote_validation: prod-incident-context}], notes: bounded active incident source fact read plus declared/applied/live routing slots; runtime, Jira, PR, image, build, deploy, and commit edges stay missing until proven}
   - capability: work_item.evidence.list
     tools: [list_work_item_evidence]
+    answering_stores: [fact_records_collector]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: jira_scope_project_work_item_url_or_observed_window, verification: [{go_test: ./internal/query}], notes: bounded active Jira/work-item source fact read; no provider API calls and no raw URLs returned}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: jira_scope_project_work_item_url_or_observed_window, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means exact provider source fact, not verified PR/commit/deploy/runtime/image/service truth}
@@ -706,6 +805,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: jira_scope_project_work_item_url_or_observed_window, verification: [{remote_validation: prod-work-item-evidence}], notes: source-only Jira evidence; PR, commit, deployment, runtime artifact, image, version, service, and incident truth stay missing until provider or reducer evidence proves them}
   - capability: operator.dead_letters.list
     tools: [list_dead_letter_work_items]
+    answering_stores: [read_table:fact_work_items]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: failure_class_domain_scope_collector_time_window, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded fact_work_items dead-letter read with required limit and timeout_ms; scoped tokens are restricted to granted repository or scope ids; no raw failure message or payload output}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: failure_class_domain_scope_collector_time_window, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: graph is not required; exact means persisted Postgres work-item state joined with ingestion scope collector metadata}
@@ -713,6 +813,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: failure_class_domain_scope_collector_time_window, verification: [{remote_validation: prod-dead-letter-list}], notes: first-class operator dead-letter triage surface; classify by failure_class before targeted admin replay}
   - capability: operator.reducer_input_invalid_facts.list
     tools: [list_reducer_input_invalid_facts]
+    answering_stores: [read_table:reducer_input_invalid_facts]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: scope_generation_domain_fact_kind, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded reducer_input_invalid_facts read (issue-4630) requiring scope_id and generation_id and limit and timeout_ms; scoped tokens are restricted to granted repository or scope ids; no raw payload output other than fact_id/fact_kind/missing_field/failure_class}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_generation_domain_fact_kind, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: graph is not required; exact means persisted Postgres quarantine rows written by the reducer best-effort idempotent batch writer at reduction time}
@@ -720,6 +821,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_generation_domain_fact_kind, verification: [{remote_validation: prod-reducer-input-invalid-facts-list}], notes: durable recompute-on-demand read surface for input_invalid quarantines; re-drive requires re-running the collector/reducer after fixing the collector defect rather than a live re-decode}
   - capability: operator.changed_since_poisoned_links.list
     tools: [list_changed_since_poisoned_links]
+    answering_stores: [read_table:changed_since_scope_cursor, read_table:fact_work_items]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: status_scope_id_or_fleet_window, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded changed_since_scope_cursor poisoned/retrying read (#7290) with required limit and timeout_ms and optional status/scope_id/cursor filters; scoped tokens are restricted to granted repository or scope ids; no raw failure text output, only the closed failure_class enum}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: status_scope_id_or_fleet_window, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: graph is not required; exact means persisted Postgres cursor state joined with ingestion scope collector metadata}
@@ -727,6 +829,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: status_scope_id_or_fleet_window, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: "the read surface is proven by handler and query-builder tests only. The changed-since link writer itself ships dark (ESHU_CHANGED_SINCE_LINK_ENABLED default off, #7127 ruling 8.10 item 10), so no deployment has produced a poisoned or retrying changed_since_scope_cursor row yet to read back. Stays experimental until a deployed run with the writer enabled proves a live poisoned/retrying row read end to end"}
   - capability: operator.work_items.list
     tools: []
+    answering_stores: [read_table:fact_work_items]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: status_scope_failure_class_time_window, verification: [{go_test: ./internal/query}], notes: bounded fact_work_items query with optional statuses, scope_id, stage, and failure_class filters; no raw failure message or payload output}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: status_scope_failure_class_time_window, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means persisted Postgres work-item state}
@@ -734,6 +837,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: status_scope_failure_class_time_window, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live work-item row read end to end"}
   - capability: operator.decisions.list
     tools: []
+    answering_stores: [read_table:projection_decisions]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: repository_source_run_scope, verification: [{go_test: ./internal/query}], notes: bounded projection-decision query requiring repository_id and source_run_id with optional decision_type filter; no raw payload output}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_source_run_scope, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means persisted Postgres projection decision state}
@@ -741,6 +845,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_source_run_scope, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live decision row read end to end"}
   - capability: operator.decision_evidence.list
     tools: []
+    answering_stores: [read_table:projection_decision_evidence]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: decision_id_scope, verification: [{go_test: ./internal/query}], notes: bounded decision-evidence read backing include_evidence on the decisions query; no raw payload output}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: decision_id_scope, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means persisted Postgres decision evidence state}
@@ -748,6 +853,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: decision_id_scope, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live evidence row read end to end"}
   - capability: operator.replay_events.list
     tools: []
+    answering_stores: [read_table:fact_replay_events]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: scope_work_item_failure_class_window, verification: [{go_test: ./internal/query}], notes: bounded fact_replay_events audit-log query with optional scope_id, work_item_id, and failure_class filters; no raw failure message output}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_work_item_failure_class_window, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means persisted Postgres replay-event state}
@@ -755,6 +861,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_work_item_failure_class_window, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live replay-event row read end to end"}
   - capability: operator.repository_catalog.lookup
     tools: []
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: repository-catalog selector lookup backing repository-scoped reindex; each selector must resolve to exactly one git default-branch repository scope}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means the content-reader catalog match for the selector}
@@ -762,6 +869,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_selector_scope, verification: [{go_test: ./internal/query}], notes: "the read surface is proven by handler tests only (#8176). Stays experimental until a deployed run proves a live catalog lookup end to end"}
   - capability: operator.delta_union_completeness.check
     tools: []
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: none, verification: [{go_test: ./internal/query/admin}], notes: compares the ACTIVE delta-union file set from Postgres against the graph file set, so it needs the graph backend the lightweight profile does not run; the route answers its unconfigured 503 there}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query/admin}], notes: exact means the persisted ACTIVE fact set compared against one anchored graph query per delta-active repository; never repairs}
@@ -769,6 +877,7 @@ capabilities:
       production: {status: experimental, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: explicit_scope_filter_repository_cap, verification: [{go_test: ./internal/query/admin}], notes: "the graph-read verdict mapping is proven by handler tests only (#8292). Stays experimental until a deployed run proves a live graph outage or deadline verdict end to end"}
   - capability: freshness.generation_lifecycle
     tools: [get_generation_lifecycle]
+    answering_stores: [read_table:scope_generations, read_table:fact_work_items]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: scope_repository_collector_source_generation_or_status, verification: [{go_test: ./internal/query}], notes: bounded scope_generations drilldown joined with per-generation fact_work_items queue status and latest failure; no graph required}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_repository_collector_source_generation_or_status, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means exact persisted generation and queue truth from Postgres}
@@ -776,6 +885,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_repository_collector_source_generation_or_status, verification: [{remote_validation: prod-freshness-generation-lifecycle}], notes: bounded generation lifecycle drilldown; unknown scope/repository/generation selectors return explicit not-found instead of empty confidence}
   - capability: freshness.changed_since
     tools: [get_changed_since]
+    answering_stores: [read_table:scope_generations, read_table:ingestion_scopes]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: repository_scope_since_generation_or_observed_at, verification: [{go_test: ./internal/query}], notes: bounded repository-scope changed-since delta diffing the prior generation fact set against the current active generation fact set in fact_records; added/updated/unchanged/retired/superseded counts with bounded sample handles; no graph required}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: repository_scope_since_generation_or_observed_at, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means exact persisted fact-record diff keyed by stable_fact_key; service-scope deltas are tracked separately and not computed here}
@@ -783,6 +893,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: repository_scope_since_generation_or_observed_at, verification: [{remote_validation: prod-freshness-changed-since}], notes: unknown scope/repository returns scope_not_found and an unresolved since reference returns not_found; no current active generation returns an explicit unavailable diff instead of zero deltas}
   - capability: freshness.service_changed_since
     tools: [get_service_changed_since]
+    answering_stores: [read_table:scope_generations, read_table:ingestion_scopes]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_postgres, p95_latency_ms: 1000, max_scope_size: service_id_since_service_generation, verification: [{go_test: ./internal/query}], notes: bounded service-scope changed-since delta (#1943) diffing a prior service materialization generation's evidence snapshot set against the current active generation's set in service_evidence_snapshots; all seven evidence families (ownership, deployment, runtime, dependencies, docs, incidents, vulnerabilities); added/updated/unchanged/retired/superseded counts with bounded sample handles; no graph required}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: service_id_since_service_generation, verification: [{go_test: ./internal/query}], notes: graph is not required; exact means exact persisted snapshot diff keyed by service_evidence_key; all seven evidence families classify, reporting zero counts when a family has no rows}

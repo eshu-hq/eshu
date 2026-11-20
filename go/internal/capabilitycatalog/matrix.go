@@ -27,6 +27,12 @@ type MatrixCapability struct {
 	// Tools are the MCP or API surface names the matrix declares for the
 	// capability.
 	Tools []string
+	// AnsweringStores names the store or stores that answer the capability's
+	// reads: graph, fact_records_reducer, fact_records_collector,
+	// read_table:<table>, content_search, or status_fixed. Mixed reads name
+	// every store. A read that uses an undeclared store fails the verify
+	// gate through FindingMissingAnsweringStore.
+	AnsweringStores []string
 	// Profiles maps a runtime profile id to its support row.
 	Profiles map[string]MatrixProfile
 }
@@ -62,9 +68,10 @@ type matrixFile struct {
 }
 
 type matrixFileCapability struct {
-	Capability string                          `yaml:"capability"`
-	Tools      []string                        `yaml:"tools"`
-	Profiles   map[string]matrixFileProfileRow `yaml:"profiles"`
+	Capability      string                          `yaml:"capability"`
+	Tools           []string                        `yaml:"tools"`
+	AnsweringStores []string                        `yaml:"answering_stores"`
+	Profiles        map[string]matrixFileProfileRow `yaml:"profiles"`
 }
 
 type matrixFileProfileRow struct {
@@ -86,6 +93,42 @@ var allowedVerificationKinds = map[string]struct{}{
 	"integration_test":  {},
 	"compose_e2e":       {},
 	"remote_validation": {},
+}
+
+// allowedAnsweringStores is the closed set of answering-store tokens a matrix
+// row may declare (#10880). The fact-table tokens split by producer so a
+// reducer-result read and a collector-fact read can never share a
+// declaration; dedicated read-model and operational tables are named through
+// the read_table: prefix; content_search covers the content store and the
+// search index; status_fixed covers persisted status snapshots, static
+// policy, generated artifacts, caller-supplied derivations, and external
+// backends with no eshu store read. An unlisted token is a hard load error,
+// like an unknown verification kind.
+var allowedAnsweringStores = map[string]struct{}{
+	"graph":                  {},
+	"fact_records_reducer":   {},
+	"fact_records_collector": {},
+	"content_search":         {},
+	"status_fixed":           {},
+}
+
+// ValidAnsweringStore reports whether store is in the closed answering-store
+// vocabulary: one of the fixed tokens or read_table:<table> naming a
+// dedicated Postgres table or view.
+func ValidAnsweringStore(store string) bool {
+	if _, ok := allowedAnsweringStores[store]; ok {
+		return true
+	}
+	name, ok := strings.CutPrefix(store, "read_table:")
+	if !ok || name == "" {
+		return false
+	}
+	for _, r := range name {
+		if r != '_' && (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return name[0] >= 'a' && name[0] <= 'z'
 }
 
 // MatrixFileName is the main capability matrix file inside the specs directory.
@@ -187,6 +230,20 @@ func readMatrixFile(path string) (matrixFile, error) {
 	return parsed, nil
 }
 
+// convertAnsweringStores validates the matrix row's answering-store
+// declarations against the closed vocabulary. An unlisted token is a hard
+// load error, like an unknown verification kind: a read must never silently
+// claim a store outside the declared contract.
+func convertAnsweringStores(raw matrixFileCapability) ([]string, error) {
+	stores := append([]string(nil), raw.AnsweringStores...)
+	for _, store := range stores {
+		if !ValidAnsweringStore(store) {
+			return nil, fmt.Errorf("capability %q: unknown answering store %q", raw.Capability, store)
+		}
+	}
+	return stores, nil
+}
+
 func convertCapability(raw matrixFileCapability) (MatrixCapability, error) {
 	profiles := make(map[string]MatrixProfile, len(raw.Profiles))
 	for id, row := range raw.Profiles {
@@ -203,11 +260,16 @@ func convertCapability(raw matrixFileCapability) (MatrixCapability, error) {
 			Verification:    verification,
 		}
 	}
+	stores, err := convertAnsweringStores(raw)
+	if err != nil {
+		return MatrixCapability{}, err
+	}
 	tools := append([]string(nil), raw.Tools...)
 	return MatrixCapability{
-		Capability: raw.Capability,
-		Tools:      tools,
-		Profiles:   profiles,
+		Capability:      raw.Capability,
+		Tools:           tools,
+		AnsweringStores: stores,
+		Profiles:        profiles,
 	}, nil
 }
 

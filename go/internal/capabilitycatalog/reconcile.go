@@ -28,6 +28,10 @@ const (
 	// FindingStaleNonMCPSurface is a non-MCP-surface declaration whose tool is
 	// not referenced by any capability.
 	FindingStaleNonMCPSurface FindingKind = "stale_non_mcp_surface"
+	// FindingMissingAnsweringStore is a capability with no declared answering
+	// store. The verify gate fails on it: a read that answers from a store
+	// it did not declare must not ship.
+	FindingMissingAnsweringStore FindingKind = "missing_answering_store"
 	// FindingMissingMaturityReason is a maturity override without a reason.
 	FindingMissingMaturityReason FindingKind = "missing_maturity_reason"
 	// FindingInvalidOverlayMaturity is an overlay maturity that is not an
@@ -82,6 +86,7 @@ func reconcile(
 	findings = append(findings, orphanToolFindings(signals, referencedTools, exemptTools)...)
 	findings = append(findings, overlayFindings(overlay, overlayByID, matrixIDs)...)
 	findings = append(findings, exemptionAndSurfaceFindings(overlay, signals, referencedTools, matrixIDs)...)
+	findings = append(findings, answeringStoreFindings(matrix)...)
 	findings = append(findings, authorizationFindings(matrix, authorization)...)
 
 	sort.Slice(findings, func(i, j int) bool {
@@ -90,6 +95,24 @@ func reconcile(
 		}
 		return findings[i].Subject < findings[j].Subject
 	})
+	return findings
+}
+
+// answeringStoreFindings flags every capability that declares no answering
+// store (#10880). Token-shape violations are hard LoadMatrix errors, so this
+// covers only the undeclared case: a read that answers from a store it did
+// not declare keeps the catalog out of the verified state.
+func answeringStoreFindings(matrix Matrix) []Finding {
+	var findings []Finding
+	for _, capability := range matrix.Capabilities {
+		if len(capability.AnsweringStores) == 0 {
+			findings = append(findings, Finding{
+				Kind:    FindingMissingAnsweringStore,
+				Subject: capability.Capability,
+				Detail:  fmt.Sprintf("capability %q declares no answering store", capability.Capability),
+			})
+		}
+	}
 	return findings
 }
 

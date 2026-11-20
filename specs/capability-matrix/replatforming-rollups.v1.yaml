@@ -14,6 +14,7 @@ capabilities:
   - capability: replatforming.rollups.readiness
     tools:
       - get_replatforming_rollups
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_environment_or_service, verification: [{integration_test: local-lightweight-unsupported-replatforming-rollups}], notes: requires reducer-materialized drift and IaC evidence; lightweight local cannot serve a provider-neutral readiness rollup and must return unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: account_environment_or_service, verification: [{go_test: ./internal/query}], notes: bounded drift and readiness rollup by account, environment, and service over the source-state taxonomy; preserves per-item source state and counts ambiguous or missing attribution in explicit buckets}

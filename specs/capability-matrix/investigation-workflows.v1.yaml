@@ -1,6 +1,7 @@
 capabilities:
   - capability: query.investigation_workflows
     tools: [list_investigation_workflows, resolve_investigation_workflow]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight:
         max_truth_level: exact
