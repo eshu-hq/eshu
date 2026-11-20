@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -207,14 +206,20 @@ func TestReducerFailIntentRecordsDeadLetterWithQueueReducer(t *testing.T) {
 	if err := queue.Fail(context.Background(), reducercontract.Intent{IntentID: "intent-1", AttemptCount: 1}, errors.New("bad input")); err != nil {
 		t.Fatalf("Fail() error = %v", err)
 	}
-	stored, _ := db.execs[0].args[1].(string)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	stored, _ := db.queries[0].args[1].(string)
 	requirePoints(t, deadLetterPoints(t, reader), map[string]int64{"reducer/" + stored: 1})
 }
 
 func TestReducerFailIntentRejectedClaimRecordsNoDeadLetter(t *testing.T) {
 	t.Parallel()
 	inst, reader := newDeadLetterInstruments(t)
-	db := &fakeExecQueryer{execResults: []sql.Result{rowsResult(0)}}
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext: stage a zero match so the fence mismatch still
+	// rejects the dead letter instead of taking the shared matched=1
+	// fake default.
+	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: [][]any{{int64(0)}}}}}
 	queue := ReducerQueue{
 		database: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute,
 		MaxAttempts: 3, Now: func() time.Time { return time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC) },
