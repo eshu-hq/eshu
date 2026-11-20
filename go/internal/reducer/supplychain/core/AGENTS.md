@@ -180,3 +180,14 @@ changing anything here.
   `liveAdvisoryPackages`, as the primary path and the derived conflict gate do. A
   second typed decode sees the producer's `cve_id` and misses every grouped
   finding.
+
+No-Regression Evidence (#11002 module-scope join): `go test
+./internal/reducer/supplychain/core/ ./internal/query/supply/chain/impact/
+-race -count=1` green on the rebased head (core 8.6s, impact 1.1s with
+race; 0.8s/0.1s without). The hot-path delta is an in-memory byte-equal
+filter over already-materialized module rows plus one readiness CTE `AND`
+equality over rare warning rows: no new query, index, lock, or allocator
+shape, so no measurement beyond the suite timings is owed.
+
+No-Observability-Change (#11002): the join narrowing adds no metrics,
+spans, or logs; failure classes and quarantine behavior are unchanged.
