@@ -1,5 +1,9 @@
 name: Verify CI Gate Registry
 
+# #10981 workflow-only trigger-table fixture (Refs #9315): comment-only line.
+# It keeps this file code-class (.github/workflows/*.yml is outside the docs
+# set) so the workflow-gated lanes select, and changes no behavior. The
+# coordinator owns the lane-list PR diff; this worktree only proves selection.
 on:
   workflow_call:
     inputs:
