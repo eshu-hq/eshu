@@ -156,8 +156,8 @@ live waiting/narrow/winners tests pass, including two new union seam pins
 (`TestSetAsideWaitingForCauseNeverParksCountingClasses`, hermetic, RED
 with the guard removed; `TestCrossScopeProducerWaitForCauseThreadsDomainsLive`,
 live, covering the `$9` quiescence arg and the domain threading); `-race`
-subset clean; migration `317_corpus_narrow_fingerprints` applies as schema
-definition 343/343; readiness generator re-run is a byte-identical no-op
+subset clean; migration `319_corpus_narrow_fingerprints` applies as schema
+definition 345/345; readiness generator re-run is a byte-identical no-op
 (part4 487, part5 497 lines, under the 499 budget).
 
 Observability Evidence (rebase union): the union adds no metric, span, log,

@@ -487,6 +487,7 @@ func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.
 		// container_image_identity's changed-evidence listing (#10878):
 		// default to no candidates, like the listings above.
 		return &queueFakeRows{}, nil
+	}
 	if query == backfill.ListCorpusReopenCandidatesQueries["workload_materialization"] ||
 		query == backfill.ListCorpusReopenCandidatesQueries["service_catalog_correlation"] {
 		// The narrowed gated listings (#10877): default to no candidates,

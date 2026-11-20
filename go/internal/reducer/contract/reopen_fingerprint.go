@@ -117,14 +117,8 @@ type ContainerIdentityReopenFingerprintRecorder interface {
 	) error
 }
 
-// WorkloadMaterializationLogicVersion is the version of the
-// workload_materialization handler logic a recorded fingerprint was taken
-// under (#10877). The reopen gate re-opens every item whose recorded version
-// differs, so any change that can produce a different graph or admission
-// decision from the same facts and resolved input MUST bump it, exactly like
-// DeployableUnitCorrelationLogicVersion.
-const WorkloadMaterializationLogicVersion = 1
-
+// WorkloadMaterializationLogicVersion is declared in change_signal.go
+// (#10878, same value and bump contract); it is not redeclared here.
 // ServiceCatalogCorrelationLogicVersion is the version of the
 // service_catalog_correlation handler logic a recorded fingerprint was taken
 // under (#10877). Same bump rule as WorkloadMaterializationLogicVersion.

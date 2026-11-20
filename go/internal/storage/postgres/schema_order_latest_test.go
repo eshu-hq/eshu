@@ -104,8 +104,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// meaning never audited and therefore due.
 	"aws_drift_reopen_fingerprints_audit_clock",
 	// Migration 317 (#10877) adds the workload and service-catalog reopen
+	// Migration 319 (#10877) adds the workload and service-catalog reopen
 	// fingerprint tables for the per-item read-set waits with late-arrival
 	// restart. Renumbered 314 to 317 onto the #10874/#10947/#10875/#10876
-	// base.
+	// base, then 317 to 319 onto the base carrying #10878's 317/318.
 	"corpus_narrow_fingerprints",
 }

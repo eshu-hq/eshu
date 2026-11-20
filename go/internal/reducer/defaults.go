@@ -21,7 +21,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
