@@ -229,9 +229,10 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+      - "go/internal/cigates/**"
     local:
-      command: "bash scripts/test-pg-statement-report.sh"
-      test_command: ""
+      command: "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1"
+      test_command: "cd go && go test ./internal/cigates -run TestPgStatementReportContract -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify pg-statement-report gate"
@@ -257,9 +258,10 @@ gates:
       - "specs/ci-gates.v1.yaml"
       - "specs/ci-gates.d/**"
       - ".github/static-contract-filters.yml"
+      - "go/internal/cigates/**"
     local:
-      command: "bash scripts/test-collector-cutover-rollback.sh"
-      test_command: ""
+      command: "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1"
+      test_command: "cd go && go test ./internal/cigates -run TestCollectorCutoverRollbackContract -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify collector-cutover-rollback gate"

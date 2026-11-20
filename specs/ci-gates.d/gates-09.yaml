@@ -518,41 +518,10 @@ gates:
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       pre_push: floor
-      test_command: "bash scripts/test-verify-replay-coverage-gate.sh"
+      test_command: "cd go && go test ./cmd/replay-coverage-gate -run TestReplayCoverageMirrorContract -count=1"
     ci:
       workflow: replay-coverage-gate.yml
       job: "coverage-gate (blocking)"
     requirements:
       - go
     ci_only_reason: ""
-
-  # Owner row for the `static mirror` job of replay-coverage-gate.yml (see
-  # ifa-static-mirror for why an unowned job never blocked a merge). The job
-  # runs scripts/test-verify-replay-coverage-gate.sh, which the
-  # replay-coverage-gate row already runs locally as its test_command, so this
-  # row is CI-only. The mirror also reads docs/public/reference/generated/replay-coverage.md
-  # and docs/mkdocs.yml, which the workflow's paths: filter does not list; they
-  # are left out of the triggers because a trigger the workflow does not start
-  # on would select a check that never arrives (checkOwnerRowTriggers enforces
-  # this). scripts/lib/go-test-run-guard.sh is left out for the same reason: the
-  # mirror never reads it.
-  - id: replay-coverage-static-mirror
-    name: Replay coverage static mirror
-    category: exactness
-    layer: contract
-    purpose: "Checks the replay coverage verifier, workflow and registry rows still agree on the gate contract, without a Go build."
-    tier: pre-pr
-    blocking: true
-    triggers:
-      - "scripts/test-verify-replay-coverage-gate.sh"
-      - "scripts/verify-replay-coverage-gate.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "specs/replay-coverage-manifest.v1.yaml"
-      - "specs/ci-gates.v1.yaml"
-      - "specs/ci-gates.d/**"
-      - ".github/workflows/replay-coverage-gate.yml"
-    ci:
-      workflow: replay-coverage-gate.yml
-      job: "static mirror"
-    requirements: []
-    ci_only_reason: "the replay-coverage-gate row runs the same scripts/test-verify-replay-coverage-gate.sh locally as its test_command; this row only owns the CI job"

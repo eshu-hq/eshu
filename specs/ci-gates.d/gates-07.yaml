@@ -359,9 +359,10 @@ gates:
       - "scripts/lib/golden-corpus-capture-leg-cases.sh"
       - "scripts/lib/stage-differential-capture.sh"
       - "scripts/test-stage-differential-capture.sh"
+      - "go/cmd/golden-corpus-gate/**"
     local:
-      command: "bash scripts/test-verify-golden-corpus-gate.sh"
-      test_command: ""
+      command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
+      test_command: "cd go && go test ./cmd/golden-corpus-gate -run TestGoldenCorpusMirrorContract -count=1"
       pre_push: deferred
       pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (this is the static mirror; the live golden-corpus cell never ran locally at all -- it is path-triggered and Docker-only). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via golden-corpus-gate.yml (required-gates-complete)."
     ci:

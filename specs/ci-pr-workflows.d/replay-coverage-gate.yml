@@ -52,7 +52,5 @@ workflows:
   - specs/ci-pr-workflows.d/replay-coverage-gate.yml
   jobs:
   - coverage-gate
-  - static-mirror
   job_names:
     coverage-gate: coverage-gate (blocking)
-    static-mirror: static mirror

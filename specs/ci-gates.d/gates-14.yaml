@@ -21,6 +21,7 @@ gates:
       - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/verify-ifa-replay-drive.sh"
       - "scripts/test-verify-ifa-replay-drive.sh"
+      - "go/cmd/ifa/**"
       # No scripts/lib trigger here, and that is a deliberate gap rather than
       # an oversight: this mirror sources nothing from that directory today.
       # An earlier draft of this change carried "scripts/lib/ifa_mirror_*.sh"
@@ -35,8 +36,8 @@ gates:
       # jobs on a path the registry selects no gate for is the same
       # divergence as #6164, pointed the other way.
     local:
-      command: "bash scripts/test-verify-ifa-replay-drive.sh"
-      test_command: "bash scripts/test-verify-ifa-replay-drive.sh"
+      command: "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1"
+      test_command: "cd go && go test ./cmd/ifa -run TestIfaReplayDriveMirrorContract -count=1"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify Ifa replay-drive mirror gate"
