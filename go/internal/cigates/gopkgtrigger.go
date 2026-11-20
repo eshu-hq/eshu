@@ -76,7 +76,11 @@ var goPackageSubcommands = map[string]struct{}{
 // #8756 raised this from 28 to 29: mcp-router-eval runs `go test` on
 // ./internal/mcp/router/eval/, and carries go/internal/mcp/** (which holds that
 // package) as a trigger.
-const goPackageGateCount = 31
+// #10988 raised this from 31 to 32: golden-corpus-mirror's local.command and
+// local.test_command now run `go test ./cmd/golden-corpus-gate -run
+// TestGoldenCorpusMirrorContract` (the converted hermetic self-test), and the
+// row carries `go/cmd/golden-corpus-gate/**` as an explicit trigger.
+const goPackageGateCount = 32
 
 // argTrimCutset strips shell punctuation that can adhere to a token once a
 // command is split on whitespace: quotes, and the parentheses of a subshell.

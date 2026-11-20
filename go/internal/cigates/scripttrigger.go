@@ -90,12 +90,14 @@ var pythonImportRE = regexp.MustCompile(`(?m)^[ \t]*(?:from[ \t]+([A-Za-z_]\w*)[
 //     directly, NOT the case libs that file transitively sources — 11 such
 //     lines name a lib this way, reached by 7 gates:
 //     parser-relationship-kit, operator-dashboard and maturity-drift-guard
-//     (one line each), telemetry-coverage (two), and three gates that share
-//     two test harnesses — scripts/test-verify-golden-corpus-gate.sh carries
-//     five and is BOTH golden-corpus-mirror's local.command and
-//     golden-corpus-gate's local.test_command, and
-//     scripts/test-verify-ifa-fault-injection.sh carries one. That sharing is
-//     why 11 distinct lines make 16 gate-line pairs. All 16 pairs resolve to
+//     (one line each), telemetry-coverage (two), and three gates reached
+//     through shared test harnesses — scripts/test-verify-golden-corpus-gate.sh
+//     carries five as the local.test_command of both golden-corpus-gate rows
+//     (the mirror exercises the same script through its
+//     TestGoldenCorpusMirrorContract go test since #10988, so it contributes
+//     no direct pair), and scripts/test-verify-ifa-fault-injection.sh carries
+//     one. That sharing is why 11 distinct lines make 16 gate-line pairs.
+//     All 16 pairs resolve to
 //     a file that is independently an explicit trigger on that gate (verified
 //     against specs/ci-gates.v1.yaml), so no gate is false-green from this
 //     gap today. The other 26 of the 37 sit in transitively-sourced case
