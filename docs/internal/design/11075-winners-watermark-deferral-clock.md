@@ -66,6 +66,12 @@ Live proof (real Postgres, disposable bootstrap at tree migrations): `TestReduce
 
 Suites run: `go test ./internal/reducer/advisory/...`, `./internal/telemetry/`, `./internal/storage/postgres/ -run 'TestClaimBatch|TestReducerQueue|TestScanReducerIntent'`, `./internal/storage/postgres/fixtures/`, `verify-telemetry-coverage.sh` (agree), `git diff --check` (clean). Full `./internal/storage/postgres/` suite and `make pre-push`/`pre-pr` are coordinator promotion gates (live-DB legs run in CI).
 
+## No-Regression Evidence (perf-evidence gate)
+
+No-Regression Evidence: this is a correctness fix with no throughput, batching, concurrency, lock, or plan change. Baseline: origin/main claim SELECT (11 columns) and the row-age stale rule (`now − cycleStart > 30 min`). After: 14-column claim SELECT (3 additive output columns, same WHERE/ORDER BY/LIMIT/FOR UPDATE SKIP LOCKED, no new predicate or index) and the post-claim deferral rule. Backend: PostgreSQL 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1, aarch64) disposable bootstrap at tree migrations (350 applied, ~1.3 s) plus Go 1.26.6 hermetic suites. Input shape: single reducer row cycled enqueue → claim → Fail(not_ready) → backstop time-travel → re-claim; hermetic 14-column claim rows for both claim paths. Terminal counts: claim returns the same single row; scanner maps 14 columns (hermetic RED→GREEN on count mismatch); live round trip PASS in ~4.4 s; handler, telemetry, fixture, and claim suites green with `-count=1`. Why safe: the success path executes zero new work (the wait split records only on the deferral branch, which already allocated and returned an error); the marker is one bounded string append inside the existing 4096-byte details cap; the claim adds output columns only. No benchmark delta is claimed because none is expected: the changed statements keep their plans.
+
+Observability Evidence: five new signals (`first_claim_lag_seconds`, `post_claim_deferral_seconds`, `watermark_age_seconds`, `watermark_gap_seconds` histograms on the `advisory-group-watermark-wait-seconds` buckets, `watermark_waits_total{domain,failure_class,attempt}` counter) recorded once per deferral verdict; unit test asserts exact per-signal sums (2640/0/6300/3600 s on the fixture) and the `{not_ready, attempt=1}` count; `verify-telemetry-coverage.sh` agrees; the operator reference documents the split and the stall-vs-slow read.
+
 ## Acceptance mapping (arbiter Decision 3)
 
 1. Design record: this file (routes for ruling before landing).
