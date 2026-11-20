@@ -99,6 +99,11 @@ tests:
     class: postgres_ci
     reason: "#10084 two-shard completion: a committed shard opens epoch 1 and waits holding no advisory lock while a join-only refused-only shard joins, leads the maintenance pass, and marks completion; a join-only arrival before any open epoch records nothing; a waiter cancelled mid-wait returns promptly; disposable database from ESHU_POSTGRES_DSN; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/deferred_partition_load_cost_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10971 disposable PostgreSQL 18 cost measurement for the deferred partition load: legacy-only vs shipped (legacy plus keyed arms) per-partition latency and buffers plus the fallback probe COUNT on a migrated schema with a 2000-fact seed at production bind widths, with a legacy-subset-shipped set assertion; reads ESHU_POSTGRES_TEST_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/delta_union_base_live_test.go
     tag: ~
     class: postgres_ci

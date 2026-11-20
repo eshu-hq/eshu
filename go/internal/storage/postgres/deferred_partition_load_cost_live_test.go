@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10971 disposable PostgreSQL 18 cost measurement for the deferred partition load: legacy-only vs shipped (legacy plus keyed arms) per-partition latency and buffers plus the fallback probe COUNT on a migrated schema with a 2000-fact seed at production bind widths, with a legacy-subset-shipped set assertion; reads ESHU_POSTGRES_TEST_DSN with its disposable opt-in
+//eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_TEST_DSN
+
 package postgres
 
 import (

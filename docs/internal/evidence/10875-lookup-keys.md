@@ -75,6 +75,10 @@ dashboard or alert; the existing loader and retention signals are unchanged.
 
 ## Follow-up cost measurement (#10971 P1)
 
+No-Regression Evidence: shipped partition load matches legacy (2818ms vs 2955ms, identical 1550-fact set) on a migrated PostgreSQL 18 schema with a 2000-fact seed at production bind widths; probe sampling keeps steady-state telemetry near zero.
+
+Observability Evidence: the new readiness_probe_failed signal line fires only on readiness-check errors with filter-class counts; the sampled fallback probe keeps the first-line-after-silence contract.
+
 Method: `TestDeferredPartitionLoadCostLive` on a migrated disposable
 PostgreSQL 18 schema with a 2000-fact partition at production bind widths
 (1029 LIKE terms, 1024 repo values, ~3KB payloads), EXPLAIN ANALYZE medians
