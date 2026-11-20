@@ -150,11 +150,19 @@ ON CONFLICT (work_item_id, waits_for_kind, waits_for_key) DO UPDATE SET
 // columns without sharing the text, the two statements cannot be identical
 // because this one correlates against the parked domain's kind rather than
 // scanning an already-anchored scope.
+// The generation_active branch of waitingSatisfiedQuery resolves on
+// terminal truth, not only on activation (#11015): a failed or superseded
+// generation never activates, so a waiter parked on it must observe the
+// terminal generation (the handler re-checks the exact requirement) instead
+// of sitting out the backstop. The projector Fail and Claim-path
+// supersession wakes reopen already-parked waits synchronously; this
+// predicate covers a waiter that parks after the provider committed, plus
+// the audit fallback.
 const waitingSatisfiedQuery = `
 SELECT EXISTS (
     SELECT 1 FROM scope_generations AS gen
     WHERE $1 = 'generation_active'
-      AND gen.scope_id = $2 AND gen.generation_id = $3 AND gen.status = 'active'
+      AND gen.scope_id = $2 AND gen.generation_id = $3 AND gen.status IN ('active', 'failed', 'superseded')
 ) OR EXISTS (
     SELECT 1 FROM relationship_generations AS rg
     WHERE $1 = 'relationship_generation_active'
@@ -329,6 +337,33 @@ cleared AS (
 )
 SELECT (SELECT count(*) FROM reopened), (SELECT count(*) FROM cleared)
 `
+
+// wakeGenerationActiveWaits reopens the generation_active waits parked on
+// one scope generation (#10876, #11015): the projector Ack that activates
+// it, the terminal projector Fail that retires it, and the projector Claim
+// sweep that supersedes it. The wake is a hint: the claim gate and the
+// handler re-check the exact requirement, so a spurious wake only re-parks.
+// An empty key skips the wake, mirroring the phase Upsert guard: the wake
+// statement would reject it and fail the caller, and no parked wait names a
+// blank key.
+func wakeGenerationActiveWaits(
+	ctx context.Context,
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	site string,
+	scopeID, generationID string,
+	now time.Time,
+) error {
+	wakeKey := waitingScopeGenerationKey(scopeID, generationID)
+	if wakeKey == "" {
+		return nil
+	}
+	if _, _, err := wakeWaitingByKey(ctx, database, instruments, site,
+		WaitingKindGenerationActive, wakeKey, now); err != nil {
+		return fmt.Errorf("wake waiting items: %w", err)
+	}
+	return nil
+}
 
 // wakeWaitingByKey reopens every wait parked on one waits_for key.
 // site names the wake site for telemetry (in_tx, audit). It returns reopened

@@ -140,7 +140,10 @@ INSERT INTO fact_work_items (
 	if expireLease {
 		// A claimed retry is real execution, so reclaiming its expired lease
 		// spends one attempt. Readiness retries after that still freeze at two.
-		now = now.Add(time.Minute)
+		// #11015: the deferral parks past the 10-minute backstop, so the
+		// parked phase advances past it; the provider wakes below do not
+		// need it.
+		now = now.Add(WaitingBackstopDelay + time.Minute)
 		stale, claimed, err := queue.Claim(ctx)
 		if err != nil || !claimed || stale.IntentID != intent.IntentID || stale.AttemptCount != 1 {
 			t.Fatalf("claim before lease expiry = (%+v, %v, %v), want same intent at attempt 1", stale, claimed, err)
@@ -179,8 +182,10 @@ INSERT INTO fact_work_items (
 	}
 
 	// More retries than MaxAttempts must leave the readiness deferral non-counting.
+	// #11015: each parked cycle advances past the 10-minute backstop so the
+	// next claim observes the still-deferred row.
 	for cycle := 0; cycle < 4; cycle++ {
-		now = now.Add(time.Minute)
+		now = now.Add(WaitingBackstopDelay + time.Minute)
 		retry, retryClaimed, claimErr := queue.Claim(ctx)
 		if claimErr != nil || !retryClaimed || retry.IntentID != intent.IntentID {
 			t.Fatalf("pre-Ack retry %d claim = (%+v, %v, %v), want same intent", cycle, retry, retryClaimed, claimErr)
@@ -201,6 +206,10 @@ INSERT INTO fact_work_items (
 	}
 
 	projectorQueue := NewProjectorQueue(SQLDB{DB: db}, projectorOwner, time.Minute)
+	// #11015: freeze the projector clock on the test clock so the activation
+	// wake's visible_at is ordered against the same clock the reducer claims
+	// observe, instead of relying on wall-clock skew staying under a minute.
+	projectorQueue.Now = func() time.Time { return now }
 	if err := projectorQueue.Ack(ctx, projector.ScopeGenerationWork{
 		Scope:        scope.IngestionScope{ScopeID: scopeID},
 		Generation:   scope.ScopeGeneration{GenerationID: generationID, ScopeID: scopeID},
@@ -352,6 +361,11 @@ VALUES ($1, $2, $3, 'projector', 'source_local', 'running',
 	}
 	logFirstGenerationBarrierSnapshot(t, ctx, db, scopeID, generationID, intent.IntentID, "before_projector_failure")
 	projectorQueue := NewProjectorQueue(SQLDB{DB: db}, "projector-7916-failed-probe", time.Minute)
+	// #11015: freeze the projector clock on the test clock so the terminal
+	// Fail wake's visible_at is ordered against the same clock the reducer
+	// claim observes, instead of relying on wall-clock skew staying under
+	// a minute.
+	projectorQueue.Now = func() time.Time { return now }
 	projectorQueue.MaxAttempts = 1
 	if err := projectorQueue.Fail(ctx, projector.ScopeGenerationWork{
 		Scope:        scope.IngestionScope{ScopeID: scopeID},

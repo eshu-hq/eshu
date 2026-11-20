@@ -266,6 +266,15 @@ func (f *fakeExecQueryer) QueryContext(
 		return &queueFakeRows{rows: [][]any{{int64(0), int64(0)}}}, nil
 	}
 
+	// #11015: the projector Claim sweep wake lists parked generation_active
+	// waits on terminal generations. No waits are parked in these fixtures,
+	// so the probe answers zero keys, independent of FIFO order like the
+	// arms above: it must not consume a scripted response staged for the
+	// claim itself.
+	if query == terminalGenerationActiveWaitKeysQuery {
+		return &queueFakeRows{}, nil
+	}
+
 	// The fan-in's under-lock generation re-read (backfill.LoadActiveGenerationForScope)
 	// is answered from the SAME rows the fixture already staged for the
 	// corpus-wide backfill.ActiveRepositoryGenerationsQuery below, rather than from the

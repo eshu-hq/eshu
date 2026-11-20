@@ -35,9 +35,15 @@ func (f *claimConflictQueryer) ExecContext(context.Context, string, ...any) (sql
 	return nil, errors.New("unexpected exec")
 }
 
-func (f *claimConflictQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (f *claimConflictQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// #11015: the post-claim terminal-wait probe is not a claim attempt:
+	// answer zero parked waits without consuming a scripted outcome or
+	// counting toward the bounded attempts below.
+	if query == terminalGenerationActiveWaitKeysQuery {
+		return &queueFakeRows{}, nil
+	}
 	f.calls++
 	if len(f.outcomes) == 0 {
 		return &queueFakeRows{rows: [][]any{claimConflictRow()}}, nil

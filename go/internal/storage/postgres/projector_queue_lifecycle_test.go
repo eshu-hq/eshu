@@ -212,6 +212,21 @@ func TestProjectorQueueFailMarksGenerationFailedWithoutClearingOtherActiveGenera
 			t.Fatalf("Fail() query missing %q:\n%s", want, query)
 		}
 	}
+	// #11015: the terminal Fail reopens parked generation_active waits for
+	// the retired generation; the retry path (sibling Fail tests) wakes
+	// nothing. The wake is the waiting-table query.
+	var wake *recordedExecCall
+	for i := range db.queries {
+		if strings.Contains(db.queries[i].query, "reducer_waiting_items") {
+			wake = &db.queries[i]
+		}
+	}
+	if wake == nil {
+		t.Fatalf("Fail() runs no waiting-table wake query (%d queries)", len(db.queries))
+	}
+	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
+		t.Fatalf("Fail() wake args = %v, want (now, generation_active, key)", wake.args)
+	}
 }
 
 func TestProjectorQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T) {
@@ -262,6 +277,12 @@ func TestProjectorQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T
 	// deterministic with no added jitter term.
 	if got, want := db.execs[0].args[4], queue.Now().Add(2*queue.RetryDelay); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
+	}
+	// #11015: the retry path keeps the generation pending and wakes nothing.
+	for _, q := range db.queries {
+		if strings.Contains(q.query, "reducer_waiting_items") {
+			t.Fatalf("retry Fail() runs a waiting-table wake query, want none")
+		}
 	}
 }
 

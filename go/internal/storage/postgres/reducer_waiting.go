@@ -4,9 +4,12 @@
 package postgres
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
@@ -32,6 +35,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // WaitingWakeKind is the closed waits_for_kind enum for the reducer waiting
@@ -49,8 +54,10 @@ const (
 	// phase commit. Key: {scope_id, generation_id}; the claim gate and the
 	// handler re-check the exact requirement row, so the wake is a hint.
 	WaitingKindPhaseCommitted WaitingWakeKind = "phase_committed"
-	// WaitingKindGenerationActive waits for the projector Ack that activates
-	// the generation. Key: {scope_id, generation_id}.
+	// WaitingKindGenerationActive waits for the generation to resolve: the
+	// projector Ack that activates it, the terminal projector Fail that
+	// retires it, or the projector Claim sweep that supersedes it (#11015).
+	// Key: {scope_id, generation_id}.
 	WaitingKindGenerationActive WaitingWakeKind = "generation_active"
 	// WaitingKindProducerTerminal waits for a same-scope producer domain to
 	// reach a terminal reducer row. Key: {scope_id, generation_id,
@@ -261,10 +268,16 @@ func WaitingDeferralMap() []WaitingDeferral {
 			ProvidingSave: "relationship-generation activation transaction (activateWithConsumerWake, #7597)",
 		},
 		{
-			FailureClass:  reducercontract.GenerationActivationNotReadyFailureClass,
-			WaitsForKind:  WaitingKindGenerationActive,
-			WakeSite:      WaitingWakeSiteInTx,
-			ProvidingSave: "projector Ack activating the generation",
+			FailureClass: reducercontract.GenerationActivationNotReadyFailureClass,
+			WaitsForKind: WaitingKindGenerationActive,
+			WakeSite:     WaitingWakeSiteInTx,
+			// #11015: the wait resolves on terminal truth, not only on
+			// activation: the projector Ack that activates the generation,
+			// the terminal projector Fail that retires it, or the
+			// projector Claim sweep that supersedes it. The audit
+			// re-checks the same terminal predicate and the backstop
+			// still bounds a miss.
+			ProvidingSave: "projector Ack activating the generation, terminal projector Fail, or projector Claim superseding the generation; audit terminal-progress fallback + backstop",
 		},
 		{
 			FailureClass:  reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass,
@@ -341,3 +354,60 @@ var (
 	waitingDeferralByClassOnce   sync.Once
 	cachedWaitingDeferralByClass map[string]WaitingDeferral
 )
+
+// terminalGenerationActiveWaitKeysQuery lists the parked generation_active
+// wait keys of one scope whose generation already reached terminal truth
+// (superseded by a newer generation or retired by a terminal projector
+// Fail). The parked-waits table is near-empty in steady state, so the join
+// stays cheap; the claim path calls this once per projector claim.
+const terminalGenerationActiveWaitKeysQuery = `
+SELECT DISTINCT wait.waits_for_key
+FROM reducer_waiting_items AS wait
+JOIN scope_generations AS gen
+  ON gen.scope_id = wait.scope_id AND gen.generation_id = wait.generation_id
+WHERE wait.scope_id = $1
+  AND wait.waits_for_kind = 'generation_active'
+  AND gen.status IN ('superseded', 'failed')
+`
+
+// wakeTerminalGenerationActiveWaits reopens the parked generation_active
+// waits of one scope whose generation already resolved terminally
+// (#11015). The projector Claim sweep retires superseded generations in the
+// same statement that claims the newer work, so the sweep's victims never
+// see an activation wake; without this post-claim wake they sit out the
+// 10-minute backstop even though their handler could already observe the
+// terminal generation. Like every #10876 wake this is a hint: the claim gate
+// and the handler re-check, so a concurrent park or a spurious match only
+// re-parks. A waiter that parks after this wake is covered by the set-aside
+// re-check, which shares the terminal predicate below.
+func wakeTerminalGenerationActiveWaits(
+	ctx context.Context,
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	scopeID string,
+	now time.Time,
+) error {
+	rows, err := database.QueryContext(ctx, terminalGenerationActiveWaitKeysQuery, scopeID)
+	if err != nil {
+		return fmt.Errorf("list terminal generation waits: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return fmt.Errorf("scan terminal generation wait key: %w", err)
+		}
+		keys = append(keys, key)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("list terminal generation waits: %w", err)
+	}
+	for _, key := range keys {
+		if _, _, err := wakeWaitingByKey(ctx, database, instruments, WaitingWakeSiteInTx,
+			WaitingKindGenerationActive, key, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
