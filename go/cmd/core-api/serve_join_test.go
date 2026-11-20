@@ -223,6 +223,56 @@ func TestJoinCoreServersShutsDownPrimaryOnCommitError(t *testing.T) {
 	joinTestServeExited(t, "primary", primaryErrCh)
 }
 
+// TestJoinCoreServersDarkLaneDrainsOnCancel proves the dark lane needs no
+// commit channel: with a nil commitErrCh the ctx-done branch shuts down the
+// primary, skips the commit await, and returns nil.
+func TestJoinCoreServersDarkLaneDrainsOnCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const timeout = 10 * time.Second
+	primaryLn, _ := joinTestAddrs(t)
+	primary := &http.Server{
+		Handler:           http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	primaryErrCh := make(chan error, 1)
+	go func() { primaryErrCh <- primary.Serve(primaryLn) }()
+	cancel()
+
+	if err := joinCoreServers(ctx, cancel, primary, primaryErrCh, nil, timeout); err != nil {
+		t.Fatalf("joinCoreServers(dark) error = %v, want nil (graceful drain)", err)
+	}
+	joinTestServeExited(t, "primary", primaryErrCh)
+}
+
+// TestJoinCoreServersDarkLaneReportsPrimaryError proves a primary failure
+// still cancels the listener scope and reports the primary error when the
+// lane is dark: the nil commit await is a no-op, never a block.
+func TestJoinCoreServersDarkLaneReportsPrimaryError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const timeout = 10 * time.Second
+	primary := &http.Server{}
+	boom := errors.New("listen tcp :8080: bind: address already in use")
+	primaryErrCh := make(chan error, 1)
+	primaryErrCh <- boom
+
+	if err := joinCoreServers(ctx, cancel, primary, primaryErrCh, nil, timeout); !errors.Is(err, boom) {
+		t.Fatalf("joinCoreServers(dark) error = %v, want %v", err, boom)
+	}
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("listener scope not cancelled after primary error on the dark lane")
+	}
+}
+
 // TestCoreServeFailedMapsCleanShutdown pins the fatal-error predicate the
 // join uses: a clean ErrServerClosed is never fatal, anything else is.
 func TestCoreServeFailedMapsCleanShutdown(t *testing.T) {

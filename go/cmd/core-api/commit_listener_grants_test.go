@@ -72,6 +72,22 @@ func writeCommitGrantsFile(t *testing.T, grants []component.ProducerGrant) strin
 	return path
 }
 
+// writeCommitGrantsWrappedFile stages one wrapped-object grants file for
+// build-commit tests: the {"grants":[...]} shape loadCommitGrants decodes
+// when the bare-array shape does not parse.
+func writeCommitGrantsWrappedFile(t *testing.T, grants []component.ProducerGrant) string {
+	t.Helper()
+	raw, err := json.Marshal(map[string][]component.ProducerGrant{"grants": grants})
+	if err != nil {
+		t.Fatalf("marshal wrapped grants: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "grants.json")
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatalf("write wrapped grants: %v", err)
+	}
+	return path
+}
+
 // commitGrantsTestConfig wires a validated commit-listener bundle pointing
 // at staged files. The database stays nil: mux construction never touches
 // storage, only the manifest/grants admission check.
@@ -119,5 +135,26 @@ func TestBuildCommitListenerMuxFailsClosedWithoutGrants(t *testing.T) {
 	)
 	if mux, err := buildCommitListenerMux(cfg, nil, nil, slog.Default()); err == nil || mux != nil {
 		t.Fatalf("buildCommitListenerMux(ungranted core kind) = (%v, %v), want fail-closed error", mux, err)
+	}
+}
+
+// TestBuildCommitListenerMuxHonorsWrappedProducerGrants proves the wrapped
+// {"grants":[...]} file shape builds exactly like the bare array: a
+// regression breaking the wrapped decode branch fails this test. The object
+// shape never parses as a bare array, so this test can only pass through
+// the wrapped decode branch of loadCommitGrants.
+func TestBuildCommitListenerMuxHonorsWrappedProducerGrants(t *testing.T) {
+	t.Parallel()
+
+	cfg := commitGrantsTestConfig(
+		writeCommitGrantsManifest(t, commitGrantsTestManifest()),
+		writeCommitGrantsWrappedFile(t, []component.ProducerGrant{commitGrantsTestGrant()}),
+	)
+	mux, err := buildCommitListenerMux(cfg, nil, nil, slog.Default())
+	if err != nil {
+		t.Fatalf("buildCommitListenerMux(granted core kind, wrapped) error = %v, want nil", err)
+	}
+	if mux == nil {
+		t.Fatal("buildCommitListenerMux(granted core kind, wrapped) = nil, want mux")
 	}
 }

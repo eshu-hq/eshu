@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -297,6 +299,83 @@ func TestCommitListenerCommitClaimFactsEndToEnd(t *testing.T) {
 	}
 	if heartbeats.Load() != 1 {
 		t.Fatalf("fence probes = %d, want 1", heartbeats.Load())
+	}
+}
+
+// commitListenerFreeAddr reserves one loopback endpoint for an enabled-path
+// test: it binds an ephemeral port to prove it is free, then releases it so
+// the listener under test can serve on it. A recycled port is possible in
+// principle; the test dials the served mux route signature to prove it
+// reached the listener it started.
+func commitListenerFreeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback port: %v", err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("release loopback port: %v", err)
+	}
+	return addr
+}
+
+// TestStartCoreCommitListenerEnabledLoopback drives the production
+// env-to-serve wiring end to end: with every companion variable set, the
+// listener serves its mux on a loopback port, answers with the mux (unknown
+// routes 404 from the listener mux, never connection refused), and drains
+// to nil on context cancel through runCommitListener's graceful shutdown.
+func TestStartCoreCommitListenerEnabledLoopback(t *testing.T) {
+	t.Parallel()
+
+	var heartbeats atomic.Int64
+	plane := commitListenerStubPlane(t, &heartbeats)
+	addr := commitListenerFreeAddr(t)
+	env := map[string]string{
+		"ESHU_COMMIT_LISTEN":          addr,
+		"ESHU_COMMIT_MANIFEST_PATH":   writeCommitGrantsManifest(t, commitListenerManifest()),
+		"ESHU_COMMIT_CLAIM_PLANE_URL": plane.URL,
+		"ESHU_COMMIT_SOURCE_SYSTEM":   "git",
+		"ESHU_COMMIT_SCOPE_KIND":      "repository",
+		"ESHU_COMMIT_INSTANCE_ID":     "scorecard-instance",
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	commitErrCh, err := startCoreCommitListener(ctx, func(k string) string { return env[k] }, nil, nil, slog.Default())
+	if err != nil {
+		t.Fatalf("startCoreCommitListener() error = %v, want nil", err)
+	}
+	if commitErrCh == nil {
+		t.Fatal("startCoreCommitListener() = nil channel, want live commit channel")
+	}
+	// The listening log fires before the socket binds, so poll until the
+	// server answers: a persistent refusal means it never served.
+	var resp *http.Response
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		resp, err = http.Get("http://" + addr + "/") // #nosec G107 -- loopback test URL only.
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatalf("GET listener = %v, want served response (connection refused = never served)", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET listener status = %d, want 404 (listener mux serves, route unknown)", resp.StatusCode)
+	}
+	cancel()
+	select {
+	case err := <-commitErrCh:
+		if coreServeFailed(err) {
+			t.Fatalf("commit listener error = %v, want nil (graceful drain)", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("commit listener never drained after cancel")
 	}
 }
 

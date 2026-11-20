@@ -63,7 +63,13 @@ type commitListenerConfig struct {
 // commitListenerConfigFromEnv reads the commit-listener contract: unset
 // ESHU_COMMIT_LISTEN returns nil (the lane stays dark); a set address
 // requires every companion variable and a literal listen endpoint. Any
-// half-wired or malformed contract fails closed before anything serves.
+// half-wired or malformed contract fails closed before anything serves,
+// except ESHU_COMMIT_SCOPE_KIND, which is presence-checked only: an
+// unlisted spelling passes startup and is refused per-request by the
+// admission match. There is no closed kind list in-repo
+// (IngestionScope.Validate admits any non-blank kind), so startup cannot
+// tell a typo from a kind added after this binary was built; the same
+// presence-only check shipped in the pre-split monolith listener.
 func commitListenerConfigFromEnv(getenv func(string) string) (*commitListenerConfig, error) {
 	if getenv == nil {
 		return nil, nil

@@ -49,7 +49,9 @@ listen address):
   or literal-IP `host:port`, e.g. `0.0.0.0:8089`; hostnames are refused):
   `ESHU_COMMIT_MANIFEST_PATH`, `ESHU_COMMIT_CLAIM_PLANE_URL` (bare
   http/https base URL), `ESHU_COMMIT_SOURCE_SYSTEM`,
-  `ESHU_COMMIT_SCOPE_KIND`, `ESHU_COMMIT_INSTANCE_ID` (all required when
+  `ESHU_COMMIT_SCOPE_KIND` (presence-checked only; an unlisted spelling
+  passes startup and mismatches are refused per-request by admission),
+  `ESHU_COMMIT_INSTANCE_ID` (all required when
   the listener is set), and optional `ESHU_COMMIT_GRANTS_PATH`. Serves
   `POST /workflow.v1/CommitClaimFacts` through the claim-plane fence, so
   the satellite proxy finally has a live receiving end (issue #11064).
@@ -78,8 +80,9 @@ serves on `/metrics` (public, behind the same auth chain).
   `extensionhost` commit handler and claim-plane fence. No new hot
   loops, no Cypher/SQL schema or index changes, no new worker pools;
   when `ESHU_COMMIT_LISTEN` is unset the primary serve path is
-  byte-identical to before (dark by default, proven by
-  `TestCommitListenerDarkByDefault`).
+  byte-identical to before (dark by default: `TestCommitListenerDarkByDefault`
+  pins the config reports nil, and the `TestJoinCoreServersDarkLane*`
+  lifecycle tests prove the join drains with a nil commit channel).
 - Input shape: framed client envelopes capped at
   `workflow.MaxCommitClaimFactsBytes`; handler ack happens only after
   the commit is durable. Join shutdown (`joinCoreServers`) drains both
