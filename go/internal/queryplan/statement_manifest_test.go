@@ -235,22 +235,28 @@ func TestValidateBuilderManifestRejectsShortExemptionAnchor(t *testing.T) {
 // that names the same builder as a recording never matches it (observed:
 // EnumerateProjectedSourceEdges recorded bare while the manifest used
 // parens, failing both always-empty and stale).
+//
+// The pinned row is the workload_dependency_lookup exemption: it is the
+// bare-receiver read exemption the capture legs still record (#11029
+// pruned the query-path rows, including the grant_posture row this test
+// previously pinned, after the D13 satellite cutover stopped executing
+// query reads under capture).
 func TestLoadBuilderManifestCanonicalizesBareReceiver(t *testing.T) {
 	manifest, err := LoadBuilderManifest("testdata/statement-builders.yaml")
 	if err != nil {
 		t.Fatalf("LoadBuilderManifest() error = %v", err)
 	}
 	for _, exemption := range manifest.ReadExemptions {
-		if !strings.HasPrefix(exemption.Callsite, "internal/query/secrets/grant_posture.go:") {
+		if !strings.HasPrefix(exemption.Callsite, "cmd/reducer/workload_dependency_lookup.go:") {
 			continue
 		}
-		want := "internal/query/secrets/grant_posture.go:(GraphIAMGrantPostureStore).groupedGrantCounts"
+		want := "cmd/reducer/workload_dependency_lookup.go:(neo4jWorkloadDependencyLookup).ListWorkloadDependencyEdges"
 		if exemption.Callsite != want {
 			t.Fatalf("loaded callsite = %q, want canonical %q", exemption.Callsite, want)
 		}
 		return
 	}
-	t.Fatal("bare-receiver grant_posture exemption not found in manifest")
+	t.Fatal("bare-receiver workload_dependency_lookup exemption not found in manifest")
 }
 
 // TestCanonicalCallsiteSymbol pins the receiver-form contract both

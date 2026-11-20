@@ -32,9 +32,10 @@ that never changes availability, yet each one rewrites six indexes.
 
 ## Decision 1: lease shape
 
-New table `fact_work_item_leases` (migrations 322/323 — 322 holds the
-table and its indexes, 323 the idempotent backfill, split per #7961 so no
-file holds a table lock through bulk DML):
+New table `fact_work_item_leases` (migrations 322/323/324 — 322 holds the
+table and its indexes, 323 the idempotent backfill, 324 the locking
+reconcile of backfill-raced rows, split per #7961 so no file holds a table
+lock through bulk DML):
 
 - `work_item_id TEXT PRIMARY KEY REFERENCES fact_work_items(work_item_id)
   ON DELETE CASCADE` — the mirror is exact; a deleted queue row cannot
