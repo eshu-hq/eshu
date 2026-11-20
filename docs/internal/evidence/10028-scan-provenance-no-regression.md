@@ -22,7 +22,7 @@ is unchanged.
 
 No-Regression Evidence: `go test ./internal/reducer/supplychain/core/
 -count=1` → ok 0.756s, 1121 subtests pass on the final head; the same
-suite passed on the base with the pre-existing tests only, and the four
+suite passed on the base with the pre-existing tests only, and the three
 new provenance tests fail to build without the fix (field absence) and
 pass with it. `go test -race` on the changed package passes via the
 pre-push floor; `go vet` clean; `gofmt -l` empty; `git diff --check`
