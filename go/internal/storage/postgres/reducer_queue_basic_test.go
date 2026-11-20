@@ -214,11 +214,13 @@ func TestReducerQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T) 
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -230,13 +232,13 @@ func TestReducerQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T) 
 			t.Fatalf("retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], "reducer_retryable"; got != want {
+	if got, want := db.queries[0].args[1], "reducer_retryable"; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=1 doubles the 2m base delay to
 	// 4m (baseDelay*(1<<attempt)); JitterFraction is unset (0) so this stays
 	// deterministic with no added jitter term.
-	if got, want := db.execs[0].args[4], now.Add(4*time.Minute); got != want {
+	if got, want := db.queries[0].args[4], now.Add(4*time.Minute); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
@@ -264,11 +266,13 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := db.queries[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'dead_letter'",
@@ -281,10 +285,10 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 	// A retryable cause that exhausted its budget is dead-lettered as the
 	// retry_exhausted triage class (the transient bucket) so an operator can tell
 	// it gave up under transient pressure rather than from a terminal defect.
-	if got, want := db.execs[0].args[1], string(failure.TriageClassRetryExhausted); got != want {
+	if got, want := db.queries[0].args[1], string(failure.TriageClassRetryExhausted); got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
+	if details, _ := db.queries[0].args[3].(string); !strings.Contains(details, "disposition=retryable") {
 		t.Fatalf("dead-letter details = %q, want disposition=retryable", details)
 	}
 }
@@ -313,13 +317,15 @@ func TestReducerQueueFailDeadLettersTerminalWithTriageClass(t *testing.T) {
 	if err := queue.Fail(context.Background(), intent, errors.New("nil deref in materializer")); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if !strings.Contains(db.execs[0].query, "status = 'dead_letter'") {
-		t.Fatalf("terminal error should dead-letter, query:\n%s", db.execs[0].query)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if !strings.Contains(db.queries[0].query, "status = 'dead_letter'") {
+		t.Fatalf("terminal error should dead-letter, query:\n%s", db.queries[0].query)
 	}
-	if got, want := db.execs[0].args[1], string(failure.TriageClassProjectionBug); got != want {
+	if got, want := db.queries[0].args[1], string(failure.TriageClassProjectionBug); got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if details, _ := db.execs[0].args[3].(string); !strings.Contains(details, "disposition=manual_review") {
+	if details, _ := db.queries[0].args[3].(string); !strings.Contains(details, "disposition=manual_review") {
 		t.Fatalf("dead-letter details = %q, want disposition=manual_review", details)
 	}
 }
@@ -353,26 +359,28 @@ func TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testing.
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the retry statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "status = 'retrying'") {
-		t.Fatalf("timeout should retry within attempt budget, query:\n%s", db.execs[0].query)
+	if !strings.Contains(db.queries[0].query, "status = 'retrying'") {
+		t.Fatalf("timeout should retry within attempt budget, query:\n%s", db.queries[0].query)
 	}
 	// A graph-write timeout retry preserves its self-classified graph_write_timeout
 	// failure class on the retrying row (instead of the generic reducer_retryable)
 	// so producer write-timeout backpressure (#3560) can scope its pressure signal
 	// to graph-write classes and never throttle on a reducer readiness backlog.
-	if got, want := db.execs[0].args[1], "graph_write_timeout"; got != want {
+	if got, want := db.queries[0].args[1], "graph_write_timeout"; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[3], "semantic label=Annotation rows=10"; got != want {
+	if got, want := db.queries[0].args[3], "semantic label=Annotation rows=10"; got != want {
 		t.Fatalf("failure details = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=1 doubles the 2m base delay to
 	// 4m (baseDelay*(1<<attempt)); JitterFraction is unset (0) so this stays
 	// deterministic with no added jitter term.
-	if got, want := db.execs[0].args[4], now.Add(4*time.Minute); got != want {
+	if got, want := db.queries[0].args[4], now.Add(4*time.Minute); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
