@@ -334,12 +334,13 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 	}
 	handler = wrapCoreAPIMiddleware(handler, readCoreSunsetDate(getenv))
 
-	if worker, err := CoreOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger); err != nil {
-		return fmt.Errorf("configure oidc session refresh: %w", err)
-	} else if worker != nil {
-		go worker.Run(ctx)
-		logger.Info("oidc session refresh worker started",
-			telemetry.EventAttr("auth.oidc.session_refresh.started"))
+	if err := startCoreOIDCSessionRefresh(ctx, getenv, rawDB, instruments, logger); err != nil {
+		return err
+	}
+
+	commitErrCh, err := startCoreCommitListener(ctx, getenv, rawDB, instruments, logger)
+	if err != nil {
+		return err
 	}
 
 	server := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 30 * time.Second}
@@ -353,6 +354,8 @@ func serve(ctx context.Context, getenv func(string) string, logger *slog.Logger,
 		defer shutdownCancel()
 		return server.Shutdown(shutdownCtx)
 	case err := <-errCh:
+		return err
+	case err := <-commitErrCh:
 		return err
 	}
 }

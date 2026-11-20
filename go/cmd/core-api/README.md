@@ -45,6 +45,14 @@ listen address):
   closed, never silently unencrypted)
 - Setup: `ESHU_AUTH_BOOTSTRAP_MODE`, `ESHU_ADMIN_USERNAME`,
   `ESHU_ADMIN_PASSWORD(_FILE)`
+- Commit listener (dark unless `ESHU_COMMIT_LISTEN` is set to an empty-host
+  or literal-IP `host:port`, e.g. `0.0.0.0:8089`; hostnames are refused):
+  `ESHU_COMMIT_MANIFEST_PATH`, `ESHU_COMMIT_CLAIM_PLANE_URL` (bare
+  http/https base URL), `ESHU_COMMIT_SOURCE_SYSTEM`,
+  `ESHU_COMMIT_SCOPE_KIND`, `ESHU_COMMIT_INSTANCE_ID` (all required when
+  the listener is set), and optional `ESHU_COMMIT_GRANTS_PATH`. Serves
+  `POST /workflow.v1/CommitClaimFacts` through the claim-plane fence, so
+  the satellite proxy finally has a live receiving end (issue #11064).
 
 ## Probes
 
@@ -55,9 +63,10 @@ listen address):
 ## Telemetry
 
 No-Observability-Change: the binary reuses the shared `eshu_dp_*`
-instruments (`telemetry.NewInstruments`) and the process logger; it adds no
-new metric, span, or log key. The Prometheus handler serves on `/metrics`
-(public, behind the same auth chain).
+instruments (`telemetry.NewInstruments`) and the process logger; the only
+addition is the one startup event `runtime.commit_listener.listening`
+(with `addr`) when the commit listener is enabled. The Prometheus handler
+serves on `/metrics` (public, behind the same auth chain).
 
 ## No-regression proof (Wave-6 review findings)
 
