@@ -5,7 +5,7 @@
   "seed_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   "component_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "core_version": "v0.1.0",
-  "backend": "nornicdb",
+  "backend": "neo4j",
   "queue_terminal_state": "completed",
   "metrics_handle": ":29471/metrics",
   "evidence_mode": true,

@@ -223,6 +223,10 @@ rg --quiet '"component_digest"[[:space:]]*:[[:space:]]*"sha256:[0-9A-Fa-f]{64}"'
 	|| die "provenance component_digest is not a sha256 digest"
 jq -e '.evidence_mode == true' "${provenance}" >/dev/null \
 	|| die "provenance does not mark evidence_mode=true"
+# Single-backend proof (arbiter amendment to #10031): the read surface is
+# Neo4j-pinned, so the run must record neo4j as-run — never nornicdb.
+jq -e '.backend == "neo4j"' "${provenance}" >/dev/null \
+	|| die "provenance backend is not neo4j (single-backend proof required)"
 
 # 7. Redaction canary across every artifact.
 for artifact in "${inventory}" "${workflow_items}" "${facts}" "${provenance}" "${artifacts_dir}"/api-findings-*.json "${artifacts_dir}"/mcp-findings-*.json; do
