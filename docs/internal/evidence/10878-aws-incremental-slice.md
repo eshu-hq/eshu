@@ -183,3 +183,20 @@ Each domain repeats this slice's ladder: RED equivalence tests first,
 theory shim before building, golden-corpus/live enrollment, audit with
 correction counting, concurrency proof, then the receipt chain. No new
 domain starts while the AWS live wave is red.
+
+## Audit denominator counter (#11032 PR-2)
+
+No-Regression Evidence: baseline is the audit path emitting only the
+corrections magnitude point; after is one additional `audits_total` increment
+per `audit_due` reconstruction at the 24h audit cadence. Backend: in-process
+OTEL meter only (no Postgres, no new DB write, no new table or migration).
+Input shape: a single audit reconstruction; terminal row counts: exactly one
+point per audit (`clean`, `correcting`, or `failed`). Telemetry evidence:
+handler tests pin one-point-per-audit semantics and delta/skip/fallback
+silence. Safe because the emit is observability-only (never fails the run),
+runs only on the daily audit path, and touches no writer, fence, retire,
+lock, or queue path.
+
+Observability Evidence: the new `eshu_dp_aws_drift_incremental_audits_total`
+counter (closed outcomes, bounded labels), the two-strike alert rule, and its
+runbook in the hosted ops alert pack; reducer telemetry coverage row updated.
