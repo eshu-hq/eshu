@@ -415,36 +415,32 @@ func withDateOnlyStamp(input []facts.Envelope, scopeID, cveID string) ([]facts.E
 }
 
 // TestVulnCollectorNewestCopyRetracts: the second window re-issues
-// CVE-2026-90001 as Rejected, newer than the first window's Analyzed copy, so
-// the finding carries the newer copy's retraction and is hidden from the
-// default view. It holds on the facts exactly as recorded: NVD stamps its
+// CVE-2026-90001 as Rejected, newer than the first window's Analyzed copy —
+// and the second window carries no affected_product facts. Stacked on eshu-hq/
+// eshu#10735, the elected Rejected copy alone supplies the product set, so the
+// first window's widget product is dropped (kept R-B10: a CPE present only in
+// an older NVD copy forms no finding): the Odù reaches zero findings, not a
+// retracted one. It holds on the facts exactly as recorded: NVD stamps its
 // records without a zone ("2026-11-10T07:00:00.000"), and the reducer reads that
 // stamp as UTC when it picks the newest copy (eshu-hq/eshu#10741, #10750).
 //
+// The test keeps its pre-reconciliation name for continuity with the #10735
+// handoff (docs/internal/arbiter/10735-ifa-breakage-ruling-2026-11-20.md),
+// which transfers this scenario to #10734. The reconciled expectation fails on
+// main (which still returns the retracted finding) and passes only stacked on
+// #10735, so this update cannot land on main first.
+//
 // The control shows the result depends on the Rejected copy's stamp. With that
 // one stamp replaced by a date and no time, the copy ranks oldest, the Analyzed
-// copy wins, and the finding stays active.
+// copy wins with its own product, and the finding stays active.
 func TestVulnCollectorNewestCopyRetracts(t *testing.T) {
 	t.Parallel()
 
 	odu := catalogOdu(t, VulnCollectorNewestCopyOduName)
 
-	got := findingFor(t, impactFindings(odu), cveExactWidget)
-	if got.AdvisoryRetraction == nil {
-		t.Fatal("finding.AdvisoryRetraction = nil on the recorded stamps, want the Rejected newer copy's retraction")
-	}
-	if got.AdvisoryRetraction.ReasonCode != core.AdvisoryRetractionRejected {
-		t.Errorf("retraction reason code = %q, want %q", got.AdvisoryRetraction.ReasonCode, core.AdvisoryRetractionRejected)
-	}
-	if len(got.AdvisoryRetraction.Sources) != 1 {
-		t.Fatalf("retraction sources = %+v, want exactly the newer NVD copy", got.AdvisoryRetraction.Sources)
-	}
-	source := got.AdvisoryRetraction.Sources[0]
-	if source.Source != "nvd" || source.AdvisoryID != cveExactWidget || source.Code != core.AdvisoryRetractionRejected || source.Status != "Rejected" {
-		t.Errorf("retraction source = %+v, want the nvd record of %s with status Rejected", source, cveExactWidget)
-	}
-	if state := suppressionState(got); state != core.SupplyChainSuppressionStateAdvisoryRetracted {
-		t.Errorf("suppression state = %q, want %q", state, core.SupplyChainSuppressionStateAdvisoryRetracted)
+	if findings := impactFindings(odu); len(findings) != 0 {
+		t.Fatalf("findings = %d, want 0: the widget product lives only in the older window, "+
+			"so the newer Rejected copy's election drops it (kept R-B10)", len(findings))
 	}
 
 	dateOnly := odu

@@ -67,7 +67,11 @@ coverage:
   # payload. odu:vuln-pack keeps the other six: it carries one fixturepack-valid
   # payload per schema-backed kind the collector does not emit, the
   # operator-owned vulnerability.suppression shape, and the schema-less
-  # vulnerability.warning registry-only kind.
+  # vulnerability.warning registry-only kind. The cross-window behaviors ride
+  # on the same recording: the rejected Odù proves the delta_tombstone shape
+  # and the newest-copy Odù proves the ordering shape (kept R-B10, reconciled
+  # with #10735 per docs/internal/arbiter/10735-ifa-breakage-ruling-2026-11-20.md;
+  # the newest-copy expectation is zero findings, not a retraction).
   - {surface: "fact_kind:vulnerability.os_package", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.cve", scenario: odu, scenario_type: baseline, ref: "odu:vuln-collector-nvd", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.affected_package", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
@@ -78,6 +82,8 @@ coverage:
   - {surface: "fact_kind:vulnerability.go_call_reachability", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.reference", scenario: odu, scenario_type: baseline, ref: "odu:vuln-collector-nvd", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.source_snapshot", scenario: odu, scenario_type: baseline, ref: "odu:vuln-collector-nvd", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:vulnerability.cve", scenario: odu, scenario_type: delta_tombstone, ref: "odu:vuln-collector-nvd-rejected", proof_gate: ifa-contract-layer}
+  - {surface: "fact_kind:vulnerability.affected_product", scenario: odu, scenario_type: ordering, ref: "odu:vuln-collector-nvd-newest-copy", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.suppression", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:vulnerability.warning", scenario: odu, scenario_type: baseline, ref: "odu:vuln-pack", proof_gate: ifa-contract-layer}
   - {surface: "narrowed_correlation:rc-29", scenario: odu, scenario_type: baseline, ref: "odu:kustomize-deploys-from", proof_gate: ifa-contract-layer}
@@ -86,3 +92,9 @@ coverage:
   - {surface: "fact_kind:gcp_collection_warning", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:gcp_dns_record", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
   - {surface: "fact_kind:gcp_iam_policy_observation", scenario: odu, scenario_type: baseline, ref: "odu:demo-org-roundtrip", proof_gate: ifa-contract-layer}
+scenario_requirements:
+  # Surfaces without an explicit row require only baseline. These two surfaces
+  # additionally require the depth class their #10734 Odù proves; the seed-only-green
+  # rule holds because both proving tests are green on the branch that carries them.
+  - {surface: "fact_kind:vulnerability.cve", scenario_types: [baseline, delta_tombstone]}
+  - {surface: "fact_kind:vulnerability.affected_product", scenario_types: [baseline, ordering]}
