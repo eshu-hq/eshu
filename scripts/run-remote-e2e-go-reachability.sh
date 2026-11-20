@@ -12,8 +12,10 @@ set -euo pipefail
 # Runs in evidence mode only: the driver captures what the stack committed
 # and fails closed on anything else. It never replays a cassette and never
 # fabricates findings — an empty or partial stack fails the verifier, it is
-# not backfilled here. The seed image is placeholder digest plumbing until
-# eshu-scanner-worker publishes its first scanner-go-reachability release:
+# not backfilled here. The seed image is the v0.1.0 scanner-go-reachability
+# release (multi-arch index digest
+# sha256:8e4059a2acbd020a761862a8196e25567b7119bb97ef42a228432c59f5e39284,
+# verified against the GHCR package versions API and a manifest inspect):
 # ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE must be a digest-pinned ref
 # (name@sha256:<64 hex>); anything else is refused before any container
 # starts, so a floating tag can never slip into the proof surface.
