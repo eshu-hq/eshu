@@ -62,11 +62,13 @@ func TestReducerQueueFailDefersEveryEnrolledReadinessClassPastAttemptBudget(t *t
 			if err := queue.Fail(context.Background(), intent, readinessMissError{class: class}); err != nil {
 				t.Fatalf("Fail() error = %v, want nil", err)
 			}
-			if got, want := len(db.execs), 1; got != want {
-				t.Fatalf("exec count = %d, want %d", got, want)
+			// #10879 phase 1 reports the terminal match count through
+			// QueryContext, so the retry statement lands in queries.
+			if got, want := len(db.queries), 1; got != want {
+				t.Fatalf("query count = %d, want %d", got, want)
 			}
 
-			query := db.execs[0].query
+			query := db.queries[0].query
 			if !strings.Contains(query, "status = 'retrying'") {
 				t.Fatalf(
 					"AttemptCount=42 with an enrolled readiness class took a non-retrying branch; "+
@@ -77,7 +79,7 @@ func TestReducerQueueFailDefersEveryEnrolledReadinessClassPastAttemptBudget(t *t
 			if strings.Contains(query, "'dead_letter'") {
 				t.Fatalf("readiness miss dead-lettered despite enrollment:\n%s", query)
 			}
-			if got, want := db.execs[0].args[1], class; got != want {
+			if got, want := db.queries[0].args[1], class; got != want {
 				t.Fatalf("failure class = %v, want %v", got, want)
 			}
 		})
@@ -112,10 +114,12 @@ func TestReducerQueueFailDeadLettersAnUnenrolledClassPastAttemptBudget(t *testin
 	if err := queue.Fail(context.Background(), intent, readinessMissError{class: unenrolled}); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 1; got != want {
-		t.Fatalf("exec count = %d, want %d", got, want)
+	// #10879 phase 1 reports the terminal match count through
+	// QueryContext, so the dead-letter statement lands in queries.
+	if got, want := len(db.queries), 1; got != want {
+		t.Fatalf("query count = %d, want %d", got, want)
 	}
-	if query := db.execs[0].query; strings.Contains(query, "status = 'retrying'") {
+	if query := db.queries[0].query; strings.Contains(query, "status = 'retrying'") {
 		t.Fatalf(
 			"an UNENROLLED class past the attempt budget was deferred; enrollment is not what "+
 				"decides deferral, so the enrollment test above proves nothing:\n%s",
@@ -196,21 +200,26 @@ func TestReducerQueueFailDeadLettersProducerTerminalClassesPastAttemptBudget(t *
 			if err := queue.Fail(context.Background(), intent, readinessMissError{class: class}); err != nil {
 				t.Fatalf("Fail() error = %v, want nil", err)
 			}
-			// The dead letter, then the post-dead-letter wake check (#7597).
-			wantExecs := 1
+			// The dead letter goes through QueryContext (#10879 phase 1
+			// terminal match count), then the post-dead-letter wake
+			// (#7597) stays an exec.
+			if got, want := len(db.queries), 1; got != want {
+				t.Fatalf("query count = %d, want %d", got, want)
+			}
+			wantExecs := 0
 			if slices.Contains(ownGateCountingClasses(), class) {
-				wantExecs = 2
+				wantExecs = 1
 			}
 			if got := len(db.execs); got != wantExecs {
 				t.Fatalf("exec count = %d, want %d", got, wantExecs)
 			}
-			if wantExecs == 2 && db.execs[1].query != wakeProducerTerminalConsumersSQL {
-				t.Fatalf("second exec is not the post-dead-letter wake:\n%s", db.execs[1].query)
+			if wantExecs == 1 && db.execs[0].query != wakeProducerTerminalConsumersSQL {
+				t.Fatalf("exec is not the post-dead-letter wake:\n%s", db.execs[0].query)
 			}
-			if query := db.execs[0].query; strings.Contains(query, "status = 'retrying'") {
+			if query := db.queries[0].query; strings.Contains(query, "status = 'retrying'") {
 				t.Fatalf("producer-terminal class %q past the budget was deferred:\n%s", class, query)
 			}
-			if got := db.execs[0].args[1]; got != class {
+			if got := db.queries[0].args[1]; got != class {
 				t.Fatalf("dead-letter failure class = %v, want %q", got, class)
 			}
 		})

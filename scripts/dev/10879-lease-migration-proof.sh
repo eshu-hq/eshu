@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025-2026 eshu-hq
 #
-# #10879 phase-1 migration proof: applies migration 317 to a representative
+# #10879 phase-1 migration proof: applies migration 319 to a representative
 # copy (264,567 rows, the QA row count), times each phase, proves the
 # backfill does not block concurrent heartbeat writes, repeats the backfill
 # at ~10x rows, rehearses the rollback, and enforces:
@@ -65,10 +65,10 @@ END_MS=$(date +%s%3N)
 echo "load wall ms: $((END_MS - START_MS))"
 $PSQL -c "SELECT count(*), count(*) FILTER (WHERE status = 'claimed') FROM fact_work_items"
 
-echo "--- phase timings for migrations 317/318 (shipped files) ---"
-$PSQL -c '\timing on' -f "$ROOT/go/internal/storage/postgres/migrations/317_fact_work_item_leases.sql"
+echo "--- phase timings for migrations 319/320 (shipped files) ---"
+$PSQL -c '\timing on' -f "$ROOT/go/internal/storage/postgres/migrations/319_fact_work_item_leases.sql"
 BACKFILL_START=$(date +%s%3N)
-$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/318_fact_work_item_leases_backfill.sql"
+$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/320_fact_work_item_leases_backfill.sql"
 BACKFILL_END=$(date +%s%3N)
 echo "backfill wall ms: $((BACKFILL_END - BACKFILL_START))"
 
@@ -88,7 +88,7 @@ echo "concurrent heartbeats done"
 ) &
 HEARTBEAT_PID=$!
 REPLAY_START=$(date +%s%3N)
-$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/318_fact_work_item_leases_backfill.sql"
+$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/320_fact_work_item_leases_backfill.sql"
 REPLAY_END=$(date +%s%3N)
 wait $HEARTBEAT_PID
 echo "idempotent backfill replay wall ms: $((REPLAY_END - REPLAY_START)) (heartbeats unblocked: see line above)"
@@ -120,7 +120,7 @@ SQL
 SCALE_END=$(date +%s%3N)
 echo "10x load wall ms: $((SCALE_END - SCALE_START))"
 SCALE_BACKFILL_START=$(date +%s%3N)
-$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/318_fact_work_item_leases_backfill.sql"
+$PSQL -f "$ROOT/go/internal/storage/postgres/migrations/320_fact_work_item_leases_backfill.sql"
 SCALE_BACKFILL_END=$(date +%s%3N)
 echo "10x backfill wall ms: $((SCALE_BACKFILL_END - SCALE_BACKFILL_START))"
 $PSQL -c "SELECT count(*) AS mirror_rows FROM fact_work_item_leases;"

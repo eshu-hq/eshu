@@ -1,11 +1,19 @@
 # Queue lease split: stop rewriting the queue entry per progress update (#10879)
 
-Status: **Proposed**. This record satisfies the fact_work_items schema-gate
+Status: **Accepted (phase 1 only, arbiter ruling for #10879 phase-1
+promotion)**. The arbiter accepts this record as the build authority for
+phase 1 only: create `fact_work_item_leases`, idempotent live-lease
+backfill, in-statement dual-write, main columns authoritative, no read
+switch. Phase 1b/2 remain **Proposed** and need a fresh ruling after their
+gates (production H measurement, both cheaper-alternative shims). The
+pre-promotion content satisfied the fact_work_items schema-gate
 (`go/internal/storage/postgres/AGENTS.md`, "What NOT to change without an
-ADR") in content; it becomes the build authority when its status flips to
-Accepted by the owner or the arbiter. Until then, only phase 1 (dual-write
-cutover, zero behavior change) is implemented; phase 2 (read switch and
-heartbeat narrowing) is staged but not built.
+ADR"); the phase-1 change adds a sidecar table without altering any
+`fact_work_items` column, index, or conflict key, and the lockstep
+statement updates are the coordination the gate exists to force, so the
+gate is satisfied by this scoped acceptance. Merging before this flip
+would have been out of order; phase 2 (read switch and heartbeat
+narrowing) is staged but not built.
 
 Refs #10879. Part of #10860 (phase 2, step 5). Blocked-by #10861 is lifted
 for this content: #10861 stays Proposed and decides nothing about lease
@@ -24,8 +32,8 @@ that never changes availability, yet each one rewrites six indexes.
 
 ## Decision 1: lease shape
 
-New table `fact_work_item_leases` (migrations 317/318 — 317 holds the
-table and its indexes, 318 the idempotent backfill, split per #7961 so no
+New table `fact_work_item_leases` (migrations 319/320 — 319 holds the
+table and its indexes, 320 the idempotent backfill, split per #7961 so no
 file holds a table lock through bulk DML):
 
 - `work_item_id TEXT PRIMARY KEY REFERENCES fact_work_items(work_item_id)

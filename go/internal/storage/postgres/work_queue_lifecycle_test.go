@@ -296,6 +296,17 @@ func (f *fakeExecQueryer) QueryContext(
 	}
 
 	if len(f.queryResponses) == 0 {
+		if strings.Contains(query, "SELECT (SELECT count(*) FROM done) AS matched") {
+			// #10879 phase 1: terminal statements (ack, fail/dead-letter,
+			// retry, batch terminals) report the main-table match count
+			// through QueryContext instead of RowsAffected. Before the
+			// lane every statement ran under ExecContext, where this
+			// fake defaulted success, so an unstaged terminal statement
+			// answers matched=1. Tests asserting rejection or a zero
+			// match stage an explicit count response, which the FIFO
+			// branch above serves first.
+			return &queueFakeRows{rows: [][]any{{int64(1)}}}, nil
+		}
 		if query == waitingSatisfiedQuery {
 			// #10876: the set-aside re-check on a fake with no staged
 			// provider state answers unsatisfied: the wait parks and the
