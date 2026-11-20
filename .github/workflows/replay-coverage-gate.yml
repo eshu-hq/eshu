@@ -60,6 +60,13 @@ jobs:
       # failure that never compiled anything (#6615 follow-up to #6075).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
+      # The blocking gate now runs the mirror self-test
+      # (test-verify-replay-coverage-gate.sh via the Go mirror contract), which
+      # needs rg; carried over from the removed static-mirror job (#10988).
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Run replay coverage gate (blocking)
         env:
           RCOV_REPORT_OUT: replay-coverage-report.json
