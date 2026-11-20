@@ -63,3 +63,29 @@ Observability evidence: no new signal. Wake failures log at ERROR with
 `eshu_dp_reducer_waiting_wake_total{wake_site=in_tx, outcome=error}`; a
 missed wake still surfaces on
 `eshu_dp_reducer_waiting_missed_wake_total` via the audit.
+
+No-Regression Evidence: per projector claim the change adds one scope-free
+indexed SELECT that returns zero rows in steady state (measured 0.015 ms
+empty, 0.064 ms with two parked waits, disposable postgres:18-alpine
+scratch tables with the shipped DDL and indexes; baseline is the #11015
+scoped probe at 0.020-0.025 ms on the same shape). Per terminal projector
+Fail it adds one wake statement that is a no-op when nothing is parked;
+the heartbeat renew path adds nothing (the wake runs only when the
+supersede statement returned a row); Ack adds one lock-free SELECT in its
+transaction plus the existing wake shape when waits are parked. Terminal
+queue/row counts: the probe returns DISTINCT parked keys (near-empty
+table by design), and each wake UPDATE touches only still-`retrying` rows
+it reopens. Safe because the probe takes no locks, the wakes reuse the
+#10876 helper with the same lock order as the audit, and every wake is a
+hint the claim gate and handler re-check, with the 5-minute audit and the
+10-minute backstop bounding a miss.
+
+Observability Evidence: no new metric, span, or log key. Wake failures
+count on the existing
+`eshu_dp_reducer_waiting_wake_total{wake_site=in_tx, outcome=error}` and
+log at ERROR with `queue`, `op`, `scope_id`/`generation_id` when named,
+and `error`; a missed wake counts on the existing
+`eshu_dp_reducer_waiting_missed_wake_total` via the audit. Telemetry
+emitters covered by `TestProjectorQueueFailPostCommitWakeErrorKeepsDeadLetter`
+and `TestProjectorQueueClaimProbeErrorKeepsClaimedWork`, which assert the
+error-outcome series is present.
