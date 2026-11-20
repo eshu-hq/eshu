@@ -58,6 +58,25 @@ conservation, empty residual), writer envelope
 fallback watermark, and both scope-plan tests including the new
 slow-window plan guard (RED on the pre-fix tree, GREEN after).
 
+## Full Decision-5 replay at shipped 200 (5/5 PASS):
+
+Rebuilt binaries from exact SHAs (candidate fixed @7c149d7341, control pre-fix @e5e92648db), PG18 F1-port
+composition (5,000-row admit window: 70 scope + 4,930 fact rows; 42,000-row scope expansion; 42,000 stored
+winners), byte-identical arms (md5 equal), quiet-host canary (load1 max 1.14 < 8 bound on 16 CPUs).
+Recorded on #10839 (comment 7030577480); command, walls, and terminals in the F1 format there.
+
+| Bar | Candidate (fixed @200) | Control (pre-fix @200) | Verdict |
+|---|---|---|---|
+| Exactness (admitted/kept/deleted/remaining) | 5071 / 46930 / 5071 / 0, keyed==recompute, winners hash 5389611c:46930 x3 | identical terminals, identical hash | PASS |
+| Throughput ident/s | 1849.3 | 74.4 (24.9x) | PASS (>= 2.0x) |
+| Throughput rows-deleted/s | 857.9 | 34.5 (24.9x) | PASS (>= 2.0x) |
+| Tail max tick | 0.334s (total 5.911s) | 20.390s (total 146.953s) | PASS (<= 15s, ratio 0.016) |
+| Plan | CTE evaluated once (hash, loops=1), index probes, 0 Join Filter fan-out, max loops 5530 | — | PASS |
+| Concurrency (6272-mark writer) | 32 ticks / 6.332s / max 0.340s, 0 errors, 0 deadlocks, head advanced, parity equal | — | PASS |
+
+The fix cures the control's own 20.390s tail (control ticks 17-23 at 20.2-20.4s). No chunk-value change rides
+this evidence: default chunk stays 200; 500/1000 remain separate claims requiring their own full replays.
+
 ## No-Observability-Change (#10839 convert fix):
 
 The convert runs through the same instrumented `ExecContext` path as
