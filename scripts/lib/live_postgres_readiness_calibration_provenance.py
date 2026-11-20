@@ -192,7 +192,7 @@ def build_evidence(directories: list[Path], root: Path) -> dict[str, object]:
             "harness_sha256": calibration.file_digest(root, calibration.HARNESS),
             "reviewed_source_sha256": calibration.REVIEWED_SOURCE_SHA256,
             "row_identity_sha256": calibration.ROW_SHA256,
-            "coverage": {"shards": 8, "runs_per_dispatch": 1101},
+            "coverage": {"shards": 8, "runs_per_dispatch": 1125},
             "categories": dict(categories), "runs": runs}
 
 
