@@ -14,6 +14,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
@@ -128,6 +129,12 @@ type WaitingDeferral struct {
 	// ProducerDomain, when set, narrows a producer-terminal wait to one
 	// producer domain's terminal Ack in the wait's scope and generation.
 	ProducerDomain string
+	// Keyspace and Phase, when both set on a phase_committed row, make the
+	// wait phase-exact (#11104): it parks on {scope_id, generation_id,
+	// keyspace, phase}, its satisfaction reads that generation's own phase
+	// row, and the phase Upsert wakes it by the exact key.
+	Keyspace gpphase.Keyspace
+	Phase    gpphase.Phase
 }
 
 // WaitingDeferralMap lists every non-counting readiness class plus the
@@ -179,10 +186,16 @@ func WaitingDeferralMap() []WaitingDeferral {
 			ProvidingSave: "sibling-scope target commit; audit terminal-progress fallback + backstop",
 		},
 		{
+			// #11104: the handler gates on the generation's own
+			// cross_repo_evidence/backward_evidence_committed row, which
+			// only the deferred-backfill fan-in publishes, so the wait is
+			// phase-exact and woken by that publish, not by sibling progress.
 			FailureClass:  crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass,
-			WaitsForKind:  WaitingKindTargetCommitted,
-			WakeSite:      WaitingWakeSiteAudit,
-			ProvidingSave: "foreign-scope evidence commit; audit terminal-progress fallback + backstop",
+			WaitsForKind:  WaitingKindPhaseCommitted,
+			WakeSite:      WaitingWakeSiteInTx,
+			ProvidingSave: "deferred-backfill fan-in publish of the generation's own backward_evidence_committed phase (in-tx exact wake + post-commit re-wake); audit exact-phase re-check + backstop",
+			Keyspace:      gpphase.KeyspaceCrossRepoEvidence,
+			Phase:         gpphase.PhaseBackwardEvidenceCommitted,
 		},
 		{
 			FailureClass:  reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass,

@@ -66,6 +66,13 @@ type Store struct {
 	LoadCatalog      CatalogLoader
 	NewEvidenceStore func(tx db.Transaction) EvidenceStore
 	NewPhaseStore    func(tx db.Transaction) PhaseStore
+	// WakePhaseWaitsAfterCommit, when set, runs after a readiness
+	// publication transaction commits, with the rows it published (#11104).
+	// The root seam wires the post-commit exact-phase re-wake here, which
+	// reopens a waiter that parked inside the publisher's open window. It
+	// returns nothing: a failure is the root's to log and meter, because
+	// the publication already committed.
+	WakePhaseWaitsAfterCommit func(ctx context.Context, rows []gpphase.PhaseState)
 }
 
 // NewStore builds a Store over database, adopting the transaction beginner

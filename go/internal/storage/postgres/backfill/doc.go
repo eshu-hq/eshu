@@ -21,8 +21,11 @@
 //
 // Store carries the engine's durable handles: the database, the transaction
 // beginner, the batch-size and worker-count overrides, the clock, the logger,
-// and the instruments, plus the two seams to root-owned behavior the engine
-// must not import: the catalog loader and the evidence-store constructor.
+// and the instruments, plus the seams to root-owned behavior the engine must
+// not import: the catalog loader, the evidence-store and phase-store
+// constructors, and the post-commit phase wake (#11104), which re-wakes the
+// exact-phase waits a readiness publication satisfies after its transaction
+// commits.
 // The root IngestionStore builds a Store with all seams supplied; the
 // exported entry points the rest of the program uses stay methods on
 // IngestionStore in the parent package and delegate here.

@@ -34,7 +34,11 @@ func TestBackwardEvidenceParkThenPublishWakesLive(t *testing.T) {
 	seedBackwardEvidenceScope(t, ctx, base, scopeID, genID, "be-dm-1", "be-sib-1", clock)
 
 	parkBackwardEvidenceWaiter(t, ctx, base, &clock)
-	publishBackwardEvidence(t, ctx, backwardEvidenceFanIn(base), scopeID, genID)
+	// The post-commit re-wake is off here so the reopen must come from the
+	// in-tx exact wake inside the publish; proof 4 covers the re-wake.
+	fanIn := backwardEvidenceFanIn(base)
+	fanIn.WakePhaseWaitsAfterCommit = nil
+	publishBackwardEvidence(t, ctx, fanIn, scopeID, genID)
 
 	assertBackwardEvidenceReopened(t, ctx, base, "be-dm-1", 1)
 }
@@ -280,4 +284,33 @@ func TestBackwardEvidenceWokenRowConvergesLive(t *testing.T) {
 	if state.waitRows != 0 {
 		t.Fatalf("converged wait rows = %d, want 0", state.waitRows)
 	}
+}
+
+// TestBackwardEvidenceOverlapWithoutRewakeStrandsUntilAuditLive is the
+// mutation half of proof 4 and the faithful crash residual of proof 5: with
+// the post-commit re-wake removed (a publisher that died after its commit),
+// the overlap leaves the waiter parked on the backstop, and only the audit's
+// exact-phase predicate reopens it.
+func TestBackwardEvidenceOverlapWithoutRewakeStrandsUntilAuditLive(t *testing.T) {
+	ctx := context.Background()
+	base, _ := openWaitingDB(t, ctx)
+	const scopeID, genID = "git-repository-scope:acme/be-7", "be-gen-7"
+	seedBackwardEvidenceScope(t, ctx, base, scopeID, genID, "be-dm-7", "be-sib-7", time.Now().UTC())
+
+	inTx := make(chan struct{}, 1)
+	release := make(chan struct{})
+	fanIn := holdOpenFanIn(base, inTx, release)
+	fanIn.WakePhaseWaitsAfterCommit = nil
+	runOverlap(t, ctx, base, fanIn, inTx, release, scopeID, genID)
+
+	assertBackwardEvidenceParked(t, ctx, base, "be-dm-7")
+	reopened, _, _, err := AuditWaitingItems(ctx, SQLDB{DB: base}, nil, time.Now().UTC(),
+		DefaultWaitingAuditInterval, DefaultWaitingAuditBatchSize)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if reopened != 1 {
+		t.Fatalf("audit reopened = %d, want 1", reopened)
+	}
+	assertBackwardEvidenceReopened(t, ctx, base, "be-dm-7", 1)
 }
