@@ -411,7 +411,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	t.Parallel()
 
 	applied := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false); err != nil {
+	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false, nil); err != nil {
 		t.Fatalf("settle applied: %v", err)
 	}
 	convertIdx, drainIdx := -1, -1
@@ -428,7 +428,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	}
 
 	overCap := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true); err != nil {
+	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true, nil); err != nil {
 		t.Fatalf("settle over-cap: %v", err)
 	}
 	for _, q := range overCap.queries {

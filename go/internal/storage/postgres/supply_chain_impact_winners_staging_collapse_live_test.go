@@ -350,7 +350,7 @@ VALUES ('fact', 'fact_upsert', $1, 'repo:survive', 'digest:survive', $2, $2, 1)`
 	if _, err := buildWinnersKeyedChunk(ctx, tick, winnersDeadlockSettleBounds); err != nil {
 		t.Fatalf("build chunk in tick: %v", err)
 	}
-	tally, remaining, _, _, err := settleWinnersKeyedDirtyLog(ctx, tick, false)
+	tally, remaining, _, _, err := settleWinnersKeyedDirtyLog(ctx, tick, false, nil)
 	if err != nil {
 		t.Fatalf("settle in tick: %v", err)
 	}

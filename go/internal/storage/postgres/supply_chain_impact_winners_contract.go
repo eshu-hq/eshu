@@ -40,7 +40,11 @@ import (
 const SupplyChainImpactWinnersContractVersion int64 = 2
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
-// of the statements it names. A version maps to exactly one hash.
+// of the statements it names. A version maps to exactly one hash. Version 1
+// was re-pinned without a bump when #11145 added the scope-remainder convert
+// to the set and changed only the capture time a converted row carries: the
+// stored winners are byte-identical for the same facts (differential in
+// docs/internal/evidence/11145-scope-remainder-horizon.md).
 var supplyChainImpactWinnersContractPins = map[int64]string{
 	1: "c5731efdb688e71bf37154ff9401a973f588d686603b10e117ca5a8f0ea4dbff",
 	// Version 2 (#10880 slice 1): the rebuild and keyed statements now
@@ -52,8 +56,9 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
 // rendered statements whose text defines what a resweep writes: the full
-// rebuild (which embeds the winner select) and every keyed build and apply
-// statement.
+// rebuild (which embeds the winner select), every keyed build and apply
+// statement, and the scope-remainder convert (#11145), which decides which
+// keys a later tick recomputes and the capture time the horizon reads.
 func supplyChainImpactWinnersContractStatements() []string {
 	stmts := []string{rebuildSupplyChainImpactWinnersSQL}
 	stmts = append(stmts, winnersKeyedBuildIdentsStmts...)
@@ -63,6 +68,7 @@ func supplyChainImpactWinnersContractStatements() []string {
 		buildWinnersKeyedActiveFactsSQL,
 		addWinnersKeyedOperatorFactsSQL,
 		applyWinnersKeyedSQL,
+		convertWinnersKeyedScopeRemainderSQL,
 	)
 }
 

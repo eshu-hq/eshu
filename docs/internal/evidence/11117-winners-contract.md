@@ -16,7 +16,10 @@ This note covers PR 2 of the ruling (A, acceptance criteria AC2 and AC4). PR 1
   default, so the migration changes metadata only. It does not backfill a
   version.
 - `SupplyChainImpactWinnersContractVersion` (1) and the hash of the rendered
-  rebuild statement plus every keyed build and apply statement. A hermetic test
+  rebuild statement plus every keyed build and apply statement. #11145 added
+  the scope-remainder convert to the set and re-pinned version 1 without a
+  bump, after a differential showed byte-identical winners
+  ([11145-scope-remainder-horizon.md](11145-scope-remainder-horizon.md)). A hermetic test
   pins the hash to the version. Changing the text of a covered statement fails
   that test until the author bumps the version or re-pins the hash with a
   differential proof. A seeded-violation test changes each covered statement

@@ -152,6 +152,9 @@ func TestSupplyChainImpactWinnersResweepKeyedScopeRemainderHoldsWatermarkLive(t 
 	if !first.Bounded {
 		t.Fatalf("first tick = %+v, want Bounded", first)
 	}
+	if first.ScopeRemainderConverted != 5 {
+		t.Errorf("first tick ScopeRemainderConverted = %d, want 5", first.ScopeRemainderConverted)
+	}
 	if n := h.count(`SELECT count(*) FROM supply_chain_impact_winners_dirty_log WHERE kind = 'fact'`); n != 5 {
 		t.Fatalf("converted remainder rows = %d, want 5", n)
 	}
@@ -265,8 +268,12 @@ WHERE kind = 'fact' AND package_id = 'pkg:npm/lst-07'`).Scan(&later); err != nil
 			t.Fatalf("queued fact row capture %s is not after the scope mark %s", later.UTC().Format(time.RFC3339Nano), mark.Format(time.RFC3339Nano))
 		}
 		h.store.ChunkMaxIdentifiers = 3
-		if first := chunkedTick(h); !first.Bounded {
+		first := chunkedTick(h)
+		if !first.Bounded {
 			t.Fatalf("first tick = %+v, want Bounded", first)
+		}
+		if first.ScopeRemainderConverted != 5 {
+			t.Errorf("first tick ScopeRemainderConverted = %d, want 5 (four inserted, one merged)", first.ScopeRemainderConverted)
 		}
 		var got time.Time
 		var version int64

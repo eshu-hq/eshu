@@ -275,7 +275,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}
 	if over {
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseFullRebuild, func() error {
-			tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
+			tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, true, nil)
 			if err != nil {
 				return err
 			}
@@ -346,10 +346,11 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	result.ChunkIdentifiers = chunk.identifiers
 	result.ChunkKeptRows = kept
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
-		tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
+		tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, false, &result.ScopeRemainderConverted)
 		if err != nil {
 			return err
 		}
+		s.Instruments.RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx, result.ScopeRemainderConverted)
 		result.Identifiers = tally.total()
 		result.TriggerCaptured = tally.triggerSources()
 		result.Remaining, result.RemainingUpperBound = remaining, upperBound
