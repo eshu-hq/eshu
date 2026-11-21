@@ -39,3 +39,13 @@ show ~0s finished deltas.
 
 No behavior change in this note; fix (re-stamp `ObservedAt` at terminal call
 sites) is follow-up work.
+
+## Live verification queries and outputs (read-only QA replica, 2026-11-21)
+
+Q1 discriminator over sub-5s reported deltas: failed rows report p50
+0.018s while heartbeat p50 reads 300.0s; completed rows heartbeat p50
+0.1s. Q3 full-wall misreport shape (`heartbeat_at - claimed_at` > 60s):
+100 rows. Q4 heartbeat bound: p50 0.1s / p95 300.0s. Cross-check: the
+run-duration histogram shows mass near 300s where these rows show ~0s
+finished deltas. Query shapes: counts and medians grouped by status over
+`workflow_claims` with `finished_at IS NOT NULL`; no identifiers selected.
