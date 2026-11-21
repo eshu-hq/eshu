@@ -49,6 +49,23 @@ type indexWriteVar struct {
 	// opaque is true when a write to the var was not readable: a property
 	// map entry or SET item outside the recognized forms.
 	opaque bool
+
+	// The fields below feed the bound-non-key verdict only
+	// (index_key_guard_bound.go); the guard itself never reads them.
+	//
+	// matched is true when a plain MATCH node pattern binds the var, and
+	// matchProps lists the property names that pattern's inline map names.
+	matched    bool
+	matchProps []string
+	// created is true when a MERGE or CREATE pattern names the var, and
+	// otherBound when any other clause (OPTIONAL MATCH, WHERE, ...) does.
+	created    bool
+	otherBound bool
+	// setProps lists the properties set by simple SET var.prop = expr items.
+	setProps []string
+	// setOther is true when a SET replaces or merges a map onto the var or
+	// adds a label to it.
+	setOther bool
 }
 
 type labeledIndexKey struct {
@@ -63,6 +80,10 @@ type indexWritePlan struct {
 	// unanalyzed lists the schema labels the statement writes in a way the
 	// analyzer could not read, for UnanalyzedIndexWrites.
 	unanalyzed []UnanalyzedIndexWrite
+	// boundNonKeyOnly is the explicit verdict that the statement only
+	// modifies matched nodes through non-key SET assignments (see
+	// index_key_guard_bound.go). It is deliberately not a vars entry.
+	boundNonKeyOnly bool
 	// warned flips once, when the first caller is told about unanalyzed.
 	warned atomic.Bool
 }
@@ -148,6 +169,15 @@ func analyzeIndexWrites(cypher string) *indexWritePlan {
 			addLabels(v, cypher[loc[4]:loc[5]])
 		}
 		clause := precedingClause(keywords, loc[0])
+		switch clause {
+		case "MATCH":
+			v.matched = true
+			v.matchProps = append(v.matchProps, matchPatternProps(cypher, loc[6])...)
+		case "MERGE", "CREATE":
+			v.created = true
+		default:
+			v.otherBound = true
+		}
 		if clause != "MERGE" && clause != "CREATE" {
 			continue
 		}
@@ -173,6 +203,7 @@ func analyzeIndexWrites(cypher string) *indexWritePlan {
 		}
 	}
 
+	setUnbound := false
 	for i, kw := range keywords {
 		if kw.word != "SET" {
 			continue
@@ -182,7 +213,9 @@ func analyzeIndexWrites(cypher string) *indexWritePlan {
 			end = keywords[i+1].pos
 		}
 		for _, item := range splitTopLevel(cypher[kw.end:end]) {
-			applySetItem(strings.TrimSpace(item), vars, varFor, scope)
+			if !applySetItem(strings.TrimSpace(item), vars, varFor, scope) {
+				setUnbound = true
+			}
 		}
 	}
 
@@ -200,29 +233,37 @@ func analyzeIndexWrites(cypher string) *indexWritePlan {
 		}
 	}
 	plan.unanalyzed = unanalyzedWrites(cypher, keywords, vars, order)
+	plan.boundNonKeyOnly = !setUnbound && classifyBoundNonKeyOnly(vars, order)
 	return plan
 }
 
 // applySetItem reads one SET item and records it on the variable it writes.
 // An item outside the recognized forms marks the variable it starts with (or
-// every labeled variable when it names none) opaque.
-func applySetItem(item string, vars map[string]*indexWriteVar, varFor func(string) *indexWriteVar, scope exprScope) {
+// every labeled variable when it names none) opaque. It returns false when the
+// item assigns to a variable no node pattern bound (a relationship variable, a
+// WITH-carried name): the write is not tracked, so the bound-non-key verdict
+// must not trust the statement.
+func applySetItem(item string, vars map[string]*indexWriteVar, varFor func(string) *indexWriteVar, scope exprScope) (bound bool) {
 	if item == "" {
-		return
+		return true
 	}
 	if pm := cypherPropAssign.FindStringSubmatch(item); pm != nil {
-		if v := vars[pm[1]]; v != nil {
-			v.written = true
-			v.assigns[pm[2]] = parseIndexWriteExpr(pm[3], scope)
+		v := vars[pm[1]]
+		if v == nil {
+			return false
 		}
-		return
+		v.written = true
+		v.setProps = append(v.setProps, pm[2])
+		v.assigns[pm[2]] = parseIndexWriteExpr(pm[3], scope)
+		return true
 	}
 	if mm := cypherMapAssign.FindStringSubmatch(item); mm != nil {
 		v := vars[mm[1]]
 		if v == nil {
-			return
+			return false
 		}
 		v.written = true
+		v.setOther = true
 		expr := strings.TrimSpace(mm[2])
 		if strings.HasPrefix(expr, "{") && strings.HasSuffix(expr, "}") {
 			for _, entry := range splitTopLevel(expr[1 : len(expr)-1]) {
@@ -235,26 +276,28 @@ func applySetItem(item string, vars map[string]*indexWriteVar, varFor func(strin
 					v.opaque = true
 				}
 			}
-			return
+			return true
 		}
 		v.merges = append(v.merges, parseIndexWriteExpr(expr, scope))
-		return
+		return true
 	}
 	if lm := cypherSetLabel.FindStringSubmatch(item); lm != nil {
 		v := varFor(lm[1])
 		v.written = true
+		v.setOther = true
 		addLabels(v, lm[2])
-		return
+		return true
 	}
 	if id := cypherLeadingIdent.FindString(item); id != "" && vars[id] != nil {
 		vars[id].opaque = true
-		return
+		return true
 	}
 	for _, v := range vars {
 		if len(v.labels) > 0 {
 			v.opaque = true
 		}
 	}
+	return true
 }
 
 // bindWithAliases records WITH row AS alias and WITH row.field AS alias

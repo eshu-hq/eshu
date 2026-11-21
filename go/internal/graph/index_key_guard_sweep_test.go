@@ -124,6 +124,10 @@ func (f sweepFinding) String() string { return fmt.Sprintf("%s: %s: %q", f.file,
 // sweepIndexedWrites parses every non-test Go file under root/dirs and returns
 // the string literals that write a schema-indexed label but are not fully
 // read by the guard, and the number of indexed-write literals it examined. A
+// literal the analyzer binds to no indexed-property write is a finding unless
+// the plan carries the bound-non-key verdict (a keyed MATCH that SETs only
+// non-key properties: read, and it can create no index key); any unanalyzed
+// report is a finding either way. A
 // literal built from package-level string constants (Base + "\nMERGE ...") is
 // folded first, so the sweep reads the whole statement the executor sees.
 func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sweepFinding, candidates int) {
@@ -200,7 +204,7 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 			plan := analyzeIndexWrites(sweepFormatVerb.ReplaceAllString(text, "Function"))
 			problem := ""
 			switch {
-			case len(plan.vars) == 0:
+			case len(plan.vars) == 0 && !plan.boundNonKeyOnly:
 				problem = "writes an indexed label but the guard binds no write"
 			case len(plan.unanalyzed) > 0:
 				problem = fmt.Sprintf("guard reports %+v", plan.unanalyzed)

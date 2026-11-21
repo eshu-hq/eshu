@@ -44,6 +44,8 @@ graph/
                    guard for one statement
   index_key_guard_report.go — UnanalyzedIndexWrites: the fail-loud report for
                    indexed-label writes the analyzer cannot read
+  index_key_guard_bound.go — the bound-non-key verdict: a keyed MATCH that
+                   SETs only non-key properties is read and safe
 ```
 
 ## Oversized index-key guard (#7058)
@@ -75,7 +77,12 @@ statement writes in a shape the analyzer cannot read, with a closed reason
 read from a nested `UNWIND row.params AS p` element. Those rows are not
 dropped, since their values cannot be measured; `InstrumentedExecutor` counts
 them on `eshu_dp_graph_index_key_guard_unanalyzed_total` and logs one WARN per
-distinct statement. `TestProductionCypherLiteralsAreGuarded` parses the
+distinct statement. A plain `MATCH` that names a full schema key and then
+`SET`s only properties no schema key covers (the advisory group update,
+#11161) can create no index key, so the plan carries an explicit
+`boundNonKeyOnly` verdict instead of a `vars` entry and the sweep accepts it;
+a mixed, map-assigning, label-adding, opaque, or unkeyed variant stays a
+finding. `TestProductionCypherLiteralsAreGuarded` parses the
 production Go string literals under `internal/storage`, `internal/reducer`,
 `internal/projector`, `internal/collector`, and `cmd`, and fails when one
 writes a schema-indexed label the guard does not fully read. It keeps no

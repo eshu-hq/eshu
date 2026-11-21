@@ -74,6 +74,13 @@ var (
 // turns into a metric and a WARN. TestProductionCypherLiteralsAreGuarded fails
 // when a production writer takes such a shape.
 //
+// One write shape is read and safe without being measured: a plain MATCH that
+// names a full schema key, then SETs only properties no schema key covers
+// (index_key_guard_bound.go). It creates no index key, so it has no entry in
+// the plan's vars and passes through unchanged and unreported; the plan's
+// boundNonKeyOnly verdict lets the sweep tell it apart from a write the
+// analyzer failed to bind. A shape that is not provably that stays loud.
+//
 // params is never mutated. When nothing is oversized, params is returned
 // unchanged and dropped is nil.
 func GuardIndexKeyWrites(cypher string, params map[string]any) (out map[string]any, dropped []OversizedIndexWrite, skip bool) {
