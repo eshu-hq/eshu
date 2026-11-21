@@ -125,6 +125,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// on fact_work_items so admission-timeout failures retry against
 	// their own finite budget instead of the shared projection budget.
 	"projector_admission_wait_attempts",
+	// Migration 326 (#11081) deletes leftover reducer lease rows under the
+	// claim-time liveness definition; DML-only per #7961.
+	"fact_work_item_leases_11081_cleanup",
 	// Migration 327 (#11082) adds the drive-from-fact partial index for
 	// the code-import ownership load.
 	"fact_records_package_ownership_active_idx",

@@ -49,6 +49,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 			// concurrent single-claim worker took a sibling on the same key
 			// first. The whole batch statement rolled back — return empty and let
 			// the next poll re-claim (#4137).
+			q.noteReducerLiveLeaseConflict(ctx, telemetry.LiveLeaseConflictClaimModeBatch, err)
 			return nil, nil
 		}
 		return nil, fmt.Errorf("batch claim reducer work: %w", err)
@@ -65,6 +66,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	}
 	if err := rows.Err(); err != nil {
 		if isReducerLiveLeaseConflict(err) {
+			q.noteReducerLiveLeaseConflict(ctx, telemetry.LiveLeaseConflictClaimModeBatch, err)
 			return nil, nil
 		}
 		return nil, fmt.Errorf("batch claim reducer work: %w", err)

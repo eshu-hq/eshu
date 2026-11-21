@@ -72,6 +72,9 @@ func stageFenceScriptedDB() (*fakeTransactionalDB, *fakeTx) {
 			{rows: [][]any{{int64(1)}}},
 			// Step-6 live-lease recheck over both stages (no live lease).
 			{rows: [][]any{}},
+			// 7d reducer mark count: the #11081 same-statement mark+clear
+			// returns its main-table match count through QueryContext.
+			{rows: [][]any{{int64(1)}}},
 			// 7g marker insert.
 			{rows: [][]any{{"rr_fence01", "PARTITION:fence-repo", "fence-scope-main", "pending", "fenced"}}},
 			// Step-8 fence assertion (zero live generations, zero
@@ -154,8 +157,15 @@ func TestFenceRepositoryRunsDesignedStepOrder(t *testing.T) {
 
 	// The scope ANY binding is the tuned form: no per-generation pair list
 	// on the reducer mark, and the request carries at most one page of ids.
+	// The #11081 mark travels through QueryContext (it returns its match
+	// count), so both statement lists are searched.
 	var reducerMark string
 	for _, q := range tx.execs {
+		if strings.Contains(q.query, "stage = 'reducer'") && strings.Contains(q.query, "SET status = 'superseded'") {
+			reducerMark = q.query
+		}
+	}
+	for _, q := range tx.queries {
 		if strings.Contains(q.query, "stage = 'reducer'") && strings.Contains(q.query, "SET status = 'superseded'") {
 			reducerMark = q.query
 		}

@@ -14,7 +14,7 @@ var _ telemetry.ReducerLeaseOrphanObserver = (*QueueObserverStore)(nil)
 
 // reducerLeaseOrphanQuery counts reducer lease-mirror rows no live main row
 // owns (#11081). The predicate is the claim-time liveness definition shared
-// with the claim CTEs, the heartbeat, and migration 325: a lease row is
+// with the claim CTEs, the heartbeat, and migration 326: a lease row is
 // live iff its main row matches work item, stage, claimed/running status,
 // unexpired claim, owner, and last attempt. Missing-main rows count too
 // (the FK cascade normally prevents them; counting them keeps the gauge

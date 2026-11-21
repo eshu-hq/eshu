@@ -272,3 +272,78 @@ func (q *tombstoneOnlyQueryer) QueryContext(_ context.Context, query string, _ .
 	}
 	return &queueFakeRows{}, nil
 }
+
+// TestRetirementFence11081ClearsLeaseMirror is the #11081 T5 regression:
+// an expired-claimed reducer row carrying a lease-mirror row must come out
+// of the retirement fence superseded with lease_owner and claim_until nulled
+// AND its lease row deleted in the same statement. RED on the pre-fix code: the
+// lease row survives the fence and wedges the conflict key.
+func TestRetirementFence11081ClearsLeaseMirror(t *testing.T) {
+	database, ctx := openIsolatedLiveDB(t, "retire_fence_11081",
+		"set ESHU_POSTGRES_DSN to run the retirement fence Postgres proof")
+	partition := "PARTITION:fence-11081"
+	seedFenceLiveScope(t, ctx, database, partition)
+
+	expiredID := "fence-live-11081-expired"
+	owner := "fence-11081-owner"
+	stamp := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Microsecond)
+	if _, err := database.ExecContext(ctx, `INSERT INTO fact_work_items
+		(work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
+		 conflict_key, status, attempt_count, lease_owner, claim_until,
+		 last_attempt_at, payload, created_at, updated_at)
+		VALUES ($1, 'fence-live-ref', 'fence-live-ref-gen-old', 'reducer',
+		 'd1', 'scope', NULL, 'claimed', 2, $2, $3, $4, '{}'::jsonb, NOW(), NOW())`,
+		expiredID, owner, stamp, stamp); err != nil {
+		t.Fatalf("seed expired claimed reducer row: %v", err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO fact_work_item_leases
+		(work_item_id, stage, scope_id, conflict_domain, conflict_key,
+		 lease_owner, claim_until, last_attempt_at)
+		VALUES ($1, 'reducer', 'fence-live-ref', 'scope', NULL, $2, $3, $4)`,
+		expiredID, owner, stamp, stamp); err != nil {
+		t.Fatalf("seed lease row: %v", err)
+	}
+
+	fencer := NewRetirementFencer(SQLDB{DB: database}, SQLDB{DB: database})
+	result, err := fencer.FenceRepository(ctx, FenceRequest{
+		Retirements: []FenceRetirement{
+			{RetirementID: "rr_fencelive11081", RepoID: partition, ScopeID: "fence-live-main"},
+		},
+		ReasonCode:         RetirementReasonOperatorRetired,
+		ReasonHash:         "h",
+		ActorClass:         "operator",
+		IdempotencyKeyHash: "fence-11081-key",
+	})
+	if err != nil {
+		t.Fatalf("FenceRepository: %v", err)
+	}
+	// The seeded ref scope already carries one pending reducer row; the
+	// expired row adds a second mark.
+	if result.ReducerRowsMarked != 2 {
+		t.Fatalf("ReducerRowsMarked = %d, want 2", result.ReducerRowsMarked)
+	}
+
+	var statusStr string
+	var ownerNull, untilNull bool
+	if err := database.QueryRowContext(ctx,
+		`SELECT status, lease_owner IS NULL, claim_until IS NULL
+		 FROM fact_work_items WHERE work_item_id = $1`,
+		expiredID).Scan(&statusStr, &ownerNull, &untilNull); err != nil {
+		t.Fatalf("read fenced row: %v", err)
+	}
+	if statusStr != "superseded" {
+		t.Fatalf("fenced row status = %q, want superseded", statusStr)
+	}
+	if !ownerNull || !untilNull {
+		t.Fatalf("fenced lease_owner/claim_until nulled = owner %v until %v, want true true", ownerNull, untilNull)
+	}
+	var leaseCount int
+	if err := database.QueryRowContext(ctx,
+		`SELECT count(*) FROM fact_work_item_leases WHERE work_item_id = $1`,
+		expiredID).Scan(&leaseCount); err != nil {
+		t.Fatalf("read lease row: %v", err)
+	}
+	if leaseCount != 0 {
+		t.Fatalf("lease rows for fenced item = %d, want 0", leaseCount)
+	}
+}

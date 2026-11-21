@@ -466,6 +466,10 @@ var migrationShippedChecksums = map[string]string{
 	// admission-timeout failures retry against their own finite budget
 	// instead of spending the shared projection attempt budget.
 	"325_projector_admission_wait_attempts.sql": "3a344dcf8104515b5da51370e8d8f673b2a9f234a10127198bd4ccfae2587bd4",
+	// #11081: deletes leftover lease rows under the claim-time liveness
+	// definition; DML-only per #7961 (renumbered 325 to 326 at rebase:
+	// #10671 owns 325).
+	"326_fact_work_item_leases_11081_cleanup.sql": "579c907f963f394a8f67217ee3805004d51498bed65ba6a475fde6722edde7e2",
 	// #11082: the drive-from-fact partial index for the code-import
 	// ownership load (split first/cursor statements read it through a
 	// MATERIALIZED CTE with no inner LIMIT).
