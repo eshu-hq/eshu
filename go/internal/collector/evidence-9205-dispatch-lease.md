@@ -53,3 +53,22 @@ retryable instead of dispatching into certain expiry.
  `source_system`, `failure_class`) so a fencing-loss recurrence stays visible
  without a database dive; the generic fail-write path returns both causes in
  the joined error.
+
+## Pre-launch guard: refuse satellite fork on an expired dispatch lease (#11085 H1)
+
+ No-Regression Evidence (#11085): the guard is one O(1) clock read on the
+ dispatch path that fires only when the granted lease already passed; every
+ other claim takes the identical code path as before, with no new goroutine,
+ lock, store call, or timeout value change. Same-host `go test -count=1` of
+ the touched package, two runs each: base `7c2948825d` extensionhost
+ 0.619s/0.622s; this head extensionhost 0.626s/0.623s. No suite regressed
+ beyond run-to-run noise. Covered by
+ `TestNextClaimedRefusesExpiredDispatchLease` (refusal, zero satellite
+ launches) and `TestNextClaimedLaunchesOnLiveDispatchLease` (live-lease pin).
+
+ Observability Evidence: a refused launch returns the retryable
+ launch_failure class with a distinct cause (`claim dispatch lease already
+ expired`, with `expired_by_seconds`), so a recurrence of stillborn
+ dispatches is attributable in claim outcomes without a database dive; the
+ existing dispatch-remaining histogram already records the instant as zero
+ remaining, so no new instrument was needed.
