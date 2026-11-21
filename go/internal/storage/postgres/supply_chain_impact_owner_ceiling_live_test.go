@@ -182,7 +182,7 @@ WHERE fact_kind = $1 AND scope_id = $2 AND generation_id = $3 AND is_tombstone =
 		t.Fatalf("count owner findings: %v", err)
 	}
 	if err := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db}).
-		RebuildAllWinners(ctx, replaceSetLiveNow); err != nil {
+		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners() error = %v", err)
 	}
 	var winners int
