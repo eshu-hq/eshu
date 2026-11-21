@@ -147,13 +147,24 @@ verify is measured at backlog scale and the audit has operator signals:
   generation's facts. Past either cap the tick defers on `budget` before the
   writer verify runs, at any backlog
   (`TestStagedAuditTickCapsDeferPastTheCorpusBudget`: at the cap the tick
-  verifies, one past it defers). Read-only QA measurement on the replica:
-  11,619 active census pairs hold 8,274,197 active finding facts. That is an
-  upper bound on what one staged tick stages, before the source-candidate
-  exclusions. The exact eligible count:
-  **PLACEHOLDER-M-A (exact source-arm staged facts and the largest pair, from
-  the coordinator's replica read)**. If that count is past a cap, every staged
-  tick on QA defers on budget and the verify never runs.
+  verifies, one past it defers). Read-only QA measurement on the replica
+  (2026-11-21 11:01Z) shows the cap is passed. This is measured as a lower
+  bound over the cap, not inferred:
+  - 11,619 active census pairs hold 8,274,197 active finding facts. That is
+    the most one staged tick could stage.
+  - The exact grouped count with the shipped joins timed out at 900 s, so the
+    reading subtracts the source-candidate exclusions from that total. It
+    takes off 15,987 facts with a classification that is not static and
+    active, 0 facts with a scanner association, and 0 facts in
+    `image://derived/%` scopes (QA has none).
+  - The staged source facts are therefore at least 8,258,210, more than eight
+    times the 1,000,000 cap. The operator arm adds at most one scope and
+    cannot lower that total.
+  - Stored winners number 79,614, so the 250,000 distinct-key cap is not the
+    binding one; the fact cap is.
+
+  Every staged audit tick on QA defers on budget, and the writer verify never
+  runs.
 - **No automatic backstop on QA until #11131 ships.** At `staged-audits`
   routing past the caps, QA has no automatic backstop for a missed mark until
   #11131 ships. After A, the only backstop on QA is the manual force-full
