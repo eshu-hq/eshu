@@ -146,6 +146,13 @@ services:
       context: ${ESHU_REPO_ROOT:-.}
       dockerfile: Dockerfile
 
+  # Same latent bare-context defect in the seed fragment: the reconcile
+  # one-shot must build from the eshu checkout, not compose/.
+  collector-vulnerability-intelligence-reconcile:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
   # Same latent bare-context defect in the foundation file.
   webhook-intake:
     build:
