@@ -15,8 +15,8 @@ tenant IDs, or provider response payloads.
 Benchmark Evidence: `go test -bench -benchmem -count=3` on the real functions
 (`BenchmarkAppendSupplyChainImpactManifestFindings10972`,
 `BenchmarkSupplyChainImpactParserFileRepositoryIDs10972` in
-`go/internal/reducer/supplychain/core`), before commit `a39ed183f4` baseline
-versus after fix commits `54d04f73b7` (fix A) and `b226da4565` (fix B).
+`go/internal/reducer/supplychain/core`), before commit `7a1594e572` baseline
+versus after fix commits `04f60175ea` (fix A) and `d56cef2585` (fix B).
 
 Reference host: linux/arm64, go1.26.6. The QA pprof term these remove is
 `consumptionRowsForRepository` 19.7% plus `affectedPackageConsumptionKeys`
