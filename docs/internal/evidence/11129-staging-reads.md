@@ -325,3 +325,18 @@ Mutation proof (each mutation applied, the named test failed, then restored):
   over-cap fallback paths.
 - Removing `AND s.seq <= $2` from the fact collapse DELETE fails
   `TestCollapseWinnersStagingDeleteCarriesTheSelectRange/fact`.
+- Removing the lower seq bound from the fact collapse DELETE fails
+  `TestCollapseWinnersStagingDeleteCarriesTheSelectRange/fact`; removing the
+  upper bound from the scope collapse DELETE fails
+  `TestCollapseWinnersStagingDeleteCarriesTheSelectRange/scope`.
+- Changing the bound walk from `LIMIT $1 + 1` to `LIMIT $1`, or to a wider
+  `LIMIT $1 + 10`, fails `TestCollapseWinnersStagingFoldsTheBoundedRange`
+  (the pin is an anchored regexp, so a wider walk no longer passes).
+- Passing `maxRows+1` as the bound read argument fails the same test with
+  `args [4] want [3]`.
+- Folding `[lo, bound+1]` in the arms fails it with `[[5 10]..]` against
+  `[[5 9]..]`.
+- Splitting at `staged >= maxRows` instead of `staged > maxRows` fails the
+  at-budget case.
+- Keying the idle `Bounded` result on the upper-bound flag fails the
+  small-residual and exactly-cap cases.

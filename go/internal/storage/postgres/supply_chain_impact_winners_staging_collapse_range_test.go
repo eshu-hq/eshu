@@ -18,6 +18,11 @@ import (
 // stagedRangePredicate matches the seq range a collapse SELECT arm carries.
 var stagedRangePredicate = regexp.MustCompile(`seq >= (\$\d+) AND seq <= (\$\d+)`)
 
+// boundWalkLimit matches the bound walk's budget+1 limit and rejects a wider
+// one: the trailing word boundary fails on "LIMIT $1 + 10", which a plain
+// substring match would accept.
+var boundWalkLimit = regexp.MustCompile(`LIMIT \$1 \+ 1\b`)
+
 // TestCollapseWinnersStagingDeleteCarriesTheSelectRange pins #11129: each
 // collapse arm's DELETE bounds deletion to the same [lo, bound] seq range its
 // SELECT folds, qualified by the delete alias. The expected predicate is
@@ -105,7 +110,7 @@ func (tx *collapseFakeTx) Rollback() error { return nil }
 func TestCollapseWinnersStagingFoldsTheBoundedRange(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(selectWinnersStagingCollapseBoundSQL, "LIMIT $1 + 1") {
+	if !boundWalkLimit.MatchString(selectWinnersStagingCollapseBoundSQL) {
 		t.Errorf("bound walk does not read at most budget+1 entries:\n%s", selectWinnersStagingCollapseBoundSQL)
 	}
 	tests := []struct {
