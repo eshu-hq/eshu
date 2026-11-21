@@ -505,6 +505,13 @@ func (database *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string
 			// always equals created_at, matching COALESCE(reopened_at,
 			// created_at) with reopened_at NULL.
 			item.createdAt,
+			// claimed_at: the claim lands now.
+			now,
+			// #11075: failure evidence rides the claim; the proof domain
+			// never produces a prior verdict, so all three stay empty.
+			"",
+			"",
+			"",
 			item.payload,
 		}}), nil
 	}
