@@ -93,6 +93,14 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, tick wi
 		span.End()
 		return SupplyChainImpactWinnersResweep{}, false, fmt.Errorf("resweep winners: %w", rbErr)
 	}
+	if result.StoodDown {
+		span.SetAttributes(attribute.Bool("stood_down", true))
+		if m.Logger != nil {
+			m.Logger.WarnContext(ctx, "supply chain impact winners keyed tick stood down under the lock: a newer winners contract committed after the decision read")
+		}
+		span.End()
+		return result, false, nil
+	}
 	if result.ContractCurrent {
 		span.SetAttributes(attribute.Bool("contract_current", true))
 		if m.Logger != nil {
@@ -350,6 +358,12 @@ func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context)
 		return SupplyChainImpactWinnersResweep{}, contract, true, nil
 	case winnersContractRunKeyed:
 		result, err = m.runKeyedTick(ctx)
+		if err == nil && result.StoodDown {
+			// The next tick's decision read sees the newer version and
+			// takes the stand-down branch above, with its edge log.
+			m.Instruments.RecordSupplyChainImpactWinnersStandDown(ctx)
+			return result, contract, false, nil
+		}
 		if err == nil && !result.Skipped && result.Path == telemetry.SupplyChainImpactWinnersPathFull {
 			m.Instruments.RecordSupplyChainImpactWinnersFullResweep(ctx, telemetry.SupplyChainImpactWinnersFullReasonKeyedCap)
 		}

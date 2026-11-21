@@ -85,6 +85,19 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
+	// #11117: the maintainer decided this tick from a contract read taken
+	// before the lease claim. A newer binary's full can commit in between,
+	// so the stored version is re-read under the lock: above this binary's,
+	// the tick consumes, applies and stamps nothing, which also keeps the
+	// over-cap full fallback below from rebuilding with this binary's
+	// statements over a table stamped with the newer contract.
+	stored, err := readWinnersContract(ctx, tx)
+	if err != nil {
+		return none, err
+	}
+	if stored.HasVersion && stored.StoredVersion > stored.BinaryVersion {
+		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true, StoodDown: true}, nil
+	}
 	bounds := s.chunkBounds()
 	// The staging collapse runs under the resweep lock before the tick-clock
 	// read (#10837 direction C): every staged mark lands in the versioned
