@@ -11,12 +11,14 @@ import (
 	"testing"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // rangeStubFanOut is a stubFanOut that also serves the #10643 key-range
-// holder read, recording each ranged statement and each member-arm call.
+// holder read the way the store does: one statement per range, then the
+// member arm, stopping at the first failing statement.
 type rangeStubFanOut struct {
 	*stubFanOut
 	// rangeHolders maps a key range to the holders its statement returns.
@@ -29,22 +31,33 @@ type rangeStubFanOut struct {
 	memberCalls   [][]string
 }
 
-func (s *rangeStubFanOut) FindHolderScopesInKeyRange(_ context.Context, _ string, lookupIDs []string, keyRange HolderKeyRange) ([]string, error) {
+func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.rangeCalls = append(s.rangeCalls, keyRange)
-	s.rangeIDs = append(s.rangeIDs, append([]string(nil), lookupIDs...))
-	if err := s.rangeErr[keyRange]; err != nil {
-		return nil, err
+	var read HolderKeyRangeRead
+	set := map[string]struct{}{}
+	for _, keyRange := range ranges {
+		s.rangeCalls = append(s.rangeCalls, keyRange)
+		s.rangeIDs = append(s.rangeIDs, append([]string(nil), lookupIDs...))
+		if err := s.rangeErr[keyRange]; err != nil {
+			read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange, Err: err})
+			return read, err
+		}
+		read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange})
+		for _, id := range s.rangeHolders[keyRange] {
+			set[id] = struct{}{}
+		}
 	}
-	return append([]string(nil), s.rangeHolders[keyRange]...), nil
-}
-
-func (s *rangeStubFanOut) FindMemberHolderScopes(_ context.Context, _ string, lookupIDs []string) ([]string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.memberCalls = append(s.memberCalls, append([]string(nil), lookupIDs...))
-	return append([]string(nil), s.memberHolders...), nil
+	read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersMembers})
+	for _, id := range s.memberHolders {
+		set[id] = struct{}{}
+	}
+	for id := range set {
+		read.Scopes = append(read.Scopes, id)
+	}
+	sort.Strings(read.Scopes)
+	return read, nil
 }
 
 // TestHolderKeyRangesPartitionTheKeySpace proves the ranges cover every
@@ -199,4 +212,68 @@ func TestHotSingletonKeyRangeFailureFailsClosed(t *testing.T) {
 	if got := fanOutCount(t, reader)["read_timeout"]; got != 1 {
 		t.Fatalf("read_timeout count = %d, want 1", got)
 	}
+}
+
+// TestKeyRangeReadRecordsDurationByKind proves the #10643 read-duration
+// histogram: one sample per statement, by kind and outcome, so an operator
+// reads per-statement p95 and the timeout share per read kind.
+func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	ranges := HolderKeyRanges()
+	port := &rangeStubFanOut{
+		stubFanOut: &stubFanOut{
+			holders: []string{"cold-holder"},
+			masses:  map[string]int64{"CVE-2026-hot": HolderMassProbeCap},
+		},
+		rangeHolders: map[HolderKeyRange][]string{ranges[0]: {"holder-a"}},
+	}
+	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: []string{"CVE-2026-hot", "CVE-2026-c1"}}}
+	if _, err := fanOutHandler(port, writer, inst).Handle(context.Background(), fanOutIntent(1, nil)); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	got := fanOutReadDurationCounts(t, reader)
+	want := map[string]uint64{
+		telemetry.FanOutReadKindMassProbe + "/ok":           1,
+		telemetry.FanOutReadKindHolders + "/ok":             1,
+		telemetry.FanOutReadKindHoldersKeyRange + "/ok":     uint64(len(ranges)),
+		telemetry.FanOutReadKindHoldersMembers + "/ok":      1,
+		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("read-duration samples = %v, want %v", got, want)
+	}
+}
+
+// fanOutReadDurationCounts returns the read-duration histogram sample count
+// keyed by kind/outcome.
+func fanOutReadDurationCounts(t *testing.T, reader *sdkmetric.ManualReader) map[string]uint64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	out := map[string]uint64{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_fanout_read_duration_seconds" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("read-duration data is %T, want a float64 histogram", m.Data)
+			}
+			for _, dp := range hist.DataPoints {
+				kind, _ := dp.Attributes.Value(telemetry.MetricDimensionKind)
+				outcome, _ := dp.Attributes.Value("outcome")
+				out[kind.AsString()+"/"+outcome.AsString()] += dp.Count
+			}
+		}
+	}
+	return out
 }

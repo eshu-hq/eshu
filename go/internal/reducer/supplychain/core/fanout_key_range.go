@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -49,21 +50,37 @@ func HolderKeyRanges() []HolderKeyRange {
 	return append(ranges, HolderKeyRange{Lower: lower})
 }
 
-// HolderRangeReader is the optional seam behind bounded hot-id holder reads
+// HolderReadStatement is one statement of a key-range holder read: its read
+// kind (telemetry.FanOutReadKindHoldersKeyRange or
+// telemetry.FanOutReadKindHoldersMembers), how long it ran, and its error, if
+// any. The handler records each into the fan-out read-duration histogram.
+type HolderReadStatement struct {
+	Kind     string
+	Duration time.Duration
+	Err      error
+}
+
+// HolderKeyRangeRead is the result of one key-range holder read: the holder
+// scopes and every statement that ran, in order, including a failed last one.
+type HolderKeyRangeRead struct {
+	Scopes     []string
+	Statements []HolderReadStatement
+}
+
+// HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads
 // (#10643). A hot singleton id, one whose measured mass is over
-// fanOutHolderHotMassRows, runs as one FindHolderScopesInKeyRange statement
-// per HolderKeyRanges range plus one FindMemberHolderScopes statement; the
-// union of their scopes equals FindHolderScopes for that id. Each statement
-// keeps the same 10 s guard and the same typed timeout error. A port without
-// it keeps the shipped singleton statement.
-type HolderRangeReader interface {
-	// FindHolderScopesInKeyRange returns the scopes, other than ownScopeID,
-	// holding an active finding row whose cve_id or advisory_id is one of
-	// lookupIDs and whose fact_id falls in keyRange. It does not read the
-	// advisory-group member arm.
-	FindHolderScopesInKeyRange(ctx context.Context, ownScopeID string, lookupIDs []string, keyRange HolderKeyRange) ([]string, error)
-	// FindMemberHolderScopes returns the scopes, other than ownScopeID,
-	// holding an active finding row whose stored advisory-group member set
-	// names one of lookupIDs: the member arm of FindHolderScopes alone.
-	FindMemberHolderScopes(ctx context.Context, ownScopeID string, lookupIDs []string) ([]string, error)
+// fanOutHolderHotMassRows, reads its cve_id and advisory_id arms as one
+// statement per HolderKeyRanges range and its advisory-group member arm as
+// one more statement. All of them run in one read-only REPEATABLE READ
+// transaction, so they share one snapshot and their union equals
+// FindHolderScopes for that id on that snapshot, a generation flip mid-read
+// included. Each statement keeps the 10 s holder-read guard and the typed
+// timeout error. A port without the seam keeps the shipped singleton
+// statement.
+type HolderKeyRangeReader interface {
+	// FindHolderScopesByKeyRange returns the scopes, other than ownScopeID,
+	// holding an active finding row for lookupIDs, read as one statement per
+	// range plus one member-arm statement on one snapshot. On error the
+	// returned read still lists the statements that ran.
+	FindHolderScopesByKeyRange(ctx context.Context, ownScopeID string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error)
 }

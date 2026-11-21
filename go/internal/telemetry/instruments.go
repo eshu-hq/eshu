@@ -3784,6 +3784,12 @@ type Instruments struct {
 	// cycle's wall time in seconds by outcome (ok, failed). Registered by
 	// registerReducerStaleSweepInstruments.
 	ReducerStaleSweepDuration metric.Float64Histogram
+	// SupplyChainImpactFanOutReadDuration records one #10643 holder fan-out
+	// read statement's duration in seconds by kind (holders,
+	// holders_key_range, holders_members, mass_probe) and outcome (ok,
+	// read_timeout, read_error). Registered by
+	// registerFanOutReadDurationInstruments.
+	SupplyChainImpactFanOutReadDuration metric.Float64Histogram
 	// ReducerCompletionWake counts #8294 completion-driven
 	// deployable_unit_correlation wake transactions by outcome (reopened,
 	// noop, error), once per transaction. Registered by
@@ -7195,6 +7201,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerReducerStaleSweepInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerFanOutReadDurationInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerWorkflowClaimStatsInstruments(meter, inst); err != nil {

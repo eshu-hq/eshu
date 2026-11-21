@@ -228,6 +228,10 @@ type fanOutResult struct {
 	splitChunks      int
 	hotIDs           int
 	maxIDMassRows    int64
+	// keyRangedIDs and keyRangeStatements record the hot singleton ids read
+	// as fact_id key ranges and the key-range statements they ran (#10643).
+	keyRangedIDs       int
+	keyRangeStatements int
 	// deferred is the number of holders still owed after this claim, a gauge
 	// the sub-signal reports. newlyDeferred is the part that was not already
 	// owed when the claim started, which is what the counter adds, so draining
@@ -359,14 +363,16 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 
 	batch, rest := nextFanOutChunk(ordered, fanOutHolderCap)
 	result := fanOutResult{
-		cause:            cause,
-		holders:          len(ordered),
-		deferred:         len(rest),
-		crashRecovery:    recoveryOnly,
-		holderStatements: split.statements,
-		splitChunks:      split.splitChunks,
-		hotIDs:           split.hotIDs,
-		maxIDMassRows:    split.maxMass,
+		cause:              cause,
+		holders:            len(ordered),
+		deferred:           len(rest),
+		crashRecovery:      recoveryOnly,
+		holderStatements:   split.statements,
+		splitChunks:        split.splitChunks,
+		hotIDs:             split.hotIDs,
+		maxIDMassRows:      split.maxMass,
+		keyRangedIDs:       split.keyRangedIDs,
+		keyRangeStatements: split.keyRangeStatements,
 	}
 	if len(remaining) == 0 {
 		result.newlyDeferred = len(rest)
@@ -432,6 +438,8 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		attribute.Int("split_chunks", result.splitChunks),
 		attribute.Int("hot_ids", result.hotIDs),
 		attribute.Int64("max_id_mass_rows", result.maxIDMassRows),
+		attribute.Int("key_ranged_ids", result.keyRangedIDs),
+		attribute.Int("holder_key_range_statements", result.keyRangeStatements),
 	)
 	return result, nil
 }

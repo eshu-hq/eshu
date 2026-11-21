@@ -20,11 +20,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// supplyChainImpactFanOutReadTimeout bounds one holder-read statement. The read
-// is an index scan measured at about 5 ms for one changed CVE and about 130 ms
-// for a 200-CVE chunk; ten seconds stops a regressed plan from pinning a
-// connection and a snapshot, and the pass fails (and is retried) rather than
-// proceeding without its holders.
+// supplyChainImpactFanOutReadTimeout bounds one holder-read statement. The
+// 5 ms (one CVE) and 130 ms (200-CVE chunk) calibration predates hot ids: on
+// QA a hot id's shipped read ran 11.42 s cold (#10643), which is why a hot
+// singleton now reads as key-range statements. Ten seconds stops a regressed
+// plan from pinning a connection and a snapshot, and the pass fails (and is
+// retried) rather than proceeding without its holders.
 const supplyChainImpactFanOutReadTimeout = 10 * time.Second
 
 // setSupplyChainImpactFanOutReadTimeoutQuery scopes the statement timeout to the
