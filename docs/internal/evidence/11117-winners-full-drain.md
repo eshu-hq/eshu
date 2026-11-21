@@ -1,7 +1,8 @@
 # #11117 The full winners resweep drains the marks it covers
 
-Refs #11117. Binding arbiter ruling: `.claude/arbiter-11117.md` (2026-11-21,
-verified at origin/main 49da4cc774). This note covers PR 1 of the ruling (B,
+Refs #11117. Binding arbiter ruling:
+[11117-winners-resweep-ruling-2026-11-21.md](../arbiter/11117-winners-resweep-ruling-2026-11-21.md)
+(2026-11-21, verified at origin/main 49da4cc774). This note covers PR 1 of the ruling (B,
 acceptance criterion AC3). It also records the corrected timeline (AC1).
 
 ## Corrected timeline (AC1)

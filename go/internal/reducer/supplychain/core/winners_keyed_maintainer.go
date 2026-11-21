@@ -204,7 +204,8 @@ func (m SupplyChainImpactWinnersMaintainer) sampleDirtyLog(ctx context.Context) 
 }
 
 // recordKeyedSignals records the keyed tick's counters: keys per sweep and
-// identifiers consumed, which the full path has none of, and the capture
+// identifiers consumed, which are recorded for the keyed path only (a full
+// resweep's drained marks are deliberately not counted as consumed), and the capture
 // counter for the sources a database trigger owns, which the maintainer can only
 // count when it consumes them. fact_upsert and fact_retract are counted by their
 // writers once the writer's transaction commits. A tick that fell back to the full rebuild past the
