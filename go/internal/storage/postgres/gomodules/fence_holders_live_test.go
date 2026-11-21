@@ -94,8 +94,10 @@ func seedFenceable(t *testing.T, database *sql.DB, ordinal int) (string, scanner
 
 // TestFenceReopensExactlyTheHoldersOfItsRepositoryLive is A2.4. A holder with an active
 // finding for the repository is reopened with the origin stamp, and one with no item gets
-// an item. A holder of another repository, a finding only on a superseded generation, and
-// a dead letter are all left alone.
+// an item. A dead letter at the holder's active generation is reopened as a full genuine
+// pass, unstamped (#11147: a dead-lettered holder pins its stale copy until reopened). A
+// holder of another repository and a finding only on a superseded generation are left
+// alone.
 func TestFenceReopensExactlyTheHoldersOfItsRepositoryLive(t *testing.T) {
 	database := openStoreProof(t)
 	ctx := t.Context()
@@ -141,8 +143,8 @@ WHERE scope_id = 'holder-no-item' AND generation_id = 'holder-no-item/g1' AND st
 	if enqueued != 1 {
 		t.Fatalf("items enqueued for a holder with none = %d, want 1", enqueued)
 	}
-	if status, _ := readItem(t, database, deadLetter); status != "dead_letter" {
-		t.Fatalf("dead letter status = %q, want untouched", status)
+	if status, origin := readItem(t, database, deadLetter); status != "pending" || string(origin) != "null" {
+		t.Fatalf("dead letter status = %q origin = %s, want pending and unstamped (#11147)", status, origin)
 	}
 	if status, _ := readItem(t, database, other); status != "succeeded" {
 		t.Fatalf("another repository's holder status = %q, want untouched", status)
