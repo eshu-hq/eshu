@@ -145,8 +145,9 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			// over them: with an empty log it stamps the pre-admission S,
 			// else the horizon H over the rows that arrived mid-tick. The
 			// residual unions the staging queue (#10837 direction C): the
-			// collapse ran before admission, so every staged row is a
-			// mid-tick arrival that the horizon must cover.
+			// collapse is bounded to one budget per tick, so the staged
+			// rows left are its post-bound and below-lo leftovers plus
+			// the mid-tick arrivals, and the horizon must cover them all.
 			remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 			if err != nil {
 				return err

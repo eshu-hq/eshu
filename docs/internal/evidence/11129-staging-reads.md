@@ -299,3 +299,29 @@ gauge, and the telemetry reference names the held-snapshot check
 - Whether the WAL flush limiter appears on production storage.
 - Why autovacuum did not process the staging table in 25 minutes on the shared
   theory server.
+
+## Review follow-up: comment fix and hermetic pins
+
+The follow-up to the merged #11129 change corrects one stale comment in the
+idle branch of `ResweepWinnersKeyed` (the collapse is bounded to one budget
+per tick, so the staged rows left are its leftovers plus mid-tick arrivals)
+and adds hermetic tests. No statement, plan, or runtime path changes.
+
+No-Regression Evidence: `supply_chain_impact_winners_keyed.go` changes in a
+comment only; the added code is test files. The shipped SQL constants and the
+tick's statement order are untouched.
+
+No-Observability-Change: no span, metric, or log changes. The new tests pin the
+existing `RemainingUpperBound` result flag that feeds the `remaining_upper_bound`
+span and log attributes.
+
+Mutation proof (each mutation applied, the named test failed, then restored):
+
+- Dropping `staged.upperBound` from the `Remaining` assignments (the idle
+  branch at keyed.go:164, the over-cap fallback at keyed.go:284, the
+  keyed-apply path at keyed.go:355, and the settle at keyed_chunk.go:330)
+  fails `TestResweepWinnersKeyedReportsStagingResidualUpperBound` with
+  `RemainingUpperBound = false, want true` on the idle, keyed-apply, and
+  over-cap fallback paths.
+- Removing `AND s.seq <= $2` from the fact collapse DELETE fails
+  `TestCollapseWinnersStagingDeleteCarriesTheSelectRange/fact`.
