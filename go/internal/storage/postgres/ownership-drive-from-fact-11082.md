@@ -62,21 +62,18 @@ only slower.
 ## AC2: Why the cost changed between 2026-11-19 and 2026-11-20
 
 Acceptance criterion 2 of #11082 asks why the same statement finished 964
-items in four hours on 2026-11-19 and none on 2026-11-20, with the reading
-that shows it. The coordinator supplies the read-only QA readings for this
-section; no figure below is final until those land.
+items in four hours on 2026-11-19 and none on 2026-11-20. This record does
+not establish that. What it does record is one read-only QA reading that
+bounds the shipped design:
 
-- Corpus growth reading (fact_records row count / heap size, 11-19 vs
-  11-20): PENDING-COORDINATOR-QA-READINGS
-- Active (scope, generation) pair count feeding the old nested-loop probe
-  set, 11-19 vs 11-20: PENDING-COORDINATOR-QA-READINGS
-- Three-kind non-tombstone row count (the matching set each page now
-  materializes), 11-19 vs 11-20: PENDING-COORDINATOR-QA-READINGS
-- Plan or statistics change in the window (generic-plan shape, ANALYZE /
-  autovacuum timestamps): PENDING-COORDINATOR-QA-READINGS
-- Conclusion (which reading crosses the threshold that makes the old
-  per-page full-corpus probe set exceed the 1h bound):
-  PENDING-COORDINATOR-QA-READINGS
+- Three-kind non-tombstone row count on the QA replica (the matching set each
+  page now materializes), read 2026-11-21: 109 rows, all
+  `package_registry.package`, no correlation rows. This fits in one page (page size 500), so the materialized set is read once and the O(remaining matching set) per-page bound in the design
+  section costs nothing extra today; the shipped form stands. Revisit when the set reaches the tens of thousands. Replica lag at the read: 0.24s.
+
+No 11-19 versus 11-20 corpus-growth, active (scope, generation) pair-count,
+or plan/statistics reading was taken. The cause of the day-over-day change
+stays open on #11082 and is not claimed here.
 
 ## Performance Evidence (#11082):
 
@@ -142,12 +139,20 @@ Deploy step (not a manifest; no file in this repo sets the QA value):
 
 `ESHU_REDUCER_HANDLER_TIMEOUT_OVERRIDES=code_import_repo_edge=2m`
 
-Derivation: v = clamp(5x healthy p99, floor 2m, ceiling 10m). The 11-19
-healthy histogram was unavailable, so p99 comes from the post-fix replay
-above: 5x local p99 is milliseconds, so the 2m floor governs. The pre-fix
-statement aged 3423s on QA against the 1h default; the bound at minutes scale
-frees a wedged worker in minutes and makes each burn countable under the
-existing `reducer_handler_timeout` class (retried under
+Derivation: v = clamp(5x healthy p99, floor 2m, ceiling 10m). No healthy
+whole-handler p99 exists for this domain: the 11-19 histogram was
+unavailable, and the replay above times only the two ownership-load
+statements (9.5-14.3ms), not the whole `Handle`, which also runs the
+scope-local file-fact load (`factload.LoadFactsForKinds`), the decode, and
+the transactional `UpsertIntents`. The 2m value is therefore the floor, not a
+measured 5x p99. A large repo whose file load plus write exceeds 2m would
+time out on every attempt and fail terminally after
+`ESHU_REDUCER_MAX_ATTEMPTS`, so reading the whole-handler p99 off
+`eshu_dp_reducer_handler_duration_seconds{domain="code_import_repo_edge"}` is
+a precondition for applying the override, not only a check afterwards. The
+pre-fix statement aged 3423s on QA against the 1h default; a minutes-scale
+bound frees a wedged worker in minutes and makes each burn countable under
+the existing `reducer_handler_timeout` class (retried under
 `ESHU_REDUCER_MAX_ATTEMPTS`) instead of a silent 1h burn. The #10866
 write-path audit for this domain is recorded in
 `go/internal/reducer/queue-and-runners.md` (single end-of-handler
