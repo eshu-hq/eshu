@@ -361,6 +361,20 @@ binary still trying the old path.
   `fact_records_reducer`. Golden-corpus gate
   (`scripts/verify-golden-corpus-gate.sh`): **NOT_CHECKED** in this
   lane (full-stack gate; store-level parity is the local proof).
+  Review P2 (suppression freshness) verdict: covered, no fix needed.
+  Operator writes reach the baked payload through two dirty paths:
+  the migration-310 activation trigger stages `scope` rows
+  (source `operator`) for both generations when the operator
+  scope's `active_generation_id` flips, and the reducer writer
+  stages `fact_upsert` identifiers for every changed finding,
+  operator-scope re-derivations included; the keyed tick expands
+  the scope rows, always re-adds every active operator fact to its
+  active set, and the payload sits in the write-on-change columns,
+  so a suppression-object-only change rewrites the winner. Proof:
+  `TestSupplyChainImpactWinnersResweepKeyedRefreshesBakedSuppressionLive`
+  (dirty backlog non-empty after the flip, baked reason refreshed
+  and cleared on the keyed path) plus the pre-existing operator
+  override/removal case in the keyed change-class parity proof.
 - **Slice 3 (write stop) NOT landed.** Inspecting the write path
   showed blockers the ruling's slice sketch did not enumerate: the
   protected publication authorize/publish pair runs inside the

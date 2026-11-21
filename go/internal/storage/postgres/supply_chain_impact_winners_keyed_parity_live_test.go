@@ -270,6 +270,76 @@ func TestSupplyChainImpactWinnersResweepRandomInterleavingMatchesRecomputeLive(t
 	}
 }
 
+// TestSupplyChainImpactWinnersResweepKeyedRefreshesBakedSuppressionLive is the
+// #10880 slice-2 freshness proof for the review P2: the operator suppression
+// object is baked into the stored winner payload at resweep, and the list
+// read no longer rescans operator candidates, so an operator-generation flip
+// must (a) dirty-stage the affected scope through the activation trigger and
+// (b) refresh the baked object on the KEYED tick -- including a change that
+// touches only the suppression object (a payload-only winner change), and
+// the override's removal. If the operator write left nothing dirty, the
+// keyed tick would be idle and the stale reason would stay served.
+func TestSupplyChainImpactWinnersResweepKeyedRefreshesBakedSuppressionLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10880 baked suppression freshness proof")
+	const scopeA = "vuln-intel://10880/supp"
+	h.seedScope(scopeA, scopeA+"/g1")
+	override := func(reason string) map[string]map[string]any {
+		return map[string]map[string]any{
+			"op-10880": {
+				"cve_id": "CVE-2026-0002", "package_id": "pkg:npm/a", "impact_status": "affected_exact",
+				"observed_version": "1.0.0", "repository_id": "repo-9805", "suppression_state": "accepted_risk",
+				"suppression": map[string]any{"reason": reason, "expires_at": "2099-01-01T00:00:00Z"},
+			},
+		}
+	}
+	h.seedOperator("op-10880-g1", "", override("first"))
+	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-0002", "pkg:npm/a", 5))
+	h.keyed()
+
+	storedReason := func() (string, string) {
+		t.Helper()
+		var reason, state string
+		if err := h.db.QueryRowContext(h.ctx, `
+SELECT COALESCE(payload #>> '{suppression,reason}', ''), suppression_state
+FROM supply_chain_impact_canonical_winners WHERE cve_id = 'CVE-2026-0002'`).Scan(&reason, &state); err != nil {
+			t.Fatalf("read stored suppression: %v", err)
+		}
+		return reason, state
+	}
+	if reason, state := storedReason(); reason != "first" || state != "accepted_risk" {
+		t.Fatalf("stored suppression = %q/%q, want first/accepted_risk", reason, state)
+	}
+
+	// A suppression-object-only change on a new operator generation: the
+	// canonical key and every typed winner column are unchanged, only the
+	// baked payload object differs.
+	h.seedOperator("op-10880-g2", "op-10880-g1", override("second"))
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("operator generation flip left no dirty backlog (staging+log); the keyed tick cannot see the suppression change")
+	}
+	if got := h.keyed(); got.Updated == 0 {
+		t.Fatalf("keyed tick after operator flip = %+v, want the winner rewritten", got)
+	}
+	if reason, state := storedReason(); reason != "second" || state != "accepted_risk" {
+		t.Fatalf("stored suppression after flip = %q/%q, want second/accepted_risk (stale baked object served)", reason, state)
+	}
+	h.assertParity("suppression-object-only operator flip")
+
+	// Removal: an operator generation without the override must clear the
+	// baked object back to the source finding's own state.
+	h.seedOperator("op-10880-g3", "op-10880-g2", map[string]map[string]any{
+		"op-noise": {"cve_id": "CVE-2026-0999", "suppression_state": "accepted_risk", "repository_id": "repo-9805"},
+	})
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("operator override removal left no dirty backlog")
+	}
+	h.keyed()
+	if reason, state := storedReason(); reason != "" || state != "active" {
+		t.Fatalf("stored suppression after removal = %q/%q, want ``/active", reason, state)
+	}
+	h.assertParity("operator override removed")
+}
+
 // winnerOwnerIndex returns the index of the pick-th scope (modulo the owners)
 // that owns a stored winner, or -1 when none does.
 func winnerOwnerIndex[T any](h *keyedHarness, scopes []T, id func(T) string, pick int) int {
