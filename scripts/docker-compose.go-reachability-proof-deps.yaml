@@ -146,5 +146,11 @@ services:
       context: ${ESHU_REPO_ROOT:-.}
       dockerfile: Dockerfile
 
+  # Same latent bare-context defect in the foundation file.
+  webhook-intake:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
 volumes:
   neo4j_data:
