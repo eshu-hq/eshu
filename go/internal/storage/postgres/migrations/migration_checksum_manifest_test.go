@@ -489,7 +489,7 @@ var migrationShippedChecksums = map[string]string{
 	"325_supply_chain_impact_winners_payload.sql": "34a5494e7f9726e29397b0d31b88bca09dbbfbd972315f035396e6c6a0575eb6",
 	// #10880 slice 1 follow-up: idempotent backfill of the 325
 	// columns for pre-existing winner rows, split per #7961.
-	"326_supply_chain_impact_winners_payload_backfill.sql": "089d59cbf93fdb093d051900f819187a09a834d5dd3a6870ee77567a4d0c812f",
+	"326_supply_chain_impact_winners_payload_backfill.sql": "cc99c7c9c3fea3c4c997d01f4471b6095f9e91dbf08b99ac9f46148c6b218b6d",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

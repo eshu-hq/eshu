@@ -11,9 +11,12 @@
 --
 -- The payload expression replicates the winner select's bake
 -- (supply_chain_impact_canonical_winners_store.go): the winning
--- fact's payload, with the authoritative operator suppression object
--- merged in when an active operator-scope finding overrides the
--- same canonical key. The operator override is picked with the
+-- fact's payload normalized by stripping the volatile
+-- digest-excluded keys (intent_id, cause, generation_id, and
+-- provenance.content_digest; #10880 arbiter ruling 2026-11-21),
+-- with the authoritative operator suppression object merged in
+-- when an active operator-scope finding overrides the same
+-- canonical key. The operator override is picked with the
 -- winner select's own rule: active operator findings with a
 -- non-active suppression_state, ranked by priority_score DESC, then
 -- a payload-carried finding_id, then fact_id.
@@ -85,8 +88,8 @@ operator_overrides AS (
 fills AS (
     SELECT w.canonical_key,
            CASE
-               WHEN override.fact_id IS NULL THEN (winner.payload)::jsonb
-               ELSE winner.payload || jsonb_build_object('suppression', COALESCE(CASE WHEN jsonb_typeof(override.payload->'suppression') = 'object' THEN override.payload->'suppression' END, '{}'::jsonb))
+               WHEN override.fact_id IS NULL THEN ((winner.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}')::jsonb
+               ELSE ((winner.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}') || jsonb_build_object('suppression', COALESCE(CASE WHEN jsonb_typeof(override.payload->'suppression') = 'object' THEN override.payload->'suppression' END, '{}'::jsonb))
            END AS payload,
            winner.source_confidence
     FROM supply_chain_impact_canonical_winners AS w

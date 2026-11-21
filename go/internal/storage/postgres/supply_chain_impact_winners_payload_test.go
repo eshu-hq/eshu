@@ -29,6 +29,9 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 		"AS payload,",
 		"source.source_confidence",
 		"jsonb_build_object('suppression'",
+		// #10880 arbiter ruling decision 3: volatile digest-excluded keys
+		// are stripped before the bake, never stored.
+		"(source.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}'",
 	} {
 		if !strings.Contains(supplyChainImpactWinnerSelectSQL, want) {
 			t.Errorf("winner select missing %q", want)
@@ -69,6 +72,9 @@ func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
 		"w.payload = '{}'::jsonb",
 		"operator:vulnerability_suppressions",
 		"jsonb_build_object('suppression'",
+		// The fill applies the winner select's volatile-key strip
+		// (#10880 arbiter ruling decision 3).
+		"(winner.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}'",
 	} {
 		if !strings.Contains(string(ddl), want) {
 			t.Errorf("migration 326 missing %q", want)
