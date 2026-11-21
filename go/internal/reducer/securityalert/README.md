@@ -58,6 +58,7 @@ manifest-consumption seam" under Gotchas / invariants below.
 | `ExtractProviderSecurityAlerts` / `ExtractProviderSecurityAlertsWithQuarantine` | the lenient and strict decode entry points, exported for the reducer root's evidence-scoping fence and finding seeding |
 | `ExtractSecurityAlertConsumptions` | the non-manifest consumption extractor, exported for `supply_chain_impact`'s finding seeding |
 | `MatchSecurityAlertConsumption` / `SecurityAlertRepositoryScopeMatches` / `SecurityAlertPackageNameCandidates` / `SecurityAlertIDMatches` | matching primitives exported for the reducer root's manifest-consumption bridge and `supply_chain_impact` |
+| `ExactSecurityAlertConsumptions` / `SelectSecurityAlertConsumption` | the exact candidate set and the pick rule (newest `ObservedAt`, then lower fact id) behind `MatchSecurityAlertConsumption`, with its ambiguity bit; `supply_chain_impact` splits the set by observed version and picks once per version (#11121). Reconciliation still makes one pick per alert. |
 
 See `doc.go` for the full godoc contract.
 

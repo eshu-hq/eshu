@@ -5,7 +5,9 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -49,41 +51,108 @@ func appendSecurityAlertImpactFindings(
 	consumptions := securityalert.ExtractSecurityAlertConsumptions(envelopes)
 	consumptions = append(consumptions, correlation.ExtractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	for _, alert := range alerts {
-		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings, index)
-		if !ok {
-			continue
-		}
-		findings = appendSupplyChainImpactFinding(findings, finding)
+		findings = appendSecurityAlertVersionFindings(findings, alert, consumptions, index)
 	}
 	return findings, quarantined, nil
 }
 
-func buildSecurityAlertImpactFinding(
+// appendSecurityAlertVersionFindings classifies one finding per installed
+// version of the alerted package in the alert's manifest (#11121). One pick
+// per alert judged every version on the row with the lower fact id, so a
+// fixed row could hide an affected one. The exact candidates split by
+// observed version (splitSecurityAlertConsumptionsByVersion), and
+// SelectSecurityAlertConsumption picks the row within each version by the
+// rule MatchSecurityAlertConsumption uses. An ambiguous match yields nothing,
+// as before. Findings already in findings (the advisory path's, and earlier
+// alerts') are the ones securityAlertImpactAlreadyExists checks against.
+func appendSecurityAlertVersionFindings(
+	findings []SupplyChainImpactFinding,
 	alert securityalert.ProviderSecurityAlert,
 	consumptions []securityalert.SecurityAlertConsumption,
+	index supplyChainImpactIndex,
+) []SupplyChainImpactFinding {
+	if !securityAlertCanSeedImpact(alert) {
+		return findings
+	}
+	candidates, ambiguous := securityalert.ExactSecurityAlertConsumptions(alert, consumptions)
+	if ambiguous || len(candidates) == 0 {
+		return findings
+	}
+	for _, group := range splitSecurityAlertConsumptionsByVersion(alert.Ecosystem, candidates) {
+		consumption, groupAmbiguous := securityalert.SelectSecurityAlertConsumption(group)
+		if groupAmbiguous {
+			continue
+		}
+		if finding, ok := buildSecurityAlertImpactFinding(alert, consumption, findings, index); ok {
+			findings = appendSupplyChainImpactFinding(findings, finding)
+		}
+	}
+	return findings
+}
+
+// securityAlertObservedVersion is the observed version an alert consumption
+// row gives its finding: the row's own observed version, else the exact
+// version its lockfile or manifest text proves.
+func securityAlertObservedVersion(ecosystem string, consumption securityalert.SecurityAlertConsumption) string {
+	if observed := strings.TrimSpace(consumption.ObservedVersion); observed != "" {
+		return observed
+	}
+	if manifestVersion, ok := exactConsumptionDependencyVersion(ecosystem, supplychainmodel.PackageConsumption{
+		DependencyRange:           consumption.DependencyRange,
+		DependencyResolutionState: consumption.DependencyResolutionState,
+		Lockfile:                  consumption.Lockfile,
+	}); ok {
+		return manifestVersion
+	}
+	return ""
+}
+
+// splitSecurityAlertConsumptionsByVersion groups an alert's exact candidates
+// by observed version, ordered by version, so each installed version
+// classifies once (#11121), the rule #11113 applies to the manifest path.
+// When no candidate carries a version, all of them come back as one group:
+// the pre-#11121 single pick. A candidate with no version beside versioned
+// ones forms no group. The input is left as it was.
+func splitSecurityAlertConsumptionsByVersion(
+	ecosystem string,
+	candidates []securityalert.SecurityAlertConsumption,
+) [][]securityalert.SecurityAlertConsumption {
+	if len(candidates) < 2 {
+		return [][]securityalert.SecurityAlertConsumption{candidates}
+	}
+	byVersion := make(map[string][]securityalert.SecurityAlertConsumption)
+	for _, candidate := range candidates {
+		if version := securityAlertObservedVersion(ecosystem, candidate); version != "" {
+			byVersion[version] = append(byVersion[version], candidate)
+		}
+	}
+	if len(byVersion) == 0 {
+		return [][]securityalert.SecurityAlertConsumption{candidates}
+	}
+	versions := slices.Sorted(maps.Keys(byVersion))
+	out := make([][]securityalert.SecurityAlertConsumption, 0, len(versions))
+	for _, version := range versions {
+		out = append(out, byVersion[version])
+	}
+	return out
+}
+
+// buildSecurityAlertImpactFinding classifies alert against the one
+// consumption row chosen for an installed version. It yields nothing when the
+// row is empty or a finding for the same repository, package, advisory and
+// observed version already exists.
+func buildSecurityAlertImpactFinding(
+	alert securityalert.ProviderSecurityAlert,
+	consumption securityalert.SecurityAlertConsumption,
 	existing []SupplyChainImpactFinding,
 	index supplyChainImpactIndex,
 ) (SupplyChainImpactFinding, bool) {
-	if !securityAlertCanSeedImpact(alert) {
+	if consumption.FactID == "" {
 		return SupplyChainImpactFinding{}, false
 	}
-	consumption, _, ambiguousConsumption := securityalert.MatchSecurityAlertConsumption(alert, consumptions)
-	if consumption.FactID == "" || ambiguousConsumption {
+	observedVersion := securityAlertObservedVersion(alert.Ecosystem, consumption)
+	if securityAlertImpactAlreadyExists(alert, consumption.RepositoryID, observedVersion, existing) {
 		return SupplyChainImpactFinding{}, false
-	}
-	if securityAlertImpactAlreadyExists(alert, consumption.RepositoryID, existing) {
-		return SupplyChainImpactFinding{}, false
-	}
-
-	observedVersion := strings.TrimSpace(consumption.ObservedVersion)
-	if observedVersion == "" {
-		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplychainmodel.PackageConsumption{
-			DependencyRange:           consumption.DependencyRange,
-			DependencyResolutionState: consumption.DependencyResolutionState,
-			Lockfile:                  consumption.Lockfile,
-		}); ok {
-			observedVersion = manifestVersion
-		}
 	}
 	requestedRange := payloadcore.FirstNonBlank(
 		strings.TrimSpace(consumption.RequestedRange),
@@ -187,13 +256,22 @@ func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSec
 	}
 }
 
+// securityAlertImpactAlreadyExists reports whether findings already hold this
+// alert's advisory for the repository, package and observed version. It
+// compares the version (#11121), so a finding for one installed version does
+// not suppress the alert's finding for another. A row with no version keeps
+// the pre-#11121 rule: any finding for the advisory suppresses it.
 func securityAlertImpactAlreadyExists(
 	alert securityalert.ProviderSecurityAlert,
 	repositoryID string,
+	observedVersion string,
 	findings []SupplyChainImpactFinding,
 ) bool {
 	for _, finding := range findings {
 		if finding.RepositoryID != repositoryID || finding.PackageID != alert.PackageID {
+			continue
+		}
+		if observedVersion != "" && strings.TrimSpace(finding.ObservedVersion) != observedVersion {
 			continue
 		}
 		if securityalert.SecurityAlertIDMatches(alert.CVEIDs, finding.CVEID) ||

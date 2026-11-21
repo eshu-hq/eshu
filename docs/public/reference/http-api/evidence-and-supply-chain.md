@@ -849,7 +849,7 @@ callers can explain why a finding is hidden or why a related suppression did not
 
 Version fields intentionally do not collapse into one string:
 
-- `observed_version`: exact installed version from lockfile, manifest, SBOM, or image evidence when known. A repository that installs several versions of one package gets one finding per version for manifest and lockfile evidence, each judged on its own (#11113); provider-alert-seeded findings gain per-version classification in #11121.
+- `observed_version`: exact installed version from lockfile, manifest, SBOM, or image evidence when known. A repository that installs several versions of one package gets one finding per version, for manifest and lockfile evidence and for provider-alert-seeded findings alike, each judged on its own (#11113, #11121).
 - `requested_range`: original manifest/requested dependency value, including range-only values such as npm caret ranges.
 - `fixed_version`: source-selected fixed version when advisory evidence reports one.
 - `vulnerable_range`: source-reported affected range expression copied from the advisory the reducer's provenance selector picked. Persisted on the canonical finding payload so the findings list, the explain route, and

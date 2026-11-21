@@ -26,7 +26,10 @@
 // SecurityAlertPackageNameCandidates assemble the consumption side, and
 // MatchSecurityAlertConsumption, SecurityAlertRepositoryScopeMatches and
 // SecurityAlertIDMatches decide which recorded consumption an alert
-// reconciles against.
+// reconciles against. ExactSecurityAlertConsumptions and
+// SelectSecurityAlertConsumption (#11121) expose the same candidate set and
+// pick rule so supply_chain_impact can classify each installed version of the
+// alerted package once, while reconciliation keeps its single pick.
 //
 // Those eleven names -- ProviderSecurityAlert, SecurityAlertConsumption,
 // SecurityAlertImpact, ExtractProviderSecurityAlerts,

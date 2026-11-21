@@ -21,8 +21,44 @@ func MatchSecurityAlertConsumption(
 	alert ProviderSecurityAlert,
 	consumptions []SecurityAlertConsumption,
 ) (SecurityAlertConsumption, SecurityAlertConsumption, bool) {
-	var exactCandidates []SecurityAlertConsumption
-	var staleCandidates []SecurityAlertConsumption
+	exactCandidates, staleCandidates := securityAlertConsumptionCandidates(alert, consumptions)
+	exact, exactAmbiguous := selectSecurityAlertConsumption(exactCandidates)
+	stale, staleAmbiguous := selectSecurityAlertConsumption(staleCandidates)
+	return exact, stale, exactAmbiguous || (exact.FactID == "" && staleAmbiguous)
+}
+
+// ExactSecurityAlertConsumptions returns every exact candidate
+// MatchSecurityAlertConsumption chooses among (same repository, same
+// PackageID, and the alert's ManifestPath or none), in input order, plus that
+// function's ambiguity bit for the same input. The impact path reads it to
+// classify each installed version once (#11121): a lockfile can hold several
+// versions of the alerted package, and one pick would judge them all on one
+// row. SelectSecurityAlertConsumption picks within a subset by the same rule.
+func ExactSecurityAlertConsumptions(
+	alert ProviderSecurityAlert,
+	consumptions []SecurityAlertConsumption,
+) ([]SecurityAlertConsumption, bool) {
+	exactCandidates, staleCandidates := securityAlertConsumptionCandidates(alert, consumptions)
+	exact, exactAmbiguous := selectSecurityAlertConsumption(exactCandidates)
+	_, staleAmbiguous := selectSecurityAlertConsumption(staleCandidates)
+	return exactCandidates, exactAmbiguous || (exact.FactID == "" && staleAmbiguous)
+}
+
+// SelectSecurityAlertConsumption picks one row from candidates by the rule
+// MatchSecurityAlertConsumption uses: the newest ObservedAt, then the lower
+// FactID. It reports ambiguity when the candidates span more than one
+// repository, and then returns the zero value.
+func SelectSecurityAlertConsumption(candidates []SecurityAlertConsumption) (SecurityAlertConsumption, bool) {
+	return selectSecurityAlertConsumption(candidates)
+}
+
+// securityAlertConsumptionCandidates splits consumptions into the exact and
+// stale candidate sets for alert; both matchers above read it, so they cannot
+// disagree about which rows are candidates.
+func securityAlertConsumptionCandidates(
+	alert ProviderSecurityAlert,
+	consumptions []SecurityAlertConsumption,
+) (exactCandidates, staleCandidates []SecurityAlertConsumption) {
 	for _, consumption := range consumptions {
 		if !SecurityAlertRepositoryScopeMatches(alert, consumption) || consumption.PackageID != alert.PackageID {
 			continue
@@ -35,9 +71,7 @@ func MatchSecurityAlertConsumption(
 			staleCandidates = append(staleCandidates, consumption)
 		}
 	}
-	exact, exactAmbiguous := selectSecurityAlertConsumption(exactCandidates)
-	stale, staleAmbiguous := selectSecurityAlertConsumption(staleCandidates)
-	return exact, stale, exactAmbiguous || (exact.FactID == "" && staleAmbiguous)
+	return exactCandidates, staleCandidates
 }
 
 // SecurityAlertRepositoryScopeMatches reports whether alert and consumption

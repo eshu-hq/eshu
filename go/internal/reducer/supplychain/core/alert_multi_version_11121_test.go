@@ -113,3 +113,43 @@ func TestSecurityAlertExistingFindingSuppressesOnlyItsVersion11121(t *testing.T)
 		t.Fatalf("alert findings added = %+v, want %+v: an existing finding for %s must not suppress %s", added, want, alertMultiVersionFixed, alertMultiVersionAffected)
 	}
 }
+
+// TestSecurityAlertVersionlessRowKeepsOldSuppression11121: an alert row that
+// proves no version keeps the pre-#11121 rule, so any existing finding for the
+// advisory suppresses it and no blank-version duplicate appears.
+func TestSecurityAlertVersionlessRowKeepsOldSuppression11121(t *testing.T) {
+	t.Parallel()
+	envelopes := alertMultiVersionEnvelopes("manifest-dep:11121:z-affected", "manifest-dep:11121:a-fixed")
+	envelopes = envelopes[:2]
+	rangeRow := packageManifestDependencyFactWithMetadata(alertMultiVersionRepo, "", "package-lock.json", "fast-uri", "npm", "^3.0.0",
+		alertMultiVersionObservedAt.Add(time.Minute), map[string]any{"dependency_scope": "runtime"})
+	envelopes = append(envelopes, rangeRow)
+	index, _, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+	if err != nil {
+		t.Fatalf("build index: %v", err)
+	}
+	existing := SupplyChainImpactFinding{
+		CVEID: alertMultiVersionCVE, AdvisoryID: alertMultiVersionCVE, PackageID: alertMultiVersionPackage,
+		RepositoryID: alertMultiVersionRepo, ObservedVersion: alertMultiVersionFixed,
+	}
+	findings, _, err := appendSecurityAlertImpactFindings([]SupplyChainImpactFinding{existing}, envelopes, index)
+	if err != nil {
+		t.Fatalf("append alert findings: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("findings = %+v, want only the existing finding: a versionless alert row is suppressed by any finding for the advisory", alertMultiVersionKeys(findings))
+	}
+}
+
+// TestSecurityAlertMultiVersionCountsInSubSignal11121: the pass's
+// multi_version_repository_groups count covers alert-path findings too.
+func TestSecurityAlertMultiVersionCountsInSubSignal11121(t *testing.T) {
+	t.Parallel()
+	_, _, stats, err := buildSupplyChainImpactFindingsAndExclusions(alertMultiVersionEnvelopes("manifest-dep:11121:z-affected", "manifest-dep:11121:a-fixed"))
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if stats.multiVersionRepositoryGroups != 1 {
+		t.Fatalf("multiVersionRepositoryGroups = %d, want 1", stats.multiVersionRepositoryGroups)
+	}
+}

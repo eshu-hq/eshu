@@ -177,7 +177,8 @@ written even when zero.
 A repository that installs several versions of one package gets one finding per
 version (#11113). The success line carries the `multi_version_repository_groups`
 sub-signal, written even when zero: the number of (repository, CVE, advisory,
-package) groups whose final findings hold two or more observed versions. It is a
+package) groups whose final findings hold two or more observed versions,
+provider security-alert findings included (#11121). It is a
 per-pass count with no metric, label, or CVE id. A holder that reads zero while
 its repositories hold several lockfile versions of an affected package means the
 per-version split is not running on that path.

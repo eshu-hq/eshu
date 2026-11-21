@@ -85,7 +85,12 @@ changing anything here.
   `observed_version` from the writer or winners key, dedupe versions at query
   time, or rank one "best" version: each installed version is its own finding.
   Rows with no version keep the one-finding rule only when no row of the
-  repository carries a version.
+  repository carries a version. The provider-alert path follows the same
+  rule over the alert manifest's rows (#11121,
+  `appendSecurityAlertVersionFindings`): pick within a version only through
+  `securityalert.SelectSecurityAlertConsumption`, and keep
+  `securityAlertImpactAlreadyExists` comparing the observed version (a
+  versionless alert row keeps the any-version rule).
 - `telemetry-coverage.md` rows that name files in this package must keep
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new
