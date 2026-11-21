@@ -218,7 +218,7 @@ B, deterministic) at 1 writer.
 
 ## Source answers the ruling asked for
 
-- No writer sets `seq`. All seven staging INSERTs (keyed_sql.go, audit.go,
+- No writer sets `seq`. All eight staging INSERTs (keyed_sql.go, audit.go,
   writer_retract.go twice, migrations 310 and 311 twice each) name their
   columns without it, and nothing updates or copies into the table. The
   sequence hands each row its own seq, which the DELETE join and the span upper
@@ -271,6 +271,13 @@ All three stay staged, the residual read counts them exactly, the stamped
 watermark is below each one's `captured_at`, the next collapse folds them, and
 marks equal log versions plus the staging residual. The collapse arms keep the
 shared `staged` CTE, so a row is deleted only when it was merged.
+
+`TestSupplyChainImpactWinnersStagingCollapseWorkMemScopedLive` pins the
+`work_mem` scoping on the production fold over one connection: both arms run at
+32MB under a 5MB session (and keep 64MB under a 64MB session), the session value
+is back before the fold returns, and it is still in force after the tick
+commits. Removing the `set_config` call fails it at the arms, and making the
+setting session-wide fails it after the commit.
 
 Observability Evidence: the tick-phase histogram already splits `collapse` and
 `stamp`; this change adds `remaining_upper_bound` to the tick span and commit
