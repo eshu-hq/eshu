@@ -292,8 +292,9 @@ func (m SupplyChainImpactWinnersMaintainer) noteStandDown(ctx context.Context, s
 // defaultSupplyChainImpactWinnersAuditTickBudget bounds one audit tick of a
 // range-sweep auditor (#11131). The audit loop waits AuditInterval and then
 // runs one tick, so at the 10 min default ranges run 5 of every 15 minutes:
-// about 840 QA ranges of about 14.5 s complete a sweep in about 10 h, inside
-// the 24 h bar while ranges rarely need the resweep lock.
+// about 840 QA ranges of about 14.5 s are projected at about 10 h per sweep
+// while ranges rarely need the resweep lock, and 51 h or more if most do
+// (arbiter ruling 11131c keeps this default; operators tune by env).
 const defaultSupplyChainImpactWinnersAuditTickBudget = 5 * time.Minute
 
 func (m SupplyChainImpactWinnersMaintainer) auditTickBudget() time.Duration {

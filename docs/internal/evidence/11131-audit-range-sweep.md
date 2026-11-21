@@ -1,6 +1,8 @@
 # #11131 The staged winners audit sweeps by identifier range
 
 Refs #11131. Binding rulings:
+[11131-audit-sweep-pacing-ruling-2026-11-21.md](../arbiter/11131-audit-sweep-pacing-ruling-2026-11-21.md)
+(pacing defaults, M9, the projection wording),
 [11131-11119-11120-joint-ruling-2026-11-21.md](../arbiter/11131-11119-11120-joint-ruling-2026-11-21.md)
 (decisions 1, 3 and 6-9),
 [11117-staged-audit-budget-ruling-2026-11-21.md](../arbiter/11117-staged-audit-budget-ruling-2026-11-21.md)
@@ -155,26 +157,41 @@ one search each for package and repository).
 The ranged sweep costs no more than the single statement it replaces on the
 same host and cache state (0.96x), and no range approached the 25 s guard.
 
-### Sweep period against the 24 h bar
+### Sweep period against the 24 h bar (arbiter ruling 11131c)
 
 The audit loop waits `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (10
-min) and then runs one tick of up to the tick budget (5 min), so ranges run
-for 5 of every 15 minutes (duty 1/3; an earlier projection that assumed 5 of
-10 was optimistic). QA holds 8.37M eligible facts, about 840 ranges of 10,000.
+min) before every tick and then runs ranges for up to the tick budget (5 min),
+so ranges run 5 of every 15 minutes (duty 1/3). The yield wait runs inside a
+pass and spends tick budget. QA holds 8.37M eligible facts, about 840 ranges
+of 10,000. Every figure below is a projection from the lane's cold replica
+cost (1.309 ms per fact), not a QA measurement.
 
-| Case | Per range | Tick time per sweep | Wall time per sweep |
+| Case | Per range | Tick time per sweep | Wall time per sweep at the defaults |
 | --- | --- | --- | --- |
-| Typical: candidates already queued or none, no lock | 13.1 s cold read (1.309 ms/fact) + about 1.4 s verify | about 12,200 s (3.4 h) | about 10.2 h |
-| Worst: every range needs the lock (read + verify up to 30 s + one keyed interval of yield, 30 s) | about 73 s | about 61,300 s (17 h) | about 51 h at the default tick budget; about 23 h with a 30 min tick budget (duty 3/4) |
+| Expected while candidates are queued: no range needs the lock | 13.1 s cold read + about 1.4 s verify = 14.5 s | about 12,200 s (3.4 h) | about 10.2 h |
+| Every range needs the lock, keyed loop idle: read + verify up to 30 s + one keyed interval of yield (30 s) | about 73 s | about 61,300 s (17 h) | about 51 h |
+| Every range needs the lock, keyed loop busy: up to three standby reads (two try-lock misses re-read the range), the 20 s waiting claim, the 30 s verify and the 30 s yield | about 119 s | about 100,000 s (28 h) | about 83 h |
 
-The typical case meets the 24 h bar at the defaults. The worst case (every
-range carries a capture hole nothing queued) does not; it needs
-`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` raised toward 30 min.
-The yield waits only between two consecutive locked ranges, so a sweep with
-scattered holes stays near the typical case. Which default to ship is a
-coordinator decision (reported, not changed here).
-These figures are warm and local; the cold QA cost per fact (0.69-1.42 ms on
-the replica) is the lane's, and the QA sweep duration is an acceptance reading
+Projection, not measured: with a 30 min tick budget (duty 3/4) the 73 s case
+is about 23 h, a 5 percent margin under 24 h; the 119 s case is about 37 h.
+
+Break-even at the defaults: a sweep fits 24 h while the mean range costs at
+most 28,800 s / 840 = 34.3 s. With L the cost of a locked range and f the
+share of ranges that lock, 14.5 + f x (L - 14.5) <= 34.3, so f <= 0.34 at
+L = 73 s and f <= 0.19 at L = 119 s. A range locks only when a candidate
+survives the pending filter (an identifier nothing queued in the dirty log or
+staging), so a saturated keyed tick alone does not produce the worst case.
+
+The defaults stay (ruling 11131c decision 1): raising the default duty would
+run 14-21 s standby statements at 75 percent duty on an unmeasured standby
+conflict rate. An operator tunes with env only, the tick budget first, then
+the interval (interval 2 min with budget 30 min gives duty 0.94), reading the
+standby conflict and range timeout signals before each next step.
+
+M9 (QA read-only replica, before the PR): M9_PLACEHOLDER
+
+The local 330,070-fact figures above are warm and local; this projection uses
+the lane's cold replica cost. The QA sweep duration is an acceptance reading
 after deploy. The whole-corpus tick this replaces read about 1M facts and
 deferred every 10 minutes on QA without a result.
 
@@ -217,12 +234,35 @@ candidates, repairs and discards; zero `budget` deferrals;
 (`audit_range_duration_seconds` and the range log's `read_seconds`) and each
 verify under 30 s.
 
+After the first 100 committed ranges (ruling 11131c decision 9): report
+`audit_sweep_locked_ranges_total` / `audit_sweep_ranges_total`, the
+`keyed_yield` and `lock_busy` deferrals, discards against repairs, the mean
+`audit_range_duration_seconds`, and the projected sweep time. Report keyed
+commits per 10 minutes and the p95 watermark lag for one hour before and one
+hour during the sweep: the sweep must not lower the keyed commit rate by more
+than 10 percent. If the projected sweep exceeds 20 h, raise
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` in the QA overlay (env
+only) and report it. A locked fraction above 0.19, or a tuning step that still
+misses, returns pacing to the arbiter.
+
 ## NOT_CHECKED
 
 - QA readings (the acceptance above) and the cold range cost on QA; the scale
   figures above are a local, warm-cache synthetic corpus.
+- The pending filter against #11129's bounded staging collapse: a capped
+  collapse leaves the remainder in staging, and the filter reads staging fact
+  and scope rows directly, so a remainder still counts as queued. The filter
+  joins staging on the five identifier columns; migration 330's captured_at
+  index does not serve that join and was not meant to.
 - `WinnersAuditRangeLockTimeout` against the measured keyed tick maximum (M8).
 - The standby recovery-conflict rate for 14-21 s range statements.
+- The read-to-filter race (ruling 11131c correction 3): a range is read at a
+  standby snapshot and filtered on the writer later, so a key the keyed tick
+  applied in between is stale in the snapshot and no longer queued; the range
+  locks and the verify discards it. Rough rate per range: applied identifiers
+  per second x (read seconds + standby lag) x 88 / 74,134; about 0.1 at
+  today's 5.4 identifiers/s and 15 s, about 0.9 at the #11120 target of 51/s.
+  A faster keyed path makes locked ranges common. M9 does not measure it.
 - The pending filter's staging join is a hash join over the whole staging
   queue (no identifier index on staging; decision 9 forbids a second index);
   its cost on QA's 2.3M staged rows is about 1.35 s per range with candidates,
