@@ -100,6 +100,23 @@ expect_red "$(mutate bad_mcp '.data.findings[0].runtime_reachability = "symbol_r
 expect_red "$(mutate bad_state '.data.findings[0].reachability.state = "reachable"' api-findings-cve_2026_9401.json)" "a rewritten missing_evidence state"
 # A dropped missing_evidence entry must fail the #10043 mapping pin.
 expect_red "$(mutate bad_gap 'del(.data.findings[0].reachability.missing_evidence)' mcp-findings-cve_2026_9401.json)" "a dropped missing_evidence entry"
+# A pre-projection empty findings page with the readiness signal must
+# pass: #10031 verifies collection truth, projected findings belong to
+# #10032 (arbiter verdict b). The empty page keeps its envelope, fields,
+# and the readiness_unavailable missing_evidence entry.
+empty_dir="$(mktemp -d "${TMPDIR:-/tmp}/go-reachability-empty.XXXXXX")"
+cp "${fixtures}/good/"*.json "${empty_dir}/"
+for f in "${empty_dir}"/api-findings-*.json "${empty_dir}"/mcp-findings-*.json; do
+	jq '.data.findings = [] | .data.count = 0 | .data.readiness = {readiness_state: "readiness_unavailable", missing_evidence: ["readiness_unavailable"]}' \
+		"${f}" >"${f}.tmp"
+	mv "${f}.tmp" "${f}"
+done
+bash "${verifier}" --artifacts "${empty_dir}" >/dev/null \
+	|| die "verifier rejected the pre-projection empty-findings page"
+rm -rf "${empty_dir}"
+# An empty findings page WITHOUT the readiness signal must fail: silence
+# without the missing_evidence entry proves nothing.
+expect_red "$(mutate bad_silent '.data.findings = [] | .data.count = 0 | del(.data.readiness)' api-findings-cve_2026_9229.json)" "a silent empty findings page"
 # An unknown commit must fail the provenance pin.
 expect_red "$(mutate bad_provenance '.eshu_commit = "unknown"' provenance.json)" "an unknown provenance commit"
 # Leaked host-local material must trip the redaction canary.

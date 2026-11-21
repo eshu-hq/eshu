@@ -117,7 +117,8 @@ rg --quiet 'ESHU_DEPLOY_CHECKOUT|base compose file not found' < <(printf '%s\n' 
 overlay="${repo_root}/scripts/docker-compose.go-reachability-proof-deps.yaml"
 for needle in "ESHU_REPO_SOURCE_MODE: explicit" "eshu-go-reachability-fixture" \
 	"ESHU_GITHUB_APP_ID" "ESHU_GITHUB_APP_INSTALLATIONS" \
-	"GOPROXY:" "GOVULNDB:" "target: /scan-inputs" \
+	"GOPROXY:" "GOVULNDB:" "target: /scan-inputs" "scan-inputs-seed" \
+	"scan-inputs-seed:" "go_reachability_proof/inputs" \
 	"ESHU_AUTO_GENERATE_API_KEY" "ESHU_API_KEY:"; do
 	rg --fixed-strings --quiet -- "${needle}" "${overlay}" \
 		|| die "proof overlay misses ${needle}"

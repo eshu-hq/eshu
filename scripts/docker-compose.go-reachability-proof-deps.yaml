@@ -48,23 +48,57 @@ services:
       # The fixture's deps are synthetic (github.com/acme/* is not on the
       # public proxy), so the scan resolves them from a file proxy and reads
       # the recorded advisory set from a local vuln DB — the same inputs the
-      # #10030 cassette was recorded with. GOSUMDB=off matches the cassette;
-      # the component refuses direct/off, mirrors only. Plain names: the
-      # component reads its process env directly (no ESHU_ prefix). Empty
-      # defaults keep the public-proxy behavior for non-fixture proofs.
-      GOPROXY: ${ESHU_PROOF_GOPROXY:-}
-      GOSUMDB: ${ESHU_PROOF_GOSUMDB:-}
-      GOVULNDB: ${ESHU_PROOF_GOVULNDB:-}
+      # #10030 cassette was recorded with (committed under
+      # tests/fixtures/go_reachability_proof/inputs, seeded into the volume
+      # by scan-inputs-seed below). GOSUMDB=off matches the cassette; the
+      # component refuses direct/off, mirrors only. Plain names: the
+      # component reads its process env directly (no ESHU_ prefix). This
+      # overlay is fixture-specific, so the volume paths are the defaults;
+      # ESHU_PROOF_* overrides remain for experiments.
+      GOPROXY: ${ESHU_PROOF_GOPROXY:-file:///scan-inputs/scan-inputs/proxy}
+      GOSUMDB: ${ESHU_PROOF_GOSUMDB:-off}
+      GOVULNDB: ${ESHU_PROOF_GOVULNDB:-file:///scan-inputs/scan-inputs/vulndb}
     volumes:
       # The file proxy + recorded vuln DB live in the shared volume (seeded
-      # once per volume), so worker recreations never lose them. Read-only:
-      # the scan never writes its inputs.
+      # by scan-inputs-seed below), so worker recreations never lose them.
+      # Read-only: the scan never writes its inputs.
       - type: volume
         source: eshu_data
         target: /scan-inputs
         read_only: true
         volume:
           nocopy: true
+    depends_on:
+      scan-inputs-seed:
+        condition: service_completed_successfully
+
+  # One-shot: seed the recorded scan inputs (file proxy + local vuln DB)
+  # from the committed fixtures into the shared volume before any worker
+  # claim can need them. Runs as root so the fresh volume is writable;
+  # the worker mounts it read-only.
+  scan-inputs-seed:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    volumes:
+      - type: bind
+        source: ${ESHU_REPO_ROOT:-.}
+        target: /repo
+        read_only: true
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /data/scan-inputs
+        cp -r /repo/tests/fixtures/go_reachability_proof/inputs/. /data/scan-inputs/
+        chmod -R a+rX /data/scan-inputs
 
   # The D13 split moved the read API behind eshu-api (satellite), which
   # requires --core-base-url, but the shared stack defines no core-api

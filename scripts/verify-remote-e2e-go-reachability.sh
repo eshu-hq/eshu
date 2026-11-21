@@ -7,9 +7,10 @@ set -euo pipefail
 # under a digest-pinned seed image, the scanner_worker work items reached
 # terminal success with no retry/failed/dead-letter state, the committed
 # vulnerability fact families match the committed expectation exactly, the
-# deployed HTTP and MCP finding readbacks independently prove the three
-# recorded verdicts (symbol_reachable, not_called, and the #10043
-# analysis_failed + missing_evidence mapping), provenance is complete, and
+# deployed HTTP and MCP readbacks carry the pre-projection
+# readiness_unavailable missing_evidence signal (collection scope per
+# arbiter verdict b — projected findings with the three recorded verdicts
+# belong to #10032), provenance is complete, and
 # no secret or host-local material leaks into the proof surfaces.
 #
 # The expectation lives in the committed
@@ -77,7 +78,7 @@ print_checks() {
 	printf '%s\n' \
 		'go-reachability proof checks:' \
 		"  1. inventory: ${component_id} reads back installed=true, enabled=true, trusted=true under a digest-pinned seed image" \
-		'  2. deployed API/MCP: impact-findings readbacks prove symbol_reachable, not_called, and analysis_failed+missing_evidence on both surfaces' \
+		'  2. deployed API/MCP: readbacks carry readiness_unavailable missing_evidence (pre-projection; projected findings belong to #10032)' \
 		'  3. workflow: scanner_worker work items terminal success; no retrying/failed/dead-letter' \
 		'  4. facts: captured vulnerability fact counts exactly match the committed expected.json' \
 		'  5. provenance: records eshu_commit, seed digest, component digest, backend, queue terminal state, telemetry handle, evidence mode' \
@@ -150,16 +151,25 @@ check_finding_artifact() {
 			|| die "${surface} ${cve_id} response is missing field: ${field}"
 	done < <(jq -r '.required_response_fields[]' <<<"${spec}")
 
-	local minimum maximum
-	minimum="$(jq -r '.minimum_results' <<<"${spec}")"
+	# Collection scope (arbiter verdict b): an empty findings page is the
+	# correct pre-projection state — projected findings belong to #10032.
+	# The page must still carry the readiness_unavailable missing_evidence
+	# signal; silence without it proves nothing.
 	maximum="$(jq -r '.maximum_results' <<<"${spec}")"
-	jq -e --argjson lo "${minimum}" --argjson hi "${maximum}" \
-		'(.data.findings | length) as $n | ($n >= $lo and $n <= $hi)' \
+	jq -e --argjson hi "${maximum}" \
+		'(.data.findings | length) as $n | ($n >= 0 and $n <= $hi)' \
 		"${artifact}" >/dev/null \
-		|| die "${surface} ${cve_id} result count outside [${minimum}, ${maximum}]"
+		|| die "${surface} ${cve_id} result count outside [0, ${maximum}]"
+	if jq -e '.data.findings | length == 0' "${artifact}" >/dev/null; then
+		jq -e '.data.readiness.readiness_state == "readiness_unavailable"' "${artifact}" >/dev/null \
+			|| die "${surface} ${cve_id} empty findings page without readiness_unavailable state"
+		jq -e '.data.readiness.missing_evidence | index("readiness_unavailable") != null' "${artifact}" >/dev/null \
+			|| die "${surface} ${cve_id} empty findings page without readiness_unavailable missing_evidence"
+		return 0
+	fi
 
 	while IFS= read -r field; do
-		jq -e --arg f "${field}" '.data.findings | length > 0 and all(.[]; has($f))' "${artifact}" >/dev/null \
+		jq -e --arg f "${field}" '.data.findings | all(.[]; has($f))' "${artifact}" >/dev/null \
 			|| die "${surface} ${cve_id} finding is missing field: ${field}"
 	done < <(jq -r '.result_item_required_fields[]' <<<"${spec}")
 
@@ -173,12 +183,12 @@ check_finding_artifact() {
 			local base
 			base="${rest%'[]'}"
 			jq -e --argjson path "$(jq -c -n --arg p "${base}" '$p | split(".")')" --argjson want "${value_json}" \
-				'.data.findings | length > 0 and all(.[]; ((getpath($path) // []) | index($want)) != null)' \
+				'.data.findings | all(.[]; ((getpath($path) // []) | index($want)) != null)' \
 				"${artifact}" >/dev/null \
 				|| die "${surface} ${cve_id} required value missing: ${key} == ${value_json}"
 		else
 			jq -e --argjson path "$(jq -c -n --arg p "${rest}" '$p | split(".")')" --argjson want "${value_json}" \
-				'.data.findings | length > 0 and all(.[]; getpath($path) == $want)' \
+				'.data.findings | all(.[]; getpath($path) == $want)' \
 				"${artifact}" >/dev/null \
 				|| die "${surface} ${cve_id} required value mismatch: ${key} == ${value_json}"
 		fi

@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-2026-9301",
+  "modified": "2026-06-24T00:00:00Z",
+  "published": "2026-06-20T00:00:00Z",
+  "aliases": [
+    "CVE-2026-9301",
+    "GO-2026-9301"
+  ],
+  "summary": "Synthetic Go advisory for an uncalled orders-api symbol",
+  "details": "The vulnerable symbol is exported by the required module but nothing calls it, so a symbol-level scan reports not_called.",
+  "affected": [
+    {
+      "package": {
+        "name": "github.com/acme/lib-common",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.0.1"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "imports": [
+          {
+            "path": "github.com/acme/lib-common",
+            "symbols": [
+              "Uncalled"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "severity": [
+    {
+      "type": "CVSS_V3",
+      "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N"
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://example.com/advisories/GO-2026-9301"
+    }
+  ],
+  "database_specific": {
+    "url": "https://pkg.go.dev/vuln/GO-2026-9301",
+    "review_status": "REVIEWED"
+  }
+}
