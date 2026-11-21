@@ -319,6 +319,7 @@ nav:
       - Local Performance Envelope: reference/local-performance-envelope.md
       - Collector Performance Envelope: reference/collector-performance-envelope.md
       - Parse Scale Evidence: reference/parse-scale-evidence.md
+      - Supply Chain Impact C5 Loop Evidence: reference/supply-chain-impact-c5-loop-evidence.md
       - Dead Code Reachability Spec: reference/dead-code-reachability-spec.md
       - Dead Code Language Maturity: reference/dead-code-language-maturity.md
       - Dead Code TypeScript Corpus Evidence: reference/dead-code-typescript-corpus-evidence.md
