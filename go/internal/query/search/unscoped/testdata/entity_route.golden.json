@@ -83,6 +83,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -157,6 +161,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -222,6 +230,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -332,6 +344,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
@@ -441,6 +457,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
@@ -548,6 +568,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
@@ -655,6 +679,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
@@ -742,6 +770,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -812,6 +844,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -889,6 +925,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
@@ -973,6 +1013,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -1035,6 +1079,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": []
@@ -1126,6 +1174,10 @@
             "table": "content_entities"
           },
           "value": "1"
+        },
+        {
+          "name": "eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+          "value": "unhandled metricdata.Gauge[float64]"
         }
       ],
       "logs": [
