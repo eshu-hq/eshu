@@ -12,8 +12,10 @@ set -euo pipefail
 # Runs in evidence mode only: the driver captures what the stack committed
 # and fails closed on anything else. It never replays a cassette and never
 # fabricates findings — an empty or partial stack fails the verifier, it is
-# not backfilled here. The seed image is placeholder digest plumbing until
-# eshu-scanner-worker publishes its first scanner-go-reachability release:
+# not backfilled here. The seed image is the v0.1.0 scanner-go-reachability
+# release (multi-arch index digest
+# sha256:8e4059a2acbd020a761862a8196e25567b7119bb97ef42a228432c59f5e39284,
+# verified against the GHCR package versions API and a manifest inspect):
 # ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE must be a digest-pinned ref
 # (name@sha256:<64 hex>); anything else is refused before any container
 # starts, so a floating tag can never slip into the proof surface.
@@ -24,10 +26,20 @@ set -euo pipefail
 # payloads and source URIs are never dumped, so the verifier's redaction
 # canary holds by construction.
 #
-# Usage (from repo root, after exporting the required seed image):
+# Usage (from repo root, after exporting the required seed image and the
+# GitHub App the host mints the component's fetch token with):
 #   export ESHU_DEPLOY_CHECKOUT=/path/to/eshu-deploy
 #   export ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE=ghcr.io/eshu-hq/scanner-go-reachability@sha256:<digest>
+#   export ESHU_GITHUB_APP_ID=<app id>
+#   export ESHU_GITHUB_APP_PRIVATE_KEY=<app PEM>
+#   export ESHU_GITHUB_APP_INSTALLATIONS='{"github-owner:github.com/<owner>": "<installation id>"}'
 #   scripts/run-remote-e2e-go-reachability.sh [--artifacts <dir>] [--keep-up]
+#
+# The driver mints a one-run ESHU_API_KEY (unless the operator exports one)
+# and shares it with every service: the frontend, core-api, and MCP all
+# resolve the same explicit shared key, and the capture execs below reuse the
+# driver's own value with the persisted ESHU_HOME/.env as fallback. The key
+# lives only in process env and the proof containers; it is never committed.
 #
 # Environment overrides (defaults target the documented proof stack):
 #   GOREACHABILITY_PROOF_PROJECT  docker compose project name (default: go-reachability-proof)
@@ -41,6 +53,11 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 cd "${repo_root}"
 
+# The deploy stack builds the eshu image from ${ESHU_REPO_ROOT:-.} (base
+# stack convention). Default it at this checkout so every build context
+# resolves to an eshu root with its Dockerfile. An explicit ESHU_REPO_ROOT
+# wins for operators who build from a different checkout of the same commit.
+export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"
 project="${GOREACHABILITY_PROOF_PROJECT:-go-reachability-proof}"
 worker="${project}-collector-go-reachability-1"
 postgres="${project}-postgres-1"
@@ -85,6 +102,25 @@ seed_image="${ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE:-}"
 	|| die "ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE must be a digest-pinned ref (name@sha256:<64 hex>); refusing '${seed_image%%@*}@<'redacted'>'"
 seed_digest="sha256:${seed_image##*@sha256:}"
 
+# Host-minted token gate: the component refuses derived claims without the
+# host-minted GitHub token (terminal auth_denied), and the host mints only
+# when all three App variables reach compose. Fail here with the variable
+# names instead of burning a live bring-up that can never scan.
+[[ -n "${ESHU_GITHUB_APP_ID:-}" ]] || die "ESHU_GITHUB_APP_ID is required (GitHub App ID that mints the component's fetch token)"
+[[ -n "${ESHU_GITHUB_APP_PRIVATE_KEY:-}" ]] || die "ESHU_GITHUB_APP_PRIVATE_KEY is required (App PEM; a single-line body is re-wrapped at mint time)"
+[[ -n "${ESHU_GITHUB_APP_INSTALLATIONS:-}" ]] || die "ESHU_GITHUB_APP_INSTALLATIONS is required (JSON mapping github-owner:<host>/<owner> to the installation id)"
+
+# One-run shared API key: every proof service resolves the same explicit
+# value (compose interpolates it into the frontend, core-api, and MCP), so
+# the capture execs authenticate against the key this shell holds. An
+# operator-exported ESHU_API_KEY wins for reproducible runs.
+if [[ -z "${ESHU_API_KEY:-}" ]]; then
+	# Pipe-free on purpose: a `head -c` reader exits early and SIGPIPEs
+	# the writer, which fails the assignment under `pipefail`.
+	ESHU_API_KEY="$(printf '%04x%04x%04x%04x%04x%04x%04x%04x' $RANDOM $RANDOM $RANDOM $RANDOM $RANDOM $RANDOM $RANDOM $RANDOM)"
+	export ESHU_API_KEY
+fi
+
 command -v docker >/dev/null 2>&1 || die "docker is required"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
@@ -98,8 +134,13 @@ if [[ -z "${artifacts_dir}" ]]; then
 fi
 mkdir -p "${artifacts_dir}"
 
+proof_deps_overlay="${repo_root}/scripts/docker-compose.go-reachability-proof-deps.yaml"
+
 compose() {
-	docker compose -p "${project}" -f "${base_compose}" -f "${fragment}" "$@"
+	# Backend topology lives in the proof overlay (not the shared neo4j
+	# overlay: that file redefines services with bare `context: .` and
+	# profile-gates the coordinator, both of which break this proof).
+	docker compose -p "${project}" -f "${base_compose}" -f "${fragment}" -f "${proof_deps_overlay}" "$@"
 }
 
 # Remap every published host port into a high range so the proof stack never
@@ -109,6 +150,11 @@ export ESHU_HTTP_PORT="${ESHU_HTTP_PORT:-28086}"
 export ESHU_MCP_PORT="${ESHU_MCP_PORT:-28087}"
 export ESHU_WORKFLOW_COORDINATOR_HTTP_PORT="${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-28089}"
 export ESHU_WORKFLOW_COORDINATOR_METRICS_PORT="${ESHU_WORKFLOW_COORDINATOR_METRICS_PORT:-29471}"
+# The graph backend publishes the Neo4j-compatible ports on the host; remap
+# them too so the proof stack never collides with another live Eshu stack
+# (or with zombie bindings orphaned by killed runs).
+export NEO4J_HTTP_PORT="${NEO4J_HTTP_PORT:-27574}"
+export NEO4J_BOLT_PORT="${NEO4J_BOLT_PORT:-27787}"
 export ESHU_SCANNER_GOREACHABILITY_SEED_IMAGE="${seed_image}"
 proof_services="postgres db-migrate bootstrap-index workflow-coordinator collector-go-reachability eshu mcp-server"
 
@@ -164,13 +210,15 @@ docker inspect "${mcp}" >/dev/null 2>&1 || die "MCP container not found: ${mcp}"
 capture_findings_http() {
 	local cve_id="$1"
 	local output="$2"
-	docker exec --env GOREACHABILITY_CVE_PATH="/api/v0/supply-chain/impact/findings?limit=10&cve_id=${cve_id}&profile=comprehensive" "${api}" sh -c '
-		token=""
-		while IFS= read -r line; do
-			case "$line" in
-				ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
-			esac
-		done < /data/.eshu/.env
+	docker exec --env GOREACHABILITY_CVE_PATH="/api/v0/supply-chain/impact/findings?limit=10&cve_id=${cve_id}&profile=comprehensive" --env GOREACHABILITY_API_KEY="${ESHU_API_KEY:-}" "${api}" sh -c '
+		token="${GOREACHABILITY_API_KEY:-}"
+		if [ -z "$token" ] && [ -f /data/.eshu/.env ]; then
+			while IFS= read -r line; do
+				case "$line" in
+					ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
+				esac
+			done < /data/.eshu/.env
+		fi
 		[ -n "$token" ] || exit 2
 		curl -fsS \
 			-H "Authorization: Bearer ${token}" \
@@ -187,13 +235,15 @@ capture_findings_mcp() {
 	response="$(mktemp "${TMPDIR:-/tmp}/go-reachability-mcp-response.XXXXXX")"
 	payload="$(jq -nc --arg cve "${cve_id}" \
 		'{jsonrpc:"2.0", id:1, method:"tools/call", params:{name:"list_supply_chain_impact_findings", arguments:{cve_id:$cve, limit:10, profile:"comprehensive"}}}')"
-	docker exec --env GOREACHABILITY_PAYLOAD="${payload}" "${mcp}" sh -c '
-		token=""
-		while IFS= read -r line; do
-			case "$line" in
-				ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
-			esac
-		done < /data/.eshu/.env
+	docker exec --env GOREACHABILITY_PAYLOAD="${payload}" --env GOREACHABILITY_API_KEY="${ESHU_API_KEY:-}" "${mcp}" sh -c '
+		token="${GOREACHABILITY_API_KEY:-}"
+		if [ -z "$token" ] && [ -f /data/.eshu/.env ]; then
+			while IFS= read -r line; do
+				case "$line" in
+					ESHU_API_KEY=*) token="${line#ESHU_API_KEY=}" ;;
+				esac
+			done < /data/.eshu/.env
+		fi
 		[ -n "$token" ] || exit 2
 		curl -fsS -X POST \
 			-H "Authorization: Bearer ${token}" \

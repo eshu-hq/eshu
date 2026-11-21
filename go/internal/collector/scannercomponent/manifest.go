@@ -20,10 +20,11 @@ const (
 	IDSBOM = "eshu.scanner.sbom"
 	// IDOSRuntime identifies the OS-package-extraction stdio component.
 	IDOSRuntime = "eshu.scanner.osruntime"
-	// IDGoReachability identifies the Go reachability stdio component. It has
-	// no entry in artifactDigests until eshu-scanner-worker publishes its
-	// image, so ManifestFor and VerifySeededArtifact refuse it until the
-	// reviewed re-pin lands.
+	// IDGoReachability identifies the Go reachability stdio component. Its
+	// pin below is the v0.1.0 release digest (multi-arch index); the
+	// anchor above still trails at the previous publish because the full
+	// re-anchor (all four pins against immutable sha-<publish-sha>
+	// tags) waits on a scanner-worker main-push publish.
 	IDGoReachability = "eshu.scanner.go-reachability"
 	// Version is the first per-analyzer component manifest version.
 	Version = "0.1.0"
@@ -63,9 +64,10 @@ const (
 // values; live-chart sync rides the re-pin PR process with admission as the
 // fail-closed backstop).
 var artifactDigests = map[string]string{
-	IDImage:     "45e1b68b21caf5edf45135eda43192ea70a6e9aab67a344a391954f78abb6dbe",
-	IDSBOM:      "8b3f10c0b6b196d7bdde439b0f274c05081cf31147635f23f50ba4f80d9ab541",
-	IDOSRuntime: "88392f81687cd1dc26a64495aed85520a12d14c632447b379b63c844ce089676",
+	IDImage:          "45e1b68b21caf5edf45135eda43192ea70a6e9aab67a344a391954f78abb6dbe",
+	IDSBOM:           "8b3f10c0b6b196d7bdde439b0f274c05081cf31147635f23f50ba4f80d9ab541",
+	IDOSRuntime:      "88392f81687cd1dc26a64495aed85520a12d14c632447b379b63c844ce089676",
+	IDGoReachability: "8e4059a2acbd020a761862a8196e25567b7119bb97ef42a228432c59f5e39284",
 }
 
 // AnalyzerFor resolves a component ID back to its analyzer. Unknown IDs fail

@@ -6,8 +6,6 @@ package scannercomponent
 import (
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/component"
 )
 
 const (
@@ -58,23 +56,37 @@ func TestRequiredGrantsForRefusesReducerLane(t *testing.T) {
 	}
 }
 
-// TestGoReachabilityManifestFailsClosedUntilPinned proves no unpinned artifact
-// is ever minted: the image does not exist until the satellite publishes it,
-// so both the manifest and seeded-artifact admission refuse the component.
-func TestGoReachabilityManifestFailsClosedUntilPinned(t *testing.T) {
+// TestGoReachabilityManifestPinsPublishedImage proves the reviewed v0.1.0
+// re-pin admits the component: ManifestFor mints the digest-pinned artifact
+// and seeded-artifact admission accepts the seeded manifest while still
+// refusing a drifted image. The unpinned refusal path keeps its own
+// coverage in TestManifestForFailsClosedWithoutPinnedDigest.
+func TestGoReachabilityManifestPinsPublishedImage(t *testing.T) {
 	t.Parallel()
 
-	if _, err := ManifestFor(AnalyzerGoReachability); err == nil ||
-		!strings.Contains(err.Error(), "no published image digest pinned") {
-		t.Fatalf("ManifestFor(go_reachability) error = %v, want the fail-closed digest error", err)
+	manifest, err := ManifestFor(AnalyzerGoReachability)
+	if err != nil {
+		t.Fatalf("ManifestFor(go_reachability) error = %v", err)
+	}
+	if len(manifest.Spec.Artifacts) != 1 {
+		t.Fatalf("artifacts = %d, want exactly one pinned image", len(manifest.Spec.Artifacts))
+	}
+	wantImage := "ghcr.io/eshu-hq/scanner-go-reachability@sha256:8e4059a2acbd020a761862a8196e25567b7119bb97ef42a228432c59f5e39284"
+	if manifest.Spec.Artifacts[0].Image != wantImage {
+		t.Fatalf("image = %q, want %q", manifest.Spec.Artifacts[0].Image, wantImage)
+	}
+	if err := VerifySeededArtifact(manifest); err != nil {
+		t.Fatalf("VerifySeededArtifact(pinned go reachability) error = %v, want admission", err)
+	}
+	drifted := manifest
+	drifted.Spec.Artifacts[0].Image = "ghcr.io/eshu-hq/scanner-go-reachability@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+	if err := VerifySeededArtifact(drifted); err == nil ||
+		!strings.Contains(err.Error(), "not the pinned platform image") {
+		t.Fatalf("VerifySeededArtifact(drifted) error = %v, want the pin-mismatch refusal", err)
 	}
 	got, err := AnalyzerFor(IDGoReachability)
 	if err != nil || got != AnalyzerGoReachability {
 		t.Fatalf("AnalyzerFor() = %q, %v, want the analyzer", got, err)
-	}
-	seeded := component.Manifest{Metadata: component.Metadata{ID: IDGoReachability}}
-	if err := VerifySeededArtifact(seeded); err == nil {
-		t.Fatal("VerifySeededArtifact(unpinned go reachability) = nil, want refusal")
 	}
 }
 

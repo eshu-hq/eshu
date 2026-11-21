@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.3.1",
+  "id": "GO-2026-9229",
+  "modified": "2026-06-24T00:00:00Z",
+  "published": "2026-06-20T00:00:00Z",
+  "aliases": [
+    "CVE-2026-9229",
+    "GO-2026-9229"
+  ],
+  "summary": "Synthetic Go advisory alias for orders-api",
+  "details": "Synthetic call-path proof for a distinct GO and CVE identity.",
+  "affected": [
+    {
+      "package": {
+        "name": "github.com/acme/lib-common",
+        "ecosystem": "Go"
+      },
+      "ranges": [
+        {
+          "type": "SEMVER",
+          "events": [
+            {
+              "introduced": "0"
+            },
+            {
+              "fixed": "1.0.1"
+            }
+          ]
+        }
+      ],
+      "ecosystem_specific": {
+        "imports": [
+          {
+            "path": "github.com/acme/lib-common",
+            "symbols": [
+              "Identity"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "severity": [
+    {
+      "type": "CVSS_V3",
+      "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N"
+    }
+  ],
+  "references": [
+    {
+      "type": "ADVISORY",
+      "url": "https://example.com/advisories/GO-2026-9229"
+    }
+  ],
+  "database_specific": {
+    "url": "https://pkg.go.dev/vuln/GO-2026-9229",
+    "review_status": "REVIEWED"
+  }
+}

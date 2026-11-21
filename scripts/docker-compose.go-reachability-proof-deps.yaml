@@ -1,0 +1,255 @@
+# Wave-3 proof overlay: the shared runtime stack gates workflow-coordinator
+# on collector-security-alerts-preflight, whose binary is not shipped in a
+# locally built eshu image (it runs from a pinned external image in hosted
+# deployments). The go-reachability proof does not use security alerts, so
+# the gate is optional here instead of blocking the whole bring-up. This
+# overlay changes nothing else: every other dependency keeps its condition.
+services:
+  workflow-coordinator:
+    depends_on:
+      collector-security-alerts-preflight:
+        condition: service_completed_successfully
+        required: false
+    # The coordinator denies component-extension scheduling without an
+    # explicit egress allowlist (fail closed). Allow exactly this proof's
+    # component + instance, mirroring the OCI fragment's policy shape.
+    environment:
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: '{"mode":"restricted","extensions":[{"component_id":"eshu.scanner.go-reachability","instance_id":"remote-e2e-go-reachability","collector_kind":"scanner_worker","decision":"allow"}]}'
+
+  # The shared runtime gates workflow-coordinator on
+  # collector-security-alerts-preflight, whose binary is not shipped in a
+  # locally built eshu image (hosted deployments run it from a pinned
+  # external image). The go-reachability proof does not use security
+  # alerts, so the preflight is stubbed to a no-op here instead of
+  # failing container creation and aborting the bring-up. The
+  # required:false above documents the intent; the stub makes `up`
+  # succeed because Compose still creates every service in the graph.
+  collector-security-alerts-preflight:
+    entrypoint: ["/bin/sh", "-c", "exit 0"]
+    command: []
+
+  # The fragment's worker defines its own environment without the fact and
+  # content store DSNs the extension host requires at startup. Wire the
+  # same Postgres DSN the runtime anchor uses for every other collector.
+  collector-go-reachability:
+    environment:
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      # Single-backend proof: the read surface is Neo4j-pinned, so the
+      # whole stack records neo4j as-run (arbiter amendment to #10031).
+      ESHU_GRAPH_BACKEND: neo4j
+      # The component refuses derived claims without a host-minted token
+      # (terminal auth_denied), and the host mints only with a GitHub App
+      # (empty default keeps the static path: claims fail, nothing minted).
+      # Export the three from the operator's App for a live run; never
+      # commit values here.
+      ESHU_GITHUB_APP_ID: ${ESHU_GITHUB_APP_ID:-}
+      ESHU_GITHUB_APP_PRIVATE_KEY: ${ESHU_GITHUB_APP_PRIVATE_KEY:-}
+      ESHU_GITHUB_APP_INSTALLATIONS: ${ESHU_GITHUB_APP_INSTALLATIONS:-}
+      # The fixture's deps are synthetic (github.com/acme/* is not on the
+      # public proxy), so the scan resolves them from a file proxy and reads
+      # the recorded advisory set from a local vuln DB — the same inputs the
+      # #10030 cassette was recorded with (committed under
+      # tests/fixtures/go_reachability_proof/inputs, seeded into the volume
+      # by scan-inputs-seed below). GOSUMDB=off matches the cassette; the
+      # component refuses direct/off, mirrors only. Plain names: the
+      # component reads its process env directly (no ESHU_ prefix). This
+      # overlay is fixture-specific, so the volume paths are the defaults;
+      # ESHU_PROOF_* overrides remain for experiments.
+      GOPROXY: ${ESHU_PROOF_GOPROXY:-file:///scan-inputs/scan-inputs/proxy}
+      GOSUMDB: ${ESHU_PROOF_GOSUMDB:-off}
+      GOVULNDB: ${ESHU_PROOF_GOVULNDB:-file:///scan-inputs/scan-inputs/vulndb}
+    volumes:
+      # The file proxy + recorded vuln DB live in the shared volume (seeded
+      # by scan-inputs-seed below), so worker recreations never lose them.
+      # Read-only: the scan never writes its inputs.
+      - type: volume
+        source: eshu_data
+        target: /scan-inputs
+        read_only: true
+        volume:
+          nocopy: true
+    depends_on:
+      scan-inputs-seed:
+        condition: service_completed_successfully
+
+  # One-shot: seed the recorded scan inputs (file proxy + local vuln DB)
+  # from the committed fixtures into the shared volume before any worker
+  # claim can need them. Runs as root so the fresh volume is writable;
+  # the worker mounts it read-only.
+  scan-inputs-seed:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+    restart: "no"
+    user: "0:0"
+    volumes:
+      - type: bind
+        source: ${ESHU_REPO_ROOT:-.}
+        target: /repo
+        read_only: true
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /data/scan-inputs
+        cp -r /repo/tests/fixtures/go_reachability_proof/inputs/. /data/scan-inputs/
+        chmod -R a+rX /data/scan-inputs
+
+  # The D13 split moved the read API behind eshu-api (satellite), which
+  # requires --core-base-url, but the shared stack defines no core-api
+  # service. The proof runs core-api from the same eshu image and points
+  # the frontend at it. Scoped to this proof; shared topology untouched.
+  core-api:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/eshu-core-api"]
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      # Shared with the frontend and MCP: the driver mints one ESHU_API_KEY
+      # per run and every read surface resolves the same explicit value.
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: neo4j
+      NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
+      ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      # Same all-zero dev-only placeholder the base eshu service uses: never
+      # a real secret; required to boot, and a restart keeps decrypting.
+      ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      # The driver captures API/MCP readbacks with the key core-api mints
+      # here: ESHU_HOME points at the shared volume (not container /tmp) so
+      # the persisted ESHU_HOME/.env is visible to the capture execs, and
+      # AUTO_GENERATE mints it on first boot. core-api is the only
+      # ResolveAPIKey caller; nothing else writes this file.
+      ESHU_HOME: /data/.eshu
+      ESHU_AUTO_GENERATE_API_KEY: "true"
+      HOME: /tmp
+    volumes:
+      # Shared with the eshu frontend: the minted ESHU_HOME/.env the driver
+      # capture execs read lives here, not on container-local /data.
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    restart: on-failure
+
+  eshu:
+    command: ["/usr/local/bin/eshu-api", "--core-base-url=http://core-api:8080"]
+    depends_on:
+      core-api:
+        condition: service_started
+    # The in-tree git collector discovers nothing by default
+    # (githubOrg mode with no App). Point it at the public fixture
+    # repo explicitly; anonymous fetch works for public repos.
+    environment:
+      ESHU_REPO_SOURCE_MODE: explicit
+      ESHU_REPOSITORY_RULES_JSON: '[{"kind":"exact","value":"github/eshu-hq/eshu-go-reachability-fixture"}]'
+
+  # Single-backend proof graph (arbiter amendment to #10031): the shared
+  # neo4j overlay is not included (it redefines services with bare build
+  # contexts and profile-gates the coordinator), so the proof defines the
+  # pinned Neo4j service itself and flips the graph writers to it.
+  neo4j:
+    image: neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${ESHU_NEO4J_PASSWORD:-change-me}
+      NEO4J_PLUGINS: '[]'
+      NEO4J_server_memory_heap_initial__size: ${ESHU_NEO4J_HEAP_INITIAL_SIZE:-512m}
+      NEO4J_server_memory_heap_max__size: ${ESHU_NEO4J_HEAP_MAX_SIZE:-512m}
+      NEO4J_server_memory_pagecache_size: ${ESHU_NEO4J_PAGECACHE_SIZE:-512m}
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      # Quote the query: unquoted `RETURN 1` splits into two argv entries
+      # and this cypher-shell version usage-errors (exit 1) instead of
+      # querying. The shared overlay's unquoted form never goes green.
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${ESHU_NEO4J_PASSWORD:-change-me} 'RETURN 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: on-failure
+
+  db-migrate:
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      ESHU_NEO4J_DATABASE: neo4j
+      NEO4J_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+  bootstrap-index:
+    environment:
+      ESHU_GRAPH_BACKEND: neo4j
+      DEFAULT_DATABASE: neo4j
+      ESHU_NEO4J_DATABASE: neo4j
+      NEO4J_DATABASE: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      # The in-tree git collector discovers nothing by default (githubOrg
+      # mode with no App), so the one-shot bootstrap ingests the public
+      # fixture repo explicitly; anonymous fetch works for public repos.
+      # This replaces the manual explicit-bootstrap step: bring-up alone
+      # lands the fixture scope the coordinator derives from.
+      ESHU_REPO_SOURCE_MODE: explicit
+      ESHU_REPOSITORY_RULES_JSON: '[{"kind":"exact","value":"github/eshu-hq/eshu-go-reachability-fixture"}]'
+    depends_on:
+      neo4j:
+        condition: service_healthy
+
+  mcp-server:
+    # Loopback proof harness only: the high-range host port is still the
+    # operator's loopback. Never enable this where the port is public.
+    environment:
+      ESHU_MCP_ALLOW_UNAUTHENTICATED: "true"
+
+  # NornicDB is not on the proof's read or write path (single-backend
+  # Neo4j run), but base-stack depends_on chains still reference it, and
+  # Compose merges depends_on additively. Drop its host bindings (port
+  # lists merge additively too, so a remap would only add bindings) and
+  # let it idle unexposed; its container-local healthcheck is unaffected.
+  nornicdb:
+    ports: !reset []
+
+
+  # The foundation file redefines projector with a bare build context
+  # (same latent defect as the runtime stack). Point it at the eshu
+  # checkout like everything else the proof builds.
+  projector:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
+  # Same latent bare-context defect in the seed fragment: the reconcile
+  # one-shot must build from the eshu checkout, not compose/.
+  collector-vulnerability-intelligence-reconcile:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
+  # Same latent bare-context defect in the foundation file.
+  webhook-intake:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
+volumes:
+  neo4j_data:
