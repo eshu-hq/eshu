@@ -131,7 +131,7 @@ func TestSupplyChainImpactWinnersResweepMultiVersionRepositoryLive(t *testing.T)
 		t.Run(fmt.Sprintf("%s_then_%s", order[0], order[1]), func(t *testing.T) {
 			c := newMultiVersionConvergence(t)
 			winners := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: c.db})
-			if _, err := winners.ResweepWinners(c.ctx, time.Now().UTC()); err != nil {
+			if _, err := winners.ResweepWinners(c.ctx); err != nil {
 				t.Fatalf("startup winners resweep: %v", err)
 			}
 			scopes := map[string]bool{"a": true, "b": false} // fixed row first in a, affected row first in b
