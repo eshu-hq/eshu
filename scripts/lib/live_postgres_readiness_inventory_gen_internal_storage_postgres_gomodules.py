@@ -20,6 +20,7 @@ TABLE = {
             "TestFenceTimesOutBehindAHeldHolderAndRetriesLive",
             "TestFenceYieldsToTheRetirementFenceTableLockLive",
             "TestFiftySupersededGenerationsReadOnlyTheEvidenceCommitLive",
+            "TestFenceReopensHoldersInDeadLetterLockOrderLive",
         ),
         "go/internal/storage/postgres/gomodules/fence_live_test.go": (
             "TestCommitSkewRuleOnThePageReadLive",

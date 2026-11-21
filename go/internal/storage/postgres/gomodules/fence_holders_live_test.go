@@ -277,3 +277,61 @@ func TestFiftySupersededGenerationsReadOnlyTheEvidenceCommitLive(t *testing.T) {
 		t.Fatalf("decision = %+v, want one fence from a surviving row", decision)
 	}
 }
+
+// TestFenceReopensHoldersInDeadLetterLockOrderLive is the live half of the
+// #11147 review F2 lock-order fix. The admin replay, the recovery drain, and
+// poison recovery lock dead letters in work_item_id COLLATE "C" order, so the
+// fence must reopen its holders, inside its one transaction, in that order.
+// The two holders with items sort one way by scope id and the other way by
+// item id (the item id maps ':' and '/' to '_'), and the holder with no item
+// sorts first by scope id; the fence must reopen them in item-id order with
+// the item-less holder last. The run also records the holder read's plan.
+func TestFenceReopensHoldersInDeadLetterLockOrderLive(t *testing.T) {
+	database := openStoreProof(t)
+	ctx := t.Context()
+	repository, fence := seedFenceable(t, database, 1)
+	const (
+		api    = "repo://acme/api"
+		web    = "repo://acme2/web"
+		noItem = "repo://aaa/no-item"
+	)
+	apiItem := seedFindingHolder(t, database, api, repository, "dead_letter")
+	webItem := seedFindingHolder(t, database, web, repository, "succeeded")
+	seedFindingHolder(t, database, noItem, repository, "")
+	if api >= web || webItem >= apiItem {
+		t.Fatalf("fixture lost the order disagreement: scope %q<%q, item %q<%q", api, web, webItem, apiItem)
+	}
+
+	rows, err := database.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+fenceFindHoldersQuery, repository, fence.ScopeID)
+	if err != nil {
+		t.Fatalf("explain holder read: %v", err)
+	}
+	var plan []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, line)
+	}
+	_ = rows.Close()
+	t.Logf("fence holder read plan:\n%s", strings.Join(plan, "\n"))
+
+	var order []string
+	store := NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(func(
+		ctx context.Context, tx db.ExecQueryer, holder, sourceScopeID, sourceGenerationID string, now time.Time,
+	) error {
+		order = append(order, holder)
+		return postgres.ReopenSupplyChainImpactHolderInTransaction(ctx, tx, holder, sourceScopeID, sourceGenerationID, now)
+	})
+	result, err := store.FenceStaleGoEvidence(ctx, []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
+	if err != nil || result.Fenced != 1 || result.HoldersReopened != 3 {
+		t.Fatalf("result = %+v, err = %v, want 1 fenced and 3 holders", result, err)
+	}
+	if want := []string{web, api, noItem}; strings.Join(order, ",") != strings.Join(want, ",") {
+		t.Fatalf("reopen order = %v, want %v (work_item_id COLLATE \"C\" order, item-less last)", order, want)
+	}
+	if status, origin := readItem(t, database, apiItem); status != "pending" || string(origin) != "null" {
+		t.Fatalf("dead-letter holder = %q origin %s, want pending and unstamped", status, origin)
+	}
+}
