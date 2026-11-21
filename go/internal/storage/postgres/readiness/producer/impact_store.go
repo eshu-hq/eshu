@@ -14,15 +14,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// ImpactProducerStateQuery counts one scope generation's supply_chain_impact
-// work items by status and returns the newest in-flight last-workable time
-// (NULL when none is in flight) (#8827). The succeeded and failed
+// ImpactProducerStateQuery counts one scope generation's reducer work items of
+// one domain ($3) by status and returns the newest in-flight last-workable
+// time (NULL when none is in flight). Two callers bind $3: the #8827
+// reconciliation fence binds supply_chain_impact, and the #11105 impact
+// attachment wait binds sbom_attestation_attachment. The succeeded and failed
 // (dead_letter or failed) counts tell a settled producer, a genuine no-match,
 // from one that stopped without its evidence (#8956); a superseded or other
 // terminal row is in neither count and so is never settled.
 //
 // It is an aggregate with no GROUP BY, so it always returns exactly one row:
-// all zeros when no impact work was ever enqueued for the generation. It reads
+// all zeros when no work of the domain was ever enqueued for the generation. It reads
 // fact_work_items through fact_work_items_scope_generation_idx (scope_id,
 // generation_id, ...) with an equality on both columns, so only the one scope
 // generation's rows are fetched and stage and domain filter that small set.
@@ -69,36 +71,61 @@ func (s ImpactStore) ImpactProducerState(
 	scopeID string,
 	generationID string,
 ) (securityalert.ImpactProducerState, error) {
+	return s.producerState(ctx, scopeID, generationID, reducercontract.DomainSupplyChainImpact)
+}
+
+// SBOMAttestationAttachmentState returns the same status counts and anchor for
+// the sbom_attestation_attachment work of one scope generation (#11105). The
+// supply_chain_impact handler reads it before its evidence load so an impact
+// pass never runs while its own generation's attachment is still in flight.
+// The statement is [ImpactProducerStateQuery] with the domain bound to
+// sbom_attestation_attachment, so the plan and the anchor are the #8827 ones.
+// An error is never reported as an empty state.
+func (s ImpactStore) SBOMAttestationAttachmentState(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) (securityalert.ImpactProducerState, error) {
+	return s.producerState(ctx, scopeID, generationID, reducercontract.DomainSBOMAttestationAttachment)
+}
+
+// producerState runs [ImpactProducerStateQuery] for one reducer domain of one
+// scope generation.
+func (s ImpactStore) producerState(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	domain reducercontract.Domain,
+) (securityalert.ImpactProducerState, error) {
 	if s.DB == nil {
-		return securityalert.ImpactProducerState{}, fmt.Errorf("impact producer readiness store requires a database")
+		return securityalert.ImpactProducerState{}, fmt.Errorf("%s producer readiness store requires a database", domain)
 	}
 	scopeID, generationID = strings.TrimSpace(scopeID), strings.TrimSpace(generationID)
 	if scopeID == "" || generationID == "" {
-		return securityalert.ImpactProducerState{}, fmt.Errorf("impact producer readiness requires a scope and generation id")
+		return securityalert.ImpactProducerState{}, fmt.Errorf("%s producer readiness requires a scope and generation id", domain)
 	}
-	rows, err := s.DB.QueryContext(ctx, ImpactProducerStateQuery, scopeID, generationID,
-		string(reducercontract.DomainSupplyChainImpact))
+	rows, err := s.DB.QueryContext(ctx, ImpactProducerStateQuery, scopeID, generationID, string(domain))
 	if err != nil {
-		return securityalert.ImpactProducerState{}, fmt.Errorf("query impact producer state: %w", err)
+		return securityalert.ImpactProducerState{}, fmt.Errorf("query %s producer state: %w", domain, err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return securityalert.ImpactProducerState{}, fmt.Errorf("read impact producer state: %w", err)
+			return securityalert.ImpactProducerState{}, fmt.Errorf("read %s producer state: %w", domain, err)
 		}
-		return securityalert.ImpactProducerState{}, fmt.Errorf("impact producer state query returned no row")
+		return securityalert.ImpactProducerState{}, fmt.Errorf("%s producer state query returned no row", domain)
 	}
 	var state securityalert.ImpactProducerState
 	var workableAt sql.NullTime
 	if err := rows.Scan(&state.Pending, &state.Retrying, &state.Claimed, &state.Running,
 		&state.Succeeded, &state.Failed, &state.Total, &workableAt); err != nil {
-		return securityalert.ImpactProducerState{}, fmt.Errorf("scan impact producer state: %w", err)
+		return securityalert.ImpactProducerState{}, fmt.Errorf("scan %s producer state: %w", domain, err)
 	}
 	if workableAt.Valid {
 		state.NewestInFlightWorkableAt = workableAt.Time
 	}
 	if err := rows.Err(); err != nil {
-		return securityalert.ImpactProducerState{}, fmt.Errorf("read impact producer state: %w", err)
+		return securityalert.ImpactProducerState{}, fmt.Errorf("read %s producer state: %w", domain, err)
 	}
 	return state, nil
 }

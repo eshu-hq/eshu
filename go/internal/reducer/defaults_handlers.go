@@ -272,6 +272,10 @@ type SupplyChainSecurityHandlers struct {
 	// nil skips the projection enqueue; production wiring sets it beside
 	// the fan-out, and the wiring test pins that.
 	SupplyChainImpactGroupProjectionEnqueuer supplychaincore.SupplyChainAdvisoryGroupProjectionEnqueuer
+	// SupplyChainImpactAttachmentReadiness makes an impact pass wait on its own
+	// scope generation's sbom_attestation_attachment work (#11105). Nil
+	// disables the wait.
+	SupplyChainImpactAttachmentReadiness supplychaincore.SBOMAttachmentReadiness
 
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.

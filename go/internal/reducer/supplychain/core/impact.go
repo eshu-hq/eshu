@@ -170,6 +170,11 @@ type SupplyChainImpactHandler struct {
 	GroupProjectionEnqueuer SupplyChainAdvisoryGroupProjectionEnqueuer
 	// Tracer wraps the fan-out in one span. Optional.
 	Tracer trace.Tracer
+	// AttachmentReadiness is the #11105 same-generation sibling wait: a pass
+	// defers, without spending an attempt, while its own scope generation's
+	// sbom_attestation_attachment work is in flight. Optional: nil keeps the
+	// pre-#11105 behavior, where such a pass ran without the attachment.
+	AttachmentReadiness SBOMAttachmentReadiness
 }
 
 // checkSupplyChainImpactIntent rejects an intent the handler cannot run
@@ -198,8 +203,8 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	if err := h.checkSupplyChainImpactIntent(intent); err != nil {
 		return reducercontract.Result{}, err
 	}
-	if result, handled, err := h.handleManifestTrigger(ctx, intent); handled {
-		return result, err // #9874: a git manifest marker reopens holders, no findings.
+	if result, handled, err := h.beforeEvidenceLoad(ctx, intent); handled {
+		return result, err // #9874 manifest marker, or the #11105 attachment wait.
 	}
 
 	// Issued BEFORE the evidence load, never at write-commit time: the token

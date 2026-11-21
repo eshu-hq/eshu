@@ -169,6 +169,12 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 	}
 	// The registration must hand the handler the Postgres fencing-token issuer
 	// (#7142); nothing else at this level pins that wiring.
+	// #11105: the registration must hand the handler the attachment
+	// readiness store; a nil port would let a pass run ahead of its own
+	// retrying attachment with every logic test green.
+	if !database.probedAttachmentReadiness {
+		t.Fatal("the sbom attestation attachment probe never ran: the readiness store is not wired into the supply_chain_impact registration")
+	}
 	if !database.issuedFencingToken {
 		t.Fatal("the fencing token was never issued: the issuer is not wired into the supply_chain_impact registration")
 	}
@@ -377,6 +383,16 @@ func crossScopeReadinessAssign(dest, value any) error {
 			return errors.New("fixture value is not a time.Time")
 		}
 		*target = v
+	case *sql.NullTime:
+		if value == nil {
+			*target = sql.NullTime{}
+			return nil
+		}
+		v, ok := value.(time.Time)
+		if !ok {
+			return errors.New("fixture value is not a time.Time")
+		}
+		*target = sql.NullTime{Time: v, Valid: true}
 	case *[]byte:
 		v, ok := value.([]byte)
 		if !ok {

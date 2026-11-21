@@ -211,6 +211,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// crossscope.ProducerReadinessMaxWait from the producer row's last-workable
 	// time, not by this budget (the freeze also freezes the handler's cap).
 	securityalert.ImpactNotReadyFailureClass,
+	// #11105: supply_chain_impact deferred while the sbom_attestation_attachment
+	// work of the same scope generation is in flight. The pass reads the
+	// attachment fact its sibling writes and nothing re-runs it after a late
+	// attachment commit, so it waits instead of publishing without it. The
+	// handler bounds the wait by elapsed time past
+	// crossscope.ProducerReadinessMaxWait from the attachment row's
+	// last-workable time, not by this budget.
+	supplychaincore.SBOMAttachmentNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

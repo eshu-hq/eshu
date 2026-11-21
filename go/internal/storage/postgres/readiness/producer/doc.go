@@ -28,5 +28,8 @@
 // last-workable time of the supply_chain_impact work of one scope generation,
 // so a security alert reconciliation waits on its own producer without spending
 // an attempt. It is one aggregate, [ImpactProducerStateQuery], through
-// fact_work_items_scope_generation_idx.
+// fact_work_items_scope_generation_idx. The same statement, with the domain
+// bound to sbom_attestation_attachment, answers
+// [ImpactStore.SBOMAttestationAttachmentState] (#11105), so a
+// supply_chain_impact pass waits on its own generation's attachment work.
 package producer

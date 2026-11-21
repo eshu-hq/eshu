@@ -82,6 +82,9 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			ProducerReadiness: handlers.CrossScopeProducerReadiness,
 			ReadinessWaits:    handlers.ReadinessWaits,
 			Logger:            handlers.CrossScopeReadinessLogger,
+			// #11105: without the port an impact pass runs while its own
+			// attachment is retrying and publishes without it.
+			AttachmentReadiness: handlers.SupplyChainImpactAttachmentReadiness,
 		}
 		definitions = append(definitions, impact)
 	}

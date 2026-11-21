@@ -25,6 +25,9 @@ type supplyChainReadinessWiringDB struct {
 	// issuedFencingToken records that the pass asked the wired issuer for its
 	// fencing token (#7142) before it loaded any evidence.
 	issuedFencingToken bool
+	// probedAttachmentReadiness records that the pass asked the wired #11105
+	// attachment readiness store about its own scope generation.
+	probedAttachmentReadiness bool
 }
 
 func (f *supplyChainReadinessWiringDB) QueryContext(
@@ -32,6 +35,14 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 	query string,
 	args ...any,
 ) (db.Rows, error) {
+	// The #11105 attachment sibling probe: no attachment work exists for the
+	// generation, so the aggregate answers its all-zero row and the pass
+	// proceeds to the floor.
+	if strings.Contains(query, "AS newest_in_flight_workable_at") && len(args) == 3 &&
+		args[2] == "sbom_attestation_attachment" {
+		f.probedAttachmentReadiness = true
+		return &crossScopeReadinessRows{rows: [][]any{{0, 0, 0, 0, 0, 0, 0, nil}}}, nil
+	}
 	// The fencing-token issuer (#7142): Handle draws the token from the
 	// supply_chain_impact_fencing_token_seq sequence before the evidence load.
 	if strings.Contains(query, "supply_chain_impact_fencing_token_seq") {

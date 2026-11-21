@@ -972,6 +972,11 @@ type Instruments struct {
 	// gave_up_bound_exceeded, producer_settled (#8956: the cap write after
 	// every impact work item succeeded, a genuine no-match).
 	SecurityAlertReconciliationImpactWait metric.Int64Counter
+	// SupplyChainImpactAttachmentWait counts the #11105 sibling-wait decisions
+	// of the supply_chain_impact handler on its own scope generation's
+	// sbom_attestation_attachment work, by reducer domain and closed outcome:
+	// deferred_in_flight, producer_failed, bound_exceeded.
+	SupplyChainImpactAttachmentWait metric.Int64Counter
 	// ServiceCatalogRuntimeRetrigger counts the #8169 re-trigger of service
 	// catalog correlation by a succeeded workload_materialization ACK, by the
 	// producer domain (domain) and closed outcome: reopened and replay_flagged
@@ -7340,6 +7345,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSecurityAlertReconciliationImpactWait(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactAttachmentWait(meter, inst); err != nil {
 		return nil, err
 	}
 

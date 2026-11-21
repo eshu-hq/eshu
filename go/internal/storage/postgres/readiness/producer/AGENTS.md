@@ -48,4 +48,7 @@ Scoped instructions for this package. The root `AGENTS.md` still applies.
   `reducercontract.DomainSupplyChainImpact`. The succeeded and failed counts
   (#8956) decide a genuine no-match: count only `succeeded` as succeeded and
   only `dead_letter`/`failed` as failed, so any other terminal status keeps
-  `Settled` false.
+  `Settled` false. The #11105 attachment probe
+  (`SBOMAttestationAttachmentState`) reuses this statement with the domain
+  bound to `reducercontract.DomainSBOMAttestationAttachment`; parameterize,
+  never copy, the SQL.

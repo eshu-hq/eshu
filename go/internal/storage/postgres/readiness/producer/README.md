@@ -148,6 +148,25 @@ Observability Evidence: the handler records each decision on
 `eshu_dp_security_alert_reconciliation_impact_wait_total{domain,outcome}`; this
 store adds no signal of its own.
 
+## The attachment sibling probe (#11105)
+
+`ImpactStore.SBOMAttestationAttachmentState` answers
+`supplychaincore.SBOMAttachmentReadiness`: the supply_chain_impact handler asks
+it, before its fencing token and every evidence load, whether its own scope
+generation's `sbom_attestation_attachment` work is still in flight. It runs
+`ImpactProducerStateQuery` with `$3` bound to `sbom_attestation_attachment`;
+the SQL is not copied, so the plan, the anchor, and the succeeded/failed counts
+are the #8827 ones. On a 350,000-row backlog with the attachment as one of 35
+domains the plan is an `Aggregate` over an `Index Scan` on
+`fact_work_items_scope_generation_idx` (execution 0.034-0.037 ms, 5 shared
+buffers, one run on a shared host);
+`TestReducerContentionGateSBOMAttachmentProducerStatePlanUsesScopeGenerationIndex`
+is the guard.
+
+Observability Evidence: the handler records each decision on
+`eshu_dp_supply_chain_impact_attachment_wait_total{domain,outcome}`; this store
+adds no signal of its own.
+
 ## Tests
 
 - `store_test.go`: repo-to-scope mapping, dedupe, empty input issues no

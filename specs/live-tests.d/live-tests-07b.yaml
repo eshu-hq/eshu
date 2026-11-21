@@ -1,4 +1,29 @@
 tests:
+  - file: go/internal/storage/postgres/supply_chain_impact_attachment_state_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11105 attachment producer-state probe scoping and its 350,000-row plan guard (fact_work_items_scope_generation_idx, no seq scan); reducer-contention selects the 2 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 2/2 on postgres:18 (the -race run is the CI job's)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_attachment_wait_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11105 T1 (impact defers while its own attachment retries; the attachment Ack reopens it and the finding publishes) and T2 (no attachment work proceeds at attempt 1), real queue, fact store, and writers; reducer-contention selects the 2 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 2/2 on postgres:18 (the -race run is the CI job's)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_attachment_cross_scope_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11105 cross-scope characterization: the referrer scope's own pass reads the document and vulnerability scopes after its attachment; reducer-contention selects the 1 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 1/1 on postgres:18 (the -race run is the CI job's)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_attachment_wait_matrix_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11105 retry matrix: dead-letter, park-after-terminal, duplicate Ack, frozen deferrals then counting dead-letter, superseded sibling, bound exceeded, foreign-Ack hint; reducer-contention selects the 7 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 7/7 on postgres:18 (the -race run is the CI job's)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_attachment_wait_concurrent_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11105 contention: 6 workers drain 8 image and 8 unrelated scopes with no overlap, no statement error, every impact row at attempt 1; reducer-contention selects the 1 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 1/1 on postgres:18 (the -race run is the CI job's)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/vulnerability_suppression_advisory_e2e_live_test.go
     tag: ~
     class: dedicated_ci

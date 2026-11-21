@@ -66,6 +66,11 @@ const (
 		"scope generation's supply_chain_impact work is in flight; the retry does not spend an attempt, the family " +
 		"writes only security-alert reconciliation rows, which no pre-maintenance cell asserts absent, and the " +
 		"awaited impact work can itself wait on the maintenance pass (#8827)"
+	toleratedSupplyChainAttachmentWait = "returned by supply_chain_impact before its fencing token or any read or " +
+		"write while the same scope generation's sbom_attestation_attachment work is in flight; the retry does not " +
+		"spend an attempt, the awaited attachment depends on no maintenance-pass output and its terminal Ack " +
+		"reopens the pass, and the family writes only supply-chain impact findings, which no pre-maintenance cell asserts " +
+		"absent (#11105)"
 	toleratedServiceRuntimeFence = "returned by service catalog correlation before any write while a correlated " +
 		"repository's workload_materialization work is in flight; the family writes only service-catalog " +
 		"correlations and service evidence lineage, which no pre-maintenance cell asserts absent, and the " +
@@ -108,6 +113,11 @@ var preMaintenanceToleratedFailureClasses = map[string]string{
 	"service_catalog_correlation_runtime_not_ready": toleratedServiceRuntimeFence,
 	// #8827: security alert reconciliation deferred on its own scope's impact producer.
 	"security_alert_reconciliation_impact_not_ready": toleratedSecurityAlertImpactFence,
+	// #11105: supply_chain_impact deferred on its own scope generation's
+	// sbom_attestation_attachment work. Same shape as the #8827 entry above:
+	// a same-generation sibling wait that runs before any write, on work
+	// that will commit without the maintenance pass.
+	"supply_chain_impact_sbom_attachment_not_ready": toleratedSupplyChainAttachmentWait,
 	// #6759 and #7268: waiting on a graph target of an already-resolved write.
 	"workload_materialization_deployment_source_target_not_ready": toleratedResolvedTarget,
 	"shared_edge_target_not_ready":                                toleratedResolvedTarget,
