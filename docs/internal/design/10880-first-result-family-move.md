@@ -379,3 +379,17 @@ binary still trying the old path.
   then slice 3 (write stop + reject trigger + latency gate), then
   slice 4 (replica census + index drop), then the families listed
   under "Remaining families" above.
+
+No-Regression Evidence: slices 1–2 above — live proofs
+`TestSupplyChainImpactWinnersResweepPayloadCarriedLive` (payload
+equality, payload-only rewrite, write-on-change counts) and
+`TestFindingsWinnersPayloadParityLive` (byte-identical pages,
+scoped-token grants) on disposable Postgres 18, plus the 2,007-row
+shim (resweep 67 ms; winners list 7.52 ms avg vs legacy 13.86 ms
+avg; 890-byte average payload). Small-N local numbers; seeded-scale
+gate deferred to slice 3.
+
+No-Observability-Change: slices 1–2 add no metric, span, log key,
+route, worker, or knob; existing resweep counts and
+`eshu_dp_postgres_query_duration_seconds` cover the wider rows.
+The rejected-legacy-write counter lands with slice 3.
