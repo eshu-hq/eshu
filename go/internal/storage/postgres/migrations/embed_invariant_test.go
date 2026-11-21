@@ -325,10 +325,10 @@ import (
 // 325_projector_admission_wait_attempts.sql (#10671) adds the projector
 // admission-wait counter on fact_work_items: NOT NULL DEFAULT 0,
 // metadata-only, no backfill.
-// #11082 adds 325_fact_records_package_ownership_active_idx.sql (the
+// #11082 adds 327_fact_records_package_ownership_active_idx.sql (the
 // drive-from-fact partial index for the code-import ownership load).
 const (
-	goldenBootstrapDefinitionsDigest = "6004b701ffc7cd88b553dd829214f8446c7a360eb75d805be84bab4151a41b07"
+	goldenBootstrapDefinitionsDigest = "1acdc599268317e5505bdf0520ec0e636f08d0483c94f4ae3e60be0fea6aebad"
 	goldenBootstrapDefinitionsCount  = 352
 )
 

@@ -21,7 +21,7 @@ import (
 // is the "before" side of the #11082 differential: the shipped statements
 // must return exactly this row set on the same corpus, and its generic plan
 // (kind/tombstone/cursor-OR left as a Filter with rows removed scaling per
-// page) is the regression the split plus migration 325 removes.
+// page) is the regression the split plus migration 327 removes.
 const legacyActivePackageOwnershipFactsQuery = `
 SELECT
     fact.fact_id,
@@ -62,7 +62,7 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 LIMIT $3
 `
 
-// TestActivePackageOwnershipDriveFromFactLive proves migration 325
+// TestActivePackageOwnershipDriveFromFactLive proves migration 327
 // (fact_records_package_ownership_active_idx) with the split first/cursor
 // statements on a live Postgres against the #11082 shape: many generations
 // sharing one observed_at each, plus inactive-generation target-kind rows

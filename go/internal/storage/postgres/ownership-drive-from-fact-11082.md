@@ -9,20 +9,24 @@ folded first and cursor pages behind `$1 IS NULL OR (observed_at, fact_id) >
 ...`, which stays a Filter under the generic plan the services get through
 database/sql (#6154), and the join form invited a nested loop over every
 active `(scope, generation)` pair probing `fact_records` per page. Past
-corpus scale that is one full-corpus probe set per 500-row page: on the QA
-copy ~11.5k probes over a 93M-row/193GB heap with `IO:DataFileRead` waits
-and a 3423s statement age against the 1h handler bound, while 33 concurrent
-retries restampede the same scan.
+corpus scale that is one full-corpus probe set per 500-row page. The QA
+readings behind #11082 (2026-11-20, read-only) are the observed cost: one
+statement aged 3423s waiting on `IO:DataFileRead` against the 1h handler
+bound, with 33 `code_import_repo_edge` items retrying after
+`reducer_handler_timeout` and none finishing in four hours.
 
 The rewrite splits first-page and cursor statements (mirroring
 `listFactsByKindQuery`/`listFactsByKindCursorQuery`) and drives from
 `fact_records` through the partial index
-`fact_records_package_ownership_active_idx` (migration 325:
+`fact_records_package_ownership_active_idx` (migration 327:
 `(observed_at, fact_id)` where the three kinds hold and `is_tombstone` is
 false) inside a `MATERIALIZED` CTE with no inner `LIMIT`. The CTE holds every
 matching row past the cursor in `(observed_at, fact_id)` order, the outer
 join keeps the active generation's rows, and the outer `LIMIT` takes one
-page. An inner `LIMIT` would be a silent-loss bug, not a tuning choice: the
+page. Honest bound: each page materializes every remaining three-kind
+non-tombstone row past the cursor, so per-page cost is O(remaining matching
+set), not O(page size); the win over the old form is one index-ordered pass
+per page instead of a full-corpus probe set per page. An inner `LIMIT` would be a silent-loss bug, not a tuning choice: the
 Go loop stops on a short post-join page, so a pre-join limit drops every
 active row past the truncated pre-join set. `MATERIALIZED` is load-bearing:
 without it Postgres flattens the CTE back into the generation-driven nested
@@ -43,9 +47,9 @@ loop.
   without it (60.7ms vs 7.5ms per page on the #11082 fixture); pin it in
   the shape test with the measurement cited, per `postgres-rigor`.
 
-## Migration 325
+## Migration 327
 
-`325_fact_records_package_ownership_active_idx.sql` adds the index above. It
+`327_fact_records_package_ownership_active_idx.sql` adds the index above. It
 is the only statement, built `CONCURRENTLY` like 099 and 105; the split
 first/cursor readers drive from `fact_records` through it. Index size on the
 deciding fixture is 128kB for 2700 matching rows (vs 205MB for the
@@ -54,6 +58,25 @@ the three listed kinds. Deliberately no `ANALYZE` (plain-column btree, same
 reasoning as 099; verified by capturing the plans with no `ANALYZE` after
 `CREATE INDEX`). Dropping the index is safe: reads return the same rows,
 only slower.
+
+## AC2: Why the cost changed between 2026-11-19 and 2026-11-20
+
+Acceptance criterion 2 of #11082 asks why the same statement finished 964
+items in four hours on 2026-11-19 and none on 2026-11-20, with the reading
+that shows it. The coordinator supplies the read-only QA readings for this
+section; no figure below is final until those land.
+
+- Corpus growth reading (fact_records row count / heap size, 11-19 vs
+  11-20): PENDING-COORDINATOR-QA-READINGS
+- Active (scope, generation) pair count feeding the old nested-loop probe
+  set, 11-19 vs 11-20: PENDING-COORDINATOR-QA-READINGS
+- Three-kind non-tombstone row count (the matching set each page now
+  materializes), 11-19 vs 11-20: PENDING-COORDINATOR-QA-READINGS
+- Plan or statistics change in the window (generic-plan shape, ANALYZE /
+  autovacuum timestamps): PENDING-COORDINATOR-QA-READINGS
+- Conclusion (which reading crosses the threshold that makes the old
+  per-page full-corpus probe set exceed the 1h bound):
+  PENDING-COORDINATOR-QA-READINGS
 
 ## Performance Evidence (#11082)
 

@@ -22,7 +22,7 @@ import (
 // generation (#11082).
 //
 // Both statements drive from fact_records through the partial index
-// fact_records_package_ownership_active_idx (migration 325) inside a
+// fact_records_package_ownership_active_idx (migration 327) inside a
 // MATERIALIZED CTE with no inner LIMIT: the CTE holds every matching row past
 // the cursor in (observed_at, fact_id) order, the outer join keeps the active
 // generation's rows, and the outer LIMIT takes one page. MATERIALIZED is

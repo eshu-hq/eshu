@@ -12,14 +12,18 @@
 -- services get through database/sql, as a nested loop over every active
 -- (scope, generation) pair probing fact_records with the kind, tombstone,
 -- and cursor predicates left as a Filter -- per page, one full-corpus probe
--- set. On the QA-shaped copy that is ~11.5k probes over a 93M-row/193GB heap
--- with IO:DataFileRead waits and a 3423s statement age against a 1h handler
--- bound, while 33 concurrent retries restampede the same scan.
+-- set. The QA readings behind #11082 (2026-11-20, read-only): one statement
+-- aged 3423s waiting on IO:DataFileRead against a 1h handler bound, with 33
+-- code_import_repo_edge items retrying after reducer_handler_timeout and
+-- none finishing in four hours.
 --
 -- This partial index matches the rewritten drive-from-fact statements
 -- exactly: the WHERE kinds plus NOT is_tombstone are the index predicate,
 -- and the key (observed_at, fact_id) is the ORDER BY and the cursor row
--- comparison, so a page is one index seek plus a short forward scan.
+-- comparison. Honest bound: each page's MATERIALIZED CTE materializes every
+-- remaining three-kind non-tombstone row past the cursor, so per-page cost
+-- is O(remaining matching set), not O(page size); the index turns that into
+-- one index-ordered pass per page instead of a full-corpus probe set.
 --
 -- Deciding experiment (#11082 ruling decision 2), disposable Postgres 18,
 -- 1.2M fact_records rows, 1200 generations sharing one observed_at per
