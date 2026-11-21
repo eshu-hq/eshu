@@ -9,6 +9,11 @@ tests:
     class: postgres_ci
     reason: "#7635 quiet-Ack producer activation RED/GREEN on the full bootstrap schema in an isolated disposable PostgreSQL schema: a producer scope activating with no commit replays exactly the owed correlation consumers once the obligation settles"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/activation/publish_wake_overlap_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11104 overlap of the deferred-backfill phase publish wake with the activation obligation Finalize wake on the full bootstrap schema in an isolated disposable PostgreSQL schema: a backward-evidence row parked through the waiting set-aside is reopened by the publish (wait row deleted, attempt budget frozen), Finalize then completes with nothing left to wake, and the row is natively claimable exactly once"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/activation/quiet_generation_live_test.go
     tag: ~
     class: postgres_ci

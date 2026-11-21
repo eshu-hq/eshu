@@ -28,6 +28,22 @@ resolution engine:     Claim (SKIP LOCKED, lease + token)
                        CatchUp (bounded scope pages) and Prune (bounded, completed/obsolete rows)
 ```
 
+Since #11104 the deferred-backfill phase publish also wakes these rows. A
+row parked through the reducer waiting set-aside carries an exact-phase
+wait, and the publish reopens it by that key: inside the publishing
+transaction, and again after the commit. Finalize's wake still matches only
+rows deferred into the future, so after a publish it usually finds nothing
+and completes with `Woken: 0`. A low
+`eshu_dp_activation_obligation_woken_total` is therefore expected, not a
+stall.
+
+Finalize's wake remains the path for a parked row with no wait row: one
+parked by an older binary during a rolling deploy, or one whose wait insert
+failed after its retry update committed. The live proofs here detach the
+wait row to exercise that path. `publish_wake_overlap_live_test.go` pins the
+overlap itself: the publish wakes the row, Finalize completes with nothing
+left to wake, and the row is claimable once.
+
 ## States and outcomes
 
 | State | Meaning |

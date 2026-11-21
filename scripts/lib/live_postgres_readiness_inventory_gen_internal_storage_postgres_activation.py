@@ -49,6 +49,9 @@ TABLE = {
         "go/internal/storage/postgres/activation/producer_obligation_live_test.go": (
             "TestProducerActivationQuietAckLeavesConsumerUnreplayedLive",
         ),
+        "go/internal/storage/postgres/activation/publish_wake_overlap_live_test.go": (
+            "TestActivationObligationPublishWakeOverlapsFinalizeLive",
+        ),
         "go/internal/storage/postgres/activation/quiet_generation_live_test.go": (
             "TestQuietGenerationActivatesAfterMaintenanceSnapshotLive",
             "TestQuietGenerationActivatesWithControlArmMaintenanceLive",

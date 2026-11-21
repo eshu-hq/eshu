@@ -100,6 +100,15 @@ contract:
 Superseded generations are unchanged: the stale sweep and the backstop still
 cover them.
 
+The activation-obligation Finalize wake (#7584) overlaps this change. The
+publish now reopens parked rows first, so Finalize usually completes with
+`Woken: 0`. Its wake still serves rows parked without a wait row: an older
+binary during a rolling deploy, or a failed wait insert. The activation live
+proofs detach the wait row to keep exercising that path, and
+`TestActivationObligationPublishWakeOverlapsFinalizeLive` pins the overlap:
+the publish wakes the row, Finalize completes with nothing left to wake, and
+the row is claimable once.
+
 ## Performance Evidence:
 
 Conflict domain: one scope generation's `deployment_mapping` waiters and its
