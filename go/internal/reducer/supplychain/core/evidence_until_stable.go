@@ -30,8 +30,10 @@ import (
 // pass. A follow-up the scope empties ends the loop: nothing reachable
 // remains unrequested.
 //
-// ownScopeID is the intent scope: under the #11087 bound only components of
-// that scope bear component-origin criteria (criteria_bound.go).
+// ownScopeID is the intent scope: under the #11087 bound a component bears
+// component-origin criteria only when the pass owns it, by its scope or by a
+// document attached to a digest its own scope holds (the own-digest rule in
+// criteria_bound.go).
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	ctx context.Context,
 	envelopes []facts.Envelope,

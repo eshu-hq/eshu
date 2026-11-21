@@ -259,9 +259,11 @@ func assertBatchLoadsNoKernelRows(t *testing.T, all []facts.Envelope) {
 }
 
 // TestCriteriaBoundOwnershipDigestsMatchFilter pins the lean ownership digest
-// helper to the digest keys of supplyChainImpactFilter, so a digest key added
-// to the filter cannot silently stop counting as own. Suppression rows are
-// the one intentional difference.
+// helper to the digest keys supplyChainImpactFilter reads for the eight fact
+// kinds listed below, so a digest key added to one of them cannot silently
+// stop counting as own. It does not discover a new fact kind or a new case in
+// the filter: adding one there needs a matching case in ownershipDigests and
+// an entry in this list. Suppression rows are the one intentional difference.
 func TestCriteriaBoundOwnershipDigestsMatchFilter(t *testing.T) {
 	t.Parallel()
 

@@ -223,8 +223,8 @@ Evidence (go test, harness, no database):
   re-run equals the new oracle. A copy held by a source that does not re-run
   stays stale under both rules; that edge is pre-existing and not changed here.
 - Rounds: every bounded fixture asserts `loads <= 8` and no round-cap
-  truncation (`assertRoundsWithinCap`); measured 1 to 4 loads across these
-  fixtures. The 7-round reading in the throwaway #10972 shim is not
+  truncation (`assertRoundsWithinCap`); measured 1 to 5 loads across these
+  fixtures (the image-arrival table below has the per-fixture maximum). The 7-round reading in the throwaway #10972 shim is not
   reproducible here: it used the shim's union-list loader with package-path
   switches, a different loop. In this loop rounds are the dependency depth
   (seed, component, document and attachment, digest and image), at most 4 on
@@ -258,8 +258,7 @@ Arrival edges, with their carrier:
 - Attestation attachment arrival has no fan-out (the attachment is written
   under the intent's own scope and is not a producer in the catalog). It is
   carried by the own-digest rule: the image scope's own run owns the document
-  its digest attaches. A follow-up issue tracks whether a re-run edge is
-  missing.
+  its digest attaches. #11105 tracks the sibling wait fix (a separate PR).
 
 The lean per-envelope digest helper (`ownershipDigests`) reads the digest keys
 of `supplyChainImpactFilter` without the suppression case;
@@ -268,7 +267,7 @@ of `supplyChainImpactFilter` without the suppression case;
 Fixtures (`criteria_expansion_image_arrival_test.go`, image scope an arriving
 source; each runs bound on and off, compares finding content with the
 oracle, 4 findings, and never stops on a truncation cause). RED at
-`db3f666c9f` (scope-only rule): a, b, c (bounded arms) and the enrichment
+`db3f666c9f` (scope-only rule): a, b, c, h (bounded arms) and the enrichment
 fixture with the image scope as a running source fail; the own-digest rule
 turns them green. Bounded loads per fixture (max over the runs in the
 fixture, cap 8):
@@ -291,3 +290,14 @@ which reaches the digest through a foreign image identity row, emits 0 findings
 bounded (3 loads) against 4 unbounded (6 loads); the repository-anchored
 findings exist in the fleet through the image run. Ownership is not widened
 beyond (b).
+
+### Known limits
+
+Late-attachment carriage (fixture c) rests on the image scope's own run and on
+#11105, the sibling wait fix, which lands in a separate PR: an attachment that
+commits after the pass has no fan-out edge of its own, so the image scope must
+re-run for it. Today an unbounded late repository-scope pass would incidentally
+compensate, because it follows the digest through the image identity row and
+emits the finding itself; the bounded pass does not, by design (fixture h: 0
+findings bounded against 4 unbounded). The bound therefore moves that carriage
+onto the image scope's own run.
