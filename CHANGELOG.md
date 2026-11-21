@@ -9,6 +9,23 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### The staged winners audit completes again past a million impact facts
+
+- **The staged audit sweeps by identifier range with a persisted cursor**
+  ([#11131](https://github.com/eshu-hq/eshu/issues/11131)). Under
+  `ESHU_POSTGRES_READ_ROUTING=staged-audits` the audit used to read the whole
+  impact-fact corpus in one tick and deferred on its 1,000,000-fact budget, so
+  on large corpora the missed-mark backstop never ran. It now walks the keyed
+  winners index one budgeted range at a time
+  (`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_BUDGET`, default 10,000 rows),
+  runs ranges back to back within an audit tick
+  (`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET`, default 5 minutes),
+  and resumes after a roll from a cursor row (migration 335). New signals:
+  `eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds{outcome}`,
+  the `eshu_dp_supply_chain_impact_winners_audit_sweep_*` counters and gauges,
+  and the deferral reasons `timeout`, `null_key`, `pipe`, `lock_busy` and
+  `cursor_race`.
+
 ### Repository dependency count reads only the active relationship generation
 
 - **Superseded generations no longer inflate `dependency_count`**

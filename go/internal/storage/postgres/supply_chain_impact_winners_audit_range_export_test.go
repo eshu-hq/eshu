@@ -15,6 +15,7 @@ import (
 var (
 	WinnersAuditFirstRangeSQLForTest = selectWinnersAuditFirstRangeSQL
 	WinnersAuditNextRangeSQLForTest  = selectWinnersAuditNextRangeSQL
+	WinnersAuditNullProbeSQLForTest  = probeWinnersAuditNullKeysSQL
 )
 
 // ReadWinnersAuditRangeWithSQLForTest runs one range with the given statement

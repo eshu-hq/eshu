@@ -224,3 +224,25 @@ func auditSetDiff(want map[string]bool, got map[string]int) []string {
 	sort.Strings(out)
 	return out
 }
+
+// explain runs an EXPLAIN statement and returns its plan text.
+func (h *keyedHarness) explain(query string, args ...any) string {
+	h.t.Helper()
+	rows, err := h.db.QueryContext(h.ctx, query, args...)
+	if err != nil {
+		h.t.Fatalf("explain: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var lines []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			h.t.Fatalf("scan explain: %v", err)
+		}
+		lines = append(lines, line)
+	}
+	if err := rows.Err(); err != nil {
+		h.t.Fatalf("explain: %v", err)
+	}
+	return strings.Join(lines, "\n")
+}
