@@ -336,6 +336,13 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		}
 	}
 
+	// affectedGroups is fixed for this call (built once above and never
+	// mutated), and manifestAffectedPackageMatches is pure, so the match
+	// list is loop-invariant: build it once instead of once per manifest
+	// dependency (issue #10972). The inner loop below only tests membership
+	// and the result is UniqueSortedStrings-sorted, so per-call map order in
+	// the builder cannot change the output.
+	matches := manifestAffectedPackageMatches(affectedGroups)
 	for _, dependency := range correlation.ExtractPackageManifestDependencies(envelopes) {
 		if dependency.RepositoryID == "" {
 			continue
@@ -344,7 +351,7 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		if len(dependencyKeys) == 0 {
 			continue
 		}
-		for _, affected := range manifestAffectedPackageMatches(affectedGroups) {
+		for _, affected := range matches {
 			if manifestDependencyMatchesAffectedPackage(dependencyKeys, affected.keys) {
 				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
 				break
