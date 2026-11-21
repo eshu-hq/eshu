@@ -35,14 +35,12 @@ No winner statement changes, so the winners contract version is not bumped.
 ## Proof
 
 Live PostgreSQL 18.6 (`pg-11082`, disposable template clones). The matrix and
-regression first ran at commit `167a2dfd91` over base `7c2948825d`. The branch
-was then rebased onto `5d486c52e6` (no conflicts) and onto `da04c6bb34` (one
-mechanical conflict in the reducer-domains coverage row, resolved by keeping
-main's text and re-adding the three #11147 insertions). After the second
-rebase, 25 live tests reran green: the matrix (four tests renamed into the
-reducer-contention workflow's `TestReopenHolder` selector), the reopen
-transitions, the holder reads, the fan-out state and owed-marker proofs, and
-four fan-out race proofs.
+regression first ran at commit `167a2dfd91` over base `7c2948825d`. After the
+review fixes and the rebase onto `68284d80a2`, the seven dead-letter live
+tests ran once more at `2e66606292` and all passed (exit 0; the admin-replay
+race saw both orders, fan-out 4 and replay 4). Four of those tests were renamed
+into the reducer-contention workflow's `TestReopenHolder` selector along the
+way.
 
 RED on base (the reopen statement unchanged, the port method only renamed):
 `TestReopenHolderReopensActiveDeadLetterEveryClassLive`,
