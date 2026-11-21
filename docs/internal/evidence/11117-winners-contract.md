@@ -1,6 +1,10 @@
 # #11117 A reducer roll with a matching winners contract runs no full resweep
 
-Refs #11117. Binding arbiter ruling: `.claude/arbiter-11117.md` (2026-11-21).
+Refs #11117. Binding arbiter rulings:
+[11117-winners-resweep-ruling-2026-11-21.md](../arbiter/11117-winners-resweep-ruling-2026-11-21.md)
+and its audit-gate addendum
+[11117-winners-audit-gate-ruling-2026-11-21.md](../arbiter/11117-winners-audit-gate-ruling-2026-11-21.md)
+(2026-11-21).
 This note covers PR 2 of the ruling (A, acceptance criteria AC2 and AC4). PR 1
 (the drain) is in [11117-winners-full-drain.md](11117-winners-full-drain.md).
 
@@ -92,7 +96,8 @@ a binary that predates this change, or across a version bump, must NULL both
 columns as a runbook step. Otherwise a newer binary rolled forward later would
 trust a version that the older binary's writes no longer match.
 
-Bump rule (merge-order ruling, `.claude/arbiter-11113-deploy.md`): bump the
+Bump rule (merge-order ruling,
+[11113-deploy-ruling-2026-11-21.md](../arbiter/11113-deploy-ruling-2026-11-21.md)): bump the
 version only when the rendered winners SQL changes, or when impact facts or
 scope activation are rewritten outside the capture owners. #11113 and #11103
 change neither and need no bump. This change merges last in its release, so
@@ -127,6 +132,25 @@ backlog scale and the audit has operator signals:
   and larger payloads (#11120). An earlier measurement of 1.6 to 5.0 s is void:
   its synthetic facts lacked `subject_digest`, so the keyed probe matched
   nothing. The proof now fails if the probe keeps no facts.
+- **Verify at the #11103 rename wave (arbiter ruling on #11103, section 3).**
+  The same proof with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_VERIFY_SCALE=wave`
+  (200,000 stored winners, 176,000 pending candidates, the same queues and
+  scope marks) holds the lock 27.606 s at load1 28.5 and 22.853 s at load1
+  21.0. Both are under the 30 s bound, with little margin. During the hold a
+  keyed tick is Skipped and a capture insert completes in about 3 ms.
+- **The staged reader's caps count the corpus, not the backlog.**
+  `StagedAuditMaxStagedFacts` (1,000,000) and `StagedAuditMaxDistinctKeys`
+  (250,000) bound the whole read phase, which stages every active scope
+  generation's facts. Past either cap the tick defers on `budget` before the
+  writer verify runs, at any backlog
+  (`TestStagedAuditTickCapsDeferPastTheCorpusBudget`: at the cap the tick
+  verifies, one past it defers). If QA's active impact-fact corpus is past a
+  cap, every staged tick defers and the verify never runs. That is
+  NOT_CHECKED here. Read it from
+  `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason="budget"}`
+  and `..._last_staged_facts` after the deploy. If it is confirmed, the backstop
+  on QA is the force-full runbook step until the caps or the staged design
+  change.
 - **Staged-audit telemetry (item 5b).**
   `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason}`,
   `..._staged_audit_ticks_total`, and the last tick's `..._last_batches`,
