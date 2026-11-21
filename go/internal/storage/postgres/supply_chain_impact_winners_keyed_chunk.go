@@ -172,7 +172,10 @@ func buildWinnersKeyedChunk(
 		if err := ctx.Err(); err != nil {
 			return outcome, fmt.Errorf("build supply chain impact winners chunk: %w", err)
 		}
-		query, args := winnersKeyedChunkIdentBatch(idents)
+		query, args, err := winnersKeyedChunkIdentBatch(idents)
+		if err != nil {
+			return outcome, fmt.Errorf("record supply chain impact winners chunk identifiers: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
 			return outcome, fmt.Errorf("record supply chain impact winners chunk identifiers: %w", err)
 		}

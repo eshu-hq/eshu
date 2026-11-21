@@ -173,3 +173,18 @@ func TestBuildWinnersKeyedChunkEmptyInsertsNothing(t *testing.T) {
 		t.Fatalf("identifier INSERT statements = %d, want 0", got)
 	}
 }
+
+// TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling is the #11157
+// failing-first test: a chunk above the Postgres parameter ceiling (65,535
+// params at 5 per row = 13,107 rows) must fail closed with an explicit bound
+// error instead of sending an over-limit INSERT to the server.
+func TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling(t *testing.T) {
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(13109)}
+	_, err := buildWinnersKeyedChunk(context.Background(), fake, winnersChunkBounds{dirtyRows: 50000, identifiers: 13108})
+	if err == nil {
+		t.Fatalf("buildWinnersKeyedChunk with 13108 identifiers: got nil error, want parameter-ceiling clamp")
+	}
+	if got := insertExecs(fake); got != 0 {
+		t.Fatalf("identifier INSERT statements = %d, want 0 (clamp before Exec)", got)
+	}
+}
