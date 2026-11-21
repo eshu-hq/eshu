@@ -8,3 +8,6 @@ This directory holds maintainer-only documentation for Eshu.
   not re-document that layout here.
 - Internal specs and plans must be updated or removed when the active codebase
   changes. Treat them as current guidance only when they still match the repo.
+- The [Correlation Atlas](correlation-atlas/README.md) maps which collector
+  feeds which reducer correlation, what starts a run, and what starts it again
+  when another source changes.
