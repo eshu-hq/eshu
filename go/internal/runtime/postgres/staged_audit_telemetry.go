@@ -205,7 +205,23 @@ func (t *StagedAuditTelemetry) DiscardRate() float64 {
 	return float64(t.discards) / float64(t.verifies)
 }
 
-// StagedAuditSnapshot reads the recorder for the exported instruments.
+// StagedAuditSnapshot reads the recorder for the exported OTEL instruments
+// (#11117): every closed deferral reason, completed ticks, and the last
+// tick's gauges. It is safe on a nil receiver.
 func (t *StagedAuditTelemetry) StagedAuditSnapshot() telemetry.SupplyChainImpactWinnersStagedAuditSnapshot {
-	return telemetry.SupplyChainImpactWinnersStagedAuditSnapshot{}
+	snap := telemetry.SupplyChainImpactWinnersStagedAuditSnapshot{Deferrals: map[string]int64{}}
+	if t == nil {
+		return snap
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for reason, n := range t.deferrals {
+		snap.Deferrals[string(reason)] = n
+	}
+	snap.Ticks = t.ticks
+	snap.LastBatches = int64(t.lastBatchCount)
+	snap.LastMaxBatch = t.lastMaxBatch
+	snap.LastStagedFacts = int64(t.lastStagedFacts)
+	snap.LastDistinctKeys = int64(t.lastDistinctKeys)
+	return snap
 }
