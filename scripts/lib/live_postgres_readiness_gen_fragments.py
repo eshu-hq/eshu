@@ -14,6 +14,7 @@ FRAGMENT_NAMES = (
     "live-tests-readiness-part5.generated.yaml",
     "live-tests-readiness-part5b.generated.yaml",
     "live-tests-readiness-part6.generated.yaml",
+    "live-tests-readiness-part7.generated.yaml",
 )
 # Committed lexical cuts keep each file's destination stable as enrollment grows.
 # Rebalanced 2026-10-30 for #9322: enrollment reached 333 rows and the first
@@ -116,6 +117,9 @@ FRAGMENT_NAMES = (
 # headroom left for another rebalance, so a new cut at
 # pruned_generation_lock_order_live_test.go splits part5 into part5 and
 # part5b, each about half full; seven fragments pinned.
+# Split 2026-11-21 for #11129: the staging plan-pin and late-seq live
+# enrollments push part6 to 502 lines, so a cut at the supply-chain
+# authorized-loader proof starts part7; eight fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
@@ -123,6 +127,7 @@ FRAGMENT_BOUNDARIES = (
     "go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go",
     "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
+    "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go",
 )
 FRAGMENT_DIR = "specs/live-tests.d/"
 MAX_FRAGMENT_LINES = 499
