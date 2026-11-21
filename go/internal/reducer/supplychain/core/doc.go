@@ -107,7 +107,8 @@
 // cross_scope_test_doubles_test.go.
 //
 // No-Regression Evidence: skipping the startup full resweep when a committed
-// watermark exists (#10706) removes an hours-long one-shot pass, not per-tick
+// watermark exists (#10706, since decided every tick from the persisted winners
+// contract by #11117) removes an hours-long one-shot pass, not per-tick
 // work — the keyed tick path, claim shape, locks, and worker counts are
 // unchanged. Baseline is the unconditional startup full (92M-row
 // fact_records; observed stuck 87+ min on QA holding the single-flight
