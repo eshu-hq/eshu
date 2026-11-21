@@ -127,7 +127,31 @@ func TestSupplyChainImpactWinnersResweepContractRunsOneFullAcrossMaintainersLive
 			if !got.Present || !got.HasVersion || got.StoredVersion != got.BinaryVersion || got.StoredHash != got.BinaryHash {
 				t.Fatalf("stored contract = %+v, want the binary's version and hash", got)
 			}
+			// A tick cancelled mid-flight rolls back asynchronously
+			// (database/sql), so its resweep lock can outlive Run by a moment.
+			awaitWinnersResweepLockFree(h)
 			h.assertParity("after the single full and keyed ticks")
 		})
+	}
+}
+
+// awaitWinnersResweepLockFree waits up to 10 s until no session in this
+// database holds the two-key resweep advisory lock.
+func awaitWinnersResweepLockFree(h *keyedHarness) {
+	h.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		n := h.count(`SELECT count(*) FROM pg_locks
+WHERE locktype = 'advisory' AND objsubid = 2
+  AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+  AND classid::bigint = (hashtext('supply_chain_impact_winners')::bigint & 4294967295)
+  AND objid::bigint = (hashtext('resweep')::bigint & 4294967295)`)
+		if n == 0 {
+			return
+		}
+		if time.Now().After(deadline) {
+			h.t.Fatalf("resweep advisory lock still held %d time(s) after 10s", n)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
