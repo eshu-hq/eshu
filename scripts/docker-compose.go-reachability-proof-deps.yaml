@@ -132,6 +132,13 @@ services:
   nornicdb:
     ports: !reset []
 
+  # The coordinator denies component-extension scheduling without an
+  # explicit egress allowlist (fail closed). Allow exactly this proof's
+  # component + instance, mirroring the OCI fragment's policy shape.
+  workflow-coordinator:
+    environment:
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: '{"mode":"restricted","extensions":[{"component_id":"eshu.scanner.go-reachability","instance_id":"remote-e2e-go-reachability","collector_kind":"scanner_worker","decision":"allow"}]}'
+
   # The foundation file redefines projector with a bare build context
   # (same latent defect as the runtime stack). Point it at the eshu
   # checkout like everything else the proof builds.
