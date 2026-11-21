@@ -55,18 +55,19 @@ func supplyChainImpactFollowUpFilter(
 	current SupplyChainImpactFactFilter,
 ) SupplyChainImpactFactFilter {
 	return SupplyChainImpactFactFilter{
-		PackageIDs:        missingStringValues(current.PackageIDs, requested.PackageIDs),
-		PURLs:             missingStringValues(current.PURLs, requested.PURLs),
-		CVEIDs:            missingStringValues(current.CVEIDs, requested.CVEIDs),
-		UpstreamCVEIDs:    missingStringValues(current.UpstreamCVEIDs, requested.UpstreamCVEIDs),
-		AliasIDs:          missingStringValues(current.AliasIDs, requested.AliasIDs),
-		AdvisoryIDs:       missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
-		SubjectDigests:    missingStringValues(current.SubjectDigests, requested.SubjectDigests),
-		DocumentIDs:       missingStringValues(current.DocumentIDs, requested.DocumentIDs),
-		ProductCriteria:   missingStringValues(current.ProductCriteria, requested.ProductCriteria),
-		RepositoryIDs:     missingStringValues(current.RepositoryIDs, requested.RepositoryIDs),
-		FileRepositoryIDs: missingStringValues(current.FileRepositoryIDs, requested.FileRepositoryIDs),
-		ImageRefs:         missingStringValues(current.ImageRefs, requested.ImageRefs),
+		PackageIDs:          missingStringValues(current.PackageIDs, requested.PackageIDs),
+		PURLs:               missingStringValues(current.PURLs, requested.PURLs),
+		CVEIDs:              missingStringValues(current.CVEIDs, requested.CVEIDs),
+		UpstreamCVEIDs:      missingStringValues(current.UpstreamCVEIDs, requested.UpstreamCVEIDs),
+		AliasIDs:            missingStringValues(current.AliasIDs, requested.AliasIDs),
+		AdvisoryIDs:         missingStringValues(current.AdvisoryIDs, requested.AdvisoryIDs),
+		SubjectDigests:      missingStringValues(current.SubjectDigests, requested.SubjectDigests),
+		DocumentIDs:         missingStringValues(current.DocumentIDs, requested.DocumentIDs),
+		ProductCriteria:     missingStringValues(current.ProductCriteria, requested.ProductCriteria),
+		SeedProductCriteria: missingStringValues(current.SeedProductCriteria, requested.SeedProductCriteria),
+		RepositoryIDs:       missingStringValues(current.RepositoryIDs, requested.RepositoryIDs),
+		FileRepositoryIDs:   missingStringValues(current.FileRepositoryIDs, requested.FileRepositoryIDs),
+		ImageRefs:           missingStringValues(current.ImageRefs, requested.ImageRefs),
 	}
 }
 
@@ -82,23 +83,25 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.SubjectDigests = append(merged.SubjectDigests, filter.SubjectDigests...)
 		merged.DocumentIDs = append(merged.DocumentIDs, filter.DocumentIDs...)
 		merged.ProductCriteria = append(merged.ProductCriteria, filter.ProductCriteria...)
+		merged.SeedProductCriteria = append(merged.SeedProductCriteria, filter.SeedProductCriteria...)
 		merged.RepositoryIDs = append(merged.RepositoryIDs, filter.RepositoryIDs...)
 		merged.FileRepositoryIDs = append(merged.FileRepositoryIDs, filter.FileRepositoryIDs...)
 		merged.ImageRefs = append(merged.ImageRefs, filter.ImageRefs...)
 	}
 	return SupplyChainImpactFactFilter{
-		PackageIDs:        payloadcore.UniqueSortedStrings(merged.PackageIDs),
-		PURLs:             payloadcore.UniqueSortedStrings(merged.PURLs),
-		CVEIDs:            payloadcore.UniqueSortedStrings(merged.CVEIDs),
-		UpstreamCVEIDs:    payloadcore.UniqueSortedStrings(merged.UpstreamCVEIDs),
-		AliasIDs:          payloadcore.UniqueSortedStrings(merged.AliasIDs),
-		AdvisoryIDs:       payloadcore.UniqueSortedStrings(merged.AdvisoryIDs),
-		SubjectDigests:    payloadcore.UniqueSortedStrings(merged.SubjectDigests),
-		DocumentIDs:       payloadcore.UniqueSortedStrings(merged.DocumentIDs),
-		ProductCriteria:   payloadcore.UniqueSortedStrings(merged.ProductCriteria),
-		RepositoryIDs:     payloadcore.UniqueSortedStrings(merged.RepositoryIDs),
-		FileRepositoryIDs: payloadcore.UniqueSortedStrings(merged.FileRepositoryIDs),
-		ImageRefs:         payloadcore.UniqueSortedStrings(merged.ImageRefs),
+		PackageIDs:          payloadcore.UniqueSortedStrings(merged.PackageIDs),
+		PURLs:               payloadcore.UniqueSortedStrings(merged.PURLs),
+		CVEIDs:              payloadcore.UniqueSortedStrings(merged.CVEIDs),
+		UpstreamCVEIDs:      payloadcore.UniqueSortedStrings(merged.UpstreamCVEIDs),
+		AliasIDs:            payloadcore.UniqueSortedStrings(merged.AliasIDs),
+		AdvisoryIDs:         payloadcore.UniqueSortedStrings(merged.AdvisoryIDs),
+		SubjectDigests:      payloadcore.UniqueSortedStrings(merged.SubjectDigests),
+		DocumentIDs:         payloadcore.UniqueSortedStrings(merged.DocumentIDs),
+		ProductCriteria:     payloadcore.UniqueSortedStrings(merged.ProductCriteria),
+		SeedProductCriteria: payloadcore.UniqueSortedStrings(merged.SeedProductCriteria),
+		RepositoryIDs:       payloadcore.UniqueSortedStrings(merged.RepositoryIDs),
+		FileRepositoryIDs:   payloadcore.UniqueSortedStrings(merged.FileRepositoryIDs),
+		ImageRefs:           payloadcore.UniqueSortedStrings(merged.ImageRefs),
 	}
 }
 
@@ -309,7 +312,7 @@ func supplyChainImpactRepositoryFilterIDs(repositoryIDs []string) []string {
 
 func (f SupplyChainImpactFactFilter) empty() bool {
 	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.UpstreamCVEIDs) == 0 && len(f.AliasIDs) == 0 && len(f.AdvisoryIDs) == 0 &&
-		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
+		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 && len(f.SeedProductCriteria) == 0 &&
 		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
 }
 

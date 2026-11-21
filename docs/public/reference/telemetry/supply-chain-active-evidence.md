@@ -188,3 +188,22 @@ sub-signals, written even when zero. A rising `no_joinable_representative`
 points at facts that do not meet the installed rows, so read the group's facts and
 the rows' repository class first. `reselected` above zero is expected once
 a vendor producer and another source publish the same package id.
+
+## Criteria expansion bound
+
+A widely shared product-criteria value can make the until-stable evidence
+load walk every vulnerability that names it, stopping at the round limit and
+leaving the scope partial (#11087). The provenance bound keeps only two
+output-relevant criteria hops: component-origin criteria (components the pass owns:
+its own source, or a document attached to a digest its source holds) drive both the product and component probes, and seed-CVE product-origin criteria drive only
+the component probe. All other derived criteria are suppressed at derivation
+and counted. The success line carries the pass accounting as sub-signals,
+written even when zero so bound-on and bound-off passes stay comparable:
+
+- `criteria_bound_suppressed_transitive` — distinct transitive criteria
+  suppressed, summed over rounds. Judge success on loads and pass-state
+  conversion, never on this count: a pure-seed scope correctly reads 0.
+- `criteria_bound_loads` — until-stable loads the pass ran.
+- `criteria_bound_component_criteria` — criteria on the both-probes arm.
+- `criteria_bound_seed_criteria` — seed-CVE criteria on the component-only arm.
+- `criteria_bound_seed_cves` — seed CVE count after alias/upstream closure.

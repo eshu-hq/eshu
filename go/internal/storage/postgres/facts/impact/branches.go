@@ -22,6 +22,26 @@ const (
 // signal kinds for the CVE ids distro records name in their upstream lists.
 const BranchVulnerabilityUpstreamCVEID = "vulnerability_upstream_cve_id"
 
+// BranchAffectedProductCriteria names the key probe that loads
+// vulnerability.affected_product rows over the criteria list. Under the
+// #11087 provenance bound the loader binds it to the component-origin
+// criteria only, so a transitive row's criteria never pull another CVE's
+// product rows.
+const BranchAffectedProductCriteria = "affected_product_criteria"
+
+// BranchForeignKeyGuard names the foreign-key guard statement. Under the
+// #11087 provenance bound the loader binds its criteria arm to the
+// component-origin criteria too: the guard covers affected_product (kind
+// class growth), so its criteria arm would otherwise re-admit exactly the
+// rows the product probe excludes.
+const BranchForeignKeyGuard = "foreign_key_guard"
+
+// BranchSBOMComponentCPE names the key probe that loads sbom.component rows
+// over the criteria list. Under the #11087 provenance bound the loader binds
+// it to the union of component-origin and seed-CVE product-origin criteria,
+// so a seeded CVE's criteria still discover in-scope components (hop B).
+const BranchSBOMComponentCPE = "sbom_component_cpe"
+
 // Branch is one id-resolution statement. Each returns (fact_id, fact_kind)
 // for active, non-tombstone rows that satisfy one part of the retired
 // predicate; the union over every branch the loader issues is exactly the
@@ -186,9 +206,9 @@ func probeBranches() []Branch {
 		keyProbe("vulnerability_advisory_id", IndexVulnerabilityAdvisoryV2, "advisory_id", AdvisoryIDs, vulnerability...),
 		keyProbe("affected_package_package_id", IndexAffectedPackagePackageID, "package_id", PackageIDs, KindAffectedPackage),
 		keyProbe("affected_package_purl", IndexAffectedPackagePURL, "purl", PURLs, KindAffectedPackage),
-		keyProbe("affected_product_criteria", IndexAffectedProductCriteria, "criteria", ProductCriteria, KindAffectedProduct),
+		keyProbe(BranchAffectedProductCriteria, IndexAffectedProductCriteria, "criteria", ProductCriteria, KindAffectedProduct),
 		keyProbe("sbom_component_purl", IndexSBOMComponentPURL, "purl", PURLs, KindSBOMComponent),
-		keyProbe("sbom_component_cpe", IndexSBOMComponentCPE, "cpe", ProductCriteria, KindSBOMComponent),
+		keyProbe(BranchSBOMComponentCPE, IndexSBOMComponentCPE, "cpe", ProductCriteria, KindSBOMComponent),
 		keyProbe("sbom_component_document_id", IndexSBOMComponentDocumentID, "document_id", DocumentIDs, KindSBOMComponent),
 		keyProbe("package_id", IndexPackageID, "package_id", PackageIDs, packageIDKinds()...),
 		keyProbe("package_version_purl", IndexPackageVersionPURL, "purl", PURLs, KindPackageVersion),
@@ -280,7 +300,7 @@ func guard() Branch {
 		}
 	}
 	return Branch{
-		Name: "foreign_key_guard", Shape: ShapeGuard, Kinds: kinds, Anchor: IndexSupplyChainImpactKeyGuard,
+		Name: BranchForeignKeyGuard, Shape: ShapeGuard, Kinds: kinds, Anchor: IndexSupplyChainImpactKeyGuard,
 		SQL: sql, Params: b.order, RunWhen: baseParams(b.order),
 	}
 }
