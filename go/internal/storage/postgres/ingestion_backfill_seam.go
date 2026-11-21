@@ -52,7 +52,12 @@ func (s IngestionStore) backfillStore() backfill.Store {
 			return NewRelationshipStore(tx)
 		},
 		NewPhaseStore: func(tx db.Transaction) backfill.PhaseStore {
-			return NewGraphProjectionPhaseStateStore(tx)
+			store := NewGraphProjectionPhaseStateStore(tx)
+			store.Instruments = s.Instruments
+			return store
+		},
+		WakePhaseWaitsAfterCommit: func(ctx context.Context, rows []gpphase.PhaseState) {
+			WakeExactPhaseWaitsAfterCommit(ctx, s.database, s.Instruments, rows)
 		},
 	}
 }

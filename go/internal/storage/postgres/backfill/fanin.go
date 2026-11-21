@@ -410,5 +410,11 @@ func (s Store) publishDeferredBackfillPartition(
 		return deferredFanInOutcome{}, fmt.Errorf("commit deferred backfill readiness transaction: %w", err)
 	}
 	committed = true
+	// #11104: re-wake after the commit. The in-tx wake ran before a waiter
+	// that parked inside this transaction's window had a wait row, and that
+	// waiter's park-time check could not see the uncommitted phase.
+	if s.WakePhaseWaitsAfterCommit != nil {
+		s.WakePhaseWaitsAfterCommit(ctx, []gpphase.PhaseState{phaseRow})
+	}
 	return deferredFanInOutcome{Published: true}, nil
 }

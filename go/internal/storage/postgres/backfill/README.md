@@ -17,7 +17,9 @@ separately from commit-path orchestration.
 
 The engine owns pure backfill logic, its SQL, and the `Store` seam. The
 root `IngestionStore` owns commit-path orchestration: building a `Store`
-with all seams supplied (`backfillStore`), the post-commit transaction,
+with all seams supplied (`backfillStore`, including the #11104
+`WakePhaseWaitsAfterCommit` re-wake the fan-in calls after each readiness
+commit), the post-commit transaction,
 the skip orchestration, the reproject transaction, and the catalog cache.
 The engine never imports the parent postgres package.
 

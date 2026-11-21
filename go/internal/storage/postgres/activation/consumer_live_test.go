@@ -66,6 +66,7 @@ func TestActivationObligationConsumerOrderingLive(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("native reducer Fail: %v", err)
 			}
+			detachBackwardEvidenceWait(t, ctx, database, targetIntent.IntentID)
 			assertActivationTargetRetry(t, ctx, database, targetWork.Scope.ScopeID,
 				targetWork.Generation.GenerationID, "retrying",
 				crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass)

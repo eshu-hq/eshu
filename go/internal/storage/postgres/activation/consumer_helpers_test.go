@@ -155,7 +155,34 @@ func (f activationMatrix) notReadyDomain(t *testing.T, domain reducercontract.Do
 		crossrepo.BackwardEvidenceNotReadyError{ScopeID: scope, GenerationID: gen}); err != nil {
 		t.Fatal(err)
 	}
+	detachBackwardEvidenceWait(t, f.ctx, f.db, intent.IntentID)
 	return intent.IntentID
+}
+
+// detachBackwardEvidenceWait removes the waiting set-aside row a
+// backward-evidence Fail just parked. Since #11104 the deferred-backfill
+// phase publish wakes such waits by their exact key (in its transaction and
+// again after commit), so a parked row with its wait row is reopened before
+// Finalize runs (TestActivationObligationPublishWakeOverlapsFinalizeLive pins
+// that overlap). Finalize's own wake still serves the rows the publish cannot
+// reach: a row parked with no exact-phase wait row, either by an older binary
+// during a rolling deploy (its coarse target_committed wait never matches the
+// exact publish wake) or by a Fail whose wait insert failed after its retry
+// update committed. Detaching the wait row reproduces exactly
+// that residual, so these proofs keep exercising Finalize's wake contract.
+// It fails unless exactly one wait row existed, so a fixture that stops
+// parking through the set-aside is caught instead of passing silently.
+func detachBackwardEvidenceWait(t *testing.T, ctx context.Context, database *sql.DB, workItemID string) {
+	t.Helper()
+	res, err := database.ExecContext(ctx, `
+DELETE FROM reducer_waiting_items WHERE work_item_id = $1 AND failure_class = $2`,
+		workItemID, crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass)
+	if err != nil {
+		t.Fatalf("detach wait row %s: %v", workItemID, err)
+	}
+	if n, err := res.RowsAffected(); err != nil || n != 1 {
+		t.Fatalf("detach wait row %s: deleted %d rows (err %v), want exactly 1", workItemID, n, err)
+	}
 }
 
 func (f activationMatrix) claimObligation(t *testing.T, owner string, lease time.Duration, gen string) *activation.Obligation {

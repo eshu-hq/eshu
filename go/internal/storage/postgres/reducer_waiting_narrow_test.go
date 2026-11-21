@@ -249,7 +249,7 @@ func TestWaitingSatisfiedBindsTextSetsAsArrays(t *testing.T) {
 		fake := &captureWaitingQueryDB{}
 		if _, err := waitingSatisfied(context.Background(), fake,
 			WaitingKindRelationshipGenerationActive,
-			"scope-w", "gen-w", "", "", "waiter-1", nil, odd, now); err != nil {
+			"scope-w", "gen-w", "", "", "waiter-1", nil, odd, waitingPhaseRequirement{}, now); err != nil {
 			t.Fatalf("waitingSatisfied(): %v", err)
 		}
 		boundTextSet(t, fake.args, 2, odd)
@@ -260,7 +260,7 @@ func TestWaitingSatisfiedBindsTextSetsAsArrays(t *testing.T) {
 		fake := &captureWaitingQueryDB{}
 		if _, err := waitingSatisfied(context.Background(), fake,
 			WaitingKindFenceClear,
-			"scope-w", "gen-w", "", "", "waiter-1", odd, nil, now); err != nil {
+			"scope-w", "gen-w", "", "", "waiter-1", odd, nil, waitingPhaseRequirement{}, now); err != nil {
 			t.Fatalf("waitingSatisfied(): %v", err)
 		}
 		boundTextSet(t, fake.args, 5, odd)
@@ -271,7 +271,7 @@ func TestWaitingSatisfiedBindsTextSetsAsArrays(t *testing.T) {
 		fake := &captureWaitingQueryDB{}
 		if _, err := waitingSatisfied(context.Background(), fake,
 			WaitingKindProducerTerminal,
-			"", "", string(reducercontract.DomainCICDRunCorrelation), "", "waiter-1", nil, nil, now); err != nil {
+			"", "", string(reducercontract.DomainCICDRunCorrelation), "", "waiter-1", nil, nil, waitingPhaseRequirement{}, now); err != nil {
 			t.Fatalf("waitingSatisfied(): %v", err)
 		}
 		boundTextSet(t, fake.args, 8, []string{"ci_cd_run"})

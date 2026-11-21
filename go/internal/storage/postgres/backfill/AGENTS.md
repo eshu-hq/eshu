@@ -7,8 +7,8 @@
 
 1. `go/internal/storage/postgres/backfill/doc.go` — engine contract and the
    `Store` seam
-2. `go/internal/storage/postgres/backfill/store.go` — `Store` fields and the
-   two root-supplied constructors
+2. `go/internal/storage/postgres/backfill/store.go` — `Store` fields, the
+   root-supplied constructors, and the post-commit phase wake seam
 3. `go/internal/storage/postgres/backfill/engine.go` — pass shape
    (`RunAllRelationshipEvidence`, batch walk, fan-in)
 4. `go/internal/storage/postgres/ingestion_backfill_seam.go` — root side of
@@ -22,6 +22,15 @@
   `relationships`, `scope`, `telemetry`, never the parent
   postgres package. Root-owned behavior arrives through `Store`
   constructors.
+- **Post-commit phase wake (#11104)** — `publishDeferredBackfillPartition`
+  calls `Store.WakePhaseWaitsAfterCommit` once, after its transaction
+  commits, with exactly the readiness row it published; never before the
+  commit, never for a skipped or failed partition
+  (`TestFanInPostCommitWakeRunsAfterCommitOnly`). The seam returns nothing:
+  the root logs and meters a failure because the publication already
+  committed. Do not move the re-wake into the transaction: the in-tx exact
+  wake already runs there, and a waiter that parks inside the open window is
+  reopened only by the post-commit call.
 - **Partition-keyed publication** — one readiness row and one memo row per
   distinct (scope, generation) partition, never per repository or per
   batch. The hermetic dupkey tests pin this without a database; the live

@@ -156,6 +156,16 @@ func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []gpph
 		}
 	}
 
+	// #11104: rows whose (keyspace, phase) a deferral map row enrolls also
+	// wake the exact key, in the same transaction. Rows of any other phase
+	// send no extra statement. The caller re-wakes after its commit
+	// (WakeExactPhaseWaitsAfterCommit) for a waiter that parks inside the
+	// open window.
+	if err := wakeExactPhaseWaits(ctx, s.database, s.Instruments,
+		telemetry.WaitingWakeSitePhaseExactInTx, rows, now); err != nil {
+		return err
+	}
+
 	return nil
 }
 

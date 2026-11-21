@@ -12,7 +12,8 @@ import (
 
 // MetricDimensionWaitingWakeSite labels eshu_dp_reducer_waiting_wake_total
 // with where the #10876 waiting wake ran. The value set is closed:
-// in-tx provider saves and the audit.
+// in-tx provider saves, the audit, and the #11104 exact-phase wake inside
+// and after the phase publish.
 const MetricDimensionWaitingWakeSite = "wake_site"
 
 // Waiting wake sites (#10876).
@@ -22,6 +23,15 @@ const (
 	// WaitingWakeSiteAudit is the 5-minute slow audit reopening a wait whose
 	// provider already committed.
 	WaitingWakeSiteAudit = "audit"
+	// WaitingWakeSitePhaseExactInTx is the exact-key phase_committed wake
+	// inside the phase publish's transaction (#11104): it reopens waits on
+	// one generation's own (keyspace, phase) row, today the cross-repo
+	// backward-evidence deferral.
+	WaitingWakeSitePhaseExactInTx = "phase_exact_in_tx"
+	// WaitingWakeSitePhaseExactPostCommit is the exact-key re-wake after the
+	// phase publish committed (#11104), covering a waiter that parked inside
+	// the publisher's open window.
+	WaitingWakeSitePhaseExactPostCommit = "phase_exact_post_commit"
 )
 
 // Waiting wake outcomes (#10876), recorded on the existing outcome dimension.
@@ -54,7 +64,7 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	var err error
 	if inst.ReducerWaitingWake, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_wake_total",
-		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit) and outcome (reopened, noop, error) (#10876)"),
+		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish) and outcome (reopened, noop, error) (#10876)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingWake counter: %w", err)
 	}

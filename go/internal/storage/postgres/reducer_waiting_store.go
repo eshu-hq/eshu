@@ -77,6 +77,10 @@ func waitingKeyFor(intent reducercontract.Intent, entry WaitingDeferral) (string
 	if scope == "" || gen == "" {
 		return "", false
 	}
+	if req := entry.phaseRequirement(); req.exact() {
+		// #11104: a phase-exact wait names the one phase row it needs.
+		return waitingExactPhaseKey(scope, gen, req)
+	}
 	var key waitingKey
 	switch entry.WaitsForKind {
 	case WaitingKindRelationshipGenerationActive,

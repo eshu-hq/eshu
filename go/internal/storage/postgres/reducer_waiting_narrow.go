@@ -39,6 +39,11 @@ type waitingKey struct {
 	Domains          []string `json:"domains,omitempty"`
 	BlockingScopeIDs []string `json:"blocking_scope_ids,omitempty"`
 	RepoIDs          []string `json:"repo_ids,omitempty"`
+	// Keyspace and Phase are set only on phase-exact phase_committed waits
+	// (#11104); coarse phase waits omit them, so the coarse Upsert wake's
+	// JSONB-equality match never reaches an exact key.
+	Keyspace string `json:"keyspace,omitempty"`
+	Phase    string `json:"phase,omitempty"`
 }
 
 // corpusWaitNarrowing is the Fail-path contract for a deferral that parks on
@@ -183,7 +188,9 @@ SELECT EXISTS (
 // waitingSatisfied reports whether the provider of one wait already
 // committed, sharing the single predicate the audit uses. A narrowed corpus
 // wait (blocking set present) uses the narrowed predicate: own generation
-// active and the verdict-time blocking set clear.
+// active and the verdict-time blocking set clear. A phase-exact wait (#11104)
+// uses the exact phase-row predicate, never the coarse any-phase branch,
+// which would satisfy at park time and spin.
 func waitingSatisfied(
 	ctx context.Context,
 	database db.ExecQueryer,
@@ -191,8 +198,12 @@ func waitingSatisfied(
 	scopeID, generationID, producerDomain, enqueuedAt, waiterID string,
 	fenceDomains []string,
 	blockingScopeIDs []string,
+	phase waitingPhaseRequirement,
 	progressSince time.Time,
 ) (bool, error) {
+	if kind == WaitingKindPhaseCommitted && phase.exact() {
+		return exactPhaseWaitSatisfied(ctx, database, scopeID, generationID, phase)
+	}
 	if kind == WaitingKindRelationshipGenerationActive && len(blockingScopeIDs) > 0 {
 		var satisfied bool
 		if err := querySingleRow(ctx, database, narrowedCorpusWaitSatisfiedQuery, []any{
@@ -271,7 +282,8 @@ func waitingSatisfiedForIntent(
 		ctx, database, entry.WaitsForKind,
 		scopeID, generationID,
 		producerDomain, key.EnqueuedAt, intent.IntentID,
-		key.Domains, key.BlockingScopeIDs, now,
+		key.Domains, key.BlockingScopeIDs,
+		waitingPhaseRequirement{Keyspace: key.Keyspace, Phase: key.Phase}, now,
 	)
 }
 
