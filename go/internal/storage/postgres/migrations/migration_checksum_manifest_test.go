@@ -466,6 +466,10 @@ var migrationShippedChecksums = map[string]string{
 	// admission-timeout failures retry against their own finite budget
 	// instead of spending the shared projection attempt budget.
 	"325_projector_admission_wait_attempts.sql": "3a344dcf8104515b5da51370e8d8f673b2a9f234a10127198bd4ccfae2587bd4",
+	// #11082: the drive-from-fact partial index for the code-import
+	// ownership load (split first/cursor statements read it through a
+	// MATERIALIZED CTE with no inner LIMIT).
+	"325_fact_records_package_ownership_active_idx.sql": "481c8ee238c1e7b717bc9098c87c229ebd18baeb4d4db2d8c70ddbacf58444b1",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

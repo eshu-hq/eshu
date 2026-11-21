@@ -77,6 +77,29 @@ idempotently or under a fencing token. The per-domain audit lives in
 (#10866); domains without
 an audited write path get no shipped bound.
 
+`code_import_repo_edge` audit (#10866 prerequisite for its 2m per-domain
+bound, #11082): the handler does one end-of-handler transactional
+`UpsertIntents` of deterministic rows after both loads
+(`code_import_repo_edge_handler.go` `Handle`, `BuildCodeImportRepoDependencyIntents`
+intent IDs are deterministic across builds per
+`code_import_repo_edge_test.go`). The shared-intent upsert is
+`ON CONFLICT (intent_id) DO UPDATE` last-writer-wins with an advance-only
+`completed_at` that never reopens a completed row
+(`shared_intents_upsert.go` `upsertSharedIntentBatchSuffix`, pinned by
+`TestSharedIntentUpsertCreatedAtLastWriterWinsLive`); the acceptance upsert
+is `ON CONFLICT (scope_id, acceptance_unit_id, source_run_id) DO UPDATE`
+with an advance-only generation guard that skips stale writes
+(`shared_projection_acceptance.go`
+`upsertSharedProjectionAcceptanceBatchSuffix`); repo-dependency rows take
+`SortedUniqueRepoKeys` locks in a single transaction
+(`shared_intent_acceptance_writer.go` `UpsertIntents`); queue mutations after
+release are rejected by the lease fence (#7142). A repeat execution therefore
+refreshes the same rows in place and never duplicates or reopens them, so an
+abandoned attempt that later commits is idempotent and the bound ships. A
+canceled attempt cannot leave a burning backend either: context cancel closes
+the pgx connection and the backend exits (observed on disposable Postgres 18,
+#11082 decision-5 probe).
+
 The #7816 runtime fence is untouched: it still treats a heartbeating producer
 row as live, and this step adds no deadline that would change its bound.
 

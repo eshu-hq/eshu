@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -82,8 +83,8 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		return reducercontract.Result{}, fmt.Errorf("code import repo edge fact loader is required")
 	}
 
+	var span trace.Span
 	if h.tracerStartSkippable() {
-		var span trace.Span
 		ctx, span = h.Tracer.Start(ctx, telemetry.SpanCodeImportRepoEdge)
 		defer span.End()
 	}
@@ -92,6 +93,11 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		return h.skippedResult(intent, "code import repo edge writer or ownership loader not wired"), nil
 	}
 
+	// Load-split attribution (#11082): the ownership load is a fleet-wide
+	// scan while the file load is scope-local, so a slow item must name its
+	// load. Both durations and the ownership row count ride the handler span
+	// and the completion log; no new metric family is added.
+	fileLoadStart := time.Now()
 	fileEnvelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -99,13 +105,23 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 		intent.GenerationID,
 		[]string{factload.FactKindFile},
 	)
+	fileLoad := time.Since(fileLoadStart)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load file facts for code import repo edge: %w", err)
 	}
 
+	ownershipLoadStart := time.Now()
 	ownershipEnvelopes, err := h.OwnershipLoader.ListActivePackageOwnershipFacts(ctx)
+	ownershipLoad := time.Since(ownershipLoadStart)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load active package ownership facts: %w", err)
+	}
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int64("eshu.reducer.code_import_repo_edge.file_load_ms", fileLoad.Milliseconds()),
+			attribute.Int64("eshu.reducer.code_import_repo_edge.ownership_load_ms", ownershipLoad.Milliseconds()),
+			attribute.Int("eshu.reducer.code_import_repo_edge.ownership_rows", len(ownershipEnvelopes)),
+		)
 	}
 	ownershipDecisions, ownershipQuarantined, err := decodePackageOwnershipCorrelationDecisions(ownershipEnvelopes)
 	if err != nil {
@@ -152,7 +168,7 @@ func (h CodeImportRepoEdgeHandler) Handle(ctx context.Context, intent reducercon
 	if len(refreshIntents) > 0 {
 		h.emitRefreshCounter(ctx, len(refreshIntents))
 	}
-	h.logCompleted(ctx, intent, counts, len(upsertIntents))
+	h.logCompleted(ctx, intent, counts, len(upsertIntents), fileLoad, ownershipLoad, len(ownershipEnvelopes))
 
 	intents := make([]sharedintent.Row, 0, len(upsertIntents)+len(refreshIntents))
 	intents = append(intents, upsertIntents...)
@@ -264,6 +280,9 @@ func (h CodeImportRepoEdgeHandler) logCompleted(
 	intent reducercontract.Intent,
 	counts codeImportEdgeCounts,
 	written int,
+	fileLoad time.Duration,
+	ownershipLoad time.Duration,
+	ownershipRows int,
 ) {
 	slog.InfoContext(
 		ctx, "code import repo edge projection completed",
@@ -277,6 +296,9 @@ func (h CodeImportRepoEdgeHandler) logCompleted(
 		slog.Int("skipped_ambiguous", counts.skippedAmbiguous),
 		slog.Int("skipped_no_owner", counts.skippedNoOwner),
 		slog.Int("skipped_self", counts.skippedSelf),
+		slog.Duration("file_load", fileLoad),
+		slog.Duration("ownership_load", ownershipLoad),
+		slog.Int("ownership_rows", ownershipRows),
 	)
 }
 
