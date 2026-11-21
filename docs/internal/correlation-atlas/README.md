@@ -11,6 +11,10 @@ stale and you need to know what should have refreshed it.
 
 - The atlas is a reading of the code at commit `7c2948825d` (2026-11-21). The
   scans ran at `da2c20ca5e`; no file the atlas names changed between the two.
+- By `67c01ca293`, four files the atlas names had changed. Their rows were
+  re-read. One was updated: `supply_chain_impact_winners_audit` on the
+  [Shared projections](shared-projections.md) page. No other page was re-read
+  against that commit.
 - A statement marked **Observed** was seen in a read-only query against the QA
   environment. Each one carries its date, and the queries and counts are in
   [Correlation atlas observations](../evidence/correlation-atlas-observations-2026-11-21.md).

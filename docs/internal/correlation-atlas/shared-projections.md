@@ -34,7 +34,7 @@ on its group page says what re-runs it.
 | `sql_relationships` | Queued rows written by the `sql_relationship_materialization` run | None of its own. The `sql_relationship_materialization` run rewrites its queued rows, and the shared projection worker (`reducer/intents/shared/worker`) projects them | `reducer/sqlrelationship/sql_relationship_materialization.go` |
 | `submodule_pin_edges` | Edges written by the `submodule_pin` run | None of its own. Written directly by the `submodule_pin` run through the edge writer, so it is as fresh as that run | `reducer/submodule_pin_materialization.go` |
 | `supply_chain_impact_winners` | The winners maintainer on a timer. This is a lease name, not a queued correlation | Timed only. A parked `advisory_group_projection` run is woken when the winners watermark advances | `reducer/supplychain/core/winners_maintainer.go`<br>`storage/postgres/reducer_waiting_winners_wake.go` |
-| `supply_chain_impact_winners_audit` | `runAuditLoop` calls the winners audit every audit interval (default 10m, `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL`), after the startup full resweep, under a single-owner lease. This is a lease name, not a queued correlation | Timed only | `reducer/supplychain/core/winners_keyed_maintainer.go`<br>`go/cmd/reducer/winners_wiring.go` |
+| `supply_chain_impact_winners_audit` | `runAuditLoop` calls the winners audit every audit interval (default 10m, `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL`), only while the stored winners contract version equals this binary's (`auditAllowed`), under a single-owner lease. This is a lease name, not a queued correlation | Timed only | `reducer/supplychain/core/winners_keyed_maintainer.go`<br>`go/cmd/reducer/winners_wiring.go` |
 
 ## Related runners
 
