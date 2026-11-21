@@ -165,13 +165,19 @@ single-digit milliseconds.
 
 The sizing rule until the timed run lands:
 
-- Page cache at or above 1.5x store data plus indexes, re-checked after the
-  rebuild measures the real peak.
+- Page cache at or above 1.5x store data plus indexes as a provisional floor,
+  to be confirmed against the timed run's peak RSS. The multiplier has no
+  cited basis yet — neither Neo4j guidance nor an internal measurement backs
+  it — so it authorizes no resize; it only holds the current reservation
+  until the rebuild measures the real peak.
 - Against the #10862 target (ten times one organization, about 94,000 scopes
-  and 840 million facts): ten times the current store is about 74 GiB, which
-  the current 160g page cache covers with margin left. Capacity is not the
-  reason to touch the reservation; efficiency is, and that call waits for the
-  rebuild's peak RSS and write-path CPU.
+  and 840 million facts): naive linear extrapolation gives ten times the
+  current store, about 74 GiB, which would fit in the current 160g page
+  cache. That arithmetic is unproven, not a capacity guarantee: store growth
+  (strings and indexes dominate, 2.9G + 1.1G of 7.4 GiB) is not proven linear
+  in scopes or facts. Capacity is not the reason to touch the reservation on
+  this math; efficiency is, and that call waits for the rebuild's peak RSS
+  and write-path CPU.
 - CPU stays at 32 until the rebuild shows what the write drain actually burns.
   Idle usage rounds to zero; sizing from idle would repeat the original guess.
 - The 500 GiB PVC stays. Even at ten times the store it holds six times the

@@ -32,6 +32,11 @@ All must hold, else NO-GO:
 3. The window is booked under the QA drill window with a named drill owner.
 4. Pre-wipe evidence from the next section is captured fresh in the window.
    Numbers from an earlier day are stale.
+5. Pre-existing queue is dispositioned. Snapshot `fact_work_items GROUP BY
+   status` before the window; every pre-existing `dead_letter` row is
+   dispositioned (replayed or named-accepted with owner sign-off) BEFORE the
+   window, never silently deleted. The timed stop below is defined on the
+   rebuild cohort, not on the raw queue totals.
 
 ## QA reference points (2026-11-21, pre-rebuild)
 
@@ -67,6 +72,11 @@ returns, stop when both queues are terminal — nothing in `fact_work_items`
 outside `succeeded`/`superseded`, and no `shared_projection_intents` row with
 `completed_at IS NULL`. Wipe and schema reapply sit outside the measurement.
 
+The stop is defined on the rebuild cohort: compare against the pre-wipe
+snapshot from entry criterion 5. At stop there must be zero new
+`failed`/`dead_letter` rows attributable to the rebuild. Any new dead-letter
+during the drain is a failed run, not a timing result.
+
 ## Kubernetes execution shape
 
 The Compose procedure applies with these substitutions. Resolve every
@@ -74,18 +84,32 @@ discovery-gated step live; workload names below are examples from the 2026-11-21
 stack, not pins.
 
 1. Discover every graph writer live: list workloads whose environment carries
-   `NEO4J_URI` or `ESHU_GRAPH_BACKEND`, and scale each to zero. Reads (API,
-   MCP) can stay up; anything that writes canonical graph rows must be stopped,
-   or the rebuild races it.
-2. Scale the Neo4j Deployment to zero, delete and recreate the
-   `eshu-neo4j-data` PVC from the chart manifest, scale back to one, and wait
-   for Bolt to answer.
-3. Force schema reapply (`ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true` semantics from
-   the Compose procedure) through whichever workload runs migrations in this
-   environment, and confirm the applied marker before continuing.
-4. Submit `recover-generations` with `all_scopes: true`, a fresh
-   `idempotency_key`, and an admin token. Record `enqueued`, `skipped_scopes`,
-   and the five dedup counters from the response. The clock starts here.
+   `NEO4J_URI` or `ESHU_GRAPH_BACKEND`, and scale each writer (ingester,
+   projector, resolution engine, and any other workload that writes canonical
+   graph rows) to zero. Keep the API and read-only MCP up by name: the API
+   carries the same variables but serves the read path and the submit step
+   below, so it must not match this predicate. Anything that writes canonical
+   graph rows must be stopped, or the rebuild races it.
+2. Scale the Neo4j workload to zero (a Deployment or StatefulSet, per the kind
+   in the chart manifest), delete and recreate the `eshu-neo4j-data` PVC from
+   the chart manifest, scale back to one, and wait for Bolt to answer.
+3. Force schema reapply through whichever workload runs migrations in this
+   environment, per the schema step in
+   [Rebuild the graph from facts](graph-rebuild-from-facts.md). Confirm it
+   took effect before continuing: read the migration workload's logs for
+   `bootstrap.graph.(applied|force_reapply)` and require `graph schema
+   applied`. `graph schema already applied` means the force-reapply variable
+   did not reach the container — leaving it out is a silent failure that
+   writes every node with no indexes and no constraints, appearing to work
+   while slow and unenforced. Unset the variable afterwards: on a graph that
+   survived, re-running `CREATE CONSTRAINT` costs minutes per constraint.
+4. Scale the API back up if it was stopped and wait for `/health` to answer
+   before submitting — the submit below POSTs to the API while projection
+   workers stay stopped, which is what makes the recovery lease fence
+   deterministic. Submit `recover-generations` with `all_scopes: true`, a
+   fresh `idempotency_key`, and an admin token. Record `enqueued`,
+   `skipped_scopes`, and the five dedup counters from the response. The clock
+   starts here.
 5. Scale the writers back up and watch both queues drain. Sample
    `kubectl top pod` for the Neo4j pod every minute for the peak-memory row,
    and scrape the `eshu_dp_neo4j_query_duration_seconds` histograms at start
