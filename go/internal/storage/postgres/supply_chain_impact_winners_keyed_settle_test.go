@@ -310,10 +310,16 @@ func TestWinnersConsumedTempCarriesDirtyVersion(t *testing.T) {
 type settleFakeTx struct {
 	queries []string
 	drained [][2]any
+	// converted and convertErr script the convert's RowsAffected (#11145).
+	converted  int64
+	convertErr error
 }
 
 func (tx *settleFakeTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
 	tx.queries = append(tx.queries, query)
+	if query == convertWinnersKeyedScopeRemainderSQL {
+		return settleFakeResult{rows: tx.converted, err: tx.convertErr}, nil
+	}
 	return settleFakeResult{}, nil
 }
 
@@ -337,10 +343,13 @@ func (tx *settleFakeTx) QueryContext(_ context.Context, query string, _ ...any) 
 func (tx *settleFakeTx) Commit() error   { return nil }
 func (tx *settleFakeTx) Rollback() error { return nil }
 
-type settleFakeResult struct{}
+type settleFakeResult struct {
+	rows int64
+	err  error
+}
 
-func (settleFakeResult) LastInsertId() (int64, error) { return 0, nil }
-func (settleFakeResult) RowsAffected() (int64, error) { return 0, nil }
+func (settleFakeResult) LastInsertId() (int64, error)   { return 0, nil }
+func (r settleFakeResult) RowsAffected() (int64, error) { return r.rows, r.err }
 
 type settleFakeRows struct {
 	rows [][2]any
