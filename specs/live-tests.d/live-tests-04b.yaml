@@ -39,6 +39,11 @@ tests:
     class: ci
     reason: "#10411 seeded Neo4j proof of the production AdvisoryGroupWriter reconcile: thin node plus exact AFFECTED_BY pairs by direct Cypher readback, idempotent replay under the advisory_group_id unique constraint, single-pair stale retract, absent-Repository edges write nothing, empty reconcile deletes the node (run-unique repository and group ids, cleanup on pass and fail); Neo4j-only because Neo4j is the supported backend; local -race run on neo4j:2026-community took 1.35 s package wall"
     backends: neo4j
+  - file: go/internal/storage/cypher/edge/writer/advisory_group_backend_live_test.go
+    tag: live_nornicdb_answer_truth
+    class: ci
+    reason: "#11161 seeded backend-agnostic proof of the production AdvisoryGroupWriter reconcile after the FOREACH-free rewrite: write plus exact pairs and node stamps by plain MATCH readback, idempotent replay with zero write stats, stamp update resync, stale retract, empty cleanup, and duplicate-tolerant parallel convergence through the production RetryingExecutor seam (run-unique repository and group ids, cleanup on pass and fail); Neo4j leg is the CI-blocking proof, NornicDB leg runs locally and skips the parallel phase there (NornicDB races concurrent same-id MERGE instead of serializing); local -race run on neo4j:2026-community took 1.50 s package wall"
+    backends: neo4j
   - file: go/internal/reducer/advisory/group/parity_live_test.go
     tag: live_nornicdb_answer_truth
     class: scheduled
