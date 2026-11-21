@@ -246,6 +246,10 @@ type WinnersAuditRangeVerify struct {
 	// Complete records the sweep as completed. It is valid only on the last
 	// range, and only when the NULL probe read clean at both ends.
 	Complete bool
+	// NoLock forbids the resweep lock: the keyed-yield rule after a locked
+	// verify (#11131). A range that still has a candidate nothing has queued
+	// rolls back with Yielded; one with none advances without the lock.
+	NoLock bool
 }
 
 // WinnersAuditRangeOutcome is what the range transaction did.
@@ -260,6 +264,9 @@ type WinnersAuditRangeOutcome struct {
 	// CursorRace reports that another instance advanced this range first;
 	// the transaction, repairs included, rolled back.
 	CursorRace bool
+	// Yielded reports a NoLock verify that needed the lock; nothing
+	// committed.
+	Yielded bool
 	// Locked reports that the verify took the resweep lock.
 	Locked bool
 	// Candidates, Pending and Repairs count the range's differing

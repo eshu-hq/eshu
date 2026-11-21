@@ -11,6 +11,7 @@ import (
 	"time"
 
 	stagedaudit "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/staged/audit"
+	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -146,5 +147,97 @@ WHERE abs(hashtext(canonical_key)) % 3 = 0`)
 	}
 	if locked == 0 {
 		t.Fatal("no range contended for the lock: the proof did not exercise the waiting claim")
+	}
+}
+
+// TestSupplyChainImpactWinnersResweepAuditSweepYieldsToKeyedTicksLive is the
+// keyed-yield proof (#11131, the coordinator's binding detail of decision 3,
+// after lane-11119's M5 run where back-to-back locked verifies starved the
+// keyed loop 1 commit to 1,582 skips). A keyed stand-in holds the resweep
+// lock 150 ms per commit, stamps the watermark like a keyed commit, and after
+// a miss waits 200 ms, like a keyed tick that re-ticks on its interval.
+// Every range carries a candidate nothing has queued and its verify holds the
+// lock 150 ms, with no lock-free read between ranges. The stand-in must keep
+// committing (at least one commit per two locked verifies) and every range
+// must still advance within three attempts.
+func TestSupplyChainImpactWinnersResweepAuditSweepYieldsToKeyedTicksLive(t *testing.T) {
+	h := newKeyedHarness(t, "#11131 audit sweep yields to keyed ticks")
+	auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
+	auditRangePerturb(t, h)
+	h.exec(`UPDATE supply_chain_impact_canonical_winners SET priority_score = priority_score + 1`)
+
+	ctx, stop := context.WithCancel(h.ctx)
+	var commits atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for ctx.Err() == nil {
+			tx, err := h.db.BeginTx(ctx, nil)
+			if err != nil {
+				return
+			}
+			var got bool
+			if err := tx.QueryRowContext(ctx, `SELECT pg_try_advisory_xact_lock(hashtext('supply_chain_impact_winners'), hashtext('resweep'))`).Scan(&got); err != nil {
+				_ = tx.Rollback()
+				return
+			}
+			if got {
+				time.Sleep(150 * time.Millisecond)
+				if _, err := tx.ExecContext(ctx, `UPDATE supply_chain_impact_winners_materialization SET materialized_at = clock_timestamp() WHERE singleton = 1`); err != nil {
+					_ = tx.Rollback()
+					return
+				}
+				if tx.Commit() == nil {
+					commits.Add(1)
+				}
+				continue
+			}
+			_ = tx.Commit()
+			time.Sleep(200 * time.Millisecond)
+		}
+	}()
+
+	var mu sync.Mutex
+	var claimAt, commitAt time.Time
+	slow := verifyTimingDB{
+		inner: postgres.SQLDB{DB: h.db}, mu: &mu, claimAt: &claimAt, commit: &commitAt,
+		onClaim: func() { time.Sleep(150 * time.Millisecond) },
+	}
+	tel := pgaccess.NewStagedAuditTelemetry()
+	a := &stagedaudit.StagedAuditor{
+		Fleet: liveAuditFleet{db: h.db}, Store: postgres.NewSupplyChainImpactWinnersStore(slow), Telemetry: tel,
+		RangeBudget: 20, KeyedInterval: 2 * time.Second, YieldPoll: 10 * time.Millisecond,
+	}
+	attempts, worst, ranges := 0, 0, 0
+	for pass := 0; pass < 2000; pass++ {
+		got, err := a.AuditWinners(h.ctx)
+		if err != nil {
+			t.Fatalf("pass %d: %v", pass, err)
+		}
+		attempts++
+		if got.Outcome != stagedaudit.OutcomeAdvanced && got.Outcome != stagedaudit.OutcomeCompleted {
+			continue
+		}
+		ranges++
+		worst = max(worst, attempts)
+		attempts = 0
+		if !got.More {
+			break
+		}
+	}
+	stop()
+	wg.Wait()
+	locked := tel.LockedRanges()
+	t.Logf("yield: %d ranges, %d locked verifies, %d keyed stand-in commits, worst %d attempts, keyed_yield %d",
+		ranges, locked, commits.Load(), worst, tel.Deferrals(pgaccess.StagedAuditDeferKeyedYield))
+	if locked < 10 {
+		t.Fatalf("only %d locked verifies: the fixture did not make ranges contend", locked)
+	}
+	if commits.Load()*2 < locked {
+		t.Fatalf("keyed stand-in committed %d times across %d locked verifies, want at least one per two: the sweep starves keyed ticks", commits.Load(), locked)
+	}
+	if worst > 3 {
+		t.Fatalf("a range needed %d attempts, want at most 3", worst)
 	}
 }

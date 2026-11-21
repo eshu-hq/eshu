@@ -46,7 +46,7 @@ func (t *StagedAuditTelemetry) ObserveDeferral(reason StagedAuditDeferralReason)
 	switch reason {
 	case StagedAuditDeferBudget, StagedAuditDeferConflictExhausted, StagedAuditDeferBatchAbort,
 		StagedAuditDeferTimeout, StagedAuditDeferNullKey, StagedAuditDeferPipe,
-		StagedAuditDeferLockBusy, StagedAuditDeferCursorRace:
+		StagedAuditDeferLockBusy, StagedAuditDeferCursorRace, StagedAuditDeferKeyedYield:
 	default:
 		reason = StagedAuditDeferBatchAbort
 	}

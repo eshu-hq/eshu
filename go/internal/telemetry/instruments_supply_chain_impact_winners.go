@@ -386,6 +386,7 @@ type SupplyChainImpactWinnersStagedAuditSnapshot struct {
 	// start, the last committed range, and the persisted sweep row as last
 	// seen (SweepSeen false before the first read).
 	Ranges, RangeRetries                                    int64
+	LockedRanges                                            int64
 	RangeFacts, RangeCandidates, RangePending, RangeRepairs int64
 	RangeDiscards                                           int64
 	LastRange                                               time.Duration
@@ -408,7 +409,7 @@ type SupplyChainImpactWinnersStagedAuditSource interface {
 // set of the staged audit (internal/runtime/postgres StagedAuditDefer*).
 var supplyChainImpactWinnersStagedAuditReasons = []string{
 	"budget", "conflict_exhausted", "batch_abort",
-	"timeout", "null_key", "pipe", "lock_busy", "cursor_race",
+	"timeout", "null_key", "pipe", "lock_busy", "cursor_race", "keyed_yield",
 }
 
 // RegisterSupplyChainImpactWinnersStagedAuditInstruments registers the staged

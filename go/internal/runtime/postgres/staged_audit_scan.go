@@ -106,8 +106,9 @@ func stagedAuditHasRecoveryPhrase(err error) bool {
 // one-identifier range still hit the statement guard), null_key (the NULL
 // probe found a source fact the ranges cannot reach), pipe (a range fact has
 // '|' in an identifier field), lock_busy (the waiting resweep-lock claim hit
-// its lock_timeout) and cursor_race (another instance advanced the range
-// first; this one rolled its repairs back).
+// its lock_timeout), cursor_race (another instance advanced the range
+// first; this one rolled its repairs back) and keyed_yield (a range waited for
+// a keyed commit before it could take the lock again).
 type StagedAuditDeferralReason string
 
 // The closed deferral reasons.
@@ -120,6 +121,7 @@ const (
 	StagedAuditDeferPipe              StagedAuditDeferralReason = "pipe"
 	StagedAuditDeferLockBusy          StagedAuditDeferralReason = "lock_busy"
 	StagedAuditDeferCursorRace        StagedAuditDeferralReason = "cursor_race"
+	StagedAuditDeferKeyedYield        StagedAuditDeferralReason = "keyed_yield"
 )
 
 // StagedAuditOverBudgetError marks a batch or tick that tripped a fail-closed

@@ -24,6 +24,8 @@ type StagedAuditRangeObservation struct {
 	Oversize bool
 	// Budget is the row budget the read ran with after any timeout halving.
 	Budget int
+	// Locked reports a verify that took the resweep lock.
+	Locked bool
 }
 
 // StagedAuditSweepState is the persisted sweep row as last read or written.
@@ -44,6 +46,7 @@ type StagedAuditSweepState struct {
 // recorder's mutex guards it.
 type stagedAuditSweepCounters struct {
 	ranges, retries                     int64
+	locked                              int64
 	facts, candidates, pending, repairs int64
 	discards                            int64
 	lastRange                           time.Duration
@@ -70,6 +73,19 @@ func (t *StagedAuditTelemetry) ObserveRange(o StagedAuditRangeObservation) {
 	s.lastRange = o.Duration
 	s.lastRangeFacts = o.Facts
 	s.lastRangeBudget = int64(o.Budget)
+	if o.Locked {
+		s.locked++
+	}
+}
+
+// LockedRanges reports committed ranges whose verify took the resweep lock.
+func (t *StagedAuditTelemetry) LockedRanges() int64 {
+	if t == nil {
+		return 0
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.sweep.locked
 }
 
 // ObserveRangeRetry counts one range read retried at half budget after a
@@ -128,6 +144,7 @@ func (t *StagedAuditTelemetry) SweepState() (StagedAuditSweepState, bool) {
 // fill copies the sweep counters into the exported snapshot.
 func (s stagedAuditSweepCounters) fill(snap *telemetry.SupplyChainImpactWinnersStagedAuditSnapshot) {
 	snap.Ranges, snap.RangeRetries = s.ranges, s.retries
+	snap.LockedRanges = s.locked
 	snap.RangeFacts, snap.RangeCandidates, snap.RangePending = s.facts, s.candidates, s.pending
 	snap.RangeRepairs, snap.RangeDiscards = s.repairs, s.discards
 	snap.LastRange, snap.LastRangeFacts, snap.LastRangeBudget = s.lastRange, s.lastRangeFacts, s.lastRangeBudget

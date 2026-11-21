@@ -19,10 +19,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// SweepStore is the writer surface of the sweep: the persisted cursor row and
-// the per-range verify. postgres.SupplyChainImpactWinnersStore implements it.
+// SweepStore is the writer surface of the sweep: the persisted cursor row,
+// the winners watermark (the keyed-yield signal), and the per-range verify. postgres.SupplyChainImpactWinnersStore implements it.
 type SweepStore interface {
 	ReadWinnersAuditSweep(ctx context.Context) (postgres.WinnersAuditSweep, error)
+	Watermark(ctx context.Context) (time.Time, bool, error)
 	VerifyWinnersAuditRange(ctx context.Context, v postgres.WinnersAuditRangeVerify) (postgres.WinnersAuditRangeOutcome, error)
 }
 
@@ -77,6 +78,15 @@ type StagedAuditor struct {
 	// replace them.
 	ReadRange     func(ctx context.Context, reader db.Queryer, lo *postgres.WinnersAuditRangeIdent, budget int) (postgres.WinnersAuditRange, error)
 	ProbeNullKeys func(ctx context.Context, reader db.Queryer) (postgres.WinnersAuditNullKeys, error)
+
+	// KeyedInterval is the keyed tick cadence the keyed-yield rule waits at
+	// most (#11131): after a verify that took the resweep lock, the next range
+	// takes no lock until the watermark moved (a keyed commit was observed) or
+	// this long has passed. Zero selects 30 s, the maintainer default.
+	KeyedInterval time.Duration
+	// YieldPoll is how often the yield wait rereads the watermark. Zero
+	// selects 1 s.
+	YieldPoll time.Duration
 
 	mu       sync.Mutex
 	missFor  string
@@ -161,6 +171,7 @@ func (a *StagedAuditor) report(ctx context.Context, sweep postgres.WinnersAuditS
 		a.Telemetry.ObserveRange(pgaccess.StagedAuditRangeObservation{
 			Facts: rng.Facts, Candidates: outcome.Candidates, Pending: outcome.Pending, Repairs: outcome.Repairs,
 			Discards: outcome.Discards, Duration: elapsed, Oversize: rng.Oversize, Budget: rng.Budget,
+			Locked: outcome.Locked,
 		})
 		a.Telemetry.ObserveVerify(outcome.Discards)
 		a.Telemetry.ObserveSweepState(stagedSweepState(outcome.Sweep))

@@ -30,6 +30,10 @@ func (memberFleet) ReplayLag(context.Context, string) (time.Duration, error) { r
 // sweepStore is an in-memory cursor row with the compare-and-set of
 // advanceWinnersAuditSweepSQL, plus scripted lock results.
 type sweepStore struct {
+	watermark  time.Time
+	moveMarkAt int // Watermark call that moves it (0 = never)
+	markCalls  int
+	noCands    bool // ranges carry no candidates, so no verify locks
 	mu         sync.Mutex
 	sweep      postgres.WinnersAuditSweep
 	lockScript []string // per verify: "", "skip", "busy", "race"
@@ -46,10 +50,27 @@ func (s *sweepStore) ReadWinnersAuditSweep(context.Context) (postgres.WinnersAud
 	return s.sweep, nil
 }
 
+func (s *sweepStore) Watermark(context.Context) (time.Time, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.markCalls++
+	if s.moveMarkAt > 0 && s.markCalls >= s.moveMarkAt {
+		s.watermark = s.watermark.Add(time.Second)
+		s.markCalls = 0
+	}
+	return s.watermark, true, nil
+}
+
 func (s *sweepStore) VerifyWinnersAuditRange(_ context.Context, v postgres.WinnersAuditRangeVerify) (postgres.WinnersAuditRangeOutcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.noCands {
+		v.Range.Candidates = nil
+	}
 	s.verifies = append(s.verifies, v)
+	if v.NoLock && len(v.Range.Candidates) > 0 {
+		return postgres.WinnersAuditRangeOutcome{Yielded: true, Candidates: int64(len(v.Range.Candidates))}, nil
+	}
 	script := ""
 	if len(s.lockScript) > 0 {
 		script, s.lockScript = s.lockScript[0], s.lockScript[1:]
@@ -130,6 +151,7 @@ func newSweepAuditor(c *corpus, store *sweepStore, nulls func() postgres.Winners
 	}
 	return &StagedAuditor{
 		Fleet: memberFleet{}, Store: store, Telemetry: tel, ReadRange: c.read,
+		KeyedInterval: 5 * time.Millisecond, YieldPoll: time.Millisecond,
 		ProbeNullKeys: func(context.Context, db.Queryer) (postgres.WinnersAuditNullKeys, error) { return nulls(), nil },
 	}, tel
 }
@@ -289,4 +311,66 @@ func TestStagedAuditPinFailureDefers(t *testing.T) {
 	if err != nil || !got.Deferred || tel.Deferrals(pgaccess.StagedAuditDeferBatchAbort) != 1 {
 		t.Fatalf("pin failure = %+v, %v; want a batch_abort deferral", got, err)
 	}
+}
+
+// TestStagedAuditKeyedYieldAfterLockedVerify pins the keyed-yield rule
+// (#11131, coordinator decision on arbiter 11120a decision 3): after a verify
+// that took the resweep lock, the next range verifies with NoLock; a range
+// that still needs the lock yields (counted as keyed_yield) until the
+// watermark moves or one keyed interval passes, then verifies normally and
+// advances in the same pass. A verify that took no lock sets no yield.
+func TestStagedAuditKeyedYieldAfterLockedVerify(t *testing.T) {
+	t.Parallel()
+	t.Run("interval passes", func(t *testing.T) {
+		store := &sweepStore{}
+		a, tel := newSweepAuditor(&corpus{n: 4000, factsPer: 10}, store, nil)
+		a.KeyedInterval, a.YieldPoll = 30*time.Millisecond, 2*time.Millisecond
+		for i := 0; i < 3; i++ {
+			got, err := a.AuditWinners(context.Background())
+			if err != nil || got.Outcome != OutcomeAdvanced {
+				t.Fatalf("pass %d = %+v, %v; want advanced in one pass", i, got, err)
+			}
+		}
+		var flags []bool
+		for _, v := range store.verifies {
+			flags = append(flags, v.NoLock)
+		}
+		if fmt.Sprint(flags) != fmt.Sprint([]bool{false, true, false, true, false}) {
+			t.Fatalf("NoLock per verify = %v; want each range after a locked verify to try without the lock first", flags)
+		}
+		if n := tel.Deferrals(pgaccess.StagedAuditDeferKeyedYield); n != 2 {
+			t.Fatalf("keyed_yield = %d, want 2", n)
+		}
+	})
+	t.Run("keyed commit observed", func(t *testing.T) {
+		store := &sweepStore{moveMarkAt: 2}
+		a, _ := newSweepAuditor(&corpus{n: 4000, factsPer: 10}, store, nil)
+		a.KeyedInterval, a.YieldPoll = time.Hour, time.Millisecond
+		start := time.Now()
+		for i := 0; i < 2; i++ {
+			if got, err := a.AuditWinners(context.Background()); err != nil || got.Outcome != OutcomeAdvanced {
+				t.Fatalf("pass %d = %+v, %v", i, got, err)
+			}
+		}
+		if time.Since(start) > 10*time.Second {
+			t.Fatalf("yield waited %v: a moved watermark must end it before the keyed interval", time.Since(start))
+		}
+	})
+	t.Run("unlocked verify sets no yield", func(t *testing.T) {
+		store := &sweepStore{noCands: true}
+		a, tel := newSweepAuditor(&corpus{n: 4000, factsPer: 10}, store, nil)
+		for i := 0; i < 3; i++ {
+			if _, err := a.AuditWinners(context.Background()); err != nil {
+				t.Fatalf("pass %d: %v", i, err)
+			}
+		}
+		for i, v := range store.verifies {
+			if v.NoLock {
+				t.Fatalf("verify %d has NoLock after unlocked verifies", i)
+			}
+		}
+		if tel.Deferrals(pgaccess.StagedAuditDeferKeyedYield) != 0 {
+			t.Fatal("keyed_yield counted with no locked verify")
+		}
+	})
 }
