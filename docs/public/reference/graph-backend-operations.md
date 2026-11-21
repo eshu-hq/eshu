@@ -165,8 +165,11 @@ single-digit milliseconds.
 
 The sizing rule until the timed run lands:
 
-- Page cache at or above 1.5x store data plus indexes, re-checked after the
-  rebuild measures the real peak.
+- Page cache at or above 1.5x store data plus indexes as a provisional floor,
+  to be confirmed against the timed run's peak RSS. The multiplier has no
+  cited basis yet — neither Neo4j guidance nor an internal measurement backs
+  it — so it authorizes no resize; it only holds the current reservation
+  until the rebuild measures the real peak.
 - Against the #10862 target (ten times one organization, about 94,000 scopes
   and 840 million facts): naive linear extrapolation gives ten times the
   current store, about 74 GiB, which would fit in the current 160g page
