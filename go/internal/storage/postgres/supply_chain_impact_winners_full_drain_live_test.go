@@ -145,8 +145,34 @@ FOR EACH ROW EXECUTE FUNCTION winners_11117_refuse_stamp()`)
 // stays queued, and the watermark is its captured_at minus 1us, not S.
 func TestSupplyChainImpactWinnersResweepFullStampsUnderResidualLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep residual stamp proof")
-	h.seedScope("vuln-intel://11117/residual", "vuln-intel://11117/residual/g1")
-	h.write("vuln-intel://11117/residual", "vuln-intel://11117/residual/g1", chunkedFindings("residual", 2, 1, 0)...)
+	assertFullStampsUnderResidual(h, "residual")
+}
+
+// TestSupplyChainImpactWinnersResweepFullPinsReadCommittedLive proves the full
+// does not depend on the session default isolation: with the database default
+// at REPEATABLE READ, one snapshot would cover the whole transaction, the
+// rebuild would not see a mark that commits after the drain, and S would
+// stamp over it. The full pins READ COMMITTED, so the residual cap holds.
+func TestSupplyChainImpactWinnersResweepFullPinsReadCommittedLive(t *testing.T) {
+	h := newKeyedHarness(t, "#11117 full resweep isolation pin proof")
+	h.exec(`DO $$ BEGIN EXECUTE format('ALTER DATABASE %I SET default_transaction_isolation = %L', current_database(), 'repeatable read'); END $$`)
+	// Idle connections keep the old default; new ones read the database's.
+	h.db.SetMaxIdleConns(0)
+	var level string
+	if err := h.db.QueryRowContext(h.ctx, `SHOW default_transaction_isolation`).Scan(&level); err != nil || level != "repeatable read" {
+		t.Fatalf("default_transaction_isolation = %q, %v; want repeatable read", level, err)
+	}
+	assertFullStampsUnderResidual(h, "isolation")
+}
+
+// assertFullStampsUnderResidual seeds findings, runs the first full with a
+// mark injected after its drain and before its rebuild, and requires the
+// mark to stay queued with the watermark at its captured_at minus 1us.
+func assertFullStampsUnderResidual(h *keyedHarness, name string) {
+	h.t.Helper()
+	scope := "vuln-intel://11117/" + name
+	h.seedScope(scope, scope+"/g1")
+	h.write(scope, scope+"/g1", chunkedFindings(name, 2, 1, 0)...)
 
 	var captured time.Time
 	injected := false
@@ -158,22 +184,22 @@ func TestSupplyChainImpactWinnersResweepFullStampsUnderResidualLive(t *testing.T
 		if err := h.db.QueryRowContext(h.ctx, `INSERT INTO supply_chain_impact_winners_dirty_staging (kind, source, package_id, repository_id, subject_digest, c0, advisory_id, captured_at)
 VALUES ('fact', 'fact_upsert', 'pkg:npm/residual-00', 'repo-9805', '', 'CVE-2026-residual-00-00', '', clock_timestamp() - interval '1 second')
 RETURNING captured_at`).Scan(&captured); err != nil {
-			t.Fatalf("inject residual mark: %v", err)
+			h.t.Fatalf("inject residual mark: %v", err)
 		}
 	}}
 	store := h.store
 	store.DB = hooked
 	if full, err := store.ResweepWinners(h.ctx); err != nil || full.Skipped {
-		t.Fatalf("full resweep = %+v, %v", full, err)
+		h.t.Fatalf("full resweep = %+v, %v", full, err)
 	}
 	if !injected {
-		t.Fatal("the rebuild statement never ran through the hook")
+		h.t.Fatal("the rebuild statement never ran through the hook")
 	}
 	if n := h.stagingDepth(); n != 1 {
-		t.Fatalf("staged marks after the full = %d, want only the residual mark", n)
+		h.t.Fatalf("staged marks after the full = %d, want only the residual mark", n)
 	}
 	if got, want := chunkedWatermark(h), captured.UTC().Add(-time.Microsecond); !got.Equal(want) {
-		t.Fatalf("full watermark = %v, want the residual captured_at minus 1us %v", got, want)
+		h.t.Fatalf("full watermark = %v, want the residual captured_at minus 1us %v", got, want)
 	}
 }
 
