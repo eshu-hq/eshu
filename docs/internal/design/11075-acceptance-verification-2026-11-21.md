@@ -129,11 +129,46 @@ third sampling lane under new bars.
 | Source sweep: clock rule, marker parse/fallback, bound value, telemetry instruments | Present as tabled above |
 | `gh` sweep: #11075 (9 comments + claim), #11089, #11080, #11078, #10706, #11086 checks | As tabled above |
 
-NOT_CHECKED by this lane: live QA state (deploy status of `ae142dcb77`,
-current R(t), stall cause), the live-Postgres full-loop test re-run (needs
-disposable PG; taken as merged evidence), #11089 lane progress beyond its
-claim comment, claim-benchmark delta for the +3 claim columns (ruling
-Decision 3 rests on the structural bound).
+NOT_CHECKED by this lane at `0ec2abfd24`: live QA state (deploy status of
+`ae142dcb77`, current R(t), stall cause), the live-Postgres full-loop test
+re-run (needs disposable PG; taken as merged evidence), #11089 lane progress
+beyond its claim comment, claim-benchmark delta for the +3 claim columns
+(ruling Decision 3 rests on the structural bound).
+
+## Addendum 2026-11-21T03:00Z: read-only QA readings (no deploy)
+
+SELECT-only vs `eshu-postgresql-read` (namespace `eshu`), read-only
+transaction + 30 s statement timeout, replay lag 4.4 ms at 02:57:00Z.
+Runnable form of every query: [11075-a2-packet.sql](11075-a2-packet.sql).
+
+- Deploy status: `failure_details` carries the `winners-watermark-deferral:`
+  marker on 0 of 524 attempt>=2 watermark-wait rows (02:57:48Z). QA still
+  runs pre-fix code; AC3's precondition (deployed commit >= `ae142dcb77`)
+  is NOT met, so no AC3 bars are judged here.
+- R(t) (the handler's own singleton watermark): 2026-11-20 23:39:12Z, wall
+  lag 3 h 19 m at 02:58:41Z — down from 5.1 h at 00:39Z, so dR/dwall ~1.8x
+  over the window: R is closing, not stalled, at read time.
+- Stocks: retrying stale 874 + not_ready 28, dead_letter stale 509 (up from
+  ~232-250 in earlier windows: stale keeps accumulating pre-fix, as
+  expected), claimed stale 4. Waiting: winners_watermark 142 rows, anchors
+  00:39Z-02:50Z (`first_deferred_at` pre-exists via migrations 110/316).
+- Backlog: 551 advisory pending, all stage=reducer, mean age 7.5 d, max
+  8.3 d — AC3's first-claim-lag bar cannot pass until this drains.
+- Inflow split (prefix method): staging GHSA 458,495 / CVE 171,659 / other
+  278; log GHSA 34,684 / CVE 10,865 / other 41 — GHSA ~73%, method works.
+  Tally still 0 rows: #11078 instrument gap persists (E6 unchanged).
+- Q4 slice 02:59:46Z: 16 attempt-1 not_ready first evaluations in the
+  trailing 120 s, max pre-claim lag 17 min, zero stale in-window (single
+  slice, not an AC3 judgment).
+- G1/G2 re-verified live: the `11075-deferral-clock-design-ruling-2026-11-20.md`
+  file is still absent (only the two 2026-11-21 ruling files exist); #11086
+  carries only the Cloudflare bot comment, no retroactive dispositions.
+- G4 re-verified: nearest bound tests are `MaxWait + 1m` and 45-min cases.
+- Proof re-run: handler watermark subset (BornStale, RecentDeferral,
+  SustainedDeferral, StaleMarker, WatermarkWait incl. telemetry split,
+  LagStartsAtCycleBound): PASS at lane HEAD.
+- Claim comment: the verify-lane claim for `drive/11075-verify` already
+  stands on #11075 (posted with the prior result); no duplicate posted.
 
 Observability: no code or telemetry change in this lane (docs-only
-verification record); no-observability-change is exact.
+verification record + read-only packet); no-observability-change is exact.
