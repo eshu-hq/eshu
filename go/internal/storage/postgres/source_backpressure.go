@@ -23,8 +23,16 @@ import (
 // visible now, so deliberately gated future-visible rows never throttle a
 // source. Source attribution matches the queue observer: payload
 // source_system, falling back to the scope's source_system.
+//
+// It uses the per-row active form, not the materialized one: the matching
+// set is the bounded claimable backlog (reducer pending|retrying and
+// visible), so like the graph-write-pressure count it probes scope and
+// generation only for matching rows instead of building one scope-state
+// row per ingestion scope on the claim hot path and in every status
+// snapshot (#6794 selective-probe precedent). The two forms select the
+// same rows (TestActiveFactWorkItemsFormsSelectTheSameRows).
 const sourceClaimableSignalQuery = `
-WITH ` + activeFactWorkItemsCTE + `
+WITH ` + activeFactWorkItemsPerRowCTE + `
 SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') AS source_system,
        COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(work.reopened_at, work.created_at)))), 0) AS oldest_age_seconds,
        COUNT(*) AS claimable_depth

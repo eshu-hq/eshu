@@ -373,6 +373,11 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 			return nil, err
 		}
 		return newProofRows([][]any{{int64(1)}}), nil
+	case query == sourceClaimableSignalQuery || query == sourceBackpressureLatchQuery:
+		// The proof domain seeds no source pacing state (#10882): the
+		// status section reads as absent. This arm precedes the claim arm
+		// because the signal query also names the reducer stage.
+		return newProofRows(nil), nil
 	case strings.Contains(query, "stage = 'reducer'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("reducer claim args = %d, want 7", len(args))

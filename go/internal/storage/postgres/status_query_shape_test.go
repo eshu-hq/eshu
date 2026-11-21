@@ -144,21 +144,28 @@ func TestReadStatusSnapshotEvaluatesActiveWorkOnce(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ReadStatusSnapshotFiltered() error = %v", err)
 	}
+	// The expensive evaluation is the materialized per-scope state build:
+	// exactly one statement per snapshot may run it. Selective per-row
+	// probes over a bounded matching set (the #10882 claimable-signal read,
+	// like the graph-write-pressure count) do not build it and are counted
+	// in the round-trip total below instead.
 	evaluations := 0
 	for _, query := range queryer.queries {
-		if strings.Contains(query, "active_fact_work_items AS") {
+		if strings.Contains(query, "active_fact_work_items_scope_state AS MATERIALIZED") {
 			evaluations++
 		}
 	}
 	if evaluations != 1 {
-		t.Fatalf("active_fact_work_items evaluated in %d statements per snapshot, want 1", evaluations)
+		t.Fatalf("materialized active scope state evaluated in %d statements per snapshot, want 1", evaluations)
 	}
 	// 25 before #6793 added the one infra read model state read, 26 before
 	// #8454 added the one repository selection counts read. The #8803
 	// terminal-failure read runs only when an enabled collector instance
 	// exists, and this fixture has none. #10389 adds the one stuck-partial
 	// scope read over the scope-sized pass-state table, bringing it to 28.
-	if got, want := len(queryer.queries), 28; got != want {
+	// #10882 adds the two source-pacing reads (grouped claimable signal over
+	// the bounded claimable backlog, plus the small latch table), to 30.
+	if got, want := len(queryer.queries), 30; got != want {
 		t.Fatalf("status snapshot issued %d queries, want %d", got, want)
 	}
 }
