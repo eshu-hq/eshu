@@ -36,6 +36,10 @@ import (
 // pattern would (a literal-only pattern cannot match "%s" at all, since it
 // starts with "%%", not [A-Z]).
 //
+// The regex alone matches any `-[var:TYPE {` in any clause; the scan keeps only
+// the occurrences whose enclosing clause is MERGE (countPropertyKeyedMergeTypes),
+// so a MATCH that re-reads an edge by its identity property is not an identity.
+//
 // The relationship variable before the colon is OPTIONAL
 // ((?:[A-Za-z_][A-Za-z0-9_]*)?): Cypher allows an anonymous relationship
 // pattern, `-[:TYPE {prop: x}]->`, with no bound variable at all, and every
@@ -156,10 +160,87 @@ func scanPropertyKeyedRelationshipMergeDir(t *testing.T, fset *token.FileSet, co
 			if err != nil {
 				return true
 			}
-			for _, m := range propertyKeyedMergeTypePattern.FindAllStringSubmatch(text, -1) {
-				counts[m[1]]++
+			for relType, n := range countPropertyKeyedMergeTypes(text) {
+				counts[relType] += n
 			}
 			return true
+		})
+	}
+}
+
+// clauseKeywordPattern finds the Cypher clause keywords that decide which
+// clause a relationship pattern sits in. The templates under scan write
+// clause keywords in upper case.
+var clauseKeywordPattern = regexp.MustCompile(`\b(OPTIONAL MATCH|MATCH|MERGE|CREATE|WHERE|WITH|UNWIND|SET|DELETE|DETACH DELETE|REMOVE|RETURN|CALL|FOREACH)\b`)
+
+// countPropertyKeyedMergeTypes counts, per relationship type, the
+// property-keyed relationship patterns in one Cypher string that sit in a
+// MERGE clause. A pattern in a MATCH clause (`MATCH ...-[e:TYPE {k: v}]->...`)
+// reads an existing edge and creates no identity, so it is not counted: the
+// inventory guards property-keyed MERGE identities, and an edge-update
+// statement that re-matches the same edge by its identity property must not
+// inflate the type's count (#11161).
+func countPropertyKeyedMergeTypes(text string) map[string]int {
+	counts := map[string]int{}
+	keywords := clauseKeywordPattern.FindAllStringSubmatchIndex(text, -1)
+	for _, m := range propertyKeyedMergeTypePattern.FindAllStringSubmatchIndex(text, -1) {
+		clause := ""
+		for _, k := range keywords {
+			if k[0] >= m[0] {
+				break
+			}
+			clause = text[k[2]:k[3]]
+		}
+		if clause == "MERGE" {
+			counts[text[m[2]:m[3]]]++
+		}
+	}
+	return counts
+}
+
+// TestCountPropertyKeyedMergeTypesOnlyCountsMergeClauses pins the MERGE-clause
+// filter: the inventory counts a property-keyed relationship MERGE, not a
+// MATCH that re-reads the same edge by its identity property.
+func TestCountPropertyKeyedMergeTypesOnlyCountsMergeClauses(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		text string
+		want map[string]int
+	}{
+		{
+			name: "merge counts",
+			text: "UNWIND $rows AS row\nMERGE (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)",
+			want: map[string]int{"AFFECTED_BY": 1},
+		},
+		{
+			name: "match with identity map is not counted",
+			text: "UNWIND $rows AS row\nMATCH (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)\nSET e.purl = row.purl",
+			want: map[string]int{},
+		},
+		{
+			name: "optional match is not counted",
+			text: "OPTIONAL MATCH (r)-[e:AFFECTED_BY {package_id: row.package_id}]->(g)",
+			want: map[string]int{},
+		},
+		{
+			name: "match then merge counts only the merge",
+			text: "MATCH (a)-[x:DEPENDS_ON {k: 1}]->(b)\nMERGE (a)-[e:RUNS_ON {k: 2}]->(c)",
+			want: map[string]int{"RUNS_ON": 1},
+		},
+		{
+			name: "fmt verb type in merge counts",
+			text: "MERGE (a)-[e:%s {k: 1}]->(b)",
+			want: map[string]int{"%s": 1},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := countPropertyKeyedMergeTypes(tc.text); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("countPropertyKeyedMergeTypes() = %v, want %v", got, tc.want)
+			}
 		})
 	}
 }
