@@ -462,6 +462,10 @@ var migrationShippedChecksums = map[string]string{
 	"322_fact_work_item_leases.sql":           "541cc6ff710aa9f7cdf694d0cf3036ee78f0d88f48e70179db4313eef349b99f",
 	"323_fact_work_item_leases_backfill.sql":  "10f360f9d4c8af993a9d0472bafdea20ff0826bc006367648fb0cb0f35200709",
 	"324_fact_work_item_leases_reconcile.sql": "358b2f8b50dc184d4df0ad7b6d5d0251c0ca6f12481c4cea76c8974cdd2afc5c",
+	// #10671: the projector admission-wait counter on fact_work_items, so
+	// admission-timeout failures retry against their own finite budget
+	// instead of spending the shared projection attempt budget.
+	"325_projector_admission_wait_attempts.sql": "3a344dcf8104515b5da51370e8d8f673b2a9f234a10127198bd4ccfae2587bd4",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

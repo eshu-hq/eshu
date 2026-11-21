@@ -264,6 +264,15 @@ type Instruments struct {
 	// from a counter and is proven by the deterministic backoff/jitter unit
 	// tests instead.
 	ProjectorRetrySurge metric.Int64Counter
+	// ProjectorAdmissionWaitRetries counts projector work-item retries
+	// scheduled for backpressure admission-timeout waits (#10671), when
+	// Fail retries an admission-timeout failure against the dedicated
+	// admission budget instead of the shared projection attempt budget.
+	// Unlabeled by design: the per-item budget position is durable row
+	// state (fact_work_items.admission_wait_attempts), queryable directly,
+	// so a counter rate plus the row query gives the operator both the
+	// pace of admission retries and which items approach the budget.
+	ProjectorAdmissionWaitRetries metric.Int64Counter
 	// ProjectorAckDeferrals counts projector Acks deferred because a
 	// same-scope ingestion commit held the scope row (#6803), recorded by
 	// projector.AckWhenScopeFree once per deferred Ack. The closed outcome
@@ -3925,6 +3934,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorRetrySurge counter: %w", err)
+	}
+
+	inst.ProjectorAdmissionWaitRetries, err = meter.Int64Counter(
+		"eshu_dp_projector_admission_wait_retries_total",
+		metric.WithDescription("Total projector work-item retries scheduled for backpressure admission-timeout waits against the dedicated admission budget (#10671)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorAdmissionWaitRetries counter: %w", err)
 	}
 
 	inst.ProjectorAckDeferrals, err = meter.Int64Counter(

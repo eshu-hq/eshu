@@ -157,6 +157,12 @@ TABLE = {
             "TestProjectorAckObsoleteSkipsFencedBusyScope",
             "TestProjectorAckMarkerCommitRace",
         ),
+        "go/internal/storage/postgres/projector_queue_admission_budget_live_test.go": (
+            "TestProjectorQueueAdmissionBudgetLiveCycle",
+            "TestProjectorQueueAdmissionFailAdmitsExactlyOnceUnderRace",
+            "TestProjectorQueueAdmissionRefinalizeCycleLive",
+            "TestProjectorQueueAdmissionMigration325AppliesLive",
+        ),
         "go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go": (
             "TestProjectorClaimFullGuardContention",
         ),

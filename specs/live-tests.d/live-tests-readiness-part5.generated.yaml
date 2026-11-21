@@ -1,9 +1,4 @@
 tests:
-  - file: go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10828 disposable PostgreSQL proof of the NVD baseline plan row's locking: two coordinators of different instances that share one baseline run and name the same years in opposite order neither deadlock nor retry, because the writer takes row locks in one order, and an admission that records plan rows holds the same single advisory lock as one that does not plus only RowExclusiveLock on the plan table and its primary key; isolated bootstrap schema with migration 312"
-    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go
     tag: ~
     class: postgres_ci
@@ -173,6 +168,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#7820 Ack lock-time marker proof (deterministic marker-commit-after-Ack-snapshot spare, in-flight skip without waiting, 300-trial commit race with zero marked retirements), untagged and gated by the ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN env Skip; Postgres only; about 8s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_admission_budget_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10671 disposable PostgreSQL proof that an admission-timeout failure retries against the dedicated admission budget (attempt_count stays a monotonic fence, the admission counter increments exactly once per admission Fail including under a concurrent double-Fail race with the loser claim-rejected, a stale owner is rejected without touching the row), that generic retryable failures still spend the refunded projection budget to a retry_exhausted dead-letter, and that migration 325 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_claim_full_guard_contention_live_test.go
     tag: ~

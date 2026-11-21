@@ -95,13 +95,13 @@ SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 const reprojectReopenedCTE = `reopened AS (
     INSERT INTO fact_work_items (
         work_item_id, scope_id, generation_id, stage, domain, status,
-        attempt_count, lease_owner, claim_until, visible_at, last_attempt_at,
-        next_attempt_at, failure_class, failure_message, failure_details,
-        payload, created_at, updated_at
+        attempt_count, admission_wait_attempts, lease_owner, claim_until,
+        visible_at, last_attempt_at, next_attempt_at, failure_class,
+        failure_message, failure_details, payload, created_at, updated_at
     )
     SELECT
         'projector_' || $2 || '_' || target.generation_id, $2, target.generation_id,
-        'projector', 'source_local', 'pending', 0, NULL, NULL, $1, NULL, NULL,
+        'projector', 'source_local', 'pending', 0, 0, NULL, NULL, $1, NULL, NULL,
         NULL, NULL, NULL, jsonb_build_object('reconcile_reopen_count', 1), $1, $1
     FROM target
     ON CONFLICT (work_item_id) DO UPDATE
@@ -109,6 +109,14 @@ const reprojectReopenedCTE = `reopened AS (
         attempt_count = CASE
             WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
             ELSE fact_work_items.attempt_count
+        END,
+        -- #10671: the admission counter mirrors the attempt fence exactly:
+        -- a terminal reopen starts both budgets fresh, a live re-open keeps
+        -- both, so the refund AttemptCount-AdmissionWaitAttempts can never
+        -- go negative and a spent budget never silently revives.
+        admission_wait_attempts = CASE
+            WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
+            ELSE fact_work_items.admission_wait_attempts
         END,
         lease_owner = NULL,
         claim_until = NULL,

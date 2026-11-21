@@ -316,6 +316,15 @@ func buildIngesterProjectorService(
 		return projector.Service{}, err
 	}
 	projectorQueue.RetryDelay, projectorQueue.MaxAttempts = retryPolicy.RetryDelay, retryPolicy.MaxAttempts
+	// #10671: admission-timeout waits retry against their own finite
+	// budget instead of the shared projection attempt budget. Unset
+	// keeps the queue default; explicit 0/negative fails startup in the
+	// loader above (no disable mode, per #10485).
+	admissionMaxAttempts, err := loadIngesterProjectorAdmissionMaxAttempts(getenv)
+	if err != nil {
+		return projector.Service{}, err
+	}
+	projectorQueue.AdmissionMaxAttempts = admissionMaxAttempts
 	// Exponential backoff + jitter (#4450): without these, same-instant
 	// failures reconverge on one visible_at and self-reinforce into a retry
 	// storm. See runtime.RetryPolicyConfig's doc comment for the formula.

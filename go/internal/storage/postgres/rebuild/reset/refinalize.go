@@ -77,6 +77,7 @@ INSERT INTO fact_work_items (
     domain,
     status,
     attempt_count,
+    admission_wait_attempts,
     lease_owner,
     claim_until,
     visible_at,
@@ -97,6 +98,7 @@ SELECT
     'source_local',
     'pending',
     0,
+    0,
     NULL,
     NULL,
     $1,
@@ -112,6 +114,7 @@ FROM unnest($2::text[], $3::text[]) AS scope(scope_id, generation_id)
 ON CONFLICT (work_item_id) DO UPDATE
 SET status = 'pending',
     attempt_count = 0,
+    admission_wait_attempts = 0,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = EXCLUDED.visible_at,

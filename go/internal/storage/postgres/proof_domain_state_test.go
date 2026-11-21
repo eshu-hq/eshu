@@ -88,7 +88,7 @@ func (db *proofDomainDB) updateWorkItemStatusByID(workItemID string, leaseOwner 
 	return proofResult{}, nil
 }
 
-func (db *proofDomainDB) retryProjectorWork(scopeID string, generationID string, leaseOwner string, visibleAt time.Time) (sql.Result, error) {
+func (db *proofDomainDB) retryProjectorWork(scopeID string, generationID string, leaseOwner string, visibleAt time.Time, admissionRetry bool) (sql.Result, error) {
 	for key, item := range db.state.workItems {
 		if item.stage != "projector" || item.scopeID != scopeID || item.generationID != generationID {
 			continue
@@ -102,6 +102,9 @@ func (db *proofDomainDB) retryProjectorWork(scopeID string, generationID string,
 		item.claimUntil = time.Time{}
 		item.visibleAt = visibleAt.UTC()
 		item.updatedAt = db.now
+		if admissionRetry {
+			item.admissionWaitAttempts++
+		}
 		db.state.workItems[key] = item
 		return proofResult{}, nil
 	}
