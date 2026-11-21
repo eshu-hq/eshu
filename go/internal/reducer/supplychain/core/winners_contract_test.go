@@ -34,6 +34,9 @@ type fakeContractWinners struct {
 	fullCalls    int
 	fullCommits  int
 	keyedCalls   int
+	// keyedStandsDown makes every keyed tick report the under-lock
+	// stand-down (#11117): a newer full committed after the decision read.
+	keyedStandsDown bool
 }
 
 func (f *fakeContractWinners) current() bool {
@@ -75,6 +78,9 @@ func (f *fakeContractWinners) ResweepWinnersKeyed(context.Context) (SupplyChainI
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.keyedCalls++
+	if f.keyedStandsDown {
+		return SupplyChainImpactWinnersResweep{Skipped: true, StoodDown: true}, nil
+	}
 	return SupplyChainImpactWinnersResweep{Path: telemetry.SupplyChainImpactWinnersPathKeyed, Watermark: time.Now().UTC()}, nil
 }
 
@@ -219,6 +225,32 @@ func TestWinnersMaintainerAuditRunsOnAMatchingContractWithoutAFull(t *testing.T)
 	runContractMaintainer(t, m, func() bool { return auditor.count() >= 2 })
 	if _, fullCalls, _, _ := f.counts(); fullCalls != 0 {
 		t.Fatalf("full calls = %d, want the audit to run with no full", fullCalls)
+	}
+}
+
+// TestWinnersMaintainerCountsAnUnderLockStandDown pins the #11117 keyed-tick
+// guard on the maintainer side: a keyed tick that stood down under the lock (a
+// newer full committed after the decision read) counts as a stand-down, not as
+// a resweep skipped behind another, and runs no full.
+func TestWinnersMaintainerCountsAnUnderLockStandDown(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := winnersSignalsHarness(t)
+	f := &fakeContractWinners{contract: matchingContract(), keyedStandsDown: true}
+	m := contractMaintainer(f)
+	m.Instruments = inst
+	runContractMaintainer(t, m, func() bool {
+		_, _, _, keyed := f.counts()
+		return keyed >= 3
+	})
+	if _, fullCalls, _, _ := f.counts(); fullCalls != 0 {
+		t.Fatalf("full calls = %d, want 0", fullCalls)
+	}
+	if got := winnersCounterSum(t, reader, "eshu_dp_supply_chain_impact_winners_stand_downs_total"); got < 3 {
+		t.Fatalf("stand-downs = %d after 3 stood-down keyed ticks, want at least 3", got)
+	}
+	if got := winnersCounterSum(t, reader, "eshu_dp_supply_chain_impact_winners_resweep_skipped_total"); got != 0 {
+		t.Fatalf("resweep skips = %d, want 0: a stand-down is not a resweep in flight", got)
 	}
 }
 
