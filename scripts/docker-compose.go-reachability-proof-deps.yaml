@@ -73,6 +73,12 @@ services:
     depends_on:
       core-api:
         condition: service_started
+    # The in-tree git collector discovers nothing by default
+    # (githubOrg mode with no App). Point it at the public fixture
+    # repo explicitly; anonymous fetch works for public repos.
+    environment:
+      ESHU_REPO_SOURCE_MODE: explicit
+      ESHU_REPOSITORY_RULES_JSON: '[{"kind":"exact","value":"github/eshu-hq/eshu-go-reachability-fixture"}]'
 
   # Single-backend proof graph (arbiter amendment to #10031): the shared
   # neo4j overlay is not included (it redefines services with bare build
