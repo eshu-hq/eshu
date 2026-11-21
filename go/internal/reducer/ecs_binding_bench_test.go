@@ -32,7 +32,7 @@ func ecsBindingScaleCensus(services int) (ECSBindingCensusResult, []facts.Envelo
 			ecsBindingDeclaration(fmt.Sprintf("repo-%02d", i%32), "other.tf", name,
 				`"other-cluster-svc"`, `"arn:aws:ecs:us-east-1:111122223333:cluster/other"`, nil))
 	}
-	return ECSBindingCensusResult{Declarations: declarations}, envelopes
+	return ECSBindingCensusResult{Complete: true, Declarations: declarations}, envelopes
 }
 
 func BenchmarkExtractWorkloadECSBindingMatrix(b *testing.B) {

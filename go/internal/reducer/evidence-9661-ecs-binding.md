@@ -25,8 +25,10 @@ shim-scale census: 187 declarations across 32 repos, binding 40 rows):
   one bounded census read plus one instance-env read per evaluation
   otherwise; extraction itself is pure CPU over already-loaded facts.
 - Input shape: scope `aws_resource` facts plus the global declaration
-  census (cap 5000 rows, truncation reported visibly and failing
-  closed). Terminal counts: 3 bound rows on the matrix, 40 on scale.
+  census (filtered resolver closure, complete-or-blocked per #11084:
+  safety ceiling 50000 rows, hitting it blocks declaration binds with
+  an `ecs_census_incomplete` tally). Terminal counts: 3 bound rows on
+  the matrix, 40 on scale.
 - Backend: `go test -bench` binary on linux/arm64 (shared host);
   numbers are corroboration with spread per the timing-proof rules.
 
@@ -40,10 +42,46 @@ Census index evidence:
 (`EXPLAIN`, read-only tail derived from the constant) against prod-shape
 indexes over a 25k-row fact table: no sequential scan on `fact_records`,
 index-backed generation join. `TestECSBindingCensusReadsActive...Live`
-proves active-only visibility with verbatim metadata, and
-`TestECSBindingCensusTruncationIsVisibleLive` proves the cap reports
-instead of subsetting. Live tests skip without `ESHU_POSTGRES_TEST_DSN`
-and pass against PostgreSQL 18.6 locally.
+proves active-only visibility with verbatim metadata,
+`TestECSBindingCensusReadsFilteredClosureLive` proves the exact closure
+set (ECS declarations corpus-wide plus same-directory variables/locals
+and same-repo bridges, nothing else), and
+`TestECSBindingCensusCeilingReportsIncompleteLive` proves the ceiling
+reports incomplete with zero declarations. `TestECSBindingVetoThroughRealStoreLive`
+proves a duplicate competitor read through the real store vetoes the
+bind while a unique declaration binds. Live tests skip without
+`ESHU_POSTGRES_TEST_DSN` and pass against PostgreSQL 18 locally.
+
+#11084 complete-or-blocked census:
+
+Root-Cause Evidence: the prefix census (5000 of 126,551 QA rows) failed
+open on the uniqueness vetoes — the failing-first
+`TestECSBindingHandleIncompleteCensusBlocksDeclarationBind` bound 1 row
+on a truncated census pre-fix. The shipped "truncation only fails
+closed" comments were false for the duplicate, shared-name-elsewhere,
+for_each/count poison, and bridge-shadowing legs, which scan only
+retained rows.
+
+Performance Evidence: synthetic 126,656-row closure shim on local PG18
+(scratch DB, fixture-shaped indexes): C1 = 60 ECS declarations
+(32.4 ms); C2 = 864 rows (60 + 36 same-directory var/local + 768
+same-repo bridges); need-driven single statement median 50.5 ms over 3
+runs vs 80.7 ms for the retired full-census shape (OR-form 102.5 ms and
+naive UNION 142 ms rejected; set-equality 0/0 against the OR form).
+One statement means one snapshot; no Seq Scan on `fact_records`.
+Extraction benches before/after on the shared host (300 iters x2):
+matrix 43.1/43.0 us/op to 40.3/42.2; scale (40 services x 187
+declarations) 483.3/480.9 us/op to 483.7/481.3; Handle declaration path
+10.7/10.9 us/op to 9.9/10.0 — no regression at equal bind results.
+Production C1/C2 sizes and production index coverage are NOT measured
+here (no replica access from this lane); the replica re-check is owed
+before merge-ready.
+
+Observability Evidence: new `ecs_census_incomplete` skip tally merges
+into the handler's existing `N candidate(s) skipped` total; no new
+metric, span, or log key. The `(declaration census truncated)` summary
+annotation is gone — zero `ECS declaration-bound edge(s)` plus the
+blocked tally means blocked-or-absent, never a silent prefix.
 
 No-Observability-Change:
 

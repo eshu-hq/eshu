@@ -95,6 +95,7 @@ func ecsBindingMatrixCensus() ECSBindingCensusResult {
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	_ = digest
 	return ECSBindingCensusResult{
+		Complete: true,
 		Declarations: []ECSBindingDeclaration{
 			// api: var-default name, literal cluster, own repo (positive).
 			ecsBindingDeclaration("repo-app", "main.tf", "api", "var.service_name", `"arn:aws:ecs:us-east-1:111122223333:cluster/prod"`, nil),
