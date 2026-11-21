@@ -148,3 +148,13 @@ census pairs, minus 15,987 classification rows that are not static and active,
 8,258,210 staged source facts, more than eight times the 1,000,000 cap. Stored
 winners (M-B) are 79,614, under the 250,000 distinct-key cap. Every staged
 audit tick on QA defers on budget, so #11131 keeps priority:high.
+
+Later note: the contract evidence note's AC5 plan supersedes two instructions
+above. Finding 6 says `audit_last_success_age_seconds` keeps growing after a
+deferred tick, and decision 5 says to read `_last_staged_facts`. Both series
+have no value until a pass completes in the process and reset on a roll, so
+the AC5 plan reads their absence, `staged_audit_deferrals_total{reason="budget"}`
+and the per-pass `staged winners audit deferred` log lines instead. Decision 3
+cites the #11103 ruling's section 6, which is not committed; its substance,
+as used here, is that each force-full is a QA data mutation that needs its own
+arbiter review with readings.
