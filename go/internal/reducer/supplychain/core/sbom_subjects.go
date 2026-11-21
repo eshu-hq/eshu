@@ -128,18 +128,43 @@ func appendSupplyChainImpactManifestFindings(
 	narrowPerShard bool,
 ) []SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
-	repositories := consumptionRepositoriesForPackage(pkg.PackageID, index.consumption)
-	if len(repositories) == 0 {
+	grouped := groupConsumptionRowsByRepository(index.consumption[pkg.PackageID])
+	if len(grouped) == 0 {
 		return appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, index, narrowPerShard))
 	}
+	repositories := make([]string, 0, len(grouped))
+	for repositoryID := range grouped {
+		repositories = append(repositories, repositoryID)
+	}
+	sort.Strings(repositories)
 	for _, repositoryID := range repositories {
 		scoped := index
 		scoped.consumption = map[string][]supplychainmodel.PackageConsumption{
-			pkg.PackageID: consumptionRowsForRepository(index.consumption[pkg.PackageID], repositoryID),
+			pkg.PackageID: grouped[repositoryID],
 		}
 		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped, narrowPerShard))
 	}
 	return findings
+}
+
+// groupConsumptionRowsByRepository partitions one package's consumption rows
+// by repository in a single pass, preserving index order within each
+// repository so firstConsumption keeps its within-repository preference
+// (issue #10972). Blank repository rows cannot anchor a finding and are
+// excluded, matching consumptionRepositoriesForPackage; the key is the raw
+// repository ID. Each repository's slice is freshly appended, never an alias
+// of the index slice.
+func groupConsumptionRowsByRepository(
+	rows []supplychainmodel.PackageConsumption,
+) map[string][]supplychainmodel.PackageConsumption {
+	grouped := make(map[string][]supplychainmodel.PackageConsumption)
+	for _, row := range rows {
+		if strings.TrimSpace(row.RepositoryID) == "" {
+			continue
+		}
+		grouped[row.RepositoryID] = append(grouped[row.RepositoryID], row)
+	}
+	return grouped
 }
 
 // appendSupplyChainImpactFleetOSFindings classifies each digest's installed
@@ -262,21 +287,6 @@ func consumptionRepositoriesForPackage(
 	}
 	sort.Strings(repositories)
 	return repositories
-}
-
-// consumptionRowsForRepository returns the rows of one repository in index
-// order so firstConsumption keeps its within-repository preference.
-func consumptionRowsForRepository(
-	rows []supplychainmodel.PackageConsumption,
-	repositoryID string,
-) []supplychainmodel.PackageConsumption {
-	var out []supplychainmodel.PackageConsumption
-	for _, row := range rows {
-		if row.RepositoryID == repositoryID {
-			out = append(out, row)
-		}
-	}
-	return out
 }
 
 func hasMatchingOSPackage(pkg supplychainmodel.AffectedPackage, index supplyChainImpactIndex) bool {
