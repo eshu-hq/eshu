@@ -397,6 +397,9 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 			strings.Contains(query, "FROM repository_selection_observations") {
 			return &fakeRows{}, nil
 		}
+		if query == sourceClaimableSignalQuery || query == sourceBackpressureLatchQuery {
+			return &fakeRows{}, nil
+		}
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 

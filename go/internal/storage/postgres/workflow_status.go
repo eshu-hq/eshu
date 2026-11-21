@@ -143,7 +143,11 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 	if err != nil {
 		return nil, err
 	}
-	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 && len(backpressure) == 0 {
+	sourcePacing, err := readSourcePacingStatus(ctx, queryer, asOf)
+	if err != nil {
+		return nil, err
+	}
+	if len(instances) == 0 && len(runCounts) == 0 && len(workItemCounts) == 0 && len(completenessCounts) == 0 && activeClaims == 0 && overdueClaims == 0 && oldestPendingAge == 0 && len(backpressure) == 0 && len(sourcePacing) == 0 {
 		return nil, nil
 	}
 
@@ -153,6 +157,7 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 		WorkItemStatusCounts:      workItemCounts,
 		CompletenessCounts:        completenessCounts,
 		CollectorBackpressure:     backpressure,
+		SourcePacing:              sourcePacing,
 		CollectorTerminalFailures: terminalFailures,
 		ActiveClaims:              activeClaims,
 		OverdueClaims:             overdueClaims,

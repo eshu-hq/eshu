@@ -5,7 +5,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"slices"
 	"strings"
@@ -372,29 +371,7 @@ func (s *WorkflowControlStore) sourceClaimableSignals(
 func (s *WorkflowControlStore) sourceBackpressureLatches(
 	ctx context.Context,
 ) (map[string]sourceLatchState, error) {
-	rows, err := s.database.QueryContext(ctx, sourceBackpressureLatchQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	latches := make(map[string]sourceLatchState)
-	for rows.Next() {
-		var domain string
-		var engaged bool
-		var at sql.NullTime
-		if err := rows.Scan(&domain, &engaged, &at); err != nil {
-			return nil, err
-		}
-		row := sourceLatchState{engaged: engaged}
-		if at.Valid {
-			row.engagedAt = at.Time
-		}
-		latches[domain] = row
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return latches, nil
+	return readSourceBackpressureLatches(ctx, s.database)
 }
 
 // recordSourceBackpressureTransition emits the engagement telemetry for one
