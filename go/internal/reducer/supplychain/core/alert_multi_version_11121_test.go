@@ -153,3 +153,33 @@ func TestSecurityAlertMultiVersionCountsInSubSignal11121(t *testing.T) {
 		t.Fatalf("multiVersionRepositoryGroups = %d, want 1", stats.multiVersionRepositoryGroups)
 	}
 }
+
+// TestSecurityAlertAmbiguousRepositoriesWithDifferentVersions11121 pins review
+// F2 of #11121: an alert whose repository scope matches two repositories is
+// ambiguous and yields no finding, even when the two repositories hold
+// different versions. The per-version split must not turn one ambiguous
+// candidate set into one unambiguous group per repository.
+func TestSecurityAlertAmbiguousRepositoriesWithDifferentVersions11121(t *testing.T) {
+	t.Parallel()
+	packageID := alertMultiVersionPackage
+	alert := securityAlertEnvelope("alert-11121-ambiguous", "security-alert:github:acme/api", map[string]any{
+		"provider": "github_dependabot", "provider_alert_number": int64(11123), "provider_state": "open",
+		"package_id": packageID, "ecosystem": "npm", "package_name": "fast-uri",
+		"manifest_path": "packages/client/package-lock.json", "ghsa_ids": []string{"GHSA-1112-1abc-defg"},
+		"vulnerable_range": "< 3.1.0", "patched_version": "3.1.0",
+	})
+	row := func(id, repo, version string) facts.Envelope {
+		envelope := packageConsumptionCorrelationEnvelope(id, repo, packageID, "packages/client/package-lock.json")
+		envelope.Payload["repository_name"] = "api"
+		envelope.Payload["dependency_range"] = version
+		return envelope
+	}
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		alert,
+		row("consume-11121-ambiguous-1", "repository:r_api_1", alertMultiVersionAffected),
+		row("consume-11121-ambiguous-2", "repository:r_api_2", alertMultiVersionFixed),
+	})
+	if len(findings) != 0 {
+		t.Fatalf("len(findings) = %d, want none for an ambiguous repository scope", len(findings))
+	}
+}
