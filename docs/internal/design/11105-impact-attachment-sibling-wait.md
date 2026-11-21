@@ -4,9 +4,30 @@
 generation's sbom_attestation_attachment work is in flight. The attachment's
 terminal Ack reopens the pass at once.**
 
-Issue: #11105 (part of #10860, refs #11087). The binding arbiter ruling is
-`.claude/arbiter-11105.md`. Paths below are under `go/internal/` and were
-verified at origin/main `8b6af10392`.
+Issue: #11105 (part of #10860, refs #11087). Paths below are under
+`go/internal/` and were verified at origin/main `8b6af10392`.
+
+## The arbiter ruling, in brief
+
+The binding ruling (arbiter-eshu, 2026-11-21) set these points:
+
+- The gap is real and predates #11087. Build a same-generation sibling wait
+  on supply_chain_impact, following the #8827 template.
+- The invariant: an impact pass does not load evidence while an
+  sbom_attestation_attachment row of its own (scope_id, generation_id) is
+  pending, retrying, claimed, or running.
+- Use a new non-counting failure class, parked as a producer-terminal wait
+  narrowed to sbom_attestation_attachment, with no new wake code.
+  Parameterize the #8827 state query by domain; do not copy it.
+- Probe before the evidence load, on every attempt. Bound the wait by
+  `crossscope.ProducerReadinessMaxWait` from the newest in-flight
+  last-workable time, never by attempt counts. A probe error stays counting.
+- Characterize the cross-scope variant with a live test. If it is GREEN,
+  record it and stop. If it is RED, take the output to the arbiter before
+  building any reopen fan-out.
+- Do not add a catalog edge for the attachment, an enqueue-order or priority
+  guarantee, a shared conflict-key change, a worker or batch cut, or a
+  claim-time readiness row.
 
 ## The ordering, as traced
 
@@ -87,6 +108,13 @@ cross-scope and publishes the attachment-backed finding. The test passed
 before and after the fix, so no `reopenSupplyChainImpactHolderQuery` fan-out
 was built.
 
+S2's own attachment-backed copy depends on pass order. The reviewer checked
+this with a scratch oracle. If S2's pass runs after S1's attachment commits,
+S2 writes its own copy (document-scope findings 1, referrer-scope 0). In the
+test's order, S2 ran first and its copy lands only with its next generation.
+The read surface is the same either way, because the winners read model keeps
+one copy per finding key and S1's copy carries it.
+
 ## Residue
 
 An attachment that commits after a pass recorded `bound_exceeded` or
@@ -108,6 +136,13 @@ B also reopens scope A's parked pass. The pass re-defers without spending an
 attempt.
 `TestReducerContentionGateSupplyChainImpactAttachmentForeignAckIsAHintLive`
 pins this. The same leg already applies to the #8827 and #7816 waits.
+
+#11114 narrows that wake. Until it merges, N impact passes parked on the
+attachment domain cost N + N(N-1)/2 deferrals as their attachments ack one by
+one, because each Ack wakes every pass still parked. The contention run below
+shows exactly that: 8 + 28 = 36. The arbiter's #11114 ruling holds any QA
+deploy or release between the #11105 and #11114 merges, so this cost is not
+expected to reach a deployed fleet.
 
 ## Evidence
 
@@ -162,7 +197,7 @@ Concurrency proof
   findings. The conflict domain is (scope, scope id).
 - Three runs drained in 0.90 s, 1.03 s, and 1.07 s, with 36 non-counting
   deferrals each time. Eight is the minimum, and the rest are cross-scope
-  hint wakes.
+  hint wakes (8 + 8x7/2 = 36, the growth #11114 removes).
 - No statement errors and no 23505 occurred. At no claim did a scope hold two
   claimed or running rows.
 - A lost wake would have left a row to the 10-minute backstop, outside the
@@ -203,6 +238,15 @@ Observability Evidence:
   `docs/public/reference/telemetry/supply-chain-impact-attachment-wait.md`.
 
 ## Not checked
+
+- NOT_CHECKED, referred to the arbiter: a scope generation that holds only
+  `attestation.statement` or `sbom.document` facts. Those kinds raise an
+  attachment intent (`projector/sbom/attestation/attachment_intents.go:15-16`)
+  but no impact intent, because the impact intent's `candidateFactKinds`
+  (`projector/supply/chain/impact/intents.go:15-27`) exclude both. Such an
+  attachment commit runs no impact pass in its own generation, and this
+  change does not cover it. Whether production emits such generations is
+  unproven.
 
 - The deployed fleet rate of `deferred_in_flight` and of cross-scope hint
   wakes has not been measured. A QA reading after deploy should compare the

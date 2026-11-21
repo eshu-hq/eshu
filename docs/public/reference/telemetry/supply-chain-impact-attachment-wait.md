@@ -60,6 +60,11 @@ so the waiting pass comes back through the waiting audit or the 10-minute
 backstop, then records `producer_failed`. An attachment Ack in another scope
 also reopens parked waits on the same domain (the shared cross-scope wake leg).
 That wake is a hint: the pass re-defers without spending an attempt.
+Until #11114 narrows that wake, N impact passes parked on the same domain
+cost N + N(N-1)/2 deferrals as their attachments ack one by one: each Ack
+wakes every pass still parked. The arbiter's #11114 ruling holds QA deploys
+and releases between the #11105 and #11114 merges, so this cost is not
+expected to reach a deployed fleet.
 
 A probe that cannot read the attachment state is a counting failure. It is
 never read as ready or not ready, so an unreadable store dead-letters on the
@@ -69,8 +74,11 @@ retry budget and does not retry forever.
 
 - **Do nothing** while `deferred_in_flight` is small and the attachment
   backlog drains. The pass comes back on the attachment's Ack.
-- **Worry** when `deferred_in_flight` keeps rising for one scope. Find the
-  attachment holder with
+- **Worry** when `deferred_in_flight` keeps rising. The counter carries no
+  scope label, so find the scope from the `scope_id` and `generation_id` on
+  the INFO `supply chain impact deferred: sbom attestation attachment in
+  flight for the same scope generation` lines. A scope that keeps logging it
+  has an attachment that is not finishing. Find the attachment holder with
   `eshu_runtime_domain_oldest_age_seconds{domain="sbom_attestation_attachment"}`.
 - **Act** on `producer_failed` or `bound_exceeded`. The pass published without
   the attachment, and it does not re-run when a replayed attachment commits

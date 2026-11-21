@@ -14,15 +14,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// ImpactProducerStateQuery counts one scope generation's supply_chain_impact
-// work items by status and returns the newest in-flight last-workable time
-// (NULL when none is in flight) (#8827). The succeeded and failed
+// ImpactProducerStateQuery counts one scope generation's reducer work items of
+// one domain ($3) by status and returns the newest in-flight last-workable
+// time (NULL when none is in flight). Two callers bind $3: the #8827
+// reconciliation fence binds supply_chain_impact, and the #11105 impact
+// attachment wait binds sbom_attestation_attachment. The succeeded and failed
 // (dead_letter or failed) counts tell a settled producer, a genuine no-match,
 // from one that stopped without its evidence (#8956); a superseded or other
 // terminal row is in neither count and so is never settled.
 //
 // It is an aggregate with no GROUP BY, so it always returns exactly one row:
-// all zeros when no impact work was ever enqueued for the generation. It reads
+// all zeros when no work of the domain was ever enqueued for the generation. It reads
 // fact_work_items through fact_work_items_scope_generation_idx (scope_id,
 // generation_id, ...) with an equality on both columns, so only the one scope
 // generation's rows are fetched and stage and domain filter that small set.
