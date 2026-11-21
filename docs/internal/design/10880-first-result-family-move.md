@@ -326,7 +326,7 @@ binary still trying the old path.
   all carry both columns through the one
   `supplyChainImpactWinnerDataColumns` list, so a payload-only change
   rewrites the winner row (live proof:
-  `TestSupplyChainImpactWinnersPayloadCarriedLive`). The stored
+  `TestSupplyChainImpactWinnersResweepPayloadCarriedLive`). The stored
   payload bakes in the operator suppression object; readers rewrite
   only the effective state. Telemetry: no new instrument — the
   existing resweep counts now include payload-driven rewrites, and

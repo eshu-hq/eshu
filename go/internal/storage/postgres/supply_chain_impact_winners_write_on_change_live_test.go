@@ -367,12 +367,12 @@ func winnersWriteCounts(r supplychaincore.SupplyChainImpactWinnersResweep) suppl
 	}
 }
 
-// TestSupplyChainImpactWinnersPayloadCarriedLive proves #10880 slice 1
+// TestSupplyChainImpactWinnersResweepPayloadCarriedLive proves #10880 slice 1
 // on PostgreSQL: the stored winner payload equals the winning fact
 // payload with the operator suppression object baked in, the winner's
 // source_confidence is carried, and a payload-only change (a field no
 // typed column projects) rewrites exactly that winner row.
-func TestSupplyChainImpactWinnersPayloadCarriedLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepPayloadCarriedLive(t *testing.T) {
 	_ = supplyChainImpactLiveDSN(t, "#10880 winners payload proof")
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	t.Cleanup(cancel)
