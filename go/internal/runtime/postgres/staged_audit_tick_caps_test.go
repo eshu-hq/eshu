@@ -12,7 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// The staged audit's tick-total caps (#11117 A, arbiter-11103c section 3):
+// The staged audit's tick-total caps (#11117 A; asked because the #11103
+// rename wave queues about 176,000 pending keys):
 // StagedAuditMaxStagedFacts and StagedAuditMaxDistinctKeys bound the whole
 // read phase, which reads every active scope generation, not the pending
 // candidates. A corpus past either cap defers every tick on "budget" before

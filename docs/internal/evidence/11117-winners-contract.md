@@ -36,6 +36,16 @@ This note covers PR 2 of the ruling (A, acceptance criteria AC2 and AC4). PR 1
   takes the resweep lock. Under READ COMMITTED that read sees a full that
   another instance committed while this one waited. So a decision read that
   went stale between the tick's read and the lock never runs a second full.
+  The hermetic `TestResweepWinnersUnlessCurrentSkipsACurrentContract` is the
+  guard for this re-read; the live two-maintainer proof below does not
+  exercise the stale-read interleaving.
+- The keyed tick re-reads the stored version under the lock too (review F1).
+  Above this binary's version it consumes, applies and stamps nothing and
+  reports a stand-down, so neither a keyed apply nor the over-cap full fallback
+  runs an older binary's statements over a table stamped with a newer
+  contract. `TestResweepWinnersKeyedStandsDownUnderTheLock` (disabling the
+  re-read turns it red) and `TestWinnersMaintainerCountsAnUnderLockStandDown`
+  pin it.
 - A full that is skipped because another instance holds the lock no longer
   makes this instance retry its own full. The next tick re-reads the row, sees
   the other instance's commit, and runs keyed.
@@ -89,6 +99,13 @@ and `supply chain impact winners full resweep recorded the contract` (info).
 
 ## Rollout and rollback
 
+Rollout (reasoned, not run): migration 329's `ALTER TABLE` takes ACCESS
+EXCLUSIVE on `supply_chain_impact_winners_materialization`. A pre-A full in
+flight holds ROW EXCLUSIVE on that table from its rebuild statement to its
+commit (about 6,400 s), so the schema-bootstrap hook (lock_timeout 5 s, 3 min
+of retries) fails behind it. Deploy with no full in flight, or cancel the full
+first; a cancel is accuracy-safe (one transaction, rolled back).
+
 PR 1 and PR 2 ship in one release. The first PR 2 binary finds a NULL version
 and runs one drained full across all pods. Every later roll with the same
 contract runs none. Rollback: older binaries ignore the columns. A rollback to
@@ -102,6 +119,11 @@ version only when the rendered winners SQL changes, or when impact facts or
 scope activation are rewritten outside the capture owners. #11113 and #11103
 change neither and need no bump. This change merges last in its release, so
 it pins the hash on the final SQL.
+
+Known limit: `cmd/ifa`'s `rebuildWinnersOnce` runs the unguarded
+`ResweepWinners`, which stamps its own contract unconditionally. An ifa build
+older than the stored contract therefore lowers the stored version. It heals
+itself: the next maintainer tick sees a lower version and runs one extra full.
 
 ## The audit gate (arbiter addendum, 2026-11-21)
 
@@ -130,9 +152,11 @@ verify is measured at backlog scale and the audit has operator signals:
   Postgres 18.6). The bound is one keyed interval, 30 s, so the verify stays
   unchunked (item 5a not needed). In the same run a keyed tick during the hold
   returns Skipped, a capture insert completes in 68 to 134 ms, and the keyed
-  tick after the commit commits. The margin is 2 to 3x on a corpus with one
-  fact per key and small payloads; QA has about 13 kept facts per identifier
-  and larger payloads (#11120). An earlier measurement of 1.6 to 5.0 s is void:
+  tick after the commit commits. An independent review rerun read 28.640 s at
+  load1 17 on the shared Postgres, so the hold ranges from 9.1 to 14.2 s on a
+  quiet server up to 28.6 s when the server is contended, against the 30 s
+  bound. The corpus has one fact per key and small payloads; QA has about 13
+  kept facts per identifier and larger payloads (#11120). An earlier measurement of 1.6 to 5.0 s is void:
   its synthetic facts lacked `subject_digest`, so the keyed probe matched
   nothing. The proof now fails if the probe keeps no facts.
 - **Verify at the #11103 rename wave (arbiter ruling on #11103, section 3).**
@@ -165,6 +189,9 @@ verify is measured at backlog scale and the audit has operator signals:
 
   Every staged audit tick on QA defers on budget, and the writer verify never
   runs.
+- **Budget ruling.** The arbiter ruled that A ships as is, with this
+  amendment and #11131
+  ([11117-staged-audit-budget-ruling-2026-11-21.md](../arbiter/11117-staged-audit-budget-ruling-2026-11-21.md)).
 - **No automatic backstop on QA until #11131 ships.** At `staged-audits`
   routing past the caps, QA has no automatic backstop for a missed mark until
   #11131 ships. After A, the only backstop on QA is the manual force-full
@@ -199,14 +226,18 @@ AC5 plan on QA:
 2. Watch the first audit pass. The first pass is part of the proof. Watch
    `resweep_duration_seconds{path="audit"}`,
    `resweep_in_flight_age_seconds{path="audit"}`,
-   `audit_last_success_age_seconds`, the staged-audit gauges and deferrals,
-   and the completion log's read seconds and repairs.
+   the staged-audit deferrals, and the completion log's read seconds and
+   repairs. `audit_last_success_age_seconds` and the staged-audit `last_*`
+   gauges have no value until a pass completes in that process (and reset on
+   a roll), so read their absence, not a climbing value.
 3. Roll once more with the matching contract. This is the worst case: the
    backlog is present and no full runs.
 4. After the NULL-version full commits, read
    `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason="budget"}`,
-   `..._staged_audit_last_staged_facts`, and the `read_seconds` field of the
-   `staged winners audit deferred` log for three consecutive ticks:
+   the absence of the staged-audit `last_*` gauges (a budget-deferred tick
+   records nothing there), and the per-pass `staged winners audit deferred`
+   log lines with their `reason` and `read_seconds` fields, for three
+   consecutive ticks:
    - If every tick defers on budget, and either `read_seconds` exceeds 60 s
      (the unrenewed lease TTL, so two pods read at once) or standby replay lag
      rises during the read, set
