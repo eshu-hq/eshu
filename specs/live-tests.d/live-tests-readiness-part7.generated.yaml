@@ -79,6 +79,11 @@ tests:
     class: postgres_ci
     reason: "#11129 staging-read plan pins: no keyed per-tick staging statement, gauge sample, or rebuild-stamp minimum plans a Seq Scan of the staging table at a seeded backlog, under fresh and pre-burst stats, custom and generic plans"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_staging_work_mem_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11129 collapse work_mem scoping: the two collapse arms run under the raised transaction-local work_mem, the session value is back before the fold returns, and the session keeps its own setting after the tick commits; a session already above the collapse value keeps it"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_winners_writer_txn_replay_live_test.go
     tag: ~
     class: postgres_ci

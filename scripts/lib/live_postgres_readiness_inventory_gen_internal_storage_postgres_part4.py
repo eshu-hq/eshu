@@ -335,6 +335,9 @@ TABLE = {
         "go/internal/storage/postgres/supply_chain_impact_winners_staging_plan_live_test.go": (
             "TestSupplyChainImpactWinnersStagingStatementsAvoidSeqScanLive",
         ),
+        "go/internal/storage/postgres/supply_chain_impact_winners_staging_work_mem_live_test.go": (
+            "TestSupplyChainImpactWinnersStagingCollapseWorkMemScopedLive",
+        ),
         "go/internal/storage/postgres/supply_chain_impact_winners_writer_txn_replay_live_test.go": (
             "TestSupplyChainImpactWinnersResweepClaimIsCrossBackendLive",
             "TestSupplyChainImpactWinnersWriterTxnReplayLive",
