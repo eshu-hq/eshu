@@ -39,6 +39,9 @@ func TestAnalyzeIndexWritesClassifiesBoundNonKeyOnly(t *testing.T) {
 		{"map replace", "MATCH (g:AdvisoryGroup {id: $id}) SET g = {member_count: $n}", false},
 		{"opaque subscript SET", "MATCH (g:AdvisoryGroup {id: $id}) SET g['member_count'] = $n", false},
 		{"opaque subscript SET beside a non-key SET", "MATCH (g:AdvisoryGroup {id: $id}) SET g.member_count = $n, g['name'] = $v", false},
+		{"opaque SET on a second matched node of the same label", "MATCH (g:AdvisoryGroup {id: $id})\nMATCH (h:AdvisoryGroup {id: $id2})\nSET g.member_count = $n, h['id'] = $v", false},
+		{"backtick key SET on a second matched node", "MATCH (g:AdvisoryGroup {id: $id})\nMATCH (h:AdvisoryGroup {id: $id2})\nSET g.member_count = $n, h.`id` = $v", false},
+		{"matched node also named by a later OPTIONAL MATCH", "MATCH (g:AdvisoryGroup {id: $id})\nOPTIONAL MATCH (g:AdvisoryGroup)-[:R]->(x)\nSET g.member_count = $n", false},
 		{"label added by SET", "MATCH (g:AdvisoryGroup {id: $id}) SET g:Module, g.member_count = $n", false},
 		{"mixed recognized non-key SET and unreadable indexed write", "UNWIND $rows AS row\nUNWIND row.items AS item\nMATCH (g:AdvisoryGroup {id: $id})\nSET g.member_count = $n\nMERGE (x:Parameter {name: item.name, path: row.path, function_line_number: 1})", false},
 		{"match names no full schema key", "MATCH (n:Function {signature: $sig}) SET n.touched = $t", false},
@@ -56,6 +59,11 @@ func TestAnalyzeIndexWritesClassifiesBoundNonKeyOnly(t *testing.T) {
 			plan := analyzeIndexWrites(tc.cypher)
 			if plan.boundNonKeyOnly != tc.want {
 				t.Fatalf("boundNonKeyOnly = %v, want %v\nstatement:\n%s", plan.boundNonKeyOnly, tc.want, tc.cypher)
+			}
+			// The verdict says the analyzer read every write; an unanalyzed
+			// entry says it did not, so the two never hold together.
+			if plan.boundNonKeyOnly && len(plan.unanalyzed) > 0 {
+				t.Fatalf("boundNonKeyOnly with unanalyzed %+v\nstatement:\n%s", plan.unanalyzed, tc.cypher)
 			}
 		})
 	}
@@ -122,11 +130,12 @@ func TestSweepClassifiesBoundNonKeySeeds(t *testing.T) {
 	// opaque item rides beside a readable one to make the literal a candidate.
 	write("opaque_set.go", "MATCH (g:AdvisoryGroup {id: $id}) SET g.member_count = $n, g['name'] = $v")
 	write("mixed.go", "UNWIND $rows AS row\nUNWIND row.items AS item\nMATCH (g:AdvisoryGroup {id: $id})\nSET g.member_count = $n\nMERGE (x:Parameter {name: item.name, path: row.path, function_line_number: 1})")
+	write("opaque_other_var.go", "MATCH (g:AdvisoryGroup {id: $id}) MATCH (h:AdvisoryGroup {id: $id2}) SET g.member_count = $n, h['id'] = $v")
 	write("unkeyed_match.go", "MATCH (n:Function {signature: $sig}) SET n.touched = $t")
 
 	findings, candidates := sweepIndexedWrites(t, root, []string{"internal/storage"})
-	if candidates != 7 {
-		t.Fatalf("sweep examined %d seed literals, want 7", candidates)
+	if candidates != 8 {
+		t.Fatalf("sweep examined %d seed literals, want 8", candidates)
 	}
 	got := map[string]bool{}
 	for _, f := range findings {
@@ -137,9 +146,31 @@ func TestSweepClassifiesBoundNonKeySeeds(t *testing.T) {
 			t.Errorf("%s flagged, want clean; findings = %v", name, findings)
 		}
 	}
-	for _, name := range []string{"nested_key.go", "alias_map.go", "opaque_set.go", "mixed.go", "unkeyed_match.go"} {
+	for _, name := range []string{"nested_key.go", "alias_map.go", "opaque_set.go", "mixed.go", "opaque_other_var.go", "unkeyed_match.go"} {
 		if !got[name] {
 			t.Errorf("seeded violation %s not found; findings = %v", name, findings)
 		}
+	}
+}
+
+// TestSweepProblemKeepsUnanalyzedLoudBesideBoundVerdict pins the sweep's own
+// ordering against a plan the analyzer should never build: a bound-non-key
+// verdict beside an unanalyzed write. The sweep must still flag it, so a
+// future analyzer slip cannot turn an unread write into a clean literal.
+func TestSweepProblemKeepsUnanalyzedLoudBesideBoundVerdict(t *testing.T) {
+	t.Parallel()
+
+	plan := &indexWritePlan{
+		boundNonKeyOnly: true,
+		unanalyzed:      []UnanalyzedIndexWrite{{Label: "AdvisoryGroup", Reason: UnanalyzedReasonUnparsedWrite}},
+	}
+	if got := sweepProblem(plan); !strings.Contains(got, "guard reports") {
+		t.Fatalf("sweepProblem = %q, want an unanalyzed finding", got)
+	}
+	if got := sweepProblem(&indexWritePlan{boundNonKeyOnly: true}); got != "" {
+		t.Fatalf("sweepProblem for a clean bound verdict = %q, want empty", got)
+	}
+	if got := sweepProblem(&indexWritePlan{}); got == "" {
+		t.Fatal("sweepProblem for a plan with no bound write and no verdict = empty, want a finding")
 	}
 }

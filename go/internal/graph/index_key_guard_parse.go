@@ -82,7 +82,8 @@ type indexWritePlan struct {
 	unanalyzed []UnanalyzedIndexWrite
 	// boundNonKeyOnly is the explicit verdict that the statement only
 	// modifies matched nodes through non-key SET assignments (see
-	// index_key_guard_bound.go). It is deliberately not a vars entry.
+	// index_key_guard_bound.go). It is deliberately not a vars entry, and it is
+	// never true beside an unanalyzed entry.
 	boundNonKeyOnly bool
 	// warned flips once, when the first caller is told about unanalyzed.
 	warned atomic.Bool
@@ -233,7 +234,10 @@ func analyzeIndexWrites(cypher string) *indexWritePlan {
 		}
 	}
 	plan.unanalyzed = unanalyzedWrites(cypher, keywords, vars, order)
-	plan.boundNonKeyOnly = !setUnbound && classifyBoundNonKeyOnly(vars, order)
+	// The verdict claims the analyzer read every write, so any unanalyzed
+	// entry (an opaque SET item on a variable that no other SET wrote, an
+	// unbound label) rules it out.
+	plan.boundNonKeyOnly = !setUnbound && len(plan.unanalyzed) == 0 && classifyBoundNonKeyOnly(vars, order)
 	return plan
 }
 

@@ -48,7 +48,8 @@ func matchPatternProps(cypher string, openAt int) []string {
 // item the parse could not read, names no complete schema key in its MATCH, or
 // carries no schema label. At least one such written variable must exist.
 // The caller separately rejects a statement that SETs a variable no node
-// pattern bound.
+// pattern bound, and one with any unanalyzed write: an opaque SET item marks
+// its variable opaque but not written, so this function alone cannot see it.
 func classifyBoundNonKeyOnly(vars map[string]*indexWriteVar, order []string) bool {
 	byLabel := SchemaIndexKeysByLabel()
 	found := false

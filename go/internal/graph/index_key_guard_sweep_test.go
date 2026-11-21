@@ -202,13 +202,7 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 			}
 			candidates++
 			plan := analyzeIndexWrites(sweepFormatVerb.ReplaceAllString(text, "Function"))
-			problem := ""
-			switch {
-			case len(plan.vars) == 0 && !plan.boundNonKeyOnly:
-				problem = "writes an indexed label but the guard binds no write"
-			case len(plan.unanalyzed) > 0:
-				problem = fmt.Sprintf("guard reports %+v", plan.unanalyzed)
-			}
+			problem := sweepProblem(plan)
 			if problem == "" {
 				return false
 			}
@@ -222,6 +216,21 @@ func sweepIndexedWrites(t *testing.T, root string, dirs []string) (findings []sw
 	}
 	sort.Slice(findings, func(i, j int) bool { return findings[i].file < findings[j].file })
 	return findings, candidates
+}
+
+// sweepProblem is the sweep's verdict on one analyzed candidate literal: empty
+// when the guard reads every write, otherwise what it missed. Any unanalyzed
+// entry is a finding even when the statement also carries a bound-non-key
+// verdict; the analyzer withholds that verdict then, and this order keeps the
+// sweep loud if it ever does not.
+func sweepProblem(plan *indexWritePlan) string {
+	switch {
+	case len(plan.unanalyzed) > 0:
+		return fmt.Sprintf("guard reports %+v", plan.unanalyzed)
+	case len(plan.vars) == 0 && !plan.boundNonKeyOnly:
+		return "writes an indexed label but the guard binds no write"
+	}
+	return ""
 }
 
 // foldStringLiteral returns the value of a string literal, a package-level
