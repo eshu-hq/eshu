@@ -83,6 +83,10 @@ type SupplyChainImpactWinnersResweep struct {
 	// Skipped is true when another resweep was in flight, so this one wrote
 	// nothing, stamped nothing and left the watermark to that resweep.
 	Skipped bool
+	// ContractCurrent is true on a Skipped guarded full that found, under the
+	// resweep lock, a stored contract version at or above this binary's
+	// (#11117): another instance already committed the full this one wanted.
+	ContractCurrent bool
 	// Path is the path that ran: telemetry.SupplyChainImpactWinnersPathFull or
 	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
 	// keyed resweep (#9805), which the maintainer reads as full.
@@ -174,6 +178,12 @@ type SupplyChainImpactWinnersMaintainer struct {
 	Auditor        SupplyChainImpactWinnersAuditor
 	AuditInterval  time.Duration
 	DirtyLogReader SupplyChainImpactWinnersDirtyLogReader
+	// Contract decides each keyed-maintainer tick from the persisted winners
+	// contract (#11117): no watermark row, a NULL or a lower stored version
+	// runs one guarded full across every instance; an equal version runs keyed
+	// ticks and the audit only; a higher version stands this binary down. It is
+	// required with a KeyedRebuilder.
+	Contract SupplyChainImpactWinnersContractStore
 }
 
 func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
