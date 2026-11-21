@@ -1,9 +1,11 @@
 # Moving the first reducer-result family out of the fact table (#10880)
 
-Status: **Design ruling** (arbiter `arbiter-eshu`, 2026-11-20). This record
-decides which family moves first, the table pattern it follows, where the
-answering-store declaration lives, and the slice order. It approves no
-schema change by itself; each slice still needs its own proof (below).
+Status: **Design ruling** (arbiter `arbiter-eshu`, 2026-11-20); slices
+0–2 executed 2026-11-20/21, slices 3–4 dispositioned (see "Execution
+record" at the end). This record decides which family moves first, the
+table pattern it follows, where the answering-store declaration lives,
+and the slice order. It approves no schema change by itself; each
+slice still needs its own proof (below).
 
 Refs #10880. Part of #10860 (phase 3, step 1). Governing rule: decision D5
 as rewritten in
@@ -311,3 +313,69 @@ binary still trying the old path.
 - #10883 (graph rebuild at 9,000+ scopes) remains open; nothing in
   this plan makes any family graph-only, so it does not block slices
   0–4.
+
+## Execution record (2026-11-20/21, branch `drive/10880-move-reducer-results`)
+
+- **Slice 0 landed** (`c9909ef9f5`): `answering_stores` on all 162
+  matrix rows, closed-enum load validation, `missing_answering_store`
+  reconcile finding, regenerated catalog, lockstep honesty test.
+- **Slice 1 landed** (`c900d01a88`): migration
+  `325_supply_chain_impact_winners_payload.sql` adds `payload JSONB`
+  and `source_confidence TEXT` to the winners table. The full and
+  keyed resweeps, the audit diff, and the staged stored-winners read
+  all carry both columns through the one
+  `supplyChainImpactWinnerDataColumns` list, so a payload-only change
+  rewrites the winner row (live proof:
+  `TestSupplyChainImpactWinnersPayloadCarriedLive`). The stored
+  payload bakes in the operator suppression object; readers rewrite
+  only the effective state. Telemetry: no new instrument — the
+  existing resweep counts now include payload-driven rewrites, and
+  `eshu_dp_postgres_query_duration_seconds` covers the wider rows.
+- **Slice 2 landed for the list read** (`808865baee`):
+  `ListFindingsFromWinnersQuery` no longer joins `fact_records` or
+  rescans operator candidates; page payloads come from the winners
+  row via a canonical-key join. Live parity against the legacy fact
+  read passes on ten filter cases including scoped-token repository
+  and scope grants and live/expired suppressions
+  (`TestFindingsWinnersPayloadParityLive`) — the named multi-support
+  risk did not materialize on this corpus. Aggregates, grouped
+  inventory, and explain still read `fact_records`, and the runtime
+  workload filter reads `reducer_workload_identity` facts in both
+  paths, so `supply_chain.impact_findings.list` is declared mixed:
+  `read_table:supply_chain_impact_canonical_winners` +
+  `fact_records_reducer`. Golden-corpus gate
+  (`scripts/verify-golden-corpus-gate.sh`): **NOT_CHECKED** in this
+  lane (full-stack gate; store-level parity is the local proof).
+- **Slice 3 (write stop) NOT landed.** Inspecting the write path
+  showed blockers the ruling's slice sketch did not enumerate: the
+  protected publication authorize/publish pair runs inside the
+  finding-fact write transaction
+  (`supply_chain_impact_canonical_winners_store.go`
+  `supplyChainImpactTx`), and aggregates
+  (`aggregates_queries.go`), explain (`explain_postgres.go`), the
+  gate-off legacy list (`findings_split_queries.go`), and readiness
+  all still read finding facts. Stopping the fact write before those
+  readers move would break them; the write stop therefore follows
+  the aggregate/explain reader moves, not this lane. The rejected-
+  write counter lands with that slice. Read-latency gate
+  (`scripts/verify-read-api-latency-gate.sh`): **NOT_CHECKED** here.
+  Local shim instead (disposable Postgres 18, 2,007 winners, page
+  50, priority-desc, 20 iterations): winners list 7.52 ms avg vs
+  legacy fact-dedup list 13.86 ms avg; full resweep 67 ms. These are
+  small-N local numbers, not the seeded-scale gate.
+- **Slice 4 (drop ten indexes) NOT landed**, by the ruling's own
+  gate: no read-replica census was available in this lane and slice
+  3 has not landed, so the indexes still serve live readers.
+  Before/after for this family after slices 1–2: fact-table updates
+  unchanged (the reducer still writes finding facts — slice 3
+  pending); fact-table index count unchanged (10 impact indexes
+  retained); collector save time unchanged. Winners growth at the
+  synthetic seed: 2,007 rows, 4,038,656 bytes total relation size,
+  890 bytes average stored payload — the payload column roughly
+  doubles the winners row, with no material resweep regression at
+  this scale (67 ms full resweep). The stale "63 indexes" figure in
+  `postgres-tuning.md` stays for the slice-4 census to correct.
+- Remaining order is unchanged: aggregates/explain reader moves,
+  then slice 3 (write stop + reject trigger + latency gate), then
+  slice 4 (replica census + index drop), then the families listed
+  under "Remaining families" above.
