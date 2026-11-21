@@ -147,7 +147,7 @@ tests:
   - file: go/internal/storage/postgres/ecs_binding_declaration_census_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#9661 disposable PostgreSQL proof that the workload-to-ECS-service binding declaration census reads active-generation Terraform and Terragrunt content entities with verbatim metadata, excludes tombstones and superseded generations and other entity types and facts, reports truncation instead of silently subsetting, and plans index-backed with no sequential scan on fact_records at 25k-row scale; isolated temp tables per test, rolled back"
+    reason: "#9661 disposable PostgreSQL proof that the workload-to-ECS-service binding declaration census reads the filtered resolver closure with verbatim metadata, excludes tombstones and superseded generations and out-of-closure rows, reports incomplete with zero declarations instead of a bindable prefix, and plans index-backed with no sequential scan on fact_records at 25k-row scale; isolated temp tables per test, rolled back"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/ecs_task_index_migration_live_test.go
     tag: ~
