@@ -113,6 +113,7 @@ const Capabilities = `
                         "type": "object",
                         "properties": {
                           "capability": {"type": "string"},
+                          "answering_stores": {"type": "array", "items": {"type": "string"}, "description": "Store or stores that answer the capability's reads: graph, fact_records_reducer, fact_records_collector, read_table:<table>, content_search, or status_fixed."},
                           "display_name": {"type": "string"},
                           "owner_package": {"type": "string"},
                           "maturity": {"type": "string"},
