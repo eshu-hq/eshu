@@ -47,13 +47,22 @@ type SupplyChainImpactFactFilter struct {
 	// normalized suppression-scope predicate. It is populated alongside
 	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
 	// both are present.
-	AdvisoryIDs       []string
-	SubjectDigests    []string
-	DocumentIDs       []string
-	ProductCriteria   []string
-	RepositoryIDs     []string
-	FileRepositoryIDs []string
-	ImageRefs         []string
+	AdvisoryIDs     []string
+	SubjectDigests  []string
+	DocumentIDs     []string
+	ProductCriteria []string
+	// SeedProductCriteria carries the affected_product criteria of seed-CVE
+	// rows only (#11087). The storage reader binds it to the
+	// sbom_component_cpe probe alongside ProductCriteria, while the
+	// affected_product_criteria probe binds ProductCriteria alone, so a
+	// seeded CVE's criteria still discover in-scope components (hop B)
+	// without letting a transitive row's criteria pull another CVE's
+	// product rows (hop >= 2). Nil/empty keeps the production semantic:
+	// ProductCriteria drives both probes, exactly as derived.
+	SeedProductCriteria []string
+	RepositoryIDs       []string
+	FileRepositoryIDs   []string
+	ImageRefs           []string
 	// FileFold, when set, asks the loader to fold the parser file envelopes it
 	// resolves into the fold instead of returning them, so their decoded
 	// payloads are not retained for the pass (#9781). A loader that ignores it
@@ -130,6 +139,17 @@ type SupplyChainImpactHandler struct {
 	// listed id is dropped entirely (#10407). Optional: empty ships the
 	// pass with no denials.
 	AdvisoryGroupDenyList []string
+	// CriteriaExpansionBound enables the #11087 provenance bound on
+	// criteria->CVE transitive expansion. Nil keeps the prior unbounded
+	// semantics: every vulnerable affected_product row's criteria drives
+	// both the affected_product_criteria and sbom_component_cpe probes.
+	// Non-nil bounds every follow-up filter so only component-origin and
+	// seed-CVE product-origin criteria reach the loader, and counts the
+	// suppressed transitive criteria for telemetry. Production wiring sets
+	// it (defaults_additive_domains_supply_chain.go); nil is the one-line
+	// rollback. The parity shim
+	// (criteria_expansion_parity_test.go) is the gate that approved it.
+	CriteriaExpansionBound *SupplyChainImpactCriteriaExpansionBound
 	// FencingTokenIssuer supplies the per-pass fencing token (#7142). Required:
 	// Handle fails closed without it, because a pass with no ordering value
 	// cannot be fenced against a fresher pass.
@@ -321,6 +341,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	subSignals["suppression_evidence_truncated"] = boolSignal(loaded.truncation.suppressionTail)
 	subSignals["python_reachability_files_folded"] = float64(loaded.pythonReachabilityFacts)
 	mergeScopedPassSubSignals(subSignals, loaded)
+	mergeCriteriaBoundSubSignals(subSignals, loaded)
 	subSignals["python_reachability_payload_bytes_folded"] = float64(loaded.pythonReachabilityPayloadBytes)
 	subSignals["evidence_envelopes"] = float64(loaded.evidenceEnvelopeCount())
 	subSignals["evidence_expansion_envelopes"] = float64(loaded.expansionEnvelopes)

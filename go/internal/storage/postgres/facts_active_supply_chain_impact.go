@@ -162,10 +162,11 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 		branches = factimpact.ProtectedStaticBranches()
 	}
 	for _, branch := range branches {
-		if !supplyChainImpactBranchRuns(branch, values) {
+		bound := supplyChainImpactBranchValues(branch, values, filter)
+		if !supplyChainImpactBranchRuns(branch, bound) {
 			continue
 		}
-		rows, err := supplyChainImpactBranchStatements(ctx, queryer, branch, values, stats)
+		rows, err := supplyChainImpactBranchStatements(ctx, queryer, branch, bound, stats)
 		if err != nil {
 			return supplyChainImpactResolvedIDs{}, err
 		}
@@ -213,7 +214,38 @@ func (s FactStore) resolveSupplyChainImpactFactIDs(
 	return resolved, nil
 }
 
+// supplyChainImpactBranchValues returns the bind map for one branch. Under the
+// #11087 provenance bound (seed-product criteria present) the
+// affected_product_criteria probe and the foreign_key_guard read the
+// component-origin criteria only: a transitive row's criteria can neither
+// pull another CVE's product rows nor re-enter through the guard's criteria
+// arm (the guard covers affected_product, kind class growth). Every other
+// branch keeps the union. Seam off (no seed list) returns the shared map
+// unchanged. The copy keeps the shared map immutable for the other branches.
+func supplyChainImpactBranchValues(branch factimpact.Branch, values map[factimpact.Param]any, filter supplychaincore.SupplyChainImpactFactFilter) map[factimpact.Param]any {
+	if len(filter.SeedProductCriteria) == 0 {
+		return values
+	}
+	if branch.Name != factimpact.BranchAffectedProductCriteria && branch.Name != factimpact.BranchForeignKeyGuard {
+		return values
+	}
+	rebound := make(map[factimpact.Param]any, len(values)+1)
+	for param, list := range values {
+		rebound[param] = list
+	}
+	rebound[factimpact.ProductCriteria] = filter.ProductCriteria
+	return rebound
+}
+
 // supplyChainImpactParamValues maps every catalog input to its bound list.
+//
+// The criteria entry binds the UNION of component-origin and seed-CVE
+// product-origin criteria (#11087): every branch that reads it keeps today's
+// row set, except the affected_product_criteria probe and the foreign_key_guard,
+// which the resolve loop rebinds to the component-origin list alone so a
+// transitive row's criteria never pull another CVE's product rows, directly or
+// through the guard's criteria arm. With the seam off
+// SeedProductCriteria is empty and the union is exactly ProductCriteria.
 func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFilter) map[factimpact.Param]any {
 	return map[factimpact.Param]any{
 		factimpact.PackageIDs:          filter.PackageIDs,
@@ -221,7 +253,7 @@ func supplyChainImpactParamValues(filter supplychaincore.SupplyChainImpactFactFi
 		factimpact.CVEIDs:              filter.CVEIDs,
 		factimpact.AdvisoryIDs:         filter.AdvisoryIDs,
 		factimpact.SubjectDigests:      filter.SubjectDigests,
-		factimpact.ProductCriteria:     filter.ProductCriteria,
+		factimpact.ProductCriteria:     unionSupplyChainImpactCriteria(filter.ProductCriteria, filter.SeedProductCriteria),
 		factimpact.DocumentIDs:         filter.DocumentIDs,
 		factimpact.RepositoryIDs:       filter.RepositoryIDs,
 		factimpact.ImageRefs:           filter.ImageRefs,
@@ -369,6 +401,7 @@ func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImp
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
+	filter.SeedProductCriteria = cleanStringFilterValues(filter.SeedProductCriteria)
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
 	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
@@ -377,7 +410,18 @@ func normalizeSupplyChainImpactFactFilter(filter *supplychaincore.SupplyChainImp
 func supplyChainImpactFactFilterEmpty(filter supplychaincore.SupplyChainImpactFactFilter) bool {
 	return len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.UpstreamCVEIDs) == 0 && len(filter.AliasIDs) == 0 && len(filter.AdvisoryIDs) == 0 && len(filter.SubjectDigests) == 0 &&
-		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
+		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 && len(filter.SeedProductCriteria) == 0 &&
 		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
 		len(filter.ImageRefs) == 0
+}
+
+// unionSupplyChainImpactCriteria returns the sorted, de-duplicated union of
+// the component-origin and seed-CVE product-origin criteria lists (#11087).
+// It never mutates either input.
+func unionSupplyChainImpactCriteria(component, seed []string) []string {
+	out := make([]string, 0, len(component)+len(seed))
+	out = append(out, component...)
+	out = append(out, seed...)
+	slices.Sort(out)
+	return slices.Compact(out)
 }

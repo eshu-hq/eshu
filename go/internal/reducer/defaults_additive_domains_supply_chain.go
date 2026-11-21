@@ -58,6 +58,10 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 		handlers.SupplyChainImpactFencingTokenIssuer != nil {
 		impact := supplyChainImpactDomainDefinition()
 		impact.Handler = supplychaincore.SupplyChainImpactHandler{
+			// #11087: provenance bound on criteria-to-CVE transitive
+			// expansion. One-line rollback: delete this line; nil keeps the
+			// prior unbounded semantics.
+			CriteriaExpansionBound:          &supplychaincore.SupplyChainImpactCriteriaExpansionBound{},
 			FactLoader:                      handlers.FactLoader,
 			Writer:                          handlers.SupplyChainImpactWriter,
 			AuthorizedEvidenceLoader:        handlers.SupplyChainImpactAuthorizedEvidenceLoader,
