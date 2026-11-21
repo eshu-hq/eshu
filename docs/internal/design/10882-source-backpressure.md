@@ -397,6 +397,41 @@ for claim-path changes (repo evidence rules).
 | Prove other sources' freshness unchanged | S2 two-source control comparison (queue-wait p50/p95, claim rate) — freshness read as fact-save→readable per #10862's definition where the harness supports it, queue-wait as its bounded proxy otherwise, labelled as such. |
 | Publish per-source slowed state + reason | Decision 7 (S1 metrics, S4 status API). |
 
+## Implementation evidence (2026-11-21, executor slices)
+
+No-Regression Evidence: the per-source leg ships disabled. With the
+zero `SourceBackpressureConfig` every consult returns before touching
+storage (`TestCheckSourceBackpressureDisabledReadsNothing`: 0 queries,
+0 latch writes), so baseline and after behavior on every existing claim,
+admission, and status path are identical until an operator sets all
+`ESHU_SOURCE_BACKPRESSURE_*` thresholds. When enabled, the added cost per
+consult is bounded: one grouped claimable-signal read over the bounded
+claimable backlog using the per-row active form (the #6794
+selective-probe precedent, cacheable via
+`ESHU_SOURCE_BACKPRESSURE_SIGNAL_CACHE_TTL`), one read of the small
+`workflow_claim_pacing` latch rows, and latch writes only on transitions.
+The status snapshot gains exactly those two reads (28 → 30 round trips,
+pinned in `TestReadStatusSnapshotEvaluatesActiveWorkOnce`, which also
+pins the materialized scope-state build at one evaluation). What is NOT
+measured yet: the S0 `EXPLAIN ANALYZE` of the signal query at replay and
+10× scale — thresholds therefore stay Proposed with no defaults, and
+enabling the leg in a deployment still owes that measurement. Focused
+suites green at implementation: `internal/workflow`,
+`internal/collector` (including `-race` on the dispatcher proofs),
+`cmd/ingester`, `internal/status/...`, `internal/query`, and
+`internal/storage/postgres` minus three pre-existing environmental
+failures (host-load ceiling, deploy-checkout env).
+
+Observability Evidence: slowed engagements, releases, stuck verdicts, and
+paced-grant delays ride the existing claim-pacing series with
+`pacing_signal="reducer_source"`, `domain=<source_system>`; ingester
+deferrals add `reason="source_behind"` with a `source_system` label on
+`eshu_dp_reducer_admission_deferrals_total` plus the structured warn log;
+fail-open consults emit the debug record `source backpressure consult
+failed open`; the coordinator status surface publishes `source_pacing`
+rows (slowed, reason, oldest claimable age, claimable depth, engaged
+since) in JSON, text, and the query status mapper.
+
 ## What stays unverified
 
 - All thresholds (engage/release ages, depth floor, schedule
