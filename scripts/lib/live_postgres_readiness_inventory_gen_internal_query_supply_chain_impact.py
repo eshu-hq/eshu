@@ -9,6 +9,7 @@ TABLE = {
     "./internal/query/supply/chain/impact": {
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
             "TestFindingsWinnersPayloadParityLive",
+            "TestFindingsWinnersPayloadBackfillServesWithoutResweepLive",
         ),
         "go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go": (
             "TestGroupedInventoryStoreWinnersLive",

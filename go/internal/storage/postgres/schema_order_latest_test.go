@@ -145,4 +145,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// source_confidence to the canonical winners read model.
 	// TEMPORARY: renumbered to 331 after the rebase completes (main owns 329-330).
 	"supply_chain_impact_winners_payload",
+	// Migration 326 (#10880 slice 1 follow-up) backfills the 325
+	// columns for pre-existing winner rows, split per #7961.
+	"supply_chain_impact_winners_payload_backfill",
 }

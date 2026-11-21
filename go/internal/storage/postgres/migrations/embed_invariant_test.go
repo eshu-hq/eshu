@@ -342,6 +342,8 @@ import (
 // minimum reads an index endpoint.
 // 325_supply_chain_impact_winners_payload.sql (#10880 slice 1) adds the
 // winner payload and source_confidence to the canonical winners table.
+// 326_supply_chain_impact_winners_payload_backfill.sql (#10880 slice 1
+// follow-up) backfills those columns for pre-existing winner rows.
 // TEMPORARY rebase digest: recomputed after all commits apply and the
 // branch migrations renumber to 331/332 (main owns 329-330).
 const (

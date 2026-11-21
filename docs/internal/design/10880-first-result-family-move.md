@@ -331,6 +331,21 @@ binary still trying the old path.
   only the effective state. Telemetry: no new instrument — the
   existing resweep counts now include payload-driven rewrites, and
   `eshu_dp_postgres_query_duration_seconds` covers the wider rows.
+  Review P1-1 fix: 325 alone left pre-existing rows at the column
+  defaults until the first post-deploy resweep, so migration
+  `326_supply_chain_impact_winners_payload_backfill.sql` backfills
+  both columns by `winner_fact_id` join, replicating the winner
+  select's operator bake, gated on `payload = '{}'` for replay
+  idempotency. A separate file (the 126/127 split, #7961) keeps
+  325's ACCESS EXCLUSIVE ALTER off the backfill scan; the UPDATE
+  takes ROW EXCLUSIVE plus one row lock and one `fact_records`
+  primary-key probe per winner, the shape of one routine resweep.
+  A reader-side fallback join was rejected: it would permanently
+  re-add the fact-table payload read slice 2 removed, to cover a
+  window the backfill closes at deploy. Proof:
+  `TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
+  resets winners to the 325 defaults, applies only 326, and reads
+  legacy-equal pages with no resweep in between.
 - **Slice 2 landed for the list read** (`808865baee`):
   `ListFindingsFromWinnersQuery` no longer joins `fact_records` or
   rescans operator candidates; page payloads come from the winners

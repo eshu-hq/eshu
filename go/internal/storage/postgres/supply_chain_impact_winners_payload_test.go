@@ -50,3 +50,28 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 		t.Error("staged stored-winners read omits payload/source_confidence")
 	}
 }
+
+// TestWinnersPayloadBackfillMigrationPinned pins the #10880 P1-1 fix:
+// migration 326 must backfill the columns 325 defaults for
+// pre-existing winner rows, keyed by winner_fact_id, with the
+// operator suppression object baked in and the '{}' idempotency
+// gate, so the winners list never serves the column defaults.
+func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
+	t.Parallel()
+
+	ddl, err := os.ReadFile("migrations/326_supply_chain_impact_winners_payload_backfill.sql")
+	if err != nil {
+		t.Fatalf("read migration 326: %v", err)
+	}
+	for _, want := range []string{
+		"UPDATE supply_chain_impact_canonical_winners",
+		"winner.fact_id = w.winner_fact_id",
+		"w.payload = '{}'::jsonb",
+		"operator:vulnerability_suppressions",
+		"jsonb_build_object('suppression'",
+	} {
+		if !strings.Contains(string(ddl), want) {
+			t.Errorf("migration 326 missing %q", want)
+		}
+	}
+}

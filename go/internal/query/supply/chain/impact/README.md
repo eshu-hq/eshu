@@ -479,7 +479,7 @@ only their package qualifier changed).
   `WinnersReadEnv`) keeps output byte-identical
   between the legacy dedup and the maintained read model; the
   placeholder-binding test pins the production argument list.
-- Since #10880 (migration 325) the winners row carries the payload and `source_confidence`, so the winners list read needs no `fact_records` payload join (`TestFindingsWinnersPayloadParityLive`); aggregates/explain still read facts, keeping the capability mixed.
+- Since #10880 (migration 325) the winners row carries the payload and `source_confidence`, so the winners list read needs no `fact_records` payload join (`TestFindingsWinnersPayloadParityLive`); migration 326 backfills both columns for pre-existing rows so the read never serves the 325 defaults (`TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`); aggregates/explain still read facts, keeping the capability mixed.
 - The handler-driving tests that share helpers, fakes, or corpus with
   staying files remain in root package `query` (see `AGENTS.md`): they
   drive the hub handlers through `Mount` there. Do not "reunite" them
