@@ -76,8 +76,10 @@
 // result sub-signals. Group projection stays out of scope: findings stay
 // in Postgres either way; the wave mechanics and freshness bound live in
 // HOLDER_FANOUT.md. With a keyed rebuilder the
-// maintainer runs one full resweep at startup, then keyed ticks that recompute
-// only the keys the writer, activation and scanner captures logged, plus a
+// maintainer runs one full resweep at startup — skipped when a committed
+// watermark already proves the table was swept (#10706) — then keyed ticks
+// that recompute only the keys the writer, activation and scanner captures
+// logged, plus a
 // full-recompute audit that queues any key the capture missed, #9805), and the
 // Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). A git manifest marker intent
@@ -102,4 +104,21 @@
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
 // cross_scope_test_doubles_test.go.
+//
+// No-Regression Evidence: skipping the startup full resweep when a committed
+// watermark exists (#10706) removes an hours-long one-shot pass, not per-tick
+// work — the keyed tick path, claim shape, locks, and worker counts are
+// unchanged. Baseline is the unconditional startup full (92M-row
+// fact_records; observed stuck 87+ min on QA holding the single-flight
+// advisory lock with zero commits). After-measurement is hermetic:
+// TestWinnersMaintainerSkipsStartupFullWhenWatermarkExists plus the
+// winners_maintainer_test.go positive/negative/error triple, full
+// supplychain/core suite green (0.834s), no new hot path (seed runs once
+// per restart, not per tick). Live QA proof (R advancing post-deploy) is
+// owned by the post-merge rollout, not this change.
+//
+// Observability Evidence: the skip path emits an INFO log naming the
+// committed watermark time; the existing path-dimensioned resweep metrics
+// plus the watermark gauge already distinguish "straight to keyed" from
+// "startup full" with no new counter needed.
 package core

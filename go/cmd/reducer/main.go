@@ -502,8 +502,10 @@ func buildReducerService(
 		SupplyChainImpactWinnersMaintainer: &supplychaincore.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:       postgres.NewSupplyChainImpactWinnersStore(database),
 			WatermarkReader: postgres.NewSupplyChainImpactWinnersStore(database),
-			// #9805: one full resweep at startup, then keyed ticks from the dirty
-			// log, with a full-recompute audit as the backstop.
+			// #9805: one full resweep at startup — skipped when the committed
+			// watermark proves the table was already swept (#10706) — then
+			// keyed ticks from the dirty log, with a full-recompute audit as
+			// the backstop.
 			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
 			// The stale candidate source is attached post-construction in
 			// buildObservedReducerService when routing admits stale audits
