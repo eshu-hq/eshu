@@ -170,6 +170,8 @@ type winnersFakeTx struct {
 	logDrain     [][]any
 	stagingDrain [][]any
 	drainErr     error
+	// pinnedFirst is true when the isolation pin ran before any query.
+	pinnedFirst bool
 
 	queries    []string
 	args       [][]any
@@ -222,8 +224,14 @@ func (tx *winnersFakeTx) clockOrDefault() time.Time {
 	return tx.clock
 }
 
-func (tx *winnersFakeTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	return nil, errors.New("the resweep must not use ExecContext")
+// ExecContext accepts only the #11117 isolation pin and records whether it
+// ran before any query.
+func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	if query != pinWinnersFullReadCommittedSQL {
+		return nil, errors.New("the resweep must not use ExecContext")
+	}
+	tx.pinnedFirst = len(tx.queries) == 0
+	return nil, nil
 }
 
 func (tx *winnersFakeTx) Commit() error {
@@ -310,6 +318,9 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	}
 	if wake := tx.queries[len(want)]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
 		t.Fatalf("last query = %q, want the winners-watermark wake", wake)
+	}
+	if !tx.pinnedFirst {
+		t.Fatal("the full did not pin READ COMMITTED as its first statement")
 	}
 	if args := tx.args[4]; len(args) != 1 || args[0] != clock {
 		t.Fatalf("rebuild args = %v, want the DB clock %v", args, clock)

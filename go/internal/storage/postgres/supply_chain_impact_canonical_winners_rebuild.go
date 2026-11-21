@@ -149,6 +149,10 @@ const tryClaimSupplyChainImpactWinnersResweepSQL = `
 SELECT pg_try_advisory_xact_lock(hashtext('supply_chain_impact_winners'), hashtext('resweep'))
 `
 
+// pinWinnersFullReadCommittedSQL pins the full resweep's transaction to READ
+// COMMITTED (#11117). It must be the transaction's first statement.
+const pinWinnersFullReadCommittedSQL = `SET TRANSACTION ISOLATION LEVEL READ COMMITTED`
+
 // selectSupplyChainImpactWinnersWatermarkSQL reads the singleton watermark row.
 const selectSupplyChainImpactWinnersWatermarkSQL = `
 SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1
@@ -239,6 +243,13 @@ func (s SupplyChainImpactWinnersStore) ResweepWinners(
 		return none, fmt.Errorf("begin supply chain impact winners resweep: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	// The order below needs a fresh snapshot per statement, whatever the
+	// session default is: under REPEATABLE READ the rebuild would read the
+	// claim's snapshot, miss marks committed after the drain, and stamp S
+	// over them.
+	if _, err := tx.ExecContext(ctx, pinWinnersFullReadCommittedSQL); err != nil {
+		return none, fmt.Errorf("pin supply chain impact winners resweep isolation: %w", err)
+	}
 
 	claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx)
 	if err != nil {
