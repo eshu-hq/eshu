@@ -16,16 +16,22 @@ A failed admission fails the pass for queue retry while its owed marker
 still stands, so the owed rerun re-enqueues the scope's recovery groups.
 
 The projection handler first waits for the winners watermark to pass the
-intent's enqueue time. The winners maintainer rebuilds on a 30 second
-cadence, so an intent claimed right after the touching pass committed would
-otherwise project the pre-pass winners and acknowledge. While the watermark
-is behind, the handler defers in the non-counting failure class
+intent's repair-cycle bound (the later of enqueue and cycle start). The
+winners maintainer rebuilds on a 30 second cadence, so an intent claimed
+right after the touching pass committed would otherwise project the
+pre-pass winners and acknowledge. While the watermark is behind, the
+handler defers in the non-counting failure class
 `advisory_group_winners_watermark_not_ready`, recorded as deferred, not
-failed. Past a 30 minute bound the wait reclassifies to the counting class
-`advisory_group_winners_watermark_stale` and the intent can dead-letter: a
-watermark stuck that long means the maintainer is down, and the
+failed. The stale clock measures post-claim deferral from the cycle's first
+deferral (#11075): pre-claim queue residency consumes nothing, so an
+attempt-1 intent that waited in queue past the bound still defers
+not_ready. Past 30 minutes of post-claim deferral the wait reclassifies to
+the counting class `advisory_group_winners_watermark_stale` and the intent
+can dead-letter: a watermark stuck that long past the first deferral means
+the maintainer is down, and the
 [Supply-Chain Impact Winners Resweep](supply-chain-impact-winners.md)
-signals say why.
+signals say why. The first deferral's timestamp rides the queue row's
+failure details, so the clock survives re-claims; a reopen restarts it.
 
 At a fresh watermark the handler reads the group's qualifying winners,
 folds them into the desired node membership and edge set, and reconciles
@@ -34,7 +40,8 @@ reconciles to no node at all.
 
 ## Signals
 
-Every label is `domain` or a closed `outcome`; no label carries a group,
+Every label is `domain`, a closed `outcome` or `failure_class`, or the
+closed `attempt` bucket (`1`, `2`, `3plus`); no label carries a group,
 CVE, advisory, repository, or package id.
 
 | Metric | Meaning |
@@ -47,6 +54,11 @@ CVE, advisory, repository, or package id.
 | `eshu_dp_advisory_group_projection_enqueue_failures_total{domain}` | `supply_chain_impact` passes whose post-commit projection enqueue failed. The pass fails retryable before its owed marker clears, so the owed rerun re-enqueues the scope's recovery groups; a non-zero rate means enqueue trouble is delaying convergence. |
 | `eshu_dp_advisory_group_projection_reconcile_duration_seconds{domain}` | One group's reconcile wall time (winner read plus graph write). |
 | `eshu_dp_advisory_group_projection_lag_seconds{domain}` | Intent enqueue-to-completion seconds, including the watermark wait. It bounds how long the graph trails the winners read model for a touched group; a rising tail with a fresh watermark points at queue depth, not the maintainer. |
+| `eshu_dp_advisory_group_projection_first_claim_lag_seconds{domain}` | Cycle start to claim seconds per wait verdict: the pre-claim half of the wait split (#11075). On retries this is the latest-claim lag — `ClaimedAt` is the row's `last_attempt_at`, overwritten on every claim — not the first claim's; the metric name is kept stable. A tail past 1800 s with zero attempt-1 stale verdicts is queue residency the deferral clock correctly ignores. |
+| `eshu_dp_advisory_group_projection_post_claim_deferral_seconds{domain}` | First deferral to verdict seconds per wait verdict: the post-claim half the stale bound measures (#11075). Zero on a first deferral; past 1800 s the verdict flips to stale. |
+| `eshu_dp_advisory_group_projection_watermark_age_seconds{domain}` | Watermark age seconds at the verdict (#11075). Age growing past 1800 s names a maintainer stall; a small age with a positive gap names slow-but-advancing. |
+| `eshu_dp_advisory_group_projection_watermark_gap_seconds{domain}` | Bound-minus-watermark seconds at the verdict (#11075): the per-row E-R the watermark must close before the intent reconciles. |
+| `eshu_dp_advisory_group_projection_watermark_waits_total{domain,failure_class,attempt}` | Wait verdicts by class and attempt bucket (#11075). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only. |
 
 The INFO log `advisory group projection completed` carries counts only
 (`group_count`, `winner_row_count`, `edges_created`, `edges_deleted`,

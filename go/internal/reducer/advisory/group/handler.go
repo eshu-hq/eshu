@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -23,17 +24,29 @@ import (
 // a defect in this intent, so it must not erode the retry budget.
 const WinnersWatermarkNotReadyFailureClass = "advisory_group_winners_watermark_not_ready"
 
-// WinnersWatermarkStaleFailureClass classifies the same wait after it has
-// exceeded winnersWatermarkMaxWait. It is deliberately not enrolled as
-// non-counting: a watermark stuck that long means the maintainer is down,
-// and the intent should burn its budget and dead-letter visibly rather
-// than wait in silence.
+// WinnersWatermarkStaleFailureClass classifies the same wait after the
+// post-claim deferral has exceeded winnersWatermarkMaxWait. It is
+// deliberately not enrolled as non-counting: a watermark stuck that long
+// past the first deferral means the maintainer is down, and the intent
+// should burn its budget and dead-letter visibly rather than wait in
+// silence.
 const WinnersWatermarkStaleFailureClass = "advisory_group_winners_watermark_stale"
 
 // winnersWatermarkMaxWait bounds how long one repair cycle defers on the
-// winners watermark before the wait starts counting attempts. The
-// maintainer ticks on a 30 s cadence, so 30 minutes is 60 missed ticks.
+// winners watermark before the wait starts counting attempts. The clock
+// measures post-claim deferral from the first deferral of the cycle, not
+// row age from enqueue: pre-claim queue residency consumes nothing (#11075).
+// The maintainer ticks on a 30 s cadence, so 30 minutes is 60 missed ticks.
 const winnersWatermarkMaxWait = 30 * time.Minute
+
+// winnersWatermarkDeferralMarkerPrefix heads the machine-readable deferral
+// marker the wait error carries in its failure details. The queue persists
+// failure details on every Fail and the claim path reads them back onto the
+// next intent, so the marker is the durable memory of when the current
+// repair cycle first deferred — the anchor the stale clock measures from.
+// A row deferred under an older release carries no marker and starts its
+// clock at its first deferral under this code.
+const winnersWatermarkDeferralMarkerPrefix = "winners-watermark-deferral: first-deferred-at="
 
 // WinnersReader is the Postgres winners port the handler reads through.
 // cmd/reducer wires the storage/postgres canonical winners store.
@@ -226,7 +239,11 @@ func winnersBoundStart(intent reducercontract.Intent) time.Time {
 // were rebuilt at or after the moment this repair cycle was enqueued. The
 // bound is the later of the enqueue and cycle-start timestamps: they are
 // equal for a fresh row, and a reopened row must wait for winners that
-// cover the pass that reopened it, not the original enqueue.
+// cover the pass that reopened it, not the original enqueue. The stale
+// verdict measures post-claim deferral from the cycle's first deferral
+// (#11075): a row that waited in queue past the bound still defers
+// not_ready on its first evaluation, and only a still-waiting row whose
+// deferral started more than winnersWatermarkMaxWait ago reads stale.
 func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontract.Intent) error {
 	watermark, err := h.Winners.AdvisoryGroupWinnersWatermark(ctx)
 	if err != nil {
@@ -236,15 +253,95 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 	if !watermark.Before(required) {
 		return nil
 	}
-	cycleStart := intent.CycleStartedAt
-	if cycleStart.IsZero() {
-		cycleStart = intent.EnqueuedAt
-	}
+	now := h.now()
+	deferralStart := winnersDeferralStart(intent, now)
+	stale := now.Sub(deferralStart) > winnersWatermarkMaxWait
+	h.recordWatermarkWait(ctx, intent, required, watermark, now, deferralStart, stale)
 	return winnersWatermarkWaitError{
-		watermark: watermark,
-		required:  required,
-		stale:     h.now().Sub(cycleStart) > winnersWatermarkMaxWait,
+		watermark:       watermark,
+		required:        required,
+		stale:           stale,
+		firstDeferredAt: deferralStart,
+		cycleStartedAt:  intent.CycleStartedAt,
 	}
+}
+
+// winnersDeferralStart returns the moment the stale clock measures from:
+// the cycle's first deferral when the intent carries a prior deferral
+// marker from the same cycle, otherwise now (this evaluation is the first
+// deferral). Markers from a prior cycle, unparsable markers, and markers
+// dated in the future all fall back to now, so a reopen always restarts
+// the clock and a corrupt marker can never force a stale verdict.
+func winnersDeferralStart(intent reducercontract.Intent, now time.Time) time.Time {
+	if intent.Failure != nil {
+		if first, ok := parseDeferralMarker(intent.Failure.Details, intent.CycleStartedAt); ok && !first.After(now) {
+			return first
+		}
+	}
+	return now
+}
+
+// parseDeferralMarker extracts the first-deferred-at timestamp from failure
+// details carrying a marker from the same repair cycle. It reports false
+// when there is no marker, when either timestamp is unparsable, or when the
+// marker's cycle does not match the intent's cycle start.
+func parseDeferralMarker(details string, cycleStartedAt time.Time) (time.Time, bool) {
+	idx := strings.Index(details, winnersWatermarkDeferralMarkerPrefix)
+	if idx < 0 {
+		return time.Time{}, false
+	}
+	rest := strings.TrimSpace(details[idx+len(winnersWatermarkDeferralMarkerPrefix):])
+	fields := strings.Fields(rest)
+	if len(fields) != 2 || !strings.HasPrefix(fields[1], "cycle-started-at=") {
+		return time.Time{}, false
+	}
+	first, err := time.Parse(time.RFC3339Nano, fields[0])
+	if err != nil {
+		return time.Time{}, false
+	}
+	cycle, err := time.Parse(time.RFC3339Nano, strings.TrimPrefix(fields[1], "cycle-started-at="))
+	if err != nil {
+		return time.Time{}, false
+	}
+	if !cycle.UTC().Equal(cycleStartedAt.UTC()) {
+		return time.Time{}, false
+	}
+	return first.UTC(), true
+}
+
+// recordWatermarkWait emits the #11075 wait split for one deferral verdict:
+// pre-claim queue residency, post-claim deferral, watermark age and bound
+// gap, and the verdict by failure class and attempt bucket.
+func (h Handler) recordWatermarkWait(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	required time.Time,
+	watermark time.Time,
+	now time.Time,
+	deferralStart time.Time,
+	stale bool,
+) {
+	failureClass := WinnersWatermarkNotReadyFailureClass
+	if stale {
+		failureClass = WinnersWatermarkStaleFailureClass
+	}
+	// ClaimedAt is the claim row's last_attempt_at, overwritten on every
+	// claim, so on retries this is the latest-claim lag, not the first
+	// claim's (#11075 Decision 5a).
+	claimLag := -1.0
+	if intent.ClaimedAt != nil {
+		claimLag = intent.ClaimedAt.Sub(winnersBoundStart(intent)).Seconds()
+	}
+	h.Instruments.RecordAdvisoryGroupWatermarkWait(
+		ctx,
+		string(reducercontract.DomainAdvisoryGroupProjection),
+		failureClass,
+		telemetry.AttemptBucketForCount(intent.AttemptCount),
+		claimLag,
+		now.Sub(deferralStart).Seconds(),
+		now.Sub(watermark).Seconds(),
+		required.Sub(watermark).Seconds(),
+	)
 }
 
 // groupIDsFromIntent extracts the sorted, de-duplicated advisory group
@@ -270,13 +367,17 @@ func groupIDsFromIntent(intent reducercontract.Intent) []string {
 
 // winnersWatermarkWaitError defers a projection until the winners
 // maintainer rebuilds past the intent's enqueue time. Inside the bounded
-// wait it is an expected wait in the non-counting failure class; past the
-// bound it stays retryable but counts attempts, so a dead maintainer
-// eventually dead-letters the intent instead of hiding behind the wait.
+// post-claim deferral it is an expected wait in the non-counting failure
+// class; past the bound it stays retryable but counts attempts, so a dead
+// maintainer eventually dead-letters the intent instead of hiding behind
+// the wait. The error carries the cycle's first deferral in its failure
+// details so the next evaluation keeps measuring from the same anchor.
 type winnersWatermarkWaitError struct {
-	watermark time.Time
-	required  time.Time
-	stale     bool
+	watermark       time.Time
+	required        time.Time
+	stale           bool
+	firstDeferredAt time.Time
+	cycleStartedAt  time.Time
 }
 
 func (e winnersWatermarkWaitError) Error() string {
@@ -284,6 +385,17 @@ func (e winnersWatermarkWaitError) Error() string {
 		"advisory group projection waiting for supply chain impact winners rebuilt at %s to reach the intent enqueue time %s",
 		e.watermark.UTC().Format(time.RFC3339), e.required.UTC().Format(time.RFC3339),
 	)
+}
+
+// FailureDetails renders the durable deferral marker: the human-readable
+// wait message the queue already stored, plus the machine-readable first
+// deferral the next claim reads back to keep the stale clock anchored to
+// the cycle's first deferral (#11075). The queue bounds details at 4096
+// bytes; the marker is a fixed-shape two-field line.
+func (e winnersWatermarkWaitError) FailureDetails() string {
+	return e.Error() + "\n" + winnersWatermarkDeferralMarkerPrefix +
+		e.firstDeferredAt.UTC().Format(time.RFC3339Nano) +
+		" cycle-started-at=" + e.cycleStartedAt.UTC().Format(time.RFC3339Nano)
 }
 
 // Retryable reports that the deferral must re-enter the durable queue.

@@ -94,6 +94,11 @@ tests:
     class: verified_scheduled
     reason: "Verified daily PostgreSQL readiness proof"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/reducer_queue_failure_evidence_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "Verified daily PostgreSQL readiness proof"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/reducer_queue_shared_edge_target_readiness_live_test.go
     tag: ~
     class: verified_scheduled

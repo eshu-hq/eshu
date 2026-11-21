@@ -7,6 +7,13 @@
       "TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget"
     ]
   },
+  "go/internal/storage/postgres/reducer_queue_failure_evidence_live_test.go": {
+    "group": "readiness",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
+    "tests": [
+      "TestReducerQueueClaimCarriesFailureEvidenceLive"
+    ]
+  },
   "go/internal/storage/postgres/reducer_queue_pre_activation_exits_live_test.go": {
     "group": "readiness",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",

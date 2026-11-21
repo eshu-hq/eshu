@@ -118,7 +118,7 @@ runs:
         test -z "$effective_config"
         proof_status="$(git -C .. status --porcelain --untracked-files=all)"
         test -z "$proof_status"
-        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound|TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget|TestReducerContentionGateOlderGenerationSupersessionStaysTerminal|TestReducerContentionGatePreActivationDeferralExits|TestReducerContentionGatePreActivationGenerationRunsAfterActivation|TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget)$' | tee "${RUNNER_TEMP}/readiness.jsonl"
+        go test -json -race -p=1 -count=1 -timeout=6m ./internal/storage/postgres -run '^(TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound|TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget|TestReducerContentionGateOlderGenerationSupersessionStaysTerminal|TestReducerContentionGatePreActivationDeferralExits|TestReducerContentionGatePreActivationGenerationRunsAfterActivation|TestReducerContentionGateSharedEdgeTargetDeferralKeepsItsAttemptBudget|TestReducerQueueClaimCarriesFailureEvidenceLive)$' | tee "${RUNNER_TEMP}/readiness.jsonl"
         python3 ../scripts/lib/postgres_scheduled_runner.py --events "${RUNNER_TEMP}/readiness.jsonl" --group readiness
         effective_config="$(go env GOFLAGS GOWORK)"
         test -z "$effective_config"

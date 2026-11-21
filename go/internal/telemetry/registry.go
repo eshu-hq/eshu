@@ -59,6 +59,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionStatusClass,
 	MetricDimensionRoute,
 	MetricDimensionFailureClass,
+	MetricDimensionAttempt,
 	MetricDimensionFactKind,
 	MetricDimensionResourceScope,
 	MetricDimensionDocumentType,

@@ -368,6 +368,12 @@ claimed AS (
         COALESCE(work.visible_at, work.created_at) AS available_at,
         COALESCE(work.reopened_at, work.created_at) AS cycle_started_at,
         work.last_attempt_at AS claimed_at,
+        -- #11075: the prior verdict's failure evidence rides the claim so a
+        -- deferred handler keeps measuring its stale clock from the cycle's
+        -- first deferral instead of restarting it on every claim.
+        COALESCE(work.failure_class, '') AS failure_class,
+        COALESCE(work.failure_message, '') AS failure_message,
+        COALESCE(work.failure_details, '') AS failure_details,
         work.payload
 )` + ",\n" + reducerQueueLeaseMirrorCTE + `
 SELECT
@@ -381,6 +387,9 @@ SELECT
     available_at,
     cycle_started_at,
     claimed_at,
+    failure_class,
+    failure_message,
+    failure_details,
     payload
 FROM claimed
 `

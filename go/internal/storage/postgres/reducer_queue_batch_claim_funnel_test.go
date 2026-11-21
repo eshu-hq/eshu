@@ -59,11 +59,13 @@ func (f funnelBatchClaimDB) QueryContext(_ context.Context, query string, _ ...a
 }
 
 // funnelClaimRow renders one batch-claim intent row for the funnel hermetic
-// fake: the eleven columns scanReducerIntent reads.
+// fake: the fourteen columns scanReducerIntent reads (eleven claim columns
+// plus the #11075 prior-verdict failure evidence triple, empty here).
 func funnelClaimRow(id string, now time.Time) []any {
 	return []any{
 		id, "scope-funnel", "gen-funnel", "code_call_materialization",
 		int64(1), int64(0), now, now, now, now,
+		"", "", "",
 		[]byte(`{"entity_key":"` + id + `","reason":"funnel-proof","fact_id":"f1","source_system":"git"}`),
 	}
 }

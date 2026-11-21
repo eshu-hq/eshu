@@ -1524,9 +1524,12 @@ type Instruments struct {
 	// registerAdvisoryGroupProjectionInstruments: groups reconciled by
 	// outcome, AFFECTED_BY edges created and retracted, AdvisoryGroup
 	// nodes deleted, oversized member unions, projection enqueue failures,
-	// reconcile duration, and enqueue-to-completion lag. Labels are domain
-	// and a closed outcome only; no group, CVE, repository, or package id
-	// ever reaches a label.
+	// reconcile duration, enqueue-to-completion lag, and the #11075
+	// winners-watermark wait split (pre-claim lag, post-claim deferral,
+	// watermark age and gap, wait verdicts by failure class and attempt
+	// bucket). Labels are domain, a closed outcome or failure class, and
+	// the closed attempt bucket only; no group, CVE, repository, or
+	// package id ever reaches a label.
 	AdvisoryGroupProjectionGroups               metric.Int64Counter
 	AdvisoryGroupProjectionEdgesUpserted        metric.Int64Counter
 	AdvisoryGroupProjectionEdgesRetracted       metric.Int64Counter
@@ -1535,6 +1538,11 @@ type Instruments struct {
 	AdvisoryGroupProjectionEnqueueFailures      metric.Int64Counter
 	AdvisoryGroupProjectionReconcileDuration    metric.Float64Histogram
 	AdvisoryGroupProjectionLag                  metric.Float64Histogram
+	AdvisoryGroupProjectionFirstClaimLag        metric.Float64Histogram
+	AdvisoryGroupProjectionPostClaimDeferral    metric.Float64Histogram
+	AdvisoryGroupProjectionWatermarkAge         metric.Float64Histogram
+	AdvisoryGroupProjectionWatermarkGap         metric.Float64Histogram
+	AdvisoryGroupProjectionWatermarkWaits       metric.Int64Counter
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
@@ -9695,6 +9703,37 @@ func AttrFailureClass(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionFailureClass, v)
 }
 
+// Advisory-group watermark-wait attempt buckets for the attempt dimension.
+// The set is closed: raw attempt numbers never reach a label.
+const (
+	// AttemptBucketFirst is a verdict produced on the first attempt.
+	AttemptBucketFirst = "1"
+	// AttemptBucketSecond is a verdict produced on the second attempt.
+	AttemptBucketSecond = "2"
+	// AttemptBucketLater is a verdict produced on the third or later attempt.
+	AttemptBucketLater = "3plus"
+)
+
+// AttemptBucketForCount maps a reducer attempt count to the closed attempt
+// bucket. Non-positive counts (hand-built intents without a claim) fold to
+// the first bucket.
+func AttemptBucketForCount(attempt int) string {
+	switch {
+	case attempt <= 1:
+		return AttemptBucketFirst
+	case attempt == 2:
+		return AttemptBucketSecond
+	default:
+		return AttemptBucketLater
+	}
+}
+
+// AttrAttempt returns an attempt attribute for metric recording. v must be
+// one of the AttemptBucket* constants, never a raw attempt number.
+func AttrAttempt(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAttempt, v)
+}
+
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)
@@ -10194,3 +10233,11 @@ func registerClaimCommitObserverInstruments(meter metric.Meter, inst *Instrument
 // default lease is 60 s with a re-pin every 20 s and a 5 s refusal margin, so
 // healthy slack sits between 40 s and 60 s; samples under 5 s are refusals.
 var ingestionCommitPinSlackBuckets = []float64{0, 1, 2.5, 5, 10, 20, 30, 40, 50, 60, 120}
+
+// advisoryGroupWatermarkWaitBuckets span the #11075 winners-watermark wait
+// split (registered in instruments_advisory_group_projection.go) from seconds
+// to days. Pre-claim queue residency reaches day-scale tails under backlog
+// (phase 1 measured up to ~8.2 d), while the post-claim deferral bound under
+// test is 30 minutes. It lives here so the telemetry coverage gate checks it
+// against the documented bucket set.
+var advisoryGroupWatermarkWaitBuckets = []float64{1, 5, 15, 30, 60, 120, 300, 600, 1800, 3600, 10800, 21600, 43200, 86400, 259200, 604800, 1209600}
