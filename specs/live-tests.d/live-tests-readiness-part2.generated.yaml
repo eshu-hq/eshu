@@ -19,6 +19,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 slice 2 disposable PostgreSQL 18 proof that the winners-payload list read (migration 325 stored payload, no fact_records payload join) returns byte-identical FindingRow pages to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority sorts, cursor paging, suppressed inclusion with live and expired operator suppressions, and scoped-token repository and scope grants; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go
     tag: ~
     class: postgres_ci
