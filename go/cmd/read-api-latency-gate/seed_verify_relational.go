@@ -22,6 +22,12 @@ type rowCounter func(ctx context.Context, table string) (int, error)
 // this gate loudly instead of passing as surplus.
 const standingRefreshSeedRows = 1
 
+// standingAdvisorySeedRows is the advisory-group coalescing anchor migration
+// 295 (go/internal/storage/postgres/migrations/295_advisory_groups_synthetic_scope.sql)
+// leaves on every freshly migrated database: the synthetic:advisory-groups
+// scope and its genesis generation, and no work item.
+const standingAdvisorySeedRows = 1
+
 // expectedRelationalCounts is the row count each Postgres table this gate
 // seeds holds after a correct seed: the plan's scopes, generations and work
 // items, one fact_records row per IaC fact, plus the standing refresh seed
@@ -29,8 +35,8 @@ const standingRefreshSeedRows = 1
 // so the counts are exact.
 func expectedRelationalCounts(plan SeedPlan, facts []SeedIaCFact) map[string]int {
 	return map[string]int{
-		"ingestion_scopes":  len(plan.Scopes) + standingRefreshSeedRows,
-		"scope_generations": countGenerations(plan) + standingRefreshSeedRows,
+		"ingestion_scopes":  len(plan.Scopes) + standingRefreshSeedRows + standingAdvisorySeedRows,
+		"scope_generations": countGenerations(plan) + standingRefreshSeedRows + standingAdvisorySeedRows,
 		"fact_work_items":   countWorkItems(plan) + standingRefreshSeedRows,
 		"fact_records":      len(facts),
 	}
