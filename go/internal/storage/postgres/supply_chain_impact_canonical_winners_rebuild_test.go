@@ -135,8 +135,6 @@ func (r *winnersCountRows) Scan(dest ...any) error {
 			*d = v.(sql.NullInt64)
 		case *time.Time:
 			*d = v.(time.Time)
-		case *sql.NullInt64:
-			*d = v.(sql.NullInt64)
 		case *sql.NullString:
 			*d = v.(sql.NullString)
 		case *string:

@@ -53,12 +53,16 @@ func (r *phaseFakeRows) Scan(dest ...any) error {
 			*p = r.row[i].(int64)
 		case *sql.NullTime:
 			*p = sql.NullTime{}
-		case *sql.NullInt64:
-			*p = sql.NullInt64{}
 		case *time.Time:
 			*p = r.row[i].(time.Time)
 		case *sql.NullInt64:
-			*p = r.row[i].(sql.NullInt64)
+			// The staging residual read (#11129) scans two NullInt64 depth
+			// columns the phase fixtures do not script; they read as NULL.
+			if v, ok := r.row[i].(sql.NullInt64); ok {
+				*p = v
+			} else {
+				*p = sql.NullInt64{}
+			}
 		case *sql.NullString:
 			*p = r.row[i].(sql.NullString)
 		default:
