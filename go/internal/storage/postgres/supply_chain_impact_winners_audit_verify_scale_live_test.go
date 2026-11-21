@@ -28,7 +28,8 @@ import (
 // The knob selects the shape: unset or "smoke" is two percent of QA so the
 // proof stays in the gate; "qa" is 80,000 stored winners, 50,000 differing
 // candidates (all pending), 48,000 dirty-log rows and 374,000 staged rows, plus
-// one queued scope mark over the whole generation in each queue.
+// one queued scope mark over the whole generation in each queue; "wave" is the
+// #11103 rename wave: 200,000 stored winners and 176,000 pending candidates.
 const winnersAuditVerifyScaleEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_VERIFY_SCALE"
 
 type winnersAuditVerifyShape struct {
@@ -43,8 +44,11 @@ func winnersAuditVerifyShapeFor(t *testing.T) winnersAuditVerifyShape {
 		return winnersAuditVerifyShape{"smoke", 1600, 1000, 960, 7480}
 	case "qa":
 		return winnersAuditVerifyShape{"qa", 80000, 50000, 48000, 374000}
+	case "wave":
+		// The #11103 rename wave queues about 176,000 pending keys.
+		return winnersAuditVerifyShape{"wave", 200000, 176000, 48000, 374000}
 	default:
-		t.Fatalf("%s=%q: want smoke or qa", winnersAuditVerifyScaleEnv, knob)
+		t.Fatalf("%s=%q: want smoke, qa or wave", winnersAuditVerifyScaleEnv, knob)
 		return winnersAuditVerifyShape{}
 	}
 }
