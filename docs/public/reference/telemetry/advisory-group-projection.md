@@ -59,6 +59,7 @@ CVE, advisory, repository, or package id.
 | `eshu_dp_advisory_group_projection_watermark_age_seconds{domain}` | Watermark age seconds at the verdict (#11075). Age growing past 1800 s names a maintainer stall; a small age with a positive gap names slow-but-advancing. |
 | `eshu_dp_advisory_group_projection_watermark_gap_seconds{domain}` | Bound-minus-watermark seconds at the verdict (#11075): the per-row E-R the watermark must close before the intent reconciles. |
 | `eshu_dp_advisory_group_projection_watermark_waits_total{domain,failure_class,attempt}` | Wait verdicts by class and attempt bucket (#11075). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only. |
+| `eshu_dp_advisory_group_projection_watermark_deferral_marker_missing_total{domain,failure_class,reason}` | Wait verdicts whose prior verdict was a watermark wait but whose same-cycle first-deferral marker was unusable (#11089), by prior failure class and closed reason (`missing`, `unparsable`, `future_dated`). The stale clock restarted at that evaluation, so dead-maintainer detection is delayed by one fresh 30-minute window per counted verdict; a non-zero rate means deferral markers are being lost between verdicts. Genuine first deferrals, healthy markers, and prior-cycle markers (a designed reopen restart) are not counted. |
 
 The INFO log `advisory group projection completed` carries counts only
 (`group_count`, `winner_row_count`, `edges_created`, `edges_deleted`,

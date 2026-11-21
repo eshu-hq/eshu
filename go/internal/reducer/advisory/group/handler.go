@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"strings"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -254,8 +253,9 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 		return nil
 	}
 	now := h.now()
-	deferralStart := winnersDeferralStart(intent, now)
+	deferralStart, markerLossReason := resolveDeferralStart(intent, now)
 	stale := now.Sub(deferralStart) > winnersWatermarkMaxWait
+	h.recordWatermarkMarkerLoss(ctx, intent, markerLossReason)
 	h.recordWatermarkWait(ctx, intent, required, watermark, now, deferralStart, stale)
 	return winnersWatermarkWaitError{
 		watermark:       watermark,
@@ -264,49 +264,6 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 		firstDeferredAt: deferralStart,
 		cycleStartedAt:  intent.CycleStartedAt,
 	}
-}
-
-// winnersDeferralStart returns the moment the stale clock measures from:
-// the cycle's first deferral when the intent carries a prior deferral
-// marker from the same cycle, otherwise now (this evaluation is the first
-// deferral). Markers from a prior cycle, unparsable markers, and markers
-// dated in the future all fall back to now, so a reopen always restarts
-// the clock and a corrupt marker can never force a stale verdict.
-func winnersDeferralStart(intent reducercontract.Intent, now time.Time) time.Time {
-	if intent.Failure != nil {
-		if first, ok := parseDeferralMarker(intent.Failure.Details, intent.CycleStartedAt); ok && !first.After(now) {
-			return first
-		}
-	}
-	return now
-}
-
-// parseDeferralMarker extracts the first-deferred-at timestamp from failure
-// details carrying a marker from the same repair cycle. It reports false
-// when there is no marker, when either timestamp is unparsable, or when the
-// marker's cycle does not match the intent's cycle start.
-func parseDeferralMarker(details string, cycleStartedAt time.Time) (time.Time, bool) {
-	idx := strings.Index(details, winnersWatermarkDeferralMarkerPrefix)
-	if idx < 0 {
-		return time.Time{}, false
-	}
-	rest := strings.TrimSpace(details[idx+len(winnersWatermarkDeferralMarkerPrefix):])
-	fields := strings.Fields(rest)
-	if len(fields) != 2 || !strings.HasPrefix(fields[1], "cycle-started-at=") {
-		return time.Time{}, false
-	}
-	first, err := time.Parse(time.RFC3339Nano, fields[0])
-	if err != nil {
-		return time.Time{}, false
-	}
-	cycle, err := time.Parse(time.RFC3339Nano, strings.TrimPrefix(fields[1], "cycle-started-at="))
-	if err != nil {
-		return time.Time{}, false
-	}
-	if !cycle.UTC().Equal(cycleStartedAt.UTC()) {
-		return time.Time{}, false
-	}
-	return first.UTC(), true
 }
 
 // recordWatermarkWait emits the #11075 wait split for one deferral verdict:
