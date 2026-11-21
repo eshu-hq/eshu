@@ -209,9 +209,11 @@ GROUP BY bucket;
 // AggregatePriorityCountQuery, and AggregateSeverityCountQuery back to back,
 // rebuilding the canonical-facts CTE — including the DISTINCT ON canonical-key
 // sort — three times per request. The combined shape builds canonical_facts
-// (MATERIALIZED) once and derives every total and bucket from that single
-// build, so one request pays one CTE build and one dedup sort instead of
-// three. Buckets keep the same unknown/none defaults as the facet queries.
+// once (the planner materializes the 8-reference CTE; no MATERIALIZED
+// keyword, so sibling queries sharing the CTE keep their own plans) and
+// derives every total and bucket from that single build, so one request pays
+// one CTE build and one dedup sort instead of three. Buckets keep the same
+// unknown/none defaults as the facet queries.
 var AggregateCombinedCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	(SELECT COUNT(*) FROM canonical_facts) AS total,
