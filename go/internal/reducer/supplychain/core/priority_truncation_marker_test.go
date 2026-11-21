@@ -6,8 +6,8 @@ package core
 import "testing"
 
 // TestSupplyChainImpactExpansionLimitMarkerPenaltyIsTheFlatMissingEvidenceRule
-// pins #11150 decision 5: the active-expansion truncation marker carries no
-// weight of its own. It costs 5 only because any missing evidence costs one flat
+// pins the contract recorded on #11150: the active-expansion truncation marker
+// carries no weight of its own. It costs 5 only because any missing evidence costs one flat
 // 5 (missing_evidence_present), so it moves a finding that had no missing
 // evidence and moves nothing on a finding that already misses some. The cases
 // run the shipped marker function, not a copy of its arithmetic.
