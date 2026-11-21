@@ -186,6 +186,22 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   after a change (a new `RouteQueryArgs` entry, an auth fix) measurably
   increases the exercised count; never lower it. The run checks
   `CoverageFloor(operations)`, which adds the selected pilot operations to it.
+- **The winners corpus (`seed_winners.go`) must stay anchored, derived, and
+  proven.** Anchor finding facts on the plan's active generations only (the
+  rebuild's active-facts join drops anything else); derive the
+  `supply_chain_impact_canonical_winners` table exclusively through
+  `SupplyChainImpactWinnersStore.ResweepWinners` (the maintainer's own full
+  resweep — never hand-write winners rows, or the leg drifts from what
+  production derives); `VerifyWinnersSeeded` must prove the table non-empty
+  and watermarked before any sweep runs. A zero-winner rebuild fails the
+  seed instead of sweeping an empty read model.
+- **The gate measures two legs, legacy then winners, never merged.** The
+  winners flag is read once at core mux build, so the legs are separate core
+  processes against one seed; the byte-identical findings proof and the
+  grouped-inventory 503/200 negative/positive controls gate the second leg;
+  each leg writes its own latency/work/concurrent reports (the winners paths
+  derive via `winners_report_path`), told apart by the `-winners-read`
+  identity marker.
 - **`-runs` defaults to 1 and preserves the single-pass sample selection.**
   `sweepRoute` (`sweep.go`) runs the warmup once, before run 1; run 1 alone
   backs `RouteLatency.P95`/`Samples` when there is no later pass. Do not move

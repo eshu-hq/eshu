@@ -30,6 +30,7 @@ func main() {
 	totalScopes := flag.Int("total-scopes", 800, "total ingestion_scopes rows to seed")
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
+	winnersFactCount := flag.Int("winners-fact-count", 20000, "reducer_supply_chain_impact_finding fact_records rows to seed for the winners-read leg (issue #11170: rebuilt into supply_chain_impact_canonical_winners so findings serve byte-identical from the read model)")
 	sharedIntentCount := flag.Int("shared-intent-count", defaultSharedIntentCount, "shared_projection_intents rows to seed, newest 1% pending (issue #6820: the status routes' domain backlog aggregate must read pending intents by index, not scan the table)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
 	runs := flag.Int("runs", 1, "counted sweeps per route after discarded warmups; later passes have no additional warmup (default 1: P95 uses the first counted pass)")
@@ -39,6 +40,8 @@ func main() {
 	latencyReportPath := flag.String("latency-report", "", "write the full per-route latency distribution (first/later samples, identity block) as JSON, before budget evaluation")
 	eshuCommit := flag.String("eshu-commit", os.Getenv("GATE_ESHU_COMMIT"), "eshu git commit to record in the latency report identity block (best-effort)")
 	apiBinarySHA256 := flag.String("api-binary-sha256", os.Getenv("GATE_API_BINARY_SHA256"), "eshu-api binary sha256 to record in the latency report identity block (best-effort)")
+	coreBinarySHA256 := flag.String("core-binary-sha256", os.Getenv("GATE_CORE_BINARY_SHA256"), "eshu-core-api binary sha256 to record in the latency report identity block (best-effort)")
+	winnersRead := flag.Bool("winners-read", false, "mark this sweep as the winners-read leg in the latency report identity block (the core serves findings from the maintained winners table)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
 	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
@@ -61,6 +64,7 @@ func main() {
 		totalScopes:        *totalScopes,
 		nodesPerLabel:      *nodesPerLabel,
 		iacFactCount:       *iacFactCount,
+		winnersFactCount:   *winnersFactCount,
 		sharedIntents:      *sharedIntentCount,
 		iterations:         *iterations,
 		runs:               *runs,
@@ -70,6 +74,8 @@ func main() {
 		latencyReportPath:  *latencyReportPath,
 		eshuCommit:         *eshuCommit,
 		apiBinarySHA256:    *apiBinarySHA256,
+		coreBinarySHA256:   *coreBinarySHA256,
+		winnersRead:        *winnersRead,
 		backgroundIdle:     *backgroundIdle,
 		skipSeed:           *skipSeed,
 		seedOnly:           *seedOnly,
@@ -96,6 +102,7 @@ type runOptions struct {
 	totalScopes        int
 	nodesPerLabel      int
 	iacFactCount       int
+	winnersFactCount   int
 	sharedIntents      int
 	iterations         int
 	runs               int
@@ -105,6 +112,8 @@ type runOptions struct {
 	latencyReportPath  string
 	eshuCommit         string
 	apiBinarySHA256    string
+	coreBinarySHA256   string
+	winnersRead        bool
 	backgroundIdle     time.Duration
 	skipSeed           bool
 	seedOnly           bool
@@ -319,11 +328,33 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed cloud/state facts: %w", err)
 	}
 
+	// The winners-read leg (issue #11170) needs live finding facts AND the
+	// reconciled read model: seed reducer_supply_chain_impact_finding facts
+	// across every scope's active generation, then rebuild the winners table
+	// through the maintainer's own full resweep so the table cannot drift
+	// from what production would derive. A bulk COPY of facts the
+	// active-facts join cannot match (wrong generation, tombstoned) would
+	// pass this count check while leaving winners empty, so the rebuild
+	// counts and the non-empty-table proof below are the real validity
+	// gate for the leg.
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d supply-chain impact finding facts for the winners-read leg\n", opts.winnersFactCount)
+	winnersFacts := BuildWinnersFindingFacts(winnersAnchorsFromPlan(plan), opts.winnersFactCount, winnersSourcesPerGroup)
+	if err := SeedWinnersFactRecords(ctx, pool, winnersFacts, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed winners finding facts: %w", err)
+	}
+
 	expectedCounts := expectedRelationalCounts(plan, iacFacts)
-	expectedCounts["fact_records"] += len(cloudStateFacts)
+	expectedCounts["fact_records"] += len(cloudStateFacts) + len(winnersFacts)
 	addSharedIntentCounts(expectedCounts, intents)
 	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
+	}
+
+	if inserted, updated, deleted, unchanged, err := rebuildSeededWinners(ctx, opts.postgresDSN); err != nil {
+		return fmt.Errorf("rebuild seeded winners: %w", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "read-api-latency-gate: winners rebuild inserted=%d updated=%d deleted=%d unchanged=%d\n",
+			inserted, updated, deleted, unchanged)
 	}
 
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d nodes per infra label (%d labels)\n", opts.nodesPerLabel, len(infraLabels))
@@ -457,6 +488,9 @@ func validateRunOptions(opts runOptions) error {
 	}
 	if opts.seedOnly && opts.skipSeed {
 		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	}
+	if !opts.skipSeed && opts.winnersFactCount <= 0 {
+		return fmt.Errorf("-winners-fact-count must be positive when seeding (a zero count would leave the winners leg sweeping an empty read model)")
 	}
 	if err := validateOperationOptions(opts); err != nil {
 		return err

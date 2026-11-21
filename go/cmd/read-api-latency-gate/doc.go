@@ -34,10 +34,15 @@
 // backend.
 //
 // scripts/verify-read-api-latency-gate.sh is the orchestrator: it brings up
-// the Docker Compose Postgres+NornicDB stack (the same one
-// scripts/verify-golden-corpus-gate.sh uses), builds eshu-api and this
-// binary, starts eshu-api, runs this binary to seed and sweep, and tears the
-// stack down.
+// the Docker Compose Postgres+Neo4j stack, builds the in-tree eshu-core-api,
+// the frozen satellite eshu-api and this binary, seeds (including supply
+// chain impact finding facts rebuilt into the winners read model through
+// the maintainer's own full resweep), starts the core, then the satellite
+// against --core-base-url and the MCP server, runs this binary to sweep the
+// legacy leg, restarts the core with ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ
+// set, proves the two legs serve byte-identical findings, re-sweeps the
+// winners leg into separate reports, and tears the stack down (issue
+// #11170).
 //
 // -runs (default 1) repeats the counted sweep per route: run 1 follows the
 // warmup probes, and runs 2..-runs are later passes issued with no additional

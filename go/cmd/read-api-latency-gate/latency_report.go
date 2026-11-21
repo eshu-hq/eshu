@@ -28,18 +28,24 @@ type LatencyReportSeedOptions struct {
 	NodesPerLabel     int `json:"nodes_per_label"`
 	IACFactCount      int `json:"iac_fact_count"`
 	SharedIntentCount int `json:"shared_intent_count"`
+	WinnersFactCount  int `json:"winners_fact_count"`
 }
 
 // LatencyReportIdentity identifies the run a LatencyReport came from, so a
 // comparison between two reports can refuse to compare legs whose identity
 // differs in a field that must match (see
 // scripts/compare-backend-latency.sh). Backend and the seed/run sizing are
-// always known; EshuCommit and APIBinarySHA256 are best-effort and empty
-// when the caller did not supply them (-eshu-commit / -api-binary-sha256).
+// always known; EshuCommit, APIBinarySHA256, and CoreBinarySHA256 are
+// best-effort and empty when the caller did not supply them (-eshu-commit /
+// -api-binary-sha256 / -core-binary-sha256). WinnersRead names which supply
+// chain impact read model the leg measured (issue #11170): false is the
+// legacy read-time dedup, true the maintained winners table.
 type LatencyReportIdentity struct {
 	Backend                 string                   `json:"backend"`
 	EshuCommit              string                   `json:"eshu_commit,omitempty"`
 	APIBinarySHA256         string                   `json:"api_binary_sha256,omitempty"`
+	CoreBinarySHA256        string                   `json:"core_binary_sha256,omitempty"`
+	WinnersRead             bool                     `json:"winners_read,omitempty"`
 	SeedOptions             LatencyReportSeedOptions `json:"seed_options"`
 	Runs                    int                      `json:"runs"`
 	Iterations              int                      `json:"iterations"`
@@ -231,14 +237,17 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 		concurrentRequests = opts.concurrentRequests
 	}
 	return LatencyReportIdentity{
-		Backend:         backend,
-		EshuCommit:      opts.eshuCommit,
-		APIBinarySHA256: opts.apiBinarySHA256,
+		Backend:          backend,
+		EshuCommit:       opts.eshuCommit,
+		APIBinarySHA256:  opts.apiBinarySHA256,
+		CoreBinarySHA256: opts.coreBinarySHA256,
+		WinnersRead:      opts.winnersRead,
 		SeedOptions: LatencyReportSeedOptions{
 			TotalScopes:       opts.totalScopes,
 			NodesPerLabel:     opts.nodesPerLabel,
 			IACFactCount:      opts.iacFactCount,
 			SharedIntentCount: opts.sharedIntents,
+			WinnersFactCount:  opts.winnersFactCount,
 		},
 		Runs:                    runs,
 		Iterations:              opts.iterations,

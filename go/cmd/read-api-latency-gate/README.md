@@ -38,8 +38,15 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
 - `BuildSeedPlan` — pure, deterministic scope/generation/work-item
   distribution across every `scope.AllCollectorKinds` entry
 - `SeedPostgres`, `SeedGraph`, `SeedIaCFacts` — bulk-write a `SeedPlan` (plus
-  `BuildIaCFacts`' IaC content_entity facts) into a live Postgres/NornicDB
+  `BuildIaCFacts`' IaC content_entity facts) into a live Postgres/Neo4j
   pair
+- `BuildWinnersFindingFacts`, `SeedWinnersFactRecords`,
+  `RebuildWinnersReadModel`, `VerifyWinnersSeeded` — seed synthetic
+  `reducer_supply_chain_impact_finding` facts across every scope's active
+  generation (issue #11170), reconcile them into
+  `supply_chain_impact_canonical_winners` through the maintainer's own full
+  resweep (never hand-written), and prove the table is populated and
+  watermarked, so the winners leg measures the real read model
 - `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
   `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
   `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row
@@ -76,7 +83,8 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `RouteLatency.WarmSamples` and `WarmRunP95s`.
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
-  commit/api binary sha256, seed sizing, runs/iterations/warmups) plus every
+  commit/api/core binary sha256, the `-winners-read` leg marker, seed sizing
+  including winners facts, runs/iterations/warmups) plus every
   route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
   a breaching leg still yields a report. `scripts/compare-backend-latency.sh`
@@ -138,9 +146,12 @@ See `doc.go` for the full contract.
   truth for collector kinds
 - `internal/capabilitycatalog` — the generated surface inventory that drives
   route selection
-- `internal/query`, `internal/storage/postgres` — the routes and queries this
-  gate measures (not imported directly; exercised over HTTP against a
-  running `eshu-api`)
+- `internal/query` — the routes and queries this gate measures (exercised
+  over HTTP against a running `eshu-api`, not imported directly)
+- `internal/storage/postgres` — imported only for the winners resweep port
+  (`SupplyChainImpactWinnersStore.ResweepWinners`), the same production call
+  the reducer maintainer and the ifa advisory-group drive use; every other
+  query this gate measures is exercised over HTTP
 
 ## Telemetry
 

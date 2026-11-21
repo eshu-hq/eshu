@@ -189,3 +189,41 @@ func TestWriteLatencyReportFileNoopOnEmptyPath(t *testing.T) {
 		t.Fatalf("writeLatencyReportFile(\"\", ...) = %v, want nil", err)
 	}
 }
+
+// TestLatencyReportIdentityFromCarriesCoreAndWinnersLeg pins the identity
+// block the gate's two legs are told apart by (issue #11170): the core
+// binary sha256 beside the satellite's, the winners seed sizing beside the
+// other seed sizing, and which read model the leg measured. Without these,
+// a legacy report and a winners report are indistinguishable metadata.
+func TestLatencyReportIdentityFromCarriesCoreAndWinnersLeg(t *testing.T) {
+	opts := runOptions{
+		totalScopes:      800,
+		nodesPerLabel:    10,
+		iacFactCount:     20,
+		sharedIntents:    30,
+		winnersFactCount: 20000,
+		iterations:       20,
+		runs:             1,
+		eshuCommit:       "abc123",
+		apiBinarySHA256:  "api-sha",
+		coreBinarySHA256: "core-sha",
+		winnersRead:      true,
+	}
+	id := latencyReportIdentityFrom(opts)
+	if id.CoreBinarySHA256 != "core-sha" {
+		t.Fatalf("CoreBinarySHA256 = %q, want core-sha", id.CoreBinarySHA256)
+	}
+	if !id.WinnersRead {
+		t.Fatalf("WinnersRead = false, want true for the winners leg")
+	}
+	if id.SeedOptions.WinnersFactCount != 20000 {
+		t.Fatalf("SeedOptions.WinnersFactCount = %d, want 20000", id.SeedOptions.WinnersFactCount)
+	}
+	legacy := latencyReportIdentityFrom(runOptions{winnersFactCount: 20000})
+	if legacy.WinnersRead {
+		t.Fatalf("WinnersRead defaults to true, want false (the legacy leg must not claim the read model)")
+	}
+	if legacy.CoreBinarySHA256 != "" {
+		t.Fatalf("CoreBinarySHA256 defaults to %q, want empty", legacy.CoreBinarySHA256)
+	}
+}

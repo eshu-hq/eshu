@@ -6,14 +6,17 @@ resource aggregate full-graph scan) or #6794 (status/readiness routes paying an
 expensive per-scope `activeFactWorkItemsCTE` query) before it merges by going
 red. The CI cell is off today (see the status note below).
 
-**Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03). Neo4j is
-the supported backend, so the `latency-gate (nornicdb)` job no longer runs in CI
-and its registry row is `manual` and non-blocking. The script still runs by hand
-(`bash scripts/verify-read-api-latency-gate.sh`). NornicDB gets revisited once
-Neo4j works as expected; the workflow comment lists how to re-enable the job.
+**Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03), and
+the script now requires Neo4j (issue #11170): eshu-core-api only starts on
+the pinned Neo4j backend, and the satellite the gate measures serves nothing
+without a core. Neo4j is the supported backend, so the
+`latency-gate (nornicdb)` job no longer runs in CI and its registry row is
+`manual` and non-blocking. The script still runs by hand
+(`bash scripts/verify-read-api-latency-gate.sh`). A NornicDB comparison is a
+separate issue, not this gate's job.
 
 It exists because that class of regression is invisible to hermetic tests:
-the cost only appears at repo/scope scale against a real Postgres+NornicDB
+the cost only appears at repo/scope scale against a real Postgres+graph
 backend, which unit tests and the credential-free `make pre-push`/`make pre-pr`
 lanes never exercise.
 
@@ -21,8 +24,7 @@ lanes never exercise.
 
 `go/cmd/read-api-latency-gate` (driven by `scripts/verify-read-api-latency-gate.sh`):
 
-1. Brings up the same Docker Compose Postgres+NornicDB pair
-   [Golden Corpus Gate](golden-corpus-gate.md) uses.
+1. Brings up the Docker Compose Postgres+Neo4j pair.
 2. Builds a deterministic seed plan (`BuildSeedPlan`) that distributes a
    configurable total scope count across **every** collector kind
    `scope.AllCollectorKinds` reports — not a hardcoded list, so a new
@@ -56,7 +58,14 @@ lanes never exercise.
    full scan of its heap (~51k blocks) exceeds the 3x work budget of those
    routes while the shipped pending-only aggregate reads a few hundred blocks
    by index (issue #6820); the seed costs about 54 s and 1.1 GB of Postgres
-   storage in the CI job. Runs `ANALYZE` on the seeded Postgres tables
+   storage in the CI job. It also seeds `reducer_supply_chain_impact_finding`
+   facts across every scope's active generation
+   (`BuildWinnersFindingFacts`/`SeedWinnersFactRecords`,
+   `GATE_WINNERS_FACT_COUNT`, default 20k rows in multi-source canonical-key
+   groups) and reconciles them into `supply_chain_impact_canonical_winners`
+   through the maintainer's own full resweep — never hand-written — then
+   proves the table populated and watermarked (`VerifyWinnersSeeded`).
+   Runs `ANALYZE` on the seeded Postgres tables
    afterward (every table in the exact-count read-back plus
    `content_entities`, pinned by `TestAnalyzeSeededTablesCoversEverySeededTable`)
    so the sweep plans against fresh statistics.
@@ -67,11 +76,18 @@ lanes never exercise.
    `UNWIND range(0, $count - 1)` once seeded a single node per label on
    NornicDB without an error (see
    [NornicDB Write-Shape Pitfalls](../nornicdb-write-shape-pitfalls.md)).
-4. Starts `eshu-api` against the seeded backends, with `pg_stat_statements`
-   loaded into Postgres by `docker-compose.read-api-latency-gate.yaml`. The gate
+4. Starts the in-tree `eshu-core-api` against the seeded backends, then the
+   frozen satellite `eshu-api` against `--core-base-url` (the satellite serves
+   nothing coreless — issue #11170), then the satellite MCP server, with
+   `pg_stat_statements` loaded into Postgres by
+   `docker-compose.read-api-latency-gate.yaml`. The gate
    creates the extension, proves it collects, and refuses a stack that runs more
    than 2 statements per second while idle (a new poller in the API has to be
-   understood, not absorbed into the budgets).
+   understood, not absorbed into the budgets). It sweeps the legacy leg, then
+   restarts the core with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true` and —
+   after proving byte-identical findings pages and 503-to-200 grouped
+   inventory dimensions — sweeps the winners leg into separate `-winners`
+   reports (each report's identity block carries the `-winners-read` marker).
 5. Derives every no-arg GET route from the generated surface inventory
    (`capabilitycatalog.LoadSurfaceInventory`, filtered to
    `category=api_route`, `readiness=implemented`, method `GET`, no path
@@ -122,7 +138,9 @@ a capacity conclusion.
 requests (a cold connection and cold Postgres/NornicDB caches make the
 first request unrepresentatively slow) and then `-iterations` counted
 requests, and reports the true nearest-rank p95 over the counted set — not
-the max.
+the max. Each leg sweeps the same corpus and budgets; the winners leg's
+reports land beside the legacy leg's with a `-winners` suffix and never
+merge into them.
 
 **Per-request outcome**: a 4xx on the warmup probe means this route needed a
 selector or auth scope this gate could not supply; it is reported
@@ -182,9 +200,9 @@ ESHU_GRAPH_BACKEND=neo4j GATE_CONCURRENT_WORKERS=4 \
 Record the actual Compose image digest, host load, API/MCP/Postgres/Neo4j
 CPU and memory, seed verification counts, and both report hashes alongside
 the command and exit status. The concurrent report shows offered load and
-client overlap; it does not measure backend resource use by itself. Keep the
-NornicDB script runnable by hand (its CI cell is off, see the status note) while
-the supported-backend pilot is added.
+client overlap; it does not measure backend resource use by itself. Both
+sweep legs' reports (legacy and `-winners`) and the core/satellite/MCP logs
+are the run's evidence; a green run on one leg alone is not a pass.
 
 The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
 database migration and seeding, host builds, the serial sweep, and the later
@@ -197,15 +215,17 @@ separate from each route's latency and work budgets. The canceled run's raw
 artifacts are incomplete proof; a passing hosted rerun is still required.
 
 Flags mirror the golden corpus gate's: `--keep` leaves the stack up for
-debugging a breach, `--no-compose` assumes Postgres/NornicDB are already
+debugging a breach, `--no-compose` assumes Postgres/graph are already
 running. It shares the golden corpus gate's cross-run mutex
 (`scripts/lib/live-gate-lock.sh`), so the two Docker-heavy gates serialize
 against each other instead of contending for CPU and Docker I/O.
 
 Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 (15537), `GATE_NEO4J_BOLT_PORT` (7797), `GATE_NEO4J_HTTP_PORT` (7585),
-`GATE_API_PORT` (18097), `GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
-(150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts), `GATE_ITERATIONS`
+`GATE_API_PORT` (18097), `GATE_MCP_PORT` (18098), `GATE_CORE_PORT` (18096),
+`GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
+(150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts),
+`GATE_WINNERS_FACT_COUNT` (20000 seeded impact finding facts), `GATE_ITERATIONS`
 (counted requests per route, 20), `GATE_RUNS` (independent counted sweeps per
 route, default 1 — run 1 follows two discarded warmups; runs 2.. repeat
 without additional warmup), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
@@ -221,6 +241,11 @@ POST and MCP checks add output and fail on invalid fixture responses even at
 default settings. Repeated sweeps preserve the existing route budgets.
 
 ## Cross-backend comparison (remote)
+
+> Retired as a runnable recipe (issue #11170): the gate now requires Neo4j
+> and refuses a NornicDB leg, so the NornicDB commands below no longer run. A
+> future cross-backend comparison is a separate issue; the comparator notes
+> below still describe `compare-backend-latency.sh`'s contract.
 
 Comparing NornicDB against Neo4j needs distributions over repeated runs, not
 a single sample — this gate's `-runs`/`-latency-report` and
