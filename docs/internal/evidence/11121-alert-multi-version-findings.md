@@ -72,7 +72,12 @@ alert's manifest holds it. In the fallback, the reported finding is for a
 version only another manifest holds. There the decision keeps the manifest's
 own row, so the row can read `affected_exact` with the manifest's fixed
 version as its evidence. This mainly happens in the R2 window, before a holder
-re-passes and writes findings for the manifest's own versions.
+re-passes and writes findings for the manifest's own versions. A consumer
+tells such a row from a coherent one through `eshu_impact_finding_id`: the
+finding it names carries its own `observed_version`, which differs from the
+row's only in the fallback. A dedicated reason code was considered and not
+added, because it would change the decision wire contract for a window that
+closes on the holder's next pass.
 `TestReconciliationFallbackKeepsTheManifestRow11121` pins that behavior.
 `SecurityAlertImpact` gains `ObservedVersion`, read from the finding payload.
 `TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121` was

@@ -273,7 +273,11 @@ with provider state and Eshu impact state as separate fields:
   evidence and observed version name that version's row when the alert's
   manifest holds it; in the fallback, when the reported finding is for a
   version only another manifest holds, they keep the manifest's own row
-  (#11121). A fixed copy never hides an affected one.
+  (#11121). A reader tells the fallback row from a coherent one by following
+  the row's `eshu_impact_finding_id` to that impact finding and comparing the
+  finding's `observed_version` with the row's `observed_version`: they differ
+  only in the fallback, and the row is repaired on the holder's next pass.
+  A fixed copy never hides an affected one.
 - `unmatched` when the dependency is owned but no Eshu impact finding exists.
 - `stale` when newer owned dependency evidence no longer matches the alert's
   manifest path.
