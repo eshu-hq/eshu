@@ -307,7 +307,7 @@ func registerSupplyChainImpactWinnersContractInstruments(meter metric.Meter, ins
 	}
 	if inst.SupplyChainImpactWinnersStandDowns, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_stand_downs_total",
-		metric.WithDescription("Supply-chain impact winners maintainer ticks that stood down because the stored contract version is above this binary's: no full, keyed tick or audit ran. Any rate means an older binary is running beside a newer one."),
+		metric.WithDescription("Supply-chain impact winners maintainer ticks that stood down because the stored contract version is above this binary's, at the decision read or under the resweep lock on a keyed tick: no full, keyed tick or audit ran. Any rate means an older binary is running beside a newer one."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStandDowns counter: %w", err)
 	}
