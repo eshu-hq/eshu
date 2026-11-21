@@ -102,13 +102,24 @@ func stagedAuditHasRecoveryPhrase(err error) bool {
 // StagedAuditDeferralReason is the closed set behind the 3am deferral
 // counter: budget (an over-budget batch tripped a fail-closed cap),
 // conflict-exhausted (a recovery conflict aborted the tick), or batch-abort
-// (any other batch failure, including timeouts).
+// (any other batch failure). The range sweep (#11131) adds timeout (a
+// one-identifier range still hit the statement guard), null_key (the NULL
+// probe found a source fact the ranges cannot reach), pipe (a range fact has
+// '|' in an identifier field), lock_busy (the waiting resweep-lock claim hit
+// its lock_timeout) and cursor_race (another instance advanced the range
+// first; this one rolled its repairs back).
 type StagedAuditDeferralReason string
 
+// The closed deferral reasons.
 const (
 	StagedAuditDeferBudget            StagedAuditDeferralReason = "budget"
 	StagedAuditDeferConflictExhausted StagedAuditDeferralReason = "conflict_exhausted"
 	StagedAuditDeferBatchAbort        StagedAuditDeferralReason = "batch_abort"
+	StagedAuditDeferTimeout           StagedAuditDeferralReason = "timeout"
+	StagedAuditDeferNullKey           StagedAuditDeferralReason = "null_key"
+	StagedAuditDeferPipe              StagedAuditDeferralReason = "pipe"
+	StagedAuditDeferLockBusy          StagedAuditDeferralReason = "lock_busy"
+	StagedAuditDeferCursorRace        StagedAuditDeferralReason = "cursor_race"
 )
 
 // StagedAuditOverBudgetError marks a batch or tick that tripped a fail-closed

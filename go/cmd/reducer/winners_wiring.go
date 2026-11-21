@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,6 +91,36 @@ func loadSupplyChainImpactWinnersAuditInterval(getenv func(string) string) time.
 	value, err := time.ParseDuration(raw)
 	if err != nil || value < 0 {
 		return defaultSupplyChainImpactWinnersAuditInterval
+	}
+	return value
+}
+
+// supplyChainImpactWinnersAuditRangeBudgetEnv sets the fact-row budget of one
+// staged audit sweep range (#11131).
+const supplyChainImpactWinnersAuditRangeBudgetEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_BUDGET"
+
+// supplyChainImpactWinnersAuditTickBudgetEnv bounds the wall time one audit
+// tick spends running staged sweep ranges back to back (#11131).
+const supplyChainImpactWinnersAuditTickBudgetEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET"
+
+// loadSupplyChainImpactWinnersAuditRangeBudget reads the range budget. An
+// unset, unparsable or non-positive value gives 0, which selects the default
+// (postgres.DefaultWinnersAuditRangeBudget, 10,000 rows).
+func loadSupplyChainImpactWinnersAuditRangeBudget(getenv func(string) string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(getenv(supplyChainImpactWinnersAuditRangeBudgetEnv)))
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return value
+}
+
+// loadSupplyChainImpactWinnersAuditTickBudget reads the audit tick budget. An
+// unset, unparsable or non-positive value gives 0, which selects the
+// maintainer default (5 minutes).
+func loadSupplyChainImpactWinnersAuditTickBudget(getenv func(string) string) time.Duration {
+	value, err := time.ParseDuration(strings.TrimSpace(getenv(supplyChainImpactWinnersAuditTickBudgetEnv)))
+	if err != nil || value <= 0 {
+		return 0
 	}
 	return value
 }

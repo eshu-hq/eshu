@@ -81,6 +81,8 @@ func TestWinnersTempTableDDLNamesMatchTheTableConstants(t *testing.T) {
 		{seedWinnersAuditIdentsSQL, winnersKeyedIdentsTable},
 		{createWinnersAuditStaleSQL, winnersAuditStaleTable},
 		{createWinnersAuditPendingSQL, winnersAuditPendingTable},
+		{createWinnersAuditRangePendingSQL, winnersAuditRangePendingTable},
+		{createWinnersAuditRangeStalePendingSQL, winnersAuditPendingTable},
 	}
 	for _, c := range cases {
 		if !strings.Contains(c.sql, "CREATE TEMP TABLE "+c.table+" ") {

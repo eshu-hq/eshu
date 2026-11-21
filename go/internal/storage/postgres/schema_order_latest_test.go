@@ -153,4 +153,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// fact_work_items and its two audit columns on fact_replay_events
 	// (numbered 334: 333 is held by the #10882 lane).
 	"fact_work_items_replay_attempt_baseline",
+	// Migration 335 (#11131) adds the staged winners audit sweep's cursor
+	// table (renumbered 331 to 335 at rebase: main owns 331-332 and 334;
+	// 333 held by an unpushed lane).
+	"supply_chain_impact_winners_audit_sweep",
 }

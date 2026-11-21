@@ -4,321 +4,289 @@
 package audit
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	pgaccess "github.com/eshu-hq/eshu/go/internal/runtime/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// stagedScriptRows answers scripted canned rows by query substring.
-type stagedScriptRows struct {
-	rows [][]any
-	pos  int
+// memberFleet pins one member and hands a nil reader to every statement: the
+// range reader and NULL probe are fakes, so no SQL runs.
+type memberFleet struct{ pinErr error }
+
+func (f memberFleet) PinMember(context.Context) (string, error) { return "member-a", f.pinErr }
+func (memberFleet) RunOnMember(ctx context.Context, _ string, fn func(context.Context, db.Queryer) error) error {
+	return fn(ctx, nil)
+}
+func (memberFleet) ReplayLag(context.Context, string) (time.Duration, error) { return 0, nil }
+
+// sweepStore is an in-memory cursor row with the compare-and-set of
+// advanceWinnersAuditSweepSQL, plus scripted lock results.
+type sweepStore struct {
+	mu         sync.Mutex
+	sweep      postgres.WinnersAuditSweep
+	lockScript []string // per verify: "", "skip", "busy", "race"
+	verifies   []postgres.WinnersAuditRangeVerify
+	completed  int
 }
 
-func (r *stagedScriptRows) Next() bool {
-	if r.pos >= len(r.rows) {
-		return false
+func (s *sweepStore) ReadWinnersAuditSweep(context.Context) (postgres.WinnersAuditSweep, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sweep.SweepID == 0 {
+		s.sweep.SweepID = 1
 	}
-	r.pos++
-	return true
+	return s.sweep, nil
 }
 
-func (r *stagedScriptRows) Scan(dest ...any) error {
-	row := r.rows[r.pos-1]
-	if len(dest) != len(row) {
-		return fmt.Errorf("staged assembly fake: want %d dests for %d columns", len(row), len(dest))
+func (s *sweepStore) VerifyWinnersAuditRange(_ context.Context, v postgres.WinnersAuditRangeVerify) (postgres.WinnersAuditRangeOutcome, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.verifies = append(s.verifies, v)
+	script := ""
+	if len(s.lockScript) > 0 {
+		script, s.lockScript = s.lockScript[0], s.lockScript[1:]
 	}
-	for i, column := range row {
-		switch target := dest[i].(type) {
-		case *string:
-			value, ok := column.(string)
-			if !ok {
-				return fmt.Errorf("staged assembly fake: column %d is not a string", i)
+	switch script {
+	case "skip":
+		return postgres.WinnersAuditRangeOutcome{Skipped: true}, nil
+	case "busy":
+		return postgres.WinnersAuditRangeOutcome{LockBusy: true}, nil
+	case "race":
+		return postgres.WinnersAuditRangeOutcome{CursorRace: true}, nil
+	}
+	if v.SweepID != s.sweep.SweepID || cursorText(v.Range.Lo) != cursorText(s.sweep.Cursor) {
+		return postgres.WinnersAuditRangeOutcome{CursorRace: true}, nil
+	}
+	out := postgres.WinnersAuditRangeOutcome{Advanced: true, Candidates: int64(len(v.Range.Candidates)), Locked: len(v.Range.Candidates) > 0}
+	out.Repairs = out.Candidates
+	if v.Range.Last {
+		s.sweep.SweepID++
+		s.sweep.Cursor, s.sweep.RangesDone = nil, 0
+		if v.Complete {
+			s.completed++
+			out.Completed = true
+		}
+	} else {
+		s.sweep.Cursor = v.Range.Hi
+		s.sweep.RangesDone++
+	}
+	out.Sweep = s.sweep
+	return out, nil
+}
+
+// corpus fakes the range statement over n identifiers of factsPer facts each
+// in index order; identifier i is "p" + zero-padded i.
+type corpus struct {
+	n, factsPer int
+	pipeAt      int // 1-based identifier with '|', 0 for none
+	timeoutOver int // budgets above this time out, 0 for never
+	budgets     []int
+}
+
+func ident(i int) *postgres.WinnersAuditRangeIdent {
+	return &postgres.WinnersAuditRangeIdent{PackageID: fmt.Sprintf("p%07d", i), RepositoryID: "r", SubjectDigest: "", C0: "c", AdvisoryID: "a"}
+}
+
+func (c *corpus) read(_ context.Context, _ db.Queryer, lo *postgres.WinnersAuditRangeIdent, budget int) (postgres.WinnersAuditRange, error) {
+	c.budgets = append(c.budgets, budget)
+	if c.timeoutOver > 0 && budget > c.timeoutOver {
+		return postgres.WinnersAuditRange{}, context.DeadlineExceeded
+	}
+	start := 1
+	if lo != nil {
+		_, _ = fmt.Sscanf(lo.PackageID, "p%07d", &start)
+		start++
+	}
+	whole := max(1, budget/c.factsPer)
+	end := start + whole - 1
+	out := postgres.WinnersAuditRange{Lo: lo, Budget: budget}
+	if end >= c.n {
+		end, out.Last = c.n, true
+	} else {
+		out.Hi = ident(end)
+	}
+	if start > c.n {
+		end = start - 1
+	}
+	out.Facts = int64((end - start + 1) * c.factsPer)
+	out.Oversize = budget < c.factsPer
+	out.Pipe = c.pipeAt >= start && c.pipeAt <= end
+	out.Candidates = []postgres.WinnersAuditIdent{{PackageID: sql.NullString{String: ident(start).PackageID, Valid: true}}}
+	return out, nil
+}
+
+func newSweepAuditor(c *corpus, store *sweepStore, nulls func() postgres.WinnersAuditNullKeys) (*StagedAuditor, *pgaccess.StagedAuditTelemetry) {
+	tel := pgaccess.NewStagedAuditTelemetry()
+	if nulls == nil {
+		nulls = func() postgres.WinnersAuditNullKeys { return postgres.WinnersAuditNullKeys{} }
+	}
+	return &StagedAuditor{
+		Fleet: memberFleet{}, Store: store, Telemetry: tel, ReadRange: c.read,
+		ProbeNullKeys: func(context.Context, db.Queryer) (postgres.WinnersAuditNullKeys, error) { return nulls(), nil },
+	}, tel
+}
+
+// TestStagedAuditSweepCompletesPastTheCorpusCaps is the #11131 proof (a): a
+// corpus of 1,200,000 facts, past StagedAuditMaxStagedFacts (1,000,000), is
+// read in budgeted ranges and the sweep completes with no budget deferral.
+func TestStagedAuditSweepCompletesPastTheCorpusCaps(t *testing.T) {
+	t.Parallel()
+	c := &corpus{n: 12000, factsPer: 100}
+	if c.n*c.factsPer <= pgaccess.StagedAuditMaxStagedFacts {
+		t.Fatalf("corpus %d facts must exceed the old cap %d", c.n*c.factsPer, pgaccess.StagedAuditMaxStagedFacts)
+	}
+	store := &sweepStore{}
+	a, tel := newSweepAuditor(c, store, nil)
+	var facts int64
+	for pass := 0; ; pass++ {
+		got, err := a.AuditWinners(context.Background())
+		if err != nil {
+			t.Fatalf("pass %d: %v", pass, err)
+		}
+		if got.Deferred {
+			t.Fatalf("pass %d deferred: the sweep must not defer past the old caps", pass)
+		}
+		if !got.More {
+			if got.Partial || got.Outcome != OutcomeCompleted {
+				t.Fatalf("final pass = %+v, want a completed, non-partial pass", got)
 			}
-			*target = value
-		case *int:
-			value, ok := column.(int)
-			if !ok {
-				return fmt.Errorf("staged assembly fake: column %d is not an int", i)
-			}
-			*target = value
-		case *sql.NullTime:
-			if column == nil {
-				*target = sql.NullTime{}
-				continue
-			}
-			value, ok := column.(time.Time)
-			if !ok {
-				return fmt.Errorf("staged assembly fake: column %d is not a time", i)
-			}
-			*target = sql.NullTime{Time: value, Valid: true}
-		case *[]byte:
-			value, ok := column.(string)
-			if !ok {
-				return fmt.Errorf("staged assembly fake: column %d is not bytes", i)
-			}
-			*target = []byte(value)
-		case *bool:
-			value, ok := column.(bool)
-			if !ok {
-				return fmt.Errorf("staged assembly fake: column %d is not a bool", i)
-			}
-			*target = value
-		default:
-			return fmt.Errorf("staged assembly fake: dest %d has unsupported type %T", i, dest[i])
+			break
+		}
+		if pass > 1000 {
+			t.Fatal("sweep did not end")
 		}
 	}
-	return nil
+	for _, v := range store.verifies {
+		facts += v.Range.Facts
+	}
+	if store.completed != 1 || facts != int64(c.n*c.factsPer) {
+		t.Fatalf("completed sweeps = %d, facts verified = %d; want 1 and %d", store.completed, facts, c.n*c.factsPer)
+	}
+	if n := tel.Deferrals(pgaccess.StagedAuditDeferBudget); n != 0 {
+		t.Fatalf("budget deferrals = %d, want 0", n)
+	}
+	if want := int64(len(store.verifies)); tel.Ranges() != want || want != 120 {
+		t.Fatalf("ranges = %d (verifies %d), want 120 at the default 10,000-row budget", tel.Ranges(), want)
+	}
 }
 
-func (r *stagedScriptRows) Err() error   { return nil }
-func (r *stagedScriptRows) Close() error { return nil }
+// TestStagedAuditRangeTimeoutHalvesTheBudget pins the timeout retry: each
+// statement timeout halves the budget, down to one row; a one-row range that
+// still times out defers as timeout.
+func TestStagedAuditRangeTimeoutHalvesTheBudget(t *testing.T) {
+	t.Parallel()
+	c := &corpus{n: 50, factsPer: 10, timeoutOver: 1000}
+	a, tel := newSweepAuditor(c, &sweepStore{}, nil)
+	got, err := a.AuditWinners(context.Background())
+	if err != nil || got.Deferred {
+		t.Fatalf("AuditWinners = %+v, %v; want a committed range", got, err)
+	}
+	want := []int{10000, 5000, 2500, 1250, 625}
+	if fmt.Sprint(c.budgets) != fmt.Sprint(want) || tel.RangeRetries() != 4 {
+		t.Fatalf("budgets = %v, retries = %d; want %v and 4", c.budgets, tel.RangeRetries(), want)
+	}
 
-// stagedScriptReader serves canned rows per query family. Batches for the
-// source and operator arms differ, so the script keys on CTE names.
-type stagedScriptReader struct {
-	members []string
+	a2, tel2 := newSweepAuditor(&corpus{n: 50, factsPer: 10}, &sweepStore{}, nil)
+	a2.ReadRange = func(context.Context, db.Queryer, *postgres.WinnersAuditRangeIdent, int) (postgres.WinnersAuditRange, error) {
+		return postgres.WinnersAuditRange{}, context.DeadlineExceeded
+	}
+	got, err = a2.AuditWinners(context.Background())
+	if err != nil || !got.Deferred || got.More {
+		t.Fatalf("one-row timeout = %+v, %v; want a deferred pass with no More", got, err)
+	}
+	if tel2.Deferrals(pgaccess.StagedAuditDeferTimeout) != 1 {
+		t.Fatalf("timeout deferrals = %d, want 1", tel2.Deferrals(pgaccess.StagedAuditDeferTimeout))
+	}
 }
 
-func (q *stagedScriptReader) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	switch {
-	case strings.Contains(query, "ingestion_scopes"):
-		return &stagedScriptRows{rows: [][]any{
-			{"s1", "g1"},
-			{"operator:vulnerability_suppressions", "g9"},
-		}}, nil
-	case strings.Contains(query, "source_candidates"):
-		return &stagedScriptRows{rows: [][]any{
-			{"f1", "k1", "fid1", 5, 1, "active"},
-			{"f2", "k1", "fid1", 5, 1, "active"},
-			{"f3", "k3", "", 0, 0, "active"},
-		}}, nil
-	case strings.Contains(query, "operator_candidates"):
-		return &stagedScriptRows{rows: [][]any{
-			{"f9", "k1", "", 0, 0, "suppressed"},
-		}}, nil
-	case strings.Contains(query, "supply_chain_impact_canonical_winners"):
-		return &stagedScriptRows{rows: [][]any{
-			{"k1", "f1", "s1", "fid1", 5, 2, "", "", "", "repo1", "cve1", "adv1", "pkg1", "dig1", "", "", "", "", "", "active", nil, "[]", "[]", "[]"},
-			{"k2", "f0", "s0", "fid0", 1, 1, "", "", "", "repo2", "cve2", "adv2", "pkg2", "dig2", "", "", "", "", "", "active", nil, "[]", "[]", "[]"},
-		}}, nil
-	case strings.Contains(query, "fact.fact_id = $1"):
-		id, _ := args[0].(string)
-		if id == "f3" {
-			return &stagedScriptRows{rows: [][]any{{"p3", "r3", "d3", "cve3", "adv3"}}}, nil
+// TestStagedAuditGuardsFailClosed is the #11131 proof (f), unit half: a '|'
+// in a range identifier defers as pipe with no writer contact; a NULL at
+// sweep start defers before any range read; a NULL at sweep end verifies the
+// last range but does not count the sweep as complete.
+func TestStagedAuditGuardsFailClosed(t *testing.T) {
+	t.Parallel()
+	t.Run("pipe", func(t *testing.T) {
+		store := &sweepStore{}
+		a, tel := newSweepAuditor(&corpus{n: 5, factsPer: 10, pipeAt: 1}, store, nil)
+		got, err := a.AuditWinners(context.Background())
+		if err != nil || !got.Deferred || len(store.verifies) != 0 || tel.Deferrals(pgaccess.StagedAuditDeferPipe) != 1 {
+			t.Fatalf("pipe = %+v, %v, verifies %d; want deferred, no verify, one pipe deferral", got, err, len(store.verifies))
 		}
-		return &stagedScriptRows{}, nil
-	default:
-		return nil, fmt.Errorf("staged assembly fake: unexpected query %.60q", query)
-	}
-}
-
-// stagedScriptFleet pins read-0 and hands every statement the scripted reader.
-type stagedScriptFleet struct {
-	members []string
-	pins    int
-}
-
-func (f *stagedScriptFleet) PinMember(context.Context) (string, error) {
-	f.pins++
-	return "read-0", nil
-}
-
-func (f *stagedScriptFleet) ReplayLag(context.Context, string) (time.Duration, error) {
-	return 0, nil
-}
-
-func (f *stagedScriptFleet) RunOnMember(ctx context.Context, member string, fn func(context.Context, db.Queryer) error) error {
-	f.members = append(f.members, member)
-	return fn(ctx, &stagedScriptReader{members: f.members})
-}
-
-func TestStagedAuditFlowsCandidatesToIdents(t *testing.T) {
-	fleet := &stagedScriptFleet{}
-	auditor := StagedAuditor{Fleet: fleet}
-	idents, unresolvable, _, _, err := auditor.runReadPhase(context.Background(), pgaccess.NewStagedAuditTelemetry())
-	if err != nil {
-		t.Fatalf("read phase: %v", err)
-	}
-	if unresolvable != 0 {
-		t.Fatalf("unresolvable = %d, want 0", unresolvable)
-	}
-	if len(idents) != 3 {
-		t.Fatalf("idents = %d, want 3 (override k1, stored-only k2, new k3)", len(idents))
-	}
-	got := map[string]string{}
-	for _, ident := range idents {
-		got[ident.PackageID.String] = ident.C0.String
-	}
-	want := map[string]string{"pkg1": "cve1", "pkg2": "cve2", "p3": "cve3"}
-	if len(got) != len(want) {
-		t.Fatalf("idents = %v, want %v", got, want)
-	}
-	for pkg, c0 := range want {
-		if got[pkg] != c0 {
-			t.Fatalf("idents = %v, want %v", got, want)
+	})
+	t.Run("null at start", func(t *testing.T) {
+		c := &corpus{n: 5, factsPer: 10}
+		store := &sweepStore{}
+		a, tel := newSweepAuditor(c, store, func() postgres.WinnersAuditNullKeys { return postgres.WinnersAuditNullKeys{RepositoryID: true} })
+		got, err := a.AuditWinners(context.Background())
+		if err != nil || !got.Deferred || len(c.budgets) != 0 || tel.Deferrals(pgaccess.StagedAuditDeferNullKey) != 1 {
+			t.Fatalf("null start = %+v, %v, reads %d; want deferred before any range read", got, err, len(c.budgets))
 		}
-	}
-	for _, member := range fleet.members {
-		if member != "read-0" {
-			t.Fatalf("statement ran on %q, want every statement on read-0", member)
+	})
+	t.Run("null at end", func(t *testing.T) {
+		probes := 0
+		store := &sweepStore{}
+		a, tel := newSweepAuditor(&corpus{n: 5, factsPer: 10}, store, func() postgres.WinnersAuditNullKeys {
+			probes++
+			return postgres.WinnersAuditNullKeys{SubjectDigest: probes > 1}
+		})
+		got, err := a.AuditWinners(context.Background())
+		if err != nil || got.Deferred || !got.Partial || got.More || store.completed != 0 {
+			t.Fatalf("null end = %+v, %v, completed %d; want a verified last range that does not complete", got, err, store.completed)
 		}
+		if len(store.verifies) != 1 || store.verifies[0].Complete || tel.Deferrals(pgaccess.StagedAuditDeferNullKey) != 1 {
+			t.Fatalf("verifies = %+v; want one with Complete=false and one null_key deferral", store.verifies)
+		}
+	})
+}
+
+// TestStagedAuditLockPolicy pins decision 3: two try-lock misses on the same
+// range switch the next verify to the waiting claim; lock_busy and
+// cursor_race are counted and keep the tick going.
+func TestStagedAuditLockPolicy(t *testing.T) {
+	t.Parallel()
+	store := &sweepStore{lockScript: []string{"skip", "skip", "", "busy", "race"}}
+	a, tel := newSweepAuditor(&corpus{n: 500, factsPer: 100}, store, nil)
+	var outcomes []string
+	for i := 0; i < 5; i++ {
+		got, err := a.AuditWinners(context.Background())
+		if err != nil {
+			t.Fatalf("pass %d: %v", i, err)
+		}
+		if !got.More {
+			t.Fatalf("pass %d = %+v, want More", i, got)
+		}
+		outcomes = append(outcomes, got.Outcome)
 	}
-	// Census, two batches, stored fetch, one point lookup: five statements.
-	if len(fleet.members) != 5 {
-		t.Fatalf("statements = %d, want 5", len(fleet.members))
+	if fmt.Sprint(outcomes) != fmt.Sprint([]string{OutcomeSkipped, OutcomeSkipped, OutcomeAdvanced, OutcomeLockBusy, OutcomeCursorRace}) {
+		t.Fatalf("outcomes = %v", outcomes)
+	}
+	waits := []bool{}
+	for _, v := range store.verifies {
+		waits = append(waits, v.WaitForLock)
+	}
+	if fmt.Sprint(waits) != fmt.Sprint([]bool{false, false, true, false, false}) {
+		t.Fatalf("WaitForLock per verify = %v, want the third (after two misses on one range) to wait", waits)
+	}
+	if tel.Deferrals(pgaccess.StagedAuditDeferLockBusy) != 1 || tel.Deferrals(pgaccess.StagedAuditDeferCursorRace) != 1 {
+		t.Fatalf("lock_busy = %d, cursor_race = %d; want 1 each", tel.Deferrals(pgaccess.StagedAuditDeferLockBusy), tel.Deferrals(pgaccess.StagedAuditDeferCursorRace))
 	}
 }
 
-// refusedPinFleet refuses the tick at member qualification.
-type refusedPinFleet struct{ stagedScriptFleet }
-
-func (f *refusedPinFleet) PinMember(context.Context) (string, error) {
-	return "", errors.New("standby past replay budget")
-}
-
-func TestStagedAuditRefusedTickDefersWithoutWriter(t *testing.T) {
-	auditor := StagedAuditor{Fleet: &refusedPinFleet{}}
-	audit, err := auditor.AuditWinners(context.Background())
-	if err != nil {
-		t.Fatalf("refused tick must defer, not error: %v", err)
-	}
-	if !audit.Deferred {
-		t.Fatal("refused tick must report Deferred")
-	}
-}
-
-// conflictPointReader serves one new key whose ident lookup hits a standby
-// recovery conflict.
-type conflictPointReader struct{ stagedScriptReader }
-
-func (q *conflictPointReader) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	if strings.Contains(query, "fact.fact_id = $1") {
-		return nil, &pgconn.PgError{Code: "40001", Message: "canceling statement due to conflict with recovery"}
-	}
-	return q.stagedScriptReader.QueryContext(ctx, query, args...)
-}
-
-type conflictPointFleet struct {
-	stagedScriptFleet
-	reader db.Queryer
-}
-
-func (f *conflictPointFleet) RunOnMember(ctx context.Context, member string, fn func(context.Context, db.Queryer) error) error {
-	f.members = append(f.members, member)
-	return fn(ctx, f.reader)
-}
-
-func TestStagedAuditResolveConflictDefersWithoutWriter(t *testing.T) {
-	fleet := &conflictPointFleet{reader: &conflictPointReader{}}
-	telemetry := pgaccess.NewStagedAuditTelemetry()
-	auditor := StagedAuditor{Fleet: fleet, Telemetry: telemetry}
-	audit, err := auditor.AuditWinners(context.Background())
-	if err != nil {
-		t.Fatalf("resolve-phase conflict must defer, not error: %v", err)
-	}
-	if !audit.Deferred {
-		t.Fatal("resolve-phase conflict must report Deferred")
-	}
-	if got := telemetry.Deferrals(pgaccess.StagedAuditDeferConflictExhausted); got != 1 {
-		t.Fatalf("conflict-exhausted deferrals = %d, want 1", got)
-	}
-}
-
-// fakeWriterResult reports a canned repair count.
-type fakeWriterResult struct{ repairs int64 }
-
-func (r fakeWriterResult) LastInsertId() (int64, error) { return 0, nil }
-func (r fakeWriterResult) RowsAffected() (int64, error) { return r.repairs, nil }
-
-// fakeWriterTx answers the verify tail: claim succeeds when claim is set,
-// queue reports repairs.
-type fakeWriterTx struct {
-	repairs int64
-	claim   bool
-}
-
-func (tx *fakeWriterTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return &stagedScriptRows{rows: [][]any{{tx.claim}}}, nil
-}
-
-func (tx *fakeWriterTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return fakeWriterResult{repairs: tx.repairs}, nil
-}
-
-func (tx *fakeWriterTx) Commit() error   { return nil }
-func (tx *fakeWriterTx) Rollback() error { return nil }
-
-type fakeWriterBeginner struct{ tx *fakeWriterTx }
-
-func (b *fakeWriterBeginner) Begin(context.Context) (db.Transaction, error) { return b.tx, nil }
-
-func (b *fakeWriterBeginner) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, fmt.Errorf("staged assembly fake: writer must verify inside a transaction")
-}
-
-func TestStagedAuditVerifyPathRecordsDiscards(t *testing.T) {
-	fleet := &stagedScriptFleet{}
-	telemetry := pgaccess.NewStagedAuditTelemetry()
-	var logs bytes.Buffer
-	auditor := StagedAuditor{
-		Fleet:     fleet,
-		Store:     postgres.SupplyChainImpactWinnersStore{DB: &fakeWriterBeginner{tx: &fakeWriterTx{repairs: 2, claim: true}}},
-		Telemetry: telemetry,
-		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),
-	}
-	audit, err := auditor.AuditWinners(context.Background())
-	if err != nil {
-		t.Fatalf("AuditWinners: %v", err)
-	}
-	if audit.Repairs != 2 {
-		t.Fatalf("repairs = %d, want 2", audit.Repairs)
-	}
-	if got := telemetry.DiscardRate(); got != 1.0 {
-		t.Fatalf("discard rate = %v, want 1.0 (3 candidates, 2 repairs)", got)
-	}
-	if telemetry.Ticks() != 1 {
-		t.Fatalf("shared telemetry ticks = %d, want 1", telemetry.Ticks())
-	}
-	if line := logs.String(); !strings.Contains(line, "staged winners audit tick") || !strings.Contains(line, "discards=1") {
-		t.Fatalf("completed-tick log line must carry discards=1, got %q", line)
-	}
-}
-
-func TestStagedAuditSkippedVerifyRecordsNoVerify(t *testing.T) {
-	fleet := &stagedScriptFleet{}
-	telemetry := pgaccess.NewStagedAuditTelemetry()
-	var logs bytes.Buffer
-	auditor := StagedAuditor{
-		Fleet:     fleet,
-		Store:     postgres.SupplyChainImpactWinnersStore{DB: &fakeWriterBeginner{tx: &fakeWriterTx{}}},
-		Telemetry: telemetry,
-		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),
-	}
-	audit, err := auditor.AuditWinners(context.Background())
-	if err != nil {
-		t.Fatalf("AuditWinners: %v", err)
-	}
-	if !audit.Skipped {
-		t.Fatal("lost lock claim must report Skipped")
-	}
-	if got := telemetry.DiscardRate(); got != 0 {
-		t.Fatalf("discard rate = %v, want 0 (no verify ran)", got)
-	}
-	if line := logs.String(); strings.Contains(line, "staged winners audit tick") {
-		t.Fatalf("skipped pass must not log a completion tick, got %q", line)
+// TestStagedAuditPinFailureDefers keeps a refused member pin a deferral.
+func TestStagedAuditPinFailureDefers(t *testing.T) {
+	t.Parallel()
+	a, tel := newSweepAuditor(&corpus{n: 5, factsPer: 10}, &sweepStore{}, nil)
+	a.Fleet = memberFleet{pinErr: errors.New("no member")}
+	got, err := a.AuditWinners(context.Background())
+	if err != nil || !got.Deferred || tel.Deferrals(pgaccess.StagedAuditDeferBatchAbort) != 1 {
+		t.Fatalf("pin failure = %+v, %v; want a batch_abort deferral", got, err)
 	}
 }

@@ -195,6 +195,12 @@ type SupplyChainImpactWinnersMaintainer struct {
 	Auditor        SupplyChainImpactWinnersAuditor
 	AuditInterval  time.Duration
 	DirtyLogReader SupplyChainImpactWinnersDirtyLogReader
+	// AuditTickBudget bounds the wall time one audit tick spends running
+	// ranges of a range-sweep auditor back to back (#11131); the lease is
+	// renewed before each further range. Zero selects
+	// defaultSupplyChainImpactWinnersAuditTickBudget. A whole-table auditor
+	// runs one pass per tick regardless.
+	AuditTickBudget time.Duration
 	// Contract decides each keyed-maintainer tick from the persisted winners
 	// contract (#11117): no watermark row, a NULL or a lower stored version
 	// runs one guarded full across every instance; an equal version runs keyed

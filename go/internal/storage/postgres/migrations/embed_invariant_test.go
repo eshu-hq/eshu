@@ -352,9 +352,15 @@ import (
 // replay baseline on fact_work_items (NOT NULL DEFAULT 0) and two nullable
 // audit columns on fact_replay_events; metadata-only, no backfill (numbered
 // 334: 333 is held by the #10882 lane; gaps are tolerated).
+// #11131 adds 335_supply_chain_impact_winners_audit_sweep.sql (the staged
+// winners audit sweep's singleton cursor table; DDL only, the row is created
+// on first read).
+// Digest and count recomputed red-first after the #11131 sweep migration was renumbered
+// 331 to 335 at rebase (main owns 331-332 and 334; 333 is held by an unpushed lane;
+// count 360: main's 359 plus 335).
 const (
-	goldenBootstrapDefinitionsDigest = "5d107ba192c27e40a4c5f62e61680431f96a7bead46bd46e2cbd10588b05186a"
-	goldenBootstrapDefinitionsCount  = 359
+	goldenBootstrapDefinitionsDigest = "83d5b6fad34fbf90b22df55094288591bdca9b6f684fc6702f5c22d4185c959a"
+	goldenBootstrapDefinitionsCount  = 360
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

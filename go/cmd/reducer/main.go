@@ -509,9 +509,10 @@ func buildReducerService(
 			// The stale candidate source is attached post-construction in
 			// buildObservedReducerService when routing admits stale audits
 			// (#10416 slice 1); default off leaves this writer-backed.
-			Auditor:        postgres.NewSupplyChainImpactWinnersStore(database),
-			AuditInterval:  loadSupplyChainImpactWinnersAuditInterval(getenv),
-			DirtyLogReader: postgres.NewSupplyChainImpactWinnersStore(database),
+			Auditor:         postgres.NewSupplyChainImpactWinnersStore(database),
+			AuditInterval:   loadSupplyChainImpactWinnersAuditInterval(getenv),
+			AuditTickBudget: loadSupplyChainImpactWinnersAuditTickBudget(getenv),
+			DirtyLogReader:  postgres.NewSupplyChainImpactWinnersStore(database),
 			// #11117: every tick decides from the persisted winners contract,
 			// so a roll with an unchanged contract runs no full resweep.
 			Contract:     postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),

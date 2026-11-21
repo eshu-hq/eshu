@@ -28,6 +28,7 @@ type StagedAuditTelemetry struct {
 	verifies         int64
 	discards         int64
 	unresolvable     int64
+	sweep            stagedAuditSweepCounters
 }
 
 // NewStagedAuditTelemetry builds an empty telemetry recorder.
@@ -43,7 +44,9 @@ func (t *StagedAuditTelemetry) ObserveDeferral(reason StagedAuditDeferralReason)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	switch reason {
-	case StagedAuditDeferBudget, StagedAuditDeferConflictExhausted, StagedAuditDeferBatchAbort:
+	case StagedAuditDeferBudget, StagedAuditDeferConflictExhausted, StagedAuditDeferBatchAbort,
+		StagedAuditDeferTimeout, StagedAuditDeferNullKey, StagedAuditDeferPipe,
+		StagedAuditDeferLockBusy, StagedAuditDeferCursorRace:
 	default:
 		reason = StagedAuditDeferBatchAbort
 	}
@@ -223,5 +226,6 @@ func (t *StagedAuditTelemetry) StagedAuditSnapshot() telemetry.SupplyChainImpact
 	snap.LastMaxBatch = t.lastMaxBatch
 	snap.LastStagedFacts = int64(t.lastStagedFacts)
 	snap.LastDistinctKeys = int64(t.lastDistinctKeys)
+	t.sweep.fill(&snap)
 	return snap
 }
