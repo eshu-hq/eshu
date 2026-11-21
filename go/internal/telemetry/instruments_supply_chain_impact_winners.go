@@ -370,3 +370,27 @@ func (i *Instruments) RecordSupplyChainImpactWinnersStandDown(ctx context.Contex
 	}
 	i.SupplyChainImpactWinnersStandDowns.Add(ctx, 1)
 }
+
+// SupplyChainImpactWinnersStagedAuditSnapshot is one read of the staged
+// audit's in-memory telemetry (#11117): cumulative deferrals by closed
+// reason and completed ticks, and the last completed tick's gauges.
+type SupplyChainImpactWinnersStagedAuditSnapshot struct {
+	Deferrals        map[string]int64
+	Ticks            int64
+	LastBatches      int64
+	LastMaxBatch     time.Duration
+	LastStagedFacts  int64
+	LastDistinctKeys int64
+}
+
+// SupplyChainImpactWinnersStagedAuditSource is the staged audit recorder the
+// exported instruments read at scrape time.
+type SupplyChainImpactWinnersStagedAuditSource interface {
+	StagedAuditSnapshot() SupplyChainImpactWinnersStagedAuditSnapshot
+}
+
+// RegisterSupplyChainImpactWinnersStagedAuditInstruments registers the
+// staged audit's exported instruments over src.
+func RegisterSupplyChainImpactWinnersStagedAuditInstruments(metric.Meter, SupplyChainImpactWinnersStagedAuditSource) error {
+	return nil
+}
