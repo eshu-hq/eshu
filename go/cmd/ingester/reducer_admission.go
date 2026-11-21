@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -151,6 +152,12 @@ type reducerAdmissionWriter struct {
 	instruments *telemetry.Instruments
 	logger      *slog.Logger
 	sleep       func(context.Context, time.Duration) error
+	// sourceChecker and sourceConfig form the per-source admission leg
+	// (#10882): intents whose source is latched slowed defer under reason
+	// source_behind exactly like high-water deferrals. A nil checker or a
+	// disabled config leaves the leg off.
+	sourceChecker reducerAdmissionSourceChecker
+	sourceConfig  workflow.SourceBackpressureConfig
 	// deferral holds the shared graph-write-pressure hysteresis flag. It is a
 	// pointer so copies of the writer value share one state.
 	deferral *admissionDeferralState
@@ -175,7 +182,11 @@ func reducerIntentWriterWithAdmission(
 	if err != nil {
 		return nil, err
 	}
-	if !config.enabled() {
+	sourceConfig, err := loadSourceBackpressureConfig(getenv)
+	if err != nil {
+		return nil, err
+	}
+	if !config.enabled() && !sourceConfig.Enabled() {
 		return inner, nil
 	}
 	if inner == nil {
@@ -185,15 +196,26 @@ func reducerIntentWriterWithAdmission(
 		return nil, errors.New("reducer admission queue depth reader database is required")
 	}
 
-	return reducerAdmissionWriter{
-		inner:       inner,
-		depthReader: postgres.NewQueueObserverStore(database),
-		config:      config,
-		instruments: instruments,
-		logger:      logger,
-		sleep:       sleepContext,
-		deferral:    newAdmissionDeferralState(),
-	}, nil
+	writer := reducerAdmissionWriter{
+		inner:        inner,
+		depthReader:  postgres.NewQueueObserverStore(database),
+		config:       config,
+		sourceConfig: sourceConfig,
+		instruments:  instruments,
+		logger:       logger,
+		sleep:        sleepContext,
+		deferral:     newAdmissionDeferralState(),
+	}
+	if sourceConfig.Enabled() {
+		execQueryer, ok := database.(db.ExecQueryer)
+		if !ok {
+			return nil, errors.New("source backpressure requires an exec-capable database handle for the shared latch")
+		}
+		store := postgres.NewWorkflowControlStore(execQueryer)
+		store.Instruments = instruments
+		writer.sourceChecker = store
+	}
+	return writer, nil
 }
 
 func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionConfig, error) {
@@ -311,7 +333,7 @@ func (w reducerAdmissionWriter) Enqueue(
 	if len(intents) == 0 {
 		return runtime.IntentResult{Count: 0}, nil
 	}
-	if !w.config.enabled() {
+	if !w.config.enabled() && !w.sourceLegEnabled() {
 		return w.inner.Enqueue(ctx, intents)
 	}
 	if w.inner == nil {
@@ -319,6 +341,9 @@ func (w reducerAdmissionWriter) Enqueue(
 	}
 	if w.depthReader == nil {
 		return runtime.IntentResult{}, errors.New("reducer admission depth reader is required")
+	}
+	if w.sourceLegEnabled() {
+		return w.enqueueBySource(ctx, intents)
 	}
 
 	// waitStart bounds the total admission wait across all deferral iterations.
@@ -335,7 +360,7 @@ func (w reducerAdmissionWriter) Enqueue(
 		if reason == "" {
 			return w.inner.Enqueue(ctx, intents)
 		}
-		w.recordDeferral(ctx, reason, failureClass, depth, len(intents))
+		w.recordDeferral(ctx, reason, failureClass, "", depth, len(intents))
 		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(intents)); timeoutErr != nil {
 			return runtime.IntentResult{}, timeoutErr
 		}
@@ -358,6 +383,15 @@ func (w reducerAdmissionWriter) Enqueue(
 // *_n classes) reports zero graph-write-timeout depth and therefore never
 // false-throttles unrelated reducer admission.
 func (w reducerAdmissionWriter) admissionDecision(ctx context.Context) (string, string, int64, error) {
+	return w.admissionDecisionFor(ctx, "")
+}
+
+// admissionDecisionFor is admissionDecision plus the per-source leg: when
+// sourceSystem names a source latched slowed, the group defers under
+// reason source_behind. The source leg is consulted after the global
+// database-protection gates so a saturated backend still reports its own
+// reason first. An empty source (unattributed intents) skips the leg.
+func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, sourceSystem string) (string, string, int64, error) {
 	if w.config.graphWritePressureEnabled() && w.deferral != nil {
 		graphWriteTimeoutDepth, err := w.depthReader.ReducerGraphWriteTimeoutDepth(ctx)
 		if err != nil {
@@ -382,10 +416,20 @@ func (w reducerAdmissionWriter) admissionDecision(ctx context.Context) (string, 
 		}
 	}
 
+	if sourceSystem != "" && w.sourceLegEnabled() {
+		decision, err := w.sourceChecker.CheckSourceBackpressureForSource(ctx, sourceSystem, w.sourceConfig, time.Now())
+		if err != nil {
+			return "", "", 0, fmt.Errorf("check source backpressure for %s: %w", sourceSystem, err)
+		}
+		if decision.Slowed {
+			return workflow.SourceBackpressureReasonSourceBehind, "", 0, nil
+		}
+	}
+
 	return "", "", 0, nil
 }
 
-func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass string, depth int64, intentCount int) {
+func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass, sourceSystem string, depth int64, intentCount int) {
 	if w.failureClassSink != nil {
 		w.failureClassSink(ctx, reason, failureClass, depth, intentCount)
 		return
@@ -395,11 +439,13 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 		if failureClass != "" {
 			attrs = append(attrs, telemetry.AttrFailureClass(failureClass))
 		}
+		if sourceSystem != "" {
+			attrs = append(attrs, telemetry.AttrSourceSystem(sourceSystem))
+		}
 		w.instruments.ReducerAdmissionDeferrals.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
 	if w.logger != nil {
-		w.logger.WarnContext(
-			ctx, "reducer admission deferring enqueue",
+		args := []any{
 			slog.String("reason", reason),
 			log.FailureClass(failureClass),
 			slog.Int64("queue_depth", depth),
@@ -408,7 +454,11 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 			slog.Int64("retrying_low_water_mark", w.config.RetryingLowWaterMark),
 			slog.Duration("poll_interval", w.config.PollInterval),
 			slog.Int("intent_count", intentCount),
-		)
+		}
+		if sourceSystem != "" {
+			args = append(args, slog.String("source_system", sourceSystem))
+		}
+		w.logger.WarnContext(ctx, "reducer admission deferring enqueue", args...)
 	}
 }
 
