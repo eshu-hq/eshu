@@ -204,6 +204,24 @@ func TestWinnersMaintainerHigherContractStandsDown(t *testing.T) {
 	}
 }
 
+// TestWinnersMaintainerAuditRunsOnAMatchingContractWithoutAFull pins the audit
+// gate of #11117 (arbiter addendum item 5d): the audit is gated by the
+// persisted contract only. A fresh process whose stored contract matches runs
+// the audit with no full of its own; before #11117 the audit waited for a
+// per-process "full done" flag that every roll reset, so it never ran on QA.
+func TestWinnersMaintainerAuditRunsOnAMatchingContractWithoutAFull(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeContractWinners{contract: matchingContract()}
+	auditor := &fakeWinnersAuditor{}
+	m := contractMaintainer(f)
+	m.Auditor, m.AuditInterval = auditor, time.Millisecond
+	runContractMaintainer(t, m, func() bool { return auditor.count() >= 2 })
+	if _, fullCalls, _, _ := f.counts(); fullCalls != 0 {
+		t.Fatalf("full calls = %d, want the audit to run with no full", fullCalls)
+	}
+}
+
 // winnersCounterSum sums every data point of the named Int64 counter.
 func winnersCounterSum(t *testing.T, reader *sdkmetric.ManualReader, name string) int64 {
 	t.Helper()
