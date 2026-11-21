@@ -75,3 +75,33 @@ Same instrument set as Bootstrap-Index, plus continuous service-level metrics.
 It records queue claim latency, queue depth, oldest queue age, projector stage
 duration, and projection success/failure counters so operators can distinguish
 collector pressure from graph-write or queue-drain pressure.
+
+## Reducer admission (global ceiling, not per source)
+
+Before the projector runtime enqueues reducer intents, an admission writer
+(`go/cmd/ingester/reducer_admission.go`) defers the enqueue while either
+signal below is hot. Both signals are totals across **all sources**: one
+source can use the whole allowance while another source starves. Per-source
+slowing is tracked separately by issue #10882 (design record
+`docs/internal/design/10882-source-backpressure.md`), which this section
+does not implement.
+
+| Signal | Engage | Release | Env |
+|---|---|---|---|
+| Total outstanding reducer depth (`pending\|claimed\|running\|retrying`, active generations) | At or above `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` (default 10,000) | Below the mark | `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK`, `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` |
+| Graph-write pressure: retrying reducer rows with `failure_class='graph_write_timeout'` | At or above `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` (default 500) | Below `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` (default 100) | `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK`, `ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK` |
+
+While deferring, `Enqueue` poll-waits (the projector heartbeat keeps the
+claim alive) until the signals release or `ESHU_REDUCER_ADMISSION_MAX_WAIT`
+(default 5m) expires. On expiry the item fails retryable with an incremented
+attempt (`ErrReducerAdmissionTimeout`); it becomes a terminal
+`admission_timeout` dead letter only if the attempt budget is exhausted. So a
+full queue delays intake and, if the queue never drains within the attempt
+budget, drops it as a dead letter — it never applies backpressure to the
+source that is actually behind.
+
+Scope gaps to know before tuning these marks: the gate guards the ingester's
+own intent enqueue only, and the standalone projector
+(`go/cmd/projector/runtime_wiring.go`) enqueues through a plain writer with
+no admission gate; while the gate defers, scheduled git collection keeps
+committing generations and the projector-stage queue grows instead.
