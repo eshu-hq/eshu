@@ -16,13 +16,38 @@ reversal, used to reach the other copies on that scope's own cadence. Now, after
 the writer commit and before the queue acknowledgement, a pass that changed or
 retracted rows reopens the `supply_chain_impact` item of every scope that holds
 an active copy of those CVEs (`fanout.go`, `writer_changed.go`, and the store in
-`storage/postgres/supply_chain_impact_fanout.go`). The reopened pass
+`storage/postgres/supply_chain_impact_fanout.go`, whose reopen statement is in
+`supply_chain_impact_fanout_reopen.go`). The reopened pass
 re-derives its copy, so a retracted CVE reads `advisory_retracted` in a holder's
 copy once that holder's next pass runs, and a restored one returns each copy to
 its pre-retraction state: `active`, or hidden for an operator's decision when
 one applies. There is no precedence rule in the winners query. A holder's lag
 is queue latency plus one holder pass plus one winners resweep, and a CVE with
-more than 256 holders drains across claims.
+more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound.
+
+## Dead-lettered holders (#11147)
+
+A holder whose item is a dead letter at its scope's active generation keeps a
+stale copy that nothing else re-derives, so the reopen moves it back to
+`pending` as a full genuine pass: `attempt_count` 0, lease, retry, and failure
+fields cleared, `visible_at` and `reopened_at` set to now, the
+container-image-identity authorization columns set the way the admin replay
+sets them, and no origin stamp (an existing one is removed). A stamped
+attempt-1 pass would run as a CVE-scoped one hop (`fanOutOneHop`), mark the
+item succeeded, and hide the unfinished genuine pass. Its `fanout_owed` marker
+and `fanout_remaining` list stay, so the reopened pass still fans out what the
+dead pass owed. A dead letter whose class is in the admin unsafe-replay set
+(`recovery.UnsafeReplayFailureClasses`, the one source the replay endpoint also
+reads) stays dead and reports `dead_letter_skipped`; an operator addresses its
+cause and replays it. There is no attempt cap across reopens: a cap would be a
+silent stale copy, and the cost is bounded by the change rate times the attempt
+budget. A dead letter at a superseded generation is never touched. Outcomes:
+`dead_letter_reopened` and `dead_letter_skipped` carry the prior
+`failure_class` on the fan-out counter and write one info line each;
+`no_active_generation` names a holder scope with no active generation;
+`pending_noop` now means only a queued or already-flagged row. The
+`eshu_dp_supply_chain_impact_active_dead_letters{failure_class}` gauge and its
+`_owing_fanout` subset show what is still pinned. One residual is open: a running holder that a fan-out flags and that then dead-letters loses the flagged change, because the dead-letter transition clears the flag, until another change reaches it (#11159).
 
 ## Rules
 

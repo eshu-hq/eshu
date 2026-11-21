@@ -433,3 +433,10 @@ func TestRescanThatRejectsTheRecordFansOutLive(t *testing.T) {
 		convergenceSource: "advisory_retracted", convergenceHolder: "advisory_retracted", convergenceOperator: "advisory_retracted",
 	})
 }
+
+// reopenOutcome reopens one holder through the fan-out port and returns only
+// its outcome, for the race proofs that assert the outcome alone.
+func reopenOutcome(ctx context.Context, port supplychaincore.SupplyChainImpactFanOut, holder string, origin supplychaincore.FanOutOrigin) (supplychaincore.FanOutOutcome, error) {
+	reopen, err := port.ReopenHolderDetailed(ctx, holder, origin)
+	return reopen.Outcome, err
+}

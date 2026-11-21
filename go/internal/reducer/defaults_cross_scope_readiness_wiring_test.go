@@ -224,8 +224,8 @@ func (p *registrationFanOut) FindHolderScopes(context.Context, string, []string)
 	return nil, nil
 }
 
-func (p *registrationFanOut) ReopenHolder(context.Context, string, supplychaincore.FanOutOrigin) (supplychaincore.FanOutOutcome, error) {
-	return supplychaincore.FanOutPendingNoop, nil
+func (p *registrationFanOut) ReopenHolderDetailed(context.Context, string, supplychaincore.FanOutOrigin) (supplychaincore.FanOutReopen, error) {
+	return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutPendingNoop}, nil
 }
 
 func (p *registrationFanOut) FindInFlightScopes(context.Context, string) ([]string, error) {

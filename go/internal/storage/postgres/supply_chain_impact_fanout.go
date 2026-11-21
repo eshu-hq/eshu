@@ -8,13 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -81,77 +79,6 @@ JOIN ingestion_scopes AS scope
  AND scope.active_generation_id = candidates.generation_id
 WHERE candidates.scope_id <> $2
 ORDER BY candidates.scope_id
-`
-
-// reopenSupplyChainImpactHolderQuery reopens one holder's supply_chain_impact
-// item at the scope's CURRENT active generation, in one autocommit statement
-// that holds at most one row lock. The CTE locks the row in work_item_id order;
-// the UPDATE evaluates every CASE on the locked row, so a row that committed
-// succeeded while the statement waited is reopened rather than lost. The SET
-// list matches scheduleCrossScopeMaterializationReplayQuery, including the
-// container-image-identity authorization columns the claim path reads. A
-// pending or retrying row is classified and left untouched, so a queued holder
-// costs no row version; a claimed or running row gets the durable replay bit the
-// migration 093 trigger turns into one rerun. The origin stamp is overwritten on
-// every row the statement writes. Arguments: $1 holder scope id, $2 now, $3
-// stamp JSON.
-const reopenSupplyChainImpactHolderQuery = `
-WITH target AS MATERIALIZED (
-    SELECT work.work_item_id,
-           work.status AS prior_status,
-           work.cross_scope_replay_required AS prior_flag
-    FROM fact_work_items AS work
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = work.scope_id
-     AND scope.active_generation_id = work.generation_id
-    WHERE work.scope_id = $1
-      AND work.stage = 'reducer'
-      AND work.domain = 'supply_chain_impact'
-      AND work.status IN ('succeeded', 'claimed', 'running', 'pending', 'retrying')
-    ORDER BY work.work_item_id COLLATE "C"
-    FOR NO KEY UPDATE OF work
-), moved AS (
-    UPDATE fact_work_items AS work
-    SET status = CASE WHEN work.status = 'succeeded' THEN 'pending' ELSE work.status END,
-        attempt_count = CASE WHEN work.status = 'succeeded' THEN 0 ELSE work.attempt_count END,
-        container_image_identity_v2_authorized_status = CASE
-            WHEN work.status = 'succeeded' AND work.container_image_identity_v2_required THEN 'pending'
-            ELSE work.container_image_identity_v2_authorized_status
-        END,
-        container_image_identity_v3_authorized_status = CASE
-            WHEN work.status = 'succeeded' AND work.container_image_identity_v3_required THEN 'pending'
-            ELSE work.container_image_identity_v3_authorized_status
-        END,
-        lease_owner = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.lease_owner END,
-        claim_until = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.claim_until END,
-        visible_at = CASE WHEN work.status = 'succeeded' THEN $2 ELSE work.visible_at END,
-        next_attempt_at = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.next_attempt_at END,
-        updated_at = $2,
-        reopened_at = CASE WHEN work.status = 'succeeded' THEN $2 ELSE work.reopened_at END,
-        cross_scope_replay_required = CASE
-            WHEN work.status IN ('claimed', 'running') THEN TRUE
-            ELSE work.cross_scope_replay_required
-        END,
-        failure_class = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_class END,
-        failure_message = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_message END,
-        failure_details = CASE WHEN work.status = 'succeeded' THEN NULL ELSE work.failure_details END,
-        payload = jsonb_set(work.payload, '{` + supplychaincore.PayloadKeyFanOutOrigin + `}', $3::jsonb, TRUE)
-    FROM target
-    WHERE work.work_item_id = target.work_item_id
-      AND (work.status = 'succeeded'
-           OR (work.status IN ('claimed', 'running') AND NOT work.cross_scope_replay_required))
-    RETURNING work.work_item_id
-)
-SELECT target.prior_status,
-       EXISTS (SELECT 1 FROM moved WHERE moved.work_item_id = target.work_item_id) AS rewritten
-FROM target
-ORDER BY target.work_item_id COLLATE "C"
-`
-
-// activeGenerationSupplyChainImpactQuery resolves the holder's active
-// generation for the enqueue path.
-const activeGenerationSupplyChainImpactQuery = `
-SELECT COALESCE(active_generation_id, '') FROM ingestion_scopes WHERE scope_id = $1
 `
 
 // recordSupplyChainImpactFanOutStateQuery updates the calling pass's own item,
@@ -275,145 +202,6 @@ func classifyFanOutReadError(err error) error {
 		return fmt.Errorf("%w: %v", supplychaincore.ErrFanOutReadTimeout, err)
 	}
 	return fmt.Errorf("find supply chain impact holders: %w", err)
-}
-
-// ReopenHolder reopens the holder's supply_chain_impact item at its current
-// active generation, or enqueues one when that generation has none. The stamp
-// carries the origin's CVE set (#9740); the enqueue path stamps none, so a
-// generation that never had an item runs its establishing pass full.
-func (s SupplyChainImpactFanOutStore) ReopenHolder(
-	ctx context.Context,
-	holderScopeID string,
-	origin supplychaincore.FanOutOrigin,
-) (supplychaincore.FanOutOutcome, error) {
-	if s.DB == nil {
-		return "", errors.New("supply chain impact fan-out database is required")
-	}
-	canonical := origin
-	canonical.CVEIDs = supplychaincore.CapFanOutStampCVEIDs(origin.CVEIDs)
-	stamp, err := supplychaincore.FanOutStampJSON(canonical)
-	if err != nil {
-		return "", fmt.Errorf("marshal supply chain impact fan-out stamp: %w", err)
-	}
-	now := s.now()
-	rows, err := s.DB.QueryContext(ctx, reopenSupplyChainImpactHolderQuery, holderScopeID, now, string(stamp))
-	if err != nil {
-		return "", fmt.Errorf("reopen supply chain impact holder: %w", err)
-	}
-	var matched int
-	outcome := supplychaincore.FanOutPendingNoop
-	for rows.Next() {
-		var (
-			prior     string
-			rewritten bool
-		)
-		if err := rows.Scan(&prior, &rewritten); err != nil {
-			_ = rows.Close()
-			return "", fmt.Errorf("scan supply chain impact holder reopen: %w", err)
-		}
-		matched++
-		switch {
-		case prior == "succeeded" && rewritten:
-			outcome = supplychaincore.FanOutReopened
-		case (prior == "claimed" || prior == "running") && rewritten && outcome != supplychaincore.FanOutReopened:
-			outcome = supplychaincore.FanOutReplayFlagged
-		}
-	}
-	closeErr := rows.Close()
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("iterate supply chain impact holder reopen: %w", err)
-	}
-	if closeErr != nil {
-		return "", fmt.Errorf("close supply chain impact holder reopen: %w", closeErr)
-	}
-	if matched > 0 {
-		return outcome, nil
-	}
-	return s.enqueueMissingHolder(ctx, holderScopeID, origin, now)
-}
-
-// ReopenSupplyChainImpactHolderInTransaction is ReopenHolder on the caller's
-// transaction, stamped with the generation that changed. The commit-skew fence
-// (eshu-hq/eshu#10055) uses it so a retraction and its holders' reopen commit
-// together: a crash cannot leave a retracted generation whose holders were never
-// told. It takes one holder's item row locks and no scope row, and the caller owns
-// their duration, so reopen holders in a stable order.
-func ReopenSupplyChainImpactHolderInTransaction(
-	ctx context.Context,
-	tx db.ExecQueryer,
-	holderScopeID, sourceScopeID, sourceGenerationID string,
-	now time.Time,
-) error {
-	store := SupplyChainImpactFanOutStore{DB: tx, Now: func() time.Time { return now }}
-	_, err := store.ReopenHolder(ctx, holderScopeID, supplychaincore.FanOutOrigin{
-		SourceScopeID:      sourceScopeID,
-		SourceGenerationID: sourceGenerationID,
-	})
-	return err
-}
-
-// enqueueMissingHolder creates the holder's supply_chain_impact item when its
-// active generation has none (the projector enqueues one only when the
-// generation's own facts name a trigger). A holder with no active generation, or
-// whose item already exists in a state the reopen does not move (a dead letter),
-// is left alone and reported as a no-op: a dead letter is already loud and an
-// operator replays it. The enqueued item stamps the origin without its CVE set:
-// this may be the generation's establishing pass, which must derive the whole
-// finding set, so it always runs full.
-func (s SupplyChainImpactFanOutStore) enqueueMissingHolder(
-	ctx context.Context,
-	holderScopeID string,
-	origin supplychaincore.FanOutOrigin,
-	now time.Time,
-) (supplychaincore.FanOutOutcome, error) {
-	rows, err := s.DB.QueryContext(ctx, activeGenerationSupplyChainImpactQuery, holderScopeID)
-	if err != nil {
-		return "", fmt.Errorf("read supply chain impact holder generation: %w", err)
-	}
-	var generationID string
-	if rows.Next() {
-		if err := rows.Scan(&generationID); err != nil {
-			_ = rows.Close()
-			return "", fmt.Errorf("scan supply chain impact holder generation: %w", err)
-		}
-	}
-	closeErr := rows.Close()
-	if err := rows.Err(); err != nil {
-		return "", fmt.Errorf("iterate supply chain impact holder generation: %w", err)
-	}
-	if closeErr != nil {
-		return "", fmt.Errorf("close supply chain impact holder generation: %w", closeErr)
-	}
-	if strings.TrimSpace(generationID) == "" {
-		return supplychaincore.FanOutPendingNoop, nil
-	}
-	withoutCVEs := origin
-	withoutCVEs.CVEIDs = nil
-	encoded, err := supplychaincore.FanOutStampJSON(withoutCVEs)
-	if err != nil {
-		return "", fmt.Errorf("marshal supply chain impact fan-out stamp: %w", err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(encoded, &payload); err != nil {
-		return "", fmt.Errorf("decode supply chain impact fan-out stamp: %w", err)
-	}
-	queue := NewReducerQueue(s.DB, s.LeaseOwner, 0)
-	inserted, err := queue.enqueueReducerBatch(ctx, []runtime.ReducerIntent{{
-		ScopeID:      holderScopeID,
-		GenerationID: generationID,
-		Domain:       reducercontract.DomainSupplyChainImpact,
-		EntityKey:    "supply_chain_impact:" + holderScopeID,
-		Reason:       "supply chain impact holder re-derivation after " + origin.SourceScopeID + " changed a finding",
-		SourceSystem: "reducer",
-		Payload:      map[string]any{supplychaincore.PayloadKeyFanOutOrigin: payload},
-	}}, now)
-	if err != nil {
-		return "", fmt.Errorf("enqueue supply chain impact holder: %w", err)
-	}
-	if inserted > 0 {
-		return supplychaincore.FanOutEnqueued, nil
-	}
-	return supplychaincore.FanOutPendingNoop, nil
 }
 
 // UpdateFanOutState applies state to the calling pass's own queue item, fenced

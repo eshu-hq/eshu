@@ -27,10 +27,13 @@ const fanOutOperatorScope = "operator:vulnerability_suppressions"
 // the way the queue would: the payload a claim sees is what the previous claim
 // stored.
 type stubFanOut struct {
-	holders       []string
-	findErr       error
-	reopenErr     map[string]error
-	outcomes      map[string]FanOutOutcome
+	holders   []string
+	findErr   error
+	reopenErr map[string]error
+	outcomes  map[string]FanOutOutcome
+	// priorClasses is the dead-letter class ReopenHolderDetailed reports per
+	// holder (#11147).
+	priorClasses  map[string]string
 	findCalls     [][]string
 	findOwn       []string
 	reopened      []string
@@ -151,18 +154,18 @@ func (s *stubFanOut) EstimateHolderMasses(_ context.Context, lookupIDs []string)
 	return out, nil
 }
 
-func (s *stubFanOut) ReopenHolder(_ context.Context, holderScopeID string, origin FanOutOrigin) (FanOutOutcome, error) {
+func (s *stubFanOut) ReopenHolderDetailed(_ context.Context, holderScopeID string, origin FanOutOrigin) (FanOutReopen, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.reopenErr[holderScopeID]; err != nil {
-		return "", err
+		return FanOutReopen{}, err
 	}
 	s.reopened = append(s.reopened, holderScopeID)
 	s.origins = append(s.origins, origin)
 	if outcome, ok := s.outcomes[holderScopeID]; ok {
-		return outcome, nil
+		return FanOutReopen{Outcome: outcome, PriorFailureClass: s.priorClasses[holderScopeID]}, nil
 	}
-	return FanOutReopened, nil
+	return FanOutReopen{Outcome: FanOutReopened}, nil
 }
 
 func (s *stubFanOut) ClearReplayFlagIfStampSeen(_ context.Context, _ reducercontract.Intent, seen map[string]any) (bool, error) {

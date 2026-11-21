@@ -306,14 +306,13 @@ func (h SupplyChainImpactHandler) reopenManifestHolders(
 	}
 	origin := FanOutOrigin{SourceScopeID: intent.ScopeID, SourceGenerationID: intent.GenerationID, SourceIntentID: intent.IntentID}
 	for _, holder := range batch {
-		outcome, err := h.FanOut.ReopenHolder(ctx, holder, origin)
+		reopen, err := h.FanOut.ReopenHolderDetailed(ctx, holder, origin)
 		if err != nil {
 			h.countFanOut(ctx, result.cause, fanOutOutcomeReopenError, 1)
 			span.RecordError(err)
 			return reducercontract.Result{}, fanOutError{fmt.Errorf("reopen supply chain impact holder %q: %w", holder, err)}
 		}
-		result.record(outcome)
-		h.logFanOutHolder(ctx, intent, holder, outcome)
+		h.recordHolderReopen(ctx, intent, &result, holder, reopen)
 	}
 	if len(rest) > 0 || continuation {
 		state.ReplaceRemaining = true

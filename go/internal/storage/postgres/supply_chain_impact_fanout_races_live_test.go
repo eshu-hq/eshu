@@ -70,7 +70,7 @@ func TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive(t *testing.T) {
 	c.setSourceStatus("Rejected")
 	c.rerun(convergenceSource)
 	intent := c.raceClaim(convergenceSource)
-	outcome, err := c.fanOut.ReopenHolder(c.ctx, convergenceSource, supplychaincore.FanOutOrigin{SourceScopeID: convergenceHolder, SourceGenerationID: "g", SourceIntentID: "i"})
+	outcome, err := reopenOutcome(c.ctx, c.fanOut, convergenceSource, supplychaincore.FanOutOrigin{SourceScopeID: convergenceHolder, SourceGenerationID: "g", SourceIntentID: "i"})
 	if err != nil || outcome != supplychaincore.FanOutReplayFlagged {
 		t.Fatalf("concurrent reopen of the running source = %q %v", outcome, err)
 	}
@@ -111,7 +111,7 @@ func TestFanOutRaceStampDuringDrainKeepsTheContinuationLive(t *testing.T) {
 	}
 	// Claim 2 drains the first entry; meanwhile another scope's fan-out stamps it.
 	claim2 := c.raceClaim(convergenceSource)
-	if out, err := c.fanOut.ReopenHolder(c.ctx, convergenceSource, supplychaincore.FanOutOrigin{SourceScopeID: "scope:other"}); err != nil || out != supplychaincore.FanOutReplayFlagged {
+	if out, err := reopenOutcome(c.ctx, c.fanOut, convergenceSource, supplychaincore.FanOutOrigin{SourceScopeID: "scope:other"}); err != nil || out != supplychaincore.FanOutReplayFlagged {
 		t.Fatalf("stamp during drain = %q %v", out, err)
 	}
 	if err := c.fanOut.UpdateFanOutState(c.ctx, claim2, supplychaincore.FanOutState{ReplaceRemaining: true, Remaining: []string{convergenceHolder}}); err != nil {
