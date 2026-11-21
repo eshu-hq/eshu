@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -37,6 +38,8 @@ type fakeContractWinners struct {
 	// keyedStandsDown makes every keyed tick report the under-lock
 	// stand-down (#11117): a newer full committed after the decision read.
 	keyedStandsDown bool
+	// readErr makes every contract read fail, as a database error would.
+	readErr error
 }
 
 func (f *fakeContractWinners) current() bool {
@@ -88,6 +91,9 @@ func (f *fakeContractWinners) WinnersContract(context.Context) (SupplyChainImpac
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
+	if f.readErr != nil {
+		return SupplyChainImpactWinnersContract{}, f.readErr
+	}
 	return f.contract, nil
 }
 
@@ -182,6 +188,26 @@ func TestWinnersMaintainerLowerContractRunsOneFull(t *testing.T) {
 	})
 	if _, _, fullCommits, _ := f.counts(); fullCommits != 1 {
 		t.Fatalf("committed fulls = %d with a lower stored contract, want exactly 1", fullCommits)
+	}
+}
+
+// TestWinnersMaintainerContractReadFailureFailsClosed proves a contract read
+// that fails runs nothing: no full, no keyed tick and no audit, because the
+// maintainer cannot tell which statements produced the stored winners. It
+// keeps retrying the read rather than falling back to either path.
+func TestWinnersMaintainerContractReadFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeContractWinners{contract: matchingContract(), readErr: errors.New("contract read failed")}
+	auditor := &fakeWinnersAuditor{}
+	m := contractMaintainer(f)
+	m.Auditor, m.AuditInterval = auditor, time.Millisecond
+	runContractMaintainer(t, m, func() bool {
+		reads, _, _, _ := f.counts()
+		return reads >= 3
+	})
+	if _, fullCalls, _, keyed := f.counts(); fullCalls != 0 || keyed != 0 || auditor.count() != 0 {
+		t.Fatalf("full calls = %d, keyed = %d, audits = %d after a failed contract read, want all 0", fullCalls, keyed, auditor.count())
 	}
 }
 

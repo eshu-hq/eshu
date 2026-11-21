@@ -137,8 +137,8 @@ Conflict domain: the winners table and the dirty log.
 | `DELETE` of a scope | closed: the `BEFORE DELETE` trigger expands the scope's findings before the cascade; the real-foreign-key fence-then-purge test is RED without it |
 | `DELETE` of a scanner row | closed: `AFTER DELETE` triggers on both scanner tables, each with a seeded pair |
 | `supersedeOrphanedActiveGenerationsQuery` (`generation_liveness_sql.go`) sets `status = 'superseded'` on an older active generation and never moves the pointer | open by design (review F4): it only acts in the anomalous state of two active generations, where the winners select reads the pointer's generation and requires `status = 'active'`; the audit repairs it. Not captured, named here |
-| `session_replication_role = replica` (a `pg_restore --disable-triggers` load, a logical-replication subscriber) | not a production write path; the startup full resweep and the audit repair it. `ENABLE ALWAYS TRIGGER` would close it and is not required |
-| `TRUNCATE` | no code path truncates these tables; a truncate of `ingestion_scopes` is a rebuild covered by the startup full resweep |
+| `session_replication_role = replica` (a `pg_restore --disable-triggers` load, a logical-replication subscriber) | not a production write path; the audit repairs it, and the force-full runbook step (NULL both contract columns, #11117) re-runs a full. `ENABLE ALWAYS TRIGGER` would close it and is not required |
+| `TRUNCATE` | no code path truncates these tables; a truncate of `ingestion_scopes` is a rebuild covered by the force-full runbook step (NULL both contract columns, #11117) |
 | `ALTER TABLE ... DISABLE TRIGGER` | only the seeded-violation tests do this |
 
 ## Proof run
