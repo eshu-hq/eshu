@@ -81,8 +81,13 @@ func supplyChainImpactWinnerConflictSet() string {
 // The data-modifying CTEs always run to completion, whether or not the final
 // statement reads them.
 //
-// $1 is the new watermark and the materialized_at of every written row. Run it
-// only through ResweepWinners.
+// $1 is the stamp ceiling S and the materialized_at of every written row. The
+// watermark is GREATEST(previous, LEAST(S, residual min - 1us)) (#11117): the
+// residual is the dirty-log and staged marks the statement's own snapshot
+// still sees, so a mark that committed before the rebuild snapshot but after
+// the caller's drain caps the stamp below its captured_at instead of being
+// covered by S, and the watermark never regresses. With an empty residual the
+// LEAST is S. Run it only through ResweepWinners or the keyed fallback.
 var rebuildSupplyChainImpactWinnersSQL = `
 WITH winners_now AS (` + supplyChainImpactWinnerSelectSQL + `),
 changed AS MATERIALIZED (
@@ -109,8 +114,16 @@ deleted AS (
     RETURNING 1
 )
 INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)
-VALUES (1, $1)
-ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at
+VALUES (1, LEAST($1::timestamptz, (
+    SELECT min(r.captured_at) - interval '1 microsecond'
+    FROM (
+        SELECT min(captured_at) AS captured_at FROM supply_chain_impact_winners_dirty_log
+        UNION ALL
+        SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_staging
+    ) AS r
+)))
+ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(
+    supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)
 RETURNING
     (SELECT count(*) FROM changed WHERE is_new),
     (SELECT count(*) FROM changed WHERE NOT is_new),
@@ -190,19 +203,28 @@ func (s SupplyChainImpactWinnersStore) WithInstruments(in *telemetry.Instruments
 }
 
 // ResweepWinners reconciles the entire winners table to the current active
-// impact-fact set in one atomic statement and reports what it wrote. It writes
-// a row version only for a winner that is new or changed, deletes winners no
+// impact-fact set in one transaction and reports what it wrote. It writes a
+// row version only for a winner that is new or changed, deletes winners no
 // longer in the active set, and always stamps the watermark. It is the #3389
-// backfill and the safe full-resweep backstop; the per-canonical_key
-// incremental path used by the shared-projection worker is a future addition
-// that reuses supplyChainImpactWinnerSelectSQL with a canonical_key filter.
+// backfill and the safe full-resweep backstop.
+//
+// Under the resweep lock it runs, in this order (#11117): read S from the DB
+// clock, delete every dirty-log and staged mark visible to that delete, then
+// run the rebuild. Marks are staged in the transaction that makes the change,
+// so every mark the delete sees names a change the later rebuild snapshot
+// sees too: the full recomputes every key, so it consumes what it covers.
+// Deleting after the rebuild would delete marks of changes committed between
+// the two snapshots and lose them. The rebuild stamps GREATEST(previous,
+// LEAST(S, residual min - 1us)), so a mark committed after the drain stays
+// queued with the watermark under it. A mark that executes before S and
+// commits after the rebuild snapshot stays queued for the next tick, which
+// applies it. A failed full rolls the deletes back with the rebuild.
 //
 // When another resweep is in flight it writes nothing, stamps nothing and
 // returns Skipped. Any other non-nil result means the transaction committed; on
 // an error the result is the zero value and nothing was written.
 func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	ctx context.Context,
-	materializedAt any,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var none supplychaincore.SupplyChainImpactWinnersResweep
 	if s.DB == nil {
@@ -225,19 +247,35 @@ func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
-	result, err := runSupplyChainImpactWinnersRebuild(ctx, tx, materializedAt)
+	stamp, err := scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners full resweep clock")
 	if err != nil {
 		return none, err
 	}
+	tally, err := drainWinnersDirtyForFull(ctx, tx)
+	if err != nil {
+		return none, err
+	}
+	result, err := runSupplyChainImpactWinnersRebuild(ctx, tx, stamp)
+	if err != nil {
+		return none, err
+	}
+	result.Path = telemetry.SupplyChainImpactWinnersPathFull
+	result.Identifiers = tally.total()
+	result.TriggerCaptured = tally.triggerSources()
+	if result.Remaining, err = countWinnersFullResidual(ctx, tx); err != nil {
+		return none, err
+	}
+	if result.Watermark, err = scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read committed supply chain impact winners watermark"); err != nil {
+		return none, err
+	}
 	// #10876: the resweep commit is the providing save for the
-	// winners_watermark wait kind. The wake runs in the same transaction;
-	// the waiting set is narrow (advisory only) and the maintainer commits
-	// on a 30-second cadence, inside the measured coarse-wake budget.
-	if watermark, ok := materializedAt.(time.Time); ok && !watermark.IsZero() {
-		if _, err := wakeWinnersWatermark(ctx, tx, s.Instruments, WaitingWakeSiteInTx,
-			watermark.UTC(), time.Now().UTC()); err != nil {
-			return none, fmt.Errorf("wake winners waiting items: %w", err)
-		}
+	// winners_watermark wait kind. The wake runs in the same transaction and
+	// carries the committed watermark, not the stamp ceiling; the waiting set
+	// is narrow (advisory only) and the maintainer commits on a 30-second
+	// cadence, inside the measured coarse-wake budget.
+	if _, err := wakeWinnersWatermark(ctx, tx, s.Instruments, WaitingWakeSiteInTx,
+		result.Watermark, time.Now().UTC()); err != nil {
+		return none, fmt.Errorf("wake winners waiting items: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return none, fmt.Errorf("commit supply chain impact winners resweep: %w", err)
@@ -267,6 +305,96 @@ func claimSupplyChainImpactWinnersResweep(ctx context.Context, tx db.Transaction
 	return claimed, nil
 }
 
+// drainWinnersDirtyLogForFullSQL deletes every dirty-log row the statement
+// sees, for the full resweep (#11117), and tallies the deleted marks by
+// capture source and by the NVD trip tally, like the keyed drains. It keeps
+// their lock-then-delete shape: the locked CTE takes the rows' locks in the
+// global key order (winnersDirtyKeyOrderClause) with FOR UPDATE, and the
+// delete removes exactly the locked seqs. There is no admission copy to
+// recheck a version against: the lock and the delete are one statement, and a
+// row whose version a committed tick bumped is re-read under the lock with
+// its bumped version, a change the later rebuild snapshot also sees. The tick
+// collapse and convert are the only other log writers and run under the same
+// resweep lock, so the drain meets no concurrent log writer.
+var drainWinnersDirtyLogForFullSQL = `
+WITH locked AS (
+    SELECT d.seq AS seq
+    FROM supply_chain_impact_winners_dirty_log AS d
+    ORDER BY ` + winnersDirtyKeyOrderClause("d") + `
+    FOR UPDATE OF d
+),
+deleted AS (
+    DELETE FROM supply_chain_impact_winners_dirty_log AS d
+    USING locked AS l
+    WHERE d.seq = l.seq
+    RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id
+)` + winnersDirtyTallyCTEs + `
+SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
+`
+
+// drainWinnersStagingForFullSQL deletes every staged mark the statement sees,
+// for the full resweep (#11117), and tallies them like the log drain. One
+// staged row is one mark, so each counts as dirty_version 1: the same sum the
+// collapse would have folded into the log. Writers only INSERT staged rows
+// and take no row locks, so the delete waits on none; a staged row whose
+// writer has not committed is invisible to the delete and stays queued.
+var drainWinnersStagingForFullSQL = `
+WITH deleted AS (
+    DELETE FROM supply_chain_impact_winners_dirty_staging AS s
+    RETURNING s.source, 1::bigint AS dirty_version, s.kind, s.captured_at, s.advisory_id, s.scope_id
+)` + winnersDirtyTallyCTEs + `
+SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
+`
+
+// drainWinnersDirtyForFull deletes the dirty-log and staged marks the full
+// resweep covers, log first, and returns their marks by capture source. It
+// must run after the clock read and before the rebuild statement, in the
+// resweep transaction.
+func drainWinnersDirtyForFull(ctx context.Context, tx db.Transaction) (winnersCaptureTally, error) {
+	tally := winnersCaptureTally{}
+	for _, drain := range []struct{ name, sql string }{
+		{"dirty log", drainWinnersDirtyLogForFullSQL},
+		{"staging", drainWinnersStagingForFullSQL},
+	} {
+		rows, err := tx.QueryContext(ctx, drain.sql)
+		if err != nil {
+			return nil, fmt.Errorf("drain supply chain impact winners %s for the full resweep: %w", drain.name, err)
+		}
+		for rows.Next() {
+			var source string
+			var n int64
+			if err := rows.Scan(&source, &n); err != nil {
+				_ = rows.Close()
+				return nil, fmt.Errorf("scan drained supply chain impact winners %s marks: %w", drain.name, err)
+			}
+			tally[source] += n
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("drain supply chain impact winners %s for the full resweep: %w", drain.name, err)
+		}
+		if err := rows.Close(); err != nil {
+			return nil, fmt.Errorf("close drained supply chain impact winners %s marks: %w", drain.name, err)
+		}
+	}
+	return tally, nil
+}
+
+// countWinnersFullResidual counts the dirty-log and staged marks left after
+// the full resweep's rebuild: marks that committed after the drain. The
+// stamp is already capped under them; the count only reports them.
+func countWinnersFullResidual(ctx context.Context, tx db.Transaction) (int64, error) {
+	logRows, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count supply chain impact winners full residual")
+	if err != nil {
+		return 0, err
+	}
+	staged, _, err := countWinnersStagingResidual(ctx, tx, "count supply chain impact winners full staging residual")
+	if err != nil {
+		return 0, err
+	}
+	return logRows + staged, nil
+}
+
 // runSupplyChainImpactWinnersRebuild runs the rebuild statement and reads its one
 // row of counts. It drains and closes the cursor before returning: a statement
 // error can arrive after the row, and the driver must be done with the cursor
@@ -274,10 +402,10 @@ func claimSupplyChainImpactWinnersResweep(ctx context.Context, tx db.Transaction
 func runSupplyChainImpactWinnersRebuild(
 	ctx context.Context,
 	tx db.Transaction,
-	materializedAt any,
+	stamp time.Time,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var result supplychaincore.SupplyChainImpactWinnersResweep
-	rows, err := tx.QueryContext(ctx, rebuildSupplyChainImpactWinnersSQL, materializedAt)
+	rows, err := tx.QueryContext(ctx, rebuildSupplyChainImpactWinnersSQL, stamp)
 	if err != nil {
 		return result, fmt.Errorf("rebuild supply chain impact canonical winners: %w", err)
 	}
@@ -333,8 +461,8 @@ func (s SupplyChainImpactWinnersStore) Watermark(ctx context.Context) (at time.T
 // resweep held the single-flight lock and nothing was reconciled or stamped. A
 // caller that must have the table reconciled then retries once that resweep
 // ends; a nil return always means this call rebuilt the table.
-func (s SupplyChainImpactWinnersStore) RebuildAllWinners(ctx context.Context, materializedAt any) error {
-	result, err := s.ResweepWinners(ctx, materializedAt)
+func (s SupplyChainImpactWinnersStore) RebuildAllWinners(ctx context.Context) error {
+	result, err := s.ResweepWinners(ctx)
 	if err != nil {
 		return err
 	}

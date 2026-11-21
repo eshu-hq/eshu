@@ -150,12 +150,12 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 	winnersLiveSeedFact(t, ctx, db, "op-expiry", winnersLiveOperatorScope, winnersLiveFinding(
 		"CVE-2026-9005", "pkg:npm/expiry", 0, map[string]any{"suppression_state": "ignored"}))
 
-	t1 := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	first, err := store.ResweepWinners(ctx, t1)
+	first, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("first resweep: %v", err)
 	}
-	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Inserted: 8}); first != want {
+	t1 := first.Watermark
+	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Inserted: 8}); winnersWriteCounts(first) != want {
 		t.Fatalf("first resweep = %+v, want %+v (an empty table, no previous watermark)", first, want)
 	}
 	before := winnersLiveRead(t, ctx, db)
@@ -165,12 +165,12 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 
 	// Unchanged facts: zero row versions, every winner counted unchanged, the
 	// watermark advanced and the previous one reported.
-	t2 := t1.Add(30 * time.Second)
-	second, err := store.ResweepWinners(ctx, t2)
+	second, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("second resweep: %v", err)
 	}
-	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Unchanged: 8, PreviousWatermark: t1}); second != want {
+	t2 := second.Watermark
+	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Unchanged: 8, PreviousWatermark: t1}); winnersWriteCounts(second) != want {
 		t.Fatalf("unchanged resweep = %+v, want %+v", second, want)
 	}
 	if after := winnersLiveRead(t, ctx, db); !reflect.DeepEqual(after, before) {
@@ -190,14 +190,14 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET payload = payload || '{"suppression":{"expires_at":"2027-01-01T00:00:00Z"}}'::jsonb WHERE fact_id = 'op-expiry'`)
 	seed("f-new", winnersLiveFinding("CVE-2026-9006", "pkg:npm/new", 8, nil))
 
-	t3 := t2.Add(30 * time.Second)
-	third, err := store.ResweepWinners(ctx, t3)
+	third, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("third resweep: %v", err)
 	}
+	t3 := third.Watermark
 	if want := (supplychaincore.SupplyChainImpactWinnersResweep{
 		Inserted: 1, Updated: 4, Deleted: 1, Unchanged: 3, PreviousWatermark: t2,
-	}); third != want {
+	}); winnersWriteCounts(third) != want {
 		t.Fatalf("mixed resweep = %+v, want %+v", third, want)
 	}
 	mixed := winnersLiveRead(t, ctx, db)
@@ -249,11 +249,11 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 	// The reverse change: a time that becomes NULL is a change too, so an
 	// operator removing an expiry cannot leave the old time on the stored row.
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET payload = payload - 'suppression' WHERE fact_id = 'op-expiry'`)
-	cleared, err := store.ResweepWinners(ctx, t3.Add(10*time.Second))
+	cleared, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("cleared-expiry resweep: %v", err)
 	}
-	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Updated: 1, Unchanged: 7, PreviousWatermark: t3}); cleared != want {
+	if want := (supplychaincore.SupplyChainImpactWinnersResweep{Updated: 1, Unchanged: 7, PreviousWatermark: t3}); winnersWriteCounts(cleared) != want {
 		t.Fatalf("cleared-expiry resweep = %+v, want %+v", cleared, want)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT suppression_expires_at FROM supply_chain_impact_canonical_winners WHERE cve_id = 'CVE-2026-9005'`).Scan(&expires); err != nil || expires.Valid {
@@ -264,7 +264,7 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 	// Oracle: wipe the read model and rebuild it from scratch. The incremental
 	// table must equal the fresh recompute, ignoring when rows were written.
 	winnersLiveExec(t, ctx, db, `DELETE FROM supply_chain_impact_canonical_winners`)
-	fresh, err := store.ResweepWinners(ctx, t3.Add(30*time.Second))
+	fresh, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("fresh resweep: %v", err)
 	}
@@ -283,11 +283,11 @@ func TestSupplyChainImpactWinnersResweepWritesOnlyChangedRowsLive(t *testing.T) 
 
 	// A resweep over zero winners still stamps the watermark and removes the rows.
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE`)
-	t5 := t3.Add(time.Minute)
-	last, err := store.ResweepWinners(ctx, t5)
+	last, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("empty resweep: %v", err)
 	}
+	t5 := last.Watermark
 	if last.Deleted != 8 || last.Inserted != 0 || last.Updated != 0 || last.Unchanged != 0 {
 		t.Fatalf("empty resweep = %+v, want 8 deleted", last)
 	}
@@ -310,11 +310,9 @@ func TestSupplyChainImpactWinnersResweepSeesEveryColumnChangeLive(t *testing.T) 
 	winnersLiveSeedScope(t, ctx, db, winnersLiveSourceScope)
 	winnersLiveSeedFact(t, ctx, db, "f-column", winnersLiveSourceScope, winnersLiveFinding("CVE-2026-9500", "pkg:npm/column", 5, nil))
 
-	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 	tick := func() supplychaincore.SupplyChainImpactWinnersResweep {
 		t.Helper()
-		at = at.Add(30 * time.Second)
-		result, err := store.ResweepWinners(ctx, at)
+		result, err := store.ResweepWinners(ctx)
 		if err != nil {
 			t.Fatalf("resweep: %v", err)
 		}
@@ -356,5 +354,15 @@ func TestSupplyChainImpactWinnersResweepSeesEveryColumnChangeLive(t *testing.T) 
 	// Nothing changed: a final tick writes nothing.
 	if got := tick(); got.Unchanged != 1 || got.Inserted+got.Updated+got.Deleted != 0 {
 		t.Errorf("settled resweep = %+v, want 1 unchanged and no writes", got)
+	}
+}
+
+// winnersWriteCounts keeps the fields these proofs pin: the row actions and
+// the replaced watermark. The full resweep's path, drained marks and
+// committed watermark (#11117) are DB-clock values the proofs read instead.
+func winnersWriteCounts(r supplychaincore.SupplyChainImpactWinnersResweep) supplychaincore.SupplyChainImpactWinnersResweep {
+	return supplychaincore.SupplyChainImpactWinnersResweep{
+		Inserted: r.Inserted, Updated: r.Updated, Deleted: r.Deleted, Unchanged: r.Unchanged,
+		PreviousWatermark: r.PreviousWatermark,
 	}
 }

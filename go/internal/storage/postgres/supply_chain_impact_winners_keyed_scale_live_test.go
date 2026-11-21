@@ -136,7 +136,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 	h.exec(`ANALYZE fact_records`)
 
 	fullStart := time.Now()
-	initial, err := h.store.ResweepWinners(h.ctx, h.tick())
+	initial, err := h.store.ResweepWinners(h.ctx)
 	initialFull := time.Since(fullStart)
 	if err != nil || initial.Skipped {
 		t.Fatalf("initial full resweep = %+v, %v", initial, err)
@@ -189,7 +189,7 @@ func TestSupplyChainImpactWinnersResweepScaleProofLive(t *testing.T) {
 	snapshot := winnersLiveRead(t, h.ctx, h.db)
 
 	fullStart = time.Now()
-	again, err := h.store.ResweepWinners(h.ctx, h.tick())
+	again, err := h.store.ResweepWinners(h.ctx)
 	fullElapsed := time.Since(fullStart)
 	if err != nil || again.Skipped {
 		t.Fatalf("full resweep over the churned state = %+v, %v", again, err)

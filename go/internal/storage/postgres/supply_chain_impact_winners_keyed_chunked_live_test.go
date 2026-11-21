@@ -73,7 +73,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedConsumeLive(t *testing.T) {
 	h.write("vuln-intel://9805-chunked/s1", "vuln-intel://9805-chunked/s1/g1", chunkedFindings("chunk", 12, 2, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
@@ -138,7 +138,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedSingleIdentLive(t *testing.T
 	h.write("vuln-intel://9805-chunked/hot", "vuln-intel://9805-chunked/hot/g1", chunkedFindings("hot", 4, 5, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
@@ -174,7 +174,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedAdmissionTruncateLive(t *tes
 	h.write("vuln-intel://9805-chunked/adm", "vuln-intel://9805-chunked/adm/g1", chunkedFindings("adm", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
@@ -222,7 +222,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedZeroAppliedScopeLive(t *test
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)
@@ -297,7 +297,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkedScopeSplitLive(t *testing.T)
 	h.write(scope, scope+"/g1", chunkedFindings("act", 8, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	before := chunkedWatermark(h)

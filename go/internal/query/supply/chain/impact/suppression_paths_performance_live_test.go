@@ -73,7 +73,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 	}
 
 	winners := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: db})
-	if err := winners.RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+	if err := winners.RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("initial winners rebuild: %v", err)
 	}
 	var winnerCount int
@@ -164,7 +164,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			return err
 		}},
 		{"winner_rebuild", func() error {
-			return winners.RebuildAllWinners(ctx, time.Now().UTC())
+			return winners.RebuildAllWinners(ctx)
 		}},
 	}
 	for _, pathRun := range pathRuns {

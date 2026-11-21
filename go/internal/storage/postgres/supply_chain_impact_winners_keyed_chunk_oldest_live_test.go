@@ -43,7 +43,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstFactLive(t *testing
 	h.write(scope, scope+"/g1", append(chunkedFindings("zzz", 1, 1, 0), chunkedFindings("aaa", 4, 1, 0)...)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 
@@ -114,7 +114,7 @@ func TestSupplyChainImpactWinnersResweepKeyedChunkOldestFirstScopeLive(t *testin
 	h.write(scope, scope+"/g1", chunkedFindings("aaa", 4, 1, 0)...)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_staging`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 

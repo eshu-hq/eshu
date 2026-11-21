@@ -255,7 +255,7 @@ func (h *keyedHarness) keyed() supplychaincore.SupplyChainImpactWinnersResweep {
 func (h *keyedHarness) assertParity(label string) {
 	h.t.Helper()
 	before := h.t.Failed()
-	winnersLiveAssertEqualsRecompute(h.t, h.ctx, h.db, h.store, h.tick())
+	winnersLiveAssertEqualsRecompute(h.t, h.ctx, h.db, h.store)
 	if !before && h.t.Failed() {
 		h.t.Fatalf("%s: the keyed table differs from a fresh recompute", label)
 	}

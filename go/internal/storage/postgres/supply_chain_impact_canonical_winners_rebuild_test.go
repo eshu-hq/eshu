@@ -16,6 +16,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestWinnerDataColumnsMatchTableAndSelect pins that the write-on-change column
@@ -130,6 +131,10 @@ func (r *winnersCountRows) Scan(dest ...any) error {
 			*d = v.(bool)
 		case *sql.NullTime:
 			*d = v.(sql.NullTime)
+		case *time.Time:
+			*d = v.(time.Time)
+		case *string:
+			*d = v.(string)
 		}
 	}
 	return nil
@@ -147,14 +152,24 @@ func (r *winnersCountRows) Close() error {
 	return r.closeErr
 }
 
-// winnersFakeTx scripts the resweep transaction: the single-flight claim, then
-// the rebuild statement.
+// winnersFakeTx scripts the resweep transaction: the single-flight claim, the
+// DB clock read, the dirty-log and staging drains (#11117), the rebuild
+// statement, the residual counts and the committed watermark read.
 type winnersFakeTx struct {
 	claim      *winnersCountRows
 	counts     *winnersCountRows
 	claimErr   error
 	rebuildErr error
 	commitErr  error
+	// clock and watermark are the DB clock and the committed watermark the
+	// fake reports; zero values report a fixed default.
+	clock     time.Time
+	watermark time.Time
+	// logDrain and stagingDrain are the (source, marks) rows each drain
+	// returns; drainErr fails the log drain.
+	logDrain     [][]any
+	stagingDrain [][]any
+	drainErr     error
 
 	queries    []string
 	args       [][]any
@@ -165,8 +180,24 @@ type winnersFakeTx struct {
 
 func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	tx.queries, tx.args = append(tx.queries, query), append(tx.args, args)
-	if query == tryClaimSupplyChainImpactWinnersResweepSQL {
+	switch query {
+	case tryClaimSupplyChainImpactWinnersResweepSQL:
 		return tx.claim, tx.claimErr
+	case selectWinnersKeyedTickClockSQL:
+		return winnersCounts(tx.clockOrDefault()), nil
+	case drainWinnersDirtyLogForFullSQL:
+		return &winnersCountRows{rows: tx.logDrain}, tx.drainErr
+	case drainWinnersStagingForFullSQL:
+		return &winnersCountRows{rows: tx.stagingDrain}, nil
+	case countWinnersKeyedRemainingSQL:
+		return winnersCounts(int64(0)), nil
+	case selectWinnersStagingResidualSQL:
+		return winnersCounts(int64(0), sql.NullTime{}), nil
+	case selectWinnersWatermarkSQL:
+		if tx.watermark.IsZero() {
+			return winnersCounts(tx.clockOrDefault()), nil
+		}
+		return winnersCounts(tx.watermark), nil
 	}
 	// #10876: the resweep commit is the providing save for the
 	// winners-watermark wait kind, so it wakes parked waits in the same
@@ -179,6 +210,16 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 		return winnersCounts(int64(0), int64(0)), nil
 	}
 	return tx.counts, tx.rebuildErr
+}
+
+// winnersFakeClock is the DB clock the fake reports when a test sets none.
+var winnersFakeClock = time.Date(2026, 11, 21, 6, 0, 0, 0, time.UTC)
+
+func (tx *winnersFakeTx) clockOrDefault() time.Time {
+	if tx.clock.IsZero() {
+		return winnersFakeClock
+	}
+	return tx.clock
 }
 
 func (tx *winnersFakeTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -227,36 +268,58 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	t.Parallel()
 
 	previous := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	clock := previous.Add(30 * time.Second)
+	committed := clock.Add(-time.Second)
 	tx := &winnersFakeTx{
-		claim:  winnersClaimed(true),
-		counts: winnersCounts(int64(1), int64(2), int64(3), int64(4), sql.NullTime{Time: previous, Valid: true}),
+		claim:        winnersClaimed(true),
+		counts:       winnersCounts(int64(1), int64(2), int64(3), int64(4), sql.NullTime{Time: previous, Valid: true}),
+		clock:        clock,
+		watermark:    committed,
+		logDrain:     [][]any{{"fact_upsert", int64(5)}, {"activation", int64(2)}},
+		stagingDrain: [][]any{{"scanner", int64(3)}, {"fact_upsert", int64(1)}},
 	}
-	stamp := previous.Add(30 * time.Second)
 
-	got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background(), stamp)
+	got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil {
 		t.Fatalf("ResweepWinners() error = %v", err)
 	}
 	if got.Inserted != 1 || got.Updated != 2 || got.Deleted != 3 || got.Unchanged != 4 || got.Skipped || !got.PreviousWatermark.Equal(previous) {
 		t.Fatalf("ResweepWinners() = %+v, want 1/2/3/4 and previous watermark %v", got, previous)
 	}
-	// #10876: the resweep commit wakes parked winners-watermark waits in
-	// the same transaction, after the rebuild whose watermark it carries.
-	if len(tx.queries) != 3 || tx.queries[0] != tryClaimSupplyChainImpactWinnersResweepSQL || tx.queries[1] != rebuildSupplyChainImpactWinnersSQL {
-		t.Fatalf("queries = %q, want the claim, then the rebuild, then the winners wake: the claim must precede the rebuild's snapshot", tx.queries)
+	if got.Path != telemetry.SupplyChainImpactWinnersPathFull || !got.Watermark.Equal(committed) {
+		t.Fatalf("ResweepWinners() path %q watermark %v, want full and the committed watermark %v", got.Path, got.Watermark, committed)
 	}
-	if wake := tx.queries[2]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
-		t.Fatalf("queries[2] = %q, want the winners-watermark wake", wake)
+	if got.Identifiers != 11 || got.TriggerCaptured != (supplychaincore.WinnersTriggerCaptured{Activation: 2, Scanner: 3}) {
+		t.Fatalf("ResweepWinners() drained %d marks, trigger %+v; want 11 and activation 2, scanner 3", got.Identifiers, got.TriggerCaptured)
 	}
-	if len(tx.args[1]) != 1 || tx.args[1][0] != stamp {
-		t.Fatalf("rebuild args = %v, want the stamp", tx.args[1])
+	// #11117: the clock is read, the log and staging are drained, then the
+	// rebuild runs on a later snapshot; the residual counts and the committed
+	// watermark follow, and the #10876 wake closes the transaction.
+	want := []string{
+		tryClaimSupplyChainImpactWinnersResweepSQL,
+		selectWinnersKeyedTickClockSQL,
+		drainWinnersDirtyLogForFullSQL,
+		drainWinnersStagingForFullSQL,
+		rebuildSupplyChainImpactWinnersSQL,
+		countWinnersKeyedRemainingSQL,
+		selectWinnersStagingResidualSQL,
+		selectWinnersWatermarkSQL,
+	}
+	if len(tx.queries) != len(want)+1 || !slices.Equal(tx.queries[:len(want)], want) {
+		t.Fatalf("queries = %q, want claim, clock, log drain, staging drain, rebuild, residual, watermark, wake", tx.queries)
+	}
+	if wake := tx.queries[len(want)]; !strings.Contains(wake, "reducer_waiting_items") || !strings.Contains(wake, "reopened") {
+		t.Fatalf("last query = %q, want the winners-watermark wake", wake)
+	}
+	if args := tx.args[4]; len(args) != 1 || args[0] != clock {
+		t.Fatalf("rebuild args = %v, want the DB clock %v", args, clock)
 	}
 	if !tx.committed || tx.openAtEnd {
 		t.Fatalf("committed = %v with the cursor open = %v, want a commit after the cursor closed", tx.committed, tx.openAtEnd)
 	}
 
 	tx = &winnersFakeTx{claim: winnersClaimed(true), counts: winnersCounts(int64(0), int64(0), int64(0), int64(0), sql.NullTime{})}
-	first, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background(), stamp)
+	first, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil || !first.PreviousWatermark.IsZero() {
 		t.Fatalf("first resweep = %+v, %v; want a zero previous watermark", first, err)
 	}
@@ -269,7 +332,7 @@ func TestResweepWinnersSkipsWhileAnotherResweepRuns(t *testing.T) {
 	t.Parallel()
 
 	tx := &winnersFakeTx{claim: winnersClaimed(false), counts: &winnersCountRows{}}
-	got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background(), time.Now())
+	got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil {
 		t.Fatalf("ResweepWinners() error = %v", err)
 	}
@@ -291,7 +354,7 @@ func TestRebuildAllWinnersFailsWhenAnotherResweepRuns(t *testing.T) {
 	t.Parallel()
 
 	tx := &winnersFakeTx{claim: winnersClaimed(false), counts: &winnersCountRows{}}
-	err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.RebuildAllWinners(context.Background(), time.Now())
+	err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.RebuildAllWinners(context.Background())
 	if err == nil {
 		t.Fatal("RebuildAllWinners() error = nil on a skipped resweep, want an error")
 	}
@@ -324,6 +387,7 @@ func TestResweepWinnersFailsLoudly(t *testing.T) {
 		"no claim row":       {claim: &winnersCountRows{}, counts: good()},
 		"claim cursor error": {claim: &winnersCountRows{err: errors.New("cursor")}, counts: good()},
 		"rebuild error":      {claim: winnersClaimed(true), rebuildErr: context.DeadlineExceeded, counts: good()},
+		"drain error":        {claim: winnersClaimed(true), drainErr: errors.New("drain"), counts: good()},
 		"no counts row":      {claim: winnersClaimed(true), counts: &winnersCountRows{}},
 		"cursor error":       {claim: winnersClaimed(true), counts: &winnersCountRows{err: errors.New("cursor")}},
 		"error after row":    {claim: winnersClaimed(true), counts: afterRow},
@@ -331,7 +395,7 @@ func TestResweepWinnersFailsLoudly(t *testing.T) {
 		"extra counts row":   {claim: winnersClaimed(true), counts: twoRows},
 		"commit error":       {claim: winnersClaimed(true), counts: good(), commitErr: errors.New("commit")},
 	} {
-		got, err := (SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}).ResweepWinners(context.Background(), time.Now())
+		got, err := (SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}).ResweepWinners(context.Background())
 		if err == nil {
 			t.Errorf("%s: ResweepWinners() = %+v, error = nil, want an error", name, got)
 		}
@@ -342,13 +406,13 @@ func TestResweepWinnersFailsLoudly(t *testing.T) {
 			t.Errorf("%s: committed a failed resweep", name)
 		}
 	}
-	if _, err := (SupplyChainImpactWinnersStore{DB: &winnersFakeDB{beginErr: errors.New("begin")}}).ResweepWinners(context.Background(), time.Now()); err == nil {
+	if _, err := (SupplyChainImpactWinnersStore{DB: &winnersFakeDB{beginErr: errors.New("begin")}}).ResweepWinners(context.Background()); err == nil {
 		t.Error("begin error: ResweepWinners() error = nil, want an error")
 	}
-	if _, err := (SupplyChainImpactWinnersStore{DB: winnersReadOnlyDB{}}).ResweepWinners(context.Background(), time.Now()); err == nil {
+	if _, err := (SupplyChainImpactWinnersStore{DB: winnersReadOnlyDB{}}).ResweepWinners(context.Background()); err == nil {
 		t.Error("no transactions: ResweepWinners() error = nil, want an error")
 	}
-	if err := (SupplyChainImpactWinnersStore{}).RebuildAllWinners(context.Background(), nil); err == nil {
+	if err := (SupplyChainImpactWinnersStore{}).RebuildAllWinners(context.Background()); err == nil {
 		t.Error("RebuildAllWinners() with no database error = nil, want an error")
 	}
 }

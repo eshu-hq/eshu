@@ -156,7 +156,7 @@ func (r *fleetGateRun) observe(s fleetGateSeed) fleetGateObservation {
 	winners := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: r.db})
 	// The reducer's startup full resweep runs before any finding exists, as in
 	// production, so the measured winners stage is the steady-state keyed tick.
-	if _, err := winners.ResweepWinners(r.ctx, time.Now().UTC()); err != nil {
+	if _, err := winners.ResweepWinners(r.ctx); err != nil {
 		r.t.Fatalf("startup winners resweep: %v", err)
 	}
 

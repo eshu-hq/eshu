@@ -20,12 +20,12 @@ import (
 // 1us)). A mark that executes before S and commits after the rebuild snapshot
 // stays queued for the next tick; a failed full rolls the deletes back.
 
-// TestSupplyChainImpactWinnersFullResweepDrainsPreStampRowsLive proves the
+// TestSupplyChainImpactWinnersResweepFullDrainsPreStampRowsLive proves the
 // full consumes every mark captured before it: staged writer marks and a
 // queued dirty-log row are gone after the full, the watermark covers them,
 // and the next keyed tick advances the watermark instead of draining a
 // backlog the full already recomputed.
-func TestSupplyChainImpactWinnersFullResweepDrainsPreStampRowsLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepFullDrainsPreStampRowsLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep drain proof")
 	h.seedScope("vuln-intel://11117/drain", "vuln-intel://11117/drain/g1")
 	h.write("vuln-intel://11117/drain", "vuln-intel://11117/drain/g1", chunkedFindings("drain", 6, 2, 0)...)
@@ -36,7 +36,7 @@ VALUES ('fact', 'audit', 'pkg:npm/drain-00', 'repo-9805', '', 'CVE-2026-drain-00
 	}
 	before := horizonDBNow(h)
 
-	full, err := h.store.ResweepWinners(h.ctx, h.tick())
+	full, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || full.Skipped {
 		t.Fatalf("full resweep = %+v, %v", full, err)
 	}
@@ -58,15 +58,15 @@ VALUES ('fact', 'audit', 'pkg:npm/drain-00', 'repo-9805', '', 'CVE-2026-drain-00
 	}
 }
 
-// TestSupplyChainImpactWinnersFullResweepLeavesLateCommitMarkQueuedLive
+// TestSupplyChainImpactWinnersResweepFullLeavesLateCommitMarkQueuedLive
 // proves the drain deletes only rows visible to it: a writer that changes a
 // fact and stages its mark before the full but commits after it keeps that
 // mark queued, and the next keyed tick applies it.
-func TestSupplyChainImpactWinnersFullResweepLeavesLateCommitMarkQueuedLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepFullLeavesLateCommitMarkQueuedLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep late-commit proof")
 	h.seedScope("vuln-intel://11117/late", "vuln-intel://11117/late/g1")
 	h.write("vuln-intel://11117/late", "vuln-intel://11117/late/g1", chunkedFindings("late", 3, 1, 0)...)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		t.Fatalf("initial full resweep: %v", err)
 	}
 	h.exec(`DELETE FROM supply_chain_impact_winners_dirty_log`)
@@ -89,7 +89,7 @@ FROM fact_records WHERE payload->>'cve_id' = 'CVE-2026-late-01-00'`,
 		}
 	}
 
-	if full, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil || full.Skipped {
+	if full, err := h.store.ResweepWinners(h.ctx); err != nil || full.Skipped {
 		t.Fatalf("full resweep beside the open writer = %+v, %v", full, err)
 	}
 	if err := late.Commit(); err != nil {
@@ -105,10 +105,10 @@ FROM fact_records WHERE payload->>'cve_id' = 'CVE-2026-late-01-00'`,
 	h.assertParity("after the late-commit mark applied")
 }
 
-// TestSupplyChainImpactWinnersFullResweepRollbackRestoresDrainedRowsLive
+// TestSupplyChainImpactWinnersResweepFullRollbackRestoresDrainedRowsLive
 // proves the drain and the rebuild commit together: a rebuild that fails
 // after the drain leaves every queued mark in place.
-func TestSupplyChainImpactWinnersFullResweepRollbackRestoresDrainedRowsLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepFullRollbackRestoresDrainedRowsLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep rollback proof")
 	h.seedScope("vuln-intel://11117/rollback", "vuln-intel://11117/rollback/g1")
 	h.write("vuln-intel://11117/rollback", "vuln-intel://11117/rollback/g1", chunkedFindings("rollback", 4, 1, 0)...)
@@ -123,7 +123,7 @@ BEGIN RAISE EXCEPTION 'winners 11117 refuse stamp'; END $$`)
 	h.exec(`CREATE TRIGGER winners_11117_refuse_stamp BEFORE INSERT OR UPDATE ON supply_chain_impact_winners_materialization
 FOR EACH ROW EXECUTE FUNCTION winners_11117_refuse_stamp()`)
 
-	if got, err := h.store.ResweepWinners(h.ctx, h.tick()); err == nil {
+	if got, err := h.store.ResweepWinners(h.ctx); err == nil {
 		t.Fatalf("full resweep with a refused stamp = %+v, want an error", got)
 	}
 	if l, s := h.dirtyDepth(), h.stagingDepth(); l != logBefore || s != stagingBefore {
@@ -131,7 +131,7 @@ FOR EACH ROW EXECUTE FUNCTION winners_11117_refuse_stamp()`)
 	}
 
 	h.exec(`DROP TRIGGER winners_11117_refuse_stamp ON supply_chain_impact_winners_materialization`)
-	if full, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil || full.Skipped {
+	if full, err := h.store.ResweepWinners(h.ctx); err != nil || full.Skipped {
 		t.Fatalf("full resweep after the trigger dropped = %+v, %v", full, err)
 	}
 	if n := h.pendingDepth(); n != 0 {
@@ -139,11 +139,11 @@ FOR EACH ROW EXECUTE FUNCTION winners_11117_refuse_stamp()`)
 	}
 }
 
-// TestSupplyChainImpactWinnersFullResweepStampsUnderResidualLive proves the
+// TestSupplyChainImpactWinnersResweepFullStampsUnderResidualLive proves the
 // stamp is capped by the residual set the rebuild's snapshot sees: a mark
 // captured before S that commits after the drain but before the rebuild
 // stays queued, and the watermark is its captured_at minus 1us, not S.
-func TestSupplyChainImpactWinnersFullResweepStampsUnderResidualLive(t *testing.T) {
+func TestSupplyChainImpactWinnersResweepFullStampsUnderResidualLive(t *testing.T) {
 	h := newKeyedHarness(t, "#11117 full resweep residual stamp proof")
 	h.seedScope("vuln-intel://11117/residual", "vuln-intel://11117/residual/g1")
 	h.write("vuln-intel://11117/residual", "vuln-intel://11117/residual/g1", chunkedFindings("residual", 2, 1, 0)...)
@@ -163,7 +163,7 @@ RETURNING captured_at`).Scan(&captured); err != nil {
 	}}
 	store := h.store
 	store.DB = hooked
-	if full, err := store.ResweepWinners(h.ctx, h.tick()); err != nil || full.Skipped {
+	if full, err := store.ResweepWinners(h.ctx); err != nil || full.Skipped {
 		t.Fatalf("full resweep = %+v, %v", full, err)
 	}
 	if !injected {
