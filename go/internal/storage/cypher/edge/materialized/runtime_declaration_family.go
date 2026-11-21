@@ -41,7 +41,7 @@ func init() {
 			edgewriter.AdvisoryGroupDeleteEdgelessCypher,
 			edgewriter.AdvisoryGroupEmptyRetractCypher,
 		},
-		IdentityCypher:     edgewriter.AdvisoryGroupUpsertCypher,
+		IdentityCypher:     edgewriter.AdvisoryGroupEdgeMergeCypher,
 		IdentityProperties: []string{"package_id"},
 	}
 
