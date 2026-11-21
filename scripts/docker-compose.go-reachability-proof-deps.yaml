@@ -132,5 +132,13 @@ services:
   nornicdb:
     ports: !reset []
 
+  # The foundation file redefines projector with a bare build context
+  # (same latent defect as the runtime stack). Point it at the eshu
+  # checkout like everything else the proof builds.
+  projector:
+    build:
+      context: ${ESHU_REPO_ROOT:-.}
+      dockerfile: Dockerfile
+
 volumes:
   neo4j_data:
