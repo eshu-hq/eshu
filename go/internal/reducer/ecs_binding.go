@@ -68,8 +68,9 @@ const (
 // the ceiling is a backstop, never a prefix window: hitting it marks the
 // census incomplete, which blocks declaration binds for that extraction
 // instead of binding on a subset (#11084). Sized at 10x the retired
-// 5000-row prefix cap; the #11084 shim must confirm the measured closure
-// sits far below it.
+// 5000-row prefix cap; the production replica re-check measured the
+// live closure at 13,983 rows (C1 = 178 ECS declarations), 28% of this
+// ceiling, so hitting it means an anomalous corpus, never steady state.
 const ecsBindingCensusCap = 50000
 
 // ECSBindingCensusCap returns the default global declaration census row

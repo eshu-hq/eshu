@@ -21,8 +21,10 @@ func TestECSBindingHandleIncompleteCensusBlocksDeclarationBind(t *testing.T) {
 	t.Parallel()
 
 	censusResult := ecsBindingHandleCensus()
+	// Keep the bindable prefix: Complete=false must block even when the
+	// retained declarations would bind, so a guard regression that
+	// trusts declarations still writes a row and fails this test.
 	censusResult.Complete = false
-	censusResult.Declarations = nil
 	census := &stubECSBindingCensus{result: censusResult}
 	handler, writer := ecsBindingHandleHandler(census)
 	result, err := handler.Handle(context.Background(), workloadCloudRelationshipIntent())
@@ -34,6 +36,9 @@ func TestECSBindingHandleIncompleteCensusBlocksDeclarationBind(t *testing.T) {
 	}
 	if !strings.Contains(result.EvidenceSummary, "0 ECS declaration-bound edge(s)") {
 		t.Errorf("summary lacks zero ECS-bound count: %q", result.EvidenceSummary)
+	}
+	if !strings.Contains(result.EvidenceSummary, "declaration census incomplete: binds blocked") {
+		t.Errorf("summary lacks blocked-state annotation: %q", result.EvidenceSummary)
 	}
 	if strings.Contains(result.EvidenceSummary, "census truncated") {
 		t.Errorf("summary keeps the retired truncation annotation: %q", result.EvidenceSummary)

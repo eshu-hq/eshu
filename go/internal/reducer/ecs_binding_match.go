@@ -47,10 +47,14 @@ func (h WorkloadCloudRelationshipMaterializationHandler) appendECSBindingRows(
 	if h.ECSDeclarationCensus == nil {
 		return rows, quarantined, "", nil
 	}
-	// No truncation annotation: an incomplete census blocks declaration
-	// binds with a named tally (#11084), so a zero count here already
-	// means blocked-or-absent, never a silent prefix.
+	// An incomplete census blocks declaration binds with a named tally
+	// (#11084): name that state in the summary so "0 ECS
+	// declaration-bound edge(s)" stays distinguishable between
+	// binds-blocked and no-declarations-exist for the operator.
 	summary := fmt.Sprintf("; %d ECS declaration-bound edge(s)", ecsBindingCommittedRows(rows))
+	if ecsTally.skipped[ecsBindingSkipCensusIncomplete] > 0 {
+		summary += " (declaration census incomplete: binds blocked)"
+	}
 	return rows, quarantined, summary, nil
 }
 

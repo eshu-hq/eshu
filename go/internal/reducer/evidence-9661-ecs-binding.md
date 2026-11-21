@@ -73,23 +73,35 @@ Extraction benches before/after on the shared host (300 iters x2):
 matrix 43.1/43.0 us/op to 40.3/42.2; scale (40 services x 187
 declarations) 483.3/480.9 us/op to 483.7/481.3; Handle declaration path
 10.7/10.9 us/op to 9.9/10.0 — no regression at equal bind results.
-Production C1/C2 sizes and production index coverage are NOT measured
-here (no replica access from this lane); the replica re-check is owed
-before merge-ready.
+
+Production replica re-check (2026-11-21, coordinator, read-only QA
+read replica with `pg_is_in_recovery()=t`, exact shipped SQL shapes,
+`default_transaction_read_only=on`, 120 s statement timeout, exit 0):
+C1 = 178 ECS declarations in active generations; C2 full filtered
+closure = 13,983 rows; C3 retired-shape census = 126,551 rows
+(matches the #11084 recorded corpus). `EXPLAIN (ANALYZE, BUFFERS)`
+median-of-3: new single-statement shape 3881.8 ms (3930.7/3881.8/3857.6)
+vs retired shape 3678.9 ms (3678.9/3601.1/3966.1), ratio 1.055x.
+Zero Seq Scan on `fact_records` (all accesses index-backed via
+`fact_records_iac_active_inventory_idx` and
+`fact_records_scope_generation_idx`; the single parallel seq scan is
+the 4,790-row `scope_generations` driver). Amended Decision 2 (arbiter,
+same day): single-statement accepted iff C2 ≤ 25,000 (measured 13,983)
+AND median-of-3 replica Execution ≤ 1.10x old shape on identical
+corpus/state (measured 1.055x) AND no Seq Scan on `fact_records`;
+the 50,000 complete-or-blocked ceiling and re-escalation above it are
+unchanged. Keyset paging becomes required only if C2 exceeds 25,000,
+the median exceeds 1.10x, or a `fact_records` seq scan appears.
 
 Observability Evidence: new `ecs_census_incomplete` skip tally merges
 into the handler's existing `N candidate(s) skipped` total; no new
-metric, span, or log key. The `(declaration census truncated)` summary
-annotation is gone — zero `ECS declaration-bound edge(s)` plus the
-blocked tally means blocked-or-absent, never a silent prefix.
-
-No-Observability-Change:
-
-No new metric, span, or log key. The per-reason skip tally merges into
-the workload-cloud handler's evidence summary (`ECS declaration-bound
-edge(s)` plus the census-truncation note); malformed anchor facts route
-through the existing `eshu_dp_reducer_input_invalid_facts_total`
-quarantine; workload-name resolution reuses
+metric, span, or log key. The retired `(declaration census truncated)`
+annotation is replaced by `(declaration census incomplete: binds
+blocked)` on the `ECS declaration-bound edge(s)` summary suffix, so an
+operator can distinguish binds-blocked from no-declarations-exist;
+malformed anchor facts route through the existing
+`eshu_dp_reducer_input_invalid_facts_total` quarantine;
+workload-name resolution reuses
 `eshu_dp_workload_handle_resolution_total{surface="reducer"}`; domain
 execution stays covered by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`. Ambiguous names emit the shared
