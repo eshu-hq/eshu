@@ -471,6 +471,7 @@ nav:
     - Hosted Ops Alert Pack: operate/hosted-ops-alert-pack.md
     - Tuning Playbook: operate/tuning-playbook.md
     - Rebuild the Graph From Facts: operate/graph-rebuild-from-facts.md
+    - Timed Graph Rebuild on QA: operate/graph-rebuild-qa-timed.md
     - Workload Identity Cutover: operate/workload-identity-cutover-runbook.md
     - Retire Leftover Workload Nodes: operate/legacy-workload-retirement-runbook.md
     - Collector Cutover Rollback: operate/collector-cutover-rollback.md
