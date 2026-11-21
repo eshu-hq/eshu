@@ -445,6 +445,11 @@ func registerPostgresQueueGauges(
 			return err
 		}
 	}
+	if orphanObs, ok := queueObs.(telemetry.ReducerLeaseOrphanObserver); ok {
+		if err := registerReducerLeaseOrphanGauges(refresher, instruments, meter, orphanObs); err != nil {
+			return err
+		}
+	}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {
 		return fmt.Errorf("register queue observable gauges: %w", err)
 	}

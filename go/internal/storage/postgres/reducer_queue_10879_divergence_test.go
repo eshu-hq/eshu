@@ -9,12 +9,13 @@ import (
 	"time"
 )
 
-// TestReducerQueue10879StaleMirrorRowDefersClaim proves a diverged mirror
+// TestReducerQueue11081StaleMirrorRowClearedByClaim proves a diverged mirror
 // row (live-looking lease whose main row already finished without the
-// mirror cleanup) defers a same-key claim through the lease-unique mapper
-// instead of erroring or dead-lettering it, and that reconciling the stale
-// row lets the claim through.
-func TestReducerQueue10879StaleMirrorRowDefersClaim(t *testing.T) {
+// mirror cleanup) is cleared by the same-key claim in-statement instead of
+// deferring, erroring, or dead-lettering it (#11081: the claim heals the
+// residue the previous-build writer left). A genuinely live sibling holder
+// still defers through the main live-lease fence.
+func TestReducerQueue11081StaleMirrorRowClearedByClaim(t *testing.T) {
 	ctx := context.Background()
 	conn, schemaName := setupLeaseTestSchema(t, ctx)
 	now := time.Now().UTC()
@@ -57,48 +58,78 @@ func TestReducerQueue10879StaleMirrorRowDefersClaim(t *testing.T) {
 		t.Fatalf("insert diverged sibling: %v", err)
 	}
 
-	// The claim must defer (no work, no error): the main UPDATE finds no
-	// live main holder, and the mirror INSERT hits the stale lease row.
+	// The claim must clear the stale row and take the sibling in one
+	// statement: the main UPDATE finds no live main holder, the chained
+	// clear deletes the disowned lease row, and the mirror insert lands.
 	got, claimed, err := queue.Claim(ctx)
 	if err != nil {
-		t.Fatalf("diverged claim err = %v, want deferred nil", err)
+		t.Fatalf("diverged claim err = %v, want cleared claim nil", err)
 	}
-	if claimed {
-		t.Fatalf("diverged claim took %q, want deferral", got.IntentID)
+	if !claimed {
+		t.Fatal("diverged claim returned no work, want the sibling")
+	}
+	if got.IntentID != "diverge-pending-B" {
+		t.Fatalf("diverged claim took %q, want diverge-pending-B", got.IntentID)
 	}
 
-	// Atomicity: the sibling is still pending (not dead-lettered, not
-	// half-claimed) and the stale mirror row is untouched.
+	// Atomicity: the sibling is claimed (not dead-lettered, not
+	// half-claimed), the stale row is gone, and the mirror row is the
+	// sibling's with the claiming owner.
 	var status string
 	if err := conn.conn.QueryRowContext(ctx,
 		`SELECT status FROM fact_work_items WHERE work_item_id = 'diverge-pending-B'`,
 	).Scan(&status); err != nil {
 		t.Fatalf("read sibling status: %v", err)
 	}
-	if status != "pending" {
-		t.Fatalf("sibling status = %q, want pending", status)
+	if status != "claimed" {
+		t.Fatalf("sibling status = %q, want claimed", status)
 	}
-	if rows := liveLeaseRows(t, ctx, conn); len(rows) != 1 || rows[intent.IntentID] == "" {
-		t.Fatalf("lease rows after defer = %v, want only the stale row", rows)
+	rows := liveLeaseRows(t, ctx, conn)
+	if len(rows) != 1 || rows["diverge-pending-B"] != "lease-diverge-owner" {
+		t.Fatalf("lease rows after clear = %v, want only the sibling row", rows)
 	}
 
-	// Reconcile the stale row; the deferred claim must now go through.
-	if _, err := conn.ExecContext(ctx,
-		`DELETE FROM fact_work_item_leases WHERE work_item_id = $1`,
-		intent.IntentID); err != nil {
-		t.Fatalf("reconcile stale lease row: %v", err)
+	// The finished A main row is untouched by the clearing claim beyond
+	// its seeded terminal state.
+	var aStatus string
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT status FROM fact_work_items WHERE work_item_id = $1`,
+		intent.IntentID).Scan(&aStatus); err != nil {
+		t.Fatalf("read finished row status: %v", err)
 	}
-	recovered, claimed, err := queue.Claim(ctx)
+	if aStatus != "succeeded" {
+		t.Fatalf("finished row status = %q, want succeeded", aStatus)
+	}
+
+	// A genuinely live sibling holder still defers through the main
+	// live-lease fence (not the mirror): plant C on the same key and claim
+	// with a second owner while the first queue holds B live.
+	if _, err := conn.ExecContext(ctx, `INSERT INTO fact_work_items (
+	    work_item_id, scope_id, generation_id, stage, domain, conflict_domain,
+	    conflict_key, status, attempt_count, lease_owner, claim_until,
+	    last_attempt_at, payload, created_at, updated_at
+	) VALUES ('diverge-pending-C', $1, $2, 'reducer', $3, $4,
+	    NULL, 'pending', 1, NULL, NULL,
+	    NULL, '{}'::jsonb, $5, $5)`,
+		got.ScopeID, got.GenerationID, string(got.Domain), conflictDomain, old); err != nil {
+		t.Fatalf("insert live-fenced sibling: %v", err)
+	}
+	other := leaseTestQueue(conn, "lease-diverge-other")
+	otherGot, otherClaimed, err := other.Claim(ctx)
 	if err != nil {
-		t.Fatalf("post-reconcile claim err: %v", err)
+		t.Fatalf("live-fenced claim err = %v, want nil", err)
 	}
-	if !claimed {
-		t.Fatal("post-reconcile claim returned no work, want the sibling")
+	if otherClaimed && otherGot.IntentID == "diverge-pending-C" {
+		t.Fatal("live-fenced claim took diverge-pending-C while B is live on the same key")
 	}
-	if recovered.IntentID != "diverge-pending-B" {
-		t.Fatalf("post-reconcile claim took %q, want diverge-pending-B", recovered.IntentID)
+	// C stays pending: the live holder fences the key but other keys flow.
+	var cStatus string
+	if err := conn.conn.QueryRowContext(ctx,
+		`SELECT status FROM fact_work_items WHERE work_item_id = 'diverge-pending-C'`,
+	).Scan(&cStatus); err != nil {
+		t.Fatalf("read fenced sibling status: %v", err)
 	}
-	if got := liveLeaseRows(t, ctx, conn)["diverge-pending-B"]; got != "lease-diverge-owner" {
-		t.Fatalf("sibling lease owner = %q, want lease-diverge-owner", got)
+	if cStatus != "pending" {
+		t.Fatalf("fenced sibling status = %q, want pending", cStatus)
 	}
 }

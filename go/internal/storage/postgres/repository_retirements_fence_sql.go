@@ -81,13 +81,29 @@ const (
 			AND work.stage = 'projector'
 			AND (work.status IN ('pending', 'retrying')
 				OR (work.status IN ('claimed', 'running') AND work.claim_until <= clock_timestamp()))`
-	fenceMarkReducerRowsQuery = `UPDATE fact_work_items AS work
-		SET status = 'superseded', failure_class = '` + retirementFencedFailureClass + `',
+	// fenceMarkReducerRowsQuery marks the 7d-predicate reducer rows
+	// superseded and clears their lease-mirror rows in the same statement
+	// (#11081: a mark that left the mirror behind orphaned the conflict
+	// key). It returns the marked main-table match count (queryTerminalMatchCount
+	// reads it), preserving the reducerRows semantics: success depends only
+	// on the fence matching, never on mirror presence.
+	fenceMarkReducerRowsQuery = `WITH marked AS (
+		UPDATE fact_work_items AS work
+		SET status = 'superseded', lease_owner = NULL, claim_until = NULL,
+			failure_class = '` + retirementFencedFailureClass + `',
 			failure_details = jsonb_build_object('retirement_fence', true) || ` + priorFailureWorkSQL + `,
 			updated_at = clock_timestamp()
 		WHERE work.scope_id = ANY($1) AND work.stage = 'reducer'
 			AND (work.status IN ('pending', 'retrying', 'failed', 'dead_letter')
-				OR (work.status IN ('claimed', 'running') AND work.claim_until <= clock_timestamp()))`
+				OR (work.status IN ('claimed', 'running') AND work.claim_until <= clock_timestamp()))
+		RETURNING work.work_item_id
+	),
+	cleared_leases AS (
+		DELETE FROM fact_work_item_leases AS lease
+		USING marked
+		WHERE lease.work_item_id = marked.work_item_id
+	)
+	SELECT (SELECT count(*) FROM marked)`
 	fenceDeleteReindexRequestsQuery = `DELETE FROM repository_reindex_requests WHERE scope_id = ANY($1)`
 	fenceAssertLiveGenerationsQuery = `SELECT count(*) FROM scope_generations
 		WHERE scope_id = ANY($1) AND status IN ('pending', 'active', 'failed')`

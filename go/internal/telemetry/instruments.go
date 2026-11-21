@@ -85,6 +85,21 @@ type ReducerClaimedExpiredObserver interface {
 	ReducerClaimedExpiredCounts(ctx context.Context) (count int64, oldestAgeSeconds float64, err error)
 }
 
+// ReducerLeaseOrphanObserver reports the reducer lease-mirror orphan residue
+// (#11081): lease rows whose main row is missing or no longer live. A
+// QueueObserver that also implements it gets the
+// eshu_dp_reducer_lease_orphan_rows gauge on the same collection cadence as
+// the queue depth gauges. Brief blips from expired-awaiting-reclaim are
+// expected; a sustained nonzero value means a hold-end leaked its lease
+// clear or version-skewed writers are still active.
+type ReducerLeaseOrphanObserver interface {
+	// ReducerLeaseOrphanRows returns how many stage='reducer' lease rows
+	// fail the claim-time liveness definition: no matching live main row
+	// (same work item, claimed/running, unexpired, same owner and
+	// last_attempt_at). Zero means no residue is outstanding.
+	ReducerLeaseOrphanRows(ctx context.Context) (int64, error)
+}
+
 // CorpusFenceObserver reports the state of the global relationship
 // completeness fence that defers the correlation consumers (#8247): how many
 // active scopes hold it, how many consumers are deferred on
@@ -3010,6 +3025,14 @@ type Instruments struct {
 	BatchClaimCandidates      metric.Int64Histogram
 	BatchClaimRepresentatives metric.Int64Histogram
 	BatchClaimDrops           metric.Int64Counter
+	// ReducerClaimLiveLeaseConflicts counts reducer claims deferred by a
+	// live lease conflict (#11081): a concurrent claimer holds the live
+	// lease on the conflict key, so this claim defers instead of
+	// double-claiming (#4137). Labeled by closed claim_mode (batch, single)
+	// and constraint (main, mirror). A sustained mirror-constraint rate
+	// names leftover lease residue; a main-constraint rate names genuine
+	// contention. Nil-tolerant like the neighboring counters.
+	ReducerClaimLiveLeaseConflicts metric.Int64Counter
 
 	// ReservedSlotClaims counts #10581 reserved search-doc slot outcomes
 	// per batch claim, by closed outcome (reserved_used, fallback). One
@@ -3555,6 +3578,12 @@ type Instruments struct {
 	// the claim lease duration means an expired hold is waiting behind the
 	// backlog instead of being reclaimed; zero means none is outstanding.
 	ReducerClaimedExpiredOldestAgeSeconds metric.Float64ObservableGauge
+	// ReducerLeaseOrphanRows reports how many reducer lease-mirror rows
+	// have no matching live main row (#11081). A sustained nonzero value
+	// means a hold-end leaked its lease clear or version-skewed writers
+	// are still active; brief blips from expired-awaiting-reclaim are
+	// expected. Zero means no residue is outstanding.
+	ReducerLeaseOrphanRows metric.Int64ObservableGauge
 
 	// CorpusFenceHolders reports how many active scopes hold the global
 	// relationship completeness fence (#8247): a retired-or-pending current
@@ -7758,6 +7787,15 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	if err != nil {
 		return nil, fmt.Errorf("register BatchClaimDrops counter: %w", err)
 	}
+	inst.ReducerClaimLiveLeaseConflicts, err = meter.Int64Counter(
+		"eshu_dp_reducer_claim_live_lease_conflicts_total",
+		metric.WithDescription("Reducer claims deferred by a live lease conflict on the conflict key, by closed "+
+			"claim_mode (batch, single) and constraint (main, mirror) (#11081). "+
+			"No repository label"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerClaimLiveLeaseConflicts counter: %w", err)
+	}
 	inst.ReservedSlotClaims, err = meter.Int64Counter(
 		"eshu_dp_reducer_batch_claim_reserved_slot_total",
 		metric.WithDescription("Reducer batch-claim reserved search-doc slot outcomes per claim, by closed outcome "+
@@ -8711,6 +8749,11 @@ func RegisterObservableGauges(
 				return err
 			}
 		}
+		if orphanObs, ok := queueObs.(ReducerLeaseOrphanObserver); ok {
+			if err := registerReducerLeaseOrphanGauges(inst, meter, orphanObs); err != nil {
+				return err
+			}
+		}
 	}
 
 	if workerObs != nil {
@@ -8851,6 +8894,43 @@ func RegisterReducerClaimedExpiredObservableGauges(inst *Instruments, meter metr
 		return nil
 	}
 	return registerReducerClaimedExpiredGauges(inst, meter, expiredObs)
+}
+
+// registerReducerLeaseOrphanGauges registers the #11081 lease-orphan residue
+// gauge backed by orphanObs.
+func registerReducerLeaseOrphanGauges(inst *Instruments, meter metric.Meter, orphanObs ReducerLeaseOrphanObserver) error {
+	var err error
+	inst.ReducerLeaseOrphanRows, err = meter.Int64ObservableGauge(
+		"eshu_dp_reducer_lease_orphan_rows",
+		metric.WithDescription("Reducer lease-mirror rows with no matching live main row; sustained nonzero means a hold-end leaked its lease clear or version-skewed writers are still active, zero means no residue is outstanding"),
+		metric.WithInt64Callback(func(ctx context.Context, o metric.Int64Observer) error {
+			count, err := orphanObs.ReducerLeaseOrphanRows(ctx)
+			if err != nil {
+				return err
+			}
+			o.Observe(count)
+			return nil
+		}),
+	)
+	if err != nil {
+		return fmt.Errorf("register ReducerLeaseOrphanRows gauge: %w", err)
+	}
+	return nil
+}
+
+// RegisterReducerLeaseOrphanObservableGauges registers the #11081
+// lease-orphan residue gauge backed by orphanObs. The reducer serves it from
+// the Postgres gauge snapshot refreshed in the background (cmd/reducer), so
+// a scrape never queries Postgres and the orphan count runs once per refresh
+// interval, never per claim.
+func RegisterReducerLeaseOrphanObservableGauges(inst *Instruments, meter metric.Meter, orphanObs ReducerLeaseOrphanObserver) error {
+	if inst == nil {
+		return fmt.Errorf("instruments are required")
+	}
+	if orphanObs == nil {
+		return nil
+	}
+	return registerReducerLeaseOrphanGauges(inst, meter, orphanObs)
 }
 
 // RegisterCorpusFenceObservableGauges registers the #8247 completeness-fence
@@ -9567,6 +9647,56 @@ const (
 	// time (EvalPlanQual recheck or SKIP LOCKED race).
 	BatchClaimDropLockLost = "lock_lost"
 )
+
+// Closed claim_mode values of eshu_dp_reducer_claim_live_lease_conflicts_total
+// (#11081). The deferring claim runs under exactly one mode: the batch claim
+// path or the single claim path.
+const (
+	// LiveLeaseConflictClaimModeBatch is a ReducerQueue.ClaimBatch deferral.
+	LiveLeaseConflictClaimModeBatch = "batch"
+	// LiveLeaseConflictClaimModeSingle is a ReducerQueue.Claim deferral.
+	LiveLeaseConflictClaimModeSingle = "single"
+)
+
+// LiveLeaseConflictClaimModes pins the closed claim_mode set above. Adding a
+// mode here without a deferring claim path (or vice versa) must fail loudly.
+func LiveLeaseConflictClaimModes() []string {
+	return []string{
+		LiveLeaseConflictClaimModeBatch,
+		LiveLeaseConflictClaimModeSingle,
+	}
+}
+
+// Closed constraint values of eshu_dp_reducer_claim_live_lease_conflicts_total
+// (#11081). The rejecting unique index is exactly one of the main-table
+// live-lease fence or its lease-mirror twin.
+const (
+	// LiveLeaseConflictConstraintMain is the main-table live-lease index
+	// (fact_work_items_reducer_live_lease_uniq): genuine contention.
+	LiveLeaseConflictConstraintMain = "main"
+	// LiveLeaseConflictConstraintMirror is the lease-mirror index
+	// (fact_work_item_leases_live_lease_uniq): leftover residue or a
+	// same-key race through version-skewed writers.
+	LiveLeaseConflictConstraintMirror = "mirror"
+)
+
+// LiveLeaseConflictConstraints pins the closed constraint set above.
+func LiveLeaseConflictConstraints() []string {
+	return []string{
+		LiveLeaseConflictConstraintMain,
+		LiveLeaseConflictConstraintMirror,
+	}
+}
+
+// AttrClaimMode returns a claim_mode attribute for metric recording.
+func AttrClaimMode(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionClaimMode, v)
+}
+
+// AttrConstraint returns a constraint attribute for metric recording.
+func AttrConstraint(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionConstraint, v)
+}
 
 // Closed outcome values of eshu_dp_reducer_batch_claim_reserved_slot_total
 // (#10581). A non-empty batch claim lands under exactly one outcome: the

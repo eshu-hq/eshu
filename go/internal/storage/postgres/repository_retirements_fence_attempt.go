@@ -242,12 +242,12 @@ func (f RetirementFencer) fenceApplyMarks(
 			return fenceMarked{}, false, fmt.Errorf("retirement fence mark projector rows: %w", err)
 		}
 	}
-	reducerRows, err := execCount(ctx, tx, fenceMarkReducerRowsQuery, acquired.scopeIDs)
+	reducerRows, err := queryTerminalMatchCount(ctx, tx, "retirement fence mark reducer rows", fenceMarkReducerRowsQuery, acquired.scopeIDs)
 	if err != nil {
 		if isLockTimeoutError(err) {
 			return fenceMarked{}, true, nil
 		}
-		return fenceMarked{}, false, fmt.Errorf("retirement fence mark reducer rows: %w", err)
+		return fenceMarked{}, false, err
 	}
 	if _, err := tx.ExecContext(ctx, fenceDeleteReindexRequestsQuery, acquired.scopeIDs); err != nil {
 		if isLockTimeoutError(err) {

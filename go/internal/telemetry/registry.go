@@ -19,6 +19,8 @@ var metricDimensionKeys = []string{
 	MetricDimensionCollectorKind,
 	MetricDimensionCollectorInstanceID,
 	MetricDimensionClaimPriority,
+	MetricDimensionClaimMode,
+	MetricDimensionConstraint,
 	MetricDimensionFairnessKey,
 	MetricDimensionDomain,
 	MetricDimensionPacingSignal,

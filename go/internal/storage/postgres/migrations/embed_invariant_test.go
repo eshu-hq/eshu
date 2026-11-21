@@ -325,11 +325,14 @@ import (
 // 325_projector_admission_wait_attempts.sql (#10671) adds the projector
 // admission-wait counter on fact_work_items: NOT NULL DEFAULT 0,
 // metadata-only, no backfill.
+// 326_fact_work_item_leases_11081_cleanup.sql (#11081) deletes leftover
+// lease rows under the claim-time liveness definition; DML-only per #7961
+// (renumbered 325 to 326 at rebase: #10671 owns 325).
 // #11082 adds 327_fact_records_package_ownership_active_idx.sql (the
 // drive-from-fact partial index for the code-import ownership load).
 const (
-	goldenBootstrapDefinitionsDigest = "1acdc599268317e5505bdf0520ec0e636f08d0483c94f4ae3e60be0fea6aebad"
-	goldenBootstrapDefinitionsCount  = 352
+	goldenBootstrapDefinitionsDigest = "0aca9acd8e101dcea0cfb32b68f5f57670e40c487db909003f03705194fe6793"
+	goldenBootstrapDefinitionsCount  = 353
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
