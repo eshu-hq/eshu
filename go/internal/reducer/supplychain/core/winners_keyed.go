@@ -11,10 +11,12 @@ import (
 )
 
 // Keyed resweep of the #3389 canonical winners read model (#9805). The
-// maintainer still runs one full resweep at startup. Every later tick consumes
-// the winners dirty log and recomputes only the keys it names; a full-recompute
-// audit runs beside the keyed ticks and queues any key the capture missed. See
-// (#9805).
+// maintainer decides every tick from the persisted winners contract (#11117):
+// a missing, NULL or lower stored version runs one guarded full across all
+// instances, an equal version runs keyed ticks, and a higher version stands the
+// binary down. A keyed tick consumes the winners dirty log and recomputes only
+// the keys it names; a full-recompute audit runs beside the keyed ticks and
+// queues any key the capture missed. See (#9805).
 
 // WinnersDirtyIdentifier names one canonical key of the winners read model by
 // the five columns every candidate fact of that key shares: the package triple
@@ -94,6 +96,38 @@ type SupplyChainImpactWinnersDirtyStats struct {
 // SupplyChainImpactWinnersDirtyLogReader reads the dirty log's depth and age.
 type SupplyChainImpactWinnersDirtyLogReader interface {
 	DirtyLogStats(ctx context.Context) (SupplyChainImpactWinnersDirtyStats, error)
+}
+
+// SupplyChainImpactWinnersContract is the winners contract a committed full
+// resweep recorded with the watermark, beside the contract this binary runs
+// (#11117). The version names the rebuild and keyed statements' semantics; the
+// hash is the digest of their rendered text, pinned to the version by a test.
+type SupplyChainImpactWinnersContract struct {
+	// Present is false when the watermark row does not exist: no resweep has
+	// ever committed.
+	Present bool
+	// HasVersion is false when the row exists but no full recorded a contract
+	// (a NULL version: a pre-#11117 binary, or a rollback runbook reset).
+	HasVersion bool
+	// StoredVersion and StoredHash are what the last committed full recorded.
+	StoredVersion int64
+	StoredHash    string
+	// BinaryVersion and BinaryHash are this binary's contract.
+	BinaryVersion int64
+	BinaryHash    string
+}
+
+// SupplyChainImpactWinnersContractStore reads the persisted winners contract
+// and runs the full resweep only while that contract is behind this binary's.
+// Implemented by postgres.SupplyChainImpactWinnersStore.
+type SupplyChainImpactWinnersContractStore interface {
+	// WinnersContract reads the stored contract and reports this binary's.
+	WinnersContract(ctx context.Context) (SupplyChainImpactWinnersContract, error)
+	// ResweepWinnersUnlessCurrent runs the full resweep, recording this
+	// binary's contract in its transaction, unless the stored version, read
+	// under the resweep lock, is already at or above this binary's. Then it
+	// writes nothing and returns Skipped with ContractCurrent set.
+	ResweepWinnersUnlessCurrent(ctx context.Context) (SupplyChainImpactWinnersResweep, error)
 }
 
 // SupplyChainImpactWinnersAuditDomain names the audit's single-owner lease

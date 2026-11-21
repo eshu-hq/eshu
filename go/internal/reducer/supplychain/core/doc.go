@@ -76,11 +76,12 @@
 // result sub-signals. Group projection stays out of scope: findings stay
 // in Postgres either way; the wave mechanics and freshness bound live in
 // HOLDER_FANOUT.md. With a keyed rebuilder the
-// maintainer runs one full resweep at startup — skipped when a committed
-// watermark already proves the table was swept (#10706) — then keyed ticks
-// that recompute only the keys the writer, activation and scanner captures
-// logged, plus a
-// full-recompute audit that queues any key the capture missed, #9805), and the
+// maintainer decides every tick from the persisted winners contract (#11117):
+// a missing, NULL or lower stored version runs one full across all instances,
+// an equal version runs keyed ticks that recompute only the keys the writer,
+// activation and scanner captures logged plus a full-recompute audit that
+// queues any key the capture missed (#9805), and a higher version stands the
+// binary down), and the
 // Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). A git manifest marker intent
 // (payload PayloadKeyTrigger=TriggerManifestDependency, #9874) writes no
@@ -106,7 +107,8 @@
 // cross_scope_test_doubles_test.go.
 //
 // No-Regression Evidence: skipping the startup full resweep when a committed
-// watermark exists (#10706) removes an hours-long one-shot pass, not per-tick
+// watermark exists (#10706, since decided every tick from the persisted winners
+// contract by #11117) removes an hours-long one-shot pass, not per-tick
 // work — the keyed tick path, claim shape, locks, and worker counts are
 // unchanged. Baseline is the unconditional startup full (92M-row
 // fact_records; observed stuck 87+ min on QA holding the single-flight

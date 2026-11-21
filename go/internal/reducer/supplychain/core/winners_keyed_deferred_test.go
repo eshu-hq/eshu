@@ -36,7 +36,7 @@ func TestWinnersMaintainerDefersAStaleAuditDistinctFromSkipped(t *testing.T) {
 			rebuilder := &fakeKeyedRebuilder{}
 			auditor := &fakeWinnersAuditor{result: tc.result}
 			m := SupplyChainImpactWinnersMaintainer{
-				Rebuilder: rebuilder, KeyedRebuilder: rebuilder,
+				Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder,
 				LeaseManager: &fakeWinnersLeaseManager{claim: true},
 				Auditor:      auditor, Instruments: inst,
 				Logger: slog.New(slog.NewTextHandler(&logs, nil)),

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -83,6 +82,15 @@ type SupplyChainImpactWinnersResweep struct {
 	// Skipped is true when another resweep was in flight, so this one wrote
 	// nothing, stamped nothing and left the watermark to that resweep.
 	Skipped bool
+	// ContractCurrent is true on a Skipped guarded full that found, under the
+	// resweep lock, a stored contract version at or above this binary's
+	// (#11117): another instance already committed the full this one wanted.
+	ContractCurrent bool
+	// StoodDown is true on a Skipped keyed tick that found, under the resweep
+	// lock, a stored contract version above this binary's (#11117): a newer
+	// binary's full committed after this tick's decision read, so it wrote
+	// nothing.
+	StoodDown bool
 	// Path is the path that ran: telemetry.SupplyChainImpactWinnersPathFull or
 	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
 	// keyed resweep (#9805), which the maintainer reads as full.
@@ -167,13 +175,23 @@ type SupplyChainImpactWinnersMaintainer struct {
 	Tracer      trace.Tracer
 	// KeyedRebuilder, Auditor, AuditInterval and DirtyLogReader enable the keyed
 	// resweep of #9805. With KeyedRebuilder nil the maintainer is the full-resweep
-	// maintainer of #9774. Run then runs one full resweep at startup and keyed
-	// ticks after it. The audit runs only when Auditor is set and AuditInterval
-	// is positive. DirtyLogReader feeds the dirty-log gauges every tick.
+	// maintainer of #9774. With a KeyedRebuilder, Run decides every tick from the
+	// persisted winners contract (#11117): no watermark row, a NULL or a lower
+	// stored version runs one guarded full, an equal version runs keyed ticks and
+	// the audit, and a higher version stands down. A roll with a matching
+	// contract runs no full. The audit runs only when Auditor is set and
+	// AuditInterval is positive. DirtyLogReader feeds the dirty-log gauges every
+	// tick.
 	KeyedRebuilder SupplyChainImpactWinnersKeyedRebuilder
 	Auditor        SupplyChainImpactWinnersAuditor
 	AuditInterval  time.Duration
 	DirtyLogReader SupplyChainImpactWinnersDirtyLogReader
+	// Contract decides each keyed-maintainer tick from the persisted winners
+	// contract (#11117): no watermark row, a NULL or a lower stored version
+	// runs one guarded full across every instance; an equal version runs keyed
+	// ticks and the audit only; a higher version stands this binary down. It is
+	// required with a KeyedRebuilder.
+	Contract SupplyChainImpactWinnersContractStore
 }
 
 func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
@@ -211,37 +229,10 @@ func (m SupplyChainImpactWinnersMaintainer) validate() error {
 	if m.LeaseManager == nil {
 		return fmt.Errorf("supply chain impact winners maintainer requires a lease manager")
 	}
+	if m.KeyedRebuilder != nil && m.Contract == nil {
+		return fmt.Errorf("supply chain impact winners maintainer requires a contract store with a keyed rebuilder")
+	}
 	return nil
-}
-
-// seedFullDoneFromWatermark lets a restarted maintainer skip the startup full
-// resweep when the table was already swept (#10706). A committed watermark
-// proves a full resweep completed, so keyed ticks — which consume the dirty
-// log and staging collapse — plus the audit converge without another
-// hours-long full holding the single-flight lock and starving every tick.
-// The seed runs once before the audit loop starts, so the audit gates on the
-// same state as the tick loop. A missing reader, a read error, or no
-// watermark keeps the startup full: an unknown or never-swept table still
-// gets its backfill reconcile, and a failed full still gates keyed ticks
-// until one commits.
-func (m SupplyChainImpactWinnersMaintainer) seedFullDoneFromWatermark(ctx context.Context, fullDone *atomic.Bool) {
-	if m.KeyedRebuilder == nil || m.WatermarkReader == nil {
-		return
-	}
-	at, ok, err := m.WatermarkReader.Watermark(ctx)
-	if err != nil {
-		if m.Logger != nil {
-			m.Logger.WarnContext(ctx, "supply chain impact winners startup watermark read failed; keeping startup full resweep", "error", err)
-		}
-		return
-	}
-	if !ok {
-		return
-	}
-	fullDone.Store(true)
-	if m.Logger != nil {
-		m.Logger.InfoContext(ctx, "supply chain impact winners skipping startup full resweep: committed watermark exists", slog.Time("watermark", at))
-	}
 }
 
 // RunOnce claims the single-owner lease and, if acquired, runs one atomic
@@ -250,50 +241,52 @@ func (m SupplyChainImpactWinnersMaintainer) seedFullDoneFromWatermark(ctx contex
 // returns rebuilt=false and no error. The lease is always released before
 // returning so a crashed/slow instance does not block takeover beyond the TTL.
 func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuilt bool, err error) {
-	_, rebuilt, err = m.runTick(ctx, false)
+	_, rebuilt, err = m.runTick(ctx, winnersTickFull)
 	return rebuilt, err
 }
 
-// Run resweeps once immediately (startup backfill/reconcile) and then on the
-// configured cadence until ctx is cancelled. With a KeyedRebuilder, the
-// startup reconcile is the one full resweep — skipped when a committed
-// watermark already proves the table was swept (#10706) — and every later
-// tick is keyed; the audit runs on its own cadence beside them. Errors are
-// logged and retried with exponential backoff capped at
+// Run resweeps immediately and then on the configured cadence until ctx is
+// cancelled. Without a KeyedRebuilder every tick is a full resweep (#9774).
+// With one, every tick first reads the persisted winners contract (#11117):
+// no watermark row, a NULL or a lower stored version runs the guarded full,
+// which every instance attempts and exactly one commits; an equal version runs
+// a keyed tick; a higher version stands this binary down. The audit runs on its
+// own cadence beside them, only while the contract matches. Errors are logged
+// and retried with exponential backoff capped at
 // maxSupplyChainImpactWinnersBackoff; the loop never exits on a transient
 // resweep error so the read model keeps converging.
 func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 	if err := m.validate(); err != nil {
 		return err
 	}
-	var fullDone atomic.Bool
-	m.seedFullDoneFromWatermark(ctx, &fullDone)
 	var audits sync.WaitGroup
 	if m.Auditor != nil && m.AuditInterval > 0 {
 		audits.Add(1)
 		go func() {
 			defer audits.Done()
-			m.runAuditLoop(ctx, &fullDone)
+			m.runAuditLoop(ctx)
 		}()
 	}
 	defer audits.Wait()
 	backoff := m.interval()
+	standingDown := false
 	for {
 		if ctx.Err() != nil {
 			return nil
 		}
 		var err error
 		var bounded bool
-		if m.KeyedRebuilder != nil && fullDone.Load() {
+		if m.KeyedRebuilder != nil {
 			var res SupplyChainImpactWinnersResweep
-			res, err = m.runKeyedTick(ctx)
+			var down bool
+			var contract SupplyChainImpactWinnersContract
+			res, contract, down, err = m.runContractTick(ctx)
 			bounded = err == nil && !res.Skipped && res.Bounded
-		} else {
-			var rebuilt bool
-			rebuilt, err = m.RunOnce(ctx)
-			if rebuilt && m.KeyedRebuilder != nil {
-				fullDone.Store(true)
+			if err == nil {
+				m.noteStandDown(ctx, &standingDown, down, contract)
 			}
+		} else {
+			_, err = m.RunOnce(ctx)
 		}
 		switch {
 		case err != nil:
@@ -437,6 +430,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		// horizon over the remainder on a bounded one), so every commit
 		// refreshes the gauge with what it stamped (#10706).
 		in.RecordSupplyChainImpactWinnersWatermark(stamp)
+		in.RecordSupplyChainImpactWinnersCommit(path, time.Now())
 	}
 	if m.Logger == nil {
 		return

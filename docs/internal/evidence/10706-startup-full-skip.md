@@ -8,6 +8,18 @@ tracked record the perf-evidence gate requires for the startup gate change
 that skips the full when a committed watermark already proves the table was
 swept.
 
+## Superseded by the persisted contract (#11117)
+
+The per-process `fullDone` seed described below is replaced by a decision read
+from the persisted winners contract on every maintainer tick (#11117): no
+watermark row, a NULL or a lower stored contract version runs one guarded full
+across every instance, an equal version runs keyed ticks, and a higher version
+stands the binary down. A committed watermark alone no longer skips the full,
+because it does not say which statements produced it. The stall this note
+records (a startup full on every roll holding the single-flight lock) is still
+prevented: a roll with an unchanged contract runs no full. See
+`11117-winners-contract.md`.
+
 ## No-Regression Evidence:
 
 This change adds a startup-only seed check, not per-tick work: when a
