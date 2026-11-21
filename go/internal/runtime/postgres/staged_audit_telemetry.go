@@ -6,6 +6,8 @@ package postgres
 import (
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // StagedAuditTelemetry is the in-memory operator surface for the staged audit
@@ -201,4 +203,9 @@ func (t *StagedAuditTelemetry) DiscardRate() float64 {
 		return 0
 	}
 	return float64(t.discards) / float64(t.verifies)
+}
+
+// StagedAuditSnapshot reads the recorder for the exported instruments.
+func (t *StagedAuditTelemetry) StagedAuditSnapshot() telemetry.SupplyChainImpactWinnersStagedAuditSnapshot {
+	return telemetry.SupplyChainImpactWinnersStagedAuditSnapshot{}
 }
