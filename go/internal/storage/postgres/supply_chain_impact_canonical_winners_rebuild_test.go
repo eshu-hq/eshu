@@ -133,6 +133,10 @@ func (r *winnersCountRows) Scan(dest ...any) error {
 			*d = v.(sql.NullTime)
 		case *time.Time:
 			*d = v.(time.Time)
+		case *sql.NullInt64:
+			*d = v.(sql.NullInt64)
+		case *sql.NullString:
+			*d = v.(sql.NullString)
 		case *string:
 			*d = v.(string)
 		}
@@ -172,6 +176,10 @@ type winnersFakeTx struct {
 	drainErr     error
 	// pinnedFirst is true when the isolation pin ran before any query.
 	pinnedFirst bool
+	// storedContract is the (version, hash) row the guarded full reads (nil:
+	// no row); contractStamps records each #11117 contract stamp's args.
+	storedContract []any
+	contractStamps [][]any
 
 	queries    []string
 	args       [][]any
@@ -195,6 +203,11 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 		return winnersCounts(int64(0)), nil
 	case selectWinnersStagingResidualSQL:
 		return winnersCounts(int64(0), sql.NullTime{}), nil
+	case selectSupplyChainImpactWinnersContractSQL:
+		if tx.storedContract == nil {
+			return &winnersCountRows{}, nil
+		}
+		return &winnersCountRows{rows: [][]any{tx.storedContract}}, nil
 	case selectWinnersWatermarkSQL:
 		if tx.watermark.IsZero() {
 			return winnersCounts(tx.clockOrDefault()), nil
@@ -224,13 +237,17 @@ func (tx *winnersFakeTx) clockOrDefault() time.Time {
 	return tx.clock
 }
 
-// ExecContext accepts only the #11117 isolation pin and records whether it
-// ran before any query.
-func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	if query != pinWinnersFullReadCommittedSQL {
+// ExecContext accepts only the #11117 isolation pin (recording whether it ran
+// first) and contract stamp; any other Exec is a fake mismatch.
+func (tx *winnersFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	switch query {
+	case pinWinnersFullReadCommittedSQL:
+		tx.pinnedFirst = len(tx.queries) == 0
+	case stampSupplyChainImpactWinnersContractSQL:
+		tx.contractStamps = append(tx.contractStamps, args)
+	default:
 		return nil, errors.New("the resweep must not use ExecContext")
 	}
-	tx.pinnedFirst = len(tx.queries) == 0
 	return nil, nil
 }
 
@@ -328,11 +345,56 @@ func TestResweepWinnersReportsCounts(t *testing.T) {
 	if !tx.committed || tx.openAtEnd {
 		t.Fatalf("committed = %v with the cursor open = %v, want a commit after the cursor closed", tx.committed, tx.openAtEnd)
 	}
+	if len(tx.contractStamps) != 1 || tx.contractStamps[0][0] != SupplyChainImpactWinnersContractVersion || tx.contractStamps[0][1] != supplyChainImpactWinnersContractHash {
+		t.Fatalf("contract stamps = %v, want one stamp of version %d and the binary hash", tx.contractStamps, SupplyChainImpactWinnersContractVersion)
+	}
 
 	tx = &winnersFakeTx{claim: winnersClaimed(true), counts: winnersCounts(int64(0), int64(0), int64(0), int64(0), sql.NullTime{})}
 	first, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinners(context.Background())
 	if err != nil || !first.PreviousWatermark.IsZero() {
 		t.Fatalf("first resweep = %+v, %v; want a zero previous watermark", first, err)
+	}
+}
+
+// TestResweepWinnersUnlessCurrentSkipsACurrentContract pins the #11117 guard:
+// under the resweep lock the guarded full re-reads the stored contract, and a
+// version at or above the binary's runs nothing past that read; a NULL or lower
+// version runs the full and stamps the binary's contract.
+func TestResweepWinnersUnlessCurrentSkipsACurrentContract(t *testing.T) {
+	t.Parallel()
+
+	for _, stored := range []int64{SupplyChainImpactWinnersContractVersion, SupplyChainImpactWinnersContractVersion + 1} {
+		tx := &winnersFakeTx{
+			claim: winnersClaimed(true), counts: &winnersCountRows{},
+			storedContract: []any{sql.NullInt64{Int64: stored, Valid: true}, sql.NullString{String: "h", Valid: true}},
+		}
+		got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinnersUnlessCurrent(context.Background())
+		if err != nil || !got.Skipped || !got.ContractCurrent {
+			t.Fatalf("stored %d: guarded full = %+v, %v; want Skipped with ContractCurrent", stored, got, err)
+		}
+		if want := []string{tryClaimSupplyChainImpactWinnersResweepSQL, selectSupplyChainImpactWinnersContractSQL}; !slices.Equal(tx.queries, want) {
+			t.Fatalf("stored %d: queries = %q, want only the claim and the contract read", stored, tx.queries)
+		}
+		if tx.committed || len(tx.contractStamps) != 0 {
+			t.Fatalf("stored %d: committed %v, stamps %v; want nothing written", stored, tx.committed, tx.contractStamps)
+		}
+	}
+	for name, row := range map[string][]any{
+		"no row": nil,
+		"null":   {sql.NullInt64{}, sql.NullString{}},
+		"lower":  {sql.NullInt64{Int64: SupplyChainImpactWinnersContractVersion - 1, Valid: true}, sql.NullString{String: "old", Valid: true}},
+	} {
+		tx := &winnersFakeTx{
+			claim: winnersClaimed(true), counts: winnersCounts(int64(1), int64(0), int64(0), int64(0), sql.NullTime{}),
+			storedContract: row,
+		}
+		got, err := SupplyChainImpactWinnersStore{DB: &winnersFakeDB{tx: tx}}.ResweepWinnersUnlessCurrent(context.Background())
+		if err != nil || got.Skipped || got.Inserted != 1 {
+			t.Fatalf("%s: guarded full = %+v, %v; want the full to run", name, got, err)
+		}
+		if !tx.committed || len(tx.contractStamps) != 1 {
+			t.Fatalf("%s: committed %v, stamps %v; want a commit with one contract stamp", name, tx.committed, tx.contractStamps)
+		}
 	}
 }
 

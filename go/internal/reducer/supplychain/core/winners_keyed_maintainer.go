@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -28,12 +27,26 @@ func (m SupplyChainImpactWinnersMaintainer) runKeyedTick(ctx context.Context) (S
 	if m.KeyedRebuilder == nil {
 		return SupplyChainImpactWinnersResweep{}, fmt.Errorf("supply chain impact winners keyed tick requires a keyed rebuilder")
 	}
-	result, _, err := m.runTick(ctx, true)
+	result, _, err := m.runTick(ctx, winnersTickKeyed)
 	return result, err
 }
 
-// runTick is the leased resweep both RunOnce (full) and runKeyedTick share.
-func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed bool) (result SupplyChainImpactWinnersResweep, rebuilt bool, err error) {
+// winnersTick names what one leased tick runs.
+type winnersTick int
+
+const (
+	// winnersTickFull is the unguarded full resweep (RunOnce, the #9774
+	// maintainer without a keyed rebuilder).
+	winnersTickFull winnersTick = iota
+	// winnersTickGuardedFull is the contract-guarded full (#11117).
+	winnersTickGuardedFull
+	// winnersTickKeyed is the keyed tick (#9805).
+	winnersTickKeyed
+)
+
+// runTick is the leased resweep RunOnce, the guarded full and runKeyedTick
+// share.
+func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, tick winnersTick) (result SupplyChainImpactWinnersResweep, rebuilt bool, err error) {
 	if err := m.validate(); err != nil {
 		return SupplyChainImpactWinnersResweep{}, false, err
 	}
@@ -59,10 +72,19 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 	ctx, span := m.startResweepSpan(ctx)
 	started := time.Now()
 	var rbErr error
-	if keyed {
+	switch tick {
+	case winnersTickKeyed:
+		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathKeyed)
 		result, rbErr = m.KeyedRebuilder.ResweepWinnersKeyed(ctx)
-	} else {
+		end()
+	case winnersTickGuardedFull:
+		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathFull)
+		result, rbErr = m.Contract.ResweepWinnersUnlessCurrent(ctx)
+		end()
+	default:
+		end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathFull)
 		result, rbErr = m.Rebuilder.ResweepWinners(ctx)
+		end()
 	}
 	elapsed := time.Since(started)
 	if rbErr != nil {
@@ -70,6 +92,14 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 		span.SetStatus(codes.Error, "winners resweep failed")
 		span.End()
 		return SupplyChainImpactWinnersResweep{}, false, fmt.Errorf("resweep winners: %w", rbErr)
+	}
+	if result.ContractCurrent {
+		span.SetAttributes(attribute.Bool("contract_current", true))
+		if m.Logger != nil {
+			m.Logger.InfoContext(ctx, "supply chain impact winners full resweep not needed: the stored contract is current")
+		}
+		span.End()
+		return result, false, nil
 	}
 	if result.Skipped {
 		m.emitResweepSkipped(ctx, span)
@@ -88,21 +118,40 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 	return result, true, nil
 }
 
-// runAuditLoop runs the audit every AuditInterval until ctx is cancelled. It
-// waits for the startup full resweep (fullDone) because an audit of a table
-// that was never swept would call every key stale.
-func (m SupplyChainImpactWinnersMaintainer) runAuditLoop(ctx context.Context, fullDone *atomic.Bool) {
+// runAuditLoop runs the audit every AuditInterval until ctx is cancelled,
+// only while the stored winners contract matches this binary's (#11117): an
+// audit of a table no full has swept under this contract would call keys
+// stale that the pending full is about to rewrite, and a binary standing down
+// writes nothing.
+func (m SupplyChainImpactWinnersMaintainer) runAuditLoop(ctx context.Context) {
 	for {
 		if err := m.wait(ctx, m.AuditInterval); err != nil {
 			return
 		}
-		if !fullDone.Load() {
+		if !m.auditAllowed(ctx) {
 			continue
 		}
 		if err := m.runAuditOnce(ctx); err != nil && m.Logger != nil && ctx.Err() == nil {
 			m.Logger.Error("supply chain impact winners audit failed", "error", err)
 		}
 	}
+}
+
+// auditAllowed reports whether the stored contract matches this binary's. A
+// failed read allows nothing; the next interval reads again.
+func (m SupplyChainImpactWinnersMaintainer) auditAllowed(ctx context.Context) bool {
+	if m.Contract == nil {
+		return false
+	}
+	contract, err := m.Contract.WinnersContract(ctx)
+	if err != nil {
+		if m.Logger != nil && ctx.Err() == nil {
+			m.Logger.WarnContext(ctx, "supply chain impact winners contract read failed before the audit", "error", err)
+		}
+		return false
+	}
+	action, _ := decideWinnersContract(contract)
+	return action == winnersContractRunKeyed
 }
 
 // runAuditOnce claims the audit lease and runs one audit. A pass that finds
@@ -136,7 +185,9 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 	defer span.End()
 	span.SetAttributes(attribute.String(telemetry.MetricDimensionPath, telemetry.SupplyChainImpactWinnersPathAudit))
 	started := time.Now()
+	end := m.Instruments.BeginSupplyChainImpactWinnersResweep(telemetry.SupplyChainImpactWinnersPathAudit)
 	audit, auditErr := m.Auditor.AuditWinners(ctx)
+	end()
 	elapsed := time.Since(started)
 	if auditErr != nil {
 		span.RecordError(auditErr)
@@ -163,6 +214,7 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 		return nil
 	}
 	span.SetAttributes(attribute.Int64("repairs", audit.Repairs))
+	m.Instruments.RecordSupplyChainImpactWinnersCommit(telemetry.SupplyChainImpactWinnersPathAudit, time.Now())
 	if in := m.Instruments; in != nil {
 		if in.SupplyChainImpactWinnersResweepDuration != nil {
 			in.SupplyChainImpactWinnersResweepDuration.Record(ctx, elapsed.Seconds(),
@@ -230,4 +282,106 @@ func (m SupplyChainImpactWinnersMaintainer) recordKeyedSignals(ctx context.Conte
 	if r.Bounded && in.SupplyChainImpactWinnersChunkedTicks != nil {
 		in.SupplyChainImpactWinnersChunkedTicks.Add(ctx, 1)
 	}
+}
+
+// winnersContractAction is what one keyed-maintainer tick runs, decided from
+// the persisted winners contract (#11117).
+type winnersContractAction int
+
+const (
+	// winnersContractRunFull runs the guarded full: no watermark row, or a
+	// NULL or lower stored version.
+	winnersContractRunFull winnersContractAction = iota
+	// winnersContractRunKeyed runs a keyed tick: the stored version equals
+	// this binary's.
+	winnersContractRunKeyed
+	// winnersContractStandDown runs nothing: a newer binary's contract is
+	// stored, so this binary's statements must not touch the table.
+	winnersContractStandDown
+)
+
+// decideWinnersContract maps the stored contract to the tick's action and,
+// for a full, its start reason. The decision reads only versions: the hash is
+// pinned to the version by a test, so equal versions mean equal statements.
+func decideWinnersContract(c SupplyChainImpactWinnersContract) (winnersContractAction, string) {
+	switch {
+	case !c.Present:
+		return winnersContractRunFull, telemetry.SupplyChainImpactWinnersFullReasonNoWatermark
+	case !c.HasVersion || c.StoredVersion < c.BinaryVersion:
+		return winnersContractRunFull, telemetry.SupplyChainImpactWinnersFullReasonContractVersion
+	case c.StoredVersion == c.BinaryVersion:
+		return winnersContractRunKeyed, ""
+	default:
+		return winnersContractStandDown, ""
+	}
+}
+
+// runContractTick reads the stored contract, records it, and runs what it
+// decides. A full skipped behind another instance, or found already current
+// under the lock, is satisfied by that instance's commit: the next tick
+// re-reads the row and runs keyed. standDown reports a tick that ran nothing
+// because a newer contract is stored.
+func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context) (result SupplyChainImpactWinnersResweep, contract SupplyChainImpactWinnersContract, standDown bool, err error) {
+	contract, err = m.Contract.WinnersContract(ctx)
+	if err != nil {
+		return SupplyChainImpactWinnersResweep{}, contract, false, fmt.Errorf("read winners contract: %w", err)
+	}
+	stored := contract.StoredVersion
+	if !contract.HasVersion {
+		stored = 0
+	}
+	m.Instruments.RecordSupplyChainImpactWinnersContract(stored, contract.BinaryVersion)
+	action, reason := decideWinnersContract(contract)
+	switch action {
+	case winnersContractStandDown:
+		// The gauges keep reporting the table this binary no longer touches.
+		m.sampleWatermark(ctx)
+		m.sampleDirtyLog(ctx)
+		m.Instruments.RecordSupplyChainImpactWinnersStandDown(ctx)
+		return SupplyChainImpactWinnersResweep{}, contract, true, nil
+	case winnersContractRunKeyed:
+		result, err = m.runKeyedTick(ctx)
+		if err == nil && !result.Skipped && result.Path == telemetry.SupplyChainImpactWinnersPathFull {
+			m.Instruments.RecordSupplyChainImpactWinnersFullResweep(ctx, telemetry.SupplyChainImpactWinnersFullReasonKeyedCap)
+		}
+		return result, contract, false, err
+	default:
+		result, _, err = m.runTick(ctx, winnersTickGuardedFull)
+		if err == nil && !result.Skipped {
+			m.Instruments.RecordSupplyChainImpactWinnersFullResweep(ctx, reason)
+			if m.Logger != nil {
+				m.Logger.InfoContext(ctx, "supply chain impact winners full resweep recorded the contract",
+					slog.String("reason", reason),
+					slog.Int64("stored_version", contract.StoredVersion),
+					slog.Bool("stored_version_present", contract.HasVersion),
+					slog.Int64("binary_version", contract.BinaryVersion),
+				)
+			}
+		}
+		return result, contract, false, err
+	}
+}
+
+// noteStandDown logs the edges of a stand-down, once on entry and once on
+// exit, so a stand-down that lasts many ticks logs twice, not every tick. The
+// counter records every stand-down tick.
+func (m SupplyChainImpactWinnersMaintainer) noteStandDown(ctx context.Context, standingDown *bool, down bool, contract SupplyChainImpactWinnersContract) {
+	if down == *standingDown {
+		return
+	}
+	*standingDown = down
+	if m.Logger == nil {
+		return
+	}
+	if down {
+		m.Logger.WarnContext(ctx, "supply chain impact winners maintainer standing down: a newer winners contract is stored",
+			slog.Int64("stored_version", contract.StoredVersion),
+			slog.Int64("binary_version", contract.BinaryVersion),
+		)
+		return
+	}
+	m.Logger.InfoContext(ctx, "supply chain impact winners maintainer resumed: the stored contract no longer outranks this binary",
+		slog.Int64("stored_version", contract.StoredVersion),
+		slog.Int64("binary_version", contract.BinaryVersion),
+	)
 }

@@ -502,10 +502,9 @@ func buildReducerService(
 		SupplyChainImpactWinnersMaintainer: &supplychaincore.SupplyChainImpactWinnersMaintainer{
 			Rebuilder:       postgres.NewSupplyChainImpactWinnersStore(database),
 			WatermarkReader: postgres.NewSupplyChainImpactWinnersStore(database),
-			// #9805: one full resweep at startup — skipped when the committed
-			// watermark proves the table was already swept (#10706) — then
-			// keyed ticks from the dirty log, with a full-recompute audit as
-			// the backstop.
+			// #9805: keyed ticks from the dirty log once a full under this
+			// binary's winners contract has committed (#11117), with a
+			// full-recompute audit as the backstop.
 			KeyedRebuilder: postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
 			// The stale candidate source is attached post-construction in
 			// buildObservedReducerService when routing admits stale audits
@@ -513,11 +512,14 @@ func buildReducerService(
 			Auditor:        postgres.NewSupplyChainImpactWinnersStore(database),
 			AuditInterval:  loadSupplyChainImpactWinnersAuditInterval(getenv),
 			DirtyLogReader: postgres.NewSupplyChainImpactWinnersStore(database),
-			LeaseManager:   intentStore,
-			LeaseOwner:     defaultSupplyChainImpactWinnersLeaseOwner(),
-			Logger:         logger,
-			Instruments:    instruments,
-			Tracer:         tracer,
+			// #11117: every tick decides from the persisted winners contract,
+			// so a roll with an unchanged contract runs no full resweep.
+			Contract:     postgres.NewSupplyChainImpactWinnersStore(database).WithInstruments(instruments),
+			LeaseManager: intentStore,
+			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
+			Logger:       logger,
+			Instruments:  instruments,
+			Tracer:       tracer,
 		},
 		CollectorEvidenceSummaryMaintainer: &evidence.Maintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),

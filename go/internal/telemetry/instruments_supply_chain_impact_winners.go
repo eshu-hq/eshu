@@ -121,7 +121,7 @@ func registerSupplyChainImpactWinnersInstruments(meter metric.Meter, inst *Instr
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersWatermarkAge gauge: %w", err)
 	}
-	return nil
+	return registerSupplyChainImpactWinnersContractInstruments(meter, inst)
 }
 
 // RecordSupplyChainImpactWinnersWatermark sets the watermark the age gauge ages
@@ -160,4 +160,198 @@ func registerSupplyChainImpactAttachmentWait(meter metric.Meter, inst *Instrumen
 		return fmt.Errorf("register SupplyChainImpactAttachmentWait counter: %w", err)
 	}
 	return nil
+}
+
+// Full-resweep start reasons for
+// eshu_dp_supply_chain_impact_winners_full_resweeps_total (#11117). The value
+// set is closed.
+const (
+	// SupplyChainImpactWinnersFullReasonNoWatermark is a full that ran because
+	// no resweep had ever committed (no watermark row).
+	SupplyChainImpactWinnersFullReasonNoWatermark = "no_watermark"
+	// SupplyChainImpactWinnersFullReasonContractVersion is a full that ran
+	// because the stored contract version was NULL or below the binary's.
+	SupplyChainImpactWinnersFullReasonContractVersion = "contract_version"
+	// SupplyChainImpactWinnersFullReasonKeyedCap is a keyed tick whose
+	// consumed keys passed the cap, so it ran the full rebuild instead.
+	SupplyChainImpactWinnersFullReasonKeyedCap = "keyed_cap"
+)
+
+// Contract-version kinds for eshu_dp_supply_chain_impact_winners_contract_version
+// (#11117), the closed set of its kind label.
+const (
+	// SupplyChainImpactWinnersContractStored is the version the last
+	// committed full recorded; 0 when none is recorded.
+	SupplyChainImpactWinnersContractStored = "stored"
+	// SupplyChainImpactWinnersContractBinary is this binary's version.
+	SupplyChainImpactWinnersContractBinary = "binary"
+)
+
+// winnersContractPaths is the closed path set the in-flight and last-commit
+// gauges report.
+var winnersContractPaths = []string{
+	SupplyChainImpactWinnersPathFull,
+	SupplyChainImpactWinnersPathKeyed,
+	SupplyChainImpactWinnersPathAudit,
+}
+
+// winnersContractState is the process-local state the #11117 gauges read at
+// scrape time: the start of the resweep in flight and the last commit, by
+// path, in Unix nanoseconds (0 for none), and the last contract read.
+type winnersContractState struct {
+	inFlight   map[string]*atomic.Int64
+	lastCommit map[string]*atomic.Int64
+	read       atomic.Bool
+	stored     atomic.Int64
+	binary     atomic.Int64
+}
+
+func newWinnersContractState() *winnersContractState {
+	st := &winnersContractState{inFlight: map[string]*atomic.Int64{}, lastCommit: map[string]*atomic.Int64{}}
+	for _, path := range winnersContractPaths {
+		st.inFlight[path] = new(atomic.Int64)
+		st.lastCommit[path] = new(atomic.Int64)
+	}
+	return st
+}
+
+// registerSupplyChainImpactWinnersContractInstruments registers the winners
+// contract signals of #11117 on inst.
+//
+//   - eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds{path}:
+//     seconds the resweep in flight on this process has run, 0 when none. A
+//     full past its usual duration, or a keyed tick past seconds, is visible
+//     before it commits or fails.
+//   - eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds{path}:
+//     Unix time of the last committed resweep by path, distinct from the
+//     watermark value it stamped. No value until the path first commits.
+//   - eshu_dp_supply_chain_impact_winners_contract_version{kind}: the stored
+//     contract version (0 when none is recorded) and this binary's, from the
+//     last contract read. No value until the first read.
+//   - eshu_dp_supply_chain_impact_winners_full_resweeps_total{reason}:
+//     committed fulls by start reason (no_watermark, contract_version,
+//     keyed_cap). A matching-version roll adds nothing.
+//   - eshu_dp_supply_chain_impact_winners_stand_downs_total: ticks this binary
+//     stood down because a newer contract is stored.
+//
+// No label carries a canonical key, scope, repository or CVE.
+func registerSupplyChainImpactWinnersContractInstruments(meter metric.Meter, inst *Instruments) error {
+	st := newWinnersContractState()
+	inst.supplyChainImpactWinnersContract = st
+	var err error
+	if inst.SupplyChainImpactWinnersInFlightAge, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds",
+		metric.WithDescription("Seconds the supply-chain impact winners resweep in flight on this process has run, by path (full, keyed, audit); 0 when none is in flight. It shows a long full or a stuck keyed tick before it commits or fails."),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			for _, path := range winnersContractPaths {
+				age := 0.0
+				if at := st.inFlight[path].Load(); at != 0 {
+					age = time.Since(time.Unix(0, at)).Seconds()
+				}
+				o.Observe(age, metric.WithAttributes(AttrPath(path)))
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersInFlightAge gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersLastCommit, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds",
+		metric.WithDescription("Unix time of the last supply-chain impact winners resweep this process committed, by path (full, keyed, audit). It is the commit time, not the watermark value the resweep stamped. No value until the path first commits."),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			for _, path := range winnersContractPaths {
+				if at := st.lastCommit[path].Load(); at != 0 {
+					o.Observe(float64(at)/float64(time.Second), metric.WithAttributes(AttrPath(path)))
+				}
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersLastCommit gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersContractVersion, err = meter.Int64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_contract_version",
+		metric.WithDescription("Supply-chain impact winners contract version by kind: stored (what the last committed full recorded, 0 when none) and binary (this process). Stored below binary runs one full; equal runs keyed ticks; stored above binary stands this process down."),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			if st.read.Load() {
+				o.Observe(st.stored.Load(), metric.WithAttributes(AttrKind(SupplyChainImpactWinnersContractStored)))
+				o.Observe(st.binary.Load(), metric.WithAttributes(AttrKind(SupplyChainImpactWinnersContractBinary)))
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersContractVersion gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersFullResweeps, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_full_resweeps_total",
+		metric.WithDescription("Committed supply-chain impact winners full resweeps, by start reason (no_watermark, contract_version, keyed_cap). A reducer roll with an unchanged contract adds nothing."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersFullResweeps counter: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersStandDowns, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_stand_downs_total",
+		metric.WithDescription("Supply-chain impact winners maintainer ticks that stood down because the stored contract version is above this binary's: no full, keyed tick or audit ran. Any rate means an older binary is running beside a newer one."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersStandDowns counter: %w", err)
+	}
+	return nil
+}
+
+// BeginSupplyChainImpactWinnersResweep marks a resweep on path in flight for
+// the in-flight age gauge and returns the call that clears it. It is safe on a
+// nil receiver; path must be one of the SupplyChainImpactWinnersPath*
+// constants.
+func (i *Instruments) BeginSupplyChainImpactWinnersResweep(path string) (end func()) {
+	if i == nil || i.supplyChainImpactWinnersContract == nil {
+		return func() {}
+	}
+	slot, ok := i.supplyChainImpactWinnersContract.inFlight[path]
+	if !ok {
+		return func() {}
+	}
+	slot.Store(time.Now().UnixNano())
+	return func() { slot.Store(0) }
+}
+
+// RecordSupplyChainImpactWinnersCommit records at as the last commit time of
+// path. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersCommit(path string, at time.Time) {
+	if i == nil || i.supplyChainImpactWinnersContract == nil {
+		return
+	}
+	if slot, ok := i.supplyChainImpactWinnersContract.lastCommit[path]; ok {
+		slot.Store(at.UnixNano())
+	}
+}
+
+// RecordSupplyChainImpactWinnersContract records the last contract read:
+// stored is 0 when no version is recorded. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersContract(stored, binary int64) {
+	if i == nil || i.supplyChainImpactWinnersContract == nil {
+		return
+	}
+	i.supplyChainImpactWinnersContract.stored.Store(stored)
+	i.supplyChainImpactWinnersContract.binary.Store(binary)
+	i.supplyChainImpactWinnersContract.read.Store(true)
+}
+
+// RecordSupplyChainImpactWinnersFullResweep counts one committed full under
+// reason, one of the SupplyChainImpactWinnersFullReason* constants. It is safe
+// on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersFullResweep(ctx context.Context, reason string) {
+	if i == nil || i.SupplyChainImpactWinnersFullResweeps == nil {
+		return
+	}
+	i.SupplyChainImpactWinnersFullResweeps.Add(ctx, 1, metric.WithAttributes(AttrReason(reason)))
+}
+
+// RecordSupplyChainImpactWinnersStandDown counts one stand-down tick. It is
+// safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersStandDown(ctx context.Context) {
+	if i == nil || i.SupplyChainImpactWinnersStandDowns == nil {
+		return
+	}
+	i.SupplyChainImpactWinnersStandDowns.Add(ctx, 1)
 }

@@ -226,3 +226,39 @@ func winnersCounterSum(t *testing.T, reader *sdkmetric.ManualReader, name string
 	}
 	return total
 }
+
+// fakeFullContract adapts a full rebuilder into the contract store the way the
+// Postgres store behaves: no contract until a guarded full commits, then the
+// binary's. The keyed-maintainer tests use it so their first tick is the one
+// full and every later tick is keyed.
+type fakeFullContract struct {
+	full      SupplyChainImpactWinnersRebuilder
+	mu        sync.Mutex
+	committed bool
+}
+
+func (f *fakeFullContract) WinnersContract(context.Context) (SupplyChainImpactWinnersContract, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := SupplyChainImpactWinnersContract{BinaryVersion: 1, BinaryHash: "h1"}
+	if f.committed {
+		c.Present, c.HasVersion, c.StoredVersion, c.StoredHash = true, true, 1, "h1"
+	}
+	return c, nil
+}
+
+func (f *fakeFullContract) ResweepWinnersUnlessCurrent(ctx context.Context) (SupplyChainImpactWinnersResweep, error) {
+	f.mu.Lock()
+	if f.committed {
+		f.mu.Unlock()
+		return SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, nil
+	}
+	f.mu.Unlock()
+	r, err := f.full.ResweepWinners(ctx)
+	if err == nil && !r.Skipped {
+		f.mu.Lock()
+		f.committed = true
+		f.mu.Unlock()
+	}
+	return r, err
+}

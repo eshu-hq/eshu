@@ -135,4 +135,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// winners dirty tally so the NVD/GHSA inflow split stops reading
 	// NOT_CHECKED.
 	"supply_chain_impact_winners_dirty_tally_ghsa",
+	// Migration 329 (#11117) adds the nullable winners contract version and
+	// hash to the winners watermark row (renumbered from 328: #11078 owns 328).
+	"supply_chain_impact_winners_contract",
 }

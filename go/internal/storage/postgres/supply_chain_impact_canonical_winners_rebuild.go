@@ -227,8 +227,21 @@ func (s SupplyChainImpactWinnersStore) WithInstruments(in *telemetry.Instruments
 // When another resweep is in flight it writes nothing, stamps nothing and
 // returns Skipped. Any other non-nil result means the transaction committed; on
 // an error the result is the zero value and nothing was written.
+//
+// The full records this binary's winners contract in the same transaction
+// (#11117); ResweepWinnersUnlessCurrent is the guarded variant the maintainer
+// runs.
 func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	ctx context.Context,
+) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
+	return s.resweepFull(ctx, false)
+}
+
+// resweepFull is the full resweep behind ResweepWinners and, with guarded,
+// ResweepWinnersUnlessCurrent.
+func (s SupplyChainImpactWinnersStore) resweepFull(
+	ctx context.Context,
+	guarded bool,
 ) (supplychaincore.SupplyChainImpactWinnersResweep, error) {
 	var none supplychaincore.SupplyChainImpactWinnersResweep
 	if s.DB == nil {
@@ -258,6 +271,15 @@ func (s SupplyChainImpactWinnersStore) ResweepWinners(
 	if !claimed {
 		return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true}, nil
 	}
+	if guarded {
+		stored, err := readWinnersContract(ctx, tx)
+		if err != nil {
+			return none, err
+		}
+		if stored.HasVersion && stored.StoredVersion >= stored.BinaryVersion {
+			return supplychaincore.SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, nil
+		}
+	}
 	stamp, err := scanWinnersTime(ctx, tx, selectWinnersKeyedTickClockSQL, "read supply chain impact winners full resweep clock")
 	if err != nil {
 		return none, err
@@ -277,6 +299,9 @@ func (s SupplyChainImpactWinnersStore) ResweepWinners(
 		return none, err
 	}
 	if result.Watermark, err = scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read committed supply chain impact winners watermark"); err != nil {
+		return none, err
+	}
+	if err := stampWinnersContract(ctx, tx); err != nil {
 		return none, err
 	}
 	// #10876: the resweep commit is the providing save for the
