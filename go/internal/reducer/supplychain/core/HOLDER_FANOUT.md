@@ -47,7 +47,7 @@ budget. A dead letter at a superseded generation is never touched. Outcomes:
 `no_active_generation` names a holder scope with no active generation;
 `pending_noop` now means only a queued or already-flagged row. The
 `eshu_dp_supply_chain_impact_active_dead_letters{failure_class}` gauge and its
-`_owing_fanout` subset show what is still pinned. One residual is open: a running holder that a fan-out flags and that then dead-letters loses the flagged change, because the dead-letter transition clears the flag, until another change reaches it (#11159).
+`_owing_fanout` subset show what is still pinned. One residual is open: a running holder that a fan-out flags and that then dead-letters loses the flagged change, because the dead-letter transition clears the flag, until another change reaches it (#11159). A second residual is open: a genuine pass flagged while running that then fails in a non-counting class retries at attempt 1 with the origin stamp, so it runs as a CVE-scoped one hop and hides the genuine pass (#11173).
 
 ## Rules
 

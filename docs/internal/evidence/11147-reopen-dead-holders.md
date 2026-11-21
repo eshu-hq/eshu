@@ -142,6 +142,10 @@ reopens, per the ruling.
 ## Not checked
 
 - The flag-then-dead-letter fix (#11159, its own PR).
+- A second residual, already on main and not introduced here: a genuine pass
+  flagged while running that then fails in a non-counting class retries at
+  attempt 1 with the origin stamp and runs as a one hop (#11173, its own PR).
+  Reopened dead letters enlarge the population exposed to it.
 - `TestSuppressionFanOutCappedContinuationSurvivesNewerGenerationLive` (load-gated
   on base and branch alike).
 - The race detector on the new live tests (`-race` was not run on the loaded
