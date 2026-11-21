@@ -37,11 +37,12 @@ for fragment in "${repo_root}"/specs/live-tests.d/live-tests-readiness*.generate
   lines="$(wc -l <"${fragment}")"
   (( lines < 500 )) || fail "${fragment##*/} exceeds the file cap: ${lines} lines"
 done
-# Seven generated fragments (base, parts 2-5, 5b, 6); the count follows FRAGMENT_NAMES in live_postgres_readiness_gen_fragments.py.
+# Eight generated fragments (base, parts 2-5, 5b, 6, 7); the count follows FRAGMENT_NAMES in live_postgres_readiness_gen_fragments.py.
 # Rebalanced 2026-11-06 for the #10015 rebase onto #10199: the union of the
 # #10015 midpoint cut and the four #10199 cuts needs a sixth fragment.
 # Split 2026-11-21 for #11104: part5 splits into part5 and part5b.
-[[ "${fragment_count}" == "7" ]] || fail "want seven generated fragments, got ${fragment_count}"
+# Split 2026-11-21 for #11129: part6 splits into part6 and part7.
+[[ "${fragment_count}" == "8" ]] || fail "want eight generated fragments, got ${fragment_count}"
 python3 "${repo_root}/scripts/test-live-postgres-readiness-fragments.py" rows "${repo_root}" || fail "generated proof rows differ from enrollment"
 
 # Scratch tree: hardlinked go/ when the scratch shares the repo's
@@ -292,4 +293,4 @@ out="$(python3 "${generator}" --root "${scratch}" 2>&1)" && fail "quoted reason 
 [[ "${out}" == *"${quote_file##*/}"* ]] || fail "quoted reason not named: ${out}"
 rm "${quote_file}"
 
-printf 'test-generate-live-postgres-readiness: GREEN (exact rows, seven capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote/unscanned RED)\n'
+printf 'test-generate-live-postgres-readiness: GREEN (exact rows, eight capped fragments, idempotent, stable shards, missing/duplicate/orphan/boundary/oversize/stale/unregistered/quote/unscanned RED)\n'
