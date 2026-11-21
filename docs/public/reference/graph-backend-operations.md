@@ -141,6 +141,45 @@ in-place data migration:
 Graph schema differences belong to schema bootstrap dialects. Eshu does not
 fork reducers, query handlers, or MCP tools per backend.
 
+## Sizing (Neo4j, QA-Measured)
+
+Interim guidance from the QA deployment at its current size, pending the
+timed full rebuild (#10883). Do not resize the deployment from this section
+alone; the rebuild peaks still have to confirm the headroom.
+
+Measured 2026-11-21 (Neo4j Community 2026.08.1, pod uptime 35 days):
+
+| Signal | Value |
+| --- | --- |
+| Nodes / relationships | 1,295,209 / 3,062,391 |
+| Store (`/data`) | 7.4 GiB (strings 2.9G, indexes 1.1G, propertystore 641M, relstore 128M) |
+| Pod usage | 7m CPU / ~39 GiB RSS |
+| Pod reserved | 32 CPU / 224 GiB (request = limit; heap 31g, page cache 160g) |
+| Graph PVC | 500 GiB, ~1.5% used |
+| Postgres behind it | 12,363 scopes, 92.9M facts |
+
+The reservation is the former NornicDB slot on the dedicated node, not a number
+any graph measurement produced. At 7.4 GiB of store the 160g page cache is
+roughly thirty times the data plus indexes, and steady-state writes average
+single-digit milliseconds.
+
+The sizing rule until the timed run lands:
+
+- Page cache at or above 1.5x store data plus indexes, re-checked after the
+  rebuild measures the real peak.
+- Against the #10862 target (ten times one organization, about 94,000 scopes
+  and 840 million facts): ten times the current store is about 74 GiB, which
+  the current 160g page cache covers with margin left. Capacity is not the
+  reason to touch the reservation; efficiency is, and that call waits for the
+  rebuild's peak RSS and write-path CPU.
+- CPU stays at 32 until the rebuild shows what the write drain actually burns.
+  Idle usage rounds to zero; sizing from idle would repeat the original guess.
+- The 500 GiB PVC stays. Even at ten times the store it holds six times the
+  data plus room for transaction logs.
+
+The full reference points and the procedure that produces the rebuild peaks are
+in [Timed graph rebuild on QA](../operate/graph-rebuild-qa-timed.md).
+
 ## Telemetry
 
 Graph-backed runtimes label backend activity with `graph_backend` on spans,

@@ -477,9 +477,8 @@ skipped.
 
 Size your recovery time objective against a measurement from your own corpus.
 Run `scripts/verify-graph-rebuild-from-facts.sh` against it and use what it
-prints. See
-[Performance SLO contract](../reference/performance-slo-contract.md#graph-rebuild-from-facts)
-for the conditions the reference number was taken under.
+prints. For the QA-scale timed run, see [Timed graph rebuild on QA](graph-rebuild-qa-timed.md) and the conditions in
+[Performance SLO contract](../reference/performance-slo-contract.md#graph-rebuild-from-facts).
 
 ## Related pages
 
