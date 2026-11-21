@@ -165,6 +165,59 @@ func TestSupplyChainImpactWinnersResweepFullPinsReadCommittedLive(t *testing.T) 
 	assertFullStampsUnderResidual(h, "isolation")
 }
 
+// TestSupplyChainImpactWinnersResweepFullNeverRegressesTheWatermarkLive proves
+// the GREATEST in the rebuild stamp: a residual mark whose captured_at is older
+// than the stored watermark (a late commit the previous tick already covered)
+// caps the candidate below that watermark, and both the full and the keyed
+// tick's over-cap full fallback keep the watermark where it was instead of
+// moving it backward.
+func TestSupplyChainImpactWinnersResweepFullNeverRegressesTheWatermarkLive(t *testing.T) {
+	for _, path := range []string{"full", "keyed_cap"} {
+		t.Run(path, func(t *testing.T) {
+			h := newKeyedHarness(t, "#11117 full resweep no-regress proof")
+			scope := "vuln-intel://11117/regress-" + path
+			h.seedScope(scope, scope+"/g1")
+			h.write(scope, scope+"/g1", chunkedFindings("regress", 3, 1, 0)...)
+			if _, err := h.store.ResweepWinners(h.ctx); err != nil {
+				t.Fatalf("first full resweep: %v", err)
+			}
+			prev := chunkedWatermark(h)
+
+			injected := false
+			store := h.store
+			store.DB = beforeRebuildDB{inner: postgres.SQLDB{DB: h.db}, hook: func() {
+				if injected {
+					return
+				}
+				injected = true
+				h.exec(`INSERT INTO supply_chain_impact_winners_dirty_staging (kind, source, package_id, repository_id, subject_digest, c0, advisory_id, captured_at)
+VALUES ('fact', 'fact_upsert', 'pkg:npm/regress-00', 'repo-9805', '', 'CVE-2026-regress-00-00', '', $1::timestamptz - interval '1 hour')`, prev)
+			}}
+			if path == "full" {
+				if r, err := store.ResweepWinners(h.ctx); err != nil || r.Skipped {
+					t.Fatalf("full resweep = %+v, %v", r, err)
+				}
+			} else {
+				h.write(scope, scope+"/g1", chunkedFindings("regress", 3, 1, 100)...)
+				store.MaxKeyFraction = 0.0001
+				r, err := store.ResweepWinnersKeyed(h.ctx)
+				if err != nil || r.Skipped || r.Path != "full" {
+					t.Fatalf("keyed tick = %+v, %v; want the over-cap full fallback", r, err)
+				}
+			}
+			if !injected {
+				t.Fatal("the rebuild statement never ran through the hook")
+			}
+			if wm := chunkedWatermark(h); !wm.Equal(prev) {
+				t.Fatalf("watermark = %v after a residual older than it, want it kept at %v", wm, prev)
+			}
+			if n := h.stagingDepth(); n != 1 {
+				t.Fatalf("staged marks after the rebuild = %d, want the old residual still queued", n)
+			}
+		})
+	}
+}
+
 // assertFullStampsUnderResidual seeds findings, runs the first full with a
 // mark injected after its drain and before its rebuild, and requires the
 // mark to stay queued with the watermark at its captured_at minus 1us.
