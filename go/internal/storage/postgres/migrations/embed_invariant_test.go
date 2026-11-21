@@ -346,11 +346,11 @@ import (
 // 332_supply_chain_impact_winners_payload_backfill.sql (#10880 slice 1
 // follow-up) backfills those columns for pre-existing winner rows
 // (renumbered 326 to 332 at rebase: main owns 325-330).
-// TEMPORARY rebase digest: recomputed after all commits apply (red-first
-// via the failing test).
+// Digest recomputed red-first after the 331/332 rebase (count 358:
+// main's 329-330 plus the branch pair).
 const (
-	goldenBootstrapDefinitionsDigest = "691be2a42da887f0a7b170d4eb45da83229b75c02c115bcecd049f47be9c7fd0"
-	goldenBootstrapDefinitionsCount  = 356
+	goldenBootstrapDefinitionsDigest = "df9dc37054beb12623f6027de2ac45ed4aa277276caa4284b62eb007f54485f6"
+	goldenBootstrapDefinitionsCount  = 358
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
