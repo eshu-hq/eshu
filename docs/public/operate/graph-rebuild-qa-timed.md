@@ -90,9 +90,10 @@ stack, not pins.
 2. Scale the Neo4j Deployment to zero, delete and recreate the
    `eshu-neo4j-data` PVC from the chart manifest, scale back to one, and wait
    for Bolt to answer.
-3. Force schema reapply (`ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true` semantics from
-   the Compose procedure) through whichever workload runs migrations in this
-   environment, and confirm the applied marker before continuing.
+3. Force schema reapply through whichever workload runs migrations in this
+   environment, per the schema step in
+   [Rebuild the graph from facts](graph-rebuild-from-facts.md), and confirm
+   the applied marker before continuing.
 4. Submit `recover-generations` with `all_scopes: true`, a fresh
    `idempotency_key`, and an admin token. Record `enqueued`, `skipped_scopes`,
    and the five dedup counters from the response. The clock starts here.
