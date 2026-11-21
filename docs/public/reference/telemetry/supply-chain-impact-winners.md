@@ -243,6 +243,12 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_full_resweeps_total` | counter | `reason` | Committed fulls by start reason: `no_watermark` (no resweep had committed), `contract_version` (stored version NULL or lower), `keyed_cap` (a keyed tick fell back past the cap). |
 | `eshu_dp_supply_chain_impact_winners_stand_downs_total` | counter | none | Ticks this instance stood down because the stored contract is newer than its binary. Any rate means mixed binaries. |
 | `supply chain impact winners maintainer standing down` | warn log | none | Logged once when an instance starts standing down, with `stored_version` and `binary_version`; a matching info log marks the resume. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total` | counter | `reason` | Staged-audit ticks (routing `staged-audits`) deferred by `budget`, `conflict_exhausted` or `batch_abort`: the read phase stopped on the standby and verified nothing (#11117). |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total` | counter | none | Completed staged-audit read phases. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_batches` | gauge | none | Standby batches (one per active scope generation) the last completed staged-audit tick read. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds` | gauge | none | The last tick's slowest standby batch; each batch has a 25 s statement timeout. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts` | gauge | none | Facts the last tick staged (cap 1,000,000; above it the tick defers on `budget`). |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys` | gauge | none | Distinct keys the last tick compacted (cap 250,000). |
 | `supply chain impact winners audit completed` | info log | none | One line per completed audit pass, zero repairs included, with `repairs`, `read_seconds` and `duration_seconds`. |
 | `supply chain impact winners full resweep recorded the contract` | info log | none | A full committed and recorded this binary's contract, with `reason` and the stored and binary versions it replaced. |
 | `supply chain impact winners resweep committed` | info log | none | The same four counts plus `path`, `identifiers`, `keys`, `duration_seconds` and `previous_watermark_age_seconds` (`-1` for the first resweep). |

@@ -389,8 +389,89 @@ type SupplyChainImpactWinnersStagedAuditSource interface {
 	StagedAuditSnapshot() SupplyChainImpactWinnersStagedAuditSnapshot
 }
 
-// RegisterSupplyChainImpactWinnersStagedAuditInstruments registers the
-// staged audit's exported instruments over src.
-func RegisterSupplyChainImpactWinnersStagedAuditInstruments(metric.Meter, SupplyChainImpactWinnersStagedAuditSource) error {
+// supplyChainImpactWinnersStagedAuditReasons is the closed deferral reason
+// set of the staged audit (internal/runtime/postgres StagedAuditDefer*).
+var supplyChainImpactWinnersStagedAuditReasons = []string{"budget", "conflict_exhausted", "batch_abort"}
+
+// RegisterSupplyChainImpactWinnersStagedAuditInstruments registers the staged
+// audit's exported instruments over src (#11117 arbiter addendum item 5b),
+// read at scrape time:
+//
+//   - eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason}:
+//     deferred staged-audit ticks by closed reason (budget,
+//     conflict_exhausted, batch_abort). A deferred tick never reached the
+//     writer and verified nothing.
+//   - eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total: completed
+//     staged-audit read phases.
+//   - eshu_dp_supply_chain_impact_winners_staged_audit_last_batches,
+//     ..._last_max_batch_seconds, ..._last_staged_facts and
+//     ..._last_distinct_keys: the last completed tick's batch count, slowest
+//     batch, staged facts and distinct keys. No value before the first tick.
+//
+// Call it once per recorder.
+func RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter metric.Meter, src SupplyChainImpactWinnersStagedAuditSource) error {
+	if meter == nil || src == nil {
+		return nil
+	}
+	deferrals, err := meter.Int64ObservableCounter(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total",
+		metric.WithDescription("Deferred supply-chain impact winners staged-audit ticks by reason (budget, conflict_exhausted, batch_abort). A deferred tick read the standby only and verified nothing; a steady rate means the backstop is not completing."),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit deferrals counter: %w", err)
+	}
+	ticks, err := meter.Int64ObservableCounter(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total",
+		metric.WithDescription("Completed supply-chain impact winners staged-audit read phases."),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit ticks counter: %w", err)
+	}
+	batches, err := meter.Int64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_last_batches",
+		metric.WithDescription("Standby batches the last completed supply-chain impact winners staged-audit tick read (one per active scope generation)."),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit last batches gauge: %w", err)
+	}
+	maxBatch, err := meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds",
+		metric.WithDescription("Slowest standby batch of the last completed supply-chain impact winners staged-audit tick; each batch has a 25 s statement timeout."),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit last max batch gauge: %w", err)
+	}
+	stagedFacts, err := meter.Int64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts",
+		metric.WithDescription("Facts the last completed supply-chain impact winners staged-audit tick staged client-side (cap 1,000,000)."),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit last staged facts gauge: %w", err)
+	}
+	distinctKeys, err := meter.Int64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys",
+		metric.WithDescription("Distinct canonical keys the last completed supply-chain impact winners staged-audit tick compacted (cap 250,000)."),
+	)
+	if err != nil {
+		return fmt.Errorf("register staged audit last distinct keys gauge: %w", err)
+	}
+	_, err = meter.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		snap := src.StagedAuditSnapshot()
+		for _, reason := range supplyChainImpactWinnersStagedAuditReasons {
+			o.ObserveInt64(deferrals, snap.Deferrals[reason], metric.WithAttributes(AttrReason(reason)))
+		}
+		o.ObserveInt64(ticks, snap.Ticks)
+		if snap.Ticks > 0 {
+			o.ObserveInt64(batches, snap.LastBatches)
+			o.ObserveFloat64(maxBatch, snap.LastMaxBatch.Seconds())
+			o.ObserveInt64(stagedFacts, snap.LastStagedFacts)
+			o.ObserveInt64(distinctKeys, snap.LastDistinctKeys)
+		}
+		return nil
+	}, deferrals, ticks, batches, maxBatch, stagedFacts, distinctKeys)
+	if err != nil {
+		return fmt.Errorf("register staged audit callback: %w", err)
+	}
 	return nil
 }
