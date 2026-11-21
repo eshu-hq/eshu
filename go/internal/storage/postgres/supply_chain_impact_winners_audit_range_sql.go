@@ -222,3 +222,25 @@ var selectWinnersAuditFirstRangeSQL = renderWinnersAuditRangeSQL(true)
 // selectWinnersAuditNextRangeSQL continues a sweep after the cursor $2..$6,
 // $1 = budget.
 var selectWinnersAuditNextRangeSQL = renderWinnersAuditRangeSQL(false)
+
+// probeWinnersAuditNullKeysSQL reports whether any live source finding fact
+// has a NULL package_id, repository_id or subject_digest. The keyed index
+// sorts such a row where no range predicate reaches it (a row comparison
+// drops a row whose compared field is NULL), so a sweep counts as complete
+// only when this probe reads all false at its start and at its end. Operator
+// suppression facts are exempt: they may lack those fields by design and load
+// whole on every range instead. Each EXISTS stops at its first match on the
+// keyed index (a skip scan over the leading columns on PostgreSQL 18).
+var probeWinnersAuditNullKeysSQL = `SELECT
+    EXISTS (SELECT 1 FROM fact_records AS f
+        WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND f.is_tombstone = FALSE
+          AND (f.payload->>'package_id') IS NULL
+          AND f.scope_id <> '` + supplyChainImpactOperatorScopeID + `'),
+    EXISTS (SELECT 1 FROM fact_records AS f
+        WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND f.is_tombstone = FALSE
+          AND (f.payload->>'repository_id') IS NULL
+          AND f.scope_id <> '` + supplyChainImpactOperatorScopeID + `'),
+    EXISTS (SELECT 1 FROM fact_records AS f
+        WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND f.is_tombstone = FALSE
+          AND (f.payload->>'subject_digest') IS NULL
+          AND f.scope_id <> '` + supplyChainImpactOperatorScopeID + `')`

@@ -3,15 +3,50 @@
 
 package postgres
 
+import (
+	"fmt"
+	"time"
+)
+
 // Writer SQL of the staged winners audit sweep (#11131): the persisted cursor
 // and the per-range verify. One range commits in one writer transaction: the
 // pending filter, the verify and its repairs, and the compare-and-set of the
 // cursor. A lost compare-and-set rolls the repairs back.
 
+// WinnersAuditRangeLockTimeout bounds the waiting resweep-lock claim a range
+// verify falls back to after two try-lock misses on the same range. It is
+// lock_timeout, not a statement timeout: a keyed tick that holds the lock
+// longer makes the claim fail with SQLSTATE 55P03, recorded as lock_busy,
+// and the range retries. The value is provisional until the measured keyed
+// tick maximum (theory measurement M8 of the #11131 ruling) replaces it.
+const WinnersAuditRangeLockTimeout = 20 * time.Second
+
+// winnersAuditSweepTable is the singleton cursor row (migration 331).
+const winnersAuditSweepTable = "supply_chain_impact_winners_audit_sweep"
+
 // winnersAuditRangePendingTable holds the candidates already queued, found
 // before the lock is taken. The CREATE spells the name out for the DDL parity
 // guard; TestWinnersTempTableDDLNamesMatchTheTableConstants pins both.
 const winnersAuditRangePendingTable = "winners_audit_range_pending"
+
+// selectWinnersAuditSweepSQL reads the cursor row, creating it on first use.
+// The CTE's insert is invisible to the outer read, so the UNION returns one
+// row whether the insert ran or the row already existed.
+const selectWinnersAuditSweepSQL = `
+WITH created AS (
+    INSERT INTO ` + winnersAuditSweepTable + ` (singleton) VALUES (1)
+    ON CONFLICT (singleton) DO NOTHING
+    RETURNING sweep_id, cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id,
+        ranges_done, sweep_started_at, last_sweep_completed_at, last_sweep_seconds, last_sweep_ranges,
+        last_sweep_facts, last_sweep_candidates, last_sweep_repairs, last_sweep_discards
+)
+SELECT * FROM created
+UNION ALL
+SELECT sweep_id, cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id,
+    ranges_done, sweep_started_at, last_sweep_completed_at, last_sweep_seconds, last_sweep_ranges,
+    last_sweep_facts, last_sweep_candidates, last_sweep_repairs, last_sweep_discards
+FROM ` + winnersAuditSweepTable + `
+WHERE singleton = 1`
 
 // winnersAuditRestrictedPendingSelect returns the identifiers of table (five
 // columns) that are already waiting to be consumed: a dirty-log or staging
@@ -65,9 +100,70 @@ var createWinnersAuditRangePendingSQL = `
 CREATE TEMP TABLE winners_audit_range_pending ON COMMIT DROP AS
 ` + winnersAuditRestrictedPendingSelect(winnersKeyedIdentsTable)
 
+// dropWinnersAuditRangePendingIdentsSQL removes those candidates from the
+// identifier table the verify probes, so the lock is taken only when a
+// candidate that nothing has queued remains.
+const dropWinnersAuditRangePendingIdentsSQL = `
+DELETE FROM ` + winnersKeyedIdentsTable + ` AS i
+USING ` + winnersAuditRangePendingTable + ` AS p
+WHERE (i.package_id, i.repository_id, i.subject_digest, i.c0, i.advisory_id)
+    = (p.package_id, p.repository_id, p.subject_digest, p.c0, p.advisory_id)`
+
+// countWinnersAuditRangeRemainingSQL counts the candidates left to verify.
+const countWinnersAuditRangeRemainingSQL = `SELECT count(*) FROM ` + winnersKeyedIdentsTable
+
 // createWinnersAuditRangeStalePendingSQL rechecks, under the lock, which of
 // the verified stale identifiers were queued since the pre-lock filter. The
 // table carries the name queueWinnersAuditRepairsSQL reads.
 var createWinnersAuditRangeStalePendingSQL = `
 CREATE TEMP TABLE winners_audit_pending ON COMMIT DROP AS
 ` + winnersAuditRestrictedPendingSelect(winnersAuditStaleTable)
+
+// setWinnersAuditRangeLockTimeoutSQL scopes the waiting claim's bound to the
+// range transaction.
+var setWinnersAuditRangeLockTimeoutSQL = fmt.Sprintf("SET LOCAL lock_timeout = '%dms'", WinnersAuditRangeLockTimeout.Milliseconds())
+
+// waitClaimSupplyChainImpactWinnersResweepSQL is the waiting form of the
+// resweep lock claim, on the same key as tryClaimSupplyChainImpactWinnersResweepSQL.
+// PostgreSQL grants a released lock to a queued waiter before a later
+// try-lock can take it, so a verify queued here wins the next release.
+const waitClaimSupplyChainImpactWinnersResweepSQL = `
+SELECT pg_advisory_xact_lock(hashtext('supply_chain_impact_winners'), hashtext('resweep'))
+`
+
+// advanceWinnersAuditSweepSQL is the compare-and-set of the cursor. It moves
+// the cursor from $2..$6 (NULL at sweep start) to $7..$11 (NULL when the
+// range was the last) only while sweep_id is still $1 and the stored cursor
+// still equals $2..$6. Zero rows means another instance advanced this range
+// first: the caller rolls its repairs back. $12 ends the sweep (the last
+// range); $13 also records it as completed (the end NULL probe read clean).
+// $14..$17 are the range's facts, candidates, repairs and discards.
+const advanceWinnersAuditSweepSQL = `
+UPDATE ` + winnersAuditSweepTable + ` SET
+    sweep_id = CASE WHEN $12::boolean THEN sweep_id + 1 ELSE sweep_id END,
+    cursor_package_id = $7::text,
+    cursor_repository_id = $8::text,
+    cursor_subject_digest = $9::text,
+    cursor_c0 = $10::text,
+    cursor_advisory_id = $11::text,
+    sweep_started_at = CASE WHEN $12::boolean THEN NULL ELSE COALESCE(sweep_started_at, clock_timestamp()) END,
+    ranges_done = CASE WHEN $12::boolean THEN 0 ELSE ranges_done + 1 END,
+    sweep_facts = CASE WHEN $12::boolean THEN 0 ELSE sweep_facts + $14::bigint END,
+    sweep_candidates = CASE WHEN $12::boolean THEN 0 ELSE sweep_candidates + $15::bigint END,
+    sweep_repairs = CASE WHEN $12::boolean THEN 0 ELSE sweep_repairs + $16::bigint END,
+    sweep_discards = CASE WHEN $12::boolean THEN 0 ELSE sweep_discards + $17::bigint END,
+    last_sweep_completed_at = CASE WHEN $13::boolean THEN clock_timestamp() ELSE last_sweep_completed_at END,
+    last_sweep_seconds = CASE WHEN $13::boolean
+        THEN EXTRACT(EPOCH FROM clock_timestamp() - COALESCE(sweep_started_at, clock_timestamp()))::double precision
+        ELSE last_sweep_seconds END,
+    last_sweep_ranges = CASE WHEN $13::boolean THEN ranges_done + 1 ELSE last_sweep_ranges END,
+    last_sweep_facts = CASE WHEN $13::boolean THEN sweep_facts + $14::bigint ELSE last_sweep_facts END,
+    last_sweep_candidates = CASE WHEN $13::boolean THEN sweep_candidates + $15::bigint ELSE last_sweep_candidates END,
+    last_sweep_repairs = CASE WHEN $13::boolean THEN sweep_repairs + $16::bigint ELSE last_sweep_repairs END,
+    last_sweep_discards = CASE WHEN $13::boolean THEN sweep_discards + $17::bigint ELSE last_sweep_discards END,
+    updated_at = clock_timestamp()
+WHERE singleton = 1
+  AND sweep_id = $1::bigint
+  AND ROW(cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id)
+      IS NOT DISTINCT FROM ROW($2::text, $3::text, $4::text, $5::text, $6::text)
+RETURNING sweep_id, ranges_done, last_sweep_completed_at, last_sweep_seconds`

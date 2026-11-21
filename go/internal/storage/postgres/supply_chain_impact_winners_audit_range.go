@@ -5,6 +5,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -23,6 +25,10 @@ type WinnersAuditRangeIdent struct {
 	SubjectDigest string
 	C0            string
 	AdvisoryID    string
+}
+
+func (i WinnersAuditRangeIdent) args() []any {
+	return []any{i.PackageID, i.RepositoryID, i.SubjectDigest, i.C0, i.AdvisoryID}
 }
 
 // WinnersAuditRange is what one range statement read: the bounds it covered,
@@ -63,9 +69,58 @@ func ReadWinnersAuditRange(ctx context.Context, reader db.Queryer, lo *WinnersAu
 // readWinnersAuditRange runs the range statement pair first/next; tests pass
 // a seeded mutation of the shipped pair.
 func readWinnersAuditRange(ctx context.Context, reader db.Queryer, lo *WinnersAuditRangeIdent, budget int, first, next string) (WinnersAuditRange, error) {
-	// RED stub (#11131): the range statement is not wired yet.
-	_, _, _, _, _ = ctx, reader, first, next, lo
-	return WinnersAuditRange{Budget: budget, Last: true}, nil
+	var none WinnersAuditRange
+	if reader == nil {
+		return none, fmt.Errorf("winners audit range database is required")
+	}
+	if budget < 1 {
+		return none, fmt.Errorf("winners audit range budget must be at least 1, got %d", budget)
+	}
+	query, args := first, []any{budget}
+	if lo != nil {
+		query = next
+		args = append(args, lo.args()...)
+	}
+	rows, err := reader.QueryContext(ctx, query, args...)
+	if err != nil {
+		return none, fmt.Errorf("read winners audit range: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := WinnersAuditRange{Lo: lo, Budget: budget}
+	sawBounds := false
+	for rows.Next() {
+		var (
+			kind                            string
+			n, facts                        sql.NullInt64
+			isLast, oversize, pipe          sql.NullBool
+			pkg, repo, digest, c0, advisory sql.NullString
+		)
+		if err := rows.Scan(&kind, &n, &isLast, &oversize, &pkg, &repo, &digest, &c0, &advisory, &facts, &pipe); err != nil {
+			return none, fmt.Errorf("scan winners audit range: %w", err)
+		}
+		if kind == "b" {
+			sawBounds = true
+			out.RawRows, out.Facts = n.Int64, facts.Int64
+			out.Last, out.Oversize, out.Pipe = isLast.Bool, oversize.Bool, pipe.Bool
+			if !out.Last && pkg.Valid {
+				out.Hi = &WinnersAuditRangeIdent{pkg.String, repo.String, digest.String, c0.String, advisory.String}
+			}
+			continue
+		}
+		out.Candidates = append(out.Candidates, WinnersAuditIdent{
+			PackageID: pkg, RepositoryID: repo, SubjectDigest: digest, C0: c0, AdvisoryID: advisory,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return none, fmt.Errorf("read winners audit range: %w", err)
+	}
+	if !sawBounds {
+		return none, fmt.Errorf("read winners audit range: statement returned no bounds row")
+	}
+	if !out.Last && out.Hi == nil {
+		return none, fmt.Errorf("read winners audit range: a non-final range returned no upper bound")
+	}
+	return out, nil
 }
 
 // WinnersAuditNullKeys is the NULL probe's reading: which identifier fields
@@ -83,7 +138,24 @@ func (k WinnersAuditNullKeys) Any() bool {
 
 // ProbeWinnersAuditNullKeys runs the sweep's NULL probe on reader.
 func ProbeWinnersAuditNullKeys(ctx context.Context, reader db.Queryer) (WinnersAuditNullKeys, error) {
-	// RED stub (#11131).
-	_, _ = ctx, reader
-	return WinnersAuditNullKeys{}, nil
+	var none WinnersAuditNullKeys
+	if reader == nil {
+		return none, fmt.Errorf("winners audit null probe database is required")
+	}
+	rows, err := reader.QueryContext(ctx, probeWinnersAuditNullKeysSQL)
+	if err != nil {
+		return none, fmt.Errorf("probe winners audit null keys: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return none, fmt.Errorf("probe winners audit null keys: %w", err)
+		}
+		return none, fmt.Errorf("probe winners audit null keys: statement returned no row")
+	}
+	var out WinnersAuditNullKeys
+	if err := rows.Scan(&out.PackageID, &out.RepositoryID, &out.SubjectDigest); err != nil {
+		return none, fmt.Errorf("scan winners audit null keys: %w", err)
+	}
+	return out, rows.Err()
 }

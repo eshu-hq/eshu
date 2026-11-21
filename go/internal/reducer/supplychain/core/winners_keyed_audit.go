@@ -16,6 +16,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// defaultSupplyChainImpactWinnersAuditTickBudget bounds one audit tick of a
+// range-sweep auditor (#11131): with ranges of about 14 s at QA shape, five
+// minutes of every ten-minute interval completes a sweep of about 840 ranges
+// in about 7 h, inside the 24 h bar.
+const defaultSupplyChainImpactWinnersAuditTickBudget = 5 * time.Minute
+
+func (m SupplyChainImpactWinnersMaintainer) auditTickBudget() time.Duration {
+	if m.AuditTickBudget > 0 {
+		return m.AuditTickBudget
+	}
+	return defaultSupplyChainImpactWinnersAuditTickBudget
+}
+
 // runAuditLoop runs the audit every AuditInterval until ctx is cancelled,
 // only while the stored winners contract matches this binary's (#11117): an
 // audit of a table no full has swept under this contract would call keys
@@ -82,8 +95,7 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 			err = fmt.Errorf("release winners audit lease: %w", relErr)
 		}
 	}()
-	// RED stub (#11131): one pass per tick.
-	deadline := time.Now()
+	deadline := time.Now().Add(m.auditTickBudget())
 	for {
 		audit, err := m.runAuditPass(ctx)
 		if err != nil {
