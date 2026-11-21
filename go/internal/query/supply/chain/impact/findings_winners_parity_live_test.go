@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 slice 2 disposable PostgreSQL 18 proof that the winners-payload list read (migration 325 stored payload, no fact_records payload join) returns byte-identical FindingRow pages to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority sorts, cursor paging, suppressed inclusion with live and expired operator suppressions, and scoped-token repository and scope grants; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 slice 2 disposable PostgreSQL 18 proof that the winners-payload list read (migration 329 stored payload, no fact_records payload join) returns byte-identical FindingRow pages to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority sorts, cursor paging, suppressed inclusion with live and expired operator suppressions, and scoped-token repository and scope grants; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -77,13 +77,13 @@ func TestFindingsWinnersPayloadParityLive(t *testing.T) {
 }
 
 // TestFindingsWinnersPayloadBackfillServesWithoutResweepLive is the
-// #10880 P1-1 regression: migration 325 alone leaves pre-existing
+// #10880 P1-1 regression: migration 329 alone leaves pre-existing
 // winner rows with payload '{}' and source_confidence 'unknown', and
 // the slice-2 list read serves win.payload directly, so between
 // deploy and the first post-deploy resweep the impact list would
-// serve empty payloads. This proof recreates that post-325 state
+// serve empty payloads. This proof recreates that post-329 state
 // (typed winners built by a resweep, then the two new columns reset
-// to their 325 defaults), applies ONLY the 326 backfill migration,
+// to their 329 defaults), applies ONLY the 330 backfill migration,
 // and requires the winners read to match the legacy fact read
 // without any resweep in between.
 func TestFindingsWinnersPayloadBackfillServesWithoutResweepLive(t *testing.T) {
@@ -102,7 +102,7 @@ func TestFindingsWinnersPayloadBackfillServesWithoutResweepLive(t *testing.T) {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
 
-	// Recreate the exact state migration 325 leaves on an upgraded
+	// Recreate the exact state migration 329 leaves on an upgraded
 	// deployment: every pre-existing winner row at the column defaults.
 	if _, err := database.ExecContext(ctx, `
 UPDATE supply_chain_impact_canonical_winners
@@ -125,7 +125,7 @@ SELECT count(*) FROM supply_chain_impact_canonical_winners WHERE payload = '{}':
 		}
 	}
 	if backfill == "" {
-		t.Fatal("migration 326 supply_chain_impact_winners_payload_backfill not found in BootstrapDefinitions " +
+		t.Fatal("migration 330 supply_chain_impact_winners_payload_backfill not found in BootstrapDefinitions " +
 			"(winners read would serve '{}' payloads until the first post-deploy resweep)")
 	}
 	if _, err := database.ExecContext(ctx, backfill); err != nil {

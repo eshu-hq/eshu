@@ -1,8 +1,8 @@
--- 326_supply_chain_impact_winners_payload_backfill.sql: fill the
--- payload and source_confidence migration 325 added, for the winner
+-- 332_supply_chain_impact_winners_payload_backfill.sql: fill the
+-- payload and source_confidence migration 331 added, for the winner
 -- rows that already exist when it lands (#10880 slice 1 follow-up).
 --
--- 325 alone leaves every pre-existing winner at payload '{}' and
+-- 331 alone leaves every pre-existing winner at payload '{}' and
 -- source_confidence 'unknown', and the slice-2 list read serves
 -- win.payload directly (no fact_records payload join remains), so an
 -- upgraded deployment would serve empty payloads between deploy and
@@ -21,7 +21,7 @@
 -- non-active suppression_state, ranked by priority_score DESC, then
 -- a payload-carried finding_id, then fact_id.
 --
--- Idempotent: the UPDATE only touches rows still at the 325 default
+-- Idempotent: the UPDATE only touches rows still at the 331 default
 -- '{}' (a real winner payload always carries finding fields, never
 -- an empty object), so a replay of this file -- an untracked
 -- database's one full replay, or a retried interrupted apply --
@@ -33,7 +33,7 @@
 --
 -- Locking: this is a file of its own, so the runner's single
 -- simple-query string is this one statement in its own implicit
--- transaction, instead of extending 325's ACCESS EXCLUSIVE ALTER --
+-- transaction, instead of extending 331's ACCESS EXCLUSIVE ALTER --
 -- which blocks every reader of the table -- across the backfill
 -- scan (the migration 126/127 split, #7961). It takes ROW EXCLUSIVE
 -- on supply_chain_impact_canonical_winners -- readers are not

@@ -141,11 +141,12 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 330 (#11129) adds the captured_at btree on the winners
 	// staging queue for the exact residual minimum.
 	"supply_chain_impact_winners_dirty_staging_captured_at_idx",
-	// Migration 325 (#10880 slice 1) adds the winner payload and
-	// source_confidence to the canonical winners read model.
-	// TEMPORARY: renumbered to 331 after the rebase completes (main owns 329-330).
+	// Migration 331 (#10880 slice 1) adds the winner payload and
+	// source_confidence to the canonical winners read model
+	// (renumbered 325 to 331 at rebase: main owns 325-330).
 	"supply_chain_impact_winners_payload",
-	// Migration 326 (#10880 slice 1 follow-up) backfills the 325
-	// columns for pre-existing winner rows, split per #7961.
+	// Migration 332 (#10880 slice 1 follow-up) backfills the 331
+	// columns for pre-existing winner rows, split per #7961
+	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"supply_chain_impact_winners_payload_backfill",
 }

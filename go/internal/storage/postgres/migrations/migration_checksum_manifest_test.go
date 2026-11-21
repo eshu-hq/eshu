@@ -483,13 +483,13 @@ var migrationShippedChecksums = map[string]string{
 	// #11129: captured_at btree on the winners staging queue so the
 	// residual minimum is an index endpoint, not a whole-queue scan.
 	"330_supply_chain_impact_winners_dirty_staging_captured_at_idx.sql": "28490c761bb6b63434516415ed1632359d9e403a4a3ce694fa851ad691acb6f0",
-	// #10880 slice 1: winner payload + source_confidence on the
-	// canonical winners read model.
-	// TEMPORARY: renumbered to 331 after the rebase completes (main owns 329-330).
-	"325_supply_chain_impact_winners_payload.sql": "34a5494e7f9726e29397b0d31b88bca09dbbfbd972315f035396e6c6a0575eb6",
-	// #10880 slice 1 follow-up: idempotent backfill of the 325
-	// columns for pre-existing winner rows, split per #7961.
-	"326_supply_chain_impact_winners_payload_backfill.sql": "cc99c7c9c3fea3c4c997d01f4471b6095f9e91dbf08b99ac9f46148c6b218b6d",
+	// canonical winners read model (renumbered 325 to 331 at rebase:
+	// main owns 325-330).
+	"331_supply_chain_impact_winners_payload.sql": "c3179cbcf63f56d81c7fc9eef4872148d4fe4a8671b66c5b10d076c979cea5bb",
+	// #10880 slice 1 follow-up: idempotent backfill of the 331
+	// columns for pre-existing winner rows, split per #7961
+	// (renumbered 326 to 332 at rebase: main owns 325-330).
+	"332_supply_chain_impact_winners_payload_backfill.sql": "0d40beb25d23cfe156292977048d2b50cb5c5bd173974a13c6f7a2e9aa187660",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

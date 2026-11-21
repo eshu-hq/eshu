@@ -132,7 +132,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // keyset cursor + LIMIT on the winners table alone (index-served, O(page), no
 // window, no sort spill) and re-joins the winners table by canonical_key only
 // for the page payloads (#10880 slice 2: the payload and source_confidence
-// live on the winners row since migration 325, with the operator suppression
+// live on the winners row since migration 329, with the operator suppression
 // object baked in at resweep time, so no fact_records read remains here).
 //
 // It takes the SAME 30-parameter slice as ListFindingsQuery so

@@ -340,12 +340,14 @@ import (
 // 330_supply_chain_impact_winners_dirty_staging_captured_at_idx.sql (#11129)
 // adds the captured_at btree on the winners staging queue so the residual
 // minimum reads an index endpoint.
-// 325_supply_chain_impact_winners_payload.sql (#10880 slice 1) adds the
-// winner payload and source_confidence to the canonical winners table.
-// 326_supply_chain_impact_winners_payload_backfill.sql (#10880 slice 1
-// follow-up) backfills those columns for pre-existing winner rows.
-// TEMPORARY rebase digest: recomputed after all commits apply and the
-// branch migrations renumber to 331/332 (main owns 329-330).
+// 331_supply_chain_impact_winners_payload.sql (#10880 slice 1) adds the
+// winner payload and source_confidence to the canonical winners table
+// (renumbered 325 to 331 at rebase: main owns 325-330).
+// 332_supply_chain_impact_winners_payload_backfill.sql (#10880 slice 1
+// follow-up) backfills those columns for pre-existing winner rows
+// (renumbered 326 to 332 at rebase: main owns 325-330).
+// TEMPORARY rebase digest: recomputed after all commits apply (red-first
+// via the failing test).
 const (
 	goldenBootstrapDefinitionsDigest = "691be2a42da887f0a7b170d4eb45da83229b75c02c115bcecd049f47be9c7fd0"
 	goldenBootstrapDefinitionsCount  = 356

@@ -121,7 +121,7 @@ move completes winners instead.
 
 **Pattern for this move (P1 rebuild + P2 cutover):**
 
-- DDL home: a **new numbered migration** (next free number ≥ 325;
+- DDL home: a **new numbered migration** (next free number ≥ 329;
   never edit a shipped `.sql` — migrations README invariant), plus the
   `schema_order_test.go` / schema lockstep entries every migration
   carries. No new table: the migration adds `payload JSONB` (and the
@@ -242,7 +242,7 @@ both extending existing machinery:
 | Slice | Change | Files (primary) | Required proof |
 | --- | --- | --- | --- |
 | 0. Declare stores | `answering_stores` on all 162 matrix rows (6 unsorted classified from handlers); enum + `Entry` field; regenerate catalog; verify-mode finding; lockstep honesty test with seeded RED/GREEN | `specs/capability-matrix*.yaml`, `specs/capability-matrix/*.yaml`, `go/internal/capabilitycatalog/{matrix,catalog,reconcile}.go`, `go/cmd/capability-inventory/`, `go/internal/capabilitycatalog/data/catalog.generated.json`, `go/internal/query/capability_lockstep_answering_store_test.go` (new), `docs/public/reference/capability-catalog.md` | `go run ./cmd/capability-inventory -mode verify` exit 0; seeded violation fails, clean tree passes; no behavior change (catalog JSON diff is additive only) |
-| 1. Payload onto winners | New migration (≥325) adds `payload JSONB` + winner `source_confidence`; resweep select carries payload; write-on-change comparison includes payload | `go/internal/storage/postgres/migrations/NNN_supply_chain_impact_winners_payload.sql` (new), `supply_chain_impact_canonical_winners_rebuild.go`, winner-select SQL home, `schema_order_test.go`, `supply_chain_impact_canonical_winners_schema_test.go` | Live rebuild test: stored payload byte-equal to winner fact payload across the filter matrix; resweep row counts (inserted/updated/unchanged) unchanged for a no-change second resweep; measure winners table + WAL growth from the JSONB column on the retained golden database and record it (prove-the-theory shim before slice 2) |
+| 1. Payload onto winners | New migration (≥329) adds `payload JSONB` + winner `source_confidence`; resweep select carries payload; write-on-change comparison includes payload | `go/internal/storage/postgres/migrations/NNN_supply_chain_impact_winners_payload.sql` (new), `supply_chain_impact_canonical_winners_rebuild.go`, winner-select SQL home, `schema_order_test.go`, `supply_chain_impact_canonical_winners_schema_test.go` | Live rebuild test: stored payload byte-equal to winner fact payload across the filter matrix; resweep row counts (inserted/updated/unchanged) unchanged for a no-change second resweep; measure winners table + WAL growth from the JSONB column on the retained golden database and record it (prove-the-theory shim before slice 2) |
 | 2. Reader switch | List/explain/aggregates read winners only; delete the `fact_records` payload join; catalog: impact capabilities change `fact_records_reducer` → `read_table:supply_chain_impact_canonical_winners` (explain keeps `fact_records_collector` for evidence hydration) | `go/internal/query/supply/chain/impact/findings_queries.go` (+ siblings), `go/internal/query/read-models.md`, matrix rows for the three impact capabilities + regenerated catalog | **Golden-corpus equality**: `scripts/verify-golden-corpus-gate.sh` green with API **and** MCP impact answers byte-identical before/after; focused `go test ./internal/query/... -run SupplyChainImpact` incl. scoped-token multi-support cases (the named risk above) |
 | 3. Latency proof + write stop | Run the read-latency gate on the switched readers; then reducer stops writing finding facts (direct winners maintenance input), P2-style reject trigger migration; record before/after fact-table updates, index count, save time for the family | `scripts/verify-read-api-latency-gate.sh` output recorded in PR; `go/internal/reducer/supplychain/core/writer.go`, `writer_retract.go`, `go/internal/reducer/factwrite/` call sites, new reject-trigger migration, `go/internal/facts/reducer_derived.go` (kind disposition note) | `scripts/verify-read-api-latency-gate.sh`: impact routes within `testdata/benchmarks/read-api-route-budgets.txt` (count route budget 2000 ms today) with no regression vs the pre-switch run on the same seeded scale; concurrency: competing-writer live test on the new write path (fencing/retraction parity), per the queue-proof rule — row equality alone is not enough |
 | 4. Drop the ten indexes | Migration drops exactly the ten named `fact_records_supply_chain_impact_*` indexes; fix the stale "63 indexes" count in `docs/public/reference/postgres-tuning.md` from the same census | `migrations/NNN_drop_fact_records_supply_chain_impact_indexes.sql` (new), `schema_fact_records_supply_chain_impact_indexes.go`, `schema_order*_test.go`, `docs/public/reference/postgres-tuning.md` | Slice-3 latency report already recorded (gate: no slice 4 without it); live test proves plans for surviving readers name winners indexes; before/after table: fact updates/day for the kind = 0, index count 152→142 (live count re-read on the **read replica** at execution time), save-time delta measured on the golden database |
@@ -320,7 +320,7 @@ binary still trying the old path.
   matrix rows, closed-enum load validation, `missing_answering_store`
   reconcile finding, regenerated catalog, lockstep honesty test.
 - **Slice 1 landed** (`c900d01a88`): migration
-  `325_supply_chain_impact_winners_payload.sql` adds `payload JSONB`
+  `331_supply_chain_impact_winners_payload.sql` adds `payload JSONB`
   and `source_confidence TEXT` to the winners table. The full and
   keyed resweeps, the audit diff, and the staged stored-winners read
   all carry both columns through the one
@@ -331,20 +331,20 @@ binary still trying the old path.
   only the effective state. Telemetry: no new instrument — the
   existing resweep counts now include payload-driven rewrites, and
   `eshu_dp_postgres_query_duration_seconds` covers the wider rows.
-  Review P1-1 fix: 325 alone left pre-existing rows at the column
+  Review P1-1 fix: 329 alone left pre-existing rows at the column
   defaults until the first post-deploy resweep, so migration
-  `326_supply_chain_impact_winners_payload_backfill.sql` backfills
+  `332_supply_chain_impact_winners_payload_backfill.sql` backfills
   both columns by `winner_fact_id` join, replicating the winner
   select's operator bake, gated on `payload = '{}'` for replay
   idempotency. A separate file (the 126/127 split, #7961) keeps
-  325's ACCESS EXCLUSIVE ALTER off the backfill scan; the UPDATE
+  329's ACCESS EXCLUSIVE ALTER off the backfill scan; the UPDATE
   takes ROW EXCLUSIVE plus one row lock and one `fact_records`
   primary-key probe per winner, the shape of one routine resweep.
   A reader-side fallback join was rejected: it would permanently
   re-add the fact-table payload read slice 2 removed, to cover a
   window the backfill closes at deploy. Proof:
   `TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
-  resets winners to the 325 defaults, applies only 326, and reads
+  resets winners to the 331 defaults, applies only 332, and reads
   legacy-equal pages with no resweep in between.
 - **Slice 2 landed for the list read** (`808865baee`):
   `ListFindingsFromWinnersQuery` no longer joins `fact_records` or
@@ -452,7 +452,7 @@ equality, payload-only rewrite, write-on-change counts),
 `TestFindingsWinnersPayloadParityLive` (byte-identical pages,
 scoped-token grants), and
 `TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
-(326-backfilled rows serve legacy-equal pages with no resweep) on
+(330-backfilled rows serve legacy-equal pages with no resweep) on
 disposable Postgres 18, plus the corrected 2,000-row shim against
 the path slice 2 actually replaced (resweep 92 ms; new path
 9.57 then 7.56 ms avg vs replaced 12.11 then 9.61 ms avg;

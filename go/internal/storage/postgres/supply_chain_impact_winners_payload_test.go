@@ -37,16 +37,16 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 			t.Errorf("winner select missing %q", want)
 		}
 	}
-	ddl, err := os.ReadFile("migrations/325_supply_chain_impact_winners_payload.sql")
+	ddl, err := os.ReadFile("migrations/331_supply_chain_impact_winners_payload.sql")
 	if err != nil {
-		t.Fatalf("read migration 325: %v", err)
+		t.Fatalf("read migration 329: %v", err)
 	}
 	for _, want := range []string{
 		"ADD COLUMN IF NOT EXISTS payload JSONB",
 		"ADD COLUMN IF NOT EXISTS source_confidence TEXT",
 	} {
 		if !strings.Contains(string(ddl), want) {
-			t.Errorf("migration 325 missing %q", want)
+			t.Errorf("migration 329 missing %q", want)
 		}
 	}
 	if !strings.Contains(stagedStoredWinnersSQL, "environments, payload, source_confidence") {
@@ -55,16 +55,16 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 }
 
 // TestWinnersPayloadBackfillMigrationPinned pins the #10880 P1-1 fix:
-// migration 326 must backfill the columns 325 defaults for
+// migration 330 must backfill the columns 329 defaults for
 // pre-existing winner rows, keyed by winner_fact_id, with the
 // operator suppression object baked in and the '{}' idempotency
 // gate, so the winners list never serves the column defaults.
 func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
 	t.Parallel()
 
-	ddl, err := os.ReadFile("migrations/326_supply_chain_impact_winners_payload_backfill.sql")
+	ddl, err := os.ReadFile("migrations/332_supply_chain_impact_winners_payload_backfill.sql")
 	if err != nil {
-		t.Fatalf("read migration 326: %v", err)
+		t.Fatalf("read migration 330: %v", err)
 	}
 	for _, want := range []string{
 		"UPDATE supply_chain_impact_canonical_winners",
@@ -77,7 +77,7 @@ func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
 		"(winner.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}'",
 	} {
 		if !strings.Contains(string(ddl), want) {
-			t.Errorf("migration 326 missing %q", want)
+			t.Errorf("migration 330 missing %q", want)
 		}
 	}
 }

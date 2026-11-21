@@ -390,8 +390,7 @@ func TestSupplyChainImpactWinnersResweepPayloadCarriedLive(t *testing.T) {
 			"suppression":       map[string]any{"reason": "accepted", "expires_at": "2030-01-01T00:00:00Z"},
 		}))
 
-	at := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
-	if _, err := store.ResweepWinners(ctx, at); err != nil {
+	if _, err := store.ResweepWinners(ctx); err != nil {
 		t.Fatalf("resweep: %v", err)
 	}
 	var payload, confidence string
@@ -415,7 +414,7 @@ SELECT payload::text, source_confidence FROM supply_chain_impact_canonical_winne
 	}
 
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET payload = jsonb_set(payload, '{description}', '"second"') WHERE fact_id = 'f-payload'`)
-	got2, err := store.ResweepWinners(ctx, at.Add(time.Minute))
+	got2, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("payload-change resweep: %v", err)
 	}
