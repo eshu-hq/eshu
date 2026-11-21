@@ -81,17 +81,13 @@ ORDER BY age_captured_at, age_seq, package_id, repository_id, subject_digest, c0
 LIMIT $1
 `
 
-// createWinnersKeyedChunkIdentsSQL and insertWinnersKeyedChunkIdentSQL record
+// createWinnersKeyedChunkIdentsSQL and insertWinnersKeyedChunkIdentPrefix record
 // the identifiers this chunk applies, for the identifier-table restriction
 // and the applied-row delete below.
 const createWinnersKeyedChunkIdentsSQL = `
 CREATE TEMP TABLE winners_keyed_chunk_idents (
     package_id text, repository_id text, subject_digest text, c0 text, advisory_id text
 ) ON COMMIT DROP
-`
-
-const insertWinnersKeyedChunkIdentSQL = `
-INSERT INTO ` + winnersKeyedChunkIdentsTable + ` VALUES ($1, $2, $3, $4, $5)
 `
 
 // indexWinnersKeyedChunkIdentsSQL turns the chunk-identifier probes of the
@@ -129,7 +125,7 @@ func winnersKeyedChunkIdentMatch(alias string) string {
 
 // buildWinnersKeyedChunk admits the chunk: the oldest identifiers of the
 // post-expansion identifier set by producing dirty row (#10706
-// oldest-first), one statement each into the chunk table, then restricts
+// oldest-first), one batched statement into the chunk table, then restricts
 // the identifier table to them so the probe and the apply that follow are
 // bounded by the same chunk. The first identifier always completes, so a
 // single hot identifier still makes progress and the log always drains. It
@@ -144,10 +140,9 @@ func buildWinnersKeyedChunk(
 	if err != nil {
 		return outcome, fmt.Errorf("list supply chain impact winners chunk identifiers: %w", err)
 	}
-	type ident struct{ pkg, repo, digest, c0, advisory string }
-	var idents []ident
+	var idents []winnersKeyedChunkIdent
 	for rows.Next() {
-		var id ident
+		var id winnersKeyedChunkIdent
 		if err := rows.Scan(&id.pkg, &id.repo, &id.digest, &id.c0, &id.advisory); err != nil {
 			_ = rows.Close()
 			return outcome, fmt.Errorf("scan supply chain impact winners chunk identifier: %w", err)
@@ -168,12 +163,18 @@ func buildWinnersKeyedChunk(
 	if _, err := tx.ExecContext(ctx, createWinnersKeyedChunkIdentsSQL); err != nil {
 		return outcome, fmt.Errorf("create supply chain impact winners chunk identifiers: %w", err)
 	}
-	for _, id := range idents {
+	// One batched INSERT carries the whole chunk (#10839): the admitted set
+	// is identical to the per-row loop it replaces (same rows, same
+	// oldest-first order), but a saturated tick spends one round trip here
+	// instead of one per identifier. The first identifier still always
+	// completes, so a single hot identifier keeps draining.
+	if len(idents) > 0 {
 		if err := ctx.Err(); err != nil {
 			return outcome, fmt.Errorf("build supply chain impact winners chunk: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, insertWinnersKeyedChunkIdentSQL, id.pkg, id.repo, id.digest, id.c0, id.advisory); err != nil {
-			return outcome, fmt.Errorf("record supply chain impact winners chunk identifier: %w", err)
+		query, args := winnersKeyedChunkIdentBatch(idents)
+		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+			return outcome, fmt.Errorf("record supply chain impact winners chunk identifiers: %w", err)
 		}
 	}
 	outcome.identifiers = int64(len(idents))
