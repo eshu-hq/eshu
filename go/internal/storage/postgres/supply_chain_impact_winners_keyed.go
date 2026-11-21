@@ -100,11 +100,12 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	}
 	bounds := s.chunkBounds()
 	// The staging collapse runs under the resweep lock before the tick-clock
-	// read (#10837 direction C): every staged mark lands in the versioned
-	// log with its version math before admission snapshots the window, so
-	// the tick sees the whole queue and the union below covers only rows
-	// that arrived mid-tick. A rollback restores the staging deletes with the
-	// tick.
+	// read (#10837 direction C): it folds at most one collapse budget of
+	// staged marks into the versioned log with their version math before
+	// admission snapshots the window (#11129). The union below covers the
+	// rows the bounded collapse left behind: post-bound rows, below-lo late
+	// commits, and rows that arrived mid-tick. A rollback restores the
+	// staging deletes with the tick.
 	var collapsed winnersStagingCollapseOutcome
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseCollapse, func() error {
 		var err error
