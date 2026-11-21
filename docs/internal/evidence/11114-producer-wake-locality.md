@@ -1,7 +1,8 @@
 # #11114 producer-terminal wake locality
 
-Refs #11114. Arbiter ruling: `.claude/arbiter-11114.md` (binding). Stacked
-on the #11105 branch (`drive/11105-attachment-wait`).
+Refs #11114. Arbiter ruling (binding):
+[11114-wake-locality-ruling-2026-11-21.md](../arbiter/11114-wake-locality-ruling-2026-11-21.md).
+Built on #11105 (merged as #11123).
 
 ## What changed
 
