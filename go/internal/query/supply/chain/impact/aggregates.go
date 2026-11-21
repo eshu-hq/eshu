@@ -112,6 +112,18 @@ type PostgresAggregateStore struct {
 	// Now supplies the single UTC clock value shared by every SQL statement
 	// in one aggregate call. It defaults to time.Now.
 	Now func() time.Time
+	// ReadFromWinners switches the count and inventory reads to the
+	// maintained supply_chain_impact_canonical_winners read model (#10880
+	// slice 2b). When false (the default) the reads deduplicate at query
+	// time with the legacy canonical-facts CTE. The wiring sets this from
+	// an operator env gate so the cutover is reversible and is only
+	// enabled once the reducer maintainer has populated the winners
+	// table. Output is byte-identical either way on the parity corpus.
+	// Scoped-token calls always stay on the legacy CTE, mirroring the
+	// list read, because the winners table picks one winner per canonical
+	// key before the grant applies while the legacy CTE applies the grant
+	// before the pick.
+	ReadFromWinners bool
 }
 
 // AggregateQueryer is the minimal Postgres surface PostgresAggregateStore
@@ -129,10 +141,32 @@ func NewPostgresAggregateStore(
 	return PostgresAggregateStore{DB: db}
 }
 
+// NewPostgresAggregateStoreWithReadModel creates the store with
+// the #10880 slice 2b read gate set. readFromWinners=true serves the count
+// and inventory from the maintained supply_chain_impact_canonical_winners
+// read model; false keeps the legacy read-time dedup. The wiring resolves
+// readFromWinners from an operator env gate.
+func NewPostgresAggregateStoreWithReadModel(
+	db AggregateQueryer,
+	readFromWinners bool,
+) PostgresAggregateStore {
+	return PostgresAggregateStore{DB: db, ReadFromWinners: readFromWinners}
+}
+
 // NewPostgresAggregateStoreWithReadStore routes count and inventory queries
-// through a guarded read-only port.
-func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore) PostgresAggregateStore {
-	return PostgresAggregateStore{reader: reader}
+// through a guarded read-only port while preserving the selected winners
+// read model.
+func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore, readFromWinners bool) PostgresAggregateStore {
+	return PostgresAggregateStore{reader: reader, ReadFromWinners: readFromWinners}
+}
+
+// readFromWinnersFor reports whether one aggregate call serves from the
+// winners read model. Scoped-token calls stay on the legacy CTE even when
+// the gate is on, mirroring PostgresFindingStore.
+func (s PostgresAggregateStore) readFromWinnersFor(filter AggregateFilter) bool {
+	return s.ReadFromWinners &&
+		len(filter.AllowedRepositoryIDs) == 0 &&
+		len(filter.AllowedScopeIDs) == 0
 }
 
 type aggregateReadQueryer interface {
@@ -194,7 +228,11 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 		readAt,
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	row := s.queryer().QueryRowContext(ctx, AggregateCombinedCountQuery, args...)
+	query := AggregateCombinedCountQuery
+	if s.readFromWinnersFor(filter) {
+		query = AggregateWinnersCombinedCountQuery
+	}
+	row := s.queryer().QueryRowContext(ctx, query, args...)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	var priorityBuckets, severityBuckets []byte
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected, &priorityBuckets, &severityBuckets); err != nil {
@@ -268,6 +306,9 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 		offset = 0
 	}
 	q := InventoryQuery(groupExpr)
+	if s.readFromWinnersFor(filter) {
+		q = AggregateWinnersInventoryQuery(groupExpr)
+	}
 	readAt := SuppressionReadAt(s.Now)
 	args := []any{
 		filter.CVEID,

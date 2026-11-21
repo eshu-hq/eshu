@@ -85,7 +85,8 @@ Read `doc.go` and `README.md` first.
   `retired_releases`, never in `incomplete_reasons`.
   `TestSupplyChainImpactReadinessDerivedReleaseFleetLive` pins it.
 - Files must stay under 500 lines. `readiness.go`
-  (489), `findings.go` (458), and
+  (489), `aggregates.go` (465),
+  `findings.go` (458), and
   `readiness_postgres_query.go` (438) are the ones
   to watch; split by concern (decode, grouping, SQL legs) rather than
   growing them.
@@ -99,7 +100,9 @@ to this list.
 
 - Store constructors `NewPostgresFindingStore` (plus
   the `WithReadModel` and `WithReadStore` variants),
-  `NewPostgresAggregateStore` and its `WithReadStore` variant,
+  `NewPostgresAggregateStore` (plus
+  the `WithReadModel` and `WithReadStore` variants, the latter carrying
+  the #10880 slice-2b winners gate),
   `NewPostgresReadinessStore`,
   `NewPostgresReadinessStoreWithReadStore`,
   `NewPostgresVulnerabilitySuppressionMutationStore` — `cmd/api` and
@@ -158,7 +161,8 @@ to this list.
   unit tests pinning decode and grouping behavior.
 - SQL texts and kind/query consts (`ListFindingsQuery`
   and its winners variant, `ExplainFindingQuery` and
-  its public-ID variant, the aggregates/readiness/runtime/suppression
+  its public-ID variant, the aggregates texts and their winners
+  variants, the readiness/runtime/suppression
   texts, `FindingFactKind`,
   `RuntimeContextFactKinds`,
   `WorkloadIdentityFactKindQuery`,

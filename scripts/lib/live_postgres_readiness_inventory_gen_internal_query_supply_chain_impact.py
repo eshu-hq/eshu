@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go": (
+            "TestAggregatesWinnersParityLive",
+        ),
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
             "TestFindingsWinnersPayloadParityLive",
             "TestFindingsWinnersPayloadBackfillServesWithoutResweepLive",

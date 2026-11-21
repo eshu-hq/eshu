@@ -12047,6 +12047,7 @@
     {
       "capability": "supply_chain.impact_findings.aggregate",
       "answering_stores": [
+        "read_table:supply_chain_impact_canonical_winners",
         "fact_records_reducer"
       ],
       "display_name": "Supply Chain Impact Findings Aggregate",

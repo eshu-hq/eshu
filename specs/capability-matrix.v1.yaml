@@ -677,7 +677,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_package_repository_or_digest_scope, verification: [{remote_validation: prod-supply-chain-impact}], notes: bounded reducer impact lookup anchored by CVE, package, repository, image digest, or impact status}
   - capability: supply_chain.impact_findings.aggregate
     tools: [count_supply_chain_impact_findings, get_supply_chain_impact_inventory]
-    answering_stores: [fact_records_reducer]
+    answering_stores: [read_table:supply_chain_impact_canonical_winners, fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-supply-chain-impact-aggregate}], notes: requires reducer supply-chain impact facts}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: optional_cve_package_repository_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer impact aggregate (count and grouped inventory) over reducer impact facts; replaces page-and-iterate caller workflow for ecosystem totals questions}

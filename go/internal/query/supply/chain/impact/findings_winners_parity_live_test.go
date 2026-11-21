@@ -37,7 +37,7 @@ func TestFindingsWinnersPayloadParityLive(t *testing.T) {
 	)
 	seedGroupedInventoryLive(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
-		RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestFindingsWinnersPayloadBackfillServesWithoutResweepLive(t *testing.T) {
 	)
 	seedGroupedInventoryLive(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
-		RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
 

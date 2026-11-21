@@ -62,7 +62,7 @@ func NewSupplyChainReadAdmissionWithReadStore(reader db.ReadStore, readImpactFro
 		CloudResourceRuntimeDigestResolver:        cloudResources,
 		KubernetesWorkloadCurrentInventoryFilter:  kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
 		FindingStore:                              impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		AggregateStore:                            impact.NewPostgresAggregateStoreWithReadStore(reader),
+		AggregateStore:                            impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
 		GroupedInventoryStore:                     impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
 		ExplanationStore:                          impact.NewPostgresFindingStoreWithReadStore(reader, false),
 		ReadinessStore:                            impact.NewPostgresReadinessStoreWithReadStore(reader),

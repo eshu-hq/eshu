@@ -413,10 +413,38 @@ binary still trying the old path.
   regression at this scale (92 ms full resweep). The stale "63
   indexes" figure in `postgres-tuning.md` stays for the slice-4
   census to correct.
-- Remaining order is unchanged: aggregates/explain reader moves,
-  then slice 3 (write stop + reject trigger + latency gate), then
-  slice 4 (replica census + index drop), then the families listed
-  under "Remaining families" above.
+- **Slice 2b(i) aggregates landed, gated default-off** (branch
+  `drive/10880-move-reducer-results`, unpushed): `PostgresAggregateStore`
+  carries `ReadFromWinners` with `NewPostgresAggregateStoreWithReadModel`
+  and a gated `NewPostgresAggregateStoreWithReadStore`, threaded from the
+  existing `readImpactFromWinners` gate through `serve_adapters_data.go`,
+  `d6_read_admission_wire.go`, and the service-intelligence mount
+  (`main_wiring.go`/`main.go`); scoped-token calls stay on the legacy CTE
+  by construction, mirroring the list read. Winners count, priority and
+  severity buckets, and all five inventory dimensions read
+  `supply_chain_impact_canonical_winners` with the same 20-argument shape
+  (caller-auth args referenced, never consumed — the winners table never
+  holds the derived protected branch). Live proof:
+  `TestAggregatesWinnersParityLive` (byte-identical envelopes across 7
+  filters x count + 5 dimensions, incl. live/expired suppressions and the
+  scoped fallback) plus `TestAggregatesWinnersReadGate` (routing pins for
+  all three count statements and inventory). Capability
+  `supply_chain.impact_findings.aggregate` is now declared mixed and the
+  catalog regenerated + verified. Telemetry: No-Observability-Change — no
+  new instrument; the gate reuses the existing winners resweep counts.
+- **Newly listed 2b blocker (found during slice 2b(i)):** the advisory
+  evidence reader (`go/internal/query/supply/chain/advisory/evidence_sql.go`
+  `repo_probe` + `impact_candidates`) reads
+  `reducer_supply_chain_impact_finding` facts directly. Decision 1's
+  "advisory-evidence seeding" line did not name this reader; the write
+  stop (slice 3) must move or retire it too. Unscoped aggregates are the
+  only newly gated path; explain, the scoped aggregate path, the gate-off
+  legacy list, readiness target resolution, the protected publication
+  pair, and this advisory reader remain on finding facts.
+- Remaining order is unchanged: explain/advisory/readiness reader moves
+  and the gate-off, then slice 3 (write stop + reject trigger + latency
+  gate), then slice 4 (replica census + index drop), then the families
+  listed under "Remaining families" above.
 
 No-Regression Evidence: slices 1–2 above — live proofs
 `TestSupplyChainImpactWinnersResweepPayloadCarriedLive` (payload

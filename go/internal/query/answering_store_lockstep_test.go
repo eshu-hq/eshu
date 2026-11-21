@@ -73,6 +73,11 @@ var answeringStoreProbes = []struct {
 		evidence:   "go/internal/query/supply/chain/impact/findings_queries.go: winners payload read (#10880) + legacy FindingFactKind path + runtime_filter_sql.go reducer_workload_identity",
 	},
 	{
+		capability: "supply_chain.impact_findings.aggregate",
+		want:       []string{"read_table:supply_chain_impact_canonical_winners", "fact_records_reducer"},
+		evidence:   "go/internal/query/supply/chain/impact/aggregates_winners_queries.go: winners count/bucket/inventory read (#10880 slice 2b) + legacy aggregates_queries.go canonical-facts CTE + runtime_filter_sql.go reducer_workload_identity",
+	},
+	{
 		capability: "supply_chain.security_alert_reconciliations.list",
 		want:       []string{"fact_records_reducer"},
 		evidence:   "go/internal/query/supply/chain/alerts/store.go: factKind=reducer_security_alert_reconciliation",
