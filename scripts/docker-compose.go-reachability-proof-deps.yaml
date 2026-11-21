@@ -49,6 +49,9 @@ services:
       NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
       ESHU_CONTENT_STORE_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
       ESHU_POSTGRES_DSN: postgresql://eshu:${ESHU_POSTGRES_PASSWORD:-change-me}@postgres:5432/eshu
+      # Same all-zero dev-only placeholder the base eshu service uses: never
+      # a real secret; required to boot, and a restart keeps decrypting.
+      ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       ESHU_HOME: /tmp/.eshu
       HOME: /tmp
     depends_on:
@@ -97,6 +100,8 @@ services:
     environment:
       ESHU_GRAPH_BACKEND: neo4j
       DEFAULT_DATABASE: neo4j
+      ESHU_NEO4J_DATABASE: neo4j
+      NEO4J_DATABASE: neo4j
       NEO4J_URI: bolt://neo4j:7687
     depends_on:
       neo4j:
@@ -106,6 +111,8 @@ services:
     environment:
       ESHU_GRAPH_BACKEND: neo4j
       DEFAULT_DATABASE: neo4j
+      ESHU_NEO4J_DATABASE: neo4j
+      NEO4J_DATABASE: neo4j
       NEO4J_URI: bolt://neo4j:7687
     depends_on:
       neo4j:
