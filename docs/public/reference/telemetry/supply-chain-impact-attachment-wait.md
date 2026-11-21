@@ -58,13 +58,8 @@ The attachment's terminal Ack reopens it in the same post-commit wake that
 other narrowed producer waits use. A dead-lettered attachment does not Ack,
 so the waiting pass comes back through the waiting audit or the 10-minute
 backstop, then records `producer_failed`. An attachment Ack in another scope
-also reopens parked waits on the same domain (the shared cross-scope wake leg).
-That wake is a hint: the pass re-defers without spending an attempt.
-Until #11114 narrows that wake, N impact passes parked on the same domain
-cost N + N(N-1)/2 deferrals as their attachments ack one by one: each Ack
-wakes every pass still parked. The arbiter's #11114 ruling holds QA deploys
-and releases between the #11105 and #11114 merges, so this cost is not
-expected to reach a deployed fleet.
+does not reopen the pass (#11114): the wait declares a same-scope-generation
+provider, so only its own scope generation's Ack wakes it.
 
 A probe that cannot read the attachment state is a counting failure. It is
 never read as ready or not ready, so an unreadable store dead-letters on the

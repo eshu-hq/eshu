@@ -144,6 +144,11 @@ shows exactly that: 8 + 28 = 36. The arbiter's #11114 ruling holds any QA
 deploy or release between the #11105 and #11114 merges, so this cost is not
 expected to reach a deployed fleet.
 
+Superseded by #11114: the cross-scope leg now runs only for failure classes
+that declare a cross-scope provider (the #7816 catalog runtime wait), so a
+foreign attachment Ack no longer reopens a parked pass, and the test above
+asserts that. See `docs/internal/evidence/11114-producer-wake-locality.md`.
+
 ## Evidence
 
 Performance Evidence: the probe is one statement per findings pass. The
@@ -164,7 +169,9 @@ generation, and there were 0 before. The two statements are the narrowed
 `reopenWaitingRowsQuery` and the cross-scope leg, which is deduped per domain
 in a batch, so a batch of two costs 3.
 `TestSBOMAttestationAttachmentAckWakeStatementCount` pins these counts. Both
-statements read only the parked set in `reducer_waiting_items`.
+statements read only the parked set in `reducer_waiting_items`. Since #11114
+the attachment domain issues no cross-scope statement: 1 per acked
+generation, 2 for a batch of two.
 
 No-Regression Evidence: T2
 (`TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceedsLive`)
@@ -197,7 +204,8 @@ Concurrency proof
   findings. The conflict domain is (scope, scope id).
 - Three runs drained in 0.90 s, 1.03 s, and 1.07 s, with 36 non-counting
   deferrals each time. Eight is the minimum, and the rest are cross-scope
-  hint wakes (8 + 8x7/2 = 36, the growth #11114 removes).
+  hint wakes (8 + 8x7/2 = 36, the growth #11114 removes). Since #11114
+  the proof takes exactly 8.
 - No statement errors and no 23505 occurred. At no claim did a scope hold two
   claimed or running rows.
 - A lost wake would have left a row to the 10-minute backstop, outside the
