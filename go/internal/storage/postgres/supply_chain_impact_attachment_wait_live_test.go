@@ -147,16 +147,23 @@ VALUES ($1, $2, $3, 'reducer', $4, 'scope', $2, $5, $6, CASE WHEN $5 = 'retrying
 // production writer: the attachment fact lands under the scope that ran it.
 func (w *attachWait) writeAttachment(scope string, intent reducercontract.Intent) {
 	w.t.Helper()
+	if err := w.tryWriteAttachment(scope, intent); err != nil {
+		w.t.Fatalf("write attachment: %v", err)
+	}
+}
+
+// tryWriteAttachment is writeAttachment for worker goroutines, which must not
+// call t.Fatalf.
+func (w *attachWait) tryWriteAttachment(scope string, intent reducercontract.Intent) error {
 	writer := sbomattest.PostgresSBOMAttestationAttachmentWriter{DB: postgres.SQLDB{DB: w.db}, Now: func() time.Time { return w.clock }}
-	if _, err := writer.WriteSBOMAttestationAttachments(w.ctx, sbomattest.SBOMAttestationAttachmentWrite{
+	_, err := writer.WriteSBOMAttestationAttachments(w.ctx, sbomattest.SBOMAttestationAttachmentWrite{
 		IntentID: intent.IntentID, ScopeID: scope, GenerationID: fanOutGen(scope, "g1"), SourceSystem: "oci",
 		Decisions: []sbomattest.SBOMAttestationAttachmentDecision{{
 			DocumentID: attachWaitDocument, SubjectDigest: attachWaitDigest,
 			AttachmentStatus: sbomattest.SBOMAttachmentAttachedVerified, CanonicalWrites: 1,
 		}},
-	}); err != nil {
-		w.t.Fatalf("write attachment: %v", err)
-	}
+	})
+	return err
 }
 
 // claim claims one row from q and fails the test when the outcome differs.
