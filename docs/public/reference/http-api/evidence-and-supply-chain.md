@@ -863,8 +863,7 @@ Version fields intentionally do not collapse into one string:
 Priority fields intentionally describe urgency without changing impact truth:
 
 - `priority_score`: reducer score from 0 through 100.
-- `priority_bucket`: `critical`, `high`, `medium`, `low`, or
-  `informational`. A retracted finding keeps the bucket it computed.
+- `priority_bucket`: `critical`, `high`, `medium`, `low`, or `informational`. A retracted finding keeps the bucket it computed.
 - `priority_reason_codes`: stable machine-readable reason codes for the
   signals that contributed to the score, including `advisory_retracted` on a retracted finding.
 - `priority_contributions[]`: signed contribution rows with `reason_code`,
@@ -876,6 +875,7 @@ Priority fields intentionally describe urgency without changing impact truth:
   CISA KEV, `ssvc_active` for SSVC active exploitation (reserved until 4.1),
   `epss` for EPSS without an exploited listing, `none` otherwise. Omitted for
   rows written before the tier existed.
+- `missing_evidence[]` entry `active supply-chain evidence expansion limit reached`: this copy was derived by a pass whose evidence load stopped short, so any evidence field, the status, or the row's existence may be incomplete. Read the row as possibly incomplete. The reducer stamps the entry on every finding of such a pass, not only on the ones the cut affected, because the pass cannot name the findings it did not reach. It costs at most 5 priority points. It has no weight of its own: it loses 5 through the flat `missing_evidence_present` contribution that any `missing_evidence[]` entry earns, so it costs 0 on a finding that already lists other missing evidence, and the score is clamped at 0. It is not a ranking term; it moves a copy's rank only through `priority_score`. A scope whose passes all stop short keeps the entry (#11156).
 
 Reachability fields are enrichment and prioritization metadata. They do not
 change `impact_status`, `confidence`, missing-evidence truth, suppression
