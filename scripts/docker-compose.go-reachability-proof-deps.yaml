@@ -10,6 +10,11 @@ services:
       collector-security-alerts-preflight:
         condition: service_completed_successfully
         required: false
+    # The coordinator denies component-extension scheduling without an
+    # explicit egress allowlist (fail closed). Allow exactly this proof's
+    # component + instance, mirroring the OCI fragment's policy shape.
+    environment:
+      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: '{"mode":"restricted","extensions":[{"component_id":"eshu.scanner.go-reachability","instance_id":"remote-e2e-go-reachability","collector_kind":"scanner_worker","decision":"allow"}]}'
 
   # The shared runtime gates workflow-coordinator on
   # collector-security-alerts-preflight, whose binary is not shipped in a
@@ -132,12 +137,6 @@ services:
   nornicdb:
     ports: !reset []
 
-  # The coordinator denies component-extension scheduling without an
-  # explicit egress allowlist (fail closed). Allow exactly this proof's
-  # component + instance, mirroring the OCI fragment's policy shape.
-  workflow-coordinator:
-    environment:
-      ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON: '{"mode":"restricted","extensions":[{"component_id":"eshu.scanner.go-reachability","instance_id":"remote-e2e-go-reachability","collector_kind":"scanner_worker","decision":"allow"}]}'
 
   # The foundation file redefines projector with a bare build context
   # (same latent defect as the runtime stack). Point it at the eshu
