@@ -1,0 +1,298 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+// THROWAWAY #11129 T5-A2 theory harness (ruling 11129c). Never committed.
+//
+// One cell = one fresh template clone, CHECKPOINT, then W writers each running
+// P passes of the production writer transaction (conflict-domain advisory lock
+// keyed per writer scope, BatchInsertVersionedFacts of N findings,
+// captureWinnersDirtyFactsSQL of N marks, commit). Per cell it records wall,
+// passes/s, container cgroup CPU, pg_stat_wal deltas, the WAL insert LSN range
+// and pg_waldump --stats=record over it, and a 10 ms pg_stat_activity wait
+// sample of the writer backends.
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
+)
+
+func TestZZT5A2Writer11129Live(t *testing.T) {
+	schedule := os.Getenv("T5_SCHEDULE") // writers:index:passesPerWriter,...
+	rows, _ := strconv.Atoi(os.Getenv("T5_ROWS"))
+	if schedule == "" || rows <= 0 || os.Getenv("ESHU_POSTGRES_TEST_DSN") == "" {
+		t.Skip("T5 env unset")
+	}
+	adminDSN, optIn := os.Getenv("ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN"), os.Getenv("ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE")
+	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 10*time.Minute,
+		postgresproof.FlavourPublicWithoutContentSearchIndexes,
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: database})
+		})
+	for i, cell := range strings.Split(schedule, ",") {
+		p := strings.Split(cell, ":")
+		writers, _ := strconv.Atoi(p[0])
+		withIdx := p[1] == "1"
+		per, _ := strconv.Atoi(p[2])
+		t.Run(fmt.Sprintf("cell%02d_w%d_idx%v", i, writers, withIdx), func(t *testing.T) {
+			_, database := postgresproof.OpenBootstrapTemplateClone(t, adminDSN, optIn, 30*time.Minute, template)
+			t5a2Cell(t, i, database, writers, withIdx, per, rows)
+		})
+	}
+}
+
+func t5a2Cell(t *testing.T, cell int, database *sql.DB, writers int, withIdx bool, per, n int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+	if withIdx {
+		if _, err := database.ExecContext(ctx, `CREATE INDEX supply_chain_impact_winners_dirty_staging_captured_at_idx ON supply_chain_impact_winners_dirty_staging (captured_at)`); err != nil {
+			t.Fatalf("create index: %v", err)
+		}
+	}
+	scopes := make([][2]string, writers)
+	keys := make([]string, writers)
+	for w := 0; w < writers; w++ {
+		scopeID, genID, _, _ := soakSetupScope(t, ctx, database, 11129, w)
+		scopes[w] = [2]string{scopeID, genID}
+		keys[w] = facts.ReducerSupplyChainImpactFindingFactKind + "|" + scopeID + "|" + genID
+	}
+	t.Logf("T5A2 cell=%d advisory_keys=%q", cell, keys)
+	database.SetMaxOpenConns(writers + 4)
+	if _, err := database.ExecContext(ctx, `CHECKPOINT`); err != nil {
+		t.Fatalf("checkpoint: %v", err)
+	}
+	type walStat struct{ records, fpi, bytes int64 }
+	readWAL := func() (string, walStat) {
+		var lsn string
+		var s walStat
+		if err := database.QueryRowContext(ctx, `SELECT pg_current_wal_insert_lsn()::text, wal_records, wal_fpi, wal_bytes::bigint FROM pg_stat_wal`).Scan(&lsn, &s.records, &s.fpi, &s.bytes); err != nil {
+			t.Fatalf("read wal: %v", err)
+		}
+		return lsn, s
+	}
+	lsn0, wal0 := readWAL()
+	cpu0 := t5a2CPU()
+	load0 := t5a2Load()
+
+	// Wait sampler: active writer backends of this database, every 10 ms.
+	samplerConn, err := database.Conn(ctx)
+	if err != nil {
+		t.Fatalf("sampler conn: %v", err)
+	}
+	var samplerPID int
+	if err := samplerConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&samplerPID); err != nil {
+		t.Fatalf("sampler pid: %v", err)
+	}
+	waits := map[string]int{}
+	var active int
+	stopSampler := make(chan struct{})
+	samplerDone := make(chan struct{})
+	go func() {
+		defer close(samplerDone)
+		tick := time.NewTicker(10 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			select {
+			case <-stopSampler:
+				return
+			case <-tick.C:
+			}
+			rs, err := samplerConn.QueryContext(ctx, `SELECT COALESCE(wait_event_type, 'CPU'), COALESCE(wait_event, 'CPU')
+FROM pg_stat_activity WHERE datname = current_database() AND backend_type = 'client backend'
+  AND state = 'active' AND pid <> $1`, samplerPID)
+			if err != nil {
+				continue
+			}
+			for rs.Next() {
+				var typ, ev string
+				if rs.Scan(&typ, &ev) == nil {
+					waits[typ+"/"+ev]++
+					active++
+				}
+			}
+			_ = rs.Close()
+		}
+	}()
+
+	var wg sync.WaitGroup
+	var failed atomic.Int64
+	start := time.Now()
+	for w := 0; w < writers; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for p := 0; p < per; p++ {
+				if err := t5a2Pass(ctx, database, w, p, n, scopes[w][0], scopes[w][1]); err != nil {
+					failed.Add(1)
+					t.Errorf("writer %d pass %d: %v", w, p, err)
+					return
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+	elapsed := time.Since(start)
+	close(stopSampler)
+	<-samplerDone
+	_ = samplerConn.Close()
+	cpuUsec := t5a2CPU() - cpu0
+	load1 := t5a2Load()
+	// Close the writer connections so their backends flush pg_stat_wal.
+	database.SetMaxIdleConns(0)
+	database.SetMaxIdleConns(2)
+	time.Sleep(300 * time.Millisecond)
+	lsn1, wal1 := readWAL()
+	var lsnBytes int64
+	if err := database.QueryRowContext(ctx, `SELECT pg_wal_lsn_diff($1::pg_lsn, $2::pg_lsn)::bigint`, lsn1, lsn0).Scan(&lsnBytes); err != nil {
+		t.Fatalf("lsn diff: %v", err)
+	}
+	passes := writers * per
+	marks := int64(passes * n)
+	var staged int64
+	if err := database.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_winners_dirty_staging`).Scan(&staged); err != nil {
+		t.Fatal(err)
+	}
+	if staged != marks || failed.Load() != 0 {
+		t.Fatalf("staged %d marks, want %d (failed writers %d)", staged, marks, failed.Load())
+	}
+	dump, err := exec.Command("docker", "exec", os.Getenv("T5_CONTAINER"), "/usr/lib/postgresql/18/bin/pg_waldump",
+		"--stats=record", "-p", "/var/lib/postgresql/18/docker/pg_wal", "-s", lsn0, "-e", lsn1).CombinedOutput()
+	if err != nil {
+		t.Logf("pg_waldump error: %v", err)
+	}
+	if dir := os.Getenv("T5_OUT"); dir != "" {
+		_ = os.WriteFile(fmt.Sprintf("%s/waldump_cell%02d_w%d_idx%v.txt", dir, cell, writers, withIdx), dump, 0o644)
+	}
+	btreeCount, btreeRec, btreeFPI, recTotal, fpiTotal := t5a2Waldump(string(dump))
+	lockShare := 0.0
+	if active > 0 {
+		lockShare = float64(t5a2Prefix(waits, "LWLock/")+t5a2Prefix(waits, "Lock/")) / float64(active)
+	}
+	type kv struct {
+		k string
+		v int
+	}
+	var top []kv
+	for k, v := range waits {
+		top = append(top, kv{k, v})
+	}
+	sort.Slice(top, func(i, j int) bool { return top[i].v > top[j].v })
+	var topS []string
+	for i, e := range top {
+		if i == 8 {
+			break
+		}
+		topS = append(topS, fmt.Sprintf("%s=%d", e.k, e.v))
+	}
+	t.Logf("T5A2ROW cell=%d writers=%d index=%v passes=%d marks=%d wall_s=%.3f passes_per_s=%.3f cpu_ms_per_pass=%.3f wal_records=%d wal_fpi=%d wal_bytes=%d lsn_bytes=%d lsn_bytes_per_pass=%.0f lsn=%s..%s btree_records=%d btree_rec_bytes=%d btree_fpi_bytes=%d all_rec_bytes=%d all_fpi_bytes=%d active_samples=%d lock_share=%.4f load_start=%s load_end=%s",
+		cell, writers, withIdx, passes, marks, elapsed.Seconds(), float64(passes)/elapsed.Seconds(), float64(cpuUsec)/1000/float64(passes),
+		wal1.records-wal0.records, wal1.fpi-wal0.fpi, wal1.bytes-wal0.bytes, lsnBytes, float64(lsnBytes)/float64(passes), lsn0, lsn1,
+		btreeCount, btreeRec, btreeFPI, recTotal, fpiTotal, active, lockShare, load0, load1)
+	t.Logf("T5A2WAITS cell=%d writers=%d index=%v %s", cell, writers, withIdx, strings.Join(topS, " "))
+}
+
+// t5a2Waldump parses pg_waldump --stats=record: the Btree rows (count, record
+// bytes, FPI bytes) and the Total row (record and FPI bytes).
+func t5a2Waldump(out string) (btreeCount, btreeRec, btreeFPI, recTotal, fpiTotal int64) {
+	num := func(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
+	pct := regexp.MustCompile(`\([^)]*\)|\[[^\]]*\]`)
+	for _, line := range strings.Split(out, "\n") {
+		// Type N Record FPI Combined, once the (%) and [%] groups are gone.
+		f := strings.Fields(pct.ReplaceAllString(line, " "))
+		if len(f) != 5 {
+			continue
+		}
+		if strings.HasPrefix(f[0], "Btree/") {
+			btreeCount += num(f[1])
+			btreeRec += num(f[2])
+			btreeFPI += num(f[3])
+		}
+		if f[0] == "Total" {
+			recTotal = num(f[2])
+			fpiTotal = num(f[3])
+		}
+	}
+	return
+}
+
+func t5a2Prefix(m map[string]int, prefix string) int {
+	n := 0
+	for k, v := range m {
+		if strings.HasPrefix(k, prefix) {
+			n += v
+		}
+	}
+	return n
+}
+
+func t5a2Pass(ctx context.Context, database *sql.DB, w, p, n int, scopeID, genID string) error {
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	lockKey := facts.ReducerSupplyChainImpactFindingFactKind + "\x1f" + scopeID + "\x1f" + genID
+	if _, err := tx.ExecContext(ctx, landingInterleaveLockSQL, lockKey); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	rows := make([]factwrite.VersionedRow, 0, n)
+	pkgs, repos, digests, cves := make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+	for i := 0; i < n; i++ {
+		pkg := fmt.Sprintf("pkg:npm/t5-%d-%d@1.%d.0", w, (p*n+i)%121600, i%37)
+		factID := fmt.Sprintf("fact:t5:%s:%d:%d", scopeID, p, i)
+		rows = append(rows, factwrite.VersionedRow{
+			FactID: factID, ScopeID: scopeID, GenerationID: genID,
+			FactKind:      facts.ReducerSupplyChainImpactFindingFactKind,
+			StableFactKey: factID, SchemaVersion: facts.ReducerDerivedSchemaVersionV1,
+			CollectorKind: "test", SourceConfidence: "high", SourceSystem: "test",
+			SourceFactKey: factID, ObservedAt: now, IngestedAt: now,
+			Payload:      fmt.Sprintf(`{"package_id":%q,"repository_id":"repository:r_%d","subject_digest":"sha256:%064d","cve_id":"CVE-2024-%05d","advisory_id":"CVE-2024-%05d"}`, pkg, i%5000, i, i%90000, i%90000),
+			FencingToken: int64(p + 1),
+		})
+		pkgs[i], repos[i], digests[i] = pkg, fmt.Sprintf("repository:r_%d", i%5000), fmt.Sprintf("sha256:%064d", i)
+		cves[i] = fmt.Sprintf("CVE-2024-%05d", i%90000)
+	}
+	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
+		return fmt.Errorf("finding upsert: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, captureWinnersDirtyFactsSQL, pkgs, repos, digests, cves, cves); err != nil {
+		return fmt.Errorf("capture: %w", err)
+	}
+	return tx.Commit()
+}
+
+func t5a2CPU() int64 {
+	b, err := os.ReadFile(os.Getenv("T5_CGROUP_CPU"))
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if f := strings.Fields(line); len(f) == 2 && f[0] == "usage_usec" {
+			n, _ := strconv.ParseInt(f[1], 10, 64)
+			return n
+		}
+	}
+	return 0
+}
+
+func t5a2Load() string {
+	b, _ := os.ReadFile("/proc/loadavg")
+	return strings.Fields(string(b))[0]
+}

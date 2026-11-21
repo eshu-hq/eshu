@@ -1,0 +1,59 @@
+# T5-A round 1 per-cell rows (#11129): T5A = throughput, T5W = WAL and CPU per pass. 8-writer cells first, then 1 and 16.
+T5W writers=8 index=false wal_bytes_per_pass=2857343 pg_cpu_ms_per_pass=72.106
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=35.286s passes/s=22.67 marks/s=16188 load_start=4.90 load_end=4.32
+T5W writers=8 index=true wal_bytes_per_pass=2903344 pg_cpu_ms_per_pass=73.535
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=37.735s passes/s=21.20 marks/s=15137 load_start=4.32 load_end=3.93
+T5W writers=8 index=false wal_bytes_per_pass=2844448 pg_cpu_ms_per_pass=72.020
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=36.026s passes/s=22.21 marks/s=15855 load_start=3.93 load_end=4.08
+T5W writers=8 index=true wal_bytes_per_pass=2894598 pg_cpu_ms_per_pass=72.685
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=35.122s passes/s=22.78 marks/s=16263 load_start=3.91 load_end=3.93
+T5W writers=8 index=false wal_bytes_per_pass=2837627 pg_cpu_ms_per_pass=71.733
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=36.917s passes/s=21.67 marks/s=15473 load_start=3.93 load_end=4.58
+T5W writers=8 index=true wal_bytes_per_pass=2895467 pg_cpu_ms_per_pass=73.302
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=36.716s passes/s=21.79 marks/s=15557 load_start=4.30 load_end=5.16
+T5W writers=8 index=false wal_bytes_per_pass=2847706 pg_cpu_ms_per_pass=71.687
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=35.568s passes/s=22.49 marks/s=16060 load_start=5.16 load_end=5.83
+T5W writers=8 index=true wal_bytes_per_pass=2981637 pg_cpu_ms_per_pass=74.939
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=36.748s passes/s=21.77 marks/s=15544 load_start=5.52 load_end=4.58
+T5W writers=8 index=false wal_bytes_per_pass=2829983 pg_cpu_ms_per_pass=72.165
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=34.558s passes/s=23.15 marks/s=16529 load_start=4.37 load_end=4.71
+T5W writers=8 index=true wal_bytes_per_pass=2858660 pg_cpu_ms_per_pass=72.573
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=36.071s passes/s=22.18 marks/s=15836 load_start=4.73 load_end=4.70
+T5W writers=8 index=false wal_bytes_per_pass=2837139 pg_cpu_ms_per_pass=71.888
+T5A writers=8 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=37.718s passes/s=21.21 marks/s=15144 load_start=4.72 load_end=4.41
+T5W writers=8 index=true wal_bytes_per_pass=2875937 pg_cpu_ms_per_pass=72.669
+T5A writers=8 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=33.142s passes/s=24.14 marks/s=17235 load_start=4.13 load_end=3.44
+T5W writers=1 index=false wal_bytes_per_pass=2287795 pg_cpu_ms_per_pass=53.185
+T5A writers=1 index=false staging_indexes=1 passes=150 rows/pass=714 staged=107100 wall=8.856s passes/s=16.94 marks/s=12093 load_start=3.44 load_end=3.07
+T5W writers=1 index=true wal_bytes_per_pass=2315933 pg_cpu_ms_per_pass=53.896
+T5A writers=1 index=true staging_indexes=2 passes=150 rows/pass=714 staged=107100 wall=8.950s passes/s=16.76 marks/s=11967 load_start=3.07 load_end=2.75
+T5W writers=1 index=false wal_bytes_per_pass=2260251 pg_cpu_ms_per_pass=64.740
+T5A writers=1 index=false staging_indexes=1 passes=150 rows/pass=714 staged=107100 wall=8.882s passes/s=16.89 marks/s=12058 load_start=2.75 load_end=2.48
+T5W writers=1 index=true wal_bytes_per_pass=2288632 pg_cpu_ms_per_pass=66.213
+T5A writers=1 index=true staging_indexes=2 passes=150 rows/pass=714 staged=107100 wall=8.955s passes/s=16.75 marks/s=11960 load_start=2.48 load_end=2.41
+T5W writers=16 index=false wal_bytes_per_pass=2884522 pg_cpu_ms_per_pass=78.667
+T5A writers=16 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=42.346s passes/s=18.89 marks/s=13489 load_start=2.41 load_end=3.36
+T5W writers=16 index=true wal_bytes_per_pass=2895761 pg_cpu_ms_per_pass=79.234
+T5A writers=16 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=41.624s passes/s=19.22 marks/s=13723 load_start=3.36 load_end=4.60
+T5W writers=16 index=false wal_bytes_per_pass=2764032 pg_cpu_ms_per_pass=78.312
+T5A writers=16 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=38.511s passes/s=20.77 marks/s=14832 load_start=4.60 load_end=3.49
+T5W writers=16 index=true wal_bytes_per_pass=2963430 pg_cpu_ms_per_pass=80.468
+T5A writers=16 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=42.729s passes/s=18.72 marks/s=13368 load_start=3.49 load_end=3.41
+# extra 16-writer pairs of round 1
+T5W writers=16 index=false wal_bytes_per_pass=2748865 pg_cpu_ms_per_pass=77.896
+T5A writers=16 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=41.567s passes/s=19.25 marks/s=13742 load_start=2.06 load_end=2.27
+T5W writers=16 index=true wal_bytes_per_pass=2863159 pg_cpu_ms_per_pass=81.700
+T5A writers=16 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=40.430s passes/s=19.79 marks/s=14128 load_start=2.27 load_end=3.00
+T5W writers=16 index=false wal_bytes_per_pass=2891644 pg_cpu_ms_per_pass=79.500
+T5A writers=16 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=40.665s passes/s=19.67 marks/s=14046 load_start=3.00 load_end=3.14
+T5W writers=16 index=true wal_bytes_per_pass=2831528 pg_cpu_ms_per_pass=79.756
+T5A writers=16 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=41.239s passes/s=19.40 marks/s=13851 load_start=3.14 load_end=3.41
+T5W writers=16 index=false wal_bytes_per_pass=2781790 pg_cpu_ms_per_pass=78.133
+T5A writers=16 index=false staging_indexes=1 passes=800 rows/pass=714 staged=571200 wall=38.821s passes/s=20.61 marks/s=14714 load_start=3.41 load_end=3.91
+T5W writers=16 index=true wal_bytes_per_pass=2957859 pg_cpu_ms_per_pass=79.610
+T5A writers=16 index=true staging_indexes=2 passes=800 rows/pass=714 staged=571200 wall=40.322s passes/s=19.84 marks/s=14166 load_start=3.91 load_end=4.28
+# pure-insert pairs, 1 writer, pgbench 3.04M rows
+t5a_pure1_idx1.txt tps=103.428593
+t5a_pure1_idx2.txt tps=103.421816
+t5a_pure1_noidx1.txt tps=103.643877
+t5a_pure1_noidx2.txt tps=123.425929

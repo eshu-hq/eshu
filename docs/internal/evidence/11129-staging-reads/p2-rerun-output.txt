@@ -1,0 +1,18 @@
+P2 staged 12160000 marks in 2m7.275323276s
+tick 0 staging=686.896066ms dirtylog=5.80551ms gauge=71.401176ms tick=1.031505394s path=keyed remaining=12160100 upper=true
+tick 1 staging=783.754042ms dirtylog=11.401951ms gauge=19.165098ms tick=943.78039ms path=keyed remaining=12165400 upper=true
+tick 2 staging=862.752945ms dirtylog=15.240675ms gauge=23.313453ms tick=1.043610214s path=keyed remaining=12140000 upper=true
+tick 50 staging=739.941382ms dirtylog=47.244619ms gauge=101.303576ms tick=942.544858ms path=keyed remaining=9773280 upper=true
+tick 100 staging=691.541027ms dirtylog=48.235674ms gauge=78.417318ms tick=892.081284ms path=keyed remaining=7298480 upper=true
+tick 150 staging=698.754124ms dirtylog=48.739501ms gauge=87.39322ms tick=894.508862ms path=keyed remaining=4822000 upper=true
+tick 200 staging=1.574168277s dirtylog=50.42202ms gauge=127.349843ms tick=2.050258887s path=keyed remaining=2345050 upper=true
+P2 ticks_to_empty=246 writer_marks=113850 total_marks=12273850 temp_files=0 temp_bytes=0
+P2 staging (collapse+reads, in lock) n=246 first=686.896066ms p50=697.450869ms p95=1.574168277s max=4.278438842s total=3m33.595913223s
+P2 dirty-log reads (in lock: remaining count + min) n=246 first=5.80551ms p50=50.439657ms p95=97.335437ms max=991.510159ms total=14.700030997s
+P2 gauge sample (pre-lease, one statement) n=246 first=71.401176ms p50=73.45432ms p95=130.592773ms max=428.525884ms total=20.058517458s
+P2 gauge split: staging part n=246 first=10.08787ms p50=13.086831ms p95=41.927199ms max=76.97764ms total=3.998405712s
+P2 gauge split: dirty-log part n=246 first=183.082µs p50=25.884368ms p95=54.034656ms max=787.188821ms total=7.78432218s
+P2 whole tick n=246 first=1.031505394s p50=907.985595ms p95=2.026479447s max=4.950198096s total=4m34.401866339s
+--- PASS: TestZZP2Rerun11129Live (497.10s)
+PASS
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	497.208s
