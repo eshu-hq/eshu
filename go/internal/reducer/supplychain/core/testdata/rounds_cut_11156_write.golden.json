@@ -1,0 +1,215 @@
+{
+  "fencing_token": 1,
+  "findings": [
+    {
+      "CVEID": "CVE-2026-7154",
+      "AdvisoryID": "CVE-2026-7154",
+      "PackageID": "pkg:npm/example",
+      "Ecosystem": "npm",
+      "PackageName": "example",
+      "PURL": "",
+      "OSPackageMatchDerivation": "",
+      "InstalledPackageName": "",
+      "SourcePackage": "",
+      "ProductCriteria": "",
+      "MatchCriteriaID": "",
+      "ObservedVersion": "1.2.3",
+      "RequestedRange": "1.2.3",
+      "FixedVersion": "1.3.0",
+      "VulnerableRange": "",
+      "MatchReason": "npm_semver_affected_range",
+      "Status": "affected_exact",
+      "Confidence": "exact",
+      "CVSSScore": 8.1,
+      "SeveritySource": "nvd",
+      "SeverityScoreSource": "",
+      "SeverityVector": "",
+      "SeverityLabel": "",
+      "AdvisoryPublishedAt": "",
+      "AdvisoryUpdatedAt": "",
+      "AlternateSeverities": null,
+      "FixedVersionSource": "nvd",
+      "FixedVersionBranches": [
+        {
+          "Version": "1.3.0",
+          "Source": "nvd"
+        }
+      ],
+      "RangeSource": "",
+      "AdvisorySources": [
+        {
+          "Source": "nvd",
+          "AdvisoryID": "CVE-2026-7154",
+          "SourceUpdatedAt": "",
+          "WithdrawnAt": "",
+          "Status": "",
+          "ReplacedBy": null
+        }
+      ],
+      "EPSSProbability": "",
+      "EPSSPercentile": "",
+      "EPSSScoreDate": "",
+      "EPSSModelVersion": "",
+      "KnownExploited": false,
+      "PriorityReason": "high triage priority score 60; impact_status remains affected_exact and priority does not prove affected truth",
+      "PriorityScore": 60,
+      "PriorityBucket": "high",
+      "PriorityReasonCodes": [
+        "cvss_cvss_high",
+        "exact_version_evidence",
+        "fixed_version_available",
+        "missing_evidence_present",
+        "owned_repository_evidence"
+      ],
+      "PriorityContributions": [
+        {
+          "ReasonCode": "cvss_cvss_high",
+          "Input": "cvss",
+          "Value": "8.1",
+          "Contribution": 35
+        },
+        {
+          "ReasonCode": "exact_version_evidence",
+          "Input": "version_evidence",
+          "Value": "1.2.3",
+          "Contribution": 15
+        },
+        {
+          "ReasonCode": "owned_repository_evidence",
+          "Input": "repository",
+          "Value": "repo://example/api",
+          "Contribution": 10
+        },
+        {
+          "ReasonCode": "fixed_version_available",
+          "Input": "fixed_version",
+          "Value": "1.3.0",
+          "Contribution": 5
+        },
+        {
+          "ReasonCode": "missing_evidence_present",
+          "Input": "missing_evidence",
+          "Value": "active supply-chain evidence expansion limit reached,deployment exposure evidence missing,javascript/typescript parser or SCIP package API evidence missing,service evidence missing,workload evidence missing",
+          "Contribution": -5
+        }
+      ],
+      "ExploitedTier": "none",
+      "RuntimeReachability": "package_api_missing_evidence",
+      "GoScanLevel": "",
+      "GoScanMode": "",
+      "GoScannerVersion": "",
+      "GoTraceCount": null,
+      "Reachability": {
+        "State": "missing_evidence",
+        "Confidence": "unknown",
+        "Source": "parser_js_ts",
+        "Evidence": "package_api_missing_evidence",
+        "Reason": "JavaScript/TypeScript package reachability is supported, but parser or SCIP package API evidence is missing",
+        "LanguageMaturity": "partial",
+        "MissingEvidence": [
+          "deployment exposure evidence missing",
+          "javascript/typescript parser or SCIP package API evidence missing",
+          "service evidence missing",
+          "workload evidence missing"
+        ],
+        "ScanLevel": "",
+        "ScanMode": "",
+        "ScannerVersion": "",
+        "TraceCount": null
+      },
+      "RepositoryID": "repo://example/api",
+      "SubjectDigest": "",
+      "ScanTargetID": "",
+      "ScanGenerationID": "",
+      "AuthorityDependencies": null,
+      "ImageRef": "",
+      "DependencyScope": "",
+      "WorkloadIDs": null,
+      "ServiceWorkloadPairs": null,
+      "DeploymentIDs": null,
+      "ServiceIDs": null,
+      "Environments": null,
+      "EnvironmentEvidence": null,
+      "CIDeclaredArtifactDigest": "",
+      "CIDeclaredImageRef": "",
+      "CatalogEntityRefs": null,
+      "CatalogOwnerRefs": null,
+      "DependencyPath": null,
+      "DependencyDepth": 0,
+      "DirectDependency": null,
+      "AdvisoryGroupMembers": null,
+      "AdvisoryGroupEPSSSource": "",
+      "AdvisoryGroupKEVSource": "",
+      "MissingEvidence": [
+        "active supply-chain evidence expansion limit reached",
+        "deployment exposure evidence missing",
+        "javascript/typescript parser or SCIP package API evidence missing",
+        "service evidence missing",
+        "workload evidence missing"
+      ],
+      "EvidencePath": [
+        "vulnerability.cve",
+        "vulnerability.affected_package",
+        "reducer_package_consumption_correlation"
+      ],
+      "EvidenceFactIDs": [
+        "affected-1",
+        "consume-1",
+        "cve-1"
+      ],
+      "CanonicalWrites": 1,
+      "DetectionProfile": "precise",
+      "Suppression": {
+        "State": "active",
+        "SuppressionID": "",
+        "Source": "",
+        "Justification": "",
+        "Author": "",
+        "AuthoredAt": "0001-01-01T00:00:00Z",
+        "ExpiresAt": "0001-01-01T00:00:00Z",
+        "Reason": "",
+        "EvidenceRef": "",
+        "VEXDocumentID": "",
+        "VEXStatementID": "",
+        "MatchedID": "",
+        "MatchedField": "",
+        "MatchedVia": ""
+      },
+      "AdvisoryRetraction": null,
+      "Remediation": {
+        "Ecosystem": "npm",
+        "CurrentVersion": "1.2.3",
+        "VulnerableRange": "",
+        "FixedVersionSource": "nvd",
+        "MatchReason": "npm_semver_affected_range",
+        "FirstPatchedVersion": "1.3.0",
+        "PatchedVersionBranches": [
+          {
+            "Version": "1.3.0",
+            "Source": "nvd"
+          }
+        ],
+        "ManifestRange": "1.2.3",
+        "ManifestAllowsFix": "blocked",
+        "Direct": null,
+        "ParentPackage": "",
+        "Confidence": "exact",
+        "Reason": "direct_range_blocked",
+        "MissingEvidence": null
+      }
+    }
+  ],
+  "generation_id": "generation-7154",
+  "intent_id": "intent-7154",
+  "partial_causes": [
+    "active_expansion_rounds"
+  ],
+  "partial_evidence": true,
+  "scope_fact_kinds": [
+    "vulnerability.cve",
+    "vulnerability.affected_package",
+    "reducer_package_consumption_correlation"
+  ],
+  "scope_id": "vuln-intel://osv/npm/example",
+  "scoped_cve_ids": null
+}

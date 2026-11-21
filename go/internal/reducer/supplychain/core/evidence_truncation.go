@@ -54,6 +54,9 @@ type supplyChainImpactTruncation struct {
 	// load stopping short, so any() — which drives suppression-candidate
 	// discard — stays false for it.
 	manifestRefused bool
+	// roundsCut is the unrequested frontier at the round cap (#11156). It is
+	// observability only: partial, any and causes never read it.
+	roundsCut roundsCutFrontier
 }
 
 // partial reports whether the finding set may be incomplete, which is the
@@ -241,6 +244,8 @@ func (h SupplyChainImpactHandler) addHeadroomSubSignals(
 	loaded supplyChainImpactLoadedEvidence,
 ) {
 	subSignals["evidence_partial"] = boolSignal(loaded.truncation.partial())
+	// A pass the round cap stopped adds its unrequested frontier (#11156).
+	loaded.truncation.roundsCut.mergeSubSignals(subSignals)
 	subSignals["evidence_budget_ratio"] = float64(loaded.budgetEnvelopes) / float64(h.evidenceBudgetLimit())
 	subSignals["evidence_payload_bytes_ratio"] = float64(loaded.budgetPayloadBytes) / float64(h.evidencePayloadBytesLimit())
 }

@@ -216,3 +216,53 @@ written even when zero so bound-on and bound-off passes stay comparable:
 - `criteria_bound_component_criteria` — criteria on the both-probes arm.
 - `criteria_bound_seed_criteria` — seed-CVE criteria on the component-only arm.
 - `criteria_bound_seed_cves` — seed CVE count after alias/upstream closure.
+
+## Round-cap frontier
+
+The until-stable load stops after 8 rounds. A pass the cap stopped is
+partial: it upserts but retracts nothing (see `active_evidence_truncated`).
+The cap is a depth cap on a graph walk, so its count alone does not say which
+arm of the follow-up filter keeps the walk going or how much was left
+(#11156). A pass that stopped at the cap reports that frontier, taken from the
+follow-up filter that was still non-empty after round 8, after the provenance
+bound and the scope restrict, so it is what round 9 would have asked for.
+
+The result line carries these sub-signals, written for a pass the round cap
+stopped and absent on every other pass (a budget cut, a manifest refusal, a
+converged pass):
+
+- `rounds_cut_rounds` — the cap the pass stopped at (8).
+- `rounds_cut_envelopes` — envelopes the pass held at the cut: the scope load,
+  the repository and manifest loads, and the active-evidence rounds, before
+  the later expansion stages. This is not the budget charge: read
+  `evidence_budget_ratio` for that.
+- `rounds_cut_frontier_<arm>` — values the arm still held, zero included. The
+  arm set is closed and equals the follow-up filter: `package_ids`, `purls`,
+  `cve_ids`, `upstream_cve_ids`, `alias_ids`, `advisory_ids`,
+  `subject_digests`, `document_ids`, `product_criteria`,
+  `seed_product_criteria`, `repository_ids`, `file_repository_ids`,
+  `image_refs`.
+
+The same pass writes one INFO line, `supply chain impact evidence expansion
+cut at the round cap`, after the `evidence truncated; findings not retracted`
+WARN line. It carries `scope_id`, `generation_id`, `intent_id`, `pass_mode`
+(`full`, `scoped`, and the fallback modes of
+`eshu_dp_supply_chain_impact_pass_total`), `cause`
+(`active_expansion_rounds`), `rounds`, `cut_envelopes`, and one
+`frontier_<arm>` field per arm. There is no new metric: ids are log fields
+only and no arm name or id is a metric label. The count of cut passes stays
+`eshu_dp_supply_chain_impact_evidence_truncated_total{reason="active_expansion_rounds"}`.
+
+Read the line in this order:
+
+1. `frontier_*` with one large arm (for example `package_ids` or
+   `repository_ids`): that arm is what the walk keeps reaching. Several arms
+   open at once points at a walk across package, CVE and repository.
+2. The same scope across passes. A scope whose line repeats is one that never
+   retracts (#11156).
+3. `cut_envelopes` against the budget in the WARN line, to tell a wide scope
+   from a deep one.
+
+The diagnostic changes nothing the pass does. A test runs a seeded pass cut at
+round 8 with and without the diagnostic read and compares the writer input
+byte for byte against what the code wrote before the diagnostic existed.

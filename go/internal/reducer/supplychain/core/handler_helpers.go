@@ -389,6 +389,10 @@ func (h SupplyChainImpactHandler) emitEvidenceTruncation(
 				slog.Int("findings", findings),
 			)
 		}
+		// The frontier line follows the WARN line it explains (#11156).
+		if cause == supplyChainImpactTruncationRounds {
+			h.emitRoundsCutFrontier(ctx, intent, loaded)
+		}
 	}
 }
 

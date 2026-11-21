@@ -65,6 +65,8 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	for loads := 0; !next.empty(); loads++ {
 		if loads >= maxSupplyChainImpactActiveEvidenceLoads {
 			truncation.rounds = true
+			// next is what the round after the cap would have requested.
+			truncation.roundsCut = newRoundsCutFrontier(next, loads, len(envelopes))
 			return withDigest(envelopes), truncation, bound.outcome(), nil
 		}
 		next.FileFold = fold

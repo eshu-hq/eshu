@@ -464,7 +464,7 @@ pages in one snapshot (#8880). The handler prefers the loader's
 rows, seconds, and statement counts into the pass's success-line sub-signals
 (`active_evidence_branch_<name>_rows`, `active_evidence_branch_<name>_statements`,
 `active_evidence_resolved_fact_ids`, `active_evidence_payload_pages`, `active_evidence_guard_rows`). Evidence:
-(#8880).
+(#8880). A pass the 8-round cap stopped also reports the unrequested frontier (`rounds_cut_frontier.go`, #11156): the per-arm size of the follow-up filter that was still non-empty (`rounds_cut_frontier_<arm>`, closed set of the 13 filter arms), `rounds_cut_rounds`, and `rounds_cut_envelopes` as sub-signals, plus one INFO line `supply chain impact evidence expansion cut at the round cap`. It observes only: the cap, the partial flag, the stamp, the writes and the counters are unchanged, and a budget cut or a converged pass emits none of it. Read `docs/public/reference/telemetry/supply-chain-active-evidence.md`.
 
 Each pass is also fenced (#7142). `Handle` issues a database-issued token from a
 Postgres sequence before the evidence load (`SupplyChainImpactFencingTokenIssuer`);
