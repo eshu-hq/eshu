@@ -325,9 +325,11 @@ import (
 // 325_projector_admission_wait_attempts.sql (#10671) adds the projector
 // admission-wait counter on fact_work_items: NOT NULL DEFAULT 0,
 // metadata-only, no backfill.
+// #11082 adds 327_fact_records_package_ownership_active_idx.sql (the
+// drive-from-fact partial index for the code-import ownership load).
 const (
-	goldenBootstrapDefinitionsDigest = "5cab52cd15aefc50a44bea3e54fcb5f349671a8e9fe9a7da1f2682a37f796f0a"
-	goldenBootstrapDefinitionsCount  = 351
+	goldenBootstrapDefinitionsDigest = "1acdc599268317e5505bdf0520ec0e636f08d0483c94f4ae3e60be0fea6aebad"
+	goldenBootstrapDefinitionsCount  = 352
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {
