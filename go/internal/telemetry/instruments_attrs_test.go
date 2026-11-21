@@ -23,6 +23,8 @@ func TestAttrHelpersCarryValue(t *testing.T) {
 	}{
 		{"field_class", AttrFieldClass("code"), MetricDimensionFieldClass},
 		{"collector_instance", AttrCollectorInstanceID("i-1"), MetricDimensionCollectorInstanceID},
+		{"claim_mode", AttrClaimMode("batch"), MetricDimensionClaimMode},
+		{"constraint", AttrConstraint("mirror"), MetricDimensionConstraint},
 		{"fairness_key", AttrFairnessKey("k"), LogKeyFairnessKey},
 		{"pacing_signal", AttrPacingSignal("s"), MetricDimensionPacingSignal},
 		{"execution_mode", AttrExecutionMode("m"), MetricDimensionExecutionMode},

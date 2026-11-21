@@ -38,6 +38,18 @@ const (
 	// scheduler target-class rank (0-4, see schedule.TargetClassRank). The
 	// value space is the closed rank set, so it stays low-cardinality.
 	MetricDimensionClaimPriority = "claim_priority"
+	// MetricDimensionClaimMode labels reducer live-lease-conflict deferrals
+	// (#11081) with the closed claim path that deferred: "batch"
+	// (ReducerQueue.ClaimBatch) or "single" (ReducerQueue.Claim). Derived
+	// from the caller, never from row data.
+	MetricDimensionClaimMode = "claim_mode"
+	// MetricDimensionConstraint labels reducer live-lease-conflict deferrals
+	// (#11081) with the closed unique index that rejected the claim:
+	// "main" (fact_work_items_reducer_live_lease_uniq) or "mirror"
+	// (fact_work_item_leases_live_lease_uniq). It tells an operator whether
+	// the genuine live-lease fence or leftover mirror residue deferred the
+	// claim. Derived from pgconn pgErr.ConstraintName, never from row data.
+	MetricDimensionConstraint = "constraint"
 	// MetricDimensionFairnessKey labels the bounded top-N per-key depth
 	// gauge only (at most WorkflowFairnessTopKeys series per collector
 	// family, enforced at the emission site). Raw fairness keys embed

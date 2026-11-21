@@ -23,6 +23,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"limit_kind",
 		"collector_instance_id",
 		"claim_priority",
+		"claim_mode",
+		"constraint",
 		"fairness_key",
 		"domain",
 		"pacing_signal",
