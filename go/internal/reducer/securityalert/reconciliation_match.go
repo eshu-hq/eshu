@@ -166,7 +166,8 @@ func matchSecurityAlertImpact(
 		if best.FactID == "" || securityAlertImpactOutranks(impact, best) {
 			best = impact
 		}
-		if _, held := manifestVersions[impact.ObservedVersion]; held && impact.ObservedVersion != "" &&
+		// manifestVersions never holds "", so a versionless impact is never in it.
+		if _, held := manifestVersions[impact.ObservedVersion]; held &&
 			(bestInManifest.FactID == "" || securityAlertImpactOutranks(impact, bestInManifest)) {
 			bestInManifest = impact
 		}

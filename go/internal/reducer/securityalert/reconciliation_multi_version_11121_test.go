@@ -99,3 +99,41 @@ func TestReconciliationRanksOnlyImpactsOfTheAlertManifest11121(t *testing.T) {
 			decision.Status, decision.EshuImpactStatus, decision.EshuImpactFindingID, decision.ObservedVersion, decision.DependencyEvidenceID)
 	}
 }
+
+// TestReconciliationFallbackKeepsTheManifestRow11121 pins the rank fallback of
+// #11121 (re-review P2-R1). The alert manifest holds 3.1.0, which has no
+// finding, while sub/package-lock.json holds 3.0.3 with an affected finding.
+// No impact of a manifest version exists, so the rank falls back to every
+// admitted impact and reports affected_exact. No exact row has 3.0.3, so the
+// decision keeps the manifest's own 3.1.0 row as its evidence. This mainly
+// happens before a holder re-passes (R2).
+func TestReconciliationFallbackKeepsTheManifestRow11121(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/eshu-hq/eshu"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-11121-fallback", repoID, map[string]any{
+		"provider": "github_dependabot", "provider_alert_number": int64(11125), "provider_state": "open",
+		"package_id": packageID, "ecosystem": "npm", "package_name": "fast-uri", "manifest_path": "package-lock.json",
+		"ghsa_ids": []string{"GHSA-abcd-1234"}, "cve_ids": []string{"CVE-2026-0001"},
+		"updated_at": "2026-05-23T10:15:00Z",
+	})
+	fixedRow := packageConsumptionCorrelationEnvelope("consume-a-fixed", repoID, packageID, "package-lock.json")
+	fixedRow.Payload["installed_version"] = "3.1.0"
+	otherManifestRow := packageConsumptionCorrelationEnvelope("consume-z-affected", repoID, packageID, "sub/package-lock.json")
+	otherManifestRow.Payload["installed_version"] = "3.0.3"
+	otherImpact := supplyChainImpactFindingEnvelope("impact-z-affected", repoID, packageID, "CVE-2026-0001", "affected_exact")
+	otherImpact.Payload["observed_version"] = "3.0.3"
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, fixedRow, otherManifestRow, otherImpact}, nil)
+	if len(decisions) != 1 {
+		t.Fatalf("len(decisions) = %d, want 1", len(decisions))
+	}
+	decision := decisions[0]
+	if decision.Status != SecurityAlertReconciliationMatched ||
+		decision.EshuImpactStatus != "affected_exact" || decision.EshuImpactFindingID != "impact-z-affected" ||
+		decision.ObservedVersion != "3.1.0" || decision.DependencyEvidenceID != "consume-a-fixed" {
+		t.Fatalf("decision = %s %s (%s) observed %s dependency %s, want the fallback: matched affected_exact (impact-z-affected) observed 3.1.0 dependency consume-a-fixed",
+			decision.Status, decision.EshuImpactStatus, decision.EshuImpactFindingID, decision.ObservedVersion, decision.DependencyEvidenceID)
+	}
+}

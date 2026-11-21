@@ -269,9 +269,11 @@ with provider state and Eshu impact state as separate fields:
   alert's own manifest holds, or of all of them when none of those has a
   finding (`affected_exact`, then
   `affected_derived`, `possibly_affected`, `unknown_impact`,
-  `not_affected_known_fixed`; ties go to the lower fact id), and its dependency
-  evidence and observed version name that version's row (#11121). A fixed copy
-  never hides an affected one.
+  `not_affected_known_fixed`; ties go to the lower fact id). Its dependency
+  evidence and observed version name that version's row when the alert's
+  manifest holds it; in the fallback, when the reported finding is for a
+  version only another manifest holds, they keep the manifest's own row
+  (#11121). A fixed copy never hides an affected one.
 - `unmatched` when the dependency is owned but no Eshu impact finding exists.
 - `stale` when newer owned dependency evidence no longer matches the alert's
   manifest path.

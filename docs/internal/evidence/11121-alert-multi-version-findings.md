@@ -43,9 +43,11 @@ The impact path now also reads an alert row's `installed_version` when the row
 has no observed version (review F4). Reconciliation and the manifest path
 already did, so a row whose only version evidence is `installed_version`
 (`TestSecurityAlertInstalledVersionRowIsVersioned11121`) no longer reads as
-versionless on one path and versioned on the other. This can give an existing
-versionless alert finding a version, and so a new identity, on its holder's
-next pass.
+versionless on one path and versioned on the other. On its holder's next
+pass, an existing versionless alert finding can gain a version, and so a new
+identity. Its status can change too, for example from `possibly_affected` to
+`affected_exact`. The writer retracts the old versionless row on that pass,
+as the #11113 deploy note describes.
 
 Reconciliation keeps one decision per alert, and its consumption pick still
 calls `MatchSecurityAlertConsumption`. The impact the decision reports does
@@ -65,7 +67,13 @@ over admitted findings whose version the alert's own manifest holds
 finding only when none of those matches. Within that set the most severe
 status wins (`affected_exact`, then `affected_derived`, `possibly_affected`,
 `unknown_impact`, `not_affected_known_fixed`), then the lower fact id. `securityAlertConsumptionForImpact` then points the decision's
-dependency evidence and observed version at the row of that version.
+dependency evidence and observed version at the row of that version when the
+alert's manifest holds it. In the fallback, the reported finding is for a
+version only another manifest holds. There the decision keeps the manifest's
+own row, so the row can read `affected_exact` with the manifest's fixed
+version as its evidence. This mainly happens in the R2 window, before a holder
+re-passes and writes findings for the manifest's own versions.
+`TestReconciliationFallbackKeepsTheManifestRow11121` pins that behavior.
 `SecurityAlertImpact` gains `ObservedVersion`, read from the finding payload.
 `TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121` was
 RED first. It failed with the fixed impact first, reporting
