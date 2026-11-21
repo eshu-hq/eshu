@@ -263,7 +263,21 @@ themselves. The `security_alert_reconciliation` reducer writes comparison rows
 with provider state and Eshu impact state as separate fields:
 
 - `matched` when the alert joins to owned dependency evidence and an Eshu
-  impact finding for the same package/advisory.
+  impact finding for the same package/advisory. A repository that installs
+  several versions of the package has one Eshu finding per version (#11113).
+  The row then reports the most severe of the findings for versions the
+  alert's own manifest holds, or of all of them when none of those has a
+  finding (`affected_exact`, then
+  `affected_derived`, `possibly_affected`, `unknown_impact`,
+  `not_affected_known_fixed`; ties go to the lower fact id). Its dependency
+  evidence and observed version name that version's row when the alert's
+  manifest holds it; in the fallback, when the reported finding is for a
+  version only another manifest holds, they keep the manifest's own row
+  (#11121). A reader tells the fallback row from a coherent one by following
+  the row's `eshu_impact_finding_id` to that impact finding and comparing the
+  finding's `observed_version` with the row's `observed_version`: they differ
+  only in the fallback, and the row is repaired on the holder's next pass.
+  A fixed copy never hides an affected one.
 - `unmatched` when the dependency is owned but no Eshu impact finding exists.
 - `stale` when newer owned dependency evidence no longer matches the alert's
   manifest path.

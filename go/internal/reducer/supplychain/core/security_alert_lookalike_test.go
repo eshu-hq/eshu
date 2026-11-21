@@ -46,7 +46,9 @@ func TestSecurityAlertImpactFindingKeepsLookalikeEcosystem(t *testing.T) {
 		if err != nil || len(alerts) != 1 {
 			t.Fatalf("%q: alerts = %d, err = %v, want 1 alert", tc.ecosystem, len(alerts), err)
 		}
-		finding, ok := buildSecurityAlertImpactFinding(alerts[0], securityalert.ExtractSecurityAlertConsumptions(envelopes), nil, supplyChainImpactIndex{})
+		candidates, _ := securityalert.ExactSecurityAlertConsumptions(alerts[0], securityalert.ExtractSecurityAlertConsumptions(envelopes))
+		consumption, _ := securityalert.SelectSecurityAlertConsumption(candidates)
+		finding, ok := buildSecurityAlertImpactFinding(alerts[0], consumption, nil, supplyChainImpactIndex{})
 		if !ok {
 			t.Fatalf("%q: buildSecurityAlertImpactFinding() ok = false", tc.ecosystem)
 		}

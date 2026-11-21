@@ -80,4 +80,7 @@ type SecurityAlertImpact struct {
 	CVEID        string
 	AdvisoryID   string
 	Status       string
+	// ObservedVersion is the finding's installed version. One package can
+	// hold one finding per installed version (#11113).
+	ObservedVersion string
 }
