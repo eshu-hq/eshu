@@ -88,7 +88,7 @@ staging table plus the same sequence `USAGE` to the winners maintainer, which
 also keeps its `SELECT`, `INSERT` and `DELETE` on `supply_chain_impact_winners_dirty_log`
 (the collapse merge-upsert and the settle drain both write it) and needs `SELECT`,
 `INSERT`, `UPDATE` and `DELETE` on `supply_chain_impact_winners_dirty_tally`:
-its two drain statements keep per-minute buckets, held for three hours, of
+its four drain statements keep per-minute buckets, held for three hours, of
 the NVD-proxy, GHSA-proxy (#11078), and NVD scope rows they delete there, so the NVD baseline trip sampler (the coordinator login) can read
 inflow instead of survivors and needs `SELECT` on that table and on the dirty
 log (#10767, #11078). Each tally row is one capture minute of drained inflow:
