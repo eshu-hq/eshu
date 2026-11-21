@@ -480,6 +480,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10671 owns 325).
 	"328_supply_chain_impact_winners_dirty_tally_ghsa.sql": "203127370c2c10a206df811af13aa54e4d401ba27875bc2554b11e69aa6f96f3",
 	"329_supply_chain_impact_winners_contract.sql":         "d07f9b9aeac4f0583ce3f650d984ffb4448618ab9178d76a5f029764caeca437",
+	// #11129: captured_at btree on the winners staging queue so the
+	// residual minimum is an index endpoint, not a whole-queue scan.
+	"330_supply_chain_impact_winners_dirty_staging_captured_at_idx.sql": "28490c761bb6b63434516415ed1632359d9e403a4a3ce694fa851ad691acb6f0",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
