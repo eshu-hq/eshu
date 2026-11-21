@@ -5,7 +5,8 @@ Read-only readings from the QA environment that back the statements marked
 query ran with `default_transaction_read_only = on`.
 
 These are single readings on one day. They show what the system held at that
-moment. They do not show why.
+moment. They do not show why. Counts are recorded in
+`docs/internal/measurements.jsonl` under the ids shown as `ledger:<id>`.
 
 ## 1. Score scopes hold no findings
 
@@ -28,14 +29,22 @@ GROUP BY 1, 2, 3, 4;
 | EPSS | `vulnerability.source_snapshot` | 246 |
 | KEV (1 scope) | `vulnerability.known_exploited` | 44,300 |
 | KEV | `vulnerability.source_snapshot` | 25 |
-| Either | Any finding kind | 0 |
+| Either | Any finding kind | 0 (`ledger:10860-atlas-score-scope-findings`) |
 
-The winners table held 73,317 winners from OSV scopes and 6,268 from GHSA
-scopes, and none from an EPSS, KEV, or NVD scope.
+The winners table, grouped by the source family of `winner_scope_id`, held
+73,317 winners from OSV scopes and 6,268 from GHSA scopes, and none from an
+EPSS, KEV, or NVD scope.
 
-## 2. No queued impact run came from a score scope
+```sql
+SELECT split_part(replace(winner_scope_id, 'vuln-intel://', ''), '/', 1), count(*)
+FROM supply_chain_impact_canonical_winners GROUP BY 1;
+```
 
-Question: which scope family opened each queued `supply_chain_impact` run?
+## 2. No impact work item named a score scope as its origin
+
+Question: which scope family does each `supply_chain_impact` work item name as
+its fan-out origin? The query has no status filter, so it counts work items in
+every status.
 
 ```sql
 SELECT split_part(replace(coalesce(payload->'fanout_origin'->>'scope_id', ''),
@@ -47,25 +56,42 @@ WHERE stage = 'reducer' AND domain = 'supply_chain_impact'
 GROUP BY 1;
 ```
 
-Of 7,223 runs: 5,587 named an OSV scope as origin, 70 a GHSA scope, 196 a
-repository scope, 2 a security-alert scope, and 1,368 carried no origin. None
-named an EPSS or KEV scope. A work item keeps only its latest origin, so this
+Of 7,223 work items (`ledger:10860-atlas-impact-work-items`): 5,587 named an
+OSV scope as origin, 70 a GHSA scope, 196 a repository scope, 2 a
+security-alert scope, and 1,368 carried no origin. None named an EPSS or KEV
+scope (`ledger:10860-atlas-impact-work-items-score-origin`). A work item keeps only its latest origin, so this
 does not show what opened earlier runs.
 
 ## 3. A finding shows the score that was live when it was written
 
 Sample: 40 owner scopes, 223 scored vulnerabilities, 30,895 finding rows, and
-the EPSS records of all 20 EPSS scopes across every snapshot. For each finding
-row the query returned the stored `epss_probability` and the row's
-`ingested_at`; for each EPSS record, its probability and its snapshot's
-`activated_at`.
+the EPSS records of all 20 EPSS scopes across every snapshot. The comparison
+was done outside the database, from two result sets:
+
+```sql
+-- finding rows of the sampled owner scopes at their active snapshot
+SELECT f.scope_id, f.payload->>'cve_id', f.payload->>'epss_probability', f.ingested_at
+FROM ingestion_scopes s
+JOIN fact_records f
+  ON f.scope_id = s.scope_id AND f.generation_id = s.active_generation_id
+WHERE f.fact_kind = 'reducer_supply_chain_impact_finding' AND NOT f.is_tombstone
+  AND s.scope_id = ANY($1) AND f.payload->>'cve_id' = ANY($2);
+
+-- every EPSS record for the same vulnerabilities, with its snapshot's activation time
+SELECT f.payload->>'cve_id', f.payload->>'probability', g.status, g.activated_at
+FROM scope_generations g
+JOIN fact_records f
+  ON f.scope_id = g.scope_id AND f.generation_id = g.generation_id
+WHERE g.scope_id LIKE 'vuln-intel://first_epss/%'
+  AND f.fact_kind = 'vulnerability.epss_score' AND f.payload->>'cve_id' = ANY($2);
+```
 
 For the 46 vulnerabilities whose EPSS probability changed in that history,
-3,741 finding rows:
+3,741 finding rows (`ledger:10860-atlas-score-changed-rows`):
 
 | The row shows | The row was last written | Rows |
 |---|---|---|
-| The current probability | After the change | 3,551 |
+| The current probability | After the change | 3,551 (`ledger:10860-atlas-score-changed-rows-current`) |
 | The previous probability | Before the change | 180 |
 | An older probability | Before the change | 8 |
 | No probability | Before the change | 2 |
@@ -116,12 +142,18 @@ Collector logs over about two hours before the reading:
 
 Each skip named the old snapshot as the match.
 
+- Measurement: 4/4 runs skipped, Grafana (`ledger:10860-atlas-grafana-refresh-skipped`)
+- Measurement: 4/4 runs skipped, Loki (`ledger:10860-atlas-loki-refresh-skipped`)
+- Measurement: 5/5 runs skipped, Kubernetes (`ledger:10860-atlas-kubernetes-refresh-skipped`)
+- Measurement: 4/4 runs skipped, Vault (`ledger:10860-atlas-vault-refresh-skipped`)
+
 Not checked: the Tempo and Prometheus/Mimir logs, and whether the observed
 content changed between the stored snapshot and the reading.
 
 ## 5. The producer-activation consumer was off
 
-Method: list every Deployment and StatefulSet in the namespace as JSON, and
+Method: list every Deployment and StatefulSet in the namespace Eshu runs in as
+JSON, and
 search each container's `env` names for `PRODUCER_ACTIVATION` and for any
 `envFrom` reference.
 
@@ -129,5 +161,5 @@ search each container's `env` names for `PRODUCER_ACTIVATION` and for any
 kubectl get deployments,statefulsets -o json
 ```
 
-Of 50 containers, none set `ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED`, and none
+Of 50 containers in that one namespace, none set `ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED`, and none
 used `envFrom`.

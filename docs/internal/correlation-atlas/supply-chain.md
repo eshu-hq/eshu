@@ -96,15 +96,18 @@ Observed 2026-11-21, read-only, in the QA environment
 - The 20 EPSS scopes and the KEV scope held no finding record in any snapshot.
   They held only `vulnerability.epss_score`, `vulnerability.known_exploited`, and
   `vulnerability.source_snapshot` records.
-- Of 7,223 queued impact runs for vulnerability scopes, none carried an EPSS or
-  KEV scope as its fan-out origin.
+- Of 7,223 impact work items for vulnerability scopes, in any status, none
+  carried an EPSS or KEV scope as its fan-out origin. A work item keeps only its
+  latest origin, and 1,368 carried none, so this does not show what opened
+  earlier runs.
 - For 46 vulnerabilities whose EPSS value changed, 3,551 of 3,741 finding rows
   showed the current value and were written after the change. The other 190
   showed an older value or none and were written before it. No row showed an old value
   and was written after the change.
 
-So a manifest-anchored finding takes the score that was live when its owner
-run last wrote it. A score change alone did not re-open the owner. Whether any
+So in that sample a finding showed the score that was live when its row was
+last written. The readings do not show what opened each owner run, and they
+show no run opened by a score scope. Whether any
 finding there is anchored through `reducer_package_consumption_correlation`
 rows, where the score scope would hold a copy, was not checked.
 
@@ -130,10 +133,10 @@ supply chain are left out of blanket replay.
 | Correlation | Starts when | Starts again when another source changes | Code |
 |---|---|---|---|
 | `advisory_group_projection` | Supply_chain_impact write touches advisory groups | Enqueue per touched group; winners_watermark wait | `reducer/supplychain/core/group_projection_enqueue.go`<br>`reducer/advisory/group/handler.go` |
-| `container_image_identity` | A new snapshot holding OCI, image-reference, CI artifact, content_entity, file, attestation kinds | Announces completion to its consumers (gated); settle (OCI-key linkage); fleet-epoch gate | `projector/container/image/identity/intents.go`<br>`storage/postgres/container_identity_reopen_gate.go` |
+| `container_image_identity` | A new snapshot holding OCI, image-reference, CI artifact, content_entity, file, attestation kinds | Maintenance re-open after ingest when the fleet identity epoch changed. With the producer-activation consumer enabled, a new snapshot that shares image keys re-opens it (event E5). Its own finish re-opens `ci_cd_run_correlation` and `supply_chain_impact` | `projector/container/image/identity/intents.go`<br>`storage/postgres/container_identity_reopen_gate.go` |
 | `package_source_correlation` | A new snapshot holding package_registry.source_hint or package_registry.package | None found | `projector/package/source/reducer_intent.go` |
 | `sbom_attestation_attachment` | A new snapshot holding sbom.document, attestation.statement, oci_registry.image_referrer | None found for the attachment run itself. A parked `supply_chain_impact` run in the same scope and snapshot is woken when the attachment run finishes (event E15) | `projector/sbom/attestation/attachment_intents.go`<br>`reducer/supplychain/core/attachment_wait.go` |
-| `security_alert_reconciliation` | A new snapshot holding security_alert.repository_alert and package_registry.package | Same-scope wait on supply_chain_impact (`ImpactNotReadyFailureClass`, `storage/postgres/reducer_queue_readiness_sql.go`); no cross-scope re-open | `projector/security/alert_reconciliation_intents.go`<br>`storage/postgres/reducer_queue_readiness_sql.go` |
+| `security_alert_reconciliation` | A new snapshot holding `security_alert.repository_alert` or `package_registry.package` | None found. It waits, in the same scope, for `supply_chain_impact` to finish | `projector/security/alert_reconciliation_intents.go`<br>`storage/postgres/reducer_queue_readiness_sql.go` |
 | `supply_chain_impact` | A new snapshot holding vulnerability and supply-chain kinds; go-reachability scope; manifest marker fallback | Holder fan-out (cause-labelled); manifest marker; suppression diff; re-opened when these finish: identity and ci_cd; SBOM and impact waits; produces advisory group | `projector/supply/chain/impact/intents.go`<br>`reducer/supplychain/core/fanout.go`<br>`reducer/supplychain/core/manifest_trigger.go` |
 
 ## Not found

@@ -25,7 +25,7 @@ flowchart LR
 
 | Drift check | What starts a run | What does not | Catch-up |
 |---|---|---|---|
-| `aws_cloud_runtime_drift` | A snapshot holding `aws_resource` | A Terraform config change. A Terraform state change, unless the producer-activation consumer is enabled and a resource ARN matches | The maintenance re-open after ingest selects a run when its fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the last audit is older than 24 hours (`awsDriftReopenSelect` in `storage/postgres/backfill/aws_drift_reopen_sql.go`) |
+| `aws_cloud_runtime_drift` | A snapshot holding `aws_resource` | A Terraform config change. A Terraform state change, unless the producer-activation consumer is enabled and a resource ARN matches | The maintenance re-open after ingest selects a run when its fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the run was never audited or last audited more than 24 hours ago (`awsDriftReopenSelect` in `storage/postgres/backfill/aws_drift_reopen_sql.go`) |
 | `multi_cloud_runtime_drift` | GCP or Azure inventory | A state or config change | None found |
 | `config_state_drift` | A `state_snapshot:` scope becoming active (`storage/postgres/projector_queue_config_state_drift_trigger_hook.go`), the bootstrap index, and the catch-up sweep | A config-only change in a repository | The sweep (`projector/config_state_drift_catchup_sweeper.go`) runs every 5 minutes and queues an active state scope that has no run. It recovers a lost trigger. It does not detect a config change |
 
@@ -81,10 +81,10 @@ are listed in `nonCountingReducerRetryFailureClasses`
 | `gcp_relationship_materialization` | A new snapshot holding gcp_cloud_relationship | None found. Same-scope node-readiness class | `projector/cloud/gcp/relationship_materialization_intents.go`<br>`reducer/gcp_relationship_materialization.go` |
 | `gcp_resource_materialization` | A new snapshot holding gcp_cloud_resource | None found. Retried by the queue while cloud admission retracts | `projector/cloud/gcp/resource_materialization_intents.go` |
 | `iam_can_assume_materialization` | A new snapshot holding aws_iam_permission matching | None found | `projector/cloud/aws/iam/trust/materialization_intents.go` |
-| `iam_can_perform_materialization` | A new snapshot holding `aws_iam_permission` or `aws_resource_policy_permission` | Announces completion to its consumers for code_value_flow_refresh; CAN_PERFORM wait ledger | `projector/cloud/aws/iam/perform/materialization_intents.go`<br>`storage/postgres/value_flow_refresh_ack.go`<br>`reducer/crossscope/readiness_wait.go` |
+| `iam_can_perform_materialization` | A new snapshot holding `aws_iam_permission` or `aws_resource_policy_permission` | None found. Its own finish re-opens `code_value_flow_refresh`. It can wait, without spending an attempt, for sibling AWS scopes it reads | `projector/cloud/aws/iam/perform/materialization_intents.go`<br>`storage/postgres/value_flow_refresh_ack.go`<br>`reducer/crossscope/readiness_wait.go` |
 | `iam_escalation_materialization` | A new snapshot holding aws_iam_permission matching | None found | `projector/cloud/aws/iam/escalation/materialization_intents.go` |
 | `iam_instance_profile_role_materialization` | A new snapshot holding aws_resource matching | None found | `projector/cloud/aws/iam/instance/profile/materialization_intents.go` |
-| `multi_cloud_runtime_drift` | A new snapshot holding gcp_cloud_resource and azure_cloud_resource | None found | `projector/cloud/runtime/drift/multi/reducer_intent.go` |
+| `multi_cloud_runtime_drift` | A new snapshot holding `gcp_cloud_resource` or `azure_cloud_resource` | None found | `projector/cloud/runtime/drift/multi/reducer_intent.go` |
 | `platform_infra_materialization` | A repository snapshot's follow-up marker for this correlation | None found | `collector/repo/git/followup_facts.go` |
 | `rds_posture_materialization` | A new snapshot holding rds_instance_posture | None found | `projector/cloud/aws/rds/posture_materialization_intents.go` |
 | `s3_external_principal_grant_materialization` | A new snapshot holding s3_external_principal_grant | None found | `projector/cloud/aws/s3/external_principal_grant_materialization_intents.go` |

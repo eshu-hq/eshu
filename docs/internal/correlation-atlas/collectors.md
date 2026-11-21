@@ -29,7 +29,8 @@ These rules apply to every collector that runs through the extension host.
   `GenerationNeedsDuplicateCheck` in the same file): a default-branch change, a
   write-once snapshot (the NVD and GHSA windows), a matching snapshot whose
   stream dropped a file, a pending match that no worker can activate, and a
-  reconcile that was requested as stale or as a reindex.
+  reconcile that was requested as stale or as a reindex. A match with any other
+  reconcile reason re-projects the active snapshot without storing a new one.
 
 ### Unchanged snapshots
 

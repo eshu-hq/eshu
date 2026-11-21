@@ -9,8 +9,9 @@ more work than changed. A narrow key can miss a run that needed it.
 A re-opened run goes from `succeeded` back to `pending`. What happens to a run
 that is claimed or running when the event arrives depends on the path:
 
-- The completion announcement, the holder fan-out, and the service-catalog
-  re-trigger flag it to replay after it finishes.
+- The completion announcement, the holder fan-out, the service-catalog
+  re-trigger, and the deployment-mapping wake (E6, when a fingerprint is
+  recorded and its inputs changed) flag it to replay after it finishes.
 - The maintenance re-open and the producer-activation settle skip it
   (`ReopenSucceeded` in `storage/postgres/reducer_queue_replay.go` touches
   `succeeded` rows only).
@@ -69,7 +70,7 @@ and in the bootstrap index, and it touches finished runs only.
 | `deployable_unit_correlation` | Its fingerprint row is missing, the logic version moved, or the input fingerprint differs |
 | `workload_materialization` | Same gate |
 | `service_catalog_correlation` | Same gate |
-| `aws_cloud_runtime_drift` | Its fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the last audit is older than 24 hours |
+| `aws_cloud_runtime_drift` | Its fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the run was never audited or last audited more than 24 hours ago |
 | `container_image_identity` | The fleet identity epoch changed, the logic version moved, or no epoch is recorded. Any change re-opens every recorded run |
 | `kubernetes_correlation_materialization` | Always |
 

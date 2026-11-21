@@ -135,7 +135,7 @@ of them starts a run. A change on the other side arrives late or not at all.
 
 | Answer | Side that does not refresh it | What happens instead | Basis |
 |---|---|---|---|
-| Finding score (EPSS, KEV) | A score change | The owner run picks it up when it next runs for another reason. See [Supply chain](supply-chain.md#score-refresh) | Observed 2026-11-21 |
+| Finding score (EPSS, KEV) | A score change | Read: the score scope builds no manifest-anchored finding, so the documented refresh has no copy to compare. Observed 2026-11-21: findings showed the score that was live when they were last written. See [Supply chain](supply-chain.md#score-refresh) | Read and Observed |
 | Finding workload and platform details | Workload identity or platform rows change | Not determined | None found |
 | AWS runtime drift | Terraform config changes. Terraform state changes too, unless the producer-activation consumer is enabled | Waits for the maintenance re-open, which selects a run at the latest when its last audit is older than 24 hours | Read |
 | Multi-cloud runtime drift | State or config changes | Nothing found | None found |
@@ -151,10 +151,10 @@ replay, with no filter on which scope changed.
 ## Counts
 
 `reducer/contract/domain.go` names 89 domains, the code's word for a
-correlation or a projection: 75 typed constants and 14 projection constants. The four group pages cover the 75 typed ones. Their tables
-record a path to start again when another source changes for 21 of them, and
-none found for 54. Most of the 54 read only their own source, so nothing else
-can make them stale. The 14 projections, and 3 maintenance lease names, are on
+correlation or a projection: 75 typed constants and 14 projection constants. The four group pages cover the 75 typed ones, one row
+each, and each row says whether a path was found for it to start again when
+another source changes. Most correlations read only their own source, so nothing
+else can make them stale. The 14 projections, and 3 maintenance lease names, are on
 the [Shared projections](shared-projections.md) page.
 
 ## Open questions
