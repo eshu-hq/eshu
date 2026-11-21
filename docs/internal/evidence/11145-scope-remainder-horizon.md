@@ -47,10 +47,11 @@ no scope row was left.
 
 ## Proofs
 
-RED at `f7fe082e18` (the RED test on origin/main `da04c6bb34`, which holds the
-merged A, `f4999c43de`), GREEN at the fix, both on disposable PostgreSQL 18. The
-first RED run was on the pre-merge A head; the convert statement is
-byte-identical on both bases:
+RED at the commit "Prove the scope-remainder conversion lets the watermark
+pass a scope mark (#11145)" (the RED test on a base that holds the merged A,
+`f4999c43de`), GREEN at the fix, both on disposable PostgreSQL 18. The first
+RED run was on the pre-merge A head; the convert statement is byte-identical on
+both bases:
 `supply_chain_impact_winners_keyed_scope_remainder_horizon_live_test.go`.
 
 | Case | RED | GREEN |
