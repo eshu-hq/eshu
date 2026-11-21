@@ -138,7 +138,11 @@ func TestReopenHolderReopensActiveDeadLetterEveryClassLive(t *testing.T) {
 		if err != nil {
 			t.Fatalf("class %q: ReopenHolderDetailed() error = %v", class, err)
 		}
-		if got.Outcome != supplychaincore.FanOutDeadLetterReopened || got.PriorFailureClass != class {
+		wantClass := class
+		if class == "" {
+			wantClass = "unclassified" // the gauge's label for a NULL class
+		}
+		if got.Outcome != supplychaincore.FanOutDeadLetterReopened || got.PriorFailureClass != wantClass {
 			t.Fatalf("class %q: reopen = %+v, want dead_letter_reopened naming the prior class", class, got)
 		}
 		assertGenuineReopen(t, deadLetterRead(t, ctx, db, id))
@@ -165,7 +169,8 @@ func TestReopenHolderReopensActiveDeadLetterEveryClassLive(t *testing.T) {
 // TestReopenHolderLeavesOlderGenerationDeadLetterLive proves a dead letter at
 // a superseded generation is never reopened: the active generation's own item
 // is reopened (or enqueued when it has none) and the old dead letter stays
-// exactly as it was.
+// exactly as it was. A holder scope with no active generation at all reports
+// no_active_generation, not pending_noop, and gets no item.
 func TestReopenHolderLeavesOlderGenerationDeadLetterLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	store := deadLetterStore(db)
@@ -199,6 +204,22 @@ func TestReopenHolderLeavesOlderGenerationDeadLetterLive(t *testing.T) {
 	}
 	if after := deadLetterRead(t, ctx, db, oldDead); !reflect.DeepEqual(after, before) {
 		t.Fatalf("older-generation dead letter changed:\nbefore %+v\nafter  %+v", before, after)
+	}
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
+  partition_key, observed_at, ingested_at, status, payload)
+VALUES ('holder-no-generation', 'vulnerability_intelligence', 'synthetic', 'holder-no-generation', 'synthetic',
+  'holder-no-generation', now(), now(), 'active', '{}'::jsonb)`); err != nil {
+		t.Fatal(err)
+	}
+	got, err = store.ReopenHolderDetailed(ctx, "holder-no-generation", fanOutLiveOrigin)
+	if err != nil || got.Outcome != supplychaincore.FanOutNoActiveGeneration {
+		t.Fatalf("reopen = %+v err=%v, want no_active_generation", got, err)
+	}
+	var items int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM fact_work_items WHERE scope_id = 'holder-no-generation'`).Scan(&items); err != nil || items != 0 {
+		t.Fatalf("items = %d err=%v, want none for a scope with no active generation", items, err)
 	}
 }
 

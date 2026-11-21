@@ -39,7 +39,7 @@ and `fanout_remaining` list stay, so the reopened pass still fans out what the
 dead pass owed. A dead letter whose class is in the admin unsafe-replay set
 (`recovery.UnsafeReplayFailureClasses`, the one source the replay endpoint also
 reads) stays dead and reports `dead_letter_skipped`; an operator addresses its
-cause and replays it. There is no attempt cap across reopens: a cap would be a
+cause and replays it. An operator's dead letter or skip of a holder (`POST /api/v0/admin/dead-letter`, `/admin/skip`) is not sticky: its class is not unsafe, so the next change that names the holder reopens it and clears its failure note. There is no attempt cap across reopens: a cap would be a
 silent stale copy, and the cost is bounded by the change rate times the attempt
 budget. A dead letter at a superseded generation is never touched. Outcomes:
 `dead_letter_reopened` and `dead_letter_skipped` carry the prior

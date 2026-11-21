@@ -178,8 +178,14 @@ func (s SupplyChainImpactFanOutStore) ReopenHolderDetailed(
 	return supplychaincore.FanOutReopen{Outcome: outcome}, err
 }
 
-// classifyHolderReopen names what the reopen statement did to one row.
+// classifyHolderReopen names what the reopen statement did to one row. A dead
+// letter with no failure class reports supplyChainImpactDeadLetterUnclassified,
+// the label the dead-letter gauge uses, so the counter, the log line, and the
+// gauge name a NULL class the same way.
 func classifyHolderReopen(prior string, rewritten bool, priorClass string) supplychaincore.FanOutReopen {
+	if prior == "dead_letter" && priorClass == "" {
+		priorClass = supplyChainImpactDeadLetterUnclassified
+	}
 	switch {
 	case prior == "succeeded" && rewritten:
 		return supplychaincore.FanOutReopen{Outcome: supplychaincore.FanOutReopened}

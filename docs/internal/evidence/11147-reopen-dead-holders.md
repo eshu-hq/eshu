@@ -129,8 +129,9 @@ reopens, per the ruling.
 - Each reopened or skipped dead letter writes one info line, "supply chain
   impact dead-lettered holder reopened" or "... left dead: unsafe-replay failure
   class", with `holder_scope_id` and `prior_failure_class`. The pass summary
-  line and sub-signals gain `dead_letter_reopened`, `dead_letter_skipped`, and
-  `no_active_generation` counts.
+  line gains `dead_letter_reopened`, `dead_letter_skipped`, and
+  `no_active_generation` counts, and the sub-signals gain
+  `fanout_dead_letter_reopened` and `fanout_dead_letter_skipped`.
 - New gauges `eshu_dp_supply_chain_impact_active_dead_letters{failure_class}`
   and `eshu_dp_supply_chain_impact_active_dead_letters_owing_fanout{failure_class}`
   are served from the reducer's background Postgres snapshot. They show no
