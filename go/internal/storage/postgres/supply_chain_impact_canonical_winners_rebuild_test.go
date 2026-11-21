@@ -42,12 +42,12 @@ func TestWinnerDataColumnsMatchTableAndSelect(t *testing.T) {
 			tableCols = append(tableCols, fields[0])
 		}
 	}
-	// Migration 329 (#10880) appends payload and source_confidence;
+	// Migration 331 (#10880) appends payload and source_confidence;
 	// logically they sit with the other data columns, before
 	// materialized_at, which is how the data-column list orders them.
 	alt, err := os.ReadFile("migrations/331_supply_chain_impact_winners_payload.sql")
 	if err != nil {
-		t.Fatalf("read migration 329: %v", err)
+		t.Fatalf("read migration 331: %v", err)
 	}
 	var added []string
 	for _, m := range regexp.MustCompile(`ADD COLUMN IF NOT EXISTS (\w+)`).FindAllStringSubmatch(string(alt), -1) {

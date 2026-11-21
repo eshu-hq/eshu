@@ -14,7 +14,7 @@ import (
 // table carries the winner payload and its source_confidence, the
 // winner select projects both from the winning fact (with the
 // operator suppression object baked into the payload), and migration
-// 325 adds the two columns. Without the data-column entries a
+// 331 adds the two columns. Without the data-column entries a
 // payload-only change would skip the write-on-change comparison.
 func TestWinnersPayloadColumnsCarried(t *testing.T) {
 	t.Parallel()
@@ -39,14 +39,14 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 	}
 	ddl, err := os.ReadFile("migrations/331_supply_chain_impact_winners_payload.sql")
 	if err != nil {
-		t.Fatalf("read migration 329: %v", err)
+		t.Fatalf("read migration 331: %v", err)
 	}
 	for _, want := range []string{
 		"ADD COLUMN IF NOT EXISTS payload JSONB",
 		"ADD COLUMN IF NOT EXISTS source_confidence TEXT",
 	} {
 		if !strings.Contains(string(ddl), want) {
-			t.Errorf("migration 329 missing %q", want)
+			t.Errorf("migration 331 missing %q", want)
 		}
 	}
 	if !strings.Contains(stagedStoredWinnersSQL, "environments, payload, source_confidence") {
@@ -55,7 +55,7 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 }
 
 // TestWinnersPayloadBackfillMigrationPinned pins the #10880 P1-1 fix:
-// migration 330 must backfill the columns 329 defaults for
+// migration 332 must backfill the columns 331 defaults for
 // pre-existing winner rows, keyed by winner_fact_id, with the
 // operator suppression object baked in and the '{}' idempotency
 // gate, so the winners list never serves the column defaults.
@@ -64,7 +64,7 @@ func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
 
 	ddl, err := os.ReadFile("migrations/332_supply_chain_impact_winners_payload_backfill.sql")
 	if err != nil {
-		t.Fatalf("read migration 330: %v", err)
+		t.Fatalf("read migration 332: %v", err)
 	}
 	for _, want := range []string{
 		"UPDATE supply_chain_impact_canonical_winners",
@@ -77,7 +77,7 @@ func TestWinnersPayloadBackfillMigrationPinned(t *testing.T) {
 		"(winner.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}'",
 	} {
 		if !strings.Contains(string(ddl), want) {
-			t.Errorf("migration 330 missing %q", want)
+			t.Errorf("migration 332 missing %q", want)
 		}
 	}
 }
