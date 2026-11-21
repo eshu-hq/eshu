@@ -19,7 +19,7 @@ flowchart LR
   TF -. "does not start a run" .-> MD
   TF -- "starts a run" --> CD["config_state_drift"]
   CFG["Terraform config in a repository"] -. "does not start a run" .-> CD
-  AD --> AUD["Audit leg: re-opened when the last audit is older than 24 hours"]
+  AD --> AUD["Audit leg: re-opened when never audited, or last audited more than 24 hours ago"]
   CD --> SW["5-minute sweep queues any active state scope that has no run"]
 ```
 
@@ -33,7 +33,7 @@ The producer-activation consumer is the path that lets a new Terraform state
 snapshot re-open AWS drift runs whose resource ARNs match. It is off unless
 `ESHU_PRODUCER_ACTIVATION_CONSUMER_ENABLED` is set
 (`go/cmd/reducer/producer_activation_wiring.go`). Observed 2026-11-21: no
-workload in the QA environment set it
+Deployment or StatefulSet in the QA environment's Eshu namespace set it
 ([method](../evidence/correlation-atlas-observations-2026-11-21.md)).
 
 One contradiction was read and not run. A comment in
@@ -64,7 +64,7 @@ are listed in `nonCountingReducerRetryFailureClasses`
 | Correlation | Starts when | Starts again when another source changes | Code |
 |---|---|---|---|
 | `aws_cloud_image_materialization` | A new snapshot holding aws_resource | None found | `projector/cloud/aws/image/materialization_intents.go` |
-| `aws_cloud_runtime_drift` | A new snapshot holding aws_resource | Maintenance re-open after ingest, when the fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the last audit is older than 24 hours. With the producer-activation consumer enabled (off by default), a new Terraform state snapshot also re-opens runs whose resource ARNs match (event E5) | `projector/cloud/aws/runtime/drift/reducer_intent.go`<br>`storage/postgres/backfill/aws_drift_reopen_sql.go`<br>`go/cmd/reducer/producer_activation_wiring.go` |
+| `aws_cloud_runtime_drift` | A new snapshot holding aws_resource | Maintenance re-open after ingest, when the fingerprint row is missing, the logic version moved, the `aws_resource` fingerprint differs, or the run was never audited or last audited more than 24 hours ago. With the producer-activation consumer enabled (off by default), a new Terraform state snapshot also re-opens runs whose resource ARNs match (event E5) | `projector/cloud/aws/runtime/drift/reducer_intent.go`<br>`storage/postgres/backfill/aws_drift_reopen_sql.go`<br>`go/cmd/reducer/producer_activation_wiring.go` |
 | `aws_relationship_materialization` | A new snapshot holding aws_relationship | None found. Same-scope node-readiness defer | `projector/cloud/aws/relationship/materialization_intents.go`<br>`reducer/aws_relationship_instance_node_readiness.go` |
 | `aws_resource_materialization` | A new snapshot holding aws_resource | None found. Its finish re-opens `code_value_flow_refresh`. Retried by the queue while cloud admission retracts | `projector/cloud/aws/resource/materialization_intents.go`<br>`storage/postgres/value_flow_refresh_ack.go` |
 | `azure_relationship_materialization` | A new snapshot holding azure_cloud_relationship | None found | `projector/cloud/azure/relationship_materialization_intents.go` |

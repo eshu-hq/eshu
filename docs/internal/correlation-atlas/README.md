@@ -20,6 +20,8 @@ stale and you need to know what should have refreshed it.
 - Everything else is read from code and was not run.
 - Paths are relative to `go/internal/` unless they start with `go/cmd/`,
   `docs/`, or a repository name.
+- In a "Starts when" cell, a list of record kinds means any one of them starts
+  the run.
 
 ## Pages
 
@@ -135,9 +137,9 @@ of them starts a run. A change on the other side arrives late or not at all.
 
 | Answer | Side that does not refresh it | What happens instead | Basis |
 |---|---|---|---|
-| Finding score (EPSS, KEV) | A score change | Read: the score scope builds no manifest-anchored finding, so the documented refresh has no copy to compare. Observed 2026-11-21: findings showed the score that was live when they were last written. See [Supply chain](supply-chain.md#score-refresh) | Read and Observed |
+| Finding score (EPSS, KEV) | A score change | Read: the score scope builds no manifest-anchored finding, so the documented refresh has no copy to compare. Observed 2026-11-21, in a sample of 40 owner scopes: findings showed the score that was live when they were last written. See [Supply chain](supply-chain.md#score-refresh) | Read and Observed |
 | Finding workload and platform details | Workload identity or platform rows change | Not determined | None found |
-| AWS runtime drift | Terraform config changes. Terraform state changes too, unless the producer-activation consumer is enabled | Waits for the maintenance re-open, which selects a run at the latest when its last audit is older than 24 hours | Read |
+| AWS runtime drift | Terraform config changes. Terraform state changes too, unless the producer-activation consumer is enabled | Waits for the maintenance re-open, which selects a run at the latest when it was never audited or last audited more than 24 hours ago | Read |
 | Multi-cloud runtime drift | State or config changes | Nothing found | None found |
 | Config-against-state drift | A config-only change in a repository | Nothing found | None found |
 | Workload, deployable unit, platform, deployment mapping | A repository delta snapshot | These are raised only on a full snapshot | Read |
