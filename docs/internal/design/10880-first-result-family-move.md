@@ -388,10 +388,18 @@ binary still trying the old path.
   the aggregate/explain reader moves, not this lane. The rejected-
   write counter lands with that slice. Read-latency gate
   (`scripts/verify-read-api-latency-gate.sh`): **NOT_CHECKED** here.
-  Local shim instead (disposable Postgres 18, 2,007 winners, page
-  50, priority-desc, 20 iterations): winners list 7.52 ms avg vs
-  legacy fact-dedup list 13.86 ms avg; full resweep 67 ms. These are
-  small-N local numbers, not the seeded-scale gate.
+  Local shim instead (corrected at review: the first record compared
+  against the legacy fact-dedup read, but slice 2 replaced the
+  winners + `fact_records` refetch join, so that is the baseline
+  re-measured here). Disposable Postgres 18, 2,000 synthetic
+  winners, page 50, priority-desc, 20 iterations per round, two
+  rounds in alternating order, pages byte-equal across paths:
+  replaced path (winners + fact-refetch + operator overlay)
+  12.11 ms avg / 11.71 ms median, then 9.61 / 9.60 ms; new winners-
+  payload path 9.57 / 9.61 ms, then 7.56 / 7.33 ms — the new path
+  is faster in both orders. Legacy fact-dedup on the same seed, for
+  context only: 22.48 ms avg. Full resweep 92 ms. These are small-N
+  local numbers, not seeded-scale or production-scale proof.
 - **Slice 4 (drop ten indexes) NOT landed**, by the ruling's own
   gate: no read-replica census was available in this lane and slice
   3 has not landed, so the indexes still serve live readers.
@@ -399,11 +407,12 @@ binary still trying the old path.
   unchanged (the reducer still writes finding facts — slice 3
   pending); fact-table index count unchanged (10 impact indexes
   retained); collector save time unchanged. Winners growth at the
-  synthetic seed: 2,007 rows, 4,038,656 bytes total relation size,
-  890 bytes average stored payload — the payload column roughly
-  doubles the winners row, with no material resweep regression at
-  this scale (67 ms full resweep). The stale "63 indexes" figure in
-  `postgres-tuning.md` stays for the slice-4 census to correct.
+  corrected synthetic seed: 2,000 rows, 4,636,672 bytes total
+  relation size, 1,136 bytes average stored payload — the payload
+  column roughly doubles the winners row, with no material resweep
+  regression at this scale (92 ms full resweep). The stale "63
+  indexes" figure in `postgres-tuning.md` stays for the slice-4
+  census to correct.
 - Remaining order is unchanged: aggregates/explain reader moves,
   then slice 3 (write stop + reject trigger + latency gate), then
   slice 4 (replica census + index drop), then the families listed
@@ -411,11 +420,15 @@ binary still trying the old path.
 
 No-Regression Evidence: slices 1–2 above — live proofs
 `TestSupplyChainImpactWinnersResweepPayloadCarriedLive` (payload
-equality, payload-only rewrite, write-on-change counts) and
+equality, payload-only rewrite, write-on-change counts),
 `TestFindingsWinnersPayloadParityLive` (byte-identical pages,
-scoped-token grants) on disposable Postgres 18, plus the 2,007-row
-shim (resweep 67 ms; winners list 7.52 ms avg vs legacy 13.86 ms
-avg; 890-byte average payload). Small-N local numbers; seeded-scale
+scoped-token grants), and
+`TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
+(326-backfilled rows serve legacy-equal pages with no resweep) on
+disposable Postgres 18, plus the corrected 2,000-row shim against
+the path slice 2 actually replaced (resweep 92 ms; new path
+9.57 then 7.56 ms avg vs replaced 12.11 then 9.61 ms avg;
+1,136-byte average payload). Small-N local numbers; seeded-scale
 gate deferred to slice 3.
 
 No-Observability-Change: slices 1–2 add no metric, span, log key,
