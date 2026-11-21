@@ -87,6 +87,10 @@ type NVDBaselineTripSample struct {
 	// NVDScopeRowsPerHour counts the NVD scope rows captured in the
 	// trailing hour, reported next to the ruled rate, never folded.
 	NVDScopeRowsPerHour int64
+	// GHSAProxyRowsPerHour is the GHSA leg of the NVD/GHSA inflow split
+	// (#11078): GHSA-keyed dirty rows captured in the trailing hour,
+	// reported next to the ruled rate, never folded.
+	GHSAProxyRowsPerHour int64
 	// OldestDirtyAge is the age of the oldest row still queued.
 	OldestDirtyAge time.Duration
 }
@@ -373,7 +377,7 @@ func (s Service) sampleNVDBaselineTrip(ctx context.Context, now time.Time) (NVDB
 // never probed.
 func (s Service) recordNVDBaselineTripSample(ctx context.Context, sample NVDBaselineTripSample, observation vulnerability.NVDBaselineTripObservation, succeeded bool) {
 	inst := s.NVDBaselineInstruments
-	inst.RecordNVDBaselineDirtySample(ctx, sample.DirtyProxyRowsPerHour, sample.OldestDirtyAge.Seconds())
+	inst.RecordNVDBaselineDirtySample(ctx, sample.DirtyProxyRowsPerHour, sample.GHSAProxyRowsPerHour, sample.OldestDirtyAge.Seconds())
 	inst.RecordNVDBaselineTripLatch(ctx, string(observation.Outcome))
 	if !succeeded {
 		return

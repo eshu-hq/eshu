@@ -333,15 +333,19 @@ func (inst *Instruments) RecordNVDBaselineChunkCycle(ctx context.Context, second
 }
 
 // RecordNVDBaselineDirtySample records the latest trip-line probe: the
-// trailing-hour NVD-proxy dirty rate and the oldest pending dirty age in
-// seconds. Values, never labels, carry the figures. Nil instruments or
-// nil gauges skip the signal.
-func (inst *Instruments) RecordNVDBaselineDirtySample(ctx context.Context, proxyRowsPerHour int64, oldestDirtyAgeSeconds float64) {
+// trailing-hour NVD-proxy dirty rate, the trailing-hour GHSA-proxy dirty
+// rate (#11078, reported beside the ruled rate), and the oldest pending
+// dirty age in seconds. Values, never labels, carry the figures. Nil
+// instruments or nil gauges skip the signal.
+func (inst *Instruments) RecordNVDBaselineDirtySample(ctx context.Context, proxyRowsPerHour, ghsaRowsPerHour int64, oldestDirtyAgeSeconds float64) {
 	if inst == nil {
 		return
 	}
 	if inst.NVDBaselineDirtyProxyRate != nil {
 		inst.NVDBaselineDirtyProxyRate.Record(ctx, float64(proxyRowsPerHour))
+	}
+	if inst.NVDBaselineGHSAProxyRate != nil {
+		inst.NVDBaselineGHSAProxyRate.Record(ctx, float64(ghsaRowsPerHour))
 	}
 	if inst.NVDBaselineOldestDirtyAge != nil {
 		age := oldestDirtyAgeSeconds
@@ -394,6 +398,13 @@ func registerNVDBaseline(meter metric.Meter, inst *Instruments) error {
 	)
 	if err != nil {
 		return fmt.Errorf("register NVDBaselineDirtyProxyRate gauge: %w", err)
+	}
+	inst.NVDBaselineGHSAProxyRate, err = meter.Float64Gauge(
+		"eshu_dp_nvd_baseline_ghsa_proxy_rows_per_hour",
+		metric.WithDescription("Latest sampled GHSA-proxy dirty rate in rows/h (dirty-log rows whose advisory_id starts with GHSA- captured in the trailing hour; #11078: the GHSA leg of the inflow split, reported beside the ruled rate, never folded into the trip)"),
+	)
+	if err != nil {
+		return fmt.Errorf("register NVDBaselineGHSAProxyRate gauge: %w", err)
 	}
 	inst.NVDBaselineOldestDirtyAge, err = meter.Float64Gauge(
 		"eshu_dp_nvd_baseline_oldest_dirty_age_seconds",

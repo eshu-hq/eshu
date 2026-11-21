@@ -157,6 +157,7 @@ func (s nvdBaselineTripSampler) SampleNVDBaselineTrip(ctx context.Context, now t
 		At:                    sample.At,
 		DirtyProxyRowsPerHour: sample.DirtyProxyRowsPerHour,
 		NVDScopeRowsPerHour:   sample.NVDScopeRowsPerHour,
+		GHSAProxyRowsPerHour:  sample.GHSAProxyRowsPerHour,
 		OldestDirtyAge:        sample.OldestDirtyAge,
 	}, nil
 }

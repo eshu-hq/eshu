@@ -474,6 +474,11 @@ var migrationShippedChecksums = map[string]string{
 	// ownership load (split first/cursor statements read it through a
 	// MATERIALIZED CTE with no inner LIMIT).
 	"327_fact_records_package_ownership_active_idx.sql": "7f23798ec875d3983501157e615829249eae25f7e518c5e25689e3d170bb40fa",
+	// #11078: GHSA-proxy bucket column on the winners dirty tally (fact
+	// rows whose advisory_id starts with GHSA-), read by the trip sampler
+	// beside the ruled CVE-% rate (renumbered 325 to 328 at rebase:
+	// #10671 owns 325).
+	"328_supply_chain_impact_winners_dirty_tally_ghsa.sql": "135f4aa25b46bedcf816826547ac87dee44fcc4e1a1ffbd91230b4de93563a85",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

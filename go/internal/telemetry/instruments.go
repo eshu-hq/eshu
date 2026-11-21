@@ -829,6 +829,10 @@ type Instruments struct {
 	// NVDBaselineDirtyProxyRate records the latest sampled NVD-proxy
 	// dirty rate in rows/h (#10728).
 	NVDBaselineDirtyProxyRate metric.Float64Gauge
+	// NVDBaselineGHSAProxyRate records the latest sampled GHSA-proxy
+	// dirty rate in rows/h, the GHSA leg of the NVD/GHSA inflow split
+	// (#11078), reported beside the ruled rate, never tripped on.
+	NVDBaselineGHSAProxyRate metric.Float64Gauge
 	// NVDBaselineOldestDirtyAge records the latest sampled oldest pending
 	// dirty age in seconds (#10728).
 	NVDBaselineOldestDirtyAge metric.Float64Gauge
