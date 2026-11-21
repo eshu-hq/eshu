@@ -183,3 +183,30 @@ func TestSecurityAlertAmbiguousRepositoriesWithDifferentVersions11121(t *testing
 		t.Fatalf("len(findings) = %d, want none for an ambiguous repository scope", len(findings))
 	}
 }
+
+// TestSecurityAlertInstalledVersionRowIsVersioned11121 pins review F4 of
+// #11121: an alert row whose only version evidence is installed_version must
+// read that version on the impact path, as reconciliation and the manifest
+// path already do (exactConsumptionDependencyVersion reads InstalledVersion
+// first). Otherwise the impact path judges the row range-only while
+// reconciliation reports 3.0.3.
+func TestSecurityAlertInstalledVersionRowIsVersioned11121(t *testing.T) {
+	t.Parallel()
+	alert := securityAlertEnvelope("alert-11121-installed", "security-alert:github:acme/api", map[string]any{
+		"provider": "github_dependabot", "provider_alert_number": int64(11124), "provider_state": "open",
+		"package_id": alertMultiVersionPackage, "ecosystem": "npm", "package_name": "fast-uri",
+		"manifest_path": "package-lock.json", "cve_ids": []string{alertMultiVersionCVE},
+		"vulnerable_range": "< 3.1.0", "patched_version": "3.1.0",
+	})
+	row := packageConsumptionCorrelationEnvelope("consume-11121-installed", alertMultiVersionRepo, alertMultiVersionPackage, "package-lock.json")
+	row.Payload["dependency_range"] = "^3.0.0"
+	row.Payload["installed_version"] = alertMultiVersionAffected
+	row.Payload["repository_name"] = "api"
+	got := alertMultiVersionKeys(BuildSupplyChainImpactFindings([]facts.Envelope{alert, row}))
+	want := []alertMultiVersionKey{
+		{repositoryID: alertMultiVersionRepo, version: alertMultiVersionAffected, status: SupplyChainImpactAffectedExact},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("findings = %+v, want %+v: installed_version is the row's version", got, want)
+	}
+}
