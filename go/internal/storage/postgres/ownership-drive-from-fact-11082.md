@@ -157,8 +157,10 @@ the existing `reducer_handler_timeout` class (retried under
 write-path audit for this domain is recorded in
 `go/internal/reducer/queue-and-runners.md` (single end-of-handler
 transactional upsert of deterministic rows, advance-only conflict guards,
-lease-fenced queue mutations, no orphaned backend on cancel). Post-deploy
-verification (coordinator step): confirm
+lease-fenced queue mutations, no orphaned backend on cancel). Order on QA: deploy the fix with the 1h default,
+read the healthy-window whole-handler p99, then apply
+clamp(5x p99, 2m, 10m); QA has no healthy whole-handler window today.
+Post-deploy verification (coordinator step, after the override is applied): confirm
 `eshu_dp_reducer_handler_timeout_seconds{domain="code_import_repo_edge"}`
 equals 120 and read a healthy-window p50/p95/p99 off
 `eshu_dp_reducer_handler_duration_seconds{domain="code_import_repo_edge"}`
