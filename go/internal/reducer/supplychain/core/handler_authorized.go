@@ -246,6 +246,7 @@ func buildAuthorizedSupplyChainImpactFindings(
 	// Recompute over the final set: target findings settle through the same
 	// selection, so their unmatched-release verdicts count beside static.
 	stats.osReleaseNotInAdvisory = countOSReleaseNotInAdvisory(findings)
+	stats.multiVersionRepositoryGroups = countMultiVersionRepositoryGroups(findings)
 	stats.osAdvisoriesJoinedViaSource = countOSAdvisoriesJoinedViaSource(findings)
 	return findings, append(quarantined, targetQuarantined...), stats, err
 }

@@ -475,6 +475,11 @@ tests:
     class: dedicated_ci
     reason: "#9874: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18.6)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_multi_version_winners_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11113: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; verified locally 1/1 with both arrival-order subtests, 5.11s, disposable PostgreSQL 18)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_out_of_stamp_live_test.go
     tag: ~
     class: dedicated_ci

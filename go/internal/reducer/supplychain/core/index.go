@@ -385,12 +385,7 @@ func applySupplyChainConsumptionEvidence(
 	}
 	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
 	finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionFactKind))
-	finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
-	if finding.ObservedVersion == "" {
-		if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
-			finding.ObservedVersion = manifestVersion
-		}
-	}
+	finding.ObservedVersion = consumptionObservedVersion(finding.Ecosystem, consumption)
 }
 
 // bakeSupplyChainOSPackageDerivation records which installed-row key the

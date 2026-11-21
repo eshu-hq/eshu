@@ -80,17 +80,18 @@ func buildSupplyChainImpactFindingsAndExclusions(envelopes []facts.Envelope, con
 	quarantined = append(quarantined, securityAlertQuarantined...)
 	findings = coalesceAndSortSupplyChainImpactFindings(findings)
 	return findings, quarantined, supplyChainImpactBuildStats{
-		negatedProductsExcluded:     index.negatedProductsExcluded,
-		productsDroppedByNewestCopy: productsDropped,
-		osAdvisoryJoins:             countOSAdvisoryJoins(index),
-		osRepresentativeOutcomes:    index.osRepresentativeOutcomes,
-		osAdvisoriesJoinedViaSource: countOSAdvisoriesJoinedViaSource(findings),
-		osReleaseNotInAdvisory:      countOSReleaseNotInAdvisory(findings),
-		osUpstreamGroups:            index.osUpstream.cells,
-		aliasGroups:                 index.aliasStats.cells,
-		aliasGroupCount:             index.aliasStats.groups,
-		aliasGroupSizes:             index.aliasStats.sizes,
-		aliasGroupCompute:           index.aliasStats.compute,
+		negatedProductsExcluded:      index.negatedProductsExcluded,
+		productsDroppedByNewestCopy:  productsDropped,
+		osAdvisoryJoins:              countOSAdvisoryJoins(index),
+		osRepresentativeOutcomes:     index.osRepresentativeOutcomes,
+		osAdvisoriesJoinedViaSource:  countOSAdvisoriesJoinedViaSource(findings),
+		osReleaseNotInAdvisory:       countOSReleaseNotInAdvisory(findings),
+		multiVersionRepositoryGroups: countMultiVersionRepositoryGroups(findings),
+		osUpstreamGroups:             index.osUpstream.cells,
+		aliasGroups:                  index.aliasStats.cells,
+		aliasGroupCount:              index.aliasStats.groups,
+		aliasGroupSizes:              index.aliasStats.sizes,
+		aliasGroupCompute:            index.aliasStats.compute,
 	}, nil
 }
 
