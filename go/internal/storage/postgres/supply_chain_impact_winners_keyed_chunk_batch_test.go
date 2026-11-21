@@ -188,3 +188,20 @@ func TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling(t *testing.T) {
 		t.Fatalf("identifier INSERT statements = %d, want 0 (clamp before Exec)", got)
 	}
 }
+
+// TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds pins the clamp boundary:
+// exactly maxWinnersKeyedChunkBatchIdents (13,107 = 65,535/5) identifiers must
+// still build one INSERT (the clamp fires strictly above the ceiling).
+func TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds(t *testing.T) {
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(13107)}
+	outcome, err := buildWinnersKeyedChunk(context.Background(), fake, winnersChunkBounds{dirtyRows: 50000, identifiers: 13107})
+	if err != nil {
+		t.Fatalf("buildWinnersKeyedChunk with 13107 identifiers: %v, want success at the exact ceiling", err)
+	}
+	if outcome.identifiers != 13107 {
+		t.Fatalf("identifiers = %d, want 13107", outcome.identifiers)
+	}
+	if got := insertExecs(fake); got != 1 {
+		t.Fatalf("identifier INSERT statements = %d, want 1", got)
+	}
+}
