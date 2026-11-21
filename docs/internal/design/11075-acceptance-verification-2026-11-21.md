@@ -163,6 +163,10 @@ Runnable form of every query: [11075-a2-packet.sql](11075-a2-packet.sql).
 - G1/G2 re-verified live: the `11075-deferral-clock-design-ruling-2026-11-20.md`
   file is still absent (only the two 2026-11-21 ruling files exist); #11086
   carries only the Cloudflare bot comment, no retroactive dispositions.
+- G1 disposition (coordinator, post-addendum): the file never existed — absent
+  from origin/main, the phase-2 branch, and every worktree, with no write record
+  in the phase-2 session log. Written off without fabrication; its basis is covered
+  by the merged design record plus the anchor-conflict ruling (#11090).
 - G4 re-verified: nearest bound tests are `MaxWait + 1m` and 45-min cases.
 - Proof re-run: handler watermark subset (BornStale, RecentDeferral,
   SustainedDeferral, StaleMarker, WatermarkWait incl. telemetry split,
