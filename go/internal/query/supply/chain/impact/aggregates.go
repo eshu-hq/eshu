@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -157,7 +158,10 @@ func (s PostgresAggregateStore) queryer() aggregateReadQueryer {
 }
 
 // CountSupplyChainImpactFindings returns the cheap-summary totals envelope
-// for the scoped supply-chain impact slice.
+// for the scoped supply-chain impact slice in one Postgres statement
+// (AggregateCombinedCountQuery, #10970): totals plus priority and severity
+// buckets share a single canonical-facts CTE build instead of the three
+// sequential full-CTE statements the route paid before.
 func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	ctx context.Context,
 	filter AggregateFilter,
@@ -190,9 +194,10 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 		readAt,
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	row := s.queryer().QueryRowContext(ctx, AggregateCountQuery, args...)
+	row := s.queryer().QueryRowContext(ctx, AggregateCombinedCountQuery, args...)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
-	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
+	var priorityBuckets, severityBuckets []byte
+	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected, &priorityBuckets, &severityBuckets); err != nil {
 		return AggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
 	}
 
@@ -207,103 +212,33 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 		BySeverity:       map[string]int{},
 	}
 
-	if err := s.fillPriorityBuckets(ctx, filter, readAt, &count); err != nil {
-		return AggregateCount{}, err
+	if err := decodeAggregateBucketJSON(priorityBuckets, count.ByPriorityBucket); err != nil {
+		return AggregateCount{}, fmt.Errorf("decode supply chain impact priority buckets: %w", err)
 	}
-	if err := s.fillSeverityBuckets(ctx, filter, readAt, &count); err != nil {
-		return AggregateCount{}, err
+	if err := decodeAggregateBucketJSON(severityBuckets, count.BySeverity); err != nil {
+		return AggregateCount{}, fmt.Errorf("decode supply chain impact severity buckets: %w", err)
 	}
 	return count, nil
 }
 
-func (s PostgresAggregateStore) fillPriorityBuckets(
-	ctx context.Context,
-	filter AggregateFilter,
-	readAt time.Time,
-	count *AggregateCount,
-) error {
-	args := []any{
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.Status,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		array.Of(filter.AllowedRepositoryIDs),
-		array.Of(filter.AllowedScopeIDs),
-		readAt,
+// decodeAggregateBucketJSON decodes the jsonb_agg(jsonb_build_object(...))
+// bucket array from AggregateCombinedCountQuery into out. A NULL or empty
+// payload means no buckets and leaves out empty.
+func decodeAggregateBucketJSON(raw []byte, out map[string]int) error {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
 	}
-	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	rows, err := s.queryer().QueryContext(ctx, AggregatePriorityCountQuery, args...)
-	if err != nil {
-		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
+	var rows []struct {
+		Bucket string `json:"bucket"`
+		Count  int    `json:"bucket_count"`
 	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var bucket string
-		var bucketCount int64
-		if err := rows.Scan(&bucket, &bucketCount); err != nil {
-			return fmt.Errorf("scan supply chain impact priority bucket: %w", err)
-		}
-		count.ByPriorityBucket[bucket] = int(bucketCount)
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return err
 	}
-	return rows.Err()
-}
-
-func (s PostgresAggregateStore) fillSeverityBuckets(
-	ctx context.Context,
-	filter AggregateFilter,
-	readAt time.Time,
-	count *AggregateCount,
-) error {
-	args := []any{
-		filter.CVEID,
-		filter.PackageID,
-		filter.RepositoryID,
-		filter.SubjectDigest,
-		filter.Status,
-		filter.AdvisoryID,
-		filter.Ecosystem,
-		filter.ServiceID,
-		filter.WorkloadID,
-		filter.Environment,
-		filter.Severity,
-		filter.DetectionProfile,
-		filter.PriorityBucket,
-		filter.MinPriorityScore,
-		filter.SuppressionState,
-		filter.IncludeSuppressed,
-		filter.ImageRef,
-		array.Of(filter.AllowedRepositoryIDs),
-		array.Of(filter.AllowedScopeIDs),
-		readAt,
+	for _, row := range rows {
+		out[row.Bucket] = row.Count
 	}
-	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	rows, err := s.queryer().QueryContext(ctx, AggregateSeverityCountQuery, args...)
-	if err != nil {
-		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	for rows.Next() {
-		var bucket string
-		var bucketCount int64
-		if err := rows.Scan(&bucket, &bucketCount); err != nil {
-			return fmt.Errorf("scan supply chain impact severity bucket: %w", err)
-		}
-		count.BySeverity[bucket] = int(bucketCount)
-	}
-	return rows.Err()
+	return nil
 }
 
 // SupplyChainImpactInventory returns a paginated grouped count along the
