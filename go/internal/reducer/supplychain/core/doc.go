@@ -84,7 +84,14 @@
 // (payload PayloadKeyTrigger=TriggerManifestDependency, #9874) writes no
 // findings: the handler gates it on generation activation, derives the
 // changed packages from the generation's own dependency rows, and reopens the
-// scopes holding advisory evidence for them (manifest_trigger.go). The index build files each OSV distro
+// scopes holding advisory evidence for them (manifest_trigger.go). Before the
+// fencing token and every evidence load, a findings pass reads its own scope
+// generation's sbom_attestation_attachment work (SBOMAttachmentReadiness,
+// #11105): while that work is pending, retrying, claimed, or running inside
+// crossscope.ProducerReadinessMaxWait the pass defers with the non-counting
+// SBOMAttachmentNotReadyFailureClass and writes nothing, and the attachment's
+// terminal Ack reopens it; a dead-lettered or silent-past-the-bound attachment
+// lets the pass run without it (attachment_wait.go). The index build files each OSV distro
 // record (Debian, Ubuntu, Alpine and any record with an upstream list) under
 // the CVE ids its typed upstream list names, so one installed package reads one
 // finding per CVE (groupOSAdvisoriesByUpstream, #9914). The join is on the

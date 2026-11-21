@@ -75,7 +75,7 @@ func attachmentWaitOutcomes(t *testing.T, reader *sdkmetric.ManualReader) map[st
 	out := map[string]int64{}
 	for _, scope := range rm.ScopeMetrics {
 		for _, m := range scope.Metrics {
-			if m.Name != telemetry.SupplyChainImpactAttachmentWaitMetricName {
+			if m.Name != "eshu_dp_supply_chain_impact_attachment_wait_total" {
 				continue
 			}
 			sum, ok := m.Data.(metricdata.Sum[int64])

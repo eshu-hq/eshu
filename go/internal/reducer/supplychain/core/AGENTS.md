@@ -31,8 +31,8 @@ changing anything here.
 - A `supply_chain_impact` intent whose payload carries
   `trigger: manifest_dependency` (#9874) never runs the findings pass: Handle
   routes it to `handleManifestTrigger` (`manifest_trigger.go`) before the
-  fencing token, and that branch only reopens holders. Keep `impact.go` to that
-  one call site and the projector spelling equal to `PayloadKeyTrigger` /
+  fencing token, and that branch only reopens holders. Keep
+  `beforeEvidenceLoad` (`attachment_wait.go`) the one call site and the projector spelling equal to `PayloadKeyTrigger` /
   `TriggerManifestDependency`; any implementer of `SupplyChainImpactFanOut`
   must also implement `FindPackageHolderCandidates`, and the production port
   must implement `ManifestDependencyGenerationReader` (generation read plus the
@@ -40,6 +40,18 @@ changing anything here.
   `FindInFlightNonMarkerScopes` in-flight read). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
+- A findings pass never loads evidence while its own scope generation's
+  `sbom_attestation_attachment` work is in flight (#11105,
+  `attachment_wait.go`): the probe runs in `beforeEvidenceLoad`, ahead of the
+  fencing token and the #5709 floor sample, on every attempt. Keep it there.
+  A probe read after the load would miss an attachment that committed in
+  between, and nothing re-runs the pass. The deferral class
+  `SBOMAttachmentNotReadyFailureClass` must stay in
+  `nonCountingReducerRetryFailureClasses` and in `WaitingDeferralMap` as a
+  producer-terminal wait narrowed to `sbom_attestation_attachment`. A probe
+  error stays counting (`factload.ClassifyFactLoadError`), and the bound is
+  elapsed time from the attachment row's last-workable time, never an
+  attempt count.
 - New exports are join contracts other families program against. Name them
   for what they return, document who reads them, and keep the bodies
   cut-paste identical to what they replace.

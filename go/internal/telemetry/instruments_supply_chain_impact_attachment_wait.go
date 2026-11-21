@@ -9,18 +9,13 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// SupplyChainImpactAttachmentWaitMetricName is the #11105 counter of
-// supply_chain_impact sibling-wait decisions on the same scope generation's
-// sbom_attestation_attachment work.
-const SupplyChainImpactAttachmentWaitMetricName = "eshu_dp_supply_chain_impact_attachment_wait_total"
-
 // registerSupplyChainImpactAttachmentWait registers the #11105 counter on
 // inst, labeled by domain and the closed outcome set deferred_in_flight,
 // producer_failed, bound_exceeded.
 func registerSupplyChainImpactAttachmentWait(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.SupplyChainImpactAttachmentWait, err = meter.Int64Counter(
-		SupplyChainImpactAttachmentWaitMetricName,
+		"eshu_dp_supply_chain_impact_attachment_wait_total",
 		metric.WithDescription("Supply chain impact sibling-wait decisions on the same scope generation's "+
 			"sbom_attestation_attachment work, by reducer domain and outcome "+
 			"(deferred_in_flight/producer_failed/bound_exceeded): whether an impact pass deferred without "+

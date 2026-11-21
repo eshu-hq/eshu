@@ -10,11 +10,37 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // The store satisfies the reconciliation handler's port; a signature drift
 // fails to compile.
 var _ securityalert.ImpactProducerReadiness = ImpactStore{}
+
+// The store also satisfies the impact handler's #11105 attachment port.
+var _ supplychaincore.SBOMAttachmentReadiness = ImpactStore{}
+
+// TestSBOMAttestationAttachmentStateBindsTheAttachmentDomain pins that the
+// #11105 probe runs the shared statement with $3 bound to the attachment
+// domain and maps the row like the impact probe.
+func TestSBOMAttestationAttachmentStateBindsTheAttachmentDomain(t *testing.T) {
+	t.Parallel()
+
+	fake := &fakeQueryer{rows: [][]any{{0, 1, 0, 0, 0, 0, 1, nil}}}
+	got, err := ImpactStore{DB: fake}.SBOMAttestationAttachmentState(context.Background(), " scope-a ", "gen-1")
+	if err != nil {
+		t.Fatalf("SBOMAttestationAttachmentState() error = %v", err)
+	}
+	if got.Retrying != 1 || got.Total != 1 || !got.NewestInFlightWorkableAt.IsZero() {
+		t.Fatalf("SBOMAttestationAttachmentState() = %+v, want 1 retrying of 1 with a NULL anchor", got)
+	}
+	if fake.query != ImpactProducerStateQuery {
+		t.Fatalf("query is not the shared ImpactProducerStateQuery:\n%s", fake.query)
+	}
+	if len(fake.args) != 3 || fake.args[0] != "scope-a" || fake.args[1] != "gen-1" || fake.args[2] != "sbom_attestation_attachment" {
+		t.Fatalf("args = %v, want [scope-a gen-1 sbom_attestation_attachment]", fake.args)
+	}
+}
 
 func TestImpactProducerStateMapsTheAggregateRow(t *testing.T) {
 	t.Parallel()
