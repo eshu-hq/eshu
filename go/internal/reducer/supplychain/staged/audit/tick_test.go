@@ -186,8 +186,13 @@ func TestStagedAuditSweepCompletesPastTheCorpusCaps(t *testing.T) {
 			t.Fatal("sweep did not end")
 		}
 	}
+	var commits int
 	for _, v := range store.verifies {
+		if v.NoLock {
+			continue // a keyed-yield attempt; the same range verifies again
+		}
 		facts += v.Range.Facts
+		commits++
 	}
 	if store.completed != 1 || facts != int64(c.n*c.factsPer) {
 		t.Fatalf("completed sweeps = %d, facts verified = %d; want 1 and %d", store.completed, facts, c.n*c.factsPer)
@@ -195,7 +200,7 @@ func TestStagedAuditSweepCompletesPastTheCorpusCaps(t *testing.T) {
 	if n := tel.Deferrals(pgaccess.StagedAuditDeferBudget); n != 0 {
 		t.Fatalf("budget deferrals = %d, want 0", n)
 	}
-	if want := int64(len(store.verifies)); tel.Ranges() != want || want != 120 {
+	if want := int64(commits); tel.Ranges() != want || want != 120 {
 		t.Fatalf("ranges = %d (verifies %d), want 120 at the default 10,000-row budget", tel.Ranges(), want)
 	}
 }
@@ -292,6 +297,9 @@ func TestStagedAuditLockPolicy(t *testing.T) {
 	}
 	waits := []bool{}
 	for _, v := range store.verifies {
+		if v.NoLock {
+			continue // the keyed yield after the locked third verify
+		}
 		waits = append(waits, v.WaitForLock)
 	}
 	if fmt.Sprint(waits) != fmt.Sprint([]bool{false, false, true, false, false}) {

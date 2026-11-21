@@ -33,6 +33,9 @@ func newLiveSweepAuditor(h *keyedHarness, budget int) (*stagedaudit.StagedAudito
 	tel := pgaccess.NewStagedAuditTelemetry()
 	return &stagedaudit.StagedAuditor{
 		Fleet: liveAuditFleet{db: h.db}, Store: h.store, Telemetry: tel, RangeBudget: budget,
+		// No keyed tick runs here unless a test starts one, so the keyed
+		// yield after a locked range ends on this interval.
+		KeyedInterval: 200 * time.Millisecond, YieldPoll: 10 * time.Millisecond,
 	}, tel
 }
 

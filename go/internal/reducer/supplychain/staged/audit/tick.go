@@ -91,7 +91,18 @@ type StagedAuditor struct {
 	mu       sync.Mutex
 	missFor  string
 	missRuns int
+	// yieldMark and yieldSince hold the keyed-yield state after a locked
+	// verify: the watermark then and when it was set (zero: no yield).
+	yieldMark  time.Time
+	yieldSince time.Time
 }
+
+// Keyed-yield defaults (#11131): the maintainer's keyed interval and the
+// watermark poll of the yield wait.
+const (
+	defaultKeyedInterval = 30 * time.Second
+	defaultYieldPoll     = time.Second
+)
 
 var _ supplychaincore.SupplyChainImpactWinnersAuditor = (*StagedAuditor)(nil)
 
@@ -136,9 +147,24 @@ func (a *StagedAuditor) AuditWinners(ctx context.Context) (supplychaincore.Suppl
 			a.Telemetry.ObserveDeferral(pgaccess.StagedAuditDeferNullKey)
 		}
 	}
-	outcome, err := a.Store.VerifyWinnersAuditRange(ctx, postgres.WinnersAuditRangeVerify{
-		SweepID: sweep.SweepID, Range: rng, WaitForLock: a.waitForLock(sweep, rng), Complete: complete,
-	})
+	req := postgres.WinnersAuditRangeVerify{SweepID: sweep.SweepID, Range: rng, Complete: complete}
+	if a.yielding(ctx) {
+		req.NoLock = true
+		outcome, err := a.Store.VerifyWinnersAuditRange(ctx, req)
+		if err != nil {
+			return none, fmt.Errorf("verify winners audit range: %w", err)
+		}
+		if !outcome.Yielded {
+			return a.report(ctx, sweep, rng, outcome, read, time.Since(started)), nil
+		}
+		a.Telemetry.ObserveDeferral(pgaccess.StagedAuditDeferKeyedYield)
+		if err := a.awaitKeyedCommit(ctx); err != nil {
+			return none, err
+		}
+		req.NoLock = false
+	}
+	req.WaitForLock = a.waitForLock(sweep, rng)
+	outcome, err := a.Store.VerifyWinnersAuditRange(ctx, req)
 	if err != nil {
 		return none, fmt.Errorf("verify winners audit range: %w", err)
 	}
@@ -163,6 +189,9 @@ func (a *StagedAuditor) report(ctx context.Context, sweep postgres.WinnersAuditS
 		result.Outcome = OutcomeCursorRace
 	default:
 		a.clearMiss()
+		if outcome.Locked {
+			a.startYield(ctx)
+		}
 		result.Repairs, result.Outcome = outcome.Repairs, OutcomeAdvanced
 		result.More = !rng.Last
 		if outcome.Completed {
@@ -296,6 +325,76 @@ func (a *StagedAuditor) clearMiss() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.missFor, a.missRuns = "", 0
+}
+
+// startYield arms the keyed yield after a verify that took the resweep lock:
+// the next range takes no lock until a keyed commit moves the watermark or
+// one keyed interval passes, so back-to-back locked ranges cannot starve the
+// keyed tick (lane-11119 M5 run1: 1 keyed commit to 1,582 skips).
+func (a *StagedAuditor) startYield(ctx context.Context) {
+	mark, _ := a.watermark(ctx)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.yieldMark, a.yieldSince = mark, time.Now()
+}
+
+// yielding reports whether the keyed yield still holds, clearing it once the
+// watermark moved or the keyed interval passed.
+func (a *StagedAuditor) yielding(ctx context.Context) bool {
+	a.mu.Lock()
+	since, mark := a.yieldSince, a.yieldMark
+	a.mu.Unlock()
+	if since.IsZero() {
+		return false
+	}
+	if a.yieldOver(ctx, since, mark) {
+		a.mu.Lock()
+		a.yieldSince, a.yieldMark = time.Time{}, time.Time{}
+		a.mu.Unlock()
+		return false
+	}
+	return true
+}
+
+// yieldOver reports a moved watermark or an elapsed keyed interval. A failed
+// watermark read counts as not moved, so the interval still bounds the wait.
+func (a *StagedAuditor) yieldOver(ctx context.Context, since, mark time.Time) bool {
+	interval := a.KeyedInterval
+	if interval <= 0 {
+		interval = defaultKeyedInterval
+	}
+	if time.Since(since) >= interval {
+		return true
+	}
+	now, ok := a.watermark(ctx)
+	return ok && !now.Equal(mark)
+}
+
+// awaitKeyedCommit waits until the keyed yield ends, polling the watermark.
+func (a *StagedAuditor) awaitKeyedCommit(ctx context.Context) error {
+	poll := a.YieldPoll
+	if poll <= 0 {
+		poll = defaultYieldPoll
+	}
+	for a.yielding(ctx) {
+		timer := time.NewTimer(poll)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("await keyed commit: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+	return nil
+}
+
+// watermark reads the winners watermark; ok is false on a failed read.
+func (a *StagedAuditor) watermark(ctx context.Context) (time.Time, bool) {
+	at, ok, err := a.Store.Watermark(ctx)
+	if err != nil || !ok {
+		return time.Time{}, false
+	}
+	return at, true
 }
 
 // rangeKey names a range by its sweep and the cursor it starts after.

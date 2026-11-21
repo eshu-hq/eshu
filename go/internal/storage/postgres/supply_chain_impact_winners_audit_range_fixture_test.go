@@ -86,6 +86,23 @@ VALUES ($1, $2, 'synthetic', now(), now(), 'superseded', now(), '{}'::jsonb)`, o
 			h.exec(auditRangeFactsSQL, scope, old, kind, identifiers, k, "9.", false)
 		}
 	}
+	// Collation: the database collation, not byte order, sorts these. Under
+	// a libc or ICU collation '@', '.', '-' and '_' are ignored at the first
+	// level, so '@tootallnate/once' sorts among the t's. Every range bound and
+	// cursor comparison runs in SQL, so the sweep must still visit each once.
+	punct := "vuln-intel://11131/punct"
+	pgen := winnersLiveSeedScope(t, h.ctx, h.db, punct)
+	h.exec(`INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version,
+  source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload)
+SELECT $1 || ':' || p.ord || ':' || j, $2, $1, $3, $1 || ':' || p.ord || ':' || j, '1.0.0', 'synthetic',
+  $1 || ':' || p.ord || ':' || j, now(), now(), false,
+  jsonb_build_object('finding_id', 'finding:punct:' || p.ord || ':' || j, 'cve_id', 'CVE-2026-P' || p.ord,
+    'advisory_id', 'GHSA-P' || p.ord, 'package_id', p.pkg, 'repository_id', 'repo-' || (j % 2),
+    'subject_digest', '', 'impact_status', 'affected_exact', 'observed_version', '3.' || j,
+    'priority_score', (p.ord * 5 + j) % 90, 'ecosystem', 'npm')
+FROM unnest(ARRAY['@tootallnate/once', '@scope/pkg', 'pkg:npm/@types/node', '.dotted', '-dashed', '_under',
+  'pkg:npm/p01-x', 'pkg:npm/p01.y', 'Pkg:npm/upper', 'tootallnate']) WITH ORDINALITY AS p(pkg, ord)
+CROSS JOIN generate_series(1, 3) AS j`, pgen, punct, kind)
 	derived := "image://derived/11131"
 	dgen := winnersLiveSeedScope(t, h.ctx, h.db, derived)
 	h.exec(auditRangeFactsSQL, derived, dgen, kind, identifiers/2, 7, "7.", false)
@@ -133,6 +150,7 @@ WHERE suppression_state <> 'active' AND abs(hashtext(canonical_key)) % 2 = 0`)
 		{"pkg:npm/p01", "repo-1x", "sha256:1"},
 		{"pkg:npm/p04x", "repo-0", ""},
 		{"zzz-orphan-last", "repo-9", "sha256:9"},
+		{"@tootallnate/orphan", "repo-0", ""},
 	} {
 		cve := "CVE-2026-1000"
 		if o[0] != "pkg:npm/p04x" {

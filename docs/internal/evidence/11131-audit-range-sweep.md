@@ -52,6 +52,20 @@ The audit now walks the keyed winners index (migration 291) in its key order
   repairs are staged, and the cursor row (migration 335) is advanced by
   compare-and-set on `sweep_id` and the five cursor columns. Zero rows rolls
   everything back (`cursor_race`).
+- **Keyed yield (coordinator's binding detail of decision 3).** After a
+  verify that took the resweep lock, the next range verifies with `NoLock`: a
+  range whose candidates are all queued advances without the lock, and one
+  that still needs it rolls back (`keyed_yield`) and waits until the winners
+  watermark moves (a keyed commit was observed) or one keyed interval (the
+  maintainer interval, 30 s by default) has passed, then verifies normally in
+  the same pass. lane-11119's M5 run showed why: back-to-back locked verifies
+  with no lock-free work between them starved the keyed loop, 1 keyed commit
+  to 1,582 skips.
+- **Collation.** Range bounds and the cursor are compared only in SQL, by ROW
+  comparison over the keyed-index expressions, so the database collation
+  decides the order on both sides. Go never orders identifiers. Under the
+  `en_US.utf8` collation `@` is ignored at the first level, so
+  `@tootallnate/once` sorts among the t's, not first.
 - **Pacing.** The maintainer runs ranges back to back for up to
   `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` (default 5 min) per audit
   tick, renewing the 60 s audit lease (same-owner re-claim) before each further
@@ -61,9 +75,12 @@ The audit now walks the keyed winners index (migration 291) in its key order
 - **Unchanged.** The audit gate on the persisted contract (A), the split scan,
   the writer-backed audit, the keyed tick, and the over-cap fallback.
 
-The range statement reads only; it is not in the winners contract hash set.
-It embeds the hashed winner body byte for byte, so a body change already bumps
-the contract, and an audit-only SQL change must not force a full.
+The range statement and the NULL probe read only; they are not in the
+winners contract hash set and a change to them needs no version bump. They
+only detect: every repair is queued for, and applied by, the pinned keyed
+statements. The range statement embeds the pinned winner body byte for byte,
+so a body change already bumps the contract, and an audit-only SQL change must
+not force a full.
 
 ## Proofs (live Postgres 18.6, disposable, one test at a time)
 
@@ -72,7 +89,7 @@ failed on its assertion. GREEN is `0a18f86210`.
 
 | Proof | Test | Result |
 | --- | --- | --- |
-| (b) T3 differential, union of ranges equals the shipped single statement | `...AuditRangeUnionEqualsSingleStatementLive` | 27 candidates at budgets 1, 7, 50, 200, 1000 and 100,000 (62, 62, 17, 4, 1 and 1 ranges); 0 missing, 0 extra, 0 in two ranges; each of 730 live facts recomputed once; 61 oversize ranges at budgets 1 and 7 |
+| (b) T3 differential, union of ranges equals the shipped single statement | `...AuditRangeUnionEqualsSingleStatementLive` | 30 candidates at budgets 1, 7, 50, 200, 1000 and 100,000 (82, 66, 17, 4, 1 and 1 ranges); 0 missing, 0 extra, 0 in two ranges; each of 760 range facts recomputed once; 81 and 61 oversize ranges at budgets 1 and 7 |
 | (b) seeded RED: last range closed on the stored side | `...AuditRangeOpenEndedLastRangeLive` | the mutated pair (one textual change derived from the shipped pair) misses the orphan stored after every fact at budgets 50 and 1000; the shipped pair misses nothing |
 | (a) a corpus past the old caps completes | `TestStagedAuditSweepCompletesPastTheCorpusCaps` | 1,200,000 facts (old cap 1,000,000): 120 ranges, one completed sweep, 0 budget deferrals |
 | (g) seeded stale, missing and orphan winners repaired within one sweep | `...AuditSweepRepairsWithinOneSweepLive` | repairs equal the single-statement candidates; after the keyed ticks the table equals a fresh recompute and the single statement finds 0 |
@@ -80,7 +97,10 @@ failed on its assertion. GREEN is `0a18f86210`.
 | (f) NULL and `\|` guards | `...AuditSweepGuardsLive`, `TestStagedAuditGuardsFailClosed` | a NULL repository_id defers `null_key` at sweep start; a `\|` package defers `pipe` with no writer contact; a NULL at sweep end verifies but does not complete; the clean fixture (with a no-package operator fact) reads clean |
 | (c) two instances | `...AuditSweepCursorRaceLive` | the second verify of a range returns `cursor_race` and its repairs roll back; of two concurrent verifies exactly one advances; two instances sweeping together queue each stale identifier once |
 | (d) keyed tick during a verify | `...AuditSweepKeyedTickSkippedDuringVerifyLive` | Skipped while the range holds the lock; the next keyed tick commits the queued mark and the repairs |
-| (h) M5, progress at full keyed duty | `...AuditSweepAdvancesUnderFullKeyedDutyLive` | a try-lock loop holding the resweep lock back to back (88.7-95.6 percent duty): 17 of 17 ranges contended, every one advanced within 3 attempts, 0 `lock_busy` |
+| (h) M5, progress at full keyed duty | `...AuditSweepAdvancesUnderFullKeyedDutyLive` | a try-lock loop holding the resweep lock back to back (88.7-95.6 percent duty): 17 of 17 ranges contended, every one advanced within 3 attempts, 0 `lock_busy` (88.1 percent after the yield landed) |
+| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`57ec0148af`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
+| Keyed yield (unit) | `TestStagedAuditKeyedYieldAfterLockedVerify` | a range after a locked verify asks for `NoLock`; a range that needs the lock yields until the interval passes or the watermark moves; an unlocked verify arms no yield |
+| Collation | the differential fixture | packages `@tootallnate/once`, `@scope/pkg`, `pkg:npm/@types/node`, `.dotted`, `-dashed`, `_under`, `Pkg:npm/upper` and an `@` orphan; the union still equals the single statement under `en_US.utf8`, where `@tootallnate/once` sorts after `pkg:npm/p99` |
 | Lock policy, timeout halving | `TestStagedAuditLockPolicy`, `TestStagedAuditRangeTimeoutHalvesTheBudget` | the third verify after two misses waits; budgets 10,000, 5,000, 2,500, 1,250, 625 |
 | Tick loop | `TestWinnersAuditTickRunsSweepRangesBackToBack`, `...StopsAtItsBudget` | ranges run back to back with a lease renewal each; a lost renewal ends the tick; only the completing range records success |
 
@@ -97,9 +117,9 @@ the keyed index under a ROW index condition with a Limit and no Sort; a
 (about 14 s cold); the T3 differential on the clone found 945 candidates with
 0 missing, extra or duplicated at budgets 7, 50, 1000 and 100,000; 8.37M
 eligible facts make about 840 ranges per sweep, about 2.8-3.3 h of standby
-statement time, about 7 h per sweep at a 5 min tick budget per 10 min
-interval, inside the 24 h bar. A one-range-per-tick sweep would take 140 h,
-which is why ranges run back to back.
+statement time, projected then at about 7 h per sweep (the corrected
+projection is below). A one-range-per-tick sweep would take 140 h, which is
+why ranges run back to back.
 
 Shipped statement, local measurement
 (`TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive`,
@@ -116,8 +136,38 @@ facts with about 2 KB of payload padding each, 11,568 seeded candidates):
 | NULL probe | 1.402 ms execution (skip scan: 277 index searches on the keyed index for subject_digest, 1 each for package and repository); one timed call 4.023 s on the loaded host |
 | Built path (read, verify with the lock, repairs, compare-and-set) | 34 ranges in 252.169 s (4 min 12 s), 7.417 s per range with about 340 candidates each |
 
+Cold, on the QA read-only replica (lane-11119, theory measurements M3 and
+M7 of the joint ruling): 20 ranges of 10,000 at fact-mass quantiles, shipped
+body, mean 1.309 ms per fact cold (0.939-1.747), worst range 17.14 s, 9,750 to
+9,999 rows kept per range. The NULL probe, all three arms 0 rows:
+subject_digest 4.97 s cold and 0.17 s warm through the PG18 skip scan on the
+keyed index (12,673 index searches), package_id 0.025 ms, repository_id
+2.9 ms cold. The shipped probe runs the three EXISTS in one statement, so its
+cold cost is about 5 s under the 25 s guard, twice per sweep. The local plan
+above has the same shape (a skip scan on the keyed index for subject_digest,
+one search each for package and repository).
+
 The ranged sweep costs no more than the single statement it replaces on the
 same host and cache state (0.96x), and no range approached the 25 s guard.
+
+### Sweep period against the 24 h bar
+
+The audit loop waits `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (10
+min) and then runs one tick of up to the tick budget (5 min), so ranges run
+for 5 of every 15 minutes (duty 1/3; an earlier projection that assumed 5 of
+10 was optimistic). QA holds 8.37M eligible facts, about 840 ranges of 10,000.
+
+| Case | Per range | Tick time per sweep | Wall time per sweep |
+| --- | --- | --- | --- |
+| Typical: candidates already queued or none, no lock | 13.1 s cold read (1.309 ms/fact) + about 1.4 s verify | about 12,200 s (3.4 h) | about 10.2 h |
+| Worst: every range needs the lock (read + verify up to 30 s + one keyed interval of yield, 30 s) | about 73 s | about 61,300 s (17 h) | about 51 h at the default tick budget; about 23 h with a 30 min tick budget (duty 3/4) |
+
+The typical case meets the 24 h bar at the defaults. The worst case (every
+range carries a capture hole nothing queued) does not; it needs
+`ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` raised toward 30 min.
+The yield waits only between two consecutive locked ranges, so a sweep with
+scattered holes stays near the typical case. Which default to ship is a
+coordinator decision (reported, not changed here).
 These figures are warm and local; the cold QA cost per fact (0.69-1.42 ms on
 the replica) is the lane's, and the QA sweep duration is an acceptance reading
 after deploy. The whole-corpus tick this replaces read about 1M facts and
@@ -130,7 +180,9 @@ row (documented in
 [Supply-Chain Impact Winners Resweep](../../public/reference/telemetry/supply-chain-impact-winners.md)):
 
 - `staged_audit_deferrals_total{reason}` gains `timeout`, `null_key`, `pipe`,
-  `lock_busy` and `cursor_race`; `budget` no longer occurs.
+  `lock_busy`, `cursor_race` and `keyed_yield`; `budget` no longer occurs.
+- `audit_sweep_locked_ranges_total`: committed ranges whose verify took the
+  lock (each arms the keyed yield).
 - `audit_range_duration_seconds{outcome}` (histogram: advanced, completed,
   skipped, lock_busy, cursor_race, deferred), the range cost.
 - `audit_sweep_ranges_total`, `..._range_retries_total`, `..._facts_total`,

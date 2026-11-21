@@ -112,7 +112,9 @@ func buildObservedReducerService(
 					Store:       postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
 					Telemetry:   stagedTelemetry,
 					RangeBudget: loadSupplyChainImpactWinnersAuditRangeBudget(getenv),
-					Logger:      logger,
+					// The keyed yield waits at most one keyed interval.
+					KeyedInterval: maintainer.Interval,
+					Logger:        logger,
 				}
 			} else {
 				maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).

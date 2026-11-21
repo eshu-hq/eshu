@@ -23,8 +23,10 @@ recent shipped work grouped by feature area.
   and resumes after a roll from a cursor row (migration 335). New signals:
   `eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds{outcome}`,
   the `eshu_dp_supply_chain_impact_winners_audit_sweep_*` counters and gauges,
-  and the deferral reasons `timeout`, `null_key`, `pipe`, `lock_busy` and
-  `cursor_race`.
+  and the deferral reasons `timeout`, `null_key`, `pipe`, `lock_busy`,
+  `cursor_race` and `keyed_yield`. After a range that took the resweep lock,
+  the next range that needs it waits for a keyed commit (at most one keyed
+  interval), so the sweep cannot starve keyed ticks.
 
 ### Repository dependency count reads only the active relationship generation
 

@@ -26,11 +26,19 @@ func TestSupplyChainImpactWinnersResweepAuditRangeUnionEqualsSingleStatementLive
 	liveFacts := auditRangeSeed(t, h, auditRangeFixtureIdentifiers)
 	auditRangePerturb(t, h)
 
+	var collationOrder bool
+	if err := h.db.QueryRowContext(h.ctx, `SELECT '@tootallnate/once' > 'pkg:npm/p99'`).Scan(&collationOrder); err != nil {
+		t.Fatalf("collation probe: %v", err)
+	}
+	// True under a libc or ICU collation that ignores '@' (byte order says
+	// false): the fixture's punctuation packages then sort away from their
+	// byte position, which only SQL-side bounds handle.
+	t.Logf("database collation sorts '@tootallnate/once' after 'pkg:npm/p99': %v", collationOrder)
 	single := auditSingleStatementCandidates(t, h.ctx, h.db)
 	if len(single) < 20 {
 		t.Fatalf("single-statement candidates = %d, want a perturbed fixture with at least 20", len(single))
 	}
-	for _, orphan := range []string{"a-orphan-first", "pkg:npm/p02x", "repo-1x", "zzz-orphan-last"} {
+	for _, orphan := range []string{"a-orphan-first", "pkg:npm/p02x", "repo-1x", "zzz-orphan-last", "@tootallnate/orphan"} {
 		found := false
 		for k := range single {
 			if strings.Contains(k, orphan) {

@@ -123,6 +123,13 @@ scope activation are rewritten outside the capture owners. #11113 and #11103
 change neither and need no bump. This change merges last in its release, so
 it pins the hash on the final SQL.
 
+Not pinned: the staged audit's range statement and NULL probe (#11131,
+[11131-audit-range-sweep.md](11131-audit-range-sweep.md)). They only detect:
+they read facts and stored winners and queue stale identifiers, and every
+repair is applied by the pinned keyed statements. The range statement embeds
+the pinned winner body byte for byte, so a body change already bumps the
+version. A change to the sweep's ranges or cursor needs no version bump.
+
 Known limit: `cmd/ifa`'s `rebuildWinnersOnce` runs the unguarded
 `ResweepWinners`, which stamps its own contract unconditionally. An ifa build
 older than the stored contract therefore lowers the stored version. It heals

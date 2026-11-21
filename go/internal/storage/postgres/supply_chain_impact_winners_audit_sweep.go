@@ -303,7 +303,7 @@ func (s SupplyChainImpactWinnersStore) VerifyWinnersAuditRange(ctx context.Conte
 
 	out := WinnersAuditRangeOutcome{Candidates: int64(len(v.Range.Candidates))}
 	if len(v.Range.Candidates) > 0 {
-		locked, skip, err := s.verifyWinnersAuditRangeCandidates(ctx, tx, v, &out)
+		locked, skip, yield, err := s.verifyWinnersAuditRangeCandidates(ctx, tx, v, &out)
 		if err != nil {
 			if isLockTimeoutError(err) {
 				return WinnersAuditRangeOutcome{LockBusy: true, Candidates: out.Candidates}, nil
@@ -312,6 +312,9 @@ func (s SupplyChainImpactWinnersStore) VerifyWinnersAuditRange(ctx context.Conte
 		}
 		if skip {
 			return WinnersAuditRangeOutcome{Skipped: true, Candidates: out.Candidates}, nil
+		}
+		if yield {
+			return WinnersAuditRangeOutcome{Yielded: true, Candidates: out.Candidates, Pending: out.Pending}, nil
 		}
 		out.Locked = locked
 	}
@@ -334,44 +337,47 @@ func (s SupplyChainImpactWinnersStore) VerifyWinnersAuditRange(ctx context.Conte
 }
 
 // verifyWinnersAuditRangeCandidates is the candidate half of the range
-// transaction. It reports whether it took the lock and whether the try-lock
-// lost (skip).
+// transaction. It reports whether it took the lock, whether the try-lock
+// lost (skip), and whether a NoLock verify needed the lock (yield).
 func (s SupplyChainImpactWinnersStore) verifyWinnersAuditRangeCandidates(
 	ctx context.Context, tx db.Transaction, v WinnersAuditRangeVerify, out *WinnersAuditRangeOutcome,
-) (locked, skip bool, err error) {
+) (locked, skip, yield bool, err error) {
 	if _, err := tx.ExecContext(ctx, createWinnersAuditStaleIdentsSQL); err != nil {
-		return false, false, fmt.Errorf("seed winners audit range candidates: %w", err)
+		return false, false, false, fmt.Errorf("seed winners audit range candidates: %w", err)
 	}
 	if err := seedWinnersAuditStaleIdents(ctx, tx, v.Range.Candidates); err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	for _, stmt := range []string{analyzeWinnersKeyedIdentsSQL, createWinnersAuditRangePendingSQL, dropWinnersAuditRangePendingIdentsSQL} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return false, false, fmt.Errorf("filter winners audit range candidates: %w", err)
+			return false, false, false, fmt.Errorf("filter winners audit range candidates: %w", err)
 		}
 	}
 	remaining, err := scanWinnersInt64(ctx, tx, countWinnersAuditRangeRemainingSQL, "count winners audit range candidates")
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
 	out.Pending = out.Candidates - remaining
 	if remaining == 0 {
-		return false, false, nil
+		return false, false, false, nil
+	}
+	if v.NoLock {
+		return false, false, true, nil
 	}
 	if v.WaitForLock {
 		if _, err := tx.ExecContext(ctx, setWinnersAuditRangeLockTimeoutSQL); err != nil {
-			return false, false, fmt.Errorf("bound winners audit range lock wait: %w", err)
+			return false, false, false, fmt.Errorf("bound winners audit range lock wait: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, waitClaimSupplyChainImpactWinnersResweepSQL); err != nil {
-			return false, false, fmt.Errorf("claim supply chain impact winners resweep (waiting): %w", err)
+			return false, false, false, fmt.Errorf("claim supply chain impact winners resweep (waiting): %w", err)
 		}
 	} else {
 		claimed, err := claimSupplyChainImpactWinnersResweep(ctx, tx)
 		if err != nil {
-			return false, false, err
+			return false, false, false, err
 		}
 		if !claimed {
-			return false, true, nil
+			return false, true, false, nil
 		}
 	}
 	for _, stmt := range []string{
@@ -380,17 +386,17 @@ func (s SupplyChainImpactWinnersStore) verifyWinnersAuditRangeCandidates(
 		createWinnersAuditStaleSQL, createWinnersAuditRangeStalePendingSQL,
 	} {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return true, false, fmt.Errorf("verify winners audit range candidates: %w", err)
+			return true, false, false, fmt.Errorf("verify winners audit range candidates: %w", err)
 		}
 	}
 	queued, err := tx.ExecContext(ctx, queueWinnersAuditRepairsSQL)
 	if err != nil {
-		return true, false, fmt.Errorf("queue winners audit range repairs: %w", err)
+		return true, false, false, fmt.Errorf("queue winners audit range repairs: %w", err)
 	}
 	if out.Repairs, err = queued.RowsAffected(); err != nil {
-		return true, false, fmt.Errorf("read winners audit range repairs: %w", err)
+		return true, false, false, fmt.Errorf("read winners audit range repairs: %w", err)
 	}
-	return true, false, nil
+	return true, false, false, nil
 }
 
 // advanceWinnersAuditSweep runs the compare-and-set. It returns nil, nil when
