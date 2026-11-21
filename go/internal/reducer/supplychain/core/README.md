@@ -397,8 +397,7 @@ Non-test files fall into these groups: the `impact*` and other short-named
 files (impact builders, ecosystem matchers, reachability, anchoring, writers),
 the suppression-story files (`evaluation.go`, `decode.go`, `reasons.go`,
 `scope.go`), and the `go_reachability*` files (Go module/call reachability
-classifier). Test files sit beside the code they cover. No file repeats
-the directory name.
+classifier). Test files sit beside the code they cover. No file repeats the directory name.
 
 | File | Covers |
 | --- | --- |

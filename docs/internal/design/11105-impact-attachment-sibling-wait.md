@@ -180,6 +180,15 @@ The retry matrix
   not hold the pass.
 - A sibling silent for 31 minutes no longer holds the pass.
 
+With the #11087 own-digest bound (rebased onto 63d79dfe9e):
+`TestSupplyChainImpactAttachmentWaitThenOwnDigestBoundYieldsLateFindings`
+replays fixture c of `criteria_expansion_image_arrival_test.go` through
+`Handle`. The image scope's pass defers while its own attachment is retrying,
+and writes nothing. After the attachment commits, the bounded pass publishes
+the 4 own-digest findings that the late attachment adds to the image scope's
+run. With the port unwired, the first pass runs instead of deferring and the
+test fails.
+
 Observability Evidence:
 
 - `eshu_dp_supply_chain_impact_attachment_wait_total{domain,outcome}`, with
@@ -198,8 +207,5 @@ Observability Evidence:
 - The deployed fleet rate of `deferred_in_flight` and of cross-scope hint
   wakes has not been measured. A QA reading after deploy should compare the
   attachment-wait counter with the `supply_chain_impact` execution rate.
-- The #11087 own-digest bound is not merged at this base. After #11087 lands,
-  rebase and add one test: a late attachment under the own-digest bound yields
-  the finding after the wait.
 - The full storage/postgres suite under `-race` was not run here. That is the
   coordinator's pre-push.
