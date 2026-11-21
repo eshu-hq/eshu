@@ -32,6 +32,11 @@ All must hold, else NO-GO:
 3. The window is booked under the QA drill window with a named drill owner.
 4. Pre-wipe evidence from the next section is captured fresh in the window.
    Numbers from an earlier day are stale.
+5. Pre-existing queue is dispositioned. Snapshot `fact_work_items GROUP BY
+   status` before the window; every pre-existing `dead_letter` row is
+   dispositioned (replayed or named-accepted with owner sign-off) BEFORE the
+   window, never silently deleted. The timed stop below is defined on the
+   rebuild cohort, not on the raw queue totals.
 
 ## QA reference points (2026-11-21, pre-rebuild)
 
@@ -66,6 +71,11 @@ start when `POST /api/v0/admin/recover-generations` with `all_scopes: true`
 returns, stop when both queues are terminal — nothing in `fact_work_items`
 outside `succeeded`/`superseded`, and no `shared_projection_intents` row with
 `completed_at IS NULL`. Wipe and schema reapply sit outside the measurement.
+
+The stop is defined on the rebuild cohort: compare against the pre-wipe
+snapshot from entry criterion 5. At stop there must be zero new
+`failed`/`dead_letter` rows attributable to the rebuild. Any new dead-letter
+during the drain is a failed run, not a timing result.
 
 ## Kubernetes execution shape
 
