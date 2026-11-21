@@ -95,6 +95,22 @@ single-statement full on every instance after the roll (about 6,400 s on QA)
 without changing that wake behavior, so the bump rule (a winner output change
 for the same facts) does not apply.
 
+What the re-pin does on the roll: nothing different. The maintainer decides
+on versions only (`decideWinnersContract` in `winners_keyed_maintainer.go`).
+`StoredHash` and `BinaryHash` are read into the contract but nothing branches
+on them. Both full paths stamp the hash; no tick compares it. A binary carrying
+the new hash, rolled over a table whose last full recorded `c5731efd...` at
+version 1, runs keyed ticks and the audit on its first tick: no full, no
+stand-down, no new reason on `full_resweeps_total`. The stored hash stays
+`c5731efd...` until a later full (a version bump or the force-full runbook
+step) records the new one. `TestWinnersMaintainerRePinnedHashAtEqualVersionRunsKeyed`
+pins this: equal versions with different hashes give a keyed tick and zero
+full calls. A hash-aware decision turns it red. The re-pin rule itself is A's
+pin pair: `TestSupplyChainImpactWinnersContractHashPinnedToVersion` failed on
+the new statement set until the pin moved, and
+`TestSupplyChainImpactWinnersContractPinRejectsAChangedStatement` changes each
+covered statement in turn, including the convert, and requires the pin to fail.
+
 Differential (bounded replay, three scopes of 7, 5 and 9 re-ranked winners plus
 14 fact marks, drained at chunk 2, 3 and 50): the md5 of every stored winner's
 data columns is `a4ef02840ec21e79fa51fcf33ab9c0da` (28 winners) on the shipped
