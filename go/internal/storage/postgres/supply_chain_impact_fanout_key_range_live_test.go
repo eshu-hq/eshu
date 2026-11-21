@@ -36,6 +36,7 @@ var keyRangeHolders = []string{
 	"kr:lone-member", // one row matching on the advisory-group member set only
 	"kr:lone-below",  // one row whose fact_id sorts before every bound
 	"kr:lone-above",  // one row whose fact_id sorts after every bound
+	"kr:lone-bound",  // one row whose fact_id equals a range bound exactly
 }
 
 // keyRangeSeed seeds the #10643 key-range fixture. Bulk holders carry
@@ -90,6 +91,7 @@ FROM generate_series(1, 20) g`, kind, keyRangeHot)
 	lone("kr:lone-member", kind+":5555", `{"cve_id": "CVE-2026-member", "advisory_id": "GHSA-kr-member", "impact_status": "affected_exact", "provenance": {"advisory_group_members": [`+hot+`]}}`)
 	lone("kr:lone-below", "aaa:not-a-digest", `{"cve_id": `+hot+`, "impact_status": "affected_exact"}`)
 	lone("kr:lone-above", "zzz:not-a-digest", `{"cve_id": `+hot+`, "impact_status": "affected_exact"}`)
+	lone("kr:lone-bound", kind+":8", `{"cve_id": `+hot+`, "impact_status": "affected_exact"}`)
 	if _, err := sqldb.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
 		t.Fatalf("analyze: %v", err)
 	}
@@ -146,8 +148,9 @@ func TestHolderKeyRangeReadMatchesShippedLive(t *testing.T) {
 }
 
 // keyRangeFlipBeginner opens the store's transactions and, inside one, runs
-// flip on another connection just before the second key-range statement: a
-// generation flip that commits while the key-range read is in flight.
+// flip on another connection after the first key-range statement returned and
+// before the second one starts: a generation flip that commits while the
+// key-range read is in flight.
 type keyRangeFlipBeginner struct {
 	postgres.SQLDB
 	flip func()
@@ -171,12 +174,14 @@ type keyRangeFlipTx struct {
 }
 
 func (tx *keyRangeFlipTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	// Query 1 sets the statement timeout and query 2 is the first key range.
+	// Queries 1 and 2 set the statement timeout and the plan mode, query 3 is
+	// the first key range, so the flip runs just before query 4, the second
+	// key range.
 	tx.queries++
 	if tx.seen != nil {
 		*tx.seen = append(*tx.seen, fmt.Sprint(query, args))
 	}
-	if tx.queries == 3 {
+	if tx.queries == 4 {
 		tx.flip()
 	}
 	return tx.Transaction.QueryContext(ctx, query, args...)
@@ -279,16 +284,23 @@ func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 		}
 	}
 	for _, line := range strings.Split(plan, "\n") {
-		if strings.Contains(line, "Index Cond:") && strings.Contains(line, "payload ->> 'cve_id'") &&
-			(!strings.Contains(line, "fact_id >=") || !strings.Contains(line, "fact_id <")) {
-			t.Fatalf("fact_id bounds are not in the cve arm's index condition:\n%s", plan)
+		for _, arm := range []string{"payload ->> 'cve_id'", "payload ->> 'advisory_id'"} {
+			if strings.Contains(line, "Index Cond:") && strings.Contains(line, arm) &&
+				(!strings.Contains(line, "fact_id >=") || !strings.Contains(line, "fact_id <")) {
+				t.Fatalf("fact_id bounds are not in the %s arm's index condition:\n%s", arm, plan)
+			}
 		}
 		if strings.Contains(line, "Filter:") && strings.Contains(line, "fact_id") {
 			t.Fatalf("fact_id bounds are a filter, not an index condition:\n%s", plan)
 		}
 	}
+	// Seeded RED: without the pin, the generic plan cannot see the bounds and
+	// reads the range through the primary key, a slice of the whole table.
 	generic := explain("force_generic_plan")
-	t.Logf("seeded RED, generic plan reads fact_records_pkey: %v", strings.Contains(generic, "fact_records_pkey"))
+	if !strings.Contains(generic, "fact_records_pkey") {
+		t.Fatalf("seeded RED: the generic plan no longer reads fact_records_pkey; re-check why the store pins %s:\n%s",
+			postgres.HolderKeyRangePlanCacheMode, generic)
+	}
 }
 
 // keyRangeExplain runs one EXPLAIN on conn and returns the plan text.

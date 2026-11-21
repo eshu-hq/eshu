@@ -97,6 +97,18 @@ func TestHolderKeyRangesPartitionTheKeySpace(t *testing.T) {
 	}
 }
 
+// TestHolderKeyRangeCountDividesTheDigits pins the range count HolderKeyRanges
+// can build: a count outside 1..16 or not dividing 16 leaves a zero step (an
+// endless loop) or an uneven last range.
+func TestHolderKeyRangeCountDividesTheDigits(t *testing.T) {
+	t.Parallel()
+
+	digits := len(holderKeyRangeHexDigits)
+	if fanOutHolderKeyRangeCount < 1 || fanOutHolderKeyRangeCount > digits || digits%fanOutHolderKeyRangeCount != 0 {
+		t.Fatalf("fanOutHolderKeyRangeCount = %d, want a divisor of %d in 1..%d", fanOutHolderKeyRangeCount, digits, digits)
+	}
+}
+
 // TestHotSingletonHolderReadRunsAsKeyRanges is the #10643 regression: a hot
 // singleton id (mass over the split threshold) must not run as one holder
 // statement over all its rows. It runs as one bounded statement per fact_id

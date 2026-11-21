@@ -158,7 +158,7 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		}
 		return nil
 	}
-	for _, keyRange := range ranges {
+	for i, keyRange := range ranges {
 		var err error
 		if keyRange.Upper == "" {
 			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderOpenKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower)
@@ -166,11 +166,13 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, keyRange.Upper)
 		}
 		if err != nil {
-			return read, err
+			// The kind and range index reach the dead letter's failure message,
+			// so it names which statement timed out.
+			return read, fmt.Errorf("%s statement %d of %d: %w", telemetry.FanOutReadKindHoldersKeyRange, i+1, len(ranges), err)
 		}
 	}
 	if err := run(telemetry.FanOutReadKindHoldersMembers, FindSupplyChainImpactMemberHoldersQuery, lookupIDs, ownScopeID); err != nil {
-		return read, err
+		return read, fmt.Errorf("%s statement: %w", telemetry.FanOutReadKindHoldersMembers, err)
 	}
 	read.Scopes = make([]string, 0, len(seen))
 	for id := range seen {

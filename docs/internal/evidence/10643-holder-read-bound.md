@@ -82,9 +82,20 @@ shipped read of CVE-2025-27789, which took 11.42 s.
 
 Total work per hot id is unchanged, since each row is still fetched once.
 Whole read per hot id, cold: 3.1-9.2 s single reader, up to 21.7 s in the
-4-way burst. Warm: 391-891 ms, against 252-628 ms for the shipped read. A
-70-id owed recovery pass at the existing parallelism of 4 needs about 90 s at
-5 s per hot id. That is far under the reducer handler bound.
+4-way burst. Warm: 391-891 ms, against 252-628 ms for the shipped read.
+
+A 70-id owed recovery pass reads its ids in 5-id chunks one after another,
+with up to 4 statements of a chunk in parallel. 70 hot ids are 14 chunks of
+2 waves each, 28 waves in all: about 140 s at 5 s per hot-id read, and about
+600 s at the 21.7 s cold-burst maximum. QA runs both reducer deployments with
+`ESHU_REDUCER_HANDLER_TIMEOUT=1h` and the override `supply_chain_impact=30m`
+(read on the QA deployment, read-only), so the pass fits the 30-minute bound
+at the measured cold cost.
+
+Ids whose member arm saturates the mass probe's member cap (true mass 101 to
+10,000 rows) also read as hot and now run 17 statements instead of 1. The
+extra statements are small index probes, each planned once; that overhead
+was not measured.
 
 Snapshot hold. The read runs on the primary: the reducer's
 `SupplyChainImpactFanOutStore` uses its own database. One key-range read
