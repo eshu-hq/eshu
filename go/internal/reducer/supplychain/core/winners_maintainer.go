@@ -86,6 +86,11 @@ type SupplyChainImpactWinnersResweep struct {
 	// resweep lock, a stored contract version at or above this binary's
 	// (#11117): another instance already committed the full this one wanted.
 	ContractCurrent bool
+	// StoodDown is true on a Skipped keyed tick that found, under the resweep
+	// lock, a stored contract version above this binary's (#11117): a newer
+	// binary's full committed after this tick's decision read, so it wrote
+	// nothing.
+	StoodDown bool
 	// Path is the path that ran: telemetry.SupplyChainImpactWinnersPathFull or
 	// ...PathKeyed. It is empty for a result from a rebuilder that predates the
 	// keyed resweep (#9805), which the maintainer reads as full.
