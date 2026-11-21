@@ -163,7 +163,7 @@ func rebuildSuppressionAuthorityWinners(
 ) {
 	t.Helper()
 	store := storagepostgres.NewSupplyChainImpactWinnersStore(suppressionAuthorityWinnersTx{storagepostgres.SQLTx{Tx: tx}})
-	if err := store.RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+	if err := store.RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("rebuild canonical winners: %v", err)
 	}
 }

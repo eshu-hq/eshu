@@ -23,7 +23,7 @@ func TestSupplyChainImpactWinnersResweepDigestExcludedFieldsChangeNothingLive(t 
 		h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, ARRAY[$2]::text[], to_jsonb('rewritten-'||$2::text), true) WHERE scope_id = $1`, scopeA, key)
 	}
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{provenance,content_digest}', '"another"', true) WHERE scope_id = $1`, scopeA)
-	got, err := h.store.ResweepWinners(h.ctx, h.tick())
+	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 {
 		t.Fatalf("full resweep after rewriting digest-excluded fields = %+v, %v; want no winner written", got, err)
 	}
@@ -42,7 +42,7 @@ func TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive(t *te
 	h.assertParity("after the flip")
 
 	h.exec(`DELETE FROM fact_records WHERE scope_id = $1 AND generation_id = $2`, scopeB, scopeB+"/g1")
-	got, err := h.store.ResweepWinners(h.ctx, h.tick())
+	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 {
 		t.Fatalf("full resweep after deleting a superseded generation = %+v, %v; want no winner written", got, err)
 	}

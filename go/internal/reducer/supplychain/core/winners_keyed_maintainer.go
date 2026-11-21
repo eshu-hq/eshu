@@ -62,7 +62,7 @@ func (m SupplyChainImpactWinnersMaintainer) runTick(ctx context.Context, keyed b
 	if keyed {
 		result, rbErr = m.KeyedRebuilder.ResweepWinnersKeyed(ctx)
 	} else {
-		result, rbErr = m.Rebuilder.ResweepWinners(ctx, m.now())
+		result, rbErr = m.Rebuilder.ResweepWinners(ctx)
 	}
 	elapsed := time.Since(started)
 	if rbErr != nil {

@@ -40,7 +40,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	)
 	seedGroupedInventoryLive(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
-		RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
 	}
 
@@ -218,7 +218,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	t.Run("central catalog scope grant marks finding-level hides partial", func(t *testing.T) {
 		seedGroupedInventoryCentralCatalogLive(t, ctx, database)
 		if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
-			RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+			RebuildAllWinners(ctx); err != nil {
 			t.Fatalf("RebuildAllWinners: %v", err)
 		}
 		scoped := precise

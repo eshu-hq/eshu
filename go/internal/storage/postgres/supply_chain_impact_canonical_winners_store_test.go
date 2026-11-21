@@ -93,7 +93,12 @@ func TestRebuildSupplyChainImpactWinnersSQLIsAtomicReconcile(t *testing.T) {
 		// Unconditional watermark upsert is the final statement so it stamps even
 		// a zero-winner resweep.
 		"INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at)",
-		"ON CONFLICT (singleton) DO UPDATE SET materialized_at = EXCLUDED.materialized_at",
+		// #11117: the stamp is capped under the residual marks the statement
+		// still sees and never regresses the watermark.
+		"VALUES (1, LEAST($1::timestamptz, (",
+		"SELECT min(captured_at) AS captured_at FROM supply_chain_impact_winners_dirty_log",
+		"SELECT min(captured_at) FROM supply_chain_impact_winners_dirty_staging",
+		"ON CONFLICT (singleton) DO UPDATE SET materialized_at = GREATEST(\n    supply_chain_impact_winners_materialization.materialized_at, EXCLUDED.materialized_at)",
 	} {
 		if !strings.Contains(rebuildSupplyChainImpactWinnersSQL, want) {
 			t.Fatalf("rebuild SQL missing %q:\n%s", want, rebuildSupplyChainImpactWinnersSQL)
@@ -105,7 +110,7 @@ func TestRebuildAllWinnersRequiresDB(t *testing.T) {
 	t.Parallel()
 
 	store := SupplyChainImpactWinnersStore{}
-	if err := store.RebuildAllWinners(context.Background(), nil); err == nil {
+	if err := store.RebuildAllWinners(context.Background()); err == nil {
 		t.Fatal("RebuildAllWinners() error = nil, want missing-db error")
 	}
 }

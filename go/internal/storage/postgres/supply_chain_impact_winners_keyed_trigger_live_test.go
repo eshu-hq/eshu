@@ -261,7 +261,7 @@ func keyedMatchesRecompute(h *keyedHarness) bool {
 	h.t.Helper()
 	before := winnersLiveRead(h.t, h.ctx, h.db)
 	winnersLiveExec(h.t, h.ctx, h.db, `DELETE FROM supply_chain_impact_canonical_winners`)
-	if _, err := h.store.ResweepWinners(h.ctx, h.tick()); err != nil {
+	if _, err := h.store.ResweepWinners(h.ctx); err != nil {
 		h.t.Fatalf("recompute: %v", err)
 	}
 	after := winnersLiveRead(h.t, h.ctx, h.db)

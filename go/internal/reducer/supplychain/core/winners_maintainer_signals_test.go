@@ -240,7 +240,7 @@ func TestWinnersGaugeSampledBeforeTheResweepRuns(t *testing.T) {
 
 type winnersRebuilderFunc func()
 
-func (f winnersRebuilderFunc) ResweepWinners(context.Context, any) (SupplyChainImpactWinnersResweep, error) {
+func (f winnersRebuilderFunc) ResweepWinners(context.Context) (SupplyChainImpactWinnersResweep, error) {
 	f()
 	return SupplyChainImpactWinnersResweep{}, nil
 }

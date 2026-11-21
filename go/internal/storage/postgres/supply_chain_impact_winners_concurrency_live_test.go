@@ -59,11 +59,11 @@ type winnersLiveOutcome struct {
 // winnersLiveStart runs one resweep on its own goroutine. The returned channel
 // carries the outcome and is closed afterwards, so a receive can also serve as
 // a "done" signal.
-func winnersLiveStart(ctx context.Context, store postgres.SupplyChainImpactWinnersStore, at time.Time) <-chan winnersLiveOutcome {
+func winnersLiveStart(ctx context.Context, store postgres.SupplyChainImpactWinnersStore) <-chan winnersLiveOutcome {
 	out := make(chan winnersLiveOutcome, 1)
 	go func() {
 		defer close(out)
-		result, err := store.ResweepWinners(ctx, at)
+		result, err := store.ResweepWinners(ctx)
 		out <- winnersLiveOutcome{result: result, err: err}
 	}()
 	return out
@@ -71,13 +71,13 @@ func winnersLiveStart(ctx context.Context, store postgres.SupplyChainImpactWinne
 
 // winnersLiveSeedOverlap stores three winners and returns the fact id of the one
 // the overlap proofs retire and bring back.
-func winnersLiveSeedOverlap(t *testing.T, ctx context.Context, db *sql.DB, store postgres.SupplyChainImpactWinnersStore, at time.Time) string {
+func winnersLiveSeedOverlap(t *testing.T, ctx context.Context, db *sql.DB, store postgres.SupplyChainImpactWinnersStore) string {
 	t.Helper()
 	winnersLiveSeedScope(t, ctx, db, winnersLiveSourceScope)
 	winnersLiveSeedFact(t, ctx, db, "f-returning", winnersLiveSourceScope, winnersLiveFinding(winnersLiveReturningCVE, "pkg:npm/returning", 5, nil))
 	winnersLiveSeedFact(t, ctx, db, "f-steady-a", winnersLiveSourceScope, winnersLiveFinding("CVE-2026-9701", "pkg:npm/steady-a", 4, nil))
 	winnersLiveSeedFact(t, ctx, db, "f-steady-b", winnersLiveSourceScope, winnersLiveFinding("CVE-2026-9702", "pkg:npm/steady-b", 3, nil))
-	if got, err := store.ResweepWinners(ctx, at); err != nil || got.Inserted != 3 {
+	if got, err := store.ResweepWinners(ctx); err != nil || got.Inserted != 3 {
 		t.Fatalf("seed resweep = %+v, %v; want 3 inserted", got, err)
 	}
 	return "f-returning"
@@ -127,17 +127,15 @@ func TestSupplyChainImpactWinnersResweepOverlapNeverStampsAMissingWinnerLive(t *
 	db := openAdvisorySuppressionIsolatedDB(t)
 	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
 
-	t0 := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	tA, tB, tNext := t0.Add(time.Minute), t0.Add(2*time.Minute), t0.Add(3*time.Minute)
-	fact := winnersLiveSeedOverlap(t, ctx, db, store, t0)
+	fact := winnersLiveSeedOverlap(t, ctx, db, store)
 
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = $1`, fact)
 	release := winnersLivePinOnReturningWinner(t, ctx, db)
-	a := winnersLiveStart(ctx, store, tA)
+	a := winnersLiveStart(ctx, store)
 	winnersLiveAwaitBlocked(t, ctx, db, 1, nil)
 
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = FALSE WHERE fact_id = $1`, fact)
-	b := winnersLiveStart(ctx, store, tB)
+	b := winnersLiveStart(ctx, store)
 	bDone := make(chan struct{})
 	var bOutcome winnersLiveOutcome
 	go func() {
@@ -158,6 +156,7 @@ func TestSupplyChainImpactWinnersResweepOverlapNeverStampsAMissingWinnerLive(t *
 	}
 	present := winnersLiveReturningPresent(t, ctx, db)
 	watermark := winnersLiveWatermark(t, ctx, db)
+	tA := aOutcome.result.Watermark
 	if !present && watermark.After(tA) {
 		t.Fatalf("watermark %v is newer than A's stamp %v while a winner visible to B's snapshot is missing: "+
 			"the read reports it fresh (B = %+v)", watermark, tA, bOutcome.result)
@@ -170,7 +169,7 @@ func TestSupplyChainImpactWinnersResweepOverlapNeverStampsAMissingWinnerLive(t *
 	}
 
 	// The next tick sees A's commit and restores the winner.
-	next, err := store.ResweepWinners(ctx, tNext)
+	next, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("next resweep: %v", err)
 	}
@@ -180,16 +179,16 @@ func TestSupplyChainImpactWinnersResweepOverlapNeverStampsAMissingWinnerLive(t *
 	if !winnersLiveReturningPresent(t, ctx, db) {
 		t.Fatal("the next tick did not restore the returning winner")
 	}
-	winnersLiveAssertEqualsRecompute(t, ctx, db, store, tNext.Add(time.Minute))
+	winnersLiveAssertEqualsRecompute(t, ctx, db, store)
 }
 
 // winnersLiveAssertEqualsRecompute wipes the read model, rebuilds it, and
 // requires the rebuilt table to equal the incremental one, ignoring write times.
-func winnersLiveAssertEqualsRecompute(t *testing.T, ctx context.Context, db *sql.DB, store postgres.SupplyChainImpactWinnersStore, at time.Time) {
+func winnersLiveAssertEqualsRecompute(t *testing.T, ctx context.Context, db *sql.DB, store postgres.SupplyChainImpactWinnersStore) {
 	t.Helper()
 	incremental := winnersLiveRead(t, ctx, db)
 	winnersLiveExec(t, ctx, db, `DELETE FROM supply_chain_impact_canonical_winners`)
-	if got, err := store.ResweepWinners(ctx, at); err != nil || got.Skipped {
+	if got, err := store.ResweepWinners(ctx); err != nil || got.Skipped {
 		t.Fatalf("recompute resweep = %+v, %v", got, err)
 	}
 	fresh := winnersLiveRead(t, ctx, db)
@@ -214,11 +213,11 @@ func TestSupplyChainImpactWinnersResweepKilledHolderFreesTheResweepLive(t *testi
 	db := openAdvisorySuppressionIsolatedDB(t)
 	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
 
-	t0 := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	fact := winnersLiveSeedOverlap(t, ctx, db, store, t0)
+	fact := winnersLiveSeedOverlap(t, ctx, db, store)
+	t0 := winnersLiveWatermark(t, ctx, db)
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = $1`, fact)
 	release := winnersLivePinOnReturningWinner(t, ctx, db)
-	a := winnersLiveStart(ctx, store, t0.Add(time.Minute))
+	a := winnersLiveStart(ctx, store)
 	winnersLiveAwaitBlocked(t, ctx, db, 1, nil)
 
 	var killed bool
@@ -238,7 +237,7 @@ WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '
 		t.Fatal("the killed resweep's delete survived")
 	}
 
-	next, err := store.ResweepWinners(ctx, t0.Add(2*time.Minute))
+	next, err := store.ResweepWinners(ctx)
 	if err != nil || next.Skipped || next.Deleted != 1 {
 		t.Fatalf("resweep after the kill = %+v, %v; want it to run and delete the retired winner", next, err)
 	}
@@ -254,8 +253,8 @@ func TestSupplyChainImpactWinnersResweepReportsACommitFailureLive(t *testing.T) 
 	db := openAdvisorySuppressionIsolatedDB(t)
 	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
 
-	t0 := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	fact := winnersLiveSeedOverlap(t, ctx, db, store, t0)
+	fact := winnersLiveSeedOverlap(t, ctx, db, store)
+	t0 := winnersLiveWatermark(t, ctx, db)
 	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET is_tombstone = TRUE WHERE fact_id = $1`, fact)
 	winnersLiveExec(t, ctx, db, `
 CREATE FUNCTION winners_refuse_commit() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -264,7 +263,7 @@ BEGIN RAISE EXCEPTION 'winners commit refused'; END $$`)
 CREATE CONSTRAINT TRIGGER winners_refuse_commit AFTER UPDATE ON supply_chain_impact_winners_materialization
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION winners_refuse_commit()`)
 
-	got, err := store.ResweepWinners(ctx, t0.Add(time.Minute))
+	got, err := store.ResweepWinners(ctx)
 	if err == nil {
 		t.Fatalf("resweep = %+v with a nil error, want the commit failure", got)
 	}
@@ -277,7 +276,7 @@ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION winners_refuse_commi
 
 	// The failed tick must leave nothing behind that blocks the next one.
 	winnersLiveExec(t, ctx, db, `DROP TRIGGER winners_refuse_commit ON supply_chain_impact_winners_materialization`)
-	next, err := store.ResweepWinners(ctx, t0.Add(2*time.Minute))
+	next, err := store.ResweepWinners(ctx)
 	if err != nil || next.Skipped || next.Deleted != 1 {
 		t.Fatalf("resweep after the failed commit = %+v, %v; want it to run and delete the retired winner", next, err)
 	}
@@ -295,9 +294,25 @@ func TestSupplyChainImpactWinnersResweepWatermarkReadsTheCommittedStampLive(t *t
 	if _, ok, err := store.Watermark(ctx); err != nil || ok {
 		t.Fatalf("Watermark() before any resweep: ok=%v err=%v, want no value", ok, err)
 	}
-	stamp := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	if _, err := store.ResweepWinners(ctx, stamp); err != nil {
+	dbClock := func() time.Time {
+		t.Helper()
+		var now time.Time
+		if err := db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+			t.Fatalf("read DB clock: %v", err)
+		}
+		return now.UTC()
+	}
+	before := dbClock()
+	swept, err := store.ResweepWinners(ctx)
+	if err != nil {
 		t.Fatalf("resweep: %v", err)
+	}
+	after := dbClock()
+	stamp := swept.Watermark
+	// The stamp is the DB clock read inside the resweep (#11117), so it lies
+	// between two DB-clock reads taken around the call.
+	if stamp.Before(before) || stamp.After(after) {
+		t.Fatalf("resweep watermark = %v, want a DB-clock stamp in [%v, %v] (result %+v)", stamp, before, after, swept)
 	}
 	if got, ok, err := store.Watermark(ctx); err != nil || !ok || !got.Equal(stamp) {
 		t.Fatalf("Watermark() = %v, %v, %v; want %v", got, ok, err, stamp)
@@ -344,13 +359,12 @@ func TestSupplyChainImpactWinnersResweepConvergesUnderContentionLive(t *testing.
 	var committed, skipped atomic.Int64
 	var wg sync.WaitGroup
 	errs := make(chan error, sweepers*sweepsEach)
-	stamp := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-	for s := range sweepers {
+	for range sweepers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for i := range sweepsEach {
-				result, err := store.ResweepWinners(ctx, stamp.Add(time.Duration(s*sweepsEach+i)*time.Second))
+			for range sweepsEach {
+				result, err := store.ResweepWinners(ctx)
 				switch {
 				case err != nil:
 					errs <- err
@@ -377,9 +391,8 @@ func TestSupplyChainImpactWinnersResweepConvergesUnderContentionLive(t *testing.
 	}
 	t.Logf("resweeps committed=%d skipped=%d", committed.Load(), skipped.Load())
 
-	settle := stamp.Add(time.Hour)
-	if got, err := store.ResweepWinners(ctx, settle); err != nil || got.Skipped {
+	if got, err := store.ResweepWinners(ctx); err != nil || got.Skipped {
 		t.Fatalf("settle resweep = %+v, %v", got, err)
 	}
-	winnersLiveAssertEqualsRecompute(t, ctx, db, store, settle.Add(time.Minute))
+	winnersLiveAssertEqualsRecompute(t, ctx, db, store)
 }

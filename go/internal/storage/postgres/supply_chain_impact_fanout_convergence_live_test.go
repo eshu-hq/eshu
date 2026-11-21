@@ -250,7 +250,7 @@ WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.payload->>'cve_id' = $2`, fa
 // the CVE's finding.
 func (c *convergence) winnerState() string {
 	c.t.Helper()
-	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
+	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx); err != nil {
 		c.t.Fatalf("rebuild winners: %v", err)
 	}
 	store := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(c.db, true)

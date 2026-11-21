@@ -191,7 +191,7 @@ func TestRekeyTwoHolderScopesRekeySameComponentLive(t *testing.T) {
 		t.Fatalf("committer keys = %v, want the survivor group [%s]", got, rekeySurvivor)
 	}
 
-	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
+	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx); err != nil {
 		t.Fatalf("rebuild winners: %v", err)
 	}
 	// The read model must hold exactly the derived set: one row per

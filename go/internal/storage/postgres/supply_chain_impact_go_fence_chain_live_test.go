@@ -94,7 +94,7 @@ WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.scope_id = $2 AND f.payload-
 // what the API serves.
 func goFenceWinnersForCVE(c *convergence, cveID string) []query.SupplyChainImpactFindingRow {
 	c.t.Helper()
-	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
+	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx); err != nil {
 		c.t.Fatalf("rebuild winners: %v", err)
 	}
 	rows, err := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(c.db, true).ListSupplyChainImpactFindings(c.ctx,

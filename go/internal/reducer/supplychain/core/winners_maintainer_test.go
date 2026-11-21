@@ -18,7 +18,7 @@ type fakeWinnersRebuilder struct {
 	result SupplyChainImpactWinnersResweep
 }
 
-func (f *fakeWinnersRebuilder) ResweepWinners(_ context.Context, _ any) (SupplyChainImpactWinnersResweep, error) {
+func (f *fakeWinnersRebuilder) ResweepWinners(_ context.Context) (SupplyChainImpactWinnersResweep, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++

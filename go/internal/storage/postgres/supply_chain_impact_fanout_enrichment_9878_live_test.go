@@ -15,7 +15,6 @@ package postgres_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -71,7 +70,7 @@ WHERE f.fact_kind = $1 AND NOT f.is_tombstone AND f.payload->>'cve_id' = $2`,
 // row for the convergence CVE.
 func (c *convergence) enrichmentWinner() query.SupplyChainImpactFindingRow {
 	c.t.Helper()
-	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx, time.Now().UTC()); err != nil {
+	if err := (postgres.SupplyChainImpactWinnersStore{DB: postgres.SQLDB{DB: c.db}}).RebuildAllWinners(c.ctx); err != nil {
 		c.t.Fatalf("rebuild winners: %v", err)
 	}
 	store := query.NewPostgresSupplyChainImpactFindingStoreWithReadModel(c.db, true)

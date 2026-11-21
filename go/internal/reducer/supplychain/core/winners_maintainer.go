@@ -60,7 +60,7 @@ const (
 // active impact-fact set and reports what the resweep wrote. Implemented by
 // postgres.SupplyChainImpactWinnersStore.ResweepWinners.
 type SupplyChainImpactWinnersRebuilder interface {
-	ResweepWinners(ctx context.Context, materializedAt any) (SupplyChainImpactWinnersResweep, error)
+	ResweepWinners(ctx context.Context) (SupplyChainImpactWinnersResweep, error)
 }
 
 // SupplyChainImpactWinnersWatermarkReader reads the committed read watermark. ok
@@ -88,8 +88,9 @@ type SupplyChainImpactWinnersResweep struct {
 	// keyed resweep (#9805), which the maintainer reads as full.
 	Path string
 	// Identifiers is the number of dirty-log marks (dirty_version sums, #10827)
-	// a keyed tick consumed and Keys the number of canonical keys it recomputed.
-	// They are zero on the full path.
+	// a keyed tick consumed, or the full resweep drained (#11117: staged rows
+	// count one mark each), and Keys the number of canonical keys a keyed tick
+	// recomputed, zero on the full path.
 	Identifiers int64
 	Keys        int64
 	// TriggerCaptured is the consumed dirty-log marks (version sums, #10827)
@@ -106,13 +107,15 @@ type SupplyChainImpactWinnersResweep struct {
 	// gauge still advances on it. Remaining is the dirty-log depth the tick
 	// left; ChunkIdentifiers the post-expansion identifiers this tick probed
 	// and ChunkKeptRows the kept facts the probe built for them. All four
-	// are zero on the full path.
+	// are zero on the full path, except Remaining, which a full resweep sets
+	// to the marks that committed after its drain (#11117).
 	Bounded          bool
 	Remaining        int64
 	ChunkIdentifiers int64
 	ChunkKeptRows    int64
 	// Watermark is the watermark the tick committed: the DB-clock tick stamp
-	// on a drained tick, the horizon over the remainder on a bounded one,
+	// on a drained tick, the horizon over the remainder on a bounded one, the
+	// DB clock capped under the residual marks on a full resweep (#11117),
 	// resolved against the previous watermark so it never regresses. It is
 	// the value the maintainer feeds the age gauge. It is zero when the tick
 	// skipped or ran on a rebuilder that predates it, and the maintainer

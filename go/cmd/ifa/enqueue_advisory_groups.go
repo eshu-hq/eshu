@@ -157,7 +157,7 @@ func admitCassetteFindings(ctx context.Context, execer factwrite.Execer, o enque
 func rebuildWinnersOnce(ctx context.Context, store postgres.SupplyChainImpactWinnersStore) (inserted, updated, deleted, unchanged int64, err error) {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		result, rebuildErr := store.ResweepWinners(ctx, time.Now().UTC())
+		result, rebuildErr := store.ResweepWinners(ctx)
 		if rebuildErr != nil {
 			return 0, 0, 0, 0, rebuildErr
 		}
