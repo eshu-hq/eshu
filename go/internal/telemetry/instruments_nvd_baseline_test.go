@@ -60,11 +60,14 @@ func TestInstrumentsRegisterNVDBaselineSignals(t *testing.T) {
 	if instruments.NVDBaselineOldestDirtyAge == nil {
 		t.Error("NVDBaselineOldestDirtyAge = nil, want the oldest-dirty gauge registered")
 	}
+	if instruments.NVDBaselineGHSAProxyRate == nil {
+		t.Error("NVDBaselineGHSAProxyRate = nil, want the GHSA-proxy gauge registered")
+	}
 	ctx := context.Background()
 	instruments.RecordNVDBaselineAdvance(ctx, NVDBaselineOutcomeAdvanced)
 	instruments.RecordNVDBaselinePlan(ctx, NVDBaselineOutcomePlanned)
 	instruments.RecordNVDBaselineTripTransition(ctx, NVDBaselineTripOpened)
-	instruments.RecordNVDBaselineDirtySample(ctx, 1, 1)
+	instruments.RecordNVDBaselineDirtySample(ctx, 1, 2, 1)
 	names := collectedCounterNames(t, reader)
 	for _, name := range []string{
 		"eshu_dp_nvd_baseline_advance_total",
@@ -107,7 +110,7 @@ func TestRecordNVDBaselineHelpersAreNilSafe(t *testing.T) {
 	nilInstruments.RecordNVDBaselineAdvance(ctx, "advanced")
 	nilInstruments.RecordNVDBaselinePlan(ctx, "planned")
 	nilInstruments.RecordNVDBaselineTripTransition(ctx, "opened")
-	nilInstruments.RecordNVDBaselineDirtySample(ctx, 0, 0)
+	nilInstruments.RecordNVDBaselineDirtySample(ctx, 0, 0, 0)
 }
 
 // TestNVDBaselineSeedRotationAndProgressSignals pins the #10809/#10810

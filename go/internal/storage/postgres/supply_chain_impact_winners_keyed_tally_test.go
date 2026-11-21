@@ -15,6 +15,9 @@ import (
 // storage/postgres/vulnerability drains and samples a real database.
 // #10827 R2: both tallies sum dirty_version — one log row collapses every
 // re-mark of its key — and the RETURNING carries the version the sums read.
+// #11078 adds the GHSA leg: both statements must also tally the GHSA-proxy
+// rows they delete into ghsa_proxy_rows, or the NVD/GHSA split reads
+// NOT_CHECKED while GHSA carries ~76% of inflow.
 func TestWinnersDrainStatementsKeepTheNVDTripTally(t *testing.T) {
 	t.Parallel()
 
@@ -26,6 +29,8 @@ func TestWinnersDrainStatementsKeepTheNVDTripTally(t *testing.T) {
 			"INSERT INTO supply_chain_impact_winners_dirty_tally",
 			winnersNVDProxyRowPredicate,
 			winnersNVDScopeRowPredicate,
+			winnersGHSAProxyRowPredicate,
+			"ghsa_proxy_rows",
 			"RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id",
 			"SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source",
 		} {

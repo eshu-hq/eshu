@@ -148,8 +148,8 @@ func TestNVDBaselineDrainStoreMapsTimeoutApart(t *testing.T) {
 }
 
 // TestNVDBaselineTripSamplerMapsRates proves the cmd-level sampler hands the
-// coordinator the ruled CVE-keyed rate, the scope rate beside it, and the
-// oldest dirty age.
+// coordinator the ruled CVE-keyed rate, the scope and GHSA rates beside it,
+// and the oldest dirty age.
 func TestNVDBaselineTripSamplerMapsRates(t *testing.T) {
 	t.Parallel()
 
@@ -158,6 +158,7 @@ func TestNVDBaselineTripSamplerMapsRates(t *testing.T) {
 	database := &fake.ExecQueryer{QueryResponses: []fake.Rows{{Data: [][]any{{
 		sql.NullInt64{Int64: 120, Valid: true},
 		sql.NullInt64{Int64: 2, Valid: true},
+		sql.NullInt64{Int64: 7, Valid: true},
 		sql.NullTime{Time: oldest, Valid: true},
 	}}}}}
 	got, err := nvdBaselineTripSampler{database: database}.
@@ -167,6 +168,9 @@ func TestNVDBaselineTripSamplerMapsRates(t *testing.T) {
 	}
 	if got.DirtyProxyRowsPerHour != 120 || got.NVDScopeRowsPerHour != 2 {
 		t.Fatalf("SampleNVDBaselineTrip() = %+v, want 120 proxy and 2 scope rows", got)
+	}
+	if got.GHSAProxyRowsPerHour != 7 {
+		t.Fatalf("SampleNVDBaselineTrip() = %+v, want 7 GHSA proxy rows", got)
 	}
 	if got.OldestDirtyAge != 90*time.Minute {
 		t.Fatalf("SampleNVDBaselineTrip() oldest age = %v, want 90m", got.OldestDirtyAge)

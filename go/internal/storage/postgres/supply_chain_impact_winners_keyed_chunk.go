@@ -197,12 +197,14 @@ func buildWinnersKeyedChunk(
 // The NVD baseline trip line's drain tally (eshu-hq/eshu#10767). The
 // maintainer consumes the winners dirty log with DELETE, so the rows still in
 // the log are only the ones it has not consumed yet. The trip sampler needs the
-// hourly inflow instead, so the two drain statements
+// hourly inflow instead, so the four drain statements
 // (deleteWinnersKeyedAppliedDirtySQL and deleteWinnersKeyedAllDirtySQL, in
-// supply_chain_impact_winners_keyed_sql.go) also add the NVD-proxy rows they
-// delete to supply_chain_impact_winners_dirty_tally, keyed by capture minute,
-// in the same statement and therefore the same transaction (migration 299).
-// The capture statements are not touched.
+// supply_chain_impact_winners_keyed_settle_sql.go, plus the two full-resweep
+// drains sharing winnersDirtyTallyCTEs) also add the NVD-proxy,
+// GHSA-proxy (#11078), and NVD scope rows they delete to
+// supply_chain_impact_winners_dirty_tally, keyed by capture minute,
+// in the same statement and therefore the same transaction (migrations 299
+// and 328). The capture statements are not touched.
 
 // Winners dirty-log row predicates of the NVD baseline trip line, over the
 // RETURNING columns of the DELETE. The ruled definition of #10728 decision 3
@@ -216,33 +218,41 @@ func buildWinnersKeyedChunk(
 const (
 	winnersNVDProxyRowPredicate = `kind = 'fact' AND advisory_id LIKE 'CVE-%'`
 	winnersNVDScopeRowPredicate = `kind = 'scope' AND starts_with(scope_id, '` + vulnsource.NVDScopePrefix + `')`
+	// winnersGHSAProxyRowPredicate is the GHSA leg of the NVD/GHSA inflow
+	// split (#11078): fact rows whose advisory_id starts with GHSA-,
+	// tallied into ghsa_proxy_rows by the same drain statements that keep
+	// the NVD legs. It rides beside the ruled CVE-% rate and never folds
+	// into the trip comparison.
+	winnersGHSAProxyRowPredicate = `kind = 'fact' AND advisory_id LIKE 'GHSA-%'`
 )
 
 // winnersDirtyTallyCTEs are the two data-modifying CTEs appended to a drain
 // statement whose `deleted` CTE returns source, dirty_version, kind,
-// captured_at, advisory_id and scope_id. tallied adds the deleted NVD-proxy
-// and NVD scope rows captured in the trailing two hours to their
-// capture-minute bucket (older rows can never fall inside a trip sample's
-// trailing hour, so a 58 hour old backlog chunk writes nothing). pruned
-// removes buckets older than three hours; the two never touch the same row,
-// and the drain runs under the single-flight resweep lock, so the tally has
-// one writer at a time. Every data-modifying CTE runs to completion although
-// the outer SELECT does not read it. Both tallies sum dirty_version (#10827
-// R2): one log row collapses every re-mark of its key, so the drain counts
-// marks, not rows.
+// captured_at, advisory_id and scope_id. tallied adds the deleted NVD-proxy,
+// GHSA-proxy (#11078), and NVD scope rows captured in the trailing two hours
+// to their capture-minute bucket (older rows can never fall inside a trip
+// sample's trailing hour, so a 58 hour old backlog chunk writes nothing).
+// pruned removes buckets older than three hours; the two never touch the
+// same row, and the drain runs under the single-flight resweep lock, so the
+// tally has one writer at a time. Every data-modifying CTE runs to
+// completion although the outer SELECT does not read it. All three tallies
+// sum dirty_version (#10827 R2): one log row collapses every re-mark of its
+// key, so the drain counts marks, not rows.
 const winnersDirtyTallyCTEs = `,
 tallied AS (
-    INSERT INTO supply_chain_impact_winners_dirty_tally AS t (bucket, nvd_proxy_rows, nvd_scope_rows)
+    INSERT INTO supply_chain_impact_winners_dirty_tally AS t (bucket, nvd_proxy_rows, nvd_scope_rows, ghsa_proxy_rows)
     SELECT date_trunc('minute', captured_at),
            COALESCE(sum(dirty_version) FILTER (WHERE ` + winnersNVDProxyRowPredicate + `), 0)::bigint,
-           COALESCE(sum(dirty_version) FILTER (WHERE ` + winnersNVDScopeRowPredicate + `), 0)::bigint
+           COALESCE(sum(dirty_version) FILTER (WHERE ` + winnersNVDScopeRowPredicate + `), 0)::bigint,
+           COALESCE(sum(dirty_version) FILTER (WHERE ` + winnersGHSAProxyRowPredicate + `), 0)::bigint
     FROM deleted
     WHERE captured_at > clock_timestamp() - interval '2 hours'
-      AND ((` + winnersNVDProxyRowPredicate + `) OR (` + winnersNVDScopeRowPredicate + `))
+      AND ((` + winnersNVDProxyRowPredicate + `) OR (` + winnersNVDScopeRowPredicate + `) OR (` + winnersGHSAProxyRowPredicate + `))
     GROUP BY 1
     ON CONFLICT (bucket) DO UPDATE
     SET nvd_proxy_rows = t.nvd_proxy_rows + EXCLUDED.nvd_proxy_rows,
-        nvd_scope_rows = t.nvd_scope_rows + EXCLUDED.nvd_scope_rows
+        nvd_scope_rows = t.nvd_scope_rows + EXCLUDED.nvd_scope_rows,
+        ghsa_proxy_rows = t.ghsa_proxy_rows + EXCLUDED.ghsa_proxy_rows
 ),
 pruned AS (
     DELETE FROM supply_chain_impact_winners_dirty_tally

@@ -88,10 +88,14 @@ staging table plus the same sequence `USAGE` to the winners maintainer, which
 also keeps its `SELECT`, `INSERT` and `DELETE` on `supply_chain_impact_winners_dirty_log`
 (the collapse merge-upsert and the settle drain both write it) and needs `SELECT`,
 `INSERT`, `UPDATE` and `DELETE` on `supply_chain_impact_winners_dirty_tally`:
-its two drain statements keep per-minute buckets, held for three hours, of
-the NVD-proxy and NVD scope rows they delete there, so the NVD baseline trip sampler (the coordinator login) can read
+its four drain statements keep per-minute buckets, held for three hours, of
+the NVD-proxy, GHSA-proxy (#11078), and NVD scope rows they delete there, so the NVD baseline trip sampler (the coordinator login) can read
 inflow instead of survivors and needs `SELECT` on that table and on the dirty
-log (#10767). The keyed tick and the audit
+log (#10767, #11078). Each tally row is one capture minute of drained inflow:
+`nvd_proxy_rows` counts the CVE-% fact marks, `ghsa_proxy_rows` the GHSA-%
+fact marks, and `nvd_scope_rows` the NVD scope marks the maintainer deleted
+in that minute, each summed over `dirty_version` so one log row counts every
+mark it collapsed. The keyed tick and the audit
 also create `ON COMMIT DROP` temporary tables, so the maintainer login needs
 `TEMPORARY` on the database; `PUBLIC` holds it by default, and a database that
 revoked it fails the tick with `permission denied`. Without the writer grant the

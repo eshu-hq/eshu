@@ -149,6 +149,7 @@ func newBaselineServiceTestFixtures(now time.Time, config string) *baselineServi
 		sampler: &fakeNVDBaselineTripSampler{sample: NVDBaselineTripSample{
 			At:                    now,
 			DirtyProxyRowsPerHour: 100,
+			GHSAProxyRowsPerHour:  660,
 			OldestDirtyAge:        time.Hour,
 		}},
 		messages: &messages,
@@ -468,6 +469,10 @@ func TestLoadNVDBaselinePlanInputsSamplesHourly(t *testing.T) {
 	rate, ok := collectBaselineGauge(t, fx.reader, "eshu_dp_nvd_baseline_dirty_proxy_rows_per_hour", "", "")
 	if !ok || rate != 100 {
 		t.Fatalf("dirty proxy gauge = %v, %v, want 100 from the hourly sample", rate, ok)
+	}
+	ghsaRate, ok := collectBaselineGauge(t, fx.reader, "eshu_dp_nvd_baseline_ghsa_proxy_rows_per_hour", "", "")
+	if !ok || ghsaRate != 660 {
+		t.Fatalf("ghsa proxy gauge = %v, %v, want 660 from the hourly sample", ghsaRate, ok)
 	}
 	if got := collectBaselineCounter(t, fx.reader, "eshu_dp_nvd_baseline_trip_latch_total"); got != 1 {
 		t.Fatalf("trip latch outcomes = %d, want the one applied sample", got)

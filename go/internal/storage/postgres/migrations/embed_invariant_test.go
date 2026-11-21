@@ -330,9 +330,13 @@ import (
 // (renumbered 325 to 326 at rebase: #10671 owns 325).
 // #11082 adds 327_fact_records_package_ownership_active_idx.sql (the
 // drive-from-fact partial index for the code-import ownership load).
+// 328_supply_chain_impact_winners_dirty_tally_ghsa.sql (#11078) adds the
+// GHSA-proxy bucket column to the winners dirty tally so the NVD/GHSA
+// inflow split stops reading NOT_CHECKED (renumbered 325 to 328 at
+// rebase: #10671 owns 325).
 const (
-	goldenBootstrapDefinitionsDigest = "0aca9acd8e101dcea0cfb32b68f5f57670e40c487db909003f03705194fe6793"
-	goldenBootstrapDefinitionsCount  = 353
+	goldenBootstrapDefinitionsDigest = "3773bd1e5a7465ba834d9caf34ef6f28a64b68e280c0f8cef904d5675293b2f7"
+	goldenBootstrapDefinitionsCount  = 354
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

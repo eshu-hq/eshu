@@ -131,4 +131,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 327 (#11082) adds the drive-from-fact partial index for
 	// the code-import ownership load.
 	"fact_records_package_ownership_active_idx",
+	// Migration 328 (#11078) adds the GHSA-proxy bucket column to the
+	// winners dirty tally so the NVD/GHSA inflow split stops reading
+	// NOT_CHECKED.
+	"supply_chain_impact_winners_dirty_tally_ghsa",
 }
