@@ -84,6 +84,8 @@ type StoredWinner struct {
 	ServiceIDs           string
 	WorkloadIDs          string
 	Environments         string
+	Payload              string
+	SourceConfidence     string
 }
 
 // StagedCompactionOverBudgetError marks a batch or tick that tripped a
@@ -329,7 +331,7 @@ func (c *StagedCompactor) DistinctKeys() int {
 // stagedStoredWinnersSQL fetches every column the FULL JOIN ROW(...)
 // comparison reads: the canonical key plus every content column of
 // supply_chain_impact_canonical_winners in table order.
-const stagedStoredWinnersSQL = `SELECT canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score, source_count, impact_status, ecosystem, severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket, detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at, service_ids, workload_ids, environments FROM supply_chain_impact_canonical_winners ORDER BY canonical_key ASC`
+const stagedStoredWinnersSQL = `SELECT canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score, source_count, impact_status, ecosystem, severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket, detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at, service_ids, workload_ids, environments, payload, source_confidence FROM supply_chain_impact_canonical_winners ORDER BY canonical_key ASC`
 
 // FetchStoredWinners reads the whole stored winners table into a per-key map.
 // The table is the bounded read-model size the distinct-keys cap already
@@ -346,7 +348,7 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 	stored := make(map[string]StoredWinner)
 	for rows.Next() {
 		var winner StoredWinner
-		var serviceIDs, workloadIDs, environments []byte
+		var serviceIDs, workloadIDs, environments, payload []byte
 		if err := rows.Scan(
 			&winner.CanonicalKey, &winner.WinnerFactID, &winner.WinnerScopeID,
 			&winner.FindingID, &winner.PriorityScore, &winner.SourceCount,
@@ -356,13 +358,15 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 			&winner.PriorityBucket, &winner.DetectionProfile,
 			&winner.ObservedVersion, &winner.MatchReason,
 			&winner.SuppressionState, &winner.SuppressionExpiresAt,
-			&serviceIDs, &workloadIDs, &environments,
+			&serviceIDs, &workloadIDs, &environments, &payload,
+			&winner.SourceConfidence,
 		); err != nil {
 			return nil, fmt.Errorf("scan stored winner: %w", err)
 		}
 		winner.ServiceIDs = string(serviceIDs)
 		winner.WorkloadIDs = string(workloadIDs)
 		winner.Environments = string(environments)
+		winner.Payload = string(payload)
 		stored[winner.CanonicalKey] = winner
 	}
 	if err := rows.Err(); err != nil {

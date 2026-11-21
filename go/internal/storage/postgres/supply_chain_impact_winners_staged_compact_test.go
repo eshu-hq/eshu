@@ -409,7 +409,7 @@ func TestFetchStoredWinnersReadsEveryComparedColumn(t *testing.T) {
 	// column the FULL JOIN ROW(...) comparison uses.
 	_ = len(supplyChainImpactWinnerDataColumns)
 	rows := &stubStagedRows{cols: [][]any{
-		{"k1", "fact-a", "scope-a", "F", 5, 2, "exploitable", "go", "high", "repo", "CVE-1", "ADV-1", "pkg", "digest", "img", "p1", "prof", "1.0", "reason", "active", nil, "[]", "[]", "[]"},
+		{"k1", "fact-a", "scope-a", "F", 5, 2, "exploitable", "go", "high", "repo", "CVE-1", "ADV-1", "pkg", "digest", "img", "p1", "prof", "1.0", "reason", "active", nil, "[]", "[]", "[]", `{"finding_id":"F"}`, "high"},
 	}}
 	stored, err := FetchStoredWinners(context.Background(), stubStagedQueryer{rows: rows})
 	if err != nil {

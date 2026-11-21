@@ -483,6 +483,10 @@ var migrationShippedChecksums = map[string]string{
 	// #11129: captured_at btree on the winners staging queue so the
 	// residual minimum is an index endpoint, not a whole-queue scan.
 	"330_supply_chain_impact_winners_dirty_staging_captured_at_idx.sql": "28490c761bb6b63434516415ed1632359d9e403a4a3ce694fa851ad691acb6f0",
+	// #10880 slice 1: winner payload + source_confidence on the
+	// canonical winners read model.
+	// TEMPORARY: renumbered to 331 after the rebase completes (main owns 329-330).
+	"325_supply_chain_impact_winners_payload.sql": "34a5494e7f9726e29397b0d31b88bca09dbbfbd972315f035396e6c6a0575eb6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

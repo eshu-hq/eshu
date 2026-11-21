@@ -26,7 +26,7 @@ var supplyChainImpactWinnerDataColumns = []string{
 	"source_count", "impact_status", "ecosystem", "severity_bucket", "repository_id",
 	"cve_id", "advisory_id", "package_id", "subject_digest", "image_ref", "priority_bucket",
 	"detection_profile", "observed_version", "match_reason", "suppression_state", "suppression_expires_at",
-	"service_ids", "workload_ids", "environments",
+	"service_ids", "workload_ids", "environments", "payload", "source_confidence",
 }
 
 // supplyChainImpactWinnerRowExpr renders ROW(prefix.col, ...) over the data

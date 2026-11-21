@@ -141,4 +141,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 330 (#11129) adds the captured_at btree on the winners
 	// staging queue for the exact residual minimum.
 	"supply_chain_impact_winners_dirty_staging_captured_at_idx",
+	// Migration 325 (#10880 slice 1) adds the winner payload and
+	// source_confidence to the canonical winners read model.
+	// TEMPORARY: renumbered to 331 after the rebase completes (main owns 329-330).
+	"supply_chain_impact_winners_payload",
 }
