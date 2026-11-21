@@ -5,6 +5,7 @@ package git
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -102,8 +103,8 @@ func TestApplySelectionBackpressureStretchesWhileSlowed(t *testing.T) {
 	}
 
 	selected := selector.applySelectionBackpressure(context.Background(), []string{"recent-repo", "due-repo", "new-repo"}, now)
-	if len(selected) != 2 {
-		t.Fatalf("selected = %v, want [due-repo new-repo]", selected)
+	if strings.Join(selected, ",") != "due-repo,new-repo" {
+		t.Fatalf("selected = %v, want [due-repo new-repo] (recent stays deferred)", selected)
 	}
 	// Deferred, never dropped: the recent repo stays tracked and
 	// selects again once the stretched interval elapses.
