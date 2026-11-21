@@ -295,7 +295,7 @@ func (s SupplyChainImpactWinnersStore) resweepFull(
 	result.Path = telemetry.SupplyChainImpactWinnersPathFull
 	result.Identifiers = tally.total()
 	result.TriggerCaptured = tally.triggerSources()
-	if result.Remaining, err = countWinnersFullResidual(ctx, tx); err != nil {
+	if result.Remaining, result.RemainingUpperBound, err = countWinnersFullResidual(ctx, tx); err != nil {
 		return none, err
 	}
 	if result.Watermark, err = scanWinnersTime(ctx, tx, selectWinnersWatermarkSQL, "read committed supply chain impact winners watermark"); err != nil {
@@ -377,17 +377,19 @@ func drainWinnersDirtyForFull(ctx context.Context, tx db.Transaction) (winnersCa
 
 // countWinnersFullResidual counts the dirty-log and staged marks left after
 // the full resweep's rebuild: marks that committed after the drain. The
-// stamp is already capped under them; the count only reports them.
-func countWinnersFullResidual(ctx context.Context, tx db.Transaction) (int64, error) {
+// stamp is already capped under them; the count only reports them. The bool
+// reports that the staged part is an upper bound past the exact-count cap
+// (#11129).
+func countWinnersFullResidual(ctx context.Context, tx db.Transaction) (int64, bool, error) {
 	logRows, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count supply chain impact winners full residual")
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	staged, _, err := countWinnersStagingResidual(ctx, tx, "count supply chain impact winners full staging residual")
+	staged, err := countWinnersStagingResidual(ctx, tx, "count supply chain impact winners full staging residual")
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return logRows + staged, nil
+	return logRows + staged.count, staged.upperBound, nil
 }
 
 // runSupplyChainImpactWinnersRebuild runs the rebuild statement and reads its one

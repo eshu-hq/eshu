@@ -89,3 +89,4 @@ fragments:
   - live-tests.d/live-tests-readiness-part5.generated.yaml
   - live-tests.d/live-tests-readiness-part5b.generated.yaml
   - live-tests.d/live-tests-readiness-part6.generated.yaml
+  - live-tests.d/live-tests-readiness-part7.generated.yaml

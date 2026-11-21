@@ -137,6 +137,7 @@ type supplyChainImpactWinnersDirtyLog struct {
 type supplyChainImpactWinnersStaging struct {
 	depth         atomic.Int64
 	oldestAgeNano atomic.Int64
+	upperBound    atomic.Bool
 	sampled       atomic.Bool
 }
 
@@ -286,6 +287,22 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStagingOldestAge gauge: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersStagingDepthUpperBound, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_staging_depth_upper_bound",
+		metric.WithDescription("1 when the last sampled supply-chain impact winners staging depth, and the dirty-log depth that includes it, is an upper bound (the visible seq span once the staged backlog passes the exact-count cap of one collapse budget), 0 when it is exact. The oldest-age gauges stay exact either way."),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			if staging.sampled.Load() {
+				bound := 0.0
+				if staging.upperBound.Load() {
+					bound = 1
+				}
+				o.Observe(bound)
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersStagingDepthUpperBound gauge: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersStagingCollapsed, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total",
 		metric.WithDescription("Supply-chain impact winners staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined."),
@@ -338,16 +355,17 @@ func (i *Instruments) RecordSupplyChainImpactWinnersCapture(ctx context.Context,
 }
 
 // RecordSupplyChainImpactWinnersStaging sets the staging-queue depth and
-// oldest-row age the staging gauges report (#10837 direction C). An empty
-// queue reads as zero depth and zero age. It is safe on a nil receiver and
-// from any goroutine.
-func (i *Instruments) RecordSupplyChainImpactWinnersStaging(depth int64, oldest time.Duration) {
+// oldest-row age the staging gauges report (#10837 direction C), and whether
+// the depth is an upper bound (#11129). An empty queue reads as zero depth
+// and zero age. It is safe on a nil receiver and from any goroutine.
+func (i *Instruments) RecordSupplyChainImpactWinnersStaging(depth int64, oldest time.Duration, upperBound bool) {
 	if i == nil || i.supplyChainImpactWinnersStaging == nil {
 		return
 	}
 	s := i.supplyChainImpactWinnersStaging
 	s.depth.Store(depth)
 	s.oldestAgeNano.Store(int64(oldest))
+	s.upperBound.Store(upperBound)
 	s.sampled.Store(true)
 }
 

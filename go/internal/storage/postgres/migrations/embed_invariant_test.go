@@ -337,9 +337,12 @@ import (
 // #11117 adds 329_supply_chain_impact_winners_contract.sql (the nullable
 // winners contract version and hash on the watermark row; metadata-only, no
 // backfill; renumbered 328 to 329 at rebase: #11078 owns 328).
+// 330_supply_chain_impact_winners_dirty_staging_captured_at_idx.sql (#11129)
+// adds the captured_at btree on the winners staging queue so the residual
+// minimum reads an index endpoint.
 const (
-	goldenBootstrapDefinitionsDigest = "b94e884f3bcc9c5623291e5544615dbfe2274e191a5ab59f3eea343d09addd3f"
-	goldenBootstrapDefinitionsCount  = 355
+	goldenBootstrapDefinitionsDigest = "691be2a42da887f0a7b170d4eb45da83229b75c02c115bcecd049f47be9c7fd0"
+	goldenBootstrapDefinitionsCount  = 356
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

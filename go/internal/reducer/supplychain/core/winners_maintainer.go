@@ -117,10 +117,14 @@ type SupplyChainImpactWinnersResweep struct {
 	// and ChunkKeptRows the kept facts the probe built for them. All four
 	// are zero on the full path, except Remaining, which a full resweep sets
 	// to the marks that committed after its drain (#11117).
-	Bounded          bool
-	Remaining        int64
-	ChunkIdentifiers int64
-	ChunkKeptRows    int64
+	// RemainingUpperBound is true when Remaining is an upper bound: its
+	// staging part passed the exact-count cap and is the visible seq span
+	// (#11129). Bounded and the stamp never depend on it.
+	Bounded             bool
+	Remaining           int64
+	RemainingUpperBound bool
+	ChunkIdentifiers    int64
+	ChunkKeptRows       int64
 	// Watermark is the watermark the tick committed: the DB-clock tick stamp
 	// on a drained tick, the horizon over the remainder on a bounded one, the
 	// DB clock capped under the residual marks on a full resweep (#11117),
@@ -400,6 +404,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		attribute.Int64("unchanged", r.Unchanged),
 		attribute.Bool("bounded", r.Bounded),
 		attribute.Int64("remaining", r.Remaining),
+		attribute.Bool("remaining_upper_bound", r.RemainingUpperBound),
 		attribute.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		attribute.Int64("chunk_kept_rows", r.ChunkKeptRows),
 	)
@@ -447,6 +452,7 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Float64("previous_watermark_age_seconds", watermarkAge),
 		slog.Bool("bounded", r.Bounded),
 		slog.Int64("remaining", r.Remaining),
+		slog.Bool("remaining_upper_bound", r.RemainingUpperBound),
 		slog.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
 	)

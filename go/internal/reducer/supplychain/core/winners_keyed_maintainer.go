@@ -269,7 +269,7 @@ func (m SupplyChainImpactWinnersMaintainer) sampleDirtyLog(ctx context.Context) 
 		return
 	}
 	m.Instruments.RecordSupplyChainImpactWinnersDirtyLog(stats.Depth, stats.OldestAge)
-	m.Instruments.RecordSupplyChainImpactWinnersStaging(stats.StagingDepth, stats.StagingOldestAge)
+	m.Instruments.RecordSupplyChainImpactWinnersStaging(stats.StagingDepth, stats.StagingOldestAge, stats.StagingDepthUpperBound)
 }
 
 // recordKeyedSignals records the keyed tick's counters: keys per sweep and

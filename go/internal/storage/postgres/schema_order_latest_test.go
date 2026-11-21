@@ -138,4 +138,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 329 (#11117) adds the nullable winners contract version and
 	// hash to the winners watermark row (renumbered from 328: #11078 owns 328).
 	"supply_chain_impact_winners_contract",
+	// Migration 330 (#11129) adds the captured_at btree on the winners
+	// staging queue for the exact residual minimum.
+	"supply_chain_impact_winners_dirty_staging_captured_at_idx",
 }
