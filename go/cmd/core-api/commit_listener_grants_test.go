@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,5 +157,134 @@ func TestBuildCommitListenerMuxHonorsWrappedProducerGrants(t *testing.T) {
 	}
 	if mux == nil {
 		t.Fatal("buildCommitListenerMux(granted core kind, wrapped) = nil, want mux")
+	}
+}
+
+// writeCommitGrantsRaw stages one grants file with exact bytes for shape
+// tests the typed writer cannot express: malformed input.
+func writeCommitGrantsRaw(t *testing.T, raw string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "grants-raw.json")
+	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
+		t.Fatalf("write grants: %v", err)
+	}
+	return path
+}
+
+// TestLoadCommitGrantsBareArray pins the bare-array grants shape: a file
+// holding a JSON array decodes to the grants it lists.
+func TestLoadCommitGrantsBareArray(t *testing.T) {
+	t.Parallel()
+
+	grants, err := loadCommitGrants(writeCommitGrantsFile(t, []component.ProducerGrant{commitGrantsTestGrant()}))
+	if err != nil {
+		t.Fatalf("loadCommitGrants(bare array) error = %v, want nil", err)
+	}
+	if len(grants) != 1 {
+		t.Fatalf("loadCommitGrants(bare array) grants = %d, want 1", len(grants))
+	}
+	if grants[0].ProducerID != "dev.eshu.examples.scorecard" || grants[0].Kind != "aws_resource" {
+		t.Fatalf("loadCommitGrants(bare array) grant = %+v, want scorecard aws_resource grant", grants[0])
+	}
+}
+
+// TestLoadCommitGrantsWrappedObject pins the wrapped grants shape: a file
+// holding {"grants":[...]} decodes to the grants under the key.
+func TestLoadCommitGrantsWrappedObject(t *testing.T) {
+	t.Parallel()
+
+	grants, err := loadCommitGrants(writeCommitGrantsWrappedFile(t, []component.ProducerGrant{commitGrantsTestGrant()}))
+	if err != nil {
+		t.Fatalf("loadCommitGrants(wrapped object) error = %v, want nil", err)
+	}
+	if len(grants) != 1 {
+		t.Fatalf("loadCommitGrants(wrapped object) grants = %d, want 1", len(grants))
+	}
+	if grants[0].ProducerID != "dev.eshu.examples.scorecard" || grants[0].Kind != "aws_resource" {
+		t.Fatalf("loadCommitGrants(wrapped object) grant = %+v, want scorecard aws_resource grant", grants[0])
+	}
+}
+
+// TestLoadCommitGrantsEmptyPath pins the unset operator spelling: an empty
+// grants path pairs nothing, so namespaced-only manifests need no file.
+func TestLoadCommitGrantsEmptyPath(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"", "  "} {
+		grants, err := loadCommitGrants(path)
+		if err != nil {
+			t.Fatalf("loadCommitGrants(%q) error = %v, want nil", path, err)
+		}
+		if grants != nil {
+			t.Fatalf("loadCommitGrants(%q) = %+v, want nil", path, grants)
+		}
+	}
+}
+
+// TestLoadCommitGrantsMalformed pins the malformed-file path: bytes that
+// are neither a bare array nor the wrapped object fail with the grants
+// variable named, so the operator knows which file to fix.
+func TestLoadCommitGrantsMalformed(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadCommitGrants(writeCommitGrantsRaw(t, "{not json"))
+	if err == nil {
+		t.Fatal("loadCommitGrants(malformed) error = nil, want decode failure")
+	}
+	if !strings.Contains(err.Error(), commitEnvGrantsPath) {
+		t.Fatalf("loadCommitGrants(malformed) error = %q, want %q named", err, commitEnvGrantsPath)
+	}
+}
+
+// TestLoadCommitGrantsMissingFile pins the missing-file path: a grants
+// path that names no file fails with the grants variable named instead
+// of silently pairing nothing.
+func TestLoadCommitGrantsMissingFile(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadCommitGrants(filepath.Join(t.TempDir(), "does-not-exist.json"))
+	if err == nil {
+		t.Fatal("loadCommitGrants(missing file) error = nil, want read failure")
+	}
+	if !strings.Contains(err.Error(), commitEnvGrantsPath) {
+		t.Fatalf("loadCommitGrants(missing file) error = %q, want %q named", err, commitEnvGrantsPath)
+	}
+}
+
+// TestBuildCommitListenerMuxMalformedGrants pins the build-path failure
+// when the grants file cannot decode: the build fails with the grants
+// variable named, before the manifest load runs.
+func TestBuildCommitListenerMuxMalformedGrants(t *testing.T) {
+	t.Parallel()
+
+	cfg := commitGrantsTestConfig(
+		writeCommitGrantsManifest(t, commitGrantsTestManifest()),
+		writeCommitGrantsRaw(t, "{not json"),
+	)
+	mux, err := buildCommitListenerMux(cfg, nil, nil, slog.Default())
+	if err == nil || mux != nil {
+		t.Fatalf("buildCommitListenerMux(malformed grants) = (%v, %v), want fail-closed error", mux, err)
+	}
+	if !strings.Contains(err.Error(), commitEnvGrantsPath) {
+		t.Fatalf("buildCommitListenerMux(malformed grants) error = %q, want %q named", err, commitEnvGrantsPath)
+	}
+}
+
+// TestBuildCommitListenerMuxMissingManifest pins the build-path failure
+// when the manifest file is absent: the build fails with the manifest
+// variable named.
+func TestBuildCommitListenerMuxMissingManifest(t *testing.T) {
+	t.Parallel()
+
+	cfg := commitGrantsTestConfig(
+		filepath.Join(t.TempDir(), "missing-manifest.yaml"),
+		writeCommitGrantsFile(t, []component.ProducerGrant{commitGrantsTestGrant()}),
+	)
+	mux, err := buildCommitListenerMux(cfg, nil, nil, slog.Default())
+	if err == nil || mux != nil {
+		t.Fatalf("buildCommitListenerMux(missing manifest) = (%v, %v), want fail-closed error", mux, err)
+	}
+	if !strings.Contains(err.Error(), commitEnvManifestPath) {
+		t.Fatalf("buildCommitListenerMux(missing manifest) error = %q, want %q named", err, commitEnvManifestPath)
 	}
 }
