@@ -153,9 +153,10 @@ verify is measured at backlog scale and the audit has operator signals:
   unchunked (item 5a not needed). In the same run a keyed tick during the hold
   returns Skipped, a capture insert completes in 68 to 134 ms, and the keyed
   tick after the commit commits. An independent review rerun read 28.640 s at
-  load1 17 on the shared Postgres, so the hold ranges from 9.1 to 14.2 s on a
-  quiet server up to 28.6 s when the server is contended, against the 30 s
-  bound. The corpus has one fact per key and small payloads; QA has about 13
+  load1 17 on the shared Postgres, so the hold ranges from 9.1 to 14.2 s on
+  uncontended Postgres (those runs were at load1 28 to 35; what differed was
+  Postgres contention, not host load) up to 28.6 s when Postgres is contended,
+  against the 30 s bound. The corpus has one fact per key and small payloads; QA has about 13
   kept facts per identifier and larger payloads (#11120). An earlier measurement of 1.6 to 5.0 s is void:
   its synthetic facts lacked `subject_digest`, so the keyed probe matched
   nothing. The proof now fails if the probe keeps no facts.
