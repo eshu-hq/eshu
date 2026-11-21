@@ -78,7 +78,12 @@ section; no figure below is final until those land.
   per-page full-corpus probe set exceed the 1h bound):
   PENDING-COORDINATOR-QA-READINGS
 
-## Performance Evidence (#11082)
+## Performance Evidence (#11082):
+
+Performance Evidence: the four-arm deciding experiment below (disposable
+Postgres 18, 1.2M-row fixture, forced generic plan) plus the
+timeout-derivation replay; the shipped arm C2 numbers are the after
+measurement and arm 0 is the baseline.
 
 Deciding experiment on disposable Postgres 18 (1.2M `fact_records` rows,
 1200 generations sharing one `observed_at` each, 1200 active + 1500 inactive
@@ -114,7 +119,10 @@ paging, hermetic) and `TestActivePackageOwnershipDriveFromFactLive`
 5080 over 3 pages against a 15000 ceiling, row-set differential vs the frozen
 legacy statement including inactive-generation exclusion).
 
-## Observability Evidence
+## Observability Evidence:
+
+Observability Evidence: the handler completion log and span attributes
+below; no new metric family is added.
 
 The code-import repo-edge completion log now carries `file_load` /
 `ownership_load` durations and `ownership_rows`, and the handler span carries
