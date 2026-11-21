@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func TestReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogFallback(t *testing.T) {
@@ -45,7 +47,7 @@ func TestReadCoordinatorSnapshotHandlesNullableDeactivatedAtAndCreatedAtBacklogF
 		},
 	}
 
-	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
 	}
@@ -91,7 +93,7 @@ func TestReadCoordinatorSnapshotClampsNegativeOldestPendingAge(t *testing.T) {
 		},
 	}
 
-	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
 	}
@@ -139,7 +141,7 @@ func TestReadCoordinatorSnapshotIncludesCollectorBackpressure(t *testing.T) {
 		},
 	}
 
-	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
 	}

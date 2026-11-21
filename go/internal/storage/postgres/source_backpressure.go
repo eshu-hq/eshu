@@ -28,9 +28,14 @@ import (
 // set is the bounded claimable backlog (reducer pending|retrying and
 // visible), so like the graph-write-pressure count it probes scope and
 // generation only for matching rows instead of building one scope-state
-// row per ingestion scope on the claim hot path and in every status
-// snapshot (#6794 selective-probe precedent). The two forms select the
-// same rows (TestActiveFactWorkItemsFormsSelectTheSameRows).
+// row per ingestion scope (#6794 selective-probe precedent). The two forms
+// select the same rows (TestActiveFactWorkItemsFormsSelectTheSameRows).
+//
+// The grouped form serves the publication path, which needs every source
+// at once and does not run per claim. The claim-hot consult path uses
+// the bounded per-source probe (boundedSourceSignalQuery, S0 verdict):
+// the grouped scan costs 120-175ms at 10x replay scale, the bounded
+// probe ~41ms for ~13k claimable rows on the same fixture.
 const sourceClaimableSignalQuery = `
 WITH ` + activeFactWorkItemsPerRowCTE + `
 SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') AS source_system,
@@ -248,7 +253,11 @@ func (s *WorkflowControlStore) evaluateSources(
 	now time.Time,
 	advance bool,
 ) (map[string]workflow.SourceBackpressureDecision, error) {
-	signals, err := s.sourceClaimableSignals(ctx, cfg, now)
+	// The consult probes only the family's sources (S0 verdict): one
+	// bounded per-source read each, never a whole-backlog grouped
+	// scan on the claim hot path. The grouped read stays for the
+	// publication path, which needs every source at once.
+	bySource, err := s.sourceSignalsForSources(ctx, cfg, sources, now)
 	if err != nil {
 		return nil, fmt.Errorf("source backpressure signals: %w", err)
 	}
@@ -256,14 +265,9 @@ func (s *WorkflowControlStore) evaluateSources(
 	if err != nil {
 		return nil, fmt.Errorf("source backpressure latches: %w", err)
 	}
-	bySource := make(map[string]workflow.SourceQueueSignal, len(signals))
-	for _, signal := range signals {
-		bySource[signal.SourceSystem] = signal
-	}
 	verdicts := make(map[string]workflow.SourceBackpressureDecision, len(sources))
 	for _, source := range sources {
 		signal := bySource[source]
-		signal.SourceSystem = source
 		latch := latches[source]
 		verdict := workflow.DecideSourceSlowed(
 			cfg, signal, workflow.SourceBackpressureLatch{Engaged: latch.engaged},

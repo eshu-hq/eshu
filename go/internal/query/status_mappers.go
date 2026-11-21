@@ -340,6 +340,9 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 		if !pacing.EngagedSince.IsZero() {
 			entry["engaged_since"] = pacing.EngagedSince.Format(time.RFC3339)
 		}
+		if pacing.Stuck {
+			entry["stuck"] = true
+		}
 		sourcePacing = append(sourcePacing, entry)
 	}
 

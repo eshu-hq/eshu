@@ -239,7 +239,7 @@ the deployment platform inventory to prove process liveness.
 
 `/api/v0/status/ingesters` is the canonical ingester-status list route.
 `/api/v0/status/ingesters/{ingester}` is the canonical detail route; the
-`/api/v0/ingesters` GET aliases return the same payload. See [Active Work Source](active-work-source.md).
+`/api/v0/ingesters` GET aliases return the same payload. See [Active Work Source](active-work-source.md) and [Source Pacing](status-source-pacing.md).
 
 ## Live Operations Board
 

@@ -20,6 +20,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const (
@@ -110,7 +111,12 @@ SELECT
 // treated as aged history and surfaced only as cumulative detail.
 const defaultCoordinatorRecentFailureWindow = 30 * time.Minute
 
-func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.Time) (*statuspkg.CoordinatorSnapshot, error) {
+// sourceBackpressure carries the per-source slowdown thresholds (#10882)
+// the source_pacing rows evaluate the stuck flag from. Callers without
+// operator configuration pass the zero value, which leaves stuck
+// unevaluated; the status summary writer takes that path because its
+// Compute signature carries no env.
+func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.Time, sourceBackpressure workflow.SourceBackpressureConfig) (*statuspkg.CoordinatorSnapshot, error) {
 	instances, err := listCoordinatorCollectorInstances(ctx, queryer)
 	if err != nil {
 		return nil, err
@@ -139,7 +145,7 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 	if err != nil {
 		return nil, err
 	}
-	sourcePacing, err := readSourcePacingStatus(ctx, queryer, asOf)
+	sourcePacing, err := readSourcePacingStatus(ctx, queryer, asOf, sourceBackpressure)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +343,7 @@ func CoordinatorSummarySourceSHA256() string {
 // could not decode is an error here and is never stored. A deployment with no
 // coordinator state is the live read's nil snapshot and stores no entries.
 func ReadCoordinatorSummaryEntries(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]summary.Entry, error) {
-	live, err := readCoordinatorSnapshot(ctx, queryer, asOf.UTC())
+	live, err := readCoordinatorSnapshot(ctx, queryer, asOf.UTC(), workflow.SourceBackpressureConfig{})
 	if err != nil {
 		return nil, err
 	}

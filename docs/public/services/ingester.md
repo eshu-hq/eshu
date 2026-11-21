@@ -79,17 +79,20 @@ collector pressure from graph-write or queue-drain pressure.
 ## Reducer admission (global ceiling, plus an opt-in per-source leg)
 
 Before the projector runtime enqueues reducer intents, an admission writer
-(`go/cmd/ingester/reducer_admission.go`) defers the enqueue while either
-signal below is hot. Both signals are totals across **all sources**: one
-source can use the whole allowance while another source starves. The
-per-source leg from issue #10882 (design record
+(`go/internal/reduceradmission/`, shared by the ingester and the
+standalone projector) defers the enqueue while either signal below is
+hot. Both signals are totals across **all sources**: one source can use
+the whole allowance while another source starves. The per-source leg from
+issue #10882 (design record
 `docs/internal/design/10882-source-backpressure.md`) layers on top: when
 the `ESHU_SOURCE_BACKPRESSURE_*` thresholds are all set, intents whose
 source is latched slowed — its oldest claimable reducer work older than
 the engage age with claimable depth at or above the floor — defer under
 reason `source_behind` while other sources' intents in the same batch
 admit immediately. Unset (the default) disables the leg; no Proposed
-threshold ships as a default.
+threshold ships as a default. The standalone projector wraps its intent
+writer with the same gate, so committed hosted generations cannot bypass
+pacing at the last hop.
 
 | Signal | Engage | Release | Env |
 |---|---|---|---|
@@ -105,10 +108,14 @@ full queue delays intake and, if the queue never drains within the attempt
 budget, drops it as a dead letter — it never applies backpressure to the
 source that is actually behind.
 
-Scope gaps to know before tuning these marks: the gate guards the ingester's
-own intent enqueue only, and the standalone projector
-(`go/cmd/projector/runtime_wiring.go`) enqueues through a plain writer with
-no admission gate; while the gate defers, scheduled git collection keeps
-committing generations and the projector-stage queue grows instead. The
-per-source leg does not yet stretch the git repo-selection schedule, so a
-slowed git source is paced at intent enqueue, not at selection.
+Scope notes for tuning these marks: while the gate defers, scheduled git
+collection keeps committing generations and the projector-stage queue
+grows instead — intake slows, it does not stop. The per-source leg also
+stretches the git repo-selection schedule: while the git source is
+latched slowed, each repository is selected at most once per
+`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` times
+`ESHU_GIT_SELECTION_STRETCH_MULTIPLIER` (default 4), so a slowed git
+source is paced at selection as well as at intent enqueue. Deferred
+repos stay pending and are visited once the interval elapses or the
+latch releases; forced reindex runs and webhook-triggered selection
+bypass the stretch. Unset (the default) keeps every-cycle selection.

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // TestReadSourcePacingStatusPublishesLatchTruth proves the status read
@@ -27,7 +29,7 @@ func TestReadSourcePacingStatusPublishesLatchTruth(t *testing.T) {
 		}},
 	}}
 
-	rows, err := readSourcePacingStatus(context.Background(), queryer, now)
+	rows, err := readSourcePacingStatus(context.Background(), queryer, now, sourceBackpressureTestConfig())
 	if err != nil {
 		t.Fatalf("readSourcePacingStatus() error = %v, want nil", err)
 	}
@@ -50,5 +52,35 @@ func TestReadSourcePacingStatusPublishesLatchTruth(t *testing.T) {
 	}
 	if drained := rows[bySource["drained"]]; !drained.Slowed {
 		t.Fatalf("drained = %+v, want slowed (latch still engaged)", drained)
+	}
+	if drained := rows[bySource["drained"]]; drained.Stuck {
+		t.Fatalf("drained = %+v, want unstuck (queue cleared, age below release)", drained)
+	}
+	if !vuln.Stuck {
+		t.Fatalf("vuln-intel = %+v, want stuck (engaged 1h past 30m bound, still behind)", vuln)
+	}
+}
+
+// TestReadSourcePacingStatusLeavesStuckUnevaluatedWithoutConfig proves a
+// disabled config never marks stuck: publication without operator
+// thresholds reports slowed state only.
+func TestReadSourcePacingStatusLeavesStuckUnevaluatedWithoutConfig(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
+	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
+		{rows: [][]any{{"vuln-intel", float64(7200), int64(400)}}},
+		{rows: [][]any{{"vuln-intel", true, now.Add(-time.Hour)}}},
+	}}
+
+	rows, err := readSourcePacingStatus(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
+	if err != nil {
+		t.Fatalf("readSourcePacingStatus() error = %v, want nil", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(rows))
+	}
+	if !rows[0].Slowed || rows[0].Stuck {
+		t.Fatalf("row = %+v, want slowed but unstuck without config", rows[0])
 	}
 }

@@ -48,7 +48,7 @@ Refs `#8879`. Part of `#6707`.
 | `composite_runner.go:25` | bounded sibling drain ceiling | `defaultCompositeDrainGrace = 30s` |
 | `config.go:15,28` | retry injector/policy env load | `loadIngesterRetryInjector`, `loadIngesterRetryPolicy` |
 | `local_lightweight.go` | local-only no-op writer profile | `ingesterLocalLightweight`, `maybeLocalLightweightCanonicalWriter` |
-| `reducer_admission.go` | reducer intent writer | `ingesterReducerIntentWriter` |
+| `go/internal/reduceradmission/` | shared reducer admission gate (global backstop + per-source slowed leg) | `AdmissionIntentWriter` |
 | `wiring_canonical_writer_open.go:57` | backend writer open (Neo4j/NornicDB) | `openIngesterCanonicalWriter` |
 | `wiring_canonical_writer.go` | canonical gate (`#4729`/`#4456`) | `newIngesterCanonicalGate` |
 | `wiring_deferred_relationship.go` | fleet maintenance barrier | `ingesterDeferredRelationshipMaintenance` |

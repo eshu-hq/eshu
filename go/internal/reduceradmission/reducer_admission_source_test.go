@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -133,7 +134,7 @@ func TestReducerAdmissionSourceBehindDefersOnlySlowedSource(t *testing.T) {
 	}
 }
 
-// TestLoadSourceBackpressureConfig proves the ingester env contract: unset
+// TestLoadSourceBackpressureConfig proves the shared env contract: unset
 // means disabled (no Proposed thresholds ship as defaults), a full set
 // enables the leg, and a partial set is a startup error.
 func TestLoadSourceBackpressureConfig(t *testing.T) {
@@ -165,5 +166,27 @@ func TestLoadSourceBackpressureConfig(t *testing.T) {
 	delete(env, sourceBackpressureReleaseAgeEnv)
 	if _, err := loadSourceBackpressureConfig(func(key string) string { return env[key] }); err == nil {
 		t.Fatal("loadSourceBackpressureConfig(partial) error = nil, want startup error")
+	}
+}
+
+// TestSourceBackpressureEnvMatchesCollectorContract pins this package's
+// env names to the canonical collector contract: two loaders read one
+// contract, so a rename on either side fails here instead of silently
+// wiring different variables (#10882 decision 3).
+func TestSourceBackpressureEnvMatchesCollectorContract(t *testing.T) {
+	t.Parallel()
+
+	pairs := [][2]string{
+		{sourceBackpressureEngageAgeEnv, collector.SourceBackpressureEngageAgeEnv},
+		{sourceBackpressureReleaseAgeEnv, collector.SourceBackpressureReleaseAgeEnv},
+		{sourceBackpressureDepthFloorEnv, collector.SourceBackpressureDepthFloorEnv},
+		{sourceBackpressureGrantDelayEnv, collector.SourceBackpressureGrantDelayEnv},
+		{sourceBackpressureMaxEngagementEnv, collector.SourceBackpressureMaxEngagementEnv},
+		{sourceBackpressureSignalCacheEnv, collector.SourceBackpressureSignalCacheEnv},
+	}
+	for _, pair := range pairs {
+		if pair[0] != pair[1] {
+			t.Fatalf("admission env %q != collector env %q: one contract, two names", pair[0], pair[1])
+		}
 	}
 }

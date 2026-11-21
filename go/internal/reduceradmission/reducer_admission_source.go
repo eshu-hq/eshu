@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -65,7 +65,7 @@ func loadSourceBackpressureConfig(getenv func(string) string) (workflow.SourceBa
 		config.DepthFloor = floor
 	}
 	if err := config.Validate(); err != nil {
-		return workflow.SourceBackpressureConfig{}, err
+		return workflow.SourceBackpressureConfig{}, fmt.Errorf("source backpressure config: %w", err)
 	}
 	return config, nil
 }
@@ -143,7 +143,7 @@ func (w reducerAdmissionWriter) enqueueBySource(
 			if reason == "" {
 				result, err := w.inner.Enqueue(ctx, group.intents)
 				if err != nil {
-					return runtime.IntentResult{}, err
+					return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents for %q: %w", group.source, err)
 				}
 				total += result.Count
 				continue

@@ -391,11 +391,11 @@ for claim-path changes (repo evidence rules).
 | AC | Disposition |
 | --- | --- |
 | Trace the existing limit, per source or overall | Done above: global total outstanding depth ≥10,000 + graph-write-timeout retrying 500/100, ingester intent-enqueue only; projector ungated. |
-| Decide the trigger | Decision 1: per-source oldest claimable age with depth floor; thresholds Proposed pending S0/S1. |
-| Slow hosted via coordinator, ingester via schedule | Decision 3 (S2/S3); note the actuator already exists (#8470) — the work is the signal, the mapping, and production enablement. |
-| Prove no loss + resume | Decision 6 proof obligations in S2/S3. |
-| Prove other sources' freshness unchanged | S2 two-source control comparison (queue-wait p50/p95, claim rate) — freshness read as fact-save→readable per #10862's definition where the harness supports it, queue-wait as its bounded proxy otherwise, labelled as such. |
-| Publish per-source slowed state + reason | Decision 7 (S1 metrics, S4 status API). |
+| Decide the trigger | Decision 1: per-source oldest claimable age with depth floor; thresholds Proposed pending S0/S1. S0 measured (below): grouped scan rejected for the hot path, bounded per-source probe ships. |
+| Slow hosted via coordinator, ingester via schedule | Landed disabled-by-default behind one env contract: coordinator claim grants (dispatcher + direct grant) consult per family through `CheckSourceBackpressure`, wired into the collector entrypoint template and `collector-component-extension`; ingester admission consults per intent-batch source through `CheckSourceBackpressureForSource` via the shared `reduceradmission` writer, which the standalone projector also wraps; git repo selection stretches its per-repo minimum resync interval while slowed (`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` × `ESHU_GIT_SELECTION_STRETCH_MULTIPLIER`, default 4). All legs fail closed on partial config and fail open on unreadable signals. |
+| Prove no loss + resume | Unit/stub-proven (mixed-batch partition test, engage/release/resume verdict tests, live verdict simulation in `TestSourceBackpressureProbeMatchesGroupedAndVerdicts`); built-binary two-source replay with generation/fact-set equality still owed (decision 9). |
+| Prove other sources' freshness unchanged | Mixed-family store test (`TestCheckSourceBackpressureMixedFamilyStaysUnpaced`) + mixed-batch admission test prove no whole-family throttle; built-binary p50/p95 comparison still owed (decision 9). |
+| Publish per-source slowed state + reason | Landed: metrics (`pacing_signal="reducer_source"`), admission `reason="source_behind"`, `/admin/status` `source_pacing` rows (slowed, reason, age, depth, engaged-since, stuck) in JSON/text/mapper, `SourcePacing` OpenAPI component pinned to the wire type, scoped-token parity (withheld like backpressure). |
 
 ## Implementation evidence (2026-11-21, executor slices)
 
@@ -403,20 +403,32 @@ No-Regression Evidence: the per-source leg ships disabled. With the
 zero `SourceBackpressureConfig` every consult returns before touching
 storage (`TestCheckSourceBackpressureDisabledReadsNothing`: 0 queries,
 0 latch writes), so baseline and after behavior on every existing claim,
-admission, and status path are identical until an operator sets all
+admission, selection, and status path are identical until an operator sets all
 `ESHU_SOURCE_BACKPRESSURE_*` thresholds. When enabled, the added cost per
-consult is bounded: one grouped claimable-signal read over the bounded
-claimable backlog using the per-row active form (the #6794
-selective-probe precedent, cacheable via
+consult is bounded: one bounded per-source claimable-signal read (S0
+verdict below; cacheable per source via
 `ESHU_SOURCE_BACKPRESSURE_SIGNAL_CACHE_TTL`), one read of the small
 `workflow_claim_pacing` latch rows, and latch writes only on transitions.
-The status snapshot gains exactly those two reads (28 → 30 round trips,
+The status snapshot gains the grouped signal read plus the latch read for
+publication (28 → 30 round trips,
 pinned in `TestReadStatusSnapshotEvaluatesActiveWorkOnce`, which also
-pins the materialized scope-state build at one evaluation). What is NOT
-measured yet: the S0 `EXPLAIN ANALYZE` of the signal query at replay and
-10× scale — thresholds therefore stay Proposed with no defaults, and
-enabling the leg in a deployment still owes that measurement. Focused
-suites green at implementation: `internal/workflow`,
+pins the materialized scope-state build at one evaluation). S0 measured 2026-11-21
+(local Postgres 18, disposable schema,
+`TestSourceBackpressureS0SignalCost`): grouped signal p50 25ms at
+replay scale (8,713 rows) vs 1.3ms single-claim probe; at 10× (87,130
+rows, 7 sources) grouped p50 ~146ms (per-row) / ~127ms (materialized)
+vs ~15ms claim probe — NOT low-ms, so the claim-hot consult path
+takes the bounded per-source probe instead (arbiter decision 8
+fallback, now the S1 shape): ~40ms for ~13k claimable rows of one
+source, reusing the shipped
+`fact_work_items_reducer_source_claim_idx`, no new DDL. Row-equivalence
+bounded == grouped per source (payload, scope-fallback, and
+single-poison-row arms) plus engage/release/floor verdicts and the
+3-family census are pinned in
+`TestSourceBackpressureProbeMatchesGroupedAndVerdicts`. Thresholds stay
+Proposed with no defaults, and enabling the leg in a deployment still
+owes production-shape confirmation of these numbers.
+Focused suites green at implementation: `internal/workflow`,
 `internal/collector` (including `-race` on the dispatcher proofs),
 `cmd/ingester`, `internal/status/...`, `internal/query`, and
 `internal/storage/postgres` minus three pre-existing environmental
@@ -425,12 +437,15 @@ failures (host-load ceiling, deploy-checkout env).
 Observability Evidence: slowed engagements, releases, stuck verdicts, and
 paced-grant delays ride the existing claim-pacing series with
 `pacing_signal="reducer_source"`, `domain=<source_system>`; ingester
-deferrals add `reason="source_behind"` with a `source_system` label on
+and projector deferrals add `reason="source_behind"` with a
+`source_system` label on
 `eshu_dp_reducer_admission_deferrals_total` plus the structured warn log;
 fail-open consults emit the debug record `source backpressure consult
-failed open`; the coordinator status surface publishes `source_pacing`
-rows (slowed, reason, oldest claimable age, claimable depth, engaged
-since) in JSON, text, and the query status mapper.
+failed open`; stretched git selection emits a debug record with skipped
+and selected counts; the coordinator status surface publishes
+`source_pacing` rows (slowed, reason, oldest claimable age, claimable
+depth, engaged since, stuck) in JSON, text, and the query status mapper,
+with a `SourcePacing` OpenAPI component pinned to the wire type.
 
 ## What stays unverified
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -135,14 +135,21 @@ type reducerAdmissionDepthReader interface {
 	ReducerGraphWriteTimeoutDepth(context.Context) (int64, error)
 }
 
-func ingesterReducerIntentWriter(
-	database db.ExecQueryer,
+// AdmissionIntentWriter wraps a reducer intent writer with the reducer
+// admission gate the ingester and the standalone projector share
+// (#10882 decision 3): the global database-protection backstop plus the
+// per-source slowed leg. Callers pass their own inner writer (including
+// any deployment-profile selection) and keep profile bypasses: a fully
+// disabled gate (no global or per-source thresholds) returns the inner
+// writer unwrapped.
+func AdmissionIntentWriter(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (runtime.ReducerIntentWriter, error) {
-	writer := reducerIntentWriterForProfile(getenv, postgres.NewReducerQueue(database, "ingester", time.Minute))
-	return reducerIntentWriterWithAdmission(database, writer, getenv, instruments, logger)
+	return reducerIntentWriterWithAdmission(database, inner, getenv, instruments, logger)
 }
 
 type reducerAdmissionWriter struct {
@@ -174,10 +181,6 @@ func reducerIntentWriterWithAdmission(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (runtime.ReducerIntentWriter, error) {
-	if ingesterLocalLightweight(getenv) {
-		return inner, nil
-	}
-
 	config, err := loadReducerAdmissionConfig(getenv)
 	if err != nil {
 		return nil, err
@@ -334,7 +337,11 @@ func (w reducerAdmissionWriter) Enqueue(
 		return runtime.IntentResult{Count: 0}, nil
 	}
 	if !w.config.enabled() && !w.sourceLegEnabled() {
-		return w.inner.Enqueue(ctx, intents)
+		result, err := w.inner.Enqueue(ctx, intents)
+		if err != nil {
+			return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents: %w", err)
+		}
+		return result, nil
 	}
 	if w.inner == nil {
 		return runtime.IntentResult{}, errors.New("reducer admission inner writer is required")
@@ -358,7 +365,11 @@ func (w reducerAdmissionWriter) Enqueue(
 			return runtime.IntentResult{}, err
 		}
 		if reason == "" {
-			return w.inner.Enqueue(ctx, intents)
+			result, err := w.inner.Enqueue(ctx, intents)
+			if err != nil {
+				return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents: %w", err)
+			}
+			return result, nil
 		}
 		w.recordDeferral(ctx, reason, failureClass, "", depth, len(intents))
 		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(intents)); timeoutErr != nil {
@@ -475,7 +486,7 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("reducer admission wait: %w", ctx.Err())
 	case <-timer.C:
 		return nil
 	}

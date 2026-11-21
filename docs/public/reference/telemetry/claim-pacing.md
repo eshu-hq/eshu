@@ -24,7 +24,12 @@ this signal; the trigger observation is the queue observer's
 source land on `eshu_dp_reducer_admission_deferrals_total` with
 `reason="source_behind"` and a `source_system` label. The coordinator
 status surface publishes the same state as `source_pacing` rows (slowed,
-reason, oldest claimable age, claimable depth, engaged since).
+reason, oldest claimable age, claimable depth, engaged since, stuck).
+Stuck marks an engagement older than
+`ESHU_SOURCE_BACKPRESSURE_MAX_ENGAGEMENT` with the queue still behind:
+still slowed, and loud. The claim-hot consult path probes one source at
+a time (bounded per-source read, S0 verdict); the grouped scan serves
+status publication only.
 
 - `eshu_dp_workflow_claim_pacing_engaged_total` — counter of latch
   engagements, labeled `pacing_signal` and, for the domain signal,

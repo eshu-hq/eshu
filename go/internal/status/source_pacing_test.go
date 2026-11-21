@@ -72,3 +72,55 @@ func TestRenderStatusIncludesSourcePacing(t *testing.T) {
 		}
 	}
 }
+
+// TestRenderStatusIncludesSourcePacingStuck proves the stuck flag rides
+// every rendering: a stuck engagement serializes stuck=true in JSON and
+// prints stuck=true in text, while a merely slowed one omits both.
+func TestRenderStatusIncludesSourcePacingStuck(t *testing.T) {
+	t.Parallel()
+
+	report := status.BuildReport(
+		status.RawSnapshot{
+			AsOf: time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC),
+			Coordinator: &status.CoordinatorSnapshot{
+				SourcePacing: []collector.SourcePacingSnapshot{
+					{
+						SourceSystem:       "vuln-intel",
+						Slowed:             true,
+						Reason:             "source_behind",
+						OldestClaimableAge: 2 * time.Hour,
+						ClaimableDepth:     400,
+						EngagedSince:       time.Date(2026, 11, 21, 10, 0, 0, 0, time.UTC),
+						Stuck:              true,
+					},
+					{
+						SourceSystem:       "git",
+						Slowed:             true,
+						Reason:             "source_behind",
+						OldestClaimableAge: 2 * time.Hour,
+						ClaimableDepth:     400,
+						EngagedSince:       time.Date(2026, 11, 21, 11, 30, 0, 0, time.UTC),
+					},
+				},
+			},
+		},
+		status.DefaultOptions(),
+	)
+
+	payload, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	body := string(payload)
+	if !strings.Contains(body, `"stuck": true`) {
+		t.Fatalf("RenderJSON() missing stuck flag in payload:\n%s", body)
+	}
+	if got := strings.Count(body, `"stuck"`); got != 1 {
+		t.Fatalf("RenderJSON() has %d stuck keys, want 1 (only the stuck source):\n%s", got, body)
+	}
+
+	text := status.RenderText(report)
+	if got := strings.Count(text, "stuck=true"); got != 1 {
+		t.Fatalf("RenderText() has %d stuck=true markers, want 1:\n%s", got, text)
+	}
+}

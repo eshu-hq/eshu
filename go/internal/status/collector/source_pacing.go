@@ -32,6 +32,11 @@ type SourcePacingSnapshot struct {
 	// EngagedSince is when the current slowed engagement began. Zero
 	// unless Slowed.
 	EngagedSince time.Time
+	// Stuck reports an engagement older than the configured bound with
+	// the queue still behind: still slowed, and loud. It is evaluated
+	// by the report layer, which holds the operator thresholds; the
+	// store snapshot leaves it false.
+	Stuck bool
 }
 
 // CloneSourcePacing copies source pacing rows in stable source order with
@@ -70,6 +75,9 @@ func RenderSourcePacingLines(rows []SourcePacingSnapshot) []string {
 		)
 		if row.Reason != "" {
 			line += " reason=" + row.Reason
+		}
+		if row.Stuck {
+			line += " stuck=true"
 		}
 		if !row.EngagedSince.IsZero() {
 			line += " engaged_since=" + row.EngagedSince.UTC().Format(time.RFC3339)

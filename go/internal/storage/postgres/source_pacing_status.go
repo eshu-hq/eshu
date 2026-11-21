@@ -23,6 +23,7 @@ func readSourcePacingStatus(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
+	config workflow.SourceBackpressureConfig,
 ) ([]collector.SourcePacingSnapshot, error) {
 	signals, err := readSourceClaimableSignals(ctx, queryer, asOf)
 	if err != nil {
@@ -36,20 +37,27 @@ func readSourcePacingStatus(
 	seen := make(map[string]bool, len(signals))
 	for _, signal := range signals {
 		seen[signal.SourceSystem] = true
-		rows = append(rows, sourcePacingSnapshot(signal, latches[signal.SourceSystem]))
+		rows = append(rows, sourcePacingSnapshot(signal, latches[signal.SourceSystem], asOf, config))
 	}
 	for source, latch := range latches {
 		if latch.engaged && !seen[source] {
 			rows = append(rows, sourcePacingSnapshot(
-				workflow.SourceQueueSignal{SourceSystem: source}, latch))
+				workflow.SourceQueueSignal{SourceSystem: source}, latch, asOf, config))
 		}
 	}
 	return collector.CloneSourcePacing(rows), nil
 }
 
 // sourcePacingSnapshot joins one claimable observation with its latch row
-// into the published slowed state.
-func sourcePacingSnapshot(signal workflow.SourceQueueSignal, latch sourceLatchState) collector.SourcePacingSnapshot {
+// into the published slowed state. Stuck mirrors the consult verdict: an
+// engaged source still behind past the configured bound stays slowed and
+// loud. A disabled config never marks stuck.
+func sourcePacingSnapshot(
+	signal workflow.SourceQueueSignal,
+	latch sourceLatchState,
+	asOf time.Time,
+	config workflow.SourceBackpressureConfig,
+) collector.SourcePacingSnapshot {
 	row := collector.SourcePacingSnapshot{
 		SourceSystem:       signal.SourceSystem,
 		OldestClaimableAge: signal.OldestClaimableAge,
@@ -59,6 +67,13 @@ func sourcePacingSnapshot(signal workflow.SourceQueueSignal, latch sourceLatchSt
 		row.Slowed = true
 		row.Reason = workflow.SourceBackpressureReasonSourceBehind
 		row.EngagedSince = latch.engagedAt
+		// An unstamped engagement cannot prove overdue: stuck needs a
+		// real start time, the queue still behind, and a bound passed.
+		if config.Enabled() && !latch.engagedAt.IsZero() &&
+			signal.OldestClaimableAge > config.ReleaseAge &&
+			asOf.Sub(latch.engagedAt) > config.MaxEngagement {
+			row.Stuck = true
+		}
 	}
 	return row
 }

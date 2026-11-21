@@ -20,6 +20,7 @@ type SourcePacingJSON struct {
 	EngagedSince              string  `json:"engaged_since,omitempty"`
 	EngagedDuration           string  `json:"engaged_duration,omitempty"`
 	EngagedDurationSeconds    float64 `json:"engaged_duration_seconds,omitempty"`
+	Stuck                     bool    `json:"stuck,omitempty"`
 }
 
 // SourcePacingJSONRows projects source pacing snapshots onto the wire
@@ -37,6 +38,7 @@ func SourcePacingJSONRows(rows []SourcePacingSnapshot, asOf time.Time) []SourceP
 			OldestClaimableAge:        row.OldestClaimableAge.String(),
 			OldestClaimableAgeSeconds: row.OldestClaimableAge.Seconds(),
 			ClaimableDepth:            row.ClaimableDepth,
+			Stuck:                     row.Stuck,
 		}
 		if !row.EngagedSince.IsZero() {
 			entry.EngagedSince = row.EngagedSince.UTC().Format(time.RFC3339)

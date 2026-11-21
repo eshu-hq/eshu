@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,9 +72,9 @@ func TestCheckSourceBackpressurePacesSlowedFamilyAndAdvancesLatch(t *testing.T) 
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"vuln-intel"}}}, // pending sources for family
-		{rows: [][]any{{"git", float64(60), int64(3)}, {"vuln-intel", float64(7200), int64(400)}}}, // claimable signals
-		{rows: [][]any{}}, // latches: none engaged
+		{rows: [][]any{{"vuln-intel"}}},              // pending sources for family
+		{rows: [][]any{{float64(7200), int64(400)}}}, // bounded probe: vuln-intel behind
+		{rows: [][]any{}},                            // latches: none engaged
 	}}
 	store := NewWorkflowControlStore(fake)
 
@@ -120,7 +121,8 @@ func TestCheckSourceBackpressureMixedFamilyStaysUnpaced(t *testing.T) {
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
 		{rows: [][]any{{"git"}, {"vuln-intel"}}},
-		{rows: [][]any{{"git", float64(60), int64(3)}, {"vuln-intel", float64(7200), int64(400)}}},
+		{rows: [][]any{{float64(60), int64(3)}}},     // bounded probe: git healthy
+		{rows: [][]any{{float64(7200), int64(400)}}}, // bounded probe: vuln-intel behind
 		{rows: [][]any{}},
 	}}
 	store := NewWorkflowControlStore(fake)
@@ -149,7 +151,7 @@ func TestCheckSourceBackpressureForSourceReleasesAndResumes(t *testing.T) {
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"vuln-intel", float64(300), int64(10)}}},          // signals: 5m old
+		{rows: [][]any{{float64(300), int64(10)}}},                        // bounded probe: 5m old
 		{rows: [][]any{{"vuln-intel", true, now.Add(-10 * time.Minute)}}}, // latch engaged
 	}}
 	store := NewWorkflowControlStore(fake)
@@ -232,5 +234,44 @@ func TestSourcePacingStatesPublishesSlowedStateAndReason(t *testing.T) {
 	}
 	if len(fake.execs) != 0 {
 		t.Fatalf("publication read wrote latch rows: %d execs, want 0", len(fake.execs))
+	}
+}
+
+// TestBoundedSourceSignalQueryDerivesFromGrouped pins the S0 contract:
+// the bounded probe is the shipped grouped signal with only the SELECT
+// head, the source restriction, and the grouping rewritten. The CTE, the
+// claimable predicate, and the exact attribution stay byte-identical so
+// the two cannot drift; a shipped-query edit that moves a marker fails
+// here instead of silently forking the consult.
+func TestBoundedSourceSignalQueryDerivesFromGrouped(t *testing.T) {
+	t.Parallel()
+
+	grouped := sourceClaimableSignalQuery
+	for _, marker := range []string{
+		boundedSourceSignalSelectHead,
+		boundedSourceSignalGroupTail,
+		"AND (work.visible_at IS NULL OR work.visible_at <= $1)",
+	} {
+		if !strings.Contains(grouped, marker) {
+			t.Fatalf("grouped signal lost marker %q: bounded probe would fork", marker)
+		}
+	}
+	if strings.Contains(grouped, "= $2") {
+		t.Fatal("grouped signal takes a source parameter, want whole-backlog scan")
+	}
+	bounded := boundedSourceSignalQuery()
+	for _, marker := range []string{
+		"AND (work.visible_at IS NULL OR work.visible_at <= $1)",
+		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), 'unknown') IN ($2, 'unknown')",
+		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') = $2",
+	} {
+		if !strings.Contains(bounded, marker) {
+			t.Fatalf("bounded probe lost marker %q", marker)
+		}
+	}
+	for _, banned := range []string{"GROUP BY", "ORDER BY", "AS source_system"} {
+		if strings.Contains(bounded, banned) {
+			t.Fatalf("bounded probe contains %q, want single-source aggregate", banned)
+		}
 	}
 }

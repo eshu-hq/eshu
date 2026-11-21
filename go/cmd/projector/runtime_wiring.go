@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reduceradmission"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -100,7 +101,16 @@ func buildProjectorService(
 	// see that function's doc comment (issue #5476 P1-a).
 	projectorQueue.CrossplaneRedrive = buildCrossplaneRedriveSweeper(database, reducerQueue, instruments)
 
-	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
+	// The standalone projector shares the ingester's admission writer
+	// (#10882 decision 3): without the same global backstop and
+	// per-source leg, committed hosted generations would bypass pacing
+	// at the last hop. With no thresholds set the gate returns the
+	// queue writer unwrapped, so default behavior is unchanged.
+	intentWriter, err := reduceradmission.AdmissionIntentWriter(database, reducerQueue, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
+	runner, err := buildProjectorRuntime(database, canonicalWriter, intentWriter, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
 	}
