@@ -1490,6 +1490,17 @@ type Instruments struct {
 	// supplyChainImpactWinnersWatermarkUnixNano so it climbs through a stall.
 	SupplyChainImpactWinnersWatermarkAge      metric.Float64ObservableGauge
 	supplyChainImpactWinnersWatermarkUnixNano *atomic.Int64
+	// The winners contract signals of #11117, registered by
+	// registerSupplyChainImpactWinnersContractInstruments: in-flight resweep
+	// age and last commit time by path, stored and binary contract version,
+	// committed fulls by start reason, and stand-downs.
+	SupplyChainImpactWinnersInFlightAge         metric.Float64ObservableGauge
+	SupplyChainImpactWinnersLastCommit          metric.Float64ObservableGauge
+	SupplyChainImpactWinnersAuditLastSuccessAge metric.Float64ObservableGauge
+	SupplyChainImpactWinnersContractVersion     metric.Int64ObservableGauge
+	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
+	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
+	supplyChainImpactWinnersContract            *winnersContractState
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture

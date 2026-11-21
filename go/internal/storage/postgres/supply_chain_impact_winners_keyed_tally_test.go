@@ -15,23 +15,29 @@ import (
 // storage/postgres/vulnerability drains and samples a real database.
 // #10827 R2: both tallies sum dirty_version — one log row collapses every
 // re-mark of its key — and the RETURNING carries the version the sums read.
-// #11078 adds the GHSA leg: both statements must also tally the GHSA-proxy
+// #11078 adds the GHSA leg: every drain statement must also tally the GHSA-proxy
 // rows they delete into ghsa_proxy_rows, or the NVD/GHSA split reads
 // NOT_CHECKED while GHSA carries ~76% of inflow.
 func TestWinnersDrainStatementsKeepTheNVDTripTally(t *testing.T) {
 	t.Parallel()
 
-	for name, statement := range map[string]string{
-		"applied": deleteWinnersKeyedAppliedDirtySQL,
-		"all":     deleteWinnersKeyedAllDirtySQL,
+	// #11117: the full resweep's two drains delete marks too, so they carry the
+	// same tally. The staging drain counts each staged row as one mark.
+	logReturning := "RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id"
+	for name, drain := range map[string]struct{ statement, returning string }{
+		"applied":      {deleteWinnersKeyedAppliedDirtySQL, logReturning},
+		"all":          {deleteWinnersKeyedAllDirtySQL, logReturning},
+		"full log":     {drainWinnersDirtyLogForFullSQL, logReturning},
+		"full staging": {drainWinnersStagingForFullSQL, "RETURNING s.source, 1::bigint AS dirty_version, s.kind, s.captured_at, s.advisory_id, s.scope_id"},
 	} {
+		statement := drain.statement
 		for _, want := range []string{
 			"INSERT INTO supply_chain_impact_winners_dirty_tally",
 			winnersNVDProxyRowPredicate,
 			winnersNVDScopeRowPredicate,
 			winnersGHSAProxyRowPredicate,
 			"ghsa_proxy_rows",
-			"RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id",
+			drain.returning,
 			"SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source",
 		} {
 			if !strings.Contains(statement, want) {

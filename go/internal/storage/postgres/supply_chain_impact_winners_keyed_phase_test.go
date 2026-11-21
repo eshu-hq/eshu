@@ -55,6 +55,10 @@ func (r *phaseFakeRows) Scan(dest ...any) error {
 			*p = sql.NullTime{}
 		case *time.Time:
 			*p = r.row[i].(time.Time)
+		case *sql.NullInt64:
+			*p = r.row[i].(sql.NullInt64)
+		case *sql.NullString:
+			*p = r.row[i].(sql.NullString)
 		default:
 			return fmt.Errorf("scan: unsupported destination %T", d)
 		}
@@ -81,6 +85,9 @@ type phaseFakeTx struct {
 	commitErr  error
 	rollbacks  int
 	queries    []string
+	// contract is the stored (version, hash) row the #11117 re-read sees;
+	// nil reports a matching contract.
+	contract []any
 }
 
 func (tx *phaseFakeTx) step(query string) error {
@@ -140,6 +147,11 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		// stamp covers in-transaction. No waits are parked in these
 		// fixtures, so the wake is a no-op (0, 0).
 		return &phaseFakeRows{row: []any{int64(0), int64(0)}}, nil
+	case selectSupplyChainImpactWinnersContractSQL:
+		if tx.contract != nil {
+			return &phaseFakeRows{row: tx.contract}, nil
+		}
+		return &phaseFakeRows{row: []any{sql.NullInt64{Int64: SupplyChainImpactWinnersContractVersion, Valid: true}, sql.NullString{String: supplyChainImpactWinnersContractHash, Valid: true}}}, nil
 	case selectWinnersKeyedTickClockSQL:
 		return &phaseFakeRows{row: []any{phaseFakeNow}}, nil
 	case selectWinnersKeyedRemainingMinSQL:

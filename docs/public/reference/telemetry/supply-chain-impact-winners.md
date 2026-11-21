@@ -11,7 +11,8 @@ far behind it runs.
 
 ## How a resweep writes
 
-The startup resweep, a keyed tick that passes the cap, and the audit's read
+A full resweep (run when the stored contract is missing, NULL or lower), a
+keyed tick that passes the cap, and the audit's read
 recompute every winner from the active facts; an ordinary keyed tick recomputes
 only the keys in the dirty log (see "Keyed resweeps and the audit"). Whichever
 keys a resweep recomputes, it writes only the rows that are new or changed,
@@ -20,7 +21,7 @@ stamps the read watermark: the DB-clock tick stamp when the dirty log drained,
 or the horizon over the rows still queued (#10706) — the earliest queued
 capture time minus one microsecond, so every capture at or under the watermark
 is applied, except the documented one-tick late-commit residual, which the
-next tick applies. The startup resweep also consumes what it covers (#11117):
+next tick applies. A full resweep also consumes what it covers (#11117):
 in its own transaction it reads the DB clock, deletes the dirty-log and staged
 marks it can see, then rebuilds, and stamps that clock reading capped under
 any mark still queued. A mark committed after that delete stays queued for the
@@ -40,8 +41,17 @@ for freshness; read the watermark.
 
 ## Keyed resweeps and the audit
 
-The first resweep after a reducer starts recomputes every winner. Every tick
-after it is keyed: the changes that can move a winner append the canonical keys
+A full resweep recomputes every winner and records the winners contract
+version and hash with the watermark (#11117, migration 329). Every maintainer
+tick reads that row first. With no watermark row, or a stored version that is
+NULL or below this binary's, the tick runs one full; every instance tries, and
+the resweep lock lets exactly one commit. With an equal version the tick is
+keyed and the audit runs, so a reducer roll with an unchanged contract runs no
+full. With a higher stored version (a newer binary already committed) this
+binary stands down: no full, keyed tick or audit. Rolling back to a binary
+that predates the contract, or across a contract version bump, must set both
+contract columns to NULL as a runbook step, so the next binary that reads them
+runs one full. A keyed tick works this way: the changes that can move a winner append the canonical keys
 they touched to a dirty log, in the same transaction as the change. Two kinds of
 capture exist. The impact writer names its own changes in application code, for
 findings it inserts, rewrites or retracts. Database triggers (migration 272, plus 272a
@@ -73,8 +83,15 @@ An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
 turns it off). It recomputes the whole table without taking the resweep lock,
 verifies each key that differs under the lock, and queues the stale ones for the
-next keyed tick. The audit is the backstop for a change that left no dirty-log
-row, so its repair count should stay at zero.
+next keyed tick. Where it runs, the audit is the backstop for a change that left
+no dirty-log row, so its repair count should stay at zero. With
+`ESHU_POSTGRES_READ_ROUTING=staged-audits` the staged reader defers every tick
+on `budget` once the eligible impact-fact corpus passes 1,000,000 facts or
+250,000 distinct keys (#11131), and then no automatic backstop runs. Watch
+`staged_audit_deferrals_total{reason="budget"}` and the `staged winners audit
+deferred` log lines; `audit_last_success_age_seconds` has no value until a pass
+completes in the process, so alert on its absence together with budget
+deferrals, not on a climbing value.
 
 Role-bound logins need grants for the application-code capture only. The pointer,
 scope-delete and scanner trigger functions run as their owner (`SECURITY
@@ -108,7 +125,7 @@ scanner, and scope-delete mark, and only the new maintainer tick collapses
 staging into the dirty log. A binary older than that change running against
 the new schema still writes fact captures straight to the log, but its tick
 consumes only the dirty log, so trigger-sourced marks sit staged and invisible
-until re-upgrade (the audit backstop re-queues some via the log path, not all).
+until re-upgrade (the audit, where it can run, re-queues some via the log path, not all).
 Never run an old maintainer or old triggers against the new schema except
 transiently during the roll; roll back by re-upgrading and letting the new
 tick collapse the backlog, not by downgrading the binary alone.
@@ -208,12 +225,12 @@ and `sub_signal_rekey_rows_tombstoned`.
 
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |
-| `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` | histogram | `path` | Wall time of one committed resweep statement. `path` is `full` (startup, or a keyed tick the cap sent to the full rebuild), `keyed` or `audit` (the full-recompute read). The full recompute is O(findings); a keyed tick follows the changed keys. A failed or skipped resweep records no sample. |
+| `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` | histogram | `path` | Wall time of one committed resweep statement. `path` is `full` (a full run for a missing, NULL or lower stored contract, or a keyed tick the cap sent to the full rebuild), `keyed` or `audit` (the full-recompute read). The full recompute is O(findings); a keyed tick follows the changed keys. A failed or skipped resweep records no sample. |
 | `eshu_dp_supply_chain_impact_winners_tick_phase_duration_seconds` | histogram | `phase` | Wall time of each phase of one keyed tick (#9975), so a slow `keyed` duration reads as a slow read or a slow write. `phase` is `claim` (transaction begin and the resweep try-lock), `collapse` (folding the staging queue into the dirty log with one key-ordered GROUP BY merge-upsert per kind plus the seq-bounded delete, #10837), `consume` (reading the DB-clock tick stamp, then admitting the oldest dirty-log window into the consumed temp table), `build_idents` (the identifier set, its `ANALYZE` and the cap check), `build_active_facts` (the identifier chunk, the keyed active-facts temp table, which is the probe into `fact_records`, plus the operator facts and its `ANALYZE`), `apply` (deleting exactly the admitted rows the chunk applied with their per-source tally, plus the winner select and row writes), `full_rebuild` (the whole-table rebuild a tick ran instead of `build_active_facts` and `apply` because it went over the cap), `stamp` (the watermark stamp of a tick that consumed nothing) and `commit`. A tick records one sample per phase it ran, so a quiet tick records `claim`, `collapse`, `consume`, `stamp` and `commit`, and a tick that lost the lock records only `claim`. A phase whose statement failed still records the time it spent, which `resweep_duration_seconds` does not. Buckets are the resweep buckets (0.05 to 300 s), so a phase under 50 ms reads as the first bucket. |
 | `eshu_dp_supply_chain_impact_winners_keys_per_sweep` | histogram | none | Canonical keys one keyed tick recomputed. A value near the cap is the warning before a tick falls back to the full rebuild. |
 | `eshu_dp_supply_chain_impact_winners_identifiers_consumed_total` | counter | none | Dirty-log rows keyed ticks consumed. |
 | `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` | counter | none | Keyed ticks that stopped at the identifier chunk bound with dirty rows still queued, so committed their chunk while stamping the horizon over the rows left queued (#10706). A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound. |
-| `eshu_dp_supply_chain_impact_winners_capture_rows_total` | counter | `source` | Staged rows appended, by capture source: `fact_upsert`, `fact_retract`, `activation`, `operator`, `scanner` or `audit` (#10837: every capture owner stages one row per mark into the shared queue; the tick collapse folds them into the dirty log). The impact writer counts `fact_upsert` and `fact_retract` from the capturing statements' row counts, but only after its transaction commits: a rolled-back attempt, or a commit that fails, adds nothing, so those two sources match the log rows that exist, apart from a commit whose outcome is unknown (a connection lost after the server applied it), which leaves its rows uncounted. Database triggers write `activation`, `operator` and `scanner` rows and cannot emit a metric, so the maintainer counts those when a keyed tick or the startup full resweep consumes them. `audit` is counted when the audit queues a repair. A source that goes flat while its writes continue is a capture path that stopped. The scope-delete trigger writes its rows as `activation` (or `operator` for the suppression scope), the same sources as a pointer move, so a stopped delete capture does not show as a flat source: the `fact` rows it writes are the only difference. |
+| `eshu_dp_supply_chain_impact_winners_capture_rows_total` | counter | `source` | Staged rows appended, by capture source: `fact_upsert`, `fact_retract`, `activation`, `operator`, `scanner` or `audit` (#10837: every capture owner stages one row per mark into the shared queue; the tick collapse folds them into the dirty log). The impact writer counts `fact_upsert` and `fact_retract` from the capturing statements' row counts, but only after its transaction commits: a rolled-back attempt, or a commit that fails, adds nothing, so those two sources match the log rows that exist, apart from a commit whose outcome is unknown (a connection lost after the server applied it), which leaves its rows uncounted. Database triggers write `activation`, `operator` and `scanner` rows and cannot emit a metric, so the maintainer counts those when a keyed tick or a full resweep (run when the stored contract is missing, NULL or lower) consumes them. `audit` is counted when the audit queues a repair. A source that goes flat while its writes continue is a capture path that stopped. The scope-delete trigger writes its rows as `activation` (or `operator` for the suppression scope), the same sources as a pointer move, so a stopped delete capture does not show as a flat source: the `fact` rows it writes are the only difference. |
 | `eshu_dp_supply_chain_impact_winners_backstop_repairs_total` | counter | none | Stale keys the audit found and queued. Steady state is zero. Any rate means some change left no dirty-log row. |
 | `eshu_dp_supply_chain_impact_stale_copy_repairs_total` | counter | `transition` | Retraction-state flips a pass wrote against its stored baseline (#10765): `active_to_retracted` or `retracted_to_active`. The scope that first derives the retraction counts its own flip too, so a point is not necessarily a copy the holder fan-out repaired, and the counter does not say how many stale copies are still waiting: that number is not measured. Counted once per rewrite, after the writer commit. Quiet when no record is being rejected or restored. |
 | `eshu_dp_supply_chain_impact_winners_audit_skipped_total` | counter | none | Audits that found candidate stale keys but could not take the resweep lock, so verified nothing and queued nothing. A skipped audit is the backstop missing a run, not a failure. Alert on a streak: no `path="audit"` sample in `eshu_dp_supply_chain_impact_winners_resweep_duration_seconds` while this counter rises, for example `sum(increase(eshu_dp_supply_chain_impact_winners_audit_skipped_total[1h])) >= 3` at the default 10 minute interval, means the audit keeps losing the lock and has not verified its candidates for a while. Sum across reducer pods, because the audit lease can move between them. One skip is expected and harmless. `increase()` does not count the first increment of a series that did not exist yet. An audit that read no candidates returns early and neither skips nor counts here. |
@@ -227,6 +244,21 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_resweep_skipped_total` | counter | none | Resweeps that found another in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements run past 60 seconds. |
 | `eshu_dp_supply_chain_impact_winners_watermark_age_seconds` | gauge | none | Seconds since the read watermark was stamped, computed at scrape time from the last watermark the instance saw. Every instance reports it, whether or not it holds the lease. It rises between resweeps, drops on each commit, and keeps climbing through a stall. It has no value until the instance first sees a watermark. |
 | `supply_chain_impact.winners_resweep` | span | none | One resweep or audit. Attributes `path`, `keys`, `inserted`, `updated`, `deleted`, `unchanged`, or `skipped`; the audit span carries `repairs`, or `skipped` when it could not take the lock. A failed resweep records the error on the span. |
+| `eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds` | gauge | `path` | Seconds the resweep in flight on this instance has run, by `full`, `keyed` and `audit`; 0 when none is in flight (#11117). |
+| `eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds` | gauge | `path` | Unix time of the last resweep this instance committed, by path. It is the commit time, not the watermark value the resweep stamped. No value until the path first commits. |
+| `eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds` | gauge | none | Seconds since this instance last completed an audit pass, repairs found or not. It has no value until the first completed pass in this process and resets on a roll, so a backstop that never runs shows as an absent series, not a climbing one: alert on its absence together with `staged_audit_deferrals_total{reason="budget"}`. |
+| `eshu_dp_supply_chain_impact_winners_contract_version` | gauge | `kind` | The stored contract version (`stored`, 0 when none is recorded) and this binary's (`binary`), from the last contract read. |
+| `eshu_dp_supply_chain_impact_winners_full_resweeps_total` | counter | `reason` | Committed fulls by start reason: `no_watermark` (no resweep had committed), `contract_version` (stored version NULL or lower), `keyed_cap` (a keyed tick fell back past the cap). |
+| `eshu_dp_supply_chain_impact_winners_stand_downs_total` | counter | none | Ticks this instance stood down because the stored contract is newer than its binary, at the tick's decision read or, for a keyed tick, at the re-read under the resweep lock. Any rate means mixed binaries. |
+| `supply chain impact winners maintainer standing down` | warn log | none | Logged once when an instance starts standing down, with `stored_version` and `binary_version`; a matching info log marks the resume. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total` | counter | `reason` | Staged-audit ticks (routing `staged-audits`) deferred by `budget`, `conflict_exhausted` or `batch_abort`: the read phase stopped on the standby and verified nothing (#11117). |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total` | counter | none | Completed staged-audit read phases. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_batches` | gauge | none | Standby batches (one per active scope generation) the last completed staged-audit tick read. Absent until a pass completes; a budget-deferred tick records nothing here. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds` | gauge | none | The last completed tick's slowest standby batch; each batch has a 25 s statement timeout. Absent until a pass completes; a budget-deferred tick records nothing here. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts` | gauge | none | Facts the last completed staged-audit tick staged (cap 1,000,000). Absent until a pass completes; a budget-deferred tick records nothing here, so read `staged_audit_deferrals_total{reason="budget"}` instead. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys` | gauge | none | Distinct keys the last completed tick compacted (cap 250,000). Absent until a pass completes; a budget-deferred tick records nothing here. |
+| `supply chain impact winners audit completed` | info log | none | One line per completed audit pass, zero repairs included, with `repairs`, `read_seconds` and `duration_seconds`. |
+| `supply chain impact winners full resweep recorded the contract` | info log | none | A full committed and recorded this binary's contract, with `reason` and the stored and binary versions it replaced. |
 | `supply chain impact winners resweep committed` | info log | none | The same four counts plus `path`, `identifiers`, `keys`, `duration_seconds` and `previous_watermark_age_seconds` (`-1` for the first resweep). |
 | `supply chain impact winners audit found stale keys` | warn log | none | The audit queued `repairs` stale keys, with `read_seconds` and `duration_seconds`. Carries no key, scope or CVE. |
 | `supply chain impact winners dirty log stats read failed` | warn log | none | The read behind the two dirty-log gauges failed; they keep the last sample. |
@@ -299,8 +331,19 @@ No label carries a canonical key, scope, repository, or CVE.
   missing. Check `capture_rows_total` by `source`: a source that goes flat while
   its writes continue is the path that stopped. A repair is safe, because the
   audit queues the key for the next keyed tick, but it is a defect to chase.
-- A `path="full"` sample after the first resweep after startup means a keyed
-  tick passed the cap and fell back. Read `keys_per_sweep` to see how many keys
+- `full_resweeps_total` says why each full ran. `no_watermark` and
+  `contract_version` should appear once per contract change, not once per roll;
+  after a roll with an unchanged contract, expect no increase and a keyed
+  `last_commit_timestamp_seconds` within the lease TTL plus two intervals. A
+  `contract_version` full on every roll means the stored version is being reset
+  (a rollback runbook step, or a binary below the stored version writing it).
+  A non-zero `stand_downs_total` means an older binary runs beside a newer one;
+  `contract_version{kind}` shows both versions.
+- `resweep_in_flight_age_seconds{path="full"}` climbing toward the usual full
+  duration is a full in progress. A keyed in-flight age past a few minutes is a
+  stuck tick, before it commits or fails.
+- A `path="full"` sample with `full_resweeps_total{reason="keyed_cap"}` means a
+  keyed tick passed the cap and fell back. Read `keys_per_sweep` to see how many keys
   it held, and check what wrote that many changes at once (for example a mass
   re-ingest or a retirement purge).
 - A rising `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` with a

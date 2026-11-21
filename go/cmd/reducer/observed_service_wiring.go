@@ -98,6 +98,12 @@ func buildObservedReducerService(
 				// splits, gauges, and the verify discard rate accumulate
 				// instead of recording into a per-tick recorder.
 				stagedTelemetry := pgaccess.NewStagedAuditTelemetry()
+				// #11117: export the recorder as OTEL instruments so a deferred
+				// or slow staged audit is visible, not only logged.
+				if err := telemetry.RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter, stagedTelemetry); err != nil {
+					closeStaleAccess()
+					return reducer.Service{}, nil, nil, nil, fmt.Errorf("register staged audit instruments: %w", err)
+				}
 				maintainer.Auditor = stagedaudit.StagedAuditor{
 					Fleet:     pgaccess.NewStagedAuditAccessFleet(staleAccess),
 					Store:     postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
