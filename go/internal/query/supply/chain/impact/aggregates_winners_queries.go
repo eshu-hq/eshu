@@ -131,26 +131,39 @@ func aggregateWinnersFromClause() string {
 // AggregateWinnersCombinedCountQuery returns the full count envelope (status
 // totals plus priority and severity buckets) over the winners-sourced
 // canonical set in one Postgres statement, the winners-side twin of
-// AggregateCombinedCountQuery (#10970). aggregate_winners is NOT
-// MATERIALIZED, so it is scanned once per output column; the winners set is
-// one row per canonical key behind a selective index, so no dedup sort is
-// repeated. Buckets keep the same unknown/none defaults as the legacy
-// facet queries, and the column order matches the legacy combined query so
-// one scan serves both.
-var AggregateWinnersCombinedCountQuery = aggregateWinnersFromClause() + `
+// AggregateCombinedCountQuery (#10970). The filtered set is read exactly once:
+// winner_groups collapses it to one row per (impact_status, priority bucket,
+// severity bucket) combination, a closed-vocabulary cross product of at most a
+// few hundred rows, and every output column is derived from that MATERIALIZED
+// group. Reading aggregate_winners once per output column (eight scans of the
+// filtered set) measured 2.3-3x slower than this shape on a 300k-row winners
+// table; see docs/internal/design/10880-first-result-family-move.md (slice 2b
+// record). Buckets keep the same unknown/none defaults as the legacy facet
+// queries, and the column order matches the legacy combined query so one scan
+// serves both.
+var AggregateWinnersCombinedCountQuery = aggregateWinnersFromClause() + `,
+winner_groups AS MATERIALIZED (
+  SELECT impact_status,
+         COALESCE(NULLIF(priority_bucket, ''), 'unknown') AS priority_bucket,
+         COALESCE(NULLIF(severity_bucket, ''), 'none') AS severity_bucket,
+         COUNT(*) AS group_count
+  FROM aggregate_winners
+  GROUP BY impact_status, 2, 3
+)
 SELECT
-	(SELECT COUNT(*) FROM aggregate_winners) AS total,
-	(SELECT COUNT(*) FROM aggregate_winners WHERE impact_status IN ('affected_exact', 'affected_derived', 'possibly_affected')) AS affected,
-	(SELECT COUNT(*) FROM aggregate_winners WHERE impact_status = 'affected_exact') AS affected_exact,
-	(SELECT COUNT(*) FROM aggregate_winners WHERE impact_status = 'affected_derived') AS affected_derived,
-	(SELECT COUNT(*) FROM aggregate_winners WHERE impact_status = 'possibly_affected') AS possibly_affected,
-	(SELECT COUNT(*) FROM aggregate_winners WHERE impact_status LIKE 'not_affected%') AS not_affected,
+	COALESCE(SUM(group_count), 0)::bigint AS total,
+	COALESCE(SUM(group_count) FILTER (WHERE impact_status IN ('affected_exact', 'affected_derived', 'possibly_affected')), 0)::bigint AS affected,
+	COALESCE(SUM(group_count) FILTER (WHERE impact_status = 'affected_exact'), 0)::bigint AS affected_exact,
+	COALESCE(SUM(group_count) FILTER (WHERE impact_status = 'affected_derived'), 0)::bigint AS affected_derived,
+	COALESCE(SUM(group_count) FILTER (WHERE impact_status = 'possibly_affected'), 0)::bigint AS possibly_affected,
+	COALESCE(SUM(group_count) FILTER (WHERE impact_status LIKE 'not_affected%'), 0)::bigint AS not_affected,
 	(SELECT COALESCE(jsonb_agg(jsonb_build_object('bucket', bucket, 'bucket_count', bucket_count)), '[]'::jsonb)
-	 FROM (SELECT COALESCE(NULLIF(priority_bucket, ''), 'unknown') AS bucket, COUNT(*) AS bucket_count
-	       FROM aggregate_winners GROUP BY bucket) AS priority_buckets) AS priority_buckets,
+	 FROM (SELECT priority_bucket AS bucket, SUM(group_count)::bigint AS bucket_count
+	       FROM winner_groups GROUP BY priority_bucket) AS priority_buckets) AS priority_buckets,
 	(SELECT COALESCE(jsonb_agg(jsonb_build_object('bucket', bucket, 'bucket_count', bucket_count)), '[]'::jsonb)
-	 FROM (SELECT COALESCE(NULLIF(severity_bucket, ''), 'none') AS bucket, COUNT(*) AS bucket_count
-	       FROM aggregate_winners GROUP BY bucket) AS severity_buckets) AS severity_buckets;
+	 FROM (SELECT severity_bucket AS bucket, SUM(group_count)::bigint AS bucket_count
+	       FROM winner_groups GROUP BY severity_bucket) AS severity_buckets) AS severity_buckets
+FROM winner_groups;
 `
 
 // AggregateWinnersInventoryQueryTemplate groups the winners-sourced

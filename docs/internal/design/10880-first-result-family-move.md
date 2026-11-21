@@ -436,10 +436,36 @@ binary still trying the old path.
   `TestAggregatesWinnersParityLive` (byte-identical envelopes across 7
   filters x count + 5 dimensions, incl. live/expired suppressions and the
   scoped fallback) plus `TestAggregatesWinnersReadGate` (routing pins for
-  all three count statements and inventory). Capability
+  the combined count statement and inventory). Capability
   `supply_chain.impact_findings.aggregate` is now declared mixed and the
   catalog regenerated + verified. Telemetry: No-Observability-Change — no
   new instrument; the gate reuses the existing winners resweep counts.
+- **Slice 2b combined count: shape measured on real Postgres.** The winners
+  twin of #10970's single statement was proved before it stayed. Disposable
+  `postgres:18`, 300,000 winners rows over 2,000 repositories,
+  `EXPLAIN (ANALYZE, BUFFERS)`, median of 7 warm runs, host load ~60 (read
+  ratios). A: first draft, `aggregate_winners` NOT MATERIALIZED, eight
+  references (93,065 buffer hits). B: A with the CTE MATERIALIZED. C: the
+  three old winners statements summed. D (shipped): one scan grouped to
+  (status, priority bucket, severity bucket) in a MATERIALIZED
+  `winner_groups` CTE, every output derived from it (11,524 hits).
+
+  | Filter (rows matched) | A | B | C | D |
+  | --- | --- | --- | --- | --- |
+  | empty (300k) | 636 ms | 462 ms | 260 ms | 92 ms |
+  | `status=affected_exact` (112.5k) | 431 ms | 184 ms | 162 ms | 54 ms |
+  | `detection_profile=precise` (162.5k) | 555 ms | 199 ms | 192 ms | 72 ms |
+  | `repository_id` (150) | 1.3 ms | 0.6 ms | 1.3 ms | 0.5 ms |
+
+  The draft was slower than the three statements it replaced (eight scans
+  against three), so its "scanned once per column" comment was wrong.
+  MATERIALIZED alone (B) still lost to C on the empty filter. D wins every
+  row, about 2.8x over C on the empty filter. Totals and both bucket maps
+  matched across A, B, and D for all four filters. `winner_groups` is a
+  closed-vocabulary cross product, a few hundred rows at most. The four
+  live parity tests (`TestAggregatesWinnersParityLive`, both
+  `TestFindingsWinnersPayload*`, `TestGroupedInventoryStoreWinnersLive`)
+  pass on D. Method: throwaway `generate_series` seed, not committed.
 - **Newly listed 2b blocker (found during slice 2b(i)):** the advisory
   evidence reader (`go/internal/query/supply/chain/advisory/evidence_sql.go`
   `repo_probe` + `impact_candidates`) reads
