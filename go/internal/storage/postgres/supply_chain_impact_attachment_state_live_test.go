@@ -3,10 +3,6 @@
 
 package postgres
 
-//eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11105 disposable PostgreSQL 18 proof that the shared producer-state probe, asked for the sbom_attestation_attachment domain, counts only the requested scope generation's attachment rows and reaches fact_work_items through fact_work_items_scope_generation_idx with no sequential scan on a 350,000-row backlog; enrolled in the live-postgres-readiness runner and the reducer contention gate. Plan and timings are logged, not gated
-//eshu:readiness:env ESHU_AWS_DRIFT_ARN_PROOF_DISPOSABLE ESHU_AWS_DRIFT_ARN_PROOF_DSN ESHU_DEFERRED_PARTITION_PROOF_DISPOSABLE ESHU_DEFERRED_PARTITION_PROOF_DSN ESHU_PROJECTOR_CLAIM_DEADLOCK_PROOF_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
-
 import (
 	"encoding/json"
 	"strings"
