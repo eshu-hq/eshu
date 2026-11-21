@@ -9877,6 +9877,13 @@ func AttrAttempt(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionAttempt, v)
 }
 
+// AttrOrigin returns an origin attribute for metric recording. v must be
+// one of the closed advisory-origin values ("nvd", "ghsa", "other"),
+// never a raw advisory or group id.
+func AttrOrigin(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionOrigin, v)
+}
+
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)

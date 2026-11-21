@@ -8,6 +8,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
@@ -116,6 +117,73 @@ func TestAdvisoryGroupProjectionEnqueuerBuildsOneIntentPerGroup(t *testing.T) {
 	}
 	if reducerWorkItemID(shadow.enqueued[0]) != reducerWorkItemID(queue.enqueued[0]) {
 		t.Fatalf("origin-scoped touch diverges: %q vs %q", reducerWorkItemID(shadow.enqueued[0]), reducerWorkItemID(queue.enqueued[0]))
+	}
+}
+
+// TestAdvisoryGroupProjectionEnqueuerStampsFirstUnderlyingDataAt pins the
+// Decision-3 (Q1 option a, eshu-hq/eshu#11080) wire write: the projection
+// intent carries the touching pass's cycle start (its enqueue when the
+// cycle start is zero) as the first-underlying-data time the handler's
+// stale fast path anchors on. An origin with no times at all (the ifa
+// drive verb's hand-built origin) stamps nothing: the handler falls back
+// to the post-claim deferral clock.
+func TestAdvisoryGroupProjectionEnqueuerStampsFirstUnderlyingDataAt(t *testing.T) {
+	t.Parallel()
+	cycleStart := time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
+
+	origin := advisoryGroupOriginIntent()
+	origin.EnqueuedAt = cycleStart.Add(-time.Hour)
+	origin.CycleStartedAt = cycleStart
+	queue := &fakeAdvisoryGroupIntentQueue{}
+	enqueuer := AdvisoryGroupProjectionEnqueuer{queue: queue}
+	if err := enqueuer.EnqueueAdvisoryGroupProjections(context.Background(), origin, []string{"CVE-2026-0001"}); err != nil {
+		t.Fatalf("EnqueueAdvisoryGroupProjections: %v", err)
+	}
+	if len(queue.enqueued) != 1 {
+		t.Fatalf("enqueued %d intents, want 1", len(queue.enqueued))
+	}
+	got, ok := queue.enqueued[0].Payload[advisorygroup.PayloadKeyFirstUnderlyingDataAt]
+	if !ok {
+		t.Fatalf("payload %q is absent, want the origin cycle start stamped", advisorygroup.PayloadKeyFirstUnderlyingDataAt)
+	}
+	stamped, ok := got.(string)
+	if !ok {
+		t.Fatalf("payload %q = %T, want an RFC3339Nano string", advisorygroup.PayloadKeyFirstUnderlyingDataAt, got)
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, stamped)
+	if err != nil {
+		t.Fatalf("payload %q = %q, want RFC3339Nano: %v", advisorygroup.PayloadKeyFirstUnderlyingDataAt, stamped, err)
+	}
+	if !parsed.Equal(cycleStart) {
+		t.Fatalf("stamped first-underlying-data = %v, want the origin cycle start %v", parsed, cycleStart)
+	}
+
+	// A pass that only carries its enqueue stamps the enqueue.
+	enqueueOnly := advisoryGroupOriginIntent()
+	enqueueOnly.EnqueuedAt = cycleStart
+	enqueueOnlyQueue := &fakeAdvisoryGroupIntentQueue{}
+	enqueueOnlyEnqueuer := AdvisoryGroupProjectionEnqueuer{queue: enqueueOnlyQueue}
+	if err := enqueueOnlyEnqueuer.EnqueueAdvisoryGroupProjections(context.Background(), enqueueOnly, []string{"CVE-2026-0001"}); err != nil {
+		t.Fatalf("EnqueueAdvisoryGroupProjections: %v", err)
+	}
+	got, ok = enqueueOnlyQueue.enqueued[0].Payload[advisorygroup.PayloadKeyFirstUnderlyingDataAt]
+	if !ok {
+		t.Fatalf("payload %q is absent, want the origin enqueue stamped", advisorygroup.PayloadKeyFirstUnderlyingDataAt)
+	}
+	parsed, err = time.Parse(time.RFC3339Nano, got.(string))
+	if err != nil || !parsed.Equal(cycleStart) {
+		t.Fatalf("stamped first-underlying-data = %v (%v), want the origin enqueue %v", got, err, cycleStart)
+	}
+
+	// No origin times at all stamps nothing: the handler falls back.
+	timeless := advisoryGroupOriginIntent()
+	timelessQueue := &fakeAdvisoryGroupIntentQueue{}
+	timelessEnqueuer := AdvisoryGroupProjectionEnqueuer{queue: timelessQueue}
+	if err := timelessEnqueuer.EnqueueAdvisoryGroupProjections(context.Background(), timeless, []string{"CVE-2026-0001"}); err != nil {
+		t.Fatalf("EnqueueAdvisoryGroupProjections: %v", err)
+	}
+	if _, ok := timelessQueue.enqueued[0].Payload[advisorygroup.PayloadKeyFirstUnderlyingDataAt]; ok {
+		t.Fatalf("payload %q is stamped from a timeless origin, want it absent so the handler falls back", advisorygroup.PayloadKeyFirstUnderlyingDataAt)
 	}
 }
 

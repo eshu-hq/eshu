@@ -68,6 +68,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"route",
 		"failure_class",
 		"attempt",
+		"origin",
 		"fact_kind",
 		"resource_scope",
 		"document_type",

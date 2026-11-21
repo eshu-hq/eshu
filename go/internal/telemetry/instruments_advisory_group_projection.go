@@ -106,7 +106,8 @@ var (
 //   - eshu_dp_advisory_group_projection_watermark_gap_seconds{domain}:
 //     bound-minus-watermark seconds at the verdict (#11075).
 //   - eshu_dp_advisory_group_projection_watermark_waits_total{domain,
-//     failure_class,attempt}: wait verdicts by class and attempt bucket.
+//     failure_class,attempt,origin}: wait verdicts by class, attempt
+//     bucket, and closed advisory origin (nvd, ghsa, other; #11080).
 //   - eshu_dp_advisory_group_projection_watermark_deferral_marker_missing_total
 //     {domain,failure_class,reason}: wait verdicts whose prior wait class
 //     carried no usable same-cycle deferral marker (#11089), by prior
@@ -199,7 +200,7 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 	}
 	if inst.AdvisoryGroupProjectionWatermarkWaits, err = meter.Int64Counter(
 		"eshu_dp_advisory_group_projection_watermark_waits_total",
-		metric.WithDescription("Advisory-group projection winners-watermark wait verdicts (#11075), by failure class (advisory_group_winners_watermark_not_ready or advisory_group_winners_watermark_stale) and attempt bucket (1, 2, 3plus). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only."),
+		metric.WithDescription("Advisory-group projection winners-watermark wait verdicts (#11075), by failure class (advisory_group_winners_watermark_not_ready or advisory_group_winners_watermark_stale), attempt bucket (1, 2, 3plus), and closed advisory origin (nvd, ghsa, other; #11080). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only."),
 	); err != nil {
 		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkWaits counter: %w", err)
 	}
@@ -285,7 +286,8 @@ func (inst *Instruments) RecordAdvisoryGroupLag(ctx context.Context, domain stri
 // RecordAdvisoryGroupWatermarkWait records one winners-watermark wait
 // verdict (#11075): the pre-claim queue residency, the post-claim deferral
 // the stale bound measures, the watermark age and bound gap at the verdict,
-// and the verdict itself by failure class and attempt bucket. A nil
+// and the verdict itself by failure class, attempt bucket, and closed
+// advisory origin (#11080: nvd, ghsa, or other, never a raw id). A nil
 // Instruments records nothing. Negative samples (clock skew) are dropped
 // per signal rather than recorded.
 func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
@@ -293,6 +295,7 @@ func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
 	domain string,
 	failureClass string,
 	attemptBucket string,
+	origin string,
 	claimLagSeconds float64,
 	postClaimDeferralSeconds float64,
 	watermarkAgeSeconds float64,
@@ -316,7 +319,7 @@ func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
 	}
 	if inst.AdvisoryGroupProjectionWatermarkWaits != nil {
 		inst.AdvisoryGroupProjectionWatermarkWaits.Add(ctx, 1, metric.WithAttributes(
-			AttrDomain(domain), AttrFailureClass(failureClass), AttrAttempt(attemptBucket),
+			AttrDomain(domain), AttrFailureClass(failureClass), AttrAttempt(attemptBucket), AttrOrigin(origin),
 		))
 	}
 }
