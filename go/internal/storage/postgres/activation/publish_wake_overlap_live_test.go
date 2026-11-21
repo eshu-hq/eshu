@@ -67,6 +67,14 @@ SELECT status, attempt_count, visible_at <= clock_timestamp() FROM fact_work_ite
 		t.Fatalf("finalize after publish wake = %+v err=%v, want completed with nothing left to wake", result, err)
 	}
 	f.mustClaimable(t, intent.IntentID)
+	if err := f.db.QueryRowContext(f.ctx,
+		`SELECT attempt_count FROM fact_work_items WHERE work_item_id = $1`, intent.IntentID).Scan(&attempts); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != intent.AttemptCount {
+		t.Fatalf("after the post-wake claim: attempt_count=%d, want %d (a woken retrying row in its non-counting class does not count its claim)",
+			attempts, intent.AttemptCount)
+	}
 	if again, ok, err := f.reducerQ.Claim(f.ctx); err != nil || ok {
 		t.Fatalf("second claim = %s ok=%v err=%v, want nothing claimable (no double wake)", again.IntentID, ok, err)
 	}

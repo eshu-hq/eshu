@@ -261,7 +261,7 @@ id is ever a label; the per-obligation log line carries them.
 | `eshu_dp_activation_obligation_oldest_open_age_seconds` | gauge | Age of the oldest pending or leased obligation, sampled once per cycle. |
 | `eshu_dp_activation_obligation_claim_age_seconds` | histogram | Obligation age when a consumer claimed it. |
 | `eshu_dp_activation_obligation_finalize_total` | counter | Finalize attempts by `outcome` (`completed`, `phase_not_ready`, `work_pending`, `obsolete`, `inapplicable`, `not_owner`, `missing`, `lease_lost`, `error`). |
-| `eshu_dp_activation_obligation_woken_total` | counter | `deployment_mapping` rows made visible by committed wakes. |
+| `eshu_dp_activation_obligation_woken_total` | counter | `deployment_mapping` rows made visible by committed Finalize wakes. Since #11104 the phase publish usually wakes these rows first, so a low value is expected; those wakes count on `eshu_dp_reducer_waiting_wake_total{wake_site="phase_exact_in_tx"\|"phase_exact_post_commit"}`. |
 | `eshu_dp_activation_obligation_maintenance_duration_seconds` | histogram | Maintenance callback duration by `outcome` (`success`, `error`); its count is the callback count. |
 | `eshu_dp_activation_obligation_catch_up_inserted_total` | counter | Obligations owed by catch-up to already-active generations missing their phase. |
 | `eshu_dp_activation_obligation_pruned_total` | counter | Finished obligations deleted by the bounded prune. |

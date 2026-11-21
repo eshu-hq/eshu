@@ -102,8 +102,12 @@ cover them.
 
 The activation-obligation Finalize wake (#7584) overlaps this change. The
 publish now reopens parked rows first, so Finalize usually completes with
-`Woken: 0`. Its wake still serves rows parked without a wait row: an older
-binary during a rolling deploy, or a failed wait insert. The activation live
+`Woken: 0`; the publish's wakes count on
+`eshu_dp_reducer_waiting_wake_total` at the two `phase_exact_*` sites.
+Finalize's wake still serves rows parked with no exact-phase wait row. One
+case is an older binary during a rolling deploy, whose coarse
+`target_committed` wait the exact publish wake cannot match. The other is a
+failed wait insert. The activation live
 proofs detach the wait row to keep exercising that path, and
 `TestActivationObligationPublishWakeOverlapsFinalizeLive` pins the overlap:
 the publish wakes the row, Finalize completes with nothing left to wake, and

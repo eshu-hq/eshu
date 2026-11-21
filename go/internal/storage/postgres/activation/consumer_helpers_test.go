@@ -165,9 +165,10 @@ func (f activationMatrix) notReadyDomain(t *testing.T, domain reducercontract.Do
 // again after commit), so a parked row with its wait row is reopened before
 // Finalize runs (TestActivationObligationPublishWakeOverlapsFinalizeLive pins
 // that overlap). Finalize's own wake still serves the rows the publish cannot
-// reach: a row parked without a wait row, by a binary that predates the
-// set-aside during a rolling deploy or by a Fail whose wait insert failed
-// after its retry update committed. Detaching the wait row reproduces exactly
+// reach: a row parked with no exact-phase wait row, either by an older binary
+// during a rolling deploy (its coarse target_committed wait never matches the
+// exact publish wake) or by a Fail whose wait insert failed after its retry
+// update committed. Detaching the wait row reproduces exactly
 // that residual, so these proofs keep exercising Finalize's wake contract.
 // It fails unless exactly one wait row existed, so a fixture that stops
 // parking through the set-aside is caught instead of passing silently.
