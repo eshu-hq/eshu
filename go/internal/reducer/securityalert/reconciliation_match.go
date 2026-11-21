@@ -144,26 +144,65 @@ func securityAlertRepositoryNameFromID(repositoryID string) string {
 }
 
 // matchSecurityAlertImpact returns the impact finding an alert reports among
-// those of its repository, package and advisory. With one finding per
-// installed version (#11113), several can match. The most severe status wins
-// (securityAlertImpactStatusRank), then the lower fact id, so an affected
-// version never hides behind a fixed one and envelope order decides nothing
-// (#11121).
-func matchSecurityAlertImpact(alert ProviderSecurityAlert, impacts []SecurityAlertImpact) SecurityAlertImpact {
-	var best SecurityAlertImpact
+// those securityAlertImpactMatches admits. With one finding per installed
+// version (#11113), several can match. The rank runs first over the impacts
+// whose observed version the alert's own manifest holds (manifestVersions),
+// so a finding for a version installed under another manifest of the
+// repository cannot name the row (#11121 review F1). Only when none of them
+// matches does it fall back to every admitted impact. Within a set, the most
+// severe status wins (securityAlertImpactStatusRank), then the lower fact id,
+// so an affected version never hides behind a fixed one and envelope order
+// decides nothing (#11121).
+func matchSecurityAlertImpact(
+	alert ProviderSecurityAlert,
+	impacts []SecurityAlertImpact,
+	manifestVersions map[string]struct{},
+) SecurityAlertImpact {
+	var best, bestInManifest SecurityAlertImpact
 	for _, impact := range impacts {
-		if impact.RepositoryID != alert.RepositoryID || impact.PackageID != alert.PackageID {
-			continue
-		}
-		if !SecurityAlertIDMatches(alert.CVEIDs, impact.CVEID) &&
-			!SecurityAlertIDMatches(alert.GHSAIDs, impact.AdvisoryID) {
+		if !securityAlertImpactMatches(alert, impact) {
 			continue
 		}
 		if best.FactID == "" || securityAlertImpactOutranks(impact, best) {
 			best = impact
 		}
+		if _, held := manifestVersions[impact.ObservedVersion]; held && impact.ObservedVersion != "" &&
+			(bestInManifest.FactID == "" || securityAlertImpactOutranks(impact, bestInManifest)) {
+			bestInManifest = impact
+		}
+	}
+	if bestInManifest.FactID != "" {
+		return bestInManifest
 	}
 	return best
+}
+
+// securityAlertImpactMatches is the admission predicate of
+// matchSecurityAlertImpact: the same repository and package, and a CVE or
+// GHSA id the alert names. A new identifier match belongs here, before the
+// rank, never as an early return that skips it.
+func securityAlertImpactMatches(alert ProviderSecurityAlert, impact SecurityAlertImpact) bool {
+	if impact.RepositoryID != alert.RepositoryID || impact.PackageID != alert.PackageID {
+		return false
+	}
+	return SecurityAlertIDMatches(alert.CVEIDs, impact.CVEID) ||
+		SecurityAlertIDMatches(alert.GHSAIDs, impact.AdvisoryID)
+}
+
+// securityAlertManifestVersions returns the observed versions of the alert's
+// exact candidate rows: the versions its own manifest holds.
+func securityAlertManifestVersions(
+	alert ProviderSecurityAlert,
+	consumptions []SecurityAlertConsumption,
+) map[string]struct{} {
+	exactCandidates, _ := securityAlertConsumptionCandidates(alert, consumptions)
+	versions := make(map[string]struct{}, len(exactCandidates))
+	for _, candidate := range exactCandidates {
+		if version := securityAlertObservedVersion(alert, candidate); version != "" {
+			versions[version] = struct{}{}
+		}
+	}
+	return versions
 }
 
 func securityAlertImpactOutranks(candidate, current SecurityAlertImpact) bool {

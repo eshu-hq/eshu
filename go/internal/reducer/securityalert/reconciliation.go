@@ -292,7 +292,7 @@ func classifyProviderSecurityAlert(
 	decision.RepositoryID = exactConsumption.RepositoryID
 	impactAlert := alert
 	impactAlert.RepositoryID = exactConsumption.RepositoryID
-	impact := matchSecurityAlertImpact(impactAlert, impacts)
+	impact := matchSecurityAlertImpact(impactAlert, impacts, securityAlertManifestVersions(alert, consumptions))
 	// One impact finding exists per installed version (#11113); the decision
 	// names the dependency row of the version whose impact it reports (#11121).
 	exactConsumption = securityAlertConsumptionForImpact(alert, consumptions, exactConsumption, impact)
