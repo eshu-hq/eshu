@@ -127,8 +127,14 @@ below; no new metric family is added.
 The code-import repo-edge completion log now carries `file_load` /
 `ownership_load` durations and `ownership_rows`, and the handler span carries
 the same three attributes (`code_import_repo_edge_handler.go logCompleted`),
-so the next ownership-load hang names its load without pg archaeology; no new
-metric family is added.
+so the next slow-but-completing ownership load names its load without pg
+archaeology; no new metric family is added. Recorded limitation (arbiter
+verdict non-blocking P2, follow-up not in this lane): both the span
+attributes and the completion log emit only after both loads succeed (Handle
+returns early on either load error), so a future hang inside the ownership
+load itself records neither; the handler-duration histogram and the
+`reducer_handler_timeout` class still count the burn. Cheap follow-up: set
+span attributes incrementally after each load.
 
 ## Per-domain bound derivation and deploy step
 
