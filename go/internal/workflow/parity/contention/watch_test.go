@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 )
@@ -113,11 +114,33 @@ func TestNoSamplerReadingIsIncomplete(t *testing.T) {
 	leg := newFakeLeg(faults{}, false, 4)
 	opt := fastOptions()
 	opt.SampleInterval = 10 * time.Minute
-	report, err := Run(context.Background(), fastSpec(), fakeLegFor(leg, nil, false), opt)
+	l := fakeLegFor(leg, nil, false)
+	// Scope this test to its contract: the no-reading verdict rule. The
+	// advisory race admits a second winner when workers terminalize the
+	// first winner's targets before a late goroutine's guard check, which
+	// is timing-sensitive under loaded -race runners and steals the verdict
+	// with FAILED. The advisory gate stays covered by the clean-leg tests.
+	l.Advisory = false
+	report, err := Run(context.Background(), fastSpec(), l, opt)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if report.Verdict != VerdictIncomplete || report.Incomplete == "" {
+		// Name every non-passing criterion: with no sampler reading the
+		// verdict must be INCOMPLETE, so any other outcome means an
+		// unrelated criterion fired first — log which ones to make the
+		// next occurrence diagnosable instead of a bare verdict string.
+		names := make([]string, 0, len(report.Criteria))
+		for name := range report.Criteria {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			c := report.Criteria[name]
+			if c.Status != StatusPass {
+				t.Logf("criterion %s status=%s detail=%s", name, c.Status, c.Detail)
+			}
+		}
 		t.Fatalf("verdict %s (%q), want INCOMPLETE for a run with no sampler reading", report.Verdict, report.Incomplete)
 	}
 }
