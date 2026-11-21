@@ -37,6 +37,34 @@ services:
       # Single-backend proof: the read surface is Neo4j-pinned, so the
       # whole stack records neo4j as-run (arbiter amendment to #10031).
       ESHU_GRAPH_BACKEND: neo4j
+      # The component refuses derived claims without a host-minted token
+      # (terminal auth_denied), and the host mints only with a GitHub App
+      # (empty default keeps the static path: claims fail, nothing minted).
+      # Export the three from the operator's App for a live run; never
+      # commit values here.
+      ESHU_GITHUB_APP_ID: ${ESHU_GITHUB_APP_ID:-}
+      ESHU_GITHUB_APP_PRIVATE_KEY: ${ESHU_GITHUB_APP_PRIVATE_KEY:-}
+      ESHU_GITHUB_APP_INSTALLATIONS: ${ESHU_GITHUB_APP_INSTALLATIONS:-}
+      # The fixture's deps are synthetic (github.com/acme/* is not on the
+      # public proxy), so the scan resolves them from a file proxy and reads
+      # the recorded advisory set from a local vuln DB — the same inputs the
+      # #10030 cassette was recorded with. GOSUMDB=off matches the cassette;
+      # the component refuses direct/off, mirrors only. Plain names: the
+      # component reads its process env directly (no ESHU_ prefix). Empty
+      # defaults keep the public-proxy behavior for non-fixture proofs.
+      GOPROXY: ${ESHU_PROOF_GOPROXY:-}
+      GOSUMDB: ${ESHU_PROOF_GOSUMDB:-}
+      GOVULNDB: ${ESHU_PROOF_GOVULNDB:-}
+    volumes:
+      # The file proxy + recorded vuln DB live in the shared volume (seeded
+      # once per volume), so worker recreations never lose them. Read-only:
+      # the scan never writes its inputs.
+      - type: volume
+        source: eshu_data
+        target: /scan-inputs
+        read_only: true
+        volume:
+          nocopy: true
 
   # The D13 split moved the read API behind eshu-api (satellite), which
   # requires --core-base-url, but the shared stack defines no core-api
@@ -49,6 +77,9 @@ services:
     command: ["/usr/local/bin/eshu-core-api"]
     environment:
       ESHU_GRAPH_BACKEND: neo4j
+      # Shared with the frontend and MCP: the driver mints one ESHU_API_KEY
+      # per run and every read surface resolves the same explicit value.
+      ESHU_API_KEY: ${ESHU_API_KEY:-}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: ${ESHU_NEO4J_PASSWORD:-change-me}
@@ -57,8 +88,22 @@ services:
       # Same all-zero dev-only placeholder the base eshu service uses: never
       # a real secret; required to boot, and a restart keeps decrypting.
       ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
-      ESHU_HOME: /tmp/.eshu
+      # The driver captures API/MCP readbacks with the key core-api mints
+      # here: ESHU_HOME points at the shared volume (not container /tmp) so
+      # the persisted ESHU_HOME/.env is visible to the capture execs, and
+      # AUTO_GENERATE mints it on first boot. core-api is the only
+      # ResolveAPIKey caller; nothing else writes this file.
+      ESHU_HOME: /data/.eshu
+      ESHU_AUTO_GENERATE_API_KEY: "true"
       HOME: /tmp
+    volumes:
+      # Shared with the eshu frontend: the minted ESHU_HOME/.env the driver
+      # capture execs read lives here, not on container-local /data.
+      - type: volume
+        source: eshu_data
+        target: /data
+        volume:
+          nocopy: true
     depends_on:
       neo4j:
         condition: service_healthy
@@ -125,6 +170,13 @@ services:
       ESHU_NEO4J_DATABASE: neo4j
       NEO4J_DATABASE: neo4j
       NEO4J_URI: bolt://neo4j:7687
+      # The in-tree git collector discovers nothing by default (githubOrg
+      # mode with no App), so the one-shot bootstrap ingests the public
+      # fixture repo explicitly; anonymous fetch works for public repos.
+      # This replaces the manual explicit-bootstrap step: bring-up alone
+      # lands the fixture scope the coordinator derives from.
+      ESHU_REPO_SOURCE_MODE: explicit
+      ESHU_REPOSITORY_RULES_JSON: '[{"kind":"exact","value":"github/eshu-hq/eshu-go-reachability-fixture"}]'
     depends_on:
       neo4j:
         condition: service_healthy
