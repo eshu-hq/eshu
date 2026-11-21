@@ -197,13 +197,14 @@ func buildWinnersKeyedChunk(
 // The NVD baseline trip line's drain tally (eshu-hq/eshu#10767). The
 // maintainer consumes the winners dirty log with DELETE, so the rows still in
 // the log are only the ones it has not consumed yet. The trip sampler needs the
-// hourly inflow instead, so the two drain statements
+// hourly inflow instead, so the four drain statements
 // (deleteWinnersKeyedAppliedDirtySQL and deleteWinnersKeyedAllDirtySQL, in
-// supply_chain_impact_winners_keyed_settle_sql.go) also add the NVD-proxy,
+// supply_chain_impact_winners_keyed_settle_sql.go, plus the two full-resweep
+// drains sharing winnersDirtyTallyCTEs) also add the NVD-proxy,
 // GHSA-proxy (#11078), and NVD scope rows they delete to
 // supply_chain_impact_winners_dirty_tally, keyed by capture minute,
 // in the same statement and therefore the same transaction (migrations 299
-// and 325). The capture statements are not touched.
+// and 328). The capture statements are not touched.
 
 // Winners dirty-log row predicates of the NVD baseline trip line, over the
 // RETURNING columns of the DELETE. The ruled definition of #10728 decision 3

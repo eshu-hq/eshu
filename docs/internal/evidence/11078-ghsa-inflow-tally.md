@@ -2,7 +2,7 @@
 
 The winners dirty tally (migration 299) counted NVD-proxy and NVD scope rows
 only, so GHSA — about 76% of dirty inflow — was entirely uncounted. This
-note is the tracked record the perf-evidence gate requires for migration 325
+note is the tracked record the perf-evidence gate requires for migration 328
 and the sampler change that close the gap. Each tally row is one capture
 minute of drained inflow: `nvd_proxy_rows` counts the CVE-% fact marks,
 `ghsa_proxy_rows` the GHSA-% fact marks, and `nvd_scope_rows` the NVD scope
