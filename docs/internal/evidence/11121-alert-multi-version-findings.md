@@ -30,25 +30,61 @@ four steps:
 a finding that already exists for one version suppresses only that version. A
 candidate set with no version keeps the single pick. An alert row with no
 version keeps the old rule, under which any finding for the advisory
-suppresses it. An ambiguous match still yields nothing. Reconciliation
-(`reconciliation.go`) still calls `MatchSecurityAlertConsumption` and makes
-one pick per alert; its behavior is unchanged.
+suppresses it. The rule is not symmetric: an existing finding with no version
+no longer suppresses a versioned alert row, so a range-only advisory finding
+and the alert's version-proven finding both stand. An ambiguous match still
+yields nothing, even when the repositories involved hold different versions
+(`TestSecurityAlertAmbiguousRepositoriesWithDifferentVersions11121`, review
+F2). When the alert names no `ManifestPath`, every manifest of the repository
+is an exact candidate, so the split gives one finding per version across all
+of those manifests (review F6).
+
+The impact path now also reads an alert row's `installed_version` when the row
+has no observed version (review F4). Reconciliation and the manifest path
+already did, so a row whose only version evidence is `installed_version`
+(`TestSecurityAlertInstalledVersionRowIsVersioned11121`) no longer reads as
+versionless on one path and versioned on the other. This can give an existing
+versionless alert finding a version, and so a new identity, on its holder's
+next pass.
+
+Reconciliation keeps one decision per alert, and its consumption pick still
+calls `MatchSecurityAlertConsumption`. The impact the decision reports does
+change, as described next.
 
 Alert reconciliation, a review addition: `matchSecurityAlertImpact`
 (reconciliation_match.go) returned the first impact in envelope order for the
 alert's repository, package and advisory, and ignored `observed_version`. With
 one finding per installed version (#11113), an open alert could therefore
 report the fixed copy's `not_affected_known_fixed` as `eshu_impact_status`, the
-value the alerts API serves. The matcher now picks the most severe status
-among the matching findings (`affected_exact`, then `affected_derived`,
-`possibly_affected`, `unknown_impact`, `not_affected_known_fixed`), then the
-lower fact id. `securityAlertConsumptionForImpact` then points the decision's
+value the alerts API serves. Admission is
+`securityAlertImpactMatches`: the same repository and package, and a CVE or
+GHSA id the alert names. A future identifier match (for example #11103's
+record ids) belongs in that predicate, before the rank. The rank runs first
+over admitted findings whose version the alert's own manifest holds
+(`securityAlertManifestVersions`, review F1). It falls back to every admitted
+finding only when none of those matches. Within that set the most severe
+status wins (`affected_exact`, then `affected_derived`, `possibly_affected`,
+`unknown_impact`, `not_affected_known_fixed`), then the lower fact id. `securityAlertConsumptionForImpact` then points the decision's
 dependency evidence and observed version at the row of that version.
 `SecurityAlertImpact` gains `ObservedVersion`, read from the finding payload.
 `TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121` was
 RED first. It failed with the fixed impact first, reporting
 `not_affected_known_fixed (impact-fixed)`. Two mutations also fail it: ranking
 by fact id alone, and never re-pointing the evidence.
+`TestReconciliationRanksOnlyImpactsOfTheAlertManifest11121` was RED first for
+review F1. The alert manifest holds only 3.1.0 and another manifest holds
+3.0.3, and the row read `affected_exact (impact-z-affected)` while naming the
+3.1.0 row as its evidence.
+
+Two behavior changes for reviewers:
+
+- The fix commit edited the RED test's impact ids to `impact-a-fixed` and
+  `impact-z-affected`, so the fixed copy sorts first by fact id and a
+  fact-id-only rank also fails. That strengthens the test without changing
+  its assertion.
+- When different advisories match one alert, for example a CVE-keyed and a
+  GHSA-keyed finding, the pick used to be the first in envelope order. It is
+  now the most severe, then the lower fact id.
 
 The change adds no new lock, queue, batch, knob, I/O, retry path, winners SQL,
 or migration. Alert findings reach the winners through the same writer and

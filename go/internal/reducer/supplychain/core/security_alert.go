@@ -92,12 +92,15 @@ func appendSecurityAlertVersionFindings(
 
 // securityAlertObservedVersion is the observed version an alert consumption
 // row gives its finding: the row's own observed version, else the exact
-// version its lockfile or manifest text proves.
+// version its installed version, lockfile, or manifest text proves. It reads
+// InstalledVersion as exactConsumptionDependencyVersion does for the manifest
+// path and as reconciliation does (#11121 review F4).
 func securityAlertObservedVersion(ecosystem string, consumption securityalert.SecurityAlertConsumption) string {
 	if observed := strings.TrimSpace(consumption.ObservedVersion); observed != "" {
 		return observed
 	}
 	if manifestVersion, ok := exactConsumptionDependencyVersion(ecosystem, supplychainmodel.PackageConsumption{
+		InstalledVersion:          consumption.InstalledVersion,
 		DependencyRange:           consumption.DependencyRange,
 		DependencyResolutionState: consumption.DependencyResolutionState,
 		Lockfile:                  consumption.Lockfile,
@@ -260,7 +263,10 @@ func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSec
 // alert's advisory for the repository, package and observed version. It
 // compares the version (#11121), so a finding for one installed version does
 // not suppress the alert's finding for another. A row with no version keeps
-// the pre-#11121 rule: any finding for the advisory suppresses it.
+// the pre-#11121 rule: any finding for the advisory suppresses it. The rule is
+// not symmetric: an existing finding with no version no longer suppresses a
+// versioned alert row, so a range-only advisory finding and the alert's
+// version-proven finding both stand.
 func securityAlertImpactAlreadyExists(
 	alert securityalert.ProviderSecurityAlert,
 	repositoryID string,
