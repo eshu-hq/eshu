@@ -1494,12 +1494,13 @@ type Instruments struct {
 	// registerSupplyChainImpactWinnersContractInstruments: in-flight resweep
 	// age and last commit time by path, stored and binary contract version,
 	// committed fulls by start reason, and stand-downs.
-	SupplyChainImpactWinnersInFlightAge     metric.Float64ObservableGauge
-	SupplyChainImpactWinnersLastCommit      metric.Float64ObservableGauge
-	SupplyChainImpactWinnersContractVersion metric.Int64ObservableGauge
-	SupplyChainImpactWinnersFullResweeps    metric.Int64Counter
-	SupplyChainImpactWinnersStandDowns      metric.Int64Counter
-	supplyChainImpactWinnersContract        *winnersContractState
+	SupplyChainImpactWinnersInFlightAge         metric.Float64ObservableGauge
+	SupplyChainImpactWinnersLastCommit          metric.Float64ObservableGauge
+	SupplyChainImpactWinnersAuditLastSuccessAge metric.Float64ObservableGauge
+	SupplyChainImpactWinnersContractVersion     metric.Int64ObservableGauge
+	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
+	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
+	supplyChainImpactWinnersContract            *winnersContractState
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture

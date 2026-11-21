@@ -225,6 +225,8 @@ func newWinnersContractState() *winnersContractState {
 //   - eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds{path}:
 //     Unix time of the last committed resweep by path, distinct from the
 //     watermark value it stamped. No value until the path first commits.
+//   - eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds: age
+//     of this process's last completed audit pass, zero candidates included.
 //   - eshu_dp_supply_chain_impact_winners_contract_version{kind}: the stored
 //     contract version (0 when none is recorded) and this binary's, from the
 //     last contract read. No value until the first read.
@@ -270,6 +272,19 @@ func registerSupplyChainImpactWinnersContractInstruments(meter metric.Meter, ins
 		}),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersLastCommit gauge: %w", err)
+	}
+	if inst.SupplyChainImpactWinnersAuditLastSuccessAge, err = meter.Float64ObservableGauge(
+		"eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds",
+		metric.WithDescription("Seconds since this process last completed a supply-chain impact winners audit pass (repairs found or not), computed at scrape time. No value until the first completed pass; a value that keeps climbing past a few audit intervals means the backstop is not running."),
+		metric.WithUnit("s"),
+		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
+			if at := st.lastCommit[SupplyChainImpactWinnersPathAudit].Load(); at != 0 {
+				o.Observe(time.Since(time.Unix(0, at)).Seconds())
+			}
+			return nil
+		}),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersAuditLastSuccessAge gauge: %w", err)
 	}
 	if inst.SupplyChainImpactWinnersContractVersion, err = meter.Int64ObservableGauge(
 		"eshu_dp_supply_chain_impact_winners_contract_version",

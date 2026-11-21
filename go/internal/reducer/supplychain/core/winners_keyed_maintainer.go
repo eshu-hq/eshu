@@ -226,6 +226,15 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 		// The audit is the writer of its own rows, so it counts them here.
 		in.RecordSupplyChainImpactWinnersCapture(ctx, telemetry.SupplyChainImpactWinnersSourceAudit, audit.Repairs)
 	}
+	if m.Logger != nil {
+		// One line per completed pass, zero repairs included (#11117), so an
+		// audit that runs clean is visible next to one that never runs.
+		m.Logger.InfoContext(ctx, "supply chain impact winners audit completed",
+			slog.Int64("repairs", audit.Repairs),
+			slog.Float64("read_seconds", audit.ReadDuration.Seconds()),
+			slog.Float64("duration_seconds", elapsed.Seconds()),
+		)
+	}
 	if audit.Repairs > 0 && m.Logger != nil {
 		m.Logger.WarnContext(ctx, "supply chain impact winners audit found stale keys",
 			slog.Int64("repairs", audit.Repairs),
