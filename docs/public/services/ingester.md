@@ -76,15 +76,20 @@ It records queue claim latency, queue depth, oldest queue age, projector stage
 duration, and projection success/failure counters so operators can distinguish
 collector pressure from graph-write or queue-drain pressure.
 
-## Reducer admission (global ceiling, not per source)
+## Reducer admission (global ceiling, plus an opt-in per-source leg)
 
 Before the projector runtime enqueues reducer intents, an admission writer
 (`go/cmd/ingester/reducer_admission.go`) defers the enqueue while either
 signal below is hot. Both signals are totals across **all sources**: one
-source can use the whole allowance while another source starves. Per-source
-slowing is tracked separately by issue #10882 (design record
-`docs/internal/design/10882-source-backpressure.md`), which this section
-does not implement.
+source can use the whole allowance while another source starves. The
+per-source leg from issue #10882 (design record
+`docs/internal/design/10882-source-backpressure.md`) layers on top: when
+the `ESHU_SOURCE_BACKPRESSURE_*` thresholds are all set, intents whose
+source is latched slowed — its oldest claimable reducer work older than
+the engage age with claimable depth at or above the floor — defer under
+reason `source_behind` while other sources' intents in the same batch
+admit immediately. Unset (the default) disables the leg; no Proposed
+threshold ships as a default.
 
 | Signal | Engage | Release | Env |
 |---|---|---|---|
@@ -104,4 +109,6 @@ Scope gaps to know before tuning these marks: the gate guards the ingester's
 own intent enqueue only, and the standalone projector
 (`go/cmd/projector/runtime_wiring.go`) enqueues through a plain writer with
 no admission gate; while the gate defers, scheduled git collection keeps
-committing generations and the projector-stage queue grows instead.
+committing generations and the projector-stage queue grows instead. The
+per-source leg does not yet stretch the git repo-selection schedule, so a
+slowed git source is paced at intent enqueue, not at selection.
