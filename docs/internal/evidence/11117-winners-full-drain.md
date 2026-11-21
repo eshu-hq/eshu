@@ -38,8 +38,10 @@ This note did not re-measure them.
   `GREATEST(previous, LEAST(S, min(captured_at) of the residual log and staging - 1us))`.
   The residual is read inside the rebuild statement, so the cap covers every
   mark the rebuild snapshot sees. The keyed full fallback runs the same
-  statement. It already passed S or the horizon, so the cap changes nothing
-  there except that the watermark can no longer regress.
+  statement. It already passed S, or the horizon over the residual it read
+  after its settle. The in-statement cap also covers marks that commit between
+  that read and the rebuild snapshot, and the GREATEST stops the fallback from
+  moving the watermark backward.
 - The wake (#10876) carries the committed watermark, not the stamp input.
 
 Why the delete runs before the rebuild: a writer stages its mark in the
@@ -48,6 +50,12 @@ change that is visible to the later rebuild snapshot under READ COMMITTED. A
 delete after the rebuild would drop marks of changes committed between the two
 snapshots. Those changes would then be lost.
 
+The order needs a fresh snapshot for each statement. The full therefore pins
+READ COMMITTED as its first statement. It does not rely on the session or
+database default: under REPEATABLE READ the whole transaction would read the
+claim's snapshot, the rebuild would miss marks committed after the drain, and
+S would stamp over them.
+
 Edge cases, each with a live proof in
 `go/internal/storage/postgres/supply_chain_impact_winners_full_drain_live_test.go`:
 
@@ -55,12 +63,20 @@ Edge cases, each with a live proof in
   and moves the watermark forward (`...FullDrainsPreStampRowsLive`).
 - A mark that executes before S and commits after the full stays queued. The
   next keyed tick applies it, and parity with a fresh recompute holds
-  (`...FullLeavesLateCommitMarkQueuedLive`).
+  (`...FullLeavesLateCommitMarkQueuedLive`). This is a guard: it also passes
+  on the code before this change, which never touched the queues. It fails a
+  future drain that deletes rows it cannot see.
 - A failed rebuild rolls the drain back and every mark is restored. The retry
   drains them (`...FullRollbackRestoresDrainedRowsLive`).
 - A mark that commits after the drain but before the rebuild snapshot stays
   queued, and the watermark is its `captured_at` minus 1 us
-  (`...FullStampsUnderResidualLive`).
+  (`...FullStampsUnderResidualLive`). The same holds with the database
+  default at REPEATABLE READ (`...FullPinsReadCommittedLive`, red before the
+  pin).
+- A residual mark older than the stored watermark leaves the watermark where
+  it was, on the full and on the keyed over-cap fallback
+  (`...FullNeverRegressesTheWatermarkLive`; removing the GREATEST turns both
+  subtests red).
 
 ## Concurrency
 
@@ -96,6 +112,12 @@ be one sort inside the existing full transaction. Rollback restored all 65,001
 rows. Host load1 was 25 to 35 during the run, so treat the times as an upper
 bound. The drain adds well under 1 s to a full that takes 6,388 to 6,635 s on
 QA, and it removes the keyed backlog the full left behind.
+
+The theory-gate shim (a throwaway live test that ran the three statements
+above) is not committed. The QA-scale drain is not measured (NOT_CHECKED): QA
+queues about 60k log rows and about 190k staged rows. A linear extrapolation
+from this run (263.8 ms per 60k log rows, 5.5 ms per 5k staged rows) gives about
+0.5 s, against the 5 s target.
 
 Observability Evidence: no new instrument. The full path now reports `path`,
 `identifiers` (drained marks) and `remaining` (marks that committed after the
