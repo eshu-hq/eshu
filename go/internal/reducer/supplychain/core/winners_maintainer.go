@@ -175,9 +175,13 @@ type SupplyChainImpactWinnersMaintainer struct {
 	Tracer      trace.Tracer
 	// KeyedRebuilder, Auditor, AuditInterval and DirtyLogReader enable the keyed
 	// resweep of #9805. With KeyedRebuilder nil the maintainer is the full-resweep
-	// maintainer of #9774. Run then runs one full resweep at startup and keyed
-	// ticks after it. The audit runs only when Auditor is set and AuditInterval
-	// is positive. DirtyLogReader feeds the dirty-log gauges every tick.
+	// maintainer of #9774. With a KeyedRebuilder, Run decides every tick from the
+	// persisted winners contract (#11117): no watermark row, a NULL or a lower
+	// stored version runs one guarded full, an equal version runs keyed ticks and
+	// the audit, and a higher version stands down. A roll with a matching
+	// contract runs no full. The audit runs only when Auditor is set and
+	// AuditInterval is positive. DirtyLogReader feeds the dirty-log gauges every
+	// tick.
 	KeyedRebuilder SupplyChainImpactWinnersKeyedRebuilder
 	Auditor        SupplyChainImpactWinnersAuditor
 	AuditInterval  time.Duration

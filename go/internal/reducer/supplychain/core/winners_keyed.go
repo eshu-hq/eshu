@@ -11,10 +11,12 @@ import (
 )
 
 // Keyed resweep of the #3389 canonical winners read model (#9805). The
-// maintainer still runs one full resweep at startup. Every later tick consumes
-// the winners dirty log and recomputes only the keys it names; a full-recompute
-// audit runs beside the keyed ticks and queues any key the capture missed. See
-// (#9805).
+// maintainer decides every tick from the persisted winners contract (#11117):
+// a missing, NULL or lower stored version runs one guarded full across all
+// instances, an equal version runs keyed ticks, and a higher version stands the
+// binary down. A keyed tick consumes the winners dirty log and recomputes only
+// the keys it names; a full-recompute audit runs beside the keyed ticks and
+// queues any key the capture missed. See (#9805).
 
 // WinnersDirtyIdentifier names one canonical key of the winners read model by
 // the five columns every candidate fact of that key shares: the package triple

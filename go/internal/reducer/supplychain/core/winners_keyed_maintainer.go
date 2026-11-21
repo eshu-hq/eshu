@@ -318,8 +318,12 @@ const (
 )
 
 // decideWinnersContract maps the stored contract to the tick's action and,
-// for a full, its start reason. The decision reads only versions: the hash is
-// pinned to the version by a test, so equal versions mean equal statements.
+// for a full, its start reason. The decision reads only versions: the hash of
+// the covered statements (the rebuild and the keyed build and apply
+// statements) is pinned to the version by a test, so equal versions mean equal
+// covered statements. The capture owners, the drains and the staged audit are
+// not pinned: a change to them that alters which keys get marked or visited
+// needs a version bump by the rule on SupplyChainImpactWinnersContractVersion.
 func decideWinnersContract(c SupplyChainImpactWinnersContract) (winnersContractAction, string) {
 	switch {
 	case !c.Present:

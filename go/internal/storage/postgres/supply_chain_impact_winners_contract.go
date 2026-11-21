@@ -29,7 +29,10 @@ import (
 // keyed build or apply statement, and a migration that rewrites impact facts or
 // scope activation outside the capture owners (fact_upsert, fact_retract and
 // the activation, operator and scanner triggers), since such a rewrite queues
-// no dirty mark. A bump makes every instance run one full after the roll. The
+// no dirty mark. Bump it also for a change to the capture owners, the drains
+// or the staged audit that alters which keys get marked or visited: the pin
+// test does not cover those statements. A bump makes every instance run one
+// full after the roll. The
 // pin test fails on any covered statement change until the version is bumped
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
