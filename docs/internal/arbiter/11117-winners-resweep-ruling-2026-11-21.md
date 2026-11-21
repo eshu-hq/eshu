@@ -3,7 +3,8 @@
 Arbiter ruling (arbiter-eshu, binding), verified at origin/main `49da4cc774`.
 File citations are at that commit; line numbers are omitted because the code has
 moved since. The audit-gate addendum belongs to the contract change (#11117 A)
-and is recorded with it.
+and is recorded with it:
+[11117-winners-audit-gate-ruling-2026-11-21.md](11117-winners-audit-gate-ruling-2026-11-21.md).
 
 #11117 is three defects, not one "unbounded transaction". Keep #11117 for restart-triggered fulls plus the undrained startup full (A+B, one release); split bounding (C) and keyed headroom/detoast (D) into two new issues; do not hold the 49da4cc774 rollout.
 
