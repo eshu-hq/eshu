@@ -86,8 +86,8 @@ not force a full.
 
 ## Proofs (live Postgres 18.6, disposable, one test at a time)
 
-RED commit `41777e05de` ran every test below against compiling stubs; each
-failed on its assertion. GREEN is `0a18f86210`.
+RED commit `c9d03761bf` ran every test below against compiling stubs; each
+failed on its assertion. GREEN is `719f306056`.
 
 | Proof | Test | Result |
 | --- | --- | --- |
@@ -100,7 +100,7 @@ failed on its assertion. GREEN is `0a18f86210`.
 | (c) two instances | `...AuditSweepCursorRaceLive` | the second verify of a range returns `cursor_race` and its repairs roll back; of two concurrent verifies exactly one advances; two instances sweeping together queue each stale identifier once |
 | (d) keyed tick during a verify | `...AuditSweepKeyedTickSkippedDuringVerifyLive` | Skipped while the range holds the lock; the next keyed tick commits the queued mark and the repairs |
 | (h) M5, progress at full keyed duty | `...AuditSweepAdvancesUnderFullKeyedDutyLive` | a try-lock loop holding the resweep lock back to back (88.7-95.6 percent duty): 17 of 17 ranges contended, every one advanced within 3 attempts, 0 `lock_busy` (88.1 percent after the yield landed) |
-| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`57ec0148af`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
+| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`5ae3b42ee9`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
 | Keyed yield (unit) | `TestStagedAuditKeyedYieldAfterLockedVerify` | a range after a locked verify asks for `NoLock`; a range that needs the lock yields until the interval passes or the watermark moves; an unlocked verify arms no yield |
 | Collation | the differential fixture | packages `@tootallnate/once`, `@scope/pkg`, `pkg:npm/@types/node`, `.dotted`, `-dashed`, `_under`, `Pkg:npm/upper` and an `@` orphan; the union still equals the single statement under `en_US.utf8`, where `@tootallnate/once` sorts after `pkg:npm/p99` |
 | Lock policy, timeout halving | `TestStagedAuditLockPolicy`, `TestStagedAuditRangeTimeoutHalvesTheBudget` | the third verify after two misses waits; budgets 10,000, 5,000, 2,500, 1,250, 625 |
@@ -188,7 +188,16 @@ conflict rate. An operator tunes with env only, the tick budget first, then
 the interval (interval 2 min with budget 30 min gives duty 0.94), reading the
 standby conflict and range timeout signals before each next step.
 
-M9 (QA read-only replica, before the PR): M9_PLACEHOLDER
+M9 (QA read-only replica, before the PR): 2026-11-21 20:49-20:55Z, standby replay lag 0.0-0.6 s.
+20 ranges of 10,000 rows, cursors at every twentieth stored-winner identifier
+in SQL order, each one read-only statement (shipped next-range statement
+joined to the shipped restricted pending select over its candidates, 30 s
+timeout). 19 of 20 ranges carried candidates (1,543 in all, 5 to 351 per
+range); 0 candidates were absent from the dirty log and staging, so f_hole =
+0/20 = 0.00, under the 0.15 rule: ship as ruled. The combined statement took
+12.7-26.0 s (mean 18.6 s); it includes the pending check's staging scan, so it
+is not the range read alone. The rows are in the lane's scratch output, not
+committed.
 
 The local 330,070-fact figures above are warm and local; this projection uses
 the lane's cold replica cost. The QA sweep duration is an acceptance reading
