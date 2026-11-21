@@ -169,6 +169,80 @@ func TestReducerQueueClaimCarriesFailureEvidenceLive(t *testing.T) {
 	if classified.FailureClass() != advisorygroup.WinnersWatermarkStaleFailureClass {
 		t.Fatalf("third verdict class = %q, want stale", classified.FailureClass())
 	}
+
+	// Dead-maintainer full loop (#11075 Decision 2): the stale verdict is
+	// counting, so driving it through Fail must burn the attempt budget and
+	// land the row in dead_letter within MaxAttempts counting evaluations —
+	// bounded and visible instead of silent. The ledger: claim 1 evaluated
+	// not_ready (non-counting, attempt frozen at 1); every stale Fail below
+	// retries while attemptCount < MaxAttempts and the last one
+	// dead-letters. RED-first note: asserting dead_letter right after this
+	// first stale Fail fails with status='retrying' — the budget genuinely
+	// burns one counting evaluation at a time.
+	if err := queue.Fail(ctx, intent2, staleErr); err != nil {
+		t.Fatalf("Fail(first stale) error = %v", err)
+	}
+	var firstStatus string
+	if err := db.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`, intent2.IntentID).Scan(&firstStatus); err != nil {
+		t.Fatalf("first stale Fail status: %v", err)
+	}
+	if firstStatus != "retrying" {
+		t.Fatalf("after first stale Fail status = %q, want retrying (budget unspent)", firstStatus)
+	}
+	staleVerdicts := 0
+	for {
+		staleVerdicts++
+		if staleVerdicts > queue.MaxAttempts {
+			t.Fatalf("stale loop ran %d iterations without dead-lettering (MaxAttempts=%d)", staleVerdicts, queue.MaxAttempts)
+		}
+		// Past the retry timer: the stale class parks on no wait (only
+		// the not_ready class has a WaitingDeferral entry), so the row
+		// is retrying on a short backoff; travel anyway so the claim is
+		// deterministic and the handler clock stays past the bound.
+		queueClock = queueClock.Add(11 * time.Minute)
+		intentN, claimed, err := queue.Claim(ctx)
+		if err != nil {
+			t.Fatalf("stale-loop Claim() #%d error = %v", staleVerdicts, err)
+		}
+		if !claimed {
+			t.Fatalf("stale-loop Claim() #%d claimed = false, want the retrying row", staleVerdicts)
+		}
+		if wantAttempt := intent2.AttemptCount + staleVerdicts; intentN.AttemptCount != wantAttempt {
+			t.Fatalf("stale-loop claim #%d attempt count = %d, want %d (stale is counting)", staleVerdicts, intentN.AttemptCount, wantAttempt)
+		}
+		if intentN.Failure == nil || !strings.Contains(intentN.Failure.Details, "winners-watermark-deferral: first-deferred-at=") {
+			t.Fatalf("stale-loop claim #%d lost the deferral marker: %+v", staleVerdicts, intentN.Failure)
+		}
+		_, staleErrN := handler.Handle(ctx, intentN)
+		if staleErrN == nil || reducercontract.IsExpectedWait(staleErrN) {
+			t.Fatalf("stale-loop verdict #%d: want out-of-expected-wait stale, got %v", staleVerdicts, staleErrN)
+		}
+		classified = nil
+		if !errors.As(staleErrN, &classified) {
+			t.Fatalf("stale-loop error #%d does not classify a failure: %v", staleVerdicts, staleErrN)
+		}
+		if classified.FailureClass() != advisorygroup.WinnersWatermarkStaleFailureClass {
+			t.Fatalf("stale-loop verdict #%d class = %q, want stale", staleVerdicts, classified.FailureClass())
+		}
+		if err := queue.Fail(ctx, intentN, staleErrN); err != nil {
+			t.Fatalf("stale-loop Fail() #%d error = %v", staleVerdicts, err)
+		}
+		var status string
+		if err := db.QueryRowContext(ctx, `SELECT status FROM fact_work_items WHERE work_item_id = $1`, intentN.IntentID).Scan(&status); err != nil {
+			t.Fatalf("stale-loop status #%d: %v", staleVerdicts, err)
+		}
+		if status == "dead_letter" {
+			break
+		}
+		if status != "retrying" {
+			t.Fatalf("stale-loop status #%d = %q, want retrying or dead_letter", staleVerdicts, status)
+		}
+	}
+	// intent2's stale Fail plus the loop's: exactly MaxAttempts counting
+	// stale evaluations to reach dead_letter on the stuck watermark.
+	if total := staleVerdicts + 1; total != queue.MaxAttempts {
+		t.Fatalf("counting stale verdicts through Fail = %d, want MaxAttempts=%d to dead_letter", total, queue.MaxAttempts)
+	}
 }
 
 func seedFailureEvidenceScope(t *testing.T, ctx context.Context, db *sql.DB, scopeID, generationID string) {

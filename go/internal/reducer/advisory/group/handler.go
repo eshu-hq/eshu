@@ -325,16 +325,19 @@ func (h Handler) recordWatermarkWait(
 	if stale {
 		failureClass = WinnersWatermarkStaleFailureClass
 	}
-	firstClaimLag := -1.0
+	// ClaimedAt is the claim row's last_attempt_at, overwritten on every
+	// claim, so on retries this is the latest-claim lag, not the first
+	// claim's (#11075 Decision 5a).
+	claimLag := -1.0
 	if intent.ClaimedAt != nil {
-		firstClaimLag = intent.ClaimedAt.Sub(winnersBoundStart(intent)).Seconds()
+		claimLag = intent.ClaimedAt.Sub(winnersBoundStart(intent)).Seconds()
 	}
 	h.Instruments.RecordAdvisoryGroupWatermarkWait(
 		ctx,
 		string(reducercontract.DomainAdvisoryGroupProjection),
 		failureClass,
 		telemetry.AttemptBucketForCount(intent.AttemptCount),
-		firstClaimLag,
+		claimLag,
 		now.Sub(deferralStart).Seconds(),
 		now.Sub(watermark).Seconds(),
 		required.Sub(watermark).Seconds(),

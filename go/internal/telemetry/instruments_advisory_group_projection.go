@@ -74,6 +74,9 @@ var (
 //     read model.
 //   - eshu_dp_advisory_group_projection_first_claim_lag_seconds{domain}:
 //     cycle start to claim seconds per watermark-wait verdict (#11075).
+//     The claim timestamp is the row's last_attempt_at, overwritten on
+//     every claim, so on retries this is the latest-claim lag, not the
+//     first claim's — the name keeps the metric stable.
 //   - eshu_dp_advisory_group_projection_post_claim_deferral_seconds{domain}:
 //     first deferral to verdict seconds per wait verdict (#11075).
 //   - eshu_dp_advisory_group_projection_watermark_age_seconds{domain}:
@@ -138,7 +141,7 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 	}
 	if inst.AdvisoryGroupProjectionFirstClaimLag, err = meter.Float64Histogram(
 		"eshu_dp_advisory_group_projection_first_claim_lag_seconds",
-		metric.WithDescription("Seconds from the advisory-group projection repair-cycle start (COALESCE(reopened_at, created_at)) to the claim that produced the watermark-wait verdict (#11075). The pre-claim half of the wait split: queue residency before the handler ever evaluated the row."),
+		metric.WithDescription("Seconds from the advisory-group projection repair-cycle start (COALESCE(reopened_at, created_at)) to the claim that produced the watermark-wait verdict (#11075). The pre-claim half of the wait split: queue residency before the handler ever evaluated the row. On retries this measures the latest claim (ClaimedAt is last_attempt_at, overwritten per claim), not the first."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(advisoryGroupWatermarkWaitBuckets...),
 	); err != nil {
@@ -258,7 +261,7 @@ func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
 	domain string,
 	failureClass string,
 	attemptBucket string,
-	firstClaimLagSeconds float64,
+	claimLagSeconds float64,
 	postClaimDeferralSeconds float64,
 	watermarkAgeSeconds float64,
 	watermarkGapSeconds float64,
@@ -267,8 +270,8 @@ func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
 		return
 	}
 	attrs := []attribute.KeyValue{AttrDomain(domain)}
-	if inst.AdvisoryGroupProjectionFirstClaimLag != nil && firstClaimLagSeconds >= 0 {
-		inst.AdvisoryGroupProjectionFirstClaimLag.Record(ctx, firstClaimLagSeconds, metric.WithAttributes(attrs...))
+	if inst.AdvisoryGroupProjectionFirstClaimLag != nil && claimLagSeconds >= 0 {
+		inst.AdvisoryGroupProjectionFirstClaimLag.Record(ctx, claimLagSeconds, metric.WithAttributes(attrs...))
 	}
 	if inst.AdvisoryGroupProjectionPostClaimDeferral != nil && postClaimDeferralSeconds >= 0 {
 		inst.AdvisoryGroupProjectionPostClaimDeferral.Record(ctx, postClaimDeferralSeconds, metric.WithAttributes(attrs...))
