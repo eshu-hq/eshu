@@ -294,13 +294,25 @@ func TestSupplyChainImpactWinnersResweepWatermarkReadsTheCommittedStampLive(t *t
 	if _, ok, err := store.Watermark(ctx); err != nil || ok {
 		t.Fatalf("Watermark() before any resweep: ok=%v err=%v, want no value", ok, err)
 	}
+	dbClock := func() time.Time {
+		t.Helper()
+		var now time.Time
+		if err := db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&now); err != nil {
+			t.Fatalf("read DB clock: %v", err)
+		}
+		return now.UTC()
+	}
+	before := dbClock()
 	swept, err := store.ResweepWinners(ctx)
 	if err != nil {
 		t.Fatalf("resweep: %v", err)
 	}
+	after := dbClock()
 	stamp := swept.Watermark
-	if stamp.IsZero() {
-		t.Fatalf("resweep = %+v, want the committed watermark reported", swept)
+	// The stamp is the DB clock read inside the resweep (#11117), so it lies
+	// between two DB-clock reads taken around the call.
+	if stamp.Before(before) || stamp.After(after) {
+		t.Fatalf("resweep watermark = %v, want a DB-clock stamp in [%v, %v] (result %+v)", stamp, before, after, swept)
 	}
 	if got, ok, err := store.Watermark(ctx); err != nil || !ok || !got.Equal(stamp) {
 		t.Fatalf("Watermark() = %v, %v, %v; want %v", got, ok, err, stamp)
