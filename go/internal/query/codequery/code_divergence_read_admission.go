@@ -39,16 +39,19 @@ const CodeDivergenceReadAdmissionContractVersion = "v0"
 // serve divergence reads but cannot acquire a write it did not
 // bargain for through it.
 //
-// W-wave consumer: divergence findings ONLY (per the arbiter
-// supplemental ruling on eshu-hq/eshu-api#125). The satellite
+// W-wave consumer: the divergence family ONLY — findings, investigate,
+// and report (per the arbiter supplemental ruling on eshu-hq/eshu-api#125).
+// The satellite
 // records this pin in a follow-up; a satellite PR consuming an
 // unminted pin is invalid. Arbiter review of this pin precedes
 // satellite termination of the divergence leg.
 //
-// In scope: the one divergence findings read. The route admits its
-// read through exactly this pin:
+// In scope: the three divergence reads. The routes admit their
+// reads through exactly this pin:
 //
 //   - POST /api/v0/code/divergence/findings
+//   - POST /api/v0/code/divergence/investigate
+//   - POST /api/v0/code/divergence/report
 //
 // Narrow by construction, recorded not silently assumed: the six
 // methods re-declare the staying-port signatures in this
