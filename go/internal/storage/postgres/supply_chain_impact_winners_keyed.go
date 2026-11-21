@@ -115,9 +115,12 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 	}
 	s.Instruments.RecordSupplyChainImpactWinnersStagingCollapsed(ctx, collapsed.rows)
 	// The tick stamp is read once, before admission (#10706): a row that
-	// commits after this read carries a later captured_at, so stamping S can
-	// never cover a capture the tick did not see. Every branch below stamps
-	// this same S when its residual set is empty.
+	// both executes and commits after this read carries a later captured_at,
+	// so stamping S never covers it. captured_at is taken at INSERT, not at
+	// commit, so a row that executed before this read and commits after the
+	// residual read is covered by S for one tick while still queued; the next
+	// tick applies it (the one-tick over-claim the late-commit tests pin).
+	// Every branch below stamps this same S when its residual set is empty.
 	var tickStamp time.Time
 	var admitted int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseConsume, func() error {
@@ -151,13 +154,12 @@ func (s SupplyChainImpactWinnersStore) ResweepWinnersKeyed(
 			if remainingMin, err = selectWinnersRemainingMin(ctx, tx); err != nil {
 				return err
 			}
-			var stagingCount int64
-			var stagingMin sql.NullTime
-			if stagingCount, stagingMin, err = countWinnersStagingResidual(ctx, tx, "count remaining staging rows"); err != nil {
+			staged, err := countWinnersStagingResidual(ctx, tx, "count remaining staging rows")
+			if err != nil {
 				return err
 			}
-			remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, stagingCount, stagingMin)
-			result.Remaining = remaining
+			remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, staged)
+			result.Remaining, result.RemainingUpperBound = remaining, staged.upperBound
 			var candidate time.Time
 			if remaining > 0 {
 				result.Bounded = true
@@ -271,13 +273,13 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}
 	if over {
 		if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseFullRebuild, func() error {
-			tally, remaining, remainingMin, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
+			tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, true)
 			if err != nil {
 				return err
 			}
 			result.Identifiers = tally.total()
 			result.TriggerCaptured = tally.triggerSources()
-			result.Remaining = remaining
+			result.Remaining, result.RemainingUpperBound = remaining, upperBound
 			// The drain only deletes admitted rows whose version still
 			// matches (#10827 R2): rows that arrived after admission were
 			// never admitted, and re-marked keys keep their bumped version
@@ -342,13 +344,13 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	result.ChunkIdentifiers = chunk.identifiers
 	result.ChunkKeptRows = kept
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
-		tally, remaining, remainingMin, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
+		tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
 		if err != nil {
 			return err
 		}
 		result.Identifiers = tally.total()
 		result.TriggerCaptured = tally.triggerSources()
-		result.Remaining = remaining
+		result.Remaining, result.RemainingUpperBound = remaining, upperBound
 		// Every pass stamps: S when the log drained, else the horizon H over
 		// the rows it leaves queued. Bounded stays the capacity signal the
 		// maintainer re-ticks on; it no longer gates the stamp. S is the
@@ -447,31 +449,6 @@ func (s SupplyChainImpactWinnersStore) overKeyedCap(ctx context.Context, tx db.T
 		return false, err
 	}
 	return stored > 0 && float64(idents) > fraction*float64(stored), nil
-}
-
-// DirtyLogStats reads the dirty log's depth and the age of its oldest row,
-// unioned with the staging queue's (#10837 direction C), for the operator
-// gauges. An empty log and queue read as zero depth and zero age.
-func (s SupplyChainImpactWinnersStore) DirtyLogStats(ctx context.Context) (supplychaincore.SupplyChainImpactWinnersDirtyStats, error) {
-	var stats supplychaincore.SupplyChainImpactWinnersDirtyStats
-	if s.DB == nil {
-		return stats, fmt.Errorf("supply chain impact winners database is required")
-	}
-	rows, err := s.DB.QueryContext(ctx, selectWinnersDirtyLogStatsSQL)
-	if err != nil {
-		return stats, fmt.Errorf("read supply chain impact winners dirty log stats: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return stats, rows.Err()
-	}
-	var ageSeconds, stagingAgeSeconds float64
-	if err := rows.Scan(&stats.Depth, &ageSeconds, &stats.StagingDepth, &stagingAgeSeconds); err != nil {
-		return stats, fmt.Errorf("scan supply chain impact winners dirty log stats: %w", err)
-	}
-	stats.OldestAge = time.Duration(ageSeconds * float64(time.Second))
-	stats.StagingOldestAge = time.Duration(stagingAgeSeconds * float64(time.Second))
-	return stats, rows.Err()
 }
 
 var (

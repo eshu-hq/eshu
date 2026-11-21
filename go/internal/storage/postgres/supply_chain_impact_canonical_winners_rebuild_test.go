@@ -131,6 +131,8 @@ func (r *winnersCountRows) Scan(dest ...any) error {
 			*d = v.(bool)
 		case *sql.NullTime:
 			*d = v.(sql.NullTime)
+		case *sql.NullInt64:
+			*d = v.(sql.NullInt64)
 		case *time.Time:
 			*d = v.(time.Time)
 		case *sql.NullInt64:
@@ -202,7 +204,7 @@ func (tx *winnersFakeTx) QueryContext(_ context.Context, query string, args ...a
 	case countWinnersKeyedRemainingSQL:
 		return winnersCounts(int64(0)), nil
 	case selectWinnersStagingResidualSQL:
-		return winnersCounts(int64(0), sql.NullTime{}), nil
+		return winnersCounts(int64(0), sql.NullInt64{}, sql.NullInt64{}, sql.NullTime{}), nil
 	case selectSupplyChainImpactWinnersContractSQL:
 		if tx.storedContract == nil {
 			return &winnersCountRows{}, nil

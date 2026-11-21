@@ -350,7 +350,7 @@ VALUES ('fact', 'fact_upsert', $1, 'repo:survive', 'digest:survive', $2, $2, 1)`
 	if _, err := buildWinnersKeyedChunk(ctx, tick, winnersDeadlockSettleBounds); err != nil {
 		t.Fatalf("build chunk in tick: %v", err)
 	}
-	tally, remaining, _, err := settleWinnersKeyedDirtyLog(ctx, tick, false)
+	tally, remaining, _, _, err := settleWinnersKeyedDirtyLog(ctx, tick, false)
 	if err != nil {
 		t.Fatalf("settle in tick: %v", err)
 	}
@@ -426,14 +426,14 @@ VALUES ('fact', 'fact_upsert', $1, 'repo:split', 'digest:split', $2, $2)`, pkg, 
 
 	// The residual unions the staging remainder: count adds, and the horizon
 	// minimum is the staging minimum (the log is otherwise empty).
-	stagingCount, stagingMin, err := countWinnersStagingResidual(ctx, SQLDB{DB: database}, "read split residual")
+	residual, err := countWinnersStagingResidual(ctx, SQLDB{DB: database}, "read split residual")
 	if err != nil {
 		t.Fatalf("residual: %v", err)
 	}
-	if stagingCount != staged-budget || !stagingMin.Valid {
-		t.Fatalf("staging residual = (%d, valid=%v), want (200, valid)", stagingCount, stagingMin.Valid)
+	if residual.count != staged-budget || !residual.oldest.Valid || residual.upperBound {
+		t.Fatalf("staging residual = (%d, valid=%v, upper=%v), want (200, valid, exact)", residual.count, residual.oldest.Valid, residual.upperBound)
 	}
-	remaining, horizon := stagingUnionRemaining(0, sql.NullTime{}, stagingCount, stagingMin)
+	remaining, horizon := stagingUnionRemaining(0, sql.NullTime{}, residual)
 	if remaining != staged-budget || !horizon.Valid {
 		t.Fatalf("union remainder = (%d, valid=%v), want (200, valid)", remaining, horizon.Valid)
 	}
@@ -708,7 +708,7 @@ func TestSupplyChainImpactWinnersStagingCollapseExplainPinsKeyOrderLive(t *testi
 	}
 	defer func() { _ = tx.Rollback() }()
 	explain := func(stmt string) string {
-		rows, err := tx.QueryContext(ctx, "EXPLAIN "+stmt, 0)
+		rows, err := tx.QueryContext(ctx, "EXPLAIN "+stmt, 0, 0)
 		if err != nil {
 			t.Fatalf("explain collapse arm: %v", err)
 		}

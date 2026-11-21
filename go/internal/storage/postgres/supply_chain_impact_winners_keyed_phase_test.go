@@ -53,6 +53,8 @@ func (r *phaseFakeRows) Scan(dest ...any) error {
 			*p = r.row[i].(int64)
 		case *sql.NullTime:
 			*p = sql.NullTime{}
+		case *sql.NullInt64:
+			*p = sql.NullInt64{}
 		case *time.Time:
 			*p = r.row[i].(time.Time)
 		case *sql.NullInt64:
@@ -116,18 +118,20 @@ func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (
 		return &phaseFakeRows{row: []any{tx.claimed}}, nil
 	case countWinnersKeyedConsumedSQL:
 		return &phaseFakeRows{row: []any{tx.consumed}}, nil
-	case selectWinnersStagingCollapseStatsSQL:
-		// The fake queue always holds two staged rows under the test default
-		// budget, so every tick exercises the bound and both merge arms.
-		return &phaseFakeRows{row: []any{int64(2), int64(9)}}, nil
 	case selectWinnersStagingCollapseBoundSQL:
-		return &phaseFakeRows{row: []any{int64(7)}}, nil
+		// The fake queue always holds two staged rows (seqs 1..7) under the
+		// test default budget, so every tick exercises both merge arms.
+		return &phaseFakeRows{row: []any{int64(2), int64(1), int64(7)}}, nil
+	case readWinnersStagingWorkMemSQL, restoreWinnersStagingWorkMemSQL:
+		return &phaseFakeRows{row: []any{"4MB"}}, nil
+	case setWinnersStagingWorkMemSQL:
+		return &phaseFakeRows{row: []any{winnersStagingCollapseWorkMem}}, nil
 	case collapseWinnersStagingFactSQL:
 		return &phaseFakeRows{row: []any{int64(2), int64(2)}}, nil
 	case collapseWinnersStagingScopeSQL:
 		return &phaseFakeRows{row: []any{int64(0), int64(0)}}, nil
 	case selectWinnersStagingResidualSQL:
-		return &phaseFakeRows{row: []any{int64(0), nil}}, nil
+		return &phaseFakeRows{row: []any{int64(0), nil, nil, nil}}, nil
 	case selectWinnersKeyedChunkIdentsSQL:
 		return &phaseFakeRows{row: []any{"pkg:npm/fake", "repo-fake", "", "CVE-2026-1", ""}}, nil
 	case countWinnersKeyedActiveFactsSQL:
@@ -319,7 +323,7 @@ func TestResweepWinnersKeyedRecordsTheTimeOfAFailedPhase(t *testing.T) {
 		idle, overCap bool
 	}{
 		{"claim", tryClaimSupplyChainImpactWinnersResweepSQL, "claim", []string{"claim"}, false, false},
-		{"collapse", selectWinnersStagingCollapseStatsSQL, "collapse", []string{"claim", "collapse"}, false, false},
+		{"collapse", selectWinnersStagingCollapseBoundSQL, "collapse", []string{"claim", "collapse"}, false, false},
 		{"consume", admitWinnersKeyedWindowSQL, "consume", []string{"claim", "collapse", "consume"}, false, false},
 		{"build_idents", buildWinnersKeyedIdentsSQL, "build_idents", []string{"claim", "collapse", "consume", "build_idents"}, false, false},
 		{"build_active_facts", addWinnersKeyedOperatorFactsSQL, "build_active_facts", []string{"claim", "collapse", "consume", "build_idents", "build_active_facts"}, false, false},

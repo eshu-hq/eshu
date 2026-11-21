@@ -199,16 +199,19 @@ func TestStagingUnionRemainingUnionsDepthAndMinimum(t *testing.T) {
 	stagingMin := sql.NullTime{Time: earlier, Valid: true}
 	var invalid sql.NullTime
 
-	if got, min := stagingUnionRemaining(3, logMin, 5, stagingMin); got != 8 || !min.Valid || !min.Time.Equal(earlier) {
+	staged := func(n int64, oldest sql.NullTime) winnersStagingResidual {
+		return winnersStagingResidual{count: n, oldest: oldest}
+	}
+	if got, min := stagingUnionRemaining(3, logMin, staged(5, stagingMin)); got != 8 || !min.Valid || !min.Time.Equal(earlier) {
 		t.Errorf("stagingUnionRemaining(3, now, 5, earlier) = (%d, %v), want (8, earlier)", got, min)
 	}
-	if got, min := stagingUnionRemaining(0, invalid, 4, stagingMin); got != 4 || !min.Valid || !min.Time.Equal(earlier) {
+	if got, min := stagingUnionRemaining(0, invalid, staged(4, stagingMin)); got != 4 || !min.Valid || !min.Time.Equal(earlier) {
 		t.Errorf("staging-only remainder = (%d, %v), want (4, earlier)", got, min)
 	}
-	if got, min := stagingUnionRemaining(2, logMin, 0, invalid); got != 2 || !min.Valid || !min.Time.Equal(now) {
+	if got, min := stagingUnionRemaining(2, logMin, staged(0, invalid)); got != 2 || !min.Valid || !min.Time.Equal(now) {
 		t.Errorf("log-only remainder = (%d, %v), want (2, now)", got, min)
 	}
-	if got, min := stagingUnionRemaining(0, invalid, 0, invalid); got != 0 || min.Valid {
+	if got, min := stagingUnionRemaining(0, invalid, staged(0, invalid)); got != 0 || min.Valid {
 		t.Errorf("empty remainder = (%d, %v), want (0, invalid)", got, min)
 	}
 }

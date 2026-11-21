@@ -244,7 +244,7 @@ func winnersSettleOnce(ctx context.Context, tx db.Transaction) (winnersCaptureTa
 	if _, err := buildWinnersKeyedChunk(ctx, tx, winnersDeadlockSettleBounds); err != nil {
 		return nil, 0, fmt.Errorf("build chunk: %w", err)
 	}
-	tally, remaining, _, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
+	tally, remaining, _, _, err := settleWinnersKeyedDirtyLog(ctx, tx, false)
 	if err != nil {
 		return nil, 0, fmt.Errorf("settle: %w", err)
 	}

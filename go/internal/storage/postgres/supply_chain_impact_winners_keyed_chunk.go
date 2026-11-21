@@ -281,17 +281,18 @@ pruned AS (
 // this tick converts, then deletes, and a writer pass captures, publishes,
 // then retracts, so cross-batch inversion can still roll one victim back
 // (#10851). The tally sums dirty_version: one deleted row counts every mark
-// it collapsed.
-func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, sql.NullTime, error) {
+// it collapsed. The returned bool reports that the remaining depth is an
+// upper bound: the staging residual past its exact-count cap (#11129).
+func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, sql.NullTime, bool, error) {
 	deleteSQL := deleteWinnersKeyedAppliedDirtySQL
 	if fallback {
 		deleteSQL = deleteWinnersKeyedAllDirtySQL
 	} else if _, err := tx.ExecContext(ctx, convertWinnersKeyedScopeRemainderSQL); err != nil {
-		return nil, 0, sql.NullTime{}, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
+		return nil, 0, sql.NullTime{}, false, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, deleteSQL)
 	if err != nil {
-		return nil, 0, sql.NullTime{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	tally := winnersCaptureTally{}
 	for rows.Next() {
@@ -299,34 +300,34 @@ func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback
 		var n int64
 		if err := rows.Scan(&source, &n); err != nil {
 			_ = rows.Close()
-			return nil, 0, sql.NullTime{}, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
+			return nil, 0, sql.NullTime{}, false, fmt.Errorf("scan deleted supply chain impact winners dirty rows: %w", err)
 		}
 		tally[source] += n
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, 0, sql.NullTime{}, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, fmt.Errorf("delete applied supply chain impact winners dirty rows: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, 0, sql.NullTime{}, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
+		return nil, 0, sql.NullTime{}, false, fmt.Errorf("close deleted supply chain impact winners dirty rows: %w", err)
 	}
 	remaining, err := scanWinnersInt64(ctx, tx, countWinnersKeyedRemainingSQL, "count remaining dirty rows")
 	if err != nil {
-		return nil, 0, sql.NullTime{}, err
+		return nil, 0, sql.NullTime{}, false, err
 	}
 	remainingMin, err := selectWinnersRemainingMin(ctx, tx)
 	if err != nil {
-		return nil, 0, sql.NullTime{}, err
+		return nil, 0, sql.NullTime{}, false, err
 	}
 	// The residual unions the staging queue (#10837 direction C): the
 	// collapse folded at most its row budget before admission, so post-bound
 	// and mid-tick staged rows stay queued and the horizon must cover them.
-	stagingCount, stagingMin, err := countWinnersStagingResidual(ctx, tx, "count remaining staging rows")
+	staged, err := countWinnersStagingResidual(ctx, tx, "count remaining staging rows")
 	if err != nil {
-		return nil, 0, sql.NullTime{}, err
+		return nil, 0, sql.NullTime{}, false, err
 	}
-	remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, stagingCount, stagingMin)
-	return tally, remaining, remainingMin, nil
+	remaining, remainingMin = stagingUnionRemaining(remaining, remainingMin, staged)
+	return tally, remaining, remainingMin, staged.upperBound, nil
 }
 
 // countWinnersKeyedKeptFacts counts the kept facts the identifier probe built.

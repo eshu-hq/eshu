@@ -411,18 +411,16 @@ WHERE c.oid = 'supply_chain_impact_canonical_winners'::regclass
 // countWinnersKeyedIdentsSQL counts the identifier table.
 const countWinnersKeyedIdentsSQL = `SELECT count(*) FROM ` + winnersKeyedIdentsTable
 
-// selectWinnersDirtyLogStatsSQL reads the dirty log's depth and the age of its
-// oldest row, unioned with the staging queue's (#10837 direction C). The
-// maintainer samples before the tick's collapse, so the gauges must see the
-// staged rows too; the tick's remaining/horizon math unions the same two sets
-// after the collapse.
-const selectWinnersDirtyLogStatsSQL = `
-SELECT COALESCE(l.c, 0) + COALESCE(s.c, 0),
-    COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - LEAST(COALESCE(l.m, s.m), COALESCE(s.m, l.m))), 0)::float8,
-    COALESCE(s.c, 0),
-    COALESCE(EXTRACT(EPOCH FROM clock_timestamp() - s.m), 0)::float8
-FROM (SELECT count(*) AS c, min(captured_at) AS m FROM supply_chain_impact_winners_dirty_log) AS l,
-     (SELECT count(*) AS c, min(captured_at) AS m FROM supply_chain_impact_winners_dirty_staging) AS s
+// selectWinnersDirtyLogStatsSQL reads the dirty log's depth and oldest
+// capture time beside the staging queue's residual columns ($1 is the
+// staging exact-count cap) and the database clock, in one snapshot
+// (#10837 direction C, #11129). The maintainer samples before the tick's
+// collapse, so the gauges must see the staged rows too; the staging part is
+// the residual read's bounded walk, never a whole-queue count.
+var selectWinnersDirtyLogStatsSQL = winnersStagingHeadCTE + `
+SELECT l.c, l.m, ` + winnersStagingResidualColumns + `,
+       clock_timestamp()
+FROM (SELECT count(*) AS c, min(captured_at) AS m FROM supply_chain_impact_winners_dirty_log) AS l
 `
 
 // captureWinnersDirtyFactsSQL stages the writer's changed identifiers, in

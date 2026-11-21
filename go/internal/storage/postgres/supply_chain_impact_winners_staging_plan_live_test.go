@@ -77,19 +77,23 @@ type winnersStagingPlanStatement struct {
 // arguments the first tick over the seeded backlog would pass them.
 func winnersStagingPlanStatements(t *testing.T, ctx context.Context, conn *sql.Conn) []winnersStagingPlanStatement {
 	t.Helper()
-	var bound int64
-	if err := conn.QueryRowContext(ctx, selectWinnersStagingCollapseBoundSQL, int64(defaultWinnersStagingCollapseMaxRows-1)).Scan(&bound); err != nil {
+	maxRows := fmt.Sprint(defaultWinnersStagingCollapseMaxRows)
+	var staged, lo, bound int64
+	if err := conn.QueryRowContext(ctx, selectWinnersStagingCollapseBoundSQL, int64(defaultWinnersStagingCollapseMaxRows)).Scan(&staged, &lo, &bound); err != nil {
 		t.Fatalf("read collapse bound: %v", err)
 	}
-	b := fmt.Sprint(bound)
+	if staged != defaultWinnersStagingCollapseMaxRows+1 {
+		t.Fatalf("bound read walked %d entries, want the budget plus one (%d)", staged, defaultWinnersStagingCollapseMaxRows+1)
+	}
+	rng := []string{fmt.Sprint(lo), fmt.Sprint(bound)}
+	capArg := []string{fmt.Sprint(winnersStagingExactCountCap)}
 	stamp := "'" + time.Now().UTC().Format(time.RFC3339Nano) + "'::timestamptz"
 	return []winnersStagingPlanStatement{
-		{name: "collapse stats", sql: selectWinnersStagingCollapseStatsSQL},
-		{name: "collapse bound", sql: selectWinnersStagingCollapseBoundSQL, args: []string{fmt.Sprint(defaultWinnersStagingCollapseMaxRows - 1)}},
-		{name: "collapse fact arm", sql: collapseWinnersStagingFactSQL, args: []string{b}},
-		{name: "collapse scope arm", sql: collapseWinnersStagingScopeSQL, args: []string{b}},
-		{name: "staging residual", sql: selectWinnersStagingResidualSQL},
-		{name: "dirty log gauge sample", sql: selectWinnersDirtyLogStatsSQL},
+		{name: "collapse bound", sql: selectWinnersStagingCollapseBoundSQL, args: []string{maxRows}},
+		{name: "collapse fact arm", sql: collapseWinnersStagingFactSQL, args: rng},
+		{name: "collapse scope arm", sql: collapseWinnersStagingScopeSQL, args: rng},
+		{name: "staging residual", sql: selectWinnersStagingResidualSQL, args: capArg},
+		{name: "dirty log gauge sample", sql: selectWinnersDirtyLogStatsSQL, args: capArg},
 		{name: "rebuild stamp", sql: rebuildSupplyChainImpactWinnersSQL, args: []string{stamp}},
 	}
 }

@@ -1519,6 +1519,11 @@ type Instruments struct {
 	// registerSupplyChainImpactWinnersKeyedInstruments.
 	SupplyChainImpactWinnersStagingDepth     metric.Float64ObservableGauge
 	SupplyChainImpactWinnersStagingOldestAge metric.Float64ObservableGauge
+	// SupplyChainImpactWinnersStagingDepthUpperBound is 1 when the last
+	// staging-depth sample (and so the dirty-log depth that unions it) is an
+	// upper bound: the visible seq span past the exact-count cap (#11129),
+	// and 0 when the depth is exact.
+	SupplyChainImpactWinnersStagingDepthUpperBound metric.Float64ObservableGauge
 	// SupplyChainImpactWinnersStagingCollapsed counts staged rows one keyed
 	// tick collapsed into the dirty log (#10837 direction C). Registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.

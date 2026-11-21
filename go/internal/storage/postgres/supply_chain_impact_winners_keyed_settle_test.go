@@ -327,9 +327,9 @@ func (tx *settleFakeTx) QueryContext(_ context.Context, query string, _ ...any) 
 	case selectWinnersKeyedRemainingMinSQL:
 		return &settleFakeRows{rows: [][2]any{{nil, nil}}}, nil
 	case selectWinnersStagingResidualSQL:
-		// The residual scan reads (count, min): the two-destination
-		// *int64 arm takes row[1], so the count rides there.
-		return &settleFakeRows{rows: [][2]any{{nil, int64(0)}}}, nil
+		// The residual read scans four columns (count, lo, hi, min); the
+		// four-destination arm of Scan reads them as an empty queue.
+		return &settleFakeRows{rows: [][2]any{{nil, nil}}}, nil
 	}
 	return nil, errSettleUnscriptedQuery
 }
@@ -349,6 +349,19 @@ type settleFakeRows struct {
 func (r *settleFakeRows) Next() bool { return len(r.rows) > 0 }
 
 func (r *settleFakeRows) Scan(dest ...any) error {
+	if len(dest) == 4 {
+		// The staging residual read (#11129): an empty queue.
+		r.rows = r.rows[1:]
+		count, ok := dest[0].(*int64)
+		lo, okLo := dest[1].(*sql.NullInt64)
+		hi, okHi := dest[2].(*sql.NullInt64)
+		oldest, okMin := dest[3].(*sql.NullTime)
+		if !ok || !okLo || !okHi || !okMin {
+			return errSettleScanType
+		}
+		*count, *lo, *hi, *oldest = 0, sql.NullInt64{}, sql.NullInt64{}, sql.NullTime{}
+		return nil
+	}
 	if len(dest) < 1 || len(dest) > 2 {
 		return errSettleScanArity
 	}
@@ -398,7 +411,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	t.Parallel()
 
 	applied := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false); err != nil {
+	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), applied, false); err != nil {
 		t.Fatalf("settle applied: %v", err)
 	}
 	convertIdx, drainIdx := -1, -1
@@ -415,7 +428,7 @@ func TestSettleWinnersKeyedDirtyLogConvertsBeforeItDeletes(t *testing.T) {
 	}
 
 	overCap := &settleFakeTx{drained: [][2]any{{"fact_upsert", int64(3)}}}
-	if _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true); err != nil {
+	if _, _, _, _, err := settleWinnersKeyedDirtyLog(context.Background(), overCap, true); err != nil {
 		t.Fatalf("settle over-cap: %v", err)
 	}
 	for _, q := range overCap.queries {

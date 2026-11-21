@@ -76,8 +76,14 @@ queued, stamps the horizon over them, and counts
 `eshu_dp_supply_chain_impact_winners_chunked_ticks_total`, so a backlog drains
 as short spaced ticks, never one long transaction, and the watermark advances on
 every tick. The span and the commit log
-line carry `bounded`, `remaining`, `chunk_identifiers` and `chunk_kept_rows`
-for the chunk the tick probed and kept.
+line carry `bounded`, `remaining`, `remaining_upper_bound`, `chunk_identifiers`
+and `chunk_kept_rows` for the chunk the tick probed and kept. No staging
+statement in a tick reads more of the staging queue than one collapse budget
+(#11129): the collapse reads its bound from at most 50,001 seq-index entries
+and folds only the seq range it saw, and the residual read counts the queue
+exactly up to 50,000 rows. Past that, `remaining` is the visible seq span, an
+upper bound, and `remaining_upper_bound` is `true`. The oldest capture time the
+stamp uses is always exact.
 
 An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
@@ -238,6 +244,7 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_dirty_log_oldest_age_seconds` | gauge | none | Age of the oldest waiting row across both queues, 0 when both are empty. It bounds how far a winner can lag the facts. |
 | `eshu_dp_supply_chain_impact_winners_staging_depth` | gauge | none | Rows waiting in the staging queue at the last tick this instance sampled. A depth that keeps climbing means captures outpace the per-tick collapse. |
 | `eshu_dp_supply_chain_impact_winners_staging_oldest_age_seconds` | gauge | none | Age of the oldest staged row at the last tick this instance sampled, 0 when the queue is empty. It bounds how long a capture can sit before the collapse folds it in. |
+| `eshu_dp_supply_chain_impact_winners_staging_depth_upper_bound` | gauge | none | 1 when the last `staging_depth` sample, and the `dirty_log_depth` that includes it, is an upper bound: past one collapse budget (50,000 staged rows) the sample reports the visible seq span instead of counting the whole queue (#11129). 0 when the depth is exact. The age gauges are exact either way. |
 | `eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total` | counter | none | Staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined. |
 | `eshu_dp_supply_chain_impact_winners_write_conflicts_total` | counter | `site`, `failure_class` | Writer and tick statements the database aborted with a deadlock (`40P01`) or a serialization failure (`40001`) (#10851). `site` is `writer_capture` (the capture statement), `writer_commit` (the writer transaction commit) or `tick` (any keyed-tick phase, including the collapse, the settle and the tick commit); `failure_class` is `deadlock` or `serialization_failure`. The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it. Steady state is zero; a rising rate names the contending site. |
 | `eshu_dp_supply_chain_impact_winners_rows_total` | counter | `action` | Rows a committed resweep handled. `action` is `inserted`, `updated`, `deleted` or `unchanged`. Only the first three write a row version. |
@@ -325,7 +332,17 @@ No label carries a canonical key, scope, repository, or CVE.
   `permission denied` and logs it). When the log is empty but work is pending,
   read `staging_depth`: captures stage there first, and a climbing staging
   depth with a flat log means the per-tick collapse budget is smaller than the
-  capture rate.
+  capture rate. While `staging_depth_upper_bound` is 1 the depth is the seq
+  span of the queue, not a count: read its trend, not its exact value.
+- If the `collapse` and `stamp` phase times rise while `staging_depth` stays
+  flat, suspect a held snapshot. The collapse and residual reads start at the
+  oldest index entry, and a transaction older than the deleted rows keeps their
+  index entries from being cleaned, so each read walks them. Find the holder
+  with `SELECT pid, backend_xmin, xact_start, state, left(query, 80) FROM
+  pg_stat_activity WHERE backend_xmin IS NOT NULL ORDER BY age(backend_xmin)
+  DESC;`. At 2.5M deleted rows behind a held snapshot each of the three walks
+  measured about 0.5 s; they return to tens of milliseconds once the snapshot
+  ends and vacuum runs.
 - Read `backstop_repairs_total`. Steady state is zero. A nonzero rate means the
   audit found a winner that no dirty-log row had queued, so a capture path is
   missing. Check `capture_rows_total` by `source`: a source that goes flat while
