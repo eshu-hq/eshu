@@ -19,7 +19,7 @@ func TestReadSourcePacingStatusPublishesLatchTruth(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
-	queryer := &fakeQueryer{responses: []fakeRows{
+	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
 		{rows: [][]any{{"git", float64(60), int64(3)}, {"vuln-intel", float64(7200), int64(400)}}},
 		{rows: [][]any{
 			{"vuln-intel", true, now.Add(-time.Hour)},

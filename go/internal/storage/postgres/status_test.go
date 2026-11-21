@@ -365,6 +365,12 @@ type fakeQueryer struct {
 func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.queries = append(q.queries, query)
 	q.args = append(q.args, args)
+	// The source-pacing status reads (#10882) are additive snapshot
+	// sections scripted by their own tests through a dedicated fake; here
+	// they must never consume another test's scripted response queue.
+	if query == sourceClaimableSignalQuery || query == sourceBackpressureLatchQuery {
+		return &fakeRows{}, nil
+	}
 	if len(q.responses) == 0 {
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &fakeRows{}, nil
@@ -395,9 +401,6 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		}
 		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery ||
 			strings.Contains(query, "FROM repository_selection_observations") {
-			return &fakeRows{}, nil
-		}
-		if query == sourceClaimableSignalQuery || query == sourceBackpressureLatchQuery {
 			return &fakeRows{}, nil
 		}
 		return nil, fmt.Errorf("unexpected query: %s", query)

@@ -139,11 +139,11 @@ func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.
 	if err != nil {
 		return nil, err
 	}
-	terminalFailures, err := readWorkflowCollectorTerminalFailures(ctx, queryer, instances, asOf)
+	sourcePacing, err := readSourcePacingStatus(ctx, queryer, asOf)
 	if err != nil {
 		return nil, err
 	}
-	sourcePacing, err := readSourcePacingStatus(ctx, queryer, asOf)
+	terminalFailures, err := readWorkflowCollectorTerminalFailures(ctx, queryer, instances, asOf)
 	if err != nil {
 		return nil, err
 	}
