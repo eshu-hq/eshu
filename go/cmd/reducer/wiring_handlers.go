@@ -293,6 +293,9 @@ func buildReducerSupplyChainSecurityHandlers(
 		// additive-domain registry leaves supply_chain_impact unregistered when it
 		// is nil. nextval() needs only a query connection, no transaction.
 		SupplyChainImpactFencingTokenIssuer: postgres.PostgresSupplyChainImpactFencingTokenIssuer{DB: database},
+		// #11105: an impact pass waits on its own scope generation's
+		// sbom_attestation_attachment work without spending an attempt.
+		SupplyChainImpactAttachmentReadiness: producerreadiness.ImpactStore{DB: database},
 		SecurityAlertReconciliationWriter: securityalert.PostgresSecurityAlertReconciliationWriter{
 			DB: database,
 		},

@@ -222,14 +222,14 @@ func failureClassOf(err error) string {
 	return ""
 }
 
-// TestReducerContentionGateSupplyChainImpactWaitsForItsOwnAttachment is T1:
+// TestReducerContentionGateSupplyChainImpactWaitsForItsOwnAttachmentLive is T1:
 // the attachment row is retrying with a future visible_at, so the impact row
 // of the same scope generation is claimable (the conflict fence blocks only a
 // claimed or running sibling). The pass must defer without spending an
 // attempt and write nothing; the attachment's terminal Ack must reopen it at
 // once (before the 10-minute backstop), and the reopened pass must publish
 // the attachment-backed finding with no unrelated trigger.
-func TestReducerContentionGateSupplyChainImpactWaitsForItsOwnAttachment(t *testing.T) {
+func TestReducerContentionGateSupplyChainImpactWaitsForItsOwnAttachmentLive(t *testing.T) {
 	w := newAttachWait(t)
 	const scope = "scope:11105:image"
 	fanOutSeedScope(t, w.ctx, w.db, scope, "g1")
@@ -275,11 +275,11 @@ func TestReducerContentionGateSupplyChainImpactWaitsForItsOwnAttachment(t *testi
 	}
 }
 
-// TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceeds is
+// TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceedsLive is
 // T2: a scope generation with no attachment work item runs its impact pass
 // on the first claim, spends one attempt, and publishes what its own
 // evidence supports (here the attachment fact already committed).
-func TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceeds(t *testing.T) {
+func TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceedsLive(t *testing.T) {
 	w := newAttachWait(t)
 	const scope = "scope:11105:no-attachment-work"
 	fanOutSeedScope(t, w.ctx, w.db, scope, "g1")

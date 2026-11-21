@@ -7,12 +7,16 @@ import (
 	"database/sql"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
 )
 
 // supplyChainImpactAttachmentNotReadyClass is the #11105 failure class the
 // impact pass defers with while its own attachment is in flight.
-const supplyChainImpactAttachmentNotReadyClass = "supply_chain_impact_sbom_attachment_not_ready"
+const supplyChainImpactAttachmentNotReadyClass = supplychaincore.SBOMAttachmentNotReadyFailureClass
 
 // wireAttachmentReadiness wires the #11105 attachment readiness port the way
-// cmd/reducer does. Before the fix there is no port to wire.
-func wireAttachmentReadiness(_ *supplychaincore.SupplyChainImpactHandler, _ *sql.DB) {}
+// cmd/reducer does (producerreadiness.ImpactStore over the same database).
+func wireAttachmentReadiness(handler *supplychaincore.SupplyChainImpactHandler, db *sql.DB) {
+	handler.AttachmentReadiness = producerreadiness.ImpactStore{DB: postgres.SQLDB{DB: db}}
+}

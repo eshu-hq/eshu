@@ -11,7 +11,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// TestReducerContentionGateSupplyChainImpactCrossScopeAttachmentReachesItsOwnPass
+// TestReducerContentionGateSupplyChainImpactCrossScopeAttachmentReachesItsOwnPassLive
 // is the #11105 cross-scope characterization (arbiter ruling item 3). The
 // referrer scope S1 runs the attachment and writes the attachment fact under
 // S1; the SBOM document's component lives in S2; the vulnerability record
@@ -20,7 +20,7 @@ import (
 // impact pass, ordered after S1's attachment, reads the S2 component and the
 // vulnerability cross-scope and publishes the attachment-backed finding. No
 // reopen of S2 is needed for the finding to exist.
-func TestReducerContentionGateSupplyChainImpactCrossScopeAttachmentReachesItsOwnPass(t *testing.T) {
+func TestReducerContentionGateSupplyChainImpactCrossScopeAttachmentReachesItsOwnPassLive(t *testing.T) {
 	w := newAttachWait(t)
 	const (
 		referrer = "scope:11105:referrer"
