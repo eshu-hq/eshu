@@ -147,6 +147,25 @@ func (s *Source) nextClaimed(
 			cause:    err,
 		}
 	}
+	// A dispatch-granted lease already past at launch must never reach
+	// the satellite: forking with an expired run context dies stillborn
+	// (a context-deadline wall in centiseconds recorded as
+	// launch_failure) while the claim plane should simply retry the
+	// claim (eshu-hq/eshu#11085 H1). The refusal keeps the retryable
+	// launch_failure class; only the cause is distinct from a forked
+	// satellite failure. It sits before request building so a dead
+	// claim mints no token and resolves no scope transport. The
+	// dispatch histogram already records this instant as zero remaining
+	// (claimed_service_run_metrics.go), so no new instrument is needed.
+	if now := s.clock().UTC(); !item.LeaseExpiresAt.After(now) {
+		return collector.CollectedGeneration{}, false, sdkcollector.Result{}, ResultOriginHost, extensionFailure{
+			class: FailureClassLaunchFailure,
+			cause: fmt.Errorf(
+				"claim dispatch lease already expired: refusing satellite launch (expired_by_seconds=%.3f)",
+				now.Sub(item.LeaseExpiresAt).Seconds(),
+			),
+		}
+	}
 	request, err := s.requestForWorkItem(ctx, item)
 	if err != nil {
 		if errors.Is(err, collector.ErrSlotScopeTransport) {
