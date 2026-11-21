@@ -42,8 +42,11 @@ contract:
 5. `backfill.Store.WakePhaseWaitsAfterCommit` is a new seam. It is wired in
    root (`backfillStore`), and `publishDeferredBackfillPartition` calls it
    after its commit. It covers both the whole pass and the targeted pass,
-   because both publish through that function. A failure logs at ERROR, counts
-   `outcome=error`, and is never returned. The root phase store built for the
+   because both publish through that function. It runs detached from the
+   publisher's cancellation under a 5 s bound
+   (`PostCommitExactPhaseWakeTimeout`, far below the 5-minute audit interval
+   that covers a timed-out re-wake). A failure or timeout logs at ERROR,
+   counts `outcome=error`, and is never returned. The root phase store built for the
    fan-in now carries the instruments, so its in-tx wakes are metered.
 
 Superseded generations are unchanged: the stale sweep and the backstop still
@@ -104,9 +107,11 @@ holds a reopened queue row.
 - `eshu_dp_reducer_waiting_wake_total{wake_site="phase_exact_in_tx"|"phase_exact_post_commit", outcome="reopened"|"noop"|"error"}`
   separates this wake from the coarse `in_tx` and `audit` sites. It is a
   closed label set.
-- INFO `reducer exact phase wake`, one line per exact wake statement, with
+- `reducer exact phase wake`, one line per exact wake statement, with
   `scope_id`, `generation_id`, `keyspace`, `phase`, `wake_site`, and
-  `reopened`.
+  `reopened`: INFO when the statement reopened a waiter, DEBUG for a no-op,
+  so a fan-in that publishes many partitions with nobody waiting stays quiet
+  at INFO. The counter records every statement either way.
 - ERROR `reducer post-commit exact phase wake failed; the audit and backstop still bound the miss`,
   with `queue=reducer`, `op=phase_publish_post_commit_wake`, `scope_id`,
   `generation_id`, and `outcome=error`.
@@ -133,7 +138,9 @@ Live (disposable Postgres, `go/internal/storage/postgres`):
 - `TestBackwardEvidenceWakeContentionLive`: proof 7.
 
 Hermetic: `TestExactPhaseDeferralsAreWokenByTheirPublish` (proof 8 seeded
-RED/GREEN pair), `TestPhaseUpsertStatementsForEnrolledAndOtherPhases`,
+RED/GREEN pair), `TestPostCommitExactPhaseWakeTimesOutAndMeters`,
+`TestPostCommitExactPhaseWakeSurvivesCallerCancel`,
+`TestExactPhaseWakeLogsInfoOnlyWhenItReopens`, `TestPhaseUpsertStatementsForEnrolledAndOtherPhases`,
 `TestBackwardEvidenceDeferralParksOnTheExactPhaseKey`,
 `TestWaitingSatisfiedRoutesExactPhaseToTheExactQuery`, and
 `backfill.TestFanInPostCommitWakeRunsAfterCommitOnly`.
@@ -144,5 +151,9 @@ Mutation checks:
 - Dropping the post-commit re-wake fails proof 4.
 - Routing exact keys to the coarse branch fails proof 3 (the audit reopens
   the waiter on an unrelated phase).
+- Removing the post-commit timeout hangs
+  `TestPostCommitExactPhaseWakeTimesOutAndMeters` until the test binary
+  times out; logging every wake at INFO fails
+  `TestExactPhaseWakeLogsInfoOnlyWhenItReopens`.
 
 Proof 9, the cell loop on the built binary, is reported with the PR.

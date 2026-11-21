@@ -157,7 +157,9 @@ type exactPhaseWakeKey struct {
 // satisfy. site is telemetry.WaitingWakeSitePhaseExactInTx inside the
 // publishing transaction or telemetry.WaitingWakeSitePhaseExactPostCommit
 // after it committed. Each statement logs one structured line with the
-// reopened count; the counter records the outcome per statement.
+// reopened count: INFO when it reopened a waiter, DEBUG for a no-op, so a
+// fan-in that publishes many partitions with nobody waiting stays quiet at
+// INFO. The counter records the outcome of every statement.
 func wakeExactPhaseWaits(
 	ctx context.Context,
 	database db.ExecQueryer,
@@ -172,7 +174,11 @@ func wakeExactPhaseWaits(
 		if err != nil {
 			return fmt.Errorf("wake exact phase waits %s/%s: %w", target.req.Keyspace, target.req.Phase, err)
 		}
-		slog.InfoContext(ctx, "reducer exact phase wake",
+		level := slog.LevelDebug
+		if reopened > 0 {
+			level = slog.LevelInfo
+		}
+		slog.Log(ctx, level, "reducer exact phase wake",
 			slog.String(telemetry.LogKeyScopeID, target.scopeID),
 			slog.String(telemetry.LogKeyGenerationID, target.generationID),
 			slog.String("keyspace", target.req.Keyspace),
@@ -183,23 +189,50 @@ func wakeExactPhaseWaits(
 	return nil
 }
 
+// PostCommitExactPhaseWakeTimeout bounds the post-commit exact-phase re-wake
+// (#11104). The re-wake runs detached from the publisher's context (a
+// committed partition still re-wakes when a sibling partition cancels the
+// pass), so this is its only bound. A healthy wake is one index probe plus
+// at most a few row updates (0.07 ms measured); five seconds covers a wait
+// behind a concurrent wake's row locks while staying far below the 5-minute
+// audit interval, which reopens anything a timed-out re-wake missed. It
+// matches the package's other detached post-commit writes (the config
+// artifact failure record).
+const PostCommitExactPhaseWakeTimeout = 5 * time.Second
+
 // WakeExactPhaseWaitsAfterCommit re-wakes the phase-exact waits the rows
 // satisfy after the publishing transaction committed (#11104). A waiter that
 // parked inside the publisher's open window (its park-time check could not
 // see the uncommitted phase, and the in-tx wake ran before its wait row
 // existed) is reopened here. It runs on the pool connection, never on the
-// committed transaction. A failure is logged at ERROR and metered
-// (outcome=error), never returned: the phase already committed, and the audit
-// plus the 10-minute backstop still bound the miss.
+// committed transaction, detached from the caller's cancellation and bounded
+// by PostCommitExactPhaseWakeTimeout. A failure or timeout is logged at
+// ERROR and metered (outcome=error), never returned: the phase already
+// committed, and the audit plus the 10-minute backstop still bound the miss.
 func WakeExactPhaseWaitsAfterCommit(
 	ctx context.Context,
 	database db.ExecQueryer,
 	instruments *telemetry.Instruments,
 	rows []gpphase.PhaseState,
 ) {
-	if err := wakeExactPhaseWaits(context.WithoutCancel(ctx), database, instruments,
+	wakeExactPhaseWaitsAfterCommitWithin(ctx, database, instruments, rows, PostCommitExactPhaseWakeTimeout)
+}
+
+// wakeExactPhaseWaitsAfterCommitWithin is WakeExactPhaseWaitsAfterCommit with
+// an explicit bound, so the timeout path is testable without a five-second
+// wait.
+func wakeExactPhaseWaitsAfterCommitWithin(
+	ctx context.Context,
+	database db.ExecQueryer,
+	instruments *telemetry.Instruments,
+	rows []gpphase.PhaseState,
+	timeout time.Duration,
+) {
+	wakeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	if err := wakeExactPhaseWaits(wakeCtx, database, instruments,
 		telemetry.WaitingWakeSitePhaseExactPostCommit, rows, time.Now().UTC()); err != nil {
-		logPostCommitExactPhaseWakeError(ctx, rows, err)
+		logPostCommitExactPhaseWakeError(context.WithoutCancel(ctx), rows, err)
 	}
 }
 
