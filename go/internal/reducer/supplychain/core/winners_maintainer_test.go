@@ -161,6 +161,97 @@ func TestWinnersMaintainerValidate(t *testing.T) {
 	}
 }
 
+// TestWinnersMaintainerSkipsStartupFullWhenWatermarkExists proves the #10706
+// stall fix: a restart with a committed watermark goes straight to keyed
+// ticks instead of running another hours-long startup full resweep behind
+// the single-flight lock. A missing reader, a read error, or no watermark
+// keeps the startup full (the next two tests).
+func TestWinnersMaintainerSkipsStartupFullWhenWatermarkExists(t *testing.T) {
+	t.Parallel()
+
+	rebuilder := &fakeKeyedRebuilder{}
+	lease := &fakeWinnersLeaseManager{claim: true}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: lease,
+		WatermarkReader: &fakeWinnersWatermark{at: time.Now().Add(-time.Hour), ok: true},
+		Interval:        time.Millisecond,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- m.Run(ctx) }()
+	deadline := time.After(5 * time.Second)
+	for rebuilder.keyedCount() < 3 {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatalf("keyed ticks = %d, want at least 3", rebuilder.keyedCount())
+		case <-time.After(time.Millisecond):
+		}
+	}
+	cancel()
+	<-done
+	if got := rebuilder.count(); got != 0 {
+		t.Fatalf("full resweeps = %d, want 0 with a committed watermark", got)
+	}
+}
+
+// TestWinnersMaintainerRunsStartupFullWhenNoWatermark pins the preserved
+// path: a table that was never swept still gets its startup full resweep.
+func TestWinnersMaintainerRunsStartupFullWhenNoWatermark(t *testing.T) {
+	t.Parallel()
+
+	rebuilder := &fakeKeyedRebuilder{}
+	lease := &fakeWinnersLeaseManager{claim: true}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: lease,
+		WatermarkReader: &fakeWinnersWatermark{ok: false},
+		Interval:        time.Millisecond,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- m.Run(ctx) }()
+	deadline := time.After(5 * time.Second)
+	for rebuilder.count() < 1 {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatal("no startup full resweep without a watermark")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	cancel()
+	<-done
+}
+
+// TestWinnersMaintainerRunsStartupFullWhenWatermarkReadFails pins fail-closed:
+// a watermark read error keeps the startup full resweep instead of skipping
+// the reconcile on an unknown table state.
+func TestWinnersMaintainerRunsStartupFullWhenWatermarkReadFails(t *testing.T) {
+	t.Parallel()
+
+	rebuilder := &fakeKeyedRebuilder{}
+	lease := &fakeWinnersLeaseManager{claim: true}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: lease,
+		WatermarkReader: &fakeWinnersWatermark{err: errors.New("boom")},
+		Interval:        time.Millisecond,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- m.Run(ctx) }()
+	deadline := time.After(5 * time.Second)
+	for rebuilder.count() < 1 {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatal("no startup full resweep on watermark read error")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	cancel()
+	<-done
+}
+
 func TestWinnersMaintainerRunStopsOnContextCancel(t *testing.T) {
 	t.Parallel()
 

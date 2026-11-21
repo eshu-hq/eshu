@@ -214,6 +214,36 @@ func (m SupplyChainImpactWinnersMaintainer) validate() error {
 	return nil
 }
 
+// seedFullDoneFromWatermark lets a restarted maintainer skip the startup full
+// resweep when the table was already swept (#10706). A committed watermark
+// proves a full resweep completed, so keyed ticks — which consume the dirty
+// log and staging collapse — plus the audit converge without another
+// hours-long full holding the single-flight lock and starving every tick.
+// The seed runs once before the audit loop starts, so the audit gates on the
+// same state as the tick loop. A missing reader, a read error, or no
+// watermark keeps the startup full: an unknown or never-swept table still
+// gets its backfill reconcile, and a failed full still gates keyed ticks
+// until one commits.
+func (m SupplyChainImpactWinnersMaintainer) seedFullDoneFromWatermark(ctx context.Context, fullDone *atomic.Bool) {
+	if m.KeyedRebuilder == nil || m.WatermarkReader == nil {
+		return
+	}
+	at, ok, err := m.WatermarkReader.Watermark(ctx)
+	if err != nil {
+		if m.Logger != nil {
+			m.Logger.WarnContext(ctx, "supply chain impact winners startup watermark read failed; keeping startup full resweep", "error", err)
+		}
+		return
+	}
+	if !ok {
+		return
+	}
+	fullDone.Store(true)
+	if m.Logger != nil {
+		m.Logger.InfoContext(ctx, "supply chain impact winners skipping startup full resweep: committed watermark exists", slog.Time("watermark", at))
+	}
+}
+
 // RunOnce claims the single-owner lease and, if acquired, runs one atomic
 // full resweep. It returns rebuilt=true only when this instance held the lease
 // and the resweep committed; a resweep skipped because another is in flight
@@ -225,16 +255,19 @@ func (m SupplyChainImpactWinnersMaintainer) RunOnce(ctx context.Context) (rebuil
 }
 
 // Run resweeps once immediately (startup backfill/reconcile) and then on the
-// configured cadence until ctx is cancelled. With a KeyedRebuilder, the startup
-// reconcile is the one full resweep and every later tick is keyed; the audit
-// runs on its own cadence beside them. Errors are logged and retried with
-// exponential backoff capped at maxSupplyChainImpactWinnersBackoff; the loop
-// never exits on a transient resweep error so the read model keeps converging.
+// configured cadence until ctx is cancelled. With a KeyedRebuilder, the
+// startup reconcile is the one full resweep — skipped when a committed
+// watermark already proves the table was swept (#10706) — and every later
+// tick is keyed; the audit runs on its own cadence beside them. Errors are
+// logged and retried with exponential backoff capped at
+// maxSupplyChainImpactWinnersBackoff; the loop never exits on a transient
+// resweep error so the read model keeps converging.
 func (m SupplyChainImpactWinnersMaintainer) Run(ctx context.Context) error {
 	if err := m.validate(); err != nil {
 		return err
 	}
 	var fullDone atomic.Bool
+	m.seedFullDoneFromWatermark(ctx, &fullDone)
 	var audits sync.WaitGroup
 	if m.Auditor != nil && m.AuditInterval > 0 {
 		audits.Add(1)
