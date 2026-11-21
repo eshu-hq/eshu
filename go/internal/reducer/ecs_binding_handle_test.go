@@ -31,7 +31,7 @@ func (s *stubECSBindingInstances) ListECSBindingInstanceEnvironments(_ context.C
 }
 
 func ecsBindingHandleCensus() ECSBindingCensusResult {
-	return ECSBindingCensusResult{Declarations: []ECSBindingDeclaration{
+	return ECSBindingCensusResult{Complete: true, Declarations: []ECSBindingDeclaration{
 		ecsBindingDeclaration("repo-app", "main.tf", "api", `"api"`, `"arn:aws:ecs:us-east-1:111122223333:cluster/prod"`, nil),
 	}}
 }
@@ -82,22 +82,6 @@ func TestECSBindingHandleWritesDeclarationRow(t *testing.T) {
 	}
 	if result.CanonicalWrites != 1 {
 		t.Errorf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
-	}
-}
-
-func TestECSBindingHandleNotesTruncatedCensus(t *testing.T) {
-	t.Parallel()
-
-	censusResult := ecsBindingHandleCensus()
-	censusResult.Truncated = true
-	census := &stubECSBindingCensus{result: censusResult}
-	handler, _ := ecsBindingHandleHandler(census)
-	result, err := handler.Handle(context.Background(), workloadCloudRelationshipIntent())
-	if err != nil {
-		t.Fatalf("Handle returned error: %v", err)
-	}
-	if !strings.Contains(result.EvidenceSummary, "(declaration census truncated)") {
-		t.Errorf("summary lacks truncation note: %q", result.EvidenceSummary)
 	}
 }
 

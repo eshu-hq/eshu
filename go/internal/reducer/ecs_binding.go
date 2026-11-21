@@ -45,6 +45,11 @@ const (
 	ecsBindingSkipUsesEdgeExists        = "ecs_uses_edge_exists"
 	ecsBindingSkipEnvironmentMissing    = "ecs_service_environment_missing"
 	ecsBindingSkipEnvironmentConflict   = "ecs_service_environment_conflict"
+	// ecsBindingSkipCensusIncomplete records an extraction whose
+	// declaration census was incomplete: declaration binds are blocked
+	// for that extraction (#11084). The tfstate and anchor-path legs do
+	// not read the census and are unaffected.
+	ecsBindingSkipCensusIncomplete = "ecs_census_incomplete"
 )
 
 // Resolution-path reasons recorded on each bound row.
@@ -57,10 +62,16 @@ const (
 	ecsBindingReasonTfstateApplied  = "tfstate_applied"
 )
 
-// ecsBindingCensusCap bounds one global declaration census read. Context
-// truncation only fails closed (unknown references never bind), so the cap
-// bounds work, never truth.
-const ecsBindingCensusCap = 5000
+// ecsBindingCensusCap is the safety ceiling on one global declaration
+// census read. The census query is complete by construction (the filtered
+// closure holds every declaration the bounded resolver can consume), so
+// the ceiling is a backstop, never a prefix window: hitting it marks the
+// census incomplete, which blocks declaration binds for that extraction
+// instead of binding on a subset (#11084). Sized at 10x the retired
+// 5000-row prefix cap; the production replica re-check measured the
+// live closure at 13,983 rows (C1 = 178 ECS declarations), 28% of this
+// ceiling, so hitting it means an anomalous corpus, never steady state.
+const ecsBindingCensusCap = 50000
 
 // ECSBindingCensusCap returns the default global declaration census row
 // cap for store implementations outside this package.
@@ -145,6 +156,23 @@ func ExtractWorkloadECSBindingRows(
 	tasks := ecsBindingTaskCorroboration(envelopes, &tally)
 	tfstate := ecsBindingTfstateCandidates(envelopes)
 	ctx := ecsBindingResolutionContext{Declarations: census.Declarations}
+	if !census.Complete {
+		// Complete-or-blocked (#11084): a competing declaration beyond
+		// the read is invisible, so every uniqueness veto scanned over
+		// the retained rows (duplicate, shared-name-elsewhere,
+		// for_each/count poison, bridge shadowing) is unsound. Drop
+		// the declaration leg for this extraction and say so in the
+		// tally. The tfstate leg reads envelopes, not the census, so
+		// applied-state binds still proceed. With no tfstate
+		// candidates there is nothing left to evaluate: return the
+		// single blocked point rather than a per-service
+		// declaration-missing tally for rows that were never read.
+		tally.skipped[ecsBindingSkipCensusIncomplete]++
+		if len(tfstate) == 0 {
+			return nil, tally, nil, nil
+		}
+		ctx.Declarations = nil
+	}
 	resolved := ecsBindingResolveDeclarations(ctx)
 
 	rows := make([]map[string]any, 0, len(services))

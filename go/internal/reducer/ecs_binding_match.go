@@ -31,7 +31,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) appendECSBindingRows(
 	tally *workloadCloudRelationshipTally,
 	quarantined []factdecode.QuarantinedFact,
 ) ([]map[string]any, []factdecode.QuarantinedFact, string, error) {
-	ecsRows, ecsTally, ecsQuarantined, ecsTruncated, err := h.extractECSBindingRows(ctx, envelopes)
+	ecsRows, ecsTally, ecsQuarantined, err := h.extractECSBindingRows(ctx, envelopes)
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -47,9 +47,13 @@ func (h WorkloadCloudRelationshipMaterializationHandler) appendECSBindingRows(
 	if h.ECSDeclarationCensus == nil {
 		return rows, quarantined, "", nil
 	}
+	// An incomplete census blocks declaration binds with a named tally
+	// (#11084): name that state in the summary so "0 ECS
+	// declaration-bound edge(s)" stays distinguishable between
+	// binds-blocked and no-declarations-exist for the operator.
 	summary := fmt.Sprintf("; %d ECS declaration-bound edge(s)", ecsBindingCommittedRows(rows))
-	if ecsTruncated {
-		summary += " (declaration census truncated)"
+	if ecsTally.skipped[ecsBindingSkipCensusIncomplete] > 0 {
+		summary += " (declaration census incomplete: binds blocked)"
 	}
 	return rows, quarantined, summary, nil
 }
@@ -302,10 +306,10 @@ func ecsBindingTerragruntEnv(ctx ecsBindingResolutionContext, repoID, dir string
 func (h WorkloadCloudRelationshipMaterializationHandler) extractECSBindingRows(
 	ctx context.Context,
 	envelopes []facts.Envelope,
-) ([]map[string]any, workloadCloudRelationshipTally, []factdecode.QuarantinedFact, bool, error) {
+) ([]map[string]any, workloadCloudRelationshipTally, []factdecode.QuarantinedFact, error) {
 	tally := newWorkloadCloudRelationshipTally()
 	if h.ECSDeclarationCensus == nil {
-		return nil, tally, nil, false, nil
+		return nil, tally, nil, nil
 	}
 	serviceNames := make([]string, 0, len(envelopes))
 	seen := make(map[string]struct{})
@@ -329,24 +333,24 @@ func (h WorkloadCloudRelationshipMaterializationHandler) extractECSBindingRows(
 		}
 	}
 	if len(serviceNames) == 0 {
-		return nil, tally, nil, false, nil
+		return nil, tally, nil, nil
 	}
 	census, err := h.ECSDeclarationCensus.ListECSBindingDeclarations(ctx)
 	if err != nil {
-		return nil, tally, nil, false, fmt.Errorf("load ECS declaration census: %w", err)
+		return nil, tally, nil, fmt.Errorf("load ECS declaration census: %w", err)
 	}
 	var instances map[string][]string
 	if h.ECSInstanceEnvironments != nil {
 		instances, err = h.ECSInstanceEnvironments.ListECSBindingInstanceEnvironments(ctx, serviceNames)
 		if err != nil {
-			return nil, tally, nil, false, fmt.Errorf("load ECS binding instance environments: %w", err)
+			return nil, tally, nil, fmt.Errorf("load ECS binding instance environments: %w", err)
 		}
 	}
 	rows, extractTally, quarantined, err := ExtractWorkloadECSBindingRows(envelopes, census, instances)
 	if err != nil {
-		return nil, tally, nil, false, err
+		return nil, tally, nil, err
 	}
-	return rows, extractTally, quarantined, census.Truncated, nil
+	return rows, extractTally, quarantined, nil
 }
 
 // ecsBindingDeduplicateRows drops declaration rows the anchor path already

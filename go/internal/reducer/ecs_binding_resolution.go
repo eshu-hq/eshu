@@ -24,12 +24,15 @@ type ECSBindingDeclaration struct {
 }
 
 // ECSBindingCensusResult is one bounded global declaration census read.
-// Truncated reports that the census hit its row ceiling: resolution
-// continues on the partial context, which can only fail closed (an
-// unknown reference never binds), never invent a binding.
+// Complete reports that the census holds every declaration the bounded
+// resolver can consume, so the uniqueness vetoes (duplicate,
+// shared-name-elsewhere, for_each/count poison, bridge shadowing) decide
+// over the full competitor set. An incomplete census blocks declaration
+// binds for that extraction (#11084): resolution on a prefix can only
+// fail open (an unseen competitor cannot veto), never fail closed.
 type ECSBindingCensusResult struct {
 	Declarations []ECSBindingDeclaration
-	Truncated    bool
+	Complete     bool
 }
 
 // ECSBindingDeclarationCensus lists active-generation Terraform and

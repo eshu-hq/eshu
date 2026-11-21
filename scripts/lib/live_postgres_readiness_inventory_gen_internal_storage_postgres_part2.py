@@ -12,8 +12,10 @@ TABLE = {
         ),
         "go/internal/storage/postgres/ecs_binding_declaration_census_live_test.go": (
             "TestECSBindingCensusReadsActiveDeclarationsLive",
-            "TestECSBindingCensusTruncationIsVisibleLive",
+            "TestECSBindingCensusCeilingReportsIncompleteLive",
+            "TestECSBindingCensusReadsFilteredClosureLive",
             "TestECSBindingCensusPlanIsIndexBackedLive",
+            "TestECSBindingVetoThroughRealStoreLive",
             "TestECSBindingCensusEntityTypesMatchSQL",
         ),
         "go/internal/storage/postgres/ecs_task_index_migration_live_test.go": (
