@@ -3,8 +3,9 @@
 Issue #11104: the Ifá determinism gate lost repo-dependency and
 workload-dependency cells with workload materialization stuck behind
 `deployment_mapping` rows that stayed parked for the full 10-minute backstop.
-The binding ruling is `.claude/arbiter-11104.md` (PR 1 of 2; PR 2, the
-audit-class horizon, is a separate change).
+The change follows an arbiter ruling on #11104. Its operative points are
+summarized under Ruling below. This is PR 1 of 2; PR 2, the audit-class
+horizon, is a separate change.
 
 ## Cause
 
@@ -18,6 +19,53 @@ key, so it never reached this wait. The audit's proxy for `target_committed`
 the sibling succeeded before the park, which is the CI order. Since #10876
 every parking class sits on the 10-minute backstop, longer than the gate's
 3-minute drain bound.
+
+## Ruling
+
+The ruling confirmed the cause above from the source, and from the PR
+#11100 fault-injection shard 10 artifacts. There the stuck scope gated with
+`reason=backward_evidence_not_committed`, and the fan-in completed about 11 s
+after the park: the observed order is park, then publish.
+
+- **PR 1 scope.** An exact-phase wait that keeps the `phase_committed` kind,
+  so migration 316's closed CHECK needs no DDL. It has five parts:
+  1. key fields on the wait;
+  2. the registry row;
+  3. an exact satisfaction predicate with all six key columns pinned, never
+     the coarse any-phase branch;
+  4. an in-tx exact wake in the phase Upsert for map-enrolled phases only;
+  5. a required post-commit re-wake through a new `backfill.Store` seam
+     wired in root. The `backfill` package must not import its parent.
+- **Superseded generations.** Unchanged: the stale sweep and the backstop
+  still cover them.
+- **Required proof (live Postgres, RED first on main):**
+  1. park, then publish through the real fan-in, with a sibling that
+     succeeded before the park;
+  2. publish, then park: the park-time check reopens at once;
+  3. negatives: another phase or keyspace, another generation, another
+     scope;
+  4. the publisher/Fail overlap reopened by the post-commit re-wake;
+  5. the crash residual reopened by the audit;
+  6. convergence through the handler gate;
+  7. a contention run under `-race` with zero 40P01 and a stated lock
+     order;
+  8. a seeded RED/GREEN enrollment guard and a statement-count test;
+  9. at least 20 runs per cell on the built binary, with the before rate.
+     The coordinator replaced this by the CI-history before-rate below and
+     a confidence-sized after count.
+- **Will not do:**
+  - a coarse `phase_committed` predicate;
+  - a shorter audit interval;
+  - worker or batch cuts;
+  - a gate drain-bound change.
+- **Out of scope.**
+  - `shared_edge_target_not_ready` and the other audit-site classes belong
+    to PR 2.
+  - The activation finalizer's `work_pending` cadence and its
+    `no_memo_baseline` hold are #11107.
+  - The autocommit overlap window in the existing `phase_committed` family
+    is #11108.
+  - Failure rates from hour-split, unclassified samples are not cited.
 
 ## Change
 
@@ -120,6 +168,41 @@ holds a reopened queue row.
   stays above one audit interval (300 s) while the generation's phase row
   exists, or `eshu_dp_reducer_waiting_missed_wake_total` increases, the wake
   is defective. Slow evidence is not the cause.
+
+## CI before-rate
+
+Sample: the last 80 completed `push` runs of
+`.github/workflows/ifa-determinism-gate.yml` on `main`, 2026-11-19 13:27Z to
+2026-11-21 06:12Z, with no cancelled runs. For each run, `gh run view --json
+jobs` gave the conclusion of the shard 2, shard 10, and `determinism-matrix`
+jobs, one row per job in a TSV. Each failure was then classified from
+`gh run view --job <id> --log-failed`, by its failing assertion and the
+residual queue classes the drain reported.
+
+| Job | Failed | #11104 signature | Other cause |
+|---|---|---|---|
+| `determinism-matrix` | 13/80 | 13 | 0 |
+| `fault-injection (shard 2/15)` | 6/80 | 4 | 2 |
+| `fault-injection (shard 10/15)` | 0/80 | 0 | 0 |
+
+The #11104 signature is the drain ending with no live work and a residual of
+`deployment_mapping/retrying/cross_repo_backward_evidence_not_ready` plus
+`workload_materialization/retrying/workload_materialization_resolution_not_ready`.
+In `determinism-matrix`, 11 of the 13 are the `workload_dependency` N=4 cell
+and 2 are the `repo_dependency` standalone cell. In shard 2, all 4 are
+`workload_dependency` cells. The other 2 shard 2 failures are
+`baseline_deployable_unit` held on
+`deployable_unit_correlation/retrying/shared_edge_target_not_ready`, the
+PR 2 class. Shard 10's 0/80 carries no before/after information.
+
+The after-run count needed for 95% confidence is
+`N >= ln(0.05) / ln(1 - p)`, where p is a job's failure rate:
+
+- `determinism-matrix`, p = 13/80: 17 clean runs. Twelve clean runs give
+  about 88% confidence.
+- shard 2, p = 4/80: 59 clean runs. Twelve clean runs give about 46%.
+
+The after-run counts are reported on the PR.
 
 ## Proofs
 
