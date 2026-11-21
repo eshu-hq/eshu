@@ -144,9 +144,10 @@ func TestCov7WinnersReadGateAndClock(t *testing.T) {
 	}
 }
 
-// TestCov7AggregateCountReadsBuckets proves the count envelope: the nil
-// database guard, scan propagation, bucket-query failures, and a happy path
-// with priority and severity buckets.
+// TestCov7AggregateCountReadsBuckets proves the single-statement count envelope
+// (#10970): the nil database guard, scan propagation, bucket-decode failures,
+// exactly one statement per call, and a happy path with priority and severity
+// buckets.
 func TestCov7AggregateCountReadsBuckets(t *testing.T) {
 	t.Parallel()
 
@@ -166,48 +167,39 @@ func TestCov7AggregateCountReadsBuckets(t *testing.T) {
 	if _, err := NewPostgresAggregateStoreWithReadStore(scanFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
 		t.Fatalf("reader count scan failure = nil error, want failure")
 	}
-	bucketFail := &cov7StoreQueryer{
+	bucketDecodeFail := &cov7StoreQueryer{
 		onRow: func(string) db.Row {
-			return &cov7StoreRow{values: []any{cov7NullInt(3), cov7NullInt(2), cov7NullInt(1), cov7NullInt(1), cov7NullInt(0), cov7NullInt(1)}}
+			return &cov7StoreRow{values: []any{
+				cov7NullInt(3), cov7NullInt(2), cov7NullInt(1), cov7NullInt(1), cov7NullInt(0), cov7NullInt(1),
+				[]byte(`[{"bucket":"p1","bucket_count":2}]`), []byte(`{oops`),
+			}}
 		},
-		onRows: func(string) (db.Rows, error) { return nil, errors.New("bucket down") },
+		onRows: func(string) (db.Rows, error) { return nil, errors.New("count must not fan out to bucket queries") },
 	}
-	if _, err := NewPostgresAggregateStoreWithReadStore(bucketFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
-		t.Fatalf("bucket query failure = nil error, want failure")
+	if _, err := NewPostgresAggregateStoreWithReadStore(bucketDecodeFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
+		t.Fatalf("bucket decode failure = nil error, want failure")
 	}
-	bucketScanFail := &cov7StoreQueryer{
-		onRow: func(string) db.Row {
-			return &cov7StoreRow{values: []any{cov7NullInt(3), cov7NullInt(2), cov7NullInt(1), cov7NullInt(1), cov7NullInt(0), cov7NullInt(1)}}
-		},
-		onRows: func(string) (db.Rows, error) {
-			return &cov7StoreRows{rows: [][]any{{"p1", int64(2)}}, scanErr: errors.New("scan boom")}, nil
-		},
-	}
-	if _, err := NewPostgresAggregateStoreWithReadStore(bucketScanFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
-		t.Fatalf("bucket scan failure = nil error, want failure")
-	}
-	calls := 0
 	happy := &cov7StoreQueryer{
 		onRow: func(string) db.Row {
-			return &cov7StoreRow{values: []any{cov7NullInt(3), cov7NullInt(2), cov7NullInt(1), cov7NullInt(1), cov7NullInt(0), cov7NullInt(1)}}
+			return &cov7StoreRow{values: []any{
+				cov7NullInt(3), cov7NullInt(2), cov7NullInt(1), cov7NullInt(1), cov7NullInt(0), cov7NullInt(1),
+				[]byte(`[{"bucket":"p1","bucket_count":2},{"bucket":"p2","bucket_count":1}]`), []byte(`[{"bucket":"critical","bucket_count":3}]`),
+			}}
 		},
-		onRows: func(string) (db.Rows, error) {
-			calls++
-			if calls == 1 {
-				return &cov7StoreRows{rows: [][]any{{"p1", int64(2)}, {"p2", int64(1)}}}, nil
-			}
-			return &cov7StoreRows{rows: [][]any{{"critical", int64(3)}}}, nil
-		},
+		onRows: func(string) (db.Rows, error) { return nil, errors.New("count must be one statement") },
 	}
 	count, err := NewPostgresAggregateStoreWithReadStore(happy).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{})
 	if err != nil {
 		t.Fatalf("count = %v, want envelope", err)
 	}
+	if len(happy.queries) != 1 {
+		t.Fatalf("count issued %d statements, want exactly one (#10970)", len(happy.queries))
+	}
 	if count.TotalFindings != 3 || count.AffectedFindings != 2 || count.AffectedExact != 1 ||
 		count.AffectedDerived != 1 || count.PossiblyAffected != 0 || count.NotAffected != 1 {
 		t.Fatalf("count = %#v, want scanned totals", count)
 	}
-	if count.ByPriorityBucket["p1"] != 2 || count.BySeverity["critical"] != 3 {
+	if count.ByPriorityBucket["p1"] != 2 || count.ByPriorityBucket["p2"] != 1 || count.BySeverity["critical"] != 3 {
 		t.Fatalf("buckets = (%v, %v), want filled maps", count.ByPriorityBucket, count.BySeverity)
 	}
 	if store := NewPostgresAggregateStore(nil); store.DB != nil {

@@ -203,6 +203,31 @@ FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
+// AggregateCombinedCountQuery returns the full count envelope (status totals
+// plus priority and severity buckets) in one Postgres statement (#10970). The
+// unscoped count route previously ran AggregateCountQuery,
+// AggregatePriorityCountQuery, and AggregateSeverityCountQuery back to back,
+// rebuilding the canonical-facts CTE — including the DISTINCT ON canonical-key
+// sort — three times per request. The combined shape builds canonical_facts
+// (MATERIALIZED) once and derives every total and bucket from that single
+// build, so one request pays one CTE build and one dedup sort instead of
+// three. Buckets keep the same unknown/none defaults as the facet queries.
+var AggregateCombinedCountQuery = AggregateCanonicalFactsCTE + `
+SELECT
+	(SELECT COUNT(*) FROM canonical_facts) AS total,
+	(SELECT COUNT(*) FROM canonical_facts WHERE impact_status IN ('affected_exact', 'affected_derived', 'possibly_affected')) AS affected,
+	(SELECT COUNT(*) FROM canonical_facts WHERE impact_status = 'affected_exact') AS affected_exact,
+	(SELECT COUNT(*) FROM canonical_facts WHERE impact_status = 'affected_derived') AS affected_derived,
+	(SELECT COUNT(*) FROM canonical_facts WHERE impact_status = 'possibly_affected') AS possibly_affected,
+	(SELECT COUNT(*) FROM canonical_facts WHERE impact_status LIKE 'not_affected%') AS not_affected,
+	(SELECT COALESCE(jsonb_agg(jsonb_build_object('bucket', bucket, 'bucket_count', bucket_count)), '[]'::jsonb)
+	 FROM (SELECT COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown') AS bucket, COUNT(*) AS bucket_count
+	       FROM canonical_facts AS fact GROUP BY bucket) AS priority_buckets) AS priority_buckets,
+	(SELECT COALESCE(jsonb_agg(jsonb_build_object('bucket', bucket, 'bucket_count', bucket_count)), '[]'::jsonb)
+	 FROM (SELECT COALESCE(NULLIF(fact.severity_bucket, ''), 'none') AS bucket, COUNT(*) AS bucket_count
+	       FROM canonical_facts AS fact GROUP BY bucket) AS severity_buckets) AS severity_buckets;
+`
+
 const supplyChainImpactInventoryGroupExpressionPlaceholder = "__SUPPLY_CHAIN_IMPACT_GROUP_EXPRESSION__"
 
 // InventoryQueryTemplate groups the canonical, scope-bounded fact set by a
