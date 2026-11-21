@@ -17,6 +17,7 @@ func testSourceBackpressureConfig() SourceBackpressureConfig {
 		EngageAge:     time.Hour,
 		ReleaseAge:    15 * time.Minute,
 		DepthFloor:    25,
+		GrantDelay:    2 * time.Second,
 		MaxEngagement: 30 * time.Minute,
 	}
 }
@@ -50,6 +51,8 @@ func TestSourceBackpressureConfigValidate(t *testing.T) {
 		"zero release age":      func(c *SourceBackpressureConfig) { c.ReleaseAge = 0 },
 		"zero depth floor":      func(c *SourceBackpressureConfig) { c.DepthFloor = 0 },
 		"negative depth floor":  func(c *SourceBackpressureConfig) { c.DepthFloor = -1 },
+		"zero grant delay":      func(c *SourceBackpressureConfig) { c.GrantDelay = 0 },
+		"negative grant delay":  func(c *SourceBackpressureConfig) { c.GrantDelay = -time.Second },
 		"zero max engagement":   func(c *SourceBackpressureConfig) { c.MaxEngagement = 0 },
 		"negative engage age":   func(c *SourceBackpressureConfig) { c.EngageAge = -time.Hour },
 	}
@@ -211,5 +214,47 @@ func TestDecideSourceSlowedIsPerSource(t *testing.T) {
 	}
 	if behind.SourceSystem == healthy.SourceSystem {
 		t.Fatal("verdicts do not name their source systems")
+	}
+}
+
+// TestDecideSourceSlowedCarriesGrantDelay proves a slowed verdict carries the
+// configured grant delay, so claim-grant and admission callers back off on the
+// existing retry-after path instead of busy-polling the consult.
+func TestDecideSourceSlowedCarriesGrantDelay(t *testing.T) {
+	t.Parallel()
+	cfg := testSourceBackpressureConfig()
+
+	got := DecideSourceSlowed(cfg, SourceQueueSignal{
+		SourceSystem:       "vuln-intel",
+		OldestClaimableAge: 2 * time.Hour,
+		ClaimableDepth:     100,
+	}, SourceBackpressureLatch{}, 0)
+	if !got.Slowed {
+		t.Fatal("Slowed = false, want true")
+	}
+	if got.RetryAfter != cfg.GrantDelay {
+		t.Fatalf("RetryAfter = %s, want grant delay %s", got.RetryAfter, cfg.GrantDelay)
+	}
+
+	clear := DecideSourceSlowed(cfg, SourceQueueSignal{
+		SourceSystem: "vuln-intel",
+	}, SourceBackpressureLatch{}, 0)
+	if clear.RetryAfter != 0 {
+		t.Fatalf("unslowed RetryAfter = %s, want 0", clear.RetryAfter)
+	}
+}
+
+// TestClaimPacingSignalReducerSourceValidates proves the reducer-source
+// pacing signal (#10882 decision 4) is a closed wire value alongside the
+// domain and global signals, so latch rows and deferrals carry it without
+// the unknown-signal widening.
+func TestClaimPacingSignalReducerSourceValidates(t *testing.T) {
+	t.Parallel()
+
+	if err := ClaimPacingSignalReducerSource.Validate(); err != nil {
+		t.Fatalf("ClaimPacingSignalReducerSource.Validate() error = %v, want nil", err)
+	}
+	if got := string(ClaimPacingSignalReducerSource); got != "reducer_source" {
+		t.Fatalf("ClaimPacingSignalReducerSource = %q, want reducer_source", got)
 	}
 }

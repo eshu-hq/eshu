@@ -48,6 +48,10 @@ type WorkflowControlStore struct {
 	// authoritative in shared storage.
 	pacingMu     sync.Mutex
 	pacingDepths *claimPacingDepthCache
+	// sourceSignals caches one grouped claimable-signal observation for
+	// source-backpressure consults (#10882), guarded by pacingMu like the
+	// depth cache; the latch row stays authoritative and is read fresh.
+	sourceSignals *sourceSignalCache
 	// Instruments records the terminal-dead-letter-block signal (#4459) and
 	// the unknown-trigger skip signal (#10369) during
 	// ReconcileWorkflowRuns. Nil is a no-op, so binaries without a

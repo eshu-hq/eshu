@@ -29,6 +29,15 @@ type SourceBackpressureConfig struct {
 	// DepthFloor is the minimum claimable depth that can slow a source. One
 	// poisoned or deliberately gated old row must never throttle a source.
 	DepthFloor int64
+	// GrantDelay is the backoff a slowed verdict carries: claim grants
+	// return it on the retry-after path and admission polls wait it out,
+	// so a slowed source costs no busy consult loop.
+	GrantDelay time.Duration
+	// SignalCacheTTL bounds how long one store reuses a claimable-signal
+	// observation. Zero reads the grouped signal on every consult
+	// (deterministic; the proofs use it). The latch row stays
+	// authoritative in shared storage and is always read fresh.
+	SignalCacheTTL time.Duration
 	// MaxEngagement bounds one slowed engagement: past it with age still
 	// above the release age, the verdict stays slowed and raises Stuck
 	// instead of releasing blindly into a saturated source.
@@ -40,7 +49,7 @@ type SourceBackpressureConfig struct {
 // not a conservative default.
 func (c SourceBackpressureConfig) Enabled() bool {
 	return c.EngageAge > 0 && c.ReleaseAge > 0 &&
-		c.DepthFloor > 0 && c.MaxEngagement > 0
+		c.DepthFloor > 0 && c.GrantDelay > 0 && c.MaxEngagement > 0
 }
 
 // Validate rejects a partially configured leg and any enabled config whose
@@ -56,6 +65,9 @@ func (c SourceBackpressureConfig) Validate() error {
 	}
 	if c.ReleaseAge >= c.EngageAge {
 		return fmt.Errorf("source backpressure release age %s must be below engage age %s", c.ReleaseAge, c.EngageAge)
+	}
+	if c.SignalCacheTTL < 0 {
+		return fmt.Errorf("source backpressure signal cache TTL %s must not be negative", c.SignalCacheTTL)
 	}
 	return nil
 }
@@ -89,6 +101,8 @@ type SourceBackpressureDecision struct {
 	// SourceSystem echoes the verdict's source so a shared consult cannot
 	// misattribute one source's backlog to another.
 	SourceSystem string
+	// RetryAfter is the configured grant delay, set exactly when Slowed.
+	RetryAfter time.Duration
 	// Stuck reports an engagement older than MaxEngagement with age still
 	// above the release age: still slowed, and loud.
 	Stuck bool
@@ -131,6 +145,31 @@ func slowed(cfg SourceBackpressureConfig, sourceSystem string, engagedFor time.D
 		Slowed:       true,
 		Reason:       SourceBackpressureReasonSourceBehind,
 		SourceSystem: sourceSystem,
+		RetryAfter:   cfg.GrantDelay,
 		Stuck:        engagedFor > cfg.MaxEngagement,
 	}
+}
+
+// SourcePacingState is one source's published slowed state (#10882 AC6):
+// whether intake is slowed, why, and the claimable reducer observation
+// behind the verdict. Storage builds it from the shared latch plus the
+// grouped claimable read; status surfaces render it without re-deriving
+// the verdict.
+type SourcePacingState struct {
+	SourceSystem string
+	Slowed       bool
+	// Reason names why the source slowed. Empty unless Slowed.
+	Reason string
+	// OldestClaimableAge is the age of the oldest claimable outstanding
+	// reducer row attributed to the source at read time.
+	OldestClaimableAge time.Duration
+	// ClaimableDepth counts the source's claimable outstanding reducer
+	// rows at read time.
+	ClaimableDepth int64
+	// EngagedSince is when the current slowed engagement began. Zero
+	// unless the latch is engaged.
+	EngagedSince time.Time
+	// Stuck reports an engagement older than the configured bound with
+	// age still above the release age: still slowed, and loud.
+	Stuck bool
 }
