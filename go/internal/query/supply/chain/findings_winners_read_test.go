@@ -69,18 +69,19 @@ func TestSupplyChainImpactWinnersReadEnabled(t *testing.T) {
 }
 
 // TestSupplyChainImpactWinnersReadQueryShape pins the Phase 2 read shape: it
-// reads from the maintained winners table, joins fact_records only for the page
-// payloads, and does NOT deduplicate at read time (no ROW_NUMBER/PARTITION BY)
-// nor re-join the active-generation tables (winner currency is
-// materialization-enforced).
+// reads from the maintained winners table alone (#10880 slice 2: payload and
+// source_confidence come from the winners row, no fact_records payload join
+// and no operator-candidate rescan), and does NOT deduplicate at read time
+// (no ROW_NUMBER/PARTITION BY) nor re-join the active-generation tables
+// (winner currency is materialization-enforced).
 func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 	t.Parallel()
 
 	q := impact.ListFindingsFromWinnersQuery
 	for _, want := range []string{
 		"FROM supply_chain_impact_canonical_winners AS w",
-		"JOIN fact_records AS refetch",
-		"ON refetch.fact_id = page.winner_fact_id",
+		"win.payload",
+		"win.source_confidence",
 		"w.severity_bucket = $12",
 		"w.match_reason IN (", // the precise-detection branch parity
 		"w.winner_scope_id = ANY($23::text[])",
@@ -108,6 +109,9 @@ func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 		"PARTITION BY canonical_key",
 		"JOIN ingestion_scopes",
 		"JOIN scope_generations",
+		"JOIN fact_records AS refetch",
+		"operator_candidates",
+		"operator_overrides",
 	} {
 		if strings.Contains(winnersRead, banned) {
 			t.Fatalf("winners read query must not contain %q (defeats O(page) / re-dedups)", banned)

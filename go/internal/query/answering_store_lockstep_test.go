@@ -64,10 +64,13 @@ var answeringStoreProbes = []struct {
 	evidence   string
 }{
 	// Reducer-result families read fact_records through reducer-owned kinds.
+	// Impact findings list is mixed since #10880 slice 2: the winners
+	// read serves payloads from the read table, while the legacy gate-off
+	// path and the runtime workload filter still read reducer facts.
 	{
 		capability: "supply_chain.impact_findings.list",
-		want:       []string{"fact_records_reducer"},
-		evidence:   "go/internal/query/supply/chain/impact/findings_queries.go: FindingFactKind=reducer_supply_chain_impact_finding",
+		want:       []string{"read_table:supply_chain_impact_canonical_winners", "fact_records_reducer"},
+		evidence:   "go/internal/query/supply/chain/impact/findings_queries.go: winners payload read (#10880) + legacy FindingFactKind path + runtime_filter_sql.go reducer_workload_identity",
 	},
 	{
 		capability: "supply_chain.security_alert_reconciliations.list",

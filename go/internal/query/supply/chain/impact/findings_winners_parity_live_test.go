@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package impact
+
+//eshu:readiness live-postgres-readiness
+//eshu:readiness:reason #10880 slice 2 disposable PostgreSQL 18 proof that the winners-payload list read (migration 325 stored payload, no fact_records payload join) returns byte-identical FindingRow pages to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority sorts, cursor paging, suppressed inclusion with live and expired operator suppressions, and scoped-token repository and scope grants; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"os"
+	"testing"
+	"time"
+
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
+)
+
+// TestFindingsWinnersPayloadParityLive proves the #10880 slice-2
+// reader switch: for every filter below the winners read returns
+// exactly the rows the legacy fact read returns, including the
+// operator-suppression overlay (live and expired) and scoped-token
+// grants, even though it never joins fact_records for payloads.
+func TestFindingsWinnersPayloadParityLive(t *testing.T) {
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(
+		t,
+		os.Getenv("ESHU_GROUPED_INVENTORY_PROOF_DSN"),
+		os.Getenv("ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE"),
+		5*time.Minute,
+		func(ctx context.Context, db *sql.DB) error {
+			return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
+		},
+	)
+	seedGroupedInventoryLive(t, ctx, database)
+	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
+		RebuildAllWinners(ctx, time.Now().UTC()); err != nil {
+		t.Fatalf("RebuildAllWinners: %v", err)
+	}
+
+	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
+	winners := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	// The store requires a selector; the seed's status serves as the
+	// broad one so each case varies only its named dimension.
+	filters := map[string]FindingFilter{
+		"unfiltered":          {Limit: 50, Status: "affected_exact"},
+		"precise":             {Limit: 50, Status: "affected_exact", DetectionProfile: ProfilePrecise},
+		"priority_desc":       {Limit: 50, Status: "affected_exact", Sort: "priority_score_desc"},
+		"priority_asc":        {Limit: 50, Status: "affected_exact", Sort: "priority_score_asc"},
+		"cursor":              {Limit: 2, Status: "affected_exact", Sort: "priority_score_desc"},
+		"include_suppressed":  {Limit: 50, Status: "affected_exact", IncludeSuppressed: true},
+		"suppression_state":   {Limit: 50, Status: "affected_exact", SuppressionState: "expired", IncludeSuppressed: true},
+		"scoped_repositories": {Limit: 50, Status: "affected_exact", AllowedRepositoryIDs: []string{"repository:r1", "repository:r5"}},
+		"scoped_scopes":       {Limit: 50, Status: "affected_exact", AllowedScopeIDs: []string{"git-repository-scope:repository:r2"}},
+		"min_priority":        {Limit: 50, MinPriorityScore: 60},
+	}
+	for name, filter := range filters {
+		t.Run(name, func(t *testing.T) {
+			want, err := legacy.ListSupplyChainImpactFindings(ctx, filter)
+			if err != nil {
+				t.Fatalf("legacy list: %v", err)
+			}
+			got, err := winners.ListSupplyChainImpactFindings(ctx, filter)
+			if err != nil {
+				t.Fatalf("winners list: %v", err)
+			}
+			wantJSON, _ := json.Marshal(want)
+			gotJSON, _ := json.Marshal(got)
+			if string(wantJSON) != string(gotJSON) {
+				t.Fatalf("winners page differs from legacy page\nlegacy:  %s\nwinners: %s", wantJSON, gotJSON)
+			}
+		})
+	}
+}
