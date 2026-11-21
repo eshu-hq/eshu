@@ -127,7 +127,8 @@ type WaitingDeferral struct {
 	// wait needs, for operators reading the map.
 	ProvidingSave string
 	// ProducerDomain, when set, narrows a producer-terminal wait to one
-	// producer domain's terminal Ack in the wait's scope and generation.
+	// producer domain: the park key is {scope_id, generation_id,
+	// producer_domain} of the waiter.
 	ProducerDomain string
 	// Keyspace and Phase, when both set on a phase_committed row, make the
 	// wait phase-exact (#11104): it parks on {scope_id, generation_id,
@@ -135,6 +136,11 @@ type WaitingDeferral struct {
 	// row, and the phase Upsert wakes it by the exact key.
 	Keyspace gpphase.Keyspace
 	Phase    gpphase.Phase
+	// ProviderLocality, required on every narrowed producer-terminal row,
+	// says whether that producer commits in the wait's own scope and
+	// generation or in other scopes; only cross-scope rows are reopened by
+	// the cross-scope wake leg (#11114). Other rows leave it empty.
+	ProviderLocality WaitingProviderLocality
 }
 
 // WaitingDeferralMap lists every non-counting readiness class plus the
@@ -250,25 +256,31 @@ func WaitingDeferralMap() []WaitingDeferral {
 			ProvidingSave: "sibling-scope endpoint commit; audit terminal-progress fallback + backstop",
 		},
 		{
-			FailureClass:   servicecatalog.RuntimeNotReadyFailureClass,
-			WaitsForKind:   WaitingKindProducerTerminal,
-			WakeSite:       WaitingWakeSiteInTx,
-			ProvidingSave:  "workload_materialization terminal Ack in the wait's scope and generation",
-			ProducerDomain: string(reducer.DomainWorkloadMaterialization),
+			FailureClass: servicecatalog.RuntimeNotReadyFailureClass,
+			WaitsForKind: WaitingKindProducerTerminal,
+			WakeSite:     WaitingWakeSiteInTx,
+			// #7816/#11114: the fence reads the correlated repository
+			// scopes' workload rows while the wait is keyed to the catalog
+			// scope, so only the cross-scope leg can reopen it.
+			ProvidingSave:    "workload_materialization terminal Ack in any correlated repository scope (cross-scope leg)",
+			ProducerDomain:   string(reducer.DomainWorkloadMaterialization),
+			ProviderLocality: WaitingProviderCrossScope,
 		},
 		{
-			FailureClass:   securityalert.ImpactNotReadyFailureClass,
-			WaitsForKind:   WaitingKindProducerTerminal,
-			WakeSite:       WaitingWakeSiteInTx,
-			ProvidingSave:  "supply_chain_impact terminal Ack in the wait's scope and generation",
-			ProducerDomain: string(reducer.DomainSupplyChainImpact),
+			FailureClass:     securityalert.ImpactNotReadyFailureClass,
+			WaitsForKind:     WaitingKindProducerTerminal,
+			WakeSite:         WaitingWakeSiteInTx,
+			ProvidingSave:    "supply_chain_impact terminal Ack in the wait's scope and generation",
+			ProducerDomain:   string(reducer.DomainSupplyChainImpact),
+			ProviderLocality: WaitingProviderSameScopeGeneration,
 		},
 		{
-			FailureClass:   supplychaincore.SBOMAttachmentNotReadyFailureClass,
-			WaitsForKind:   WaitingKindProducerTerminal,
-			WakeSite:       WaitingWakeSiteInTx,
-			ProvidingSave:  "sbom_attestation_attachment terminal Ack in the wait's scope and generation (#11105)",
-			ProducerDomain: string(reducercontract.DomainSBOMAttestationAttachment),
+			FailureClass:     supplychaincore.SBOMAttachmentNotReadyFailureClass,
+			WaitsForKind:     WaitingKindProducerTerminal,
+			WakeSite:         WaitingWakeSiteInTx,
+			ProvidingSave:    "sbom_attestation_attachment terminal Ack in the wait's scope and generation (#11105)",
+			ProducerDomain:   string(reducercontract.DomainSBOMAttestationAttachment),
+			ProviderLocality: WaitingProviderSameScopeGeneration,
 		},
 		{
 			FailureClass:  awscloud.AWSCloudRuntimeDriftWriteSupersededFailureClass,

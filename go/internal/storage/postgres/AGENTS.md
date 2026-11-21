@@ -115,7 +115,7 @@
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
-  without an ADR. #10863: reducer claims fence stale rows read-only via `reducerClaimStaleGateCTEs` — never re-embed the supersede sweep in a claim; terminalization belongs only to the bounded standalone sweep (`ReducerQueue.SupersedeStaleReducerGenerations`).
+  without an ADR. #10863: reducer claims fence stale rows read-only via `reducerClaimStaleGateCTEs` — never re-embed the supersede sweep in a claim; terminalization belongs only to the bounded standalone sweep (`ReducerQueue.SupersedeStaleReducerGenerations`). #11114: every narrowed producer-terminal row of `WaitingDeferralMap` declares a `ProviderLocality` (no valid zero value; `TestWaitingDeferralMapDeclaresProviderLocality`); the post-ack cross-scope leg (`wakeProducerTerminalCrossScopeQuery`) runs only for a domain with a `cross_scope` class and filters `failure_class = ANY($3)` in both CTEs. Declare `same_scope_generation` only when the handler probe reads the waiter's own scope and generation, else the wake is lost (`TestProducerTerminalWakeCatalogRuntime*Live`); never drop the filter or the leg, and keep its reopen clause and `COLLATE "C"` lock order identical to `reopenWaitingRowsQuery`; see `docs/internal/evidence/11114-producer-wake-locality.md`.
 - **Status domain backlog includes shared projection.** `StatusStore` merges
   `fact_work_items` backlog with pending `shared_projection_intents` so
   `/admin/status` remains `progressing` until reducer-owned shared edges are

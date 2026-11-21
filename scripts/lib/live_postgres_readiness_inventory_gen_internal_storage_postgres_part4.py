@@ -133,6 +133,18 @@ TABLE = {
             "TestWaitingConcurrentClaimAndWakeLive",
             "TestWaitingDeferShareImprovementLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_wake_locality_live_test.go": (
+            "TestProducerTerminalWakeForeignImpactAckLeavesReconciliationParkedLive",
+            "TestProducerTerminalWakeCatalogRuntimeCrossScopeLive",
+            "TestProducerTerminalWakeCatalogRuntimeSeededSameScopeLosesWakeLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_wake_locality_matrix_live_test.go": (
+            "TestProducerTerminalWakeLocalityParkAfterAckRaceLive",
+            "TestProducerTerminalWakeLocalityDuplicateAckLive",
+            "TestProducerTerminalWakeLocalityAuditReopensMissedWakeLive",
+            "TestProducerTerminalWakeLocalityMixedAckBatchLive",
+            "TestProducerTerminalWakeLocalitySupersededGenerationLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_winners_wake_live_test.go": (
             "TestWinnersKeyedTickWakesParkedAdvisoryWaitLive",
             "TestWinnersAuditReopenedWaitConvergesOnNextTickLive",
