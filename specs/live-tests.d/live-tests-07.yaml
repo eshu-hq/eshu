@@ -310,6 +310,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 1/1 named Go test passes with -json -race (summed test elapsed 2.36s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_owner_ceiling_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "lane-11102: reducer-contention verified 2/2 named Go test passes with -json (summed test elapsed 12.86s; -race not run on the shared host, CI runs it)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_convergence_live_test.go
     tag: ~
     class: dedicated_ci
