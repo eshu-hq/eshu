@@ -197,6 +197,9 @@ type supplyChainImpactBuildStats struct {
 	// osReleaseNotInAdvisory counts the final findings whose advisory
 	// carries release tags but none for the installed release, by vendor.
 	osReleaseNotInAdvisory map[string]int
+	// multiVersionRepositoryGroups counts the (repository, CVE, advisory,
+	// package) groups whose final findings hold two or more versions (#11113).
+	multiVersionRepositoryGroups int
 	// osUpstreamGroups counts the vulnerability.cve records the OS advisory
 	// grouping pass examined, by source and result (#9914).
 	osUpstreamGroups map[osUpstreamGroupKey]int
@@ -450,4 +453,5 @@ func (h SupplyChainImpactHandler) recordBuildStats(
 	subSignals[osAdvisoriesVendorLineMismatchSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseVendorLineMismatch))
 	subSignals[osAdvisoriesVendorLineUnknownSubSignal] = float64(stats.osAdvisoriesWithRelease(osAdvisoryReleaseVendorLineUnknown))
 	subSignals[osReleaseNotInAdvisorySubSignal] = float64(stats.osReleaseNotInAdvisoryTotal())
+	subSignals[multiVersionRepositoryGroupsSubSignal] = float64(stats.multiVersionRepositoryGroups)
 }

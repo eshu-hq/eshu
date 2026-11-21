@@ -114,8 +114,11 @@ func appendSupplyChainImpactPackageFindings(
 // repository instead of one representative consumption per package (issue
 // #9725). A single firstConsumption winner silently drops every other
 // consumer — every non-lockfile manifest row loses to the preferred lockfile
-// row — so each distinct repository classifies over its own rows, with
-// firstConsumption still picking the representative row within a repository.
+// row — so each distinct repository classifies over its own rows. Within a
+// repository each distinct observed version classifies once (#11113,
+// splitRepositoryConsumptionByVersion), and firstConsumption picks the
+// representative row within a version; a repository whose rows carry no
+// version keeps one finding.
 // Repositories sort for deterministic output; the writer and coalesce keys
 // already carry repository_id, so per-repo findings persist side by side.
 // With no consumption rows the single unscoped classification stands (OS-only
@@ -138,11 +141,13 @@ func appendSupplyChainImpactManifestFindings(
 	}
 	sort.Strings(repositories)
 	for _, repositoryID := range repositories {
-		scoped := index
-		scoped.consumption = map[string][]supplychainmodel.PackageConsumption{
-			pkg.PackageID: grouped[repositoryID],
+		// One repository can install several versions of a package; each
+		// classifies once so a fixed row cannot hide a vulnerable one (#11113).
+		for _, rows := range splitRepositoryConsumptionByVersion(pkg.Ecosystem, grouped[repositoryID]) {
+			scoped := index
+			scoped.consumption = map[string][]supplychainmodel.PackageConsumption{pkg.PackageID: rows}
+			findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped, narrowPerShard))
 		}
-		findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cves, pkgs, scoped, narrowPerShard))
 	}
 	return findings
 }

@@ -78,6 +78,14 @@ changing anything here.
   matching version through `matchingOSPackageImpactPaths`. Coalesce stamps the SBOM version conflict label only when
   `findingHasSBOMComponentPath` holds for one of the merged findings; a merge
   of digest-less lines whose purl has no distro qualifier keeps the lesser reason.
+- A repository's manifest rows for one package classify once per distinct
+  observed version (#11113, `splitRepositoryConsumptionByVersion`), keyed by
+  `consumptionObservedVersion`, the same rule that sets the finding's
+  `observed_version`; keep the two on that one function. Do not drop
+  `observed_version` from the writer or winners key, dedupe versions at query
+  time, or rank one "best" version: each installed version is its own finding.
+  Rows with no version keep the one-finding rule only when no row of the
+  repository carries a version.
 - `telemetry-coverage.md` rows that name files in this package must keep
   pointing at real files with a net-zero row count; the dirgate row for
   `internal/reducer` ratchets DOWN on family moves and never absorbs new
