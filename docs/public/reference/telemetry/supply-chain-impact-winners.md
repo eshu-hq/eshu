@@ -90,8 +90,9 @@ the unapplied rest into fact rows and deletes the scope row in the same
 transaction (#11145). Each converted row keeps the scope row's capture time, and
 merging into a fact row that is already queued keeps the earlier time. The
 horizon therefore stays under that activation's scope mark until every one of
-its identifiers is applied. A `winners_watermark` waiter enqueued after the
-activation does not wake early, and `dirty_log_oldest_age_seconds` keeps
+its identifiers is applied. A conversion does not wake a `winners_watermark`
+waiter enqueued after the activation early (the staging collapse has a
+separate late-commit gap, #11149), and `dirty_log_oldest_age_seconds` keeps
 reporting the activation's real age while it drains. The commit log line
 carries `remainder_rows_converted`, and
 `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total`
@@ -261,7 +262,7 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_staging_oldest_age_seconds` | gauge | none | Age of the oldest staged row at the last tick this instance sampled, 0 when the queue is empty. It bounds how long a capture can sit before the collapse folds it in. |
 | `eshu_dp_supply_chain_impact_winners_staging_depth_upper_bound` | gauge | none | 1 when the last `staging_depth` sample, and the `dirty_log_depth` that includes it, is an upper bound: past one collapse budget (50,000 staged rows) the sample reports the visible seq span instead of counting the whole queue (#11129). 0 when the depth is exact. The age gauges are exact either way. |
 | `eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total` | counter | none | Staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined. |
-| `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total` | counter | none | Dirty-log fact rows a keyed tick wrote (inserted, or merged into a queued row) when it converted the unapplied remainder of a partly applied scope row (#11145). The rows keep the scope row's capture time, so while any is queued the watermark stays under that activation's scope mark. |
+| `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total` | counter | none | Dirty-log fact rows a keyed tick wrote (inserted, or merged into a queued row) when it converted the unapplied remainder of a partly applied scope row (#11145). The rows keep the scope row's capture time, so while any is queued the watermark stays under that activation's scope mark. Recorded before the tick commits, so it includes a tick that later rolls back. |
 | `eshu_dp_supply_chain_impact_winners_write_conflicts_total` | counter | `site`, `failure_class` | Writer and tick statements the database aborted with a deadlock (`40P01`) or a serialization failure (`40001`) (#10851). `site` is `writer_capture` (the capture statement), `writer_commit` (the writer transaction commit) or `tick` (any keyed-tick phase, including the collapse, the settle and the tick commit); `failure_class` is `deadlock` or `serialization_failure`. The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it. Steady state is zero; a rising rate names the contending site. |
 | `eshu_dp_supply_chain_impact_winners_rows_total` | counter | `action` | Rows a committed resweep handled. `action` is `inserted`, `updated`, `deleted` or `unchanged`. Only the first three write a row version. |
 | `eshu_dp_supply_chain_impact_winners_resweep_skipped_total` | counter | none | Resweeps that found another in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements run past 60 seconds. |

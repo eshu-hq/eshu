@@ -5,6 +5,11 @@ Refs #11145 (epic #10860; related #11120, #10972, #11117). Rulings relied on:
 This change stacks on the #11117 winners contract (A), whose note is
 [11117-winners-contract.md](11117-winners-contract.md).
 
+Scope of the claim: the guarantee holds on the conversion path. A waiter
+enqueued after an activation is not woken by a conversion while that
+activation's winners are stale. The staging collapse has a separate
+pre-existing gap, tracked by #11149 and not changed here (see Edge cases).
+
 ## The defect
 
 A keyed tick admits the oldest dirty rows and probes at most 200 identifiers.
@@ -42,8 +47,10 @@ no scope row was left.
 
 ## Proofs
 
-RED at `dd3164acf4` (the A code), GREEN after the fix, both on disposable
-PostgreSQL 18:
+RED at `f7fe082e18` (the RED test on origin/main `da04c6bb34`, which holds the
+merged A, `f4999c43de`), GREEN at the fix, both on disposable PostgreSQL 18. The
+first RED run was on the pre-merge A head; the convert statement is
+byte-identical on both bases:
 `supply_chain_impact_winners_keyed_scope_remainder_horizon_live_test.go`.
 
 | Case | RED | GREEN |
@@ -77,10 +84,16 @@ Edge cases:
   fix.
 - Rollback to the A binary: the binary writes fresh captures again. No schema
   or data change ships, so the rollback needs no runbook step.
-- A late mark that executed before a queued row's capture but committed after
-  it keeps the queued row's capture in the staging collapse (keep-existing, not
-  LEAST). That is the collapse's documented late-commit tolerance and predates
-  this change. It is reported to the coordinator, not changed here.
+- Mixed-version roll: until every pod runs the fix, ticks on A-binary pods still
+  write fresh captures on conversion, so the early wake can still happen during
+  the roll. Nothing persists past it except rows those pods already converted.
+- Staging collapse gap (#11149, pre-existing, not changed here): both collapse
+  conflict arms (fact and scope) keep the queued row's captured_at instead of
+  LEAST. A staged mark that executed at T_s and commits late can fold into a
+  same-key row captured at T_q > T_s. A waiter enqueued in (T_s, T_q) can then
+  wake while that key is still queued, and this includes a re-marked scope row.
+  This is not the documented late-commit tolerance: that is exactly one tick,
+  and this gap lasts until the merged row applies.
 
 ## Contract decision: re-pin, no version bump
 
@@ -117,7 +130,9 @@ data columns is `a4ef02840ec21e79fa51fcf33ab9c0da` (28 winners) on the shipped
 code and on the fix, at all three chunk sizes, in repeated runs. Tick count and
 total inserted and updated rows are identical (chunk 2: 14 ticks, 7 inserted,
 21 updated). The per-tick order differs: converted rows now keep their age, so
-oldest-first admission takes the remainder before newer fact marks.
+within the admitted window the oldest-first identifier chunk takes the
+remainder before newer fact marks. Window admission itself is by seq, and a
+converted row takes a fresh seq.
 
 ## Performance
 
@@ -153,7 +168,13 @@ time. At 3 AM, a flat watermark with a growing oldest age, a falling
 draining over bounded ticks, with its waiters held on purpose. The telemetry
 reference documents the counter and the reading:
 [supply-chain-impact-winners.md](../../public/reference/telemetry/supply-chain-impact-winners.md).
-The NVD trip tally buckets a converted row by its capture minute. That is now
-the scope mark's minute, not the conversion minute, so a conversion no longer
-shows up as fresh fact inflow. The six trip-sample live proofs pass; one hit a
+The counter is recorded before the tick commits, like
+`staging_collapsed_rows_total`, so it counts attempted conversions, including
+those of a tick that later rolls back. The NVD trip tally buckets a converted
+row by its capture minute. That is now the scope mark's minute, not the
+conversion minute. The live leg counts such a row only while the mark is inside
+the trailing hour, and the drain tally drops it once the mark is older than two
+hours, so a conversion no longer shows up as fresh fact inflow. The
+oldest-dirty age leg carries the fan-out instead. The trip sampler's godoc
+(`vulnerability/nvd_baseline_trip_sample.go`) says the same. The six trip-sample live proofs pass; one hit a
 disposable-database drop timeout after its assertions passed.

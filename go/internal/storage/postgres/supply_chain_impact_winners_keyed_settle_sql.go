@@ -84,8 +84,9 @@ func winnersDirtyKeyOrderClause(alias string) string {
 // with remainder winners still stale, and the in-transaction
 // winners_watermark wake would reopen a waiter that depends on the
 // activation too early. Carrying the earlier capture also keeps the
-// remainder's place in the oldest-first chunk admission and keeps
-// dirty_log_oldest_age_seconds reporting the activation's real age.
+// remainder's age in the oldest-first identifier chunk within the admitted
+// window (window admission is by seq, and a converted row takes a fresh seq)
+// and keeps dirty_log_oldest_age_seconds reporting the activation's real age.
 //
 // convertWinnersKeyedScopeRemainderSelectSQL is the read-only SELECT arm of
 // the convert below, key order included: plan proofs EXPLAIN this arm
