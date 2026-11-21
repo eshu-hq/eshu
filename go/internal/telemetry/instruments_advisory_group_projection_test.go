@@ -109,7 +109,7 @@ func TestAdvisoryGroupRecordHelpersTolerateMissingInstruments(t *testing.T) {
 			inst.RecordAdvisoryGroupEnqueueFailure(ctx, "d")
 			inst.RecordAdvisoryGroupReconcileDuration(ctx, "d", 1)
 			inst.RecordAdvisoryGroupLag(ctx, "d", 1)
-			inst.RecordAdvisoryGroupWatermarkWait(ctx, "d", "c", "1", 1, 1, 1, 1)
+			inst.RecordAdvisoryGroupWatermarkWait(ctx, "d", "c", "1", "nvd", 1, 1, 1, 1)
 		})
 	}
 }
@@ -136,8 +136,8 @@ func TestAdvisoryGroupRecordHelpersRecordLabelledSamples(t *testing.T) {
 	inst.RecordAdvisoryGroupReconcileDuration(ctx, domain, 0.25)
 	inst.RecordAdvisoryGroupLag(ctx, domain, 12)
 	inst.RecordAdvisoryGroupLag(ctx, domain, -1) // clock skew: dropped
-	inst.RecordAdvisoryGroupWatermarkWait(ctx, domain, "wait_not_ready", "1", 2640, 0, 6300, 3600)
-	inst.RecordAdvisoryGroupWatermarkWait(ctx, domain, "wait_stale", "2", -1, -1, -1, -1) // skewed signals dropped, verdict counted
+	inst.RecordAdvisoryGroupWatermarkWait(ctx, domain, "wait_not_ready", "1", "nvd", 2640, 0, 6300, 3600)
+	inst.RecordAdvisoryGroupWatermarkWait(ctx, domain, "wait_stale", "2", "ghsa", -1, -1, -1, -1) // skewed signals dropped, verdict counted
 
 	samples := collectAdvisoryGroupSamples(t, reader)
 	dom := AttrDomain(domain)
@@ -159,8 +159,8 @@ func TestAdvisoryGroupRecordHelpersRecordLabelledSamples(t *testing.T) {
 		{pre + "post_claim_deferral_seconds", []attribute.KeyValue{dom}, 0},
 		{pre + "watermark_age_seconds", []attribute.KeyValue{dom}, 6300},
 		{pre + "watermark_gap_seconds", []attribute.KeyValue{dom}, 3600},
-		{pre + "watermark_waits_total", []attribute.KeyValue{dom, AttrFailureClass("wait_not_ready"), AttrAttempt("1")}, 1},
-		{pre + "watermark_waits_total", []attribute.KeyValue{dom, AttrFailureClass("wait_stale"), AttrAttempt("2")}, 1},
+		{pre + "watermark_waits_total", []attribute.KeyValue{dom, AttrFailureClass("wait_not_ready"), AttrAttempt("1"), AttrOrigin("nvd")}, 1},
+		{pre + "watermark_waits_total", []attribute.KeyValue{dom, AttrFailureClass("wait_stale"), AttrAttempt("2"), AttrOrigin("ghsa")}, 1},
 	} {
 		got, ok := advisoryGroupSampleValue(samples, tc.name, tc.attrs...)
 		if !ok || got != tc.want {

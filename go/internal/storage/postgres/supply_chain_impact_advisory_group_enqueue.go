@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	advisorygroup "github.com/eshu-hq/eshu/go/internal/reducer/advisory/group"
@@ -37,7 +38,9 @@ const (
 // Advisory group payload keys. group_id names the projected group;
 // origin_scope_id and origin_generation_id record the touching pass for
 // drill-down only: they affect no work item id, conflict key, predicate,
-// or handler read.
+// or handler read. The first-underlying-data key is the Decision-3 wire
+// (Q1 option a, eshu-hq/eshu#11080): the handler reads it, so its name
+// lives on the handler's contract.
 const (
 	advisoryGroupPayloadGroupID     = "group_id"
 	advisoryGroupPayloadOriginScope = "origin_scope_id"
@@ -64,7 +67,9 @@ type advisoryGroupIntentQueue interface {
 // ["advisory_group:<id>"], Cause = advisoryGroupProjectionCause, and the
 // origin source system mirrored. The related scope is the synthetic slot
 // scope, which the claim read derives from the work item's own scope; the
-// origin pass rides the payload for drill-down only. The work item id is
+// origin pass's scope and generation ride the payload for drill-down only,
+// while its cycle start rides it as the handler-read first-underlying-data
+// time (#11080). The work item id is
 // a pure function of the group, so the existing ON CONFLICT DO NOTHING
 // plus RetouchWorkItem is the race-free coalescing primitive.
 //
@@ -95,6 +100,20 @@ func NewAdvisoryGroupProjectionEnqueuer(queue ReducerQueue) AdvisoryGroupProject
 // bound waits for winners covering the later touch, and a claimed or
 // running row is marked for replay so its ACK returns it to pending for a
 // rerun instead of succeeding against pre-commit winners.
+// originFirstUnderlyingData returns the first-underlying-data time the
+// projection intent stamps for a touch from origin: the touching pass's
+// cycle start, falling back to its enqueue when the cycle start is zero,
+// or the zero time when the origin carries no times at all (a hand-built
+// origin such as the ifa drive verb's). The cycle start is the current
+// repair cycle's own clock; preferring it over the enqueue keeps a reopened
+// pass from antedating the stamp with its original enqueue.
+func originFirstUnderlyingData(origin reducercontract.Intent) time.Time {
+	if !origin.CycleStartedAt.IsZero() {
+		return origin.CycleStartedAt
+	}
+	return origin.EnqueuedAt
+}
+
 func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 	ctx context.Context,
 	origin reducercontract.Intent,
@@ -114,6 +133,30 @@ func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 			continue
 		}
 		seen[groupID] = struct{}{}
+		payload := map[string]any{
+			advisoryGroupPayloadGroupID:     groupID,
+			advisoryGroupPayloadOriginScope: origin.ScopeID,
+			advisoryGroupPayloadOriginGen:   origin.GenerationID,
+		}
+		// Decision-3 wire (Q1 option a, eshu-hq/eshu#11080): stamp the
+		// touching pass's cycle start (its enqueue when the cycle start
+		// is zero) as the row's first-underlying-data time. The stamp is
+		// the group's first-touch vintage, not the latest touch: a
+		// retouch that collides on the work item id (ON CONFLICT DO
+		// NOTHING) advances the cycle start while this payload keeps the
+		// first stamp, so a re-touched row with ancient underlying data
+		// still reads stale at once while the watermark trails the new
+		// bound. That matches the field name: the advisory's first data
+		// does not get younger when the group is touched again. The
+		// pass's write postdates the stamp by the pass duration,
+		// immaterial against the 30-minute stale bound. An origin with no
+		// times at all stamps nothing, so the handler falls back to the
+		// post-claim deferral clock. The stamp rides the payload, never
+		// the work item id, so coalescing and the ON CONFLICT identity
+		// are unchanged.
+		if firstData := originFirstUnderlyingData(origin); !firstData.IsZero() {
+			payload[advisorygroup.PayloadKeyFirstUnderlyingDataAt] = firstData.UTC().Format(time.RFC3339Nano)
+		}
 		intents = append(intents, runtime.ReducerIntent{
 			ScopeID:      AdvisoryGroupsSyntheticScope,
 			GenerationID: AdvisoryGroupsSyntheticGenesis,
@@ -121,11 +164,7 @@ func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 			EntityKey:    advisorygroup.EntityKey(groupID),
 			Reason:       advisoryGroupProjectionCause,
 			SourceSystem: origin.SourceSystem,
-			Payload: map[string]any{
-				advisoryGroupPayloadGroupID:     groupID,
-				advisoryGroupPayloadOriginScope: origin.ScopeID,
-				advisoryGroupPayloadOriginGen:   origin.GenerationID,
-			},
+			Payload:      payload,
 		})
 	}
 	if len(intents) == 0 {
