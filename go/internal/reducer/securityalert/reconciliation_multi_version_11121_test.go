@@ -60,3 +60,42 @@ func TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121(t *
 		}
 	}
 }
+
+// TestReconciliationRanksOnlyImpactsOfTheAlertManifest11121 pins review F1 of
+// #11121: the alert names package-lock.json, which holds only 3.1.0, while
+// sub/package-lock.json in the same repository holds 3.0.3. The rank must
+// consider only impacts of versions the alert's manifest holds. Otherwise the
+// row reads affected_exact while naming the 3.1.0 row as its evidence, a
+// self-contradicting decision.
+func TestReconciliationRanksOnlyImpactsOfTheAlertManifest11121(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/eshu-hq/eshu"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-11121-f1", repoID, map[string]any{
+		"provider": "github_dependabot", "provider_alert_number": int64(11122), "provider_state": "open",
+		"package_id": packageID, "ecosystem": "npm", "package_name": "fast-uri", "manifest_path": "package-lock.json",
+		"ghsa_ids": []string{"GHSA-abcd-1234"}, "cve_ids": []string{"CVE-2026-0001"},
+		"updated_at": "2026-05-23T10:15:00Z",
+	})
+	fixedRow := packageConsumptionCorrelationEnvelope("consume-a-fixed", repoID, packageID, "package-lock.json")
+	fixedRow.Payload["installed_version"] = "3.1.0"
+	otherManifestRow := packageConsumptionCorrelationEnvelope("consume-z-affected", repoID, packageID, "sub/package-lock.json")
+	otherManifestRow.Payload["installed_version"] = "3.0.3"
+	fixedImpact := supplyChainImpactFindingEnvelope("impact-a-fixed", repoID, packageID, "CVE-2026-0001", "not_affected_known_fixed")
+	fixedImpact.Payload["observed_version"] = "3.1.0"
+	otherImpact := supplyChainImpactFindingEnvelope("impact-z-affected", repoID, packageID, "CVE-2026-0001", "affected_exact")
+	otherImpact.Payload["observed_version"] = "3.0.3"
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, fixedRow, otherManifestRow, otherImpact, fixedImpact}, nil)
+	if len(decisions) != 1 {
+		t.Fatalf("len(decisions) = %d, want 1", len(decisions))
+	}
+	decision := decisions[0]
+	if decision.Status != SecurityAlertReconciliationMatched ||
+		decision.EshuImpactStatus != "not_affected_known_fixed" || decision.EshuImpactFindingID != "impact-a-fixed" ||
+		decision.ObservedVersion != "3.1.0" || decision.DependencyEvidenceID != "consume-a-fixed" {
+		t.Fatalf("decision = %s %s (%s) observed %s dependency %s, want matched not_affected_known_fixed (impact-a-fixed) observed 3.1.0 dependency consume-a-fixed",
+			decision.Status, decision.EshuImpactStatus, decision.EshuImpactFindingID, decision.ObservedVersion, decision.DependencyEvidenceID)
+	}
+}
