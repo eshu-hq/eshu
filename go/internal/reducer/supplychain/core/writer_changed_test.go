@@ -58,6 +58,10 @@ func storedLike(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) 
 		digest:       supplyChainImpactContentDigest(write, finding),
 		cveID:        finding.CVEID,
 		fencingToken: 5,
+		// The keyed capture compares the evidence fact id set beside the
+		// digest (#10880 arbiter ruling decision 4), so an unchanged rerun
+		// stores the same set the finding derives.
+		evidenceFactIDs: finding.EvidenceFactIDs,
 	}
 }
 
