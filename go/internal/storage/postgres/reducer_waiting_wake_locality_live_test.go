@@ -10,11 +10,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 )
 
 // impactNotReadyCause self-classifies as the #8827 reconciliation impact
@@ -135,5 +137,57 @@ func TestProducerTerminalWakeCatalogRuntimeCrossScopeLive(t *testing.T) {
 	if reopened.waitRows != 0 || reopened.status != "retrying" || reopened.attempts != parked.attempts ||
 		!reopened.visibleAt.Time.Equal(clock) {
 		t.Fatalf("workload_materialization Ack in another repository scope did not reopen the catalog wait: %+v (wake at %s)", reopened, clock)
+	}
+}
+
+// TestProducerTerminalWakeCatalogRuntimeSeededSameScopeLosesWakeLive is the
+// seeded-violation half of the lost-wake guard. The workload producer row
+// reaches succeeded without an Ack wake, then the post-ack wake runs twice
+// against the parked catalog wait: once with a plan that mis-declares the
+// catalog runtime class same-scope, which must leave the wait parked (the
+// lost wake the guard exists to catch), and once with the shipped plan,
+// which must reopen it.
+func TestProducerTerminalWakeCatalogRuntimeSeededSameScopeLosesWakeLive(t *testing.T) {
+	ctx := context.Background()
+	base, _ := openWaitingDB(t, ctx)
+	clock := time.Now().UTC().Truncate(time.Second)
+	const catalogScope, repoScope = "waiting-11114-catalog-seed", "waiting-11114-repo-seed"
+	addOwnGateGenerationSeed(t, ctx, base, catalogScope, "c0", "c1", clock)
+	addOwnGateGenerationSeed(t, ctx, base, repoScope, "r0", "r1", clock)
+	addOwnGateItem(t, ctx, base, "catalog-11114-seed", catalogScope, "c1", reducercontract.DomainServiceCatalogCorrelation, clock)
+	parked := parkNarrowedWaiter(t, ctx, base, &clock, "catalog-11114-seed",
+		reducercontract.DomainServiceCatalogCorrelation, runtimeNotReadyCause{})
+	addOwnGateItem(t, ctx, base, "workload-11114-seed", repoScope, "r1", reducercontract.DomainWorkloadMaterialization, clock)
+	if _, err := base.ExecContext(ctx, `UPDATE fact_work_items SET status = 'succeeded' WHERE work_item_id = 'workload-11114-seed'`); err != nil {
+		t.Fatalf("finish workload producer: %v", err)
+	}
+	acked := []reducercontract.Intent{{
+		IntentID: "workload-11114-seed", Domain: reducercontract.DomainWorkloadMaterialization,
+		ScopeID: repoScope, GenerationID: "r1",
+	}}
+
+	seeded := slices.Clone(WaitingDeferralMap())
+	for i := range seeded {
+		if seeded[i].FailureClass == servicecatalog.RuntimeNotReadyFailureClass {
+			seeded[i].ProviderLocality = WaitingProviderSameScopeGeneration
+		}
+	}
+	clock = clock.Add(time.Minute)
+	if err := wakeProducerTerminalAfterAckWithPlan(ctx, SQLDB{DB: base}, nil, acked, clock,
+		newProducerTerminalWakePlan(seeded)); err != nil {
+		t.Fatalf("seeded wake: %v", err)
+	}
+	if got := readWaitingRow(t, ctx, base, "catalog-11114-seed"); got.waitRows != 1 ||
+		!got.visibleAt.Time.Equal(parked.visibleAt.Time) {
+		t.Fatalf("seeded same-scope plan reopened the catalog wait: %+v; the guard cannot see a lost wake", got)
+	}
+
+	clock = clock.Add(time.Minute)
+	if err := wakeProducerTerminalAfterAckWithPlan(ctx, SQLDB{DB: base}, nil, acked, clock,
+		defaultProducerTerminalWakePlan()); err != nil {
+		t.Fatalf("shipped wake: %v", err)
+	}
+	if got := readWaitingRow(t, ctx, base, "catalog-11114-seed"); got.waitRows != 0 || !got.visibleAt.Time.Equal(clock) {
+		t.Fatalf("shipped plan did not reopen the catalog wait: %+v (wake at %s)", got, clock)
 	}
 }

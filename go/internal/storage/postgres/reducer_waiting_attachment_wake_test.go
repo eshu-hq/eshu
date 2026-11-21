@@ -12,17 +12,21 @@ import (
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// countingWakeDB records every statement the producer-terminal wake issues and
-// answers each single-row read with zero reopened and zero cleared rows.
+// countingWakeDB records every statement the producer-terminal wake issues,
+// with its arguments, and answers each single-row read with zero reopened
+// and zero cleared rows.
 type countingWakeDB struct {
 	queries []string
+	args    [][]any
 }
 
-func (f *countingWakeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (f *countingWakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.queries = append(f.queries, query)
+	f.args = append(f.args, args)
 	return &zeroCountWakeRows{}, nil
 }
 
@@ -56,28 +60,44 @@ func (r *zeroCountWakeRows) Scan(dest ...any) error {
 func (r *zeroCountWakeRows) Err() error   { return nil }
 func (r *zeroCountWakeRows) Close() error { return nil }
 
-// TestSBOMAttestationAttachmentAckWakeStatementCount pins the #11105 cost on
-// the attachment Ack path: enrolling sbom_attestation_attachment as a narrowed
-// producer domain adds exactly two post-commit statements per acked
-// attachment generation (the narrowed reopen and the cross-scope domain leg,
-// the latter deduped per domain across a batch), where the domain added none
-// before. A domain with no deferral-map row still issues none.
+// TestSBOMAttestationAttachmentAckWakeStatementCount pins the post-commit
+// statement cost on the narrowed producer Ack paths. The attachment and
+// impact domains are narrowed but same-scope (#11114), so each acked
+// generation issues exactly one statement, the keyed reopen, and no
+// cross-scope leg. workload_materialization carries the cross-scope catalog
+// class, so its Ack adds the cross-scope leg (deduped per domain across a
+// batch) filtered to that class, plus the domain-only #11000 wake when the
+// domain is a CompletionEdges producer. A domain with no deferral-map row
+// still issues none.
 func TestSBOMAttestationAttachmentAckWakeStatementCount(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 11, 21, 5, 0, 0, 0, time.UTC)
 	intent := func(domain reducercontract.Domain, scope string) reducercontract.Intent {
 		return reducercontract.Intent{IntentID: "i-" + scope, Domain: domain, ScopeID: scope, GenerationID: "g-" + scope}
 	}
+	producers := completionEdgeProducerSet()
+	domainOnly := func(domain reducercontract.Domain) int {
+		if producers[domain] {
+			return 1
+		}
+		return 0
+	}
 	cases := []struct {
 		name    string
 		intents []reducercontract.Intent
 		want    int
 	}{
-		{"one attachment ack", []reducercontract.Intent{intent(reducercontract.DomainSBOMAttestationAttachment, "s1")}, 2},
+		{"one attachment ack", []reducercontract.Intent{intent(reducercontract.DomainSBOMAttestationAttachment, "s1")}, 1},
 		{"batch of two attachment acks", []reducercontract.Intent{
 			intent(reducercontract.DomainSBOMAttestationAttachment, "s1"),
 			intent(reducercontract.DomainSBOMAttestationAttachment, "s2"),
-		}, 3},
+		}, 2},
+		{"one impact ack", []reducercontract.Intent{intent(reducercontract.DomainSupplyChainImpact, "s1")}, 1 + domainOnly(reducercontract.DomainSupplyChainImpact)},
+		{"mixed batch: two workload acks and one impact ack", []reducercontract.Intent{
+			intent(reducercontract.DomainWorkloadMaterialization, "s1"),
+			intent(reducercontract.DomainWorkloadMaterialization, "s2"),
+			intent(reducercontract.DomainSupplyChainImpact, "s3"),
+		}, 2 + 1 + domainOnly(reducercontract.DomainWorkloadMaterialization) + 1 + domainOnly(reducercontract.DomainSupplyChainImpact)},
 		{"a domain nothing waits on", []reducercontract.Intent{intent(reducercontract.DomainKubernetesCorrelation, "s1")}, 0},
 	}
 	for _, tc := range cases {
@@ -90,9 +110,20 @@ func TestSBOMAttestationAttachmentAckWakeStatementCount(t *testing.T) {
 			if len(database.queries) != tc.want {
 				t.Fatalf("statements = %d, want %d:\n%s", len(database.queries), tc.want, strings.Join(database.queries, "\n---\n"))
 			}
+			for i, query := range database.queries {
+				if query != wakeProducerTerminalCrossScopeQuery {
+					continue
+				}
+				if got := database.args[i][1]; got != string(reducercontract.DomainWorkloadMaterialization) {
+					t.Fatalf("cross-scope leg issued for domain %v, want only workload_materialization", got)
+				}
+				if got := fmt.Sprint(database.args[i][2]); got != fmt.Sprint([]string{servicecatalog.RuntimeNotReadyFailureClass}) {
+					t.Fatalf("cross-scope leg classes = %s, want only the catalog runtime class", got)
+				}
+			}
 		})
 	}
-	if !waitingProducerDomains()[string(reducercontract.DomainSBOMAttestationAttachment)] {
+	if !defaultProducerTerminalWakePlan().narrowed[string(reducercontract.DomainSBOMAttestationAttachment)] {
 		t.Fatal("sbom_attestation_attachment is not a narrowed producer domain: its Ack would never wake a parked impact pass")
 	}
 }

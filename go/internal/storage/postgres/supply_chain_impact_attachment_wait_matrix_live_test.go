@@ -270,15 +270,15 @@ func rowState(w *attachWait, id string) string {
 }
 
 // TestReducerContentionGateSupplyChainImpactAttachmentForeignAckIsAHintLive
-// pins what the existing producer-terminal wake does with a narrowed wait:
-// besides the narrowed (scope, generation, sbom_attestation_attachment) key,
-// wakeProducerTerminalAfterAck runs the cross-scope leg for the acked domain,
-// which reopens every scope-bound wait naming that domain in ANY scope. So an
-// attachment Ack in scope B reopens scope A's parked impact pass. That wake is
-// only a hint: A re-defers without spending an attempt and parks again, and
-// its own attachment Ack still reopens it. The cost is one claim, one probe,
-// and one Fail per parked pass per foreign attachment Ack, with no evidence
-// load (the probe runs first).
+// pins wake locality for the attachment wait (#11114). The impact pass's
+// probe reads only its own scope generation's attachment row, so its wait
+// declares a same-scope-generation provider and the post-ack wake reopens it
+// only through the keyed (scope, generation, sbom_attestation_attachment)
+// wake. An attachment Ack in scope B must leave scope A's parked impact pass
+// parked (no claim, no probe, no re-park), and A's own attachment Ack must
+// reopen it. Before #11114 the cross-scope leg reopened every scope-bound
+// wait naming the domain in any scope, so B's Ack cost A a spurious claim,
+// probe, Fail, and park.
 func TestReducerContentionGateSupplyChainImpactAttachmentForeignAckIsAHintLive(t *testing.T) {
 	w := newAttachWait(t)
 	const scopeA, scopeB = "scope:11105:hint-a", "scope:11105:hint-b"
@@ -296,7 +296,27 @@ func TestReducerContentionGateSupplyChainImpactAttachmentForeignAckIsAHintLive(t
 	if err := w.attachQ.Ack(w.ctx, attachB, reducercontract.Result{}); err != nil {
 		t.Fatalf("scope B attachment Ack(): %v", err)
 	}
-	// The foreign Ack reopened A: the pass is claimable and re-defers.
-	w.deferFirstImpactPass("scope A after scope B's Ack", "impact-ha")
-	w.claim(w.impactQ, "scope A parked again", false)
+	// The foreign Ack leaves A parked: nothing to claim.
+	w.claim(w.impactQ, "scope A after scope B's Ack", false)
+	if status, _, attempts := w.item("impact-ha"); status != "retrying" || attempts != 1 {
+		t.Fatalf("scope A impact = %s attempts=%d after the foreign Ack, want retrying at 1", status, attempts)
+	}
+
+	// A's own attachment Ack reopens it, and the pass proceeds.
+	if _, err := w.db.ExecContext(w.ctx, `UPDATE fact_work_items SET visible_at = $2 WHERE work_item_id = $1`,
+		"attach-ha", w.clock.Add(-time.Second)); err != nil {
+		t.Fatalf("make scope A attachment claimable: %v", err)
+	}
+	attachA := w.claim(w.attachQ, "scope A attachment", true)
+	w.writeAttachment(scopeA, attachA)
+	if err := w.attachQ.Ack(w.ctx, attachA, reducercontract.Result{}); err != nil {
+		t.Fatalf("scope A attachment Ack(): %v", err)
+	}
+	reopened := w.claim(w.impactQ, "scope A after its own Ack", true)
+	if err := w.runImpact(reopened); err != nil {
+		t.Fatalf("scope A reopened pass: %v", err)
+	}
+	if got := w.attachedFindings(scopeA); got != 1 {
+		t.Fatalf("scope A attached findings = %d, want 1", got)
+	}
 }
