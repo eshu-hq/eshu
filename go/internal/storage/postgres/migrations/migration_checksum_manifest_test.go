@@ -478,7 +478,7 @@ var migrationShippedChecksums = map[string]string{
 	// rows whose advisory_id starts with GHSA-), read by the trip sampler
 	// beside the ruled CVE-% rate (renumbered 325 to 328 at rebase:
 	// #10671 owns 325).
-	"328_supply_chain_impact_winners_dirty_tally_ghsa.sql": "135f4aa25b46bedcf816826547ac87dee44fcc4e1a1ffbd91230b4de93563a85",
+	"328_supply_chain_impact_winners_dirty_tally_ghsa.sql": "203127370c2c10a206df811af13aa54e4d401ba27875bc2554b11e69aa6f96f3",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

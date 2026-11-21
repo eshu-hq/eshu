@@ -335,7 +335,7 @@ import (
 // inflow split stops reading NOT_CHECKED (renumbered 325 to 328 at
 // rebase: #10671 owns 325).
 const (
-	goldenBootstrapDefinitionsDigest = "842556022ed453498556814f2372c272fd76481d8df033d2a453376cc7e1067c"
+	goldenBootstrapDefinitionsDigest = "3773bd1e5a7465ba834d9caf34ef6f28a64b68e280c0f8cef904d5675293b2f7"
 	goldenBootstrapDefinitionsCount  = 354
 )
 
