@@ -237,6 +237,10 @@ both extending existing machinery:
    explicitly **not** built: the store is chosen at compile time in
    handler SQL, so a static gate catches every real case without
    adding a hot-path check.
+   Status: layer 2 is **not yet landed**. What slice 0 ships is
+   declaration-completeness (layer 1) plus sampled lockstep probes, not
+   the full handler-to-store audit; the audit is remaining work below,
+   and no claim in this record says otherwise.
 
 ## Decision 4: slice plan (each slice independently committable)
 
@@ -319,7 +323,9 @@ binary still trying the old path.
 
 - **Slice 0 landed** (`c9909ef9f5`): `answering_stores` on all 162
   matrix rows, closed-enum load validation, `missing_answering_store`
-  reconcile finding, regenerated catalog, lockstep honesty test.
+  reconcile finding, regenerated catalog, lockstep sampled-probe test
+  (declaration-completeness plus sampled probes; the full
+  handler-to-store audit of Decision 3 layer 2 remains open).
 - **Slice 1 landed** (`c900d01a88`): migration
   `331_supply_chain_impact_winners_payload.sql` adds `payload JSONB`
   and `source_confidence TEXT` to the winners table. The full and
