@@ -301,7 +301,7 @@ func TestProjectorClaimLeavesFenceUnlockedWhenWorkRowBusy(t *testing.T) {
 	var claimedGeneration string
 	if err := claimer.QueryRow(claimProjectorWorkQuery, at, "claimer", at.Add(time.Minute), "").Scan(
 		new(string), new(string), new(string), new(string), new(string), new(bool), new(string), new(string),
-		&claimedGeneration, new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
+		&claimedGeneration, new(int), new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
 	); err != nil {
 		t.Fatalf("claim in open transaction: %v", err)
 	}
