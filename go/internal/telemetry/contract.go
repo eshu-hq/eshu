@@ -240,7 +240,14 @@ const (
 	// reducer attempt bucket that produced the verdict ("1", "2", "3plus").
 	// Producers MUST use AttemptBucketForCount; raw attempt numbers are not
 	// allowed. The bucket set is closed, so it stays low-cardinality.
-	MetricDimensionAttempt  = "attempt"
+	MetricDimensionAttempt = "attempt"
+	// MetricDimensionOrigin labels the advisory-group projection
+	// winners-watermark wait verdicts (#11080) with the closed advisory
+	// origin the verdict attributes to: "nvd" for CVE-class groups,
+	// "ghsa" for GHSA-class groups, "other" for anything else. Producers
+	// MUST pass one of the three closed values; raw advisory or group ids
+	// are never allowed.
+	MetricDimensionOrigin   = "origin"
 	MetricDimensionFactKind = "fact_kind"
 	// MetricDimensionSourceFileKind labels content-entity emission counters with
 	// a bounded classification of the originating source file:

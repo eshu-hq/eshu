@@ -131,7 +131,7 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		return reducercontract.Result{}, fmt.Errorf("advisory group intent carries no %s entity key", EntityKeyPrefix)
 	}
 
-	if err := h.awaitWinnersWatermark(ctx, intent); err != nil {
+	if err := h.awaitWinnersWatermark(ctx, intent, verdictOrigin(groupIDs)); err != nil {
 		return reducercontract.Result{}, err
 	}
 
@@ -242,8 +242,13 @@ func winnersBoundStart(intent reducercontract.Intent) time.Time {
 // verdict measures post-claim deferral from the cycle's first deferral
 // (#11075): a row that waited in queue past the bound still defers
 // not_ready on its first evaluation, and only a still-waiting row whose
-// deferral started more than winnersWatermarkMaxWait ago reads stale.
-func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontract.Intent) error {
+// deferral started more than winnersWatermarkMaxWait ago reads stale. The
+// Decision-3 fast path (#11080, Q1 option a) additionally reads stale when
+// the producer-stamped first-underlying-data time is already older than
+// the bound: the underlying data predates the wait, so the first
+// evaluation skips the not_ready cycle. A row without the stamp keeps the
+// post-claim clock exactly.
+func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontract.Intent, origin string) error {
 	watermark, err := h.Winners.AdvisoryGroupWinnersWatermark(ctx)
 	if err != nil {
 		return fmt.Errorf("read advisory group winners watermark: %w", err)
@@ -255,8 +260,13 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 	now := h.now()
 	deferralStart, markerLossReason := resolveDeferralStart(intent, now)
 	stale := now.Sub(deferralStart) > winnersWatermarkMaxWait
+	if !stale {
+		if firstData, ok := firstUnderlyingDataAt(intent, now); ok && now.Sub(firstData) > winnersWatermarkMaxWait {
+			stale = true
+		}
+	}
 	h.recordWatermarkMarkerLoss(ctx, intent, markerLossReason)
-	h.recordWatermarkWait(ctx, intent, required, watermark, now, deferralStart, stale)
+	h.recordWatermarkWait(ctx, intent, origin, required, watermark, now, deferralStart, stale)
 	return winnersWatermarkWaitError{
 		watermark:       watermark,
 		required:        required,
@@ -268,10 +278,12 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 
 // recordWatermarkWait emits the #11075 wait split for one deferral verdict:
 // pre-claim queue residency, post-claim deferral, watermark age and bound
-// gap, and the verdict by failure class and attempt bucket.
+// gap, and the verdict by failure class, attempt bucket, and advisory
+// origin (#11080).
 func (h Handler) recordWatermarkWait(
 	ctx context.Context,
 	intent reducercontract.Intent,
+	origin string,
 	required time.Time,
 	watermark time.Time,
 	now time.Time,
@@ -294,6 +306,7 @@ func (h Handler) recordWatermarkWait(
 		string(reducercontract.DomainAdvisoryGroupProjection),
 		failureClass,
 		telemetry.AttemptBucketForCount(intent.AttemptCount),
+		origin,
 		claimLag,
 		now.Sub(deferralStart).Seconds(),
 		now.Sub(watermark).Seconds(),

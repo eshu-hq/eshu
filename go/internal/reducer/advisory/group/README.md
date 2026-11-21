@@ -23,6 +23,8 @@ adds `handler.go` here later), the Cypher
 - `WriteStats` — driver summary counters summed over one reconcile call
 - `WinnerRow` — one grouped advisory row the handler reconciles
 - `EntityKeyPrefix`, `GroupIDFromEntityKey` — entity-key to group-id mapping
+- `PayloadKeyFirstUnderlyingDataAt` — optional intent payload key carrying the row's first-underlying-data time (#11080)
+- `AdvisoryOriginNVD`, `AdvisoryOriginGHSA`, `AdvisoryOriginOther` — closed per-verdict origin values for `watermark_waits_total` (#11080)
 
 See `doc.go` for the full godoc contract.
 
@@ -47,3 +49,8 @@ No metrics, spans, or logs: this package holds types only.
 ## Related docs
 
 - Design rationale: (#9209)
+
+## No-regression evidence (#11080)
+
+- No-Regression Evidence: failing-first contract tests RED then GREEN with byte-identical expectations; package suites (advisory/group, telemetry, postgres enqueuer, reducer Advisory) green on unit backend; A2-shaped fixture rows (148 born-stale first-touch rows) drive the shim and the fix.
+- Observability Evidence: per-verdict origin (nvd/ghsa/other) observable on watermark_waits_total; verdict fallback is the post-claim deferral clock when the stamp is absent, so unserved paths cannot regress.
