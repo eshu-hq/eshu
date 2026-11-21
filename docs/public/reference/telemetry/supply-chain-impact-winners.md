@@ -40,8 +40,17 @@ for freshness; read the watermark.
 
 ## Keyed resweeps and the audit
 
-The first resweep after a reducer starts recomputes every winner. Every tick
-after it is keyed: the changes that can move a winner append the canonical keys
+A full resweep recomputes every winner and records the winners contract
+version and hash with the watermark (#11117, migration 329). Every maintainer
+tick reads that row first. With no watermark row, or a stored version that is
+NULL or below this binary's, the tick runs one full; every instance tries, and
+the resweep lock lets exactly one commit. With an equal version the tick is
+keyed and the audit runs, so a reducer roll with an unchanged contract runs no
+full. With a higher stored version (a newer binary already committed) this
+binary stands down: no full, keyed tick or audit. Rolling back to a binary
+that predates the contract, or across a contract version bump, must set both
+contract columns to NULL as a runbook step, so the next binary that reads them
+runs one full. A keyed tick works this way: the changes that can move a winner append the canonical keys
 they touched to a dirty log, in the same transaction as the change. Two kinds of
 capture exist. The impact writer names its own changes in application code, for
 findings it inserts, rewrites or retracts. Database triggers (migration 272, plus 272a
@@ -227,6 +236,13 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_resweep_skipped_total` | counter | none | Resweeps that found another in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements run past 60 seconds. |
 | `eshu_dp_supply_chain_impact_winners_watermark_age_seconds` | gauge | none | Seconds since the read watermark was stamped, computed at scrape time from the last watermark the instance saw. Every instance reports it, whether or not it holds the lease. It rises between resweeps, drops on each commit, and keeps climbing through a stall. It has no value until the instance first sees a watermark. |
 | `supply_chain_impact.winners_resweep` | span | none | One resweep or audit. Attributes `path`, `keys`, `inserted`, `updated`, `deleted`, `unchanged`, or `skipped`; the audit span carries `repairs`, or `skipped` when it could not take the lock. A failed resweep records the error on the span. |
+| `eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds` | gauge | `path` | Seconds the resweep in flight on this instance has run, by `full`, `keyed` and `audit`; 0 when none is in flight (#11117). |
+| `eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds` | gauge | `path` | Unix time of the last resweep this instance committed, by path. It is the commit time, not the watermark value the resweep stamped. No value until the path first commits. |
+| `eshu_dp_supply_chain_impact_winners_contract_version` | gauge | `kind` | The stored contract version (`stored`, 0 when none is recorded) and this binary's (`binary`), from the last contract read. |
+| `eshu_dp_supply_chain_impact_winners_full_resweeps_total` | counter | `reason` | Committed fulls by start reason: `no_watermark` (no resweep had committed), `contract_version` (stored version NULL or lower), `keyed_cap` (a keyed tick fell back past the cap). |
+| `eshu_dp_supply_chain_impact_winners_stand_downs_total` | counter | none | Ticks this instance stood down because the stored contract is newer than its binary. Any rate means mixed binaries. |
+| `supply chain impact winners maintainer standing down` | warn log | none | Logged once when an instance starts standing down, with `stored_version` and `binary_version`; a matching info log marks the resume. |
+| `supply chain impact winners full resweep recorded the contract` | info log | none | A full committed and recorded this binary's contract, with `reason` and the stored and binary versions it replaced. |
 | `supply chain impact winners resweep committed` | info log | none | The same four counts plus `path`, `identifiers`, `keys`, `duration_seconds` and `previous_watermark_age_seconds` (`-1` for the first resweep). |
 | `supply chain impact winners audit found stale keys` | warn log | none | The audit queued `repairs` stale keys, with `read_seconds` and `duration_seconds`. Carries no key, scope or CVE. |
 | `supply chain impact winners dirty log stats read failed` | warn log | none | The read behind the two dirty-log gauges failed; they keep the last sample. |
@@ -299,8 +315,19 @@ No label carries a canonical key, scope, repository, or CVE.
   missing. Check `capture_rows_total` by `source`: a source that goes flat while
   its writes continue is the path that stopped. A repair is safe, because the
   audit queues the key for the next keyed tick, but it is a defect to chase.
-- A `path="full"` sample after the first resweep after startup means a keyed
-  tick passed the cap and fell back. Read `keys_per_sweep` to see how many keys
+- `full_resweeps_total` says why each full ran. `no_watermark` and
+  `contract_version` should appear once per contract change, not once per roll;
+  after a roll with an unchanged contract, expect no increase and a keyed
+  `last_commit_timestamp_seconds` within the lease TTL plus two intervals. A
+  `contract_version` full on every roll means the stored version is being reset
+  (a rollback runbook step, or a binary below the stored version writing it).
+  A non-zero `stand_downs_total` means an older binary runs beside a newer one;
+  `contract_version{kind}` shows both versions.
+- `resweep_in_flight_age_seconds{path="full"}` climbing toward the usual full
+  duration is a full in progress. A keyed in-flight age past a few minutes is a
+  stuck tick, before it commits or fails.
+- A `path="full"` sample with `full_resweeps_total{reason="keyed_cap"}` means a
+  keyed tick passed the cap and fell back. Read `keys_per_sweep` to see how many keys
   it held, and check what wrote that many changes at once (for example a mass
   re-ingest or a retirement purge).
 - A rising `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` with a

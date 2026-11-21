@@ -79,7 +79,7 @@ func TestWinnersMaintainerRunsOneFullResweepThenKeyedTicks(t *testing.T) {
 	rebuilder := &fakeKeyedRebuilder{}
 	lease := &fakeWinnersLeaseManager{claim: true}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: lease,
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: lease,
 		Interval: time.Millisecond,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -110,7 +110,7 @@ func TestWinnersMaintainerRunAuditsOnItsOwnCadence(t *testing.T) {
 	auditor := &fakeWinnersAuditor{}
 	lease := &fakeWinnersLeaseManager{claim: true}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: lease,
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: lease,
 		Auditor: auditor, AuditInterval: time.Millisecond, Interval: time.Millisecond,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,7 +136,7 @@ func TestWinnersMaintainerNoAuditWhenIntervalIsZero(t *testing.T) {
 	rebuilder := &fakeKeyedRebuilder{}
 	auditor := &fakeWinnersAuditor{}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Auditor: auditor, Interval: time.Millisecond,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -239,7 +239,7 @@ func TestWinnersMaintainerRecordsKeyedAndAuditSignals(t *testing.T) {
 	}}
 	auditor := &fakeWinnersAuditor{result: SupplyChainImpactWinnersAudit{Repairs: 2}}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Auditor: auditor, AuditInterval: time.Hour,
 		DirtyLogReader: fakeDirtyStats{stats: SupplyChainImpactWinnersDirtyStats{Depth: 40, OldestAge: 17 * time.Second}},
 		Instruments:    inst, Logger: logger,
@@ -301,7 +301,7 @@ func TestWinnersMaintainerCountsTriggerSourcesOnAFullFallback(t *testing.T) {
 		TriggerCaptured: WinnersTriggerCaptured{Activation: 7},
 	}}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Instruments: inst,
 	}
 	if _, err := m.runKeyedTick(context.Background()); err != nil {
@@ -325,7 +325,7 @@ func TestWinnersMaintainerAuditStaysQuietWhenNothingIsStale(t *testing.T) {
 	var logs bytes.Buffer
 	rebuilder := &fakeKeyedRebuilder{}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Auditor: &fakeWinnersAuditor{}, Instruments: inst,
 		Logger: slog.New(slog.NewTextHandler(&logs, nil)),
 	}
@@ -366,7 +366,7 @@ func TestWinnersMaintainerCountsASkippedAudit(t *testing.T) {
 			inst, reader := winnersSignalsHarness(t)
 			rebuilder := &fakeKeyedRebuilder{}
 			m := SupplyChainImpactWinnersMaintainer{
-				Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+				Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 				Auditor: tt.auditor, Instruments: inst,
 			}
 			err := m.runAuditOnce(context.Background())
@@ -397,7 +397,7 @@ func TestWinnersMaintainerSkippedAuditDoesNotCountAsResweepSkip(t *testing.T) {
 	inst, reader := winnersSignalsHarness(t)
 	rebuilder := &fakeKeyedRebuilder{}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Auditor:     &fakeWinnersAuditor{result: SupplyChainImpactWinnersAudit{Skipped: true}},
 		Instruments: inst,
 	}
@@ -430,7 +430,7 @@ func TestWinnersMaintainerCountsABoundedTick(t *testing.T) {
 	inst, reader := winnersSignalsHarness(t)
 	rebuilder := &fakeKeyedRebuilder{result: boundedResult}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Instruments: inst,
 	}
 	if _, err := m.runKeyedTick(context.Background()); err != nil {
@@ -449,7 +449,7 @@ func TestWinnersMaintainerCountsABoundedTick(t *testing.T) {
 		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
 	}}
 	m = SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Instruments: inst,
 	}
 	if _, err := m.runKeyedTick(context.Background()); err != nil {
@@ -474,7 +474,7 @@ func TestWinnersMaintainerBoundedTickSpanAndLogFields(t *testing.T) {
 		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130,
 	}}
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: rebuilder, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
 		Instruments: inst,
 		Tracer:      sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
 		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),

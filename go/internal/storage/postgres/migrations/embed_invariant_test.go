@@ -334,9 +334,12 @@ import (
 // GHSA-proxy bucket column to the winners dirty tally so the NVD/GHSA
 // inflow split stops reading NOT_CHECKED (renumbered 325 to 328 at
 // rebase: #10671 owns 325).
+// #11117 adds 329_supply_chain_impact_winners_contract.sql (the nullable
+// winners contract version and hash on the watermark row; metadata-only, no
+// backfill; renumbered 328 to 329 at rebase: #11078 owns 328).
 const (
-	goldenBootstrapDefinitionsDigest = "3773bd1e5a7465ba834d9caf34ef6f28a64b68e280c0f8cef904d5675293b2f7"
-	goldenBootstrapDefinitionsCount  = 354
+	goldenBootstrapDefinitionsDigest = "b94e884f3bcc9c5623291e5544615dbfe2274e191a5ab59f3eea343d09addd3f"
+	goldenBootstrapDefinitionsCount  = 355
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

@@ -28,7 +28,7 @@ func TestWinnersMaintainerBoundedTickAdvancesTheWatermarkGauge(t *testing.T) {
 	inst, reader := winnersSignalsHarness(t)
 	committed := time.Now().Add(-31 * time.Second)
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: &fakeWinnersRebuilder{}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+		Rebuilder: &fakeWinnersRebuilder{}, Contract: &fakeFullContract{full: &fakeWinnersRebuilder{}}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
 			Path: telemetry.SupplyChainImpactWinnersPathKeyed, Bounded: true, Remaining: 7,
 			PreviousWatermark: committed.Add(-62 * time.Second), Watermark: committed,
 		}}, LeaseManager: &fakeWinnersLeaseManager{claim: true},
@@ -84,7 +84,7 @@ func TestWinnersMaintainerImmediateRetickOnBounded(t *testing.T) {
 	var sleeps []time.Duration
 	ctx, cancel := context.WithCancel(context.Background())
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: &fakeWinnersRebuilder{}, KeyedRebuilder: keyed,
+		Rebuilder: &fakeWinnersRebuilder{}, Contract: &fakeFullContract{full: &fakeWinnersRebuilder{}}, KeyedRebuilder: keyed,
 		LeaseManager: &fakeWinnersLeaseManager{claim: true}, Interval: interval,
 		Sleep: func(ctx context.Context, d time.Duration) error {
 			mu.Lock()
@@ -135,7 +135,7 @@ func TestWinnersMaintainerRunKeyedTickReportsDbCommittedStamp(t *testing.T) {
 	inst, reader := winnersSignalsHarness(t)
 	committed := time.Now().Add(-31 * time.Second)
 	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: &fakeWinnersRebuilder{}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+		Rebuilder: &fakeWinnersRebuilder{}, Contract: &fakeFullContract{full: &fakeWinnersRebuilder{}}, KeyedRebuilder: &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
 			Path:              telemetry.SupplyChainImpactWinnersPathKeyed,
 			PreviousWatermark: committed.Add(-31 * time.Second), Watermark: committed,
 		}}, LeaseManager: &fakeWinnersLeaseManager{claim: true},

@@ -479,6 +479,7 @@ var migrationShippedChecksums = map[string]string{
 	// beside the ruled CVE-% rate (renumbered 325 to 328 at rebase:
 	// #10671 owns 325).
 	"328_supply_chain_impact_winners_dirty_tally_ghsa.sql": "203127370c2c10a206df811af13aa54e4d401ba27875bc2554b11e69aa6f96f3",
+	"329_supply_chain_impact_winners_contract.sql":         "d07f9b9aeac4f0583ce3f650d984ffb4448618ab9178d76a5f029764caeca437",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
