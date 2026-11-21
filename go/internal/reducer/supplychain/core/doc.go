@@ -76,8 +76,10 @@
 // result sub-signals. Group projection stays out of scope: findings stay
 // in Postgres either way; the wave mechanics and freshness bound live in
 // HOLDER_FANOUT.md. With a keyed rebuilder the
-// maintainer runs one full resweep at startup, then keyed ticks that recompute
-// only the keys the writer, activation and scanner captures logged, plus a
+// maintainer runs one full resweep at startup — skipped when a committed
+// watermark already proves the table was swept (#10706) — then keyed ticks
+// that recompute only the keys the writer, activation and scanner captures
+// logged, plus a
 // full-recompute audit that queues any key the capture missed, #9805), and the
 // Go reachability classifier
 // (ClassifyGoVulnerabilityReachability). A git manifest marker intent
