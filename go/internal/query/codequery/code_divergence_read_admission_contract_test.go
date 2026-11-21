@@ -30,8 +30,8 @@ import (
 // dest consumers can pin the shape, keeping the eshu-api extraction
 // boundary from drifting silently.
 //
-// W-wave consumer: divergence findings ONLY (per the arbiter
-// supplemental ruling on eshu-hq/eshu-api#125).
+// W-wave consumer: the divergence family ONLY — findings, investigate,
+// and report (per the arbiter supplemental ruling on eshu-hq/eshu-api#125).
 var frozenCodeDivergenceReadAdmission = []string{
 	"DivergenceGroupStats func(context.Context, string, codedivergence.Kind, int) ([]codedivergence.GroupStat, error)",
 	"DivergenceMembers func(context.Context, string, codedivergence.Kind, []string) (map[string][]codedivergence.Member, error)",
