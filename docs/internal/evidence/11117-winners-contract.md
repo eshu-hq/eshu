@@ -114,8 +114,11 @@ disproven. Skipping the startup full stays correct: convergence after a roll
 rests on durable state (marks staged in the writer's transaction, the queues,
 the persisted watermark), not on process memory. What A removes is the
 accidental repair that every roll's full used to make. Under A only the audit
-makes that repair, so A may merge once the writer-side verify is measured at
-backlog scale and the audit has operator signals:
+makes that repair, and on QA the audit does not run (see the staged reader's
+caps below): A does not make the audit run on QA. The arbiter ruled that A
+ships as is, because the startup full is a measured harm on every roll and the
+missed-mark harm has no observed instance. A may merge once the writer-side
+verify is measured at backlog scale and the audit has operator signals:
 
 - **Verify at backlog scale (item 4).** The live proof
   `TestSupplyChainImpactWinnersResweepAuditVerifyAtBacklogShapeLive`
@@ -144,13 +147,20 @@ backlog scale and the audit has operator signals:
   generation's facts. Past either cap the tick defers on `budget` before the
   writer verify runs, at any backlog
   (`TestStagedAuditTickCapsDeferPastTheCorpusBudget`: at the cap the tick
-  verifies, one past it defers). If QA's active impact-fact corpus is past a
-  cap, every staged tick defers and the verify never runs. That is
-  NOT_CHECKED here. Read it from
-  `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason="budget"}`
-  and `..._last_staged_facts` after the deploy. If it is confirmed, the backstop
-  on QA is the force-full runbook step until the caps or the staged design
-  change.
+  verifies, one past it defers). Read-only QA measurement on the replica:
+  11,619 active census pairs hold 8,274,197 active finding facts. That is an
+  upper bound on what one staged tick stages, before the source-candidate
+  exclusions. The exact eligible count:
+  **PLACEHOLDER-M-A (exact source-arm staged facts and the largest pair, from
+  the coordinator's replica read)**. If that count is past a cap, every staged
+  tick on QA defers on budget and the verify never runs.
+- **No automatic backstop on QA until #11131 ships.** At `staged-audits`
+  routing past the caps, QA has no automatic backstop for a missed mark until
+  #11131 ships. After A, the only backstop on QA is the manual force-full
+  runbook step (NULL both contract columns so the next tick runs one full of
+  about 6,400 s). Each use is a QA data mutation and needs its own arbiter
+  review with readings. Convergence still rests on the marks staged in each
+  writer's transaction.
 - **Staged-audit telemetry (item 5b).**
   `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason}`,
   `..._staged_audit_ticks_total`, and the last tick's `..._last_batches`,
@@ -182,6 +192,17 @@ AC5 plan on QA:
    and the completion log's read seconds and repairs.
 3. Roll once more with the matching contract. This is the worst case: the
    backlog is present and no full runs.
+4. After the NULL-version full commits, read
+   `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason="budget"}`,
+   `..._staged_audit_last_staged_facts`, and the `read_seconds` field of the
+   `staged winners audit deferred` log for three consecutive ticks:
+   - If every tick defers on budget, and either `read_seconds` exceeds 60 s
+     (the unrenewed lease TTL, so two pods read at once) or standby replay lag
+     rises during the read, set
+     `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL=0` on QA. Record it as a
+     temporary state that ends when #11131 ships.
+   - If the first tick completes, the budget premise is wrong. Report the
+     reading and downgrade #11131 to a headroom issue at lower priority.
 
 Roll back if any of these happens:
 
@@ -193,5 +214,6 @@ Roll back if any of these happens:
 
 The lever is `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL=0`. It turns the
 audit off and keeps A. Record it as a temporary state. While the audit is off,
-the backstop is the force-full runbook step: NULL both contract columns so the
-next tick runs one full.
+or deferring on budget, the only backstop is the manual force-full runbook
+step: NULL both contract columns so the next tick runs one full. Each use is a
+QA data mutation that needs its own arbiter review with readings.

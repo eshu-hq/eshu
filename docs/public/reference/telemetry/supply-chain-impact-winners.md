@@ -82,8 +82,13 @@ An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
 turns it off). It recomputes the whole table without taking the resweep lock,
 verifies each key that differs under the lock, and queues the stale ones for the
-next keyed tick. The audit is the backstop for a change that left no dirty-log
-row, so its repair count should stay at zero.
+next keyed tick. Where it runs, the audit is the backstop for a change that left
+no dirty-log row, so its repair count should stay at zero. With
+`ESHU_POSTGRES_READ_ROUTING=staged-audits` the staged reader defers every tick
+on `budget` once the eligible impact-fact corpus passes 1,000,000 facts or
+250,000 distinct keys (#11131), and then no automatic backstop runs; watch
+`staged_audit_deferrals_total{reason="budget"}` and
+`audit_last_success_age_seconds`.
 
 Role-bound logins need grants for the application-code capture only. The pointer,
 scope-delete and scanner trigger functions run as their owner (`SECURITY
@@ -117,7 +122,7 @@ scanner, and scope-delete mark, and only the new maintainer tick collapses
 staging into the dirty log. A binary older than that change running against
 the new schema still writes fact captures straight to the log, but its tick
 consumes only the dirty log, so trigger-sourced marks sit staged and invisible
-until re-upgrade (the audit backstop re-queues some via the log path, not all).
+until re-upgrade (the audit, where it can run, re-queues some via the log path, not all).
 Never run an old maintainer or old triggers against the new schema except
 transiently during the roll; roll back by re-upgrading and letting the new
 tick collapse the backlog, not by downgrading the binary alone.
