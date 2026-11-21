@@ -80,8 +80,8 @@ Contention proof
   test, 2 runs took 36 and 30 non-counting deferrals for 8 scopes. The count
   varies there because its attachments became claimable on a fixed
   300-1,000 ms stagger, so the number of passes parked at each Ack depended
-  on timing. (The
-  pre-rebase stack head `c1bf27b318` took 36 in both of its runs.)
+  on timing. (The pre-rebase stack head `c1bf27b318` took 36 in both of its
+  runs.)
 - After, with the attachment hold below: 7 runs (6 plain, 1 under `-race`
   together with the park-after-ack race test), exactly 8 each, one per image
   scope. No 23505, no 40P01, no statement error, 0 fence overlaps, every
@@ -91,11 +91,15 @@ Contention proof
   5 `-race` runs (1 alone, 4 together with the race test) took exactly 8,
   but 1 more combined `-race` run failed before the final log line. Its
   cause was not captured; most likely a pass was claimed after its
-  attachment already acked, so it took 0 deferrals. With the hold the count
-  is deterministic, and the per-scope check names the scope that drifts.
+  attachment already acked, so it took 0 deferrals. With the hold the fixed
+  plan's count is deterministic, and the per-scope check names the scope
+  that drifts.
 - Mutation check: restoring the old plan (every narrowed class cross-scope)
-  on this branch's deterministic test gives per-scope counts 1, 2, ..., 8 =
-  36, the exact before figure for this shape.
+  on this branch's test gives 22 to 36 deferrals across runs, depending on
+  Ack order (29, 22, and 36 in the reviewer's three runs; 36 with per-scope
+  counts 1, 2, ..., 8 in this lane's one run, beside the pre-fix samples 36,
+  36, 36, and 30 above). 36 is the N(N+1)/2 worst case; the fixed plan is
+  exactly 8.
 
 `EXPLAIN (ANALYZE, BUFFERS)` of the cross-scope statement, with 6,000 parked
 reconciliation waits (ImpactNotReady, one scope each) and 5 parked catalog
