@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -315,5 +316,38 @@ func TestFenceRefusesAScopeThatNamesNoRepository(t *testing.T) {
 	}
 	if len(database.statements) != 0 {
 		t.Fatalf("statements = %q, want none", database.statements)
+	}
+}
+
+// TestFenceReopensHoldersInWorkItemLockOrder pins the fence's lock order
+// (#11147 review F2). The fence reopens every holder inside one transaction,
+// and the reopen locks the holder's dead-letter row. The broad dead-letter
+// writers (admin replay, recovery drain, poison recovery) lock rows in
+// work_item_id COLLATE "C" order, so the fence must take its holders in that
+// order too, or a fence and a replay over the same two holders deadlock.
+// Ordering by scope id is not enough: the work item id replaces ':' and '/'
+// with '_', so two scopes can sort one way and their item ids the other.
+func TestFenceReopensHoldersInWorkItemLockOrder(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{
+		`ORDER BY item.lock_key COLLATE "C" NULLS LAST, holder.scope_id COLLATE "C"`,
+		"work.domain = 'supply_chain_impact'",
+		"work.generation_id = holder.active_generation_id",
+	} {
+		if !strings.Contains(fenceFindHoldersQuery, want) {
+			t.Fatalf("fenceFindHoldersQuery missing %q:\n%s", want, fenceFindHoldersQuery)
+		}
+	}
+	if strings.Contains(fenceFindHoldersQuery, "ORDER BY finding.scope_id") {
+		t.Fatal("fenceFindHoldersQuery still orders holders by scope id alone")
+	}
+	// The disagreement the order fixes: scope ids sort api before acme2, the
+	// sanitized item ids sort the other way, because '/' (0x2f) sorts before
+	// '2' (0x32) and '_' (0x5f) sorts after it.
+	sanitize := strings.NewReplacer(":", "_", "/", "_").Replace
+	a, b := "repo://acme/api", "repo://acme2/web"
+	if a >= b || sanitize(a) <= sanitize(b) {
+		t.Fatalf("fixture no longer shows the order disagreement: %q<%q=%v, %q>%q=%v",
+			a, b, a < b, sanitize(a), sanitize(b), sanitize(a) > sanitize(b))
 	}
 }

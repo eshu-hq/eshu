@@ -75,7 +75,10 @@ count the fence returns.
   `fact_records_supply_chain_impact_repository_lookup_idx`, and reopens each, in one
   transaction with a 2s `lock_timeout`. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
-  (#10055).
+  (#10055). It reopens the holders in the `work_item_id COLLATE "C"` order of their
+  `supply_chain_impact` items, the order the admin replay, the recovery drain, and
+  poison recovery lock dead letters in, because a reopen also locks a holder's dead
+  letter (#11147). Scope-id order differs, since the item id maps `:` and `/` to `_`.
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).

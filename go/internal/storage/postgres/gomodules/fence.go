@@ -58,16 +58,34 @@ const (
 	// predicate under a generic plan. Holders are found by repository, not by CVE, so no
 	// osv-to-CVE alias mapping is needed here. Over-reopening is safe: a pass re-derives
 	// its own findings from active facts.
-	fenceFindHoldersQuery = `SELECT DISTINCT finding.scope_id
-		FROM fact_records AS finding
-		JOIN ingestion_scopes AS scope
-		  ON scope.scope_id = finding.scope_id
-		 AND scope.active_generation_id = finding.generation_id
-		WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-		  AND finding.is_tombstone = FALSE
-		  AND finding.payload->>'repository_id' = $1
-		  AND finding.scope_id <> $2
-		ORDER BY finding.scope_id`
+	//
+	// The holders come back in the lock order of their supply_chain_impact work item at
+	// the active generation, work_item_id COLLATE "C" (#11147). The fence reopens every
+	// holder in this one transaction, and a reopen now locks a holder's dead-letter row,
+	// which the admin replay, the recovery drain, and poison recovery lock in that same
+	// order. Scope-id order is not the same order: the work item id replaces ':' and '/'
+	// with '_'. A holder with no item takes no row lock (it is enqueued), so it sorts last.
+	fenceFindHoldersQuery = `SELECT holder.scope_id
+		FROM (
+		    SELECT DISTINCT finding.scope_id, scope.active_generation_id
+		    FROM fact_records AS finding
+		    JOIN ingestion_scopes AS scope
+		      ON scope.scope_id = finding.scope_id
+		     AND scope.active_generation_id = finding.generation_id
+		    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+		      AND finding.is_tombstone = FALSE
+		      AND finding.payload->>'repository_id' = $1
+		      AND finding.scope_id <> $2
+		) AS holder
+		LEFT JOIN LATERAL (
+		    SELECT min(work.work_item_id COLLATE "C") AS lock_key
+		    FROM fact_work_items AS work
+		    WHERE work.scope_id = holder.scope_id
+		      AND work.generation_id = holder.active_generation_id
+		      AND work.stage = 'reducer'
+		      AND work.domain = 'supply_chain_impact'
+		) AS item ON TRUE
+		ORDER BY item.lock_key COLLATE "C" NULLS LAST, holder.scope_id COLLATE "C"`
 )
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's
