@@ -92,6 +92,18 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
         ),
+        "go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go": (
+            "TestBackwardEvidenceWakeContentionLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_backward_evidence_live_test.go": (
+            "TestBackwardEvidenceParkThenPublishWakesLive",
+            "TestBackwardEvidencePublishThenParkReopensLive",
+            "TestBackwardEvidenceUnrelatedPublishesStayParkedLive",
+            "TestBackwardEvidenceOverlapPostCommitRewakeLive",
+            "TestBackwardEvidenceMissedWakeAuditReopensLive",
+            "TestBackwardEvidenceWokenRowConvergesLive",
+            "TestBackwardEvidenceOverlapWithoutRewakeStrandsUntilAuditLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_cross_scope_orders_live_test.go": (
             "TestCrossScopeProducerBothOrdersLive",
             "TestCrossScopeProducerMultiProducerLive",
