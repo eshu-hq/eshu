@@ -190,3 +190,44 @@ deleted AS (
 )` + winnersDirtyTallyCTEs + `
 SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
 `
+
+// drainWinnersDirtyLogForFullSQL deletes every dirty-log row the statement
+// sees, for the full resweep (#11117), and tallies the deleted marks by
+// capture source and by the NVD trip tally, like the keyed drains. It keeps
+// their lock-then-delete shape: the locked CTE takes the rows' locks in the
+// global key order (winnersDirtyKeyOrderClause) with FOR UPDATE, and the
+// delete removes exactly the locked seqs. There is no admission copy to
+// recheck a version against: the lock and the delete are one statement, and a
+// row whose version a committed tick bumped is re-read under the lock with
+// its bumped version, a change the later rebuild snapshot also sees. The tick
+// collapse and convert are the only other log writers and run under the same
+// resweep lock, so the drain meets no concurrent log writer.
+var drainWinnersDirtyLogForFullSQL = `
+WITH locked AS (
+    SELECT d.seq AS seq
+    FROM supply_chain_impact_winners_dirty_log AS d
+    ORDER BY ` + winnersDirtyKeyOrderClause("d") + `
+    FOR UPDATE OF d
+),
+deleted AS (
+    DELETE FROM supply_chain_impact_winners_dirty_log AS d
+    USING locked AS l
+    WHERE d.seq = l.seq
+    RETURNING d.source, d.dirty_version, d.kind, d.captured_at, d.advisory_id, d.scope_id
+)` + winnersDirtyTallyCTEs + `
+SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
+`
+
+// drainWinnersStagingForFullSQL deletes every staged mark the statement sees,
+// for the full resweep (#11117), and tallies them like the log drain. One
+// staged row is one mark, so each counts as dirty_version 1: the same sum the
+// collapse would have folded into the log. Writers only INSERT staged rows
+// and take no row locks, so the delete waits on none; a staged row whose
+// writer has not committed is invisible to the delete and stays queued.
+var drainWinnersStagingForFullSQL = `
+WITH deleted AS (
+    DELETE FROM supply_chain_impact_winners_dirty_staging AS s
+    RETURNING s.source, 1::bigint AS dirty_version, s.kind, s.captured_at, s.advisory_id, s.scope_id
+)` + winnersDirtyTallyCTEs + `
+SELECT source, sum(dirty_version)::bigint FROM deleted GROUP BY source
+`
