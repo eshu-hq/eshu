@@ -34,6 +34,22 @@ suppresses it. An ambiguous match still yields nothing. Reconciliation
 (`reconciliation.go`) still calls `MatchSecurityAlertConsumption` and makes
 one pick per alert; its behavior is unchanged.
 
+Alert reconciliation, a review addition: `matchSecurityAlertImpact`
+(reconciliation_match.go) returned the first impact in envelope order for the
+alert's repository, package and advisory, and ignored `observed_version`. With
+one finding per installed version (#11113), an open alert could therefore
+report the fixed copy's `not_affected_known_fixed` as `eshu_impact_status`, the
+value the alerts API serves. The matcher now picks the most severe status
+among the matching findings (`affected_exact`, then `affected_derived`,
+`possibly_affected`, `unknown_impact`, `not_affected_known_fixed`), then the
+lower fact id. `securityAlertConsumptionForImpact` then points the decision's
+dependency evidence and observed version at the row of that version.
+`SecurityAlertImpact` gains `ObservedVersion`, read from the finding payload.
+`TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121` was
+RED first. It failed with the fixed impact first, reporting
+`not_affected_known_fixed (impact-fixed)`. Two mutations also fail it: ranking
+by fact id alone, and never re-pointing the evidence.
+
 The change adds no new lock, queue, batch, knob, I/O, retry path, winners SQL,
 or migration. Alert findings reach the winners through the same writer and
 capture owner as the #11113 findings, and the #11113 live winners proof
@@ -100,7 +116,9 @@ deploy note (docs/internal/evidence/11113-multi-version-findings.md,
 - The rollback is image-only.
 - Post-R2 acceptance: re-run this census on the QA read-only replica. The
   target is 2 false negatives going to 0, plus the missing serialize-javascript
-  7.0.6 finding present. Report the residue.
+  7.0.6 finding present. Also check that the two dompurify alerts'
+  reconciliation rows read `affected_exact` with observed version 3.4.16.
+  Report the residue.
 
 Observability Evidence: no new signal. The #11113 sub-signal
 `multi_version_repository_groups` counts alert-path findings too;

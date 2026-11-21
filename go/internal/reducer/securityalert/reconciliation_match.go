@@ -143,17 +143,81 @@ func securityAlertRepositoryNameFromID(repositoryID string) string {
 	return ""
 }
 
+// matchSecurityAlertImpact returns the impact finding an alert reports among
+// those of its repository, package and advisory. With one finding per
+// installed version (#11113), several can match. The most severe status wins
+// (securityAlertImpactStatusRank), then the lower fact id, so an affected
+// version never hides behind a fixed one and envelope order decides nothing
+// (#11121).
 func matchSecurityAlertImpact(alert ProviderSecurityAlert, impacts []SecurityAlertImpact) SecurityAlertImpact {
+	var best SecurityAlertImpact
 	for _, impact := range impacts {
 		if impact.RepositoryID != alert.RepositoryID || impact.PackageID != alert.PackageID {
 			continue
 		}
-		if SecurityAlertIDMatches(alert.CVEIDs, impact.CVEID) ||
-			SecurityAlertIDMatches(alert.GHSAIDs, impact.AdvisoryID) {
-			return impact
+		if !SecurityAlertIDMatches(alert.CVEIDs, impact.CVEID) &&
+			!SecurityAlertIDMatches(alert.GHSAIDs, impact.AdvisoryID) {
+			continue
+		}
+		if best.FactID == "" || securityAlertImpactOutranks(impact, best) {
+			best = impact
 		}
 	}
-	return SecurityAlertImpact{}
+	return best
+}
+
+func securityAlertImpactOutranks(candidate, current SecurityAlertImpact) bool {
+	if a, b := securityAlertImpactStatusRank(candidate.Status), securityAlertImpactStatusRank(current.Status); a != b {
+		return a < b
+	}
+	return candidate.FactID < current.FactID
+}
+
+// securityAlertImpactStatusRank orders impact statuses from most to least
+// severe for an open alert: an affected verdict first, an undecided one next,
+// and a known-fixed one last.
+func securityAlertImpactStatusRank(status string) int {
+	switch strings.TrimSpace(status) {
+	case "affected_exact":
+		return 0
+	case "affected_derived":
+		return 1
+	case "possibly_affected":
+		return 2
+	case "unknown_impact":
+		return 3
+	case "not_affected_known_fixed":
+		return 4
+	}
+	return 5
+}
+
+// securityAlertConsumptionForImpact returns the exact candidate row whose
+// observed version is the reported impact's (#11121), picked by the
+// SelectSecurityAlertConsumption rule, so the decision's dependency evidence
+// and observed version describe the version whose verdict it reports. With
+// no impact, an impact with no version, or no row of that version, it keeps
+// fallback, the single pick.
+func securityAlertConsumptionForImpact(
+	alert ProviderSecurityAlert,
+	consumptions []SecurityAlertConsumption,
+	fallback SecurityAlertConsumption,
+	impact SecurityAlertImpact,
+) SecurityAlertConsumption {
+	if impact.FactID == "" || impact.ObservedVersion == "" || securityAlertObservedVersion(alert, fallback) == impact.ObservedVersion {
+		return fallback
+	}
+	exactCandidates, _ := securityAlertConsumptionCandidates(alert, consumptions)
+	var sameVersion []SecurityAlertConsumption
+	for _, candidate := range exactCandidates {
+		if securityAlertObservedVersion(alert, candidate) == impact.ObservedVersion {
+			sameVersion = append(sameVersion, candidate)
+		}
+	}
+	if selected, ambiguous := selectSecurityAlertConsumption(sameVersion); !ambiguous && selected.FactID != "" {
+		return selected
+	}
+	return fallback
 }
 
 // SecurityAlertIDMatches reports whether want (trimmed) case-insensitively

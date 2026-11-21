@@ -33,9 +33,9 @@ func TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121(t *
 	fixedRow.Payload["installed_version"] = "3.1.0"
 	affectedRow := packageConsumptionCorrelationEnvelope("consume-z-affected", repoID, packageID, "package-lock.json")
 	affectedRow.Payload["installed_version"] = "3.0.3"
-	fixedImpact := supplyChainImpactFindingEnvelope("impact-fixed", repoID, packageID, "CVE-2026-0001", "not_affected_known_fixed")
+	fixedImpact := supplyChainImpactFindingEnvelope("impact-a-fixed", repoID, packageID, "CVE-2026-0001", "not_affected_known_fixed")
 	fixedImpact.Payload["observed_version"] = "3.1.0"
-	affectedImpact := supplyChainImpactFindingEnvelope("impact-affected", repoID, packageID, "CVE-2026-0001", "affected_exact")
+	affectedImpact := supplyChainImpactFindingEnvelope("impact-z-affected", repoID, packageID, "CVE-2026-0001", "affected_exact")
 	affectedImpact.Payload["observed_version"] = "3.0.3"
 
 	for name, impacts := range map[string][]facts.Envelope{
@@ -50,8 +50,8 @@ func TestReconciliationReportsTheAffectedVersionOfAMultiVersionLockfile11121(t *
 		if decision.Status != SecurityAlertReconciliationMatched {
 			t.Fatalf("%s: Status = %q, want %q", name, decision.Status, SecurityAlertReconciliationMatched)
 		}
-		if decision.EshuImpactStatus != "affected_exact" || decision.EshuImpactFindingID != "impact-affected" {
-			t.Fatalf("%s: impact = %q (%s), want affected_exact (impact-affected): an affected installed version must not hide behind a fixed one",
+		if decision.EshuImpactStatus != "affected_exact" || decision.EshuImpactFindingID != "impact-z-affected" {
+			t.Fatalf("%s: impact = %q (%s), want affected_exact (impact-z-affected): an affected installed version must not hide behind a fixed one",
 				name, decision.EshuImpactStatus, decision.EshuImpactFindingID)
 		}
 		if decision.ObservedVersion != "3.0.3" || decision.DependencyEvidenceID != "consume-z-affected" {

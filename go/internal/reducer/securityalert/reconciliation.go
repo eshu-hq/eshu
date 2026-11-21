@@ -217,6 +217,9 @@ func extractSecurityAlertImpacts(envelopes []facts.Envelope) []SecurityAlertImpa
 			CVEID:        payloadcore.PayloadStr(envelope.Payload, "cve_id"),
 			AdvisoryID:   payloadcore.PayloadStr(envelope.Payload, "advisory_id"),
 			Status:       payloadcore.PayloadStr(envelope.Payload, "impact_status"),
+			// ObservedVersion tells the per-version findings of one package
+			// apart (#11113, #11121).
+			ObservedVersion: strings.TrimSpace(payloadcore.PayloadStr(envelope.Payload, "observed_version")),
 		})
 	}
 	return impacts
@@ -287,6 +290,12 @@ func classifyProviderSecurityAlert(
 		return decision
 	}
 	decision.RepositoryID = exactConsumption.RepositoryID
+	impactAlert := alert
+	impactAlert.RepositoryID = exactConsumption.RepositoryID
+	impact := matchSecurityAlertImpact(impactAlert, impacts)
+	// One impact finding exists per installed version (#11113); the decision
+	// names the dependency row of the version whose impact it reports (#11121).
+	exactConsumption = securityAlertConsumptionForImpact(alert, consumptions, exactConsumption, impact)
 	decision.RepositoryName = payloadcore.FirstNonBlank(exactConsumption.RepositoryName, decision.RepositoryName)
 	applySecurityAlertDependencyEvidence(&decision, alert, exactConsumption)
 	decision.EvidenceFactIDs = payloadcore.UniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.FactID))
@@ -298,8 +307,6 @@ func classifyProviderSecurityAlert(
 		return decision
 	}
 
-	alert.RepositoryID = exactConsumption.RepositoryID
-	impact := matchSecurityAlertImpact(alert, impacts)
 	if impact.FactID == "" {
 		decision.Status = SecurityAlertReconciliationUnmatched
 		decision.Reason = "owned dependency exists but no reducer impact finding matches the provider advisory identifiers"
