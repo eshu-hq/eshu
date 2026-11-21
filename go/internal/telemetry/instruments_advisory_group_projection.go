@@ -36,6 +36,28 @@ const (
 	AdvisoryGroupProjectionOutcomeEdgelessWithWinners = "edgeless_with_winners"
 )
 
+// AdvisoryGroupWatermarkMarkerLoss* values are the closed reason set of
+// eshu_dp_advisory_group_projection_watermark_deferral_marker_missing_total
+// (#11089): a row whose prior failure class is a winners-watermark wait
+// class carried no usable same-cycle first-deferral marker, so the stale
+// clock restarted at the current evaluation. Missing means the failure
+// details carry no marker at all; Unparsable means a marker prefix is
+// present but its timestamps or shape do not parse; FutureDated means the
+// marker parses for the current cycle but its first-deferral instant is
+// after the evaluation time. A parsable marker from a prior cycle is a
+// designed reopen restart and is deliberately not counted.
+const (
+	// AdvisoryGroupWatermarkMarkerLossMissing is a prior wait verdict whose
+	// failure details carry no deferral marker.
+	AdvisoryGroupWatermarkMarkerLossMissing = "missing"
+	// AdvisoryGroupWatermarkMarkerLossUnparsable is a marker whose shape or
+	// timestamps do not parse.
+	AdvisoryGroupWatermarkMarkerLossUnparsable = "unparsable"
+	// AdvisoryGroupWatermarkMarkerLossFutureDated is a same-cycle marker
+	// whose first-deferral instant lies after the evaluation time.
+	AdvisoryGroupWatermarkMarkerLossFutureDated = "future_dated"
+)
+
 var (
 	// advisoryGroupProjectionReconcileBuckets spans a single-group Cypher
 	// reconcile: sub-10ms reads up to a 30 s pathological write.
@@ -85,6 +107,10 @@ var (
 //     bound-minus-watermark seconds at the verdict (#11075).
 //   - eshu_dp_advisory_group_projection_watermark_waits_total{domain,
 //     failure_class,attempt}: wait verdicts by class and attempt bucket.
+//   - eshu_dp_advisory_group_projection_watermark_deferral_marker_missing_total
+//     {domain,failure_class,reason}: wait verdicts whose prior wait class
+//     carried no usable same-cycle deferral marker (#11089), by prior
+//     failure class and closed reason (missing, unparsable, future_dated).
 func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.AdvisoryGroupProjectionGroups, err = meter.Int64Counter(
@@ -176,6 +202,12 @@ func registerAdvisoryGroupProjectionInstruments(meter metric.Meter, inst *Instru
 		metric.WithDescription("Advisory-group projection winners-watermark wait verdicts (#11075), by failure class (advisory_group_winners_watermark_not_ready or advisory_group_winners_watermark_stale) and attempt bucket (1, 2, 3plus). Born-stale churn reads as attempt-1 stale verdicts; a healthy regime reads as not_ready only."),
 	); err != nil {
 		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkWaits counter: %w", err)
+	}
+	if inst.AdvisoryGroupProjectionWatermarkMarkerLoss, err = meter.Int64Counter(
+		"eshu_dp_advisory_group_projection_watermark_deferral_marker_missing_total",
+		metric.WithDescription("Advisory-group projection winners-watermark wait verdicts whose prior failure class was a watermark-wait class but whose same-cycle first-deferral marker was missing, unparsable, or future-dated (#11089), by prior failure class and reason. The stale clock restarted at that evaluation; a non-zero rate means deferral markers are being lost between verdicts. Genuine first deferrals, healthy markers, and prior-cycle markers are not counted."),
+	); err != nil {
+		return fmt.Errorf("register AdvisoryGroupProjectionWatermarkMarkerLoss counter: %w", err)
 	}
 	return nil
 }
@@ -287,4 +319,25 @@ func (inst *Instruments) RecordAdvisoryGroupWatermarkWait(
 			AttrDomain(domain), AttrFailureClass(failureClass), AttrAttempt(attemptBucket),
 		))
 	}
+}
+
+// RecordAdvisoryGroupWatermarkMarkerLoss counts one winners-watermark
+// wait verdict whose prior verdict was a watermark wait but whose
+// same-cycle first-deferral marker was missing, unparsable, or
+// future-dated (#11089). Prior failure class carries the class of the
+// verdict that should have left the marker; reason is one of the
+// AdvisoryGroupWatermarkMarkerLoss* constants. A nil Instruments or an
+// unregistered counter records nothing, matching sibling handlers.
+func (inst *Instruments) RecordAdvisoryGroupWatermarkMarkerLoss(
+	ctx context.Context,
+	domain string,
+	priorFailureClass string,
+	reason string,
+) {
+	if inst == nil || inst.AdvisoryGroupProjectionWatermarkMarkerLoss == nil {
+		return
+	}
+	inst.AdvisoryGroupProjectionWatermarkMarkerLoss.Add(ctx, 1, metric.WithAttributes(
+		AttrDomain(domain), AttrFailureClass(priorFailureClass), AttrReason(reason),
+	))
 }

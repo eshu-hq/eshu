@@ -1543,6 +1543,7 @@ type Instruments struct {
 	AdvisoryGroupProjectionWatermarkAge         metric.Float64Histogram
 	AdvisoryGroupProjectionWatermarkGap         metric.Float64Histogram
 	AdvisoryGroupProjectionWatermarkWaits       metric.Int64Counter
+	AdvisoryGroupProjectionWatermarkMarkerLoss  metric.Int64Counter
 	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
 	// safe-upgrade decisions per supply-chain impact finding (issue #595).
 	// Labels: domain (supply_chain_impact), outcome (confidence label
