@@ -542,7 +542,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_sweep_contention_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#11131: reducer-contention covers 2 named Go test(s) via the WinnersResweep pattern; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; a keyed tick during a range verify is Skipped and commits after, and every range advances within three attempts while a try-lock loop holds the resweep lock back to back (M5)"
+    reason: "#11131: reducer-contention covers 3 named Go test(s) via the WinnersResweep pattern; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; a keyed tick during a range verify is Skipped and commits after, every range advances within three attempts while a try-lock loop holds the resweep lock back to back (M5), and after a locked range verify the sweep yields to keyed commits instead of starving them"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_sweep_live_test.go
     tag: ~

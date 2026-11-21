@@ -110,6 +110,11 @@ environmental, and the same tests passed in a quieter run.
 
 ## Performance Evidence
 
+Performance Evidence: theory measured before any code on the QA read-only
+replica (lane-11119), then the shipped statement measured locally on a
+330,070-fact corpus against the shipped single-statement audit on the same
+host and cache state; figures and the 24 h projection below.
+
 Theory (before code, lane-11119 on the QA read-only replica and a disposable
 clone, recorded in the joint ruling): the self-sizing range statement reads
 the keyed index under a ROW index condition with a Limit and no Sort; a
@@ -174,6 +179,10 @@ after deploy. The whole-corpus tick this replaces read about 1M facts and
 deferred every 10 minutes on QA without a result.
 
 ## Observability Evidence
+
+Observability Evidence: new deferral reasons, sweep counters and gauges, a
+range duration histogram, span attributes and log lines, each asserted by a
+recorder or registration test and listed in the telemetry coverage row.
 
 The sweep adds, registered over `StagedAuditTelemetry` and the persisted cursor
 row (documented in
