@@ -7,7 +7,7 @@ and [10643b](../arbiter/10643-holder-read-bound-rulings-2026-11-21.md#10643b-the
 This change does not close #10643. The cve_id and advisory_id arms now meet
 the bar. The advisory-group member arm does not for member-heavy ids: its
 statement ran 15.329 s cold in a 4-way burst on QA. That arm is the second
-PR, which is on hold for an arbiter addendum.
+PR, designed and not yet proven (see Residual).
 
 ## What changed
 
@@ -156,5 +156,15 @@ still count on `eshu_dp_supply_chain_impact_fanout_total{outcome="read_timeout",
 ## Residual
 
 The member arm for ids with member mass (QA: 13,805 to 48,555 rows) stays one
-statement and fails the bar cold. The fix is the second PR, pending an
-arbiter addendum after M20. #10643 stays open.
+statement and fails the bar cold. GHSA aliases with 13,845 to 49,133 foreign
+member rows can still hit the 10 s guard. #10643 stays open.
+
+The second PR, a bucketed foreign-member token index, is designed and not
+proven. Its bucket is `strpos('0123456789abcdef', right(fact_id, 1))`, not
+md5: md5 fails on FIPS PostgreSQL and the `fips-md5-sql-sweep` gate forbids
+it in shipped SQL. Token agreement passed only on the md5 variant. Exactness,
+plan cost, and write cost are NOT_CHECKED.
+
+On QA, read holder timeouts by `kind` on the read-duration histogram. A
+`read_timeout` with `kind=holders_members` is this open residual. One with
+`kind=holders_key_range` is a regression from the key-range change and blocks.

@@ -1,6 +1,6 @@
 # Arbiter rulings: bounding the supply-chain impact holder read (#10643)
 
-Date: 2026-11-21. Refs #10643, #11147, epic #10860. Two rulings from a
+Date: 2026-11-21. Refs #10643, #11147, epic #10860. Three rulings from a
 separate-context deepest-tier arbiter, recorded here in substance by the
 lane that implemented them. Evidence:
 [10643-holder-read-bound.md](../evidence/10643-holder-read-bound.md).
@@ -60,12 +60,29 @@ arms. The GIN member arm failed it cold in a 4-way burst (max 15.329 s).
 6. Order: the key-range PR, then the member-arm PR (which closes #10643 once
    the post-deploy bar holds on QA), then #11147, then #11159.
 
-Gates before the member-arm PR builds anything: a read-only QA measurement
-of foreign rows per alias (M20); then local exactness, blank-id, plan, and
-insert-cost proofs. M20 found 13,845 to 49,133 foreign rows for the GHSA
-alias of each member-bearing hot id, above the 5,000 cut point. Under the
-ruling that returns the member arm to the arbiter. The member-arm PR is on
-hold for that addendum.
+M20, a read-only QA measurement, found 13,845 to 49,133 foreign rows for the
+GHSA alias of each member-bearing hot id. That ruled out indexing only the
+non-own members as one unranged statement.
+
+## 10643c: the member-arm design
+
+- The member arm becomes one GIN index on a versioned IMMUTABLE function that
+  returns a token, bucket plus ':' plus member, for each member that is not
+  the row's own cve_id or advisory_id. Each of the 16 key-range statements
+  gets a third UNION arm that asks for its bucket's tokens, and the separate
+  member statement goes away. The non-hot path, the old member index, and the
+  mass probe stay unchanged.
+- The bucket is `strpos('0123456789abcdef', right(fact_id, 1))`: built-in,
+  documented, IMMUTABLE string functions, total with 17 values. Statement k
+  asks for bucket k, and statement 1 also asks for bucket 0, so the arms
+  partition the foreign rows. md5 is out (FIPS, the `fips-md5-sql-sweep`
+  gate). `hashtext` is out because nothing promises its value survives a
+  major upgrade, which would drop holders silently. sha256 needs the STABLE
+  `convert_to`.
+- The key-range change ships alone. The member-arm change stays a theory
+  until exactness, token agreement for the new bucket, plan and buffer cost,
+  and a 50,000-row insert cost are measured on a quiet host, within one final
+  bounded window.
 
 Will not do, both rulings: raise the 10 s guard; lower parallelism from 4;
 cap or skip the member arm; read members on a second snapshot; close #10643
