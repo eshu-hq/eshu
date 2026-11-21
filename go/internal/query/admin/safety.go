@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 )
 
 // Replay request status values persisted in the admin_replay_requests ledger.
@@ -21,50 +21,17 @@ const (
 
 // unsafeReplayFailureClasses maps a durable fact_work_items failure_class that
 // must not be blindly replayed to the actionable operator guidance explaining
-// the refusal. The set mirrors the non-retryable and quarantined classes from
-// internal/projector (FailureClassInputInvalid is non_retryable, plus the
-// manual_review dead-letter triage classes from ManualReviewTriageClasses) and
-// internal/semanticqueue (StatusUnsafePayload is a terminal quarantine); a
-// dedicated test pins these strings to those source constants so the set never
-// drifts. Replaying these without fixing the input, addressing the cause, or
-// clearing the quarantine either re-fails identically or re-triggers the unsafe
-// condition.
-//
-// It is built once at package init from buildUnsafeReplayFailureClasses so the
-// manual_review triage classes stay sourced from the projector package — the
-// single source of truth — rather than re-listed here where they could drift.
-var unsafeReplayFailureClasses = buildUnsafeReplayFailureClasses()
-
-// buildUnsafeReplayFailureClasses assembles the unsafe-replay set from the base
-// non-retryable/quarantine classes and the projector's manual_review triage
-// classes. Each manual_review class (projection_bug, resource_exhausted) needs
-// force because draining it unchanged risks an immediate re-failure or
-// re-exhausts a constrained resource.
-func buildUnsafeReplayFailureClasses() map[string]string {
-	classes := map[string]string{
-		"input_invalid":  "the work item failed input validation; replaying the same input will fail again. Fix or re-ingest the source, then refinalize the scope.",
-		"unsafe_payload": "the payload was quarantined as unsafe; replaying could re-trigger the unsafe condition. Investigate the source before forcing a replay.",
-	}
-	for _, class := range failure.ManualReviewTriageClasses() {
-		if _, exists := classes[class]; exists {
-			continue
-		}
-		classes[class] = "the work item was dead-lettered as a manual-review triage class; " +
-			"replaying it unchanged risks an immediate re-failure. Investigate the projector/reducer " +
-			"cause or constrained resource, then force the replay."
-	}
-	return classes
-}
+// the refusal. The set and its guidance live in recovery, the single source
+// shared with the supply_chain_impact holder fan-out (#11147), which does not
+// reopen a dead letter in one of these classes. Replaying these without fixing
+// the input, addressing the cause, or clearing the quarantine either re-fails
+// identically or re-triggers the unsafe condition.
+var unsafeReplayFailureClasses = recovery.UnsafeReplayFailureClassGuidance()
 
 // unsafeReplayFailureClassList returns the unsafe failure classes in stable
 // order for SQL exclusion predicates.
 func unsafeReplayFailureClassList() []string {
-	classes := make([]string, 0, len(unsafeReplayFailureClasses))
-	for class := range unsafeReplayFailureClasses {
-		classes = append(classes, class)
-	}
-	sort.Strings(classes)
-	return classes
+	return recovery.UnsafeReplayFailureClasses()
 }
 
 // unsafeReplayRefusal returns the actionable refusal guidance for a failure
