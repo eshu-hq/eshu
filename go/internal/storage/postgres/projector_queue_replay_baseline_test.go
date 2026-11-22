@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/poison"
 	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
@@ -163,6 +164,57 @@ func TestRecoveryReplayTemplatesCarryRetryAllowance(t *testing.T) {
 		if !strings.Contains(fragment, want) {
 			t.Fatalf("ReplayRetryAllowanceAssignments missing %q", want)
 		}
+	}
+}
+
+// poisonSweepAttemptRaise is the attempt_count assignment the poison-liveness
+// sweep pairs with the allowance fragment (#11217). It raises a projector
+// dead letter at attempt 0 (the operator skip of a pending row) to 1, so the
+// baseline the fragment writes equals attempt_count and the first claim after
+// the recovery counts 1. It never lowers attempt_count, the claim fence, and
+// leaves a reducer row's attempt_count alone because the reducer budget does
+// not read the baseline yet (#11184).
+const poisonSweepAttemptRaise = `attempt_count = CASE
+        WHEN target.stage = 'projector' THEN GREATEST(target.attempt_count, 1)
+        ELSE target.attempt_count
+    END`
+
+// TestReplayAllowanceCarriersRaiseAttemptCount is the lockstep guard over
+// every dead_letter-to-pending writer in this module tree that carries
+// queuestore.ReplayRetryAllowanceAssignments: the two recovery replay
+// templates and the poison-liveness sweep, the fourth carrier (#11217). It
+// reads the shipped constants, not copies. Each carrier must hold the whole
+// fragment (a baseline without the admission reset lets the projection
+// difference go negative) and the attempt_count raise that matches it, and
+// none may lower attempt_count. The admin store, the other carrier, has the
+// same guard in its own package.
+func TestReplayAllowanceCarriersRaiseAttemptCount(t *testing.T) {
+	t.Parallel()
+
+	carriers := []struct {
+		name, statement, raise string
+	}{
+		{"replayFailedWorkItemsTemplate", replayFailedWorkItemsTemplate, "attempt_count = GREATEST(attempt_count, 1)"},
+		{"replayFailedWorkItemsBoundedTemplate", replayFailedWorkItemsBoundedTemplate, "attempt_count = GREATEST(attempt_count, 1)"},
+		{"poison.RecoverDeadLettersQuery", poison.RecoverDeadLettersQuery, poisonSweepAttemptRaise},
+	}
+	for _, carrier := range carriers {
+		if !strings.Contains(carrier.statement, queuestore.ReplayRetryAllowanceAssignments) {
+			t.Fatalf("%s does not carry queuestore.ReplayRetryAllowanceAssignments:\n%s", carrier.name, carrier.statement)
+		}
+		if !strings.Contains(carrier.statement, carrier.raise) {
+			t.Fatalf("%s carries the allowance without its attempt_count raise %q:\n%s", carrier.name, carrier.raise, carrier.statement)
+		}
+		if strings.Contains(carrier.statement, "attempt_count = 0") {
+			t.Fatalf("%s lowers attempt_count, the claim fence:\n%s", carrier.name, carrier.statement)
+		}
+	}
+	// The sweep appends the fragment as its last assignment, after
+	// reopened_at, so the literal that opens its SET list still names
+	// reopened_at for the #9320 source guard.
+	sweep := poison.RecoverDeadLettersQuery
+	if !strings.Contains(sweep, "reopened_at = $1,\n    "+queuestore.ReplayRetryAllowanceAssignments+"\nWHERE") {
+		t.Fatalf("poison sweep must append the allowance fragment right after reopened_at:\n%s", sweep)
 	}
 }
 
