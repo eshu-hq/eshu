@@ -38,6 +38,7 @@ that file under the 500-line cap; the counters and gauges stay there.
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | 0.001–120 s |
 | `ProjectorAckWaitDuration` | `eshu_dp_projector_ack_wait_seconds` | 1–600 s |
+| `ReducerAdmissionSourceConsultDuration` | `eshu_dp_reducer_admission_source_consult_duration_seconds` (`outcome`, `source_system` or `collector_kind`; #10882) | 0.001–5 s, edge at 0.1 s |
 | `ProjectorWriteMarkerWaitDuration` | `eshu_dp_projector_write_marker_wait_seconds` | 1–600 s |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | 0.05–900 s |
 | `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |

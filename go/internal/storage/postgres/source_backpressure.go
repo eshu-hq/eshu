@@ -133,19 +133,9 @@ type sourceLatchState struct {
 	engagedAt time.Time
 }
 
-// CheckSourceBackpressure returns the claim-pacing verdict for one claim
-// attempt under per-source reducer backpressure (#10882 decisions 1-3). It
-// resolves the claiming family's pending sources, evaluates each against
-// the claimable reducer signal and the shared latch, advances latches on
-// transitions, and paces the grant only when every pending source is
-// slowed: a family still serving a healthy source is never whole-family
-// throttled, so one source's backlog cannot delay another's intake
-// through a shared family.
-//
-// A signal or latch read failure returns the failure with an unpaced
-// verdict: an unavailable signal is not evidence of a backlog, so callers
-// fail open and claim normally.
-func (s *WorkflowControlStore) CheckSourceBackpressure(
+// checkSourceBackpressure is the untimed family consult behind
+// CheckSourceBackpressure; the exported wrapper times it (#10882).
+func (s *WorkflowControlStore) checkSourceBackpressure(
 	ctx context.Context,
 	selector workflow.ClaimSelector,
 	cfg workflow.SourceBackpressureConfig,
@@ -185,11 +175,9 @@ func (s *WorkflowControlStore) CheckSourceBackpressure(
 	return decision, nil
 }
 
-// CheckSourceBackpressureForSource returns the slowed-state verdict for one
-// named source, advancing its shared latch on transitions. Admission paths
-// that already know the intent batch's source (the ingester reducer
-// admission writer) consult through here instead of the family resolution.
-func (s *WorkflowControlStore) CheckSourceBackpressureForSource(
+// checkSourceBackpressureForSource is the untimed per-source consult behind
+// CheckSourceBackpressureForSource; the exported wrapper times it (#10882).
+func (s *WorkflowControlStore) checkSourceBackpressureForSource(
 	ctx context.Context,
 	sourceSystem string,
 	cfg workflow.SourceBackpressureConfig,

@@ -153,6 +153,7 @@ func bucketAuditTable() []bucketAuditEntry {
 		{MetricName: "eshu_dp_bootstrap_pipeline_phase_seconds", Buckets: []float64{1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600}},
 		{MetricName: "eshu_dp_workflow_claim_run_duration_seconds", Buckets: []float64{0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 1800}},
 		{MetricName: "eshu_dp_workflow_claim_plane_request_duration_seconds", Buckets: []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}},
+		{MetricName: "eshu_dp_reducer_admission_source_consult_duration_seconds", Buckets: sourceConsultBuckets, Note: "per-source backpressure consult: bounded probe reads about 92 to 101 ms at 10x replay scale, edge at the 100 ms p95 alert (#10882)"},
 		{MetricName: "eshu_dp_pipeline_overlap_seconds", Buckets: []float64{1, 5, 10, 30, 60, 120, 300, 600, 1800}},
 
 		// ---- count / size histograms (non-_seconds) ----

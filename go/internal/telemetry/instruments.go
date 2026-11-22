@@ -240,6 +240,11 @@ type Instruments struct {
 	// without becoming pacing. Labeled by source_system (a bounded set of
 	// collector kinds).
 	ReducerAdmissionSourceConsultFailures metric.Int64Counter
+	// ReducerAdmissionSourceConsultDuration records the wall time of one
+	// per-source backpressure consult (#10882): the signal read or cache hit,
+	// the latch read, and any latch write. Registered by
+	// registerSourceConsultInstruments.
+	ReducerAdmissionSourceConsultDuration metric.Float64Histogram
 	ReducerExecutions                     metric.Int64Counter
 	// ReducerHeartbeatMissed counts reducer lease heartbeat failures, whether
 	// from the immediate pre-heartbeat emitted at claim time (#4447) or a
@@ -7269,6 +7274,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerClaimPlaneInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSourceConsultInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerActivationDerivedScopeInstruments(meter, inst); err != nil {

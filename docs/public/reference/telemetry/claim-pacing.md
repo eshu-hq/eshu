@@ -29,6 +29,13 @@ consult the admission writer cannot read fails open: the group is
 admitted, one warn log carries the source and error, and
 `eshu_dp_reducer_admission_source_consult_failures_total{source_system}`
 counts it.
+`eshu_dp_reducer_admission_source_consult_duration_seconds` times every
+enabled consult (#10882): the signal read or cache hit, the latch read and
+any latch write, by `outcome` (`ok`, `error`) and `source_system` (the
+per-source consult) or `collector_kind` (the family consult at a claim
+grant). Read its p50 and p95 per `ESHU_SOURCE_BACKPRESSURE_SIGNAL_CACHE_TTL`
+setting: the enablement gate needs p50 at or below 100 ms, and the alert fires
+when p95 stays above 100 ms. A disabled leg records nothing.
 Stuck marks an engagement older than
 `ESHU_SOURCE_BACKPRESSURE_MAX_ENGAGEMENT` with the queue still behind:
 still slowed, and loud. The claim-hot consult path probes one source at
