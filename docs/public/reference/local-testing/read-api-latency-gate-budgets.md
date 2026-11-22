@@ -144,8 +144,9 @@ topology, including the removed in-tree API's startup backfill, is gone.
 
 ## Not measured here
 
-The gate starts no reducer and stands in for the infra read model backfill that
-the reducer has owned since [#11210](https://github.com/eshu-hq/eshu/pull/11210),
-so its infra route numbers describe an install that holds the marker, and a
-regression in the reducer's wiring would not show here. Starting the reducer and
-dropping the stand-in is [#11226](https://github.com/eshu-hq/eshu/issues/11226).
+The gate stands in, permanently, for the infra read model backfill that the
+reducer has owned since [#11210](https://github.com/eshu-hq/eshu/pull/11210): a
+real reducer cannot run on the seeded corpus (see
+[Seed Notes](read-api-latency-gate-seed.md)), so its infra route numbers describe
+an install that holds the marker. The reducer-level proof is a live test in
+`go/cmd/reducer` ([#11226](https://github.com/eshu-hq/eshu/issues/11226)).

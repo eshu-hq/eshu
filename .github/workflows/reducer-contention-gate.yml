@@ -52,21 +52,27 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}
     name: reducer contention gate
     runs-on: ubuntu-24.04
-    # Main runs of this job take ~32 minutes post-#10148-S4 (gate run
-    # 42304675371, job 128190881135, SUCCESS): the "Run reducer contention
-    # gate" step runs 1545 s (684 s cold-cache -race build plus an 858.8 s
-    # test phase, of which TestFanOutRaceConcurrentStressLive alone is
-    # 138.5 s), and the remaining proof steps take ~5.2 min with ~35 s of
-    # setup; the old 30-minute cap (sized when the job took 10-14 min,
-    # #6679, then 25/30 min for the #7009 writer steps) had zero headroom
-    # and cancelled 8 of 47 main pushes in ~30 h with every test step green.
-    # Each step keeps its own -timeout; this is job headroom only.
-    # PR-C (#10148 S5) moves the stress test (unchanged: 10 workers, 16
-    # rounds) to its own step and re-derives every step cap at 1.7x its
-    # measured test phase (ruling arb-10148, decision 2: main plus stress
-    # total 858.8 s, under the 917.6 s fit bound). Worst case is 13 min
-    # build + 20.5 min main cap + 4 min stress cap + 6 min tail + 1 min
-    # setup = 44.5 min, inside the 45-minute job.
+    # #11252: this job runs the first half of the storage/postgres contention
+    # suite plus the other-package proof steps; the supply-chain half and the
+    # fan-out stress proof run in contention-gate-storage-b, in parallel. The
+    # single job outgrew 45 minutes of cold -race build plus tests: of 59
+    # recent runs the five slowest passing ones took 1175.7 to 1202.7 s of test
+    # phase (build 680 to 697 s) against a 1230 s cap, and the slowest passing
+    # job took 2435 s of the 2700 s job cap; two runs hit the cap with 0 failed
+    # tests (the same tests ran 15.2 and 16.0 % slower on the slow runner).
+    # Runner speed varies 1.7x (fastest passing test phase 705 s, build 417 s).
+    # Cap headroom is taken against the slowest passing runner, from SAME-TEST
+    # ratios (the slowest passing run 136955226749 ran 404 of today's 430 tests,
+    # so its package time cannot be compared with a 430-test run): half one took
+    # 610.3 s there (x1.234 of the reference run 137217346469's 494.8 s), half
+    # two about 683 s once its 27 missing tests are added (x1.167 of 585.6 s);
+    # four more slow passing runs give 597.8 to 611.5 s and 662.0 to 680.8 s.
+    # Caps 800 s and 900 s are 1.31x and 1.32x of those. Worst case per job,
+    # from the caps: 1 min setup + 13 min cold build + test cap + tail (6 min
+    # here, the 240 s stress cap in the other job) = 33.3 and 33.0 min, inside
+    # 45 (the job was 44.5 min worst case before the split). Realistic slowest
+    # job: about 27 min against 40.6 min before. Each step keeps its own
+    # -timeout; this cap is job headroom only.
     timeout-minutes: 45
 
     services:
@@ -331,22 +337,27 @@ jobs:
         # the hermetic guard that keeps every live PostgreSQL proof above, and
         # the DSNs they need, inside the -run filter below.
         #
-        # #10148 S5 (PR-C): caps re-derived at 1.7x measured test phases from
-        # the post-S4 gate (run 42304675371, job 128190881135, SUCCESS, no
-        # panic): package ok 858.820 s with TestFanOutRaceConcurrentStressLive
-        # 138.46 s inside, so the main step (stress moved out, 10 workers and
-        # 16 rounds unchanged) covers 720.36 s of tests: -timeout 1230 s.
-        # The stress step covers 138.46 s: -timeout 240 s. -timeout bounds the
-        # test binary only, not the go build ahead of it: the cold -race
-        # build measured 684.3 s here (package start 22:38:36Z against a
-        # 22:27:12Z step start), and the stress step's same-binary rebuild
-        # with a hot build cache is explicitly bounded at 90 s (no same-binary
-        # rebuild exists in this log; under the 52.2 s fresh-package
-        # warm-cache compile on the same runner, with margin for the larger
-        # link unit). 13 min build + 1230 s + 240 s + 6 min tail + 1 min
-        # setup = 2670 s (44.5 min), inside the 45-minute job cap. A step
-        # timeout reports failure (`panic: test timed out`), distinct from
-        # the job-level cancelled the job cap reports.
+        # #11252: this step runs the first half of the storage/postgres
+        # suite: every -run alternative before the #7141 supply-chain impact
+        # proofs (queue, projector, generation liveness and retention, shared
+        # projection, service materialization). The second half runs in the
+        # contention-gate-storage-b job; the two filters partition the filter
+        # this step ran alone before (430 tests: 190 here, 240 there, none
+        # selected twice; the stress step adds the 431st), and the contention events guard refuses an overlap.
+        # Cap: 800 s = 1.31x of 610.3 to 611.5 s, the first half's test phase
+        # on the slowest passing runs (same-test ratio x1.234 over the 494.8 s
+        # this half took in the reference run 137217346469, whose 430 tests
+        # total 1080.3 s; see the job comment above).
+        # -timeout bounds the test binary only, not the go build ahead of it:
+        # the cold -race build measured 680 to 717 s on slow runners. Worst
+        # case in this job: 1 min setup + 13 min build + 800 s cap + 6 min
+        # tail (status summary, story, wait ledger, store proofs: 203 s
+        # measured) = 33.3 min, inside the 45-minute job cap. A step timeout
+        # reports failure (`panic: test timed out`), distinct from the
+        # job-level cancelled the job cap reports. History: #10148 S5 derived
+        # 1230 s from 720.36 s of tests at 1.7x; the suite has since grown to
+        # 1080.3 s (54 tests enrolled by prefix alternatives after c6f3fdf8a2
+        # account for 165.7 s of it).
         # #7141: the supply-chain impact retraction proofs run here so a change
         # to the writer, the retraction, the fencing admission (#7142) or the
         # capped-evidence drain (#7154) cannot merge without them. The
@@ -423,37 +434,8 @@ jobs:
         # without -race; the step timeout stays untouched.
         run: |
           set -o pipefail
-          go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestActiveWorkSummaryCalibratedBoundary|TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows|TestActiveWorkSummaryMatchesPreHistoryGroupsOracle|TestActiveWorkSummaryOracleCatchesSeededHistoryMutations|TestActiveWorkSummaryGateMutationsAgainstOracle|TestActiveWorkSummaryGateResolvesTableByRegclass|TestStatusActiveFactWorkItemsCTEUsesGenerationIndex|TestStatusActiveWorkQueriesPreserveSemantics|TestStatusOldestOutstandingAgeMeasuresFromReopen|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestGenerationLivenessProgressWindow|TestGenerationLivenessRefinalizeDuplicateProjectorRow|TestGenerationLivenessRepoDependencyOwnership|TestNVDBaselineTwoPassesConvergeToOneRowSetLive|TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease|TestProjectorStrandedRetryRecovery|TestProjectorStrandedRetryRecoveryLeaveLiveLease|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestReducerClaimFencedSiblingBecomesClaimableAfterAck|TestReducerFairnessIsolatedSchemaDerivesFromBootstrap|TestReducerFairnessIsolatedSchemaDefinitionDriftLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestCoveredByEmittedFullSuccessorShapesAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestSharedIntentUpsertCreatedAtLastWriterWinsLive|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFirstCountRunsWithoutScopeLocksLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestGenerationRetentionCountsReopenFingerprintsLive|TestGenerationRetentionRowCountsCoverCascadeTablesLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live|TestProjectorHeartbeatWriteMarkerInterleave|TestProjectorWriteMarkerHeartbeatOrderingLive|TestProjectorHeartbeatWriteGateRowsLive|TestUncoveredProjectionWritersLive|TestReplayedFailedGenerationWritesAndActivatesLive|TestReplayAfterFullRecordsLatestWriteStartLive|TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal|TestSupplyChainImpact(Writer|ActiveDeadLetters|CappedScope|StalePass|EmptyFresherPass|RetractsLegacy|UpsertGuard|FencingToken|SeedAdvances|Supports|WinnersResweep|WinnersDirty|CVEListFullShardWriter)[A-Za-z]*Live|TestListOSPackageAdvisoryFactEnvelopes[A-Za-z]*Live|TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive|TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive|TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive|TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate|TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision|TestWorkloadReplayOutcomeReportsSupersededStableItem|TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken|TestWorkloadReplayAndBatchAckContentionConvergesToPending|TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock|TestWorkloadReplayConcurrentFirstScheduleReportsSuccess|TestWorkloadReplayDuringClaimReturnsAckToPending|TestFencedSupersededRevivalDropsAtMarkerLive|TestPostFenceRevivalGuardChainDerivedFromShippedSQL|TestFindHolderScopes|TestReopenHolder|TestClearReplayFlag|TestEnqueueMissingHolder|TestListScopedFindingPackages|TestScopedWriteMatchesFullWrite|TestMutualFanOut|TestUpdateFanOutState|TestRejectedAdvisoryReopens|TestRestoredAdvisory|TestFailedHolderRead|TestFanOutReopenedPasses|TestHolderH3|TestHolderCoveringExpressionBlocksIndexOnlyLive|TestHolderAdaptiveSplitRowIdentityLive|TestHolderMassProbe[A-Za-z]*Live|TestHolderKeyRange[A-Za-z]*Live|TestFanOutRaceFleetBurstCostOfTheInFlightReadLive|TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive|TestFanOutRaceHolderCommitsAndAcksBetweenTheTwoReadsLive|TestFanOutRaceHolderSucceedsBetweenTheReadAndTheReopenLive|TestFanOutRaceInFlightHolderThatNeverHeldTheCVELive|TestFanOutRaceInFlightItemAtAnOlderGenerationIsHarmlessLive|TestFanOutRaceRunningHolderWithRowsOnlyInAnOlderGenerationLive|TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive|TestFanOutRaceInFlightFirstPassOfNewGenerationIsFlaggedLive|TestFanOutRaceStampDuringDrainKeepsTheContinuationLive|TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive|TestFanOutRaceDebtRetrySurvivesActivationLive|TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive|TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive|TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive|TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive|TestRekey[A-Za-z]*Live|TestSuppression|TestRescan|TestWriterReportsChanges|TestFindInFlight|TestOwedMarker|TestFailureBeforeTheCommit|TestZombiePass|TestEPSSLowered|TestNewKEVListing|TestEnrichmentCommitted|TestIdenticalEPSSRescan|TestFindPackageHolderCandidates|TestFindRepositoryFindingHolders|TestReadManifestDependencyGeneration|TestManifestTriggerReopens|TestManifestWatermark|TestManifestStamp|TestManifestChainEndToEnd|TestManifestChainDepthCap|TestManifestChainPruned|TestManifestMarkerFlags|TestManifestPassReads|TestTwoConcurrentMarkers|TestGoFence|TestHasOutOfStampActiveRowsLive|TestScopedFallbackConvergesLive|TestStaleGenerationPassPreservesScopePassStateLive|TestStaleGenerationPassOverlapsNewerCommitLive)' -json -race -count=1 -timeout 1230s -v | tee "${RUNNER_TEMP}/contention-storage_postgres.jsonl"
-          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-storage_postgres.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres --select '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestActiveWorkSummaryCalibratedBoundary|TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows|TestActiveWorkSummaryMatchesPreHistoryGroupsOracle|TestActiveWorkSummaryOracleCatchesSeededHistoryMutations|TestActiveWorkSummaryGateMutationsAgainstOracle|TestActiveWorkSummaryGateResolvesTableByRegclass|TestStatusActiveFactWorkItemsCTEUsesGenerationIndex|TestStatusActiveWorkQueriesPreserveSemantics|TestStatusOldestOutstandingAgeMeasuresFromReopen|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestGenerationLivenessProgressWindow|TestGenerationLivenessRefinalizeDuplicateProjectorRow|TestGenerationLivenessRepoDependencyOwnership|TestNVDBaselineTwoPassesConvergeToOneRowSetLive|TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease|TestProjectorStrandedRetryRecovery|TestProjectorStrandedRetryRecoveryLeaveLiveLease|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestReducerClaimFencedSiblingBecomesClaimableAfterAck|TestReducerFairnessIsolatedSchemaDerivesFromBootstrap|TestReducerFairnessIsolatedSchemaDefinitionDriftLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestCoveredByEmittedFullSuccessorShapesAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestSharedIntentUpsertCreatedAtLastWriterWinsLive|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFirstCountRunsWithoutScopeLocksLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestGenerationRetentionCountsReopenFingerprintsLive|TestGenerationRetentionRowCountsCoverCascadeTablesLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live|TestProjectorHeartbeatWriteMarkerInterleave|TestProjectorWriteMarkerHeartbeatOrderingLive|TestProjectorHeartbeatWriteGateRowsLive|TestUncoveredProjectionWritersLive|TestReplayedFailedGenerationWritesAndActivatesLive|TestReplayAfterFullRecordsLatestWriteStartLive|TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal|TestSupplyChainImpact(Writer|ActiveDeadLetters|CappedScope|StalePass|EmptyFresherPass|RetractsLegacy|UpsertGuard|FencingToken|SeedAdvances|Supports|WinnersResweep|WinnersDirty|CVEListFullShardWriter)[A-Za-z]*Live|TestListOSPackageAdvisoryFactEnvelopes[A-Za-z]*Live|TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive|TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive|TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive|TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate|TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision|TestWorkloadReplayOutcomeReportsSupersededStableItem|TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken|TestWorkloadReplayAndBatchAckContentionConvergesToPending|TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock|TestWorkloadReplayConcurrentFirstScheduleReportsSuccess|TestWorkloadReplayDuringClaimReturnsAckToPending|TestFencedSupersededRevivalDropsAtMarkerLive|TestPostFenceRevivalGuardChainDerivedFromShippedSQL|TestFindHolderScopes|TestReopenHolder|TestClearReplayFlag|TestEnqueueMissingHolder|TestListScopedFindingPackages|TestScopedWriteMatchesFullWrite|TestMutualFanOut|TestUpdateFanOutState|TestRejectedAdvisoryReopens|TestRestoredAdvisory|TestFailedHolderRead|TestFanOutReopenedPasses|TestHolderH3|TestHolderCoveringExpressionBlocksIndexOnlyLive|TestHolderAdaptiveSplitRowIdentityLive|TestHolderMassProbe[A-Za-z]*Live|TestHolderKeyRange[A-Za-z]*Live|TestFanOutRaceFleetBurstCostOfTheInFlightReadLive|TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive|TestFanOutRaceHolderCommitsAndAcksBetweenTheTwoReadsLive|TestFanOutRaceHolderSucceedsBetweenTheReadAndTheReopenLive|TestFanOutRaceInFlightHolderThatNeverHeldTheCVELive|TestFanOutRaceInFlightItemAtAnOlderGenerationIsHarmlessLive|TestFanOutRaceRunningHolderWithRowsOnlyInAnOlderGenerationLive|TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive|TestFanOutRaceInFlightFirstPassOfNewGenerationIsFlaggedLive|TestFanOutRaceStampDuringDrainKeepsTheContinuationLive|TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive|TestFanOutRaceDebtRetrySurvivesActivationLive|TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive|TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive|TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive|TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive|TestRekey[A-Za-z]*Live|TestSuppression|TestRescan|TestWriterReportsChanges|TestFindInFlight|TestOwedMarker|TestFailureBeforeTheCommit|TestZombiePass|TestEPSSLowered|TestNewKEVListing|TestEnrichmentCommitted|TestIdenticalEPSSRescan|TestFindPackageHolderCandidates|TestFindRepositoryFindingHolders|TestReadManifestDependencyGeneration|TestManifestTriggerReopens|TestManifestWatermark|TestManifestStamp|TestManifestChainEndToEnd|TestManifestChainDepthCap|TestManifestChainPruned|TestManifestMarkerFlags|TestManifestPassReads|TestTwoConcurrentMarkers|TestGoFence|TestHasOutOfStampActiveRowsLive|TestScopedFallbackConvergesLive|TestStaleGenerationPassPreservesScopePassStateLive|TestStaleGenerationPassOverlapsNewerCommitLive)'
-      - name: Run fan-out stress proof
-        working-directory: go
-        env:
-          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
-          ESHU_POSTGRES_DISPOSABLE: "1"
-          ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: "1"
-          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-          ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: "1"
-          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: "1"
-          ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: "1"
-          ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
-          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
-          ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: "1"
-          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
-          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: "1"
-        # #10148 S5: TestFanOutRaceConcurrentStressLive (10 workers, 16
-        # rounds, unchanged) runs alone here so its 138.5 s no longer sits
-        # inside the main step's test phase (its 11 TestFanOutRace* siblings
-        # stay in the main filter by exact name). Same package, the DSNs and
-        # require-switches this proof needs, same fail-closed shape (pipefail
-        # + -json tee + event verifier); the enrollment guards cover it by
-        # union with the main step's filter.
-        run: |
-          set -o pipefail
-          go test ./internal/storage/postgres/ -run '^(TestFanOutRaceConcurrentStressLive)$' -json -race -count=1 -timeout 240s -v | tee "${RUNNER_TEMP}/contention-storage_postgres_stress.jsonl"
-          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-storage_postgres_stress.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres --select '^(TestFanOutRaceConcurrentStressLive)$'
+          go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestActiveWorkSummaryCalibratedBoundary|TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows|TestActiveWorkSummaryMatchesPreHistoryGroupsOracle|TestActiveWorkSummaryOracleCatchesSeededHistoryMutations|TestActiveWorkSummaryGateMutationsAgainstOracle|TestActiveWorkSummaryGateResolvesTableByRegclass|TestStatusActiveFactWorkItemsCTEUsesGenerationIndex|TestStatusActiveWorkQueriesPreserveSemantics|TestStatusOldestOutstandingAgeMeasuresFromReopen|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestGenerationLivenessProgressWindow|TestGenerationLivenessRefinalizeDuplicateProjectorRow|TestGenerationLivenessRepoDependencyOwnership|TestNVDBaselineTwoPassesConvergeToOneRowSetLive|TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease|TestProjectorStrandedRetryRecovery|TestProjectorStrandedRetryRecoveryLeaveLiveLease|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestReducerClaimFencedSiblingBecomesClaimableAfterAck|TestReducerFairnessIsolatedSchemaDerivesFromBootstrap|TestReducerFairnessIsolatedSchemaDefinitionDriftLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestCoveredByEmittedFullSuccessorShapesAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestSharedIntentUpsertCreatedAtLastWriterWinsLive|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFirstCountRunsWithoutScopeLocksLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestGenerationRetentionCountsReopenFingerprintsLive|TestGenerationRetentionRowCountsCoverCascadeTablesLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live|TestProjectorHeartbeatWriteMarkerInterleave|TestProjectorWriteMarkerHeartbeatOrderingLive|TestProjectorHeartbeatWriteGateRowsLive|TestUncoveredProjectionWritersLive|TestReplayedFailedGenerationWritesAndActivatesLive|TestReplayAfterFullRecordsLatestWriteStartLive|TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal)' -json -race -count=1 -timeout 800s -v | tee "${RUNNER_TEMP}/contention-storage_postgres.jsonl"
+          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-storage_postgres.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres --select '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestActiveWorkSummaryCalibratedBoundary|TestActiveWorkSummaryDropsTerminalTextFromMaterializedRows|TestActiveWorkSummaryMatchesPreHistoryGroupsOracle|TestActiveWorkSummaryOracleCatchesSeededHistoryMutations|TestActiveWorkSummaryGateMutationsAgainstOracle|TestActiveWorkSummaryGateResolvesTableByRegclass|TestStatusActiveFactWorkItemsCTEUsesGenerationIndex|TestStatusActiveWorkQueriesPreserveSemantics|TestStatusOldestOutstandingAgeMeasuresFromReopen|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestGenerationLivenessProgressWindow|TestGenerationLivenessRefinalizeDuplicateProjectorRow|TestGenerationLivenessRepoDependencyOwnership|TestNVDBaselineTwoPassesConvergeToOneRowSetLive|TestRecoverWedgedActiveGenerationsQueryDoesNotClobberConcurrentlyRenewedLease|TestProjectorStrandedRetryRecovery|TestProjectorStrandedRetryRecoveryLeaveLiveLease|TestSharedIntentGenerationPendingIndexLifecycleLive|TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin|TestActiveWorkSummaryBlockageHashesLeasesOnce|TestReducerQueueAckBatchFencesSupersededClaimLive|TestReducerClaimFencedSiblingBecomesClaimableAfterAck|TestReducerFairnessIsolatedSchemaDerivesFromBootstrap|TestReducerFairnessIsolatedSchemaDefinitionDriftLive|TestSupersededGenerationIDsAgainstPostgres|TestSupersededGenerationIDsDefersToInFlightProducersAgainstPostgres|TestSupersededGenerationIDsDefersToPhaseRepairRowsAgainstPostgres|TestCoveredByEmittedFullSuccessorShapesAgainstPostgres|TestSharedProjectionAcceptance[A-Za-z]*Live|TestSharedIntentAcceptanceWriter[A-Za-z]*Live|TestSharedIntentUpsertCreatedAtLastWriterWinsLive|TestServiceMaterializationActiveIndexReplayConvergesLive|TestServiceMaterializationWriterKeepsScopedLineagesLive|TestServiceChangedSinceResolvePicksAttributedNewestActiveLive|TestGenerationRetentionStatementsPrepareAgainstMigratedSchemaLive|TestGenerationRetentionPrunesMigratedSchemaLive|TestGenerationRetentionContentPrunesDeleteExactRowsLive|TestGenerationRetentionContentPrunesFinishWithoutPlannerStatisticsLive|TestGenerationRetentionRowCountsAttributeSharedRowsOnceLive|TestGenerationRetentionNarrowedCandidateTakenElsewhereLive|TestGenerationRetentionProbeMatchesGroupedPassLive|TestGenerationRetentionProbePlansStayOnKeyIndexesLive|TestGenerationRetentionRefusesWithoutValidKeyIndexLive|TestGenerationRetentionScopeMismatchedFactNeverOverDeletesLive|TestGenerationRetentionSelectsEligibleGenerationsAcrossScopesLive|TestGenerationRetentionLockSetMatchesEligibleScopesLive|TestGenerationRetentionFirstCountRunsWithoutScopeLocksLive|TestGenerationRetentionFairnessAcrossScopesLive|TestGenerationRetentionSkipsHeldScopeAndReplacesLive|TestGenerationRetentionEvalPlanQualDropsRacedCandidatesLive|TestGenerationRetentionCandidatePlanNeverLoopsFactWorkItemsLive|TestGenerationRetentionCountsReopenFingerprintsLive|TestGenerationRetentionRowCountsCoverCascadeTablesLive|TestServiceChangedSinceBindsGrantToLineageScopeLive|TestServiceCatalogCorpusFence[A-Za-z]*Live|TestProjectorHeartbeatWriteMarkerInterleave|TestProjectorWriteMarkerHeartbeatOrderingLive|TestProjectorHeartbeatWriteGateRowsLive|TestUncoveredProjectionWritersLive|TestReplayedFailedGenerationWritesAndActivatesLive|TestReplayAfterFullRecordsLatestWriteStartLive|TestProjectorHeartbeatNeverDeadlocksWithBaselineRefusal)'
       - name: Run status summary writer proofs
         working-directory: go
         env:
@@ -515,3 +497,116 @@ jobs:
         # TestStatusSummaryProofsRunInTheReducerContentionGate keeps this filter
         # and these variables in step with the proofs declared in the package.
         run: go test ./internal/storage/postgres/status/summary/ -run 'Live$' -race -count=1 -timeout 300s -v
+
+  contention-gate-storage-b:
+    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate-storage-b') }}
+    name: reducer contention gate (supply-chain proofs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: ghcr.io/eshu-hq/ci-postgres-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+        env:
+          POSTGRES_DB: eshu
+          POSTGRES_USER: eshu
+          POSTGRES_PASSWORD: change-me
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U eshu -d eshu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout repository (supply-chain proofs job)
+        uses: actions/checkout@v5
+
+      - name: Set up Go (supply-chain proofs job)
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+          # cache: false: setup-go would store the build cache a second time
+          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
+          cache: false
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a contention-gate
+      # failure that never claimed a row (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules (supply-chain proofs job)
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run supply-chain and holder fan-out proofs
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_POSTGRES_DISPOSABLE: "1"
+          ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: "1"
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: "1"
+          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: "1"
+          ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: "1"
+          ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: "1"
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: "1"
+          ESHU_REQUIRE_ACCEPTANCE_MONOTONIC_PROOF: "1"
+          ESHU_REQUIRE_SERVICE_LINEAGE_SCOPE_PROOF: "1"
+          ESHU_REQUIRE_RETENTION_MIGRATED_SCHEMA_PROOF: "1"
+        # Second half of the storage/postgres contention suite (#11252): every
+        # filter alternative from the #7141 supply-chain impact proofs onward
+        # (the holder fan-out, enrichment, manifest, suppression, rekey and
+        # stale-generation families). The first half, up to and including the
+        # generation-retention proofs, runs in the contention-gate job. The two
+        # filters partition the single filter that ran here before: their union
+        # selects exactly the same tests, each once, and the enrollment guards
+        # read both filters by union. Cap: 900 s = 1.32x of about 684 s, this
+        # half's test phase on the slowest passing runs (same-test ratio
+        # x1.167 over the 585.6 s it took in the reference run). Worst case in
+        # this job: 1 min setup + 13 min cold build + 900 s cap + 240 s stress
+        # cap (the stress step below reuses this job's hot build cache) = 33.0
+        # min, inside 45. New supply-chain alternatives are appended at the end
+        # of this filter, so growth lands here first; re-measure both halves
+        # when either gets within 1.3x of its cap on a slow runner. The overlap
+        # check in the events guard sees only the tests in the contention
+        # inventory, not every test function in the package.
+        run: |
+          set -o pipefail
+          go test ./internal/storage/postgres/ -run '^(TestSupplyChainImpact(Writer|ActiveDeadLetters|CappedScope|StalePass|EmptyFresherPass|RetractsLegacy|UpsertGuard|FencingToken|SeedAdvances|Supports|WinnersResweep|WinnersDirty|CVEListFullShardWriter)[A-Za-z]*Live|TestListOSPackageAdvisoryFactEnvelopes[A-Za-z]*Live|TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive|TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive|TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive|TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate|TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision|TestWorkloadReplayOutcomeReportsSupersededStableItem|TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken|TestWorkloadReplayAndBatchAckContentionConvergesToPending|TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock|TestWorkloadReplayConcurrentFirstScheduleReportsSuccess|TestWorkloadReplayDuringClaimReturnsAckToPending|TestFencedSupersededRevivalDropsAtMarkerLive|TestPostFenceRevivalGuardChainDerivedFromShippedSQL|TestFindHolderScopes|TestReopenHolder|TestClearReplayFlag|TestEnqueueMissingHolder|TestListScopedFindingPackages|TestScopedWriteMatchesFullWrite|TestMutualFanOut|TestUpdateFanOutState|TestRejectedAdvisoryReopens|TestRestoredAdvisory|TestFailedHolderRead|TestFanOutReopenedPasses|TestHolderH3|TestHolderCoveringExpressionBlocksIndexOnlyLive|TestHolderAdaptiveSplitRowIdentityLive|TestHolderMassProbe[A-Za-z]*Live|TestHolderKeyRange[A-Za-z]*Live|TestFanOutRaceFleetBurstCostOfTheInFlightReadLive|TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive|TestFanOutRaceHolderCommitsAndAcksBetweenTheTwoReadsLive|TestFanOutRaceHolderSucceedsBetweenTheReadAndTheReopenLive|TestFanOutRaceInFlightHolderThatNeverHeldTheCVELive|TestFanOutRaceInFlightItemAtAnOlderGenerationIsHarmlessLive|TestFanOutRaceRunningHolderWithRowsOnlyInAnOlderGenerationLive|TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive|TestFanOutRaceInFlightFirstPassOfNewGenerationIsFlaggedLive|TestFanOutRaceStampDuringDrainKeepsTheContinuationLive|TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive|TestFanOutRaceDebtRetrySurvivesActivationLive|TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive|TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive|TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive|TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive|TestRekey[A-Za-z]*Live|TestSuppression|TestRescan|TestWriterReportsChanges|TestFindInFlight|TestOwedMarker|TestFailureBeforeTheCommit|TestZombiePass|TestEPSSLowered|TestNewKEVListing|TestEnrichmentCommitted|TestIdenticalEPSSRescan|TestFindPackageHolderCandidates|TestFindRepositoryFindingHolders|TestReadManifestDependencyGeneration|TestManifestTriggerReopens|TestManifestWatermark|TestManifestStamp|TestManifestChainEndToEnd|TestManifestChainDepthCap|TestManifestChainPruned|TestManifestMarkerFlags|TestManifestPassReads|TestTwoConcurrentMarkers|TestGoFence|TestHasOutOfStampActiveRowsLive|TestScopedFallbackConvergesLive|TestStaleGenerationPassPreservesScopePassStateLive|TestStaleGenerationPassOverlapsNewerCommitLive)' -json -race -count=1 -timeout 900s -v | tee "${RUNNER_TEMP}/contention-storage_postgres_supply_chain.jsonl"
+          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-storage_postgres_supply_chain.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres --select '^(TestSupplyChainImpact(Writer|ActiveDeadLetters|CappedScope|StalePass|EmptyFresherPass|RetractsLegacy|UpsertGuard|FencingToken|SeedAdvances|Supports|WinnersResweep|WinnersDirty|CVEListFullShardWriter)[A-Za-z]*Live|TestListOSPackageAdvisoryFactEnvelopes[A-Za-z]*Live|TestOSPackageNarrowedQueryUsesTheIndexAtScaleLive|TestAdvisoryOnlySuppressionHTTPStoreReducerQueryLive|TestAdvisorySuppressionIsolatedSchemaDerivesFromBootstrapLive|TestSupplyChainImpactLiveProofsRunInTheReducerContentionGate|TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision|TestWorkloadReplayOutcomeReportsSupersededStableItem|TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken|TestWorkloadReplayAndBatchAckContentionConvergesToPending|TestWorkloadReplayClaimAfterAckToleratesSkewedAppClock|TestWorkloadReplayConcurrentFirstScheduleReportsSuccess|TestWorkloadReplayDuringClaimReturnsAckToPending|TestFencedSupersededRevivalDropsAtMarkerLive|TestPostFenceRevivalGuardChainDerivedFromShippedSQL|TestFindHolderScopes|TestReopenHolder|TestClearReplayFlag|TestEnqueueMissingHolder|TestListScopedFindingPackages|TestScopedWriteMatchesFullWrite|TestMutualFanOut|TestUpdateFanOutState|TestRejectedAdvisoryReopens|TestRestoredAdvisory|TestFailedHolderRead|TestFanOutReopenedPasses|TestHolderH3|TestHolderCoveringExpressionBlocksIndexOnlyLive|TestHolderAdaptiveSplitRowIdentityLive|TestHolderMassProbe[A-Za-z]*Live|TestHolderKeyRange[A-Za-z]*Live|TestFanOutRaceFleetBurstCostOfTheInFlightReadLive|TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive|TestFanOutRaceHolderCommitsAndAcksBetweenTheTwoReadsLive|TestFanOutRaceHolderSucceedsBetweenTheReadAndTheReopenLive|TestFanOutRaceInFlightHolderThatNeverHeldTheCVELive|TestFanOutRaceInFlightItemAtAnOlderGenerationIsHarmlessLive|TestFanOutRaceRunningHolderWithRowsOnlyInAnOlderGenerationLive|TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive|TestFanOutRaceInFlightFirstPassOfNewGenerationIsFlaggedLive|TestFanOutRaceStampDuringDrainKeepsTheContinuationLive|TestFanOutRaceStampOnRunningPassKeepsItsRetryFanOutLive|TestFanOutRaceDebtRetrySurvivesActivationLive|TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive|TestFanOutRaceStrandedContinuationConcurrentClaimersConvergeLive|TestFanOutRaceStrandedContinuationDrainsAfterNewerGenerationActivatesLive|TestFanOutRaceSweepRechecksDebtCommittedWhileWaitingLive|TestRekey[A-Za-z]*Live|TestSuppression|TestRescan|TestWriterReportsChanges|TestFindInFlight|TestOwedMarker|TestFailureBeforeTheCommit|TestZombiePass|TestEPSSLowered|TestNewKEVListing|TestEnrichmentCommitted|TestIdenticalEPSSRescan|TestFindPackageHolderCandidates|TestFindRepositoryFindingHolders|TestReadManifestDependencyGeneration|TestManifestTriggerReopens|TestManifestWatermark|TestManifestStamp|TestManifestChainEndToEnd|TestManifestChainDepthCap|TestManifestChainPruned|TestManifestMarkerFlags|TestManifestPassReads|TestTwoConcurrentMarkers|TestGoFence|TestHasOutOfStampActiveRowsLive|TestScopedFallbackConvergesLive|TestStaleGenerationPassPreservesScopePassStateLive|TestStaleGenerationPassOverlapsNewerCommitLive)'
+      - name: Run fan-out stress proof
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_POSTGRES_DISPOSABLE: "1"
+          ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF: "1"
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DISPOSABLE: "1"
+          ESHU_REDUCER_FAIRNESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_FAIRNESS_PROOF_DISPOSABLE: "1"
+          ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_REDUCER_ACK_RECLAIM_PROOF_DISPOSABLE: "1"
+          ESHU_SUPERSEDED_GENERATION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_POSTGRES_TEST_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_REQUIRE_SUPPLY_CHAIN_IMPACT_PROOF: "1"
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN: postgres://eshu:change-me@localhost:15432/postgres?sslmode=disable
+          ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE: "1"
+        # #10148 S5: TestFanOutRaceConcurrentStressLive (10 workers, 16
+        # rounds, unchanged) runs alone here so its 138.5 s no longer sits
+        # inside the main step's test phase (its 11 TestFanOutRace* siblings
+        # stay in the main filter by exact name). Same package, the DSNs and
+        # require-switches this proof needs, same fail-closed shape (pipefail
+        # + -json tee + event verifier); the enrollment guards cover it by
+        # union with the two halves' filters. #11252 moved it into the
+        # supply-chain job, beside the TestFanOutRace family it belongs to.
+        run: |
+          set -o pipefail
+          go test ./internal/storage/postgres/ -run '^(TestFanOutRaceConcurrentStressLive)$' -json -race -count=1 -timeout 240s -v | tee "${RUNNER_TEMP}/contention-storage_postgres_stress.jsonl"
+          python3 ../scripts/lib/reducer_contention_events.py --events "${RUNNER_TEMP}/contention-storage_postgres_stress.jsonl" --package github.com/eshu-hq/eshu/go/internal/storage/postgres --select '^(TestFanOutRaceConcurrentStressLive)$'

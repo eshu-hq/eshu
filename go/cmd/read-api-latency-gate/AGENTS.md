@@ -223,18 +223,26 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   the pool, under the name `pool` or a simple alias of it (not a handle passed
   through a struct field or returned from another function), and
   `TestSeedPropagatesTheVacuumError` pins that a failed step returns its error.
-- **The seed runs the product infra read model backfill, labelled a stand-in
-  (`seed_infra_backfill.go`).** The gate starts no reducer, and since #11210
-  the reducer owns the backfill (it runs `inventory.RunBackground`, which wraps
-  `Backfiller.Run`). So the gate calls the same `inventory.Backfiller` after the
-  content seeds and before any core starts, and fails the seed if it errors or
-  leaves the read model uninstalled, unmarked, or with a dirty repository.
+- **The seed runs the product infra read model backfill, labelled a permanent
+  stand-in (`seed_infra_backfill.go`).** The reducer owns the backfill since
+  #11210 (it runs `inventory.RunBackground`, which wraps `Backfiller.Run`), but a
+  real reducer cannot run on the seeded corpus: measured on the full corpus it set
+  7,680 seeded `fact_work_items` rows to `superseded` (its stale-generation sweep,
+  across 320 superseded generations), the config-artifact walker wrote its own
+  derive, and it polls Postgres at about 45 statements per second against the
+  gate's idle limit of 2. So the gate calls `inventory.NewBackfiller`, the
+  constructor `RunBackground` uses, and runs it once after the content seeds and
+  before any core starts, failing the seed if it errors or leaves the read model
+  uninstalled, unmarked, or with a dirty repository. Parity with the product is by
+  that shared constructor, not by a copy of its output.
   Never hand-write the marker or copy the derive SQL, and never relax
   `awaitInfraReadModel` or `assertInfraServedFromReadModel`: they are the
   outside guard on the same outcome. Both legs' reports carry
   `infra_backfill: gate_stand_in`; the infra route numbers describe an install
-  that holds the marker, and a regression in the reducer's wiring would not show
-  here. Remove the stand-in when the gate starts the reducer (#11226).
+  that holds the marker. The proof that the reducer process records the marker is
+  `TestInfraInventoryBackfillRunnerRecordsTheMarkerLive` in `go/cmd/reducer`; do
+  not try to start the reducer in the gate, and never restore the seeded work-item
+  statuses after one (that would hide the mutation).
 - **The gate measures two legs, legacy then winners, never merged.** The
   winners flag is read once at core mux build, so the legs are separate core
   processes against one seed; the byte-identical findings proof and the

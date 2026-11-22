@@ -324,12 +324,12 @@ func (s Service) executeHandler(
 		completed := false
 		defer func() {
 			if !completed {
-				done <- handlerOutcome{panicked: true, value: recover()}
+				s.bufferOutcome(done, handlerOutcome{panicked: true, value: recover()})
 			}
 		}()
 		result, err := s.Executor.Execute(execCtx, intent)
 		completed = true
-		done <- handlerOutcome{result: result, err: err, boundExpired: handlerDeadline.expired()}
+		s.bufferOutcome(done, handlerOutcome{result: result, err: err, boundExpired: handlerDeadline.expired()})
 	}()
 	reraise := func(out handlerOutcome) (reducercontract.Result, error, bool) {
 		if out.panicked {

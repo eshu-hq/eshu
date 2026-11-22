@@ -129,12 +129,14 @@ jobs:
       module: collector
       go-version-file: go.mod
       coverage-floor: 0
-      # Pin the tool set the v2 selftest callers proved green. Reusable
-      # defaults float across tags, so a SHA advance must neither downgrade
-      # nor silently upgrade a scanner: review these pins on every advance.
+      # Pin the tool set explicitly. Reusable defaults float across tags, so a
+      # SHA advance must neither downgrade nor silently upgrade a scanner:
+      # review these pins on every advance. gosec is an unreleased
+      # pseudo-version (#11241) that the v2 selftest callers have not run;
+      # move it to the first release that carries it (#11243).
       golangci-lint-version: v2.12.2
       govulncheck-version: v1.9.0
-      gosec-version: v2.27.1
+      gosec-version: v2.30.1-0.20261026162949-ff25931a2edd
       actionlint-version: 1.7.12
       actionlint-sha256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
       run-lint: ${{ github.event_name != 'pull_request' || needs.changes.outputs.go == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.misc == 'true' || needs.changes.outputs.workflow == 'true' }}

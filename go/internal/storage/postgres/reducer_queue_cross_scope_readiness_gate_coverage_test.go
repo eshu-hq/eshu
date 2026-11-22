@@ -84,7 +84,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		t.Fatalf("%s no longer runs TestServiceStoryTargetSupportSQLSemanticsLive against Postgres", workflowPath)
 	}
 
-	runFilter := reducerContentionGateRunFilter(t, string(workflow))
+	// #11252: the storage/postgres suite runs as two jobs plus the stress step,
+	// so enrollment holds by union over every step that runs the package.
+	runFilter := "(?:" + strings.Join(reducerContentionGateRunFilters(t, string(workflow)), ")|(?:") + ")"
 	selects, err := regexp.Compile(runFilter)
 	if err != nil {
 		t.Fatalf("compile the gate's -run filter %q: %v", runFilter, err)
@@ -246,19 +248,6 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	}
 }
 
-// reducerContentionGateRunFilter extracts the single-quoted -run pattern from
-// the workflow's test command, so this test reads the value CI actually uses
-// rather than a copy of it.
-func reducerContentionGateRunFilter(t *testing.T, workflow string) string {
-	t.Helper()
-
-	matches := regexp.MustCompile(`-run '([^']+)'`).FindStringSubmatch(workflow)
-	if len(matches) != 2 {
-		t.Fatal("the reducer contention gate no longer runs a single-quoted -run filter; this guard cannot read it")
-	}
-	return matches[1]
-}
-
 // generationLivenessProofDSN gates the generation-liveness proofs: without it
 // they skip, so a selected-but-unset proof and an unselected proof both prove
 // nothing in CI.
@@ -317,23 +306,27 @@ func activeWorkProjectionProofEnv(t *testing.T, workflow string) bool {
 	if err := yaml.Unmarshal([]byte(workflow), &parsed); err != nil {
 		return false
 	}
-	job, ok := parsed.Jobs["contention-gate"]
-	if !ok {
+	if _, ok := parsed.Jobs["contention-gate"]; !ok {
 		return false
 	}
 	const marker = "go test ./internal/storage/postgres/ -run"
 	// #10148 S5: the stress test runs in its own step against the same
 	// package, so every step that runs the package's suite must carry the
 	// live DSN and the require switch; one valid step no longer suffices.
+	// #11252: the suite is split across two jobs, so the check covers every job
+	// that runs the package; a Postgres proof step in the second job cannot
+	// leak the DSN or the require switch unchecked.
 	proofSteps := 0
 	validEnv := true
-	for _, step := range job.Steps {
-		if !strings.Contains(step.Run, marker) {
-			continue
+	for _, job := range parsed.Jobs {
+		for _, step := range job.Steps {
+			if !strings.Contains(step.Run, marker) {
+				continue
+			}
+			proofSteps++
+			validEnv = validEnv && strings.TrimSpace(step.Env["ESHU_POSTGRES_DSN"]) != "" &&
+				step.Env["ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF"] == "1"
 		}
-		proofSteps++
-		validEnv = validEnv && strings.TrimSpace(step.Env["ESHU_POSTGRES_DSN"]) != "" &&
-			step.Env["ESHU_REQUIRE_ACTIVE_WORK_PROJECTION_PROOF"] == "1"
 	}
 	return proofSteps >= 1 && validEnv
 }
@@ -362,6 +355,9 @@ func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
 		{"second proof step missing DSN", job + "      - name: First\n        env:\n" + dsn + required + run + "      - name: Second\n        env:\n" + required + run},
 		{"second proof step missing required flag", job + "      - name: First\n        env:\n" + dsn + required + run + "      - name: Second\n        env:\n" + dsn + run},
 		{"malformed YAML", job + "      - name: Run\n        env: [\n" + run},
+		// #11252: a proof step in the second owner job is checked like the first.
+		{"second job proof step missing DSN", job + "      - name: Run\n        env:\n" + dsn + required + run + "  contention-gate-storage-b:\n    steps:\n      - name: B\n        env:\n" + required + run},
+		{"second job proof step missing required flag", job + "      - name: Run\n        env:\n" + dsn + required + run + "  contention-gate-storage-b:\n    steps:\n      - name: B\n        env:\n" + dsn + run},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if activeWorkProjectionProofEnv(t, tc.workflow) {
@@ -379,5 +375,10 @@ func TestActiveWorkProjectionProofEnvIsInProofStep(t *testing.T) {
 		"      - name: Second\n        env:\n" + dsn + required + run
 	if !activeWorkProjectionProofEnv(t, twoValid) {
 		t.Fatal("two valid Postgres proof steps were rejected")
+	}
+	// #11252: one valid proof step in each of the two owner jobs passes.
+	twoJobs := green + "  contention-gate-storage-b:\n    steps:\n      - name: B\n        env:\n" + dsn + required + run
+	if !activeWorkProjectionProofEnv(t, twoJobs) {
+		t.Fatal("a valid proof step in each of the two owner jobs was rejected")
 	}
 }

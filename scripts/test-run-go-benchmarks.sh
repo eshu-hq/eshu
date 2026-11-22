@@ -97,34 +97,52 @@ if [[ -f "${out}" ]]; then
 	rg -q "^BenchmarkValidateSchemaVersion" "${out}"; check "results file contains benchmark rows" $?
 fi
 
-# Auto-discovery must find benchmark packages without BENCH_PACKAGES. Keep the
-# benchmark pattern narrow so this proves package discovery without running the
-# full suite in the mirror.
-auto_out="${tmp_root}/bench-results-auto.txt"
+# Auto-discovery must find benchmark packages without BENCH_PACKAGES. This runs
+# the producer with BENCH_LIST_ONLY=1, which prints the discovered packages and
+# stops before `go test`. It used to run every discovered package (about 140)
+# with a narrow -bench pattern, which compiled and linked nearly the whole module
+# on every pull request and took 520 to 890 s of this job's 900 s limit (#11207).
+# The real suite run over the discovered set is the bench regression job.
+# `timeout` bounds the call so a producer that ignores BENCH_LIST_ONLY (and so
+# starts compiling) fails here instead of eating the job.
+list_out="${tmp_root}/bench-packages-auto.txt"
 if env -u BENCH_PACKAGES -u ESHU_POSTGRES_DSN -u ESHU_REDUCER_CLAIM_BENCH_DSN \
-	BENCH_OUTPUT="${auto_out}" \
-	BENCH_PATTERN="BenchmarkValidateSchemaVersion$" \
-	BENCH_TIME="1x" \
-	BENCH_COUNT="1" \
-	"${producer}" >/dev/null 2>&1; then
-	check "producer auto-discovers benchmark packages" 0
+	BENCH_LIST_ONLY=1 \
+	timeout 120 "${producer}" >"${list_out}" 2>/dev/null; then
+	check "producer lists discovered benchmark packages and exits 0 with BENCH_LIST_ONLY=1" 0
 else
-	check "producer auto-discovers benchmark packages" 1
+	check "producer lists discovered benchmark packages and exits 0 with BENCH_LIST_ONLY=1" 1
 fi
-[[ -f "${auto_out}" ]]; check "auto-discovery writes the results file" $?
-if [[ -f "${auto_out}" ]]; then
-	rg -q "^BenchmarkValidateSchemaVersion" "${auto_out}"; check "auto-discovery results contain benchmark rows" $?
+for known in ./internal/facts ./internal/storage/postgres ./internal/storage/postgres/governance/audit; do
+	if rg -q -x -F -- "${known}" "${list_out}"; then
+		check "auto-discovery lists the benchmark package ${known}" 0
+	else
+		check "auto-discovery lists the benchmark package ${known}" 1
+	fi
+done
+# Every line is a ./-prefixed package directory: no go test output, no stray text.
+if [[ -s "${list_out}" ]] && rg -q -v '^\./[A-Za-z0-9_./-]+$' "${list_out}"; then
+	note "FAIL: auto-discovery output has a line that is not a ./package path"
+	fail=1
+fi
+if [[ -s "${list_out}" ]]; then
+	check "auto-discovery lists at least one package" 0
+else
+	check "auto-discovery lists at least one package" 1
 fi
 
 # Hermeticity under a hostile environment: export a bogus backend DSN and confirm
 # the postgres benchmark still self-skips (exit 0) instead of dialing it. If the
 # runner failed to clear the inherited DSN, go test would try to connect and fail.
+# The governance audit append benchmark reads ESHU_POSTGRES_DSN like the reducer
+# claim one but its test binary builds from 7 module packages, not the ~990 that
+# internal/storage/postgres pulls in, so the case stays cheap (#11207).
 out2="${tmp_root}/bench-results-dsn.txt"
 if ESHU_POSTGRES_DSN="postgres://invalid:invalid@127.0.0.1:1/none" \
 	ESHU_REDUCER_CLAIM_BENCH_DSN="postgres://invalid:invalid@127.0.0.1:1/none" \
 	BENCH_OUTPUT="${out2}" \
-	BENCH_PACKAGES="./internal/storage/postgres" \
-	BENCH_PATTERN="BenchmarkReducerQueueClaimDeepQueue" \
+	BENCH_PACKAGES="./internal/storage/postgres/governance/audit" \
+	BENCH_PATTERN="BenchmarkGovernanceAuditStoreAppendSingleEvent" \
 	BENCH_TIME="1x" \
 	BENCH_COUNT="1" \
 	"${producer}" >/dev/null 2>&1; then
