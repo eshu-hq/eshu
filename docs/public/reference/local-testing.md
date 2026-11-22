@@ -46,6 +46,10 @@ make pre-pr            # or: bash scripts/dev/pre-pr.sh
 make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
 
+Every `make pre-push` and `make pre-pr` run also records where its time went, and
+[Gate Timing](local-testing/gate-timing.md) shows how to read those records and
+the matching CI job times.
+
 CI remains authoritative and should rarely be the *first* place a
 credential-free failure appears. Race gates block on Go changes: `make pre-push`
 races only the changed packages, `make pre-pr` adds the registry race gates, `pre-pr-full`

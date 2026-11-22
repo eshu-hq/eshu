@@ -163,7 +163,7 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG}"
+	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
 	return "${PIPESTATUS[0]}"
 }
 
@@ -193,7 +193,7 @@ step_race() {
 	fi
 	# -timeout is per test binary, the same 900s budget test.yml's go-race
 	# shards use, so a hang fails in minutes instead of Go's default 10m.
-	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG}"
+	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
 	return "${PIPESTATUS[0]}"
 }
 
@@ -260,7 +260,8 @@ step_exactness() {
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs,security,frontend \
 		--self-tests changed --blocking-only --pre-push \
-		--report-file "${ESHU_TIMING_GATE_REPORT}" 2>&1 | tee "${selected_gates_log}"
+		--report-file "${ESHU_TIMING_GATE_REPORT:-${pre_pr_state_dir}/timing-gates.json}" 2>&1 |
+		tee "${selected_gates_log}"
 	return "${PIPESTATUS[0]}"
 }
 

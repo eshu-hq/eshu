@@ -139,7 +139,7 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG}"
+	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
 	return "${PIPESTATUS[0]}"
 }
 
@@ -184,7 +184,7 @@ step_exactness() {
 step_race() {
 	if [[ "${ESHU_PRE_PR_FULL_RACE:-0}" == "1" ]]; then
 		printf 'full race: go test ./... -race (whole module)\n'
-		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG}"
+		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
 		return "${PIPESTATUS[0]}"
 	fi
 	local rc=0
@@ -209,7 +209,7 @@ step_race() {
 		printf 'scoped race: no changed Go packages outside the registry race gates\n'
 	else
 		printf 'scoped race: %d package(s) not covered by a race gate\n' "${#dirs[@]}"
-		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG}"
+		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
 		[[ "${PIPESTATUS[0]}" -eq 0 ]] || rc=1
 	fi
 	printf 'note: CI runs the authoritative full `go test ./... -race`; `make pre-pr-full` runs it locally.\n'
