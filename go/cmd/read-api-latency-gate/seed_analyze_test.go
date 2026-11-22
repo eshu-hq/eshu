@@ -45,7 +45,13 @@ func TestSeededTablesMaintenanceSQLVacuumsAndAnalyzesTheSeededTables(t *testing.
 	if sql != want {
 		t.Fatalf("statement = %q, want %q", sql, want)
 	}
-	for _, table := range []string{"content_entities", "content_files", "fact_records"} {
+	// The two read-model tables the seed fills before the vacuum (the infra read
+	// model by the backfill stand-in, the winners table by ResweepWinners) are read
+	// by budgeted routes, so they need the same steady-state visibility map.
+	for _, table := range []string{
+		"content_entities", "content_files", "fact_records",
+		"infra_resource_entities", "supply_chain_impact_canonical_winners",
+	} {
 		if !strings.Contains(sql, table) {
 			t.Errorf("statement %q lacks bulk-written table %s", sql, table)
 		}
@@ -70,66 +76,141 @@ func TestVacuumAnalyzeSeededTablesRunsExactlyOneStatement(t *testing.T) {
 	}
 }
 
-// TestSeedVacuumsAfterTheLastBulkWriteAndBeforeTheSweep checks the call order in
-// main.go structurally: the VACUUM must follow every bulk Postgres write in seed
-// (a later write would leave pages not all-visible again) and seed must run
-// before run starts the sweep's first read-model wait.
-func TestSeedVacuumsAfterTheLastBulkWriteAndBeforeTheSweep(t *testing.T) {
-	t.Parallel()
-
+// seedBody parses main.go and returns the body of the named function.
+func seedBody(t *testing.T, fn string) (*token.FileSet, *ast.BlockStmt) {
+	t.Helper()
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "main.go", nil, 0)
 	if err != nil {
 		t.Fatalf("parse main.go: %v", err)
 	}
-	callPositions := func(fn string) map[string]token.Pos {
-		positions := map[string]token.Pos{}
-		for _, decl := range file.Decls {
-			fd, ok := decl.(*ast.FuncDecl)
-			if !ok || fd.Name.Name != fn {
-				continue
+	for _, decl := range file.Decls {
+		if fd, ok := decl.(*ast.FuncDecl); ok && fd.Name.Name == fn {
+			return fset, fd.Body
+		}
+	}
+	t.Fatalf("main.go has no function %s", fn)
+	return nil, nil
+}
+
+// callName returns the identifier a call expression invokes, or "" for a
+// selector or other call shape.
+func callName(call *ast.CallExpr) string {
+	if id, ok := call.Fun.(*ast.Ident); ok {
+		return id.Name
+	}
+	return ""
+}
+
+// mentionsPostgres reports whether an expression passes the Postgres pool or the
+// Postgres DSN: the identifier pool, or the selector opts.postgresDSN.
+func mentionsPostgres(expr ast.Expr) bool {
+	found := false
+	ast.Inspect(expr, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.Ident:
+			if x.Name == "pool" {
+				found = true
 			}
-			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
-					return true
-				}
-				if id, ok := call.Fun.(*ast.Ident); ok {
-					if _, seen := positions[id.Name]; !seen {
-						positions[id.Name] = call.Pos()
-					}
-				}
-				return true
-			})
+		case *ast.SelectorExpr:
+			if x.Sel.Name == "postgresDSN" {
+				found = true
+			}
 		}
-		return positions
-	}
+		return !found
+	})
+	return found
+}
 
-	seedCalls := callPositions("seed")
-	vacuum, ok := seedCalls["vacuumAnalyzeSeededTables"]
-	if !ok {
-		t.Fatal("seed does not call vacuumAnalyzeSeededTables")
-	}
-	for _, write := range []string{
-		"SeedPostgres", "SeedIaCFacts", "SeedSharedIntents", "SeedWinnersFactRecords",
-		"rebuildSeededWinners", "SeedInfraContentEntities", "SeedContentFiles",
-		"finalizeContentSearchIndexes", "backfillSeededInfraReadModel",
-	} {
-		pos, called := seedCalls[write]
-		if !called {
-			continue
-		}
-		if pos > vacuum {
-			t.Errorf("seed calls %s after vacuumAnalyzeSeededTables: a later bulk write leaves pages not all-visible", write)
-		}
-	}
+// TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep checks the call order
+// in main.go structurally. The VACUUM runs exactly once, and after it no call in
+// seed may take the Postgres pool or the Postgres DSN: any later call is a
+// possible bulk write (including a second call to a writer already seen, and a
+// writer added later) that would leave pages not all-visible again. run() must
+// call seed before the sweep's first read-model wait.
+func TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep(t *testing.T) {
+	t.Parallel()
 
-	runCalls := callPositions("run")
-	seedCall, ok := runCalls["seed"]
-	if !ok {
-		t.Fatal("run does not call seed")
+	_, body := seedBody(t, "seed")
+	var vacuumPos token.Pos
+	vacuumCalls := 0
+	ast.Inspect(body, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && callName(call) == "vacuumAnalyzeSeededTables" {
+			vacuumCalls++
+			vacuumPos = call.Pos()
+		}
+		return true
+	})
+	if vacuumCalls != 1 {
+		t.Fatalf("seed calls vacuumAnalyzeSeededTables %d times, want exactly 1", vacuumCalls)
 	}
-	if wait, ok := runCalls["awaitInfraReadModel"]; !ok || seedCall > wait {
+	ast.Inspect(body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || call.Pos() <= vacuumPos || callName(call) == "vacuumAnalyzeSeededTables" {
+			return true
+		}
+		for _, arg := range call.Args {
+			if mentionsPostgres(arg) {
+				t.Errorf("seed makes a call that takes the Postgres pool or DSN after the vacuum (offset %d): a later write leaves pages not all-visible", call.Pos())
+				break
+			}
+		}
+		return true
+	})
+
+	_, runBody := seedBody(t, "run")
+	var seedCall, wait token.Pos
+	ast.Inspect(runBody, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			switch callName(call) {
+			case "seed":
+				seedCall = call.Pos()
+			case "awaitInfraReadModel":
+				wait = call.Pos()
+			}
+		}
+		return true
+	})
+	if seedCall == 0 || wait == 0 || seedCall > wait {
 		t.Fatal("run must seed before it waits on the infra read model (the first step of the sweep)")
+	}
+}
+
+// TestSeedPropagatesTheVacuumError pins that a failed maintenance step fails the
+// seed: the call must sit in an `if err := ...; err != nil { return ... }`. The
+// helper returns the error; dropping it in main.go would sweep an unvacuumed
+// database silently.
+func TestSeedPropagatesTheVacuumError(t *testing.T) {
+	t.Parallel()
+
+	_, body := seedBody(t, "seed")
+	propagated := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		ifs, ok := n.(*ast.IfStmt)
+		if !ok || ifs.Init == nil {
+			return true
+		}
+		assign, ok := ifs.Init.(*ast.AssignStmt)
+		if !ok || len(assign.Rhs) != 1 {
+			return true
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok || callName(call) != "vacuumAnalyzeSeededTables" {
+			return true
+		}
+		returns := false
+		ast.Inspect(ifs.Body, func(m ast.Node) bool {
+			if _, isRet := m.(*ast.ReturnStmt); isRet {
+				returns = true
+			}
+			return true
+		})
+		if bin, isBin := ifs.Cond.(*ast.BinaryExpr); isBin && bin.Op == token.NEQ && returns {
+			propagated = true
+		}
+		return true
+	})
+	if !propagated {
+		t.Fatal("seed must call vacuumAnalyzeSeededTables as `if err := ...; err != nil { return ... }`")
 	}
 }
