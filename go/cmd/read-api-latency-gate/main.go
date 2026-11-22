@@ -422,9 +422,11 @@ func seed(ctx context.Context, opts runOptions) error {
 	}
 
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: VACUUM (ANALYZE) seeded Postgres tables (sets the visibility map before the sweep, #11224)")
+	vacuumStart := time.Now()
 	if err := vacuumAnalyzeSeededTables(ctx, pool); err != nil {
 		return fmt.Errorf("vacuum analyze seeded tables: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: VACUUM (ANALYZE) finished in %s\n", time.Since(vacuumStart).Round(time.Millisecond))
 
 	return nil
 }
