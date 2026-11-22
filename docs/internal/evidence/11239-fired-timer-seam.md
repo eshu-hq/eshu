@@ -19,11 +19,13 @@ non-blocking recheck of `done` found nothing, and it took the abandon branch.
 
 Observation: a throwaway shim that stalls the handler goroutine 5 ms after the
 seam's `returned` signal (the window a preemption or GC pause opens) produced
-`abandoned=true` with the CI error text on 3 of 3 runs on the base commit.
+`abandoned=true` with the CI error text on 3/3 runs at the earlier base
+662083f413 (ledger:11239-stall-shim-red-base).
 Natural reproduction did not occur locally: 0 failures in 30 counts at host
-load ~48 on 16 cores, and 0 in 5 counts with 8 in-process busy loops at
-`GOMAXPROCS=4` (1,200 handler calls per count). The CI failure was one call in
-a run of 400.
+load ~48 on 16 cores (ledger:11239-natural-repro-base-host-load), and 0 in 5
+counts with 8 in-process busy loops at `GOMAXPROCS=4`
+(ledger:11239-natural-repro-base-spinners), with 1,200 handler calls per
+count. The CI failure was one call in a run of 400.
 
 The product select is not the cause. When the timer arm fires and no outcome
 is buffered, the handler goroutine has not sent yet, which `executeHandler`
@@ -45,21 +47,26 @@ changes. Assertions are unchanged.
 ## No-Regression Evidence:
 
 - Same 5 ms stall probe against the new seam, `-race`: 0 abandonments. It ran
-  in every soak below.
+  in every soak below; at ambient load it passed 0 abandonments in 1,785 runs
+  (ledger:11239-stall-probe-ambient).
 - Soak under 8 in-process busy loops at `GOMAXPROCS=4`, `-race`: 40 counts
-  (48,000 `executeHandler` calls) and 41 stall probes, 0 failures. Each count
+  (48,000 `executeHandler` calls) and 41 stall probes, 0 failures
+  (ledger:11239-soak-spinners). Each count
   took about 15 s under that load, so the run stopped at the 10-minute
   `go test` timeout. It did not hang: both subtests were still making
   progress at the timeout.
 - Soak at ambient host load (about 42 on 16 cores), `-race`, `-count=2000`
   with a 30-minute timeout: 1,784 counts completed (2,140,800
-  `executeHandler` calls) and 1,785 stall probes, 0 failures. The timeout then
-  stopped the run short of 2,000 counts.
+  `executeHandler` calls) and 1,785 stall probes, 0 failures
+  (ledger:11239-soak-ambient). The timeout then stopped the run short of
+  2,000 counts.
 - Production mutations still fail the test. Removing the timer arm's
   buffered-outcome recheck fails on run 0 with
   `abandoned = true, want false`. Restoring the pre-#11193 relabeling fails
-  with `timeout class on 191/400 runs, want 0/400`, which also shows that both
-  select arms are really ready and Go picks between them about half the time.
+  the downstream case with `timeout class on 191/400 runs` (ledger:11239-m2-relabel-downstream)
+  and the parent case with `timeout class on 207/400 runs` (ledger:11239-m2-relabel-parent),
+  each against `want 0/400`. That also shows both select arms are really ready
+  and Go picks between them about half the time.
 
 ## Performance Evidence:
 
@@ -68,7 +75,11 @@ that returns immediately: `-cpu 4`, `-count=6`, Go 1.26, no backend in this
 path. Bounded (1 h bound): base 3,128 to 3,195 ns/op, head 3,129 to
 3,206 ns/op, 1,576 B/op and 12 allocs/op on both. Unbounded: base 1,355 to
 1,429 ns/op, head 1,208 to 1,466 ns/op, 1,056 B/op and 5 allocs/op on both.
-The added nil check is within noise and adds no allocation.
+Medians: bounded base 3,162.5 (ledger:11239-bench-bounded-base) and head
+3,157.5 ns/op (ledger:11239-bench-bounded-head); unbounded base 1,391.5
+(ledger:11239-bench-unbounded-base) and head 1,265.5 ns/op
+(ledger:11239-bench-unbounded-head). The added nil check is within noise and
+adds no allocation.
 
 ## No-Observability-Change:
 
