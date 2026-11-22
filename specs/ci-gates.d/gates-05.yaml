@@ -166,6 +166,7 @@ gates:
       - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/lib/reducer_contention_events.py"
       - "scripts/lib/reducer_contention_inventory.json"
+      - "scripts/lib/reducer_contention_split_cases.py"
       - "scripts/test-reducer-contention-events.py"
       - "scripts/test-reducer-contention-ledger-policy.py"
       - "scripts/lib/verify-live-tests-ledger.py"
@@ -183,11 +184,43 @@ gates:
       - postgres
     ci_only_reason: "needs Postgres service container (GitHub Actions)"
 
+  # The second half of the storage/postgres contention suite (#11252): the suite
+  # outgrew one 45-minute job, so the supply-chain, holder fan-out and stress
+  # proofs run as a parallel job of the same workflow.
+  - id: reducer-contention-supply-chain
+    name: Reducer Contention Gate, supply-chain proofs (real Postgres)
+    category: race
+    layer: performance
+    purpose: "Runs the supply-chain, holder fan-out and stress half of the real-Postgres contention suite as a parallel job inside its time cap."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/internal/storage/postgres/**"
+      - "go/internal/reducer/**"
+      - "schema/data-plane/postgres/**"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/lib/reducer_contention_events.py"
+      - "scripts/lib/reducer_contention_inventory.json"
+      - "scripts/lib/reducer_contention_split_cases.py"
+      - "scripts/test-reducer-contention-events.py"
+      - "specs/live-tests.v1.yaml"
+      - "specs/live-tests.d/**"
+      - "specs/ci-gates.d/gates-05.yaml"
+      - ".github/workflows/reducer-contention-gate.yml"
+    ci:
+      workflow: reducer-contention-gate.yml
+      job: "reducer contention gate (supply-chain proofs)"
+    requirements:
+      - go
+      - postgres
+    ci_only_reason: "needs Postgres service container (GitHub Actions)"
+
   # The supply-chain impact retraction, fencing and capped-evidence proofs need
   # real Postgres (advisory locks, row locks, snapshots, plans), so they run as
-  # steps of the reducer contention gate's job rather than in a job of their
-  # own. This row is what keeps them there: the local command is the hermetic
-  # enrollment guard, which reads the real workflow filter and the real test
+  # steps of the reducer contention gate's supply-chain job (the second half of
+  # the storage/postgres suite, #11252) rather than in a job of their own. This
+  # row is what keeps them there: the local command is the hermetic enrollment
+  # guard, which reads the real workflow filter and the real test
   # files, and its RED/GREEN pair proves the guard can fail. The live proofs
   # themselves run only in CI, on the contention gate's Postgres service (#7141).
   - id: supply-chain-impact-live
@@ -211,7 +244,7 @@ gates:
       test_command: "cd go && env -u GOROOT go test ./internal/storage/postgres -run '^(TestProofsMissingFromFilterRejectsAnUnselectedProof|TestProofStepScopesTheEnvChecksToTheProofStep|TestLiveDSNOpenersFollowsWrappersTransitively|TestLiveProofFilesCoversDirectCallersAndFlagsMixedFiles|TestHelperFailsOnRequiredPinsTheOutcomeAction|TestSupplyChainImpactLiveDecision)$' -count=1"
     ci:
       workflow: reducer-contention-gate.yml
-      job: "reducer contention gate"
+      job: "reducer contention gate (supply-chain proofs)"
     requirements:
       - go
     ci_only_reason: ""
