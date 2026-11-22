@@ -103,8 +103,11 @@ supervisor can re-apply it.
 - The index is valid before the reader uses it. The schema Job runs
   `ApplyBootstrap` over the embedded migrations as a pre-install and
   pre-upgrade hook. `CREATE INDEX CONCURRENTLY` returns only once the index
-  is valid, and the Job fails otherwise. The new reducer rolls out after the
-  Job, and pod readiness checks the migration ledger. The live tests bootstrap
+  is valid. The Job's deadline bounds the client only, so a Job that times
+  out can leave the build running on the server (see the cancel rule in the
+  deploy review below). The new reducer rolls out after the Job, and pod
+  readiness checks the migration ledger, which holds the rollout until 337 is
+  recorded. The live tests bootstrap
   through the same migration path, and
   `TestHolderKeyRangeTokenIndexValidFromMigrationsLive` asserts the index is
   valid, ready, GIN and `array_ops`, and partial on the kind and live rows.
@@ -249,13 +252,25 @@ holds back the vacuum horizon.
 - The build's actual duration and reads, from `pg_stat_progress_create_index`
   during the build and the Job log after it.
 - Cancel rule. At the hard stop, or if replication lag or the vacuum horizon
-  passes the review's stated limit, cancel the Job. Then confirm
-  `indisvalid = false` for `fact_records_sci_foreign_member_tokens_v4_idx`.
-  The next schema apply drops the invalid index by name before it rebuilds
+  passes the review's stated limit, cancel the build on the server. Killing
+  the Job pod does not do that: the bootstrap client runs with a background
+  context, so the backend keeps building while it holds the schema advisory
+  lock (see `docs/public/deployment/service-runtimes-bootstrap.md`).
+  `indisvalid` also reads false for the whole build, so it does not show
+  that the build stopped. Take the backend pid from
+  `pg_stat_progress_create_index`, run `pg_cancel_backend(pid)`, then confirm
+  the backend is gone and `indisvalid = false` for
+  `fact_records_sci_foreign_member_tokens_v4_idx`. The next schema apply drops
+  the invalid index by name before it rebuilds
   (`concurrentIndexNamesForInvalidCleanup`). To leave it absent until a new
   window opens, drop it with `DROP INDEX CONCURRENTLY IF EXISTS
-  fact_records_sci_foreign_member_tokens_v4_idx`. The new reducer must not
-  roll out until the index is valid.
+  fact_records_sci_foreign_member_tokens_v4_idx` after the cancel. The new
+  reducer must not roll out until the index is valid.
+- Job deadline. The build is expected to run near three hours, and the
+  schema Job's `activeDeadlineSeconds` bounds the client only (the QA overlay
+  sets 3600). Raise `schemaBootstrap.activeDeadlineSeconds` for the window, or
+  expect the Job to report failure at the deadline while the build keeps
+  running, and expect a later sync to record 337 once it finishes.
 - Benefit. From `pg_stat_statements`, take calls, mean and total time of the
   old holders and member query ids before the deploy. After it, take the same
   figures for the new three-arm key-range query ids.
