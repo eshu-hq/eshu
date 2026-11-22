@@ -161,6 +161,15 @@ impact the upper bound is large, the family is leaving the table, and the identi
 unmeasured. The result does not depend on the index profile: the retained five-index and the
 153-index results have the same structure.
 
+The unfenced writers (single-row upserts and the search document writer) are left unguarded.
+Adding "at least the fencing guard" to them would do nothing: they never write `fencing_token`,
+so their rows sit at the default 0 and `fencing_token <= EXCLUDED.fencing_token` is always true.
+Fencing is a per-family contract that needs a stale-lease overtake shape, with two workers that
+saw different evidence, and this measurement shows none for these families; that question is
+outside #11221 and they are not ruled safe. If a content guard is ever built it first needs
+proof that no reader depends on `observed_at` or `ingested_at` being refreshed (an index pages
+by `observed_at`), and the measure-first gate.
+
 What would change it (a bigger or different measurement, not more code; these are reopen
 triggers, not open work):
 
