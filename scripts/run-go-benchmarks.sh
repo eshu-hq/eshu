@@ -106,7 +106,7 @@ printf 'run-go-benchmarks: bench=%s benchtime=%s count=%s packages=%d -> %s\n' \
 # on) a live database. Clear them for the subprocess so the run is hermetic
 # regardless of the ambient environment. Keep this list in sync with the env
 # vars that benchmark _test.go files read to gate backend access.
-backend_dsn_vars=(ESHU_POSTGRES_DSN ESHU_REDUCER_CLAIM_BENCH_DSN)
+backend_dsn_vars=(ESHU_POSTGRES_DSN ESHU_REDUCER_CLAIM_BENCH_DSN ESHU_GOVERNANCE_AUDIT_BENCH_DSN)
 env_unset=()
 for v in "${backend_dsn_vars[@]}"; do
 	env_unset+=(-u "${v}") # -u is portable across GNU and BSD env; --unset is GNU-only

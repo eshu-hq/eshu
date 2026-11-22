@@ -114,14 +114,22 @@ else
 	check "producer lists discovered benchmark packages and exits 0 with BENCH_LIST_ONLY=1" 1
 fi
 for known in ./internal/facts ./internal/storage/postgres ./internal/storage/postgres/governance/audit; do
-	rg -q -x -F -- "${known}" "${list_out}"; check "auto-discovery lists the benchmark package ${known}" $?
+	if rg -q -x -F -- "${known}" "${list_out}"; then
+		check "auto-discovery lists the benchmark package ${known}" 0
+	else
+		check "auto-discovery lists the benchmark package ${known}" 1
+	fi
 done
 # Every line is a ./-prefixed package directory: no go test output, no stray text.
 if [[ -s "${list_out}" ]] && rg -q -v '^\./[A-Za-z0-9_./-]+$' "${list_out}"; then
 	note "FAIL: auto-discovery output has a line that is not a ./package path"
 	fail=1
 fi
-[[ -s "${list_out}" ]]; check "auto-discovery lists at least one package" $?
+if [[ -s "${list_out}" ]]; then
+	check "auto-discovery lists at least one package" 0
+else
+	check "auto-discovery lists at least one package" 1
+fi
 
 # Hermeticity under a hostile environment: export a bogus backend DSN and confirm
 # the postgres benchmark still self-skips (exit 0) instead of dialing it. If the
