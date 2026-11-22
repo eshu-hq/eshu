@@ -16,3 +16,30 @@ data is synthetic. Run it against a disposable `postgres:18` that
 | `candidate_list_read_delta.sql` | The three fragments that turn the legacy list CTE into the supports read. |
 | `census.sql` | Supports per key, duplicate (key, scope) pairs, per-field divergence. |
 | `write_cost.sql`, `supports_wc_insert.sql` | WAL measurement of the supports writes (run `psql -f write_cost.sql` from this directory). |
+
+## Re-running the Go harness
+
+The harness is not committed. It lives untracked in the proof worktree as
+`go/internal/query/supply/chain/impact/zz_b1_*_scratch_test.go` and
+`go/cmd/zz-scratch-b1/main.go`. It needs a Postgres 18 and these steps:
+
+1. Start a private `postgres:18` (`shared_buffers=2GB`, `work_mem=16MB`,
+   `jit=off`, `track_io_timing=on`). Bootstrap two databases with
+   `go run ./cmd/zz-scratch-b1 "<admin dsn>" seed scale`.
+2. Seed: `B1_SEED_DSN=<seed dsn> go test ./internal/query/supply/chain/impact
+   -run TestZZB1SeedScratch` (runs `seedMultiSupportCorpus` and
+   `RebuildAllWinners`), then `same_scope_collision.sql`.
+3. Scale: `gen_scale_corpus.sql`, `scale_profile_divergence_patch.sql`, then
+   rerun `TestZZB1SeedScratch` with `B1_SKIP_SEED=1` against the scale DSN to
+   rebuild the winners.
+4. In both databases apply `supports_ddl.sql`, `supports_backfill.sql`,
+   `supports_indexes.sql` (the proof's final index set uses
+   `(scope_id, generation_id)` in place of `(scope_id)`).
+5. Tests read `B1_DSN`: `TestZZB1Equality` (`B1_CORPUS=seed|scale`,
+   `B1_IMAGE_REF` for the scaled image filter), `TestZZB1Explain` (`B1_OUT`
+   prefix for results, `B1_ONLY` to pick scenarios, `B1_SKIP_LEGACY`),
+   `TestZZB1Latency`, `TestZZB1Cold` (`B1_COLD=s80|r20|comp`, `B1_READ`),
+   `TestZZB1Concurrency` (`B1_POPULATE_SQL` = `supports_backfill.sql`).
+6. Read-shape switches: `B1_LATERAL=1` (indexed operator probe) and
+   `B1_GRANTLEG=1` (grant legs, granted cases only). The final shape is both.
+   Run one heavy job at a time; the scaled equality run takes about six minutes.
