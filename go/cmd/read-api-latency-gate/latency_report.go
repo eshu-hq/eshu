@@ -41,9 +41,9 @@ type LatencyReportSeedOptions struct {
 // chain impact read model the leg measured (issue #11170): false is the
 // legacy read-time dedup, true the maintained winners table. InfraBackfill
 // names who recorded the infra read model marker the infra routes were
-// measured behind: always "gate_stand_in" today, because the gate starts no
-// reducer (which owns the backfill since #11210) and runs the same product
-// Backfiller itself; dropping that is #11226.
+// measured behind: always "gate_stand_in", a permanent stand-in (#11226): a real
+// reducer cannot run on the seeded corpus, so the seed runs the same product
+// Backfiller the reducer's RunBackground wraps.
 type LatencyReportIdentity struct {
 	Backend                 string                   `json:"backend"`
 	EshuCommit              string                   `json:"eshu_commit,omitempty"`

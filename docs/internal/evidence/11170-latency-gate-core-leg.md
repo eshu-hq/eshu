@@ -190,14 +190,17 @@ is sound. The corpus grew: the 20,000 seeded finding facts put about 25 facts in
 every scope. The route stays unnamed and moves the default row through the
 formula, from 33 to 108 blocks.
 
-## The stand-in is temporary
+## The stand-in is permanent
 
-#11196 (reducer-owned infra backfill) is merged on `origin/main` as #11210. The
-gate starts no reducer (it runs the core, the satellite and the MCP server, all
-built from the worktree), so it cannot exercise the reducer-owned path. The
-stand-in stays and stays labelled `gate_stand_in` until the gate starts the
-reducer, asserts that the reducer records the marker, and drops the stand-in:
-that is #11226.
+#11196 (reducer-owned infra backfill) is merged on `origin/main` as #11210. The gate
+starts no reducer and records the marker itself, labelled
+`infra_backfill: gate_stand_in`. A throwaway run showed a real reducer cannot run on
+the gate's seeded corpus (it set 7,680 seeded work items to `superseded`, ran the
+config-artifact walker, and polled Postgres at about 45 statements per second), so
+the stand-in is permanent and shares the product's `inventory.NewBackfiller`
+constructor (#11226). The run, its commands and environment, the before and after
+corpus snapshot, and why the other options were rejected are in
+`11226-latency-gate-infra-backfill-stand-in.md`.
 
 ## Rows the ratchet refused against the committed legacy table
 
