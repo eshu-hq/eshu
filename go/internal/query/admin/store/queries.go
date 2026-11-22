@@ -35,9 +35,10 @@ const lockSelectedWorkItemsCTE = `), locked AS (
 // buildMutatingWorkItemsQuery renders a bounded select-then-update over
 // terminal work items. fenceSupersededProjector adds the #7130 fence; the
 // replay sets it and the dead-letter mutation does not. returnPriorFailure
-// appends the selection-time failure_class to RETURNING so the replay can
-// record what a row had failed with (#7387) even though its update clears the
-// class; the shared work columns still carry post-update truth.
+// appends the selection-time failure_class and admission_wait_attempts to
+// RETURNING so the replay can record what a row had failed with (#7387) and
+// how many admission waits it had spent (#11182) even though its update
+// clears both; the shared work columns still carry post-update truth.
 //
 // The selected CTE picks the rows (newest first, LIMIT) without locking them.
 // The locked CTE then locks the selected rows that are still terminal in
@@ -59,7 +60,7 @@ func buildMutatingWorkItemsQuery(
 	var builder strings.Builder
 	builder.WriteString(`
 WITH selected AS (
-    SELECT work_item_id, failure_class
+    SELECT work_item_id, failure_class, admission_wait_attempts AS prior_admission_wait_attempts
     FROM fact_work_items
     WHERE status IN ('dead_letter', 'failed')
 `)
@@ -113,6 +114,7 @@ WITH selected AS (
         work.domain,
         work.status,
         work.attempt_count,
+        work.replay_attempt_baseline,
         work.lease_owner,
         work.failure_class,
         work.failure_message,
@@ -126,6 +128,9 @@ WITH selected AS (
 		// class before the update (#7387); carry it as a trailing column so
 		// the shared prefix keeps its scan shape for scanWorkItems callers.
 		builder.WriteString(",\n        selected.failure_class AS replayed_failure_class")
+		// The replay resets admission_wait_attempts (#11182), so the event
+		// reads the selection-time count the same way.
+		builder.WriteString(",\n        selected.prior_admission_wait_attempts")
 	}
 	builder.WriteString(`
 )

@@ -28,3 +28,20 @@ func TestRefinalizeResetsAdmissionCounterWithAttemptCount(t *testing.T) {
 		}
 	}
 }
+
+// TestRefinalizeResetsReplayBaselineWithAttemptCount pins decision 5 of the
+// #11182 ruling on the refinalize re-enqueue: it lowers attempt_count to 0,
+// so it lowers replay_attempt_baseline with it. A kept baseline would make
+// attempt_count - admission_wait_attempts - replay_attempt_baseline negative
+// and give the row more than MaxAttempts projection retries.
+func TestRefinalizeResetsReplayBaselineWithAttemptCount(t *testing.T) {
+	t.Parallel()
+
+	_, update, ok := strings.Cut(refinalizeScopeProjectionsQuery, "ON CONFLICT")
+	if !ok {
+		t.Fatalf("refinalize query has no ON CONFLICT branch:\n%s", refinalizeScopeProjectionsQuery)
+	}
+	if !strings.Contains(update, "attempt_count = 0,") || !strings.Contains(update, "replay_attempt_baseline = 0,") {
+		t.Fatalf("refinalize upsert must reset replay_attempt_baseline with attempt_count:\n%s", update)
+	}
+}

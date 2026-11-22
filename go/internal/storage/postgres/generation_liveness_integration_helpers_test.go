@@ -82,6 +82,9 @@ CREATE TABLE fact_work_items (
     -- migration 325 (#10671): the admission-wait counter Fail retries
     -- against instead of the shared projection attempt budget.
     admission_wait_attempts BIGINT NOT NULL DEFAULT 0,
+    -- migration 334 (#11182): the replay baseline Fail subtracts from the
+    -- projection attempt budget.
+    replay_attempt_baseline BIGINT NOT NULL DEFAULT 0,
     lease_owner     TEXT NULL,
     claim_until     TIMESTAMPTZ NULL,
     visible_at      TIMESTAMPTZ NULL,

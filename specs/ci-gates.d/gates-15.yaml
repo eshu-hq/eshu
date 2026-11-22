@@ -484,6 +484,13 @@ gates:
       - "scripts/lib/test-pre-push-registry-drift-cases.sh"
       - "scripts/lib/test-pre-push-merge-fake-go.sh"
       - "scripts/lib/pre-push-merge.sh"
+      - "scripts/lib/gate-timing.sh"
+      - "scripts/dev/gate-timing.py"
+      - "scripts/test-gate-timing.py"
+      - "scripts/lib/test-pre-push-timing-cases.sh"
+      - "scripts/lib/test-pre-pr-timing-cases.sh"
+      - "scripts/lib/pre-push-test-dedupe.sh"
+      - "scripts/lib/test-pre-push-single-test-cases.sh"
       - "scripts/test-no-prepr-stamp-references.sh"
       - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"
@@ -557,6 +564,13 @@ gates:
       - "scripts/lib/test-pre-push-registry-drift-cases.sh"
       - "scripts/lib/test-pre-push-merge-fake-go.sh"
       - "scripts/lib/pre-push-merge.sh"
+      - "scripts/lib/gate-timing.sh"
+      - "scripts/dev/gate-timing.py"
+      - "scripts/test-gate-timing.py"
+      - "scripts/lib/test-pre-push-timing-cases.sh"
+      - "scripts/lib/test-pre-pr-timing-cases.sh"
+      - "scripts/lib/pre-push-test-dedupe.sh"
+      - "scripts/lib/test-pre-push-single-test-cases.sh"
       - "scripts/test-no-prepr-stamp-references.sh"
       - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"
@@ -599,7 +613,7 @@ gates:
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
       pre_push: floor
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-pre-push.sh && bash scripts/test-go-toolchain.sh && bash scripts/test-no-prepr-stamp-references.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-regen-conflicts.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-pre-push.sh && bash scripts/test-go-toolchain.sh && bash scripts/test-no-prepr-stamp-references.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-regen-conflicts.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && python3 scripts/test-gate-timing.py && (cd go && go test ./internal/cigates -count=1)"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"

@@ -95,6 +95,15 @@ before touching any file in this directory.
   and before the database closes (`TestRunWiresTheSecretLinesRepairIntoTheShutdownOrder`). The Repairer's Conner
   must be that pool; `TestRunGivesTheRepairerItsDedicatedLockPool` fails on the
   shared `db`.
+- **The reducer owns the infra read model backfill (#11196)** — `buildReducerService`
+  assigns `infraInventoryBackfillRunnerFor` (`infra_inventory_backfill_wiring.go`)
+  to `Service.InfraInventoryBackfillRunner`, which `inventory.RunBackground`
+  serves until `infra_resource_entities_v2` exists. Nothing else runs it: the
+  API and MCP paths were removed (a012da4557). It has no disable switch and
+  must stay concurrent-safe, because every replica runs it. Do not hold more
+  than the per-repository derive lock inside a backfill transaction, and do not
+  let the runner return an error on context cancel: `Service.Run` cancels every
+  component when one side runner errors.
 - **Prior-config depth defaults to 10; invalid input WARNs and falls back** —
   `PriorConfigDepth` is set from `parsePriorConfigDepth` in
   `buildReducerDriftHandlers` (`wiring_handlers.go`).

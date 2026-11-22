@@ -381,6 +381,22 @@ type SupplyChainImpactWinnersStagedAuditSnapshot struct {
 	LastMaxBatch     time.Duration
 	LastStagedFacts  int64
 	LastDistinctKeys int64
+
+	// The range sweep (#11131): cumulative range counters since process
+	// start, the last committed range, and the persisted sweep row as last
+	// seen (SweepSeen false before the first read).
+	Ranges, RangeRetries                                    int64
+	LockedRanges                                            int64
+	RangeFacts, RangeCandidates, RangePending, RangeRepairs int64
+	RangeDiscards                                           int64
+	LastRange                                               time.Duration
+	LastRangeFacts, LastRangeBudget                         int64
+	SweepSeen                                               bool
+	SweepID, SweepRangesDone                                int64
+	LastSweepCompletedAt                                    time.Time
+	LastSweepSeconds                                        float64
+	LastSweepRanges, LastSweepFacts, LastSweepCandidates    int64
+	LastSweepRepairs, LastSweepDiscards                     int64
 }
 
 // SupplyChainImpactWinnersStagedAuditSource is the staged audit recorder the
@@ -391,7 +407,10 @@ type SupplyChainImpactWinnersStagedAuditSource interface {
 
 // supplyChainImpactWinnersStagedAuditReasons is the closed deferral reason
 // set of the staged audit (internal/runtime/postgres StagedAuditDefer*).
-var supplyChainImpactWinnersStagedAuditReasons = []string{"budget", "conflict_exhausted", "batch_abort"}
+var supplyChainImpactWinnersStagedAuditReasons = []string{
+	"budget", "conflict_exhausted", "batch_abort",
+	"timeout", "null_key", "pipe", "lock_busy", "cursor_race", "keyed_yield",
+}
 
 // RegisterSupplyChainImpactWinnersStagedAuditInstruments registers the staged
 // audit's exported instruments over src (#11117 arbiter addendum item 5b),
@@ -415,7 +434,7 @@ func RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter metric.Meter, 
 	}
 	deferrals, err := meter.Int64ObservableCounter(
 		"eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total",
-		metric.WithDescription("Deferred supply-chain impact winners staged-audit ticks by reason (budget, conflict_exhausted, batch_abort). A deferred tick read the standby only and verified nothing; a steady rate means the backstop is not completing."),
+		metric.WithDescription("Deferred supply-chain impact winners staged-audit ranges by reason (budget, conflict_exhausted, batch_abort, timeout, null_key, pipe, lock_busy, cursor_race). A deferred range committed nothing; a steady rate means the sweep is not advancing."),
 	)
 	if err != nil {
 		return fmt.Errorf("register staged audit deferrals counter: %w", err)
@@ -473,5 +492,5 @@ func RegisterSupplyChainImpactWinnersStagedAuditInstruments(meter metric.Meter, 
 	if err != nil {
 		return fmt.Errorf("register staged audit callback: %w", err)
 	}
-	return nil
+	return registerSupplyChainImpactWinnersAuditSweepInstruments(meter, src)
 }

@@ -1540,6 +1540,9 @@ type Instruments struct {
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
+	// SupplyChainImpactWinnersAuditRangeDuration records one staged audit
+	// sweep range's wall time by outcome (#11131).
+	SupplyChainImpactWinnersAuditRangeDuration metric.Float64Histogram
 	// SupplyChainImpactStaleCopyRepairs counts the retraction-state flips a
 	// supply_chain_impact pass wrote against its stored baseline (#10765),
 	// labeled transition (active_to_retracted, retracted_to_active). The scope
@@ -3761,6 +3764,11 @@ type Instruments struct {
 	// InfraSearchKeyUnkeyedNodes is the count of unkeyed infra nodes that hold
 	// a searched field at the last successful readiness probe (#7245).
 	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
+	// FactIDScopeConflicts counts facts the streaming fact save found with a
+	// fact_id held by another scope or generation (#11203), by reason (scope,
+	// generation), before it refuses the generation. Registered by
+	// registerFactIDOwnerConflictInstruments.
+	FactIDScopeConflicts metric.Int64Counter
 	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.
@@ -7205,6 +7213,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerOwnGateWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerFactIDOwnerConflictInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerReducerWaitingInstruments(meter, inst); err != nil {

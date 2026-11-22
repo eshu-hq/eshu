@@ -14,6 +14,11 @@ import (
 )
 
 // upsertFactBatch inserts one batch of facts using a multi-row INSERT query.
+//
+// It has no RETURNING, so the factOwnerGuardClause (#11203) protects an owner
+// row here but cannot report a skipped foreign write. It has no production
+// caller (TestUpsertFactBatchHasNoProductionCaller pins that); a caller that
+// needs the report uses upsertFactBatchClassified, as upsertStreamingFacts does.
 func upsertFactBatch(ctx context.Context, database db.ExecQueryer, batch []facts.Envelope) error {
 	if len(batch) == 0 {
 		return nil
@@ -59,18 +64,39 @@ func upsertFactBatchReturningAccepted(
 	database db.ExecQueryer,
 	batch []facts.Envelope,
 ) (map[string]struct{}, error) {
+	accepted, conflicts, err := upsertFactBatchClassified(ctx, database, batch)
+	if err != nil {
+		return nil, err
+	}
+	if len(conflicts) > 0 {
+		return nil, newFactIDOwnerConflictError(conflicts[0].IncomingScopeID, conflicts[0].IncomingGenerationID, conflicts)
+	}
+	return accepted, nil
+}
+
+// upsertFactBatchClassified is upsertFactBatchReturningAccepted that also
+// reports the batch's owner conflicts: facts whose fact_id is held by another
+// scope or generation, which the factOwnerGuardClause skipped (#11203). They
+// are excluded from the accepted set. Detection rides the statement that
+// already classifies RETURNING-absent rows, so it adds no round trip and runs
+// only when a row is absent from RETURNING, never for an all-accepted batch.
+func upsertFactBatchClassified(
+	ctx context.Context,
+	database db.ExecQueryer,
+	batch []facts.Envelope,
+) (map[string]struct{}, []factIDOwnerConflict, error) {
 	if len(batch) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	query, args, err := buildUpsertFactBatchQuery(upsertFactBatchSuffixReturningFactID, batch)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("upsert fact batch returning accepted (%d facts): %w", len(batch), err)
+		return nil, nil, fmt.Errorf("upsert fact batch returning accepted (%d facts): %w", len(batch), err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -78,15 +104,15 @@ func upsertFactBatchReturningAccepted(
 	for rows.Next() {
 		var factID string
 		if err := rows.Scan(&factID); err != nil {
-			return nil, fmt.Errorf("scan accepted fact_id: %w", err)
+			return nil, nil, fmt.Errorf("scan accepted fact_id: %w", err)
 		}
 		accepted[factID] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("upsert fact batch returning accepted rows: %w", err)
+		return nil, nil, fmt.Errorf("upsert fact batch returning accepted rows: %w", err)
 	}
 	if len(accepted) == len(batch) {
-		return accepted, nil
+		return accepted, nil, nil
 	}
 
 	// The guard makes RETURNING-absence ambiguous: a missing fact_id was
@@ -106,15 +132,19 @@ func upsertFactBatchReturningAccepted(
 		seen[envelope.FactID] = struct{}{}
 		missing = append(missing, envelope)
 	}
-	unchanged, err := selectUnchangedFactIDs(ctx, database, missing)
+	// One statement splits the RETURNING-absent ids three ways: unchanged
+	// (admitted so an identical replay still feeds afterBatch), held by another
+	// scope or generation (the owner guard skipped them; reported, never
+	// admitted), and fenced out (excluded).
+	split, err := selectUnchangedFactIDs(ctx, database, missing)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	for factID := range unchanged {
+	for factID := range split.Unchanged {
 		accepted[factID] = struct{}{}
 	}
 
-	return accepted, nil
+	return accepted, split.Conflicts, nil
 }
 
 // buildUpsertFactBatchQuery renders the shared multi-row INSERT values list
@@ -182,6 +212,23 @@ const upsertFactBatchPrefix = `INSERT INTO fact_records (
     observed_at, ingested_at, is_tombstone, payload
 ) VALUES `
 
+// factOwnerGuardClause is the #11203 owner guard inside upsertFactBatchSuffix's
+// conflict WHERE. fact_records is keyed on fact_id alone and the DO UPDATE SET
+// list never changes scope_id or generation_id, so without this clause a write
+// from another scope or generation passed the fencing and unchanged guards and
+// replaced the owner row's payload while the row kept the owner's identity. With
+// it, a row held by another scope or generation is skipped: it is absent from
+// RETURNING and upsertFactBatchReturningAccepted reports it as an owner
+// conflict instead of admitting it. It compares the two NOT NULL key columns on
+// the row the conflict probe already fetched, so it adds no index or lookup.
+// Kept a separate constant so the cost benchmark can derive the pre-#11203
+// statement from the shipped one instead of hand-copying it.
+const (
+	factOwnerGuardClauseScopeLeg      = "\n  AND fact_records.scope_id = EXCLUDED.scope_id"
+	factOwnerGuardClauseGenerationLeg = "\n  AND fact_records.generation_id = EXCLUDED.generation_id"
+	factOwnerGuardClause              = factOwnerGuardClauseScopeLeg + factOwnerGuardClauseGenerationLeg
+)
+
 const upsertFactBatchSuffix = `
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind = EXCLUDED.fact_kind,
@@ -198,7 +245,7 @@ ON CONFLICT (fact_id) DO UPDATE SET
     ingested_at = EXCLUDED.ingested_at,
     is_tombstone = EXCLUDED.is_tombstone,
     payload = EXCLUDED.payload
-WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
+WHERE fact_records.fencing_token <= EXCLUDED.fencing_token` + factOwnerGuardClause + `
   AND (
     fact_records.fact_kind IS DISTINCT FROM EXCLUDED.fact_kind
     OR fact_records.stable_fact_key IS DISTINCT FROM EXCLUDED.stable_fact_key
@@ -297,9 +344,12 @@ func upsertStreamingFacts(
 
 		if len(batch) >= factBatchSize {
 			batch = deduplicateEnvelopes(batch)
-			accepted, err := upsertFactBatchReturningAccepted(ctx, database, batch)
+			accepted, conflicts, err := upsertFactBatchClassified(ctx, database, batch)
 			if err != nil {
 				return stats, err
+			}
+			if len(conflicts) > 0 {
+				return stats, newFactIDOwnerConflictError(scopeID, generationID, conflicts)
 			}
 			stats.Rows += len(batch)
 			stats.Batches++
@@ -318,9 +368,12 @@ func upsertStreamingFacts(
 	// Flush remaining
 	if len(batch) > 0 {
 		batch = deduplicateEnvelopes(batch)
-		accepted, err := upsertFactBatchReturningAccepted(ctx, database, batch)
+		accepted, conflicts, err := upsertFactBatchClassified(ctx, database, batch)
 		if err != nil {
 			return stats, err
+		}
+		if len(conflicts) > 0 {
+			return stats, newFactIDOwnerConflictError(scopeID, generationID, conflicts)
 		}
 		stats.Rows += len(batch)
 		stats.Batches++

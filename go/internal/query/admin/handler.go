@@ -90,17 +90,22 @@ type Store interface {
 
 // WorkItem is an admin-friendly view of a fact_work_items row.
 type WorkItem struct {
-	WorkItemID     string  `json:"work_item_id"`
-	ScopeID        string  `json:"scope_id"`
-	GenerationID   string  `json:"generation_id"`
-	Stage          string  `json:"stage"`
-	Domain         string  `json:"domain"`
-	Status         string  `json:"status"`
-	AttemptCount   int     `json:"attempt_count"`
-	LeaseOwner     *string `json:"lease_owner"`
-	FailureClass   *string `json:"failure_class"`
-	FailureMessage *string `json:"failure_message"`
-	OperatorNote   *string `json:"operator_note"`
+	WorkItemID   string `json:"work_item_id"`
+	ScopeID      string `json:"scope_id"`
+	GenerationID string `json:"generation_id"`
+	Stage        string `json:"stage"`
+	Domain       string `json:"domain"`
+	Status       string `json:"status"`
+	AttemptCount int    `json:"attempt_count"`
+	// ReplayAttemptBaseline is the attempt_count a projector row had when an
+	// operator replay last moved it back to pending, or 0 when it was never
+	// replayed (#11182). The projection retry budget counts claims after it:
+	// attempt_count - admission_wait_attempts - replay_attempt_baseline.
+	ReplayAttemptBaseline int     `json:"replay_attempt_baseline"`
+	LeaseOwner            *string `json:"lease_owner"`
+	FailureClass          *string `json:"failure_class"`
+	FailureMessage        *string `json:"failure_message"`
+	OperatorNote          *string `json:"operator_note"`
 	// PriorFailure is the failure the row carried before a supersede, a
 	// stale-scope reclaim or an operator note rewrote its failure evidence
 	// (#7320, #7388, #7385). Nil when
@@ -181,6 +186,12 @@ type ReplayEvent struct {
 	FailureClass  *string   `json:"failure_class"`
 	OperatorNote  *string   `json:"operator_note"`
 	CreatedAt     time.Time `json:"created_at"`
+	// ReplayAttemptBaseline is the baseline the replay set on a projector
+	// row, and PriorAdmissionWaitAttempts the admission waits the row had
+	// spent before the replay reset them (#11182). Both are nil for reducer
+	// rows and for events written before migration 334.
+	ReplayAttemptBaseline      *int64 `json:"replay_attempt_baseline"`
+	PriorAdmissionWaitAttempts *int64 `json:"prior_admission_wait_attempts"`
 }
 
 // BackfillRequest is an admin-friendly view of a fact_backfill_requests row.

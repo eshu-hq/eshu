@@ -17,7 +17,10 @@ This package owns failure-cause reconciliation (`QueueFailureMetadata`,
 `DeadLetterTriageMetadata`) and retry-delay computation
 (`ComputeRetryDelay`, `DefaultRetryMaxDelayFallback`,
 `DefaultJitterSource`), plus the shared `reopened_at` value of the
-fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320). The parent
+fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320), and the
+replay retry-allowance SET fragment the three operator replay paths and the
+poison-liveness sweep carry (`ReplayRetryAllowanceAssignments`, #11182,
+#11217). The parent
 `postgres` package owns the queue types
 that call these helpers, the claim/fail/ack SQL, and the lease fencing.
 `internal/projector/failure` owns the operator-facing triage classification
@@ -36,6 +39,12 @@ this package's dead-letter path defers to.
   `ON CONFLICT (work_item_id) DO UPDATE` that re-drives a fact work item to
   pending; stamps `EXCLUDED.updated_at` only when the conflicting row had
   finished (#9320)
+- `ReplayRetryAllowanceAssignments` (const SQL text): the SET-list fragment of
+  the admin replay, the recovery replay, the bounded drain (#11182) and the
+  poison-liveness sweep (`storage/postgres/poison`, #11217). It sets a
+  projector row's `replay_attempt_baseline` to its kept `attempt_count` and
+  resets `admission_wait_attempts` to 0, so a replayed or recovered row gets a
+  new row's retries without lowering the claim fence
 
 See `doc.go` for the godoc contract.
 
@@ -57,6 +66,17 @@ them own the retry-surge counters and failure-class attributes.
   the target table and whose inserted `updated_at` is the writer's timestamp. Keep `pending`, `retrying`,
   `claimed`, and `running` on the keep branch: stamping an expired claim that
   a sweep re-drives would understate its age and hide a stall.
+- `ReplayRetryAllowanceAssignments` must never lower `attempt_count`: every
+  projector worker shares one lease owner, so `attempt_count` is the only
+  claim fence. Its column references are unqualified so it fits both the
+  aliased admin UPDATE and the recovery UPDATE; neither FROM list may expose a
+  column named `stage`, `attempt_count`, `replay_attempt_baseline`, or
+  `admission_wait_attempts`. Each carrier pairs the fragment with an
+  `attempt_count` raise to at least 1 on projector rows (a dead letter can be
+  at attempt 0). The lockstep tests read the four shipped SET lists
+  (`TestReplayUpdateClauseCarriesRetryAllowance`,
+  `TestRecoveryReplayTemplatesCarryRetryAllowance`,
+  `TestReplayAllowanceCarriersRaiseAttemptCount`).
 
 - `QueueFailureMetadata` and `DeadLetterTriageMetadata` never change a
   self-classifying error's own class or details; they only supply a
@@ -76,7 +96,8 @@ them own the retry-surge counters and failure-class attributes.
   only bounds loop iterations. Do not "simplify" the loop to
   `baseDelay*(1<<attempt)` — that overflows `time.Duration` and wraps
   negative.
-- Do not import the parent `postgres` package: that is an import cycle.
+- Do not import the parent `postgres` package or `storage/postgres/poison`:
+  both import this package, so either import is a cycle.
 
 No-Observability-Change: this move relocates `queueFailureMetadata`,
 `deadLetterTriageMetadata`, `computeRetryDelay`, `defaultRetryMaxDelayFallback`,

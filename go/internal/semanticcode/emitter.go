@@ -145,7 +145,7 @@ func (e *Emitter) Emit(ctx context.Context, span CodeSpanInput, hints []HintInpu
 			return nil, fmt.Errorf("encode semantic code hint: %w", err)
 		}
 		envelopes = append(envelopes, facts.Envelope{
-			FactID:           stableKey,
+			FactID:           semantic.ScopedFactID(semantic.SemanticCodeHintFactKind, stableKey, span.ScopeID, span.GenerationID),
 			ScopeID:          span.ScopeID,
 			GenerationID:     span.GenerationID,
 			FactKind:         semantic.SemanticCodeHintFactKind,

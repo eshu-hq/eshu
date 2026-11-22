@@ -4,6 +4,13 @@ name: Benchmarks
 # results as an artifact so per-function ns/op / B/op / allocs/op are visible
 # per change.
 #
+# The suite runs ONCE per workflow, in the bench-regression job below. Two jobs
+# used to run it, one at 200ms for the B-1 artifact and one at 100ms for
+# benchstat; both compiled and ran the same benchmarks, which cost about 23
+# extra job-minutes on every PR. The single run uses the baseline's 100ms
+# one-pass shape, so benchstat compares like with like, and it uploads that same
+# sample as the go-benchmark-current artifact, which is the B-1 artifact now.
+#
 # B-2 (#3795): the bench-regression job compares the current run against the
 # committed testdata/benchmarks/baseline.txt with benchstat and reports sec/op regressions
 # > 10%. It is advisory until the baseline is recaptured on this runner class by
@@ -90,53 +97,6 @@ jobs:
 
       - name: Run reducer perf gate contract mirror
         run: scripts/test-verify-reducer-perf-gate.sh
-
-  benchmarks:
-    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'benchmarks') }}
-    name: go benchmarks
-    needs: test-mirror
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-          # cache: false: setup-go would store the build cache a second time
-          # in the 10 GB store (#9462, #9648). Pre-warm below downloads the modules.
-          cache: false
-
-      - name: Install ripgrep
-        run: scripts/ci/install-apt-packages.sh ripgrep
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      # Pre-warm Go modules with retries so a dropped proxy stream fails
-      # HERE, named for what it is, instead of surfacing as a benchmark run
-      # that never compiled anything (#6615 follow-up to #6075).
-      - name: Pre-warm Go modules
-        run: scripts/ci/go-mod-download-retry.sh
-
-      - name: Run Go benchmarks (credential-free, no regression gate)
-        env:
-          BENCH_OUTPUT: ${{ github.workspace }}/bench-results.txt
-          # Stable signal without an unbounded CI run. B-2 (#3795) pins the
-          # benchtime/count used for the gated baseline comparison.
-          BENCH_TIME: 200ms
-          BENCH_COUNT: 1
-        run: scripts/run-go-benchmarks.sh
-
-      - name: Upload benchmark results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-benchmark-results
-          path: bench-results.txt
-          if-no-files-found: error
 
   bench-regression:
     if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'bench-regression') }}

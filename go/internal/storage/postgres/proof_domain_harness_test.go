@@ -457,6 +457,9 @@ func (database *proofDomainDB) claimProjectorWork(
 			generationRow.GenerationID,
 			item.attemptCount,
 			item.admissionWaitAttempts,
+			// replay_attempt_baseline (#11182): this harness never replays
+			// a projector row, so the baseline stays at its default 0.
+			0,
 			generationRow.ObservedAt,
 			generationRow.IngestedAt,
 			string(generationRow.Status),

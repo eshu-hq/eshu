@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package stagedaudit assembles one staged stale-winners audit tick
-// (eshu-hq/eshu#10451): per-scope standby batches compacted client-side into
-// per-key winners, diffed against the stored table, resolved to verification
-// identifiers, and handed to the unchanged writer-side verification. It
-// implements the reducer core's auditor interface, so the maintainer needs no
-// changes: wiring constructs this auditor instead of the writer-backed store
-// when staged routing is enabled, and the tick still defers with no writer
-// contact whenever the standby refuses or a batch fails.
+// Package audit runs the staged stale-winners audit as a sweep of identifier
+// ranges over the keyed winners index (eshu-hq/eshu#11131, replacing the
+// whole-corpus tick of #10451). Each AuditWinners call runs one range: one
+// standby statement recomputes the range's winners and diffs them against the
+// stored winners in the same key interval, then one writer transaction
+// verifies the differing identifiers, queues the stale ones, and advances
+// the persisted cursor by compare-and-set. It implements the reducer core's
+// auditor interface; the maintainer runs ranges back to back while a pass
+// reports More, within its tick budget, renewing the audit lease per range.
+//
+// After a verify that took the resweep lock, the next range yields to the
+// keyed tick: it verifies without the lock and, if it needs the lock, rolls
+// back and waits for the winners watermark to move or one keyed interval to
+// pass before it verifies with the lock.
 package audit

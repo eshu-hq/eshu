@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	linksfreshnessstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/freshness/links"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -424,7 +425,7 @@ WITH skipped AS (
         failure_message = NULL,
         failure_details = NULL,
         updated_at = $1,
-        reopened_at = $1
+        reopened_at = $1, ` + queuestore.ReplayRetryAllowanceAssignments + `
     WHERE work_item_id = ANY(ARRAY(SELECT work_item_id FROM locked))
       AND status IN ('dead_letter', 'failed')
     RETURNING work_item_id
@@ -487,7 +488,7 @@ WITH skipped AS (
         failure_message = NULL,
         failure_details = NULL,
         updated_at = $1,
-        reopened_at = $1
+        reopened_at = $1, ` + queuestore.ReplayRetryAllowanceAssignments + `
     WHERE work_item_id IN (SELECT work_item_id FROM candidates)
     RETURNING work_item_id
 )
