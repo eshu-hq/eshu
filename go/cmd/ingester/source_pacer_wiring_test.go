@@ -3,7 +3,12 @@
 
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
 
 // TestIngesterSourcePacerIsOffUnlessConfigured pins #10882 F8's ingester
 // wiring: no pacer when the per-source leg is unconfigured or the local
@@ -30,5 +35,24 @@ func TestIngesterSourcePacerIsOffUnlessConfigured(t *testing.T) {
 	}
 	if pacer, err := ingesterSourcePacer(nil, envOf(lightweight), nil, nil); err != nil || pacer != nil {
 		t.Fatalf("ingesterSourcePacer(local lightweight) = (%v, %v), want (nil, nil)", pacer, err)
+	}
+}
+
+// TestIngesterServiceRefusesMalformedSourceBackpressure proves a malformed
+// per-source backpressure variable fails ingester startup with an error naming
+// the variable, through the whole service build, instead of starting with the
+// leg half-configured (#10882 decision 3).
+func TestIngesterServiceRefusesMalformedSourceBackpressure(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{"ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE": "not-a-duration"}
+	_, err := buildIngesterService(
+		postgres.SQLDB{}, &noopCanonicalWriter{}, mapGetenv(env),
+		func() (string, error) { return t.TempDir(), nil },
+		func() []string { return []string{"PATH=/usr/bin"} },
+		nil, nil, nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE") {
+		t.Fatalf("buildIngesterService() error = %v, want one naming ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE", err)
 	}
 }

@@ -28,7 +28,7 @@ backpressure. Every pointer below was read in full for this ruling.
 
 ### The 10,000 high-water mark (#10630) is one global ceiling, ingester-only
 
-`go/cmd/ingester/reducer_admission.go` wraps the ingester's
+`go/internal/reduceradmission/reducer_admission.go` wraps the ingester's
 `ReducerIntentWriter`. Before each `Enqueue` it reads two signals from
 `QueueObserverStore` (`go/internal/storage/postgres/queue_observer.go`):
 
