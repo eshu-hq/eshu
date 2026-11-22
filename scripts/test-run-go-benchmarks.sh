@@ -60,7 +60,14 @@ rg -q "ESHU_POSTGRES_DSN" "${producer}"; check "producer names ESHU_POSTGRES_DSN
 
 # --- Static contract: workflow ------------------------------------------------
 [[ -f "${workflow}" ]]; check "bench.yml workflow exists" $?
-rg -q "scripts/run-go-benchmarks.sh" "${workflow}"; check "workflow invokes the producer" $?
+# The suite runs once per workflow. Two jobs used to run it, `go benchmarks` at
+# 200ms for the artifact and `bench regression` at 100ms for benchstat, so every
+# pull request compiled and ran the same benchmarks twice. The one remaining run
+# is the regression gate: it reaches the producer itself and uploads its sample.
+producer_runs="$(rg -c 'run: scripts/(run-go-benchmarks|verify-bench-regression)\.sh' "${workflow}" || true)"
+[[ "${producer_runs}" == "1" ]]; check "workflow runs the benchmark suite exactly once (found ${producer_runs:-0})" $?
+rg -q "run-go-benchmarks.sh" "${repo_root}/scripts/verify-bench-regression.sh"; check "the single run reaches the producer through the regression gate" $?
+rg -q "name: go-benchmark-current" "${workflow}"; check "the benchmark sample is still uploaded as an artifact" $?
 rg -q "scripts/test-run-go-benchmarks.sh" "${workflow}"; check "workflow runs this mirror" $?
 rg -q "upload-artifact@v4" "${workflow}"; check "workflow uploads results as an artifact" $?
 rg -q "pull_request" "${workflow}"; check "workflow triggers on pull_request" $?

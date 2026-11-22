@@ -21,11 +21,9 @@ workflows:
   - '!**/*.md'
   jobs:
   - bench-regression
-  - benchmarks
   - reducer-perf-gate
   - test-mirror
   job_names:
     bench-regression: bench regression (benchstat vs baseline)
-    benchmarks: go benchmarks
     reducer-perf-gate: reducer per-handler latency gate
     test-mirror: bench script contract
