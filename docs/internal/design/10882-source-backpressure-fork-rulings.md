@@ -57,10 +57,24 @@ long engagement settles at the retry cap.
 - Both RED before the change (compile failure on the missing contract), GREEN
   after.
 
-**Residual.** A paced item parks its projector worker for up to `MaxWait`
-per cycle. The claim pool's per-source in-flight rank
-(`projector_source_inflight_count`) keeps a healthy source from queuing
-behind it; the built-binary two-source replay below is what measures it.
+**Residual.** Two costs remain, both tracked in #11186 (F8):
+- *Repeated write cost.* The admission gate sits after the canonical and
+  content writes (`projector/runtime/projection.go`), and source-paced
+  retries are unbounded, so every paced cycle of an item repeats its fact
+  load, build, canonical graph write, and content write before the wait,
+  for as long as the latch holds. `Stuck` does not release it.
+- *All workers parked.* A paced item parks its projector worker for up to
+  `MaxWait` per cycle. The claim pool's per-source in-flight rank
+  (`projector_source_inflight_count`) steers a healthy source ahead of it,
+  but with at least as many paced items as projector workers every worker
+  can sit in a paced wait and a healthy source's claims queue behind them.
+
+The built-binary replay must measure both: graph and content writes for the
+slowed source during an engagement, and the healthy source's queue-wait
+p50/p95 with paced items at least equal to the worker count. The fix
+direction is a consult before the writes or before the claim, and a release of
+the claim on the source-paced path with `visible_at` at least `GrantDelay`
+out.
 
 ## Fork 2: multi-source families
 
@@ -118,11 +132,11 @@ not part of this PR.
 | AC | State | Evidence |
 | --- | --- | --- |
 | 1. Trace the existing limit | Done | Design record "Acceptance-criteria disposition" row 1: global total outstanding depth at the 10,000 mark plus the graph-write retrying marks (500/100), ingester intent enqueue only. |
-| 2. Decide the trigger | Done | Per-source oldest claimable age with a depth floor: `DecideSourceSlowed` (`go/internal/workflow/source_backpressure.go`), `TestDecideSourceSlowedEngagesOnAgeWithDepthFloor`, `TestDecideSourceSlowedHysteresis`. Thresholds stay Proposed and ship disabled. |
+| 2. Decide the trigger | Done | Per-source claimable age with a depth floor counted over aged rows (review F5): `DecideSourceSlowed` (`go/internal/workflow/source_backpressure.go`), `TestDecideSourceSlowedOneOldRowAmongFreshRowsDoesNotEngage`, `TestDecideSourceSlowedFloorOneReproducesAgeOnlyVerdicts`, `TestDecideSourceSlowedHysteresis`. Thresholds stay Proposed and ship disabled. |
 | 3. Slow hosted collectors via the coordinator, the ingester via its schedule | Done for in-repo paths; plane-held claims out of scope (fork 3) | `TestFairClaimDispatcherSourceBackpressureSkipsSlowedOnly`, `TestSourceBackpressureGrantDeferralDirectPath`, `TestReducerAdmissionSourceBehindDefersOnlySlowedSource`, `TestApplySelectionBackpressureStretchesWhileSlowed`. |
 | 4. A slowed source loses no facts and resumes | Unit and arithmetic proof done; built-binary replay owed | Fork 1 tests above; `TestFairClaimDispatcherSourceBackpressureDefersAndResumes`, `TestCheckSourceBackpressureForSourceReleasesAndResumes`. |
 | 5. Slowing one source leaves the others unchanged | Unit proof done; built-binary measurement owed | `TestCheckSourceBackpressureMixedFamilyStaysUnpaced`, `TestDecideSourceSlowedIsPerSource`, mixed-batch admission test. |
-| 6. Publish whether each source is slowed, and why | Done | `TestReadSourcePacingStatusPublishesLatchTruth`, `TestRenderStatusIncludesSourcePacing(Stuck)`, `TestOpenAPISourcePacingMatchesTheWireType`, `reason="source_behind"` on `eshu_dp_reducer_admission_deferrals_total`. |
+| 6. Publish whether each source is slowed, and why | Done, including the stored-summary path (review F7) | `TestCoordinatorSummaryStoresStuckWhenThresholdsAreConfigured`, `TestReadSourcePacingStatusPublishesLatchTruth`, `TestRenderStatusIncludesSourcePacing(Stuck)`, `TestOpenAPISourcePacingMatchesTheWireType`, `reason="source_behind"` on `eshu_dp_reducer_admission_deferrals_total`. |
 
 ## Still owed before the issue closes
 
@@ -132,11 +146,20 @@ not part of this PR.
   unpaced control; and for AC5: B's claim rate and queue-wait p50/p95 within
   baseline tolerance with workers busy on B. Merge may ship the leg
   disabled; closing the issue may not.
-- A live-Postgres run of `projector_queue_admission_budget_live_test.go`
-  against migration 331 (skipped without
-  `ESHU_PROJECTOR_ADMISSION_PROOF_DSN`).
+- Done 2026-11-22: the live-Postgres run of the admission budget and
+  source-paced tests against migration 333 passes (exit 0, private
+  `postgres:18`, `ESHU_PROJECTOR_ADMISSION_PROOF_DSN`), and the S0 cost and
+  bounded-equals-grouped runs pass after review F5 (see below).
 - Production-shape confirmation of the Proposed thresholds before any
   deployment enables the leg.
+- **#11186 (F8) and #11187 (F9) must close first.** F8: a paced item repeats
+  its projection writes and parks a worker (Residual above). F9: the
+  claimable signal counts rows the reducer cannot take now (conflict-fenced
+  siblings, readiness-blocked retrying rows), so a latch can stay engaged on
+  rows the paced intake would never clear. Both must close before the
+  built-binary replay is accepted, before #10882 closes, and before any
+  deployment sets the `ESHU_SOURCE_BACKPRESSURE_*` thresholds. This PR ships
+  the leg disabled and must not be read as closing AC4 or AC5.
 
 ## Review F5: aged-row floor, live S0 re-run (2026-11-22)
 

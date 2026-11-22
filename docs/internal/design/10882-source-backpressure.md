@@ -472,6 +472,11 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
 
 ## What stays unverified
 
+- #11186 (a paced item repeats its projection writes and parks a worker) and
+  #11187 (the latch can stay engaged on rows the reducer cannot take) must
+  close before the replay is accepted, before #10882 closes, and before any
+  deployment sets the thresholds ([fork rulings](10882-source-backpressure-fork-rulings.md)).
+
 - All thresholds (engage/release ages, depth floor, schedule
   multiplier, cache TTL) are Proposed. No live or replay measurement
   of the new signal exists yet; S0/S1 own that. Nothing in this record
