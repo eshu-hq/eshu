@@ -487,12 +487,11 @@ equality, payload-only rewrite, write-on-change counts),
 `TestFindingsWinnersPayloadParityLive` (byte-identical pages,
 scoped-token grants), and
 `TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
-(332-backfilled rows serve legacy-equal pages with no resweep) on
+(332-backfilled rows serve legacy-equal pages, no resweep) on
 disposable Postgres 18, plus the corrected 2,000-row shim against
-the path slice 2 actually replaced (resweep 92 ms; new path
-9.57 then 7.56 ms avg vs replaced 12.11 then 9.61 ms avg;
-1,136-byte average payload). Small-N local numbers; seeded-scale
-gate deferred to slice 3.
+the path slice 2 replaced (resweep 92 ms; new path 9.57 then 7.56 ms
+avg vs replaced 12.11 then 9.61 ms avg; 1,136-byte average payload).
+Small-N local numbers; seeded-scale gate deferred to slice 3.
 
 No-Observability-Change: slices 1–2 add no metric, span, log key,
 route, worker, or knob; existing resweep counts and
