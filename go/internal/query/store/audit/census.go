@@ -59,6 +59,7 @@ func KnownRelations(root string) (map[string]struct{}, error) {
 		if entry.IsDir() || strings.HasSuffix(path, "_test.go") || !isSchemaFile {
 			return nil
 		}
+		// #nosec G122 G304 -- path comes from walking root, the repository's storage/postgres tree that the audit test passes in; the walk is read-only and no caller supplies a path outside it
 		raw, err := os.ReadFile(path)
 		if err != nil {
 			return err
