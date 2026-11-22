@@ -138,6 +138,14 @@ printf '{"error":"unavailable"}' >"${work}/groups-503.json"
 [[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" rc_of lib_call require_grouped_inventory 503 service_id)" != 0 ]] || fail "a 200 where 503 is wanted must fail"
 [[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" rc_of lib_call require_grouped_inventory 200 service_id)" == 0 ]] || fail "a 200 with buckets where 200 is wanted must pass"
 [[ "$(STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" rc_of lib_call require_grouped_inventory 200 service_id)" != 0 ]] || fail "a 503 where 200 is wanted must fail"
+# A 200 call asks for the comprehensive profile; a 503 call sends none (the
+# default precise profile), so it can pin the interim default-profile 503.
+: >"${STUB_URL_LOG}"
+STUB_CODE=200 STUB_BODY_FILE="${work}/groups-ok.json" lib_call require_grouped_inventory 200 service_id >/dev/null 2>&1
+rg -qF 'inventory?group_by=service_id&profile=comprehensive' "${STUB_URL_LOG}" || fail "a 200 grouped call must send profile=comprehensive: $(cat "${STUB_URL_LOG}")"
+: >"${STUB_URL_LOG}"
+STUB_CODE=503 STUB_BODY_FILE="${work}/groups-503.json" lib_call require_grouped_inventory 503 service_id >/dev/null 2>&1
+rg -qF 'inventory?group_by=service_id' "${STUB_URL_LOG}" && ! rg -qF 'profile=' "${STUB_URL_LOG}" || fail "a 503 grouped call must send no profile: $(cat "${STUB_URL_LOG}")"
 [[ "$(STUB_CODE=200 STUB_BODY_FILE="${work}/groups-empty.json" rc_of lib_call require_grouped_inventory 200 service_id)" != 0 ]] || fail "a 200 with no buckets must fail the positive control"
 
 # winners_report_path: a leg report never merges into the legacy one.

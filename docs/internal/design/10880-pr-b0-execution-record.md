@@ -170,7 +170,13 @@ supports.
 - **B2:** profile served from supports and the profile guard removed; `image_ref`
   served from supports and its guard removed; the grouped-inventory 503 for both
   filters removed; scoped list, aggregates, grouped inventory, explain, and
-  advisory evidence move to supports.
+  advisory evidence move to supports. The fleet gate rollup read
+  (`supply_chain_impact_fleet_gate_9875_live_test.go`) returns to the default
+  profile and its default-profile 503 pin is deleted in the same change. Grouped
+  precise equals the count route on the multi-support seed, p2 included.
+- **B3 preconditions (added):** default-profile grouped inventory answers 200 from
+  supports, and `ErrGroupedInventoryFilterUnavailable` has no remaining return
+  site (`rg` over the module shows none).
 - **PR-C:** remove the legacy read, the gate, `ListFindingsProtectedQuery`, and
   the dead derived grant leg together.
 
@@ -180,7 +186,20 @@ Name plainly: with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, grouped inventory
 (`service_id`, `workload_id`, `environment`) answers `503` for the default
 profile and for `image_ref`. Before B0 it returned a `200` that could under-count.
 There is no CLI caller and no in-repo configuration turns the gate on; the 503 is
-interim and its removal is the B2 checklist item above.
+interim and its removal is the B2 checklist item above. Two in-repo callers send
+the default profile and so answer 503 gate-on until B2: the console's default
+precise view (`loadImpactInventory` always sends `profile: precise` by default;
+`filterHref` in `VulnerabilitiesByGroup.tsx` is only the link builder and omits
+it) and the MCP grouped call (it forwards `profile` verbatim, so a call without
+it is a default call). No console code changes in B0.
+
+The #9875 fleet acceptance gate reads its service rollup with
+`profile=comprehensive`, which binds an empty profile filter and so is exact on
+the winners, and pins the default-profile 503 in the same run, so B2 must flip it
+on purpose. Its priority-bucket read uses the aggregate store, which routes a
+precise profile to the legacy read, and is unchanged. The live shard first failed
+on this at a9a315edbf (`TestFleetAcceptanceGateKEVReachesServiceRollup9875Live`
+answered `503 service_absent`).
 
 ### What B0 does not do
 
