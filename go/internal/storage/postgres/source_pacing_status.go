@@ -25,13 +25,23 @@ func readSourcePacingStatus(
 	asOf time.Time,
 	config workflow.SourceBackpressureConfig,
 ) ([]collector.SourcePacingSnapshot, error) {
-	signals, err := readSourceClaimableSignals(ctx, queryer, asOf, config)
-	if err != nil {
-		return nil, fmt.Errorf("read source pacing signals: %w", err)
-	}
 	latches, err := readSourceBackpressureLatches(ctx, queryer)
 	if err != nil {
 		return nil, fmt.Errorf("read source pacing latches: %w", err)
+	}
+	// The grouped claimable scan is the expensive read (#10882 S0: 120 to 230
+	// ms at 10x replay scale), and publication only needs it when a source can
+	// be slowed or observed: the leg is configured on this process, or some
+	// latch is engaged (gating on config alone would hide an engaged latch on
+	// a process without the thresholds). Otherwise the status read costs the
+	// small latch read, which keeps a deployment that never enables the leg
+	// off the whole claimable backlog.
+	var signals []workflow.SourceQueueSignal
+	if config.Enabled() || anyLatchEngaged(latches) {
+		signals, err = readSourceClaimableSignals(ctx, queryer, asOf, config)
+		if err != nil {
+			return nil, fmt.Errorf("read source pacing signals: %w", err)
+		}
 	}
 	rows := make([]collector.SourcePacingSnapshot, 0, len(signals))
 	seen := make(map[string]bool, len(signals))
@@ -46,6 +56,16 @@ func readSourcePacingStatus(
 		}
 	}
 	return collector.CloneSourcePacing(rows), nil
+}
+
+// anyLatchEngaged reports whether any source's latch is engaged.
+func anyLatchEngaged(latches map[string]sourceLatchState) bool {
+	for _, latch := range latches {
+		if latch.engaged {
+			return true
+		}
+	}
+	return false
 }
 
 // sourcePacingSnapshot joins one claimable observation with its latch row

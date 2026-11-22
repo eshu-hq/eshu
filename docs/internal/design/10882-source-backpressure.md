@@ -421,15 +421,20 @@ No-Regression Evidence: the per-source leg ships disabled. With the
 zero `SourceBackpressureConfig` every consult returns before touching
 storage (`TestCheckSourceBackpressureDisabledReadsNothing`: 0 queries,
 0 latch writes), so baseline and after behavior on every existing claim,
-admission, selection, and status path are identical until an operator sets all
-`ESHU_SOURCE_BACKPRESSURE_*` thresholds. When enabled, the added cost per
+admission, and selection path are identical until an operator sets all
+`ESHU_SOURCE_BACKPRESSURE_*` thresholds. The status path adds exactly one
+small read while the leg is off: the `workflow_claim_pacing` latch read. The
+grouped claimable scan runs only when the leg is configured on the reading
+process or some latch is engaged (read the latches first, scan only then;
+gating on config alone would hide an engaged latch). When enabled, the added cost per
 consult is bounded: one bounded per-source claimable-signal read (S0
 verdict below; cacheable per source via
 `ESHU_SOURCE_BACKPRESSURE_SIGNAL_CACHE_TTL`), one read of the small
 `workflow_claim_pacing` latch rows, and latch writes only on transitions.
-The status snapshot gains the grouped signal read plus the latch read for
-publication (28 → 30 round trips,
-pinned in `TestReadStatusSnapshotEvaluatesActiveWorkOnce`, which also
+The status snapshot gains the latch read (28 → 29 round trips with the leg
+off and no engaged latch; 30 once the grouped scan runs), pinned in
+`TestReadStatusSnapshotEvaluatesActiveWorkOnce` and
+`TestReadSourcePacingStatusSkipsGroupedScanWhenNothingCanBeSlowed`, which also
 pins the materialized scope-state build at one evaluation). S0 measured 2026-11-21
 (local Postgres 18, disposable schema,
 `TestSourceBackpressureS0SignalCost`): grouped signal p50 25ms at

@@ -163,9 +163,11 @@ func TestReadStatusSnapshotEvaluatesActiveWorkOnce(t *testing.T) {
 	// terminal-failure read runs only when an enabled collector instance
 	// exists, and this fixture has none. #10389 adds the one stuck-partial
 	// scope read over the scope-sized pass-state table, bringing it to 28.
-	// #10882 adds the two source-pacing reads (grouped claimable signal over
-	// the bounded claimable backlog, plus the small latch table), to 30.
-	if got, want := len(queryer.queries), 30; got != want {
+	// #10882 adds the small source-pacing latch read, to 29. The grouped
+	// claimable scan runs only when the per-source leg is configured or a
+	// latch is engaged, and this fixture has neither, so a deployment that
+	// never enables the leg pays one cheap read, not the backlog scan.
+	if got, want := len(queryer.queries), 29; got != want {
 		t.Fatalf("status snapshot issued %d queries, want %d", got, want)
 	}
 }

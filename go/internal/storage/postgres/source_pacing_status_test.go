@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,11 +23,11 @@ func TestReadSourcePacingStatusPublishesLatchTruth(t *testing.T) {
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"git", float64(60), int64(3), int64(0), int64(0)}, {"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 		{rows: [][]any{
 			{"vuln-intel", true, now.Add(-time.Hour)},
 			{"drained", true, now.Add(-2 * time.Hour)},
 		}},
+		{rows: [][]any{{"git", float64(60), int64(3), int64(0), int64(0)}, {"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 	}}
 
 	rows, err := readSourcePacingStatus(context.Background(), queryer, now, sourceBackpressureTestConfig())
@@ -69,8 +70,8 @@ func TestReadSourcePacingStatusLeavesStuckUnevaluatedWithoutConfig(t *testing.T)
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 		{rows: [][]any{{"vuln-intel", true, now.Add(-time.Hour)}}},
+		{rows: [][]any{{"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 	}}
 
 	rows, err := readSourcePacingStatus(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
@@ -82,5 +83,64 @@ func TestReadSourcePacingStatusLeavesStuckUnevaluatedWithoutConfig(t *testing.T)
 	}
 	if !rows[0].Slowed || rows[0].Stuck {
 		t.Fatalf("row = %+v, want slowed but unstuck without config", rows[0])
+	}
+}
+
+// TestReadSourcePacingStatusSkipsGroupedScanWhenNothingCanBeSlowed proves
+// #10882 F3: with the per-source leg unconfigured and no engaged latch, the
+// status read costs the small latch read and never the whole-backlog grouped
+// claimable scan, so a deployment that never enables the leg pays nothing for
+// it on every /admin/status read and summary pass.
+func TestReadSourcePacingStatusSkipsGroupedScanWhenNothingCanBeSlowed(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 22, 12, 0, 0, 0, time.UTC)
+	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
+		{rows: [][]any{{"vuln-intel", false, time.Time{}}}}, // a released latch row, not engaged
+	}}
+
+	rows, err := readSourcePacingStatus(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
+	if err != nil {
+		t.Fatalf("readSourcePacingStatus() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("rows = %+v, want none: nothing is slowed or observable", rows)
+	}
+	if len(queryer.queries) != 1 || !strings.Contains(queryer.queries[0], "workflow_claim_pacing") {
+		t.Fatalf("queries = %d (%v), want exactly the latch read", len(queryer.queries), queryer.queries)
+	}
+}
+
+// TestReadSourcePacingStatusScansWhenConfiguredOrEngaged proves the scan still
+// runs when either condition holds: a configured leg publishes every source's
+// observation, and an engaged latch must stay visible even on a process
+// without the thresholds (gating on config alone would hide it).
+func TestReadSourcePacingStatusScansWhenConfiguredOrEngaged(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 22, 12, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name   string
+		cfg    workflow.SourceBackpressureConfig
+		latch  [][]any
+		reason string
+	}{
+		{"configured, no latch", sourceBackpressureTestConfig(), nil, "configured"},
+		{"engaged latch, zero config", workflow.SourceBackpressureConfig{}, [][]any{{"git", true, now.Add(-time.Hour)}}, "engaged"},
+	} {
+		queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
+			{rows: tc.latch},
+			{rows: [][]any{{"git", float64(60), int64(3), int64(0), int64(0)}}},
+		}}
+		rows, err := readSourcePacingStatus(context.Background(), queryer, now, tc.cfg)
+		if err != nil {
+			t.Fatalf("%s: readSourcePacingStatus() error = %v, want nil", tc.name, err)
+		}
+		if len(queryer.queries) != 2 {
+			t.Fatalf("%s: queries = %d, want latch read then grouped scan", tc.name, len(queryer.queries))
+		}
+		if len(rows) != 1 || rows[0].SourceSystem != "git" {
+			t.Fatalf("%s: rows = %+v, want the git observation", tc.name, rows)
+		}
 	}
 }
