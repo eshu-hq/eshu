@@ -78,6 +78,14 @@ func buildCollectorService(
 			Logger:      logger,
 		},
 	}
+	// #10882 schedule leg, shared with the ingester: while the git
+	// source is slowed, repo selection stretches its per-repo minimum
+	// resync interval. Unset leaves every-cycle selection untouched.
+	selectionStore := postgres.NewWorkflowControlStore(database)
+	selectionStore.Instruments = instruments
+	if err := nativeSelector.WireSelectionBackpressure(selectionStore, getenv); err != nil {
+		return collector.Service{}, err
+	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("collector-git", getenv)
 	if handoffConfig.Enabled {

@@ -147,7 +147,9 @@ fail() {
 # data file; a dropped line would otherwise leave the guard and its mirror green.
 for required in Makefile pre-push.sh pre-pr.sh prove.sh run-selected-gates.sh \
 	install-local-binaries.sh precommit-go.sh; do
-	if ! printf '%s\n' "${entrypoints}" | rg -q -x -e "(.*/)?${required//./\\.}"; then
+	# A here-string, not `printf | rg -q`: rg -q exits on the first match, and
+	# printf then fails with EPIPE, which pipefail reads as a false miss (#11255).
+	if ! rg -q -x -e "(.*/)?${required//./\\.}" <<<"${entrypoints}"; then
 		fail "the entrypoint list ${entry_file##*/} is missing ${required}; the guard requires it (#9066)"
 	fi
 done
@@ -172,7 +174,11 @@ cmd_pos='(^[[:space:]]*|[;&|({][[:space:]]*|(then|do|else)[[:space:]]+)'
 # definition "name() {" or "name () {" is not a call, and "function name" never
 # sits at a command position.
 sources_lib() {
-	code_of "$1" | rg -q -e "${cmd_pos}(source|\\.)[[:space:]]+[^#]*cgo-cflags\\.sh"
+	# Capture first: `code_of | rg -q` lets rg -q close the pipe on the first
+	# match and sed then fails under pipefail (#11255).
+	local code
+	code="$(code_of "$1")"
+	rg -q -e "${cmd_pos}(source|\\.)[[:space:]]+[^#]*cgo-cflags\\.sh" <<<"${code}"
 }
 exports_lib() {
 	code_of "$1" \
@@ -316,7 +322,7 @@ if [ -d "${root}/.github/workflows" ]; then
 		rel="${wf#"${root}"/}"
 		# Go detection sees the whole line, so a quoted "#" cannot hide a call.
 		body="$(sed -e '/^[[:space:]]*#/d' "${wf}")"
-		if printf '%s\n' "${body}" | rg -q -e "${go_user_pattern}"; then
+		if rg -q -e "${go_user_pattern}" <<<"${body}"; then
 			if [ "$(workflow_env_has_flag "${wf}")" != "yes" ]; then
 				fail "${rel} compiles Go but has no workflow-level env CGO_CFLAGS containing -std=gnu17 (#9066)"
 			fi
@@ -324,7 +330,7 @@ if [ -d "${root}/.github/workflows" ]; then
 		# Any assignment that lacks the flag would clobber the workflow value.
 		clobbers="$(cgo_cflags_assignments "${wf}" | awk -F '\t' '$1 == "BAD" { print $3 }')"
 		if [ -n "${clobbers}" ]; then
-			fail "${rel} assigns CGO_CFLAGS without -std=gnu17 (#9066): $(printf '%s\n' "${clobbers}" | head -1)"
+			fail "${rel} assigns CGO_CFLAGS without -std=gnu17 (#9066): ${clobbers%%$'\n'*}"
 		fi
 	done
 fi

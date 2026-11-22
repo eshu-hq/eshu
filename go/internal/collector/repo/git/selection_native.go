@@ -87,6 +87,12 @@ type NativeRepositorySelector struct {
 	// completes. Driven sequentially like reconcileWalkOffset, so no
 	// lock.
 	sweepVisitedPinned map[string]struct{}
+	// SelectionBackpressure stretches the per-repo minimum resync interval while slowed (#10882). Zero disables.
+	SelectionBackpressure SelectionBackpressureConfig
+	// SelectionSlowed reports a slowed git source. Nil means never slowed; errors read as not slowed (fail open).
+	SelectionSlowed func(context.Context) (bool, error)
+	// selectionLastVisit tracks each repository's last selected cycle. Driven sequentially, so no lock.
+	selectionLastVisit map[string]time.Time
 }
 
 // SelectRepositories discovers changed repositories for one collector cycle.
@@ -140,6 +146,9 @@ func (s *NativeRepositorySelector) selectRepositories(
 	}
 	s.observeSelection(ctx, selection, observedAt, token)
 	repositoryIDs := filterRepositoryIDsByShard(selection.RepositoryIDs, s.Config)
+	// #10882 schedule leg: defer repos visited inside the stretched
+	// interval while the git source is slowed.
+	repositoryIDs = s.applySelectionBackpressure(ctx, repositoryIDs, observedAt)
 	if s.Config.RepoShardCount > 1 && s.Logger != nil {
 		s.Logger.InfoContext(
 			ctx, "collector repository shard selected",

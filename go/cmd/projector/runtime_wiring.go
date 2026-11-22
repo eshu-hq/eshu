@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reduceradmission"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -29,6 +30,7 @@ import (
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/crossplane"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/lock"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -62,6 +64,19 @@ func buildCrossplaneRedriveSweeper(
 		Owner:       "projector",
 		Instruments: instruments,
 	}
+}
+
+// projectorAdmissionIntentWriter wraps the reducer queue with the
+// projector's admission writer: per-source leg on when configured, global
+// gate on only by explicit operator marks.
+func projectorAdmissionIntentWriter(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (runtime.ReducerIntentWriter, error) {
+	return reduceradmission.ProjectorAdmissionIntentWriter(database, inner, getenv, instruments, logger)
 }
 
 func buildProjectorService(
@@ -100,18 +115,34 @@ func buildProjectorService(
 	// see that function's doc comment (issue #5476 P1-a).
 	projectorQueue.CrossplaneRedrive = buildCrossplaneRedriveSweeper(database, reducerQueue, instruments)
 
-	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
+	// The standalone projector shares the ingester's per-source admission
+	// leg (#10882 decision 3) so committed hosted generations cannot bypass
+	// pacing at the last hop. The global database-protection gate stays off
+	// here unless an operator sets a mark for this process: with no
+	// thresholds set the writer comes back unwrapped.
+	intentWriter, err := projectorAdmissionIntentWriter(database, reducerQueue, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
+	runner, err := buildProjectorRuntime(database, canonicalWriter, intentWriter, retryInjector, getenv, tracer, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
+
+	sourcePacer, err := reduceradmission.NewSourcePacer(database, getenv, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
 	}
 
 	return projector.Service{
 		PollInterval: time.Second,
-		WorkSource:   projectorQueue,
-		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
-		Runner:       runner,
-		WorkSink:     projectorQueue,
-		Heartbeater:  projectorQueue,
+		// #10882 F8: a slowed source's claim is released before any write.
+		SourcePacer: sourcePacer,
+		WorkSource:  projectorQueue,
+		FactStore:   postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
+		Runner:      runner,
+		WorkSink:    projectorQueue,
+		Heartbeater: projectorQueue,
 		// #7319: the fence runs before every projection and inside Ack.
 		DeltaBaselineFence: projectorQueue,
 		// #7389: the write marker runs after LoadFacts, before the first write.

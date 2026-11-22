@@ -231,3 +231,34 @@ shape, so no measurement beyond the suite timings is owed.
 
 No-Observability-Change (#11002): the join narrowing adds no metrics,
 spans, or logs; failure classes and quarantine behavior are unchanged.
+
+No-Regression Evidence (#11247 audit tick budget clock): `runAuditOnce` reads
+its deadline from `budgetNow()`, which is the injected `Now` when set and
+`time.Now` otherwise, so the default path is the same clock reads as before:
+one at tick start plus one per pass (monotonic reading kept; `now()` is
+not used because `UTC()` strips it). No query, lease, claim, or lock call is added, moved, or
+reordered. `go test -race -count=1 ./internal/reducer/supplychain/core` is
+green (about 10 s), and the budget test is exact on a fake clock: 4 passes in
+a 70 ms budget, 3 when a pass ends on the deadline, 1 when the budget is
+shorter than a pass. Before: the wall-clock test failed 3 of 20 runs under
+a 128-process CPU hog; after: 0 of 20.
+
+No-Observability-Change (#11247): no metric, span, log key, or setting is
+added or changed.
+
+No-Regression Evidence (#11111 cut-load deny sweep, #11177 guarded-full count):
+the deny sweep on a cut-load pass is the existing sweep body (`dropAliasDeniedRecords`)
+run over the records already in memory, so it adds one linear pass and no
+query, lease, claim, or lock call; with no deny list a cut pass still returns
+at once (`TestAliasCutLoadWithoutDenyKeepsIndexUntouched`). `runContractTick`
+reads the `rebuilt` flag `runTick` already returns, so the tick itself is
+unchanged. `go test -race -count=3 ./internal/reducer/supplychain/core` is
+green (about 49 s at load 28). Before: the three new regression tests failed
+on the base sources; after: they pass and five mutants fail them.
+
+Observability Evidence (#11177): the existing winners full-resweep counter and
+its log line now fire only when this tick committed the full resweep, not when
+the lease was not claimed or the tick stood down; the meaning is stated in
+docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
+the existing closed `result="denied"` label on the alias-group counter. No new
+metric, label, span, or setting.

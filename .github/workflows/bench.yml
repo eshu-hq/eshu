@@ -79,10 +79,13 @@ jobs:
       # HERE, named for what it is, instead of surfacing as a bench-mirror
       # failure that never ran anything (#6615 follow-up to #6075). The
       # mirror below is a static/contract check for most of the job, but its
-      # functional case runs the real run-go-benchmarks.sh producer (`go
-      # test -bench` against ./internal/facts and
-      # ./internal/storage/postgres) to prove the producer actually emits
-      # results -- that real invocation is what needs the warm cache.
+      # functional cases run the real run-go-benchmarks.sh producer (`go
+      # test -bench` against ./internal/facts and the small
+      # ./internal/storage/postgres/governance/audit package) to prove the
+      # producer actually emits results -- that real invocation is what needs
+      # the warm cache. Auto-discovery is checked with BENCH_LIST_ONLY=1, which
+      # lists the packages without compiling them: running all ~140 used to take
+      # 520 to 890 s of this job's 900 s limit (#11207).
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 

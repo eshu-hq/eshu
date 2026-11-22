@@ -30,6 +30,12 @@ and runtime own those and call in here to classify what came back.
   (metric label and 422 refusal body).
 - `RetryInjector`, `RetryOnceInjector`, `NewRetryOnceInjector` — the fault
   injection the Ifá gates drive.
+- `SourcePacedRelease`, `RetryAfterHint`, `ResumeBoundHint` — the cause a
+  claimed item is released with when its source is slowed (#10882/#11186): the
+  queue retries it without spending the projection or admission budget and never
+  dead-letters it. `RetryAfterHint` is the earliest re-claim (the grant delay) and
+  `ResumeBoundHint` the latest (the source's release age) the queue may schedule;
+  both read through wrapping, and a cause with no bound keeps the queue's cap.
 
 ## Two behaviors worth knowing before changing anything here
 

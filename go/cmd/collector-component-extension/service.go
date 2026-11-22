@@ -228,6 +228,25 @@ func buildClaimedService(
 		}
 		committer.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: claimStore.Pinner}
 	}
+	// Per-source reducer backpressure (#10882): the direct grant path
+	// consults through SourceBackpressure under the same env contract as
+	// the ingester admission leg. An enabled leg without a control store
+	// that serves the consult is a startup refusal, never a silent
+	// no-throttle, mirroring the multi-source host's claim-pacing gate.
+	// A claim-plane backend has no consult route, so enabling the leg
+	// there fails closed here instead of failing open per claim.
+	sourceBackpressure, err := collector.LoadSourceBackpressureConfig(getenv)
+	if err != nil {
+		return collector.ClaimedService{}, err
+	}
+	var sourceBackpressureConfig *workflow.SourceBackpressureConfig
+	if sourceBackpressure.Enabled() {
+		if _, ok := claimStore.Store.(collector.SourceBackpressureChecker); !ok {
+			return collector.ClaimedService{}, fmt.Errorf(
+				"source backpressure enabled but the claim store does not serve CheckSourceBackpressure: refusing startup rather than claiming unpaced")
+		}
+		sourceBackpressureConfig = &sourceBackpressure
+	}
 	return collector.ClaimedService{
 		ControlStore:        claimStore.Store,
 		Source:              source,
@@ -240,6 +259,7 @@ func buildClaimedService(
 		ClaimLeaseTTL:       config.ClaimLeaseTTL,
 		HeartbeatInterval:   config.HeartbeatInterval,
 		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
+		SourceBackpressure:  sourceBackpressureConfig,
 		Clock:               time.Now,
 		Tracer:              tracer,
 		Instruments:         instruments,

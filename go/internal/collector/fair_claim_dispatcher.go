@@ -28,6 +28,14 @@ type ClaimPacingChecker interface {
 	CheckClaimPacing(context.Context, workflow.ClaimSelector, workflow.ClaimPacingConfig, time.Time) (workflow.ClaimPacingDecision, error)
 }
 
+// SourceBackpressureChecker is the per-source reducer-backpressure consult
+// surface (#10882): it paces a grant when every source the claiming family
+// would collect for is behind on the reducer queue. WorkflowControlStore
+// implements it; scripted fakes serve the dispatcher proofs.
+type SourceBackpressureChecker interface {
+	CheckSourceBackpressure(context.Context, workflow.ClaimSelector, workflow.SourceBackpressureConfig, time.Time) (workflow.ClaimPacingDecision, error)
+}
+
 // FairClaimDispatcher applies workflow family fairness before delegating each
 // selected target to the existing fenced ClaimNextEligible store operation.
 type FairClaimDispatcher struct {
@@ -42,6 +50,12 @@ type FairClaimDispatcher struct {
 	// consult.
 	pacingChecker ClaimPacingChecker
 	pacingConfig  workflow.ClaimPacingConfig
+	// sourceChecker, when set with an enabled sourceConfig, slows grants
+	// for families whose sources are behind on the reducer queue (#10882).
+	// A slowed target is skipped work-conservingly exactly like a paced
+	// one. Nil (the default) claims with no source consult.
+	sourceChecker SourceBackpressureChecker
+	sourceConfig  workflow.SourceBackpressureConfig
 	// pacingLogger, when set with WithPacingLogger, records fail-open
 	// pacing consults. Nil (the default) keeps the consult silent.
 	pacingLogger *slog.Logger
@@ -61,6 +75,23 @@ func (d *FairClaimDispatcher) WithClaimPacing(
 	defer d.mu.Unlock()
 	d.pacingChecker = checker
 	d.pacingConfig = cfg
+	return d
+}
+
+// WithSourceBackpressure slows the dispatcher's grants through checker
+// under cfg (#10882) and returns the dispatcher for chaining. A nil checker
+// or a disabled config leaves source slowing off.
+func (d *FairClaimDispatcher) WithSourceBackpressure(
+	checker SourceBackpressureChecker,
+	cfg workflow.SourceBackpressureConfig,
+) *FairClaimDispatcher {
+	if d == nil {
+		return nil
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.sourceChecker = checker
+	d.sourceConfig = cfg
 	return d
 }
 
@@ -133,6 +164,7 @@ func (d *FairClaimDispatcher) ClaimNext(
 		return workflow.WorkItem{}, workflow.Claim{}, workflow.ClaimTarget{}, false, errors.New("claim id is required")
 	}
 	checker, pacingConfig, pacingLogger := d.pacingConsult()
+	sourceChecker, sourceConfig := d.sourceConsult()
 	var deferral *workflow.ClaimPacingDeferral
 	for i := 0; i < d.targetCount; i++ {
 		target, ok := d.nextTarget()
@@ -156,6 +188,22 @@ func (d *FairClaimDispatcher) ClaimNext(
 			// normally. The debug record keeps the silence diagnosable.
 			if err != nil && pacingLogger != nil {
 				pacingLogger.DebugContext(ctx, "pacing consult failed open",
+					slog.String("domain", string(target.CollectorKind)+"/"+target.CollectorInstanceID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		if sourceChecker != nil {
+			decision, err := sourceChecker.CheckSourceBackpressure(ctx, selector, sourceConfig, now)
+			if err == nil && decision.Paced {
+				deferral = pacingLongestDeferral(deferral, decision)
+				continue
+			}
+			// A source-backpressure consult failure fails open exactly
+			// like depth pacing: an unavailable signal is not evidence
+			// the source is behind.
+			if err != nil && pacingLogger != nil {
+				pacingLogger.DebugContext(ctx, "source backpressure consult failed open",
 					slog.String("domain", string(target.CollectorKind)+"/"+target.CollectorInstanceID),
 					slog.String("error", err.Error()),
 				)
@@ -185,6 +233,17 @@ func (d *FairClaimDispatcher) pacingConsult() (ClaimPacingChecker, workflow.Clai
 		return nil, workflow.ClaimPacingConfig{}, nil
 	}
 	return d.pacingChecker, d.pacingConfig, d.pacingLogger
+}
+
+// sourceConsult snapshots the source-backpressure consult pair. A nil
+// checker or a disabled config claims with no source consult.
+func (d *FairClaimDispatcher) sourceConsult() (SourceBackpressureChecker, workflow.SourceBackpressureConfig) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.sourceChecker == nil || !d.sourceConfig.Enabled() {
+		return nil, workflow.SourceBackpressureConfig{}
+	}
+	return d.sourceChecker, d.sourceConfig
 }
 
 // pacingLongestDeferral keeps the longest grant delay across paced targets,

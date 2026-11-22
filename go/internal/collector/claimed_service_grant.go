@@ -40,6 +40,9 @@ func (s ClaimedService) claimNext(
 	if deferral := s.pacingGrantDeferral(ctx, selector); deferral != nil {
 		return workflow.WorkItem{}, workflow.Claim{}, target, false, deferral
 	}
+	if deferral := s.sourceBackpressureDeferral(ctx, selector); deferral != nil {
+		return workflow.WorkItem{}, workflow.Claim{}, target, false, deferral
+	}
 	item, claim, found, err := s.ControlStore.ClaimNextEligible(ctx, selector, s.now(), s.ClaimLeaseTTL)
 	if err != nil {
 		return workflow.WorkItem{}, workflow.Claim{}, target, false,
@@ -71,6 +74,45 @@ func (s ClaimedService) pacingGrantDeferral(
 		// debug record keeps the silence diagnosable.
 		if s.Logger != nil {
 			s.Logger.DebugContext(ctx, "pacing consult failed open",
+				slog.String("domain", string(selector.CollectorKind)+"/"+selector.CollectorInstanceID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return nil
+	}
+	if !decision.Paced {
+		return nil
+	}
+	return &workflow.ClaimPacingDeferral{
+		Signal:     decision.Signal,
+		Domain:     decision.Domain,
+		RetryAfter: decision.RetryAfter,
+		Stuck:      decision.Stuck,
+	}
+}
+
+// sourceBackpressureDeferral consults per-source reducer backpressure
+// (#10882) for the direct (undispatched) claim path. It returns nil when
+// slowing is unconfigured, when the control store does not serve the
+// consult, when the consult fails (fail open), or when the verdict is
+// unpaced. A slowed verdict returns the grant-delay deferral with no claim
+// issued, so no attempt is consumed and the work item stays pending
+// bit-for-bit until the source's queue clears.
+func (s ClaimedService) sourceBackpressureDeferral(
+	ctx context.Context,
+	selector workflow.ClaimSelector,
+) *workflow.ClaimPacingDeferral {
+	if s.SourceBackpressure == nil || !s.SourceBackpressure.Enabled() {
+		return nil
+	}
+	checker, ok := s.ControlStore.(SourceBackpressureChecker)
+	if !ok || checker == nil {
+		return nil
+	}
+	decision, err := checker.CheckSourceBackpressure(ctx, selector, *s.SourceBackpressure, s.now())
+	if err != nil {
+		if s.Logger != nil {
+			s.Logger.DebugContext(ctx, "source backpressure consult failed open",
 				slog.String("domain", string(selector.CollectorKind)+"/"+selector.CollectorInstanceID),
 				slog.String("error", err.Error()),
 			)

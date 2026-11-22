@@ -84,7 +84,7 @@ func claimConflictRow() []any {
 	observed := time.Date(2026, time.September, 25, 3, 0, 0, 0, time.UTC)
 	return []any{
 		"scope-123", "git", "repository", "", "", false, "git", "repo-123",
-		"generation-456", 1, 0, 0, observed, observed.Add(time.Minute), "pending",
+		"generation-456", 1, 0, 0, 0, observed, observed.Add(time.Minute), "pending",
 		"snapshot", "", []byte(`{}`),
 	}
 }

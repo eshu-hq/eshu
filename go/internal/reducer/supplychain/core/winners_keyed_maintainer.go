@@ -214,10 +214,13 @@ func decideWinnersContract(c SupplyChainImpactWinnersContract) (winnersContractA
 }
 
 // runContractTick reads the stored contract, records it, and runs what it
-// decides. A full skipped behind another instance, or found already current
-// under the lock, is satisfied by that instance's commit: the next tick
-// re-reads the row and runs keyed. standDown reports a tick that ran nothing
-// because a newer contract is stored.
+// decides. The full-resweep counter and the contract log line mark only a
+// guarded full this tick took the lease for and committed (#11177). A tick
+// that did not claim the lease, a full skipped behind another instance, and a
+// full found already current under the lock all record nothing: that
+// instance's commit satisfies them, and the next tick re-reads the row and
+// runs keyed. standDown reports a tick that ran nothing because a newer
+// contract is stored.
 func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context) (result SupplyChainImpactWinnersResweep, contract SupplyChainImpactWinnersContract, standDown bool, err error) {
 	contract, err = m.Contract.WinnersContract(ctx)
 	if err != nil {
@@ -249,8 +252,9 @@ func (m SupplyChainImpactWinnersMaintainer) runContractTick(ctx context.Context)
 		}
 		return result, contract, false, err
 	default:
-		result, _, err = m.runTick(ctx, winnersTickGuardedFull)
-		if err == nil && !result.Skipped {
+		var committed bool
+		result, committed, err = m.runTick(ctx, winnersTickGuardedFull)
+		if err == nil && committed {
 			m.Instruments.RecordSupplyChainImpactWinnersFullResweep(ctx, reason)
 			if m.Logger != nil {
 				m.Logger.InfoContext(ctx, "supply chain impact winners full resweep recorded the contract",
@@ -370,13 +374,13 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 			err = fmt.Errorf("release winners audit lease: %w", relErr)
 		}
 	}()
-	deadline := time.Now().Add(m.auditTickBudget())
+	deadline := m.budgetNow().Add(m.auditTickBudget())
 	for {
 		audit, err := m.runAuditPass(ctx)
 		if err != nil {
 			return err
 		}
-		if !audit.More || ctx.Err() != nil || !time.Now().Before(deadline) {
+		if !audit.More || ctx.Err() != nil || !m.budgetNow().Before(deadline) {
 			return nil
 		}
 		renewed, err := m.LeaseManager.ClaimPartitionLease(

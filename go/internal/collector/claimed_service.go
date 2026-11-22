@@ -96,10 +96,16 @@ type ClaimedService struct {
 	// does); any other store claims unpaced. Nil (the default) claims with
 	// no pacing consult.
 	ClaimPacing *workflow.ClaimPacingConfig
-	MaxAttempts int
-	Clock       func() time.Time
-	Tracer      trace.Tracer
-	Instruments *telemetry.Instruments
+	// SourceBackpressure, when set to an enabled config, slows grants when
+	// the service's sources are behind on the reducer queue (#10882). The
+	// control store must serve CheckSourceBackpressure
+	// (WorkflowControlStore does); any other store claims unslowed. Nil
+	// (the default) claims with no source consult.
+	SourceBackpressure *workflow.SourceBackpressureConfig
+	MaxAttempts        int
+	Clock              func() time.Time
+	Tracer             trace.Tracer
+	Instruments        *telemetry.Instruments
 	// Logger records fail-open pacing consults on the undispatched grant
 	// path. Optional — nil means no structured logging.
 	Logger *slog.Logger

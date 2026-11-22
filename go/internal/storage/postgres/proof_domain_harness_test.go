@@ -65,14 +65,16 @@ type proofWorkItem struct {
 	// admissionWaitAttempts mirrors fact_work_items.admission_wait_attempts
 	// (#10671): incremented once per admission-timeout retry.
 	admissionWaitAttempts int
-	scopeID               string
-	generationID          string
-	leaseOwner            string
-	visibleAt             time.Time
-	createdAt             time.Time
-	updatedAt             time.Time
-	claimUntil            time.Time
-	payload               []byte
+	// sourcePacedWaits mirrors fact_work_items.source_paced_waits (#10882).
+	sourcePacedWaits int
+	scopeID          string
+	generationID     string
+	leaseOwner       string
+	visibleAt        time.Time
+	createdAt        time.Time
+	updatedAt        time.Time
+	claimUntil       time.Time
+	payload          []byte
 }
 
 func newProofDomainDB(t *testing.T, now time.Time) *proofDomainDB {
@@ -382,6 +384,11 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 			return nil, err
 		}
 		return newProofRows([][]any{{int64(1)}}), nil
+	case query == sourceClaimableSignalQuery || query == sourceBackpressureLatchQuery:
+		// The proof domain seeds no source pacing state (#10882): the
+		// status section reads as absent. This arm precedes the claim arm
+		// because the signal query also names the reducer stage.
+		return newProofRows(nil), nil
 	case strings.Contains(query, "stage = 'reducer'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("reducer claim args = %d, want 7", len(args))
@@ -466,6 +473,7 @@ func (database *proofDomainDB) claimProjectorWork(
 			generationRow.GenerationID,
 			item.attemptCount,
 			item.admissionWaitAttempts,
+			item.sourcePacedWaits,
 			// replay_attempt_baseline (#11182): this harness never replays
 			// a projector row, so the baseline stays at its default 0.
 			0,

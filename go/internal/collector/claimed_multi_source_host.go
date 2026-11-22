@@ -88,6 +88,12 @@ type MultiSourceCollectorHostConfig struct {
 	// CheckClaimPacing (WorkflowControlStore does). Nil (the default)
 	// claims with no pacing consult.
 	ClaimPacing *workflow.ClaimPacingConfig
+	// SourceBackpressure, when set to an enabled config, slows the shared
+	// dispatcher's grants for families whose sources are behind on the
+	// reducer queue (#10882). The template's control store must serve
+	// CheckSourceBackpressure (WorkflowControlStore does). Nil (the
+	// default) claims with no source consult.
+	SourceBackpressure *workflow.SourceBackpressureConfig
 	// PacingLogger, when set with an enabled ClaimPacing, records
 	// fail-open pacing consults on the shared dispatcher. Nil (the
 	// default) keeps them silent.
@@ -170,6 +176,21 @@ func NewMultiSourceCollectorHost(cfg MultiSourceCollectorHostConfig) (*MultiSour
 				return nil, errors.New("claim pacing requires a control store that serves CheckClaimPacing")
 			}
 			dispatcher.WithClaimPacing(checker, *cfg.ClaimPacing)
+			if cfg.PacingLogger != nil {
+				dispatcher.WithPacingLogger(cfg.PacingLogger)
+			}
+		}
+	}
+	if cfg.SourceBackpressure != nil {
+		if err := cfg.SourceBackpressure.Validate(); err != nil {
+			return nil, fmt.Errorf("source backpressure config: %w", err)
+		}
+		if cfg.SourceBackpressure.Enabled() {
+			checker, ok := cfg.Template.ControlStore.(SourceBackpressureChecker)
+			if !ok {
+				return nil, errors.New("source backpressure requires a control store that serves CheckSourceBackpressure")
+			}
+			dispatcher.WithSourceBackpressure(checker, *cfg.SourceBackpressure)
 			if cfg.PacingLogger != nil {
 				dispatcher.WithPacingLogger(cfg.PacingLogger)
 			}

@@ -326,9 +326,30 @@ func coordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {
 		})
 	}
 
+	sourcePacing := make([]map[string]any, 0, len(snapshot.SourcePacing))
+	for _, pacing := range snapshot.SourcePacing {
+		entry := map[string]any{
+			"source_system":        pacing.SourceSystem,
+			"slowed":               pacing.Slowed,
+			"oldest_claimable_age": pacing.OldestClaimableAge.Seconds(),
+			"claimable_depth":      pacing.ClaimableDepth,
+		}
+		if pacing.Reason != "" {
+			entry["reason"] = pacing.Reason
+		}
+		if !pacing.EngagedSince.IsZero() {
+			entry["engaged_since"] = pacing.EngagedSince.Format(time.RFC3339)
+		}
+		if pacing.Stuck {
+			entry["stuck"] = true
+		}
+		sourcePacing = append(sourcePacing, entry)
+	}
+
 	result := map[string]any{
 		"collector_instances":     instances,
 		"collector_backpressure":  backpressure,
+		"source_pacing":           sourcePacing,
 		"run_status_counts":       namedCountsToSlice(snapshot.RunStatusCounts),
 		"work_item_status_counts": namedCountsToSlice(snapshot.WorkItemStatusCounts),
 		"completeness_counts":     namedCountsToSlice(snapshot.CompletenessCounts),

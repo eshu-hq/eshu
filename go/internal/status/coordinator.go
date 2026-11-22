@@ -21,9 +21,13 @@ type CoordinatorSnapshot struct {
 	WorkItemStatusCounts  []shared.NamedCount              `json:"work_item_status_counts"`
 	CompletenessCounts    []shared.NamedCount              `json:"completeness_counts"`
 	CollectorBackpressure []collector.BackpressureSnapshot `json:"collector_backpressure"`
-	ActiveClaims          int                              `json:"active_claims"`
-	OverdueClaims         int                              `json:"overdue_claims"`
-	OldestPendingAge      time.Duration                    `json:"oldest_pending_age"`
+	// SourcePacing publishes per-source reducer backpressure (#10882):
+	// for each source, whether intake is slowed and why. Empty when no
+	// source has claimable reducer work or an engaged slowed latch.
+	SourcePacing     []collector.SourcePacingSnapshot `json:"source_pacing"`
+	ActiveClaims     int                              `json:"active_claims"`
+	OverdueClaims    int                              `json:"overdue_claims"`
+	OldestPendingAge time.Duration                    `json:"oldest_pending_age"`
 	// CollectorTerminalFailures carries, per collector instance, the newest
 	// terminal work-item failure that no later completed work item for the same
 	// scope has superseded. It feeds the collector runtime health and promotion
@@ -73,6 +77,7 @@ func cloneCoordinatorSnapshot(snapshot *CoordinatorSnapshot) *CoordinatorSnapsho
 		WorkItemStatusCounts:      slices.Clone(snapshot.WorkItemStatusCounts),
 		CompletenessCounts:        slices.Clone(snapshot.CompletenessCounts),
 		CollectorBackpressure:     collector.CloneBackpressure(snapshot.CollectorBackpressure),
+		SourcePacing:              collector.CloneSourcePacing(snapshot.SourcePacing),
 		ActiveClaims:              snapshot.ActiveClaims,
 		OverdueClaims:             snapshot.OverdueClaims,
 		OldestPendingAge:          shared.NonNegativeDuration(snapshot.OldestPendingAge),
@@ -115,6 +120,7 @@ func renderCoordinatorLines(snapshot *CoordinatorSnapshot) []string {
 		lines = append(lines, fmt.Sprintf("Coordinator completeness: %s", shared.FormatTotals(shared.CountMap(snapshot.CompletenessCounts))))
 	}
 	lines = append(lines, collector.RenderBackpressureLines(snapshot.CollectorBackpressure)...)
+	lines = append(lines, collector.RenderSourcePacingLines(snapshot.SourcePacing)...)
 	if len(snapshot.CollectorInstances) > 0 {
 		lines = append(lines, "Collector instances:")
 		for _, instance := range snapshot.CollectorInstances {

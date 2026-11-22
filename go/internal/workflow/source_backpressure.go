@@ -1,0 +1,186 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package workflow
+
+import (
+	"fmt"
+	"time"
+)
+
+// SourceBackpressureReasonSourceBehind is the slowed-state reason a deferred
+// intake reports: the source's oldest claimable reducer work is older than
+// the freshness-derived engage age. It doubles as the admission-deferral
+// metric reason so slowed intake is countable per source (#10882 AC6).
+const SourceBackpressureReasonSourceBehind = "source_behind"
+
+// SourceBackpressureConfig carries the per-source slowed-state thresholds
+// (#10882 decision 1). The zero value disables the per-source leg: no source
+// ever slows unless an operator configures every threshold and bound. All
+// numeric values stay Proposed until slice S0/S1 measurement confirms them;
+// nothing in this file ships enforcement defaults.
+type SourceBackpressureConfig struct {
+	// EngageAge is the oldest-claimable-age above which a source with enough
+	// claimable depth slows. Zero disables the whole per-source leg.
+	EngageAge time.Duration
+	// ReleaseAge is the oldest-claimable-age at or below which a slowed
+	// source resumes. The gap between engage and release stops flapping.
+	ReleaseAge time.Duration
+	// DepthFloor is how many claimable rows must be past an age before that
+	// age counts: a source engages only when at least DepthFloor rows are
+	// older than EngageAge, and an engaged source releases once fewer than
+	// DepthFloor rows are older than ReleaseAge. One poisoned or
+	// deliberately gated old row among fresh work never throttles a source,
+	// and a few left-behind rows never hold a latch once the real backlog
+	// clears. A floor of 1 is the plain oldest-age rule.
+	DepthFloor int64
+	// GrantDelay is the backoff a slowed verdict carries: claim grants
+	// return it on the retry-after path and admission polls wait it out,
+	// so a slowed source costs no busy consult loop.
+	GrantDelay time.Duration
+	// SignalCacheTTL bounds how long one store reuses a claimable-signal
+	// observation. Zero reads the grouped signal on every consult
+	// (deterministic; the proofs use it). The latch row stays
+	// authoritative in shared storage and is always read fresh.
+	SignalCacheTTL time.Duration
+	// MaxEngagement bounds one slowed engagement: past it with age still
+	// above the release age, the verdict stays slowed and raises Stuck
+	// instead of releasing blindly into a saturated source.
+	MaxEngagement time.Duration
+}
+
+// Enabled reports whether per-source slowing is configured. Every threshold
+// and bound must be set: a half-configured throttle is a misconfiguration,
+// not a conservative default.
+func (c SourceBackpressureConfig) Enabled() bool {
+	return c.EngageAge > 0 && c.ReleaseAge > 0 &&
+		c.DepthFloor > 0 && c.GrantDelay > 0 && c.MaxEngagement > 0
+}
+
+// Validate rejects a partially configured leg and any enabled config whose
+// release age cannot release: the release age must sit strictly below the
+// engage age and no duration or floor may be negative. The disabled zero
+// value is valid.
+func (c SourceBackpressureConfig) Validate() error {
+	if !c.Enabled() {
+		if c == (SourceBackpressureConfig{}) {
+			return nil
+		}
+		return fmt.Errorf("source backpressure is partially configured: set every threshold and bound, or none")
+	}
+	if c.ReleaseAge >= c.EngageAge {
+		return fmt.Errorf("source backpressure release age %s must be below engage age %s", c.ReleaseAge, c.EngageAge)
+	}
+	if c.SignalCacheTTL < 0 {
+		return fmt.Errorf("source backpressure signal cache TTL %s must not be negative", c.SignalCacheTTL)
+	}
+	return nil
+}
+
+// SourceQueueSignal is one per-source reducer-queue observation for a
+// slowed-state verdict. OldestClaimableAge is the age of the oldest
+// claimable outstanding reducer row attributed to the source (active
+// generation, pending|retrying, visible now); ClaimableDepth counts those
+// rows. RowsPastEngageAge and RowsPastReleaseAge count the claimable rows
+// strictly older than the engage and release ages: they, not the oldest age
+// and the total depth, drive the verdict (#10882 F5). The age and the total
+// depth stay for publication. All come from the claimable read the store
+// owns; this package only decides over them and never opens storage.
+type SourceQueueSignal struct {
+	SourceSystem       string
+	OldestClaimableAge time.Duration
+	ClaimableDepth     int64
+	RowsPastEngageAge  int64
+	RowsPastReleaseAge int64
+}
+
+// SourceBackpressureLatch is the shared hysteresis bit: whether the source
+// is currently slowed. It lives in shared storage alongside the claim path
+// (the S1 latch work) so coordinators cannot disagree about a source.
+type SourceBackpressureLatch struct {
+	Engaged bool
+}
+
+// SourceBackpressureDecision is one slowed-state verdict for one source.
+type SourceBackpressureDecision struct {
+	Slowed bool
+	// Reason names why the source slowed and stays set while the latch
+	// holds, so the operator can answer "slowed, and why". Empty unless
+	// Slowed.
+	Reason string
+	// SourceSystem echoes the verdict's source so a shared consult cannot
+	// misattribute one source's backlog to another.
+	SourceSystem string
+	// RetryAfter is the configured grant delay, set exactly when Slowed.
+	RetryAfter time.Duration
+	// Stuck reports an engagement older than MaxEngagement with age still
+	// above the release age: still slowed, and loud.
+	Stuck bool
+}
+
+// DecideSourceSlowed is the pure slowed-state verdict over one per-source
+// observation and the shared latch. It never touches storage.
+//
+// A disengaged source slows only when at least DepthFloor of its claimable
+// rows are older than the engage age. An engaged source releases only when
+// fewer than DepthFloor rows are older than the release age, so ages between
+// the two follow the latch. With DepthFloor=1 both rules reduce to the
+// oldest-age comparison. A disabled config never slows.
+func DecideSourceSlowed(
+	cfg SourceBackpressureConfig,
+	signal SourceQueueSignal,
+	latch SourceBackpressureLatch,
+	engagedFor time.Duration,
+) SourceBackpressureDecision {
+	if !cfg.Enabled() {
+		return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
+	}
+	behind := signal.RowsPastEngageAge >= cfg.DepthFloor
+	if !latch.Engaged {
+		if !behind {
+			return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
+		}
+		return slowed(cfg, signal.SourceSystem, 0)
+	}
+	if signal.RowsPastReleaseAge < cfg.DepthFloor {
+		return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
+	}
+	return slowed(cfg, signal.SourceSystem, engagedFor)
+}
+
+// slowed builds a slowed verdict. Stuck trips only on a positive overdue
+// engagement with age still above the release age: the caller reaches here
+// only when the engaged source has not released.
+func slowed(cfg SourceBackpressureConfig, sourceSystem string, engagedFor time.Duration) SourceBackpressureDecision {
+	return SourceBackpressureDecision{
+		Slowed:       true,
+		Reason:       SourceBackpressureReasonSourceBehind,
+		SourceSystem: sourceSystem,
+		RetryAfter:   cfg.GrantDelay,
+		Stuck:        engagedFor > cfg.MaxEngagement,
+	}
+}
+
+// SourcePacingState is one source's published slowed state (#10882 AC6):
+// whether intake is slowed, why, and the claimable reducer observation
+// behind the verdict. Storage builds it from the shared latch plus the
+// grouped claimable read; status surfaces render it without re-deriving
+// the verdict.
+type SourcePacingState struct {
+	SourceSystem string
+	Slowed       bool
+	// Reason names why the source slowed. Empty unless Slowed.
+	Reason string
+	// OldestClaimableAge is the age of the oldest claimable outstanding
+	// reducer row attributed to the source at read time.
+	OldestClaimableAge time.Duration
+	// ClaimableDepth counts the source's claimable outstanding reducer
+	// rows at read time.
+	ClaimableDepth int64
+	// EngagedSince is when the current slowed engagement began. Zero
+	// unless the latch is engaged.
+	EngagedSince time.Time
+	// Stuck reports an engagement older than the configured bound with
+	// age still above the release age: still slowed, and loud.
+	Stuck bool
+}
