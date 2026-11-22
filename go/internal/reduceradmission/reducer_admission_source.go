@@ -166,8 +166,10 @@ func (w reducerAdmissionWriter) enqueueBySource(
 	total := 0
 	for len(pending) > 0 {
 		var deferred []admissionSourceGroup
+		allSourcePaced := true
+		var pacedDelay time.Duration
 		for _, group := range pending {
-			reason, failureClass, depth, err := w.admissionDecisionFor(ctx, group.source)
+			reason, failureClass, depth, retryAfter, err := w.admissionDecisionFor(ctx, group.source)
 			if err != nil {
 				return runtime.IntentResult{}, err
 			}
@@ -183,14 +185,40 @@ func (w reducerAdmissionWriter) enqueueBySource(
 			if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, group.source, depth, len(group.intents)); timeoutErr != nil {
 				return runtime.IntentResult{}, timeoutErr
 			}
+			if reason != workflow.SourceBackpressureReasonSourceBehind {
+				allSourcePaced = false
+			} else if pacedDelay == 0 || retryAfter < pacedDelay {
+				pacedDelay = retryAfter
+			}
 			deferred = append(deferred, group)
 		}
 		pending = deferred
 		if len(pending) > 0 {
-			if err := w.wait(ctx); err != nil {
+			if err := w.waitFor(ctx, w.pollDelay(waitStart, allSourcePaced, pacedDelay)); err != nil {
 				return runtime.IntentResult{}, err
 			}
 		}
 	}
 	return runtime.IntentResult{Count: total}, nil
+}
+
+// pollDelay is the wait between deferral rounds. When every deferred group
+// is source_behind it is max(PollInterval, the earliest RetryAfter), capped
+// by what remains of MaxWait, so a paced worker stops rerunning the global
+// depth reads, the bounded probe, and the latch read every second (#10882
+// F4). Any global reason keeps PollInterval: the grant delay is a
+// source-latch backoff, not a database-protection one.
+func (w reducerAdmissionWriter) pollDelay(waitStart time.Time, allSourcePaced bool, retryAfter time.Duration) time.Duration {
+	delay := w.config.PollInterval
+	if !allSourcePaced || retryAfter <= delay {
+		return delay
+	}
+	delay = retryAfter
+	if w.config.MaxWait > 0 {
+		remaining := w.config.MaxWait - time.Since(waitStart)
+		if remaining < delay {
+			delay = max(remaining, 0)
+		}
+	}
+	return delay
 }

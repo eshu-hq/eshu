@@ -375,50 +375,52 @@ func (w reducerAdmissionWriter) Enqueue(
 // *_n classes) reports zero graph-write-timeout depth and therefore never
 // false-throttles unrelated reducer admission.
 func (w reducerAdmissionWriter) admissionDecision(ctx context.Context) (string, string, int64, error) {
-	return w.admissionDecisionFor(ctx, "")
+	reason, failureClass, depth, _, err := w.admissionDecisionFor(ctx, "")
+	return reason, failureClass, depth, err
 }
 
 // admissionDecisionFor is admissionDecision plus the per-source leg: when
 // sourceSystem names a source latched slowed, the group defers under
-// reason source_behind. The source leg is consulted after the global
+// reason source_behind and the fifth result carries the verdict's
+// RetryAfter (the grant delay the poll wait honors, #10882 F4). The source leg is consulted after the global
 // database-protection gates so a saturated backend still reports its own
 // reason first. An empty source (unattributed intents) skips the leg.
-func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, sourceSystem string) (string, string, int64, error) {
+func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, sourceSystem string) (string, string, int64, time.Duration, error) {
 	if w.config.graphWritePressureEnabled() && w.deferral != nil {
 		graphWriteTimeoutDepth, err := w.depthReader.ReducerGraphWriteTimeoutDepth(ctx)
 		if err != nil {
-			return "", "", 0, fmt.Errorf("read reducer graph-write-timeout depth: %w", err)
+			return "", "", 0, 0, fmt.Errorf("read reducer graph-write-timeout depth: %w", err)
 		}
 		if w.deferral.graphWritePressure(graphWriteTimeoutDepth, w.config.RetryingHighWaterMark, w.config.RetryingLowWaterMark) {
-			return admissionDeferralReasonGraphWritePressure, admissionGraphWriteTimeoutFailureClass, graphWriteTimeoutDepth, nil
+			return admissionDeferralReasonGraphWritePressure, admissionGraphWriteTimeoutFailureClass, graphWriteTimeoutDepth, 0, nil
 		}
 	}
 
 	if w.config.HighWaterMark > 0 {
 		depths, err := w.depthReader.QueueDepths(ctx)
 		if err != nil {
-			return "", "", 0, fmt.Errorf("read reducer admission queue depth: %w", err)
+			return "", "", 0, 0, fmt.Errorf("read reducer admission queue depth: %w", err)
 		}
 		var total int64
 		for _, count := range depths["reducer"] {
 			total += count
 		}
 		if total >= w.config.HighWaterMark {
-			return admissionDeferralReasonHighWater, "", total, nil
+			return admissionDeferralReasonHighWater, "", total, 0, nil
 		}
 	}
 
 	if sourceSystem != "" && w.sourceLegEnabled() {
 		decision, err := w.sourceDecision(ctx, sourceSystem)
 		if err != nil {
-			return "", "", 0, err
+			return "", "", 0, 0, err
 		}
 		if decision.Slowed {
-			return workflow.SourceBackpressureReasonSourceBehind, "", 0, nil
+			return workflow.SourceBackpressureReasonSourceBehind, "", 0, decision.RetryAfter, nil
 		}
 	}
 
-	return "", "", 0, nil
+	return "", "", 0, 0, nil
 }
 
 func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass, sourceSystem string, depth int64, intentCount int) {
@@ -455,11 +457,15 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 }
 
 func (w reducerAdmissionWriter) wait(ctx context.Context) error {
+	return w.waitFor(ctx, w.config.PollInterval)
+}
+
+func (w reducerAdmissionWriter) waitFor(ctx context.Context, delay time.Duration) error {
 	sleep := w.sleep
 	if sleep == nil {
 		sleep = sleepContext
 	}
-	return sleep(ctx, w.config.PollInterval)
+	return sleep(ctx, delay)
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) error {

@@ -46,6 +46,9 @@ with a debug record; they are never silent and never throttle.
   constructor: the global marks default to 0 there (the projector never
   ran the global gate), so only an explicit env mark enables it and the
   per-source leg alone never does.
+- Poll cadence: when every deferred group is `source_behind` the wait is
+  max(PollInterval, the earliest verdict RetryAfter), capped by what
+  remains of MaxWait; any global reason keeps PollInterval (`pollDelay`).
 - A `source_behind` wait past MaxWait returns `ErrReducerSourcePaced`,
   not the admission timeout. The projector queue retries it without
   spending either attempt budget and never dead-letters it, so a source
