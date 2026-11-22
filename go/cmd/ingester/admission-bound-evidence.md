@@ -115,7 +115,14 @@ pressure read latency; and a decision slower than its step sleeps one more
 poll interval. Pinned cases: 700 ms queue and 100 ms pressure reads give
 queue reads at 0.1, 1.1, 3.1, 7.1 s and on; 700 ms for both gives queue reads
 at 0.7, 3.1, 5.1, 9.1, 17.1 s and on. The count over a 5 m max wait stays 33
-per signal in every pinned case:
+per signal in every pinned case. The per-source leg of #10882
+(`enqueueBySource`, off by default, so not the QA path) follows the same
+schedule: before, it read both signals on every group decision and slept
+the poll interval, one read per waiter per second; after, 8 sourced waiters
+at the mark read at 0, 1, 3, 7, 15 ... 55 s over a 60 s max wait, and a round
+whose global gates pass resets the backoff even when the latch then defers
+the group (`reducer_admission_depth_source_test.go`). The summary of
+scenarios:
 
 | Scenario | Before (per-decision read) | After |
 | --- | --- | --- |
