@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // supportsGenerationIndex is the index the generation foreign key's cascade
@@ -125,20 +126,30 @@ func explainSupportsCascadePlan(ctx context.Context, database *sql.DB, dropIndex
 	if err != nil {
 		return cascadePlan{}, err
 	}
-	defer func() { _ = tx.Rollback() }()
 	if dropIndex {
 		if _, err := tx.ExecContext(ctx, "DROP INDEX IF EXISTS "+supportsGenerationIndex); err != nil {
+			_ = tx.Rollback()
 			return cascadePlan{}, err
 		}
 	}
-	const name = "supports_cascade_probe"
-	if _, err := tx.ExecContext(ctx, "PREPARE "+name+"(text) AS "+supportsCascadeStatement); err != nil {
+	// A prepared statement survives a rollback, so the name is unique per call
+	// and dropped by name afterward (DEALLOCATE ALL would also drop the driver's
+	// own cached statements).
+	name := fmt.Sprintf("supports_cascade_probe_%d", time.Now().UnixNano())
+	var raw []byte
+	err = func() error {
+		if _, err := tx.ExecContext(ctx, "PREPARE "+name+"(text) AS "+supportsCascadeStatement); err != nil {
+			return err
+		}
+		return tx.QueryRowContext(ctx, "EXPLAIN (FORMAT JSON) EXECUTE "+name+"('gen:plan:7')").Scan(&raw)
+	}()
+	rollbackErr := tx.Rollback()
+	_, _ = conn.ExecContext(ctx, "DEALLOCATE "+name)
+	if err != nil {
 		return cascadePlan{}, err
 	}
-	defer func() { _, _ = conn.ExecContext(ctx, "DEALLOCATE ALL") }()
-	var raw []byte
-	if err := tx.QueryRowContext(ctx, "EXPLAIN (FORMAT JSON) EXECUTE "+name+"('gen:plan:7')").Scan(&raw); err != nil {
-		return cascadePlan{}, err
+	if rollbackErr != nil {
+		return cascadePlan{}, rollbackErr
 	}
 	return parseCascadePlan(raw)
 }

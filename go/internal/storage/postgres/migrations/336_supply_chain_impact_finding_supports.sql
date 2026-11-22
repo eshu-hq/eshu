@@ -15,8 +15,18 @@
 -- 10880-pr-b1-supports-table-proof.md): the primary key (page and override
 -- joins), (scope_id, generation_id) for the scope grant leg and the stale
 -- generation skip, (repository_id) for the repository grant leg (14x slower
--- without it), (finding_id) for explain by public finding id, and a partial
--- canonical_key index for the operator override probe.
+-- without it), (finding_id) for explain by public finding id, a partial
+-- canonical_key index for the operator override probe, and (generation_id) for
+-- the generation foreign key's cascade. The cascade runs
+-- DELETE FROM ONLY <table> WHERE generation_id = $1 once per deleted
+-- generation, inside the retention and repository-retirement transactions.
+-- PostgreSQL 18.6 answers it from the (scope_id, generation_id) index by reading
+-- the whole index once per generation (one index search, every leaf page; 17
+-- does the same), so its cost grows with the table and the index is required on
+-- every version. The plain (generation_id) index keeps that probe at a few
+-- buffers at any table size (docs/internal/evidence/10880-pr-b1/
+-- cascade_scale.md). The plan-shape guard in internal/query/supply/chain/impact
+-- pins the cascade to it by name.
 
 CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports (
     fact_id                TEXT PRIMARY KEY,
@@ -56,6 +66,9 @@ CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_finding_idx
 CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_operator_idx
     ON supply_chain_impact_finding_supports (canonical_key)
     WHERE scope_id = 'operator:vulnerability_suppressions';
+
+CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_generation_idx
+    ON supply_chain_impact_finding_supports (generation_id);
 
 -- Marker and cursor of the reducer-owned backfill that fills supports for the
 -- finding facts written before the maintainer shipped. One row per marker name.

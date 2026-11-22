@@ -361,8 +361,11 @@ import (
 // Digest and count recomputed red-first after the #11131 sweep migration was renumbered
 // 331 to 335 at rebase (main owns 331-332 and 334; 333 is held by an unpushed lane;
 // count 360: main's 359 plus 335).
+// Count 361 adds 336 (#10880 PR-B1). The digest was recomputed again when 336 gained
+// its (generation_id) index and the header comment that explains it; the count did not
+// change.
 const (
-	goldenBootstrapDefinitionsDigest = "b8f9220ae7e91fff4d03752be29b2d014f9d4efab4b07b3735ac62aabe47fa4e"
+	goldenBootstrapDefinitionsDigest = "0746744145e08e834d5da2a6bb51cc22d09eda640ae1c0b71b55a4e3d8a0ae1b"
 	goldenBootstrapDefinitionsCount  = 361
 )
 

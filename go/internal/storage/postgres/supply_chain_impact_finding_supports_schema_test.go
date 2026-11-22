@@ -31,6 +31,10 @@ func TestSupplyChainImpactFindingSupportsMigrationShape(t *testing.T) {
 		"supply_chain_impact_finding_supports_repository_idx ON supply_chain_impact_finding_supports (repository_id)",
 		"supply_chain_impact_finding_supports_finding_idx ON supply_chain_impact_finding_supports (finding_id)",
 		"(canonical_key) WHERE scope_id = 'operator:vulnerability_suppressions'",
+		// The generation foreign key's cascade reads the supports by generation_id
+		// once per deleted generation; PostgreSQL 18.6 reads the whole
+		// (scope_id, generation_id) index for it, so this index is required.
+		"supply_chain_impact_finding_supports_generation_idx ON supply_chain_impact_finding_supports (generation_id)",
 		// The old-writer fence: a dirty-scope table and triggers that skip rows
 		// written under the maintainer's transaction setting.
 		"CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty ( scope_id TEXT PRIMARY KEY",
