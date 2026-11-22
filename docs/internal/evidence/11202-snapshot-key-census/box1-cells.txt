@@ -1,0 +1,12 @@
+removal list: 307 generations -> /home/ubuntu/10881-work/removal_list_11202.txt
+# insert probe db=f153 loadavg=16.94 22.62 26.15 io_psi=avg10=40.59 avg60=42.68
+inserted=61368 insert_wal_bytes=232560610
+# insert probe db=r5 loadavg=19.45 21.86 25.53 io_psi=avg10=70.23 avg60=55.71
+inserted=61368 insert_wal_bytes=203137312
+# cell db=f153 arm=drain_asis list=/home/ubuntu/10881-work/removal_list_11202.txt generations=307 loadavg=21.78 23.58 25.24 io_psi=avg10=56.90 avg60=62.73
+cell db=f153 arm=drain_asis rows_deleted=543145 delete_wal_bytes=1315035107 vacuum_wal_bytes=282221972 size_before=9576964096 size_after=9576964096 delete_seconds=345.66 vacuum_seconds=100.59
+vacuum pages: tables=2 pages_removed=0 pages_remain=731389 pages_scanned=188574 index_scans=2 index_pages_total=437454 index_pages_newly_deleted=30055 buf_hits=981077 buf_misses=352580 buf_dirtied=65383 tuples_removed=274963
+# cell db=r5 arm=drain_asis list=/home/ubuntu/10881-work/removal_list_11202.txt generations=307 loadavg=35.43 31.86 28.17 io_psi=avg10=57.76 avg60=60.27
+cell db=r5 arm=drain_asis rows_deleted=543145 delete_wal_bytes=1329970103 vacuum_wal_bytes=180219102 size_before=7815946240 size_after=7815946240 delete_seconds=742.71 vacuum_seconds=75.52
+vacuum pages: tables=2 pages_removed=0 pages_remain=731372 pages_scanned=210844 index_scans=2 index_pages_total=222515 index_pages_newly_deleted=23727 buf_hits=866765 buf_misses=231063 buf_dirtied=55596 tuples_removed=250773
+BOX1_DONE

@@ -1,0 +1,25 @@
+generations=26813 scopes=12821 fact rows covered=95490229
+generations by status: {'superseded': 11555, 'failed': 2413, 'active': 11921, 'pending': 924}
+rows by status: {'superseded': '67914473 (71.1%)', 'failed': '4925466 (5.2%)', 'active': '20661056 (21.6%)', 'pending': '1989234 (2.1%)'}
+active generations per scope: mean=0.93 p50=1 p90=1 p99=1 max=1
+superseded generations per scope: mean=0.90 p50=0 p90=0 p99=19 max=34
+failed generations per scope: mean=0.19 p50=0 p90=0 p99=1 max=199
+pending generations per scope: mean=0.07 p50=0 p90=0 p99=1 max=3
+superseded generations per scope histogram (25 = 25 or more): {0: 11784, 1: 165, 2: 22, 3: 5, 4: 8, 5: 17, 6: 4, 7: 2, 8: 2, 9: 4, 10: 6, 11: 436, 12: 57, 13: 68, 14: 32, 15: 31, 16: 14, 17: 24, 18: 9, 19: 11, 20: 9, 21: 9, 22: 6, 23: 31, 24: 64, 25: 1}
+rows per active generation: n=11921 p50=186 p90=4235 p99=11353 max=1407121 sum=20661056
+rows per superseded generation: n=11555 p50=865 p90=9102 p99=77250 max=1390369 sum=67914473
+rows per failed generation: n=2413 p50=183 p90=4178 p99=36658 max=117027 sum=4925466
+rows per pending generation: n=924 p50=160 p90=3680 p99=38940 max=150237 sum=1989234
+superseded lifetime (activation to supersession, days): n=11035 p10=0.15 p50=1.01 p90=3.03 p99=6.01 max=22.69
+generation ingest span (days from oldest to newest): 36.3
+generations created per day, last 30 complete days: mean=807 p50=881 max=1338
+rows retired (superseded) per day, last 30 complete days: mean=1924592 p50=839565 max=6474606
+by scope kind (generations, rows, superseded rows):
+  repository: 12515 78169030 66542079
+  vulnerability_intelligence: 12880 13476858 191069
+  account: 253 3353025 1046772
+  package_registry: 112 213847 46002
+  ci_cd_run: 449 86548 9404
+  pagerduty_account: 150 56334 5682
+  documentation_source: 13 42204 35079
+  gcp: 218 31386 4880
