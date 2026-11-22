@@ -420,3 +420,25 @@ Reports: `latency.json` `39f0a93f5ddf00b0b799b9ca18df91e24dde863296c314e904894c3
 The entity row read 164 blocks, the fourth reading with the vacuum (157, 158, 162,
 164), against its 486-block budget. Latency numbers come from a loaded host and are
 not budget evidence.
+
+## Performance and observability evidence
+
+Performance Evidence: this change touches the gate tool only (its budget report type,
+seed and sweep order), not a production hot path. The measured subject is the gate's
+own work budget. Baseline: the committed legacy table before this branch read 2,652
+blocks for the entity-search row (bimodal readings 396 to 889 blocks across runs).
+After: three fresh runs with the nine-table seed `VACUUM (ANALYZE)` read 157, 158
+and 162 blocks (a fourth reading 164), budget 486, with no other counter moving more
+than 10% across runs. Backend: Neo4j and the Postgres from the CI-pinned
+`eshu-deploy` compose (`0a645a87`). Input shape: 800 scopes, 150,000 nodes per label,
+150,000 IaC facts, 2,500,000 shared intents, 20,000 finding facts; the winners seed
+inserts 4,000 rows. Terminal counts: 77 of 128 routes exercised on both legs, zero
+`HardFailed`. Why safe: the change adds a typed not-exercised class and a seed
+maintenance step; no query, queue or lease path changes.
+
+No-Regression Evidence: the final confirm run exited 0 on both legs with every
+exercised route within its table budget and the findings pages byte-identical.
+
+No-Observability-Change: no metric, span, log key or status field is added to a
+runtime service. The seed logs `VACUUM (ANALYZE) finished in <duration>` as gate
+output for the operator running the gate.
