@@ -149,7 +149,7 @@ func buildSAMLProviderConfigWrite(body providerConfigWriteRequest) (builtProvide
 	// Write-only secret payload marshaled solely to be sealed by
 	// secretcrypto.Seal; never emitted to any read surface — same intent as
 	// oidcSecretFields above. No #nosec G117 annotation here: verified with
-	// the pinned gosec (v2.27.1) that this line genuinely reports 0 findings,
+	// the pinned gosec (v2.30.1-0.20261026162949-ff25931a2edd) that this line genuinely reports 0 findings,
 	// because G117's hardcoded-credential regex is word-boundary-anchored and
 	// the "SP" prefix on SPPrivateKey/SPCertificate defeats that match. Adding
 	// an unneeded #nosec directive would be dead and could mask a real future

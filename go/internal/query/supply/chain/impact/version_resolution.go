@@ -235,10 +235,15 @@ func supplyChainVersionResolution(
 		return "", nil
 	}
 
+	// Capture the winner in the loop that finds it, so no index into candidates
+	// is needed after the winnerIndex == -1 check below (gosec G602 cannot see
+	// that the check bounds the index).
 	winnerIndex := -1
+	var winner supplyChainVersionResolutionCandidate
 	for i, c := range candidates {
 		if !c.ineligible {
 			winnerIndex = i
+			winner = c
 			break
 		}
 	}
@@ -256,7 +261,6 @@ func supplyChainVersionResolution(
 		return "", supplyChainVersionResolutionCorroborationEntries(candidates, -1)
 	}
 
-	winner := candidates[winnerIndex]
 	return string(winner.tier), supplyChainVersionResolutionCorroborationEntries(candidates, winnerIndex)
 }
 
