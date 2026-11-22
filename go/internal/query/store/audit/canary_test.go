@@ -21,6 +21,10 @@ var kindJoinBacks = []struct{ statement, alias, reason string }{
 		"re-reads the page's rows by fact_id; page.fact_id comes from source_candidates, which filters fact_kind = $1",
 	},
 	{
+		"JOIN fact_records AS fact ON fact.fact_id = consumption.fact_id", "fact",
+		"re-reads the package-manifest dependency fact by fact_id; the ids come from package_manifest_consumption_keys, which the readiness statement joins to the target keys",
+	},
+	{
 		"LEFT JOIN fact_records AS override ON override.fact_id = page.override_fact_id", "override",
 		"re-reads the operator override by fact_id; override_fact_id comes from operator_candidates, which filters fact_kind = $1",
 	},
@@ -120,5 +124,100 @@ func TestKindCanaryRejectsEveryHiddenKindForm(t *testing.T) {
 	}
 	if aliases, _ := audit.KindlessFactRecordsAliases(`SELECT 1 FROM fact_records a JOIN fact_records b ON TRUE WHERE a.fact_kind = 'reducer_x'`); len(aliases) != 1 || aliases[0] != "b" {
 		t.Errorf("RED: the second alias carried no predicate of its own, canary flagged %v, want [b]", aliases)
+	}
+}
+
+// TestKindCanaryScopesAPredicateToItsOwnRef is the seeded RED set for scoping: a
+// predicate somewhere else in the statement must not satisfy a kindless ref.
+func TestKindCanaryScopesAPredicateToItsOwnRef(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		sql  string
+		want []string
+	}{
+		"alias reused in another CTE": {
+			sql: `WITH a AS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_kind = 'vulnerability.cve'),
+				b AS (SELECT 1 FROM fact_records AS fact WHERE fact.scope_id = 's') SELECT 1 FROM a, b`,
+			want: []string{"fact"},
+		},
+		"alias reused in a subquery": {
+			sql: `SELECT 1 FROM fact_records AS fact WHERE fact.fact_kind = 'vulnerability.cve' AND EXISTS (
+				SELECT 1 FROM fact_records AS fact WHERE fact.scope_id = 's')`,
+			want: []string{"fact"},
+		},
+		"comma without a space": {
+			sql:  `SELECT 1 FROM ingestion_scopes s,fact_records f WHERE s.scope_id = 'a'`,
+			want: []string{"f"},
+		},
+		"parenthesized join tree": {
+			sql:  `SELECT 1 FROM (fact_records f JOIN ingestion_scopes s ON TRUE) WHERE s.scope_id = 'a'`,
+			want: []string{"f"},
+		},
+		"outer predicate and an inner unaliased ref": {
+			sql: `SELECT 1 FROM fact_records WHERE fact_records.fact_kind = 'vulnerability.cve' AND EXISTS (
+				SELECT 1 FROM fact_records WHERE scope_id = 's')`,
+			want: []string{"fact_records"},
+		},
+		"the other UNION arm's predicate": {
+			sql: `SELECT 1 FROM fact_records WHERE fact_kind = 'vulnerability.cve'
+				UNION ALL SELECT 1 FROM fact_records WHERE scope_id = 's'`,
+			want: []string{"fact_records"},
+		},
+	} {
+		got, err := audit.KindlessFactRecordsAliases(tc.sql)
+		if err != nil || strings.Join(got, ",") != strings.Join(tc.want, ",") {
+			t.Errorf("%s RED: canary flagged %v (err %v), want %v", name, got, err, tc.want)
+		}
+	}
+	// GREEN: each ref carries its own predicate, in its own scope.
+	for name, sql := range map[string]string{
+		"two CTEs, each with its own": `WITH a AS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_kind = 'vulnerability.cve'),
+			b AS (SELECT 1 FROM fact_records AS fact WHERE fact.fact_kind = 'reducer_x') SELECT 1 FROM a, b`,
+		"join tree with the WHERE outside": `SELECT 1 FROM (fact_records f JOIN ingestion_scopes s ON TRUE) WHERE f.fact_kind = 'reducer_x'`,
+		"correlated predicate in a nested subquery": `SELECT 1 FROM fact_records f WHERE EXISTS (
+			SELECT 1 FROM ingestion_scopes s WHERE f.fact_kind = 'reducer_x')`,
+		"each UNION arm with its own": `SELECT 1 FROM fact_records WHERE fact_kind = 'reducer_x'
+			UNION ALL SELECT 1 FROM fact_records WHERE fact_kind = 'reducer_y'`,
+	} {
+		if got, err := audit.KindlessFactRecordsAliases(sql); err != nil || len(got) != 0 {
+			t.Errorf("%s GREEN: canary flagged %v (err %v)", name, got, err)
+		}
+	}
+}
+
+// TestKindCanaryRequiresARestrictingConjunct is the seeded RED set for presence
+// versus restriction: a recognized predicate that does not restrict the ref's
+// rows (an OR arm, under a NOT, inside a function, a CASE, an IS test, or in the
+// select list) must not satisfy the canary.
+func TestKindCanaryRequiresARestrictingConjunct(t *testing.T) {
+	t.Parallel()
+	const head = `SELECT 1 FROM fact_records f, ingestion_scopes s WHERE `
+	for name, sql := range map[string]string{
+		"OR with a non-kind arm":    head + `(f.fact_kind = 'vulnerability.cve' OR f.scope_id = 's')`,
+		"OR with a hidden arm":      head + `(f.fact_kind = 'vulnerability.cve' OR f.fact_kind::text = 'reducer_x')`,
+		"NOT of a conjunction":      head + `NOT (f.scope_id = 'x' AND f.fact_kind = 'vulnerability.cve')`,
+		"IS NOT TRUE":               head + `(f.fact_kind = 'vulnerability.cve') IS NOT TRUE`,
+		"compared with TRUE":        head + `(f.fact_kind = 'vulnerability.cve') <> TRUE`,
+		"COALESCE with TRUE":        head + `COALESCE(f.fact_kind = 'vulnerability.cve', TRUE)`,
+		"select-list CASE":          `SELECT CASE WHEN f.fact_kind = 'vulnerability.cve' THEN 1 END FROM fact_records f`,
+		"ON clause with an OR":      `SELECT 1 FROM ingestion_scopes s JOIN fact_records f ON f.scope_id = s.scope_id OR f.fact_kind = 'vulnerability.cve'`,
+		"OR before an AND conjunct": head + `f.scope_id = 'a' OR s.scope_id = 'b' AND f.fact_kind = 'vulnerability.cve'`,
+	} {
+		got, err := audit.KindlessFactRecordsAliases(sql)
+		if err != nil || len(got) != 1 || got[0] != "f" {
+			t.Errorf("%s RED: canary flagged %v (err %v), want [f]", name, got, err)
+		}
+	}
+	for name, sql := range map[string]string{
+		"a plain conjunct":                   head + `f.scope_id = 'a' AND f.fact_kind = 'reducer_x'`,
+		"a conjunct inside an AND group":     head + `s.scope_id = 'a' AND (f.scope_id = 'a' AND f.fact_kind = 'reducer_x')`,
+		"a conjunct in the ON clause":        `SELECT 1 FROM ingestion_scopes s JOIN fact_records f ON f.scope_id = s.scope_id AND f.fact_kind = 'reducer_x'`,
+		"a conjunct before ORDER BY":         head + `f.fact_kind = 'reducer_x' ORDER BY f.fact_id`,
+		"ANY with a typed bind":              head + `f.fact_kind = ANY($1::text[])`,
+		"an OR elsewhere, outside its group": head + `(s.scope_id = 'a' OR s.scope_id = 'b') AND f.fact_kind = 'reducer_x'`,
+	} {
+		if got, err := audit.KindlessFactRecordsAliases(sql); err != nil || len(got) != 0 {
+			t.Errorf("%s GREEN: canary flagged %v (err %v)", name, got, err)
+		}
 	}
 }

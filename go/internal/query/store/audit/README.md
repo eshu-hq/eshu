@@ -67,13 +67,21 @@ which records what is unprobed or unowned today.
 - The kind canary (`canary_test.go`) closes that class for every probed
   statement: after the same scrub and dead-branch blanking, each live
   `fact_records` alias must carry a recognized positive kind predicate of its
-  own, or be one of two pinned `fact_id` join-backs of the impact list (the page
-  re-read `source` and the operator `override`, which re-read rows the statement
-  already selected under its own reducer-kind filter). A new probed statement
-  with an alias that lacks one goes red. The canary reads only recorded
-  statements, so it does not cover the 155 waived capabilities (their full
-  statements are never recorded) or the census, which sees fragments; that gap is
-  #11212.
+  own, or be one of three pinned `fact_id` join-backs (the impact list's page
+  re-read `source` and operator `override`, and the readiness statement's
+  package-manifest `fact` re-read, each re-reading rows already selected by a
+  statement that filters kind elsewhere). "Of its own" is enforced two ways. The
+  predicate is searched in the ref's own scope, the innermost subquery that holds
+  it (a parenthesized join tree is skipped) cut to its `UNION`, `INTERSECT`, or
+  `EXCEPT` arm, so a reused alias name or another arm's predicate satisfies
+  nothing. And it must restrict: a depth-zero `AND` conjunct of the `WHERE` or
+  `ON` clause that holds the ref, climbing out of boolean groups that are
+  themselves conjuncts; a predicate that is an `OR` arm, under `NOT`, inside a
+  function or `CASE`, in the select list, or tested with `IS`, `<>`, a cast, or a
+  concatenation does not count. A new probed statement with an alias that lacks
+  one goes red. The canary reads only recorded statements, so it does not cover
+  the 155 waived capabilities (their full statements are never recorded) or the
+  census, which sees fragments; that gap is #11212.
 - A subquery whose `WHERE` is always false (a literal `AND FALSE` conjunct with
   no `OR` to rescue it) returns no rows, so the tables it names are not counted.
   A compound subquery is read arm by arm (`UNION` when every arm is empty,
