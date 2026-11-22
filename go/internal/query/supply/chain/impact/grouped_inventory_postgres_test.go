@@ -162,11 +162,13 @@ func TestGroupedInventoryStoreBindsAggregateArgumentsInOrder(t *testing.T) {
 	filter := AggregateFilter{
 		CVEID: "CVE-1", PackageID: "pkg", RepositoryID: "repository:r", SubjectDigest: "sha256:d",
 		Status: "affected_exact", AdvisoryID: "GHSA-1", Ecosystem: "npm", ServiceID: "service:a",
-		WorkloadID: "workload:w", Environment: "prod", Severity: "high", DetectionProfile: "precise",
+		WorkloadID: "workload:w", Environment: "prod", Severity: "high", DetectionProfile: "",
 		PriorityBucket: "high", MinPriorityScore: 7, SuppressionState: "active", IncludeSuppressed: true,
-		// ImageRef stays empty: a non-empty image_ref answers unavailable
-		// before any query (TestGroupedInventoryImageRefAnswersUnavailable), so
-		// the served call binds the empty $17.
+		// ImageRef and DetectionProfile stay empty: a non-empty image_ref or the
+		// precise profile answers unavailable before any query
+		// (TestGroupedInventoryImageRefAnswersUnavailable and
+		// TestGroupedInventoryPreciseProfileAnswersUnavailable), so the served
+		// call binds the empty $12 and $17.
 		AllowedRepositoryIDs: []string{"repository:r"}, AllowedScopeIDs: []string{"scope:s"},
 	}
 	if _, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), filter, GroupedInventoryByService, 11, 20); err != nil {
@@ -178,7 +180,7 @@ func TestGroupedInventoryStoreBindsAggregateArgumentsInOrder(t *testing.T) {
 	args := q.calls[1].args
 	want := []any{
 		"CVE-1", "pkg", "repository:r", "sha256:d", "affected_exact", "GHSA-1", "npm", "service:a",
-		"workload:w", "prod", "high", "precise", "high", 7, "active", true, "",
+		"workload:w", "prod", "high", "", "high", 7, "active", true, "",
 	}
 	if len(args) != groupedInventoryArgCount {
 		t.Fatalf("args = %d, want %d", len(args), groupedInventoryArgCount)

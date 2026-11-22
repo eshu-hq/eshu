@@ -23,7 +23,7 @@ import (
 // ref, so no gate-on route may answer an image_ref call from winners. These
 // tests pin the guard at each gate site: list and aggregates fall back to the
 // legacy fact read, grouped inventory (which has no legacy read) answers
-// ErrGroupedInventoryReadModelUnavailable.
+// ErrGroupedInventoryFilterUnavailable.
 
 func TestFindingListImageRefStaysOffWinners(t *testing.T) {
 	t.Parallel()
@@ -97,10 +97,42 @@ func TestGroupedInventoryImageRefAnswersUnavailable(t *testing.T) {
 	_, err := store.SupplyChainImpactGroupedInventory(
 		t.Context(), AggregateFilter{ImageRef: "registry.example/app:1"}, GroupedInventoryByService, 10, 0,
 	)
-	if !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
-		t.Fatalf("grouped inventory with image_ref = %v, want ErrGroupedInventoryReadModelUnavailable", err)
+	if !errors.Is(err, ErrGroupedInventoryFilterUnavailable) || !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
+		t.Fatalf("grouped inventory with image_ref = %v, want ErrGroupedInventoryFilterUnavailable (a read-model-unavailable error)", err)
 	}
 	if len(probe.queries) != 0 {
 		t.Fatalf("grouped inventory with image_ref issued %d queries, want none (winners cannot answer it)", len(probe.queries))
+	}
+}
+
+func TestGroupedInventoryPreciseProfileAnswersUnavailable(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		profile    string
+		wantServed bool
+	}{
+		"precise":       {profile: ProfilePrecise, wantServed: false},
+		"comprehensive": {profile: "", wantServed: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			probe := &cov7StoreQueryer{onRows: func(string) (db.Rows, error) { return &cov7StoreRows{}, nil }}
+			store := NewPostgresGroupedInventoryStoreWithReadStore(probe, true, nil)
+			_, err := store.SupplyChainImpactGroupedInventory(
+				t.Context(), AggregateFilter{DetectionProfile: tc.profile}, GroupedInventoryByService, 10, 0,
+			)
+			if tc.wantServed {
+				if errors.Is(err, ErrGroupedInventoryFilterUnavailable) || len(probe.queries) == 0 {
+					t.Fatalf("profile=comprehensive err = %v with %d queries, want it served", err, len(probe.queries))
+				}
+				return
+			}
+			if !errors.Is(err, ErrGroupedInventoryFilterUnavailable) {
+				t.Fatalf("grouped inventory with the precise profile = %v, want ErrGroupedInventoryFilterUnavailable", err)
+			}
+			if len(probe.queries) != 0 {
+				t.Fatalf("issued %d queries, want none (winners cannot answer it)", len(probe.queries))
+			}
+		})
 	}
 }
