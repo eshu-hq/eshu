@@ -43,8 +43,9 @@ from the `admin_replay_requests` ledger and changes nothing, so a retried
 request never grants a second allowance.
 
 A fourth writer moves `dead_letter` rows back to `pending` on a timer: the
-reducer's poison-liveness auto-retry sweep, when
-`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED` is on (default `false`). It covers
+reducer's poison-liveness auto-retry sweep, when its enable setting in the
+[service runtimes](../../deployment/service-runtimes.md) page is on (default
+off). It covers
 projector rows too and is out of scope here (#11217). The poison-liveness
 sweep does not carry the allowance. It keeps `attempt_count`,
 `admission_wait_attempts` and `replay_attempt_baseline`, so a recovered row
