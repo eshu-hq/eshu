@@ -474,8 +474,8 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
 ## What stays unverified
 
 - #11186 (pre-write release and resume bound landed, replay arm owed) and
-  #11187 (met for the claim-gate class; the parked-wait class, the
-  timer-path class, and the replay arm are owed) must close before the
+  #11187 (met for the claim-gate class and the parked-wait class; the
+  timer-path class and the replay arm are owed) must close before the
   replay is accepted, before #10882 closes, and before any deployment sets
   the thresholds. Enablement gate and rollout: [r4 decisions](10882-source-backpressure-r4-decisions.md).
 

@@ -18,16 +18,37 @@ import (
 
 // claimableReadySQL is the per-row takeability test the signal aggregates
 // filter on (#11187): a row the claim's own readiness gate refuses is not
-// takeable, so it is neither backlog nor lag the paced intake can clear. It
-// waits on canonical phases that the intake (and, since #11186, a paced item
-// that writes nothing) has to deliver, so counting it could hold a latch
-// forever. The hashed NOT IN skips the gate for the domains with no readiness
-// requirement. It sits in the aggregate FILTERs, not the WHERE: a subplan in
-// the WHERE flips the grouped plan to a sort-based aggregate that spills
-// (measured 235 ms to 610 ms at 10x replay scale), while the same predicate in
-// the FILTERs leaves the shipped plan alone.
-var claimableReadySQL = "(work.domain NOT IN (SELECT domain FROM reducer_claim_readiness_requirements)\n" +
-	"           OR " + reducerClaimReadinessGateSQL("work", "readiness_req", "readiness_phase") + ")"
+// takeable, so it is neither backlog nor lag the paced intake can clear: it
+// waits on canonical phases the intake has to deliver, so counting it could
+// hold a latch forever. The hashed NOT IN skips the gate for domains with no
+// readiness requirement. It sits in the aggregate FILTERs, not the WHERE: a
+// subplan in the WHERE flips the grouped plan to a spilling sort aggregate
+// (235 ms to 610 ms at 10x replay scale); in the FILTERs the plan stays put.
+//
+// A row parked in reducer_waiting_items is not takeable either (#11187 R4-3):
+// it stays 'retrying' and turns visible when its 10 minute backstop expires,
+// but it waits on a dependency the paced intake cannot deliver. The test is the
+// wait row itself (parked_wait, the lateral probe in the queries' FROM), not a
+// failure_class or timestamp shortcut: a woken row has its wait row deleted and
+// reopened_at set, is real work, and ages from the wake. A parked row is always
+// retrying, so the probe's status guard keeps a pending row off the wait table
+// and the cost does not follow the table's size. Correlated copies, a hashed
+// NOT IN, and an unguarded lateral measured +18% to +157% on the bounded probe
+// at 10x (R4-3 decision, round 4 record).
+var claimableReadySQL = "((work.domain NOT IN (SELECT domain FROM reducer_claim_readiness_requirements)\n" +
+	"            OR " + reducerClaimReadinessGateSQL("work", "readiness_req", "readiness_phase") + ")\n" +
+	"           AND parked_wait.parked IS NULL)"
+
+// parkedWaitProbeSQL is the one wait-row probe the signal queries join: at
+// most one lookup per scanned retrying row, none for any other status.
+const parkedWaitProbeSQL = `LEFT JOIN LATERAL (
+  SELECT TRUE AS parked
+  FROM reducer_waiting_items AS wait
+  WHERE work.status = 'retrying'
+    AND wait.work_item_id = work.work_item_id
+  LIMIT 1
+) AS parked_wait ON TRUE
+`
 
 // sourceClaimableSignalQuery reads the per-source claimable reducer signal
 // in one grouped statement (#10882 decision 1): for every source system, the
@@ -36,8 +57,9 @@ var claimableReadySQL = "(work.domain NOT IN (SELECT domain FROM reducer_claim_r
 // now, and passing the reducer claim's readiness gate, so deliberately gated
 // future-visible rows and rows still waiting on canonical phases never
 // throttle a source. Conflict-fenced rows stay counted: they wait on a holder
-// the reducer itself finishes, so they drain without intake. Source attribution matches the queue observer: payload
-// source_system, falling back to the scope's source_system.
+// the reducer itself finishes, so they drain without intake. Source
+// attribution matches the queue observer: payload source_system, falling back
+// to the scope's source_system.
 //
 // It uses the per-row active form, not the materialized one: the matching
 // set is the bounded claimable backlog (reducer pending|retrying and
@@ -46,15 +68,13 @@ var claimableReadySQL = "(work.domain NOT IN (SELECT domain FROM reducer_claim_r
 // row per ingestion scope (#6794 selective-probe precedent). The two forms
 // select the same rows (TestActiveFactWorkItemsFormsSelectTheSameRows).
 //
-// The grouped form serves the publication path, which needs every source
-// at once and does not run per claim. The claim-hot consult path uses
-// the bounded per-source probe (boundedSourceSignalQuery, S0 verdict):
-// the grouped scan is the slow one: p50 about 266 ms at 10x replay scale
-// (87,130 claimable rows) against about 92 ms for the bounded probe over
-// about 13k rows of one source, same session on a busy host with the
-// readiness test in the aggregate FILTERs. Treat the ratio, not the
-// milliseconds, as the evidence: both move with host load, and the harness
-// budget for the bounded probe is 100 ms.
+// The grouped form serves the publication path, which needs every source at
+// once and does not run per claim. The claim-hot consult path uses the
+// bounded per-source probe (boundedSourceSignalQuery, S0 verdict): the grouped
+// scan is the slow one, p50 about 266 ms at 10x replay scale (87,130 claimable
+// rows) against about 92 ms for the bounded probe over about 13k rows of one
+// source, same session on a busy host. Treat the ratio, not the milliseconds,
+// as the evidence: both move with host load; the bounded budget is 100 ms.
 var sourceClaimableSignalQuery = `
 WITH ` + activeFactWorkItemsPerRowCTE + `,
 ` + reducerClaimReadinessRequirementsCTE() + `
@@ -66,7 +86,7 @@ SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(
 FROM active_fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id
-WHERE work.stage = 'reducer'
+` + parkedWaitProbeSQL + `WHERE work.stage = 'reducer'
   AND work.status IN ('pending', 'retrying')
   AND (work.visible_at IS NULL OR work.visible_at <= $1)
 GROUP BY 1

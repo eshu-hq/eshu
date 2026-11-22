@@ -65,6 +65,9 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	for source, row := range readTakeableCensus(t, ctx, conn, now) {
 		t.Logf("S0 replay census: source=%s readiness_blocked=%d fenced=%d takeable=%d", source, row.blocked, row.fenced, row.takeable)
 	}
+	for source, row := range readWaitingCensus(t, ctx, conn, now) {
+		t.Logf("S0 replay wait census: source=%s %s", source, row)
+	}
 	plan, rows := explainSignalQuery(t, ctx, sqlConn, sourceClaimableSignalQuery, now)
 	t.Logf("S0 replay-scale (%d rows): groups=%d plan:\n%s", seeded, len(rows), plan)
 
@@ -106,6 +109,9 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	}
 	for source, row := range readTakeableCensus(t, ctx, conn, now) {
 		t.Logf("S0 10x census: source=%s readiness_blocked=%d fenced=%d takeable=%d", source, row.blocked, row.fenced, row.takeable)
+	}
+	for source, row := range readWaitingCensus(t, ctx, conn, now) {
+		t.Logf("S0 10x wait census: source=%s %s", source, row)
 	}
 	plan10x, rows10x := explainSignalQuery(t, ctx, sqlConn, sourceClaimableSignalQuery, now)
 	t.Logf("S0 10x-scale: groups=%d plan:\n%s", len(rows10x), plan10x)
@@ -198,6 +204,10 @@ WHERE work.stage = 'reducer'
 	}
 	t.Logf("S0 verdict: grouped p50=%s exceeds budget; bounded p50=%s within %s: S1 ships the bounded consult, grouped stays for publication",
 		signal10xP50, sargP50, s0Budget)
+
+	// R4-3: the same budget over a populated wait table (an asserted cell and a
+	// logged worst-case cell with a plan assertion).
+	runS0ParkedCells(t, ctx, conn, sqlConn, now, "s0-source-0", s0Budget)
 }
 
 // sourceSignalRow is one decoded grouped-signal row for the S0 probe.
