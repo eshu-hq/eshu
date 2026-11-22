@@ -202,9 +202,11 @@ func wakeAckActivationWaits(
 // in-tx wake or the park re-check already reopened is a no-op. A failure or
 // timeout is logged at ERROR and metered (outcome=error), never returned:
 // the generation is already active, and the audit plus the 10-minute
-// backstop still bound the miss.
-func (q ProjectorQueue) wakeAckWaitsAfterCommit(ctx context.Context, work projector.ScopeGenerationWork, now time.Time) {
-	q.wakeAckWaitsAfterCommitWithin(ctx, work, now, AckPostCommitWakeTimeout)
+// backstop still bound the miss. The reopened rows are stamped with the
+// re-wake's own clock read, not the Ack's pre-transaction one: visible_at
+// and reopened_at move to the wake time, as for the in-tx wake.
+func (q ProjectorQueue) wakeAckWaitsAfterCommit(ctx context.Context, work projector.ScopeGenerationWork) {
+	q.wakeAckWaitsAfterCommitWithin(ctx, work, AckPostCommitWakeTimeout)
 }
 
 // wakeAckWaitsAfterCommitWithin is wakeAckWaitsAfterCommit with an explicit
@@ -212,11 +214,11 @@ func (q ProjectorQueue) wakeAckWaitsAfterCommit(ctx context.Context, work projec
 func (q ProjectorQueue) wakeAckWaitsAfterCommitWithin(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
-	now time.Time,
 	timeout time.Duration,
 ) {
 	wakeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
+	now := q.now()
 	site := telemetry.WaitingWakeSiteAckPostCommit
 	if err := wakeTerminalGenerationActiveWaits(wakeCtx, q.database, q.Instruments, site, now); err != nil {
 		logPostCommitWakeError(context.WithoutCancel(ctx), "ack", work.Scope.ScopeID, "", err)

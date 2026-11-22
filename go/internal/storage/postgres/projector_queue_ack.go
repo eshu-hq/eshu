@@ -169,7 +169,7 @@ func (q ProjectorQueue) Ack(
 	// #11228: a waiter that parked inside this transaction's open window
 	// (its park re-check could not see the uncommitted activation, and the
 	// in-tx wakes above ran before its wait row committed) is reopened here.
-	q.wakeAckWaitsAfterCommit(ctx, work, now)
+	q.wakeAckWaitsAfterCommit(ctx, work)
 	projector.RecordDeltaBaselineFence(ctx, q.Instruments, projector.DeltaBaselinePhaseAck, baselineFence.outcome)
 	q.recordAckJournal(ctx, work, journalOutcome)
 

@@ -31,7 +31,7 @@ func TestAckPostCommitWakeTimesOutAndMeters(t *testing.T) {
 		Generation: scope.ScopeGeneration{GenerationID: "gen-apc"},
 	}
 	start := time.Now()
-	queue.wakeAckWaitsAfterCommitWithin(ctx, work, time.Now().UTC(), 50*time.Millisecond)
+	queue.wakeAckWaitsAfterCommitWithin(ctx, work, 50*time.Millisecond)
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("post-commit re-wake took %v, want it bounded by its timeout", elapsed)
 	}
