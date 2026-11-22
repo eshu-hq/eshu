@@ -44,13 +44,14 @@ type ScopeGenerationWork struct {
 	// AdmissionWaitAttempts, while admission-timeout failures retry
 	// against their own finite admission budget (#10671).
 	AdmissionWaitAttempts int
+	// SourcePacedWaits counts claims released by per-source backpressure
+	// (#10882); Fail refunds them like admission waits and they never dead-letter.
+	SourcePacedWaits int
 	// ReplayAttemptBaseline is the AttemptCount the row had when an operator
 	// replay last moved it from dead_letter or failed back to pending, or 0
-	// when it was never replayed (#11182). Fail subtracts it from the
-	// projection budget so a replayed row gets the retries a new row gets,
-	// while AttemptCount itself keeps growing as the claim fence. Replay
-	// also resets AdmissionWaitAttempts, so the admission budget starts
-	// fresh too.
+	// when never replayed (#11182). Fail subtracts it from the projection budget
+	// so a replayed row gets a new row's retries while AttemptCount stays the
+	// claim fence. Replay also resets AdmissionWaitAttempts and SourcePacedWaits.
 	ReplayAttemptBaseline int
 }
 
@@ -109,6 +110,7 @@ type Service struct {
 	Instruments       *telemetry.Instruments // optional
 	Logger            *slog.Logger           // optional
 	Workers           int                    // concurrent worker count; 0 or 1 means sequential
+	SourcePacer       SourcePacer            // optional; releases a slowed source's claim before any write (#10882 F8)
 
 	// Large-generation semaphore: limits how many large repos can be
 	// projected concurrently while letting small/medium repos proceed
@@ -265,7 +267,9 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	if handled, err := s.preflightDeltaBaseline(workCtx, work, start, workerID); handled {
 		return err
 	}
-
+	if handled, err := s.releaseIfSourcePaced(workCtx, work, workerID); handled {
+		return err
+	}
 	projectCtx, stopHeartbeat := s.startHeartbeat(workCtx, work, workerID)
 	defer func() {
 		_ = stopHeartbeat()

@@ -95,13 +95,13 @@ SELECT EXISTS (SELECT 1 FROM target), EXISTS (SELECT 1 FROM stamped)
 const reprojectReopenedCTE = `reopened AS (
     INSERT INTO fact_work_items (
         work_item_id, scope_id, generation_id, stage, domain, status,
-        attempt_count, admission_wait_attempts, lease_owner, claim_until,
+        attempt_count, admission_wait_attempts, source_paced_waits, lease_owner, claim_until,
         visible_at, last_attempt_at, next_attempt_at, failure_class,
         failure_message, failure_details, payload, created_at, updated_at
     )
     SELECT
         'projector_' || $2 || '_' || target.generation_id, $2, target.generation_id,
-        'projector', 'source_local', 'pending', 0, 0, NULL, NULL, $1, NULL, NULL,
+        'projector', 'source_local', 'pending', 0, 0, 0, NULL, NULL, $1, NULL, NULL,
         NULL, NULL, NULL, jsonb_build_object('reconcile_reopen_count', 1), $1, $1
     FROM target
     ON CONFLICT (work_item_id) DO UPDATE
@@ -117,6 +117,10 @@ const reprojectReopenedCTE = `reopened AS (
         admission_wait_attempts = CASE
             WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
             ELSE fact_work_items.admission_wait_attempts
+        END,
+        source_paced_waits = CASE
+            WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
+            ELSE fact_work_items.source_paced_waits
         END,
         -- #11182: the replay baseline follows attempt_count down, so the
         -- projection budget attempt_count - admission_wait_attempts -

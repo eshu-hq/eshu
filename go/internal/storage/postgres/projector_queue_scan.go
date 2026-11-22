@@ -40,6 +40,7 @@ func scanProjectorWork(rows db.Rows) (projector.ScopeGenerationWork, error) {
 		&work.Generation.GenerationID,
 		&work.AttemptCount,
 		&work.AdmissionWaitAttempts,
+		&work.SourcePacedWaits,
 		&work.ReplayAttemptBaseline,
 		&work.Generation.ObservedAt,
 		&work.Generation.IngestedAt,

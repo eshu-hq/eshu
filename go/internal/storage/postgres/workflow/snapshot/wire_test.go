@@ -50,6 +50,15 @@ func fullSnapshot() *statuspkg.CoordinatorSnapshot {
 			FailureClass: "auth", FailureOperation: "fetch", ObservedAt: base, Acknowledged: true,
 			AcknowledgedAt: base.Add(time.Minute),
 		}},
+		// Source pacing rows (#10882): slowed and stuck, and a healthy
+		// source, in the sorted order the live read emits.
+		SourcePacing: []collector.SourcePacingSnapshot{{
+			SourceSystem: "git", OldestClaimableAge: 90 * time.Second, ClaimableDepth: 12,
+		}, {
+			SourceSystem: "vulnerability_intelligence", Slowed: true, Reason: "source_behind",
+			OldestClaimableAge: 30 * time.Hour, ClaimableDepth: 6363,
+			EngagedSince: base.Add(-2 * time.Hour), Stuck: true,
+		}},
 		ActiveClaims:     3,
 		OverdueClaims:    1,
 		OldestPendingAge: 95 * time.Second,

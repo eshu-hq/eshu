@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -13,6 +13,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
+
+// mapGetenv builds the static env the admission proofs read: the tests
+// script one complete or partial threshold set per case.
+func mapGetenv(values map[string]string) func(string) string {
+	return func(key string) string { return values[key] }
+}
 
 func TestReducerAdmissionDefersAtHighWaterAndResumesBelow(t *testing.T) {
 	t.Parallel()
@@ -291,27 +297,6 @@ func TestReducerIntentWriterWithAdmissionWrapsRealWriter(t *testing.T) {
 	}
 	if _, ok := writer.(reducerAdmissionWriter); !ok {
 		t.Fatalf("writer type = %T, want reducerAdmissionWriter", writer)
-	}
-}
-
-func TestReducerIntentWriterWithAdmissionSkipsLocalLightweight(t *testing.T) {
-	t.Parallel()
-
-	writer, err := reducerIntentWriterWithAdmission(
-		postgres.SQLDB{},
-		lightweightReducerIntentWriter{},
-		mapGetenv(map[string]string{
-			"ESHU_QUERY_PROFILE":                     "local_lightweight",
-			"ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK": "100",
-		}),
-		nil,
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("reducerIntentWriterWithAdmission() error = %v, want nil", err)
-	}
-	if _, ok := writer.(lightweightReducerIntentWriter); !ok {
-		t.Fatalf("writer type = %T, want lightweightReducerIntentWriter", writer)
 	}
 }
 

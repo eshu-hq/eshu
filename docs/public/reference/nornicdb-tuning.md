@@ -269,7 +269,7 @@ Observability Evidence: bootstrap-index's gate reuses the existing
 new metric, span, or log field is introduced.
 
 The gate reuses the existing admission loop in
-`go/cmd/ingester/reducer_admission.go` and the
+`go/internal/reduceradmission/reducer_admission.go` and the
 `eshu_dp_reducer_admission_deferrals_total` counter. The failure-class-scoped
 count comes from `QueueObserverStore.ReducerGraphWriteTimeoutDepth`, a query that
 filters retrying reducer rows to `failure_class = graph_write_timeout` (reusing

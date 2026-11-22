@@ -21,7 +21,12 @@ package queuestore
 // replay_attempt_baseline takes the row's attempt_count at the replay (at
 // least 1, matching the attempt_count raise each carrier writes), and
 // ProjectorQueue.Fail subtracts it from the projection budget.
-// admission_wait_attempts goes back to 0, so the admission budget starts fresh.
+// admission_wait_attempts goes back to 0, so the admission budget starts fresh,
+// and source_paced_waits (#10882) goes back to 0 with it: the projection count
+// subtracts the paced waits as well as the baseline, so a replayed row that kept
+// them would count attempt_count - 0 - paced - attempt_count, a negative number
+// that grants extra projection retries. Only a projector row ever holds a
+// non-zero value there, so the reset is unconditional.
 // The baseline is projector-only: the reducer budget does not read it yet, so
 // a reducer row keeps its stored value and baseline <= attempt_count holds on
 // every row.
@@ -41,4 +46,5 @@ const ReplayRetryAllowanceAssignments = `replay_attempt_baseline = CASE
             WHEN stage = 'projector' THEN GREATEST(attempt_count, 1)
             ELSE replay_attempt_baseline
         END,
-        admission_wait_attempts = 0`
+        admission_wait_attempts = 0,
+        source_paced_waits = 0`

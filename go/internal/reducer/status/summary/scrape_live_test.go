@@ -235,8 +235,12 @@ func TestScrapeStatementInventoryOnAnEmptyStoreLive(t *testing.T) {
 	onTotal, onActive, onCoordinator := inventory(scrapeSelection(), true)
 	t.Logf("statements per scrape on an empty store: before=%d (active-work %d, coordinator %d), reader off=%d (%d, %d), reader on=%d (%d, %d)",
 		beforeTotal, beforeActive, beforeCoordinator, offTotal, offActive, offCoordinator, onTotal, onActive, onCoordinator)
-	if beforeTotal != 26 || beforeActive != 1 || beforeCoordinator != 8 {
-		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 26, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
+	// 27: the 26 of before #10882 plus the one source-pacing latch read the live
+	// coordinator read issues whether or not the per-source leg is configured
+	// (one indexed read of the small workflow_claim_pacing table), so an engaged
+	// latch stays visible on a process without the thresholds.
+	if beforeTotal != 27 || beforeActive != 1 || beforeCoordinator != 8 {
+		t.Fatalf("before = %d statements, %d active-work, %d coordinator; want 27, 1 and 8", beforeTotal, beforeActive, beforeCoordinator)
 	}
 	if offTotal != 21 || offActive != 0 || offCoordinator != 0 {
 		t.Fatalf("reader off = %d statements, %d active-work, %d coordinator; want 21 (the 17 stored-serve statements plus the four probe reads), 0 and 0",

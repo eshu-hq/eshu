@@ -21,6 +21,7 @@ import (
 	statestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/terraform/state"
 	coordinatorsnapshot "github.com/eshu-hq/eshu/go/internal/storage/postgres/workflow/snapshot"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // Status snapshot read labels: the closed value set of the `read` attribute on
@@ -142,16 +143,26 @@ type StatusSummaryReader struct {
 	terraform  *summary.ModelReader[statestore.TerraformStateAdminEvidence]
 	// coordinator serves the workflow coordinator snapshot (#8828).
 	coordinator *summary.ModelReader[*statuspkg.CoordinatorSnapshot]
+	// sourceBackpressure carries the per-source slowdown thresholds (#10882); zero leaves stuck unevaluated.
+	sourceBackpressure workflow.SourceBackpressureConfig
 }
 
 // NewStatusSummaryReader loads ESHU_STATUS_SUMMARY_READ_ENABLED and
 // ESHU_STATUS_SUMMARY_STALE_AFTER; an invalid value while on is a startup error.
+// It also loads the per-source backpressure thresholds, which fail the
+// same way on a partial set.
 func NewStatusSummaryReader(getenv func(string) string) (*StatusSummaryReader, error) {
 	cfg, err := summary.LoadReadConfig(getenv)
 	if err != nil {
 		return nil, err
 	}
-	return NewStatusSummaryReaderWithConfig(cfg), nil
+	sourceBackpressure, err := loadSourceBackpressureThresholds(getenv)
+	if err != nil {
+		return nil, err
+	}
+	reader := NewStatusSummaryReaderWithConfig(cfg)
+	reader.sourceBackpressure = sourceBackpressure
+	return reader, nil
 }
 
 // NewStatusSummaryReaderWithConfig builds a reader from explicit settings.
@@ -416,7 +427,7 @@ func (s StatusStore) readCoordinator(ctx context.Context, asOf time.Time, select
 		Decode: coordinatorsnapshot.Decode,
 		Live: func(ctx context.Context) (*statuspkg.CoordinatorSnapshot, error) {
 			q, done := s.read(ctx, statusReadCoordinator)
-			live, err := readCoordinatorSnapshot(ctx, q, asOf)
+			live, err := readCoordinatorSnapshot(ctx, q, asOf, s.summaryReader.backpressureConfig())
 			return live, done(err)
 		},
 		Clone: coordinatorsnapshot.Clone,
