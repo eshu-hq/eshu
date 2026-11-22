@@ -23,7 +23,7 @@ import (
 const advisoryGroupFamily = "advisory_group"
 
 // advisoryGroupRelationshipType is the single relationship type the
-// AdvisoryGroupUpsertCypher template MERGEs, a static token in the
+// AdvisoryGroupEdgeMergeCypher template MERGEs, a static token in the
 // template. Duplicated as a literal and failing closed for the same
 // reason as runtimeDeclarationRelationshipType: the fixture is compared
 // against the registry, so a stale literal reds instead of asserting

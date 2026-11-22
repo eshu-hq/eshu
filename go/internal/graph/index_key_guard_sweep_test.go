@@ -24,8 +24,10 @@ import (
 var sweepDirs = []string{"internal/storage", "internal/reducer", "internal/projector", "internal/collector", "cmd"}
 
 // sweepMinCandidates is the floor on indexed-write literals the sweep must
-// examine; the tree held 94 when it was written.
-const sweepMinCandidates = 60
+// examine. The tree held 94 when it was written and 104 after the #11161
+// advisory statements; the floor sits just under that so a candidate detector
+// that silently stops reading a few literals still fails the sweep.
+const sweepMinCandidates = 100
 
 // sweepSkipsDir reports whether rel, a directory relative to the go/ module
 // root, is a cmd gate tool: a command named *-gate or *-gates is a test or
