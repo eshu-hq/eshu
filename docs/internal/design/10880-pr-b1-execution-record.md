@@ -253,6 +253,13 @@ candidate's rank-filter order has since changed to the ruled pick-then-filter
 order, which filters after the pick; the block counts above predate that change and
 are NOT_CHECKED at the final shape.
 
+The replay cost budget for the impact writer moves from 5 to 6 write observations
+(`supply-chain-impact.cost-budget.json`): the supports upsert is one statement per
+pass over the pass's fact ids. `TestCostBudget_SupplyChainImpact_WritesDoNotGrowWithFindings`
+runs the writer at 1, 2, 10, 200 and 1,000 findings and reads 6 each time; at 1,001
+and 2,000 it reads 7, the second insert chunk that the bulk insert already costs
+per 1,000 rows. The N+1 control still records 12 against the budget of 6.
+
 ## Equality and the rank-filter order
 
 The test-only candidate is derived from the shipped `ListFindingsQuery` by marker
