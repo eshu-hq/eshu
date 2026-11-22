@@ -8,42 +8,27 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
-
-// returnSignalExecutor runs inner and then closes returned, so a test seam can
-// wait for the handler goroutine to be past Execute before arming the timer.
-type returnSignalExecutor struct {
-	inner    Executor
-	returned chan struct{}
-	once     sync.Once
-}
-
-func (e *returnSignalExecutor) Execute(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
-	result, err := e.inner.Execute(ctx, intent)
-	e.once.Do(func() { close(e.returned) })
-	return result, err
-}
 
 // firedTimerService builds a Service whose bound timer is already fired AND
 // whose handler outcome is already buffered when executeHandler reaches its
 // select, so both the done arm and the timer arm are ready and Go picks one at
-// random. The seam waits for the handler to return, gives the handler
-// goroutine time to buffer its outcome, then hands back a timer that has
-// fired. Without the settle sleep the outcome might not be buffered yet and
-// the timer arm would take the abandon branch instead of the buffered-outcome
-// recheck under test.
-func firedTimerService(inner Executor, bound time.Duration) Service {
-	exec := &returnSignalExecutor{inner: inner, returned: make(chan struct{})}
+// random. The timer seam blocks until the outcomeBuffered seam reports that
+// the handler goroutine has sent its outcome on the done channel, then hands
+// back a zero-duration timer: the runtime treats an expired timer's channel as
+// ready when the select polls it. Waiting on the send itself, not on Execute
+// returning plus a settle sleep, is what keeps a descheduled handler goroutine
+// from turning the buffered-outcome recheck into an abandonment (#11239).
+func firedTimerService(exec Executor, bound time.Duration) Service {
+	buffered := make(chan struct{})
+	var once sync.Once
 	return Service{
-		Executor:       exec,
-		HandlerTimeout: bound,
+		Executor:        exec,
+		HandlerTimeout:  bound,
+		outcomeBuffered: func() { once.Do(func() { close(buffered) }) },
 		newBoundTimer: func(time.Duration) *time.Timer {
-			<-exec.returned
-			timer := time.NewTimer(0)
-			time.Sleep(3 * time.Millisecond)
-			return timer
+			<-buffered
+			return time.NewTimer(0)
 		},
 	}
 }
