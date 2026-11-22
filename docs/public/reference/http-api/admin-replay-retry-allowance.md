@@ -63,8 +63,8 @@ a row to attempt 1 with baseline 1, so its first claim counts as claim 1 and
 it gets exactly 3 projection claims, not 4.
 
 The sweep's own budget, `poison_recovery_attempts` in the row's JSONB payload,
-still bounds how many times it recovers a row
-(`ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS`, default 1). Each recovery grants
+still bounds how many times it recovers a row (its per-item recovery budget,
+default 1, set next to the enable setting). Each recovery grants
 one allowance, so with a budget of M a row gets at most 3 x (1 + M) counting
 projection claims and 48 x (1 + M) admission waits before it stays
 `dead_letter`. A non-retryable failure still dead-letters the row on its first
