@@ -33,6 +33,14 @@ const winnersAuditSweepTable = "supply_chain_impact_winners_audit_sweep"
 // guard; TestWinnersTempTableDDLNamesMatchTheTableConstants pins both.
 const winnersAuditRangePendingTable = "winners_audit_range_pending"
 
+// winnersAuditSweepColumns is the sweep row in scanWinnersAuditSweep order.
+// The read and the advance both return it, so a committed range hands back
+// the persisted last-sweep totals and the telemetry never reads them as 0
+// between completions (#11131 review F1).
+const winnersAuditSweepColumns = `sweep_id, cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id,
+    ranges_done, sweep_started_at, last_sweep_completed_at, last_sweep_seconds, last_sweep_ranges,
+    last_sweep_facts, last_sweep_candidates, last_sweep_repairs, last_sweep_discards`
+
 // selectWinnersAuditSweepSQL reads the cursor row, creating it on first use.
 // The CTE's insert is invisible to the outer read, so the UNION returns one
 // row whether the insert ran or the row already existed.
@@ -40,15 +48,11 @@ const selectWinnersAuditSweepSQL = `
 WITH created AS (
     INSERT INTO ` + winnersAuditSweepTable + ` (singleton) VALUES (1)
     ON CONFLICT (singleton) DO NOTHING
-    RETURNING sweep_id, cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id,
-        ranges_done, sweep_started_at, last_sweep_completed_at, last_sweep_seconds, last_sweep_ranges,
-        last_sweep_facts, last_sweep_candidates, last_sweep_repairs, last_sweep_discards
+    RETURNING ` + winnersAuditSweepColumns + `
 )
 SELECT * FROM created
 UNION ALL
-SELECT sweep_id, cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id,
-    ranges_done, sweep_started_at, last_sweep_completed_at, last_sweep_seconds, last_sweep_ranges,
-    last_sweep_facts, last_sweep_candidates, last_sweep_repairs, last_sweep_discards
+SELECT ` + winnersAuditSweepColumns + `
 FROM ` + winnersAuditSweepTable + `
 WHERE singleton = 1`
 
@@ -141,7 +145,8 @@ SELECT pg_advisory_xact_lock(hashtext('supply_chain_impact_winners'), hashtext('
 // still equals $2..$6. Zero rows means another instance advanced this range
 // first: the caller rolls its repairs back. $12 ends the sweep (the last
 // range); $13 also records it as completed (the end NULL probe read clean).
-// $14..$17 are the range's facts, candidates, repairs and discards.
+// $14..$17 are the range's facts, candidates, repairs and discards. It
+// returns the whole updated row, last-sweep totals included.
 const advanceWinnersAuditSweepSQL = `
 UPDATE ` + winnersAuditSweepTable + ` SET
     sweep_id = CASE WHEN $12::boolean THEN sweep_id + 1 ELSE sweep_id END,
@@ -170,7 +175,7 @@ WHERE singleton = 1
   AND sweep_id = $1::bigint
   AND ROW(cursor_package_id, cursor_repository_id, cursor_subject_digest, cursor_c0, cursor_advisory_id)
       IS NOT DISTINCT FROM ROW($2::text, $3::text, $4::text, $5::text, $6::text)
-RETURNING sweep_id, ranges_done, last_sweep_completed_at, last_sweep_seconds`
+RETURNING ` + winnersAuditSweepColumns
 
 // WinnersAuditSweep is the persisted sweep row (migration 335).
 type WinnersAuditSweep struct {
@@ -213,6 +218,15 @@ func (s SupplyChainImpactWinnersStore) ReadWinnersAuditSweep(ctx context.Context
 		}
 		return none, fmt.Errorf("read winners audit sweep: statement returned no row")
 	}
+	out, err := scanWinnersAuditSweep(rows)
+	if err != nil {
+		return none, fmt.Errorf("scan winners audit sweep: %w", err)
+	}
+	return out, rows.Err()
+}
+
+// scanWinnersAuditSweep scans one row of winnersAuditSweepColumns.
+func scanWinnersAuditSweep(rows db.Rows) (WinnersAuditSweep, error) {
 	var (
 		out                             WinnersAuditSweep
 		pkg, repo, digest, c0, advisory sql.NullString
@@ -222,7 +236,7 @@ func (s SupplyChainImpactWinnersStore) ReadWinnersAuditSweep(ctx context.Context
 	)
 	if err := rows.Scan(&out.SweepID, &pkg, &repo, &digest, &c0, &advisory, &out.RangesDone, &started, &completed,
 		&seconds, &ranges, &facts, &cands, &reps, &dis); err != nil {
-		return none, fmt.Errorf("scan winners audit sweep: %w", err)
+		return WinnersAuditSweep{}, err
 	}
 	if pkg.Valid {
 		out.Cursor = &WinnersAuditRangeIdent{pkg.String, repo.String, digest.String, c0.String, advisory.String}
@@ -231,7 +245,7 @@ func (s SupplyChainImpactWinnersStore) ReadWinnersAuditSweep(ctx context.Context
 	out.LastSeconds = seconds.Float64
 	out.LastRanges, out.LastFacts, out.LastCandidates = ranges.Int64, facts.Int64, cands.Int64
 	out.LastRepairs, out.LastDiscards = reps.Int64, dis.Int64
-	return out, rows.Err()
+	return out, nil
 }
 
 // WinnersAuditRangeVerify is one range handed to the writer.
@@ -421,15 +435,10 @@ func advanceWinnersAuditSweep(ctx context.Context, tx db.Transaction, v WinnersA
 		}
 		return nil, nil
 	}
-	var (
-		sweep     WinnersAuditSweep
-		completed sql.NullTime
-		seconds   sql.NullFloat64
-	)
-	if err := rows.Scan(&sweep.SweepID, &sweep.RangesDone, &completed, &seconds); err != nil {
+	sweep, err := scanWinnersAuditSweep(rows)
+	if err != nil {
 		return nil, fmt.Errorf("scan winners audit sweep advance: %w", err)
 	}
-	sweep.Cursor, sweep.LastCompletedAt, sweep.LastSeconds = hi, completed.Time, seconds.Float64
 	return &sweep, rows.Err()
 }
 
