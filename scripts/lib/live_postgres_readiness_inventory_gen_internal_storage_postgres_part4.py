@@ -101,6 +101,10 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
         ),
+        "go/internal/storage/postgres/reducer_waiting_ack_park_race_live_test.go": (
+            "TestWaitingAckParkInterleaveLive",
+            "TestWaitingAckParkOrdersLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go": (
             "TestBackwardEvidenceWakeContentionLive",
         ),
