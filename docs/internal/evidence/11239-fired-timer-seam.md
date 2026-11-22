@@ -19,8 +19,8 @@ non-blocking recheck of `done` found nothing, and it took the abandon branch.
 
 Observation: a throwaway shim that stalls the handler goroutine 5 ms after the
 seam's `returned` signal (the window a preemption or GC pause opens) produced
-`abandoned=true` with the CI error text on 3/3 runs at the earlier base
-662083f413 (ledger:11239-stall-shim-red-base).
+`abandoned=true` with the CI error text on 3/3 runs (ledger:11239-stall-shim-red-base)
+at the earlier base 662083f413.
 Natural reproduction did not occur locally: 0 failures in 30 counts at host
 load ~48 on 16 cores (ledger:11239-natural-repro-base-host-load), and 0 in 5
 counts with 8 in-process busy loops at `GOMAXPROCS=4`
