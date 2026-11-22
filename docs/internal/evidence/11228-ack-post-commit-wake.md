@@ -32,8 +32,8 @@ The red reproduction observed this, so it is no longer an inference.
 after its generation_active wake. It row-locks the producer-terminal wait row
 that the Ack's next statement locks, and polls `pg_blocking_pids` until the
 Ack blocks. It then runs the production `ReducerQueue.Fail` park inside that
-window. On main (`662083f413`) the waiter kept its wait row and the backstop
-`visible_at`:
+window. On the pre-fix tree (the RED commit, on base `4f5d38b5f5`) the waiter
+kept its wait row and the backstop `visible_at`:
 
 ```text
 waiter ack-park-held-waiter still parked (wait rows = 1, visible_at = <clock+10m>,
@@ -46,9 +46,14 @@ backstop can reopen it (#11228)
 After the commit, `ProjectorQueue.wakeAckWaitsAfterCommit` runs the Ack's
 wakes again on the pool connection. These are the terminal-generation probe,
 the acked generation's generation_active key, and the producer-terminal keys
-of the collector kind. The re-wake is detached from the caller's cancellation
-and bounded by `AckPostCommitWakeTimeout` (5 s). This is the design #11104
-shipped for exact-phase waits (`WakeExactPhaseWaitsAfterCommit`).
+of the collector kind. One function, `wakeAckActivationWaits`, yields the keys
+for both the in-tx wake and the re-wake, and
+`TestAckPostCommitRewakeRepeatsTheInTxKeysAtTheWakeTime` shows the two lists
+are equal for a producer-terminal kind (`oci_registry`). The re-wake reads the
+queue clock when it runs, so `visible_at` and `reopened_at` move to the wake
+time. It is detached from the caller's cancellation and bounded by
+`AckPostCommitWakeTimeout` (5 s). This is the design #11104 shipped for
+exact-phase waits (`WakeExactPhaseWaitsAfterCommit`).
 
 Ordering proof, under read committed (each statement sees every transaction
 committed before it starts):
@@ -76,9 +81,76 @@ So at least one side reopens the row.
   `outcome="error"`; it never fails the committed Ack. A crash between the
   commit and the re-wake is still bounded by the audit and the backstop. The
   in-tx wake still covers every waiter that parked before the Ack.
+  `TestWaitingAckCrashResidualAuditLive` runs the held-window interleave with
+  the re-wake skipped (`skipAckPostCommitWake`, a test-only seam): the waiter
+  stays parked, the next audit pass reopens it, and the fallback counter
+  records it as `reopened` on `wake_site="in_tx"`.
+
+## Contention proof
+
+Conflict domain: one scope generation, its eight reducer waiters' queue rows
+and `generation_active` wait rows, the producer-terminal wait row the hold
+plants, and the projector work row. `TestWaitingAckParkContentionLive` runs,
+under `-race`, the activating Ack held after its in-tx wakes, a stale-owner
+duplicate Ack of the same generation, the reducer `Fail` parks, a reducer
+claim loop, a projector claim loop, and the waiting audit loop, each on its
+own connection.
+
+- Round `seeded` parks all eight waiters inside the window and stops the
+  audit before the hold releases. Only the post-commit re-wake can reopen
+  them. A later park would not do: its re-check sees the activation, and its
+  own wake reopens every waiter on the shared generation key.
+- Round `audit_throughout` parks four inside the window and four while the
+  Ack commits, with the audit racing the re-wake and the parks' own wakes.
+- Both rounds assert no 40P01 from any actor and no change in
+  `pg_stat_database.deadlocks`, which also counts a deadlock the projector
+  Claim retried internally. They also assert that no waiter is parked once
+  the Ack committed, with attempt counts unchanged, and that an explicit
+  audit pass afterwards reopens nobody.
+
+With the re-wake removed (mutant), round `seeded` failed: all eight waiters
+`still parked after the Ack committed (status "retrying", visible_at
+<clock+10m>)`, and the final audit reopened 8. With the re-wake, both rounds
+pass.
 
 The fix does not raise `GATE_DRAIN_TIMEOUT`, cut workers, or shorten the
 audit.
+
+## Provider-site census
+
+The ruling (decision 1, condition 3) requires every site that wakes
+`generation_active` or `producer_domain_terminal` keys to re-wake after its
+commit or to state why the window cannot occur. `TestWaitingWakeCensus`
+parses the package's non-test sources and finds every call of the wake
+helpers for these two kinds. It fails on an unregistered site, on a site that
+wakes on an open transaction (a `Begin` result or a transaction parameter)
+without a registered re-wake after its `Commit`, and on a pool site whose
+function commits after the wake. The registry is
+`waitingWakeCensusRegistry`.
+
+| Site | Class | Why the window cannot occur |
+| --- | --- | --- |
+| `ProjectorQueue.Ack` (`projector_queue_ack.go`) | in-tx, re-woken | re-runs the same wakes after `Commit` (`wakeAckWaitsAfterCommit`) |
+| terminal `ProjectorQueue.Fail` (`projector_queue.go`) | post-commit | `failProjectorWorkQuery` marks the generation `failed` in one autocommit statement on the pool; the wake starts after it returned |
+| `claimOnce`, claimed and empty (`projector_queue_scan.go`) | post-commit | the claim sweep supersedes generations inside `claimProjectorWorkQuery`, one autocommit statement; the claimed probe starts after `rows.Close`, and the empty probe after `rows.Next` returned false, which in pgx v5 closes the result through `ReadyForQuery` (`baseRows.Next`, `ResultReader.Close`), sent only after the server committed the implicit transaction |
+| heartbeat `supersedeRunningWork` (`projector_queue_scan.go`) | post-commit | `supersedeRunningProjectorWorkQuery` turns the generation terminal in one autocommit statement; the wake starts after `rows.Close` |
+| reducer `Ack` and `AckBatch` | post-commit | autocommit Ack statements; the producer-terminal wake starts after the last one returned |
+| `parkProducerTerminalWaits`, `setAsideWaitingForKey` | parker | the parker reopens its own key after its re-check saw the provider |
+| `AuditWaitingItems` | audit | reads committed state and is itself the fallback |
+
+For a post-commit site the ordering proof above applies unchanged: the
+provider's write commits before the wake statement starts. The deferral map
+text in `WaitingDeferralMap` said the heartbeat supersede wakes in-tx; it
+wakes after its statement committed, and the text now says so. The seeded
+RED/GREEN pair is `TestWaitingWakeCensusFlagsSeededSites`. On the real tree,
+adding an in-tx `wakeGenerationActiveWaits` site in a throwaway file failed
+the census (`unregistered wakeGenerationActiveWaits wake site (db tx)`), and
+removing the Ack's re-wake failed it (`in-tx wake without a call to
+wakeAckWaitsAfterCommit after Commit`).
+
+Other wake kinds have the same write-then-read shape and are out of this
+census: relationship activation (`relationship_store_resolved.go`) and the
+winners watermark wakes. They are tracked as the follow-up #11250.
 
 ## Performance Evidence:
 
@@ -98,6 +170,15 @@ producer-terminal waits, with the production
 | terminal-generation probe, no terminal generation | scan of `scope_generations`; wait index never executed | 0.13 ms |
 | generation_active wake, hit (10 waiters in the window) | wake_idx index scan, 10 pkey probes | 0.29 ms |
 
+The backstop-exit probe (`selectBackstopClaimWaitRowsQuery`) adds no
+statement to a healthy reducer claim: it runs only when a claimed row of a
+parking class has `visible_at` past `reopened_at`, which a woken row never
+has. When it runs, it reads the `reducer_waiting_items` primary key by its
+leading column. Shim on postgres:18.6 with 20,000 wait rows: 1 candidate is
+an index-only scan on `reducer_waiting_items_pkey`, 4 buffers, 0.026 ms. 8
+candidates are a bitmap index scan on the same key, 18 buffers, 0.023 to
+0.041 ms.
+
 The terminal probe already runs post-commit after every projector Claim
 (#11016), and Ack and Claim run once per projector work item, so the Ack adds
 at most one more probe per item. The shim table has no production status
@@ -110,14 +191,31 @@ production schema.
   counts each re-wake statement as `reopened`, `noop`, or `error`. A steady
   `reopened` rate there counts waiters that parked inside an Ack window,
   which the old code left to the audit.
-- `eshu_dp_reducer_waiting_audit_resolved_total{failure_class, outcome}` is
-  new. It counts the waits the slow audit resolved instead of a wake:
-  `reopened` when the audit reopened a satisfied wait, `reconciled` when the
-  queue row had already left the set-aside (usually the backstop claim).
-  Any `reopened` increase for a class whose wake site is in-tx (such as
-  `generation_activation_not_ready`) is a lost wake. Audit-only classes such
-  as `shared_edge_target_not_ready` resolve there by design.
-  `TestWaitingAuditResolvedCounterLive` pins both outcomes.
+- `eshu_dp_reducer_waiting_fallback_resolved_total{failure_class, wake_site,
+  outcome}` is new. It counts waits a fallback resolved instead of a wake.
+  `wake_site` is the class's registered wake site from the waiting registry
+  (`in_tx`, `completion_event`, `audit`, or `unregistered`), and
+  `failure_class` is bounded to registered parking classes. The outcomes:
+  - `reopened`: the slow audit reopened a satisfied wait.
+  - `backstop`: the reducer `Claim` or `ClaimBatch` took the row at its
+    10-minute backstop with its wait row still present. The probe runs only
+    for claimed rows of a parking class whose `visible_at` is past their
+    `reopened_at`. Every wake sets both to the wake time, so a woken row,
+    including one woken on one key while a sibling key's wait row survives,
+    sends no statement. The probe reads the `reducer_waiting_items` primary
+    key after the claim committed. A failure logs WARN and never fails the
+    claim.
+  - `reconciled`: the queue row already left the set-aside and the audit
+    dropped its wait row. This can follow a `backstop` count for the same
+    wait.
+
+  Any `reopened` or `backstop` increase with `wake_site` other than `audit`
+  (such as `generation_activation_not_ready` on `in_tx`) is a lost wake.
+  `wake_site="audit"` classes such as `shared_edge_target_not_ready` resolve
+  there by design. `TestWaitingAuditResolvedCounterLive` pins `reopened` and
+  `reconciled`. `TestWaitingBackstopClaimCounterLive` pins `backstop`
+  through both claim paths, and pins that a woken-sibling row and a row
+  without a wait row are not counted.
 - A failed re-wake logs ERROR
   `projector post-commit generation_active wake failed; the audit and backstop still bound the miss`
   with `op=ack`, `scope_id` and `generation_id`.
