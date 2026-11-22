@@ -46,17 +46,18 @@ SELECT cursor_scope_id, cursor_generation_id, cursor_fact_id, completed_at IS NO
 FROM supply_chain_impact_finding_supports_backfill
 WHERE marker_name = $1`
 
-// supplyChainImpactSupportsBackfillNextFactSQL finds the next live finding fact
-// after the cursor in (scope, generation, fact) order. The (scope_id,
-// generation_id, fact_kind) index serves it; the sweep only moves forward, so
-// the skip over scopes without findings is paid once per sweep.
-const supplyChainImpactSupportsBackfillNextFactSQL = `
-SELECT scope_id, generation_id, fact_id
+// supplyChainImpactSupportsBackfillNextPairSQL finds the next (scope, generation)
+// holding a live finding fact after the pair ($1, $2) in (scope, generation)
+// order. The (scope_id, generation_id, fact_kind) index serves the ordered walk,
+// so the sweep never sorts the table: the facts of one pair are ordered inside
+// the chunk read, bounded by the pair.
+const supplyChainImpactSupportsBackfillNextPairSQL = `
+SELECT scope_id, generation_id
 FROM fact_records
 WHERE fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
   AND is_tombstone = FALSE
-  AND (scope_id, generation_id, fact_id) > ($1::text, $2::text, $3::text)
-ORDER BY scope_id, generation_id, fact_id
+  AND (scope_id, generation_id) > ($1::text, $2::text)
+ORDER BY scope_id, generation_id
 LIMIT 1`
 
 // supplyChainImpactSupportsBackfillChunkSQL lists up to $4 live finding fact ids
@@ -205,24 +206,43 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 		report.Complete = true
 		return report, nil
 	}
-	nextScope, nextGeneration, nextFact, found, err := b.nextFact(ctx, cursorScope, cursorGeneration, cursorFact)
-	if err != nil {
-		return report, err
+	// Resume inside the cursor's pair; when it has nothing left, walk to the next
+	// pair that holds a live finding fact. A pair another writer emptied between
+	// the locate read and the locked chunk read is skipped, not recorded.
+	scope, generation, after, entering := cursorScope, cursorGeneration, cursorFact, false
+	if scope == "" {
+		var found bool
+		if scope, generation, found, err = b.nextPair(ctx, "", ""); err != nil {
+			return report, err
+		}
+		if !found {
+			return b.verify(ctx, beginner, report)
+		}
+		after, entering = "", true
 	}
-	if !found {
-		return b.verify(ctx, beginner, report)
+	for {
+		written, removed, last, err := b.writeChunk(ctx, beginner, chunkRequest{
+			scope: scope, generation: generation, after: after, limit: chunk, cleanOrphans: entering,
+		})
+		report.Written += written
+		report.Removed += removed
+		if err != nil || last != "" {
+			return report, err
+		}
+		// The pair has no live finding fact after the cursor: it is done.
+		next, nextGen, found, err := b.nextPair(ctx, scope, generation)
+		if err != nil {
+			return report, err
+		}
+		if !found {
+			return b.verify(ctx, beginner, report)
+		}
+		scope, generation, after, entering = next, nextGen, "", true
+		if report.Removed > 0 || report.Written > 0 {
+			// A step does one pair's work; the next step enters the next pair.
+			return report, nil
+		}
 	}
-	enteringPair := nextScope != cursorScope || nextGeneration != cursorGeneration
-	after := cursorFact
-	if enteringPair {
-		after = ""
-	}
-	written, removed, err := b.writeChunk(ctx, beginner, chunkRequest{
-		scope: nextScope, generation: nextGeneration, after: after, nextFact: nextFact,
-		limit: chunk, cleanOrphans: enteringPair,
-	})
-	report.Written, report.Removed = written, removed
-	return report, err
 }
 
 func (b SupplyChainImpactSupportsBackfill) readMarker(ctx context.Context) (scope, generation, fact string, complete bool, err error) {
@@ -243,72 +263,73 @@ func (b SupplyChainImpactSupportsBackfill) readMarker(ctx context.Context) (scop
 	return scope, generation, fact, complete, nil
 }
 
-func (b SupplyChainImpactSupportsBackfill) nextFact(ctx context.Context, scope, generation, fact string) (nextScope, nextGeneration, nextFact string, found bool, err error) {
-	rows, err := b.DB.QueryContext(ctx, supplyChainImpactSupportsBackfillNextFactSQL, scope, generation, fact)
+func (b SupplyChainImpactSupportsBackfill) nextPair(ctx context.Context, scope, generation string) (nextScope, nextGeneration string, found bool, err error) {
+	rows, err := b.DB.QueryContext(ctx, supplyChainImpactSupportsBackfillNextPairSQL, scope, generation)
 	if err != nil {
-		return "", "", "", false, fmt.Errorf("find the next finding fact to back up: %w", err)
+		return "", "", false, fmt.Errorf("find the next scope and generation to back up: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return "", "", "", false, fmt.Errorf("find the next finding fact to back up: %w", err)
+			return "", "", false, fmt.Errorf("find the next scope and generation to back up: %w", err)
 		}
-		return "", "", "", false, nil
+		return "", "", false, nil
 	}
-	if err := rows.Scan(&nextScope, &nextGeneration, &nextFact); err != nil {
-		return "", "", "", false, fmt.Errorf("scan the next finding fact to back up: %w", err)
+	if err := rows.Scan(&nextScope, &nextGeneration); err != nil {
+		return "", "", false, fmt.Errorf("scan the next scope and generation to back up: %w", err)
 	}
-	return nextScope, nextGeneration, nextFact, true, nil
+	return nextScope, nextGeneration, true, nil
 }
 
 // chunkRequest names one backfill chunk.
 type chunkRequest struct {
 	scope, generation string
 	// after is the last fact id already backed up in this pair ("" when the
-	// sweep just entered it); nextFact is the first fact the locate step found,
-	// used to make progress when the chunk read finds nothing.
-	after, nextFact string
-	limit           int
+	// sweep just entered it).
+	after string
+	limit int
 	// cleanOrphans removes the pair's supports of tombstoned facts first.
 	cleanOrphans bool
 }
 
-func (b SupplyChainImpactSupportsBackfill) writeChunk(ctx context.Context, beginner db.Beginner, req chunkRequest) (written, removed int64, err error) {
+// writeChunk backs up one chunk of the pair under its conflict-domain lock and
+// returns the last fact id it covered; an empty last means the pair has no live
+// finding fact after req.after (the orphan cleanup still ran when requested).
+func (b SupplyChainImpactSupportsBackfill) writeChunk(ctx context.Context, beginner db.Beginner, req chunkRequest) (written, removed int64, last string, err error) {
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
-		return 0, 0, fmt.Errorf("begin supply chain impact supports backfill transaction: %w", err)
+		return 0, 0, "", fmt.Errorf("begin supply chain impact supports backfill transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, supplychaincore.SupplyChainImpactConflictDomainLockQuery,
 		supplychaincore.SupplyChainImpactConflictDomainKey(req.scope, req.generation)); err != nil {
-		return 0, 0, fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+		return 0, 0, "", fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
 	if req.cleanOrphans {
 		if removed, err = deleteRetractedSupports(ctx, tx, req.scope, req.generation); err != nil {
-			return 0, 0, err
+			return 0, 0, "", err
 		}
 	}
 	ids, err := queryBackfillFactIDs(ctx, tx, supplyChainImpactSupportsBackfillChunkSQL, req.scope, req.generation, req.after, req.limit)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, "", err
 	}
-	last := req.nextFact
 	if len(ids) > 0 {
 		last = ids[len(ids)-1]
 		result, err := upsertSupports(ctx, tx, ids)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, "", err
 		}
 		written = result.Inserted + result.Updated
-	}
-	if _, err := tx.ExecContext(ctx, supplyChainImpactSupportsBackfillAdvanceSQL,
-		SupplyChainImpactSupportsBackfillMarker, req.scope, req.generation, last); err != nil {
-		return 0, 0, fmt.Errorf("advance supply chain impact supports backfill cursor: %w", err)
+		if _, err := tx.ExecContext(ctx, supplyChainImpactSupportsBackfillAdvanceSQL,
+			SupplyChainImpactSupportsBackfillMarker, req.scope, req.generation, last); err != nil {
+			return 0, 0, "", fmt.Errorf("advance supply chain impact supports backfill cursor: %w", err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, 0, fmt.Errorf("commit supply chain impact supports backfill chunk: %w", err)
+		return 0, 0, "", fmt.Errorf("commit supply chain impact supports backfill chunk: %w", err)
 	}
-	return written, removed, nil
+	return written, removed, last, nil
 }
 
 // verify runs when the sweep passed the last finding fact. It first cleans one

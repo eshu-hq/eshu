@@ -16,6 +16,8 @@ data is synthetic. Run it against a disposable `postgres:18` that
 | `candidate_list_read_delta.sql` | The three fragments that turn the legacy list CTE into the supports read. |
 | `census.sql` | Supports per key, duplicate (key, scope) pairs, per-field divergence. |
 | `write_cost.sql`, `supports_wc_insert.sql` | WAL measurement of the supports writes (run `psql -f write_cost.sql` from this directory). |
+| `m6_write_cost_and_backfill_harness.go.txt` | Build-time harness (a `_test.go` once copied into `go/internal/storage/postgres`): writer WAL and wall with and without the supports statements on the real writer, and the backfill duration at 100,000 facts. |
+| `m6_read_blocks_harness.go.txt` | Build-time harness (copy into `go/internal/query/supply/chain/impact` as a `_test.go`): block accesses and time of the legacy list read against the committed candidate at four grant sizes. |
 
 ## Re-running the Go harness
 
