@@ -2,7 +2,7 @@
 
 Refs #11202. Part of #10860. Follows #10881, which measured `HASH(scope_id)` as a
 no-go for removal cost (see
-the #10881 measurement record, which is on the #11220 branch and not yet on main).
+[the #10881 measurement record](10881-fact-records-hash-partition-measurements.md)).
 This record covers boxes 1 and 2 of #11202: rank the removal cost first, then
 census the read replica. Boxes 3 to 6 (candidates, kill criteria, copies) follow only
 if these two do not close the issue.
@@ -47,11 +47,9 @@ candidate is measured; none is measured here.
 ## Box 1: removal cost at the retained and the 153-index profiles
 
 Method: the #10881 R1 cell (`removal_bench.sh`, `removal_procs.sql` and
-`pick_removal_list.sh` in `scripts/dev/10881-partition/`; none of them is in this
-branch. They come from the #10881 pull request (#11220), branch
-`drive/10881-partition-facts-queue`, introduced by commit `d8f5310389` and fixed in `881920df50` (script blobs `removal_bench.sh`
-2347b92e, `removal_procs.sql` 4ee77525, `pick_removal_list.sh` ae702f49; the branch was rebased, so earlier
-SHAs are not ancestors of its head); do not merge this pull request before that one): one fixed removal list of
+`pick_removal_list.sh` in `scripts/dev/10881-partition/`, merged to main with the #10881 pull
+request #11220 at merge commit `74bb28e1e7`; script blobs `removal_bench.sh` 2347b92e,
+`removal_procs.sql` 4ee77525, `pick_removal_list.sh` ae702f49): one fixed removal list of
 307 superseded generations from non-giant scopes, the same in both cells (543,145
 rows deleted in each); `VACUUM (FREEZE)` and `CHECKPOINT` before the arm; then the
 shipped retention drain and `VACUUM (VERBOSE)` in one session with per-backend WAL;
