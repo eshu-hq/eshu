@@ -156,3 +156,48 @@ What the census says for the candidates (boxes 3 and 4, not measured here):
   days), so a 7-day bucket would hold almost only retired generations, while the
   rows of a still-active generation that was created in the bucket stay (21.6% of all
   rows are active). That share is box 3's question and is not measured here.
+
+## Kill criteria for candidate layouts (box 4), written 2026-11-22 before any box 3 computation
+
+Set by the arbiter (arbiter-11202, section 3.2) and recorded here before the box 3
+data is computed. A candidate that fails any of K1 to K4 is killed; they are not
+loosened after the numbers are known.
+
+- **K1, key known at insert.** The partition key value must be derivable by every
+  writer from data it holds at insert time (the collector upsert and the three
+  reducer upserts). A key on activation or supersession time fails: facts are written
+  while a generation is pending (924 pending generations hold 1.99M rows). Only the
+  generation's creation time, stamped on the row, qualifies.
+- **K2, no row moves.** A design that moves a live row to another partition is
+  killed. A unique constraint on a partitioned table must include the partition key
+  (PostgreSQL 18 documentation, section 5.12.2.3), so the conflict key becomes
+  (fact_id, key); a moved row has two possible homes and `ON CONFLICT` can no longer
+  prevent a duplicate.
+- **K3, partition count.** Leaf partitions at the policy horizon (creation to
+  supersession p99 of 6 days, plus the 90-day ceiling, plus one bucket width, times any
+  sub-part modulus) above 128 is killed without measurement. Reason: the files that
+  address a fact by `fact_id` alone (among them the retention delete,
+  `generationRetentionChunkDeleteFactsQuery`, `WHERE fact_id = ANY($1)`) cannot prune,
+  and the documentation's "few thousand" partitions holds only "provided that typical
+  queries allow the query planner to prune all but a small number". LIST per
+  generation (26.8k today, about 800 more a day) is killed by K3 on the box 2
+  numbers.
+- **K4, whole-bucket droppable share.** For each candidate and bucket width (1 day
+  and 7 days), over buckets aged at least 7 days and at least 30 days: droppable share
+  = rows in buckets that hold zero rows of a non-eligible generation, divided by all
+  superseded rows in those buckets. Non-eligible means not removable under the shipped
+  predicate at the horizon: active, pending, failed-current, first-generation, a base
+  that an active delta chain still needs (#8780,
+  `TestGenerationRetentionKeepsCumulativeDeltaBaseLive`), or held. Kill if the
+  droppable share is below 67% at both ages. Reason: rows outside a droppable bucket
+  still cost a row delete, and a 415 GB rebuild with a changed conflict key must
+  remove at least two thirds of removal work.
+- **K5, the 90-day reading.** The census window is 36.3 days, so the 90-day share
+  cannot be observed. State it as a model: the share of active-generation rows whose
+  generation is older than 30 days, by scope kind, taken as the lower bound of rows
+  pinned at 90 days. Label it a model, not a measurement.
+- **K6, scope of the saving.** A drop replaces only the `fact_records` delete and its
+  vacuum. Retention still pages every fact of a retired generation to prune content
+  files, entities and key sidecars (`generation_retention_chunk_predrain_batch.go`,
+  the page select above `generationRetentionChunkDeleteFactsQuery`). A candidate whose
+  claimed saving includes that work is mis-costed.
