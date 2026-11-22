@@ -17,6 +17,11 @@ TABLE = {
         "go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go": (
             "TestGroupedInventoryStoreWinnersLive",
         ),
+        "go/internal/query/supply/chain/impact/multi_support_parity_live_test.go": (
+            "TestMultiSupportWinnersRecordsEverySupport",
+            "TestMultiSupportScopedGrantDivergenceLive",
+            "TestMultiSupportUnscopedRankFilterDivergenceLive",
+        ),
         "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
             "TestReadinessExcludesCentralVersionPinsLive",
         ),
