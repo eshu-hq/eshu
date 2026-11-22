@@ -190,6 +190,10 @@ type reducerAdmissionWriter struct {
 	// the writer records the deferral counter and structured log directly. It
 	// receives the failure class that drove a graph-write-pressure deferral.
 	failureClassSink admissionDeferralReasonSink
+	// holder is the process-wide shared queue-depth read (#11233).
+	holder *admissionDepthHolder
+	// now is the gate clock; nil means time.Now.
+	now func() time.Time
 }
 
 func reducerIntentWriterWithAdmission(
@@ -339,7 +343,7 @@ func (w reducerAdmissionWriter) Enqueue(
 	// has fallen below the marks still admits immediately no matter how long
 	// earlier iterations waited — and the inner Enqueue is never started
 	// before the check, so a timeout cannot orphan graph writes.
-	waitStart := time.Now()
+	waitStart := w.clock()()
 	for {
 		reason, failureClass, depth, err := w.admissionDecision(ctx)
 		if err != nil {
