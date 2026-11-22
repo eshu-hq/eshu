@@ -106,6 +106,7 @@ workflows:
   - go/internal/storage/postgres/freshness/links/testdata/7127-link-writer-scale.py
   - go/internal/storage/postgres/generation_projected_commit_live_test.go
   - go/internal/storage/postgres/infra/inventory/backfill_live_test.go
+  - go/internal/storage/postgres/infra/inventory/backfill_replicas_live_test.go
   - go/internal/storage/postgres/infra/inventory/background_live_test.go
   - go/internal/storage/postgres/infra/inventory/derive_bench_live_test.go
   - go/internal/storage/postgres/infra/inventory/derive_live_test.go

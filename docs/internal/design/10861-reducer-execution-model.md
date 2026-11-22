@@ -155,6 +155,18 @@ legitimately need both — that is allowed when it is declared.
 
 ## Decision 6: Split the giant fact store into fixed slices
 
+**Status (2026-11-22, #10881): the HASH(scope_id) form of this decision is
+rejected by a measured NO-GO.** Dividing `fact_records` by `HASH(scope_id)` did not
+make removing a retired snapshot cheaper than the undivided table by the margin the
+arbiter pre-stated (divided delete plus cleanup write-ahead log at most 0.67 times
+the undivided table at both sizes; measured 0.897 and 0.834). Hash parts hold many
+areas, so no part can be dropped or truncated for a snapshot (see
+[the measurement record](10881-fact-records-hash-partition-measurements.md)).
+One area (12.9% of rows) also sets the largest part at 14.9% of the table. The
+target below is therefore not met by this design; whether a snapshot-keyed
+layout can meet it is a separate, open question. The text below is kept as the
+original decision.
+
 **Today:** all facts sit in one store of about 417 GB with 152 indexes.
 Removing old data means deleting row by row from that one giant store, so
 cleanup gets more expensive as the store grows.
@@ -167,7 +179,7 @@ The work queue is **not** split by this decision.
 | Item | Detail |
 | --- | --- |
 | Order of work | First move reading off the fact store (Decisions 1–2), then split it |
-| Target (not yet measured) | Removing one retired snapshot — delete plus cleanup back to steady state — costs in proportion to that snapshot, not to the whole store; to be proven side by side on the same data |
+| Target (not met by HASH(scope_id); measured in #10881) | Removing one retired snapshot — delete plus cleanup back to steady state — costs in proportion to that snapshot, not to the whole store; to be proven side by side on the same data |
 | Honest limits | Slicing does not split one huge area: security-findings data alone was 6,363 of 8,628 queued items, and its share of a slice must be measured and recorded. The rule that identifies a duplicate fact must include its area, with proof that duplicate handling does not change |
 | Tracked in | #10881 (splitting), #10882 (slowing intake from a source the processor is behind on) |
 

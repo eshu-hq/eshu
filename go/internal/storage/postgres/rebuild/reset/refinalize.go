@@ -115,6 +115,7 @@ ON CONFLICT (work_item_id) DO UPDATE
 SET status = 'pending',
     attempt_count = 0,
     admission_wait_attempts = 0,
+    replay_attempt_baseline = 0,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = EXCLUDED.visible_at,

@@ -134,6 +134,11 @@ type Service struct {
 	// whose rows drifted from content_entities (#6793). Nil disables it.
 	InfraInventoryReconcileRunner *infra.Runner
 
+	// InfraInventoryBackfillRunner records the infra read model backfill
+	// marker on a fresh install, a wiped database, or a marker bump (#11196).
+	// It returns once the marker exists. Nil disables it.
+	InfraInventoryBackfillRunner *infra.BackfillRunner
+
 	// ConfigArtifactWalkerRunner repairs and backfills the stored
 	// config-artifact rows (#8155). Nil (ESHU_CONFIG_ARTIFACT_WALKER_ENABLED
 	// false; the default is true) disables it and it issues no SQL.

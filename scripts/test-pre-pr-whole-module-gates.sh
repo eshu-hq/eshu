@@ -2,6 +2,10 @@
 # Regression tests for pre-PR scheduling and the fast local test runner.
 set -euo pipefail
 
+# The fixtures run the real driver; keep their runs out of the developer's own
+# timing store (scripts/lib/gate-timing.sh).
+export ESHU_GATE_TIMING=0
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-pr.sh"
 makefile="${repo_root}/Makefile"
@@ -412,6 +416,8 @@ assert_driver_lane() {
 	cp "${script}" "${fixture}/scripts/dev/pre-pr.sh"
 	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
 	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/lib/gate-timing.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/dev/gate-timing.py" "${fixture}/scripts/dev/"
 	cp "${repo_root}"/scripts/lib/test-pre-pr-*.sh "${fixture}/scripts/lib/"
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	ln -s "${shell_path}" "${fixture}/bin/bash"
@@ -478,5 +484,8 @@ for driver_shell in /bin/bash "${BASH}"; do
 	assert_driver_lane "${driver_shell}" full 0
 	assert_driver_lane "${driver_shell}" full 23
 done
+
+# shellcheck source=lib/test-pre-pr-timing-cases.sh
+source "${repo_root}/scripts/lib/test-pre-pr-timing-cases.sh"
 
 printf 'PASS: pre-pr scheduling and fast local parser selection are pinned\n'

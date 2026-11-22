@@ -395,3 +395,55 @@ func semanticSectionFixture() doctruth.SectionInput {
 func fixedObservationTime() time.Time {
 	return time.Date(2026, time.June, 8, 15, 4, 5, 0, time.UTC)
 }
+
+// TestEmitterFactIDIsScopedButStableKeyIsNot is the #11203 regression: the
+// same observation emitted under another scope or generation must get a
+// different FactID (fact_records is keyed on fact_id alone), while
+// StableFactKey stays the semantic identity shared across them.
+func TestEmitterFactIDIsScopedButStableKeyIsNot(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(Config{
+		Provider: ProviderProfile{
+			ProviderProfileID: "semantic-docs-test",
+			ProviderKind:      ProviderKindMock,
+			ModelID:           "mock-doc-model",
+		},
+		ObservedAt: fixedObservationTime,
+	})
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v, want nil", err)
+	}
+	emitOne := func(section doctruth.SectionInput) facts.Envelope {
+		t.Helper()
+		out, err := emitter.Emit(context.Background(), section, []MockObservation{{
+			ObservationType: "summary",
+			ObservationText: "text",
+			AdmissionState:  semantic.SemanticAdmissionDocumentationFindingCandidate,
+		}})
+		if err != nil || len(out) != 1 {
+			t.Fatalf("Emit() = %d envelopes, error %v, want 1, nil", len(out), err)
+		}
+		return out[0]
+	}
+	base := emitOne(semanticSectionFixture())
+	if base.FactID == base.StableFactKey {
+		t.Fatalf("FactID equals the bare stable key %q; it must hash scope and generation in", base.FactID)
+	}
+	if want := semantic.ScopedFactID(base.FactKind, base.StableFactKey, base.ScopeID, base.GenerationID); base.FactID != want {
+		t.Fatalf("FactID = %q, want %q", base.FactID, want)
+	}
+	otherScope := semanticSectionFixture()
+	otherScope.ScopeID = "scope:other-docs"
+	otherGeneration := semanticSectionFixture()
+	otherGeneration.GenerationID = "generation:2"
+	for name, section := range map[string]doctruth.SectionInput{"scope": otherScope, "generation": otherGeneration} {
+		got := emitOne(section)
+		if got.FactID == base.FactID {
+			t.Errorf("FactID is identical across another %s: %q", name, got.FactID)
+		}
+		if got.StableFactKey != base.StableFactKey {
+			t.Errorf("StableFactKey changed across another %s", name)
+		}
+	}
+}

@@ -2,10 +2,11 @@
 
 ## Purpose
 
-Backend-backed p95 latency benchmark for every no-arg GET read route,
-gated in CI so a regression like #6793 (infra resource aggregate full-graph
-scan) or #6794 (status/readiness routes paying an expensive per-scope
-`activeFactWorkItemsCTE` query) cannot merge without the CI job going red.
+Backend-backed p95 latency benchmark for every no-arg GET read route. It is
+run by hand: no CI job runs it (the workflow was deleted in `c77c2630aa`). It
+catches a regression like #6793 (infra resource aggregate full-graph scan) or
+#6794 (status/readiness routes paying an expensive per-scope
+`activeFactWorkItemsCTE` query) by going red.
 
 Two budget tables gate it, with different jobs. The latency ceilings
 (`testdata/benchmarks/read-api-route-budgets.txt`) are the SLO contract and
@@ -38,8 +39,24 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
 - `BuildSeedPlan` — pure, deterministic scope/generation/work-item
   distribution across every `scope.AllCollectorKinds` entry
 - `SeedPostgres`, `SeedGraph`, `SeedIaCFacts` — bulk-write a `SeedPlan` (plus
-  `BuildIaCFacts`' IaC content_entity facts) into a live Postgres/NornicDB
+  `BuildIaCFacts`' IaC content_entity facts) into a live Postgres/Neo4j
   pair
+- `BuildWinnersFindingFacts`, `SeedWinnersFactRecords`,
+  `RebuildWinnersReadModel`, `VerifyWinnersSeeded` — seed synthetic
+  `reducer_supply_chain_impact_finding` facts across every scope's active
+  generation (issue #11170), reconcile them into
+  `supply_chain_impact_canonical_winners` through the maintainer's own full
+  resweep (never hand-written), and prove the table is populated and
+  watermarked, so the winners leg measures the real read model
+- `runInfraBackfillStandIn`, `backfillSeededInfraReadModel` — run the
+  product `inventory.Backfiller` in the seed phase and prove the infra read
+  model is installed, marked, and has no dirty repository before any core
+  starts. The gate starts no reducer, and since #11210 the reducer owns the
+  backfill, so the gate calls the same `Backfiller.Run` itself (#11226 starts
+  the reducer and drops this). Both legs' reports carry
+  `infra_backfill: gate_stand_in`, and the infra route numbers describe an
+  install that holds the marker; a regression in the reducer's wiring would not
+  show here
 - `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
   `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
   `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row
@@ -65,7 +82,11 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `GATE_CONCURRENT_REQUESTS` in the runner.
 - `SweepRoutes` — measures true nearest-rank p95 latency per route against a
   running eshu-api, over a warmup-discarded counted sample; flags any 5xx
-  response as `HardFailed` regardless of latency and captures the first
+  response as `HardFailed` regardless of latency (the one exception: the four
+  GitHub and OIDC login and callback routes whose every counted sample is the
+  product's exact provider-unconfigured 503 become
+  `NOT_EXERCISED(503 provider-unconfigured)`, counted and summarized on
+  stderr, since the gate does not enable sign-in providers) and captures the first
   counted-sample 5xx body (capped) as `HardFailedBody` so an operator can see
   the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its
@@ -76,7 +97,9 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `RouteLatency.WarmSamples` and `WarmRunP95s`.
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
-  commit/api binary sha256, seed sizing, runs/iterations/warmups) plus every
+  commit/api/core binary sha256, the `-winners-read` leg marker, the
+  `infra_backfill` stand-in marker, seed sizing
+  including winners facts, runs/iterations/warmups) plus every
   route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
   a breaching leg still yields a report. `scripts/compare-backend-latency.sh`
@@ -138,9 +161,13 @@ See `doc.go` for the full contract.
   truth for collector kinds
 - `internal/capabilitycatalog` — the generated surface inventory that drives
   route selection
-- `internal/query`, `internal/storage/postgres` — the routes and queries this
-  gate measures (not imported directly; exercised over HTTP against a
-  running `eshu-api`)
+- `internal/query` — the routes and queries this gate measures (exercised
+  over HTTP against a running `eshu-api`, not imported directly)
+- `internal/storage/postgres` — imported only for the winners resweep port
+  (`SupplyChainImpactWinnersStore.ResweepWinners`), the same production call
+  the reducer maintainer and the ifa advisory-group drive use, and for the
+  infra read model backfill (`infra/inventory.Backfiller`); every other
+  query this gate measures is exercised over HTTP
 
 ## Telemetry
 
@@ -219,10 +246,10 @@ Parent buffer counts include child work; do not sum the tree or infer request,
 network or row-decoding latency from this plan. Missing or malformed plan
 evidence fails diagnostic validation.
 
-The manual Read API Latency Gate workflow accepts a `status_diagnostic` boolean,
-which defaults to false. It enables these artifacts only in the Neo4j scale
-job. The existing scale archive includes the sanitized diagnostic directory.
-Ordinary PR, push, merge-group and manual acceptance runs keep diagnostics off.
+The status diagnostic mode (`GATE_STATUS_DIAGNOSTIC_DIR`) enables these
+artifacts and is off by default. The workflow that used to expose it was deleted
+in `c77c2630aa`; the mode remains available through the environment variable
+only, and no CI job exercises it.
 The local proof compared OFF/ON/ON/OFF on one retained full seeded database,
 with fresh API processes and identical request/work settings. That comparison
 provides local observations for the touched status path; it does not establish

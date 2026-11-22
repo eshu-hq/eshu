@@ -351,9 +351,19 @@ import (
 // other in-flight work).
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
+// 334_fact_work_items_replay_attempt_baseline.sql (#11182) adds the projector
+// replay baseline on fact_work_items (NOT NULL DEFAULT 0) and two nullable
+// audit columns on fact_replay_events; metadata-only, no backfill (numbered
+// 334: 333 is held by the #10882 lane; gaps are tolerated).
+// #11131 adds 335_supply_chain_impact_winners_audit_sweep.sql (the staged
+// winners audit sweep's singleton cursor table; DDL only, the row is created
+// on first read).
+// Digest and count recomputed red-first after the #11131 sweep migration was renumbered
+// 331 to 335 at rebase (main owns 331-332 and 334; 333 is held by an unpushed lane;
+// count 360: main's 359 plus 335).
 const (
-	goldenBootstrapDefinitionsDigest = "c2ae5c2a236d908acc62a85f7842f9251ecc1be71c03b51f37a19e8313253ca1"
-	goldenBootstrapDefinitionsCount  = 359
+	goldenBootstrapDefinitionsDigest = "b8f9220ae7e91fff4d03752be29b2d014f9d4efab4b07b3735ac62aabe47fa4e"
+	goldenBootstrapDefinitionsCount  = 361
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

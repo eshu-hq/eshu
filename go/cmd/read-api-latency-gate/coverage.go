@@ -3,7 +3,10 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 // ExercisedCoverageFloor is the minimum number of routes this gate must
 // exercise (see RouteLatency.Exercised) for a run to be considered valid
@@ -12,13 +15,18 @@ import "fmt"
 // for real, but never lower it to make a coverage regression pass quietly.
 // Which routes are exercised is deterministic (it depends on RouteQueryArgs
 // and each route's own auth/selector requirements, not on measured
-// latency), so this is pinned to the exact measured count — 65/113 across
-// every live Compose run in this issue's drive (2026-09-18) — rather than
+// latency), so this is pinned to the exact measured count rather than
 // a value with slack: slack here would let one
 // named route silently drop out of coverage without moving the floor.
 // RequireNamedRoutesExercised is the complementary, stricter check for any
 // route this gate explicitly budgets.
-const ExercisedCoverageFloor = 65
+//
+// Measured (#11170, two separately seeded full-corpus runs, both legs): 77 of
+// 128 routes and operations exercised, which is this floor plus the 10 selected
+// operations. The four sign-in provider routes the core answers with a
+// provider-unconfigured 503 are not exercised (see providerUnconfiguredRoutes),
+// so they are not in the count. Earlier pins: 65/113 (2026-09-18).
+const ExercisedCoverageFloor = 67
 
 // CoverageFloor returns the exercised-operation floor for a run: the pinned
 // route floor plus every extra operation the run selects (the seeded pilot
@@ -49,4 +57,15 @@ func CheckCoverageFloor(results []RouteLatency, floor int) error {
 		return fmt.Errorf("exercised %d/%d routes, below the committed coverage floor of %d — see ExercisedCoverageFloor", exercised, total, floor)
 	}
 	return nil
+}
+
+// printCoverage prints the typed not-exercised summary and the exercised-route
+// count against the floor, and returns the exercised count and the floor for
+// the run's verdict.
+func printCoverage(w io.Writer, results []RouteLatency, operations map[string]Operation) (exercised, floor int) {
+	printProviderUnconfiguredSummary(w, results)
+	exercised, total := ExercisedCoverage(results)
+	floor = CoverageFloor(operations)
+	_, _ = fmt.Fprintf(w, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, floor)
+	return exercised, floor
 }

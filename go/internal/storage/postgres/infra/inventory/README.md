@@ -29,9 +29,10 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
 - `Target`, `Stats` — derive input and row counts
 - `LockRepositoriesForGenerations`, `DeleteOrphanedRows` — generation
   retention's lock-before-prune and orphan cleanup, run inside its transaction
-- `Backfiller`, `BackfillResult`, `BackfillComplete`, `BackfillMarker` —
-  populate every existing repository once, then record the marker readers
-  gate on
+- `Backfiller`, `BackfillResult`, `BackfillComplete`, `BackfillMarker`,
+  `RunBackground`, `BackgroundOptions` — populate every existing repository
+  once, then record the marker readers gate on; `RunBackground` retries with
+  backoff and counts attempts
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from
 - `WriterSessionSQL`, `WriterConnectOption`, `OpenWriterDB`,
@@ -67,8 +68,11 @@ this one.
   `path_count`, `rows_deleted`, `rows_inserted`, and `duration_seconds`, next
   to the existing `upsert_entities` and `reap_stale_entities` stages.
 - `Backfiller` logs `event_name=infra_inventory.backfill` (started, progress
-  every 100 repositories, completed). The query package logs
-  `infra_inventory.backfill.failed` when a background run fails.
+  every 100 repositories, completed). `RunBackground` logs
+  `infra_inventory.backfill.failed` and counts every attempt in
+  `eshu_dp_infra_inventory_backfill_runs_total{outcome}`. The reducer starts it
+  (`cmd/reducer` `infra_inventory_backfill_wiring.go`, #11196); several
+  replicas may run it at once.
 - Every statement runs through the caller's `InstrumentedDB` where one is
   wired, so `eshu_dp_postgres_query_duration_seconds` times it.
 - Retention reports `RowsPruned["infra_resource_entities"]`.

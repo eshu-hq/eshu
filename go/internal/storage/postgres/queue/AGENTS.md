@@ -25,7 +25,13 @@
   value. It must not change the stored class.
 - Keep `ComputeRetryDelay`'s overflow guard (the doubling loop breaks on
   `doubled < backoff`) — do not replace it with a direct shift.
-- Never import the parent `postgres` package from here.
+- Never import the parent `postgres` package or `storage/postgres/poison`
+  from here: both import this package.
+- `ReplayRetryAllowanceAssignments` has four carriers: the admin replay
+  store, the two recovery replay templates and
+  `poison.RecoverDeadLettersQuery` (#11217). A change to the fragment reaches
+  all four; rerun `TestReplayAllowanceCarriersRaiseAttemptCount` and the
+  admin store's `TestReplayUpdateClauseCarriesRetryAllowance`.
 - Keep `ReopenedAtUpsertValue`'s keep branch to the outstanding statuses
   (`pending`, `retrying`, `claimed`, `running`) (#9320). Each re-drive upsert
   names `reopened_at` in its own SQL and appends this value, so the parent

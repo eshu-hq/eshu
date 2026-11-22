@@ -446,5 +446,5 @@ Moved. See
 
 - [Truth Label Protocol](truth-label-protocol.md)
 - [Capability Conformance Spec](capability-conformance-spec.md)
-- [Runtime Admin API](runtime-admin-api.md)
+- [Runtime Admin API](runtime-admin-api.md) and [Admin Replay Retry Allowance](http-api/admin-replay-retry-allowance.md) (the retries a replayed projector row gets)
 - [Local Testing](local-testing.md)

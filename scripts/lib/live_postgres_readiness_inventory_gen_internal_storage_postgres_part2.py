@@ -22,6 +22,22 @@ TABLE = {
             "TestECSRuntimeIndexFreshBootstrapLive",
             "TestECSRuntimeIndexUpgradeLive",
         ),
+        "go/internal/storage/postgres/fact_id_owner_guard_bench_live_test.go": (
+            "TestFactOwnerGuardExplainLive",
+            "TestFactOwnerGuardCostMixesLive",
+        ),
+        "go/internal/storage/postgres/fact_id_owner_race_live_test.go": (
+            "TestFactIDOwnerRaceTwoScopesLive",
+            "TestFactIDOwnerRaceFreeForAllLive",
+        ),
+        "go/internal/storage/postgres/fact_id_owner_refusal_live_test.go": (
+            "TestCommitScopeGenerationRefusesFactIDOwnerConflictLive",
+        ),
+        "go/internal/storage/postgres/fact_id_scope_guard_live_test.go": (
+            "TestUpsertFactBatchRefusesForeignScopeOrGenerationLive",
+            "TestUpsertFactBatchSameScopeGenerationResaveStaysIdempotentLive",
+            "TestUpsertStreamingFactsStopsAtTheFirstConflictingBatchLive",
+        ),
         "go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go": (
             "TestBootstrapDropsEveryFactRecordsForeignKeyLive",
             "TestFactKeyForeignKeyDropMigrationsAreDeadlockFreeLive",
@@ -165,6 +181,7 @@ TABLE = {
             "TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive",
             "TestPendingSameIdentitySkipsAndFailedStoresLive",
             "TestReconcileReopenResetsAttemptsSoRetryRetriesLive",
+            "TestReconcileReopenResetsReplayBaselineLive",
             "TestReconcileReopenOfDeadLetterIsBoundedLive",
             "TestStaleReconcileSkipsPendingSameIdentityLive",
             "TestReindexStoresUnchangedIdentityLive",

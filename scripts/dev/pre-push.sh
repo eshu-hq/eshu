@@ -6,9 +6,12 @@
 #   bash scripts/dev/pre-push.sh        # or: make pre-push
 #
 # What it runs, no live Docker/NornicDB lane, no stamp:
-#   (a) go test on changed Go packages plus fixture consumers (the same
-#       selection pre-pr.sh's step_test uses), then go test -race on the
-#       changed Go packages alone (no cap; ESHU_PRE_PUSH_RACE_WARN_PACKAGES,
+#   (a) go test on fixture consumers plus any changed package with a
+#       //go:build !race file (the same selection pre-pr.sh's step_test uses,
+#       minus changed packages the race pass already covers: -race runs the
+#       same tests, so a plain pass over them only repeats it; see
+#       scripts/lib/pre-push-test-dedupe.sh), then go test -race on every
+#       changed Go package (no cap; ESHU_PRE_PUSH_RACE_WARN_PACKAGES,
 #       default 20, sets the package count above which it prints a warning);
 #   (b) the 500-line Go file cap on changed files;
 #   (c) gofumpt, golangci-lint, go build, and go vet scoped to changed Go
@@ -99,6 +102,10 @@ source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
 # shellcheck source=../lib/pre-push-merge.sh
 source "${repo_root}/scripts/lib/pre-push-merge.sh"
+# shellcheck source=../lib/gate-timing.sh
+source "${repo_root}/scripts/lib/gate-timing.sh"
+# shellcheck source=../lib/pre-push-test-dedupe.sh
+source "${repo_root}/scripts/lib/pre-push-test-dedupe.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 # ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
@@ -117,19 +124,24 @@ fi
 pre_pr_git_state_init
 # shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
+# Measurement only (scripts/lib/gate-timing.sh): one JSONL line per run, never
+# able to change a step's result. Summary: scripts/dev/gate-timing.py summary.
+eshu_timing_init pre-push "${base}"
 
 results=()
 overall=0
 run_step() {
 	local name="$1"; shift
-	local start=${SECONDS}
+	local start=${SECONDS} rc=0
 	printf '\n\033[1m==> %s\033[0m\n' "${name}"
-	if "$@"; then
+	"$@" || rc=$?
+	if [[ ${rc} -eq 0 ]]; then
 		results+=("PASS  ${name} ($((SECONDS - start))s)")
 	else
 		results+=("FAIL  ${name} ($((SECONDS - start))s)")
 		overall=1
 	fi
+	eshu_timing_note "${name}" "$((SECONDS - start))" "${rc}"
 }
 
 # A failed changed-path collector must not silently look like "nothing
@@ -146,17 +158,31 @@ check_diff_state() {
 	fi
 }
 
+# step_test runs the plain `go test`. step_race below runs `go test -race` on
+# every changed package, which runs the same tests, so a changed package is left
+# out here unless a //go:build !race file means the race binary skips some of its
+# tests (scripts/lib/pre-push-test-dedupe.sh). Fixture consumers and any other
+# selected package the race run does not cover keep their plain run.
 step_test() {
-	local dirs=() d
+	local selected=() dirs=() d race_list="${pre_pr_state_dir}/race-dirs.txt"
 	while IFS= read -r d; do
-		[[ -n "${d}" ]] && dirs+=("${d}")
+		[[ -n "${d}" ]] && selected+=("${d}")
 	done < <({ changed_go_dirs; fixture_consumer_dirs; } | pre_pr_select_test_dirs)
-	if [[ ${#dirs[@]} -eq 0 ]]; then
+	if [[ ${#selected[@]} -eq 0 ]]; then
 		printf 'no changed Go packages or fixtures vs %s — skipping focused tests\n' "${base}"
 		return 0
 	fi
-	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
+	changed_go_dirs >"${race_list}"
+	while IFS= read -r d; do
+		[[ -n "${d}" ]] && dirs+=("${d}")
+	done < <(printf '%s\n' "${selected[@]}" | pre_push_plain_test_dirs "${race_list}")
+	if [[ ${#dirs[@]} -eq 0 ]]; then
+		printf 'plain go test skipped: the race run covers every one of the %d selected package target(s) (none has a //go:build !race file)\n' "${#selected[@]}"
+		return 0
+	fi
+	printf 'testing %d of %d package target(s) with plain go test; changed packages without a //go:build !race file run only in the race step\n' "${#dirs[@]}" "${#selected[@]}"
+	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+	return "${PIPESTATUS[0]}"
 }
 
 # step_race runs `go test -race` on the changed Go packages only (#7111 F5).
@@ -185,7 +211,8 @@ step_race() {
 	fi
 	# -timeout is per test binary, the same 900s budget test.yml's go-race
 	# shards use, so a hang fails in minutes instead of Go's default 10m.
-	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" )
+	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+	return "${PIPESTATUS[0]}"
 }
 
 step_filecap() {
@@ -250,7 +277,9 @@ step_exactness() {
 	selected_gates_log="${pre_pr_state_dir}/selected-gates.log"
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs,security,frontend \
-		--self-tests changed --blocking-only --pre-push 2>&1 | tee "${selected_gates_log}"
+		--self-tests changed --blocking-only --pre-push \
+		--report-file "${ESHU_TIMING_GATE_REPORT:-${pre_pr_state_dir}/timing-gates.json}" 2>&1 |
+		tee "${selected_gates_log}"
 	return "${PIPESTATUS[0]}"
 }
 
@@ -291,6 +320,7 @@ if [[ -n "${pre_push_diff_broken_reason}" ]]; then
 	results+=("FAIL  changed-path collection (${pre_push_diff_broken_reason})")
 	overall=1
 else
+	eshu_timing_meta changed_go_packages "$(changed_go_dirs | wc -l | tr -d ' ')"
 	run_step "go test (changed packages)" step_test
 	run_step "go test -race (changed packages)" step_race
 	run_step "500-line file cap" step_filecap
@@ -301,6 +331,7 @@ else
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 
+eshu_timing_finish "${overall}"
 printf '\n\033[1m==== pre-push summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ -n "${pre_push_merge_summary}" ]]; then

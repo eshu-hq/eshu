@@ -101,13 +101,20 @@ B0 lands the pieces that need no supports table. Commits on
      searched in the ref's own subquery arm (a reused alias elsewhere, or another
      `UNION` arm's predicate, does not count) and restricting (a depth-zero `AND`
      conjunct of the `WHERE` or `ON` clause, not an `OR` arm, `NOT`, function,
-     `CASE`, select-list, `IS`, or cast operand). Round 5 added both rules after
+     `CASE`, directly in the select list, `IS`, or cast operand). Round 5 added both rules after
      the reviewer showed an alias reused in another CTE satisfying a kindless
      ref. Three `fact_id` join-backs are pinned (the impact list's `source` and
      `override`, the readiness statement's package-manifest `fact`), each with its
      reason; the 20 hidden forms, the scoping cases, and the eight non-restricting
-     forms are its seeded RED set. It enforces the probed capabilities only: the
-     155 waived capabilities are not enforced (#11212).
+     forms are its seeded RED set. Known limits, all latent (no probed production
+     statement uses them; the 24-statement census is the evidence): a correlated
+     predicate inside a nested subquery (`NOT EXISTS`, `OR EXISTS`, a select-list
+     scalar subquery, `LEFT JOIN LATERAL`) and an `ON` predicate on the preserved
+     side of a `LEFT` or `FULL` join count as the ref's own predicate although they
+     do not restrict its rows; a correlated `EXISTS` conjunct, which does, stays
+     accepted. It enforces the probed capabilities only: the 155 waived
+     capabilities are not enforced, and the burn-down of these limits belongs to
+     #11212.
    - Waivers: 155 capabilities have no probe and 18 query packages have no census
      owner. Raising a ceiling constant is a code edit that only review catches.
 4. **`image_ref` guard.** The gate-on list and aggregate stores serve an
@@ -189,3 +196,24 @@ code exactly as section 1 measured them, now pinned by the live proof.
   read-latency gate are not part of B0.
 - The census is a floor: a SQL literal outside the `KnownRelations` set, or a
   query built without string literals, is invisible to it.
+
+### Performance and observability evidence for B0
+
+Performance Evidence: B0 changes no default-path query. The runtime change is
+confined to the default-off `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` gate: a call
+carrying an `image_ref` or `profile` existence filter now stays on the legacy
+read when the gate is on (the same statement the gate-off path runs today), and
+the grouped inventory answers the named 503
+`ErrGroupedInventoryFilterUnavailable` for those filters instead of reading the
+winners row. Baseline: the gate-off statements are byte-identical before and
+after. After: no new statement, index or round trip; the audit recorder and
+census (`recorder.go`, `census.go`) are test-support code that runs only under
+`go test`, and the `entries.go` change is a description string. Backend:
+PostgreSQL 18 for the live multi-support proof.
+
+No-Regression Evidence: the live multi-support suite passes on PostgreSQL 18
+with the gate off and on, and the default answers are unchanged.
+
+No-Observability-Change: no metric, span, log key or status field is added or
+changed. The 503 for the unsupported filters uses the existing
+`backend_unavailable` envelope with text that names the filters.

@@ -97,6 +97,29 @@ func TestCensusClassifiesWinnersDirtyTally(t *testing.T) {
 	}
 }
 
+// TestCensusClassifiesWinnersAuditSweep pins the #11131 sweep cursor's row:
+// cursor_repository_id matches the live census's repository column filter but
+// is a keyset position of the winners index order, compared with a row
+// comparison and never matched to a repository, so the table is not_a_key
+// with no purge step.
+func TestCensusClassifiesWinnersAuditSweep(t *testing.T) {
+	t.Parallel()
+
+	entry, ok := RetireTableDispositionFor("supply_chain_impact_winners_audit_sweep")
+	if !ok {
+		t.Fatal("supply_chain_impact_winners_audit_sweep has no census row; the live census fails on its cursor_repository_id column")
+	}
+	if entry.Disposition != "not_a_key" || len(entry.RemoveSteps) != 0 {
+		t.Fatalf("disposition = %q steps %v, want not_a_key with no remove steps", entry.Disposition, entry.RemoveSteps)
+	}
+	if len(entry.KeyColumns) != 1 || entry.KeyColumns[0] != "cursor_repository_id" {
+		t.Fatalf("key columns = %v, want [cursor_repository_id], the column the live filter matched", entry.KeyColumns)
+	}
+	if !strings.Contains(entry.Reason, "keyset position") {
+		t.Fatalf("reason %q must say cursor_repository_id is a keyset position, not a repository key", entry.Reason)
+	}
+}
+
 // TestCensusClassifiesWinnersDirtyStaging pins the #10837 staging queue's
 // row (#10909): it is the append target of every winners capture owner,
 // including the ingestion_scopes delete trigger that fires during the

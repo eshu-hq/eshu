@@ -187,6 +187,9 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 	clientFailed := false
 	hardFailedBody := ""
 	status := 0
+	// providerClass tracks whether EVERY counted sample of a provider route
+	// was the exact provider-unconfigured answer; one other sample ends it.
+	_, providerClass := providerUnconfiguredRoutes[route]
 
 	for run := 0; run < runs; run++ {
 		runSamples := make([]time.Duration, 0, iterations)
@@ -196,6 +199,9 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 				return RouteLatency{}, fmt.Errorf("sweep %s (run %d/%d, iteration %d/%d): %w", route, run+1, runs, i+1, iterations, err)
 			}
 			status = s
+			if providerClass && !isProviderUnconfiguredResponse(route, s, body) {
+				providerClass = false
+			}
 			if s >= 400 && s < 500 {
 				clientFailed = true
 			}
@@ -236,6 +242,14 @@ func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey str
 		Samples:        coldSamples,
 		WarmSamples:    warmSamples,
 		WarmRunP95s:    warmRunP95s,
+	}
+	if providerClass && !clientFailed {
+		// Every counted sample was the product's exact provider-unconfigured
+		// 503: a typed, printed, counted not-exercised class, never a pass.
+		result.Exercised = false
+		result.HardFailed = false
+		result.HardFailedBody = ""
+		result.NotExercisedClass = notExercisedProviderUnconfigured
 	}
 	if meter != nil {
 		var counters WorkCounters

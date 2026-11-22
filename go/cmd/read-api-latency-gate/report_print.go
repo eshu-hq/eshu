@@ -25,6 +25,9 @@ func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets, work
 	for _, r := range results {
 		if !r.Exercised {
 			status := fmt.Sprintf("NOT_EXERCISED(%d)", r.Status)
+			if r.NotExercisedClass != "" {
+				status = fmt.Sprintf("NOT_EXERCISED(%d %s)", r.Status, r.NotExercisedClass)
+			}
 			if namedMissing[r.Route] {
 				// A route the latency table budgets by name must be exercised
 				// (RequireNamedRoutesExercised fails the run otherwise).

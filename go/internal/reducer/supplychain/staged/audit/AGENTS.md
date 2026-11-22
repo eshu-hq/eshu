@@ -1,24 +1,26 @@
 # stagedaudit — agent instructions
 
-This package assembles the staged stale-winners audit tick (#10451). The
-query builders live in `internal/storage/postgres` (batch SQL, census,
-compaction, diff, ident resolution); the tick runner, conflict classifier,
-member affinity, and telemetry live in `internal/runtime/postgres`
-(staged-audit files). This package only wires them into the reducer core's
-auditor interface.
+This package runs the staged winners audit sweep (#11131). The range and NULL
+probe statements and the writer-side range verify live in
+`internal/storage/postgres` (`supply_chain_impact_winners_audit_range*.go`,
+`supply_chain_impact_winners_audit_sweep*.go`); the fleet, deferral reasons and
+telemetry recorder live in `internal/runtime/postgres` (staged-audit files).
+This package sequences one range per `AuditWinners` call.
 
 ## Invariants
 
 - Never import the parent reducer package or `go/cmd`. The only allowed
-  edges are core (interface and result types), storage/postgres (read-phase
-  functions), runtime/postgres (fleet, runner, telemetry), and
+  edges are core (interface and result types), storage/postgres (statements,
+  store types), runtime/postgres (fleet, reasons, telemetry), and
   storage/postgres/db (reader surface).
-- Never add writer SQL, writer pool handles, or writer-spanning transactions
-  here: the only writer contact is `VerifyStagedCandidates`, after every
-  read succeeds.
-- A behavior change starts from a failing test through the fakes in
-  `staged_audit_test.go` (scripted reader, pinned member). The scripted
-  differential pins the candidate contract; extend it when the contract
-  grows.
-- Keep the tick's log line to one per completed or deferred tick with the
-  gauges the post-deploy watch needs.
+- Never add SQL here. Writer contact is exactly `ReadWinnersAuditSweep`,
+  `Watermark` (the keyed-yield signal, read only) and
+  `VerifyWinnersAuditRange` through the `SweepStore` interface.
+- Every failure path defers with a closed reason and records it; never skip
+  a range, never truncate one, never count a range as a completed audit.
+- A behavior change starts from a failing test: the unit fakes in
+  `tick_test.go` (scripted corpus, in-memory cursor with the compare-and-set)
+  and `tick_paths_test.go` (failing store, probe, and read paths; logging)
+  and the live proofs in `internal/storage/postgres`
+  (`supply_chain_impact_winners_audit_*_live_test.go`).
+- Keep one log line per range and one per completed sweep.

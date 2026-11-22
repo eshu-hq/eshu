@@ -27,3 +27,6 @@
 - `contract.Declare` is the identity function the static generator reads.
   Keep the declaration as a plain package-level var so the generator and
   the fact-kind-registry verifier keep seeing it.
+- A semantic fact's `FactID` is `ScopedFactID` (kind, stable key, scope, generation), never the
+  bare stable key (#11203): `fact_records` is keyed on `fact_id` alone. `StableFactKey` stays the
+  scope-free semantic identity. Both emitters (`semanticdocs`, `semanticcode`) call it.

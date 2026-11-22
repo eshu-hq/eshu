@@ -11,7 +11,10 @@
 // payload (no schema column). The recovery UPDATE re-verifies
 // status = 'dead_letter' at write time, so a row a concurrent worker reclaims
 // between the candidate snapshot and the row lock is skipped, never
-// clobbered. The default operational posture is surface-only; bounded
+// clobbered. A recovered row gets a new row's retry allowance (#11217): the
+// statement appends the shared queuestore.ReplayRetryAllowanceAssignments
+// fragment and raises a projector row's attempt_count to at least 1, without
+// ever lowering it. The default operational posture is surface-only; bounded
 // auto-retry runs only when the reducer operator opts in
 // (ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED, wired in cmd/reducer).
 package poison

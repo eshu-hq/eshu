@@ -28,18 +28,29 @@ type LatencyReportSeedOptions struct {
 	NodesPerLabel     int `json:"nodes_per_label"`
 	IACFactCount      int `json:"iac_fact_count"`
 	SharedIntentCount int `json:"shared_intent_count"`
+	WinnersFactCount  int `json:"winners_fact_count"`
 }
 
 // LatencyReportIdentity identifies the run a LatencyReport came from, so a
 // comparison between two reports can refuse to compare legs whose identity
 // differs in a field that must match (see
 // scripts/compare-backend-latency.sh). Backend and the seed/run sizing are
-// always known; EshuCommit and APIBinarySHA256 are best-effort and empty
-// when the caller did not supply them (-eshu-commit / -api-binary-sha256).
+// always known; EshuCommit, APIBinarySHA256, and CoreBinarySHA256 are
+// best-effort and empty when the caller did not supply them (-eshu-commit /
+// -api-binary-sha256 / -core-binary-sha256). WinnersRead names which supply
+// chain impact read model the leg measured (issue #11170): false is the
+// legacy read-time dedup, true the maintained winners table. InfraBackfill
+// names who recorded the infra read model marker the infra routes were
+// measured behind: always "gate_stand_in" today, because the gate starts no
+// reducer (which owns the backfill since #11210) and runs the same product
+// Backfiller itself; dropping that is #11226.
 type LatencyReportIdentity struct {
 	Backend                 string                   `json:"backend"`
 	EshuCommit              string                   `json:"eshu_commit,omitempty"`
 	APIBinarySHA256         string                   `json:"api_binary_sha256,omitempty"`
+	CoreBinarySHA256        string                   `json:"core_binary_sha256,omitempty"`
+	WinnersRead             bool                     `json:"winners_read,omitempty"`
+	InfraBackfill           string                   `json:"infra_backfill,omitempty"`
 	SeedOptions             LatencyReportSeedOptions `json:"seed_options"`
 	Runs                    int                      `json:"runs"`
 	Iterations              int                      `json:"iterations"`
@@ -66,16 +77,20 @@ type LatencyReportWarmStats struct {
 // LatencyReportRoute is one route's full measured outcome, carrying enough
 // to re-derive everything printReport shows plus the raw distribution.
 type LatencyReportRoute struct {
-	Route          string         `json:"route"`
-	Method         string         `json:"method,omitempty"`
-	Path           string         `json:"path,omitempty"`
-	MCP            bool           `json:"mcp,omitempty"`
-	Exercised      bool           `json:"exercised"`
-	Status         int            `json:"status"`
-	HardFailed     bool           `json:"hard_failed"`
-	HardFailedBody string         `json:"hard_failed_body,omitempty"`
-	Metered        bool           `json:"metered"`
-	Work           workReportWork `json:"work"`
+	Route          string `json:"route"`
+	Method         string `json:"method,omitempty"`
+	Path           string `json:"path,omitempty"`
+	MCP            bool   `json:"mcp,omitempty"`
+	Exercised      bool   `json:"exercised"`
+	Status         int    `json:"status"`
+	HardFailed     bool   `json:"hard_failed"`
+	HardFailedBody string `json:"hard_failed_body,omitempty"`
+	// NotExercisedClass is set only for a typed not-exercised class such as
+	// provider-unconfigured, so a report reader can tell those routes from
+	// a route that needed a selector.
+	NotExercisedClass string         `json:"not_exercised_class,omitempty"`
+	Metered           bool           `json:"metered"`
+	Work              workReportWork `json:"work"`
 	// ColdSamplesMS retains the version-1 field name for RouteLatency.Samples:
 	// the first counted pass after discarded warmups, not a cold-cache proof.
 	// Values are milliseconds in request order; empty when not exercised.
@@ -150,6 +165,8 @@ func buildLatencyReportRoute(r RouteLatency) LatencyReportRoute {
 		HardFailed:     r.HardFailed,
 		HardFailedBody: r.HardFailedBody,
 		Metered:        r.Metered,
+
+		NotExercisedClass: r.NotExercisedClass,
 	}
 	if r.Metered {
 		out.Work = workReportWork{Calls: r.Work.Calls, Rows: r.Work.Rows, Blks: r.Work.Blks}
@@ -231,14 +248,18 @@ func latencyReportIdentityFrom(opts runOptions) LatencyReportIdentity {
 		concurrentRequests = opts.concurrentRequests
 	}
 	return LatencyReportIdentity{
-		Backend:         backend,
-		EshuCommit:      opts.eshuCommit,
-		APIBinarySHA256: opts.apiBinarySHA256,
+		Backend:          backend,
+		EshuCommit:       opts.eshuCommit,
+		APIBinarySHA256:  opts.apiBinarySHA256,
+		CoreBinarySHA256: opts.coreBinarySHA256,
+		WinnersRead:      opts.winnersRead,
+		InfraBackfill:    infraBackfillStandIn,
 		SeedOptions: LatencyReportSeedOptions{
 			TotalScopes:       opts.totalScopes,
 			NodesPerLabel:     opts.nodesPerLabel,
 			IACFactCount:      opts.iacFactCount,
 			SharedIntentCount: opts.sharedIntents,
+			WinnersFactCount:  opts.winnersFactCount,
 		},
 		Runs:                    runs,
 		Iterations:              opts.iterations,

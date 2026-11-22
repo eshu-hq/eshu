@@ -219,6 +219,14 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersAuditSkipped counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersAuditRangeDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds",
+		metric.WithDescription("Wall time of one staged winners audit sweep range, standby read through writer commit, by outcome (advanced, completed, skipped, lock_busy, cursor_race, deferred). The standby statement has a 25 s guard and the writer verify a 30 s bound; a p99 near 55 s means ranges are at their budget."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.1, 0.5, 1, 2.5, 5, 10, 15, 20, 25, 30, 45, 60, 120),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersAuditRangeDuration histogram: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersChunkedTicks, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_chunked_ticks_total",
 		metric.WithDescription("Keyed supply-chain impact winners ticks that stopped at the identifier chunk bound (post-expansion identifiers per transaction) with dirty-log rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound."),

@@ -55,6 +55,12 @@ const (
 	// matching operator attestation means a collector is emitting
 	// suspiciously empty observations.
 	RefreshSkipReasonDestructiveSuccessor = "destructive_successor_refused"
+	// RefreshSkipReasonFactIDOwnerConflict means the store refused a generation
+	// because one of its fact ids is already held by another scope or by another
+	// generation of the same scope (#11203): nothing was stored, so the prior
+	// generation stays active. A non-zero count means a producer mints a fact id
+	// that omits the scope or the generation.
+	RefreshSkipReasonFactIDOwnerConflict = "fact_id_owner_conflict"
 	// RefreshSkipReasonOther counts a record with a reason outside this set.
 	RefreshSkipReasonOther = "other"
 )
@@ -69,6 +75,7 @@ var refreshSkipReasons = [...]string{
 	RefreshSkipReasonReconcileSuperseded,
 	RefreshSkipReasonFinalizedGenerationReplay,
 	RefreshSkipReasonDestructiveSuccessor,
+	RefreshSkipReasonFactIDOwnerConflict,
 	RefreshSkipReasonOther,
 }
 

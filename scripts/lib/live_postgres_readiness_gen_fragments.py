@@ -120,11 +120,18 @@ FRAGMENT_NAMES = (
 # Split 2026-11-21 for #11129: the staging plan-pin and late-seq live
 # enrollments push part6 to 502 lines, so a cut at the supply-chain
 # authorized-loader proof starts part7; eight fragments pinned.
+# Rebalanced 2026-11-22 for #11203: the two fact_id owner-guard enrollments
+# sort into part4 (507 lines over the 499 budget). The fourth cut moves three
+# entries earlier into part5 (part4 492 lines, part5 262 lines, room for a
+# seed row in both); eight fragments pinned.
+# Moved again for #11203 follow-up: the refusal and race live proofs add two
+# more rows to part4, so the fourth cut moves two more entries earlier into
+# part5 (part4 492 lines, part5 272 lines); eight fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/nvd_baseline_r6_convergence_live_test.go",
+    "go/internal/storage/postgres/membership/observations_live_test.go",
     "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
     "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go",
