@@ -165,7 +165,8 @@ type SupplyChainImpactWinnersMaintainer struct {
 	// watermark to the age gauge, whatever the tick then does, so the gauge keeps
 	// climbing on an instance that holds no lease or has a failing resweep.
 	WatermarkReader SupplyChainImpactWinnersWatermarkReader
-	// Now defaults to time.Now (UTC stamped at use). Injected in tests.
+	// Now defaults to time.Now (UTC stamped at use). Injected in tests. It also
+	// clocks the audit tick budget (AuditTickBudget).
 	Now func() time.Time
 	// Sleep waits d or returns early when ctx is cancelled; defaults to a
 	// timer wait. Injected in tests to observe cadence: a Bounded keyed tick
@@ -214,6 +215,17 @@ func (m SupplyChainImpactWinnersMaintainer) now() time.Time {
 		return m.Now().UTC()
 	}
 	return time.Now().UTC()
+}
+
+// budgetNow reads the clock the audit tick budget is measured on: the injected
+// Now when set, otherwise time.Now with its monotonic reading kept, so a wall
+// clock step cannot stretch or cut a tick. now() is not used here because it
+// strips the monotonic reading through UTC().
+func (m SupplyChainImpactWinnersMaintainer) budgetNow() time.Time {
+	if m.Now != nil {
+		return m.Now()
+	}
+	return time.Now()
 }
 
 func (m SupplyChainImpactWinnersMaintainer) interval() time.Duration {

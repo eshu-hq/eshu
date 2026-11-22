@@ -11724,7 +11724,8 @@
     {
       "capability": "supply_chain.advisory_evidence.list",
       "answering_stores": [
-        "fact_records_collector"
+        "fact_records_collector",
+        "fact_records_reducer"
       ],
       "display_name": "Supply Chain Advisory Evidence List",
       "maturity": "general_availability",
@@ -11966,7 +11967,17 @@
       "capability": "supply_chain.impact_explanation.read",
       "answering_stores": [
         "fact_records_reducer",
-        "fact_records_collector"
+        "fact_records_collector",
+        "read_table:collector_instances",
+        "read_table:container_image_identity_supports",
+        "read_table:package_manifest_consumption_key_backfill_markers",
+        "read_table:package_manifest_consumption_key_dirty_scopes",
+        "read_table:package_manifest_consumption_keys",
+        "read_table:package_registry_identity_keys",
+        "read_table:vulnerability_source_state_packages",
+        "read_table:vulnerability_source_states",
+        "read_table:workflow_runs",
+        "read_table:scanner_image_targets"
       ],
       "display_name": "Supply Chain Impact Explanation Read",
       "maturity": "general_availability",
@@ -12130,7 +12141,18 @@
       "capability": "supply_chain.impact_findings.list",
       "answering_stores": [
         "read_table:supply_chain_impact_canonical_winners",
-        "fact_records_reducer"
+        "fact_records_reducer",
+        "fact_records_collector",
+        "read_table:collector_instances",
+        "read_table:container_image_identity_supports",
+        "read_table:package_manifest_consumption_key_backfill_markers",
+        "read_table:package_manifest_consumption_key_dirty_scopes",
+        "read_table:package_manifest_consumption_keys",
+        "read_table:package_registry_identity_keys",
+        "read_table:vulnerability_source_state_packages",
+        "read_table:vulnerability_source_states",
+        "read_table:workflow_runs",
+        "read_table:scanner_image_targets"
       ],
       "display_name": "Supply Chain Impact Findings List",
       "owner_package": "internal/query",

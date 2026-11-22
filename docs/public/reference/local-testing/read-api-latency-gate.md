@@ -98,7 +98,7 @@ lanes never exercise.
 
 **Seed notes.** Two seed steps are explained on their own page,
 [Seed Notes](read-api-latency-gate-seed.md): the infra read model backfill the
-gate runs itself because it starts no reducer (labelled `gate_stand_in`, #11226),
+gate runs itself as a permanent stand-in (labelled `gate_stand_in`, #11226),
 and the `VACUUM (ANALYZE)` that ends the seed (#11224).
 
 The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,

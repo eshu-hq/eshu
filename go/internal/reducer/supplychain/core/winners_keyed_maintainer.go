@@ -370,13 +370,13 @@ func (m SupplyChainImpactWinnersMaintainer) runAuditOnce(ctx context.Context) (e
 			err = fmt.Errorf("release winners audit lease: %w", relErr)
 		}
 	}()
-	deadline := time.Now().Add(m.auditTickBudget())
+	deadline := m.budgetNow().Add(m.auditTickBudget())
 	for {
 		audit, err := m.runAuditPass(ctx)
 		if err != nil {
 			return err
 		}
-		if !audit.More || ctx.Err() != nil || !time.Now().Before(deadline) {
+		if !audit.More || ctx.Err() != nil || !m.budgetNow().Before(deadline) {
 			return nil
 		}
 		renewed, err := m.LeaseManager.ClaimPartitionLease(

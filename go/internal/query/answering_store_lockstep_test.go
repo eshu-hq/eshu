@@ -54,6 +54,13 @@ func TestCapabilityAnsweringStoresDeclaredForAllCapabilities(t *testing.T) {
 	}
 }
 
+// readinessReadTables are the tables the impact readiness store reads for the
+// readiness block of the list and explain responses; the store audit's readiness
+// probes prove each one (go/internal/query/store/audit).
+var readinessReadTables = []string{
+	"read_table:collector_instances", "read_table:container_image_identity_supports", "read_table:package_manifest_consumption_key_backfill_markers", "read_table:package_manifest_consumption_key_dirty_scopes", "read_table:package_manifest_consumption_keys", "read_table:package_registry_identity_keys", "read_table:vulnerability_source_state_packages", "read_table:vulnerability_source_states", "read_table:workflow_runs", "read_table:scanner_image_targets",
+}
+
 // answeringStoreProbe pins one capability's declared stores against the store
 // its handler actually reads. The evidence column names the handler file that
 // proves the read; mutate a probe's declared stores in the matrix and this
@@ -183,9 +190,21 @@ var answeringStoreProbes = []struct {
 	},
 	// Mixed families name every store that answers the read.
 	{
+		capability: "supply_chain.advisory_evidence.list",
+		want:       []string{"fact_records_collector", "fact_records_reducer"},
+		evidence:   "go/internal/query/supply/chain/advisory/evidence_sql.go: vulnerability.* collector facts + repo_probe/impact_candidates over reducer_supply_chain_impact_finding",
+	},
+	{
 		capability: "supply_chain.impact_explanation.read",
-		want:       []string{"fact_records_reducer", "fact_records_collector"},
-		evidence:   "go/internal/query/supply/chain/impact/explain_postgres.go FindingFactKind + vulnerability/collector evidence reads",
+		want:       append([]string{"fact_records_reducer", "fact_records_collector"}, readinessReadTables...),
+		evidence:   "go/internal/query/supply/chain/impact/explain_postgres.go FindingFactKind + vulnerability/collector evidence reads; readiness_postgres.go readiness block",
+	},
+	{
+		capability: "supply_chain.impact_findings.list",
+		want: append([]string{
+			"read_table:supply_chain_impact_canonical_winners", "fact_records_reducer", "fact_records_collector",
+		}, readinessReadTables...),
+		evidence: "go/internal/query/supply/chain/impact/findings_queries.go winners read + readiness_postgres.go readiness block (collector facts and the readiness tables)",
 	},
 	{
 		capability: "service_catalog.correlations.list",

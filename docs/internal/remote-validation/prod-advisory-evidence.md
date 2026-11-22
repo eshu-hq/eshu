@@ -21,8 +21,11 @@ Production profile: `required_runtime: deployed_services`,
 
 ## Claim validated
 
-Bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id,
-preserving source disagreement without implying repository or image impact.
+Bounded advisory evidence lookup anchored by CVE, advisory id, or package id. It returns
+vulnerability source facts only, preserving source disagreement without implying repository
+or image impact. Reducer impact findings are read only to select evidence by repository,
+service, or workload, so the capability declares both `fact_records_collector` and
+`fact_records_reducer`.
 
 ## Committed reproducible evidence
 
