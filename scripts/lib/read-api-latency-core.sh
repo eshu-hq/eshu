@@ -73,11 +73,13 @@ stop_core_api() {
 
 # snapshot_findings_page <out> fetches the satellite-relayed impact findings
 # first page with the gate key. Both legs fetch the same URL so the
-# byte-identical proof compares the same serialization.
+# byte-identical proof compares the same serialization. The route answers 400
+# without a selector and without limit; every seeded finding is npm, so
+# ecosystem=npm selects the whole seeded set and limit=50 bounds the page.
 snapshot_findings_page() {
 	local out="$1"
 	curl -fsS -H "Authorization: Bearer ${GATE_API_KEY}" \
-		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/findings?limit=50" \
+		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/findings?ecosystem=npm&limit=50" \
 		-o "${out}" || die "findings snapshot failed (see the curl error above)"
 }
 
