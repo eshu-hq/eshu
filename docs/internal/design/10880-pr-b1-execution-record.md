@@ -82,11 +82,12 @@ Findings from reading the code:
   index of its own. That was wrong. The review measured, and the scale shim
   confirms, that 18.6 reads the whole `(scope_id, generation_id)` index once per
   deleted generation (`Index Searches: 1` over every leaf page; a skip scan would
-  show one search per scope; the arbiter reports the same on 17). At 300,000
-  supports the probe touches 326 buffers and at 1,200,000 it touches 1,115, and a
-  50-generation `DELETE FROM scope_generations` takes 10.8 ms and 39.3 ms of
-  trigger time. With a plain `(generation_id)` index the probe reads 1 to 3
-  index buffers at both sizes and the 50-generation cascade takes 2.1 ms and
+  show one search per scope; PostgreSQL 17 is NOT_CHECKED). At 300,000 supports
+  the probe's scan node touches 326 buffers (about 266 index pages) and at
+  1,200,000 it touches 1,115 (about 1,055 index pages), and a 50-generation
+  `DELETE FROM scope_generations` takes 10.8 ms and 39.3 ms of trigger time.
+  With a plain `(generation_id)` index the scan node touches about 63 buffers at
+  both sizes (1 to 3 index pages) and the 50-generation cascade takes 2.1 ms and
   2.6 ms ([cascade scale note](../evidence/10880-pr-b1/cascade_scale.md)).
   Migration 336, still unshipped, therefore carries the fifth index. The
   plan-shape guard pins the cascade statement, prepared under a generic plan, to
@@ -361,7 +362,6 @@ written), or an old writer still running (the dirty-scope gauge stays above zero
   on QA before B1 deploys; it runs on the QA read replica after the roll and the
   backfill, and its figures go on #10880. No QA access in this lane.
 - `make pre-push`, `make pre-pr`, and CI: left to the coordinator by order.
-</content>
 
 ## Stopping the supports writes
 
@@ -383,10 +383,11 @@ the table keeps its rows until the next roll forward drains them.
   The payload stays for the PR-C reasons, and `arbiter-b1-cascade` reaffirmed it.
   B1 serves no reader, so this WAL buys nothing until B2 and B3.
 - **The cascade finding:** the generation foreign key's cascade read the whole
-  `(scope_id, generation_id)` index once per deleted generation (326 buffers at
-  300,000 supports, 1,115 at 1,200,000; 10.8 ms and 39.3 ms of trigger time for 50
-  generations). Migration 336 now carries a `(generation_id)` index (1 to 3 index
-  buffers at both sizes; 2.1 ms and 2.6 ms for 50 generations), pinned by name in
+  `(scope_id, generation_id)` index once per deleted generation (scan-node buffers: 326
+  at 300,000 supports, about 266 of them index pages; 1,115 at 1,200,000, about
+  1,055 index pages; 10.8 ms and 39.3 ms of trigger time for 50 generations).
+  Migration 336 now carries a `(generation_id)` index (scan-node buffers about 63
+  at both sizes, 1 to 3 index pages; 2.1 ms and 2.6 ms for 50 generations), pinned by name in
   the plan guard.
 - **QA census and the B2 readiness SQL.** The census needs the supports table, so
   it is a post-roll check (see NOT_CHECKED). The readiness query is the one in

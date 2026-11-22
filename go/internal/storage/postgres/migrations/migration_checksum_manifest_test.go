@@ -499,8 +499,8 @@ var migrationShippedChecksums = map[string]string{
 	// #11131 adds the staged winners audit sweep cursor table (renumbered 331 to 335 at rebase: main owns 331-332 and 334; 333 held by an unpushed lane).
 	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
 	// #10880 PR-B1: the per-support table behind the grant-scoped reads
-	// (333-335 are held by other in-flight work; re-check at rebase).
-	"336_supply_chain_impact_finding_supports.sql": "077bb619fa5e9c771490d481410db6db737bd3be40ac23f5c44164e02a1f6efa",
+	// (numbered 336 after main took 333 to 335).
+	"336_supply_chain_impact_finding_supports.sql": "feecbc510c1d849fdc14ccefb41a5487d73dc76743be530590102201f32fe3cb",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

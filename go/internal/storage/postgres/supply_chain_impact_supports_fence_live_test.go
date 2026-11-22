@@ -201,7 +201,7 @@ func TestSupplyChainImpactSupportsDrainKeepsAMarkLandedDuringTheDrainLive(t *tes
 		var waiting int
 		if err := db.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_stat_activity
-WHERE wait_event_type = 'Lock' AND query ILIKE '%DELETE FROM supply_chain_impact_finding_supports_dirty%'`).Scan(&waiting); err != nil {
+WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%DELETE FROM supply_chain_impact_finding_supports_dirty%'`).Scan(&waiting); err != nil {
 			t.Fatalf("poll the waiting clear: %v", err)
 		}
 		if waiting > 0 {

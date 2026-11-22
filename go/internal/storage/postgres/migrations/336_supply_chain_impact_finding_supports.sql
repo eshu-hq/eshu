@@ -21,10 +21,9 @@
 -- DELETE FROM ONLY <table> WHERE generation_id = $1 once per deleted
 -- generation, inside the retention and repository-retirement transactions.
 -- PostgreSQL 18.6 answers it from the (scope_id, generation_id) index by reading
--- the whole index once per generation (one index search, every leaf page; 17
--- does the same), so its cost grows with the table and the index is required on
--- every version. The plain (generation_id) index keeps that probe at a few
--- buffers at any table size (docs/internal/evidence/10880-pr-b1/
+-- the whole index once per generation (one index search, every leaf page;
+-- PostgreSQL 17 is not checked), so its cost grows with the table. The plain
+-- (generation_id) index keeps that probe at a few buffers at any table size (docs/internal/evidence/10880-pr-b1/
 -- cascade_scale.md). The plan-shape guard in internal/query/supply/chain/impact
 -- pins the cascade to it by name.
 
