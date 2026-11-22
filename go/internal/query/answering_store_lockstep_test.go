@@ -85,7 +85,7 @@ var answeringStoreProbes = []struct {
 	{
 		capability: "supply_chain.sbom_attestation_attachments.list",
 		want:       []string{"fact_records_reducer"},
-		evidence:   "go/internal/query/sbom_attestation_attachments.go:185 fact_kind=reducer_sbom_attestation_attachment",
+		evidence:   "go/internal/query/sbom_attestation_attachments.go fact_kind=reducer_sbom_attestation_attachment",
 	},
 	{
 		capability: "ci_cd.run_correlations.list",

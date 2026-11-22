@@ -49,13 +49,13 @@ The recommendation in #10880 is confirmed on inspected evidence:
   Every collector save pays to maintain all ten.
 - **Write path (verified).** `PostgresSupplyChainImpactWriter.
   WriteSupplyChainImpactFindings`
-  (`go/internal/reducer/supplychain/core/writer.go:61`) encodes each
+  (`WriteSupplyChainImpactFindings` in `go/internal/reducer/supplychain/core/writer.go`) encodes each
   finding as `reducerderivedv1.SupplyChainImpactFinding`
   (`sdk/go/factschema/decode_reducerderived.go:13,40`) and batch-upserts
   versioned rows into `fact_records` via `go/internal/reducer/factwrite`
   (`batch_insert.go`, `ON CONFLICT (fact_id)` with a fencing-token guard).
   Upsert and retraction commit together per (scope, generation). The
-  kind is governed in `go/internal/facts/reducer_derived.go:16` and the
+  kind is governed in `ReducerSupplyChainImpactFindingFactKind` in `go/internal/facts/reducer_derived.go` and the
   `reducer_derived` family declaration (same file, line 96).
 - **Read path (verified).** `go/internal/query/supply/chain/impact/`
   serves list, count/inventory aggregates, and explain. The list read
@@ -67,7 +67,7 @@ The recommendation in #10880 is confirmed on inspected evidence:
   aggregates "re-use the existing partial indexes on `fact_records`").
   Security-alert reconciliations are a **separate** family
   (`reducer_security_alert_reconciliation`,
-  `go/internal/query/supply/chain/alerts/store.go:24`) and are not part
+  `factKind` in `go/internal/query/supply/chain/alerts/store.go`) and are not part
   of this move.
 - **Graph absent (verified).** No projector Cypher writes impact
   findings; `go/internal/projector/runtime/` only queues
