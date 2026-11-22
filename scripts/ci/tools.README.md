@@ -18,7 +18,7 @@ publication time, because Ubuntu security repository dependencies can advance.
 
 The build stages `go/go.mod` and `go/go.sum` into the context so the image can
 warm its module seed (`/opt/ci-go-mod`) with `go mod download` plus install
-pinned `govulncheck` (v1.9.0) and `gosec` (v2.27.1) binaries from source. Only
+pinned `govulncheck` (v1.9.0) and `gosec` (v2.30.1-0.20261026162949-ff25931a2edd) binaries from source. Only
 those two manifests enter the context; the provenance copies stay at
 `/usr/local/share/ci-tools/seed-go.{mod,sum}`. There is no `sdk/go.mod` (the
 SDK modules are `sdk/go/collector`, `sdk/go/apicontract`, and
@@ -70,7 +70,8 @@ checksum-pinned for each architecture in the Dockerfile. Only the CLI binary
 is extracted from Docker's tar; the image has no daemon or container runtime.
 `govulncheck` v1.9.0 (newest verified 2026-11-12; baked for a future lane
 conversion — security-scan.yml still runs unpinned `@latest`) and `gosec`
-v2.27.1 (the pin security-scan.yml already runs) are version-pinned and
+v2.30.1-0.20261026162949-ff25931a2edd (the pin security-scan.yml runs; an unreleased pseudo-version
+that loads packages by directory, #11241) are version-pinned and
 built from source with `GOTOOLCHAIN=local`, so one pin covers both
 architectures; the module zip hash is verified against
 the checksum database at install time and recorded in `downloads.tsv`.
@@ -83,7 +84,7 @@ the checksum database at install time and recorded in `downloads.tsv`.
 | Docker CLI | [v29.1.3 source](https://github.com/docker/cli/tree/v29.1.3), [Apache-2.0 license](https://github.com/docker/cli/blob/v29.1.3/LICENSE) |
 | Docker Compose | [v2.40.3 source](https://github.com/docker/compose/tree/v2.40.3), [Apache-2.0 license](https://github.com/docker/compose/blob/v2.40.3/LICENSE) |
 | govulncheck | [v1.9.0 source](https://github.com/golang/vuln/tree/v1.9.0), [BSD-3-Clause license](https://github.com/golang/vuln/blob/v1.9.0/LICENSE) |
-| gosec | [v2.27.1 source](https://github.com/securego/gosec/tree/v2.27.1), [Apache-2.0 license](https://github.com/securego/gosec/blob/v2.27.1/LICENSE.txt) |
+| gosec | [v2.30.1-0.20261026162949-ff25931a2edd source](https://github.com/securego/gosec/tree/ff25931a2edd), [Apache-2.0 license](https://github.com/securego/gosec/blob/ff25931a2edd/LICENSE.txt) |
 
 The Ubuntu package versions are in `tools.Dockerfile`; apt verifies signed repository
 metadata and `.deb` checksums. The image does not start a Docker daemon.

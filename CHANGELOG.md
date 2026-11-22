@@ -9,6 +9,22 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### The gosec gate scans packages of any size
+
+- **gosec loads packages by directory, so the gate no longer refuses a large
+  package** ([#11241](https://github.com/eshu-hq/eshu/issues/11241),
+  [#8339](https://github.com/eshu-hq/eshu/issues/8339)). gosec v2.27.1 passed one
+  `go/packages` pattern per file and lost imports past 16,383 pattern bytes, so
+  `internal/storage/postgres` (473 files) skipped its SSA analyzers and then
+  failed the fail-closed gate for every code PR. The gate now pins gosec
+  `v2.30.1-0.20261026162949-ff25931a2edd` (securego/gosec#1803 and #1806) at
+  every install site and deletes the symlink alias. Every fail-closed check stays.
+  A whole-module scan went from 24 Go errors to 0 and from 112 s to 71 s locally.
+  Three findings from the newer rule set are fixed or annotated
+  (`Chmod` G302 in `repo/git` and `graphinstall`, and a G602 in the supply-chain
+  version resolution). The move to a release is tracked in
+  [#11243](https://github.com/eshu-hq/eshu/issues/11243).
+
 ### The staged winners audit completes again past a million impact facts
 
 - **The staged audit sweeps by identifier range with a persisted cursor**

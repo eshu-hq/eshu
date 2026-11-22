@@ -29,10 +29,18 @@
 #   R7 gosec exits 0 and writes `not json`   -> exit 1
 #   R8 real gosec on a package with a type error -> exit 1, errors printed
 #   R9 valid JSON with Stats.files 0 for a requested package -> exit 1
-#   A1-A5 a package over the go/packages pattern limit (#8339), real gosec: A1 a
-#      planted G115 in the last file is reported with the REAL path; A2 clean ->
-#      exit 0 and no alias left behind; A3 under the limit -> no alias; A4 too big
-#      even via alias -> exit 1; A5 whole-module mode never passes ./... to gosec
+#   A-control the pinned gosec loads a 301-file package by directory: 0 Go errors
+#      and Stats.files equal to the `go list` count (#8339, #11241)
+#   A1-A5 a package whose per-file pattern list once exceeded the go/packages
+#      16,383-byte limit (#8339), real gosec on the directory-loading pin
+#      (#11241): A1 a planted G115 in the last file is reported with the REAL
+#      path; A2 clean -> exit 0, all files scanned, no alias; A3 a small package
+#      -> clean; A4 a package over the limit EVEN via the retired alias: clean ->
+#      exit 0 with every file scanned, and a G115 planted in its last file is
+#      reported at its real path (the seeded case); A5 whole-module mode never
+#      passes ./... to gosec
+#   E1-E2 the gosec version extractor in precommit-go.sh reads a pseudo-version
+#      pin (v2.30.1-0.<date>-<sha>) whole, and a plain tag as before
 #   C1 no go.mod -> "must run from the module root"; C2 Stats.files below the
 #      expected count -> exit 1; C3 an absolute pattern -> exit 1
 #
@@ -60,7 +68,7 @@ fx="${tmp_root}/fx"
 stub_log="${tmp_root}/stub.log"
 out_file="${tmp_root}/out.txt"
 failures=0
-gosec_version="v2.27.1"
+gosec_version="v2.30.1-0.20261026162949-ff25931a2edd"
 
 fail() { printf 'test-precommit-go-gosec: FAIL: %s\n' "$*" >&2; failures=$((failures + 1)); }
 pass() { printf 'test-precommit-go-gosec: ok: %s\n' "$*"; }
@@ -295,11 +303,14 @@ for arm in gosec gosec-all gosec-changed; do
 	check "R9 ${arm}: zero files scanned" 1 'scanned 0 of'
 done
 
-# --- A1-A5: a package whose file patterns exceed the go/packages limit (#8339).
-# go/packages splits the pattern list at 16383 bytes into several `go list` runs
-# and keeps only the first run's imports, so gosec type-checks the package with
-# missing imports and silently skips its SSA analyzers (G115, G407, G602...). The
-# last file imports a package no other file does and plants a G115 conversion.
+# --- A-control, A1-A5: a package whose per-file pattern list exceeds the
+# go/packages limit (#8339). gosec v2.27.1 passed one pattern per file, so
+# x/tools split the list at 16383 bytes into several `go list` runs and kept only
+# the first run's imports: gosec type-checked the package with missing imports and
+# skipped its SSA analyzers (G115, G407, G602...). The pinned gosec loads module
+# packages by directory (securego/gosec#1803, #1806), so there is no per-file
+# budget (#11241). The last file imports a package no other file does and plants
+# a G115 conversion, so a loader that drops imports cannot see it.
 big_pkg() { # <dir> <count> <name-length>
 	local dir="$1" n="$2" len="$3" i name pad
 	mkdir -p "${fx}/go/internal/${dir}"
@@ -321,38 +332,75 @@ aliases_left() { ls -d "${fx}"/go/_g* 2>/dev/null | wc -l | tr -d ' '; }
 
 use_real
 topic; big_pkg bigpackage 300 30; commit_all
-# Control: the pinned gosec called directly reports Go errors on this fixture, so
-# the fixture really reproduces #8339 and A1/A2 cannot pass vacuously.
+# Control: the pinned gosec called directly scans every file of this package with
+# no Go errors, so A1/A2 prove the gate and not a fixture the loader cannot read.
 ( cd "${fx}/go" && "${fx}/.git/eshu-precommit/gosec-${gosec_version}" -no-fail -fmt=json -out "${tmp_root}/ctl.json" ./internal/bigpackage/ >/dev/null 2>&1 )
-if [ "$(jq -r '."Golang errors" | length' "${tmp_root}/ctl.json")" -eq 0 ]; then
-	fail "A-control: direct gosec reported no Go errors, the fixture does not reproduce #8339"
+ctl_errors="$(jq -r '."Golang errors" | length' "${tmp_root}/ctl.json")"
+ctl_files="$(jq -r '.Stats.files' "${tmp_root}/ctl.json")"
+ctl_listed="$(cd "${fx}/go" && go list -f '{{len .GoFiles}}' ./internal/bigpackage/)"
+if [ "${ctl_errors}" -eq 0 ] && [ "${ctl_files}" -eq "${ctl_listed}" ] && [ "${ctl_files}" -eq 301 ]; then
+	pass "A-control: direct gosec loads the 301-file package by directory (0 Go errors, Stats.files ${ctl_files} = go list ${ctl_listed})"
 else
-	pass "A-control: direct gosec reports Go errors on the oversized package"
+	fail "A-control: direct gosec reported ${ctl_errors} Go error(s) and ${ctl_files} file(s); go list reports ${ctl_listed} (want 0 errors, 301 files)"
 fi
 for arm in gosec gosec-changed; do
 	topic; big_pkg bigpackage 300 30; plant_g115 bigpackage; commit_all
 	run_arm bash "${script}" "${arm}" $(if [ "${arm}" = gosec ]; then printf 'go/internal/bigpackage/zzlast.go'; fi)
-	check "A1 ${arm}: G115 in the last file via alias" 1 G115 'internal/bigpackage/zzlast.go' 'scanned via alias'
+	check "A1 ${arm}: G115 in the last file" 1 G115 'internal/bigpackage/zzlast.go'
+	check_absent "A1 ${arm}" 'alias'
 	check_absent "A1 ${arm}" '/_g'
 	topic; big_pkg bigpackage 300 30; commit_all
 	run_arm bash "${script}" "${arm}" $(if [ "${arm}" = gosec ]; then printf 'go/internal/bigpackage/zzlast.go'; fi)
-	check "A2 ${arm}: clean oversized package" 0 'scanned via alias' '301 file(s) scanned'
+	check "A2 ${arm}: clean oversized package" 0 '301 file(s) scanned'
+	check_absent "A2 ${arm}" 'alias'
 	[ "$(aliases_left)" -eq 0 ] || fail "A2 ${arm}: alias left behind: $(ls -d "${fx}"/go/_g*)"
 done
 topic; big_pkg small 20 10; commit_all
 run_arm bash "${script}" gosec-changed
-check "A3 gosec-changed: package under the limit" 0 '21 file(s) scanned'
+check "A3 gosec-changed: small package" 0 '21 file(s) scanned'
 check_absent "A3" 'alias'
+# A4: 401 files of 45-character names: its pattern list is over the limit even
+# through the retired short alias (the case the old gate refused with "even via
+# alias"). Clean -> scanned in full; seeded G115 in the last file -> reported.
 topic; big_pkg hugepackage 400 45; commit_all
 run_arm bash "${script}" gosec-changed
-check "A4 gosec-changed: too big even via alias" 1 'split the package (#8339)'
+check "A4 gosec-changed: clean package over the limit even via alias" 0 '401 file(s) scanned'
+check_absent "A4 clean" 'even via alias'
+check_absent "A4 clean" 'alias'
 [ "$(aliases_left)" -eq 0 ] || fail "A4: alias left behind: $(ls -d "${fx}"/go/_g*)"
+topic; big_pkg hugepackage 400 45; plant_g115 hugepackage; commit_all
+run_arm bash "${script}" gosec-changed
+check "A4 gosec-changed: seeded G115 in the last file of a package over the limit" 1 G115 'internal/hugepackage/zzlast.go'
+check_absent "A4 seeded" 'even via alias'
+check_absent "A4 seeded" 'Go errors'
 use_stub
 topic; big_pkg bigpackage 300 30; commit_all
 run_arm STUB_MODE=ok bash "${script}" gosec-all
-check "A5 gosec-all: oversized package via alias, stub" 0 'internal/bigpackage scanned via alias'
+check "A5 gosec-all: oversized package, stub" 0 '303 file(s) scanned'
 if rg --quiet --fixed-strings -- './...' "${stub_log}"; then fail "A5: gosec-all passed ./... to gosec"; fi
 rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}" || fail "A5: gosec-all argv lacks ./internal/ok/"
+rg --quiet --fixed-strings -- './internal/bigpackage/' "${stub_log}" || fail "A5: gosec-all argv lacks ./internal/bigpackage/"
+
+# --- E1-E2: the version extractor in precommit-go.sh keeps a whole pseudo-version
+# (it used to cut at the first hyphen: v2.30.1-0.<date>-<sha> read as v2.30.1, a
+# tag that does not exist, so the gate tried to install the wrong binary).
+topic; touch_ok; commit_all
+rm -f "${fx}/.git/eshu-precommit/gosec-"*
+write_stub "${fx}/.git/eshu-precommit/gosec-${gosec_version}"
+run_arm STUB_MODE=ok bash "${script}" gosec-changed
+check "E1 gosec-changed: pseudo-version pin read whole" 0 'file(s) scanned'
+check_absent "E1" 'installing gosec'
+rg --quiet --fixed-strings -- './internal/ok/' "${stub_log}" || fail "E1: the stub pinned by the pseudo-version was not invoked"
+printf 'run: scripts/ci/go-install-retry.sh github.com/securego/gosec/v2/cmd/gosec@v2.27.1 # plain tag\n' \
+	>"${fx}/.github/workflows/security-scan.yml"
+rm -f "${fx}/.git/eshu-precommit/gosec-"*
+write_stub "${fx}/.git/eshu-precommit/gosec-v2.27.1"
+git -C "${fx}" add -A; git -C "${fx}" commit -q -m plain-pin
+run_arm STUB_MODE=ok bash "${script}" gosec-changed
+check "E2 gosec-changed: plain tag pin still read" 0 'file(s) scanned'
+check_absent "E2" 'installing gosec'
+rm -f "${fx}/.git/eshu-precommit/gosec-v2.27.1"
+use_stub
 
 json_file="${tmp_root}/stub.json"
 # --- C1-C3: the run is anchored to the module root and checks what it scanned.

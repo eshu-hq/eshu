@@ -78,7 +78,7 @@ docker run --rm --platform "${platform}" \
     command -v gosec
     govulncheck -version 2>/dev/null | rg -q '^Scanner: govulncheck@v1\.9\.0$'
     rg -q '^govulncheck[[:blank:]]v1[.]9[.]0[[:blank:]]' /usr/local/share/ci-tools/downloads.tsv
-    rg -q '^gosec[[:blank:]]v2[.]27[.]1[[:blank:]]' /usr/local/share/ci-tools/downloads.tsv
+    rg -q '^gosec[[:blank:]]v2[.]30[.]1-0[.]20261026162949-ff25931a2edd[[:blank:]]' /usr/local/share/ci-tools/downloads.tsv
     cd go
     go test ./internal/content/shape -run TestContentEntityBucketsMatchCollectorTwin -count=1
     go test -race ./internal/ifa/saturation/ -run "^Test" -count=1
