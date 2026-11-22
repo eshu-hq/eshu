@@ -215,16 +215,20 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().SupplyChainStuckPartials[0].Causes = %v, want the stuck cause", got.SupplyChainStuckPartials[0].Causes)
 	}
 
-	// 30 round trips: the five active-work reads are one statement (#6794),
+	// 29 round trips: the five active-work reads are one statement (#6794),
 	// the infra read model state is one more (#6793), the repository
 	// selection counts read is one more (#8454), the stuck-partial scope
-	// read is one more (#10389), and the two #10882 source-pacing reads
-	// (claimable signal + latch) are two more. The #8803 terminal-failure
-	// read adds one more only when an enabled collector instance exists; this
-	// fixture has none (TestReadCoordinatorSnapshotIncludesTerminalFailures
-	// pins the read when one does).
-	if len(queryer.queries) != 30 {
-		t.Fatalf("QueryContext() call count = %d, want 30", len(queryer.queries))
+	// read is one more (#10389), and the #10882 source-pacing latch read is
+	// one more. The grouped claimable-signal scan (a 30th) runs only when the
+	// per-source leg is configured on the reading process or some latch is
+	// engaged (#10882 F3); this fixture has neither, and
+	// TestStatusStoreReadRawSnapshotScansSourceSignalsWhenLatchEngaged pins
+	// the 30. The #8803 terminal-failure read adds one more only when an
+	// enabled collector instance exists; this fixture has none
+	// (TestReadCoordinatorSnapshotIncludesTerminalFailures pins the read when
+	// one does).
+	if len(queryer.queries) != 29 {
+		t.Fatalf("QueryContext() call count = %d, want 29", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",

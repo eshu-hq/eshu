@@ -19,9 +19,11 @@ import (
 // many statements need no order script.
 type keyedFakeDB struct {
 	responses map[string][][]any
+	queries   []string
 }
 
 func (f *keyedFakeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	f.queries = append(f.queries, query)
 	for key, rows := range f.responses {
 		if strings.Contains(query, key) {
 			return &fakeRows{rows: rows}, nil
@@ -102,5 +104,43 @@ func TestCoordinatorSummarySourceSHAFollowsSourcePacingStatements(t *testing.T) 
 		if !found {
 			t.Fatalf("coordinator summary digest does not cover a source-pacing statement:\n%s", want)
 		}
+	}
+}
+
+// TestStatusStoreReadRawSnapshotScansSourceSignalsWhenLatchEngaged pins the
+// other side of the #10882 F3 gate on the whole status read: with an engaged
+// pacing latch and no thresholds on the reading process, the grouped
+// claimable-signal scan runs, so the snapshot costs 30 round trips where the
+// leg-off fixture in TestStatusStoreReadRawSnapshot costs 29.
+func TestStatusStoreReadRawSnapshotScansSourceSignalsWhenLatchEngaged(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 22, 12, 0, 0, 0, time.UTC)
+	engaged := &keyedFakeDB{responses: map[string][][]any{
+		"FROM workflow_claim_pacing": {{"vulnerability_intelligence", true, now.Add(-time.Hour)}},
+	}}
+	if _, err := NewStatusStore(engaged).ReadRawSnapshot(context.Background(), now); err != nil {
+		t.Fatalf("ReadRawSnapshot() with an engaged latch error = %v, want nil", err)
+	}
+	released := &keyedFakeDB{}
+	if _, err := NewStatusStore(released).ReadRawSnapshot(context.Background(), now); err != nil {
+		t.Fatalf("ReadRawSnapshot() with no latch error = %v, want nil", err)
+	}
+	if got, want := len(engaged.queries)-len(released.queries), 1; got != want {
+		t.Fatalf("engaged latch added %d status queries over the leg-off read, want %d (the grouped scan)", got, want)
+	}
+	scans := 0
+	for _, query := range engaged.queries {
+		if strings.Contains(query, "rows_past_engage_age") {
+			scans++
+		}
+	}
+	for _, query := range released.queries {
+		if strings.Contains(query, "rows_past_engage_age") {
+			t.Fatal("the leg-off status read ran the grouped claimable scan")
+		}
+	}
+	if scans != 1 {
+		t.Fatalf("engaged-latch status read ran the grouped scan %d times, want 1", scans)
 	}
 }

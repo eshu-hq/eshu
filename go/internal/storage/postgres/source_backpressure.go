@@ -49,8 +49,12 @@ var claimableReadySQL = "(work.domain NOT IN (SELECT domain FROM reducer_claim_r
 // The grouped form serves the publication path, which needs every source
 // at once and does not run per claim. The claim-hot consult path uses
 // the bounded per-source probe (boundedSourceSignalQuery, S0 verdict):
-// the grouped scan costs 120-175ms at 10x replay scale, the bounded
-// probe ~41ms for ~13k claimable rows on the same fixture.
+// the grouped scan is the slow one: p50 about 266 ms at 10x replay scale
+// (87,130 claimable rows) against about 92 ms for the bounded probe over
+// about 13k rows of one source, same session on a busy host with the
+// readiness test in the aggregate FILTERs. Treat the ratio, not the
+// milliseconds, as the evidence: both move with host load, and the harness
+// budget for the bounded probe is 100 ms.
 var sourceClaimableSignalQuery = `
 WITH ` + activeFactWorkItemsPerRowCTE + `,
 ` + reducerClaimReadinessRequirementsCTE() + `

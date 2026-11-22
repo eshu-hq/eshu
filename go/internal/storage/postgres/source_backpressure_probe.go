@@ -13,12 +13,14 @@ import (
 )
 
 // Bounded per-source claimable signal (#10882 S0 verdict). The grouped
-// signal (sourceClaimableSignalQuery) costs 120-175ms at 10x replay scale
-// on the S0 fixture -- not low-millisecond -- so the claim-hot consult
+// signal (sourceClaimableSignalQuery) is not low-millisecond at 10x replay
+// scale on the S0 fixture, so the claim-hot consult
 // path probes one source at a time instead of scanning the whole
-// claimable backlog per consult. Measured on the same fixture: ~41ms at
-// ~13k claimable rows for one source vs ~146ms grouped, row-equivalent
-// (TestSourceBackpressureS0SignalCost, TestSourceBackpressureProbeMatchesGrouped).
+// claimable backlog per consult. Measured on the same fixture, same session:
+// p50 about 92 ms over about 13k claimable rows of one source vs about
+// 266 ms grouped over 87,130 rows (a busy host; read the ratio, not the
+// milliseconds), row-equivalent (TestSourceBackpressureS0SignalCost,
+// TestSourceBackpressureProbeMatchesGroupedAndVerdicts).
 //
 // The probe reuses the shipped fact_work_items_reducer_source_claim_idx:
 // the redundant payload-only prefilter below is spelled in that index's
