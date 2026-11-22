@@ -234,9 +234,9 @@ spans, or logs; failure classes and quarantine behavior are unchanged.
 
 No-Regression Evidence (#11247 audit tick budget clock): `runAuditOnce` reads
 its deadline from `budgetNow()`, which is the injected `Now` when set and
-`time.Now` otherwise, so the default path is the same two clock reads per
-pass as before (monotonic reading kept; `now()` is not used because `UTC()`
-strips it). No query, lease, claim, or lock call is added, moved, or
+`time.Now` otherwise, so the default path is the same clock reads as before:
+one at tick start plus one per pass (monotonic reading kept; `now()` is
+not used because `UTC()` strips it). No query, lease, claim, or lock call is added, moved, or
 reordered. `go test -race -count=1 ./internal/reducer/supplychain/core` is
 green (about 10 s), and the budget test is exact on a fake clock: 4 passes in
 a 70 ms budget, 3 when a pass ends on the deadline, 1 when the budget is
