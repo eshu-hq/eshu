@@ -39,3 +39,26 @@ No label carries a scope, repository, canonical key or CVE.
 - The backfill takes each scope and generation's conflict-domain advisory lock
   (the impact writer's lock) for one chunk of at most 500 supports, so a writer
   waits for at most one chunk.
+
+## Least-privilege logins
+
+Migration 336 creates the tables, and it grants nothing. A database that uses
+least-privilege writer logins must grant, before the roll that carries it:
+
+- the login that runs the impact writer and the backfill (the reducer):
+  `SELECT`, `INSERT`, `UPDATE` and `DELETE` on
+  `supply_chain_impact_finding_supports`; `SELECT`, `INSERT` and `UPDATE` on
+  `supply_chain_impact_finding_supports_backfill`; and `SELECT` and `DELETE` on
+  `supply_chain_impact_finding_supports_dirty`, which the drain reads and clears.
+- the same login, during a rolling upgrade, `INSERT`, `UPDATE` and `SELECT` on
+  `supply_chain_impact_finding_supports_dirty` as well. A reducer of the
+  previous release writes finding facts without the maintainer, and the fence
+  trigger then runs as that login, not as the table owner. Drop those three
+  grants after the old reducers are gone.
+
+None of the three tables has a sequence. Without the first grant the impact
+writer fails with `permission denied for table
+supply_chain_impact_finding_supports` (SQLSTATE 42501) and its pass rolls back.
+The writer-path grant is proven by the live tests that write impact findings
+through a role-bound login. The rolling-upgrade grants come from reading
+migration 336, not from a live run.

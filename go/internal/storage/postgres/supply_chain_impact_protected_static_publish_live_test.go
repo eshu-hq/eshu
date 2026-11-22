@@ -122,6 +122,12 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 		// like the admission table above.
 		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
+		// The impact writer keeps the per-support table current in the same
+		// transaction (#10880 PR-B1): upsert and retraction delete. An ordinary base
+		// table, so a DBA pregrant like the admission table above; the fence
+		// trigger needs nothing because this writer's transaction sets the
+		// supports_v1 setting and skips it.
+		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations
 		// inside the write transaction to find the previous generation. The
 		// runtime-writer login already needs this SELECT on main, for every
