@@ -67,6 +67,37 @@ func cteArms(t *testing.T, sql, name string) []string {
 	return arms
 }
 
+// projectedColumns returns the columns a SELECT list projects as a bare
+// qualified reference (`f.payload`, `r.payload`, `fact.payload`). It splits the
+// list at top-level commas, so a column that only appears inside another item,
+// such as the `payload` of `(f.payload->>'package_id') AS i_package_id`, does
+// not count as projected.
+func projectedColumns(selectList string) map[string]bool {
+	projected := map[string]bool{}
+	bare := regexp.MustCompile(`^(?:f|r|fact)\.([a-z_][a-z0-9_]*)$`)
+	depth, start := 0, strings.Index(selectList, "SELECT ")+len("SELECT ")
+	flush := func(end int) {
+		if match := bare.FindStringSubmatch(strings.TrimSpace(selectList[start:end])); match != nil {
+			projected[match[1]] = true
+		}
+		start = end + 1
+	}
+	for i := start; i < len(selectList); i++ {
+		switch selectList[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				flush(i)
+			}
+		}
+	}
+	flush(len(selectList))
+	return projected
+}
+
 // rangeFeedCTEs are the CTEs whose rows reach the winner body's `fact` alias,
 // with the arm count each must have.
 var rangeFeedCTEs = []struct {
@@ -85,8 +116,9 @@ func missingRangeColumns(t *testing.T, sql string, columns []string) []string {
 			t.Fatalf("CTE %s has %d arms, want %d; update the guard with the statement", cte.name, len(arms), cte.arms)
 		}
 		for i, selectList := range arms {
+			projected := projectedColumns(selectList)
 			for _, column := range columns {
-				if !regexp.MustCompile(`\b` + column + `\b`).MatchString(selectList) {
+				if !projected[column] {
 					missing = append(missing, fmt.Sprintf("%s arm %d: %s", cte.name, i+1, column))
 				}
 			}
@@ -110,41 +142,44 @@ func TestWinnersAuditRangeProjectsEveryColumnTheWinnerBodyReads(t *testing.T) {
 	}
 }
 
-// TestWinnersAuditRangeColumnGuardSeesAMissingColumn is the seeded pair: the
-// guard names exactly the arm whose select list lost source_confidence, and
-// all five arms when none carries it (the pre-fix shape).
+// TestWinnersAuditRangeColumnGuardSeesAMissingColumn is the seeded pair: for
+// source_confidence and for payload (whose text also appears inside the
+// identifier expressions of the same select lists) the guard names exactly the
+// arm that lost the bare column, and all five arms when none carries it.
 func TestWinnersAuditRangeColumnGuardSeesAMissingColumn(t *testing.T) {
 	t.Parallel()
 	columns := winnerBodyFactColumns()
 	arms := []string{"range_raw arm 1", "range_facts arm 1", "range_facts arm 2", "active_facts arm 1", "active_facts arm 2"}
-	const column = "source_confidence"
 	sql := selectWinnersAuditNextRangeSQL
 	// The feed CTEs all sit before the winner body's first CTE.
 	feedEnd := strings.Index(sql, "source_candidates AS")
 	if feedEnd < 0 {
 		t.Fatal("winner body CTE source_candidates not found in the range statement")
 	}
-	feed := sql[:feedEnd]
-	var at []int
-	for offset := 0; ; {
-		found := strings.Index(feed[offset:], column)
-		if found < 0 {
-			break
+	for _, column := range []string{"source_confidence", "payload"} {
+		// A bare reference is a qualified column not followed by a JSON arrow.
+		var at [][]int
+		for _, loc := range regexp.MustCompile(`\b(?:f|r|fact)\.`+column+`\b`).FindAllStringIndex(sql[:feedEnd], -1) {
+			if !strings.HasPrefix(sql[loc[1]:], "->") {
+				at = append(at, loc)
+			}
 		}
-		at = append(at, offset+found)
-		offset += found + len(column)
-	}
-	if len(at) != len(arms) {
-		t.Fatalf("range feed CTEs mention %s %d times, want %d (one per arm); update the guard", column, len(at), len(arms))
-	}
-	for i, arm := range arms {
-		mutated := sql[:at[i]] + "src_conf_dropped" + sql[at[i]+len(column):]
-		missing := missingRangeColumns(t, mutated, columns)
-		if want := arm + ": " + column; len(missing) != 1 || missing[0] != want {
-			t.Fatalf("dropping %s from %s reported %v, want exactly [%s]", column, arm, missing, want)
+		if len(at) != len(arms) {
+			t.Fatalf("range feed CTEs project bare %s %d times, want %d (one per arm); update the guard", column, len(at), len(arms))
 		}
-	}
-	if missing := missingRangeColumns(t, strings.ReplaceAll(sql, column, "src_conf_dropped"), columns); len(missing) != len(arms) {
-		t.Fatalf("dropping %s everywhere reported %v, want %d arms", column, missing, len(arms))
+		for i, arm := range arms {
+			mutated := sql[:at[i][0]] + "NULL" + sql[at[i][1]:]
+			missing := missingRangeColumns(t, mutated, columns)
+			if want := arm + ": " + column; len(missing) != 1 || missing[0] != want {
+				t.Fatalf("dropping %s from %s reported %v, want exactly [%s]", column, arm, missing, want)
+			}
+		}
+		all := sql
+		for i := len(at) - 1; i >= 0; i-- {
+			all = all[:at[i][0]] + "NULL" + all[at[i][1]:]
+		}
+		if missing := missingRangeColumns(t, all, columns); len(missing) != len(arms) {
+			t.Fatalf("dropping %s everywhere reported %v, want %d arms", column, missing, len(arms))
+		}
 	}
 }
