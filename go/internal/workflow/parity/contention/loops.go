@@ -237,7 +237,9 @@ type advisoryTally struct {
 // advisoryLoop is §5 step 6 (in-tree only): every AdvisoryInterval inside
 // the window, AdvisoryGoroutines goroutines race CreateRunWithWorkItems
 // IfNoOpenTargets for the same (kind, instance) and the same fresh target
-// scopes. Exactly one may insert; the rest must see zero eligible targets.
+// scopes. Exactly one may insert; the rest must see zero eligible targets. The
+// round's items stay invisible to claims for AdvisoryHold so they remain open
+// targets until every goroutine has passed the guard.
 func (r *runner) advisoryLoop() {
 	for round := 0; ; round++ {
 		select {
@@ -269,6 +271,11 @@ func (r *runner) advisoryRound(round int) {
 			// workspace, subject, policy, acceptance unit): every goroutine
 			// must plan the same targets under its own run and item ids.
 			item.AcceptanceUnitID = r.ids.advisoryTarget(round, n)
+			// Hide the item from claims for the hold: the guard admits only
+			// while the targets stay open, and the harness's own workers
+			// would otherwise complete the first winner's items before a
+			// late goroutine's guard call (#11074).
+			item.VisibleAt = now.Add(r.opt.AdvisoryHold)
 			items = append(items, item)
 		}
 		wg.Add(1)

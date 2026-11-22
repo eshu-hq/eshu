@@ -29,6 +29,11 @@ type faults struct {
 	reapRealAt     int  // the n-th reap call also returns a non-synthetic claim
 	loseInSeedAt   int  // after the n-th enqueue call one item row vanishes (fault during the seed)
 	loseInStats    bool // one item row vanishes on the first AnalyzedAt call (fault during the stats wait)
+	// drainAdmitted models a worker that claims and completes every visible
+	// item the moment guarded admission inserts it: the loaded-runner ordering
+	// where a late advisory goroutine reaches its guard after the first
+	// winner's targets went terminal (#11074).
+	drainAdmitted bool
 }
 
 type fakeItem struct {
@@ -118,8 +123,15 @@ func (l *fakeLeg) AdmitGuarded(_ context.Context, _ workflow.Run, items []workfl
 			}
 		}
 	}
+	now := time.Now()
 	for _, it := range items {
-		l.items[it.WorkItemID] = &fakeItem{item: it}
+		// The real insert stores the item's visible_at and claims skip an
+		// item until it is visible, so the fake honors it the same way.
+		cur := &fakeItem{item: it, visibleAt: it.VisibleAt}
+		if l.f.drainAdmitted && !cur.visibleAt.After(now) {
+			cur.item.Status = workflow.WorkItemStatusCompleted
+		}
+		l.items[it.WorkItemID] = cur
 		l.order = append(l.order, it.WorkItemID)
 	}
 	scopes := make([]string, 0, len(items))

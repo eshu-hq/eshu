@@ -31,7 +31,7 @@ func fastOptions() Options {
 	return Options{
 		SampleInterval: 20 * time.Millisecond, CensusEvery: 2, FencingEvery: 2,
 		IdlePoll: 5 * time.Millisecond, RequeueDelay: 20 * time.Millisecond,
-		AdvisoryInterval: 250 * time.Millisecond, DrainTimeout: 20 * time.Second, Mix: mix,
+		AdvisoryInterval: 250 * time.Millisecond, AdvisoryHold: fastAdvisoryHold, DrainTimeout: 20 * time.Second, Mix: mix,
 	}
 }
 
