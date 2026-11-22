@@ -26,7 +26,7 @@ next to `infraInventoryReconcileRunnerFor`. core-api and bootstrap-data-plane
 were rejected. The reducer already hosts the reconcile runner and the
 config-artifact walker, which records its own backfill marker.
 
-The new runner is `infraInventoryBackfillRunner` in
+The new runner is built by `infraInventoryBackfillRunnerFor` in
 `go/cmd/reducer/infra_inventory_backfill_wiring.go`. It calls
 `inventory.RunBackground`, which already retries with a doubling backoff,
 counts every attempt in `eshu_dp_infra_inventory_backfill_runs_total`, and

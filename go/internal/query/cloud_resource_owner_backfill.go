@@ -103,8 +103,8 @@ type CloudResourceOwnerBackfiller struct {
 	Now      func() time.Time
 }
 
-// BackfillCloudResourceOwnerLedger runs the production upgrade backfill before
-// API or MCP routes can select a page from graph_node_owner.
+// BackfillCloudResourceOwnerLedger seeds graph_node_owner from the CloudResource
+// rows that already exist in the graph.
 //
 // It has no production caller since the in-tree API startup path was removed
 // (a012da4557), and no reader gates on its completion marker. The reducer's
