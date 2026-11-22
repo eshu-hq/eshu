@@ -2,9 +2,13 @@
 -- Copyright (c) 2025-2026 eshu-hq
 --
 -- #11202 box 1: per-row WAL of inserting fact rows, to set beside the removal
--- WAL per row. One session, triggers on, the production INSERT ... ON CONFLICT
--- shape, 100,000 new fact ids copied from one scope's active rows (so the
--- payload sizes are real). Per-backend WAL: pg_stat_get_backend_wal.
+-- WAL per row. One session, triggers on, per-backend WAL
+-- (pg_stat_get_backend_wal). It copies up to 100,000 rows (LIMIT) from one scope's
+-- active generation under new ids (so payload sizes are real); the run recorded in
+-- the #11202 record inserted 61,368 because that generation held that many. The
+-- statement is INSERT ... ON CONFLICT (fact_id) DO NOTHING, an approximation of the
+-- production upsert, not its DO UPDATE suffix. No checkpoint precedes the probe, unlike
+-- the removal cells, so full-page-image WAL may differ between the two.
 -- Variables (psql -v): scope (the source scope id).
 \set ON_ERROR_STOP on
 SELECT active_generation_id AS gen FROM ingestion_scopes WHERE scope_id = :'scope' \gset

@@ -48,7 +48,7 @@ candidate is measured; none is measured here.
 
 Method: the #10881 R1 cell (`removal_bench.sh`, `removal_procs.sql` and
 `pick_removal_list.sh` in `scripts/dev/10881-partition/`; none of them is in this
-branch. They come from the #10881 pull request, branch
+branch. They come from the #10881 pull request (#11220), branch
 `drive/10881-partition-facts-queue`, introduced by commit `f03c2989d8` and later
 fixed in `98082cca96`; do not merge this pull request before that one): one fixed removal list of
 307 superseded generations from non-giant scopes, the same in both cells (543,145
@@ -77,8 +77,8 @@ removal cells, which follow `VACUUM (FREEZE)` and a checkpoint. Raw output: `doc
 | insert WAL per row (bytes) | 3,790 | 3,310 |
 | loadavg and I/O pressure avg60 at the delete cell | 21.8 / 62.7 | 35.4 / 60.3 |
 
-(Seconds were 346 s and 743 s for the deletes under that host I/O; they are not
-evidence.)
+(Timings are not used: the host was under heavy I/O, and the decision rests on WAL
+bytes and page counts.)
 
 **What it shows.**
 
@@ -96,19 +96,19 @@ evidence.)
 
 **Share of the fact-table write load.** Inherited counts from #10881 and #10860 (QA
 primary, 2026-11-17): 201.8M inserts and 73.0M deletes, and `n_tup_upd` of 88,254,540
-for the whole table, read before #10873 merged (that counter mixes a class of update
+for the whole table (read 2026-11-17, before #10873 merged) (that counter mixes a class of update
 already cut by #10873 and #10965 with a class #10880 removes; no record splits it by
 fact kind). The primary's statistics were not re-read (out of bounds). Share of removal
 (delete plus VACUUM) in `fact_records` write WAL:
 
-| Profile | By the rule written above (inserts, deletes, vacuum) | If the 88.25M updates are counted at insert cost |
+| Profile | By the rule written above (inserts, deletes, vacuum) | If the 88,254,540 updates (`n_tup_upd`, read 2026-11-17, before #10873 merged) are counted at insert cost |
 | --- | --- | --- |
 | Retained 5 indexes | **23.3%** | 17.5% |
 | 153 indexes | 21.9% | 16.4% |
 
 By the rule written before measurement, box 1 does not close the issue (23.3% against
 a 20% bar). The rule counted inserts, deletes and vacuum and excluded updates. With the
-88.25M updates at insert cost the share is 17.5%. The arbiter ruled (arbiter-11202) that
+88,254,540 updates (read 2026-11-17, before #10873 merged) at insert cost the share is 17.5%. The arbiter ruled (arbiter-11202) that
 the rule stands, that the supportable range is 16% to 46%, and that this is a share of
 write WAL, not a rank against the measured CPU limit. The range: 16.4% to 17.5%
 (all updates kept, the period before #10873); 21.9% to 23.3% (updates at zero, the
@@ -358,4 +358,4 @@ bucket (51.8% of active rows are older than 7 days).
 - "Held" generations; whether a creation-time column can be stamped by every writer (K1).
 - Facts' own `ingested_at` against the generation's creation time.
 - Behaviour beyond a 36.4-day window (K5 is a model and says little about 90 days).
-- No copy, no DDL, no seconds.
+- No copy and no DDL.
