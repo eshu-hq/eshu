@@ -4,8 +4,11 @@
 package infra
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +56,26 @@ func TestBackfillRunnerRequiresABackfiller(t *testing.T) {
 	t.Parallel()
 	if err := (&BackfillRunner{}).Run(context.Background()); err == nil {
 		t.Fatal("Run() error = nil, want a missing-backfiller error")
+	}
+}
+
+func TestBackfillRunnerLogsStartAndFinish(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+	runner := &BackfillRunner{Backfiller: &stubBackfiller{}, Logger: logger}
+	if err := runner.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"infra inventory backfill runner started",
+		"infra inventory backfill runner finished",
+		"infra_inventory.backfill.runner",
+		"duration_seconds",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log output missing %q:\n%s", want, out)
+		}
 	}
 }
