@@ -247,32 +247,57 @@ func TestExecuteAndReportSlowCooperativeTimeoutAbandons(t *testing.T) {
 }
 
 // TestOwnDeadlineExpired pins the relabel guard deterministically: only a
-// DeadlineExceeded observed after our own timer fired counts as our bound.
-// A downstream timeout that beats the bound leaves the timer running and
-// keeps its own class; any other error never relabels even after our timer.
+// DeadlineExceeded returned after the bound's own deadline had passed counts
+// as our bound. A downstream timeout that beats the bound keeps its own
+// class; any other error never relabels even after the bound expired.
 func TestOwnDeadlineExpired(t *testing.T) {
 	t.Parallel()
 
-	deadlineOutcome := handlerOutcome{err: context.DeadlineExceeded}
-	plainOutcome := handlerOutcome{err: errors.New("boom")}
+	if !ownDeadlineExpired(handlerOutcome{err: context.DeadlineExceeded, boundExpired: true}) {
+		t.Fatal("ownDeadlineExpired(deadline, bound expired) = false, want true: our bound caused it")
+	}
+	if ownDeadlineExpired(handlerOutcome{err: errors.New("boom"), boundExpired: true}) {
+		t.Fatal("ownDeadlineExpired(plain error, bound expired) = true, want false: only DeadlineExceeded relabels")
+	}
+	if ownDeadlineExpired(handlerOutcome{err: context.DeadlineExceeded}) {
+		t.Fatal("ownDeadlineExpired(deadline, bound pending) = true, want false: a downstream timeout that beats our bound keeps its own class")
+	}
+}
 
-	fired := time.NewTimer(0)
-	select {
-	case <-fired.C:
-	case <-time.After(10 * time.Second):
-		t.Fatal("test timer did not fire")
-	}
-	if !ownDeadlineExpired(deadlineOutcome, fired) {
-		t.Fatal("ownDeadlineExpired(deadline, fired timer) = false, want true: our bound caused it")
-	}
-	if ownDeadlineExpired(plainOutcome, fired) {
-		t.Fatal("ownDeadlineExpired(plain error, fired timer) = true, want false: only DeadlineExceeded relabels")
+// TestHandlerBoundOwnership pins which deadline the bound owns: its own when
+// no parent deadline exists or the bound is earlier, never a parent deadline
+// that is at or before the bound, so a parent-caused DeadlineExceeded is not
+// relabeled as the handler timeout.
+func TestHandlerBoundOwnership(t *testing.T) {
+	t.Parallel()
+
+	_, cancel, b := armHandlerBound(context.Background(), time.Hour)
+	defer cancel()
+	if !b.own || b.expired() {
+		t.Fatalf("no parent deadline: own=%v expired=%v, want own and pending", b.own, b.expired())
 	}
 
-	pending := time.NewTimer(time.Hour)
-	defer pending.Stop()
-	if ownDeadlineExpired(deadlineOutcome, pending) {
-		t.Fatal("ownDeadlineExpired(deadline, pending timer) = true, want false: a downstream timeout that beats our bound keeps its own class")
+	early, cancelParent := context.WithTimeout(context.Background(), time.Minute)
+	defer cancelParent()
+	_, cancel, b = armHandlerBound(early, time.Hour)
+	defer cancel()
+	if b.own {
+		t.Fatal("parent deadline before the bound: own = true, want false")
+	}
+
+	late, cancelLate := context.WithTimeout(context.Background(), time.Hour)
+	defer cancelLate()
+	_, cancel, b = armHandlerBound(late, time.Minute)
+	defer cancel()
+	if !b.own {
+		t.Fatal("bound before the parent deadline: own = false, want true")
+	}
+
+	_, cancel, b = armHandlerBound(context.Background(), time.Nanosecond)
+	defer cancel()
+	time.Sleep(time.Millisecond)
+	if !b.expired() {
+		t.Fatal("expired() = false after the deadline passed, want true")
 	}
 }
 

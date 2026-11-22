@@ -37,7 +37,8 @@ func (s *postgresReadStore) ListWorkItems(ctx context.Context, f admin.WorkItemF
 func (s *postgresReadStore) ListReplayEvents(ctx context.Context, f admin.ReplayEventFilter) ([]admin.ReplayEvent, error) {
 	var builder strings.Builder
 	builder.WriteString(`
-SELECT replay_event_id, work_item_id, scope_id, generation_id, failure_class, operator_note, created_at
+SELECT replay_event_id, work_item_id, scope_id, generation_id, failure_class, operator_note, created_at,
+       replay_attempt_baseline, prior_admission_wait_attempts
 FROM fact_replay_events
 WHERE 1=1
 `)
@@ -72,6 +73,7 @@ WHERE 1=1
 		var event admin.ReplayEvent
 		var failureClass sql.NullString
 		var operatorNote sql.NullString
+		var baseline, priorAdmissionWaits sql.NullInt64
 		if err := rows.Scan(
 			&event.ReplayEventID,
 			&event.WorkItemID,
@@ -80,8 +82,16 @@ WHERE 1=1
 			&failureClass,
 			&operatorNote,
 			&event.CreatedAt,
+			&baseline,
+			&priorAdmissionWaits,
 		); err != nil {
 			return nil, fmt.Errorf("scan replay event: %w", err)
+		}
+		if baseline.Valid {
+			event.ReplayAttemptBaseline = &baseline.Int64
+		}
+		if priorAdmissionWaits.Valid {
+			event.PriorAdmissionWaitAttempts = &priorAdmissionWaits.Int64
 		}
 		if failureClass.Valid {
 			event.FailureClass = &failureClass.String

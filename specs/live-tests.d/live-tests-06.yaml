@@ -46,6 +46,11 @@ tests:
     class: verified_scheduled
     reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; infra inventory 32 named tests in 19 files, 109.448s process wall; -race -count=1, one run and pass each"
     runner: postgres-scheduled
+  - file: go/internal/storage/postgres/infra/inventory/backfill_replicas_live_test.go
+    tag: ~
+    class: verified_scheduled
+    reason: "linuxdynasty: postgres-scheduled daily/manual PostgreSQL 18.6 runner; infra inventory backfill replica race (#11196), 2 named tests; run locally on private PostgreSQL 18, -race -count=1, both pass in 9.2s process wall; not yet run by the scheduled runner"
+    runner: postgres-scheduled
   - file: go/internal/storage/postgres/infra/inventory/background_live_test.go
     tag: ~
     class: verified_scheduled

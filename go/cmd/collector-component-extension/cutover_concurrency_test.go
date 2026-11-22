@@ -17,16 +17,21 @@ import (
 
 // Concurrency mix shaping for the cutover multi-claim differential.
 const (
-	// mixWorkers is the worker count and mixIters the per-worker iteration
-	// cap. Workers stop early once the transition epochs have provably
-	// contended with them; the cap only bounds a stalled run. The product
-	// keeps the race-detector run in the seconds range.
+	// mixWorkers is the worker count. Workers run only on permits the
+	// transition goroutine hands out, so a registry state can never be
+	// outrun: no worker iteration happens that the test did not plan for.
+	// The product keeps the race-detector run in the seconds range.
 	mixWorkers = 8
-	mixIters   = 60
-	// mixContendedCalls is the minimum observed worker decisions per registry
+	// mixContendedCalls is the number of governed calls permitted after each
+	// registry flip, and the minimum observed worker decisions per registry
 	// state before the test flips to the next one. Transitions are driven by
-	// these counts, never by sleeps, so a faster box cannot outrun them.
+	// these counts, never by sleeps, so neither a faster nor a starved box
+	// changes which state a counted call ran under (#11194).
 	mixContendedCalls = 64
+	// mixStraddleCalls is the number of calls permitted just before each flip,
+	// so some workers are mid-call while the registry file is rewritten. They
+	// are not counted toward the per-state thresholds.
+	mixStraddleCalls = 8
 	// mixAbsentKind is a second core kind with no grant in any registry
 	// state, so its outcome is deterministic under transitions.
 	mixAbsentKind = "aws_resource_policy_permission"
@@ -102,22 +107,36 @@ func TestCutoverConcurrentClaimMix(t *testing.T) {
 		}
 		return n
 	}
-	var started, done atomic.Int64
-	var stop atomic.Bool
+	var started atomic.Int64
 	iters := make([]int64, mixWorkers)
-	release := make(chan struct{})
+	// permits meters worker iterations. The earlier design capped each worker
+	// at a fixed iteration count; under a loaded runner the transition
+	// goroutine could be starved long enough for the workers to spend the
+	// whole cap in the revoked state, leaving the restored-state wait to
+	// stall (#11194). A worker now needs a permit per iteration, and permits
+	// for a state are handed out only after the registry has flipped to it.
+	// The channel is sized for every permit the test grants, so granting
+	// never blocks.
+	permits := make(chan struct{}, 4*(mixContendedCalls+mixStraddleCalls))
+	grant := func(n int) {
+		for i := 0; i < n; i++ {
+			permits <- struct{}{}
+		}
+	}
+	stopCh := make(chan struct{})
 	worker := func(idx int) {
-		defer done.Add(1)
 		started.Add(1)
 		for started.Load() < mixWorkers {
 			time.Sleep(time.Millisecond)
 		}
-		// The first revoke lands before release, so every pre-restore call
-		// provably runs under the revoked registry state.
-		<-release
 		ctx := context.Background()
-		for i := 0; i < mixIters && !stop.Load(); i++ {
-			iters[idx] = int64(i + 1)
+		for {
+			select {
+			case <-permits:
+			case <-stopCh:
+				return
+			}
+			iters[idx]++
 			// Op A: state-dependent closed outcome on the granted kind.
 			if err := cutover.AuthorizeEmission(ctx, parityCoreKind, parityCoreSchema); err != nil {
 				deny, ok := err.(*remoteclaim.DenyError)
@@ -147,43 +166,49 @@ func TestCutoverConcurrentClaimMix(t *testing.T) {
 		go func() { defer wg.Done(); worker(w) }()
 	}
 	// Transitions flip the shared registry mid-run: revoke, restore, revoke.
-	// Outcomes may reflect either state per call; all must stay closed. Each
-	// flip waits for observed worker progress in the current state, so the
-	// revoked and restored windows provably contain worker calls.
+	// Outcomes may reflect either state per call; all must stay closed. A few
+	// calls are permitted just before each flip so workers are mid-call while
+	// the registry file is rewritten; the counted calls are permitted only
+	// after the flip returned, so the revoked and restored windows provably
+	// contain worker calls however slowly this goroutine is scheduled.
 	waitFor("workers ready", func(got []component.GrantDecision) bool {
 		return started.Load() == mixWorkers
 	})
 	if err := registry.RevokeGrant(parityHolderID, parityHolderVersion, parityCoreKind, parityScope); err != nil {
 		t.Fatalf("RevokeGrant() error = %v, want nil", err)
 	}
-	close(release)
+	grant(mixContendedCalls)
 	waitFor("revoked-state calls", func(got []component.GrantDecision) bool {
 		return countWhere(got, component.GrantReasonRevoked, false) >= mixContendedCalls
 	})
+	grant(mixStraddleCalls)
 	if err := registry.RecordGrant(live); err != nil {
 		t.Fatalf("RecordGrant() error = %v, want nil", err)
 	}
+	grant(mixContendedCalls)
 	waitFor("restored-state calls", func(got []component.GrantDecision) bool {
 		return countWhere(got, component.GrantReasonGranted, true) >= mixContendedCalls
 	})
+	grant(mixStraddleCalls)
 	if err := registry.RevokeGrant(parityHolderID, parityHolderVersion, parityCoreKind, parityScope); err != nil {
 		t.Fatalf("RevokeGrant() error = %v, want nil", err)
 	}
+	grant(mixContendedCalls)
 	waitFor("second revoked-state calls", func(got []component.GrantDecision) bool {
 		return countWhere(got, component.GrantReasonRevoked, false) >= 2*mixContendedCalls
 	})
 	if err := registry.RecordGrant(live); err != nil {
 		t.Fatalf("RecordGrant() error = %v, want nil", err)
 	}
-	stop.Store(true)
+	close(stopCh)
 	wg.Wait()
 	if failures.Load() != 0 {
 		t.Fatalf("mix recorded %d worker failures", failures.Load())
 	}
 
 	// Accounting: every governed emission observes exactly once. Iteration
-	// counts are bounded by mixIters per worker and read after wg.Wait, so
-	// the expected total is exact despite the dynamic stop.
+	// counts are read after wg.Wait, so the expected total is exact despite
+	// workers stopping with unspent permits.
 	var totalIters int64
 	for _, n := range iters {
 		totalIters += n

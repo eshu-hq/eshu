@@ -219,6 +219,14 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersAuditSkipped counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersAuditRangeDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds",
+		metric.WithDescription("Wall time of one staged winners audit sweep range, standby read through writer commit, by outcome (advanced, completed, skipped, lock_busy, cursor_race, deferred). The standby statement has a 25 s guard and the writer verify a 30 s bound; a p99 near 55 s means ranges are at their budget."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.1, 0.5, 1, 2.5, 5, 10, 15, 20, 25, 30, 45, 60, 120),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersAuditRangeDuration histogram: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersChunkedTicks, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_chunked_ticks_total",
 		metric.WithDescription("Keyed supply-chain impact winners ticks that stopped at the identifier chunk bound (post-expansion identifiers per transaction) with dirty-log rows still queued, so committed their chunk without stamping the watermark. A rising counter with a falling dirty-log depth is a backlog draining in bounded ticks; a rising counter with a flat or climbing depth means arrivals outpace the bound."),
@@ -309,6 +317,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStagingCollapsed counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersScopeRemainderConverted, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total",
+		metric.WithDescription("Supply-chain impact winners dirty-log fact rows a keyed tick wrote (inserted or merged) when it converted the unapplied remainder of a partly applied scope row. Each converted row keeps its scope row's capture time, so while any is queued the watermark stays under that activation's scope mark: a rising rate with a flat watermark means a large activation is draining over bounded ticks."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersScopeRemainderConverted counter: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersWriteConflicts, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_write_conflicts_total",
 		metric.WithDescription("Supply-chain impact winners writer and tick statements the database aborted with a deadlock (40P01) or a serialization failure (40001), by site (writer_capture, writer_commit, tick) and failure_class (deadlock, serialization_failure). The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it."),
@@ -378,6 +392,16 @@ func (i *Instruments) RecordSupplyChainImpactWinnersStagingCollapsed(ctx context
 		return
 	}
 	i.SupplyChainImpactWinnersStagingCollapsed.Add(ctx, rows)
+}
+
+// RecordSupplyChainImpactWinnersScopeRemainderConverted counts the dirty-log
+// fact rows one keyed tick's scope-remainder convert wrote (#11145). A zero or
+// negative count records nothing. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx context.Context, rows int64) {
+	if i == nil || i.SupplyChainImpactWinnersScopeRemainderConverted == nil || rows <= 0 {
+		return
+	}
+	i.SupplyChainImpactWinnersScopeRemainderConverted.Add(ctx, rows)
 }
 
 // RecordSupplyChainImpactWinnersWriteConflict counts one writer or tick

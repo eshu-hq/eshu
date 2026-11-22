@@ -431,9 +431,17 @@ route (`count`, `inventory`) and serving store (`read_model`, `graph`).
   for other unscoped traffic, either the backfill has not recorded its
   marker (`eshu_dp_infra_inventory_backfill_runs_total{outcome="failed"}`
   rises and the `infra_inventory.backfill.failed` log says why; failed
-  attempts retry with backoff, 30s doubling to 10m, in the same process) or
+  attempts retry with backoff, 30s doubling to 10m, in the same reducer process) or
   fence marks are not draining (`eshu_dp_infra_inventory_dirty_repos` above
   zero; see below). The `/admin/status` field `infra_inventory` names which.
+- The reducer records the marker (#11196). Every reducer replica starts the
+  backfill at boot, so a fresh install, a wiped database, or a marker bump
+  reaches the read model without an operator step. The first
+  `infra_inventory.backfill` log with `completed` and
+  `eshu_dp_infra_inventory_backfill_runs_total{outcome="completed"}` come from
+  the reducer. `source="graph"` that never drains while
+  `{outcome="failed"}` stays at zero and no reducer is running means the
+  reducer is not deployed; the API and the MCP server no longer run the backfill.
 - `eshu_dp_infra_inventory_derives_total{outcome}` counts the content
   writer's derives. `skipped_not_installed` means a writer ran before
   migration 109; the content write succeeded and the backfill covers the

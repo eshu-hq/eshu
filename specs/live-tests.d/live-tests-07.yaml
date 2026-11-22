@@ -529,6 +529,26 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_range_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11131: reducer-contention covers 2 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; the T3 differential: the union of one sweep's range candidates equals the shipped single-statement audit at budgets 1 to 100,000 with each live fact recomputed once, and the seeded RED that closes the last range's stored side misses the orphan after every fact"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_range_scale_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11131: reducer-contention covers 1 named Go test via the WinnersResweep pattern; it skips unless ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_SCALE names an identifier count, and then measures the range plan (keyed index, no Seq Scan on fact_records), per-range and per-sweep cost, the single-statement cost and the NULL probe on a scaled fixture"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_sweep_contention_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11131: reducer-contention covers 3 named Go test(s) via the WinnersResweep pattern; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; a keyed tick during a range verify is Skipped and commits after, every range advances within three attempts while a try-lock loop holds the resweep lock back to back (M5), and after a locked range verify the sweep yields to keyed commits instead of starving them"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_sweep_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11131: reducer-contention covers 4 named Go test(s) via the WinnersResweep pattern; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; seeded stale, missing and orphan winners are repaired within one sweep, a roll resumes from the persisted cursor, the NULL and pipe guards defer, and two instances advance each range once with the loser's repairs rolled back"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~
     class: dedicated_ci
@@ -598,6 +618,11 @@ tests:
     tag: ~
     class: dedicated_ci
     reason: "#10839: reducer-contention covers 1 named Go test(s) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local -race run against disposable PostgreSQL 18 passed"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_scope_remainder_horizon_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11145: reducer-contention covers 2 named Go test(s) (4 subtests) via the WinnersResweep pattern in the -run filter of .github/workflows/reducer-contention-gate.yml; local run (no -race, loaded host) against disposable PostgreSQL 18 passed; a partly applied scope row keeps the watermark under its scope mark and leaves a winners_watermark waiter enqueued after the mark parked until the remainder applies"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_keyed_convert_slow_plan_live_test.go
     tag: ~

@@ -108,3 +108,4 @@ collector is IO-bound or emission-heavy, and it joins the #3678
 `eshu_dp_content_entity_emitted_total` (`source_file_kind`) counter for a
 per-collector and per-file-kind volume breakdown.
 | `IngestionCommitPinSlack` | `eshu_dp_ingestion_commit_pin_slack_seconds` (no labels; #9376 claim-plane commit fence) | 0–120 s |
+| `SupplyChainImpactWinnersAuditRangeDuration` | `eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds` (`outcome`; #11131) | 0.1–120 s |

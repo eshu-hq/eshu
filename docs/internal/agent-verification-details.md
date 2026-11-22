@@ -9,7 +9,10 @@ short under "Verification Defaults". The source of truth for gates stays
 After focused local proof and a preliminary full `eshu-code-review` with zero
 P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
 intended push or PR update. It is the fast local floor: changed-package
-`go test` and `go test -race`, the file cap, changed-package gofumpt/lint/build/vet,
+`go test -race` (a changed package gets a separate plain `go test` only when a
+`//go:build !race` file means the race binary skips some of its tests; fixture
+consumers and parser-tree child packages that are not themselves changed
+packages also get one), the file cap, changed-package gofumpt/lint/build/vet,
 `go vet ./...` on the exact merge of HEAD with `origin/main` (a conflict fails
 closed), the allowlisted fast registry gates for changed paths
 (`local.pre_push: floor`; every other triggered gate prints `DEFER-CI` and still

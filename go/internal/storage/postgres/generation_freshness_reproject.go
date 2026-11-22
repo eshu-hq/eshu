@@ -122,6 +122,13 @@ const reprojectReopenedCTE = `reopened AS (
             WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
             ELSE fact_work_items.source_paced_waits
         END,
+        -- #11182: the replay baseline follows attempt_count down, so the
+        -- projection budget attempt_count - admission_wait_attempts -
+        -- replay_attempt_baseline can never go negative on a reset row.
+        replay_attempt_baseline = CASE
+            WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0
+            ELSE fact_work_items.replay_attempt_baseline
+        END,
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = EXCLUDED.visible_at,

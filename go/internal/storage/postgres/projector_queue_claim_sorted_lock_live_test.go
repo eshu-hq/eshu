@@ -42,7 +42,7 @@ func claimGenerationInRollback(t *testing.T, database *sql.DB, query string, at 
 	var generation string
 	err = tx.QueryRow(query, at, "differential", at.Add(time.Minute), "").Scan(
 		new(string), new(string), new(string), new(string), new(string), new(bool), new(string), new(string),
-		&generation, new(int), new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
+		&generation, new(int), new(int), new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
 	)
 	if err == sql.ErrNoRows {
 		return ""

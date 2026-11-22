@@ -5,7 +5,7 @@ package postgres
 
 //eshu:readiness live-postgres-readiness
 //eshu:readiness:env ESHU_PROJECTOR_ADMISSION_PROOF_DSN
-//eshu:readiness:reason #10882 disposable PostgreSQL proof that a source-paced Fail retries without ever dead-lettering, increments only source_paced_waits (attempt_count stays a monotonic fence, admission_wait_attempts untouched), leaves the full projection and admission budgets afterwards, and that migration 333 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test
+//eshu:readiness:reason #10882 disposable PostgreSQL proof that a source-paced Fail retries without ever dead-lettering, increments only source_paced_waits (attempt_count stays a monotonic fence, admission_wait_attempts untouched), leaves the full projection and admission budgets afterwards, that an operator replay of a row with source_paced_waits > 0 gives exactly MaxAttempts projection claims (#11182 interaction), and that migration 333 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 // sourcePacedProofRow reads the durable counters for the live work item.
@@ -214,6 +215,83 @@ func TestProjectorQueueSourcePacedMigration333AppliesLive(t *testing.T) {
 	if hType != dataType || hNullable != nullable || hDefault != columnDefault {
 		t.Fatalf("proof-schema helper column = (%s, nullable %s, default %q), migration 333 = (%s, nullable %s, default %q): the cycle tests would prove a different column",
 			hType, hNullable, hDefault, dataType, nullable, columnDefault)
+	}
+}
+
+// TestProjectorQueueReplayAfterSourcePacedWaitsGivesThreeClaimsLive is the
+// RB-1 proof for the #10882 and #11182 interaction on live Postgres. A row
+// paced for several cycles, then dead-lettered by genuine failures, carries
+// source_paced_waits > 0. An operator replay (the shipped
+// queuestore.ReplayRetryAllowanceAssignments, applied here as the carriers
+// apply it) must give it the retries of a new row: exactly MaxAttempts
+// projection claims. With source_paced_waits left set the projection count
+// attempt_count - admission_wait_attempts - source_paced_waits -
+// replay_attempt_baseline goes negative and the row would get extra retries.
+func TestProjectorQueueReplayAfterSourcePacedWaitsGivesThreeClaimsLive(t *testing.T) {
+	db := liveAdmissionProofDB(t)
+	provisionLivenessSchema(t, db, admissionProofSeedSQL)
+	ctx := context.Background()
+
+	now := time.Date(2026, time.November, 22, 1, 0, 0, 0, time.UTC)
+	queue := NewProjectorQueue(SQLDB{DB: db}, "live-proof", time.Minute)
+	queue.MaxAttempts = 3
+	queue.Now = func() time.Time { return now }
+	advance := func() { now = now.Add(2 * time.Hour) }
+
+	pacedCause := productionWrapAdmissionError(sourcePacedTestError{})
+	for cycle := 1; cycle <= 7; cycle++ {
+		advance()
+		work, ok, err := queue.Claim(ctx)
+		if err != nil || !ok {
+			t.Fatalf("paced cycle %d: Claim() = (%v, %v), want a claim", cycle, ok, err)
+		}
+		if err := queue.Fail(ctx, work, pacedCause); err != nil {
+			t.Fatalf("paced cycle %d: Fail() error = %v", cycle, err)
+		}
+	}
+	for genuine := 1; genuine <= queue.MaxAttempts; genuine++ {
+		advance()
+		work, ok, err := queue.Claim(ctx)
+		if err != nil || !ok {
+			t.Fatalf("genuine %d: Claim() = (%v, %v), want a claim", genuine, ok, err)
+		}
+		if err := queue.Fail(ctx, work, &retryableTestError{message: "graph write timed out"}); err != nil {
+			t.Fatalf("genuine %d: Fail() error = %v", genuine, err)
+		}
+	}
+	if status, _, _, paced := sourcePacedProofRow(t, ctx, db); status != "dead_letter" || paced != 7 {
+		t.Fatalf("before replay: status %q, source_paced_waits %d, want dead_letter with 7", status, paced)
+	}
+
+	// The replay carriers' effect on the counters: attempt_count is kept (the
+	// claim fence), the shipped fragment resets the rest.
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items
+SET status = 'pending', attempt_count = GREATEST(attempt_count, 1), lease_owner = NULL, claim_until = NULL,
+    visible_at = $1, next_attempt_at = NULL, failure_class = NULL, reopened_at = $1, `+queuestore.ReplayRetryAllowanceAssignments+`
+WHERE work_item_id = 'work-live'`, now); err != nil {
+		t.Fatalf("replay the dead letter: %v", err)
+	}
+	if _, _, _, paced := sourcePacedProofRow(t, ctx, db); paced != 0 {
+		t.Fatalf("source_paced_waits after replay = %d, want 0 (the replay gives the new-row allowance)", paced)
+	}
+
+	claims := 0
+	for ; claims < 10; claims++ {
+		advance()
+		work, ok, err := queue.Claim(ctx)
+		if err != nil || !ok {
+			t.Fatalf("after replay, claim %d: Claim() = (%v, %v), want a claim", claims+1, ok, err)
+		}
+		if err := queue.Fail(ctx, work, &retryableTestError{message: "graph write timed out"}); err != nil {
+			t.Fatalf("after replay, claim %d: Fail() error = %v", claims+1, err)
+		}
+		if status, _, _, _ := sourcePacedProofRow(t, ctx, db); status == "dead_letter" {
+			claims++
+			break
+		}
+	}
+	if claims != queue.MaxAttempts {
+		t.Fatalf("replayed row got %d projection claims before dead-lettering, want exactly MaxAttempts (%d)", claims, queue.MaxAttempts)
 	}
 }
 

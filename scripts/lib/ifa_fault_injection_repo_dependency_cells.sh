@@ -50,19 +50,32 @@ ifa_repo_dependency_fault_validate_partition_leases() {
 	done <<<"${snapshot}"
 }
 
+# Captures the active repo_dependency partition leases held by one reducer PID.
+# The optional budget (seconds) polls an EMPTY census every 0.25s before giving
+# up: the runner claims its lease on its own first cycle, which can land after
+# the deployment_mapping claim the kill cells wait on, so a one-shot look right
+# after that claim raced runner start-up (#11194; #6747 fixed the same shape for
+# the generic runner capture). A non-empty snapshot is validated at once, so a
+# wrong owner, domain, or shape never waits. Without a budget the capture is
+# one-shot, which is right once the owner is already proven live and leased.
 ifa_repo_dependency_fault_capture_partition_leases() {
-	local cell="$1" reducer_pid="$2" output_var="$3" snapshot query_rc owner_re
-	[[ "${cell}" =~ ^[a-z0-9_]+$ && "${reducer_pid}" =~ ^[1-9][0-9]*$ && "${output_var}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] || return 2
+	local cell="$1" reducer_pid="$2" output_var="$3" budget="${4:-0}" snapshot query_rc owner_re attempt attempts
+	[[ "${cell}" =~ ^[a-z0-9_]+$ && "${reducer_pid}" =~ ^[1-9][0-9]*$ && "${output_var}" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ && "${budget}" =~ ^[0-9]+$ ]] || return 2
 	owner_re="$(ifa_repo_dependency_fault_owner_re "${reducer_pid}")"
-	if snapshot="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
-		"SELECT COALESCE(string_agg(projection_domain || '|' || partition_id::text || '|' || partition_count::text || '|' || lease_owner, E'\\n' ORDER BY partition_id, partition_count, lease_owner), '') FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '${owner_re}';" \
-		"${compose_file}")"; then
-		:
-	else
-		query_rc=$?
-		printf '%s: repo_dependency partition-lease capture query failed (exit %s)\n' "${cell}" "${query_rc}" >&2
-		return "${query_rc}"
-	fi
+	attempts=$((budget * 4 + 1))
+	for ((attempt = 1; attempt <= attempts; attempt++)); do
+		if snapshot="$(ifa_det_pg "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" \
+			"SELECT COALESCE(string_agg(projection_domain || '|' || partition_id::text || '|' || partition_count::text || '|' || lease_owner, E'\\n' ORDER BY partition_id, partition_count, lease_owner), '') FROM shared_projection_partition_leases WHERE projection_domain = 'repo_dependency' AND lease_expires_at > CURRENT_TIMESTAMP AND lease_owner ~ '${owner_re}';" \
+			"${compose_file}")"; then
+			:
+		else
+			query_rc=$?
+			printf '%s: repo_dependency partition-lease capture query failed (exit %s)\n' "${cell}" "${query_rc}" >&2
+			return "${query_rc}"
+		fi
+		[[ -z "${snapshot}" && "${attempt}" -lt "${attempts}" ]] || break
+		sleep 0.25
+	done
 	ifa_repo_dependency_fault_validate_partition_leases "${reducer_pid}" "${snapshot}" || {
 		printf '%s: expected nonzero active repo_dependency partition leases owned by reducer PID %s\n' "${cell}" "${reducer_pid}" >&2
 		return 1
@@ -273,7 +286,7 @@ cell_killworker_repo_dependency() {
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}-before" reducer_before "${bin_dir}/eshu-reducer"
 	ifa_fault_wait_for_claimed "${FAULT_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${CLAIMED_ROW_WAIT_TIMEOUT}" deployment_mapping \
 		|| die "${cell}: deployment_mapping was not claimed while the lock was held"
-	ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_kill_partition_leases \
+	ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" pre_kill_partition_leases "${CLAIMED_ROW_WAIT_TIMEOUT}" \
 		|| die "${cell}: could not capture the reducer-before repo_dependency partition leases"
 	ifa_det_stop_join_untrack_bg_pid "${reducer_before}" KILL || die "${cell}: reducer kill failed"
 	ifa_repo_dependency_fault_capture_partition_leases "${cell}" "${reducer_before}" post_kill_partition_leases \

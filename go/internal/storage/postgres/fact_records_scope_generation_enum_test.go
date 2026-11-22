@@ -16,7 +16,7 @@ import (
 // used by the B-12 determinism composition (issue #5008): every distinct
 // (scope_id, generation_id) present in fact_records is returned as a fully
 // hydrated projector.ScopeGenerationWork so concurrentreplay.FactSliceSource can
-// re-drain the corpus into a fresh graph DB. The rows are the exact 17-column
+// re-drain the corpus into a fresh graph DB. The rows are the exact 18-column
 // projection scanProjectorWork consumes, so the enumeration reuses that scanner.
 func TestListScopeGenerationWorkEnumeratesCorpus(t *testing.T) {
 	t.Parallel()
@@ -113,6 +113,7 @@ func enumWorkRow(
 		0,             // attempt_count
 		0,             // admission_wait_attempts (#10671)
 		0,             // source_paced_waits (#10882)
+		0,             // replay_attempt_baseline (#11182)
 		observed,      // observed_at
 		ingested,      // ingested_at
 		"accepted",    // status

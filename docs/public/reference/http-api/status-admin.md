@@ -631,7 +631,7 @@ mount it only where durable queue mutation is allowed. Each item returned by `PO
 - **Unsafe classes are refused.** Terminal items whose `failure_class` is
   non-retryable (`input_invalid`) or quarantined (`unsafe_payload`) are excluded
   from broad replays; an unsafe `failure_class` or unsafe `work_item_ids` request
-  returns `422` unless `force=true` ([refusal contract](admin-replay-refusals.md)).
+  returns `422` unless `force=true` ([refusal contract](admin-replay-refusals.md)). A replayed projector row gets a new row's retries ([retry allowance](admin-replay-retry-allowance.md)).
 - **Concurrent and duplicate delivery are handled.** The `idempotency_key` is
   recorded in the durable `admin_replay_requests` ledger whose primary key
   serializes concurrent requests: exactly one request runs the replay, and a

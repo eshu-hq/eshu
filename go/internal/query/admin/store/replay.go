@@ -11,21 +11,17 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 )
 
-// ReplayFailedWorkItems requeues terminal work and records replay events while
-// preserving required identity status authorizations and newer worker claims.
-// Every replayed row was dead_letter or failed, so the replay stamps
-// reopened_at with the replay time (#9320) and the row's backlog age and
-// reducer readiness grace restart from the replay.
-// The replay clears failure_class on the work row, so it returns the
-// selection-time class as a trailing column and records that in the replay
-// event (#7387); the returned items carry post-update truth.
-func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
-	now := s.time()
-	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, true, true, `
+// replayUpdateClause is the admin replay's SET list. It carries
+// queuestore.ReplayRetryAllowanceAssignments, the replay retry allowance the
+// recovery replay templates share (#11182): the projector baseline takes the
+// row's attempt_count, admission_wait_attempts goes back to 0, and
+// attempt_count itself is kept (never lowered) because it is the claim fence.
+const replayUpdateClause = `
 SET status = 'pending',
     attempt_count = GREATEST(work.attempt_count, 1),
     container_image_identity_v2_authorized_status = CASE
@@ -42,24 +38,48 @@ SET status = 'pending',
     failure_message = NULL,
     failure_details = NULL,
     updated_at = $1,
-    reopened_at = $1
-`, f.ExcludeFailureClasses...)
+    reopened_at = $1,
+    ` + queuestore.ReplayRetryAllowanceAssignments + `
+`
+
+// ReplayFailedWorkItems requeues terminal work and records replay events while
+// preserving required identity status authorizations and newer worker claims.
+// Every replayed row was dead_letter or failed, so the replay stamps
+// reopened_at with the replay time (#9320) and the row's backlog age and
+// reducer readiness grace restart from the replay.
+// The replay clears failure_class on the work row, so it returns the
+// selection-time class as a trailing column and records that in the replay
+// event (#7387); the returned items carry post-update truth.
+// A replayed projector row gets a new row's retry allowance (#11182): the
+// returned items carry the replay_attempt_baseline the replay set, and each
+// event records that baseline and the admission_wait_attempts the row had
+// before the replay reset them.
+func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
+	now := s.time()
+	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, true, true, replayUpdateClause, f.ExcludeFailureClasses...)
 	args = append([]any{now}, args...)
-	items, priorClasses, err := scanReplayedWorkItems(ctx, s.database, query, args...)
+	items, prior, err := scanReplayedWorkItems(ctx, s.database, query, args...)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.insertReplayEvents(ctx, items, priorClasses, strings.TrimSpace(f.OperatorNote), now); err != nil {
+	if err := s.insertReplayEvents(ctx, items, prior, strings.TrimSpace(f.OperatorNote), now); err != nil {
 		return nil, err
 	}
 	return items, nil
 }
 
+// replayPrior is what a replayed row carried at selection time, before the
+// replay cleared or reset it.
+type replayPrior struct {
+	failureClass          *string
+	admissionWaitAttempts int64
+}
+
 // scanReplayedWorkItems scans the replay query's rows: the shared work columns
 // carry post-update truth (failure_class cleared), and the trailing
-// replayed_failure_class column carries the selection-time class per row for
-// the replay event (#7387).
-func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query string, args ...any) ([]admin.WorkItem, map[string]*string, error) {
+// replayed_failure_class and prior_admission_wait_attempts columns carry the
+// selection-time values per row for the replay event (#7387, #11182).
+func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query string, args ...any) ([]admin.WorkItem, map[string]replayPrior, error) {
 	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("query work items: %w", err)
@@ -67,7 +87,7 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 	defer func() { _ = rows.Close() }()
 
 	var items []admin.WorkItem
-	priorClasses := make(map[string]*string)
+	prior := make(map[string]replayPrior)
 	for rows.Next() {
 		var item admin.WorkItem
 		var leaseOwner sql.NullString
@@ -75,6 +95,7 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 		var failureMessage sql.NullString
 		var visibleAt sql.NullTime
 		var replayedClass sql.NullString
+		var priorAdmissionWaits int64
 		var failureDetails sql.NullString
 		if err := rows.Scan(
 			&item.WorkItemID,
@@ -84,6 +105,7 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 			&item.Domain,
 			&item.Status,
 			&item.AttemptCount,
+			&item.ReplayAttemptBaseline,
 			&leaseOwner,
 			&failureClass,
 			&failureMessage,
@@ -92,6 +114,7 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 			&visibleAt,
 			&failureDetails,
 			&replayedClass,
+			&priorAdmissionWaits,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan replayed work item: %w", err)
 		}
@@ -108,16 +131,23 @@ func scanReplayedWorkItems(ctx context.Context, database db.ExecQueryer, query s
 		if visibleAt.Valid {
 			item.VisibleAt = &visibleAt.Time
 		}
+		rowPrior := replayPrior{admissionWaitAttempts: priorAdmissionWaits}
 		if replayedClass.Valid {
 			class := replayedClass.String
-			priorClasses[item.WorkItemID] = &class
+			rowPrior.failureClass = &class
 		}
+		prior[item.WorkItemID] = rowPrior
 		items = append(items, item)
 	}
-	return items, priorClasses, rows.Err()
+	return items, prior, rows.Err()
 }
 
-func (s *postgresStore) insertReplayEvents(ctx context.Context, items []admin.WorkItem, priorClasses map[string]*string, operatorNote string, now time.Time) error {
+// insertReplayEvents writes one fact_replay_events row per replayed item. For
+// a projector row the event records the replay_attempt_baseline the replay set
+// and the admission_wait_attempts the row had spent before the replay reset
+// it (#11182). A reducer row gets no baseline from the replay yet, so both
+// columns stay NULL, as they do on events written before migration 334.
+func (s *postgresStore) insertReplayEvents(ctx context.Context, items []admin.WorkItem, prior map[string]replayPrior, operatorNote string, now time.Time) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -130,26 +160,34 @@ INSERT INTO fact_replay_events (
     generation_id,
     failure_class,
     operator_note,
-    created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
+    created_at,
+    replay_attempt_baseline,
+    prior_admission_wait_attempts
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 `
 	for _, item := range items {
 		id, err := newStoreID("replay")
 		if err != nil {
 			return err
 		}
+		rowPrior := prior[item.WorkItemID]
 		// The replay clears failure_class on the work row, so the event
 		// records the selection-time class the row carried when it was
 		// replayed (#7387), not the cleared post-update value.
 		var failureClass any
-		if class := priorClasses[item.WorkItemID]; class != nil {
-			failureClass = *class
+		if rowPrior.failureClass != nil {
+			failureClass = *rowPrior.failureClass
 		}
 		var note any
 		if operatorNote != "" {
 			note = operatorNote
 		}
-		if _, err := s.database.ExecContext(ctx, query, id, item.WorkItemID, item.ScopeID, item.GenerationID, failureClass, note, now); err != nil {
+		var baseline, priorAdmissionWaits any
+		if item.Stage == "projector" {
+			baseline = int64(item.ReplayAttemptBaseline)
+			priorAdmissionWaits = rowPrior.admissionWaitAttempts
+		}
+		if _, err := s.database.ExecContext(ctx, query, id, item.WorkItemID, item.ScopeID, item.GenerationID, failureClass, note, now, baseline, priorAdmissionWaits); err != nil {
 			return fmt.Errorf("insert replay event: %w", err)
 		}
 	}

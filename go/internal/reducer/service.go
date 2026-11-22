@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 550 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs.
+package reducer //nolint:filelength // 555 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam, which must live on Service.
 
 import (
 	"context"
@@ -134,6 +134,11 @@ type Service struct {
 	// whose rows drifted from content_entities (#6793). Nil disables it.
 	InfraInventoryReconcileRunner *infra.Runner
 
+	// InfraInventoryBackfillRunner records the infra read model backfill
+	// marker on a fresh install, a wiped database, or a marker bump (#11196).
+	// It returns once the marker exists. Nil disables it.
+	InfraInventoryBackfillRunner *infra.BackfillRunner
+
 	// ConfigArtifactWalkerRunner repairs and backfills the stored
 	// config-artifact rows (#8155). Nil (ESHU_CONFIG_ARTIFACT_WALKER_ENABLED
 	// false; the default is true) disables it and it issues no SQL.
@@ -242,6 +247,11 @@ type Service struct {
 	// of 0 exempts that domain from the default.
 	HandlerTimeout          time.Duration
 	HandlerTimeoutOverrides map[reducercontract.Domain]time.Duration
+
+	// newBoundTimer arms the executeHandler deadline-branch timer; nil uses
+	// time.NewTimer. Tests inject a timer that never fires to force the
+	// handler's own return ahead of the timer (#11193).
+	newBoundTimer func(time.Duration) *time.Timer
 
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.

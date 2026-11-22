@@ -195,7 +195,7 @@ claimed AS (
         updated_at = $1
     FROM candidate
     WHERE work.work_item_id = candidate.work_item_id
-    RETURNING work.work_item_id, work.scope_id, work.generation_id, work.attempt_count, work.admission_wait_attempts, work.source_paced_waits
+    RETURNING work.work_item_id, work.scope_id, work.generation_id, work.attempt_count, work.admission_wait_attempts, work.source_paced_waits, work.replay_attempt_baseline
 ),
 -- Bump the fence of the scope this statement claimed in. Data-modifying CTEs
 -- always run to completion, so this runs although nothing reads it. It updates
@@ -264,6 +264,7 @@ SELECT
     claimed.attempt_count,
     claimed.admission_wait_attempts,
     claimed.source_paced_waits,
+    claimed.replay_attempt_baseline,
     generation.observed_at,
     generation.ingested_at,
     generation.status,

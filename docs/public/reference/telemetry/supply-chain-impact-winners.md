@@ -85,19 +85,40 @@ exactly up to 50,000 rows. Past that, `remaining` is the visible seq span, an
 upper bound, and `remaining_upper_bound` is `true`. The oldest capture time the
 stamp uses is always exact.
 
+When the chunk applies only part of an activation's scope row, the tick turns
+the unapplied rest into fact rows and deletes the scope row in the same
+transaction (#11145). Each converted row keeps the scope row's capture time, and
+merging into a fact row that is already queued keeps the earlier time. The
+horizon therefore stays under that activation's scope mark until every one of
+its identifiers is applied. A conversion does not wake a `winners_watermark`
+waiter enqueued after the activation early (the staging collapse has a
+separate late-commit gap, #11149), and `dirty_log_oldest_age_seconds` keeps
+reporting the activation's real age while it drains. The commit log line
+carries `remainder_rows_converted`, and
+`eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total`
+counts the rows.
+
 An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
 turns it off). It recomputes the whole table without taking the resweep lock,
 verifies each key that differs under the lock, and queues the stale ones for the
 next keyed tick. Where it runs, the audit is the backstop for a change that left
 no dirty-log row, so its repair count should stay at zero. With
-`ESHU_POSTGRES_READ_ROUTING=staged-audits` the staged reader defers every tick
-on `budget` once the eligible impact-fact corpus passes 1,000,000 facts or
-250,000 distinct keys (#11131), and then no automatic backstop runs. Watch
-`staged_audit_deferrals_total{reason="budget"}` and the `staged winners audit
-deferred` log lines; `audit_last_success_age_seconds` has no value until a pass
-completes in the process, so alert on its absence together with budget
-deferrals, not on a climbing value.
+`ESHU_POSTGRES_READ_ROUTING=staged-audits` the audit is a sweep of identifier
+ranges with a persisted cursor (#11131). Each range is one standby statement
+over the next `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_BUDGET` keyed-index
+rows (default 10,000) and one writer transaction that verifies the range's
+differing keys and advances the cursor. An audit tick runs ranges back to back
+for up to `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_TICK_BUDGET` (default 5
+minutes), so the sweep spans many ticks and resumes after a roll from the
+stored cursor. After a range whose verify took the resweep lock, the next
+range that needs the lock waits for a keyed commit (a moved watermark, at most
+one keyed interval), so back-to-back locked ranges cannot starve keyed ticks.
+`audit_last_success_age_seconds` restarts only when a sweep
+completes: one range is not a completed audit. Watch
+`audit_sweep_ranges_total` (flat while the audit is allowed means the sweep is
+stuck), `staged_audit_deferrals_total{reason}` for why, and
+`audit_sweep_last_completed_age_seconds` against the 24 h bar.
 
 Role-bound logins need grants for the application-code capture only. The pointer,
 scope-delete and scanner trigger functions run as their owner (`SECURITY
@@ -249,24 +270,42 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_staging_oldest_age_seconds` | gauge | none | Age of the oldest staged row at the last tick this instance sampled, 0 when the queue is empty. It bounds how long a capture can sit before the collapse folds it in. |
 | `eshu_dp_supply_chain_impact_winners_staging_depth_upper_bound` | gauge | none | 1 when the last `staging_depth` sample, and the `dirty_log_depth` that includes it, is an upper bound: past one collapse budget (50,000 staged rows) the sample reports the visible seq span instead of counting the whole queue (#11129). 0 when the depth is exact. The age gauges are exact either way. |
 | `eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total` | counter | none | Staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined. |
+| `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total` | counter | none | Dirty-log fact rows a keyed tick wrote (inserted, or merged into a queued row) when it converted the unapplied remainder of a partly applied scope row (#11145). The rows keep the scope row's capture time, so while any is queued the watermark stays under that activation's scope mark. Recorded before the tick commits, so it includes a tick that later rolls back. |
 | `eshu_dp_supply_chain_impact_winners_write_conflicts_total` | counter | `site`, `failure_class` | Writer and tick statements the database aborted with a deadlock (`40P01`) or a serialization failure (`40001`) (#10851). `site` is `writer_capture` (the capture statement), `writer_commit` (the writer transaction commit) or `tick` (any keyed-tick phase, including the collapse, the settle and the tick commit); `failure_class` is `deadlock` or `serialization_failure`. The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it. Steady state is zero; a rising rate names the contending site. |
 | `eshu_dp_supply_chain_impact_winners_rows_total` | counter | `action` | Rows a committed resweep handled. `action` is `inserted`, `updated`, `deleted` or `unchanged`. Only the first three write a row version. |
 | `eshu_dp_supply_chain_impact_winners_resweep_skipped_total` | counter | none | Resweeps that found another in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements run past 60 seconds. |
 | `eshu_dp_supply_chain_impact_winners_watermark_age_seconds` | gauge | none | Seconds since the read watermark was stamped, computed at scrape time from the last watermark the instance saw. Every instance reports it, whether or not it holds the lease. It rises between resweeps, drops on each commit, and keeps climbing through a stall. It has no value until the instance first sees a watermark. |
-| `supply_chain_impact.winners_resweep` | span | none | One resweep or audit. Attributes `path`, `keys`, `inserted`, `updated`, `deleted`, `unchanged`, or `skipped`; the audit span carries `repairs`, or `skipped` when it could not take the lock. A failed resweep records the error on the span. |
+| `supply_chain_impact.winners_resweep` | span | none | One resweep or audit. Attributes `path`, `keys`, `inserted`, `updated`, `deleted`, `unchanged`, or `skipped`; the audit span carries `repairs`, or `skipped` when it could not take the lock; a staged sweep range (#11131) adds `outcome` and `partial` (true until the range that completes the sweep). A failed resweep records the error on the span. |
 | `eshu_dp_supply_chain_impact_winners_resweep_in_flight_age_seconds` | gauge | `path` | Seconds the resweep in flight on this instance has run, by `full`, `keyed` and `audit`; 0 when none is in flight (#11117). |
 | `eshu_dp_supply_chain_impact_winners_last_commit_timestamp_seconds` | gauge | `path` | Unix time of the last resweep this instance committed, by path. It is the commit time, not the watermark value the resweep stamped. No value until the path first commits. |
-| `eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds` | gauge | none | Seconds since this instance last completed an audit pass, repairs found or not. It has no value until the first completed pass in this process and resets on a roll, so a backstop that never runs shows as an absent series, not a climbing one: alert on its absence together with `staged_audit_deferrals_total{reason="budget"}`. |
+| `eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds` | gauge | none | Seconds since this instance last completed an audit pass, repairs found or not. It has no value until the first completed pass in this process and resets on a roll, so a backstop that never runs shows as an absent series, not a climbing one: alert on its absence together with `staged_audit_deferrals_total{reason="budget"}`. Under the staged sweep (#11131) a pass is a completed sweep: ranges alone do not reset it. |
 | `eshu_dp_supply_chain_impact_winners_contract_version` | gauge | `kind` | The stored contract version (`stored`, 0 when none is recorded) and this binary's (`binary`), from the last contract read. |
 | `eshu_dp_supply_chain_impact_winners_full_resweeps_total` | counter | `reason` | Committed fulls by start reason: `no_watermark` (no resweep had committed), `contract_version` (stored version NULL or lower), `keyed_cap` (a keyed tick fell back past the cap). |
 | `eshu_dp_supply_chain_impact_winners_stand_downs_total` | counter | none | Ticks this instance stood down because the stored contract is newer than its binary, at the tick's decision read or, for a keyed tick, at the re-read under the resweep lock. Any rate means mixed binaries. |
 | `supply chain impact winners maintainer standing down` | warn log | none | Logged once when an instance starts standing down, with `stored_version` and `binary_version`; a matching info log marks the resume. |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total` | counter | `reason` | Staged-audit ticks (routing `staged-audits`) deferred by `budget`, `conflict_exhausted` or `batch_abort`: the read phase stopped on the standby and verified nothing (#11117). |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total` | counter | none | Completed staged-audit read phases. |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_last_batches` | gauge | none | Standby batches (one per active scope generation) the last completed staged-audit tick read. Absent until a pass completes; a budget-deferred tick records nothing here. |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds` | gauge | none | The last completed tick's slowest standby batch; each batch has a 25 s statement timeout. Absent until a pass completes; a budget-deferred tick records nothing here. |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts` | gauge | none | Facts the last completed staged-audit tick staged (cap 1,000,000). Absent until a pass completes; a budget-deferred tick records nothing here, so read `staged_audit_deferrals_total{reason="budget"}` instead. |
-| `eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys` | gauge | none | Distinct keys the last completed tick compacted (cap 250,000). Absent until a pass completes; a budget-deferred tick records nothing here. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total` | counter | `reason` | Staged-audit sweep ranges (routing `staged-audits`) that committed nothing, by reason (#11117, #11131): `timeout` (a one-identifier range still hit the 25 s statement guard), `null_key` (a source finding fact has a NULL package, repository or digest the ranges cannot reach; at sweep start nothing runs, at sweep end the sweep restarts uncounted), `pipe` (a range fact has `\|` in an identifier field; the sweep stops at that range), `lock_busy` (the waiting resweep-lock claim hit its 20 s `lock_timeout`), `cursor_race` (another instance advanced the range first; this one rolled its repairs back), `keyed_yield` (after a verify that took the resweep lock, the next range that needs the lock waited for a keyed commit, a moved watermark, or one keyed interval, so the sweep cannot starve keyed ticks; it then commits in the same pass), `conflict_exhausted` (a standby recovery conflict), `batch_abort` (any other read failure). `budget` no longer occurs under the sweep. A steady `timeout`, `null_key` or `pipe` rate means the sweep is not advancing. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_ticks_total` | counter | none | Completed whole-corpus staged-audit read phases. The range sweep (#11131) replaced that read, so this stays at 0; read `audit_sweep_ranges_total`. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_batches` | gauge | none | Standby batches (one per active scope generation) the last completed staged-audit tick read. Absent until a pass completes; a budget-deferred tick records nothing here. Retired by the range sweep (#11131): always absent. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_max_batch_seconds` | gauge | none | The last completed tick's slowest standby batch; each batch has a 25 s statement timeout. Absent until a pass completes; a budget-deferred tick records nothing here. Retired by the range sweep (#11131): always absent. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_staged_facts` | gauge | none | Facts the last completed staged-audit tick staged (cap 1,000,000). Absent until a pass completes; a budget-deferred tick records nothing here, so read `staged_audit_deferrals_total{reason="budget"}` instead. Retired by the range sweep (#11131): always absent. |
+| `eshu_dp_supply_chain_impact_winners_staged_audit_last_distinct_keys` | gauge | none | Distinct keys the last completed tick compacted (cap 250,000). Absent until a pass completes; a budget-deferred tick records nothing here. Retired by the range sweep (#11131): always absent. |
+| `eshu_dp_supply_chain_impact_winners_audit_range_duration_seconds` | histogram | `outcome` | Wall time of one staged audit sweep range, standby read through writer commit (#11131). `outcome` is `advanced`, `completed` (the range that completed the sweep), `skipped` (the try-lock lost), `lock_busy`, `cursor_race` or `deferred`. The standby statement has a 25 s statement guard. The writer verify has no enforced timeout: under 30 s per verify is the QA acceptance bar (#11120 arbiter decision 8). On the `staged winners audit range` log line, `range_seconds` minus `read_seconds` is an upper bound on the verify time: it also counts the end NULL probe and any keyed-yield wait. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_ranges_total` | counter | none | Sweep ranges committed (cursor advanced). Flat while the audit is allowed means the sweep is stuck: read the deferrals by reason. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_locked_ranges_total` | counter | none | Committed ranges whose verify took the resweep lock (a candidate nothing had queued). Each one makes the next lock-needing range yield to a keyed commit; read it beside `staged_audit_deferrals_total{reason="keyed_yield"}`. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_range_retries_total` | counter | none | Range reads retried at half budget after the 25 s statement guard expired. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_facts_total` | counter | none | Impact facts the committed ranges recomputed. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_candidates_total` | counter | none | Identifiers whose recomputed winners differed from the stored rows in committed ranges. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_pending_total` | counter | none | Candidates already queued in the dirty log or staging, dropped before the resweep lock (a keyed tick recomputes them). |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_repairs_total` | counter | none | Stale identifiers committed ranges queued for the next keyed tick (capture holes). Steady state is zero. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_discards_total` | counter | none | Candidates that were not repaired: already queued, or clean under the lock. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_ranges_done` | gauge | none | The sweep position: ranges the sweep in progress has committed, read from the persisted cursor row, so it survives a roll. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_last_completed_age_seconds` | gauge | none | Age of the last completed sweep from the persisted row; the bar is 24 h. No value before the first completion. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_last_seconds` | gauge | none | Duration of the last completed sweep, first range commit to last. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_last_ranges`, `..._last_candidates`, `..._last_repairs`, `..._last_discards` | gauge | none | Totals of the last completed sweep, from the persisted row. |
+| `eshu_dp_supply_chain_impact_winners_audit_sweep_last_range_seconds`, `..._last_range_budget` | gauge | none | The last committed range in this process: wall time and the row budget after any timeout halving (below the configured budget means timeouts halved it). |
+| `staged winners audit range` | info log | none | One line per range with `outcome`, `sweep_id`, `ranges_done`, `last`, `oversize`, `budget`, `facts`, `candidates`, `pending`, `repairs`, `discards`, `locked`, `read_seconds`, `range_seconds` and the new `cursor`. |
+| `staged winners audit sweep completed` | info log | none | One line per completed sweep with `sweep_id` and `sweep_seconds`. |
+| `staged winners audit deferred` | info log | none | One line per deferred range with `reason`, `read_seconds` and the `error`. |
 | `supply chain impact winners audit completed` | info log | none | One line per completed audit pass, zero repairs included, with `repairs`, `read_seconds` and `duration_seconds`. |
 | `supply chain impact winners full resweep recorded the contract` | info log | none | A full committed and recorded this binary's contract, with `reason` and the stored and binary versions it replaced. |
 | `supply chain impact winners resweep committed` | info log | none | The same four counts plus `path`, `identifiers`, `keys`, `duration_seconds` and `previous_watermark_age_seconds` (`-1` for the first resweep). |
@@ -375,6 +414,12 @@ No label carries a canonical key, scope, repository, or CVE.
   tick cadence while the drain runs; if the watermark age keeps climbing while
   the depth falls, ticks are not committing (check the failure log line and the
   `supply_chain_impact_winners` lease) — that climb is a stall, not the drain.
+- A rising `scope_remainder_converted_rows_total` with a flat watermark and a
+  `dirty_log_oldest_age_seconds` that keeps growing means a large activation is
+  draining over bounded ticks. The watermark is held at that activation's scope
+  mark on purpose (#11145): advisory waits enqueued after the activation stay
+  parked until its winners are applied. If `dirty_log_depth` falls tick by tick,
+  this is the drain, not a stall.
 - During a mixed-version rollout, an older reducer pod does not capture the
   impact writer's own changes (`fact_upsert`, `fact_retract`), while the
   database triggers still capture pointer, delete and scanner changes. A winner

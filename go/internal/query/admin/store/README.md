@@ -20,6 +20,14 @@ selected rows first, in `work_item_id COLLATE "C"` order
 batch ack use, so an admin replay never locks shared rows in the opposite
 order of a concurrent replay (#8205, 40P01 on main).
 
+Admin replay gives a replayed projector row a new row's retry allowance
+(#11182): its SET list carries `queuestore.ReplayRetryAllowanceAssignments`, so
+`replay_attempt_baseline` takes the kept `attempt_count` (never lowered: it is
+the claim fence) and `admission_wait_attempts` goes back to 0. Each replay
+event records that baseline and the selection-time `admission_wait_attempts`
+(`prior_admission_wait_attempts`); both are NULL for reducer rows. Work-item
+reads return `replay_attempt_baseline`.
+
 Repository skip selects only pending, retrying, or failed rows, up to 100. It
 locks the selected rows still in their selected state first, in
 `work_item_id COLLATE "C"` order (`locked` CTE), so a skip never deadlocks

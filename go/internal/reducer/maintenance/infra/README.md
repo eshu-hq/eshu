@@ -22,6 +22,10 @@ root.
 - `Batch` — one cycle's result (repos, cursor, wrap, fence marks)
 - `Repo` — one repository's check outcome
 - `Reconciler` — storage port (`ReconcileInfraInventory`)
+- `BackfillRunner`, `Backfiller` — runs the infra read model backfill at
+  reducer boot until the marker exists (#11196); the storage port
+  (`BackfillInfraInventory`) retries and counts attempts itself, the runner
+  owns the process lifetime and treats a cancelled context as a clean stop
 
 See `doc.go` for the full contract.
 

@@ -26,6 +26,9 @@ func TestSupplyChainImpactWinnersContractHashPinnedToVersion(t *testing.T) {
 	if !slices.Contains(stmts, rebuildSupplyChainImpactWinnersSQL) || !slices.Contains(stmts, applyWinnersKeyedSQL) {
 		t.Fatal("contract statements omit the rebuild or the keyed apply statement")
 	}
+	if !slices.Contains(stmts, convertWinnersKeyedScopeRemainderSQL) {
+		t.Fatal("contract statements omit the scope-remainder convert (#11145)")
+	}
 	if err := verifyWinnersContractPin(SupplyChainImpactWinnersContractVersion, stmts, supplyChainImpactWinnersContractPins); err != nil {
 		t.Fatalf("contract pin: %v (current hash %s)", err, supplyChainImpactWinnersContractHashOf(stmts))
 	}

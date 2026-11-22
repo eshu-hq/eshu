@@ -134,7 +134,7 @@ func TestSupplyChainImpactWinnersResweepKeyedHorizonNeverRegressesAcrossTicksLiv
 
 // TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive proves the
 // horizon covers the scope-remainder conversion: a partially applied scope
-// leaves fact rows queued with fresh conversion-time captures, and the
+// leaves fact rows queued with the scope row's capture (#11145), and the
 // watermark stays under every one of them.
 func TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive(t *testing.T) {
 	h := newKeyedHarness(t, "#10706 scope-remainder horizon proof")

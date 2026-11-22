@@ -335,8 +335,11 @@ func TestReprojectReopenMirrorsAttemptResetForAdmissionCounter(t *testing.T) {
 	t.Parallel()
 
 	const terminal = "WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0"
-	if got := strings.Count(reprojectReopenedCTE, terminal); got != 3 {
-		t.Fatalf("reproject reopen CTE resets attempt/admission/source-paced counters %d times, want 3 (one CASE each)", got)
+	// Four CASEs: attempt_count, admission_wait_attempts, source_paced_waits
+	// (#10882) and the #11182 replay_attempt_baseline (TestReprojectResetsReplayBaseline
+	// pins it).
+	if got := strings.Count(reprojectReopenedCTE, terminal); got != 4 {
+		t.Fatalf("reproject reopen CTE resets attempt/admission/source-paced/baseline counters %d times, want 4 (one CASE each)", got)
 	}
 	if !strings.Contains(reprojectReopenedCTE, "source_paced_waits = CASE") {
 		t.Fatalf("reproject reopen CTE must reset source_paced_waits with the terminal CASE (#10882)")

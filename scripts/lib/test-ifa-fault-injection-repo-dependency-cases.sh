@@ -314,6 +314,8 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	for needle in ifa_repo_dependency_fault_prepare ifa_fault_start_shared_intent_lock ifa_fault_wait_for_claimed 'deployment_mapping' pre_kill_partition_leases ' KILL ' post_kill_partition_leases ifa_repo_dependency_fault_require_partition_lease_subset ifa_repo_dependency_fault_expire_partition_leases ifa_fault_release_shared_intent_lock 'reducer-${cell}-after' run_drain_gate ifa_repo_dependency_fault_assert_terminal ifa_fault_assert_retried_above capture_digest assert_matches_baseline teardown_cell; do
 		[[ "${kill_body}" == *"${needle}"* ]] || return 1
 	done
+	# #11194: the pre-kill capture waits for the runner's first lease claim.
+	[[ "${kill_body}" == *'pre_kill_partition_leases "${CLAIMED_ROW_WAIT_TIMEOUT}"'* ]] || return 1
 	ifa_repo_dependency_body_has_order "${kill_body}" \
 		ifa_repo_dependency_fault_prepare \
 		'ifa_det_start_bg "${log_dir}" "projector-${cell}"' \

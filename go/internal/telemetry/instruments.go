@@ -1548,9 +1548,17 @@ type Instruments struct {
 	// tick collapsed into the dirty log (#10837 direction C). Registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments.
 	SupplyChainImpactWinnersStagingCollapsed metric.Int64Counter
+	// SupplyChainImpactWinnersScopeRemainderConverted counts the dirty-log
+	// fact rows a keyed tick wrote when it converted the unapplied remainder
+	// of a partly applied scope row (#11145). Registered by
+	// registerSupplyChainImpactWinnersKeyedInstruments.
+	SupplyChainImpactWinnersScopeRemainderConverted metric.Int64Counter
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
+	// SupplyChainImpactWinnersAuditRangeDuration records one staged audit
+	// sweep range's wall time by outcome (#11131).
+	SupplyChainImpactWinnersAuditRangeDuration metric.Float64Histogram
 	// SupplyChainImpactStaleCopyRepairs counts the retraction-state flips a
 	// supply_chain_impact pass wrote against its stored baseline (#10765),
 	// labeled transition (active_to_retracted, retracted_to_active). The scope

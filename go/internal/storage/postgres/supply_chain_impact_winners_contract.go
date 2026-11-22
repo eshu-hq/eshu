@@ -40,20 +40,28 @@ import (
 const SupplyChainImpactWinnersContractVersion int64 = 2
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
-// of the statements it names. A version maps to exactly one hash.
+// of the statements it names. A version maps to exactly one hash. Version 2
+// was re-pinned without a bump when #11145 added the scope-remainder convert
+// to the set and changed only the capture time a converted row carries: the
+// stored winners are byte-identical for the same facts (differential in
+// docs/internal/evidence/11145-scope-remainder-horizon.md, measured on the
+// version 1 statements; version 2 rests on the scope-remainder live tests and
+// on the convert writing only the dirty log). Version 1 keeps the hash of the
+// statements it named.
 var supplyChainImpactWinnersContractPins = map[int64]string{
 	1: "c5731efdb688e71bf37154ff9401a973f588d686603b10e117ca5a8f0ea4dbff",
 	// Version 2 (#10880 slice 1): the rebuild and keyed statements now
 	// carry payload and source_confidence, so winners a resweep produces
 	// change for the same facts. Every instance runs one full after
 	// the roll; migration 332 backfills at migration time.
-	2: "62ceaea5c58e0c1917a0d63f052aca02f4d567f517182e03928e241bcd19952b",
+	2: "8e761819b7b0f43d77ea3d46d8fd7395f5308ad945e542bc3b5c7ce3677d292e",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
 // rendered statements whose text defines what a resweep writes: the full
-// rebuild (which embeds the winner select) and every keyed build and apply
-// statement.
+// rebuild (which embeds the winner select), every keyed build and apply
+// statement, and the scope-remainder convert (#11145), which decides which
+// keys a later tick recomputes and the capture time the horizon reads.
 func supplyChainImpactWinnersContractStatements() []string {
 	stmts := []string{rebuildSupplyChainImpactWinnersSQL}
 	stmts = append(stmts, winnersKeyedBuildIdentsStmts...)
@@ -63,6 +71,7 @@ func supplyChainImpactWinnersContractStatements() []string {
 		buildWinnersKeyedActiveFactsSQL,
 		addWinnersKeyedOperatorFactsSQL,
 		applyWinnersKeyedSQL,
+		convertWinnersKeyedScopeRemainderSQL,
 	)
 }
 

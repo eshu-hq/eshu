@@ -80,11 +80,18 @@ func isSourcePacedCause(err error) bool {
 	return errors.As(err, &pacedErr) && pacedErr.IsSourcePaced()
 }
 
-// projectionClaims returns the claims that spent the projection budget:
-// every claim minus the waits refunded to the admission and source-paced
-// counters.
-func projectionClaims(work projector.ScopeGenerationWork) int {
-	return work.AttemptCount - work.AdmissionWaitAttempts - work.SourcePacedWaits
+// projectionAttempts is the number of claims since the last operator replay
+// that spent the projection budget: AttemptCount minus the waits refunded to the
+// admission and source-paced counters (AdmissionWaitAttempts,
+// SourcePacedWaits) minus ReplayAttemptBaseline (#11182). Replay sets the
+// baseline to the row's AttemptCount and resets both refund counters, so the
+// first claim after a replay counts 1, as a new row's first claim does, while
+// AttemptCount keeps growing as the claim fence. A row never replayed has
+// baseline 0, which is the #10671 rule unchanged. There is no clamp: every
+// writer that lowers AttemptCount (reproject, refinalize) resets the baseline
+// and both refund counters to 0 in the same statement.
+func projectionAttempts(work projector.ScopeGenerationWork) int {
+	return work.AttemptCount - work.AdmissionWaitAttempts - work.SourcePacedWaits - work.ReplayAttemptBaseline
 }
 
 // retryDecision splits the shared attempt fence into three budgets. A
@@ -112,7 +119,7 @@ func (q ProjectorQueue) retryDecision(work projector.ScopeGenerationWork, cause 
 		// (N-1 granted retries, death on the Nth).
 		return work.AdmissionWaitAttempts+1 < q.admissionMaxAttempts(), retryKindAdmission
 	}
-	return projectionClaims(work) < q.maxAttempts(), retryKindProjection
+	return projectionAttempts(work) < q.maxAttempts(), retryKindProjection
 }
 
 // retryBackoff is the retry delay for one failure. A source-paced release

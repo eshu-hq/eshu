@@ -273,9 +273,9 @@ pruned AS (
 // a named constraint (#10706): convert runs before delete so a scope row's
 // deletion and its remainder rows' insertion commit atomically, and the min
 // is read after the delete so the horizon covers exactly the residual set.
-// Converted remainder rows carry a fresh conversion-time captured_at, so they
-// can only raise a later horizon, never lower this one. Callers stamp S when
-// nothing remains, else H = min minus 1us.
+// Converted remainder rows keep their scope row's captured_at (#11145), so the
+// horizon stays under the scope mark until the remainder applies. Callers
+// stamp S when nothing remains, else H = min minus 1us.
 //
 // R2 (#10827): both drains are single-statement lock-then-deletes. The locked
 // CTE keeps only rows whose log version still equals the admitted version and
@@ -286,12 +286,14 @@ pruned AS (
 // (#10851). The tally sums dirty_version: one deleted row counts every mark
 // it collapsed. The returned bool reports that the remaining depth is an
 // upper bound: the staging residual past its exact-count cap (#11129).
-func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool) (winnersCaptureTally, int64, sql.NullTime, bool, error) {
+func settleWinnersKeyedDirtyLog(ctx context.Context, tx db.Transaction, fallback bool, converted *int64) (winnersCaptureTally, int64, sql.NullTime, bool, error) {
 	deleteSQL := deleteWinnersKeyedAppliedDirtySQL
 	if fallback {
 		deleteSQL = deleteWinnersKeyedAllDirtySQL
-	} else if _, err := tx.ExecContext(ctx, convertWinnersKeyedScopeRemainderSQL); err != nil {
-		return nil, 0, sql.NullTime{}, false, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
+	} else if n, err := convertWinnersKeyedScopeRemainder(ctx, tx); err != nil {
+		return nil, 0, sql.NullTime{}, false, err
+	} else if converted != nil {
+		*converted = n
 	}
 	rows, err := tx.QueryContext(ctx, deleteSQL)
 	if err != nil {

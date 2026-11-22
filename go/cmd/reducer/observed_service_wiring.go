@@ -104,11 +104,17 @@ func buildObservedReducerService(
 					closeStaleAccess()
 					return reducer.Service{}, nil, nil, nil, fmt.Errorf("register staged audit instruments: %w", err)
 				}
-				maintainer.Auditor = stagedaudit.StagedAuditor{
-					Fleet:     pgaccess.NewStagedAuditAccessFleet(staleAccess),
-					Store:     postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
-					Telemetry: stagedTelemetry,
-					Logger:    logger,
+				// #11131: the staged audit is a sweep of identifier ranges
+				// with a persisted cursor; the maintainer runs ranges back
+				// to back within its tick budget.
+				maintainer.Auditor = &stagedaudit.StagedAuditor{
+					Fleet:       pgaccess.NewStagedAuditAccessFleet(staleAccess),
+					Store:       postgres.NewSupplyChainImpactWinnersStore(instrumentedDB),
+					Telemetry:   stagedTelemetry,
+					RangeBudget: loadSupplyChainImpactWinnersAuditRangeBudget(getenv),
+					// The keyed yield waits at most one keyed interval.
+					KeyedInterval: maintainer.Interval,
+					Logger:        logger,
 				}
 			} else {
 				maintainer.Auditor = postgres.NewSupplyChainImpactWinnersStore(instrumentedDB).

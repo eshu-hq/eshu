@@ -109,6 +109,11 @@ tests:
     class: postgres_ci
     reason: "#8302 disposable PostgreSQL 18 proof that CountDeadLetters detects exactly the dead_letter-with-no-newer-generation scopes the generation-liveness gauge misses, that the bounded arm increments poison_recovery_attempts to its ceiling then leaves the row for an operator, and that the gauge EXPLAIN uses fact_work_items_dead_letter_poison_idx; bootstrap-derived isolated schemas; enrolled in the live-postgres-readiness runner; local run passed in 3.2s of test time on postgres:18.6 on 2026-10-19; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/poison/liveness_retry_allowance_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11217 disposable PostgreSQL 18 invariant table for the poison-liveness sweep's replay retry allowance: stage x attempt_count x admission waits, replay_attempt_baseline <= attempt_count after the sweep in every cell, projector rows raised to attempt 1 and given baseline = attempt_count, reducer rows keep attempt_count and baseline; bootstrap-derived isolated schema; wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/poison/liveness_write_time_race_live_test.go
     tag: ~
     class: postgres_ci
@@ -237,7 +242,7 @@ tests:
   - file: go/internal/storage/postgres/projector_queue_source_paced_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10882 disposable PostgreSQL proof that a source-paced Fail retries without ever dead-lettering, increments only source_paced_waits (attempt_count stays a monotonic fence, admission_wait_attempts untouched), leaves the full projection and admission budgets afterwards, and that migration 333 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
+    reason: "#10882 disposable PostgreSQL proof that a source-paced Fail retries without ever dead-lettering, increments only source_paced_waits (attempt_count stays a monotonic fence, admission_wait_attempts untouched), leaves the full projection and admission budgets afterwards, that an operator replay of a row with source_paced_waits > 0 gives exactly MaxAttempts projection claims (#11182 interaction), and that migration 333 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go
     tag: ~

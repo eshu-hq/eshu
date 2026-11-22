@@ -155,6 +155,29 @@ func TestWinnersMaintainerMatchingContractRunsKeyedWithoutAFull(t *testing.T) {
 	}
 }
 
+// TestWinnersMaintainerRePinnedHashAtEqualVersionRunsKeyed pins what a re-pin
+// under the same version does on the roll (#11145): the stored hash is the
+// one the last full recorded, the binary's differs, the versions are equal.
+// The decision reads versions only, so the tick is keyed, no full runs and
+// nothing stands down; the stored hash stays stale until a later full.
+func TestWinnersMaintainerRePinnedHashAtEqualVersionRunsKeyed(t *testing.T) {
+	t.Parallel()
+
+	contract := matchingContract()
+	contract.StoredHash = "h3-before-the-re-pin"
+	if action, reason := decideWinnersContract(contract); action != winnersContractRunKeyed || reason != "" {
+		t.Fatalf("decide(equal version, different hash) = %v %q, want a keyed tick", action, reason)
+	}
+	f := &fakeContractWinners{contract: contract}
+	runContractMaintainer(t, contractMaintainer(f), func() bool {
+		_, _, _, keyed := f.counts()
+		return keyed >= 3
+	})
+	if _, fullCalls, _, _ := f.counts(); fullCalls != 0 {
+		t.Fatalf("full resweep calls = %d after a same-version re-pin, want 0", fullCalls)
+	}
+}
+
 // TestWinnersMaintainerSkippedFullsThenMatchingContractRunsNoOwnFull proves a
 // full skipped because another instance holds the lock is satisfied by that
 // instance's commit: once the stored contract matches, this instance never
