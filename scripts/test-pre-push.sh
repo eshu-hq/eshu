@@ -405,4 +405,8 @@ source "${repo_root}/scripts/lib/test-pre-push-registry-drift-cases.sh"
 # shellcheck source=lib/test-pre-push-merge-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"
 
+# ── Cases T1-T2: the timing tee never changes a test step's result ──
+# shellcheck source=lib/test-pre-push-timing-cases.sh
+source "${repo_root}/scripts/lib/test-pre-push-timing-cases.sh"
+
 printf 'test-pre-push: pass\n'

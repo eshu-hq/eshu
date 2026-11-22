@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -23,6 +24,11 @@ def load_tool():
     """Import gate-timing.py (the filename has a hyphen) as a module."""
     spec = importlib.util.spec_from_file_location("gate_timing", TOOL)
     module = importlib.util.module_from_spec(spec)
+    # The tool uses `from __future__ import annotations`, which makes the
+    # JobGroup dataclass annotations strings. dataclasses looks the module up in
+    # sys.modules to resolve them (Python 3.9 to 3.14) and fails on None, so the
+    # module has to be registered before it runs.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -144,6 +150,32 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertFalse((self.out / "runs.jsonl").exists())
 
+    def test_a_report_with_null_commands_still_records(self) -> None:
+        # ci-gates marshals a nil command list as `null` when no gate was
+        # selected (go/cmd/ci-gates/run_report.go); iterating it crashed the
+        # recorder and dropped the whole run.
+        (self.dir / "gates.json").write_text('{"schema_version": "v1", "commands": null}')
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        run = json.loads((self.out / "runs.jsonl").read_text())
+        self.assertEqual(run["gates"], [])
+        self.assertEqual(len(run["steps"]), 2)
+
+    def test_a_command_without_a_duration_counts_zero_seconds(self) -> None:
+        (self.dir / "gates.json").write_text(json.dumps({"commands": [
+            {"gate_id": "g", "kind": "gate", "outcome": "pass", "duration_ms": None}]}))
+        result = self.record()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        run = json.loads((self.out / "runs.jsonl").read_text())
+        self.assertEqual(run["gates"][0]["seconds"], 0.0)
+
+    def test_success_message_shows_a_home_relative_path(self) -> None:
+        tool = load_tool()
+        self.assertEqual(tool.display_path(Path.home() / ".cache" / "x" / "runs.jsonl"),
+                         "~/.cache/x/runs.jsonl")
+        self.assertEqual(tool.display_path(Path("/elsewhere/runs.jsonl")),
+                         "/elsewhere/runs.jsonl")
+
 
 class SummaryTest(unittest.TestCase):
     """`summary` reports medians across runs and flags noisy hosts."""
@@ -161,6 +193,12 @@ class SummaryTest(unittest.TestCase):
         self.assertIn("1 noisy", text)
         row = next(line for line in text.splitlines() if line.startswith("lint"))
         self.assertEqual(row.split()[1:4], ["3", "20", "30"])
+
+    def test_one_truncated_store_line_does_not_hide_the_rest(self) -> None:
+        tool = load_tool()
+        good = json.dumps({"script": "pre-push", "steps": []})
+        runs, bad = tool.parse_store_lines([good, '{"script": "pre-pu', "", good, "[1]"])
+        self.assertEqual((len(runs), bad), (2, 2))
 
 
 class CiAggregateTest(unittest.TestCase):
@@ -180,6 +218,46 @@ class CiAggregateTest(unittest.TestCase):
         self.assertEqual((race.per_run, race.median_s, race.max_s), (4.0, 600, 600))
         self.assertAlmostEqual(race.minutes_per_run, 40.0)
         self.assertEqual(groups["tagged-builds"].median_s, 2000)
+
+    def test_real_shard_spellings_collapse(self) -> None:
+        # Job names copied from a real Build Test run: the shard marker sits
+        # before the parenthesis in one family and inside it in another.
+        tool = load_tool()
+        self.assertEqual(
+            tool.normalize_job("call-ifa-determinism-gate / fault-injection (shard 6/15)"),
+            tool.normalize_job("call-ifa-determinism-gate / fault-injection (shard 1/15)"))
+        self.assertEqual(tool.normalize_job("live-postgres-readiness shard (5/8)"),
+                         tool.normalize_job("live-postgres-readiness shard (1/8)"))
+        self.assertEqual(tool.normalize_job("go-race (3)"), "go-race (N)")
+
+    def test_jobs_from_two_pages_are_all_read(self) -> None:
+        # `gh api --paginate --jq` runs the filter once per page, so a run with
+        # more than 100 jobs prints several results. One document per job line
+        # is the shape that survives that.
+        tool = load_tool()
+        job = ('{"name": "%s", "created_at": "2026-01-01T00:00:00Z", '
+               '"started_at": "2026-01-01T00:00:02Z", "completed_at": "2026-01-01T00:10:02Z"}')
+        page_one = "\n".join(job % f"job-{n}" for n in range(100))
+        page_two = "\n".join(job % f"job-{n}" for n in range(100, 130))
+        calls = []
+
+        def fake_gh_text(argv):
+            calls.append(argv)
+            return page_one + "\n" + page_two + "\n"
+
+        tool.gh_text = fake_gh_text
+        rows = tool.fetch_job_rows("o/r", "42")
+        self.assertEqual(len(rows), 130)
+        self.assertEqual((rows[0]["queue"], rows[0]["seconds"]), (2.0, 600.0))
+        # The jq filter must emit one object per job, not one array per page.
+        jq = calls[0][calls[0].index("--jq") + 1]
+        self.assertTrue(jq.startswith(".jobs[]"), jq)
+        self.assertFalse(jq.lstrip().startswith("["), jq)
+        # GitHub answers per_page=100 with a 502 for the heaviest Build Test
+        # runs (3 of the 8 most recent did, on every retry) and returns the same
+        # jobs at per_page=50, so the request must ask for 50.
+        self.assertIn("per_page=50", calls[0][1])
+        self.assertNotIn("per_page=100", calls[0][1])
 
 
 class ShellLibTest(unittest.TestCase):

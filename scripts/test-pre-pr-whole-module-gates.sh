@@ -485,4 +485,7 @@ for driver_shell in /bin/bash "${BASH}"; do
 	assert_driver_lane "${driver_shell}" full 23
 done
 
+# shellcheck source=lib/test-pre-pr-timing-cases.sh
+source "${repo_root}/scripts/lib/test-pre-pr-timing-cases.sh"
+
 printf 'PASS: pre-pr scheduling and fast local parser selection are pinned\n'
