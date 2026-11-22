@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/sdk/metric"
@@ -55,8 +56,15 @@ func TestInfraInventoryBackfillRunnerRecordsTheMarkerLive(t *testing.T) {
 		metric.NewMeterProvider(metric.WithReader(reader)).Meter("infra-backfill-live-test"))
 	require.NoError(t, err)
 
+	// RunBackground retries a failing backfill until its context ends, so a bound
+	// keeps a broken constructor from holding the test to the disposable
+	// database's five-minute deadline. The run takes about a second; 60 s leaves
+	// room for a loaded host. A cancelled run returns nil (a clean shutdown), so
+	// the marker assertion below is what fails.
+	runCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
 	runner := infraInventoryBackfillRunnerFor(database, inst, nil)
-	require.NoError(t, runner.Run(ctx))
+	require.NoError(t, runner.Run(runCtx))
 
 	complete, err = inventory.BackfillComplete(ctx, database)
 	require.NoError(t, err)

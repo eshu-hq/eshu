@@ -11,7 +11,7 @@ Arbiter ruling `arbiter-11226`: option C, amended.
 #11196 (reducer-owned infra backfill) is merged on `origin/main` as #11210. The gate
 starts no reducer (it runs the core, the satellite and the MCP server, all built from
 the worktree) and records the marker itself, labelled `infra_backfill: gate_stand_in`.
-An earlier plan was to start the in-tree reducer and drop the stand-in (#11226). A
+An earlier plan was to start the in-tree reducer in the gate and remove the stand-in (#11226). A
 throwaway run showed a real reducer cannot run on the gate's seeded corpus, so the
 arbiter ruled the stand-in permanent and made parity with the product structural: the
 stand-in builds its backfiller with `inventory.NewBackfiller`, the constructor
@@ -44,7 +44,7 @@ Those variables were the experiment's restrictions and appear in no committed ga
 
 | Observation | Result |
 | --- | --- |
-| Marker | recorded 24 s after start (runner duration 22.4 s, 201 repositories, 1,050,000 rows) |
+| Marker | recorded 22.8 s after the reducer started (backfill and runner duration 22.4 s, 201 repositories, 1,050,000 rows) |
 | `fact_work_items` | 7,680 rows set to `superseded` by the reducer's stale-generation sweep (5,000 then 2,680 rows), 2,560 in each of the three seeded domains, all in the 320 seeded superseded generations; per domain `dead_letter` 2,240 to 1,600, `pending` 3,360 to 2,400, `retrying` 3,360 to 2,400 |
 | Config-artifact walker | ran its own cycle, `derived=45` |
 | Idle load | about 45 statements per second (1,407 commits in 30 s), against the 2 per second limit `prepareWorkMeter` enforces |
@@ -67,8 +67,9 @@ the stand-in's backfill on the full gate corpus, run seed-only (the script stopp
 the seed phase) on the CI-pinned `eshu-deploy` compose stack with Neo4j and PostgreSQL 18.
 Input shape: 800 scopes, 150,000 nodes per label, 150,000 IaC facts, 2,500,000 shared
 intents, 20,000 finding facts. Result: the backfill derived 1,050,000 rows over 201
-repositories in 57.5 s (the throwaway reducer run recorded 87.3 s in its own backfill on a
-busier host; the host load was not comparable and no speedup is claimed). `VACUUM
+repositories in 57.5 s. The same stand-in took 87.3 s in the first full gate seed of this
+work, and the throwaway reducer's own backfill took 22.4 s; the three runs were on a shared
+host under different load, so the durations are not comparable and no speedup is claimed. `VACUUM
 (ANALYZE)` then took 1 m 30.6 s. The derive path (`Backfiller.Run`) is unchanged.
 
 No-Regression Evidence: the seed-only run exited 0. After it, `infra_resource_entity_backfill_markers`
