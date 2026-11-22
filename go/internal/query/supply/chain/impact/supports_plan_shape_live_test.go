@@ -75,6 +75,7 @@ type planNode struct {
 	NodeType     string     `json:"Node Type"`
 	RelationName string     `json:"Relation Name"`
 	IndexName    string     `json:"Index Name"`
+	IndexCond    string     `json:"Index Cond"`
 	Plans        []planNode `json:"Plans"`
 }
 
@@ -205,18 +206,37 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 		t.Fatalf("the checker accepted the natural single-WHERE form (scans %v): it would not catch a rewrite", naturalScans)
 	}
 
-	// The generation foreign key cascades. Its delete reads the supports by
-	// generation_id; PostgreSQL 18 reaches them through the (scope_id,
-	// generation_id) index by skip scan, so no separate generation_id index is
-	// needed. A sequential scan here would make every generation delete scan the
-	// whole table, so the plan is pinned.
-	cascadeScans, err := explainSupportsScans(ctx, database,
-		`DELETE FROM supply_chain_impact_finding_supports WHERE generation_id = 'gen:plan:7'`, nil)
+	// The generation foreign key cascades. The trigger runs
+	// DELETE FROM ONLY <table> WHERE generation_id = $1 once per deleted
+	// generation, as a prepared statement that reuses a generic plan. Without a
+	// generation_id index PostgreSQL 18 reads the whole (scope_id, generation_id)
+	// index once per generation (Index Searches: 1, every leaf page), so the cost
+	// grows with the table. Pin the index by name and the key in its Index Cond,
+	// not the absence of a sequential scan.
+	cascadePlan, err := explainSupportsCascadePlan(ctx, database, false)
 	if err != nil {
 		t.Fatalf("explain the cascade delete: %v", err)
 	}
-	t.Logf("cascade delete scans of the supports table: %v", cascadeScans)
-	if len(cascadeScans) == 0 || strings.Contains(strings.Join(cascadeScans, " | "), "Seq Scan") {
-		t.Fatalf("the generation delete reads the supports by sequential scan (scans %v): add a generation_id index", cascadeScans)
+	t.Logf("cascade delete scans of the supports table: %v", cascadePlan.scans())
+	if ok, reason := supportsCascadeUsesGenerationIndex(cascadePlan); !ok {
+		t.Fatalf("the generation delete does not use %s: %s (scans %v)", supportsGenerationIndex, reason, cascadePlan.scans())
+	}
+
+	// Seeded violation: the same plan with the index dropped inside a
+	// transaction that rolls back. The checker must reject it, and the index
+	// must still exist afterward.
+	droppedPlan, err := explainSupportsCascadePlan(ctx, database, true)
+	if err != nil {
+		t.Fatalf("explain the cascade delete without the index: %v", err)
+	}
+	t.Logf("cascade delete scans without the generation index: %v", droppedPlan.scans())
+	if ok, _ := supportsCascadeUsesGenerationIndex(droppedPlan); ok {
+		t.Fatalf("the checker accepted the cascade plan without %s (scans %v): it would not catch a missing index",
+			supportsGenerationIndex, droppedPlan.scans())
+	}
+	if again, err := explainSupportsCascadePlan(ctx, database, false); err != nil {
+		t.Fatalf("explain after the rollback: %v", err)
+	} else if ok, reason := supportsCascadeUsesGenerationIndex(again); !ok {
+		t.Fatalf("the rolled-back drop leaked: %s", reason)
 	}
 }
