@@ -58,8 +58,9 @@ in the same script directory.
   50,000 in every arm, so every index entry that matches the row is rewritten too. The
   fixture's dense pages and full-table update would explain that by themselves. The
   production reason is structural: `observed_at` is a column of non-partial indexes on
-  `fact_records` (`fact_records_scope_generation_keyset_idx` and `fact_records_scope_generation_idx`,
-  defined in `schema_fact_records.go`, which every row matches) and the shipped writers set it to
+  `fact_records` (`fact_records_scope_generation_keyset_idx`, created by migration
+  `099_fact_records_keyset_index.sql`, and `fact_records_scope_generation_idx`, defined in
+  `schema_fact_records.go`; every row matches both) and the shipped writers set it to
   the time of the save, so an identical re-save changes an indexed column and cannot be heap-only.
 - The guard cuts the steady cost to 54 B a row (2.5% to 2.7%): The skipped rows still
   write about one WAL record each (50,126 records for 50,000 rows; the surplus is catalog records of the
@@ -130,9 +131,9 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
   run, so the exact row count is **not measurable here**. A catalog-statistics bound stands in
   for it, and it is a bound, not a count: the kind is not among the 26 most common values of
   `fact_kind` in the table statistics, whose smallest frequency is 0.037%, so the kind holds
-  fewer than about 35,800 of 96.85M rows (0.037% x 96.85M = 35,835). The 163 re-saved items
+  fewer than about 35,500 of 96.85M rows (0.00036666667 x 96,850,136 = 35,512). The 163 re-saved items
   of the last week can rewrite at most every row of the kind, once each, so the weekly rewrite
-  is at most about 35,835 rows x 2.1 KB, about 75 MB (reopens beyond the last are not counted),
+  is at most about 35,512 rows x 2.1 KB, 74.6 MB, about 75 MB (reopens beyond the last are not counted),
   against a materiality threshold of about 340 MB a week (5% of the search documents' weekly
   insert WAL, 1,471 x about 2,291 rows x about 2.0 KB, about 6.7 GB). That is about 4.5 times
   under the threshold. The queue has 2,040 distinct (scope, generation) pairs for the domain, so
@@ -161,7 +162,7 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
 For the reducer families that stay on `fact_records` after #10880, the number of rows that
 can be re-saved is small: at or near zero for the three biggest, at most about 1.4% of
 inserts for code-drifted findings, and small in rows for container image identity (bounded
-above at about 35,800 rows in total by
+above at about 35,500 rows in total by
 catalog statistics, not counted), service catalog and aws drift (the heavy re-savers by items).
 A guard is cheap per save: it cuts an
 identical re-save from about 2 KB of WAL to 54 B, about 97%. So the small total saving comes
