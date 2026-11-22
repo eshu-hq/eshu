@@ -19,6 +19,11 @@ timing_case_fixture() {
 	fixture="$(build_fixture "${name}")"
 	mkdir -p "${fixture}/go/internal/alpha"
 	printf 'package alpha\n' > "${fixture}/go/internal/alpha/alpha.go"
+	# A //go:build !race file keeps the plain `go test` step running for this
+	# package: pre-push skips the plain step for a changed package that the race
+	# step already covers (scripts/lib/pre-push-test-dedupe.sh), and these cases
+	# need both tee paths exercised.
+	printf '//go:build !race\n\npackage alpha\n' > "${fixture}/go/internal/alpha/race_off_test.go"
 	git -C "${fixture}" -c core.hooksPath=/dev/null add go
 	# Only `go test` takes the status from FAKE_GO_RC; build and vet succeed.
 	cat > "${fixture}/bin/go" <<'GOSTUB'
