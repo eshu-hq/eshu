@@ -329,15 +329,16 @@ binary still trying the old path.
 - **Slice 1 landed** (`c900d01a88`): migration
   `331_supply_chain_impact_winners_payload.sql` adds `payload JSONB`
   and `source_confidence TEXT` to the winners table. The full and
-  keyed resweeps, the audit diff, and the staged stored-winners read
-  all carry both columns through the one
-  `supplyChainImpactWinnerDataColumns` list, so a payload-only change
-  rewrites the winner row (live proof:
-  `TestSupplyChainImpactWinnersResweepPayloadCarriedLive`). The stored
-  payload bakes in the operator suppression object; readers rewrite
-  only the effective state. Telemetry: no new instrument — the
-  existing resweep counts now include payload-driven rewrites, and
-  `eshu_dp_postgres_query_duration_seconds` covers the wider rows.
+  keyed resweeps and the writer-backed audit carry both columns via
+  `supplyChainImpactWinnerDataColumns`, so a payload-only change
+  rewrites the winner row (proof:
+  `TestSupplyChainImpactWinnersResweepPayloadCarriedLive`). The staged
+  audit cannot see an evidence-only rewrite under one fact id; only
+  the writer capture guards it ([limits](10880-pr-a-review-limits.md)).
+  The stored payload bakes in the operator suppression object; readers
+  rewrite only the effective state. Telemetry: no new instrument (resweep
+  counts now include payload rewrites;
+  `eshu_dp_postgres_query_duration_seconds` covers the wider rows).
   Review P1-1 fix: 331 alone left pre-existing rows at the column
   defaults until the first post-deploy resweep, so migration
   `332_supply_chain_impact_winners_payload_backfill.sql` backfills
@@ -347,9 +348,9 @@ binary still trying the old path.
   331's ACCESS EXCLUSIVE ALTER off the backfill scan; the UPDATE
   takes ROW EXCLUSIVE plus one row lock and one `fact_records`
   primary-key probe per winner, the shape of one routine resweep.
-  A reader-side fallback join was rejected: it would permanently
-  re-add the fact-table payload read slice 2 removed, to cover a
-  window the backfill closes at deploy. Proof:
+  A reader-side fallback join was rejected: it would re-add the
+  fact-table payload read slice 2 removed, to cover a window the
+  backfill closes at deploy. Proof:
   `TestFindingsWinnersPayloadBackfillServesWithoutResweepLive`
   resets winners to the 331 defaults, applies only 332, and reads
   legacy-equal pages with no resweep in between.
