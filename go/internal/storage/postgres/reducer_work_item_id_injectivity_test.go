@@ -20,8 +20,8 @@ import (
 // generation, and domain plus entity keys that differ only in ':', '/', or '_'
 // placement (for example GitLab group paths "grp/sub_proj" and "grp_sub/proj").
 //
-// When the id is made injective, invert these assertions and delete this
-// comment: the want-equal rows become want-distinct.
+// Tracked in #11215. When the id is made injective, invert these assertions
+// and delete this comment: the want-equal rows become want-distinct.
 func TestReducerWorkItemIDIsNotInjective(t *testing.T) {
 	t.Parallel()
 
