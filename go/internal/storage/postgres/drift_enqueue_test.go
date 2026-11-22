@@ -93,6 +93,8 @@ func TestEnqueueConfigStateDriftIntentsEnqueuesOnePerActiveScope(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
+		// Both intents are admitted, so the enqueue has no shortfall to probe.
+		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 2}},
 		queryResponses: []queueFakeRows{
 			// listActiveStateSnapshotScopes returns two state_snapshot scopes
 			// with active generations.

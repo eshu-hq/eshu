@@ -363,6 +363,14 @@ func (q ReducerQueue) enqueueReducerBatch(
 	if err != nil {
 		return 0, fmt.Errorf("enqueue reducer batch (%d intents): rows affected: %w", len(batch), err)
 	}
+	// A shortfall is normally a benign duplicate. reducerWorkItemID is not
+	// injective (#11215), so a held id can also belong to a different intent:
+	// refuse that instead of coalescing it away.
+	if inserted < int64(len(batch)) {
+		if err := refuseWorkItemCollisions(ctx, q.database, batch); err != nil {
+			return 0, err
+		}
+	}
 
 	return inserted, nil
 }
