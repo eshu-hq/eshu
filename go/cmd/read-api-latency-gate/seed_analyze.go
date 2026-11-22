@@ -7,20 +7,35 @@ import (
 	"context"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// analyzeSeededTables runs ANALYZE on every table this gate bulk-writes, so
-// the sweep queries plan against fresh statistics instead of whatever
-// autovacuum happened to have computed (or not) at seed time — a source of
-// run-to-run plan and latency variance a COPY-then-immediately-sweep gate
-// would otherwise carry silently.
-func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, "ANALYZE "+strings.Join(analyzedSeededTables(), ", "))
+// sqlExecer is the part of pgxpool.Pool the seed maintenance step needs, so the
+// step can be tested with a recording stand-in.
+type sqlExecer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+// seededTablesMaintenanceSQL is the one statement the seed ends with:
+// VACUUM (ANALYZE) over every table this gate bulk-writes. ANALYZE gives the
+// sweep fresh statistics instead of whatever autovacuum had computed at seed
+// time. VACUUM sets the visibility map, which an Index Only Scan reads: without
+// it the entity search walk read between 32 and 512 buffers depending on how
+// far autovacuum had got when the sweep started (#11224). Production reads a
+// steady-state database whose visibility map autovacuum has set, so the gate
+// measures that state on purpose. Not VACUUM FULL: that rewrites the tables.
+func seededTablesMaintenanceSQL() string {
+	return "VACUUM (ANALYZE) " + strings.Join(analyzedSeededTables(), ", ")
+}
+
+// vacuumAnalyzeSeededTables runs seededTablesMaintenanceSQL. VACUUM cannot run
+// inside a transaction block, so it is one plain Exec on the pool.
+func vacuumAnalyzeSeededTables(ctx context.Context, db sqlExecer) error {
+	_, err := db.Exec(ctx, seededTablesMaintenanceSQL())
 	return err
 }
 
-// analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
+// analyzedSeededTables lists the tables seededTablesMaintenanceSQL vacuums and analyzes: every
 // table in the exact-count read-back plus content_entities and content_files,
 // which are seeded and verified through their own count paths (#7009 pilots).
 // A test pins the list to the read-back set so a newly seeded table cannot

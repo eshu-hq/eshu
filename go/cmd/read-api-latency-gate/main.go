@@ -421,9 +421,9 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("backfill seeded infra read model: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")
-	if err := analyzeSeededTables(ctx, pool); err != nil {
-		return fmt.Errorf("analyze seeded tables: %w", err)
+	fmt.Fprintln(os.Stderr, "read-api-latency-gate: VACUUM (ANALYZE) seeded Postgres tables (sets the visibility map before the sweep, #11224)")
+	if err := vacuumAnalyzeSeededTables(ctx, pool); err != nil {
+		return fmt.Errorf("vacuum analyze seeded tables: %w", err)
 	}
 
 	return nil

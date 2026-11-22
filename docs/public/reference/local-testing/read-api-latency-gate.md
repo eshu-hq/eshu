@@ -62,10 +62,14 @@ lanes never exercise.
    groups) and reconciles them into `supply_chain_impact_canonical_winners`
    through the maintainer's own full resweep — never hand-written — then
    proves the table populated and watermarked (`VerifyWinnersSeeded`).
-   Runs `ANALYZE` on the seeded Postgres tables
+   Runs `VACUUM (ANALYZE)` on the seeded Postgres tables
    afterward (every table in the exact-count read-back plus
    `content_entities`, pinned by `TestAnalyzeSeededTablesCoversEverySeededTable`)
-   so the sweep plans against fresh statistics.
+   so the sweep plans against fresh statistics and reads a database whose
+   visibility map is set, as a steady-state production database does. Without the
+   `VACUUM`, an Index Only Scan such as the entity search walk reads more or fewer
+   heap pages depending on how far autovacuum has got when the sweep starts
+   (#11224).
    Right after the Postgres seeds it reads the row counts of
    `ingestion_scopes`, `scope_generations`, `fact_work_items`, `fact_records`
    and `shared_projection_intents` back (`VerifyRelationalCounts`), and after the graph seeds it reads the

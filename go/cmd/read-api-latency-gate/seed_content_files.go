@@ -282,7 +282,7 @@ func gateEntityCopyRows(now time.Time) [][]any {
 }
 
 // SeedContentFiles bulk-inserts the story, file-search and entity-search
-// corpora. analyzeSeededTables refreshes the plans afterwards, so the sweep
+// corpora. vacuumAnalyzeSeededTables refreshes the plans afterwards, so the sweep
 // reads plan against fresh statistics.
 func SeedContentFiles(ctx context.Context, pool *pgxpool.Pool, now time.Time) error {
 	story := BuildStoryContentRows()
