@@ -8,7 +8,7 @@ guarded the collector save path (`upsertFactBatchSuffix`) and named these four g
 Every package-level function named `...FactID` that returns one string, read with
 the producer guard (`go/internal/facts`, `TestFactIDProducersDeriveFromScopeAndGeneration`):
 
-- 18 reducer id functions (service catalog, container image identity and its
+- The reducer id functions (service catalog, container image identity and its
   legacy twin, kubernetes correlation, three package families, AWS and
   multi-cloud runtime drift, supply chain impact, secrets/IAM, SBOM attachment,
   security alert, incident repository correlation, observability coverage, CI/CD
@@ -41,7 +41,7 @@ open.
 | #11213 | Scope-only owner leg (`fact_records.scope_id = EXCLUDED.scope_id`) on `SingleInsertQuery`, `BatchInsertConflict` and the versioned clause, after the fencing predicate. **No generation leg**: an id stable across generations of one scope keeps updating. A skipped row is reported: `CheckOwned` (single, zero rows affected) and `resolveShortfall` (batch, one primary-key probe on a shortfall) return `*OwnerConflictError`, non-retryable, failure class `fact_id_owner_conflict`, so the intent dead-letters. The reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total{reason="scope", writer=reducer_single\|reducer_batch\|reducer_versioned}`; the ingestion path now carries `writer="ingestion"`. No new log line: the failed intent already logs its failure class. | `owner_guard_test.go`, `service_fact_id_owner_conflict_test.go`, `reducer_fact_owner_live_test.go`, frozen SQL pins in `reducer_fact_batch_insert*_guard_test.go` |
 | #11214 | No SQL change: the id is a hash of scope, generation and document, so a collision is unreachable by construction; pinned by a test and by the producer guard. | `eshu_search_document_fact_id_test.go` |
 | #11215 | No id format change (see the migration plan). `enqueueReducerBatch` resolves a shortfall in inserted rows with one primary-key probe: a held row whose stored scope, generation, domain or entity key differs from the incoming intent is refused with `*ReducerWorkItemCollisionError` (non-retryable, failure class `reducer_work_item_id_collision`); a plain duplicate stays a benign coalesce. | `reducer_work_item_collision_test.go`, `TestEnqueueRefusesAForeignIntentWorkItemIDLive`, the #11203 characterization `TestReducerWorkItemIDIsNotInjective` |
-| #11216 | Guard reads `factwrite.Row` / `VersionedRow` literals, the id after `factwrite.SingleInsertQuery`, ids assigned after construction (`x.FactID = ...`) and every `...FactID` helper, follows helpers and `kind + ":" + hash(...)`; seven reasoned allowlist rows; zero-site failure kept. | `TestFactIDProducerGuardOtherShapes`, `TestFactIDProducerGuardSeededReducerViolations` |
+| #11216 | Guard reads `factwrite.Row` / `VersionedRow` literals, the id after `factwrite.SingleInsertQuery`, ids assigned after construction (`x.FactID = ...`) and every `...FactID` helper, follows helpers and `kind + ":" + hash(...)`; every allowlist row in `factIDProducerAllowlist` carries a reason (count it with that map, not from this note); zero-site failure kept. | `TestFactIDProducerGuardOtherShapes`, `TestFactIDProducerGuardSeededReducerViolations` |
 
 ## #11215 migration plan for an injective work item id (not done here)
 
