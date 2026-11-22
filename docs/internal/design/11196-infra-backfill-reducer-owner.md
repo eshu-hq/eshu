@@ -133,6 +133,17 @@ percent, so only ratios are comparable).
   the chosen design: once per install or marker bump, bounded by the replica
   count.
 
+## P3 note: skipping a repository another replica already derived
+
+A replica cannot tell, after it gets the lock, that another replica's backfill
+pass already derived the repository. No per-repository completion state exists:
+`infra_resource_entities` rows carry no backfill-pass marker, and a live derive
+also rewrites them, so row presence or `updated_at` does not prove a whole-repo
+pass ran. A skip needs new state (a per-repository pass marker written in the
+`MirrorRepo` transaction), which is a schema change and not a few lines. Not
+done here. If the convoy cost (2.0x wall, 2.4x WAL at three replicas) matters on
+a large install, the marker or a single-owner claim is the follow-up.
+
 ## Owner ledger backfill (#5563): disposition
 
 `BackfillCloudResourceOwnerLedger` seeds `graph_node_owner` from CloudResource
