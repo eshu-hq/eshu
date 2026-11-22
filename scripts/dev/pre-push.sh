@@ -99,6 +99,8 @@ source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
 # shellcheck source=../lib/pre-push-merge.sh
 source "${repo_root}/scripts/lib/pre-push-merge.sh"
+# shellcheck source=../lib/gate-timing.sh
+source "${repo_root}/scripts/lib/gate-timing.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 # ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
@@ -117,19 +119,24 @@ fi
 pre_pr_git_state_init
 # shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
+# Measurement only (scripts/lib/gate-timing.sh): one JSONL line per run, never
+# able to change a step's result. Summary: scripts/dev/gate-timing.py summary.
+eshu_timing_init pre-push "${base}"
 
 results=()
 overall=0
 run_step() {
 	local name="$1"; shift
-	local start=${SECONDS}
+	local start=${SECONDS} rc=0
 	printf '\n\033[1m==> %s\033[0m\n' "${name}"
-	if "$@"; then
+	"$@" || rc=$?
+	if [[ ${rc} -eq 0 ]]; then
 		results+=("PASS  ${name} ($((SECONDS - start))s)")
 	else
 		results+=("FAIL  ${name} ($((SECONDS - start))s)")
 		overall=1
 	fi
+	eshu_timing_note "${name}" "$((SECONDS - start))" "${rc}"
 }
 
 # A failed changed-path collector must not silently look like "nothing
@@ -156,7 +163,8 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
+	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG}"
+	return "${PIPESTATUS[0]}"
 }
 
 # step_race runs `go test -race` on the changed Go packages only (#7111 F5).
@@ -185,7 +193,8 @@ step_race() {
 	fi
 	# -timeout is per test binary, the same 900s budget test.yml's go-race
 	# shards use, so a hang fails in minutes instead of Go's default 10m.
-	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" )
+	( cd "${go_dir}" && go test -race -count=1 -timeout 900s "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG}"
+	return "${PIPESTATUS[0]}"
 }
 
 step_filecap() {
@@ -250,7 +259,8 @@ step_exactness() {
 	selected_gates_log="${pre_pr_state_dir}/selected-gates.log"
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" \
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs,security,frontend \
-		--self-tests changed --blocking-only --pre-push 2>&1 | tee "${selected_gates_log}"
+		--self-tests changed --blocking-only --pre-push \
+		--report-file "${ESHU_TIMING_GATE_REPORT}" 2>&1 | tee "${selected_gates_log}"
 	return "${PIPESTATUS[0]}"
 }
 
@@ -291,6 +301,7 @@ if [[ -n "${pre_push_diff_broken_reason}" ]]; then
 	results+=("FAIL  changed-path collection (${pre_push_diff_broken_reason})")
 	overall=1
 else
+	eshu_timing_meta changed_go_packages "$(changed_go_dirs | wc -l | tr -d ' ')"
 	run_step "go test (changed packages)" step_test
 	run_step "go test -race (changed packages)" step_race
 	run_step "500-line file cap" step_filecap
@@ -301,6 +312,7 @@ else
 	run_step "docs-contradiction (advisory)" step_docs_contradiction
 fi
 
+eshu_timing_finish "${overall}"
 printf '\n\033[1m==== pre-push summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ -n "${pre_push_merge_summary}" ]]; then
