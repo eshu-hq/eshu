@@ -17,8 +17,9 @@ longer runs as one holder statement over all of its rows. It runs as:
 
 - 16 statements, one per fact_id key range (`HolderKeyRanges`), each reading
   the shipped cve_id and advisory_id arms with `fact_id >= lower AND fact_id
-  < upper` added. Each statement reads the existing partial lookup index
-  with fact_id in the index condition. No new index.
+  < upper` added. Each statement reads an existing partial
+  `fact_records_supply_chain_impact_` index with both fact_id bounds in an
+  index or recheck condition. No new index.
 - one member-arm statement, the shipped GIN arm alone.
 
 All 17 run in one read-only REPEATABLE READ transaction under
@@ -117,9 +118,15 @@ fact_id bounds and reads them through `fact_records_pkey` (a Bitmap Index
 Scan with Index Cond `(fact_id >= $3) AND (fact_id < $4)`). On QA that would
 be a 1/16 slice of the whole table per statement. The store therefore pins
 `force_custom_plan` in the read transaction. `TestHolderKeyRangeStatementPlanLive`
-asserts the pinned plan reads both lookup indexes with fact_id in the index
-condition and never the primary key. It logs the generic plan as the seeded
-RED.
+asserts, per Append arm, that the pinned plan reads a
+`fact_records_supply_chain_impact_` index with both fact_id bounds in an index
+or recheck condition (never a post-filter), and never a sequential scan or the
+primary key. It does not name one index: at fixture scale the planner reads
+the cve arm through `..._status_lookup_idx` (bounds in the Bitmap Index Scan
+Index Cond, cve_id a recheck filter) and at QA scale through `..._lookup_idx`.
+It asserts the generic plan reads `fact_records_pkey` as the seeded RED.
+`TestKeyRangePlanViolationShapes` plants each violation against the same
+assertion with no database.
 
 ## Correctness evidence
 

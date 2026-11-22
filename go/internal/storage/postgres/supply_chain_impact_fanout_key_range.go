@@ -19,7 +19,7 @@ import (
 // holderKeyRangeArm is one btree arm of the shipped holder read
 // (FindSupplyChainImpactHoldersQuery) limited to a fact_id key range: the same
 // literal fact kind, tombstone predicate, and payload expression, so it reads
-// through the same partial lookup index, plus the range on fact_id, the
+// through the same partial indexes, plus the range on fact_id, the
 // index's next key column after impact_status (PostgreSQL 18 serves it with a
 // skip scan over the few impact_status values). $1 lookup ids, $3 lower
 // bound, $4 upper bound when bounded.
@@ -88,8 +88,8 @@ WITH candidates AS MATERIALIZED (
 // 18.6 prices the range at its default selectivity and reads it through
 // fact_records_pkey: a scan of a 1/16 slice of the whole table instead of a
 // slice of one id's rows (TestHolderKeyRangeStatementPlanLive). A custom
-// plan sees the bounds and keeps the partial lookup index with fact_id in
-// its index condition.
+// plan sees the bounds and keeps a partial impact index with fact_id in its
+// index or recheck condition.
 const HolderKeyRangePlanCacheMode = "force_custom_plan"
 
 // setHolderKeyRangePlanModeQuery scopes the plan mode to the read

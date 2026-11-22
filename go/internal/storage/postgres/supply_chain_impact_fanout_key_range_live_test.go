@@ -244,8 +244,10 @@ VALUES ($1 || '/g9', $1, 'synthetic', now(), now(), 'pending', now(), '{}'::json
 
 // TestHolderKeyRangeStatementPlanLive pins the plan the bound rests on. Under
 // the plan mode the store sets (HolderKeyRangePlanCacheMode), each key-range
-// arm reads its existing partial lookup index with fact_id in the index
-// condition: no new index, no sequential scan, no primary-key range. The
+// arm reads an existing partial fact_records_supply_chain_impact_ index with
+// both fact_id bounds in an index or recheck condition: no new index, no
+// sequential scan, no primary-key range (keyRangePlanViolation; the planner
+// picks the cve arm's index by fixture size, so no one index is named). The
 // seeded RED is the generic plan: it cannot see the bounds and reads the
 // range through fact_records_pkey, which is why the store pins the mode.
 func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
@@ -273,26 +275,8 @@ func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 			keyRangeLiteral(keyRangeHot)+`], `+keyRangeLiteral(keyRangeOwn)+`, `+keyRangeLiteral(mid.Lower)+`, `+keyRangeLiteral(mid.Upper)+`)`)
 	}
 	plan := explain(postgres.HolderKeyRangePlanCacheMode)
-	for _, banned := range []string{"Seq Scan on fact_records", "fact_records_pkey"} {
-		if strings.Contains(plan, banned) {
-			t.Fatalf("pinned plan reads %q:\n%s", banned, plan)
-		}
-	}
-	for _, index := range []string{"fact_records_supply_chain_impact_lookup_idx", "fact_records_supply_chain_impact_advisory_lookup_idx"} {
-		if !strings.Contains(plan, index) {
-			t.Fatalf("pinned plan does not read %s:\n%s", index, plan)
-		}
-	}
-	for _, line := range strings.Split(plan, "\n") {
-		for _, arm := range []string{"payload ->> 'cve_id'", "payload ->> 'advisory_id'"} {
-			if strings.Contains(line, "Index Cond:") && strings.Contains(line, arm) &&
-				(!strings.Contains(line, "fact_id >=") || !strings.Contains(line, "fact_id <")) {
-				t.Fatalf("fact_id bounds are not in the %s arm's index condition:\n%s", arm, plan)
-			}
-		}
-		if strings.Contains(line, "Filter:") && strings.Contains(line, "fact_id") {
-			t.Fatalf("fact_id bounds are a filter, not an index condition:\n%s", plan)
-		}
+	if why := keyRangePlanViolation(plan); why != "" {
+		t.Fatalf("pinned plan: %s:\n%s", why, plan)
 	}
 	// Seeded RED: without the pin, the generic plan cannot see the bounds and
 	// reads the range through the primary key, a slice of the whole table.
