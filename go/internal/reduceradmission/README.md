@@ -24,6 +24,11 @@ See `doc.go` for the godoc contract.
 - `AdmissionIntentWriter` wraps an inner `runtime.ReducerIntentWriter`
   with the gate. A fully disabled gate returns the inner writer
   unwrapped.
+- `SourcePacer`, `NewSourcePacer`, `ProjectorSourcePacer` — the consult the
+  projector makes after a claim and before any projection write (#11186): a
+  slowed source's item is released unwritten. `SourcePacer.ResumeBound` reports
+  the source's release age, which bounds how long the queue parks the released
+  item.
 - The per-source backpressure env contract lives in
   `go/internal/collector` (`LoadSourceBackpressureConfig`); the global
   admission env contract lives here.

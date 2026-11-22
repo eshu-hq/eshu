@@ -133,6 +133,11 @@ SELECT work_item_id, 'phase_committed', jsonb_build_object('k', work_item_id), s
 FROM fact_work_items WHERE scope_id = $1 AND stage = 'reducer'`, scopeID, now); err != nil {
 		t.Fatalf("park rows of %s: %v", scopeID, err)
 	}
+	// A parked row's queue failure class is the wait row's class.
+	if _, err := conn.ExecContext(ctx, `UPDATE fact_work_items SET failure_class = 'readiness_wait'
+WHERE scope_id = $1 AND stage = 'reducer'`, scopeID); err != nil {
+		t.Fatalf("classify parked rows of %s: %v", scopeID, err)
+	}
 }
 
 // wakeTakeableRows marks every reducer row of one scope as woken at wokeAt:
@@ -219,6 +224,18 @@ func TestSourceBackpressureTakeableSignal(t *testing.T) {
 	// the audit ran. The census class below still reads it as parked.
 	seedTakeableShape(t, ctx, conn, now, "tk-dangling", "dangling", "supply_chain_impact", "pending", "", 30, 30*24*time.Hour)
 	parkTakeableRows(t, ctx, conn, "tk-dangling", now)
+	// A retrying row re-claimed after its backstop that re-failed on a timer-path
+	// class keeps its old wait row: the queue row's class no longer matches it.
+	// The signal hides it until the audit reconciles the wait row (an
+	// under-count, so it cannot hold a latch); the census reports it.
+	seedTakeableShape(t, ctx, conn, now, "tk-stale", "stale", "supply_chain_impact", "retrying", "", 30, 30*24*time.Hour)
+	parkTakeableRows(t, ctx, conn, "tk-stale", now)
+	if _, err := conn.ExecContext(ctx, `UPDATE fact_work_items SET failure_class = 'reducer_retryable' WHERE scope_id = 'tk-stale'`); err != nil {
+		t.Fatalf("re-fail stale rows: %v", err)
+	}
+	if got := readWaitingCensus(t, ctx, conn, now); got["stale"].staleWait != 30 || got["parked"].staleWait != 0 || got["dangling"].staleWait != 0 {
+		t.Fatalf("wait census stale_wait: stale=%+v parked=%+v dangling=%+v, want 30 only on the re-failed source", got["stale"], got["parked"], got["dangling"])
+	}
 
 	census := readTakeableCensus(t, ctx, conn, now)
 	for source, want := range map[string]takeableCensusRow{
@@ -229,6 +246,7 @@ func TestSourceBackpressureTakeableSignal(t *testing.T) {
 		"wokenold":   {takeable: 30},
 		"wokenfresh": {takeable: 30},
 		"dangling":   {parked: 30},
+		"stale":      {parked: 30},
 	} {
 		if got := census[source]; got != want {
 			t.Fatalf("census[%s] = %+v, want %+v", source, got, want)
@@ -247,7 +265,7 @@ func TestSourceBackpressureTakeableSignal(t *testing.T) {
 	for _, signal := range grouped {
 		bySource[signal.SourceSystem] = signal
 	}
-	for _, source := range []string{"blocked", "ready", "fenced", "parked", "wokenold", "wokenfresh", "dangling"} {
+	for _, source := range []string{"blocked", "ready", "fenced", "parked", "wokenold", "wokenfresh", "dangling", "stale"} {
 		bounded, err := store.sourceClaimableSignalForSource(ctx, cfg, source, now)
 		if err != nil {
 			t.Fatalf("bounded probe %s: %v", source, err)
@@ -277,6 +295,9 @@ func TestSourceBackpressureTakeableSignal(t *testing.T) {
 	// Expected delta against an unguarded anti-join: the census reads the 30
 	// pending rows of "dangling" as parked (a wait row exists), the signal still
 	// counts them because only a retrying row can be parked.
+	if got := bySource["stale"]; got.ClaimableDepth != 0 || got.RowsPastEngageAge != 0 {
+		t.Fatalf("stale signal = %+v, want the documented under-count: a retrying row holding a stale wait row is hidden until the audit reconciles it", got)
+	}
 	if got := bySource["dangling"]; got.ClaimableDepth != 30 || got.RowsPastEngageAge != 30 {
 		t.Fatalf("dangling signal = %+v, want 30 counted pending rows (census class parked=%d)", got, census["dangling"].parked)
 	}

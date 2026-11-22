@@ -27,8 +27,9 @@ signal staleness, and the replay is what prices both.
 The replay also reports, per source, the peak count of visible retrying rows
 and of visible parked rows (the `waitingCensusQuery` classes), the count of
 visible woken rows that still hold a wait row, the consult p50 and p95 with
-parked rows present at TTL 0 and at the candidate TTL, and the wait-table row
-count during the run, each separately.
+parked rows present at TTL 0 and at the candidate TTL, the retrying rows whose
+wait row's failure class differs from the queue row's (`stale_wait`), and the
+wait-table row count during the run, each separately.
 
 Ceiling. For each source, the peak count of visible retrying rows (K, parked or
 not) times 5 microseconds (the R4-3 per-probe bound) must not exceed 10% of that
@@ -46,7 +47,9 @@ of 92 ms) is inside the ceiling; the 10x seed (1,857 rows, about 9.3 ms, about
 Because K can grow after a one-time replay, a consult-duration instrument is a
 precondition of enablement (none exists today). The enablement record must name
 a consult p95 alert at 100 ms. A post-enablement p95 above 100 ms, or a replay K
-above 1,000, returns the question to the arbiter; the candidate redesign is a
+above the ceiling above (K x 5 microseconds over 10% of that source's consult
+p50, that is K > 20 x the p50 in ms), returns the question to the arbiter; the
+candidate redesign is a
 writer-side parked marker on the queue row (a #10876 change). No new gauge is
 added in this PR: `eshu_dp_reducer_waiting_items` already reports the wait-table
 size by failure class (context, not a cost alarm), and the leg is off by default.
@@ -73,6 +76,11 @@ paced release is issued, so none of the following can occur.
   times an hour while its source stays slowed, and each re-claim raises
   `attempt_count` and `source_paced_waits` together. A long engagement reaches a
   large counter in a day, not a week.
+- **ReleaseAge has no floor.** The configuration only requires `0 < ReleaseAge <
+  EngageAge`. A paced item churns at `max(GrantDelay, ReleaseAge)` plus jitter,
+  and each churn is a claim plus a consult of about 95 ms, so the enablement
+  record names the ReleaseAge and GrantDelay it sets and the churn rate they
+  give.
 - **Migration 333 takes a short lock.** It is `ALTER TABLE fact_work_items ADD
   COLUMN ... NOT NULL DEFAULT 0`: metadata-only on PostgreSQL 11 and later, but
   it takes `ACCESS EXCLUSIVE` and queues behind long `fact_work_items`
@@ -213,14 +221,18 @@ probed source retrying and holding a wait row; the enablement gate's K is the
 operational count of visible retrying rows, parked or not.
 
 Further cells, unprepared probe against the same-cell baseline unless stated:
-K=1,000 at 200,000 other wait rows, 94.4 to 99.9 ms (+5.8%, bar 10%); K=0 at
-200,000 against the prepared baseline (main's mode, so the planning cost shows),
-92.6 to 96.0 ms (+3.7%; +2.2% against the unprepared baseline); the natural mix
-(1,857 visible retrying rows of the probed source, none parked) at 200,000 other
-wait rows, 94.2 to 102.0 ms (+8.3%, bar 10%) at 4.14 microseconds per probe
-(3.63 to 4.46, bar 5.0), and at 0 other wait rows 93.8 to 96.6 ms (+3.1%). At
-that last operating point the consult p50 is 102.0 ms, above the gate's 100 ms
-line, so the enablement gate would refuse it on the p50 line.
+K=1,000 at 200,000 other wait rows, baseline 94.4 ms, probe 99.9 ms (+5.8%, bar
+10%); K=0 at 200,000 against the prepared baseline (main's mode, so the planning
+cost shows), baseline 92.6 ms, probe 96.0 ms (+3.7%; +2.2% against the
+unprepared baseline); the natural mix (1,857 visible retrying rows of the probed
+source, none parked) at 200,000 other wait rows, baseline 94.2 ms, probe 102.0 ms
+(+8.3%, bar 10%) at 4.14 microseconds per probe (3.63 to 4.46, bar 5.0), and at 0
+other wait rows baseline 93.8 ms, probe 96.6 ms (+3.1%). In the 200,000-row
+natural-mix cell the consult p50 is 102.0 ms, above the gate's 100 ms line, so
+the enablement gate would refuse it on the p50 line. The S0 populated cell
+(50,000 other wait rows, K=1,000) read 97.8 to 101.1 ms across runs at host load
+24 to 41, against a baseline that itself drifted from 92 to 98 ms: read it
+against the same-session baseline.
 
 **Grouped query (status publication).** The grouped query misses the ruled
 grouped bar: interleaved 7 by 9 medians against the same-cell baseline at 10x,
@@ -273,9 +285,18 @@ until the audit ran). The live test proves it as a delta: the census reads the
   under-count, so it cannot hold a latch. The replay census must count visible
   rows with `reopened_at` set and a wait row (`woken_with_wait`); a material count
   returns to the arbiter.
-- If the replay shows visible retrying rows above 1,000 on a paced source, the
-  candidate redesign is a writer-side parked marker on the queue row (a #10876
-  change), not a larger budget.
+- If the replay shows visible retrying rows above the ceiling (K x 5
+  microseconds over 10% of that source's consult p50, K > 20 x the p50 in ms) on
+  a paced source, the candidate redesign is a writer-side parked marker on the
+  queue row (a #10876 change), not a larger budget.
+- A retrying row re-claimed after its backstop that re-fails on a timer-path
+  (non-parking) class keeps its old wait row, because nothing on the fail or
+  claim path deletes it. The signal hides the row until the audit's
+  failure-class-mismatch reconcile removes the wait row, and the audit reads only
+  the 500 oldest rows every 5 minutes, so that can take more than 10 minutes. The
+  error is an under-count, so it cannot hold a latch. The replay census counts it
+  (`stale_wait`: a retrying row with a wait row whose failure class differs from
+  the queue row's).
 
 **Cached plans (measured).** pgx's default exec mode caches prepared statements,
 and under `plan_cache_mode=auto` a generic plan made while the wait table is
@@ -285,8 +306,11 @@ retrying rows on the probed source; `autovacuum_analyze_threshold` 50,
 scale factor 0.1, `autovacuum_naptime` 1 min): after eight executes the cached
 plan was generic with `Seq Scan on reducer_waiting_items` (bounded 95 ms,
 grouped 306 ms). With 1,000 wait rows and no ANALYZE the bounded probe took
-160 ms (+68%) and the grouped query 748 ms; with 50,000 rows 3.87 s and 18.7 s;
-`force_generic_plan` matched. `ANALYZE` healed it (bounded 98.8 ms, index form).
+160 ms (+68%) and the grouped query 748 ms; with 50,000 rows the bounded probe took a median 3.87 s, and one
+EXPLAIN execution of the grouped query took 18.7 s (the three timed grouped runs
+after it under `auto` had a median of 352 ms, so `auto` did not reproduce the
+stall on every execution); `force_generic_plan` reproduced it (grouped median
+19.2 s). `ANALYZE` healed it (bounded 98.8 ms, index form).
 Autoanalyze fires after the wait set drains as well as on first deploy, so the
 empty state recurs. All three signal reads therefore pass `pgx.QueryExecModeExec`
 (`unpreparedSignalArgs`), as the entity search page does for the same reason:

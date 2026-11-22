@@ -31,6 +31,11 @@ import (
 //   - woken_with_wait: reopened_at set and a wait row for another key still
 //     exists. Not counted until re-claimed (an under-count: it cannot hold a
 //     latch); the replay reports it and a material count returns to the arbiter.
+//   - stale_wait: retrying with a wait row whose failure class differs from the
+//     queue row's. A row re-claimed after its backstop that re-failed on a
+//     timer-path class keeps its old wait row until the audit reconciles it
+//     (500 oldest rows per 5 minutes). Not counted meanwhile: an under-count that
+//     cannot hold a latch.
 //
 // It is a census, not production SQL.
 var waitingCensusQuery = `
@@ -40,6 +45,10 @@ waitable AS (
            work.status = 'retrying' AS retrying,
            EXISTS (SELECT 1 FROM reducer_waiting_items AS wait WHERE wait.work_item_id = work.work_item_id) AS has_wait,
            work.reopened_at IS NOT NULL AS reopened,
+           work.status = 'retrying' AND EXISTS (
+               SELECT 1 FROM reducer_waiting_items AS wait
+               WHERE wait.work_item_id = work.work_item_id
+                 AND wait.failure_class IS DISTINCT FROM work.failure_class) AS stale_wait,
            ` + reducerNonCountingFailureClassPredicateSQL("work") + ` AS non_counting
     FROM active_fact_work_items AS work
     JOIN ingestion_scopes AS scope ON scope.scope_id = work.scope_id
@@ -53,7 +62,8 @@ SELECT source_system,
        COUNT(*) FILTER (WHERE NOT retrying AND has_wait) AS dangling,
        COUNT(*) FILTER (WHERE NOT has_wait AND NOT reopened AND non_counting) AS non_counting_no_wait,
        COUNT(*) FILTER (WHERE NOT has_wait AND reopened) AS woken,
-       COUNT(*) FILTER (WHERE has_wait AND reopened) AS woken_with_wait
+       COUNT(*) FILTER (WHERE has_wait AND reopened) AS woken_with_wait,
+       COUNT(*) FILTER (WHERE stale_wait) AS stale_wait
 FROM waitable
 GROUP BY source_system
 ORDER BY source_system
@@ -61,12 +71,12 @@ ORDER BY source_system
 
 // waitingCensusRow is one source's wait-state census (see waitingCensusQuery).
 type waitingCensusRow struct {
-	visibleRetrying, parked, dangling, nonCountingNoWait, woken, wokenWithWait int64
+	visibleRetrying, parked, dangling, nonCountingNoWait, woken, wokenWithWait, staleWait int64
 }
 
 func (r waitingCensusRow) String() string {
-	return fmt.Sprintf("visible_retrying=%d parked=%d dangling=%d non_counting_no_wait=%d woken=%d woken_with_wait=%d",
-		r.visibleRetrying, r.parked, r.dangling, r.nonCountingNoWait, r.woken, r.wokenWithWait)
+	return fmt.Sprintf("visible_retrying=%d parked=%d dangling=%d non_counting_no_wait=%d woken=%d woken_with_wait=%d stale_wait=%d",
+		r.visibleRetrying, r.parked, r.dangling, r.nonCountingNoWait, r.woken, r.wokenWithWait, r.staleWait)
 }
 
 func readWaitingCensus(t *testing.T, ctx context.Context, conn reducerClaimBenchmarkConn, now time.Time) map[string]waitingCensusRow {
@@ -80,7 +90,7 @@ func readWaitingCensus(t *testing.T, ctx context.Context, conn reducerClaimBench
 	for rows.Next() {
 		var source string
 		var r waitingCensusRow
-		if err := rows.Scan(&source, &r.visibleRetrying, &r.parked, &r.dangling, &r.nonCountingNoWait, &r.woken, &r.wokenWithWait); err != nil {
+		if err := rows.Scan(&source, &r.visibleRetrying, &r.parked, &r.dangling, &r.nonCountingNoWait, &r.woken, &r.wokenWithWait, &r.staleWait); err != nil {
 			t.Fatalf("scan waiting census: %v", err)
 		}
 		census[source] = r

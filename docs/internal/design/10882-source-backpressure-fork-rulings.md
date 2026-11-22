@@ -244,7 +244,7 @@ age, rows past the release age) in the grouped query and the bounded probe.
 Live Postgres 18 in a private container, local host at about 55% IO
 pressure, one run each, same container and fixture, `TestSourceBackpressureS0SignalCost`:
 
-| Query (10x scale, 7 sources, about 13k claimable rows for one source) | Before F5 (`b126491ae0`) | After F5 |
+| Query (10x scale, 7 sources, about 13k claimable rows for one source) | Before F5 (the "Honor the grant delay when waiting on a paced source" commit) | After F5 |
 | --- | --- | --- |
 | Grouped signal p50 (publication) | 224.5 ms | 234.3 ms |
 | Bounded per-source probe p50 (claim-hot consult) | 88.8 ms | 89.4 ms |
