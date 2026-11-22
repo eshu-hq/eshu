@@ -54,6 +54,22 @@ more than 256 holders drains across claims.
   three arms, Shape-B ruling), so at-or-under-K packs decide exactly as
   before while a hot id still reads hot; a mid-band cheap count saturates
   to the cap and runs singleton, which only splits more).
+- A hot singleton id still read all of its rows in one statement: on QA the
+  hottest id holds 83,642 cve-arm rows and its read spent 7.7 s of I/O against
+  the 10 s guard, so committed passes dead-lettered with `fanout_owed` set
+  (#10643). On a port with the key-range seam, a hot singleton now runs as 16
+  fact_id key-range statements over its cve_id and advisory_id arms plus one
+  member-arm statement. Each one reads the same partial lookup index with
+  `fact_id` in the index condition and keeps the 10 s guard. All 17 run in one
+  read-only REPEATABLE READ transaction, so their union is the shipped read on
+  one snapshot, a generation flip mid-read included. The ranges partition the
+  whole text key space, so a fact_id of any format falls in exactly one; the
+  digest shape of finding ids only keeps them balanced. Total rows read are
+  unchanged and the snapshot is held for at most 17 statement guards. Ordered
+  keyset pages were measured and rejected: each row is a separate random heap
+  fetch, about 10x the shipped cost cold. The GIN member arm has no key order
+  and stays one statement. Proof and numbers:
+  `docs/internal/evidence/10643-holder-read-bound.md`.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the

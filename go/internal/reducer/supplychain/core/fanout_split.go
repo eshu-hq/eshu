@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -21,7 +22,9 @@ const (
 	// per-statement bar. The same budget caps a multi-id statement's combined
 	// mass, so no statement of two or more ids can rebuild the timed-out
 	// shape out of sub-threshold ids. A singleton hot id may exceed the
-	// threshold alone; that residual needs keyset paging, not more splitting.
+	// threshold alone; on a port with HolderKeyRangeReader it runs as
+	// fanOutHolderKeyRangeCount fact_id key-range statements instead
+	// (#10643), so no statement reads all of its rows.
 	fanOutHolderHotMassRows = 10000
 	// fanOutHolderReadParallelism bounds how many holder-read statements of
 	// one pass run concurrently (#10643). Holder reads are I/O-read dominated
@@ -86,6 +89,11 @@ type fanOutSplitStats struct {
 	splitChunks int
 	hotIDs      int
 	maxMass     int64
+	// keyRangedIDs counts hot singleton ids read as key ranges (#10643) and
+	// keyRangeStatements the key-range statements they ran (the member-arm
+	// statement of each is counted in statements, not here).
+	keyRangedIDs       int
+	keyRangeStatements int
 }
 
 // add folds one chunk's stats into the pass total.
@@ -93,6 +101,8 @@ func (s *fanOutSplitStats) add(other fanOutSplitStats) {
 	s.statements += other.statements
 	s.splitChunks += other.splitChunks
 	s.hotIDs += other.hotIDs
+	s.keyRangedIDs += other.keyRangedIDs
+	s.keyRangeStatements += other.keyRangeStatements
 	if other.maxMass > s.maxMass {
 		s.maxMass = other.maxMass
 	}
@@ -132,13 +142,22 @@ func planHolderReadStatements(chunk []string, masses map[string]int64) [][]strin
 	return out
 }
 
+// holderStatement is one planned holder-read statement: its ids and whether
+// it runs as a key-range read (#10643: a hot singleton on a port with the
+// HolderKeyRangeReader seam).
+type holderStatement struct {
+	ids    []string
+	ranged bool
+}
+
 // readHolderScopesSplit runs one chunk's holder read as the planned
-// statements: one direct call when the plan is a single statement (the cold
-// common case, byte-identical to the legacy call), otherwise the statements
-// with bounded parallelism under the same per-statement guard. It returns the
-// union of the scopes every statement found. A failed probe or statement
-// fails closed with the existing read-error classification and counter, so
-// the pass retries instead of proceeding without its holders.
+// statements: one direct call when the plan is a single unranged statement
+// (the cold common case, byte-identical to the legacy call), otherwise the
+// statements with bounded parallelism under the same per-statement guard. A
+// hot singleton id runs as a key-range read when the port has the seam. It
+// returns the union of the scopes every statement found. A failed probe or
+// statement fails closed with the existing read-error classification and
+// counter, so the pass retries instead of proceeding without its holders.
 func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	ctx context.Context,
 	cause string,
@@ -146,31 +165,49 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	chunk []string,
 ) (map[string]struct{}, fanOutSplitStats, error) {
 	var stats fanOutSplitStats
-	statements := [][]string{chunk}
+	planned := [][]string{chunk}
+	var masses map[string]int64
 	if est, ok := h.FanOut.(HolderMassEstimator); ok {
-		masses, err := est.EstimateHolderMasses(ctx, chunk)
+		start := time.Now()
+		var err error
+		masses, err = est.EstimateHolderMasses(ctx, chunk)
+		h.observeFanOutRead(ctx, telemetry.FanOutReadKindMassProbe, time.Since(start), err)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			return nil, stats, fanOutError{fmt.Errorf("estimate supply chain impact holder mass: %w", err)}
 		}
-		statements = planHolderReadStatements(chunk, masses)
+		planned = planHolderReadStatements(chunk, masses)
 		for _, id := range chunk {
 			if mass, ok := masses[id]; ok && mass > stats.maxMass {
 				stats.maxMass = mass
 			}
 		}
 	}
-	stats.statements = len(statements)
-	if len(statements) > 1 {
+	rangeReader, canRange := h.FanOut.(HolderKeyRangeReader)
+	ranges := HolderKeyRanges()
+	statements := make([]holderStatement, 0, len(planned))
+	for _, ids := range planned {
+		stmt := holderStatement{ids: ids}
+		if canRange && len(ids) == 1 && masses[ids[0]] > fanOutHolderHotMassRows {
+			stmt.ranged = true
+			stats.keyRangedIDs++
+			stats.keyRangeStatements += len(ranges)
+			stats.statements += len(ranges) + 1
+		} else {
+			stats.statements++
+		}
+		statements = append(statements, stmt)
+	}
+	if len(planned) > 1 {
 		stats.splitChunks = 1
-		for _, stmt := range statements {
-			if len(stmt) == 1 {
+		for _, ids := range planned {
+			if len(ids) == 1 {
 				stats.hotIDs++
 			}
 		}
 	}
-	if len(statements) == 1 {
-		found, err := h.FanOut.FindHolderScopes(ctx, ownScopeID, statements[0])
+	if len(statements) == 1 && !statements[0].ranged {
+		found, err := h.findHolderScopes(ctx, ownScopeID, statements[0].ids)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteHolders)
 			return nil, stats, fanOutError{fmt.Errorf("find supply chain impact holders: %w", err)}
@@ -189,10 +226,23 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 	for _, stmt := range statements {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(ids []string) {
+		go func(stmt holderStatement) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			found, err := h.FanOut.FindHolderScopes(ctx, ownScopeID, ids)
+			var found []string
+			var err error
+			if stmt.ranged {
+				var read HolderKeyRangeRead
+				start := time.Now()
+				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
+				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
+				for _, done := range read.Statements {
+					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
+				}
+				found = read.Scopes
+			} else {
+				found, err = h.findHolderScopes(ctx, ownScopeID, stmt.ids)
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -212,4 +262,13 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 		return nil, stats, fanOutError{fmt.Errorf("find supply chain impact holders: %w", firstErr)}
 	}
 	return set, stats, nil
+}
+
+// findHolderScopes runs one shipped holder statement and records its
+// duration under the holders read kind.
+func (h SupplyChainImpactHandler) findHolderScopes(ctx context.Context, ownScopeID string, ids []string) ([]string, error) {
+	start := time.Now()
+	found, err := h.FanOut.FindHolderScopes(ctx, ownScopeID, ids)
+	h.observeFanOutRead(ctx, telemetry.FanOutReadKindHolders, time.Since(start), err)
+	return found, err
 }

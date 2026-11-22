@@ -32,7 +32,9 @@ holder reads are I/O-read dominated (72% of exec), one chunk splits into at
 most 5 statements, and 4 concurrent reads keep one pass far under the pool
 even with parallel workers. No statement of two or more ids covers more than
 the threshold, so the timed-out shape cannot re-form; a singleton hot id may
-exceed the threshold alone (residual: keyset paging, not more splitting).
+exceed the threshold alone (residual: keyset paging, not more splitting;
+closed by the fact_id key-range read, see
+`docs/internal/evidence/10643-holder-read-bound.md`).
 Proof: `TestHolderAdaptiveSplitRowIdentityLive` (bidirectional EXCEPT 0/0
 split-vs-unsplit from the shipped constant) and `TestHolderMassProbeLive`
 (exact per-id masses, probe ~2.4 ms); full account in

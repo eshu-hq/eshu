@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -29,6 +30,9 @@ const (
 	fanOutOutcomeReadTimeout   = "read_timeout"
 	fanOutOutcomeReopenError   = "reopen_error"
 	fanOutOutcomeStateError    = "state_error"
+	// fanOutReadOutcomeOK is the read-duration histogram's outcome for a
+	// statement that returned (#10643); the counter has no ok outcome.
+	fanOutReadOutcomeOK = "ok"
 )
 
 func (h SupplyChainImpactHandler) startFanOutSpan(ctx context.Context, intent reducercontract.Intent) (context.Context, trace.Span) {
@@ -101,6 +105,8 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int("split_chunks", r.splitChunks),
 		slog.Int("hot_ids", r.hotIDs),
 		slog.Int64("max_id_mass_rows", r.maxIDMassRows),
+		slog.Int("key_ranged_ids", r.keyRangedIDs),
+		slog.Int("holder_key_range_statements", r.keyRangeStatements),
 	)
 }
 
@@ -164,8 +170,29 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_holder_statements"] = float64(r.holderStatements)
 	subSignals["fanout_hot_ids"] = float64(r.hotIDs)
 	subSignals["fanout_max_id_mass_rows"] = float64(r.maxIDMassRows)
+	subSignals["fanout_key_ranged_ids"] = float64(r.keyRangedIDs)
+	subSignals["fanout_holder_key_range_statements"] = float64(r.keyRangeStatements)
 	subSignals["fanout_reopened"] = float64(r.reopened)
 	subSignals["fanout_replay_flagged"] = float64(r.replayFlagged)
 	subSignals["fanout_deferred"] = float64(r.deferred)
 	subSignals["fanout_replay_cleared"] = boolSignal(r.replayCleared)
+}
+
+// observeFanOutRead records one holder-read statement's duration (#10643) by
+// read kind (one of the telemetry.FanOutReadKind* constants) and outcome (ok,
+// read_timeout, read_error), so an operator reads per-statement p95 against
+// the 2 s bar and the timeout share at the 10 s guard per kind.
+func (h SupplyChainImpactHandler) observeFanOutRead(ctx context.Context, kind string, elapsed time.Duration, err error) {
+	if h.Instruments == nil || h.Instruments.SupplyChainImpactFanOutReadDuration == nil {
+		return
+	}
+	outcome := fanOutReadOutcomeOK
+	if err != nil {
+		outcome = readFailureOutcome(err)
+	}
+	h.Instruments.SupplyChainImpactFanOutReadDuration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(
+		telemetry.AttrDomain(string(reducercontract.DomainSupplyChainImpact)),
+		telemetry.AttrFanOutReadKind(kind),
+		attribute.String("outcome", outcome),
+	))
 }
