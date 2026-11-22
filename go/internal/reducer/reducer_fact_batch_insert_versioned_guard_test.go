@@ -12,7 +12,9 @@ import (
 
 // reducerFactBatchInsertVersionedConflictGuard is the FROZEN normalized tail of
 // factwrite.BatchInsertVersionedQuery (#5848): its whole ON CONFLICT clause,
-// including the `fencing_token <= EXCLUDED.fencing_token` guard.
+// including the `fencing_token <= EXCLUDED.fencing_token` guard and, after it,
+// the scope owner leg `scope_id = EXCLUDED.scope_id` (#11213): a write may only
+// change a row of its own scope, and the leg has no generation sibling.
 //
 // This mirrors reducerFactBatchInsertConflictGuard for the versioned family.
 // aws_cloud_runtime_drift is the first versioned writer to opt in: its
@@ -41,7 +43,8 @@ const reducerFactBatchInsertVersionedConflictGuard = "ON CONFLICT (fact_id) DO U
 	"is_tombstone = EXCLUDED.is_tombstone, " +
 	"payload = EXCLUDED.payload, " +
 	"fencing_token = EXCLUDED.fencing_token " +
-	"WHERE fact_records.fencing_token <= EXCLUDED.fencing_token"
+	"WHERE fact_records.fencing_token <= EXCLUDED.fencing_token " +
+	"AND fact_records.scope_id = EXCLUDED.scope_id"
 
 // TestReducerFactBatchInsertVersionedFreezesItsConflictGuard holds the line on
 // the versioned insert's conflict clause the same way

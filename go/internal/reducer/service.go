@@ -529,6 +529,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 		if errors.As(err, &timeoutErr) {
 			s.recordReducerHandlerTimedOut(ctx, intent)
 		}
+		s.recordReducerFactIDOwnerConflict(ctx, err)
 		if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}

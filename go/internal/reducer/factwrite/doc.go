@@ -11,6 +11,11 @@
 // drops the earlier ones. That is a correctness requirement, not an
 // optimization.
 //
+// Every conflict clause ends with a scope owner leg (#11213): a write can only
+// change a row of its own scope, and a row another scope holds is reported as an
+// OwnerConflictError rather than counted as written. There is deliberately no
+// generation leg.
+//
 // Chunking bounds the statement size: a batch is split into runs of BatchSize
 // rows so a large generation cannot build a single statement past what the
 // driver and server will accept.

@@ -40,7 +40,7 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 		return PlatformMaterializationWriteResult{}, fmt.Errorf("marshal platform materialization payload: %w", err)
 	}
 
-	if _, err := w.DB.ExecContext(
+	result, err := w.DB.ExecContext(
 		ctx,
 		factwrite.SingleInsertQuery,
 		write.IntentID,
@@ -58,8 +58,12 @@ func (w PostgresPlatformMaterializationWriter) WritePlatformMaterialization(
 		now,
 		false,
 		payloadJSON,
-	); err != nil {
+	)
+	if err != nil {
 		return PlatformMaterializationWriteResult{}, fmt.Errorf("write platform materialization fact: %w", err)
+	}
+	if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, write.IntentID, write.ScopeID, write.GenerationID, reducercontract.PlatformMaterializationFactKind); err != nil {
+		return PlatformMaterializationWriteResult{}, err
 	}
 
 	return PlatformMaterializationWriteResult{

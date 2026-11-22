@@ -47,7 +47,7 @@ func (w PostgresKubernetesCorrelationWriter) WriteKubernetesCorrelations(
 		if err != nil {
 			return KubernetesCorrelationWriteResult{}, fmt.Errorf("marshal kubernetes correlation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
+		result, err := w.DB.ExecContext(
 			ctx,
 			factwrite.SingleInsertQuery,
 			kubernetesCorrelationFactID(write, decision),
@@ -65,8 +65,12 @@ func (w PostgresKubernetesCorrelationWriter) WriteKubernetesCorrelations(
 			now,
 			false,
 			payloadJSON,
-		); err != nil {
+		)
+		if err != nil {
 			return KubernetesCorrelationWriteResult{}, fmt.Errorf("write kubernetes correlation fact: %w", err)
+		}
+		if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, kubernetesCorrelationFactID(write, decision), write.ScopeID, write.GenerationID, kubernetesCorrelationFactKind); err != nil {
+			return KubernetesCorrelationWriteResult{}, err
 		}
 	}
 	return KubernetesCorrelationWriteResult{

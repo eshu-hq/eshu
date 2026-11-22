@@ -456,6 +456,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 		if errors.As(err, &timeoutErr) {
 			s.recordReducerHandlerTimedOut(ctx, intent)
 		}
+		s.recordReducerFactIDOwnerConflict(ctx, err)
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}

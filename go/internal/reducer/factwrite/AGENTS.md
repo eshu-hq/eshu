@@ -52,6 +52,32 @@ Two (:301-306 and :327-332) append four more bind values ($17..$20 —
 `…PublishOnlyQuery` (:94). Renumbering `ChunkArgs`' columns without updating
 any of these offsets breaks that caller silently.
 
+## Scope owner leg (#11213)
+
+`SingleInsertQuery` (a `WHERE`), `BatchInsertConflict` and the versioned
+conflict clause all end with `fact_records.scope_id = EXCLUDED.scope_id`, so a
+write can only change a row of its own scope. It follows the fencing predicate,
+which stays first and verbatim. There is **no generation leg**: an id stable
+across generations of one scope keeps updating its row (every current reducer id
+function hashes both, but the contract must not freeze a stable id).
+`TestEveryReducerFactStatementCarriesTheScopeOwnerLeg` and
+`TestOwnerLegDriftSeededViolations` pin both facts; the reducer root's frozen
+`reducerFactBatchInsert*ConflictGuard` constants pin the full clauses.
+
+A skipped row is reported, never counted as written. `CheckOwned` turns a
+zero-rows-affected single insert into an `*OwnerConflictError`; `ExecChunk` and
+`execVersionedChunk` call `resolveShortfall`: a shortfall in rows affected is
+either a stale write the fencing predicate rightly skipped or a row another scope
+holds, and one primary-key probe (`foreignOwnersQuery`) tells them apart. The
+probe runs only on a shortfall and only when the handle is a `db.Queryer`, which
+every production handle is; the recording fakes of the writers' own tests are
+not, so they never probe. The error is non-retryable with failure class
+`fact_id_owner_conflict`, so the intent dead-letters instead of retrying. The
+reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total` with the
+`writer` label (`reducer_single`, `reducer_batch`, `reducer_versioned`). Do not
+add a generation leg, do not swallow the error, and do not move the leg onto a
+statement whose caller derives work from `RETURNING`.
+
 ## Failure modes
 
 - A `ChunkArgs` / placeholder mismatch fails only when a batch is non-empty, so

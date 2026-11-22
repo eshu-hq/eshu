@@ -43,7 +43,7 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 		return WorkloadIdentityWriteResult{}, fmt.Errorf("marshal workload identity payload: %w", err)
 	}
 
-	if _, err := w.DB.ExecContext(
+	result, err := w.DB.ExecContext(
 		ctx,
 		factwrite.SingleInsertQuery,
 		write.IntentID,
@@ -61,8 +61,12 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 		now,
 		false,
 		payloadJSON,
-	); err != nil {
+	)
+	if err != nil {
 		return WorkloadIdentityWriteResult{}, fmt.Errorf("write workload identity fact: %w", err)
+	}
+	if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, write.IntentID, write.ScopeID, write.GenerationID, workloadIdentityFactKind); err != nil {
+		return WorkloadIdentityWriteResult{}, err
 	}
 
 	return WorkloadIdentityWriteResult{
