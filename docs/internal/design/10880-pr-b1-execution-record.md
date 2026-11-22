@@ -200,18 +200,19 @@ number that decides whether the +25% rule holds. PR-C's net-negative WAL must be
 measured the same way, not credited from an upper bound.
 
 **Backfill duration** (100,000 facts in 2,000 scopes, 500-fact chunks, one
-transaction per scope here because each scope holds 50 facts): 2,001 steps,
-30.3 s, 3,297 supports per second, longest step 2.04 s under load. A production
-scope with many thousands of facts runs 500-fact chunks of about 150 ms each; a
-writer waits at most one chunk. At this rate 5 million supports take about 25
-minutes. The walk never sorts the fact table: pair discovery is an index range
-scan (0.03 ms in `EXPLAIN ANALYZE` at 100,000 facts), and the per-chunk sort is
-bounded by one pair's live findings. A first version ordered the whole table by
-`(scope_id, generation_id, fact_id)` per step and timed out at 100,000 facts; the
-scale harness found it, and the walk was rewritten before commit. Those figures
-were measured before the payload became verbatim; the backfill writes the same
-rows through the writer's own statement, so its row width is now larger and its
-rate is NOT_CHECKED at the final shape.
+chunk per scope here because each scope holds 50 facts; the final shape, verbatim
+payload, measured at the merged head with the drain loop in place): 4,001 steps
+(two per scope: one writes the chunk, the next finds the pair exhausted and moves
+on), 41.8 s, 2,394 supports per second, longest step 276 ms (host load about 27).
+An earlier build with the stripped payload measured 30.3 s and 3,297 supports per
+second, so the wider row costs about 27% of the rate. A production scope with many
+thousands of facts runs 500-fact chunks of about 200 ms each; a writer waits at
+most one chunk. At this rate 5 million supports take about 35 minutes. The walk
+never sorts the fact table: pair discovery is an index range scan (0.03 ms in
+`EXPLAIN ANALYZE` at 100,000 facts), and the per-chunk sort is bounded by one
+pair's live findings. A first version ordered the whole table by `(scope_id,
+generation_id, fact_id)` per step and timed out at 100,000 facts; the scale
+harness found it, and the walk was rewritten before commit.
 
 **Read blocks** (legacy list read against the committed candidate at the earlier
 payload shape, 100,000 facts, status filter, buffer hits plus reads of one
@@ -309,8 +310,7 @@ written), or an old writer still running (the dirty-scope gauge stays above zero
 
 ## NOT_CHECKED
 
-- A production-scale backfill at the final payload shape (the figures above are
-  100,000 facts at the earlier shape).
+- A production-scale backfill (the figure above is 100,000 facts).
 - Read blocks and timings of the candidate at the ruled rank-filter order and the
   verbatim payload.
 - A cold-start run with the page cache dropped: block accesses are reported, not
