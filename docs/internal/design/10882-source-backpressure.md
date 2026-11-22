@@ -473,11 +473,11 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
 
 ## What stays unverified
 
-- #11186 (a paced item repeats its projection writes and parks a worker; met
-  by the pre-write release, built-binary replay arm owed) and
-  #11187 (met: readiness-blocked rows no longer count; arm owed) must close
-  before the replay is accepted, before #10882 closes, and before any
-  deployment sets the thresholds ([fork rulings](10882-source-backpressure-fork-rulings.md)).
+- #11186 (pre-write release and resume bound landed, replay arm owed) and
+  #11187 (met for the claim-gate class; the parked-wait class, the
+  timer-path class, and the replay arm are owed) must close before the
+  replay is accepted, before #10882 closes, and before any deployment sets
+  the thresholds. Enablement gate and rollout: [r4 decisions](10882-source-backpressure-r4-decisions.md).
 
 - All thresholds (engage/release ages, depth floor, schedule
   multiplier, cache TTL) are Proposed. No live or replay measurement
