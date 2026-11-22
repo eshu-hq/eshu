@@ -18,7 +18,7 @@ This package owns failure-cause reconciliation (`QueueFailureMetadata`,
 (`ComputeRetryDelay`, `DefaultRetryMaxDelayFallback`,
 `DefaultJitterSource`), plus the shared `reopened_at` value of the
 fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320), and the
-replay retry-allowance SET fragment every operator replay carries
+replay retry-allowance SET fragment the three operator replay paths carry
 (`ReplayRetryAllowanceAssignments`, #11182). The parent
 `postgres` package owns the queue types
 that call these helpers, the claim/fail/ack SQL, and the lease fencing.

@@ -36,11 +36,21 @@ so the first failure after a replay waits as long as a new row's first
 failure does. The backoff of an admission retry uses `admission_wait_attempts`,
 as before.
 
-Each replay is an operator act. It grants one bounded allowance, and the row
-ends in `dead_letter` again if the cause persists. Nothing replays rows on a
-timer. A duplicate request with the same `idempotency_key` returns the
-recorded outcome from the `admin_replay_requests` ledger and changes nothing,
-so a retried request never grants a second allowance.
+Each of the three replay paths is an operator act. It grants one bounded
+allowance, and the row ends in `dead_letter` again if the cause persists. A
+duplicate request with the same `idempotency_key` returns the recorded outcome
+from the `admin_replay_requests` ledger and changes nothing, so a retried
+request never grants a second allowance.
+
+A fourth writer moves `dead_letter` rows back to `pending` on a timer: the
+reducer's poison-liveness auto-retry sweep, when
+`ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED` is on (default `false`). It covers
+projector rows too and is out of scope here (#11217). The poison-liveness
+sweep does not carry the allowance. It keeps `attempt_count`,
+`admission_wait_attempts` and `replay_attempt_baseline`, so a recovered row
+resumes the budget it had left. A row that used up its projection budget
+dead-letters again on its first projection failure (#11217).
+`poison_recovery_attempts` bounds how many times the sweep recovers a row.
 
 Before #11182 a replay kept `attempt_count` but no baseline. A row
 dead-lettered at attempt 3 claimed at attempt 4, so its first projection

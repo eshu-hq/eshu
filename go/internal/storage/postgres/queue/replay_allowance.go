@@ -3,9 +3,14 @@
 
 package queuestore
 
-// ReplayRetryAllowanceAssignments is the SET-list fragment every operator
-// replay of a terminal fact_work_items row carries: the admin replay store,
-// the recovery replay and its bounded drain variant (#11182). It gives a
+// ReplayRetryAllowanceAssignments is the SET-list fragment the three operator
+// replay paths of a terminal fact_work_items row carry: the admin replay
+// store, the recovery replay and its bounded drain variant (#11182). The
+// reducer's poison-liveness auto-retry sweep is a fourth dead_letter to
+// pending writer and is out of scope here (#11217): the poison-liveness sweep
+// does not carry the allowance; it keeps the three counters, so a recovered
+// row resumes the budget it had left, and a row that used up its projection
+// budget dead-letters again on its first projection failure (#11217). It gives a
 // replayed projector row the retry allowance of a new row without lowering
 // attempt_count, which stays the monotonic claim fence (every projector worker
 // shares one lease owner, so a lowered attempt_count would let a stale holder

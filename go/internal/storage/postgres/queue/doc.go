@@ -38,8 +38,8 @@
 // conflicting row had finished, its existing reopened_at when the row was
 // still pending, retrying, claimed, or running. It is SQL text, not a query.
 //
-// ReplayRetryAllowanceAssignments is the SET-list fragment every operator
-// replay of a terminal fact_work_items row carries (#11182): it sets a
+// ReplayRetryAllowanceAssignments is the SET-list fragment the three operator
+// replay paths of a terminal fact_work_items row carry (#11182): it sets a
 // projector row's replay_attempt_baseline to its kept attempt_count and
 // resets admission_wait_attempts, so the row gets a new row's retries while
 // attempt_count stays the claim fence. It is SQL text, not a query.

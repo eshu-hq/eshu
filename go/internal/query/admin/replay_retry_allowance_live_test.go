@@ -53,7 +53,7 @@ func TestReplayGrantsProjectionRetriesLive(t *testing.T) {
 }
 
 // TestReplayGrantsAdmissionWaitsLive proves the admission side of the
-// allowance on every replay writer. A row dead-lettered by exhausting the
+// allowance on each of the three replay paths. A row dead-lettered by exhausting the
 // 48-wait admission budget is replayed with its admission counter reset, so
 // it survives 47 more admission waits and dies on the 48th. Before the fix
 // the replay kept admission_wait_attempts at 47 and the first wait after the

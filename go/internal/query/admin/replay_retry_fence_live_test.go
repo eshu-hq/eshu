@@ -124,7 +124,7 @@ WHERE work_item_id = $1`, dead.id); err != nil {
 
 // TestReplayNeverRewritesClaimedRowLive proves a replay that arrives after a
 // worker claimed the replayed row selects nothing and leaves the claim alone,
-// on every replay writer.
+// on each of the three replay paths.
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestReplayNeverRewritesClaimedRowLive(t *testing.T) {

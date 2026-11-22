@@ -49,7 +49,8 @@ const (
 	replayViaRecoveryBounded replaySite = "recovery-bounded"
 )
 
-// replaySites is every replay writer, so each replay proof runs on all three.
+// replaySites is the three replay paths that carry the allowance, so each
+// replay proof runs on all three (the poison auto-retry sweep carries none).
 var replaySites = []replaySite{replayViaAdmin, replayViaRecovery, replayViaRecoveryBounded}
 
 // proofProjectionError is a retryable projection failure that is not an
