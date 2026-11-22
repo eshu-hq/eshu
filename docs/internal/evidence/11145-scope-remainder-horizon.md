@@ -99,9 +99,14 @@ Edge cases:
 ## Contract decision: re-pin, no version bump
 
 The convert was not in A's hash set. Per arbiter-11120a decision 9 it joins the
-set, and version 1 is re-pinned to
+set. When this branch was written, version 1 was current and was re-pinned to
 `1b5f967bf7ca338917b3137f98b7c4423cec49318440e583b216d629654cc201` (was
-`c5731efd...`). This is a text change, not a semantic change to stored winners:
+`c5731efd...`). After the rebase onto the merged #10880 slice 1 (#11188), which
+bumped the contract to version 2, the pin that moves is version 2:
+`8e761819b7b0f43d77ea3d46d8fd7395f5308ad945e542bc3b5c7ce3677d292e` (was
+`62ceaea5c58e0c1917a0d63f052aca02f4d567f517182e03928e241bcd19952b` on main),
+and version 1 keeps `c5731efd...`. The reasoning below holds unchanged for
+version 2. This is a text change, not a semantic change to stored winners:
 which keys get recomputed is the same, and only the capture time of a queued
 row moves. What does change is when `winners_watermark` waiters wake: no
 earlier than their activation's winners. A version bump would force one
