@@ -194,17 +194,10 @@ func TestSupplyChainImpactWinnersResweepAuditSweepCursorRaceLive(t *testing.T) {
 	stale := auditSingleStatementCandidates(t, h.ctx, h.db)
 	reader := postgres.SQLDB{DB: h.db}
 
-	sweep, err := h.store.ReadWinnersAuditSweep(h.ctx)
-	if err != nil {
-		t.Fatalf("read sweep: %v", err)
-	}
-	rng, err := postgres.ReadWinnersAuditRange(h.ctx, reader, nil, 1)
-	if err != nil {
-		t.Fatalf("read range: %v", err)
-	}
-	// The first identifier is the orphan before every fact, so the range
-	// carries a candidate and its verify queues a repair.
-	req := postgres.WinnersAuditRangeVerify{SweepID: sweep.SweepID, Range: rng}
+	sweepID, rng := auditRangeAdvanceToFirstCandidate(t, h, 1)
+	// The first range with a candidate carries a stale or orphan winner, so
+	// its verify queues a repair (which range that is depends on collation).
+	req := postgres.WinnersAuditRangeVerify{SweepID: sweepID, Range: rng}
 	won, err := h.store.VerifyWinnersAuditRange(h.ctx, req)
 	if err != nil || !won.Advanced || won.Repairs < 1 {
 		t.Fatalf("first verify = %+v, %v; want advanced with at least the orphan's repair", won, err)
@@ -228,7 +221,7 @@ func TestSupplyChainImpactWinnersResweepAuditSweepCursorRaceLive(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			req := postgres.WinnersAuditRangeVerify{SweepID: sweep.SweepID, Range: next, WaitForLock: true}
+			req := postgres.WinnersAuditRangeVerify{SweepID: sweepID, Range: next, WaitForLock: true}
 			out, err := h.store.VerifyWinnersAuditRange(h.ctx, req)
 			if err != nil {
 				t.Errorf("concurrent verify %d: %v", i, err)

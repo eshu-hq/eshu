@@ -42,15 +42,10 @@ VALUES ('fact', 'fact_upsert', 'pkg:npm/p07', 'repo-0', '', 'CVE-2026-59', 'GHSA
 		},
 	}
 	store := postgres.NewSupplyChainImpactWinnersStore(timed)
-	sweep, err := store.ReadWinnersAuditSweep(h.ctx)
-	if err != nil {
-		t.Fatalf("read sweep: %v", err)
-	}
-	rng, err := postgres.ReadWinnersAuditRange(h.ctx, postgres.SQLDB{DB: h.db}, nil, 1)
-	if err != nil {
-		t.Fatalf("read range: %v", err)
-	}
-	out, err := store.VerifyWinnersAuditRange(h.ctx, postgres.WinnersAuditRangeVerify{SweepID: sweep.SweepID, Range: rng})
+	// The first range with a candidate: which one that is depends on the
+	// database collation, and the empty ranges before it take no lock.
+	sweepID, rng := auditRangeAdvanceToFirstCandidate(t, h, 1)
+	out, err := store.VerifyWinnersAuditRange(h.ctx, postgres.WinnersAuditRangeVerify{SweepID: sweepID, Range: rng})
 	if err != nil || !out.Advanced || !out.Locked || out.Repairs < 1 {
 		t.Fatalf("range verify = %+v, %v; want a locked, advanced range with a repair", out, err)
 	}

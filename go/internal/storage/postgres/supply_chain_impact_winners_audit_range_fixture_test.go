@@ -163,6 +163,43 @@ VALUES ($1, 'gone:' || $1, 'finding:orphan:' || $1, $2, $3, $4, $5, $6, now())`,
 	}
 }
 
+// auditRangeAdvanceToFirstCandidate returns the sweep id and the first range,
+// in the sweep's own key order, that carries a candidate. Ranges before it
+// carry none, take no lock, and are verified (advancing the persisted cursor)
+// so the returned range starts at the stored cursor, ready to verify. Where
+// the orphans sort depends on the database collation (a libc collation
+// ignores '-', '.', '_' and '@' at the first level, the C collation of the
+// CI image does not), so a proof must not assume which identifier opens the
+// sweep: the orphan "a-orphan-first" opens it under en_US and does not under C.
+func auditRangeAdvanceToFirstCandidate(t *testing.T, h *keyedHarness, budget int) (int64, postgres.WinnersAuditRange) {
+	t.Helper()
+	sweep, err := h.store.ReadWinnersAuditSweep(h.ctx)
+	if err != nil {
+		t.Fatalf("read sweep: %v", err)
+	}
+	reader := postgres.SQLDB{DB: h.db}
+	var lo *postgres.WinnersAuditRangeIdent
+	for ranges := 0; ranges < 10000; ranges++ {
+		rng, err := postgres.ReadWinnersAuditRange(h.ctx, reader, lo, budget)
+		if err != nil {
+			t.Fatalf("range %d: %v", ranges, err)
+		}
+		if len(rng.Candidates) > 0 {
+			return sweep.SweepID, rng
+		}
+		if rng.Last {
+			t.Fatalf("no range of the sweep carries a candidate after %d ranges; the seeded orphans must", ranges+1)
+		}
+		out, err := h.store.VerifyWinnersAuditRange(h.ctx, postgres.WinnersAuditRangeVerify{SweepID: sweep.SweepID, Range: rng})
+		if err != nil || !out.Advanced || out.Locked {
+			t.Fatalf("candidate-free range %d verify = %+v, %v; want an unlocked advance", ranges, out, err)
+		}
+		lo = rng.Hi
+	}
+	t.Fatal("sweep did not reach a candidate range in 10000 ranges")
+	return 0, postgres.WinnersAuditRange{}
+}
+
 // auditIdentKey renders an identifier for set comparison in Go; the order of
 // the sweep is never computed here.
 func auditIdentKey(i postgres.WinnersAuditIdent) string {

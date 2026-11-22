@@ -138,6 +138,28 @@ every tick (found in independent re-review, not by the earlier live run).
   `keyed_yield` 54. The host was loaded (load1 about 40), so the figures are
   for correctness, not a timing baseline.
 
+### Collation of the CI database
+
+The reducer contention gate runs a Postgres image whose database collation is
+C (`database collation sorts '@tootallnate/once' after 'pkg:npm/p99': false`),
+while the earlier runs above used en_US.utf8 (`true`). Two proofs assumed the
+orphan `a-orphan-first` opens the sweep, which holds only where punctuation is
+ignored at the first level; under C the identifiers `-dashed`, `.dotted`,
+`@scope/pkg` and the like sort before it, so the first range carried no
+candidate and `...AuditSweepKeyedTickSkippedDuringVerifyLive` and
+`...AuditSweepCursorRaceLive` failed on the pull request.
+
+- RED: a `postgres:18.6` container initialised with `--locale=C`, both tests,
+  `-p 1 -parallel 1`: both fail with the CI messages (`first verify = {Advanced:true
+  ... Locked:false Candidates:0 ... Repairs:0}`), exit 1.
+- Fix: the two proofs verify the candidate-free ranges in key order (they take
+  no lock) until the first range with a candidate, instead of assuming which
+  identifier opens the sweep.
+- GREEN under C: both tests three times, then the whole `...ResweepAudit*Live`
+  family (15 tests, one skipped: the opt-in scale measurement), exit 0; under
+  en_US.utf8 the same two tests plus the differential, repairs, resume and
+  guard proofs pass, exit 0.
+
 ## Performance Evidence
 
 Performance Evidence: theory measured before any code on the QA read-only
