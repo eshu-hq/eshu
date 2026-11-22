@@ -12,6 +12,8 @@ ESHU_GATE_TIMING_DIR; ESHU_GATE_TIMING=0 turns recording off). It lives outside
 the repo on purpose: it is a measurement of this host, never committed.
 """
 
+from __future__ import annotations
+
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
@@ -31,6 +33,7 @@ SCHEMA = "eshu-gate-timing/v1"
 NOISY_LOAD1 = 9.0
 _TEST_LINE = re.compile(r"^(ok|FAIL)\s+(\S+)\s+([0-9.]+)s\b")
 _SHARD = re.compile(r"shard \(\d+/\d+\)")
+_SHARD_PAREN = re.compile(r"\(shard \d+/\d+\)")
 _RACE_SHARD = re.compile(r"\((\d+)\)$")
 
 
@@ -71,7 +74,9 @@ def parse_gates(path: str | None) -> list[dict[str, Any]]:
     except (OSError, ValueError):
         return []
     gates = []
-    for cmd in report.get("commands", []):
+    if not isinstance(report, dict):
+        return []
+    for cmd in report.get("commands") or []:
         # A skipped or reused command cost nothing in this run, so it is not
         # counted as time spent.
         if cmd.get("outcome") == "skipped" or cmd.get("reused_from"):
@@ -80,7 +85,7 @@ def parse_gates(path: str | None) -> list[dict[str, Any]]:
             "gate_id": cmd.get("gate_id", ""),
             "kind": cmd.get("kind", ""),
             "outcome": cmd.get("outcome", ""),
-            "seconds": round(cmd.get("duration_ms", 0) / 1000.0, 1),
+            "seconds": round((cmd.get("duration_ms") or 0) / 1000.0, 1),
         })
     return gates
 
@@ -147,8 +152,17 @@ def command_record(args: argparse.Namespace) -> int:
         print(f"gate-timing: timing not recorded ({err})", file=sys.stderr)
         return 0
     print(render_slowest(steps))
-    print(f"gate-timing: recorded to {target} (summary: scripts/dev/gate-timing.py summary)")
+    print(f"gate-timing: recorded to {display_path(target)} "
+          "(summary: python3 scripts/dev/gate-timing.py summary)")
     return 0
+
+
+def display_path(path: Path) -> str:
+    """Return a path with the home directory shown as ~."""
+    try:
+        return "~/" + str(path.relative_to(Path.home()))
+    except ValueError:
+        return str(path)
 
 
 def git_value(*argv: str) -> str:
@@ -191,6 +205,25 @@ def render_summary(runs: list[dict[str, Any]], top: int) -> str:
     return "\n".join(out)
 
 
+def parse_store_lines(lines: list[str]) -> tuple[list[dict[str, Any]], int]:
+    """Parse store lines; return the runs and how many lines were unreadable."""
+    runs: list[dict[str, Any]] = []
+    bad = 0
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            run = json.loads(line)
+        except ValueError:
+            bad += 1
+            continue
+        if isinstance(run, dict):
+            runs.append(run)
+        else:
+            bad += 1
+    return runs, bad
+
+
 def command_summary(args: argparse.Namespace) -> int:
     """Print the cross-run summary."""
     try:
@@ -198,7 +231,9 @@ def command_summary(args: argparse.Namespace) -> int:
     except OSError:
         print("gate-timing: no recorded runs yet", file=sys.stderr)
         return 1
-    runs = [json.loads(line) for line in lines if line.strip()]
+    runs, bad = parse_store_lines(lines)
+    if bad:
+        print(f"gate-timing: skipped {bad} unreadable line(s) in the store", file=sys.stderr)
     if args.script:
         runs = [r for r in runs if r.get("script") == args.script]
     runs = runs[-args.last:]
@@ -221,6 +256,7 @@ class JobGroup:
 
 def normalize_job(name: str) -> str:
     """Collapse shard numbers so shards of one job aggregate together."""
+    name = _SHARD_PAREN.sub("(shard)", name)
     name = _SHARD.sub("shard", name)
     return _RACE_SHARD.sub("(N)", name)
 
@@ -239,23 +275,44 @@ def aggregate_jobs(rows: Iterable[dict[str, Any]]) -> dict[str, JobGroup]:
     }
 
 
-def gh_json(argv: list[str]) -> Any:
-    """Run gh and parse JSON, retrying once on a transient server error."""
+def gh_text(argv: list[str]) -> str:
+    """Run gh and return stdout, retrying once after any failure."""
     for attempt in (1, 2):
         out = subprocess.run(["gh", *argv], capture_output=True, text=True, check=False)
         if out.returncode == 0:
-            return json.loads(out.stdout or "null")
+            return out.stdout
         if attempt == 2:
             raise RuntimeError(out.stderr.strip() or "gh failed")
-    return None
+    return ""
+
+
+def gh_json(argv: list[str]) -> Any:
+    """Run gh and parse its stdout as one JSON document."""
+    return json.loads(gh_text(argv) or "null")
+
+
+def parse_job_lines(text: str) -> list[dict[str, Any]]:
+    """Parse one JSON job object per line, as `gh api --paginate --jq` prints.
+
+    With --paginate the jq filter runs once per page, so a run with more than
+    one page of jobs prints several results. One object per line is the only
+    shape that concatenates across pages.
+    """
+    jobs = []
+    for line in text.splitlines():
+        if line.strip():
+            jobs.append(json.loads(line))
+    return jobs
 
 
 def fetch_job_rows(repo: str, run_id: str) -> list[dict[str, Any]]:
     """Fetch one run's jobs as queue-wait and run-seconds rows."""
-    data = gh_json(["api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100",
-                    "--paginate", "--jq", "[.jobs[] | {name, started_at, created_at, completed_at}]"])
+    # per_page=50: the jobs endpoint answers HTTP 502 at 100 for the largest
+    # runs (130+ jobs) on every retry, and returns them all at 50.
+    text = gh_text(["api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=50",
+                    "--paginate", "--jq", ".jobs[] | {name, started_at, created_at, completed_at}"])
     rows = []
-    for job in data or []:
+    for job in parse_job_lines(text):
         if not (job.get("started_at") and job.get("completed_at")):
             continue
         start = dt.datetime.fromisoformat(job["started_at"].replace("Z", "+00:00"))
