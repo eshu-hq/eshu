@@ -11,7 +11,7 @@ column to `fact_work_items`, with no index. The fresh-statistics 2,000 and
 10,000 cells reran at this head with it: 17,156 / 26.7 ms and 6,065 / 8.8
 at 2,000, and 51,984 / 72.2 against 80,716 / 89.3 and 15,742 / 23.5
 against 75,215 / 75.1 at 10,000 (filter NULL, then set). That is within
-0.2 percent of the buffers in the table, and every bar passes.
+0.5 percent of the buffers in the table, and every bar passes.
 
 The arbiter rulings of 2026-11-22 set what follows:
 
@@ -216,8 +216,8 @@ guard.
 made a pin): index loops on `fact_work_items` and `scope_generations` at most the
 non-active row count plus 64, and no nested loop whose inner side rescans
 a CTE or table more than 1,000 times, with hash and merge joins on and off
-and the filter NULL and set. RED on the shipped #10863 text at 6931873148
-(the pin's commit, before the fix):
+and the filter NULL and set. RED on the shipped #10863 text at c77e69d7b1
+(the pin's commit, before the fix; the RED run was on its pre-rebase twin, range-diff '='):
 13,366 loops with no stale row, 12,236 with 200. GREEN on this change on
 both schemas: at most 0 loops with no stale row and 200 with 200, no
 rescans. On the full schema the same run asserts that the frozen
