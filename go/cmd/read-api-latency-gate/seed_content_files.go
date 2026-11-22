@@ -20,8 +20,8 @@ import (
 // re-seed builds byte-identical rows. Sizes are representative, not maximal:
 // the story anchor plus related set must make the deployment-artifact stages
 // do real list/hydrate/parse work, and the search documents must make the
-// unscoped walk visit real windows, while the whole seed stays inside the CI
-// job's time budget (COPY, like every other seeder here).
+// unscoped walk visit real windows, while the whole seed stays inside the
+// run's time budget (COPY, like every other seeder here).
 const (
 	// SeedStoryAnchorID is the repository id the story pilot reads. It is
 	// stable across runs so the pilot operation can name it.
@@ -282,7 +282,7 @@ func gateEntityCopyRows(now time.Time) [][]any {
 }
 
 // SeedContentFiles bulk-inserts the story, file-search and entity-search
-// corpora. analyzeSeededTables refreshes the plans afterwards, so the sweep
+// corpora. vacuumAnalyzeSeededTables refreshes the plans afterwards, so the sweep
 // reads plan against fresh statistics.
 func SeedContentFiles(ctx context.Context, pool *pgxpool.Pool, now time.Time) error {
 	story := BuildStoryContentRows()

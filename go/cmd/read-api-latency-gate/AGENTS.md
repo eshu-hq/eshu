@@ -30,7 +30,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 - Bulk writes (`seed_postgres.go`, `seed_graph.go`) use `pgx.CopyFrom` and
   one `UNWIND CREATE` per graph label, not per-row `INSERT`/`CREATE`. Row
   counts here run into the tens of thousands; per-row writes would blow the
-  CI job's time budget.
+  run's time budget.
 - The row-shaping logic (`seed_rows.go`: `scopeRows`, `generationRows`,
   `workItemRows`) is deliberately split from the `pgx.CopyFrom` calls
   (`seed_postgres.go`) so it stays unit-testable without a live Postgres.
@@ -134,7 +134,19 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   unrepresentative; do not fold them into the p95 sample set.
 - **A 5xx always sets `HardFailed=true` and always breaches** (`sweep.go`,
   `EvaluateBudgets`), regardless of how fast it answered. Do not let a fast
-  failure read as a fast pass.
+  failure read as a fast pass. There is exactly one exception: the
+  provider-unconfigured class (`provider_unconfigured.go`). The four routes in
+  `providerUnconfiguredRoutes` (GitHub and OIDC login and callback) answer 503
+  with their own detail message when the core is not configured with that
+  provider; when EVERY counted sample of one of them is that exact 503 and
+  body, the route is `Exercised=false`, `NotExercisedClass=provider-unconfigured`,
+  printed as `NOT_EXERCISED(503 provider-unconfigured)`, summarized on stderr
+  with a count, and recorded per route in the latency report. Any other status,
+  body, or a mixed sample set stays `HardFailed`, and the same body on a route
+  outside the table stays `HardFailed`. Never widen it to a body pattern, a
+  prefix, or another route without a ruling. The gate does not enable
+  providers. `TestProviderUnconfiguredMessagesMatchTheProduct` builds the
+  product handlers with no service and pins the messages.
 - **The route table's status column must agree with every gate verdict**
   (`printReport`, `main.go`): BREACH for a `HardFailed` route, a p95 over the
   latency ceiling, a route over its work budget (`EvaluateWorkBudgets`), an
@@ -186,6 +198,50 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   after a change (a new `RouteQueryArgs` entry, an auth fix) measurably
   increases the exercised count; never lower it. The run checks
   `CoverageFloor(operations)`, which adds the selected pilot operations to it.
+- **The winners corpus (`seed_winners.go`) must stay anchored, derived, and
+  proven.** Anchor finding facts on the plan's active generations only (the
+  rebuild's active-facts join drops anything else); derive the
+  `supply_chain_impact_canonical_winners` table exclusively through
+  `SupplyChainImpactWinnersStore.ResweepWinners` (the maintainer's own full
+  resweep — never hand-write winners rows, or the leg drifts from what
+  production derives); `VerifyWinnersSeeded` must prove the table non-empty
+  and watermarked before any sweep runs. A zero-winner rebuild fails the
+  seed instead of sweeping an empty read model.
+- **The seed ends with one `VACUUM (ANALYZE)` over every bulk-written table
+  (`seed_analyze.go`), after the last bulk Postgres write.** The list is the
+  seven counted relational tables plus `infra_resource_entities` (the backfill
+  stand-in) and `supply_chain_impact_canonical_winners` (the winners rebuild):
+  budgeted routes read all of them. It sets the visibility map the way
+  autovacuum does in production; without it an Index Only Scan (the entity search
+  walk) read 32 to 512 buffers depending on how far autovacuum had got when the
+  sweep started (#11224; the EXPLAIN figures are in
+  `docs/internal/evidence/11170-latency-gate-core-leg.md`). Never run it before a
+  bulk write, never make it `VACUUM FULL`, keep it in the seed phase, and add a
+  newly seeded table to `analyzedSeededTables`.
+  `TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep` fails on any later call
+  in `seed` that takes the Postgres pool or DSN as an argument, or is a method on
+  the pool, under the name `pool` or a simple alias of it (not a handle passed
+  through a struct field or returned from another function), and
+  `TestSeedPropagatesTheVacuumError` pins that a failed step returns its error.
+- **The seed runs the product infra read model backfill, labelled a stand-in
+  (`seed_infra_backfill.go`).** The gate starts no reducer, and since #11210
+  the reducer owns the backfill (it runs `inventory.RunBackground`, which wraps
+  `Backfiller.Run`). So the gate calls the same `inventory.Backfiller` after the
+  content seeds and before any core starts, and fails the seed if it errors or
+  leaves the read model uninstalled, unmarked, or with a dirty repository.
+  Never hand-write the marker or copy the derive SQL, and never relax
+  `awaitInfraReadModel` or `assertInfraServedFromReadModel`: they are the
+  outside guard on the same outcome. Both legs' reports carry
+  `infra_backfill: gate_stand_in`; the infra route numbers describe an install
+  that holds the marker, and a regression in the reducer's wiring would not show
+  here. Remove the stand-in when the gate starts the reducer (#11226).
+- **The gate measures two legs, legacy then winners, never merged.** The
+  winners flag is read once at core mux build, so the legs are separate core
+  processes against one seed; the byte-identical findings proof and the
+  grouped-inventory 503/200 negative/positive controls gate the second leg;
+  each leg writes its own latency/work/concurrent reports (the winners paths
+  derive via `winners_report_path`), told apart by the `-winners-read`
+  identity marker.
 - **`-runs` defaults to 1 and preserves the single-pass sample selection.**
   `sweepRoute` (`sweep.go`) runs the warmup once, before run 1; run 1 alone
   backs `RouteLatency.P95`/`Samples` when there is no later pass. Do not move

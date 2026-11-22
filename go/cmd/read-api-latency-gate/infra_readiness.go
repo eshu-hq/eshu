@@ -106,8 +106,10 @@ func analyzeInfraReadModel(ctx context.Context, pool *pgxpool.Pool) error {
 	return nil
 }
 
-// infraReadModelTimeout bounds how long the sweep waits for the API's startup
-// backfill to derive the seeded content and clear the fence.
+// infraReadModelTimeout bounds how long the sweep waits for the read model to
+// be ready. The seed phase already ran the backfill (seed_infra_backfill.go),
+// so this wait is a guard that the marker is visible and no repository is
+// marked dirty, not a wait for a product runtime to derive the seeded content.
 const infraReadModelTimeout = 10 * time.Minute
 
 // awaitInfraReadModel opens a short-lived pool, waits until the infra read model

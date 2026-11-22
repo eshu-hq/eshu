@@ -66,7 +66,8 @@ cmp -s <(printf '%s\n' "${out1}") <(printf '%s\n' "${out3}") || fail "output dep
 
 # --out writes the same bytes as stdout.
 run --out "${work}/table.txt" "${work}/r1.json" "${work}/r2.json"
-cmp -s <(printf '%s\n' "${out1}") "${work}/table.txt" || fail "--out differs from stdout"
+# Only line 1 may differ: the header names the file the table was rendered for.
+cmp -s <(printf '%s\n' "${out1}" | tail -n +2) <(tail -n +2 "${work}/table.txt") || fail "--out differs from stdout past the header line"
 
 # Negative cases.
 expect_exit() {
@@ -305,5 +306,81 @@ run_ratcheted --baseline "${work}/empty_baseline.txt" "${work}/r1.json" "${work}
 # The ratchet must not change the rendered bytes.
 ratchet_out="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json")"
 [[ "${ratchet_out}" == "${out1}" ]] || fail "the ratchet must gate output, never alter it"
+
+# --- provenance (#11170) -----------------------------------------------------
+# A row accepted past the ratchet must say so in its own reason column, naming
+# the issue, so a reader of the committed table never mistakes it for a plain
+# GREEN-derived row. Rows that needed no flag keep the plain reason.
+acc_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 graph-only labels now serve from fact truth' \
+	"${work}/regressed.json" 2>/dev/null)" || fail "accepted regression must still render"
+printf '%s\n' "${acc_out}" | rg -qF "GET /a	" || fail "accepted render lost GET /a"
+a_line="$(printf '%s\n' "${acc_out}" | rg '^GET /a	')"
+[[ "${a_line##*	}" == "GREEN-derived work guard; accepted past the ratchet: #6843 graph-only labels now serve from fact truth" ]] \
+	|| fail "an accepted row must carry the accepting issue in its reason column, got: ${a_line}"
+plain_line="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json" | rg '^GET /b	')"
+[[ "${plain_line##*	}" == "GREEN-derived work guard" ]] || fail "a row that needed no flag keeps the plain reason, got: ${plain_line}"
+
+# The header restates provenance: each input report's sha256 (sorted, so report
+# order never changes the bytes), the accept flags used, and any --note lines.
+sha_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
+prov_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 graph-only labels now serve from fact truth' \
+	--note 'leg=legacy' --note 'commit=0123abc' "${work}/regressed.json" 2>/dev/null)"
+printf '%s\n' "${prov_out}" | rg -qxF "# report sha256: $(sha_of "${work}/regressed.json")" || fail "header must carry the report sha256"
+printf '%s\n' "${prov_out}" | rg -qxF "# accepted past the ratchet: GET /a=#6843 graph-only labels now serve from fact truth" || fail "header must carry the accept flag"
+printf '%s\n' "${prov_out}" | rg -qxF "# note: leg=legacy" || fail "header must carry --note lines"
+printf '%s\n' "${prov_out}" | rg -qxF "# note: commit=0123abc" || fail "header must carry every --note line"
+prov_swap="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r2.json" "${work}/r1.json")"
+prov_ord="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json")"
+[[ "${prov_swap}" == "${prov_ord}" ]] || fail "provenance header must not depend on report order"
+
+# An accept flag the ratchet never needed must not print as "accepted past the
+# ratchet": the header says what was accepted, not what was passed on the command
+# line. /a does not move here, so the flag is unused.
+unused_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 this flag is never needed' "${work}/r1.json" "${work}/r2.json" 2>/dev/null)"
+if printf '%s\n' "${unused_out}" | rg -q 'accepted past the ratchet'; then
+	fail "an accept flag the ratchet did not need must not appear in the header or a reason column"
+fi
+
+# The table header names the file it was rendered for, so a second table (the
+# winners leg's) does not claim to be read-api-route-work-budgets.txt.
+run_ratcheted --baseline /dev/null --out "${work}/read-api-route-work-budgets-winners.txt" "${work}/r1.json" "${work}/r2.json" >/dev/null 2>&1
+head -1 "${work}/read-api-route-work-budgets-winners.txt" | rg -q '^# read-api-route-work-budgets-winners\.txt -- GENERATED' \
+	|| fail "the header must name the rendered file, got: $(head -1 "${work}/read-api-route-work-budgets-winners.txt")"
+run_ratcheted --baseline /dev/null "${work}/r1.json" "${work}/r2.json" | head -1 | rg -q '^# read-api-route-work-budgets\.txt -- GENERATED' \
+	|| fail "a stdout render keeps the default table name in the header"
+
+# --- two-table render recipe (review of #11170) ------------------------------
+# Each leg's table is ratcheted against its OWN committed copy. The winners rows
+# are far smaller than the legacy rows by design, so baselining the winners table
+# against the legacy table trips the collapse ratchet (exit 3) and invites a
+# false --accept-drop.
+printf 'default\t9\t2100\t2\n\nGET /a\t20\t307638\t18\tGREEN-derived work guard\n' >"${work}/leg-legacy.txt"
+printf 'default\t9\t2100\t2\n\nGET /a\t20\t2403\t18\tGREEN-derived work guard\n' >"${work}/leg-winners.txt"
+cat >"${work}/winners-report.json" <<'JSON'
+{"routes":[
+ {"route":"GET /a","p95_ms":1,"work":{"calls":10,"blks":801,"rows":4}},
+ {"route":"GET /c","p95_ms":1,"work":{"calls":2,"blks":500,"rows":0}}
+]}
+JSON
+set +e
+run_ratcheted --baseline "${work}/leg-legacy.txt" --out "${work}/w1.txt" "${work}/winners-report.json" >/dev/null 2>&1
+wrong_rc=$?
+run_ratcheted --baseline "${work}/leg-winners.txt" --out "${work}/w2.txt" "${work}/winners-report.json" >/dev/null 2>&1
+right_rc=$?
+set -e
+[[ "${wrong_rc}" -eq 3 ]] || fail "baselining the winners render on the legacy table must trip the collapse ratchet (exit 3), got ${wrong_rc}"
+[[ "${right_rc}" -eq 0 ]] || fail "baselining the winners render on its own committed table must pass, got ${right_rc}"
+
+# The documented recipe must use each table's own baseline: the winners render in
+# docs/public/reference/local-testing/read-api-latency-gate-budgets.md never
+# pairs the legacy baseline file with the winners output file.
+recipe_doc="${repo_root}/docs/public/reference/local-testing/read-api-latency-gate-budgets.md"
+rg -q -- '--baseline /tmp/baseline-winners\.txt' "${recipe_doc}" || fail "the recipe must baseline the winners render on the committed winners table"
+if rg -U -q -- '--baseline /tmp/baseline-legacy\.txt \\\n  --out [^\n]*-winners\.txt' "${recipe_doc}"; then
+	fail "the recipe pairs the legacy baseline with the winners table"
+fi
 
 printf 'test-refresh-read-api-work-budgets: PASS\n'
