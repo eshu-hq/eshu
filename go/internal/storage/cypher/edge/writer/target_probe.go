@@ -39,9 +39,9 @@ type targetProbe struct {
 // buildTargetPresenceProbes returns one existence probe per distinct runtime
 // target of a routed batch, or false for domains outside the guard. Each probe
 // carries the repository of the node it anchors. Every statement is a single
-// MATCH clause over literal parameters with RETURN 1 LIMIT 1, so the ProbeExecutor boolean is the verdict directly:
-// found means that target exists, not-found means it is absent and the batch
-// must be deferred. The caller ANDs the verdicts: the first miss fails the
+// MATCH clause over literal parameters with RETURN 1 LIMIT 1, so the
+// ProbeExecutor boolean is the verdict directly: found means that target
+// exists, not-found means it is absent and the batch must be deferred. The caller ANDs the verdicts: the first miss fails the
 // batch.
 //
 // Shape discipline (docs/public/reference/nornicdb-query-pitfalls.md): one
