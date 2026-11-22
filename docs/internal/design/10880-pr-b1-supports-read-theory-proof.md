@@ -1,6 +1,9 @@
 # PR-B1 theory proof: a supports-table read for grant-scoped impact reads (#10880)
 
-Refs #10880. Companion to
+Refs #10880. This is the first of two independent proofs of the same theory; the
+second, [the supports-table proof](10880-pr-b1-supports-table-proof.md), is
+larger and supersedes this one wherever they differ (see "Reconciliation"
+below). Companion to
 [the PR-B evidence record](10880-pr-b-reader-moves-and-scoped-fork.md) and
 [the PR-B0 execution record](10880-pr-b0-execution-record.md). Governing rule:
 the root AGENTS.md "Prove-The-Theory-First" section. This record states the
@@ -139,21 +142,18 @@ six times slower than the legacy read for a large grant.
 
 ## Census
 
-**Can one scope hold two active supports of one canonical key?** Not for static
-rows, by construction. `supplyChainImpactFactID` hashes the logical identity
-(`supplyChainImpactLogicalIdentity`: exactly the canonical-key fields, plus the
-scan target for derived rows), the scope id, and the generation id (plus the
-fencing token for derived rows), and an `ingestion_scopes` row has one active
-generation. Two facts of one key in one scope and generation share a fact id and
-upsert onto one row. The census therefore proves `(canonical_key, scope_id)`
-unique among active static facts for rows the current writer wrote. It does not
-cover rows an older writer left in the active generation during a rolling
-upgrade (the canonical key has a fallback for payloads without a finding id), so
-B1 should key the supports table on `fact_id`, keep `(canonical_key, scope_id)`
-as a non-unique index, and run the QA census below before merging. The synthetic
-corpus shows 40 keys with two supports in one scope; that is an artifact of the
-seed generator (a third support can land in the second support's image scope),
-not a property of the writer, and it shows the query detects the shape.
+**Can one scope hold two active supports of one canonical key?** Yes, so the row
+identity is the support's `fact_id` and `(canonical_key, scope_id)` is not
+unique. An earlier version of this record argued the pair is unique by
+construction, because the Go fact id hashes the logical identity, the scope, and
+the generation. That reasoning compared against the wrong key. The SQL canonical
+key (`CanonicalFindingKeySQL`) collapses the CVE and advisory ids
+(`COALESCE(NULLIF(cve_id, ''), NULLIF(advisory_id, ''), '')` first), while the
+Go logical identity keeps them apart: a fact with `cve_id = 'ADV-C1'` and one with
+`cve_id = ''` and `advisory_id = 'ADV-C1'` have different fact ids and one SQL
+key in one scope. The second proof demonstrates the collision on a seeded pair
+and shows the equality matrix stays green with both rows present. Rows an older
+writer left behind add to this. Run the QA census query below before B1 merges.
 
 **Can supports of one key differ in precise eligibility?** Yes. The detection
 profile is a function of status, observed version, and match reason; the match
@@ -194,7 +194,9 @@ SELECT count(*) AS canonical_keys, count(*) FILTER (WHERE supports > 1) AS multi
 FROM per_key;
 ```
 
-On the synthetic corpus it returned 200,000, 72,000, 3, 40, 4,000, and 0.
+On the synthetic corpus it returned 200,000, 72,000, 3, 40, 4,000, and 0. The 40
+same-scope pairs there came from the seed generator, not from the SQL-key
+collapse above, and the query detects either cause.
 
 ## Storage
 
@@ -230,3 +232,19 @@ row), the same pick feeding a `count(*)` with a `FILTER` per bucket, and the
 explain read (`WHERE finding_id = $1` with the grant, `LIMIT 2`).
 
 Wall clock: started 05:58Z, last measurement 06:12Z, inside the 07:28Z deadline.
+
+## Reconciliation with the second proof
+
+Both proofs read the legacy CTE and a supports read on `postgres:18` and agree on
+direction; the second is the design B1 builds from.
+
+| Point | This record | Second proof | Resolution |
+| --- | --- | --- | --- |
+| Corpus | 280,000 supports, 2,200 scopes | 28,000 active supports plus 10,450 stale-generation rows, 800 scopes, 200 operator overrides | Take the second for equality and write cost; this one adds a larger corpus for the grant read. |
+| Read shape | Granted supports first in a materialized CTE, then the generation join | Grant legs (`scope_id = ANY` `UNION ALL` `repository_id = ANY AND NOT COALESCE(scope_id = ANY, FALSE)`), lateral operator probe, static-authority guard, generation join | The second is complete (it includes the guard and the overlay this record left out). Both drive from the grant; take the second. |
+| Static-authority guard | Not in the candidate | Required: without it the candidate differs from legacy (126 seed, 64 scaled comparisons) | The guard stays. |
+| Operator overlay | Left out | Indexed lateral probe over a partial index on `canonical_key` | Take the second. |
+| Latency vs legacy | 8 to 18 ms against 281 to 302 ms on small grants | 3.2 ms against 107 ms (5 scopes) up to 135 ms against 875 ms (400 scopes) | Consistent; same order of improvement. |
+| Row identity | Argued `(canonical_key, scope_id)` unique | Not unique; `fact_id` | Second is right (corrected above). |
+| Indexes | `(scope_id, canonical_key)`, `(repository_id, canonical_key)`, `(finding_id)` | `(scope_id, generation_id)`, `(repository_id)`, `(finding_id)`, partial operator `(canonical_key)` | Take the second; its index variants were measured. |
+| Write cost, concurrency | Not measured | Measured (WAL ratios, writer lock race) | Take the second; B1 re-proves it on the real writer transaction. |
