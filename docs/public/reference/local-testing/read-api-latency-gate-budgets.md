@@ -27,21 +27,23 @@ column.
 
 | | Legacy table | Winners table |
 | --- | --- | --- |
-| Commit | `ca232f7a89` on `origin/main` `194d4abbd9` | the same |
+| Commit | `ca232f7a89` (runs 1 and 2) and `4903719505` (run 3) on `origin/main` `194d4abbd9` | the same |
 | Corpus | 800 scopes, 150,000 nodes per label, 150,000 IaC facts, 2,500,000 shared intents, 20,000 finding facts | the same |
 | Backend | Neo4j | Neo4j |
-| Report sha256 | `4eb538610c25103364876c43aef0a5367a157ec34aa8d711f308cc443e525b3f`, `e9f1fd61e8c01a8f6cdf88b12d3277a944cc6e204329298f943bc9a4d0889d3b` | `36da1fe34fa4c46932a601c4a554fecb7d644b10e778b73e8312d625177179f1`, `e8848c595a042c182d3266af8763ddc7571145bf9b25b0fb3c469bc4b6eff661` |
+| Report sha256 | `4eb538610c25103364876c43aef0a5367a157ec34aa8d711f308cc443e525b3f`, `e9f1fd61e8c01a8f6cdf88b12d3277a944cc6e204329298f943bc9a4d0889d3b`, `210780a45ba0ec8200494d41572ff4aa3026c2166fd448b4614848809d3a74fb` | `36da1fe34fa4c46932a601c4a554fecb7d644b10e778b73e8312d625177179f1`, `e8848c595a042c182d3266af8763ddc7571145bf9b25b0fb3c469bc4b6eff661`, `2a2b0bfeb3c51ac98760889915deb0b7aabad2f48a7f7fa5d1450584f860e1b2` |
 | Accept flags | `--accept-drop 'MCP search_entity_content=#8682 ...'` and `--accept-regression 'MCP search_file_content=#10607 ...'`; the full text is in each table header and in the row's reason column | the same two flags (the winners table is rendered against the same committed baseline) |
 
 ## The two content-search rows are a new fixture cohort
 
 [#8682](https://github.com/eshu-hq/eshu/issues/8682) (`29753641d7`, 2026-10-27)
 renamed the search seed repositories after the work table was last rendered
-(2026-10-20). `MCP search_entity_content` falls from 311,960 to 1,200 blocks
+(2026-10-20). `MCP search_entity_content` falls from 311,960 to 2,652 blocks
 because the pilot now finds its page in the first ordered probe. This is a
 fixture change, not a faster query, and the old and new numbers are not a
 before and after. The row now guards the dense first-probe path only; the
-continuation walk is not work-metered by this pilot.
+continuation walk is not work-metered by this pilot. Its blocks varied across the
+separately seeded runs (396, 400, 884 and 889, with identical calls and rows), so
+the budget is three times the maximum, 884.
 
 `MCP search_file_content` rises from 798 to 1,740 blocks. The prefix change does
 not affect that route's ordering. Per statement, one request costs 14 calls, 29

@@ -129,10 +129,10 @@ repositories and 1,050,000 rows.
 
 ## Calibration runs
 
-Two separately seeded runs of the rebased head (`ca232f7a89` on `origin/main`
-`194d4abbd9`), full default corpus (800 scopes, 150,000 nodes per label, 150,000
+Three separately seeded runs of the rebased head (runs 1 and 2 at `ca232f7a89`, run 3
+at `4903719505`, on `origin/main` `194d4abbd9`), full default corpus (800 scopes, 150,000 nodes per label, 150,000
 IaC facts, 2,500,000 shared intents, 20,000 finding facts), Neo4j, io pressure
-avg60 42 to 73 and load 25 to 30 during the runs (shared, noisy host). Both runs
+avg60 42 to 73 and load 25 to 30 during the runs (shared, noisy host). Every run
 exited 1 on the work breaches being recalibrated only: zero `HardFailed`, zero
 latency breaches, the coverage floor met, every named route exercised. Both legs
 exercised 77 of 128 routes and operations (four provider-unconfigured auth
@@ -189,7 +189,7 @@ The committed legacy table was last rendered on 2026-10-19 and 2026-10-20, befor
 the gate stopped being runnable. Rendered against it, the refresh script refused
 two rows. Neither comes from the seeded 20,000 findings. The arbiter ruled on both.
 
-### MCP search_entity_content: 311,960 to 1,200 blocks (accepted, #8682)
+### MCP search_entity_content: 311,960 to 2,652 blocks (accepted, #8682)
 
 The seed counts verify exactly and the pilot checks the exact response page on
 every request, so the corpus is intact. Commit `29753641d7` (2026-10-27, #8682,
@@ -206,6 +206,15 @@ one read-only transaction. The two readings are not reconciled here. The gate's
 entity pilot uses its own statement snapshot meter, and the manual probe counts
 nested statements as well as their callers. #8682 recorded 11 calls, 18 rows, 186
 blocks for its own cohort; the readings are not comparable with either.
+
+The row is bimodal across separately seeded runs: 396 and 400 blocks in the two
+calibration runs, 884 and 889 in the third run and the first confirm run, with the
+same 8 calls and 16 rows each time. No other metered route differs by more than
+10% across the four runs. The first render used the two calibration reports and
+set the budget to 1,200, which the first confirm run's 889 still passed. The tables
+were then re-rendered from all three calibration-quality reports (the third run
+met the conditions too), so the budget is 3 x 884 = 2,652, and the confirm run was
+repeated on the new tables. The cause of the two modes is not known.
 
 ### MCP search_file_content: 798 to 1,740 blocks (accepted, #10607)
 
