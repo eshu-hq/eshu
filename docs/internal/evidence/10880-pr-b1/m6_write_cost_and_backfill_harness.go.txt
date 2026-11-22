@@ -170,3 +170,48 @@ FROM generate_series(1, $1) AS n, generate_series(1, $2) AS k`, scopes, per); er
 	_ = db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports`).Scan(&n)
 	t.Logf("backfill %d facts: %d steps, total %v (%.0f supports/s), max step %v, supports=%d", scopes*per, steps, time.Since(start).Round(time.Millisecond), float64(n)/time.Since(start).Seconds(), maxStep.Round(time.Millisecond), n)
 }
+
+func TestZZB1TriggerCostScratch(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	const rows = 8000
+	insert := func(kind string, withSetting bool, disabled bool, tag string) (int64, time.Duration) {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if disabled {
+			if _, err := tx.ExecContext(ctx, `ALTER TABLE fact_records DISABLE TRIGGER supply_chain_impact_finding_supports_dirty_insert`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if withSetting {
+			if _, err := tx.ExecContext(ctx, `SELECT set_config('eshu.supply_chain_impact_supports_writer', 'supports_v1', true)`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lsn, _ := walBytes(t, ctx, db, "")
+		start := time.Now()
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload, fencing_token)
+SELECT $2 || ':' || n, $3, $4, $1, $2 || ':' || n, 'synthetic', $2 || ':' || n, now(), now(), FALSE,
+       jsonb_build_object('cve_id', 'CVE-' || n, 'padding', repeat('x', 400)), 1
+FROM generate_series(1, $5) AS n`, kind, tag, replaceSetLiveScope, replaceSetLiveGeneration, rows); err != nil {
+			t.Fatal(err)
+		}
+		d := time.Since(start)
+		_, w := walBytes(t, ctx, db, lsn)
+		_ = tx.Rollback()
+		return w, d
+	}
+	const impact, other = "reducer_supply_chain_impact_finding", "vulnerability.cve"
+	for rep := 0; rep < 3; rep++ {
+		wa, da := insert(impact, false, true, fmt.Sprintf("a%d", rep))
+		wb, db_ := insert(impact, true, false, fmt.Sprintf("b%d", rep))
+		wc, dc := insert(impact, false, false, fmt.Sprintf("c%d", rep))
+		wo, do := insert(other, false, true, fmt.Sprintf("o%d", rep))
+		wp, dp := insert(other, false, false, fmt.Sprintf("p%d", rep))
+		t.Logf("rep %d impact x%d: trigger off WAL %d %v | setting present (WHEN false) WAL %d %v | old writer (fires) WAL %d %v || other kind: trigger off WAL %d %v | trigger on WAL %d %v", rep, rows,
+			wa, da.Round(time.Millisecond), wb, db_.Round(time.Millisecond), wc, dc.Round(time.Millisecond), wo, do.Round(time.Millisecond), wp, dp.Round(time.Millisecond))
+	}
+}

@@ -4,68 +4,134 @@ Refs #10880. Companion to
 [the supports table proof](10880-pr-b1-supports-table-proof.md) and
 [the supports read theory proof](10880-pr-b1-supports-read-theory-proof.md),
 which hold the measured design this record builds. Written 2026-11-22. B1 ships
-the table, its maintainer, and its backfill. No reader serves from it; PR-B2
-switches the readers.
+the table, its maintainer, its backfill, and an old-writer fence. No reader
+serves from it; PR-B2 switches the readers.
 
-Stacked on PR-B0 (`drive/10880-pr-b`, head `76b9168a90` when this was written).
-Commits on `drive/10880-pr-b1`, each test-first:
+Built under the arbiter's binding ruling for B1 (separate supports contract,
+payload kept verbatim, a reducer-owned backfill with an old-writer fence,
+migration 336, the read-time operator probe, and the rank-filter order). Stacked
+on PR-B0 (`drive/10880-pr-b`). Commits on `drive/10880-pr-b1`, each test-first:
 
 1. **Migration 336.** `supply_chain_impact_finding_supports`: one row per live
    finding fact, primary key `fact_id`, generation foreign key with cascade,
    indexes `(scope_id, generation_id)`, `(repository_id)`, `(finding_id)` and a
    partial `(canonical_key)` index for the operator override probe. The same
-   migration adds `supply_chain_impact_finding_supports_backfill`, the marker and
-   cursor row. The checksum manifest, the bootstrap golden count and digest, the
-   schema order list, and the repository-retirement census carry both tables.
+   migration adds the backfill marker and cursor table, the old-writer dirty-scope
+   table, and the fence triggers on `fact_records`. The checksum manifest, the
+   bootstrap golden digest, the schema order list, and the repository-retirement
+   census carry the tables.
 2. **Same-transaction maintainer.** `supplychain/core` gets the optional
    `SupplyChainImpactSupportsMaintainer` interface. The writer calls it after the
    fact insert and after the retraction, inside the conflict-domain lock. The
    storage implementation derives every column from `fact_records` through the
-   winners helpers, so a support cannot drift from a winner built from the same
-   fact, and writes only when a column changed.
-3. **Backfill and health.** A reducer-owned, marker-gated sweep fills the table
-   for facts written earlier, plus telemetry and the readiness predicate.
-4. **Equality and plan-shape proofs.** A test-only candidate list read over the
-   table equals the legacy read across 160 grant and filter cases, and a guard
-   pins the plan shape.
+   winners helpers and writes only when a column changed.
+3. **Backfill, fence and health.** A reducer-owned, marker-gated sweep fills the
+   table for facts written earlier; the fence marks scopes that writers without
+   the maintainer touch and the sweep drains them; telemetry and the readiness
+   predicate.
+4. **Contract.** A supports contract version and pin map, separate from the
+   winners contract.
+5. **Equality and plan-shape proofs.** A test-only candidate list read over the
+   table, with the ruled rank-filter order, and a guard that pins the plan shape.
 
-## Decisions taken
+## Decisions
 
-The three forks I left for the arbiter were settled by precedent so the build
-could go on. Each is cheap to reverse before B2.
+All three forks are settled by the ruling.
 
-- **Separate contract.** The supports table has its own marker table and
-  `SupplyChainImpactSupportsContractVersion`. It does not bump
-  `SupplyChainImpactWinnersContractVersion`, because the winners contract pins
-  what a winners row means and the supports table does not change that.
-- **Payload on the support row.** Kept, stripped of the per-pass fields the
-  winners payload also drops (`intent_id`, `cause`, `generation_id`,
-  `provenance.content_digest`). Without the strip, a replay of an unchanged
-  finding carries a new intent id and rewrites every support. See the write cost
-  below for what the payload costs.
-- **Backfill placement.** A reducer loop, as the package manifest backfill does,
-  with a cluster-wide session advisory lock electing one sweeper.
+- **Separate contract.** `SupplyChainImpactSupportsContractVersion` is 1 and the
+  marker is `supply_chain_impact_finding_supports_v1`. The pin map covers the
+  writer upsert, the retraction delete, the backfill chunk, the marker
+  completion, the readiness predicate and the writer setting; a one-character
+  change to any of them breaks the pin test, and a seeded-RED test proves it. The
+  winners contract, its pin map and its pin test are untouched and green. A bump
+  creates a new marker, so the backfill runs again and granted reads answer 503
+  until it finishes. Bump it only when the rows for the same facts change.
+- **Payload verbatim.** The support's payload is the fact payload, byte for byte,
+  with no key stripped. Every mirror check in the live suite compares the payload
+  text of each support with its fact, and the write-on-change guard covers the
+  payload. An earlier build stripped the per-pass keys the winners payload drops;
+  that was wrong (PR-C makes the supports table the only copy) and is gone.
+- **Backfill in the reducer.** One session advisory lock elects one sweeper
+  across replicas. It is not a migration: a migration runs in PreSync while old
+  reducers still write finding facts, so its snapshot would miss them and nothing
+  would fence them.
 
-Two facts from reading the code settle questions the plan left open:
+Findings from reading the code:
 
-- **Operator overlay needs no extra write path.** Operator-scope finding facts
-  are written by the ordinary impact writer pass for the operator scope (the
-  fan-out tests call it "the operator pass"), so the maintainer already covers
-  them. `VulnerabilitySuppressionStore.Upsert` writes only
-  `vulnerability.suppression` facts, which are not findings.
+- **Who writes operator-scope finding facts.** The same impact writer. The only
+  `BatchInsertVersionedFacts` call that writes the finding kind is
+  `commitSupplyChainImpactRows` (`writer_retract.go`, found by searching every
+  non-test `BatchInsertVersionedFacts`, `INSERT INTO fact_records` and
+  `UPDATE fact_records` call site); the operator pass runs through it.
+  `VulnerabilitySuppressionStore.Upsert` writes only `vulnerability.suppression`
+  facts and enqueues projector work. So the maintainer covers the operator scope
+  with no hook in the suppression store, and the fence covers it as well. A live
+  test writes an operator-scope finding through the real writer and finds its
+  support with the operator scope id and no dirty mark.
 - **The table mirrors every live finding fact.** Derived-image and
-  scanner-associated rows are included. The static-authority guard stays on the
-  read side because the scanner classification rows land from a separate flow
-  after the finding fact; a write-time exclusion would race it. The equality test
-  shows the guard is load-bearing: removing it fails 49 cases.
+  scanner-associated rows are included, because the scanner classification rows
+  land from a separate flow after the finding fact: a write-time exclusion would
+  race that flow. The static-authority guard stays on the read side. The equality
+  test shows the guard is load-bearing: removing it fails 49 cases.
+- **The generation foreign key needs no extra index on PostgreSQL 18.** The
+  cascade deletes supports by `generation_id`. `EXPLAIN` of that delete at 144,000
+  supports in 2,400 generations shows an index scan on the `(scope_id,
+  generation_id)` index (B-tree skip scan, new in 18), 0.58 ms for the cascade
+  trigger without a `generation_id` index and 0.35 ms with one. The plan-shape
+  guard pins "no sequential scan". On a server older than 18 this would scan the
+  table, and a `generation_id` index would be needed.
+
+## The old-writer fence
+
+The maintainer keeps supports current only for writers that run it. During a
+rolling upgrade, reducers of the previous release still write finding facts
+without it, and the backfill's sweep may already have passed their scope.
+
+- **Trigger.** `AFTER INSERT` and `AFTER UPDATE` on `fact_records` `FOR EACH
+  ROW WHEN (fact_kind = 'reducer_supply_chain_impact_finding' AND
+  current_setting('eshu.supply_chain_impact_supports_writer', true) IS DISTINCT
+  FROM 'supports_v1')` upserts the scope into the dirty-scope table and bumps its
+  version. The new impact writer sets that setting for its transaction
+  (`BeginSupplyChainImpactTx`), so its rows never reach the trigger body. It is
+  the pattern of migration 139.
+- **Drain.** Each backfill step first drains the oldest dirty scope: for each
+  generation of the scope that holds finding facts it re-reads chunk by chunk
+  under that generation's conflict-domain lock, then deletes the mark only when
+  its version is unchanged, so a mark that lands during the drain survives.
+- **Marker.** The marker is set by one statement that rechecks the fence, so it
+  stays unset while a scope is dirty.
+- **Readiness.** `SupplyChainImpactSupportsReady` is true when the marker for
+  this binary's version is complete, no marker for a higher version exists (a
+  newer binary ran the sweep), and the dirty-scope table is empty. A missing table
+  reads as an error, which a reader treats as not ready.
+
+Trigger cost, measured on a private `postgres:18` with 8,000 rows per case, three
+repetitions, the host at load about 24 (so wall time and small WAL differences are
+noise, and I report what the data supports):
+
+| Insert of 8,000 rows | WAL | Time |
+| --- | --- | --- |
+| Impact kind, trigger disabled | 17.5 to 27.1 MB | 314 to 614 ms |
+| Impact kind, writer setting present (the new writer; the WHEN clause is false) | 17.6 to 25.0 MB | 328 to 657 ms |
+| Impact kind, no setting (an old writer; the trigger fires) | 25.2 to 26.2 MB | 788 to 1,097 ms |
+| Another kind, trigger disabled | 18.0 to 18.4 MB | 353 to 854 ms |
+| Another kind, trigger enabled (the WHEN clause is false) | 21.4 to 22.2 MB | 405 to 481 ms |
+
+The baseline spread (17.5 to 27.1 MB for identical work) comes from page state and
+full-page writes after checkpoints, so the WHEN-false rows cannot be told from the
+disabled-trigger rows on WAL: a row the WHEN clause rejects writes nothing. The
+old-writer case is the one that costs: one dirty-row upsert per fact row, about 60
+to 70 microseconds a row here, and about +45% WAL over the lowest baseline. It
+runs only while an old reducer writes, then goes away. A 20,000-row run showed the
+same ordering (50.9 MB and 1.6 s without the trigger, 59.6 MB and 5.5 s firing).
 
 ## Concurrency
 
 Lock order inside the writer transaction: the (scope, generation) advisory lock,
 then the fact rows, then the support rows (both in `fact_id` order), then the
 winners dirty log, then the retraction. The resweep takes its own advisory lock
-and writes only winners, so no cycle exists with the writer. The backfill takes
-the writer's own advisory lock, through the now-exported
+and writes only winners, so no cycle exists with the writer. The backfill and the
+drain take the writer's own advisory lock, through the exported
 `SupplyChainImpactConflictDomainLockQuery` and key function, so a chunk cannot
 interleave with a pass: without that, a chunk that read a fact live could insert
 a support after a pass's retraction deleted it, leaving an orphan a reader would
@@ -76,42 +142,62 @@ live-tests ledger:
 
 | Test | What it shows | Mutation that turns it red |
 | --- | --- | --- |
-| `TestSupplyChainImpactSupportsFollowTheWriterLive` | One support per live fact after every pass; columns equal the winner built from the same fact; replay leaves the `xmin` sum unchanged; replace set, partial pass, revival and the FK cascade. | Retraction delete never matches. |
+| `TestSupplyChainImpactSupportsFollowTheWriterLive` | One support per live fact after every pass, payload text equal to the fact's, columns equal the winner built from the same fact; replay under the same intent id leaves the `xmin` sum unchanged; replace set, partial pass, revival, FK cascade. | Retraction delete never matches; a stripped payload key (red before the payload fix). |
 | `TestSupplyChainImpactSupportsSurviveRacingWritersLive` | Eight writers over two scopes, five rounds, with a concurrent winners resweep: no error beyond the retryable superseded pass, no deadlock, supports equal live facts after every round. | None run. |
 | `TestSupplyChainImpactSupportsBackfillLive` | Fills with two-fact chunks, removes an orphan an old writer left, withholds the marker until the sweep and verification finish, no-op after completion. | None run. |
-| `TestSupplyChainImpactSupportsBackfillRestartsOnAMissLive` | A support that goes missing after the sweep passed it makes verification restart the sweep; the marker is set only after the next sweep fills it. | Skip the restart. |
+| `TestSupplyChainImpactSupportsBackfillRestartsOnAMissLive` | A support that goes missing after the sweep passed it makes verification restart the sweep. | Skip the restart. |
 | `TestSupplyChainImpactSupportsBackfillRacesWritersLive` | One-row chunks racing real writers: no orphan, no missing support, no deadlock. | None run. |
 | `TestSupplyChainImpactSupportsBackfillWaitsForTheConflictDomainLockLive` | A step waits for a held pair lock and runs after release. | Remove the lock from the chunk. |
+| `TestSupplyChainImpactSupportsOldWriterFenceLive` | An old writer's insert and tombstone update mark the scope and the table not ready; the backfill drains it and the table is ready; a setting-carrying write, another kind, and a real writer pass mark nothing. | Drop the writer setting from `BeginSupplyChainImpactTx`. |
+| `TestSupplyChainImpactSupportsMarkerWaitsForTheFenceLive` | The marker completes only with an empty fence. | None run. |
+| `TestSupplyChainImpactSupportsFreshInstallMarksImmediatelyLive` | An empty database is ready within two steps. | None run. |
+| `TestSupplyChainImpactSupportsResumeAfterKillLive` | A new backfill value resumes from the stored cursor; a replayed full sweep rewrites no support (`xmin` sum unchanged). | None run. |
+| `TestSupplyChainImpactSupportsMarkerAboveTheBinaryIsNotReadyLive` | A marker for a higher version reads as not ready. | None run. |
+| `TestSupplyChainImpactSupportsOperatorScopeWriteLive` | An operator-scope finding written by the real writer lands in supports with the operator scope id and marks nothing dirty. | None run. |
+
+Hermetic tests pin the supports contract hash, the seeded-RED pin change, the
+marker name against the version, the transaction setting being the writer's first
+statement, the readiness predicate (including a missing table), and the commit-time
+telemetry counter.
 
 ## Performance evidence
 
-Performance Evidence: measured on a private `postgres:18` (default settings)
-with the harnesses in
-[the evidence directory](../evidence/10880-pr-b1/README.md), host load average
-about 21 on 16 cores, so wall times are noisy and WAL bytes are the stable
-figure.
+Performance Evidence: measured on a private `postgres:18` (default settings) with
+the harnesses in [the evidence directory](../evidence/10880-pr-b1/README.md), host
+load average about 24 on 16 cores, so wall times are noisy and WAL bytes are the
+stable figure.
 
 **Writer write cost** (the real writer, 3,000 findings in one scope, three
 repetitions; the comparison forwards every optional transaction surface but the
-supports maintainer):
+supports maintainer; payload verbatim):
 
 | Pass | WAL with supports | WAL without | Delta |
 | --- | --- | --- | --- |
-| Insert 3,000 findings | 25.82 MB | 17.64 to 17.85 MB | +44.6% to +46.4% |
-| Replay the same 3,000 | 13.93 MB | 13.76 to 14.16 MB | -1.6% to +1.2% |
-| Retract 1,500 of 3,000 | 11.04 MB | 10.87 to 11.03 MB | +0.1% to +1.6% |
+| Insert 3,000 findings | 24.85 MB | 17.64 to 17.67 MB | +40.6% to +40.9% |
+| Replay the same 3,000 under a new intent id | 21.22 MB | 13.76 to 13.82 MB | +53.5% to +54.2% |
+| Retract 1,500 of 3,000 (1,500 kept under a new intent id) | 14.60 MB | 10.87 to 11.07 MB | +31.8% to +34.3% |
 
-The payload column accounts for about 24 points of the insert cost: with the
-payload column set to an empty object the insert delta is +20.7% to +22.2%. The
-second proof measured +19.4% on the statements alone, without the real writer's
-dirty-log and pass-state work, which is why the number moved. The steady state is
-replays and small changes, which cost nothing: write-on-change holds. The insert
-cost is the one a first scan and a new advisory pay. I set a working threshold of
-+25% WAL on insert and did not state it before measuring; the payload column
-crosses it. Whether to keep the payload on the support row until the fact
-payloads retire (slice 3 frees the ten dedicated fact indexes and the fact
-payload, 266 MB in the proof corpus) or to read page payloads from the fact row
-for now is the arbiter's call, so I left the payload in and report the cost.
+These are synthetic and differ from the +19.4% (insert with retraction) the ruling
+reasoned on, which measured the support statements alone and without the real
+writer's dirty-log and pass-state work. The reasons, from the runs: a verbatim
+payload makes every support carry the fact's per-pass keys, so a replay that
+carries a new intent id rewrites the support as it rewrites the fact (an earlier
+build stripped those keys and measured +0.4% to +1.6% on replay and retraction, at
+the cost of the data PR-C needs); and the payload column is about half of the
+insert delta (an earlier run with the payload set to an empty object gave +20.7% to
++22.2%). The ruling makes the +25% impact-WAL rule a QA before/after window check
+before B3, not a B1 gate, and these numbers go to that review as a measured
+synthetic fact.
+
+**QA window for the before/after check.** Report, for equal windows before and
+after the roll: `pg_stat_wal.wal_bytes`, the table size, and the impact-write WAL
+per row written. Add, from a committed queue SQL, the supply-chain reducer items
+(succeeded and reopened) and the impact WAL per reopened item and per row written:
+reopens drive fact-side rewrites (the fencing-only `BatchInsertVersionedFacts`,
+`writer_retract.go:166`; the arbiter's note for PR-C counts 304 of 328 items in
+seven days as reopens), so a verbatim support rewritten on each reopen is the
+number that decides whether the +25% rule holds. PR-C's net-negative WAL must be
+measured the same way, not credited from an upper bound.
 
 **Backfill duration** (100,000 facts in 2,000 scopes, 500-fact chunks, one
 transaction per scope here because each scope holds 50 facts): 2,001 steps,
@@ -121,35 +207,79 @@ writer waits at most one chunk. At this rate 5 million supports take about 25
 minutes. The walk never sorts the fact table: pair discovery is an index range
 scan (0.03 ms in `EXPLAIN ANALYZE` at 100,000 facts), and the per-chunk sort is
 bounded by one pair's live findings. A first version ordered the whole table by
-`(scope_id, generation_id, fact_id)` per step and timed out at 100,000 facts;
-the scale harness found it, and the walk was rewritten before commit.
+`(scope_id, generation_id, fact_id)` per step and timed out at 100,000 facts; the
+scale harness found it, and the walk was rewritten before commit. Those figures
+were measured before the payload became verbatim; the backfill writes the same
+rows through the writer's own statement, so its row width is now larger and its
+rate is NOT_CHECKED at the final shape.
 
-**Read blocks** (legacy list read against the committed candidate, 100,000 facts,
-status filter, buffer hits plus reads of one `EXPLAIN (ANALYZE, BUFFERS)` run;
-block accesses bound distinct blocks from above):
+**Read blocks** (legacy list read against the committed candidate at the earlier
+payload shape, 100,000 facts, status filter, buffer hits plus reads of one
+`EXPLAIN (ANALYZE, BUFFERS)` run; block accesses bound distinct blocks from above):
 
-| Grant | Legacy blocks | Candidate blocks | Ratio | Legacy ms | Candidate ms |
-| --- | --- | --- | --- | --- | --- |
-| 5 scopes | 304,771 | 2,755 | 0.009 | 139 to 175 | 3.1 to 42.8 |
-| 80 scopes | 312,271 | 40,985 | 0.131 | 159 to 161 | 43 to 70 |
-| 400 scopes | 344,271 | 203,744 | 0.592 | 299 to 396 | 249 to 251 |
-| 20 repositories | 306,271 | 10,415 | 0.034 | 142 to 153 | 10.6 to 10.7 |
+| Grant | Legacy blocks | Candidate blocks | Ratio |
+| --- | --- | --- | --- |
+| 5 scopes | 304,771 | 2,755 | 0.009 |
+| 80 scopes | 312,271 | 40,985 | 0.131 |
+| 400 scopes | 344,271 | 203,744 | 0.592 |
+| 20 repositories | 306,271 | 10,415 | 0.034 |
 
-The profile=precise filter gave identical block counts. The candidate stays far
-inside the +10% bound the ruling set for cold reads. The 400-scope grant reads
-the most because it reads the most supports (20,000 of 100,000).
+The candidate stays far inside the +10% bound the ruling set for cold reads. The
+candidate's rank-filter order has since changed to the ruled pick-then-filter
+order, which filters after the pick; the block counts above predate that change and
+are NOT_CHECKED at the final shape.
+
+## Equality and the rank-filter order
+
+The test-only candidate is derived from the shipped `ListFindingsQuery` by marker
+surgery, so the legacy read cannot drift from it unseen. It reads the supports in
+two grant arms, applies the active-generation join afterward, keeps the
+static-authority guard, and uses an indexed lateral probe for the operator override
+(order by priority score, payload finding id, fact id, limit 1; the operator
+scope's active generation; non-tombstone; non-active state; the same clock bind).
+
+- **Non-rank filters** (status, image ref, profile, CVE, advisory, suppression
+  state, include-suppressed, paging) are byte-equal to the legacy read across 11
+  grant shapes.
+- **Rank filters** (severity, priority bucket, minimum priority) follow the ruled
+  order: pick among the granted supports that pass the key and existence filters,
+  apply the rank filter to the picked row, then the suppression filters. The legacy
+  read filters first and picks after, so the 154-case legacy matrix does not prove
+  this rule. These cases compare with an independent oracle (the legacy read with
+  the rank binds empty, unpaged, the picked rows filtered in Go).
+  Nine rank cases differ from legacy; they are pinned in the test as the list PR-B3
+  changes on purpose. Example: a grant of scopes SA and SB with
+  `priority_bucket=low` returns `m1` (priority 40) and `m2` (priority 30) from
+  legacy, because their low-priority copy in SA passes the filter before the pick;
+  the ruled read picks the SB copy of `m1` (priority 80) and the SA copy of `m2`
+  (priority 90) first, and drops both.
+- **Operator overlay cases:** live, expired, an expiry the cast cannot read, two
+  competing overrides for one key, an overlay in an operator generation a later
+  generation superseded, a grant naming the operator scope, and every grant shape.
+- **Teeth.** Removing the static-authority guard fails 49 cases and removing the
+  override probe fails 61 (measured on the first matrix; the guard and probe
+  are unchanged).
+- **Plan shape.** At the 400-scope shape over 144,000 supports in 2,400 scopes the
+  plan needs both grant indexes and no sequential scan; the natural single-WHERE
+  form fails the same checker; the cascade delete does not scan sequentially.
+- The HTTP reference text for B2: "the canonical copy among the copies you may see
+  that match the other filters". Filters the ruling does not classify
+  (`impact_status`, `subject_digest`, `repository_id`, runtime filters) keep
+  existence semantics here; how they diverge on QA is a census for B2.
 
 ## Observability evidence
 
 Observability Evidence: `eshu_dp_supply_chain_impact_supports_rows_total`
-(`action`, `source`), `eshu_dp_supply_chain_impact_supports_backfill_steps_total`
-(`outcome`), and `eshu_dp_supply_chain_impact_supports_backfill_ready`, documented
+(`action`, `source`), `..._backfill_steps_total` (`outcome`),
+`..._backfill_step_duration_seconds`, `..._dirty_scopes`,
+`..._backfill_last_success_timestamp_seconds` and `..._backfill_ready`, documented
 in [Supply-Chain Impact Supports](../../public/reference/telemetry/supply-chain-impact-supports.md)
 and the reducer-domain coverage row. Writer rows count after commit; a hermetic
 test pins that a rollback and a failed commit count nothing. At 3 AM an operator
 sees a backfill that never finishes (gauge stays 0, steps are `contended` or
-`failed`), a sweep restarting (`verify_gap` rising), or a maintainer that
-stopped (`writer` inserted and updated flat while findings are written).
+`failed`, last success stops), a sweep restarting (`verify_gap` rising), a
+maintainer that stopped (`writer` inserted and updated flat while findings are
+written), or an old writer still running (the dirty-scope gauge stays above zero).
 
 ## Pre-merge conditions and rollout
 
@@ -158,8 +288,8 @@ stopped (`writer` inserted and updated flat while findings are written).
   against the QA read replica, and paste its six figures in the PR body. It
   sizes the table and shows whether supports of one key differ on profile or
   image ref, which decides the existence filters in B2.
-- **After deploy, before any B2 reader ships:** the gauge reads 1, and this
-  returns zero:
+- **After deploy, before any B2 reader ships:** the ready gauge reads 1, the dirty
+  gauge reads 0, and this returns zero:
 
   ```sql
   SELECT count(*) FROM fact_records AS f
@@ -167,20 +297,28 @@ stopped (`writer` inserted and updated flat while findings are written).
     AND NOT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports AS s WHERE s.fact_id = f.fact_id);
   ```
 
-- **Rolling upgrade.** A writer without the maintainer that runs after the sweep
-  passed its pair leaves a gap or an orphan. The marker is not re-verified once
-  set, so B2 readers must treat the marker as a deploy-time readiness fact and
-  the QA check above as the gate; a periodic re-verification is a follow-up if
-  the rollout shows mixed-version windows are long.
+- **B3 precondition on QA:** the supports v1 marker is recorded and the fence is
+  empty.
+- **Single QA pin.** The supports contract does not raise the winners contract,
+  so B1 does not need its own winners full; it rides the agreed QA image pin if
+  that is ready, or any later agreed pin, and its roll must record no second
+  winners full. Whether the winners v2 build is on QA is NOT_CHECKED here.
 - **B2 reader contract.** A grant-scoped call answers 503 when
-  `SupplyChainImpactSupportsReady` is false or errors (a missing table reads as
-  an error), and is never served from winners as-is.
+  `SupplyChainImpactSupportsReady` is false, errors, or sees a stored marker above
+  the binary's version, and is never served from winners as-is.
 
 ## NOT_CHECKED
 
-- A production-scale backfill (the figures above are 100,000 facts).
+- A production-scale backfill at the final payload shape (the figures above are
+  100,000 facts at the earlier shape).
+- Read blocks and timings of the candidate at the ruled rank-filter order and the
+  verbatim payload.
 - A cold-start run with the page cache dropped: block accesses are reported, not
   the distinct blocks of a restarted server.
+- The trigger's WHEN-false cost at the CPU level; only WAL and wall time under
+  load were measured.
+- A PostgreSQL older than 18 (the cascade plan relies on skip scan).
 - The keyed resweep's own read of the table: B1 adds no such reader.
-- `make pre-push`, `make pre-pr`, and the registry static gates: left to the
-  coordinator by order.
+- Whether winners v2 is on QA, and the QA impact-WAL window.
+- `make pre-push`, `make pre-pr`, and CI: left to the coordinator by order.
+</content>
