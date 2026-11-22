@@ -26,4 +26,15 @@ func TestBuildReducerServiceWiresInfraInventoryBackfill(t *testing.T) {
 	if service.InfraInventoryBackfillRunner == nil || service.InfraInventoryBackfillRunner.Backfiller == nil {
 		t.Fatal("buildReducerService() infra inventory backfill runner or its port = nil, want the Postgres backfill")
 	}
+	// A non-nil port is not enough: a no-op adapter would satisfy it and the
+	// reducer would never record the marker. The port must be the Postgres
+	// adapter (it calls inventory.RunBackground) over the database the service
+	// was built with.
+	port, ok := service.InfraInventoryBackfillRunner.Backfiller.(postgresInfraInventoryBackfiller)
+	if !ok {
+		t.Fatalf("buildReducerService() backfill port = %T, want postgresInfraInventoryBackfiller", service.InfraInventoryBackfillRunner.Backfiller)
+	}
+	if port.database != database {
+		t.Fatalf("backfill port database = %v, want the database passed to buildReducerService", port.database)
+	}
 }
