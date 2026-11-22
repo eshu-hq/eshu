@@ -54,10 +54,16 @@ func HolderKeyRanges() []HolderKeyRange {
 // kind (telemetry.FanOutReadKindHoldersKeyRange), how long it ran, and its
 // error, if any. The handler records each into the fan-out read-duration histogram.
 type HolderReadStatement struct {
-	Kind     string
+	Kind string
+	// Range is the statement's 1-based key-range index.
+	Range    int
 	Duration time.Duration
 	Err      error
 }
+
+// keyRangeStatementLogMessage is the warn log line of a slow or failed
+// key-range statement.
+const keyRangeStatementLogMessage = "supply chain impact holder key-range statement slow or failed"
 
 // HolderKeyRangeRead is the result of one key-range holder read: the holder
 // scopes and every statement that ran, in order, including a failed last one.

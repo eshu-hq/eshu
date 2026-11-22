@@ -151,8 +151,8 @@ func TestHolderKeyRangeReadMatchesShippedLive(t *testing.T) {
 		t.Fatalf("statements = %d, want %d (one per range, the token arm inside each)", len(read.Statements), len(ranges))
 	}
 	for i, stmt := range read.Statements {
-		if stmt.Kind != telemetry.FanOutReadKindHoldersKeyRange || stmt.Err != nil {
-			t.Fatalf("statement %d = %+v, want kind %s and no error", i, stmt, telemetry.FanOutReadKindHoldersKeyRange)
+		if stmt.Kind != telemetry.FanOutReadKindHoldersKeyRange || stmt.Range != i+1 || stmt.Err != nil {
+			t.Fatalf("statement %d = %+v, want kind %s, range %d and no error", i, stmt, telemetry.FanOutReadKindHoldersKeyRange, i+1)
 		}
 	}
 

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -25,8 +26,10 @@ type rangeStubFanOut struct {
 	// rangeHolders maps a key range to the holders its statement returns.
 	rangeHolders map[HolderKeyRange][]string
 	rangeErr     map[HolderKeyRange]error
-	rangeCalls   []HolderKeyRange
-	rangeIDs     [][]string
+	// rangeDuration is the duration each range's statement reports.
+	rangeDuration map[HolderKeyRange]time.Duration
+	rangeCalls    []HolderKeyRange
+	rangeIDs      [][]string
 }
 
 func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error) {
@@ -34,14 +37,14 @@ func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string
 	defer s.mu.Unlock()
 	var read HolderKeyRangeRead
 	set := map[string]struct{}{}
-	for _, keyRange := range ranges {
+	for i, keyRange := range ranges {
 		s.rangeCalls = append(s.rangeCalls, keyRange)
 		s.rangeIDs = append(s.rangeIDs, append([]string(nil), lookupIDs...))
 		if err := s.rangeErr[keyRange]; err != nil {
-			read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange, Err: err})
+			read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange, Range: i + 1, Duration: s.rangeDuration[keyRange], Err: err})
 			return read, err
 		}
-		read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange})
+		read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersKeyRange, Range: i + 1, Duration: s.rangeDuration[keyRange]})
 		for _, id := range s.rangeHolders[keyRange] {
 			set[id] = struct{}{}
 		}
