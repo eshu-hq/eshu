@@ -161,7 +161,14 @@ checks, without spending the counted-iteration budget. `RouteQueryArgs`
 supplies a representative seeded selector for routes this gate's own corpus
 can back, so those run for real instead of 400ing. A **5xx always fails**
 the route regardless of how fast it answered (`HardFailed`) — a query error
-or an early 500 must not pass just because it was quick. The breach summary
+or an early 500 must not pass just because it was quick. The single exception
+is the provider-unconfigured class: the four GitHub and OIDC login and callback
+routes answer 503 with their own `login is unavailable` detail when the core is
+not configured with that provider, and the gate does not enable providers. When
+every counted sample of one of those routes is exactly that 503 and body, the
+route prints `NOT_EXERCISED(503 provider-unconfigured)`, is counted in a stderr
+summary line, and is recorded per route in the latency report. Any other status
+or body, a mixed sample set, or the same body on another route still fails. The breach summary
 prints the first counted-sample 5xx response body (capped at 500 bytes) so
 the error envelope is visible without re-running. The route table's status
 column marks `BREACH` for every route the run fails on (latency, work budget,

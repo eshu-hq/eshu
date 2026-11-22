@@ -48,6 +48,11 @@ type RouteLatency struct {
 	// incident: two HardFailed routes had no signal beyond "5xx" until this
 	// was added).
 	HardFailedBody string
+	// NotExercisedClass names why a not-exercised route is a typed class and
+	// not a failure: today only notExercisedProviderUnconfigured (an optional
+	// sign-in provider the core is not configured with; see
+	// providerUnconfiguredRoutes). Empty for every other route.
+	NotExercisedClass string
 	// Metered is true when the work meter read counters for this route; Work is
 	// meaningful only then. See WorkPerRequest.
 	Metered bool

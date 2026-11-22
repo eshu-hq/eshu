@@ -76,16 +76,20 @@ type LatencyReportWarmStats struct {
 // LatencyReportRoute is one route's full measured outcome, carrying enough
 // to re-derive everything printReport shows plus the raw distribution.
 type LatencyReportRoute struct {
-	Route          string         `json:"route"`
-	Method         string         `json:"method,omitempty"`
-	Path           string         `json:"path,omitempty"`
-	MCP            bool           `json:"mcp,omitempty"`
-	Exercised      bool           `json:"exercised"`
-	Status         int            `json:"status"`
-	HardFailed     bool           `json:"hard_failed"`
-	HardFailedBody string         `json:"hard_failed_body,omitempty"`
-	Metered        bool           `json:"metered"`
-	Work           workReportWork `json:"work"`
+	Route          string `json:"route"`
+	Method         string `json:"method,omitempty"`
+	Path           string `json:"path,omitempty"`
+	MCP            bool   `json:"mcp,omitempty"`
+	Exercised      bool   `json:"exercised"`
+	Status         int    `json:"status"`
+	HardFailed     bool   `json:"hard_failed"`
+	HardFailedBody string `json:"hard_failed_body,omitempty"`
+	// NotExercisedClass is set only for a typed not-exercised class such as
+	// provider-unconfigured, so a report reader can tell those routes from
+	// a route that needed a selector.
+	NotExercisedClass string         `json:"not_exercised_class,omitempty"`
+	Metered           bool           `json:"metered"`
+	Work              workReportWork `json:"work"`
 	// ColdSamplesMS retains the version-1 field name for RouteLatency.Samples:
 	// the first counted pass after discarded warmups, not a cold-cache proof.
 	// Values are milliseconds in request order; empty when not exercised.
@@ -160,6 +164,8 @@ func buildLatencyReportRoute(r RouteLatency) LatencyReportRoute {
 		HardFailed:     r.HardFailed,
 		HardFailedBody: r.HardFailedBody,
 		Metered:        r.Metered,
+
+		NotExercisedClass: r.NotExercisedClass,
 	}
 	if r.Metered {
 		out.Work = workReportWork{Calls: r.Work.Calls, Rows: r.Work.Rows, Blks: r.Work.Blks}

@@ -13,7 +13,9 @@
 // seeded parameterized GET and query POST operations and an MCP tools/call
 // through the running MCP HTTP transport (true
 // nearest-rank p95 over a warmup-discarded sample), and fails when any
-// route exceeds its budget, a 5xx response occurs, the exercised-route
+// route exceeds its budget, a 5xx response occurs (except the four GitHub and
+// OIDC login routes answering their exact provider-unconfigured 503, which
+// count as a typed not-exercised class), the exercised-route
 // coverage floor is not met, or an explicitly-budgeted route drops out of
 // coverage. It also meters the Postgres work each route costs per request
 // (pg_stat_statements calls, rows, and buffer blocks) and fails when any

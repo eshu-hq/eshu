@@ -80,7 +80,11 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `GATE_CONCURRENT_REQUESTS` in the runner.
 - `SweepRoutes` — measures true nearest-rank p95 latency per route against a
   running eshu-api, over a warmup-discarded counted sample; flags any 5xx
-  response as `HardFailed` regardless of latency and captures the first
+  response as `HardFailed` regardless of latency (the one exception: the four
+  GitHub and OIDC login and callback routes whose every counted sample is the
+  product's exact provider-unconfigured 503 become
+  `NOT_EXERCISED(503 provider-unconfigured)`, counted and summarized on
+  stderr, since the gate does not enable sign-in providers) and captures the first
   counted-sample 5xx body (capped) as `HardFailedBody` so an operator can see
   the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its

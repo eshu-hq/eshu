@@ -3,7 +3,10 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 // ExercisedCoverageFloor is the minimum number of routes this gate must
 // exercise (see RouteLatency.Exercised) for a run to be considered valid
@@ -49,4 +52,15 @@ func CheckCoverageFloor(results []RouteLatency, floor int) error {
 		return fmt.Errorf("exercised %d/%d routes, below the committed coverage floor of %d — see ExercisedCoverageFloor", exercised, total, floor)
 	}
 	return nil
+}
+
+// printCoverage prints the typed not-exercised summary and the exercised-route
+// count against the floor, and returns the exercised count and the floor for
+// the run's verdict.
+func printCoverage(w io.Writer, results []RouteLatency, operations map[string]Operation) (exercised, floor int) {
+	printProviderUnconfiguredSummary(w, results)
+	exercised, total := ExercisedCoverage(results)
+	floor = CoverageFloor(operations)
+	_, _ = fmt.Fprintf(w, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, floor)
+	return exercised, floor
 }

@@ -134,7 +134,19 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   unrepresentative; do not fold them into the p95 sample set.
 - **A 5xx always sets `HardFailed=true` and always breaches** (`sweep.go`,
   `EvaluateBudgets`), regardless of how fast it answered. Do not let a fast
-  failure read as a fast pass.
+  failure read as a fast pass. There is exactly one exception: the
+  provider-unconfigured class (`provider_unconfigured.go`). The four routes in
+  `providerUnconfiguredRoutes` (GitHub and OIDC login and callback) answer 503
+  with their own detail message when the core is not configured with that
+  provider; when EVERY counted sample of one of them is that exact 503 and
+  body, the route is `Exercised=false`, `NotExercisedClass=provider-unconfigured`,
+  printed as `NOT_EXERCISED(503 provider-unconfigured)`, summarized on stderr
+  with a count, and recorded per route in the latency report. Any other status,
+  body, or a mixed sample set stays `HardFailed`, and the same body on a route
+  outside the table stays `HardFailed`. Never widen it to a body pattern, a
+  prefix, or another route without a ruling. The gate does not enable
+  providers. `TestProviderUnconfiguredMessagesMatchTheProduct` builds the
+  product handlers with no service and pins the messages.
 - **The route table's status column must agree with every gate verdict**
   (`printReport`, `main.go`): BREACH for a `HardFailed` route, a p95 over the
   latency ceiling, a route over its work budget (`EvaluateWorkBudgets`), an
