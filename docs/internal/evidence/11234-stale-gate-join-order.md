@@ -1,14 +1,34 @@
 # #11234 The reducer claim's stale gate no longer loops over every scope
 
-Refs #11234. Binding arbiter rulings (coordinator checkout, `.claude/`):
-`arbiter-11234-next.md`, `arbiter-11234-repro.md`, `arbiter-11234-fix-e.md`
-and `arbiter-11234-accept.md` (2026-11-22). Every figure below is a local
-fixture figure. Nothing here claims a QA gain; the post-deploy reading
-decides that. The acceptance matrix, the pin, the differential and the
-replay ran on 2026-11-22 at 14ab35ecc7, before a rebase onto
-origin/main; `git diff 14ab35ecc7 HEAD` over the claim statements, the
-readiness and generation-filter fragments and the migrations is empty, so
-the measured text is this text.
+Refs #11234. Every figure below is a local fixture figure. Nothing here
+claims a QA gain; the post-deploy reading decides that. The acceptance
+matrix, the pin, the differential and the replay ran on 2026-11-22 at a
+tree whose claim statements, readiness and generation-filter fragments and
+migrations are identical to this head (`git diff` over those files is
+empty), so the measured text is this text.
+
+The arbiter rulings of 2026-11-22 set what follows:
+
+- The fix (E2): the gate first lists the pending/retrying reducer rows not
+  on their scope's active generation id, by one join of the work rows to
+  `ingestion_scopes`. Each such row then looks up its active generation by
+  a per-row lateral of two primary-key probes that carries the #10863 `ON`
+  text verbatim, so no CTE is joined to another CTE.
+- The reproduction is the loop count, not buffers: the fixture must show
+  the planner's estimate of 1 and the per-scope index loops QA showed.
+- Acceptance, per cell, six warm runs, minimum: time never higher than the
+  pre-#11234 text; with fresh statistics (production's state) buffers at
+  most one third of it; without statistics at most 1.25 times, because
+  there the old text is either catastrophic or cheap in buffers and slow in
+  CPU, so time ranks the two texts. The matrix runs on the full bootstrap
+  schema with the production index set.
+- Equivalence rests on a both-ways differential of every gate statement on
+  one snapshot, hermetic body guards, and a replica and primary plan read
+  of the E2 text before merge.
+
+The operator-gated proofs below run when `ESHU_REDUCER_CLAIM_BENCH_DSN`, or
+failing that `ESHU_POSTGRES_DSN`, names a disposable PostgreSQL; they skip
+when neither is set. They never touch QA.
 
 Performance Evidence: on the QA-shaped fixture over the full bootstrap
 schema (12,236 active scopes, 13,366 older generations, 10,000
@@ -16,8 +36,10 @@ pending/retrying reducer rows, PostgreSQL 18.6, six warm runs per cell,
 minimum), the stale-gate chain falls from 47,354 to 620 buffers and from
 45.4 to 4.6 ms with no stale row and fresh statistics; the per-scope loop
 of 12,238 index probes is gone (0 with no stale row, 200 with 200). All
-twelve acceptance cells pass (table below), including the no-statistics
-cells where the old text took 3.1 to 13.2 s.
+fourteen acceptance cells pass their bars (table below), including the
+no-statistics cells where the old text took 3.1 to 13.2 s. Above 2,000
+stale rows the gain narrows: at 10,000 the chain reads 64 percent of the
+old text's buffers with the filter NULL.
 
 Observability Evidence: no new signal. The claim is diagnosed with the
 existing `eshu_dp_queue_claim_duration_seconds` histogram (per lane,
@@ -71,8 +93,14 @@ and nothing below it does per-row work.
 
 Each such row looks up its active generation through a
 `CROSS JOIN LATERAL (... OFFSET 0)` of two primary-key probes that carries
-the #10863 `ON` text verbatim and keeps the alias `scope`. `OFFSET 0` keeps
-the planner from flattening or reordering it. The lookup yields no row
+the #10863 `ON` text verbatim and keeps the alias `scope`. `OFFSET 0`
+keeps the planner from pulling the subquery up. The hermetic body guard
+pins its presence, but nothing live shows it is needed: without it the
+pin stays green at fresh statistics, and the no-statistics 2,000-stale
+cells read the same buffers in the same time (68,250 / 45.3 ms and
+26,000 / 15.0 ms against 68,250 / 46.2 and 26,000 / 15.5 with it). The
+proven plan fence is `MATERIALIZED` (PostgreSQL 18 docs, section 7.8.3).
+The lookup yields no row
 when the scope has no valid active generation row, which drops the row
 exactly as the old inner join did.
 
@@ -100,10 +128,13 @@ replaces that join with the per-row lookup and keeps E's cost elsewhere.
 ## Acceptance matrix
 
 `TestStaleGate11234AcceptanceLive`, full bootstrap schema (production
-index set), six warm runs per cell, minimum, host load 15 to 30. Bars:
-time never higher than the pre-#11234 text; with fresh statistics, buffers
-at most one third; without statistics, at most 1.25 times. All twelve
-cells pass.
+index set), six warm runs per cell, minimum, host load 15 to 30 (20 to 48
+for the 10,000 cells). Fourteen cells, three bars: time never higher than
+the pre-#11234 text in every cell; with fresh statistics, buffers at most
+one third up to 2,000 stale rows and no higher than the old text's at
+10,000; without statistics, at most 1.25 times. All fourteen cells pass.
+The figures are the gate chain cut (`staleGate11234ChainCut`), not the
+whole statement.
 
 | Stats | Stale | Filter | Pre-#11234 buf / ms | Shipped buf / ms | `ingestion_scopes` loops / buf |
 |---|---|---|---|---|---|
@@ -113,12 +144,51 @@ cells pass.
 | fresh | 200 | set | 47,704 / 45.6 | 1,409 / 3.6 | 50 / 350 |
 | fresh | 2,000 | NULL | 57,354 / 55.9 | 17,143 / 26.0 | 2,000 / 6,200 |
 | fresh | 2,000 | set | 50,854 / 47.6 | 6,037 / 8.6 | 500 / 1,700 |
+| fresh | 10,000 | NULL | 80,771 / 89.8 | 51,962 / 73.9 | 9,000 / 27,200 |
+| fresh | 10,000 | set | 75,270 / 76.5 | 15,711 / 24.3 | 2,500 / 7,700 |
 | none | 0 | NULL | 66,099 / 10,795 | 40,459 / 23.1 | 10,000 / 30,000 |
 | none | 0 | set | 18,599 / 3,102 | 17,959 / 9.1 | 2,500 / 7,500 |
 | none | 200 | NULL | 67,580 / 11,033 | 43,240 / 25.7 | 10,200 / 31,200 |
 | none | 200 | set | 18,955 / 3,159 | 18,765 / 10.2 | 2,550 / 7,800 |
 | none | 2,000 | NULL | 80,890 / 13,236 | 68,250 / 46.2 | 12,000 / 42,000 |
 | none | 2,000 | set | 22,140 / 3,762 | 26,000 / 15.5 | 3,000 / 10,500 |
+
+Above 2,000 stale rows the gain narrows. The gate does a fixed amount of
+work per stale row (two primary-key lookups, about 4 buffers and 0.006 ms
+per row on this fixture), where the old text paid a large fixed cost and
+little per row. With fresh statistics the chain reads at most one third of
+the old text's buffers up to 2,000 stale rows. At 10,000, which is every
+pending row of the fixture, it reads 51,962 against 80,771 buffers (64
+percent) in 73.9 against 89.8 ms with the filter NULL, and 15,711 against
+75,270 (21 percent) in 24.3 against 76.5 ms with the filter set. The
+one-third bar is asserted up to 2,000; at 10,000 the test asserts only
+that time and buffers are no higher than the old text's. The ratio crosses
+one third somewhere between 2,000 and 10,000 stale rows with the filter
+NULL; the point was not measured. Nothing is measured above 10,000. A
+straight line through the 2,000 and 10,000 cells would reach the old
+text's time near 19,000 stale rows; that is an extrapolation, not a
+result. QA's stale set at the last reading was about 14 rows.
+
+The two 10,000 rows ran three times on fresh seeds, on the committed gate
+text (the same SQL as this head; only comments differ). Two seeds gave the
+figures above (the other of the two: 51,962 / 73.6 ms against 80,716 /
+88.9, and 15,711 / 23.3 against 75,215 / 75.3). One seed's ANALYZE sample led
+both texts to a different plan: 70,460 / 88.9 ms against 106,818 / 112.1
+with the filter NULL (66 percent), and 20,710 / 27.8 against 100,818 /
+97.8 with it set (21 percent). Every seed passes all three bars. The
+10,000 cells also hold the pin's bounds: index loops at most 9,000 against
+a bound of 10,064, and no rescans.
+
+`ingestion_scopes` shows 9,000 lookups for 10,000 stale rows (2,000 for
+2,000) because of the seed, not a plan change. The plan is the same at
+both sizes, with no `Memoize` node. Stale rows rotate over eight domains,
+so 1,250 of the 10,000 are Crossplane rows. The gate keeps a stale
+Crossplane row only while a newer pending carrier exists in its scope, and
+the live rows that supply carriers sit on scopes 1 to 2,000. So the 1,000
+Crossplane stale rows on scopes above 2,000 drop at the hash join's filter
+before the lookup (`Rows Removed by Join Filter: 1000`), which leaves
+9,000. At 2,000 stale rows every stale row is on scopes 1 to 2,000, so
+none drop.
 
 "Filter set" is the vulnerability lane's two domains. The
 `ingestion_scopes` probes are logged, not pinned: with statistics the work
@@ -136,8 +206,8 @@ guard.
 
 ## Pin
 
-`TestStaleGate11234NoPerScopeLoopLive` (arbiter-11234-repro decision 2):
-index loops on `fact_work_items` and `scope_generations` at most the
+`TestStaleGate11234NoPerScopeLoopLive` (the reproduction's loop count,
+made a pin): index loops on `fact_work_items` and `scope_generations` at most the
 non-active row count plus 64, and no nested loop whose inner side rescans
 a CTE or table more than 1,000 times, with hash and merge joins on and off
 and the filter NULL and set. RED on the shipped #10863 text at 6931873148
@@ -207,6 +277,14 @@ the lock arms), and with the filter set the claim already ran in about a
 third of the time. Host load 15 to 45 during both runs; the base run's
 200-stale p95 includes a load spike.
 
+## QA plan read
+
+QA plan read of the E2 text (replica ANALYZE, primary plain EXPLAIN,
+2026-11-22 17:35Z): it matches the fixture. The gate chain read 12.3
+percent of the before buffers (212,330 to 26,123), and the plans have the
+same shape on the primary and the replica. The read does not establish
+same-snapshot candidate equality; that rests on the differential.
+
 ## Open items, not in this change
 
 - The Crossplane carrier `EXISTS` inherited from #10863: without
@@ -218,17 +296,21 @@ third of the time. Host load 15 to 45 during both runs; the base run's
   percent of that lane's cut; `base` through `reps` (about half) remains.
   Recorded on #11234.
 - The standalone stale-generation sweep is untouched.
+- Growth above 10,000 stale rows is unmeasured. Recorded on #11234.
 
 ## Deploy gates
 
 Per lane, before and after: claim seconds per second, seconds per claim,
 rows per claim, executions per second by outcome, workers active, and the
-batch claim's pooled buffers per call against 442,132. Read the deferred
+batch claim's pooled buffers per call against 442,132. After deploy, read
+the count of non-active pending or retrying reducer rows (the
+`staleGate11234NonActiveRows` query) next to the claim's buffers per call,
+so a large stale set is visible when it happens. Read the deferred
 rate after deploy: a faster claim hands deferring rows out faster. A
 statement whose share of total time passes 5 percent returns to the
 arbiter.
 
-NOT_CHECKED: any QA figure for this text (the pre-merge replica and
-primary plan read is arranged separately); the built reducer binary
+NOT_CHECKED: a QA reading of this text after deploy (only the pre-merge
+plan read above); the built reducer binary
 (`go/cmd/reducer`) against this seed, as opposed to the package test
 binary on the production claim path.

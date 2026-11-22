@@ -142,7 +142,7 @@ func openStaleGate11234Live(ctx context.Context, t *testing.T, label string, ful
 	t.Helper()
 	dsn := reducerClaimBenchmarkDSN()
 	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_CLAIM_BENCH_DSN to a disposable Postgres to run the #11234 stale-gate plan proofs")
+		t.Skip("set ESHU_REDUCER_CLAIM_BENCH_DSN (or ESHU_POSTGRES_DSN) to a disposable Postgres to run the #11234 stale-gate plan proofs")
 	}
 	admin, err := sql.Open("pgx", dsn)
 	if err != nil {

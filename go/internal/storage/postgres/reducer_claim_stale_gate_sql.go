@@ -50,12 +50,16 @@ package postgres
 // ingestion_scopes, before any probe of scope_generations: with no stale
 // row (the normal state) it is empty and nothing below it runs per row.
 // Each such row then looks up its scope's active generation through a
-// CROSS JOIN LATERAL ... OFFSET 0 of two primary-key probes, which the
-// planner cannot flatten or reorder; it yields no row when the scope has
-// no valid active generation row, as the old inner join to a per-scope
-// set did. No CTE is joined to another CTE, so no plan can rescan one per
-// row (without planner statistics the old per-scope set was rescanned
-// once per stale row). Both CTEs stay MATERIALIZED: stale_gate_rows so the
+// CROSS JOIN LATERAL ... OFFSET 0 of two primary-key probes; it yields no
+// row when the scope has no valid active generation row, as the old inner
+// join to a per-scope set did. OFFSET 0 keeps the planner from pulling the
+// subquery up. The hermetic body guard pins its presence, but no live
+// proof shows it is needed: without it the pin stays green with fresh
+// statistics, and the no-statistics 2,000-stale cells read the same
+// buffers in the same time. The proven plan fence is MATERIALIZED
+// (PostgreSQL 18 docs, section 7.8.3). No CTE is joined to another CTE,
+// so no plan can rescan one per row (without planner statistics the old
+// per-scope set was rescanned once per stale row). Both CTEs stay MATERIALIZED: stale_gate_rows so the
 // prefilter runs once ahead of every lookup, and stale_reducer_candidates
 // so base's NOT EXISTS and the lock arms read one computed set instead of
 // inlining the gate.
