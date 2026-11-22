@@ -109,20 +109,22 @@ and version 1 keeps `c5731efd...`. The reasoning below holds unchanged for
 version 2. This is a text change, not a semantic change to stored winners:
 which keys get recomputed is the same, and only the capture time of a queued
 row moves. What does change is when `winners_watermark` waiters wake: no
-earlier than their activation's winners. A version bump would force one
-single-statement full on every instance after the roll (about 6,400 s on QA)
-without changing that wake behavior, so the bump rule (a winner output change
-for the same facts) does not apply.
+earlier than their activation's winners. The bump rule is a winner output
+change for the same facts, and this does not change one, so it does not apply.
+A bump would also cost an extra single-statement full (about 6,400 s on QA) on
+a table where a version 2 full already committed, without changing that wake
+behavior.
 
 What the re-pin does on the roll: nothing different. The maintainer decides
 on versions only (`decideWinnersContract` in `winners_keyed_maintainer.go`).
 `StoredHash` and `BinaryHash` are read into the contract but nothing branches
 on them. Both full paths stamp the hash; no tick compares it. A binary carrying
-the new hash, rolled over a table whose last full recorded `c5731efd...` at
-version 1, runs keyed ticks and the audit on its first tick: no full, no
+the new hash, rolled over a table at version 2 whose last full recorded
+`62ceaea5...`, runs keyed ticks and the audit on its first tick: no full, no
 stand-down, no new reason on `full_resweeps_total`. The stored hash stays
-`c5731efd...` until a later full (a version bump or the force-full runbook
-step) records the new one. `TestWinnersMaintainerRePinnedHashAtEqualVersionRunsKeyed`
+`62ceaea5...` until a later full records the new one. A table still at
+version 1 runs the one full that #11188's bump owes (reason
+`contract_version`), and that full stamps `8e761819...`. `TestWinnersMaintainerRePinnedHashAtEqualVersionRunsKeyed`
 pins this: equal versions with different hashes give a keyed tick and zero
 full calls. A hash-aware decision turns it red. The re-pin rule itself is A's
 pin pair: `TestSupplyChainImpactWinnersContractHashPinnedToVersion` failed on
@@ -131,8 +133,12 @@ the new statement set until the pin moved, and
 covered statement in turn, including the convert, and requires the pin to fail.
 
 Differential (bounded replay, three scopes of 7, 5 and 9 re-ranked winners plus
-14 fact marks, drained at chunk 2, 3 and 50): the md5 of every stored winner's
-data columns is `a4ef02840ec21e79fa51fcf33ab9c0da` (28 winners) on the shipped
+14 fact marks, drained at chunk 2, 3 and 50; measured before the rebase onto
+#10880 slice 1, on the version 1 statements, so it does not cover the
+`payload` and `source_confidence` columns; the version 2 proof is the three scope-remainder
+live tests at the rebased head, recorded below): the md5 of every stored
+winner's data columns is `a4ef02840ec21e79fa51fcf33ab9c0da` (28 winners) on the
+shipped
 code and on the fix, at all three chunk sizes, in repeated runs. Tick count and
 total inserted and updated rows are identical (chunk 2: 14 ticks, 7 inserted,
 21 updated). The per-tick order differs: converted rows now keep their age, so
@@ -184,3 +190,15 @@ hours, so a conversion no longer shows up as fresh fact inflow. The
 oldest-dirty age leg carries the fan-out instead. The trip sampler's godoc
 (`vulnerability/nvd_baseline_trip_sample.go`) says the same. The six trip-sample live proofs pass; one hit a
 disposable-database drop timeout after its assertions passed.
+
+Live proof at the rebased head 3feb15d664 (2026-11-22, disposable postgres:18.6
+container, `ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DSN`,
+`ESHU_POSTGRES_TEST_DSN` and
+`ESHU_SUPPLY_CHAIN_IMPACT_PROOF_DISPOSABLE=1` set, one run, `go test ... -count=1 -v`
+exit 0): `TestSupplyChainImpactWinnersResweepKeyedHorizonScopeRemainderLive`,
+`TestSupplyChainImpactWinnersResweepKeyedScopeRemainderHoldsWatermarkLive` and
+`TestSupplyChainImpactWinnersResweepKeyedScopeRemainderEdgesLive` (four
+subtests) all PASS. A first attempt without the disposable opt-in refused to
+run (0.00s, exit 1), so it proves nothing. NOT_CHECKED: a data-column
+differential (the md5 above) re-run on the version 2 statements; the live tests
+assert watermark and winner behavior, not that digest.
