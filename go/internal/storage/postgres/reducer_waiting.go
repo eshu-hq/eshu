@@ -237,8 +237,9 @@ func WaitingDeferralMap() []WaitingDeferral {
 			// #11016: the Claim probe is scope-free (every scope the sweep
 			// scanned, including empty sweeps) and post-commit wake
 			// failures log and meter instead of failing the committed
-			// operation; the heartbeat supersede and Ack's obsolete
-			// maintenance wake in their own transactions. The retirement
+			// operation; the heartbeat supersede wakes post-commit on the
+			// pool, and Ack's obsolete maintenance wake runs in its own
+			// transaction and is re-woken after commit. The retirement
 			// fence, the generation-liveness sweep, and the delta-baseline
 			// refusal retire generations off the hot path (leases drained
 			// first), so they stay on the audit terminal-progress fallback

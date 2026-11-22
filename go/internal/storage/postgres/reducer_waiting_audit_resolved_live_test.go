@@ -20,7 +20,7 @@ import (
 // TestWaitingAuditResolvedCounterLive pins the #11228 operator signal. A
 // lost wake (the generation activated, the wait row survived) resolves
 // through the audit and counts
-// eshu_dp_reducer_waiting_audit_resolved_total{outcome="reopened"} for its
+// eshu_dp_reducer_waiting_fallback_resolved_total{outcome="reopened"} for its
 // failure_class. A wait whose queue row the backstop already claimed counts
 // outcome="reconciled". Without the counter the lost-wake class shows only as
 // an unlabeled audit wake statement.
