@@ -7,8 +7,10 @@ short under "Verification Defaults". The source of truth for gates stays
 ## What `make pre-push` runs
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
-P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
-intended push or PR update. It is the fast local floor: changed-package
+P0/P1/P2-blocking findings, run `make pre-push` once per PR, immediately before
+the push that opens it. A later push does not rerun it; a rebase reruns it only
+on the same-file test in Rebase Waiver (`eshu-code-review`). It
+is the fast local floor: changed-package
 `go test -race` (a changed package gets a separate plain `go test` only when a
 `//go:build !race` file means the race binary skips some of its tests; fixture
 consumers and parser-tree child packages that are not themselves changed
@@ -18,16 +20,13 @@ closed), the allowlisted fast registry gates for changed paths
 (`local.pre_push: floor`; every other triggered gate prints `DEFER-CI` and still
 runs in `make pre-pr` and CI), and the advisory docs-contradiction gate (its only enforcement). It has no whole-module race lane, no live Docker/NornicDB/Postgres
 lane, and writes no stamp. `make pre-pr` and `make pre-pr-full` remain
-available as deeper, RECOMMENDED (not required) preflights before pushing a
-risky change: queue/lease/claim, schema DDL, hot-path Cypher or graph writes,
-reducer projection/materialization, or a package move (prefer `pre-pr-full`
-for moves — build tags can hide files from `./...`, so only its whole-module
-race lane exercises them). Verify the preliminary review receipt against the
+available, but they are not part of promotion: run `pre-pr-full` for a package
+move (build tags can hide files from `./...`, so only its whole-module race lane
+exercises them), `pre-pr` to reproduce a CI red, or when the owner asks. Verify the preliminary review receipt against the
 exact post-`pre-push` inputs before push. If verification fails, run a new
 full `eshu-code-review`. CI stays authoritative. When `make pre-push` prints
-`DEFER-CI` for a blocking gate on the surface you changed, run that gate
-(`make pre-pr`, or the gate's `local.command` from the registry) before pushing
-so CI is not its first run.
+`DEFER-CI` for a blocking gate on the surface you changed, run that gate's
+`local.command` from the registry before pushing so CI is not its first run.
 
 ## Where the Ifá/Odù protection lives
 
@@ -42,8 +41,9 @@ is still a finding ([When a PR may merge](agent-git-hygiene.md#when-a-pr-may-mer
 injection, determinism and dead-letter matrices) need Docker/Neo4j/Postgres
 and never ran locally; `make pre-pr` ran only their static mirrors. The
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
-do run locally in `make pre-pr` and are deferred by `make pre-push`, so run
-`make pre-pr` when a change touches `go/internal/ifa` or reducer
+do run locally in `make pre-pr` and are deferred by `make pre-push`; CI runs
+them. A `DEFER-CI` line for a blocking one still means run its `local.command`;
+run `make pre-pr` only to reproduce a red one on `go/internal/ifa` or reducer
 materialization.
 
 ## Common checks

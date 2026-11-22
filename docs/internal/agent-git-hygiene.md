@@ -11,8 +11,9 @@ Each rule here exists because the failure below actually happened.
 Install the repo's hooks once per clone: `scripts/dev/bootstrap-hooks.sh`. It is
 idempotent and shared across worktrees.
 
-Never `--no-verify` a commit or a push. Commit-stage gates are fast. Before
-every push (except row 4a, tier S, or an owner push order; see Rebase Waiver in
+Never `--no-verify` a commit or a push. Commit-stage gates are fast. Once per
+PR, on the push that opens it (never on row 4a, tier S, or an owner push order;
+a rebase runs it only on the same-file test in Rebase Waiver in
 `eshu-code-review`), run `make pre-push` (`scripts/dev/pre-push.sh`): the fast local
 floor of changed-package `go test`, the 500-line file cap, changed-package
 gofumpt/lint/build/vet, the allowlisted fast registry gates
@@ -90,15 +91,15 @@ The Ifá/Odù protection was never fully local: the live cells (fault injection,
 determinism and dead-letter matrices, golden-corpus, e2e) need
 Docker/NornicDB/Postgres and run in CI, or locally on explicit request. The
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
-run in `make pre-pr`; `make pre-push` defers them, so run `make pre-pr` for
-changes under `go/internal/ifa` or reducer materialization.
+run in `make pre-pr`; `make pre-push` defers them, and CI runs them. A `DEFER-CI`
+line for a blocking one still means run its `local.command`; run `make pre-pr`
+only to reproduce a red one.
 
-`make pre-pr` and `make pre-pr-full` still exist as deeper, optional
-preflights. They are recommended, not required, before pushing a change to
-queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
-projection/materialization, or a package move (prefer `make pre-pr-full` for
-moves: build tags can hide files from `./...`, so only the whole-module race
-lane actually exercises them).
+`make pre-pr` and `make pre-pr-full` still exist, but they are not part of
+promotion. Run `make pre-pr-full` for a package move (build tags can hide files
+from `./...`, so only the whole-module race lane actually exercises them),
+`make pre-pr` to reproduce a CI red that the failing gate's own `local.command`
+cannot, or when the owner asks.
 
 ## Verify `pwd` before any edit
 

@@ -459,7 +459,7 @@ for a branch that has already survived design review. The order is:
    severity-table category.
 3. Capture a `ci-gates review-attest` receipt for the clean preliminary review.
 4. Only when the branch is otherwise ready to push, run `make pre-push` once
-   (add `make pre-pr` for the risky change classes in `AGENTS.md`).
+   per PR, on the push that opens it (`make pre-pr` only as `AGENTS.md` says).
 5. Verify the receipt against the exact post-preflight inputs. A match replaces
    a duplicate full semantic review. Any changed base, diff, worktree, claims,
    packet, or verdict invalidates it. A rebase follows the Rebase Waiver table in
