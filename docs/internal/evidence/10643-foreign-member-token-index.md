@@ -170,18 +170,53 @@ member by the array-only count; the v4 share was not counted separately.
 - This change does not claim to reduce primary load. The long statements it
   removes were not measured as load.
 
-## QA after deploy
+## Deploy review (no deploy is authorized)
 
-The following is owed and NOT_CHECKED here.
+This change authorizes no deploy. The QA primary is CPU-throttled: 11.958 of
+12 cores at p95 over 6 hours, and a throttled share of 0.28 to 0.99. The
+deploy review must carry each item below.
+
+The index build is the main risk. The projection below comes from lane
+constants and was not measured. The fixture built at 114 to 133 s per million
+warm rows. QA has about 8.4 million finding rows with cold payloads, roughly
+25 million block reads, near three hours at one stream's 2,500 reads per
+second. For that time the build is one more read stream on the last spare
+IOPS and one more core on a throttled container. A concurrent build also
+holds back the vacuum horizon.
+
+- Time window. Name the start, the expected end, and a hard stop.
+- Readings before, during and after the build: primary CPU p95 and throttled
+  share as context only (they swing within hours and cannot attribute a
+  change), IOPS, replication lag, and the oldest `backend_xmin` age.
+- The build's actual duration and reads, from `pg_stat_progress_create_index`
+  during the build and the Job log after it.
+- Cancel rule. At the hard stop, or if replication lag or the vacuum horizon
+  passes the review's stated limit, cancel the Job. Then confirm
+  `indisvalid = false` for `fact_records_sci_foreign_member_tokens_v4_idx`.
+  The next schema apply drops the invalid index by name before it rebuilds
+  (`concurrentIndexNamesForInvalidCleanup`). To leave it absent until a new
+  window opens, drop it with `DROP INDEX CONCURRENTLY IF EXISTS
+  fact_records_sci_foreign_member_tokens_v4_idx`. The new reducer must not
+  roll out until the index is valid.
+- Benefit. From `pg_stat_statements`, take calls, mean and total time of the
+  old holders and member query ids before the deploy. After it, take the same
+  figures for the new three-arm key-range query ids.
+- Share gate. Measure over at least 30 minutes after the deploy. If any new or
+  changed statement holds more than 5 percent of total statement time, it
+  returns to the arbiter before the next deploy.
+
+The QA bar after deploy follows. It is NOT_CHECKED here.
 
 - A 4-way cold burst over the three GHSA aliases and CVE-2026-14257. Every
   statement must have p95 under 2 s and max under 5 s, with zero 57014. Then
-  two stable reads with zero new fan-out dead letters.
-- Holder timeouts read by `kind`. The member arm now reads as
-  `holders_key_range`; `holders_members` is no longer emitted.
+  two stable reads with zero new fan-out dead letters. If a wall-time bar
+  fails, read the throttled share for that window before blaming the design.
+- Holder timeouts. Any `read_timeout` with kind `holders_key_range` or
+  `holders_key_range_read` blocks. `holders_members` must show zero new
+  events, which proves the old statement is gone.
 - One differential on real data: the shipped member statement against the 16
-  ranged statements for the 13,845-row alias on the replica. The set
-  difference must be 0 and 0.
+  ranged statements for the 13,845-row alias on the replica, set difference
+  0 and 0.
 - The index size and entry count, which give QA's foreign-member row share.
 - A new reading of `BatchInsertVersionedQuery` over a like window. A rise of
   more than 1,081 us per row returns to the arbiter.
@@ -198,6 +233,14 @@ and the whole read is `kind="holders_key_range_read"`. A timeout counts on
 `eshu_dp_supply_chain_impact_fanout_total{outcome="read_timeout",site="holders"}`
 and names the statement index in the dead-letter message. `holders_members`
 is retired. `fanout_holder_statements` now counts 16 per hot id, not 17.
+One statement cannot be timed by arm (ruling 10643l). Instead, a key-range
+statement that fails or runs at or over the 2 s bar adds the
+`holder_key_range_statement` event on the `supply_chain_impact.fanout` span
+and the warn log `supply chain impact holder key-range statement slow or
+failed`. Both carry `range_index` (1 to 16), `range_count`, `non_cve_lookup`
+(the lookup set held a non-CVE id, so the token arm was in play), `kind`,
+`outcome` and `duration_seconds` (`noteKeyRangeStatement`, pinned by
+`TestKeyRangeStatementSignalsNameTheRangeAndLookupKind`).
 
 ## Unverified
 

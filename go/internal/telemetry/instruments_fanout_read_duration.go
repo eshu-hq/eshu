@@ -19,7 +19,8 @@ const (
 	// FanOutReadKindHoldersKeyRange is one fact_id key-range statement of a
 	// hot singleton id: its cve_id and advisory_id arms over the range and,
 	// since #10643 PR 2, its share of the advisory-group member arm as the
-	// foreign-member token arm. There is no separate member-arm statement.
+	// foreign-member token arm. There is no separate member-arm statement:
+	// the former "holders_members" kind is retired and emits nothing.
 	FanOutReadKindHoldersKeyRange = "holders_key_range"
 	// FanOutReadKindMassProbe is the per-chunk holder-mass probe.
 	FanOutReadKindMassProbe = "mass_probe"

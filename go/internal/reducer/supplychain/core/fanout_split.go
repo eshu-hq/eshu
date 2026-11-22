@@ -237,8 +237,10 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 				start := time.Now()
 				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
 				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
+				nonCVE := lookupHoldsNonCVEID(stmt.ids)
 				for _, done := range read.Statements {
 					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
+					h.noteKeyRangeStatement(ctx, done, len(ranges), nonCVE)
 				}
 				found = read.Scopes
 			} else {

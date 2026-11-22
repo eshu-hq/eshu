@@ -197,10 +197,10 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	}
 	_ = rows.Close()
 	seen := make(map[string]struct{})
-	run := func(kind, query string, args ...any) error {
+	run := func(rangeIndex int, kind, query string, args ...any) error {
 		start := time.Now()
 		found, err := queryScopeIDs(ctx, tx, query, args...)
-		read.Statements = append(read.Statements, supplychaincore.HolderReadStatement{Kind: kind, Duration: time.Since(start), Err: err})
+		read.Statements = append(read.Statements, supplychaincore.HolderReadStatement{Kind: kind, Range: rangeIndex, Duration: time.Since(start), Err: err})
 		if err != nil {
 			return err
 		}
@@ -213,9 +213,9 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		var err error
 		tokens := HolderMemberTokens(lookupIDs, i, len(ranges))
 		if keyRange.Upper == "" {
-			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderOpenKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, tokens)
+			err = run(i+1, telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderOpenKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, tokens)
 		} else {
-			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, keyRange.Upper, tokens)
+			err = run(i+1, telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, keyRange.Upper, tokens)
 		}
 		if err != nil {
 			// The kind and range index reach the dead letter's failure message,

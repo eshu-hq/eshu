@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -55,15 +56,32 @@ func HolderKeyRanges() []HolderKeyRange {
 // error, if any. The handler records each into the fan-out read-duration histogram.
 type HolderReadStatement struct {
 	Kind string
-	// Range is the statement's 1-based key-range index.
+	// Range is the statement's 1-based index in its HolderKeyRanges read.
 	Range    int
 	Duration time.Duration
 	Err      error
 }
 
 // keyRangeStatementLogMessage is the warn log line of a slow or failed
-// key-range statement.
+// key-range statement (noteKeyRangeStatement).
 const keyRangeStatementLogMessage = "supply chain impact holder key-range statement slow or failed"
+
+// fanOutHolderSlowStatement is the per-statement bar of the holder read
+// (p95 under 2 s, #10643): a key-range statement at or over it is reported
+// by noteKeyRangeStatement.
+const fanOutHolderSlowStatement = 2 * time.Second
+
+// lookupHoldsNonCVEID reports whether ids hold any id without the CVE- prefix,
+// such as a GHSA alias. Only then can the foreign-member token arm of a
+// key-range statement match rows: a hot CVE id has no foreign rows on QA.
+func lookupHoldsNonCVEID(ids []string) bool {
+	for _, id := range ids {
+		if !strings.HasPrefix(strings.ToUpper(id), "CVE-") {
+			return true
+		}
+	}
+	return false
+}
 
 // HolderKeyRangeRead is the result of one key-range holder read: the holder
 // scopes and every statement that ran, in order, including a failed last one.
