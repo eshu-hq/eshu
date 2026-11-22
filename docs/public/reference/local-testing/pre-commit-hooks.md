@@ -94,16 +94,21 @@ merge-base with `origin/main` (the same base override the floor honors), also sc
 and unstaged work, and scans the whole module when `go.mod`, `go.sum`, the
 gosec scripts or `security-scan.yml` change. An unresolvable base exits 2.
 
-gosec used to skip its SSA analyzers (G115, G118, G405, G406, G407, G602) on
-`internal/storage/postgres` without saying so (#8339): `go/packages` splits a
-file-pattern list over 16383 bytes into several `go list` runs and keeps only
-the first run's imports. The arm now passes every package as an explicit
-directory, never `./...`, and scans a package over the limit through a short
-`go/_g` symlink alias (lettered variants on collision) that it removes on exit (a crash can leave one; git
-ignores it). It also refuses a run whose scanned file count differs from the
-`go list` file count, any Go error, and a run outside the module root. CI runs
-the same whole-module arm after its SARIF upload, so findings reach the
-Security tab before the arm can fail the job.
+gosec v2.27.1 used to skip its SSA analyzers (G115, G118, G405, G406, G407,
+G602) on `internal/storage/postgres` without saying so (#8339): it passed one
+`go/packages` pattern per file, and `go/packages` splits a pattern list over
+16,383 bytes into several `go list` runs and keeps only the first run's imports.
+A short symlink alias stretched the budget until the package outgrew that too
+(#11241). The pinned gosec is now a pseudo-version, `v2.30.1-0.20261026162949-ff25931a2edd`,
+that loads module packages by directory (securego/gosec#1803 and #1806), so no
+package has a per-file pattern budget and the alias is gone. v2.30.0 predates
+those commits and is not usable. The pin moves to the first release that
+contains them (#11243). The arm passes every package as an explicit directory,
+never `./...`. It still refuses a run whose scanned file count differs from the
+`go list` file count, any Go error, and a run outside the module root. The
+version extractor in `precommit-go.sh` reads the whole pseudo-version from
+`security-scan.yml`. CI runs the same whole-module arm after its SARIF upload,
+so findings reach the Security tab before the arm can fail the job.
 
 The gosec gate covers production code only. It runs gosec without `-tests`, by
 design, so `_test.go` files never reach the gate or the Security tab (#8341).

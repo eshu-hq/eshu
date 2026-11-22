@@ -193,9 +193,10 @@ gates:
     # The gosec-changed mode derives its own package list from the merge-base
     # diff (plus staged and unstaged work), falls back to the whole module when
     # a trigger file that decides how gosec runs changed, and fails closed on an
-    # unresolvable base or an unusable gosec result (#8335). An oversized package
-    # is scanned through a short symlink alias (#8339). CI security-scan.yml runs
-    # the same fail-closed whole-module arm.
+    # unresolvable base or an unusable gosec result (#8335). The pinned gosec
+    # loads packages by directory, so an oversized package needs no alias
+    # (#8339, #11241). CI security-scan.yml runs the same fail-closed
+    # whole-module arm.
     # `make pre-push` runs this row from the floor (#8326); the git pre-push
     # hook go-gosec runs the same scan again on a push.
     local:

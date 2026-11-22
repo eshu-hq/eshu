@@ -272,7 +272,7 @@ func copyExecutableFile(sourcePath, targetPath string) error {
 		_ = tempFile.Close()
 		return fmt.Errorf("copy nornicdb binary: %w", err)
 	}
-	if err := tempFile.Chmod(0o755); err != nil {
+	if err := tempFile.Chmod(0o755); err != nil { // #nosec G302 -- 0o755 is intentional: the managed NornicDB binary must be executable, and install_test.go pins this mode; the file is created by os.CreateTemp (0o600) and renamed into place, and the managed binary directory is created 0o700
 		_ = tempFile.Close()
 		return fmt.Errorf("chmod nornicdb binary temp file: %w", err)
 	}
