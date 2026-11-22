@@ -28,8 +28,9 @@ const (
 
 	supportsBackfillFastPoll = 500 * time.Millisecond
 	// supportsBackfillIdlePoll paces a finished, contended, or failed pass. A
-	// finished sweep costs one marker read per poll.
-	supportsBackfillIdlePoll = 5 * time.Minute
+	// finished sweep costs a marker read and a dirty-scope check per poll, and
+	// that poll is also how soon a scope an old writer marked gets drained.
+	supportsBackfillIdlePoll = 30 * time.Second
 )
 
 // startSupplyChainImpactSupportsBackfill starts the reducer-owned supports
@@ -96,12 +97,16 @@ func runSupportsBackfillPass(
 ) (bool, error) {
 	deadline := time.Now().Add(supportsBackfillPassBudget)
 	for i := 0; i < supportsBackfillPassSteps && time.Now().Before(deadline); i++ {
+		stepStarted := time.Now()
 		report, err := step(ctx)
 		if err != nil {
 			return false, err
 		}
 		outcome := supportsBackfillOutcome(report)
 		recordSupportsBackfillStep(ctx, instruments, outcome)
+		instruments.RecordSupplyChainImpactSupportsBackfillStepResult(ctx, outcome, time.Since(stepStarted), report.DirtyScopes)
+		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged,
+			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Unchanged)
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionInserted,
 			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Written)
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionDeleted,
@@ -110,7 +115,7 @@ func runSupportsBackfillPass(
 			logger.Warn("supply chain impact supports backfill verification found live findings without a support; restarting the sweep",
 				"missing_capped", report.Missing)
 		}
-		if report.Complete {
+		if report.Complete && report.DirtyScopes == 0 {
 			instruments.RecordSupplyChainImpactSupportsBackfillReady(ctx, true)
 			if outcome == telemetry.SupplyChainImpactSupportsBackfillStepComplete && logger != nil {
 				logger.Info("supply chain impact supports backfill complete")
@@ -125,6 +130,8 @@ func runSupportsBackfillPass(
 // supportsBackfillOutcome classifies one step into the closed outcome set.
 func supportsBackfillOutcome(report postgres.SupplyChainImpactSupportsBackfillReport) string {
 	switch {
+	case report.Drained > 0:
+		return telemetry.SupplyChainImpactSupportsBackfillStepDrain
 	case report.Verified && report.Missing > 0:
 		return telemetry.SupplyChainImpactSupportsBackfillStepGap
 	case report.Complete && report.Verified:

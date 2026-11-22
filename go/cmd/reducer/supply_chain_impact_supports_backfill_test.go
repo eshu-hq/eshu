@@ -22,6 +22,7 @@ func TestSupportsBackfillOutcomeClassifiesEveryStep(t *testing.T) {
 		"orphan cleanup":  {postgres.SupplyChainImpactSupportsBackfillReport{Removed: 1}, telemetry.SupplyChainImpactSupportsBackfillStepChunk},
 		"verify gap":      {postgres.SupplyChainImpactSupportsBackfillReport{Verified: true, Missing: 2}, telemetry.SupplyChainImpactSupportsBackfillStepGap},
 		"verify complete": {postgres.SupplyChainImpactSupportsBackfillReport{Verified: true, Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepComplete},
+		"drain":           {postgres.SupplyChainImpactSupportsBackfillReport{Drained: 1, Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepDrain},
 		"already done":    {postgres.SupplyChainImpactSupportsBackfillReport{Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepIdle},
 	} {
 		t.Run(name, func(t *testing.T) {

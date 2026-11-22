@@ -242,18 +242,6 @@ type SupplyChainImpactBeginner struct {
 	Instruments *telemetry.Instruments
 }
 
-// BeginSupplyChainImpactTx opens a transaction wrapped in the reducer's
-// supply-chain impact writer surface.
-func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
-	ctx context.Context,
-) (supplychaincore.SupplyChainImpactTx, error) {
-	tx, err := b.Beginner.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &supplyChainImpactTx{tx: tx, instruments: b.Instruments}, nil
-}
-
 type supplyChainImpactTx struct {
 	tx          db.Transaction
 	instruments *telemetry.Instruments

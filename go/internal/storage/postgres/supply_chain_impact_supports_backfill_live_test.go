@@ -114,22 +114,6 @@ func TestSupplyChainImpactSupportsBackfillLive(t *testing.T) {
 	if after := supportsLiveXminSum(t, ctx, db); after != before {
 		t.Fatalf("a completed backfill rewrote supports (xmin sum %d to %d)", before, after)
 	}
-
-	// A marker an older contract version completed is not ready, and the next
-	// step restarts the sweep at the current version.
-	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports_backfill SET contract_version = 0`); err != nil {
-		t.Fatalf("age the marker: %v", err)
-	}
-	if ready, err := postgres.SupplyChainImpactSupportsReady(ctx, store); err != nil || ready {
-		t.Fatalf("ready with a marker behind the contract version = %v (err %v), want false", ready, err)
-	}
-	if report, err := backfill.RunStep(ctx); err != nil || report.Complete {
-		t.Fatalf("step on a marker behind the contract version = %+v (err %v), want the sweep restarted", report, err)
-	}
-	supportsBackfillRunToCompletion(t, ctx, backfill)
-	if ready, err := postgres.SupplyChainImpactSupportsReady(ctx, store); err != nil || !ready {
-		t.Fatalf("ready after the restarted sweep = %v (err %v), want true", ready, err)
-	}
 }
 
 // TestSupplyChainImpactSupportsBackfillRestartsOnAMissLive proves the marker

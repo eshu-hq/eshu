@@ -534,6 +534,11 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-B1: reducer-contention proof that the supports backfill fills, verifies, restarts on a gap, and waits for the writer's conflict-domain lock"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_fence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof of the old-writer fence (a writer without the maintainer marks its scope dirty, the backfill drains it, the marker waits for an empty fence), a fresh install, a resume after a kill with a replayed sweep that rewrites nothing, a marker above the binary's version, and the operator-scope pass writing supports through the same writer"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_supports_live_test.go
     tag: ~
     class: dedicated_ci

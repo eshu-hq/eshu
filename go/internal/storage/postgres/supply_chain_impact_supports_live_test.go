@@ -76,6 +76,19 @@ func supportsLiveAssertMirror(t *testing.T, ctx context.Context, db *sql.DB, sco
 	if !slices.Equal(want, got) {
 		t.Fatalf("%s: supports = %v, live facts = %v: a support must exist exactly for each live fact", step, got, want)
 	}
+	// The payload is stored verbatim: byte-equal to the fact payload for every
+	// support (the supports table becomes the only copy in PR-C, so a stripped
+	// key is lost data).
+	var different int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM supply_chain_impact_finding_supports AS s
+JOIN fact_records AS f ON f.fact_id = s.fact_id
+WHERE s.scope_id = $1 AND s.generation_id = $2 AND s.payload::text IS DISTINCT FROM f.payload::text`, scope, generation).Scan(&different); err != nil {
+		t.Fatalf("%s: compare payloads: %v", step, err)
+	}
+	if different != 0 {
+		t.Fatalf("%s: %d support payloads differ from their fact payload: the payload must be stored verbatim", step, different)
+	}
 }
 
 // TestSupplyChainImpactSupportsFollowTheWriterLive proves the PR-B1 maintainer on
@@ -114,8 +127,7 @@ SELECT count(*) FROM supply_chain_impact_canonical_winners AS w
 JOIN supply_chain_impact_finding_supports AS s ON s.fact_id = w.winner_fact_id
 WHERE (w.canonical_key, w.finding_id, w.priority_score, w.severity_bucket, w.repository_id, w.impact_status, w.cve_id, w.package_id, w.priority_bucket, w.source_confidence)
       IS DISTINCT FROM
-      (s.canonical_key, s.finding_id, s.priority_score, s.severity_bucket, s.repository_id, s.impact_status, s.cve_id, s.package_id, s.priority_bucket, s.source_confidence)
-   OR w.payload IS DISTINCT FROM s.payload`).Scan(&mismatched); err != nil {
+      (s.canonical_key, s.finding_id, s.priority_score, s.severity_bucket, s.repository_id, s.impact_status, s.cve_id, s.package_id, s.priority_bucket, s.source_confidence)`).Scan(&mismatched); err != nil {
 		t.Fatalf("compare supports with winners: %v", err)
 	}
 	var winners int
@@ -126,9 +138,11 @@ WHERE (w.canonical_key, w.finding_id, w.priority_score, w.severity_bucket, w.rep
 		t.Fatalf("%d supports differ from the winner built from the same fact", mismatched)
 	}
 
-	// Replay: the same set again writes no row version.
+	// Replay: the same set under the same intent id changes no fact payload, so it
+	// writes no support row version. A new intent id changes the verbatim
+	// payload and rewrites the support, as it rewrites the fact.
 	before := supportsLiveXminSum(t, ctx, db)
-	write("intent:10880:supports-replay", finding(1), finding(2), finding(3))
+	write("intent:10880:supports-1", finding(1), finding(2), finding(3))
 	if after := supportsLiveXminSum(t, ctx, db); after != before {
 		t.Fatalf("a replay of the same set rewrote support rows (xmin sum %d to %d)", before, after)
 	}

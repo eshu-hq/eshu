@@ -75,3 +75,47 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_backfill (
     completed_at         TIMESTAMPTZ,
     updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Old-writer fence. The same-transaction maintainer keeps supports current only
+-- for writers that run it, and a migration runs in PreSync while reducers of the
+-- previous release still write finding facts. The trigger marks the scope of
+-- every finding fact (insert or update, tombstones included) that a writer
+-- without the maintainer writes, and the backfill drains the marks. The
+-- maintainer's writer sets eshu.supply_chain_impact_supports_writer to
+-- 'supports_v1' for its transaction, so its rows skip the trigger entirely (the
+-- WHEN clause is the only cost on every other insert); the same setting pattern
+-- as migration 139. Readers treat a non-empty table as not ready.
+CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty (
+    scope_id      TEXT PRIMARY KEY,
+    dirty_version BIGINT NOT NULL DEFAULT 1,
+    marked_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION supply_chain_impact_finding_supports_mark_dirty() RETURNS trigger AS $$
+BEGIN
+    INSERT INTO supply_chain_impact_finding_supports_dirty AS dirty (scope_id)
+    VALUES (NEW.scope_id)
+    ON CONFLICT (scope_id) DO UPDATE
+    SET dirty_version = dirty.dirty_version + 1, marked_at = now();
+    RETURN NULL;
+END $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS supply_chain_impact_finding_supports_dirty_insert ON fact_records;
+CREATE TRIGGER supply_chain_impact_finding_supports_dirty_insert
+AFTER INSERT ON fact_records
+FOR EACH ROW
+WHEN (
+    NEW.fact_kind = 'reducer_supply_chain_impact_finding'
+    AND current_setting('eshu.supply_chain_impact_supports_writer', true) IS DISTINCT FROM 'supports_v1'
+)
+EXECUTE FUNCTION supply_chain_impact_finding_supports_mark_dirty();
+
+DROP TRIGGER IF EXISTS supply_chain_impact_finding_supports_dirty_update ON fact_records;
+CREATE TRIGGER supply_chain_impact_finding_supports_dirty_update
+AFTER UPDATE ON fact_records
+FOR EACH ROW
+WHEN (
+    NEW.fact_kind = 'reducer_supply_chain_impact_finding'
+    AND current_setting('eshu.supply_chain_impact_supports_writer', true) IS DISTINCT FROM 'supports_v1'
+)
+EXECUTE FUNCTION supply_chain_impact_finding_supports_mark_dirty();

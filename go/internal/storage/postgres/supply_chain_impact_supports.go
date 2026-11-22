@@ -29,14 +29,6 @@ import (
 // stays on the read side, because the scanner classification rows are written by
 // a separate flow after the finding fact: a write-time exclusion would race it.
 
-// supplyChainImpactSupportPayloadExpr is the stored payload: the fact payload
-// without the per-pass fields (intent_id, cause, generation_id, and the content
-// digest) the winners row also drops. A replay of an unchanged finding carries a
-// new intent id, and keeping it would rewrite every support on every pass; no
-// reader serves those fields (the winners reads return the same stripped payload
-// and match the legacy reads), so the write-on-change guard can hold.
-const supplyChainImpactSupportPayloadExpr = `((fact.payload - 'intent_id' - 'cause' - 'generation_id') #- '{provenance,content_digest}')::jsonb`
-
 // supplyChainImpactSupportColumn is one derived column of a support row: its
 // name and the SQL expression over fact_records alias "fact" that fills it.
 type supplyChainImpactSupportColumn struct {
@@ -44,7 +36,10 @@ type supplyChainImpactSupportColumn struct {
 }
 
 // supplyChainImpactSupportColumns lists every column except the primary key,
-// in table order. The upsert's SET list and its write-on-change guard both
+// in table order. The payload is the fact payload verbatim, byte for byte: PR-C
+// makes the supports table the only copy, so a stripped key would be lost data.
+// A replay that carries a new intent id therefore rewrites the support, as it
+// rewrites the fact. The upsert's SET list and its write-on-change guard both
 // derive from it, so a column cannot be updated without being compared.
 var supplyChainImpactSupportColumns = []supplyChainImpactSupportColumn{
 	{"canonical_key", supplyChainImpactCanonicalKeyConcat("fact.payload", "      ", "    ")},
@@ -68,7 +63,7 @@ var supplyChainImpactSupportColumns = []supplyChainImpactSupportColumn{
 	{"detection_profile", `COALESCE(fact.payload->>'detection_profile', '')`},
 	{"observed_version", `COALESCE(fact.payload->>'observed_version', '')`},
 	{"match_reason", `COALESCE(fact.payload->>'match_reason', '')`},
-	{"payload", supplyChainImpactSupportPayloadExpr},
+	{"payload", "fact.payload"},
 }
 
 // supplyChainImpactSupportsSelectSQL renders the SELECT that derives support

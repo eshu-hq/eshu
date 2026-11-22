@@ -1507,9 +1507,12 @@ type Instruments struct {
 	supplyChainImpactWinnersContract            *winnersContractState
 	// The per-support table signals of #10880 PR-B1, registered by
 	// registerSupplyChainImpactSupportsInstruments.
-	SupplyChainImpactSupportsRows          metric.Int64Counter
-	SupplyChainImpactSupportsBackfillSteps metric.Int64Counter
-	SupplyChainImpactSupportsBackfillReady metric.Int64Gauge
+	SupplyChainImpactSupportsRows                 metric.Int64Counter
+	SupplyChainImpactSupportsBackfillSteps        metric.Int64Counter
+	SupplyChainImpactSupportsBackfillReady        metric.Int64Gauge
+	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
+	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge
+	SupplyChainImpactSupportsBackfillStepDuration metric.Float64Histogram
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture

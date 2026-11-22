@@ -31,6 +31,13 @@ func TestSupplyChainImpactFindingSupportsMigrationShape(t *testing.T) {
 		"supply_chain_impact_finding_supports_repository_idx ON supply_chain_impact_finding_supports (repository_id)",
 		"supply_chain_impact_finding_supports_finding_idx ON supply_chain_impact_finding_supports (finding_id)",
 		"(canonical_key) WHERE scope_id = 'operator:vulnerability_suppressions'",
+		// The old-writer fence: a dirty-scope table and triggers that skip rows
+		// written under the maintainer's transaction setting.
+		"CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty ( scope_id TEXT PRIMARY KEY",
+		"CREATE TRIGGER supply_chain_impact_finding_supports_dirty_insert AFTER INSERT ON fact_records FOR EACH ROW",
+		"CREATE TRIGGER supply_chain_impact_finding_supports_dirty_update AFTER UPDATE ON fact_records FOR EACH ROW",
+		"NEW.fact_kind = 'reducer_supply_chain_impact_finding'",
+		"current_setting('eshu.supply_chain_impact_supports_writer', true) IS DISTINCT FROM 'supports_v1'",
 	} {
 		if !strings.Contains(ddl, want) {
 			t.Errorf("migration 336 lacks %q", want)

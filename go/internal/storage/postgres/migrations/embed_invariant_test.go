@@ -352,7 +352,7 @@ import (
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
 const (
-	goldenBootstrapDefinitionsDigest = "41700e9570c745154f7b02d232c2a4fc58fec2622239907db6b0a5be1d431800"
+	goldenBootstrapDefinitionsDigest = "c2ae5c2a236d908acc62a85f7842f9251ecc1be71c03b51f37a19e8313253ca1"
 	goldenBootstrapDefinitionsCount  = 359
 )
 

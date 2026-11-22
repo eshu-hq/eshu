@@ -15,14 +15,11 @@ import (
 
 const (
 	// SupplyChainImpactSupportsBackfillMarker names the readiness row of the
-	// supports backfill in supply_chain_impact_finding_supports_backfill.
-	SupplyChainImpactSupportsBackfillMarker = "supply_chain_impact_finding_supports"
-
-	// SupplyChainImpactSupportsContractVersion is the version of what the
-	// maintainer and the backfill write into the supports table. A reader treats
-	// a marker with a lower version as not ready; raising the constant restarts
-	// the sweep, the same way the winners contract version does for winners.
-	SupplyChainImpactSupportsContractVersion = 1
+	// supports backfill in supply_chain_impact_finding_supports_backfill. The
+	// suffix is SupplyChainImpactSupportsContractVersion: a version bump is a new
+	// marker, so the sweep runs again and a binary that finds a marker above its
+	// own version reads the table as not ready.
+	SupplyChainImpactSupportsBackfillMarker = "supply_chain_impact_finding_supports_v1"
 
 	// supplyChainImpactSupportsBackfillDefaultChunk bounds the facts one backfill
 	// transaction writes under one conflict-domain lock.
@@ -30,15 +27,11 @@ const (
 )
 
 // supplyChainImpactSupportsBackfillEnsureMarkerSQL creates the marker row on the
-// first step, and resets a marker an older contract version completed.
+// first step.
 const supplyChainImpactSupportsBackfillEnsureMarkerSQL = `
-INSERT INTO supply_chain_impact_finding_supports_backfill AS marker (marker_name, contract_version)
+INSERT INTO supply_chain_impact_finding_supports_backfill (marker_name, contract_version)
 VALUES ($1, $2)
-ON CONFLICT (marker_name) DO UPDATE
-SET contract_version = EXCLUDED.contract_version,
-    cursor_scope_id = '', cursor_generation_id = '', cursor_fact_id = '',
-    completed_at = NULL, updated_at = now()
-WHERE marker.contract_version < EXCLUDED.contract_version`
+ON CONFLICT (marker_name) DO NOTHING`
 
 // supplyChainImpactSupportsBackfillReadMarkerSQL reads the cursor and the state.
 const supplyChainImpactSupportsBackfillReadMarkerSQL = `
@@ -109,21 +102,31 @@ SET cursor_scope_id = '', cursor_generation_id = '', cursor_fact_id = '',
     sweeps = sweeps + 1, updated_at = now()
 WHERE marker_name = $1 AND completed_at IS NULL`
 
-// supplyChainImpactSupportsBackfillCompleteSQL sets the readiness marker.
+// supplyChainImpactSupportsBackfillCompleteSQL sets the readiness marker in one
+// statement that rechecks the old-writer fence: when a scope is dirty the update
+// touches no row and the marker stays unset until the next step drains it.
 const supplyChainImpactSupportsBackfillCompleteSQL = `
 UPDATE supply_chain_impact_finding_supports_backfill
 SET completed_at = now(), updated_at = now()
-WHERE marker_name = $1 AND completed_at IS NULL`
+WHERE marker_name = $1 AND completed_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports_dirty)`
 
-// supplyChainImpactSupportsReadySQL reads the readiness predicate.
+// supplyChainImpactSupportsReadySQL reads the readiness predicate: the marker
+// for this binary's version is complete, no marker for a higher version exists
+// (a newer binary ran the sweep, so this binary's reads must refuse), and the
+// old-writer fence is empty.
 const supplyChainImpactSupportsReadySQL = `
 SELECT EXISTS (
-    SELECT 1 FROM supply_chain_impact_finding_supports_backfill
-    WHERE marker_name = $1 AND completed_at IS NOT NULL AND contract_version >= $2
-)`
+        SELECT 1 FROM supply_chain_impact_finding_supports_backfill
+        WHERE marker_name = $1 AND completed_at IS NOT NULL AND contract_version = $2
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM supply_chain_impact_finding_supports_backfill WHERE contract_version > $2
+    )
+    AND NOT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports_dirty)`
 
 // SupplyChainImpactSupportsReady reports whether the supports backfill finished
-// and verified at this contract version. A reader that serves a grant-scoped
+// and verified at this contract version and the old-writer fence is empty. A reader that serves a grant-scoped
 // call from the supports table must refuse the call while it is false. A
 // missing marker table reads as an error, which the same reader treats as not
 // ready (the table ships in the same migration as the supports table).
@@ -169,8 +172,9 @@ type SupplyChainImpactSupportsBackfill struct {
 
 // SupplyChainImpactSupportsBackfillReport describes one RunStep.
 type SupplyChainImpactSupportsBackfillReport struct {
-	// Written counts supports the step inserted or changed.
-	Written int64
+	// Written counts supports the step inserted or changed; Unchanged counts the
+	// ones it found already current.
+	Written, Unchanged int64
 	// Removed counts supports of tombstoned facts the step deleted.
 	Removed int64
 	// Verified is true when the step ran the verification pass.
@@ -178,6 +182,10 @@ type SupplyChainImpactSupportsBackfillReport struct {
 	// Missing is the verification's count of live facts without a support,
 	// capped at 1000; nonzero restarts the sweep.
 	Missing int64
+	// Drained counts old-writer dirty scopes the step re-read.
+	Drained int
+	// DirtyScopes is the old-writer fence's depth after the step, capped at 1000.
+	DirtyScopes int64
 	// Complete is true when the readiness marker is set.
 	Complete bool
 }
@@ -202,8 +210,15 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 	if err != nil {
 		return report, err
 	}
-	if complete {
-		report.Complete = true
+	drained, err := b.drainOneDirtyScope(ctx, beginner, chunk, &report)
+	if err != nil {
+		return report, err
+	}
+	if report.DirtyScopes, err = b.dirtyScopes(ctx); err != nil {
+		return report, err
+	}
+	if drained || complete {
+		report.Complete = complete
 		return report, nil
 	}
 	// Resume inside the cursor's pair; when it has nothing left, walk to the next
@@ -221,10 +236,11 @@ func (b SupplyChainImpactSupportsBackfill) RunStep(ctx context.Context) (SupplyC
 		after, entering = "", true
 	}
 	for {
-		written, removed, last, err := b.writeChunk(ctx, beginner, chunkRequest{
+		written, unchanged, removed, last, err := b.writeChunk(ctx, beginner, chunkRequest{
 			scope: scope, generation: generation, after: after, limit: chunk, cleanOrphans: entering,
 		})
 		report.Written += written
+		report.Unchanged += unchanged
 		report.Removed += removed
 		if err != nil || last != "" {
 			return report, err
@@ -290,46 +306,51 @@ type chunkRequest struct {
 	limit int
 	// cleanOrphans removes the pair's supports of tombstoned facts first.
 	cleanOrphans bool
+	// skipCursor leaves the sweep cursor alone: a drain of a dirty scope is not
+	// part of the sweep.
+	skipCursor bool
 }
 
 // writeChunk backs up one chunk of the pair under its conflict-domain lock and
 // returns the last fact id it covered; an empty last means the pair has no live
 // finding fact after req.after (the orphan cleanup still ran when requested).
-func (b SupplyChainImpactSupportsBackfill) writeChunk(ctx context.Context, beginner db.Beginner, req chunkRequest) (written, removed int64, last string, err error) {
+func (b SupplyChainImpactSupportsBackfill) writeChunk(ctx context.Context, beginner db.Beginner, req chunkRequest) (written, unchanged, removed int64, last string, err error) {
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
-		return 0, 0, "", fmt.Errorf("begin supply chain impact supports backfill transaction: %w", err)
+		return 0, 0, 0, "", fmt.Errorf("begin supply chain impact supports backfill transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, supplychaincore.SupplyChainImpactConflictDomainLockQuery,
 		supplychaincore.SupplyChainImpactConflictDomainKey(req.scope, req.generation)); err != nil {
-		return 0, 0, "", fmt.Errorf("lock supply chain impact conflict domain: %w", err)
+		return 0, 0, 0, "", fmt.Errorf("lock supply chain impact conflict domain: %w", err)
 	}
 	if req.cleanOrphans {
 		if removed, err = deleteRetractedSupports(ctx, tx, req.scope, req.generation); err != nil {
-			return 0, 0, "", err
+			return 0, 0, 0, "", err
 		}
 	}
 	ids, err := queryBackfillFactIDs(ctx, tx, supplyChainImpactSupportsBackfillChunkSQL, req.scope, req.generation, req.after, req.limit)
 	if err != nil {
-		return 0, 0, "", err
+		return 0, 0, 0, "", err
 	}
 	if len(ids) > 0 {
 		last = ids[len(ids)-1]
 		result, err := upsertSupports(ctx, tx, ids)
 		if err != nil {
-			return 0, 0, "", err
+			return 0, 0, 0, "", err
 		}
-		written = result.Inserted + result.Updated
-		if _, err := tx.ExecContext(ctx, supplyChainImpactSupportsBackfillAdvanceSQL,
-			SupplyChainImpactSupportsBackfillMarker, req.scope, req.generation, last); err != nil {
-			return 0, 0, "", fmt.Errorf("advance supply chain impact supports backfill cursor: %w", err)
+		written, unchanged = result.Inserted+result.Updated, result.Unchanged
+		if !req.skipCursor {
+			if _, err := tx.ExecContext(ctx, supplyChainImpactSupportsBackfillAdvanceSQL,
+				SupplyChainImpactSupportsBackfillMarker, req.scope, req.generation, last); err != nil {
+				return 0, 0, 0, "", fmt.Errorf("advance supply chain impact supports backfill cursor: %w", err)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return 0, 0, "", fmt.Errorf("commit supply chain impact supports backfill chunk: %w", err)
+		return 0, 0, 0, "", fmt.Errorf("commit supply chain impact supports backfill chunk: %w", err)
 	}
-	return written, removed, last, nil
+	return written, unchanged, removed, last, nil
 }
 
 // verify runs when the sweep passed the last finding fact. It first cleans one
@@ -379,10 +400,17 @@ func (b SupplyChainImpactSupportsBackfill) verify(ctx context.Context, beginner 
 		}
 		return report, nil
 	}
-	if _, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillCompleteSQL, SupplyChainImpactSupportsBackfillMarker); err != nil {
+	result, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillCompleteSQL, SupplyChainImpactSupportsBackfillMarker)
+	if err != nil {
 		return report, fmt.Errorf("complete supply chain impact supports backfill: %w", err)
 	}
-	report.Complete = true
+	// Zero rows means the fence was not empty at the recheck (or another runner
+	// set the marker): the next step drains it, then completes.
+	if marked, err := result.RowsAffected(); err != nil {
+		return report, fmt.Errorf("count supply chain impact supports marker update: %w", err)
+	} else if marked > 0 {
+		report.Complete = true
+	}
 	return report, nil
 }
 
