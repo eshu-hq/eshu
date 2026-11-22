@@ -44,7 +44,7 @@ func main() {
 	winnersRead := flag.Bool("winners-read", false, "mark this sweep as the winners-read leg in the latency report identity block (the core serves findings from the maintained winners table)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
-	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
+	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (the core and satellite start after this; the seed already ran the infra read model backfill, see seed_infra_backfill.go)")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
 	concurrentWorkers := flag.Int("concurrent-workers", 0, "optional bounded pilot read concurrency after the metered sequential stage (2..16)")
 	concurrentRequests := flag.Int("concurrent-requests", 20, "requests per pilot operation in the optional concurrent stage")
@@ -415,34 +415,19 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("verify story repository graph: %w", err)
 	}
 
+	// The infra read model derives from the content_entities seeded above and is
+	// ready only once its backfill marker exists. No product runtime records it
+	// (#11196), so the seed does, before any core starts.
+	if err := backfillSeededInfraReadModel(ctx, opts.postgresDSN, pool, os.Stderr); err != nil {
+		return fmt.Errorf("backfill seeded infra read model: %w", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")
 	if err := analyzeSeededTables(ctx, pool); err != nil {
 		return fmt.Errorf("analyze seeded tables: %w", err)
 	}
 
 	return nil
-}
-
-// analyzeSeededTables runs ANALYZE on every table this gate bulk-writes, so
-// the sweep queries plan against fresh statistics instead of whatever
-// autovacuum happened to have computed (or not) at seed time — a source of
-// run-to-run plan and latency variance a COPY-then-immediately-sweep gate
-// would otherwise carry silently.
-func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, "ANALYZE "+strings.Join(analyzedSeededTables(), ", "))
-	return err
-}
-
-// analyzedSeededTables lists the tables analyzeSeededTables refreshes: every
-// table in the exact-count read-back plus content_entities and content_files,
-// which are seeded and verified through their own count paths (#7009 pilots).
-// A test pins the list to the read-back set so a newly seeded table cannot
-// be left unanalyzed once it is in the read-back set.
-func analyzedSeededTables() []string {
-	return []string{
-		"ingestion_scopes", "scope_generations", "fact_work_items", "fact_records",
-		"shared_projection_intents", "content_entities", "content_files",
-	}
 }
 
 // firstScopeOfKind returns the first scope in plan.Scopes with the given

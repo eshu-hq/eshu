@@ -37,7 +37,10 @@
 // the Docker Compose Postgres+Neo4j stack, builds the in-tree eshu-core-api,
 // the frozen satellite eshu-api and this binary, seeds (including supply
 // chain impact finding facts rebuilt into the winners read model through
-// the maintainer's own full resweep), starts the core, then the satellite
+// the maintainer's own full resweep, and the infra read model backfill the
+// removed in-tree API used to run, labelled infra_backfill=gate_stand_in
+// because no product runtime runs it today, issue #11196), starts the core,
+// then the satellite
 // against --core-base-url and the MCP server, runs this binary to sweep the
 // legacy leg, restarts the core with ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ
 // set, proves the two legs serve byte-identical findings, re-sweeps the

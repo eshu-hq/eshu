@@ -227,3 +227,26 @@ func TestLatencyReportIdentityFromCarriesCoreAndWinnersLeg(t *testing.T) {
 		t.Fatalf("CoreBinarySHA256 defaults to %q, want empty", legacy.CoreBinarySHA256)
 	}
 }
+
+// TestLatencyReportIdentityRecordsInfraBackfillStandIn pins that both legs'
+// reports say the infra read model marker came from the gate's own backfill
+// (#11196: no product runtime runs it), so a reader cannot mistake the infra
+// route numbers for those of an install whose product wiring recorded it.
+func TestLatencyReportIdentityRecordsInfraBackfillStandIn(t *testing.T) {
+	for name, opts := range map[string]runOptions{
+		"legacy leg":  {},
+		"winners leg": {winnersRead: true},
+	} {
+		id := latencyReportIdentityFrom(opts)
+		if id.InfraBackfill != "gate_stand_in" {
+			t.Fatalf("%s: InfraBackfill = %q, want gate_stand_in", name, id.InfraBackfill)
+		}
+		raw, err := json.Marshal(id)
+		if err != nil {
+			t.Fatalf("%s: marshal identity: %v", name, err)
+		}
+		if !strings.Contains(string(raw), `"infra_backfill":"gate_stand_in"`) {
+			t.Fatalf("%s: identity JSON %s lacks infra_backfill gate_stand_in", name, raw)
+		}
+	}
+}

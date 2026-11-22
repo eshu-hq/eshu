@@ -47,6 +47,14 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `supply_chain_impact_canonical_winners` through the maintainer's own full
   resweep (never hand-written), and prove the table is populated and
   watermarked, so the winners leg measures the real read model
+- `runInfraBackfillStandIn`, `backfillSeededInfraReadModel` — run the
+  product `inventory.Backfiller` in the seed phase and prove the infra read
+  model is installed, marked, and has no dirty repository before any core
+  starts. The gate runs the backfill the removed in-tree API used to run
+  (a012da4557); no product runtime runs it today (#11196). Both legs'
+  reports carry `infra_backfill: gate_stand_in`, and the infra route numbers
+  describe an install that holds the marker: a fresh install serves those
+  routes from the graph, which this gate does not measure
 - `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
   `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
   `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row
@@ -83,7 +91,8 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
   `RouteLatency.WarmSamples` and `WarmRunP95s`.
 - `BuildLatencyReport`, `WriteLatencyReport` — the `-latency-report` JSON
   report (schema version 1): an identity block (backend, best-effort eshu
-  commit/api/core binary sha256, the `-winners-read` leg marker, seed sizing
+  commit/api/core binary sha256, the `-winners-read` leg marker, the
+  `infra_backfill` stand-in marker, seed sizing
   including winners facts, runs/iterations/warmups) plus every
   route's first/later samples and later distribution stats (n/p50/p95/min/max/
   stddev, and the per-run p95 min..max). Written before budget evaluation, so
@@ -150,7 +159,8 @@ See `doc.go` for the full contract.
   over HTTP against a running `eshu-api`, not imported directly)
 - `internal/storage/postgres` — imported only for the winners resweep port
   (`SupplyChainImpactWinnersStore.ResweepWinners`), the same production call
-  the reducer maintainer and the ifa advisory-group drive use; every other
+  the reducer maintainer and the ifa advisory-group drive use, and for the
+  infra read model backfill (`infra/inventory.Backfiller`); every other
   query this gate measures is exercised over HTTP
 
 ## Telemetry
