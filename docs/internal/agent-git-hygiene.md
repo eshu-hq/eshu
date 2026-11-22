@@ -25,9 +25,9 @@ measurement citations 0.7 s, the docs build 0-18 s (idle host). A marker that
 skipped the repeat would be a stamp, so there is none. A finding the hook would
 reject (a G301, say) now fails the floor first, before the review receipt. gosec
 fails closed: exit 143 (SIGTERM), a missing result, or a package it could not
-analyze fails the run; rerun `make pre-push`. A package whose file patterns
-exceed go/packages' 16383-byte limit (`internal/storage/postgres`, #8339) is
-scanned through a short `go/_g<pid>` alias, and the run prints `scanned via alias`.
+analyze fails the run; rerun `make pre-push`. The pinned gosec loads packages
+by directory, so a large package such as `internal/storage/postgres` no longer
+hits go/packages' 16383-byte pattern limit (#8339, #11241); there is no alias.
 
 There used to be a per-SHA push stamp here: `make pre-pr` wrote one on success
 and a pre-push hook refused to push a commit without it. It is removed. The

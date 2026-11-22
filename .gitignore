@@ -1,7 +1,8 @@
 # Go build artifacts
 go/bin/
-# Per-process symlink aliases scripts/lib/precommit-go-gosec.sh creates for an
-# oversized package (#8339); it removes them on exit, so only a crash leaves one.
+# Symlink aliases an older scripts/lib/precommit-go-gosec.sh created for an
+# oversized package (#8339, retired in #11241); kept so a stale leftover from an
+# interrupted run of the old gate stays untracked.
 go/_g*
 go/admin-status
 go/api
