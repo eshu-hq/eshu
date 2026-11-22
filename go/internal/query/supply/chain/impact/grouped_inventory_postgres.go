@@ -126,6 +126,13 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if s.DB == nil && s.reader == nil {
 		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory database is required")
 	}
+	// image_ref and the precise profile are existence filters: copies of one
+	// canonical key can differ on both, and the winners row holds only the
+	// picked copy's. This store has no legacy read to route to, so it answers
+	// unavailable instead of an under-count (#10880 PR-B ruling).
+	if filter.ImageRef != "" || filter.DetectionProfile != "" {
+		return GroupedInventoryPage{}, ErrGroupedInventoryFilterUnavailable
+	}
 	build := groupedInventoryQuery
 	if len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0 {
 		build = groupedInventoryScopedQuery

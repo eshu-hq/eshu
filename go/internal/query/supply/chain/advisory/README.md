@@ -9,7 +9,11 @@ source-only advisory evidence detail
 (`GET /api/v0/supply-chain/advisories/evidence`, anchored to an advisory,
 CVE, package, repository, service, or workload). Rows are source
 intelligence only and never imply repository, image, workload, or
-deployment impact.
+deployment impact. A repository, service, or workload anchor selects its
+evidence through reducer impact findings (the `repo_probe` and
+`impact_candidates` CTEs read `reducer_supply_chain_impact_finding` facts), so
+the capability declares `fact_records_reducer` beside `fact_records_collector`;
+the store audit (`internal/query/store/audit`) pins that declaration.
 
 ## Ownership boundary
 
