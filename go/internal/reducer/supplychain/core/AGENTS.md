@@ -231,3 +231,17 @@ shape, so no measurement beyond the suite timings is owed.
 
 No-Observability-Change (#11002): the join narrowing adds no metrics,
 spans, or logs; failure classes and quarantine behavior are unchanged.
+
+No-Regression Evidence (#11247 audit tick budget clock): `runAuditOnce` reads
+its deadline from `budgetNow()`, which is the injected `Now` when set and
+`time.Now` otherwise, so the default path is the same two clock reads per
+pass as before (monotonic reading kept; `now()` is not used because `UTC()`
+strips it). No query, lease, claim, or lock call is added, moved, or
+reordered. `go test -race -count=1 ./internal/reducer/supplychain/core` is
+green (about 10 s), and the budget test is exact on a fake clock: 4 passes in
+a 70 ms budget, 3 when a pass ends on the deadline, 1 when the budget is
+shorter than a pass. Before: the wall-clock test failed 3 of 20 runs under
+a 128-process CPU hog; after: 0 of 20.
+
+No-Observability-Change (#11247): no metric, span, log key, or setting is
+added or changed.
