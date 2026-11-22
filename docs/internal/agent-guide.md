@@ -350,8 +350,8 @@ that completes red (Ifá/Odù, contract, performance, end-to-end) is still a
 finding to fix or link: see [When a PR may merge](agent-git-hygiene.md#when-a-pr-may-merge).
 The live Ifá/Odù cells need Docker/NornicDB/Postgres and never ran locally; the
 hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
-run in `make pre-pr` and are deferred by `make pre-push`. Run `make pre-pr` for
-changes under `go/internal/ifa` or reducer materialization.
+run in `make pre-pr` and are deferred by `make pre-push`; CI runs them. A
+`DEFER-CI` line for a blocking one still means run its `local.command`.
 
 ### Duplicate-Work And Formatter-Drift Guards
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pre-push: the fast local floor run before every push, replacing the old
+# pre-push: the fast local floor run once per PR, on the push that opens it, replacing the old
 # per-SHA `make pre-pr` push stamp (removed — see
 # docs/internal/agent-git-hygiene.md and docs/public/reference/local-testing.md).
 #
@@ -59,12 +59,10 @@
 # What it deliberately does NOT run: whole-module go-build, the whole-module
 # race lane and the registry race gates, and
 # the live Docker/NornicDB/Postgres lane (golden-corpus, replay-tier, security,
-# frontend). Those stay `make pre-pr` / `make pre-pr-full` — recommended, not
-# required, before pushing a change to queue/lease/claim code, schema DDL,
-# hot-path Cypher or graph writes, reducer projection/materialization, or a
-# package move (for moves, prefer `make pre-pr-full`: build tags can hide
+# frontend). Those stay `make pre-pr` / `make pre-pr-full`, which are not part
+# of promotion: run `make pre-pr-full` for a package move (build tags can hide
 # files from `./...`, so the whole-module race lane is what actually
-# exercises them).
+# exercises them), `make pre-pr` to reproduce a CI red, or when the owner asks.
 #
 # The Ifá/Odù contract, performance, and end-to-end protection this floor does
 # NOT reproduce lives in CI (test.yml's go-core-complete and go-race-complete,
