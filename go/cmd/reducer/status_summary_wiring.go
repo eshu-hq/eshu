@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	statussummary "github.com/eshu-hq/eshu/go/internal/reducer/status/summary"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -103,6 +104,13 @@ func statusSummaryWriterFor(
 	if !ok {
 		return nil, fmt.Errorf("status summary writer: database %T cannot open transactions", database)
 	}
+	// The coordinator row stores the per-source stuck verdict, so the writer
+	// loads the same ESHU_SOURCE_BACKPRESSURE_* thresholds the live reader
+	// does (#10882 F7). A partial set is a startup error.
+	sourceBackpressure, err := collector.LoadSourceBackpressureConfig(getenv)
+	if err != nil {
+		return nil, fmt.Errorf("status summary writer: %w", err)
+	}
 	return &statussummary.Runner{
 		DB: beginner,
 		Statement: statussummary.Statement{
@@ -123,7 +131,9 @@ func statusSummaryWriterFor(
 			// (#8828), last so its cost never delays the others.
 			ModelKey:     snapshots.ModelCoordinatorSnapshot,
 			SourceSHA256: postgres.CoordinatorSummarySourceSHA256(),
-			Compute:      postgres.ReadCoordinatorSummaryEntries,
+			Compute: func(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]snapshots.Entry, error) {
+				return postgres.ReadCoordinatorSummaryEntriesWithConfig(ctx, queryer, asOf, sourceBackpressure)
+			},
 		}},
 		Interval:    cfg.Interval,
 		Tracer:      tracer,

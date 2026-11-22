@@ -114,8 +114,8 @@ const defaultCoordinatorRecentFailureWindow = 30 * time.Minute
 // sourceBackpressure carries the per-source slowdown thresholds (#10882)
 // the source_pacing rows evaluate the stuck flag from. Callers without
 // operator configuration pass the zero value, which leaves stuck
-// unevaluated; the status summary writer takes that path because its
-// Compute signature carries no env.
+// unevaluated; the status summary writer loads them from its own env and
+// stores the verdict with the row.
 func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.Time, sourceBackpressure workflow.SourceBackpressureConfig) (*statuspkg.CoordinatorSnapshot, error) {
 	instances, err := listCoordinatorCollectorInstances(ctx, queryer)
 	if err != nil {
@@ -321,7 +321,15 @@ func readWorkflowCoordinatorClaimSnapshot(
 // its own value, so a row computed by another version of any statement is never
 // decoded: a rolling upgrade falls back instead of mixing definitions.
 func CoordinatorSummarySourceSHA256() string {
-	return snapshot.SourceSHA256(
+	return snapshot.SourceSHA256(coordinatorSummaryStatements()...)
+}
+
+// coordinatorSummaryStatements lists every statement and window rule the
+// stored coordinator snapshot depends on, including the two the
+// source_pacing section reads (#10882), so a change to any of them retires
+// older stored rows.
+func coordinatorSummaryStatements() []string {
+	return []string{
 		workflowCoordinatorCollectorInstancesQuery,
 		workflowCoordinatorRunStatusCountsQuery,
 		workflowCoordinatorWorkItemStatusCountsQuery,
@@ -331,9 +339,11 @@ func CoordinatorSummarySourceSHA256() string {
 		workflowCollectorBackpressureQuery,
 		workflowCollectorBackpressureFailureClassQuery,
 		workflowCollectorTerminalFailuresQuery,
+		sourceClaimableSignalQuery,
+		sourceBackpressureLatchQuery,
 		defaultCoordinatorRecentFailureWindow.String(),
 		fmt.Sprint(terminalFailureWindowCycles),
-	)
+	}
 }
 
 // ReadCoordinatorSummaryEntries runs the live coordinator read, byte for byte
@@ -343,7 +353,21 @@ func CoordinatorSummarySourceSHA256() string {
 // could not decode is an error here and is never stored. A deployment with no
 // coordinator state is the live read's nil snapshot and stores no entries.
 func ReadCoordinatorSummaryEntries(ctx context.Context, queryer db.Queryer, asOf time.Time) ([]summary.Entry, error) {
-	live, err := readCoordinatorSnapshot(ctx, queryer, asOf.UTC(), workflow.SourceBackpressureConfig{})
+	return ReadCoordinatorSummaryEntriesWithConfig(ctx, queryer, asOf, workflow.SourceBackpressureConfig{})
+}
+
+// ReadCoordinatorSummaryEntriesWithConfig is ReadCoordinatorSummaryEntries for
+// a writer that holds the per-source backpressure thresholds (#10882 F7): the
+// source_pacing rows evaluate stuck against them and store the verdict, so a
+// reader without the ESHU_SOURCE_BACKPRESSURE_* env still serves it. The zero
+// config leaves stuck unevaluated.
+func ReadCoordinatorSummaryEntriesWithConfig(
+	ctx context.Context,
+	queryer db.Queryer,
+	asOf time.Time,
+	sourceBackpressure workflow.SourceBackpressureConfig,
+) ([]summary.Entry, error) {
+	live, err := readCoordinatorSnapshot(ctx, queryer, asOf.UTC(), sourceBackpressure)
 	if err != nil {
 		return nil, err
 	}
