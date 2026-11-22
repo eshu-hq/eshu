@@ -488,4 +488,5 @@ if [[ -n "${GATE_CONCURRENT_REPORT}" ]]; then
 fi
 run_sweep_leg winners "${GATE_BUDGETS}" "${GATE_WORK_BUDGETS}" "${winners_extra_args[@]}"
 
+fail_if_any_leg_failed
 log "PASS: read-api-latency-gate green (legacy + winners legs)"

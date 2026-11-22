@@ -18,6 +18,10 @@
 # deliberate legacy -> winners restart between sweep legs.
 core_pid=""
 
+# leg_failures collects "<leg> (exit N)" for each sweep leg that failed; see
+# run_sweep_leg and fail_if_any_leg_failed.
+leg_failures=()
+
 # require_neo4j_backend_for_core fails the gate before any expensive Compose
 # work when the backend cannot host eshu-core-api. The core binary fails
 # startup on anything but the pinned Neo4j backend (go/cmd/core-api README,
@@ -73,7 +77,7 @@ stop_core_api() {
 snapshot_findings_page() {
 	local out="$1"
 	curl -fsS -H "Authorization: Bearer ${GATE_API_KEY}" \
-		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/findings" \
+		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/findings?limit=50" \
 		-o "${out}" || die "findings snapshot failed (see the curl error above)"
 }
 
@@ -206,6 +210,19 @@ run_sweep_leg() {
 		# floor, or a required route not exercised) to stderr above; this
 		# message stays neutral rather than naming one specific cause for every
 		# nonzero exit.
-		die "read-api-latency-gate ${leg} leg failed with exit ${status} (see the reason printed above)"
+		# Record, don't die: the other leg still has to run so one gate run
+		# reports both legs; fail_if_any_leg_failed turns the record into the
+		# gate's exit at the end.
+		printf 'verify-read-api-latency-gate: read-api-latency-gate %s leg failed with exit %s (see the reason printed above)\n' "${leg}" "${status}" >&2
+		leg_failures+=("${leg} (exit ${status})")
+	fi
+}
+
+# fail_if_any_leg_failed fails the gate when any sweep leg recorded a failure.
+# Legs run to completion first so a breach in one leg never hides the other
+# leg's numbers; the gate is still red when either leg is.
+fail_if_any_leg_failed() {
+	if [[ "${#leg_failures[@]}" -gt 0 ]]; then
+		die "sweep leg(s) failed: ${leg_failures[*]}"
 	fi
 }
