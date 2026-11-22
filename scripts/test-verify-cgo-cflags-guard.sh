@@ -322,6 +322,40 @@ EOF
 	check_guard "guard: the last list line without a newline is still checked" 1 "$t" "install-local-binaries.sh"
 	GUARD_LIST_FILE=""
 
+	# #11255: a list larger than one pipe buffer (64 KiB) made `printf | rg -q`
+	# race: rg -q exits on the first match, printf then hits EPIPE, and pipefail
+	# turned that into a false "list is missing <entry>". The seeded list keeps
+	# every required entry on its first lines and pads the rest with nonexistent
+	# paths (the guard fails on those, so the run exits 1 either way); it must
+	# never report the entry list as missing a name it holds, and a padded list
+	# that really lacks an entry must still say so.
+	big_err="$(mktemp)"
+	printf '%s\n' "$big_err" >>"$tmp_list"
+	pad_list_file() { # <source list> <dest>: the source followed by ~330 KB of padding
+		cat "$1" >"$2"
+		awk 'BEGIN { for (i = 1; i <= 3000; i++) printf "scripts/padding/entry-%0100d.sh\n", i }' >>"$2"
+	}
+	pad_list_file "$list_src" "$list_tmp"
+	rc=0
+	"${guard}" --root "$t" --entrypoints-file "$list_tmp" >/dev/null 2>"$big_err" || rc=$?
+	if [ "$rc" -ne 1 ]; then
+		fail "guard: padded entrypoint list: exit=$rc want=1"
+	elif rg -q --fixed-strings 'the entrypoint list' "$big_err"; then
+		fail "guard: padded entrypoint list falsely reports a missing entry ($(rg --fixed-strings -m 1 'the entrypoint list' "$big_err"))"
+	else
+		pass "guard: a padded entrypoint list never reports a held entry as missing (#11255)"
+	fi
+	rg -v -e '(^|/)pre-pr\.sh$' "$list_src" >"$big_err.src" || true
+	printf '%s\n' "$big_err.src" >>"$tmp_list"
+	pad_list_file "$big_err.src" "$list_tmp"
+	rc=0
+	"${guard}" --root "$t" --entrypoints-file "$list_tmp" >/dev/null 2>"$big_err" || rc=$?
+	if [ "$rc" -ne 1 ] || ! rg -q --fixed-strings 'is missing pre-pr.sh' "$big_err"; then
+		fail "guard: padded list without pre-pr.sh: exit=$rc, stderr lacks 'is missing pre-pr.sh'"
+	else
+		pass "guard: a padded entrypoint list that lacks pre-pr.sh still FAILS (#11255)"
+	fi
+
 	check_guard "guard: real tree passes" 0 "${repo_root}"
 fi
 
