@@ -428,9 +428,9 @@ func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, source
 	}
 
 	if sourceSystem != "" && w.sourceLegEnabled() {
-		decision, err := w.sourceChecker.CheckSourceBackpressureForSource(ctx, sourceSystem, w.sourceConfig, time.Now())
+		decision, err := w.sourceDecision(ctx, sourceSystem)
 		if err != nil {
-			return "", "", 0, fmt.Errorf("check source backpressure for %s: %w", sourceSystem, err)
+			return "", "", 0, err
 		}
 		if decision.Slowed {
 			return workflow.SourceBackpressureReasonSourceBehind, "", 0, nil

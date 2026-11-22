@@ -24,7 +24,11 @@ this signal; the trigger observation is the queue observer's
 source land on `eshu_dp_reducer_admission_deferrals_total` with
 `reason="source_behind"` and a `source_system` label. The coordinator
 status surface publishes the same state as `source_pacing` rows (slowed,
-reason, oldest claimable age, claimable depth, engaged since, stuck).
+reason, oldest claimable age, claimable depth, engaged since, stuck). A
+consult the admission writer cannot read fails open: the group is
+admitted, one warn log carries the source and error, and
+`eshu_dp_reducer_admission_source_consult_failures_total{source_system}`
+counts it.
 Stuck marks an engagement older than
 `ESHU_SOURCE_BACKPRESSURE_MAX_ENGAGEMENT` with the queue still behind:
 still slowed, and loud. The claim-hot consult path probes one source at

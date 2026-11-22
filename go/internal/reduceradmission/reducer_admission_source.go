@@ -6,12 +6,15 @@ package reduceradmission
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Per-source reducer backpressure env contract (#10882 decision 3). Every
@@ -89,6 +92,34 @@ func parseSourceBackpressureDuration(getenv func(string) string, name string) (t
 // and configured.
 func (w reducerAdmissionWriter) sourceLegEnabled() bool {
 	return w.sourceChecker != nil && w.sourceConfig.Enabled()
+}
+
+// sourceDecision consults the shared latch for one source. A consult
+// error fails open (#10882 F1): an unreadable signal is not evidence of a
+// backlog, and returning it would be terminal (no Retryable), dead-letter
+// the item after its canonical and content writes ran, and abort healthy
+// groups of a mixed batch. The failure is logged and counted per source
+// and no latch is written. A cancelled context is shutdown, not a signal
+// failure: it returns the context error and counts nothing.
+func (w reducerAdmissionWriter) sourceDecision(ctx context.Context, source string) (workflow.SourceBackpressureDecision, error) {
+	decision, err := w.sourceChecker.CheckSourceBackpressureForSource(ctx, source, w.sourceConfig, time.Now())
+	if err == nil {
+		return decision, nil
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return workflow.SourceBackpressureDecision{}, fmt.Errorf("check source backpressure for %s: %w", source, ctxErr)
+	}
+	if w.instruments != nil && w.instruments.ReducerAdmissionSourceConsultFailures != nil {
+		w.instruments.ReducerAdmissionSourceConsultFailures.Add(ctx, 1,
+			metric.WithAttributes(telemetry.AttrSourceSystem(source)))
+	}
+	if w.logger != nil {
+		w.logger.WarnContext(ctx, "source backpressure consult failed, admitting without pacing",
+			slog.String("source_system", source),
+			slog.String("error", err.Error()),
+		)
+	}
+	return workflow.SourceBackpressureDecision{SourceSystem: source}, nil
 }
 
 // admissionSourceGroup is one source's slice of an intent batch. Batches

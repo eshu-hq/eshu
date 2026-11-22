@@ -234,7 +234,13 @@ type Instruments struct {
 	ProjectionsCompleted      metric.Int64Counter
 	ReducerIntentsEnqueued    metric.Int64Counter
 	ReducerAdmissionDeferrals metric.Int64Counter
-	ReducerExecutions         metric.Int64Counter
+	// ReducerAdmissionSourceConsultFailures counts per-source backpressure
+	// consults the admission writer could not read (#10882): the group is
+	// admitted, never dead-lettered, so an unreadable signal stays visible
+	// without becoming pacing. Labeled by source_system (a bounded set of
+	// collector kinds).
+	ReducerAdmissionSourceConsultFailures metric.Int64Counter
+	ReducerExecutions                     metric.Int64Counter
 	// ReducerHeartbeatMissed counts reducer lease heartbeat failures, whether
 	// from the immediate pre-heartbeat emitted at claim time (#4447) or a
 	// later periodic tick. Labeled by domain only (a bounded closed set). A
@@ -3978,6 +3984,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ReducerAdmissionDeferrals counter: %w", err)
+	}
+
+	inst.ReducerAdmissionSourceConsultFailures, err = meter.Int64Counter(
+		"eshu_dp_reducer_admission_source_consult_failures_total",
+		metric.WithDescription("Total per-source reducer backpressure consults the admission writer failed to read and failed open on, by source_system (#10882)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerAdmissionSourceConsultFailures counter: %w", err)
 	}
 
 	inst.ReducerExecutions, err = meter.Int64Counter(
