@@ -1540,6 +1540,9 @@ type Instruments struct {
 	// SupplyChainImpactWinnersAuditSkipped counts audits that could not take
 	// the resweep lock, so ran no verification and queued nothing (#9957).
 	SupplyChainImpactWinnersAuditSkipped metric.Int64Counter
+	// SupplyChainImpactWinnersAuditRangeDuration records one staged audit
+	// sweep range's wall time by outcome (#11131).
+	SupplyChainImpactWinnersAuditRangeDuration metric.Float64Histogram
 	// SupplyChainImpactStaleCopyRepairs counts the retraction-state flips a
 	// supply_chain_impact pass wrote against its stored baseline (#10765),
 	// labeled transition (active_to_retracted, retracted_to_active). The scope

@@ -123,6 +123,13 @@ scope activation are rewritten outside the capture owners. #11113 and #11103
 change neither and need no bump. This change merges last in its release, so
 it pins the hash on the final SQL.
 
+Not pinned: the staged audit's range statement and NULL probe (#11131,
+[11131-audit-range-sweep.md](11131-audit-range-sweep.md)). They only detect:
+they read facts and stored winners and queue stale identifiers, and every
+repair is applied by the pinned keyed statements. The range statement embeds
+the pinned winner body byte for byte, so a body change already bumps the
+version. A change to the sweep's ranges or cursor needs no version bump.
+
 Known limit: `cmd/ifa`'s `rebuildWinnersOnce` runs the unguarded
 `ResweepWinners`, which stamps its own contract unconditionally. An ifa build
 older than the stored contract therefore lowers the stored version. It heals
@@ -192,7 +199,11 @@ verify is measured at backlog scale and the audit has operator signals:
     binding one; the fact cap is.
 
   Every staged audit tick on QA defers on budget, and the writer verify never
-  runs.
+  runs. #11131 replaces that tick with a sweep of identifier ranges and a
+  persisted cursor
+  ([11131-audit-range-sweep.md](11131-audit-range-sweep.md)): each range is
+  budgeted (10,000 index rows by default), so these corpus caps no longer
+  apply to the staged audit.
 - **Budget ruling.** The arbiter ruled that A ships as is, with this
   amendment and #11131
   ([11117-staged-audit-budget-ruling-2026-11-21.md](../arbiter/11117-staged-audit-budget-ruling-2026-11-21.md)).
@@ -202,12 +213,16 @@ verify is measured at backlog scale and the audit has operator signals:
   runbook step (NULL both contract columns so the next tick runs one full of
   about 6,400 s). Each use is a QA data mutation and needs its own arbiter
   review with readings. Convergence still rests on the marks staged in each
-  writer's transaction.
+  writer's transaction. With #11131 the staged audit runs again as a range sweep that
+  completes across many ticks; `audit_last_success_age_seconds` then restarts
+  at each completed sweep, not at each range.
 - **Staged-audit telemetry (item 5b).**
   `eshu_dp_supply_chain_impact_winners_staged_audit_deferrals_total{reason}`,
   `..._staged_audit_ticks_total`, and the last tick's `..._last_batches`,
   `..._last_max_batch_seconds`, `..._last_staged_facts` and
-  `..._last_distinct_keys`.
+  `..._last_distinct_keys`. Under the #11131 sweep the `last_*` tick gauges stay absent;
+  the sweep exports range counters, the sweep position, the last completed
+  sweep and new deferral reasons instead.
 - **Audit success (item 5c).**
   `eshu_dp_supply_chain_impact_winners_audit_last_success_age_seconds`, plus
   one `supply chain impact winners audit completed` line for every completed
@@ -249,6 +264,10 @@ AC5 plan on QA:
      temporary state that ends when #11131 ships.
    - If the first tick completes, the budget premise is wrong. Report the
      reading and downgrade #11131 to a headroom issue at lower priority.
+   - After #11131 deploys, read the sweep instead: `audit_sweep_ranges_total`
+     rising, `staged_audit_deferrals_total` by reason, and one completed sweep
+     (`audit_sweep_last_completed_age_seconds`, decision 8 of the joint
+     ruling).
 
 Roll back if any of these happens:
 
