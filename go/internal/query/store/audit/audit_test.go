@@ -208,7 +208,7 @@ func supportingImpactTables() map[string]string {
 		"scanner_advisory_producer_grants", "scanner_advisory_public_activations", "scanner_advisory_public_generations",
 		"scanner_advisory_public_registrations", "scanner_authority_epochs", "scanner_image_result_publications",
 		"scanner_image_result_reuse_receipts", "scanner_image_scan_fact_associations", "scanner_image_scan_results",
-		"scanner_image_target_attempts", "scanner_image_target_sources", "scanner_image_targets",
+		"scanner_image_target_attempts", "scanner_image_target_sources",
 		"scanner_running_image_active_scopes", "scanner_running_image_generations", "scanner_running_image_observations",
 		"scanner_running_image_producer_grants", "scanner_static_impact_finding_authority_revisions",
 		"scanner_static_impact_public_advisory_evidence",

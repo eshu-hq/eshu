@@ -43,6 +43,18 @@ func TestShapesThatReadARealStoreAreSeen(t *testing.T) {
 			(scope_id = 'a' AND (NOT FALSE) OR (EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x')))`,
 		"AND TRUE does not close a branch": `SELECT 1 FROM ingestion_scopes WHERE
 			(EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x') AND TRUE)`,
+		"comma after a JOIN item": `SELECT 1 FROM ingestion_scopes s JOIN scope_generations g ON TRUE, fact_records f
+			WHERE f.fact_kind = 'reducer_x'`,
+		"comma after CROSS JOIN LATERAL": `SELECT 1 FROM ingestion_scopes s CROSS JOIN LATERAL (SELECT 1) x, fact_records f
+			WHERE f.fact_kind = 'reducer_x'`,
+		"parenthesized join tree": `SELECT 1 FROM (fact_records f JOIN ingestion_scopes s ON TRUE)
+			WHERE f.fact_kind = 'reducer_x'`,
+		"nested join tree with a comma list": `SELECT 1 FROM ((ingestion_scopes s JOIN scope_generations g ON TRUE), fact_records f)
+			WHERE f.fact_kind = 'reducer_x'`,
+		"subquery whose WHERE is rescued by OR TRUE": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND FALSE OR TRUE)`,
+		"subquery WHERE with AND TRUE": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND TRUE)`,
 		"NOT TRUE on the left leaves the right arm live": `SELECT 1 FROM ingestion_scopes WHERE
 			((NOT TRUE) OR (EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x')))`,
 	} {
@@ -61,6 +73,11 @@ func TestShapesThatReadNothingAreDropped(t *testing.T) {
 			(TRUE OR EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x'))`,
 		"NOT TRUE conjunct": `SELECT 1 FROM ingestion_scopes WHERE
 			(EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x') AND NOT TRUE)`,
+		"subquery whose WHERE ends in AND FALSE": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND f.scope_id = 'a' AND FALSE)`,
+		"NOT EXISTS over an always-false subquery": `SELECT 1 FROM ingestion_scopes WHERE NOT EXISTS (
+			SELECT 1 FROM fact_records f JOIN scope_generations g ON TRUE WHERE f.fact_kind = 'reducer_x' AND FALSE
+			ORDER BY f.fact_id)`,
 		"a nested always-false group": `SELECT 1 FROM ingestion_scopes WHERE
 			(EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x') AND (a OR FALSE) AND (FALSE))`,
 	} {
@@ -89,6 +106,10 @@ func TestShapesTheClassifierCannotReadFailClosed(t *testing.T) {
 		"unterminated string literal": {SQL: `SELECT 1 FROM fact_records WHERE fact_kind = 'reducer_x`},
 		"unterminated block comment":  {SQL: `SELECT 1 /* never closed FROM fact_records WHERE fact_kind = 'reducer_x'`},
 		"unparseable FROM item":       {SQL: `SELECT 1 FROM $1`},
+		"fact_kind LIKE": {SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind LIKE 'reducer_%'
+			AND EXISTS (SELECT 1 FROM ingestion_scopes o WHERE o.scope_id = 'x' AND f.fact_kind = 'vulnerability.cve')`},
+		"fact_kind <> literal arm":     {SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind = 'vulnerability.cve' OR f.fact_kind <> 'x'`},
+		"fact_kind regular expression": {SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind ~ '^reducer_'`},
 	} {
 		used := audit.Classify(statement)
 		if len(used.Unresolved) == 0 {
@@ -149,5 +170,27 @@ func TestSystemCatalogsAreNotAStore(t *testing.T) {
 	mixed := audit.Classify(audit.Statement{SQL: `SELECT 1 FROM pg_attribute a, vulnerability_source_states s`})
 	if got := audit.Undeclared([]string{audit.StoreGraph}, mixed); len(got) == 0 {
 		t.Fatal("RED: a real table beside a system catalog was dropped")
+	}
+}
+
+// TestCTEReadingItsOwnNameIsARealRead pins the shadowing case for a read
+// table: a non-recursive CTE named like a table that selects from that table
+// reads the real table, and a CTE that only shares a name with a later
+// reference does not.
+func TestCTEReadingItsOwnNameIsARealRead(t *testing.T) {
+	t.Parallel()
+	const table = audit.ReadTablePrefix + "workflow_runs"
+	used := audit.Classify(audit.Statement{SQL: `WITH workflow_runs AS (SELECT * FROM workflow_runs)
+		SELECT 1 FROM ingestion_scopes s, workflow_runs r`})
+	if got := audit.Undeclared([]string{audit.StoreGraph}, used); len(got) == 0 {
+		t.Fatal("RED: a CTE that selects from its own name hid the real table read")
+	}
+	if got := audit.Undeclared([]string{table}, used); len(got) != 0 {
+		t.Fatalf("GREEN: the declared table read is still flagged: %v", got)
+	}
+	benign := audit.Classify(audit.Statement{SQL: `WITH workflow_runs AS (SELECT 1 AS one)
+		SELECT 1 FROM ingestion_scopes s, workflow_runs r`})
+	if len(benign.Stores) != 0 || len(benign.Unresolved) != 0 {
+		t.Fatalf("a CTE that reads nothing was counted: %v %v", benign.Stores, benign.Unresolved)
 	}
 }

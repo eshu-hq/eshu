@@ -48,16 +48,57 @@ func deadSpans(masked string) ([]span, error) {
 	var dead []span
 	var covered []span
 	for _, pair := range pairs {
-		if insideAny(covered, pair.start) {
+		if insideAny(dead, pair.start) {
 			continue
 		}
-		if !booleanContext(masked, pair.start) || hasTopLevelClause(masked, pair.start+1, pair.end-1) {
+		if hasTopLevelClause(masked, pair.start+1, pair.end-1) {
+			if subqueryYieldsNothing(masked, pair.start+1, pair.end-1) {
+				dead = append(dead, pair)
+			}
+			continue
+		}
+		if insideAny(covered, pair.start) || !booleanContext(masked, pair.start) {
 			continue
 		}
 		(&evaluator{text: masked, dead: &dead}).expr(pair.start+1, pair.end-1)
 		covered = append(covered, pair)
 	}
 	return dead, nil
+}
+
+// whereEnd holds the words that end a WHERE clause at depth zero.
+var whereEnd = map[string]struct{}{
+	"group": {}, "order": {}, "limit": {}, "having": {}, "union": {}, "intersect": {}, "except": {},
+	"window": {}, "offset": {}, "fetch": {}, "for": {},
+}
+
+// subqueryYieldsNothing reports a subquery whose top-level WHERE clause is
+// always false (a literal AND FALSE conjunct with no top-level OR to rescue it),
+// so it returns no rows whatever its FROM list reads. The impact readiness
+// predicate closes its receipt branch this way.
+func subqueryYieldsNothing(text string, lo, hi int) bool {
+	depth, whereAt := 0, -1
+	for i := lo; i < hi; i++ {
+		switch text[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		default:
+			if depth != 0 || !isWordStart(text, i) {
+				continue
+			}
+			word := wordAt(text, i, hi)
+			lower := strings.ToLower(word)
+			if lower == "where" && whereAt < 0 {
+				whereAt = i + len(word)
+			} else if _, ends := whereEnd[lower]; ends && whereAt >= 0 {
+				return (&evaluator{text: text, dead: &[]span{}}).expr(whereAt, i) == truthFalse
+			}
+			i += len(word) - 1
+		}
+	}
+	return whereAt >= 0 && (&evaluator{text: text, dead: &[]span{}}).expr(whereAt, hi) == truthFalse
 }
 
 // blankSpans replaces each span of text with spaces, keeping newlines and length.
@@ -144,7 +185,7 @@ func hasTopLevelClause(text string, lo, hi int) bool {
 			if depth == 0 && isWordStart(text, i) {
 				word := wordAt(text, i, hi)
 				switch strings.ToLower(word) {
-				case "select", "from", "with":
+				case "select", "from", "with", "values":
 					return true
 				}
 				i += len(word) - 1

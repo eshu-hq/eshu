@@ -62,9 +62,27 @@ B0 lands the pieces that need no supports table. Commits on
      follows SQL precedence.
    - Probes cover impact list, aggregate and inventory, grouped inventory,
      explain, advisory evidence and catalog, and both alert-reconciliation
-     capabilities. The 26 scanner authority tables stay "supporting" only
-     because no probe reaches them live; each reaches a response only through the
-     closed derived branch.
+     capabilities. Round-2 review found the readiness probes recorded only the
+     fallback statement; production runs the protected one. The probes now answer
+     the layout probe both ways (`fallback statement` and `protected statement`
+     variants under list and explain). The protected statement reads one scanner
+     table live: `scanner_image_targets`, in a `NOT EXISTS` inside the live static
+     arm of `currentScannerFactPredicate`, which changes which facts count toward
+     readiness, so list and explain declare it. The receipt chain (tenants,
+     workspaces, role policy, grants, epochs, attempts, results, observations)
+     sits in an `EXISTS` subquery whose `WHERE` ends in a literal `AND FALSE`
+     ("the final guard remains closed"), so it returns no rows whatever it reads;
+     the classifier drops a subquery whose top-level `WHERE` is always false. The
+     25 scanner tables left in the supporting list are reached only through that
+     dead receipt chain and the closed derived branch, and no probe reaches them
+     live. An earlier version of this record said every authority table reaches a
+     response only through the closed derived branch; that was wrong for readiness
+     and is corrected here.
+   - Round-2 classifier fixes, each with a seeded RED/GREEN case: a comma after a
+     JOIN item, a parenthesized join tree, a CTE that reads its own name, and
+     `fact_kind` compared with `LIKE`, `<>`, `!=`, or `~`. Fact kinds are still
+     attributed per statement, not per relation (README states the limit), so
+     kind-selecting operators fail closed instead.
    - Waivers: 155 capabilities have no probe and 18 query packages have no census
      owner. Raising a ceiling constant is a code edit that only review catches.
 4. **`image_ref` guard.** The gate-on list and aggregate stores serve an
@@ -123,6 +141,14 @@ supports.
   advisory evidence move to supports.
 - **PR-C:** remove the legacy read, the gate, `ListFindingsProtectedQuery`, and
   the dead derived grant leg together.
+
+### For the PR body
+
+Name plainly: with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, grouped inventory
+(`service_id`, `workload_id`, `environment`) answers `503` for the default
+profile and for `image_ref`. Before B0 it returned a `200` that could under-count.
+There is no CLI caller and no in-repo configuration turns the gate on; the 503 is
+interim and its removal is the B2 checklist item above.
 
 ### What B0 does not do
 

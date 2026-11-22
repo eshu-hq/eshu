@@ -68,6 +68,10 @@ func listProbe(variant string, gate bool, mutate func(*impact.FindingFilter)) pr
 // lookup so a target-resolution anchor reaches the readiness statements.
 func readinessRows(sql string) db.Rows {
 	switch {
+	case strings.Contains(sql, "to_regclass('eshu_security.role_policy_state')"):
+		// Production runs the protected readiness statement; the fallback statement
+		// is only for isolated schemas that lack the authority layout.
+		return audit.StaticRows([]any{true})
 	case strings.Contains(sql, "package_manifest_consumption_key_backfill_markers"):
 		return audit.StaticRows([]any{true})
 	case strings.Contains(sql, "container_image_identity_current_supports") && strings.Contains(sql, "digest"):
@@ -86,18 +90,33 @@ func readinessRows(sql string) db.Rows {
 // for the readiness block of their responses, for a repository anchor and for
 // the three target-resolution anchors (CVE, image reference, package).
 func readinessProbes(capability string) []probe {
-	run := func(query impact.ReadinessQuery) func(context.Context, *audit.Recorder) {
+	run := func(query impact.ReadinessQuery, protected bool) func(context.Context, *audit.Recorder) {
 		return func(ctx context.Context, recorder *audit.Recorder) {
-			recorder.Rows = readinessRows
+			recorder.Rows = func(sql string) db.Rows {
+				if !protected && strings.Contains(sql, "to_regclass('eshu_security.role_policy_state')") {
+					return nil // an empty cursor reads as "layout absent": the fallback statement
+				}
+				return readinessRows(sql)
+			}
 			_, _ = impact.NewPostgresReadinessStoreWithReadStore(recorder).ReadSupplyChainImpactReadiness(ctx, query)
 		}
 	}
-	return []probe{
-		{capability, "readiness, repository anchor", run(impact.ReadinessQuery{RepositoryID: "repository:r"})},
-		{capability, "readiness, cve anchor", run(impact.ReadinessQuery{CVEID: "CVE-1"})},
-		{capability, "readiness, image reference anchor", run(impact.ReadinessQuery{ImageRef: "registry.example/app:1"})},
-		{capability, "readiness, package anchor", run(impact.ReadinessQuery{PackageID: "pkg:npm/x@1"})},
+	var out []probe
+	for _, protected := range []bool{false, true} {
+		layout := "fallback statement"
+		if protected {
+			layout = "protected statement"
+		}
+		for name, query := range map[string]impact.ReadinessQuery{
+			"repository anchor":      {RepositoryID: "repository:r"},
+			"cve anchor":             {CVEID: "CVE-1"},
+			"image reference anchor": {ImageRef: "registry.example/app:1"},
+			"package anchor":         {PackageID: "pkg:npm/x@1"},
+		} {
+			out = append(out, probe{capability, "readiness, " + layout + ", " + name, run(query, protected)})
+		}
 	}
+	return out
 }
 
 func aggregateProbe(variant string, gate bool, mutate func(*impact.AggregateFilter)) probe {

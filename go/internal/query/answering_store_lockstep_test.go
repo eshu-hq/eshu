@@ -58,7 +58,7 @@ func TestCapabilityAnsweringStoresDeclaredForAllCapabilities(t *testing.T) {
 // readiness block of the list and explain responses; the store audit's readiness
 // probes prove each one (go/internal/query/store/audit).
 var readinessReadTables = []string{
-	"read_table:collector_instances", "read_table:container_image_identity_supports", "read_table:package_manifest_consumption_key_backfill_markers", "read_table:package_manifest_consumption_key_dirty_scopes", "read_table:package_manifest_consumption_keys", "read_table:package_registry_identity_keys", "read_table:vulnerability_source_state_packages", "read_table:vulnerability_source_states", "read_table:workflow_runs",
+	"read_table:collector_instances", "read_table:container_image_identity_supports", "read_table:package_manifest_consumption_key_backfill_markers", "read_table:package_manifest_consumption_key_dirty_scopes", "read_table:package_manifest_consumption_keys", "read_table:package_registry_identity_keys", "read_table:vulnerability_source_state_packages", "read_table:vulnerability_source_states", "read_table:workflow_runs", "read_table:scanner_image_targets",
 }
 
 // answeringStoreProbe pins one capability's declared stores against the store

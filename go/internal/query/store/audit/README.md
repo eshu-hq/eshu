@@ -49,6 +49,17 @@ constant is a code edit that only review catches. Regenerate the lists
 with `ESHU_UPDATE_STOREAUDIT_WAIVERS=1 go test ./internal/query/store/audit`,
 which records what is unprobed or unowned today.
 
+## Limits the classifier states
+
+- Fact kinds are attributed per statement, not per relation: a statement that
+  reads `fact_records` and another table with its own `fact_kind` comparison gets
+  the union of the kinds. A kind comparison that selects kinds without naming
+  them (`LIKE`, `SIMILAR TO`, `<>`, `!=`, `~`) fails closed.
+- A subquery whose top-level `WHERE` is always false (a literal `AND FALSE`
+  conjunct with no `OR` to rescue it) returns no rows, so the tables it names are
+  not counted. The impact readiness predicate closes its scanner receipt chain
+  that way.
+
 ## What the audit claims
 
 For the capabilities and variants the probes list, every statement a probe drives

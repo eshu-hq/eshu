@@ -76,8 +76,6 @@ var structuralTables = map[string]string{
 	"scanner_image_result_fact_associations":     "protected finding association join, not an answering store",
 	"scanner_image_result_evidence_associations": "protected evidence association join, not an answering store",
 	"scanner_image_result_advisory_dependencies": "protected advisory dependency join, not an answering store",
-
-	"supply_chain_impact_winners_materialization": "freshness watermark of the winners read model, metadata of the answering table",
 }
 
 // relationAliases maps views and set-returning functions to the read table
@@ -87,6 +85,9 @@ var relationAliases = map[string]string{
 	// resweep statement and read by winnersFreshness to mark the answer stale or
 	// unavailable, so it is the winners store, not a separate one.
 	"supply_chain_impact_winners_materialization": ReadTablePrefix + "supply_chain_impact_canonical_winners",
+	// The winners freshness watermark is written with the winners rows by one
+	// resweep statement and read by winnersFreshness to mark the answer stale or
+	// unavailable, so it is the winners store, not a separate one.
 
 	"container_image_identity_current_supports":          ReadTablePrefix + "container_image_identity_supports",
 	"container_image_identity_current_support_facts_for": ReadTablePrefix + "container_image_identity_supports",
@@ -98,6 +99,9 @@ var sqlWords = map[string]struct{}{
 }
 
 var cteName = regexp.MustCompile(`(?i)(?:\bwith\s+(?:recursive\s+)?|,\s*)([a-z_][a-z0-9_]*)\s+as\s+(?:not\s+)?(?:materialized\s*)?\(`)
+
+// kindOperator matches a fact_kind comparison that names no kind to attribute.
+var kindOperator = regexp.MustCompile(`(?i)\bfact_kind\s*(?:like\b|ilike\b|similar\s+to\b|<>|!=|~)`)
 
 var (
 	kindEquals = regexp.MustCompile(`(?i)\bfact_kind\s*=\s*'([^']+)'`)
@@ -162,15 +166,23 @@ func classifyOne(statement Statement, scope censusScope, used *Used) {
 	for _, problem := range kindProblems {
 		fail(problem)
 	}
+	if !scope.census && kindOperator.MatchString(masked) {
+		fail("fact_kind is compared with LIKE, SIMILAR TO, <>, !=, or a regular-expression operator, which selects kinds the classifier cannot name")
+	}
 	if len(kinds) == 0 {
 		kinds = scope.fallbackKinds
 	}
 	ctes := map[string]struct{}{}
-	for _, match := range cteName.FindAllStringSubmatch(masked, -1) {
-		name := strings.ToLower(match[1])
+	for _, match := range cteName.FindAllStringSubmatchIndex(masked, -1) {
+		name := strings.ToLower(masked[match[2]:match[3]])
 		ctes[name] = struct{}{}
 		if shadowsStore(name) {
 			fail("a CTE named " + name + " shadows the relation of the same name, so reads of it cannot be attributed")
+		}
+		// A non-recursive CTE that reads its own name reads the real relation of
+		// that name, whatever the later references mean.
+		if !recursiveWith.MatchString(masked) && cteReadsItself(masked, match[1]-1, name) {
+			delete(ctes, name)
 		}
 	}
 	refs, problems := relationsOf(masked)
@@ -182,6 +194,27 @@ func classifyOne(statement Statement, scope censusScope, used *Used) {
 	for _, ref := range refs {
 		attribute(ref, ctes, scope, kinds, evidence, used)
 	}
+}
+
+var recursiveWith = regexp.MustCompile(`(?i)\bwith\s+recursive\b`)
+
+// cteReadsItself reports whether the CTE body that opens at open names its own
+// CTE name in a FROM or JOIN item.
+func cteReadsItself(masked string, open int, name string) bool {
+	if open < 0 || open >= len(masked) || masked[open] != '(' {
+		return false
+	}
+	closeAt := closeOf(masked, open)
+	if closeAt < 0 {
+		return false
+	}
+	refs, _ := relationsOf(masked[open+1 : closeAt])
+	for _, ref := range refs {
+		if ref.name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // shadowsStore reports a CTE name that a reader could take for a store.
