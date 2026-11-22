@@ -13,11 +13,15 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ackParkRaceCollectorKind maps to a producer domain
@@ -72,8 +76,9 @@ func newAckParkRaceFixture(t *testing.T, ctx context.Context, scopeID string) *a
 // ack runs the production projector Ack on its own connection with the
 // fixture's frozen clock and the longest permitted Ack lock timeout. It
 // reports through its return value, so it is safe off the test goroutine.
-func (f *ackParkRaceFixture) ack(ctx context.Context, ackDB *sql.DB) error {
+func (f *ackParkRaceFixture) ack(ctx context.Context, ackDB *sql.DB, instruments *telemetry.Instruments) error {
 	queue := NewProjectorQueue(SQLDB{DB: ackDB}, ackParkRaceLeaseOwner, 10*time.Minute)
+	queue.Instruments = instruments
 	at := f.clock
 	queue.Now = func() time.Time { return at }
 	queue.AckScopeLockTimeout = maxProjectorAckLockTimeout
@@ -214,7 +219,8 @@ func TestWaitingAckParkInterleaveLive(t *testing.T) {
 
 	ackDB := openReducerFairnessClaimerDB(t, ctx, f.targetDSN)
 	ackDone := make(chan error, 1)
-	go func() { ackDone <- f.ack(ctx, ackDB) }()
+	instruments, reader := newEnqueueInstruments(t)
+	go func() { ackDone <- f.ack(ctx, ackDB, instruments) }()
 	waitBlockedBy(t, ctx, f.base, blockerPID, ackDone)
 
 	// The Ack ran its generation_active wake and holds its transaction open.
@@ -238,6 +244,61 @@ func TestWaitingAckParkInterleaveLive(t *testing.T) {
 		t.Fatal("Ack never committed after the hold released")
 	}
 	f.requireWoken(t, ctx)
+	// The post-commit re-wake reopened the waiter: exactly one reopening
+	// statement on its site. Its producer-terminal re-wake found the hold
+	// row already reopened by the in-tx wake, so it reopened nobody.
+	rm := collectAckParkMetrics(t, reader)
+	if got := waitingWakeCount(rm, telemetry.WaitingWakeSiteAckPostCommit, telemetry.WaitingWakeOutcomeReopened); got != 1 {
+		t.Fatalf("ack_post_commit reopened statements = %d, want 1", got)
+	}
+}
+
+// collectAckParkMetrics reads the proof's manual metric reader.
+func collectAckParkMetrics(t *testing.T, reader interface {
+	Collect(context.Context, *metricdata.ResourceMetrics) error
+},
+) metricdata.ResourceMetrics {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	return rm
+}
+
+// waitingWakeCount sums eshu_dp_reducer_waiting_wake_total for one site and
+// outcome.
+func waitingWakeCount(rm metricdata.ResourceMetrics, site, outcome string) int64 {
+	return counterWithLabels(rm, "eshu_dp_reducer_waiting_wake_total",
+		map[string]string{telemetry.MetricDimensionWaitingWakeSite: site, "outcome": outcome})
+}
+
+// counterWithLabels sums the named Int64 counter's points carrying every
+// wanted label.
+func counterWithLabels(rm metricdata.ResourceMetrics, name string, want map[string]string) int64 {
+	var total int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if m.Name != name || !ok {
+				continue
+			}
+			for _, dp := range sum.DataPoints {
+				match := true
+				for key, val := range want {
+					got, ok := dp.Attributes.Value(attribute.Key(key))
+					if !ok || got.AsString() != val {
+						match = false
+						break
+					}
+				}
+				if match {
+					total += dp.Value
+				}
+			}
+		}
+	}
+	return total
 }
 
 // TestWaitingAckParkOrdersLive covers the two unheld orders with the same
@@ -252,14 +313,24 @@ func TestWaitingAckParkOrdersLive(t *testing.T) {
 		if got := readWaitingRow(t, ctx, f.base, f.waiterID); got.waitRows != 1 {
 			t.Fatalf("wait rows after park = %d, want 1", got.waitRows)
 		}
-		if err := f.ack(ctx, openReducerFairnessClaimerDB(t, ctx, f.targetDSN)); err != nil {
+		instruments, reader := newEnqueueInstruments(t)
+		if err := f.ack(ctx, openReducerFairnessClaimerDB(t, ctx, f.targetDSN), instruments); err != nil {
 			t.Fatalf("Ack: %v", err)
 		}
 		f.requireWoken(t, ctx)
+		// The in-tx wake reopened the waiter and deleted its wait row, so the
+		// post-commit re-wake is a no-op: no second reopen, no wake storm.
+		rm := collectAckParkMetrics(t, reader)
+		if got := waitingWakeCount(rm, telemetry.WaitingWakeSiteInTx, telemetry.WaitingWakeOutcomeReopened); got != 1 {
+			t.Fatalf("in_tx reopened statements = %d, want 1", got)
+		}
+		if got := waitingWakeCount(rm, telemetry.WaitingWakeSiteAckPostCommit, telemetry.WaitingWakeOutcomeReopened); got != 0 {
+			t.Fatalf("ack_post_commit reopened statements = %d, want 0 (idempotent re-wake)", got)
+		}
 	})
 	t.Run("ack_first", func(t *testing.T) {
 		f := newAckParkRaceFixture(t, ctx, "ack-park-ackfirst")
-		if err := f.ack(ctx, openReducerFairnessClaimerDB(t, ctx, f.targetDSN)); err != nil {
+		if err := f.ack(ctx, openReducerFairnessClaimerDB(t, ctx, f.targetDSN), nil); err != nil {
 			t.Fatalf("Ack: %v", err)
 		}
 		f.park(t, ctx)

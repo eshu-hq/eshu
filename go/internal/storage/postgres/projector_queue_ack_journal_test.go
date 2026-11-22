@@ -136,8 +136,10 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 	// same transaction, after both obligation inserts.
 	// #11016: the obsolete-generations maintenance is followed by the
 	// terminal-wait probe in the same transaction, before the activation.
-	if len(database.calls) != len(want)+4 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+4)
+	// #11228: after the commit the probe and the wake run once more on the
+	// pool (requireAckPostCommitRewake).
+	if len(database.calls) != len(want)+6 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+6)
 	}
 	for i, query := range want[:6] {
 		if database.calls[i].query != query {
@@ -165,6 +167,7 @@ func TestProjectorAckWithJournalOffSendsTheShippedStatements(t *testing.T) {
 	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
 		t.Fatalf("wake args = %v, want (now, generation_active, key)", wake.args)
 	}
+	requireAckPostCommitRewake(t, database.calls[11:])
 	for _, call := range database.calls {
 		for _, banned := range []string{"changed_since", "advisory", "RETURNING generation_id"} {
 			if strings.Contains(call.query, banned) {
@@ -194,8 +197,10 @@ func TestProjectorAckWithJournalOnReplacesOnlyTwoStatements(t *testing.T) {
 	// same transaction, after both obligation inserts.
 	// #11016: the obsolete-generations maintenance is followed by the
 	// terminal-wait probe in the same transaction, before the activation.
-	if len(database.calls) != len(want)+4 {
-		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+4)
+	// #11228: after the commit the probe and the wake run once more on the
+	// pool (requireAckPostCommitRewake).
+	if len(database.calls) != len(want)+6 {
+		t.Fatalf("Ack sent %d statements, want %d", len(database.calls), len(want)+6)
 	}
 	for i, query := range want[:6] {
 		if database.calls[i].query != query {
@@ -218,6 +223,24 @@ func TestProjectorAckWithJournalOnReplacesOnlyTwoStatements(t *testing.T) {
 	}
 	if len(wake.args) != 3 || wake.args[1] != "generation_active" {
 		t.Fatalf("wake args = %v, want (now, generation_active, key)", wake.args)
+	}
+	requireAckPostCommitRewake(t, database.calls[11:])
+}
+
+// requireAckPostCommitRewake pins the #11228 post-commit re-wake: after the
+// commit the Ack sends exactly the terminal-wait probe and the
+// generation_active wake again, with the in-tx wake's arguments. The test
+// scope carries no collector kind, so no producer-terminal wake follows.
+func requireAckPostCommitRewake(t *testing.T, calls []recordedExecCall) {
+	t.Helper()
+	if len(calls) != 2 {
+		t.Fatalf("post-commit statements = %d, want 2", len(calls))
+	}
+	if calls[0].query != terminalGenerationActiveWaitKeysQuery || len(calls[0].args) != 0 {
+		t.Fatalf("post-commit statement 0 = %q %v, want the scope-free terminal-wait probe", calls[0].query, calls[0].args)
+	}
+	if calls[1].query != reopenWaitingRowsQuery || len(calls[1].args) != 3 || calls[1].args[1] != "generation_active" {
+		t.Fatalf("post-commit statement 1 = %q %v, want the generation_active wake", calls[1].query, calls[1].args)
 	}
 }
 

@@ -231,6 +231,9 @@ func WaitingDeferralMap() []WaitingDeferral {
 			// projector Claim sweep that supersedes it. The audit
 			// re-checks the same terminal predicate and the backstop
 			// still bounds a miss.
+			// #11228: the Ack re-runs its wakes after its commit, so a
+			// waiter that parks inside the Ack's open window is reopened
+			// without the audit (ack_post_commit wake site).
 			// #11016: the Claim probe is scope-free (every scope the sweep
 			// scanned, including empty sweeps) and post-commit wake
 			// failures log and meter instead of failing the committed
@@ -241,7 +244,7 @@ func WaitingDeferralMap() []WaitingDeferral {
 			// first), so they stay on the audit terminal-progress fallback
 			// (at most two 5-minute audit cycles) plus the 10-minute
 			// backstop; see the #11016 evidence note.
-			ProvidingSave: "projector Ack activating the generation, terminal projector Fail, or projector Claim superseding the generation in any scope incl. empty sweeps (#11016); heartbeat supersede and Ack maintenance wakes in-tx; retirement fence, liveness sweep, and delta-baseline refusal via audit terminal-progress fallback (<=2 audit cycles) + 10-minute backstop",
+			ProvidingSave: "projector Ack activating the generation (in-tx wake + post-commit re-wake, #11228), terminal projector Fail, or projector Claim superseding the generation in any scope incl. empty sweeps (#11016); heartbeat supersede and Ack maintenance wakes in-tx; retirement fence, liveness sweep, and delta-baseline refusal via audit terminal-progress fallback (<=2 audit cycles) + 10-minute backstop",
 		},
 		{
 			FailureClass:  reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass,

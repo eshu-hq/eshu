@@ -130,7 +130,7 @@ func (q ProjectorQueue) Ack(
 	// for terminal waits in the same transaction so the maintenance victims
 	// reopen here instead of waiting out the audit. In-tx, so a failure
 	// still rolls back and returns: nothing committed yet.
-	if err := wakeTerminalGenerationActiveWaits(ctx, tx, q.Instruments, now); err != nil {
+	if err := wakeTerminalGenerationActiveWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx, now); err != nil {
 		return fmt.Errorf("ack projector work: superseded generation waits: %w", err)
 	}
 	var activated bool
@@ -155,32 +155,21 @@ func (q ProjectorQueue) Ack(
 	if err := oweProducerActivationObligation(ctx, tx, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
 		return fmt.Errorf("ack projector work: %w", err)
 	}
-	// #10876: the same activation reopens parked generation_active waits for
-	// this scope generation in the same transaction. A missed wake still
-	// resolves through the audit and the 10-minute backstop.
-	if err := wakeGenerationActiveWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx,
-		work.Scope.ScopeID, work.Generation.GenerationID, now); err != nil {
+	// #10876, #11000: the same activation reopens the parked
+	// generation_active waits for this scope generation and the
+	// producer-terminal waits for the producer domains this scope kind
+	// publishes, in the same transaction (see wakeAckActivationWaits).
+	if err := wakeAckActivationWaits(ctx, tx, q.Instruments, WaitingWakeSiteInTx, work, now); err != nil {
 		return fmt.Errorf("ack projector work: %w", err)
-	}
-	// #11000: the same activation reopens parked producer-terminal waits for
-	// the producer domains this scope kind publishes, keyed by domain alone.
-	// This wake is load-bearing: the producer's reducer row commits before
-	// its generation activates, so the domain wait parked at reducer-Ack
-	// time only converges here. An unmapped kind wakes nothing.
-	for _, producer := range producerDomainsForCollectorKind(string(work.Scope.CollectorKind)) {
-		domainKey := waitingProducerDomainKey(string(producer))
-		if domainKey == "" {
-			continue
-		}
-		if _, _, err := wakeWaitingByKey(ctx, tx, q.Instruments, WaitingWakeSiteInTx,
-			WaitingKindProducerTerminal, domainKey, now); err != nil {
-			return fmt.Errorf("ack projector work: wake producer terminal waits: %w", err)
-		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("ack projector work: commit: %w", err)
 	}
 	txDone = true
+	// #11228: a waiter that parked inside this transaction's open window
+	// (its park re-check could not see the uncommitted activation, and the
+	// in-tx wakes above ran before its wait row committed) is reopened here.
+	q.wakeAckWaitsAfterCommit(ctx, work, now)
 	projector.RecordDeltaBaselineFence(ctx, q.Instruments, projector.DeltaBaselinePhaseAck, baselineFence.outcome)
 	q.recordAckJournal(ctx, work, journalOutcome)
 

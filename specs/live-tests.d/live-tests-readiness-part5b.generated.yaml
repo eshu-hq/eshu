@@ -149,6 +149,11 @@ tests:
     class: postgres_ci
     reason: "#11228 Ack/park interleave proofs: a generation_active wait that parks between the projector Ack's in-tx wake and its commit is reopened without the audit or backstop, in both orders (park-first, ack-first) and the held window; disposable database per test; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_audit_resolved_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11228 audit-resolved signal: a parked wait whose provider committed without a wake is counted reopened by failure_class, and a wait whose queue row already left the set-aside (backstop claim) is counted reconciled; disposable database per test; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go
     tag: ~
     class: postgres_ci

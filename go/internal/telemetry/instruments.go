@@ -3797,6 +3797,12 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingAuditResolved counts parked waits the #10876 slow audit
+	// resolved instead of a wake, by reason (failure_class) and outcome
+	// (reopened, reconciled) (#11228). A reopened wait of a class with an
+	// in-tx wake site means that wake was lost. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingAuditResolved metric.Int64Counter
 	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
 	// recorded by the waiting audit each cycle. Registered by
 	// registerReducerWaitingInstruments.

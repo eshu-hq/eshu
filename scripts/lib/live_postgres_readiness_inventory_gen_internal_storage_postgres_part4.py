@@ -105,6 +105,9 @@ TABLE = {
             "TestWaitingAckParkInterleaveLive",
             "TestWaitingAckParkOrdersLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_audit_resolved_live_test.go": (
+            "TestWaitingAuditResolvedCounterLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go": (
             "TestBackwardEvidenceWakeContentionLive",
         ),
