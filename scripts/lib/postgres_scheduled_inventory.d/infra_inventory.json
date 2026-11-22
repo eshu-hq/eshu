@@ -7,6 +7,14 @@
       "TestBackfillLiveFailureLeavesNoMarker"
     ]
   },
+  "go/internal/storage/postgres/infra/inventory/backfill_replicas_live_test.go": {
+    "group": "infra_inventory",
+    "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",
+    "tests": [
+      "TestBackfillLiveReplicasRaceOnTheLockAndTheMarker",
+      "TestBackfillLiveTimedCorpus"
+    ]
+  },
   "go/internal/storage/postgres/infra/inventory/background_live_test.go": {
     "group": "infra_inventory",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory",

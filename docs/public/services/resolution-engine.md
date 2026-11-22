@@ -386,11 +386,11 @@ Important env vars:
   `ESHU_CHANGED_SINCE_LINK_MAX_ATTEMPTS` (default `5`),
   `ESHU_CHANGED_SINCE_LINK_WORKERS` (default `4`),
   `ESHU_CHANGED_SINCE_LINK_BACKFILL_SCOPES_PER_CYCLE` (default `10`)
-- `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop is also
-  the only thing that repairs rolling-upgrade fence marks; with it off, one
-  write from an older binary or manual SQL keeps unscoped infra aggregate reads
-  on the graph (`eshu_dp_infra_inventory_dirty_repos`, admin status
-  `infra_inventory`).
+- `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop repairs
+  rolling-upgrade fence marks; with it off, one write from an older binary or
+  manual SQL keeps unscoped infra aggregate reads on the graph
+  (`eshu_dp_infra_inventory_dirty_repos`, admin status `infra_inventory`). The
+  marker backfill (#11196) always runs at boot; the loop waits for its marker.
 - `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default `5m`, wait between cycles)
 - `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` (default `500`, repositories per cycle)
 - `ESHU_STATUS_SUMMARY_WRITER_ENABLED` (default `false`): run the periodic
@@ -454,9 +454,9 @@ Start with:
   `eshu_dp_generation_retention_oldest_eligible_age_seconds`,
   `eshu_dp_generation_retention_phase_duration_seconds{phase}`,
   `eshu_dp_generation_retention_scope_lock_hold_seconds`
-- infra read model reconcile: `eshu_dp_infra_inventory_reconcile_total{outcome}`,
-  `eshu_dp_infra_inventory_reconcile_duration_seconds`, span
-  `reducer.infra_inventory_reconcile`
+- infra read model: `eshu_dp_infra_inventory_backfill_runs_total{outcome}`,
+  `eshu_dp_infra_inventory_reconcile_total{outcome}`,
+  `eshu_dp_infra_inventory_reconcile_duration_seconds`, span `reducer.infra_inventory_reconcile`
 - status summary writer: `eshu_dp_status_summary_writer_passes_total{model_key,outcome}`,
   `eshu_dp_status_summary_writer_pass_duration_seconds{model_key,outcome}`,
   `eshu_dp_status_summary_writer_overrun_total{model_key}`,
