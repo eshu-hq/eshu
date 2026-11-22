@@ -10,6 +10,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -133,21 +134,44 @@ func TestProjectorQueueSourcePacedKeepsAdmissionBudgetLive(t *testing.T) {
 	}
 }
 
+// sourcePacedColumnShape reads the type, nullability, and default of
+// fact_work_items.source_paced_waits in schemaName.
+func sourcePacedColumnShape(t *testing.T, ctx context.Context, db *sql.DB, schemaName string) (dataType, nullable, columnDefault string) {
+	t.Helper()
+	if err := db.QueryRowContext(ctx, `
+SELECT data_type, is_nullable, COALESCE(column_default, '')
+FROM information_schema.columns
+WHERE table_schema = $1 AND table_name = 'fact_work_items' AND column_name = 'source_paced_waits'`,
+		schemaName).Scan(&dataType, &nullable, &columnDefault); err != nil {
+		t.Fatalf("read source_paced_waits column shape in %s: %v", schemaName, err)
+	}
+	return dataType, nullable, columnDefault
+}
+
 // TestProjectorQueueSourcePacedMigration333AppliesLive proves the shipped
-// migration applies cleanly on live Postgres: the column lands NOT NULL
-// DEFAULT 0, existing rows read 0, and a second apply is a no-op.
+// migration applies cleanly on live Postgres: the column lands bigint NOT
+// NULL DEFAULT 0, existing rows read 0, a second apply is a no-op, and the
+// shape matches the hand-written proof-schema DDL the cycle tests build on
+// (so those tests cannot pass against a column production does not have).
+// The schemas carry a UnixNano suffix, like provisionLivenessSchema, so a run
+// killed before cleanup cannot leave a fixed-name schema behind for the next.
 func TestProjectorQueueSourcePacedMigration333AppliesLive(t *testing.T) {
 	db := liveAdmissionProofDB(t)
 	ctx := context.Background()
 
-	schemaName := "migration_333_proof"
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS "+schemaName); err != nil {
-		t.Fatalf("create proof schema: %v", err)
+	suffix := time.Now().UnixNano()
+	migrationSchema := fmt.Sprintf("migration_333_proof_%d", suffix)
+	helperSchema := fmt.Sprintf("migration_333_helper_%d", suffix)
+	for _, name := range []string{migrationSchema, helperSchema} {
+		if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+name); err != nil {
+			t.Fatalf("create proof schema %s: %v", name, err)
+		}
+		t.Cleanup(func() {
+			_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+name+" CASCADE")
+		})
 	}
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
-	})
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+migrationSchema); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `CREATE TABLE fact_work_items (work_item_id TEXT PRIMARY KEY)`); err != nil {
@@ -168,13 +192,21 @@ func TestProjectorQueueSourcePacedMigration333AppliesLive(t *testing.T) {
 	if waits != 0 {
 		t.Fatalf("pre-existing row counter = %d, want 0", waits)
 	}
-	var nullable string
-	if err := db.QueryRowContext(ctx, `
-SELECT is_nullable FROM information_schema.columns
-WHERE table_schema = $1 AND table_name = 'fact_work_items' AND column_name = 'source_paced_waits'`, schemaName).Scan(&nullable); err != nil {
-		t.Fatalf("read column nullability: %v", err)
+	dataType, nullable, columnDefault := sourcePacedColumnShape(t, ctx, db, migrationSchema)
+	if dataType != "bigint" || nullable != "NO" || columnDefault != "0" {
+		t.Fatalf("migration 333 column = (%s, nullable %s, default %q), want (bigint, NO, \"0\")", dataType, nullable, columnDefault)
 	}
-	if nullable != "NO" {
-		t.Fatalf("source_paced_waits is_nullable = %q, want NO", nullable)
+
+	// Helper-vs-333: the hand-written proof schema must declare the same shape.
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+helperSchema); err != nil {
+		t.Fatalf("set helper search_path: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, generationLivenessProofSchemaSQL); err != nil {
+		t.Fatalf("create helper proof tables: %v", err)
+	}
+	hType, hNullable, hDefault := sourcePacedColumnShape(t, ctx, db, helperSchema)
+	if hType != dataType || hNullable != nullable || hDefault != columnDefault {
+		t.Fatalf("proof-schema helper column = (%s, nullable %s, default %q), migration 333 = (%s, nullable %s, default %q): the cycle tests would prove a different column",
+			hType, hNullable, hDefault, dataType, nullable, columnDefault)
 	}
 }
