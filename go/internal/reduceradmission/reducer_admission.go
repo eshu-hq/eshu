@@ -190,7 +190,10 @@ type reducerAdmissionWriter struct {
 	// the writer records the deferral counter and structured log directly. It
 	// receives the failure class that drove a graph-write-pressure deferral.
 	failureClassSink admissionDeferralReasonSink
-	// holder is the process-wide shared queue-depth read (#11233).
+	// holder is the process-wide shared depth read (#11233): one read of
+	// bounded age, single-flight across workers, with backoff while
+	// deferring. The production constructor always sets it; nil (tests that
+	// build the writer by hand) reads the depth reader on every decision.
 	holder *admissionDepthHolder
 	// now is the gate clock; nil means time.Now.
 	now func() time.Time
@@ -232,15 +235,17 @@ func reducerIntentWriterWithGlobalGate(
 		return nil, errors.New("reducer admission queue depth reader database is required")
 	}
 
+	depthReader := postgres.NewQueueObserverStore(database)
 	writer := reducerAdmissionWriter{
 		inner:        inner,
-		depthReader:  postgres.NewQueueObserverStore(database),
+		depthReader:  depthReader,
 		config:       config,
 		sourceConfig: sourceConfig,
 		instruments:  instruments,
 		logger:       logger,
 		sleep:        sleepContext,
 		deferral:     newAdmissionDeferralState(),
+		holder:       newAdmissionDepthHolder(depthReader, config, time.Now, instruments),
 	}
 	if sourceConfig.Enabled() {
 		execQueryer, ok := database.(db.ExecQueryer)
@@ -345,86 +350,28 @@ func (w reducerAdmissionWriter) Enqueue(
 	// before the check, so a timeout cannot orphan graph writes.
 	waitStart := w.clock()()
 	for {
-		reason, failureClass, depth, err := w.admissionDecision(ctx)
+		verdict, err := w.admissionDecision(ctx)
 		if err != nil {
 			return runtime.IntentResult{}, err
 		}
-		if reason == "" {
+		if verdict.reason == "" {
+			if w.holder != nil {
+				w.holder.admitted(ctx)
+			}
 			result, err := w.inner.Enqueue(ctx, intents)
 			if err != nil {
 				return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents: %w", err)
 			}
 			return result, nil
 		}
-		w.recordDeferral(ctx, reason, failureClass, "", depth, len(intents))
-		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, "", depth, len(intents)); timeoutErr != nil {
+		w.recordDeferral(ctx, verdict.reason, verdict.failureClass, "", verdict.depth, len(intents))
+		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, verdict.reason, "", verdict.depth, len(intents)); timeoutErr != nil {
 			return runtime.IntentResult{}, timeoutErr
 		}
-		if err := w.wait(ctx); err != nil {
+		if err := w.waitFor(ctx, w.deferralSleep(ctx, verdict, waitStart)); err != nil {
 			return runtime.IntentResult{}, err
 		}
 	}
-}
-
-// admissionDecision returns the deferral reason, the failure class that drove a
-// graph-write-pressure deferral (empty otherwise), and the depth that triggered
-// it. An empty reason means admission may proceed. The graph-write-pressure gate
-// is checked first because it is the leading indicator that the backend is
-// timing out; the total-depth gate is the trailing safeguard.
-//
-// The pressure gate counts only retrying reducer rows whose failure_class is
-// graph_write_timeout, read from a failure-class-scoped query rather than the
-// stage/status-only QueueDepths bucket. This is the #3560 fix: a backlog of
-// readiness-not-ready retrying rows (secrets_iam_endpoint_not_ready and other
-// *_n classes) reports zero graph-write-timeout depth and therefore never
-// false-throttles unrelated reducer admission.
-func (w reducerAdmissionWriter) admissionDecision(ctx context.Context) (string, string, int64, error) {
-	reason, failureClass, depth, _, err := w.admissionDecisionFor(ctx, "")
-	return reason, failureClass, depth, err
-}
-
-// admissionDecisionFor is admissionDecision plus the per-source leg: when
-// sourceSystem names a source latched slowed, the group defers under
-// reason source_behind and the fifth result carries the verdict's
-// RetryAfter (the grant delay the poll wait honors, #10882 F4). The source leg is consulted after the global
-// database-protection gates so a saturated backend still reports its own
-// reason first. An empty source (unattributed intents) skips the leg.
-func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, sourceSystem string) (string, string, int64, time.Duration, error) {
-	if w.config.graphWritePressureEnabled() && w.deferral != nil {
-		graphWriteTimeoutDepth, err := w.depthReader.ReducerGraphWriteTimeoutDepth(ctx)
-		if err != nil {
-			return "", "", 0, 0, fmt.Errorf("read reducer graph-write-timeout depth: %w", err)
-		}
-		if w.deferral.graphWritePressure(graphWriteTimeoutDepth, w.config.RetryingHighWaterMark, w.config.RetryingLowWaterMark) {
-			return admissionDeferralReasonGraphWritePressure, admissionGraphWriteTimeoutFailureClass, graphWriteTimeoutDepth, 0, nil
-		}
-	}
-
-	if w.config.HighWaterMark > 0 {
-		depths, err := w.depthReader.QueueDepths(ctx)
-		if err != nil {
-			return "", "", 0, 0, fmt.Errorf("read reducer admission queue depth: %w", err)
-		}
-		var total int64
-		for _, count := range depths["reducer"] {
-			total += count
-		}
-		if total >= w.config.HighWaterMark {
-			return admissionDeferralReasonHighWater, "", total, 0, nil
-		}
-	}
-
-	if sourceSystem != "" && w.sourceLegEnabled() {
-		decision, err := w.sourceDecision(ctx, sourceSystem)
-		if err != nil {
-			return "", "", 0, 0, err
-		}
-		if decision.Slowed {
-			return workflow.SourceBackpressureReasonSourceBehind, "", 0, decision.RetryAfter, nil
-		}
-	}
-
-	return "", "", 0, 0, nil
 }
 
 func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass, sourceSystem string, depth int64, intentCount int) {
@@ -458,10 +405,6 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 		}
 		w.logger.WarnContext(ctx, "reducer admission deferring enqueue", args...)
 	}
-}
-
-func (w reducerAdmissionWriter) wait(ctx context.Context) error {
-	return w.waitFor(ctx, w.config.PollInterval)
 }
 
 func (w reducerAdmissionWriter) waitFor(ctx context.Context, delay time.Duration) error {

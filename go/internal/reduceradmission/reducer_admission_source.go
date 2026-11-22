@@ -169,10 +169,11 @@ func (w reducerAdmissionWriter) enqueueBySource(
 		allSourcePaced := true
 		var pacedDelay time.Duration
 		for _, group := range pending {
-			reason, failureClass, depth, retryAfter, err := w.admissionDecisionFor(ctx, group.source)
+			verdict, err := w.admissionDecisionFor(ctx, group.source)
 			if err != nil {
 				return runtime.IntentResult{}, err
 			}
+			reason, failureClass, depth, retryAfter := verdict.reason, verdict.failureClass, verdict.depth, verdict.retryAfter
 			if reason == "" {
 				result, err := w.inner.Enqueue(ctx, group.intents)
 				if err != nil {
