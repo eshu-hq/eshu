@@ -106,7 +106,10 @@ func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, wa
 		)
 	}
 	if reason == workflow.SourceBackpressureReasonSourceBehind {
-		return reducerSourcePacedError{waited: waited, maxWait: maxWait, source: sourceSystem}
+		return reducerSourcePacedError{
+			waited: waited, maxWait: maxWait, source: sourceSystem,
+			retryAfter: w.sourceConfig.GrantDelay, resumeBound: w.sourceConfig.ReleaseAge,
+		}
 	}
 	return reducerAdmissionTimeoutError{waited: waited, maxWait: maxWait, reason: reason, depth: depth}
 }
@@ -122,7 +125,18 @@ type reducerSourcePacedError struct {
 	waited  time.Duration
 	maxWait time.Duration
 	source  string
+	// retryAfter and resumeBound are the grant delay and the release age:
+	// the earliest and the latest the queue may schedule the re-claim
+	// (#10882 R4-4), the same hints failure.SourcePacedRelease carries.
+	retryAfter  time.Duration
+	resumeBound time.Duration
 }
+
+// RetryAfterHint reports the grant delay the queue must wait out.
+func (e reducerSourcePacedError) RetryAfterHint() time.Duration { return e.retryAfter }
+
+// ResumeBoundHint reports the release age that bounds the park.
+func (e reducerSourcePacedError) ResumeBoundHint() time.Duration { return e.resumeBound }
 
 func (e reducerSourcePacedError) Error() string {
 	return fmt.Sprintf("%s: source %q paced, waited %s exceeding %s; releasing claim without spending an attempt",

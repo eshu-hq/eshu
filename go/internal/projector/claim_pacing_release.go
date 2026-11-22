@@ -37,7 +37,13 @@ func (s Service) releaseIfSourcePaced(ctx context.Context, work ScopeGenerationW
 	if !paced {
 		return false, nil
 	}
-	failErr := s.WorkSink.Fail(ctx, work, failure.SourcePacedRelease{Source: work.Scope.SourceSystem, RetryAfter: retryAfter})
+	var resumeBound time.Duration
+	if bounded, ok := s.SourcePacer.(interface{ ResumeBound() time.Duration }); ok {
+		resumeBound = bounded.ResumeBound()
+	}
+	failErr := s.WorkSink.Fail(ctx, work, failure.SourcePacedRelease{
+		Source: work.Scope.SourceSystem, RetryAfter: retryAfter, ResumeBound: resumeBound,
+	})
 	if s.recordClaimLostWork(ctx, work, time.Now(), 0, failErr, "fail", workerID) {
 		return true, nil
 	}

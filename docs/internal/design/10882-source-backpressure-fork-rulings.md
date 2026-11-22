@@ -106,8 +106,31 @@ by lease as before.
 never nears `MaxAttempts` or `AdmissionMaxAttempts`. A paced release is
 counted on `eshu_dp_projector_source_paced_retries_total`, not as a projection
 failure, and logs `source_system`, `retry_after`, and `source_paced_waits`.
-The retry still backs off on the paced counter up to the retry cap, so a long
-engagement settles at about one claim per item per cap.
+The retry backs off on the paced counter, capped at a resume bound (#10882
+R4-4): a paced release is scheduled at
+`max(grant delay, min(paced exponential, resume bound))` plus jitter, where the
+resume bound is the source's release age, carried on both paced causes
+(`failure.SourcePacedRelease` and the post-write `reducerSourcePacedError`)
+next to the grant delay and read by the queue through a narrow interface. A
+cause with no bound keeps the queue's retry cap, and a grant delay above the
+bound wins. So a projector item paced for a long engagement is re-claimed at
+most about every `max(GrantDelay, ReleaseAge)` plus jitter, and the projector
+resume bound after a release is `max(GrantDelay, ReleaseAge)` plus jitter. The
+earlier cap of 1 h, reached after about 7 paced cycles regardless of the grant
+delay, would have hidden a released source's paced backlog for up to an hour.
+`ReleaseAge` is a Proposed value like the other thresholds; the replay confirms
+or replaces it. The cost is re-claim churn: about 4 re-claims per paced item per
+hour at a 15 minute bound, each one a claim, a consult, and a release, with
+`source_paced_waits` and `attempt_count` rising together by that much (the
+rollback hazard under "Rollout and rollback" arrives sooner for it). Proof:
+`TestProjectorQueueSourcePacedDelayIsBoundedByResumeBound` (waits 0, 3, 7, 50,
+10,000; no bound; bound above the cap; grant delay above the bound),
+`TestProjectorQueueSourcePacedSlowerThanBudgetsLosesNothing` (1,000 cycles, zero
+dead letters, both budgets intact, delay never above the bound plus jitter),
+`TestReducerAdmissionSourcePacedErrorCarriesResumeBound`, and the live
+`TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive` (9 passes, `visible_at`
+at most the bound plus jitter out after 8 or more cycles). A seeded mutation
+removing the cap fails the first two.
 
 **Source key.** The consult uses the scope's `source_system`. The admission
 writer paces intents by the intent's fact source, which equals it for

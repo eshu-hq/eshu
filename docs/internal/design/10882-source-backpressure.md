@@ -270,9 +270,10 @@ gates). An engagement older than `MaxEngagement` with age still above
 release raises `Stuck` and **stays paced** — copied from #8470, because
 releasing blind into a still-saturated source converts a visible
 throttle into an invisible queue explosion. Resume needs no new
-notification path: collectors already re-claim on their poll loops and
-the ingester re-selects on its 1 s collector poll, so a released latch
-is observed within one poll + cache TTL.
+notification path: collectors re-claim on their poll loops and the
+ingester re-selects on its 1 s poll, so a released latch is seen within
+one poll + cache TTL. A paced projector item resumes within
+max(GrantDelay, ReleaseAge) plus jitter (R4-4, fork rulings).
 
 ### 6. No-loss argument (what S2/S3 must prove, not assert)
 

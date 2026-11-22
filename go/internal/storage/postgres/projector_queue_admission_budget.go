@@ -5,9 +5,11 @@ package postgres
 
 import (
 	"errors"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 // This file holds the projector admission-wait budget (#10671): the split
@@ -111,4 +113,26 @@ func (q ProjectorQueue) retryDecision(work projector.ScopeGenerationWork, cause 
 		return work.AdmissionWaitAttempts+1 < q.admissionMaxAttempts(), retryKindAdmission
 	}
 	return projectionClaims(work) < q.maxAttempts(), retryKindProjection
+}
+
+// retryBackoff is the retry delay for one failure. A source-paced release
+// (#10882) is scheduled at max(grant delay, min(paced exponential, resume
+// bound)) plus jitter: the exponential backs off on source_paced_waits but is
+// capped at the cause's resume bound (the release age), so a long engagement
+// cannot park an item for the full retry cap and a released source's paced
+// backlog is visible again within about the bound. A cause with no bound keeps
+// the queue cap, the grant delay wins when larger, and the item is never
+// claimable before it.
+func (q ProjectorQueue) retryBackoff(kind retryKind, attempt int, cause error) time.Duration {
+	maxDelay := q.retryMaxDelay()
+	if kind == retryKindSourcePaced {
+		if bound := failure.ResumeBoundHint(cause); bound > 0 && (maxDelay <= 0 || bound < maxDelay) {
+			maxDelay = bound
+		}
+	}
+	delay := queuestore.ComputeRetryDelay(q.retryDelay(), maxDelay, q.JitterFraction, attempt, q.jitterSource())
+	if kind == retryKindSourcePaced {
+		delay = max(delay, failure.RetryAfterHint(cause))
+	}
+	return delay
 }

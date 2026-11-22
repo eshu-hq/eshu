@@ -86,11 +86,18 @@ func TestProjectorQueueSourcePacedSlowerThanBudgetsLosesNothing(t *testing.T) {
 	t.Parallel()
 
 	queue := sourcePacedTestQueue(&recordingExecQueryer{})
+	queue.RetryDelay = 30 * time.Second
+	queue.MaxRetryDelay = time.Hour
+	queue.JitterFraction = 0.1
 	work := projector.ScopeGenerationWork{
 		Scope:      scope.IngestionScope{ScopeID: "scope-123"},
 		Generation: scope.ScopeGeneration{GenerationID: "generation-456"},
 	}
-	cause := productionWrapAdmissionError(sourcePacedTestError{})
+	// The pre-write release cause, with the release-age resume bound (#10882
+	// R4-4): the delay never exceeds the bound plus jitter, however long the
+	// engagement, and none of the 1,000 cycles dead-letters.
+	const resumeBound = 15 * time.Minute
+	cause := productionWrapAdmissionError(failure.SourcePacedRelease{Source: "git", RetryAfter: time.Second, ResumeBound: resumeBound})
 
 	// A source slowed for 1,000 MaxWait cycles: with the default 48-wait
 	// admission budget that is ~20x the budget the old path would have
@@ -103,6 +110,9 @@ func TestProjectorQueueSourcePacedSlowerThanBudgetsLosesNothing(t *testing.T) {
 		}
 		if kind != retryKindSourcePaced {
 			t.Fatalf("cycle %d: retry kind = %v, want source-paced", cycle, kind)
+		}
+		if delay := queue.retryBackoff(kind, work.SourcePacedWaits, cause); delay >= resumeBound+3*time.Second {
+			t.Fatalf("cycle %d: paced delay %s exceeds the resume bound %s plus jitter", cycle, delay, resumeBound)
 		}
 		work.SourcePacedWaits++
 	}
@@ -178,6 +188,64 @@ func TestProjectorQueueFailSourcePacedReleaseHonorsRetryAfter(t *testing.T) {
 		}
 		if got := visibleAt.Sub(now); got < tc.wantAtLeast {
 			t.Fatalf("%s: visible_at is %s out, want at least %s", tc.name, got, tc.wantAtLeast)
+		}
+	}
+}
+
+// TestProjectorQueueSourcePacedDelayIsBoundedByResumeBound is the #10882 R4-4
+// delay table. A paced release is scheduled at
+// max(grant delay, min(paced exponential, resume bound)) plus jitter, so a
+// long engagement never parks an item longer than the bound (the release age),
+// where the unbounded exponential reached the 1 h retry cap after about 7
+// cycles regardless of the grant delay. A cause with no bound keeps the queue
+// cap, and a grant delay above the bound wins.
+func TestProjectorQueueSourcePacedDelayIsBoundedByResumeBound(t *testing.T) {
+	t.Parallel()
+
+	const jitterCeiling = 3 * time.Second // JitterFraction 0.1 of the 30s base
+	now := time.Date(2026, time.November, 22, 9, 0, 0, 0, time.UTC)
+	fifteen := 15 * time.Minute
+	for _, tc := range []struct {
+		name       string
+		waits      int
+		retryAfter time.Duration
+		bound      time.Duration
+		wantMin    time.Duration
+		wantMax    time.Duration // exclusive upper bound
+	}{
+		{"waits 0 under the bound", 0, 0, fifteen, 30 * time.Second, 30*time.Second + jitterCeiling},
+		{"waits 3 under the bound", 3, 0, fifteen, 240 * time.Second, 240*time.Second + jitterCeiling},
+		{"waits 7 hits the bound", 7, 0, fifteen, fifteen, fifteen + jitterCeiling},
+		{"waits 50 stays at the bound", 50, 0, fifteen, fifteen, fifteen + jitterCeiling},
+		{"waits 10000 stays at the bound", 10_000, 0, fifteen, fifteen, fifteen + jitterCeiling},
+		{"no bound keeps the queue cap", 50, 0, 0, time.Hour, time.Hour + jitterCeiling},
+		{"bound above the queue cap keeps the cap", 50, 0, 2 * time.Hour, time.Hour, time.Hour + jitterCeiling},
+		{"grant delay above the bound wins", 50, 20 * time.Minute, fifteen, 20 * time.Minute, 20*time.Minute + jitterCeiling},
+		{"grant delay under the delay is ignored", 3, time.Second, fifteen, 240 * time.Second, 240*time.Second + jitterCeiling},
+	} {
+		db := &recordingExecQueryer{}
+		queue := sourcePacedTestQueue(db)
+		queue.Now = func() time.Time { return now }
+		queue.RetryDelay = 30 * time.Second
+		queue.MaxRetryDelay = time.Hour
+		queue.JitterFraction = 0.1
+		work := projector.ScopeGenerationWork{
+			Scope:            scope.IngestionScope{ScopeID: "scope-123"},
+			Generation:       scope.ScopeGeneration{GenerationID: "generation-456"},
+			AttemptCount:     tc.waits + 1,
+			SourcePacedWaits: tc.waits,
+		}
+		cause := failure.SourcePacedRelease{Source: "git", RetryAfter: tc.retryAfter, ResumeBound: tc.bound}
+		if err := queue.Fail(context.Background(), work, cause); err != nil {
+			t.Fatalf("%s: Fail() error = %v, want nil", tc.name, err)
+		}
+		visibleAt, ok := db.execs[0].args[4].(time.Time)
+		if !ok {
+			t.Fatalf("%s: visible_at arg = %T, want time.Time", tc.name, db.execs[0].args[4])
+		}
+		got := visibleAt.Sub(now)
+		if got < tc.wantMin || got >= tc.wantMax {
+			t.Fatalf("%s: visible_at is %s out, want [%s, %s)", tc.name, got, tc.wantMin, tc.wantMax)
 		}
 	}
 }

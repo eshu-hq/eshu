@@ -268,3 +268,40 @@ func TestReducerAdmissionSourceBehindTimeoutIsSourcePacedNotAdmissionTimeout(t *
 		t.Fatalf("inner enqueue calls = %d, want 0 (nothing admitted while slowed)", writer.calls)
 	}
 }
+
+// TestReducerAdmissionSourcePacedErrorCarriesResumeBound pins #10882 R4-4 on
+// the post-write release path: the source-paced timeout carries the release
+// age as its resume bound and the grant delay as its retry hint, so the queue
+// bounds the park the same way it does for the pre-write release.
+func TestReducerAdmissionSourcePacedErrorCarriesResumeBound(t *testing.T) {
+	t.Parallel()
+
+	admission := reducerAdmissionWriter{
+		inner: &recordingReducerIntentWriter{},
+		depthReader: &fakeReducerAdmissionDepthReader{
+			depths: []map[string]map[string]int64{{"reducer": {"pending": 1}}},
+		},
+		config: reducerAdmissionConfig{
+			HighWaterMark: 10_000,
+			PollInterval:  time.Millisecond,
+			MaxWait:       30 * time.Millisecond,
+		},
+		deferral:      newAdmissionDeferralState(),
+		sourceChecker: alwaysSlowedSourceChecker{},
+		sourceConfig:  admissionSourceTestConfig(),
+		sleep:         func(context.Context, time.Duration) error { return nil },
+	}
+	_, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
+		{Domain: reducer.DomainWorkloadIdentity, SourceSystem: "git", EntityKey: "git-1"},
+	})
+	if err == nil {
+		t.Fatal("Enqueue() error = nil, want a source-paced release")
+	}
+	cfg := admissionSourceTestConfig()
+	if got := failure.ResumeBoundHint(fmt.Errorf("enqueue reducer intents: %w", err)); got != cfg.ReleaseAge {
+		t.Fatalf("ResumeBoundHint = %s, want the release age %s", got, cfg.ReleaseAge)
+	}
+	if got := failure.RetryAfterHint(err); got != cfg.GrantDelay {
+		t.Fatalf("RetryAfterHint = %s, want the grant delay %s", got, cfg.GrantDelay)
+	}
+}

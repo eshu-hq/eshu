@@ -20,8 +20,14 @@ type fakeSourcePacer struct {
 	mu         sync.Mutex
 	paced      bool
 	retryAfter time.Duration
-	sources    []string
+	// resumeBound is what ResumeBound reports.
+	resumeBound time.Duration
+	sources     []string
 }
+
+// ResumeBound lets the fake carry a configured resume bound, like the real
+// pacer's release age.
+func (f *fakeSourcePacer) ResumeBound() time.Duration { return f.resumeBound }
 
 func (f *fakeSourcePacer) SourcePaced(_ context.Context, source string) (bool, time.Duration) {
 	f.mu.Lock()
@@ -58,7 +64,7 @@ func TestProcessWorkSourcePacedReleasesBeforeAnyWrite(t *testing.T) {
 	t.Parallel()
 
 	const cycles = 5
-	pacer := &fakeSourcePacer{paced: true, retryAfter: 45 * time.Second}
+	pacer := &fakeSourcePacer{paced: true, retryAfter: 45 * time.Second, resumeBound: 15 * time.Minute}
 	factStore := &stubFactStore{}
 	runner := &stubProjectionRunner{}
 	sink := &stubProjectorWorkSink{}
@@ -101,6 +107,9 @@ func TestProcessWorkSourcePacedReleasesBeforeAnyWrite(t *testing.T) {
 	}
 	if got := failure.RetryAfterHint(sink.failedWith); got != 45*time.Second {
 		t.Fatalf("RetryAfterHint = %s, want the grant delay 45s", got)
+	}
+	if got := failure.ResumeBoundHint(sink.failedWith); got != 15*time.Minute {
+		t.Fatalf("ResumeBoundHint = %s, want the pacer's resume bound 15m", got)
 	}
 }
 

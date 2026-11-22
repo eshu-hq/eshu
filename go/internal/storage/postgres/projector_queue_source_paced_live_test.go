@@ -251,6 +251,12 @@ func (releaseSourcePacer) SourcePaced(_ context.Context, source string) (bool, t
 	return source == "source-a", 45 * time.Second
 }
 
+// releaseResumeBound is the release age the pacer reports as the resume bound.
+const releaseResumeBound = 15 * time.Minute
+
+// ResumeBound lets the service stamp the resume bound on the release cause.
+func (releaseSourcePacer) ResumeBound() time.Duration { return releaseResumeBound }
+
 // releaseWriteCounters records every projection write path a worker reaches.
 type releaseWriteCounters struct {
 	mu       sync.Mutex
@@ -327,8 +333,9 @@ func TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive(t *testing.T) {
 	queue := NewProjectorQueue(SQLDB{DB: db}, "live-proof", 30*time.Minute)
 	queue.MaxAttempts = 3
 	queue.AdmissionMaxAttempts = 2
-	queue.RetryDelay = time.Second
-	queue.MaxRetryDelay = time.Minute
+	queue.RetryDelay = 30 * time.Second
+	queue.MaxRetryDelay = time.Hour
+	queue.JitterFraction = 0.1
 	queue.Now = func() time.Time { return now }
 
 	counters := newReleaseWriteCounters()
@@ -353,7 +360,10 @@ FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&status, &attempts, &adm
 		return status, attempts, admission, paced, lease.Valid, visible.Time
 	}
 
-	for pass := 1; pass <= 3; pass++ {
+	// Nine passes: past the cycle count where the unbounded exponential would
+	// reach the 1 h retry cap (30s * 2^7 = 64 min), so the resume bound is what
+	// the visible_at assertions below prove (#10882 R4-4).
+	for pass := 1; pass <= 9; pass++ {
 		if err := service.Run(ctx); err != nil {
 			t.Fatalf("pass %d: Run() error = %v, want nil", pass, err)
 		}
@@ -367,6 +377,12 @@ FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&status, &attempts, &adm
 			}
 			if visibleAt.Sub(now) < 45*time.Second {
 				t.Fatalf("pass %d %s visible_at is %s out, want at least the 45s grant delay", pass, id, visibleAt.Sub(now))
+			}
+			if out := visibleAt.Sub(now); out > releaseResumeBound+3*time.Second {
+				t.Fatalf("pass %d %s visible_at is %s out, want at most the %s resume bound plus jitter", pass, id, out, releaseResumeBound)
+			}
+			if out := visibleAt.Sub(now); pass >= 8 && out < releaseResumeBound {
+				t.Fatalf("pass %d %s visible_at is %s out, want the exponential to have reached the %s bound", pass, id, out, releaseResumeBound)
 			}
 		}
 		if counters.loads["source-a"] != 0 || counters.projects["source-a"] != 0 ||

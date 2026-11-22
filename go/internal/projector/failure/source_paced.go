@@ -19,6 +19,10 @@ type SourcePacedRelease struct {
 	Source string
 	// RetryAfter is the grant delay the verdict carried.
 	RetryAfter time.Duration
+	// ResumeBound is the longest the queue may park the item after this
+	// release (#10882 R4-4): the source's release age. Zero means no bound
+	// and keeps the queue's retry cap. The grant delay wins when larger.
+	ResumeBound time.Duration
 }
 
 func (e SourcePacedRelease) Error() string {
@@ -34,6 +38,19 @@ func (SourcePacedRelease) IsSourcePaced() bool { return true }
 
 // RetryAfterHint reports the earliest delay before the item may be claimed again.
 func (e SourcePacedRelease) RetryAfterHint() time.Duration { return e.RetryAfter }
+
+// ResumeBoundHint reports the longest the queue may park the item.
+func (e SourcePacedRelease) ResumeBoundHint() time.Duration { return e.ResumeBound }
+
+// ResumeBoundHint returns the resume bound err carries through any wrapping,
+// or zero when it carries none.
+func ResumeBoundHint(err error) time.Duration {
+	var hinted interface{ ResumeBoundHint() time.Duration }
+	if errors.As(err, &hinted) {
+		return hinted.ResumeBoundHint()
+	}
+	return 0
+}
 
 // RetryAfterHint returns the retry hint err carries through any wrapping, or
 // zero when it carries none.

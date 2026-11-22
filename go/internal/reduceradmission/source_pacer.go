@@ -82,3 +82,13 @@ func (p *SourcePacer) SourcePaced(ctx context.Context, sourceSystem string) (boo
 	}
 	return true, max(decision.RetryAfter, 0)
 }
+
+// ResumeBound is the longest the queue may park a released item: the release
+// age, past which a source released from the latch should see its paced items
+// again (#10882 R4-4). The projector service passes it on the release cause.
+func (p *SourcePacer) ResumeBound() time.Duration {
+	if p == nil {
+		return 0
+	}
+	return p.writer.sourceConfig.ReleaseAge
+}
