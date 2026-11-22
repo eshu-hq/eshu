@@ -58,3 +58,31 @@ Those variables were the experiment's restrictions and appear in no committed ga
 - A product switch that runs the reducer's backfill runner alone: a product change
   whose only user is a test, with partial wiring coverage.
 - Restoring the work-item statuses after a reducer run: it hides a mutation.
+
+## Proof after the shared constructor
+
+Performance Evidence: the change touches the gate's seed stand-in and the shared
+`inventory.NewBackfiller` constructor, not a production hot path. The measured subject is
+the stand-in's backfill on the full gate corpus, run seed-only (the script stopped after
+the seed phase) on the CI-pinned `eshu-deploy` compose stack with Neo4j and PostgreSQL 18.
+Input shape: 800 scopes, 150,000 nodes per label, 150,000 IaC facts, 2,500,000 shared
+intents, 20,000 finding facts. Result: the backfill derived 1,050,000 rows over 201
+repositories in 57.5 s (the throwaway reducer run recorded 87.3 s in its own backfill on a
+busier host; the host load was not comparable and no speedup is claimed). `VACUUM
+(ANALYZE)` then took 1 m 30.6 s. The derive path (`Backfiller.Run`) is unchanged.
+
+No-Regression Evidence: the seed-only run exited 0. After it, `infra_resource_entity_backfill_markers`
+holds `infra_resource_entities_v2`, `infra_resource_entities` holds 1,050,000 rows over 201
+repositories, `infra_resource_entity_dirty_repos` is empty (the stand-in returns an error
+unless `infraReadModelState.ready()` holds), and `fact_work_items` is untouched (67,201 rows,
+0 `superseded`). The committed work-budget tables do not change. No two-leg rerun was done
+because the derive path and the tables are unchanged.
+
+No-Observability-Change: no metric, span, log key or status field is added to a runtime
+service. The gate's seed log line changes its wording only. The reducer's existing
+`eshu_dp_infra_inventory_backfill_runs_total` counter is now asserted by a live test.
+
+Live tests, on a disposable PostgreSQL 18.6: `go test ./internal/storage/postgres/infra/inventory/`
+(ok, 311.7 s), `./cmd/read-api-latency-gate/` and the whole `./cmd/reducer/` package (ok, 53.6 s)
+all pass, and the new reducer live test fails against both a no-op adapter (no marker) and an
+adapter that calls `Backfiller.Run` directly (no `runs_total` series).
