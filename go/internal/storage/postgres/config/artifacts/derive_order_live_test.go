@@ -79,12 +79,18 @@ func proveOpenTransactionsProbe(ctx context.Context, t *testing.T, db *sql.DB) {
 		t.Fatalf("open holder client connection: %v", err)
 	}
 	defer func() { _ = holder.Close() }()
-	if _, err := holder.ExecContext(ctx, `SET application_name = 'derive-probe-holder'`); err != nil {
-		t.Fatalf("name holder connection: %v", err)
-	}
 	tx, err := holder.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin holder transaction: %v", err)
+	}
+	// A failed assertion below exits through t.Fatalf; the deferred rollback
+	// frees the connection first, so holder.Close does not wait on an open
+	// transaction.
+	defer func() { _ = tx.Rollback() }()
+	// SET LOCAL ends with the transaction, so the pooled connection never
+	// carries the name after holder.Close returns it.
+	if _, err := tx.ExecContext(ctx, `SET LOCAL application_name = 'derive-probe-holder'`); err != nil {
+		t.Fatalf("name holder transaction: %v", err)
 	}
 	if _, err := tx.ExecContext(ctx, `SELECT 1`); err != nil {
 		t.Fatalf("hold holder transaction: %v", err)
