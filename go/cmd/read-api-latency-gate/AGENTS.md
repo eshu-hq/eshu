@@ -207,13 +207,20 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   production derives); `VerifyWinnersSeeded` must prove the table non-empty
   and watermarked before any sweep runs. A zero-winner rebuild fails the
   seed instead of sweeping an empty read model.
-- **The seed ends with one `VACUUM (ANALYZE)` over the bulk-written tables
-  (`seed_analyze.go`), after the last bulk Postgres write.** It sets the
-  visibility map the way autovacuum does in production; without it an Index
-  Only Scan (the entity search walk) read 32 to 512 buffers depending on how far
-  autovacuum had got when the sweep started (#11224). Never run it before a bulk
-  write, never make it `VACUUM FULL`, and keep it in the seed phase.
-  `TestSeedVacuumsAfterTheLastBulkWriteAndBeforeTheSweep` pins the order.
+- **The seed ends with one `VACUUM (ANALYZE)` over every bulk-written table
+  (`seed_analyze.go`), after the last bulk Postgres write.** The list is the
+  seven counted relational tables plus `infra_resource_entities` (the backfill
+  stand-in) and `supply_chain_impact_canonical_winners` (the winners rebuild):
+  budgeted routes read all of them. It sets the visibility map the way
+  autovacuum does in production; without it an Index Only Scan (the entity search
+  walk) read 32 to 512 buffers depending on how far autovacuum had got when the
+  sweep started (#11224; the EXPLAIN evidence is in
+  `docs/internal/evidence/11170-latency-gate-core-leg.md`). Never run it before a
+  bulk write, never make it `VACUUM FULL`, keep it in the seed phase, and add a
+  newly seeded table to `analyzedSeededTables`.
+  `TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep` fails on any later
+  call that takes the Postgres pool or DSN, and `TestSeedPropagatesTheVacuumError`
+  pins that a failed step fails the seed.
 - **The seed runs the product infra read model backfill, labelled a stand-in
   (`seed_infra_backfill.go`).** The gate starts no reducer, and since #11210
   the reducer owns the backfill (it runs `inventory.RunBackground`, which wraps

@@ -62,14 +62,9 @@ lanes never exercise.
    groups) and reconciles them into `supply_chain_impact_canonical_winners`
    through the maintainer's own full resweep — never hand-written — then
    proves the table populated and watermarked (`VerifyWinnersSeeded`).
-   Runs `VACUUM (ANALYZE)` on the seeded Postgres tables
-   afterward (every table in the exact-count read-back plus
-   `content_entities`, pinned by `TestAnalyzeSeededTablesCoversEverySeededTable`)
-   so the sweep plans against fresh statistics and reads a database whose
-   visibility map is set, as a steady-state production database does. Without the
-   `VACUUM`, an Index Only Scan such as the entity search walk reads more or fewer
-   heap pages depending on how far autovacuum has got when the sweep starts
-   (#11224).
+   Ends the Postgres seed with `VACUUM (ANALYZE)` on every bulk-written table
+   (see [Seed Notes](read-api-latency-gate-seed.md)), so the sweep plans against
+   fresh statistics and a set visibility map.
    Right after the Postgres seeds it reads the row counts of
    `ingestion_scopes`, `scope_generations`, `fact_work_items`, `fact_records`
    and `shared_projection_intents` back (`VerifyRelationalCounts`), and after the graph seeds it reads the
@@ -101,18 +96,10 @@ lanes never exercise.
    exercised route the meter never read, a coverage-floor shortfall, or an
    explicitly-budgeted route dropping out of coverage.
 
-**Infra read model backfill (stand-in).** The seed phase runs the product's
-`inventory.Backfiller` after the content seeds and before any core starts, then
-requires the infra read model to be installed, marked, and free of dirty
-repositories. The gate does this because it starts no reducer, and since
-[#11210](https://github.com/eshu-hq/eshu/pull/11210) the reducer owns the
-backfill (it runs the same `Backfiller.Run`). Both legs' latency reports carry
-`infra_backfill: gate_stand_in` in their identity block. The infra route numbers
-therefore describe an install that holds the marker, and a regression in the
-reducer's wiring would not show here. Starting the reducer and dropping the
-stand-in is [#11226](https://github.com/eshu-hq/eshu/issues/11226).
-`awaitInfraReadModel` and the truth-basis check still run unchanged as the guard
-on the same outcome.
+**Seed notes.** Two seed steps are explained on their own page,
+[Seed Notes](read-api-latency-gate-seed.md): the infra read model backfill the
+gate runs itself because it starts no reducer (labelled `gate_stand_in`, #11226),
+and the `VACUUM (ANALYZE)` that ends the seed (#11224).
 
 The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,
 `POST /api/v0/relationships/catalog` with `{}`, and an actual MCP HTTP

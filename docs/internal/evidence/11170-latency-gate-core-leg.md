@@ -303,3 +303,38 @@ Its reports: `latency.json` `c2fdf11f944ec7f973ac7cae737728b8f991ea5cbd4f6ab8678
 Seeded RED (the #10880 AC4 proof): the first confirm run's legacy work report,
 evaluated against the winners table, breaches both impact aggregate routes (102,546
 blocks against a 2,403-block row each) and nothing else.
+
+## #11224: the entity search row follows the visibility map
+
+Observed on one full-corpus seed kept after the seed phase (project
+`eshu-11170-bim`, 1,050,367 `content_entities` rows, the gate's seed with its own
+`ANALYZE`, autovacuum still working), by `EXPLAIN (ANALYZE, BUFFERS)` of the
+first-window entity statement (`entityStepFirstSQL`, parameters `gateentitytoken`,
+1000, 11, `max_parallel_workers_per_gather = 0`), then again after
+`VACUUM (ANALYZE) content_entities` on the same database:
+
+| | As seeded | After `VACUUM (ANALYZE)` |
+| --- | --- | --- |
+| `relallvisible` / `relpages` | 13,475 / 32,977 | 32,933 / 32,977 |
+| `n_dead_tup`, `n_mod_since_analyze` | 0, 0 | 0, 0 |
+| Second arm (Index Only Scan on `content_entities_repo_path_start_idx`) | Heap Fetches 754, 507 buffers | Heap Fetches 0 |
+| Whole statement (Append) | 512 buffers | 32 buffers |
+| First arm (the 11-row probe) | 5 buffers | 5 buffers |
+| Execution time | 0.340 ms | 0.232 ms |
+
+The plan nodes are the same in both states, so planner statistics are ruled out.
+The first 1,000 rows in key order sit on 709 distinct heap blocks (block range
+15,023 to 32,932) in both states, so heap layout is ruled out too. As seeded,
+`last_autovacuum` was 3 minutes before the first probe and 41% of pages were
+all-visible. The gate's own readings for the walk statement were 759 blocks in the
+high mode and about 270 in the low mode (the gate's 884 and 396 minus about 125
+blocks of readiness probes and the auth lookup). The visibility-map state of the
+five earlier runs was not recorded, so the mapping from reading to state is
+inferred from this arithmetic. Only one database was seeded.
+
+The first fix vacuumed the seven counted tables. Review found two read-model
+tables the seed fills before that step and budgeted routes read,
+`infra_resource_entities` and `supply_chain_impact_canonical_winners`; both are now in
+the list. The first calibration run on the seven-table version was stopped
+mid-seed, so it produced no reports and there is no before and after for those two
+tables; the later calibration reports are all from the nine-table version.
