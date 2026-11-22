@@ -247,11 +247,15 @@ func TestStagedAuditNoLockVerifyThatNeededNoLockAdvancesWithoutYielding(t *testi
 	store := &scriptedStore{sweepStore: &sweepStore{}, noLockAdvances: true}
 	a, tel := newSweepAuditor(&corpus{n: 4000, factsPer: 10}, store.sweepStore, nil)
 	a.Store = store
-	a.KeyedInterval, a.YieldPoll = time.Hour, time.Hour // a wait would hang the test
-	if got, err := a.AuditWinners(context.Background()); err != nil || got.Outcome != OutcomeAdvanced {
+	a.KeyedInterval, a.YieldPoll = time.Hour, time.Hour
+	// A regression that waits instead of advancing would block for the hour
+	// interval; the deadline fails it in seconds instead.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if got, err := a.AuditWinners(ctx); err != nil || got.Outcome != OutcomeAdvanced {
 		t.Fatalf("locked pass = %+v, %v", got, err)
 	}
-	got, err := a.AuditWinners(context.Background())
+	got, err := a.AuditWinners(ctx)
 	if err != nil || got.Outcome != OutcomeAdvanced || !got.More {
 		t.Fatalf("yielding pass = %+v, %v; want advanced", got, err)
 	}

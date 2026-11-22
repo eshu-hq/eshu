@@ -99,6 +99,12 @@ func winnersAuditRangeBoundSubselects() []string {
 
 // renderWinnersAuditRangeSQL renders the range statement. first renders the
 // sweep's opening range, which has no lower bound and takes only $1.
+//
+// The fact CTEs project explicit columns, not fact.*, so every column the shared
+// winner body reads off its fact alias (fact_id, scope_id, payload,
+// source_confidence) must appear in range_raw, both range_facts arms and both
+// active_facts arms; TestWinnersAuditRangeProjectsEveryColumnTheWinnerBodyReads
+// derives that set from the body and fails on a gap (SQLSTATE 42703 otherwise).
 func renderWinnersAuditRangeSQL(first bool) string {
 	factRow := winnersAuditRangeRow(winnersAuditRangeFactIdentExprs)
 	storedRow := winnersAuditRangeRow(winnersAuditRangeStoredIdentExprs)
@@ -131,7 +137,7 @@ func renderWinnersAuditRangeSQL(first bool) string {
 	identCols := strings.Join(winnersAuditRangeIdentColumns, ", ")
 
 	return `WITH range_raw AS MATERIALIZED (
-    SELECT f.fact_id, f.scope_id, f.generation_id, f.payload,
+    SELECT f.fact_id, f.scope_id, f.generation_id, f.payload, f.source_confidence,
         ` + strings.Join(identSelect, ",\n        ") + `
     FROM fact_records AS f
     WHERE f.fact_kind = 'reducer_supply_chain_impact_finding'
@@ -162,12 +168,12 @@ range_bounds AS MATERIALIZED (
     LEFT JOIN range_below_tail AS b ON TRUE
 ),
 range_facts AS MATERIALIZED (
-    SELECT r.fact_id, r.scope_id, r.generation_id, r.payload, ` + strings.Join(winnersAuditRangePrefixed("r.", winnersAuditRangeIdentColumns), ", ") + `
+    SELECT r.fact_id, r.scope_id, r.generation_id, r.payload, r.source_confidence, ` + strings.Join(winnersAuditRangePrefixed("r.", winnersAuditRangeIdentColumns), ", ") + `
     FROM range_raw AS r
     WHERE (SELECT NOT oversize FROM range_bounds)
       AND ((SELECT is_last FROM range_bounds) OR ` + rawIdent + ` <= ` + boundRow + `)
     UNION ALL
-    SELECT f.fact_id, f.scope_id, f.generation_id, f.payload,
+    SELECT f.fact_id, f.scope_id, f.generation_id, f.payload, f.source_confidence,
         ` + strings.Join(identSelect, ",\n        ") + `
     FROM fact_records AS f
     WHERE (SELECT oversize FROM range_bounds)
@@ -177,7 +183,7 @@ range_facts AS MATERIALIZED (
 ),
 winners_now AS (
 WITH active_facts AS NOT MATERIALIZED (
-    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload, fact.source_confidence
     FROM range_facts AS fact
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = fact.scope_id
@@ -188,7 +194,7 @@ WITH active_facts AS NOT MATERIALIZED (
     WHERE generation.status = 'active'
       AND fact.scope_id <> '` + supplyChainImpactOperatorScopeID + `'
     UNION ALL
-    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id, fact.payload, fact.source_confidence
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = fact.scope_id

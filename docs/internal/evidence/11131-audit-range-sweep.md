@@ -102,7 +102,7 @@ range with a persisted cursor".
 | (c) two instances | `...AuditSweepCursorRaceLive` | the second verify of a range returns `cursor_race` and its repairs roll back; of two concurrent verifies exactly one advances; two instances sweeping together queue each stale identifier once |
 | (d) keyed tick during a verify | `...AuditSweepKeyedTickSkippedDuringVerifyLive` | Skipped while the range holds the lock; the next keyed tick commits the queued mark and the repairs |
 | (h) M5, progress at full keyed duty | `...AuditSweepAdvancesUnderFullKeyedDutyLive` | a try-lock loop holding the resweep lock back to back (88.7-95.6 percent duty): 17 of 17 ranges contended, every one advanced within 3 attempts, 0 `lock_busy` (88.1 percent after the yield landed) |
-| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`3516e9028d`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
+| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (the commit "Pin the keyed yield after a locked range verify (RED)") 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
 | Keyed yield (unit) | `TestStagedAuditKeyedYieldAfterLockedVerify` | a range after a locked verify asks for `NoLock`; a range that needs the lock yields until the interval passes or the watermark moves; an unlocked verify arms no yield |
 | Collation | the differential fixture | packages `@tootallnate/once`, `@scope/pkg`, `pkg:npm/@types/node`, `.dotted`, `-dashed`, `_under`, `Pkg:npm/upper` and an `@` orphan; the union still equals the single statement under `en_US.utf8`, where `@tootallnate/once` sorts after `pkg:npm/p99` |
 | Lock policy, timeout halving | `TestStagedAuditLockPolicy`, `TestStagedAuditRangeTimeoutHalvesTheBudget` | the third verify after two misses waits; budgets 10,000, 5,000, 2,500, 1,250, 625 |
@@ -111,6 +111,32 @@ range with a persisted cursor".
 Two GREEN runs on the shared, loaded host (load1 28-40) failed after their
 assertions passed, on the disposable template-clone drop timeout; they are
 environmental, and the same tests passed in a quieter run.
+
+### Re-run after the #10880 winner payload landed
+
+The rows above were measured before #10880 slice 1 added `fact.source_confidence`
+to the shared winner body. The range CTEs project explicit columns, so on the
+rebased branch every range failed `column fact.source_confidence does not
+exist (SQLSTATE 42703)` and the sweep would have deferred `batch_abort` on
+every tick (found in independent re-review, not by the earlier live run).
+
+- RED: `...AuditRangeUnionEqualsSingleStatementLive` and
+  `...AuditRangeOpenEndedLastRangeLive` on the rebased head, PostgreSQL 18.6,
+  `-p 1 -parallel 1`: both fail with the 42703 error, exit 1. The hermetic
+  guard `TestWinnersAuditRangeProjectsEveryColumnTheWinnerBodyReads` reads the
+  `fact.<column>` set from the shipped body constant and fails the same way,
+  naming all five arms (`range_raw`, both `range_facts` arms, both
+  `active_facts` arms); `TestWinnersAuditRangeColumnGuardSeesAMissingColumn`
+  drops the column from one arm at a time and from all of them.
+- GREEN after carrying `source_confidence` through those five arms:
+  `TestSupplyChainImpactWinnersResweepAudit(Range|Sweep|Repairs)...Live`, one
+  test at a time, exit 0: 10 passed, 1 skipped (the opt-in scale measurement).
+  The differential reads 30 candidates against the single statement at every
+  budget (82, 66, 17, 4, 1 and 1 ranges, 760 facts), M5 reads 17 of 17 ranges
+  contended, worst 3 attempts, `lock_busy` 0, and the keyed-yield proof reads
+  55 ranges, 55 locked verifies, 219 keyed stand-in commits, worst 3 attempts,
+  `keyed_yield` 54. The host was loaded (load1 about 40), so the figures are
+  for correctness, not a timing baseline.
 
 ## Performance Evidence
 
