@@ -313,6 +313,18 @@ func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 	return supplyChainImpactFactKind + "\x1f" + scopeID + "\x1f" + generationID
 }
 
+// SupplyChainImpactConflictDomainLockQuery is the transaction-scoped advisory
+// lock statement the impact writer takes for one (scope, generation). The
+// per-support backfill takes the same lock with the same key, so it cannot
+// interleave with a writer's fact and support writes or its retraction.
+const SupplyChainImpactConflictDomainLockQuery = lockSupplyChainImpactConflictDomainQuery
+
+// SupplyChainImpactConflictDomainKey returns the lock key text of one (scope,
+// generation) finding set, the argument of SupplyChainImpactConflictDomainLockQuery.
+func SupplyChainImpactConflictDomainKey(scopeID, generationID string) string {
+	return supplyChainImpactConflictDomainKey(scopeID, generationID)
+}
+
 // retractSupersededSupplyChainImpactFindingsQuery tombstones every active
 // finding row of this (scope, generation) that the current pass did not just
 // write (#6831). A finding's fact id embeds its whole logical identity,

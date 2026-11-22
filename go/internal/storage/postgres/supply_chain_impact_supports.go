@@ -12,6 +12,7 @@ import (
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The per-support table (migration 336, #10880 PR-B1) holds one row per live
@@ -167,6 +168,9 @@ func (t *supplyChainImpactTx) UpsertImpactSupports(
 		return result, fmt.Errorf("upsert supply chain impact supports: %w", err)
 	}
 	result.Unchanged = int64(len(factIDs)) - result.Inserted - result.Updated
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionInserted, result.Inserted)
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUpdated, result.Updated)
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged, result.Unchanged)
 	return result, nil
 }
 
@@ -184,5 +188,30 @@ func (t *supplyChainImpactTx) DeleteRetractedImpactSupports(
 	if err != nil {
 		return 0, fmt.Errorf("count retracted supply chain impact supports: %w", err)
 	}
+	t.holdSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionDeleted, removed)
 	return removed, nil
+}
+
+// holdSupportsRows holds the rows a statement of this transaction wrote under
+// action and counts them when the transaction commits; a rollback, or a commit
+// that fails, discards them, so the counter matches the rows that exist. A zero
+// count, or a transaction without instruments, holds nothing. The transaction is
+// used by one writer goroutine, so the hold needs no lock.
+func (t *supplyChainImpactTx) holdSupportsRows(ctx context.Context, action string, rows int64) {
+	if t.instruments == nil || rows <= 0 {
+		return
+	}
+	if t.pendingSupports == nil {
+		t.pendingSupports = make(map[string]int64, 4)
+	}
+	t.pendingSupports[action] += rows
+	t.captureCtx = context.WithoutCancel(ctx)
+}
+
+// flushSupports counts the held support rows and clears them.
+func (t *supplyChainImpactTx) flushSupports() {
+	for action, rows := range t.pendingSupports {
+		t.instruments.RecordSupplyChainImpactSupportsRows(t.captureCtx, action, telemetry.SupplyChainImpactSupportsSourceWriter, rows)
+	}
+	t.pendingSupports = nil
 }

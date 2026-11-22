@@ -56,3 +56,22 @@ CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_finding_idx
 CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_operator_idx
     ON supply_chain_impact_finding_supports (canonical_key)
     WHERE scope_id = 'operator:vulnerability_suppressions';
+
+-- Marker and cursor of the reducer-owned backfill that fills supports for the
+-- finding facts written before the maintainer shipped. One row per marker name.
+-- completed_at is set only after a full sweep followed by a verification that
+-- found no live finding fact without a support, so readers (a later PR) refuse a
+-- grant-scoped call while it is NULL or its contract_version is behind. The
+-- cursor is the last (scope, generation, fact) the sweep finished, so the sweep
+-- resumes at the next live finding fact in that order; sweeps counts restarts
+-- after a verification found a gap.
+CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_backfill (
+    marker_name          TEXT PRIMARY KEY,
+    contract_version     INTEGER NOT NULL,
+    cursor_scope_id      TEXT NOT NULL DEFAULT '',
+    cursor_generation_id TEXT NOT NULL DEFAULT '',
+    cursor_fact_id       TEXT NOT NULL DEFAULT '',
+    sweeps               INTEGER NOT NULL DEFAULT 0,
+    completed_at         TIMESTAMPTZ,
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);

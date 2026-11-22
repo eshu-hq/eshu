@@ -1505,6 +1505,11 @@ type Instruments struct {
 	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
 	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
 	supplyChainImpactWinnersContract            *winnersContractState
+	// The per-support table signals of #10880 PR-B1, registered by
+	// registerSupplyChainImpactSupportsInstruments.
+	SupplyChainImpactSupportsRows          metric.Int64Counter
+	SupplyChainImpactSupportsBackfillSteps metric.Int64Counter
+	SupplyChainImpactSupportsBackfillReady metric.Int64Gauge
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture
@@ -7369,6 +7374,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactWinnersKeyedInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAdvisoryGroupProjectionInstruments(meter, inst); err != nil {

@@ -268,6 +268,8 @@ type supplyChainImpactTx struct {
 	// (#9957). captureCtx carries the trace of the last recorded statement.
 	pendingCapture map[string]int64
 	captureCtx     context.Context
+	// pendingSupports holds support rows written, by action, until Commit counts them.
+	pendingSupports map[string]int64
 }
 
 var (
