@@ -68,10 +68,12 @@ UPDATE fact_work_items SET status = $2, failure_class = $3, visible_at = $4 WHER
 	}
 	rm := collectAckParkMetrics(t, reader)
 	for _, outcome := range []string{telemetry.WaitingWakeOutcomeReopened, telemetry.WaitingAuditOutcomeReconciled} {
-		got := counterWithLabels(rm, "eshu_dp_reducer_waiting_audit_resolved_total",
-			map[string]string{"failure_class": class, "outcome": outcome})
+		got := counterWithLabels(rm, fallbackResolvedMetric, map[string]string{
+			"failure_class": class, "outcome": outcome,
+			telemetry.MetricDimensionWaitingWakeSite: WaitingWakeSiteInTx,
+		})
 		if got != 1 {
-			t.Fatalf("audit_resolved{failure_class=%s,outcome=%s} = %d, want 1", class, outcome, got)
+			t.Fatalf("fallback_resolved{failure_class=%s,wake_site=in_tx,outcome=%s} = %d, want 1", class, outcome, got)
 		}
 	}
 }
