@@ -14,7 +14,9 @@ import (
 // with where the #10876 waiting wake ran. The value set is closed:
 // in-tx provider saves, the audit, the #11104 exact-phase wake inside and
 // after the phase publish, and the #11228 projector Ack re-wake after its
-// commit.
+// commit. On eshu_dp_reducer_waiting_fallback_resolved_total it carries the
+// reason's registered wake site from the waiting registry instead (in_tx,
+// completion_event, audit, or unregistered), also a closed set (#11228).
 const MetricDimensionWaitingWakeSite = "wake_site"
 
 // Waiting wake sites (#10876).
@@ -53,12 +55,21 @@ const (
 	WaitingWakeOutcomeError = "error"
 )
 
-// WaitingAuditOutcomeReconciled labels an audit-resolved wait whose queue
-// row had already left the parked state through another path (the backstop
-// claim, a completion fanout, a replay, or a supersede sweep), so the audit
-// only dropped its wait row (#11228). The reopened outcome reuses
-// WaitingWakeOutcomeReopened.
-const WaitingAuditOutcomeReconciled = "reconciled"
+// Outcomes of eshu_dp_reducer_waiting_fallback_resolved_total (#11228), the
+// count of parked waits a fallback resolved instead of a wake. The
+// audit-reopened outcome reuses WaitingWakeOutcomeReopened.
+const (
+	// WaitingAuditOutcomeReconciled labels a wait whose queue row had
+	// already left the parked state through another path (a completion
+	// fanout, a replay, a supersede sweep, a wake on a sibling key, or the
+	// backstop claim counted earlier as WaitingResolvedOutcomeBackstop), so
+	// the audit only dropped its wait row.
+	WaitingAuditOutcomeReconciled = "reconciled"
+	// WaitingResolvedOutcomeBackstop labels a wait the reducer claimed at
+	// its 10-minute backstop with its wait row still present: no wake and
+	// no audit reopened it in time.
+	WaitingResolvedOutcomeBackstop = "backstop"
+)
 
 // AttrWaitingWakeSite returns a wake_site attribute. v must be one of the
 // WaitingWakeSite* constants.
@@ -69,8 +80,9 @@ func AttrWaitingWakeSite(v string) attribute.KeyValue {
 // registerReducerWaitingInstruments registers the #10876 waiting set-aside
 // signals on inst: one counter per wake statement by site and outcome, one
 // counter for audit reopens that an earlier pass should have caught
-// (missed wakes), one counter of waits the audit resolved by reason and
-// outcome (#11228), and two gauges the audit records per reason
+// (missed wakes), one counter of waits a fallback (the audit or the
+// backstop) resolved instead of a wake, by reason, the reason's registered
+// wake site, and outcome (#11228), and two gauges the audit records per reason
 // (failure_class): parked-wait count and oldest-wait age in seconds. The
 // gauges have no callback: the audit is the only writer and it already
 // holds the database handle the counts come from.
@@ -88,11 +100,11 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingMissedWake counter: %w", err)
 	}
-	if inst.ReducerWaitingAuditResolved, err = meter.Int64Counter(
-		"eshu_dp_reducer_waiting_audit_resolved_total",
-		metric.WithDescription("Parked reducer waits the slow audit resolved instead of a wake, by reason (failure_class) and outcome (reopened: the audit reopened a satisfied wait; reconciled: the queue row had already left the parked state, usually through the 10-minute backstop claim, and the audit dropped its wait row) (#11228)"),
+	if inst.ReducerWaitingFallbackResolved, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_fallback_resolved_total",
+		metric.WithDescription("Parked reducer waits a fallback resolved instead of a wake, by reason (failure_class), the reason's registered wake site (wake_site: in_tx, completion_event, audit, or unregistered) and outcome (reopened: the slow audit reopened a satisfied wait; backstop: the reducer claimed the row at its 10-minute backstop with its wait row still present; reconciled: the queue row had already left the parked state and the audit dropped its wait row). A reopened or backstop count on a reason whose wake_site is not audit is a lost wake (#11228)"),
 	); err != nil {
-		return fmt.Errorf("register ReducerWaitingAuditResolved counter: %w", err)
+		return fmt.Errorf("register ReducerWaitingFallbackResolved counter: %w", err)
 	}
 	if inst.ReducerWaitingCount, err = meter.Int64Gauge(
 		"eshu_dp_reducer_waiting_items",

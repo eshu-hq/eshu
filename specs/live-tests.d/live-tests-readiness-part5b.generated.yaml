@@ -154,6 +154,11 @@ tests:
     class: postgres_ci
     reason: "#11228 audit-resolved signal: a parked wait whose provider committed without a wake is counted reopened by failure_class, and a wait whose queue row already left the set-aside (backstop claim) is counted reconciled; disposable database per test; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_backstop_claim_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11228 backstop exit signal: a parked wait claimed at the 10-minute backstop with its wait row still present counts outcome=backstop by failure_class and the class's registered wake_site, through Claim and ClaimBatch; a row woken on one key with a sibling wait row left, and a row whose wait row is gone, do not; disposable database per subtest; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go
     tag: ~
     class: postgres_ci

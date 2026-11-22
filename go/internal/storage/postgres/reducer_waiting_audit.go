@@ -247,7 +247,7 @@ func AuditWaitingItems(
 		wakeKey := string(row.kind) + "\x00" + row.keyJSON
 		if wokenKeys[wakeKey] {
 			reopened++
-			recordWaitingAuditResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
+			recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
 			if interval > 0 && now.Sub(row.firstSeen) > 2*interval {
 				missed++
 				recordWaitingMissedWake(ctx, instruments)
@@ -267,7 +267,7 @@ func AuditWaitingItems(
 				}
 				if cleared {
 					reconciled++
-					recordWaitingAuditResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
+					recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
 				}
 				continue
 			}
@@ -282,7 +282,7 @@ func AuditWaitingItems(
 			}
 			if cleared {
 				reconciled++
-				recordWaitingAuditResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
+				recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
 			}
 			continue
 		}
@@ -311,7 +311,7 @@ func AuditWaitingItems(
 		}
 		wokenKeys[wakeKey] = true
 		reopened++
-		recordWaitingAuditResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
+		recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
 		if interval > 0 && now.Sub(row.firstSeen) > 2*interval {
 			missed++
 			recordWaitingMissedWake(ctx, instruments)
@@ -336,22 +336,6 @@ func recordWaitingMissedWake(ctx context.Context, instruments *telemetry.Instrum
 		return
 	}
 	instruments.ReducerWaitingMissedWake.Add(ctx, 1)
-}
-
-// recordWaitingAuditResolved counts one wait the audit resolved instead of
-// a wake, by reason and outcome, on
-// eshu_dp_reducer_waiting_audit_resolved_total (#11228). A reopened wait of
-// a class whose wake site is in-tx means that wake was lost; a reconciled
-// one means the queue row left the set-aside first, usually through the
-// backstop claim.
-func recordWaitingAuditResolved(ctx context.Context, instruments *telemetry.Instruments, failureClass, outcome string) {
-	if instruments == nil || instruments.ReducerWaitingAuditResolved == nil {
-		return
-	}
-	instruments.ReducerWaitingAuditResolved.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrFailureClass(failureClass),
-		telemetry.AttrOutcome(outcome),
-	))
 }
 
 // WaitingCountsRow is one per-reason waiting aggregate for the operator

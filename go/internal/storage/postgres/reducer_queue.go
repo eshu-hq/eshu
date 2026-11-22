@@ -417,7 +417,8 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducercontract.Intent, bool, 
 		}
 		return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
-	return intent, true, nil
+	_ = rows.Close() // #11228: free the connection for the backstop-exit probe
+	return q.noteBackstopClaim(ctx, intent), true, nil
 }
 
 // Heartbeat extends the claim on one reducer work item owned by this queue.
