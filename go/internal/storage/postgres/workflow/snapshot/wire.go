@@ -119,7 +119,7 @@ func SourceSHA256(statements ...string) string {
 }
 
 // Encode returns the live coordinator snapshot as stored entries, one per
-// instance, count, backpressure row, and terminal failure, plus one claims
+// instance, count, backpressure row, source pacing row, and terminal failure, plus one claims
 // entry and, when the live read computed a window, one recent_failures entry.
 // A nil snapshot, the live read's answer for a deployment with no coordinator
 // state, encodes as no entries.
@@ -162,6 +162,11 @@ func Encode(snap *statuspkg.CoordinatorSnapshot) ([]summary.Entry, error) {
 	}
 	for i, row := range snap.CollectorBackpressure {
 		if err := add(sectionBackpressure, i+1, backpressureToWire(row)); err != nil {
+			return nil, err
+		}
+	}
+	for i, row := range snap.SourcePacing {
+		if err := add(sectionSourcePacing, i+1, sourcePacingToWire(row)); err != nil {
 			return nil, err
 		}
 	}
@@ -223,6 +228,8 @@ func Decode(entries []summary.Entry) (*statuspkg.CoordinatorSnapshot, error) {
 			err = decodeCount(entry, &snap.CompletenessCounts)
 		case sectionBackpressure:
 			err = decodeBackpressure(entry, snap)
+		case sectionSourcePacing:
+			err = decodeSourcePacing(entry.JSON, snap)
 		case sectionTerminalFailure:
 			err = decodeTerminalFailure(entry, snap)
 		case sectionClaims:

@@ -34,7 +34,8 @@ const driftRuntimeTriggerSourceSystem = "ingester_runtime_trigger"
 //
 // Queue is typically the same admission-aware ReducerIntentWriter the
 // runtime's runtime.Runtime.IntentWriter uses (see
-// cmd/ingester/wiring.go's ingesterReducerIntentWriter), so this trigger
+// cmd/ingester/local_lightweight.go's ingesterAdmissionIntentWriter,
+// gate in internal/reduceradmission), so this trigger
 // observes the same graph-write-pressure backpressure as every other
 // reducer intent instead of bypassing it with a raw queue handle.
 //

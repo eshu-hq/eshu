@@ -94,6 +94,13 @@ func scrapeStore(queryer *fake.ExecQueryer, readerOn bool) postgres.StatusStore 
 // read each) and then runs the full live path, so it issues the same
 // statements as the full live read plus the two probe reads; with a stored
 // row present it serves the stored row with zero live statements (#10872).
+// The live coordinator read also issues one source-pacing latch read (#10882
+// AC6) whether or not the per-source leg is configured, so an engaged latch
+// stays visible on a process without the thresholds: one indexed read of the
+// small workflow_claim_pacing table (0.03 ms to execute over 300 rows at 10x
+// source counts), which takes both live totals from 26 to 27. It is not one of
+// the eight coordinator statements and the stored-summary read never issues it
+// (the stored coordinator row carries the source_pacing section).
 func TestStatusMetricsStatementInventory(t *testing.T) {
 	t.Parallel()
 	count := func(selection statuspkg.SnapshotSelection, readerOn bool) scrapeInventory {
@@ -108,10 +115,10 @@ func TestStatusMetricsStatementInventory(t *testing.T) {
 	off := count(metricsSnapshotSelection(), false)
 	on := count(metricsSnapshotSelection(), true)
 
-	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
+	if want := (scrapeInventory{total: 27, activeWork: 1, factRecords: 1, coordinator: 8}); before != want {
 		t.Fatalf("before = %+v, want %+v", before, want)
 	}
-	if want := (scrapeInventory{total: 26, activeWork: 1, factRecords: 0, clock: 2, modelRow: 2, coordinator: 8}); off != want {
+	if want := (scrapeInventory{total: 27, activeWork: 1, factRecords: 0, clock: 2, modelRow: 2, coordinator: 8}); off != want {
 		t.Fatalf("reader off = %+v, want %+v", off, want)
 	}
 	if want := (scrapeInventory{total: 17, clock: 2, modelRow: 2}); on != want {

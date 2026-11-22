@@ -42,8 +42,8 @@
 // replay paths of a terminal fact_work_items row (#11182) and the
 // poison-liveness auto-retry sweep (#11217) carry: it sets a projector row's
 // replay_attempt_baseline to its kept attempt_count and resets
-// admission_wait_attempts, so the row gets a new row's retries while
-// attempt_count stays the claim fence. It is SQL text, not a query.
+// admission_wait_attempts and source_paced_waits, so the row gets a new row's
+// retries while attempt_count stays the claim fence. It is SQL text, not a query.
 //
 // Every function here is pure: none read rows, write rows, or hold locks.
 // This package must not import the parent postgres package or

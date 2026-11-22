@@ -29,6 +29,7 @@ status read / scrape (ESHU_STATUS_SUMMARY_READ_ENABLED)
 | `instance` | one per collector instance | identity, mode, flags, observed and updated times, scan interval |
 | `run_count`, `work_item_count`, `completeness_count` | one per status | name and count |
 | `backpressure` | one per (kind, instance, source system) | counts, ages, retry delay, failure-class counts |
+| `source_pacing` | one per source system with a claimable signal or an engaged latch (#10882) | slowed, reason, oldest claimable age, claimable depth, engaged since, and the writer's stuck verdict |
 | `terminal_failure` | at most two per eligible instance | bounded class and operation tokens, scope, work item, times |
 | `claims` | exactly one | active and overdue claims, oldest pending age |
 | `recent_failures` | zero or one | window and the three recent counts |

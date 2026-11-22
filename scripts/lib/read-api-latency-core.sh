@@ -117,11 +117,17 @@ require_findings_nonempty() {
 # require_grouped_inventory <want_code> <dimension> asserts the grouped
 # inventory dimension answers want_code on the current leg: 503 while the
 # winners flag is off (the read model is empty by contract), 200 once the
-# winners leg serves the seeded dimensions.
+# winners leg serves the seeded dimensions. A 200 call asks for
+# profile=comprehensive: the API default profile is precise, and the grouped read
+# model answers a precise profile 503 until the supports table serves existence
+# filters (#10880 PR-B2). A 503 call sends no profile, so on the winners leg it
+# pins that default-profile 503.
 require_grouped_inventory() {
 	local want_code="$1" dimension="$2" code body="${work_dir}/grouped-${2}.json"
+	local query="group_by=${dimension}"
+	[[ "${want_code}" == "200" ]] && query="${query}&profile=comprehensive"
 	code="$(curl -sS -o "${body}" -w '%{http_code}' -H "Authorization: Bearer ${GATE_API_KEY}" \
-		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/inventory?group_by=${dimension}")" \
+		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/inventory?${query}")" \
 		|| die "grouped inventory request failed for dimension ${dimension}"
 	[[ "${code}" == "${want_code}" ]] || die "grouped inventory group_by=${dimension} answered ${code}, want ${want_code}"
 	# The positive control must prove the read model holds rows, not only that

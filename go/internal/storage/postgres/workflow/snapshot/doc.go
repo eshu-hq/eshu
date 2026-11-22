@@ -5,7 +5,7 @@
 // summary row (#8828).
 //
 // The status snapshot's coordinator section (collector instances, workflow run,
-// work-item and completeness status counts, claims, collector backpressure, the
+// work-item and completeness status counts, claims, collector backpressure, per-source pacing, the
 // recent-failure counts, and the collector terminal failures) costs time linear
 // in workflow_work_items on every status read and every hosted /metrics scrape.
 // The reducer's status summary writer runs that read once per interval and

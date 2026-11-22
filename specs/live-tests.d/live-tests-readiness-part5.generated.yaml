@@ -264,6 +264,11 @@ tests:
     class: postgres_ci
     reason: "#9432 queue-layer acceptance that two consecutive planning windows leave exactly one active generation per pinned slot scope: two slot scopes each carry a window-one active generation and a window-two pending generation, acking window two supersedes window one and repoints the scope; untagged and gated by the ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN env Skip; Postgres only; about 0.1s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/projector_queue_source_paced_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10882 disposable PostgreSQL proof that a source-paced Fail retries without ever dead-lettering, increments only source_paced_waits (attempt_count stays a monotonic fence, admission_wait_attempts untouched), leaves the full projection and admission budgets afterwards, that an operator replay of a row with source_paced_waits > 0 gives exactly MaxAttempts projection claims (#11182 interaction), and that migration 333 applies cleanly with a NOT NULL DEFAULT 0 counter; isolated schema per test"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go
     tag: ~
     class: postgres_ci

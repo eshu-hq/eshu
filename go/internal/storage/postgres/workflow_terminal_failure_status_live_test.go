@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 const terminalFailureLiveSkip = "set ESHU_POSTGRES_DSN to run the #8803 collector terminal-failure live proofs"
@@ -94,7 +95,7 @@ func (f *terminalFailureLiveFixture) read() map[string]collector.TerminalFailure
 // instance: at most one unacknowledged and one acknowledged.
 func (f *terminalFailureLiveFixture) readAll() map[string][]collector.TerminalFailure {
 	f.t.Helper()
-	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf)
+	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		f.t.Fatalf("readCoordinatorSnapshot() error = %v", err)
 	}
@@ -237,7 +238,7 @@ func TestCollectorTerminalFailureStatusDecidesTerminalLive(t *testing.T) {
 	f.scannerItem("scanner-mixed-old", "scanner-mixed", "scope-a", true, 10*time.Minute)
 	f.scannerItem("scanner-mixed-new", "scanner-mixed", "scope-b", false, 3*time.Minute)
 
-	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf)
+	snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		t.Fatalf("readCoordinatorSnapshot() error = %v", err)
 	}

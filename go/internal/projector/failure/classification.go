@@ -125,6 +125,20 @@ type AdmissionTimeoutError interface {
 	IsAdmissionTimeout() bool
 }
 
+// SourcePacedError is implemented by the per-source backpressure release
+// (#10882): an enqueue that waited past its wait bound while its source was
+// latched slowed and returned the claim so a healthy source's work can run.
+// It is deliberately NOT an AdmissionTimeoutError. An admission timeout
+// spends the finite admission budget and dead-letters at exhaustion, so a
+// long engagement would mint dead letters out of pacing and lose the slowed
+// source's facts. A source-paced release is retryable, never dead-letters,
+// and is refunded from both attempt budgets by the queue (the paced wait
+// counter), so the item resumes whenever the latch releases.
+type SourcePacedError interface {
+	error
+	IsSourcePaced() bool
+}
+
 // ClassifyFailure maps one projection error into durable failure metadata.
 func ClassifyFailure(err error, failureStage string) FailureClassification {
 	resolvedStage, underlying := unwrapStageError(err, failureStage)

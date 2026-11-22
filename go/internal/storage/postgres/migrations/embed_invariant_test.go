@@ -347,26 +347,24 @@ import (
 // follow-up) backfills those columns for pre-existing winner rows
 // (renumbered 326 to 332 at rebase: main owns 325-330).
 // 336_supply_chain_impact_finding_supports.sql (#10880 PR-B1) adds the
-// per-support table behind the grant-scoped impact reads (333-335 are held by
-// other in-flight work).
+// per-support table behind the grant-scoped impact reads (333-335 are main's).
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
+// 333_projector_source_paced_waits.sql (#10882) adds the projector
+// source-paced wait counter (metadata-only fast default).
 // 334_fact_work_items_replay_attempt_baseline.sql (#11182) adds the projector
 // replay baseline on fact_work_items (NOT NULL DEFAULT 0) and two nullable
-// audit columns on fact_replay_events; metadata-only, no backfill (numbered
-// 334: 333 is held by the #10882 lane; gaps are tolerated).
+// audit columns on fact_replay_events; metadata-only, no backfill.
 // #11131 adds 335_supply_chain_impact_winners_audit_sweep.sql (the staged
 // winners audit sweep's singleton cursor table; DDL only, the row is created
 // on first read).
-// Digest and count recomputed red-first after the #11131 sweep migration was renumbered
-// 331 to 335 at rebase (main owns 331-332 and 334; 333 is held by an unpushed lane;
-// count 360: main's 359 plus 335).
-// Count 361 adds 336 (#10880 PR-B1). The digest was recomputed again when 336 gained
-// its (generation_id) index and the header comment that explains it; the count did not
-// change.
+// Count 362 is main's 361 (333 to 335 included) plus 336 (#10880 PR-B1). The
+// digest was recomputed on the merged tree by this test's own derivation, and
+// again when 336 gained its (generation_id) index and the header comment that
+// explains it.
 const (
-	goldenBootstrapDefinitionsDigest = "0746744145e08e834d5da2a6bb51cc22d09eda640ae1c0b71b55a4e3d8a0ae1b"
-	goldenBootstrapDefinitionsCount  = 361
+	goldenBootstrapDefinitionsDigest = "495371334f68142f28392926c595fe7ec536344dd629ddf0baec54506ba4d616"
+	goldenBootstrapDefinitionsCount  = 362
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

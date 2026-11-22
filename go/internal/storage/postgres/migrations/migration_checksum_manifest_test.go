@@ -490,6 +490,7 @@ var migrationShippedChecksums = map[string]string{
 	// columns for pre-existing winner rows, split per #7961
 	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"332_supply_chain_impact_winners_payload_backfill.sql": "0d40beb25d23cfe156292977048d2b50cb5c5bd173974a13c6f7a2e9aa187660",
+	"333_projector_source_paced_waits.sql":                 "a515c9de888c429b2d5f855d710d80c972929573f383d5548dab74aa30b3a9bb",
 	// #11182: the projector replay baseline on fact_work_items, so a
 	// replayed row gets a new row's projection retries without resetting
 	// the attempt_count claim fence, plus its two audit columns on

@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in; the service rollup reads profile=comprehensive because the grouped read model answers a precise (default) profile 503 until the supports table serves existence filters (#10880 PR-B2), and the same run pins that default-profile 503
 //eshu:readiness:env ESHU_FLEET_GATE_PROOF_DISPOSABLE ESHU_FLEET_GATE_PROOF_DSN
 
 import (
@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,7 +175,7 @@ func (r *fleetGateRun) observe(s fleetGateSeed) fleetGateObservation {
 		Buckets          []fleetGateBucket `json:"buckets"`
 		DistinctFindings int               `json:"distinct_findings"`
 	}
-	o.RollupStatus = r.get("/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=50", &rollup)
+	o.RollupStatus = r.get("/api/v0/supply-chain/impact/inventory?group_by=service_id&profile=comprehensive&limit=50", &rollup)
 	o.Stamps.RollupRead = time.Now()
 	o.Buckets, o.DistinctFindings = rollup.Buckets, rollup.DistinctFindings
 	r.t.Logf("keyed winners tick: path %s, identifiers %d, inserted %d, updated %d, skipped %t (handled %v)",
@@ -268,6 +269,27 @@ func TestFleetAcceptanceGateKEVReachesServiceRollup9875Live(t *testing.T) {
 	t.Logf("rollup buckets %s, distinct %d, tiers %v", fleetGateBucketSummary(o.Buckets), o.DistinctFindings, o.ServiceTiers)
 	if violations := fleetGateViolations(o, fleetGateLiveExpectation(t)); len(violations) != 0 {
 		t.Fatalf("fleet gate failed on the clean seed:\n%v", violations)
+	}
+	run.assertDefaultProfileRollupIsUnavailable()
+}
+
+// assertDefaultProfileRollupIsUnavailable pins the interim contract of #10880
+// PR-B0: the grouped read model cannot serve an existence filter from the
+// picked winner copy, and the API default profile is precise, so a gate-on
+// group_by=service_id call without profile=comprehensive answers 503 with the
+// text that names the filters. PR-B2 serves the precise profile from the
+// supports table and deletes this pin together with the comprehensive read
+// in observe, so the flip cannot happen silently.
+func (r *fleetGateRun) assertDefaultProfileRollupIsUnavailable() {
+	r.t.Helper()
+	rec := httptest.NewRecorder()
+	r.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=50", nil).WithContext(r.ctx))
+	if rec.Code != http.StatusServiceUnavailable {
+		r.t.Fatalf("default-profile group_by=service_id answered %d, want 503 until the supports table serves the precise profile (body %s)", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "image_ref") || !strings.Contains(body, "profile=precise") {
+		r.t.Fatalf("default-profile 503 body = %s, want the text that names the image_ref filter and profile=precise", body)
 	}
 }
 

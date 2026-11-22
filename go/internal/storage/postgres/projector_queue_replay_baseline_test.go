@@ -43,10 +43,10 @@ func TestRetryDecisionReplayBaselineDifferential(t *testing.T) {
 	cells := 0
 	for attempts := 1; attempts <= 60; attempts++ {
 		for waits := 0; waits <= attempts; waits++ {
-			got, admissionRetry := queue.retryDecision(work(attempts, waits, 0), replayBaselineProjectionError{})
-			if want := attempts-waits < 3; got != want || admissionRetry {
-				t.Fatalf("baseline 0, attempt %d, waits %d: retry = %v (admission %v), want %v as on main",
-					attempts, waits, got, admissionRetry, want)
+			got, kind := queue.retryDecision(work(attempts, waits, 0), replayBaselineProjectionError{})
+			if want := attempts-waits < 3; got != want || kind != retryKindProjection {
+				t.Fatalf("baseline 0, attempt %d, waits %d: retry = %v (kind %v), want %v as on main",
+					attempts, waits, got, kind, want)
 			}
 			for baseline := 1; baseline <= attempts-waits; baseline++ {
 				got, _ := queue.retryDecision(work(attempts, waits, baseline), replayBaselineProjectionError{})
@@ -160,6 +160,7 @@ func TestRecoveryReplayTemplatesCarryRetryAllowance(t *testing.T) {
 		"WHEN stage = 'projector' THEN GREATEST(attempt_count, 1)",
 		"ELSE replay_attempt_baseline",
 		"admission_wait_attempts = 0",
+		"source_paced_waits = 0", // #10882: a replay refunds the paced waits with the baseline
 	} {
 		if !strings.Contains(fragment, want) {
 			t.Fatalf("ReplayRetryAllowanceAssignments missing %q", want)

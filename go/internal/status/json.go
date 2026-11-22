@@ -65,7 +65,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		Version:           buildinfo.AppVersion(),
 		AsOf:              report.AsOf.UTC().Format(time.RFC3339),
 		Health:            report.Health,
-		Coordinator:       coordinatorJSON(report.Coordinator),
+		Coordinator:       coordinatorJSON(report.Coordinator, report.AsOf),
 		CollectorRuntimes: collector.RuntimeStatusesJSON(collector.RuntimeStatuses(evidence)),
 		CollectorPromotionProofs: collector.PromotionProofsJSON(collector.PromotionProofs(evidence, collector.PromotionOptions{
 			Catalog:    collector.PresentCatalog(evidence),
@@ -189,6 +189,7 @@ type coordinatorSnapshotJSON struct {
 	WorkItemStatusCounts  []shared.NamedCountJSON        `json:"work_item_status_counts"`
 	CompletenessCounts    []shared.NamedCountJSON        `json:"completeness_counts"`
 	CollectorBackpressure []collector.BackpressureJSON   `json:"collector_backpressure,omitempty"`
+	SourcePacing          []collector.SourcePacingJSON   `json:"source_pacing,omitempty"`
 	ActiveClaims          int                            `json:"active_claims"`
 	OverdueClaims         int                            `json:"overdue_claims"`
 	OldestPendingAge      string                         `json:"oldest_pending_age"`
@@ -325,7 +326,7 @@ func queueBlockagesJSON(rows []queue.Blockage) []queueBlockageJSON {
 	return projected
 }
 
-func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
+func coordinatorJSON(snapshot *CoordinatorSnapshot, asOf time.Time) *coordinatorSnapshotJSON {
 	if snapshot == nil {
 		return nil
 	}
@@ -352,6 +353,7 @@ func coordinatorJSON(snapshot *CoordinatorSnapshot) *coordinatorSnapshotJSON {
 		WorkItemStatusCounts:  shared.NamedCountsJSON(snapshot.WorkItemStatusCounts),
 		CompletenessCounts:    shared.NamedCountsJSON(snapshot.CompletenessCounts),
 		CollectorBackpressure: collector.BackpressureJSONRows(snapshot.CollectorBackpressure),
+		SourcePacing:          collector.SourcePacingJSONRows(snapshot.SourcePacing, asOf),
 		ActiveClaims:          snapshot.ActiveClaims,
 		OverdueClaims:         snapshot.OverdueClaims,
 		OldestPendingAge:      snapshot.OldestPendingAge.String(),

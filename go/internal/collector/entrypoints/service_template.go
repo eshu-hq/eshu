@@ -27,9 +27,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	{{- if .MaxAttemptsExpr }}
 	"github.com/eshu-hq/eshu/go/internal/workflow"
-	{{- end }}
 )
 
 var fallbackClaimSequence uint64
@@ -92,6 +90,18 @@ func buildClaimedService(
 		// A plane-held claim has no core claim row: fence commits on the plane (#9376).
 		committer.ClaimPlane = &postgres.ClaimPlaneFence{Pinner: claimStore.Pinner, Tracer: tracer, Instruments: instruments}
 	}
+	// Per-source reducer backpressure (#10882): the direct grant path
+	// consults through SourceBackpressure under the shared env contract.
+	// An enabled leg without a control store that serves the consult is
+	// a startup refusal, never a silent no-throttle.
+	var sourceBackpressure *workflow.SourceBackpressureConfig
+	if config.SourceBackpressure.Enabled() {
+		if _, ok := claimStore.Store.(collector.SourceBackpressureChecker); !ok {
+			return collector.ClaimedService{}, fmt.Errorf(
+				"source backpressure enabled but the claim store does not serve CheckSourceBackpressure: refusing startup rather than claiming unpaced")
+		}
+		sourceBackpressure = &config.SourceBackpressure
+	}
 	return collector.ClaimedService{
 		ControlStore:        claimStore.Store,
 		Source:              source,
@@ -106,6 +116,7 @@ func buildClaimedService(
 		{{- if .MaxAttemptsExpr }}
 		MaxAttempts:         {{.MaxAttemptsExpr}},
 		{{- end }}
+		SourceBackpressure:  sourceBackpressure,
 		Clock:               time.Now,
 		Tracer:              tracer,
 		Instruments:         instruments,
