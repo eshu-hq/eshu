@@ -241,6 +241,7 @@ def main(run_dir: str) -> int:
           "content_rows": counters.get("content_rows"),
           "projector_unsettled": counters.get("projector_unsettled"),
       },
+      "projector_superseded": counters.get("projector_superseded", 0),
   }
   with open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8") as handle:
     json.dump(result, handle, indent=2, sort_keys=True)

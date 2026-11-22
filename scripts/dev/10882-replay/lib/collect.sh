@@ -13,26 +13,39 @@
 replay_export_state() {
   local out="$REPLAY_RUN_DIR/export"
   mkdir -p "$out"
-  replay_psql -c "SELECT COALESCE(json_object_agg(scope_id, active_generation_id ORDER BY scope_id), '{}'::json)
-    FROM ingestion_scopes WHERE scope_id LIKE 'replay-%' OR scope_id LIKE 'git-repository-scope:%'" >"$out/generations.json"
-  # Real fixture fact sets: fact id plus payload hash of each repository's
-  # active generation. Seeded generations are excluded on purpose: their fact
-  # equality holds by construction and proves nothing (arbiter item 5).
+  # Generation ids and fact ids embed the observation time, so they differ
+  # between runs of identical content. The comparable identity of a committed
+  # generation is the source commit (seeded generations have none, so their
+  # deterministic id stands in); the comparable identity of a fact is its stable
+  # fact key plus its payload hash.
+  replay_psql -c "SELECT COALESCE(json_object_agg(s.scope_id, COALESCE(NULLIF(g.source_commit_sha, ''), g.generation_id) ORDER BY s.scope_id), '{}'::json)
+    FROM ingestion_scopes s JOIN scope_generations g ON g.scope_id = s.scope_id AND g.generation_id = s.active_generation_id
+    WHERE s.scope_id LIKE 'replay-%' OR s.scope_id LIKE 'git-repository-scope:%'" >"$out/generations.json"
+  # Real fixture fact sets of each repository's active generation. Seeded
+  # generations are excluded on purpose: their fact equality holds by
+  # construction and proves nothing (arbiter item 5).
   replay_psql -c "SELECT COALESCE(json_object_agg(scope_id, h ORDER BY scope_id), '{}'::json) FROM (
-      SELECT f.scope_id, md5(string_agg(f.fact_id || ':' || md5(f.payload::text), ',' ORDER BY f.fact_id)) AS h
+      SELECT f.scope_id, md5(string_agg(f.stable_fact_key || ':' || md5(f.payload::text), ',' ORDER BY f.stable_fact_key)) AS h
       FROM fact_records f JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
       WHERE f.scope_id LIKE 'git-repository-scope:%' GROUP BY f.scope_id) t" >"$out/real_fact_sets.json"
+  # Reducer intents enqueued for A and B by projection: the distinct (scope,
+  # domain) pairs of the active generations. A generation superseded before it
+  # was projected (a paced one overtaken by a newer commit) enqueues nothing, so
+  # intents of non-active generations are not compared.
   replay_psql -c "SELECT json_build_object(
       'A', json_build_object('count', count(*) FILTER (WHERE src = '$REPLAY_SRC_A'),
-           'keys_hash', COALESCE(md5(string_agg(work_item_id, ',' ORDER BY work_item_id) FILTER (WHERE src = '$REPLAY_SRC_A')), '')),
+           'keys_hash', COALESCE(md5(string_agg(k, ',' ORDER BY k) FILTER (WHERE src = '$REPLAY_SRC_A')), '')),
       'B', json_build_object('count', count(*) FILTER (WHERE src = '$REPLAY_SRC_B'),
-           'keys_hash', COALESCE(md5(string_agg(work_item_id, ',' ORDER BY work_item_id) FILTER (WHERE src = '$REPLAY_SRC_B')), '')))
-    FROM (SELECT w.work_item_id, COALESCE(NULLIF(BTRIM(w.payload->>'source_system'), ''), s.source_system) AS src
+           'keys_hash', COALESCE(md5(string_agg(k, ',' ORDER BY k) FILTER (WHERE src = '$REPLAY_SRC_B')), '')))
+    FROM (SELECT DISTINCT w.scope_id || ':' || w.domain AS k,
+                 COALESCE(NULLIF(BTRIM(w.payload->>'source_system'), ''), s.source_system) AS src
           FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
-          WHERE w.stage = 'reducer' AND w.work_item_id NOT LIKE 'replay-%') t" >"$out/reducer_intents.json"
+          WHERE w.stage = 'reducer' AND w.work_item_id NOT LIKE 'replay-%'
+            AND w.generation_id = s.active_generation_id) t" >"$out/reducer_intents.json"
   replay_psql -c "SELECT json_build_object(
       'content_rows', (SELECT count(*) FROM content_files) + (SELECT count(*) FROM content_entities),
-      'projector_unsettled', (SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status <> 'succeeded'),
+      'projector_unsettled', (SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status NOT IN ('succeeded', 'superseded')),
+      'projector_superseded', (SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status = 'superseded'),
       'dead_letters', (SELECT count(*) FROM fact_work_items WHERE status = 'dead_letter'),
       'admission_timeouts', (SELECT count(*) FROM fact_work_items WHERE failure_class = 'admission_timeout' OR admission_wait_attempts > 0),
       'attempt_count_changes', (SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status = 'succeeded'

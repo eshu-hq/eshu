@@ -120,8 +120,11 @@ replay_seed() {
 # replay_write_manifest records everything that must be equal, or differ on
 # purpose, between arms.
 replay_write_manifest() {
-  local arm="$1" rep="$2" thresholds
+  local arm="$1" rep="$2" thresholds sel_base=None
   thresholds="$(replay_threshold_env projector | paste -sd, -)"
+  if [[ "$ARM_THRESHOLDS" == 1 && "$ARM_A_KIND" == git ]]; then
+    sel_base=20 # ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL seconds, see replay_threshold_env
+  fi
   python3 -I - "$REPLAY_RUN_DIR/manifest.json" <<PY
 import json, sys
 json.dump({
@@ -130,7 +133,7 @@ json.dump({
   "a_shape": "$ARM_A_SHAPE", "a_reducer_rows": $REPLAY_A_ROWS, "a_projector_generations": $REPLAY_A_GENERATIONS,
   "b_generations": $REPLAY_B_COUNT, "b_cadence": "$REPLAY_B_CADENCE",
   "workers": {"projector": $REPLAY_PROJECTOR_WORKERS, "ingester_projector": $REPLAY_INGESTER_PROJECTOR_WORKERS},
-  "engaged_window_s": $REPLAY_ENGAGED_WINDOW, "load1_at_start": "$(replay_load1)",
+  "engaged_window_s": $REPLAY_ENGAGED_WINDOW, "selection_base_s": $sel_base, "load1_at_start": "$(replay_load1)",
   "postgres": "$REPLAY_PG_IMAGE", "neo4j": "$REPLAY_NEO4J_IMAGE",
   "commit": "$(cat "$REPLAY_RESULTS/build.commit")", "started": "$(date -u +%FT%TZ)",
 }, open(sys.argv[1], "w"), indent=2, sort_keys=True)
@@ -156,7 +159,9 @@ replay_latch_released() {
 }
 
 replay_projector_settled() {
-  [[ "$(replay_psql -c "SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status <> 'succeeded'")" == 0 ]]
+  # superseded is a settled state: a generation a newer one replaced before it
+  # was projected (a paced generation overtaken by the next commit).
+  [[ "$(replay_psql -c "SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status NOT IN ('succeeded', 'superseded')")" == 0 ]]
 }
 
 # replay_run_arm <arm> <rep> runs one arm end to end and assembles result.json.
@@ -176,10 +181,12 @@ replay_run_arm() {
   replay_sampler_start
   trap 'replay_stop ingester; replay_stop projector; replay_stop hosted; replay_sampler_stop' RETURN
 
-  replay_seed TestReplaySeedBacklog >"$REPLAY_RUN_DIR/seed-backlog.log" 2>&1
-  replay_seed TestReplaySeedProjector >"$REPLAY_RUN_DIR/seed-projector.log" 2>&1
+  replay_seed TestReplaySeedBacklog >"$REPLAY_RUN_DIR/seed-backlog.log" 2>&1 ||
+    { echo "seed backlog failed: $REPLAY_RUN_DIR/seed-backlog.log" >&2; return 1; }
+  replay_seed TestReplaySeedProjector >"$REPLAY_RUN_DIR/seed-projector.log" 2>&1 ||
+    { echo "seed projector failed: $REPLAY_RUN_DIR/seed-projector.log" >&2; return 1; }
   if [[ "$arm" == T2 ]]; then
-    replay_hosted_prepare
+    replay_hosted_prepare || { echo "hosted prepare failed: $REPLAY_RUN_DIR/seed-hosted.log" >&2; return 1; }
   fi
   local -a ing_env proj_env
   mapfile -t ing_env < <(replay_threshold_env ingester)

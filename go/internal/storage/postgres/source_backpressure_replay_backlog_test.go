@@ -163,14 +163,14 @@ FROM fact_work_items WHERE work_item_id LIKE 'replay-a-work-%'`); err != nil {
 	if _, err := conn.ExecContext(ctx, `
 INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain, conflict_key,
   status, attempt_count, visible_at, payload, created_at, updated_at)
-SELECT 'replay-a-work-' || (i + $6::int), 'replay-areduce-' || (1 + i % $5::int), 'replay-areduce-g-' || (1 + i % $5::int),
-  'reducer', 'aws_relationship_materialization', 'replay-a', 'replay-a-key-' || (i + $6::int), 'pending', 0, NULL,
+SELECT 'replay-a-work-' || (i + $5::int), 'replay-areduce-' || (1 + i % $4::int), 'replay-areduce-g-' || (1 + i % $4::int),
+  'reducer', 'aws_relationship_materialization', 'replay-a', 'replay-a-key-' || (i + $5::int), 'pending', 0, NULL,
   jsonb_build_object('entity_key', 'replay-a-entity-' || i, 'reason', '10882-replay',
-    'fact_id', 'replay-a-fact-' || i, 'source_system', $2::text),
-  $3::timestamptz - ($4::bigint * (i::float8 / $6::float8) * interval '1 microsecond'),
-  $3::timestamptz - ($4::bigint * (i::float8 / $6::float8) * interval '1 microsecond')
-FROM generate_series(0, $7::int - 1) AS i`,
-		string(replayDomainA), src.System, newest, span.Microseconds(), scopeCount, half, rows-half); err != nil {
+    'fact_id', 'replay-a-fact-' || i, 'source_system', $1::text),
+  $2::timestamptz - ($3::bigint * (i::float8 / $5::float8) * interval '1 microsecond'),
+  $2::timestamptz - ($3::bigint * (i::float8 / $5::float8) * interval '1 microsecond')
+FROM generate_series(0, $6::int - 1) AS i`,
+		src.System, newest, span.Microseconds(), scopeCount, half, rows-half); err != nil {
 		t.Fatalf("insert readiness-gated source A rows: %v", err)
 	}
 	t.Logf("replay seed: mix 8713 rows + %d not-takeable aged source A rows (%d parked, %d gated)", rows, half, rows-half)

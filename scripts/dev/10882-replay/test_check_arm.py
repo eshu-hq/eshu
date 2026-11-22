@@ -41,6 +41,8 @@ def _treatment() -> dict:
   arm["arm"] = "T1"
   arm["deferrals"]["source_behind"] = {"A": 12}
   arm["released_pre_write"] = 48
+  arm["manifest"] = {"workers": {"projector": 4, "ingester_projector": 4}, "selection_base_s": 20}
+  arm["selection"] = [{"event": "engaged", "delay_all_s": 55.0}, {"event": "after_release", "delay_all_s": 4.0}]
   arm["engaged"] = {"engage_at": "2026-11-22T21:00:00Z", "release_at": "2026-11-22T21:03:00Z"}
   arm["a_writes_during_engagement"] = {"graph_nodes": 0, "content_rows": 0, "projector_succeeded": 0}
   return arm
@@ -79,6 +81,20 @@ class CheckArmTest(unittest.TestCase):
     arm = _treatment()
     arm["engaged"]["release_at"] = None
     self.assertIn("latch engaged and released", _failed(check_arm.run_checks("treatment", arm, [_control()])))
+
+  def test_red_selection_not_stretched_or_not_restored_fails(self):
+    arm = _treatment()
+    arm["selection"][0]["delay_all_s"] = 2.0  # collected at once while engaged: no stretch
+    self.assertEqual(_failed(check_arm.run_checks("treatment", arm, [_control()])), ["selection stretched while engaged"])
+    arm = _treatment()
+    arm["selection"][1]["delay_all_s"] = None  # a due repository never came back
+    self.assertEqual(_failed(check_arm.run_checks("treatment", arm, [_control()])), ["selection restored after release"])
+
+  def test_red_too_few_paced_items_fails(self):
+    arm = _treatment()
+    arm["released_pre_write"] = 6  # fewer than the 8 projector workers
+    self.assertEqual(_failed(check_arm.run_checks("treatment", arm, [_control()])),
+                     ["paced A projector items >= projector worker count"])
 
   def test_red_dead_letter_and_timeout_fail(self):
     arm = _treatment()

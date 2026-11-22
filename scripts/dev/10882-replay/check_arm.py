@@ -87,14 +87,44 @@ def check_final_state(arm: dict[str, Any], control: dict[str, Any]) -> list[Chec
   return checks
 
 
+def check_selection(arm: dict[str, Any]) -> list[Check]:
+  """Git selection stretch (arbiter item 6): stretched while engaged, restored after.
+
+  A fixture commit made while the latch is engaged must wait longer than the base
+  resync interval to be selected; one made after release must be selected within
+  the base interval plus a poll allowance. No due repository may be dropped: the
+  real fixture fact sets are compared in check_final_state.
+  """
+  events = {e.get("event"): e for e in _get(arm, "selection", [])}
+  base = _get(arm, "manifest.selection_base_s")
+  if base is None:
+    return []
+  engaged, after = events.get("engaged", {}), events.get("after_release", {})
+  stretched = engaged.get("delay_all_s")
+  restored = after.get("delay_all_s")
+  return [
+      Check("selection stretched while engaged", stretched is not None and stretched > base,
+            "delay=%s s base=%s s" % (stretched, base)),
+      Check("selection restored after release", restored is not None and restored <= base + 15,
+            "delay=%s s base=%s s (+15 s poll allowance)" % (restored, base)),
+  ]
+
+
 def check_ac4(arm: dict[str, Any], control: dict[str, Any]) -> list[Check]:
   """AC4: a slowed source loses no work and resumes."""
   checks = []
   deferrals = _get(arm, "deferrals.source_behind", {})
+  released = _get(arm, "released_pre_write", 0)
+  workers = sum(int(v) for v in _get(arm, "manifest.workers", {}).values())
   checks.append(Check(
-      "A deferrals counted under reason=source_behind",
-      deferrals.get("A", 0) > 0 or _get(arm, "released_pre_write", 0) > 0,
-      "admission=%s pre-write releases=%s" % (deferrals.get("A", 0), _get(arm, "released_pre_write", 0))))
+      "A pre-write releases counted (source paced)", released > 0,
+      "pre-write releases=%s; admission-writer source_behind deferrals=%s (NOTE: the pre-write consult "
+      "in projector/service.go releases a paced A item before any projection write, so the admission "
+      "leg is reached only by an item claimed before the latch engaged)" % (released, deferrals.get("A", 0))))
+  checks.append(Check(
+      "paced A projector items >= projector worker count", workers > 0 and released >= workers,
+      "released=%s workers=%s" % (released, workers)))
+  checks.extend(check_selection(arm))
   engaged = _get(arm, "engaged", {})
   checks.append(Check(
       "latch engaged and released",
