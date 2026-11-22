@@ -46,7 +46,7 @@ report() { printf 'stage=%s %s seconds=%.2f wal_bytes=%s\n' "$stage" "$1" "$(ech
 case "$stage" in
   expand)
     lsn0=$(wal); t0=$(now_s)
-    lp "$db" -q -c "SET maintenance_work_mem = '1GB'; CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS fact_records_scope_fact_uniq ON public.fact_records (scope_id, fact_id)"
+    lp "$db" -q -c "SET maintenance_work_mem = '1GB'" -c "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS fact_records_scope_fact_uniq ON public.fact_records (scope_id, fact_id)"
     t1=$(now_s)
     report "index_bytes=$(lp "$db" -At -c "SELECT pg_relation_size('fact_records_scope_fact_uniq')")" "$t0" "$t1" "$(walb "$lsn0" "$(wal)")"
     echo "lock: CREATE INDEX CONCURRENTLY holds SHARE UPDATE EXCLUSIVE (writers continue); it waits out transactions older than each of its two scans" ;;
@@ -59,9 +59,9 @@ $(for i in $(seq 0 $((PARTS - 1))); do echo "CREATE TABLE d.fact_records_p$i PAR
 ALTER TABLE d.fact_records ADD CONSTRAINT fact_records_pkey_new PRIMARY KEY (scope_id, fact_id);
 SQL
     # The retained secondary indexes, rewritten onto d.fact_records under new names.
-    lp "$db" -At -c "SELECT replace(replace(pg_get_indexdef(indexrelid), ' ON public.fact_records', ' ON d.fact_records'), 'INDEX ' || indexrelid::regclass::text, 'INDEX ' || indexrelid::regclass::text || '_new') FROM pg_index WHERE indrelid = 'public.fact_records'::regclass AND NOT indisprimary AND indexrelid::regclass::text <> 'fact_records_scope_fact_uniq'" | lp "$db" -q -f -
+    lp "$db" -At -c "SELECT replace(replace(pg_get_indexdef(indexrelid), ' ON public.fact_records', ' ON d.fact_records'), 'INDEX ' || indexrelid::regclass::text, 'INDEX ' || indexrelid::regclass::text || '_new') || ';' FROM pg_index WHERE indrelid = 'public.fact_records'::regclass AND NOT indisprimary AND indexrelid::regclass::text <> 'fact_records_scope_fact_uniq'" | lp "$db" -q -f -
     # The six production triggers move with the table; the removal arms must pay them on both shapes.
-    lp "$db" -At -c "SELECT replace(pg_get_triggerdef(oid), ' ON public.fact_records ', ' ON d.fact_records ') FROM pg_trigger WHERE tgrelid = 'public.fact_records'::regclass AND NOT tgisinternal" | lp "$db" -q -f -
+    lp "$db" -At -c "SELECT replace(pg_get_triggerdef(oid), ' ON public.fact_records ', ' ON d.fact_records ') || ';' FROM pg_trigger WHERE tgrelid = 'public.fact_records'::regclass AND NOT tgisinternal" | lp "$db" -q -f -
     lp "$db" -q -c "ALTER TABLE d.fact_records ADD CONSTRAINT fact_records_generation_id_fkey_new FOREIGN KEY (generation_id) REFERENCES public.scope_generations(generation_id) ON DELETE CASCADE NOT VALID, ADD CONSTRAINT fact_records_scope_id_fkey_new FOREIGN KEY (scope_id) REFERENCES public.ingestion_scopes(scope_id) ON DELETE CASCADE NOT VALID"
     t1=$(now_s)
     printf 'stage=build seconds=%.2f indexes_on_parent=%s partitions=%s\n' "$(echo "$t1 - $t0" | bc -l)" \
@@ -96,7 +96,6 @@ INSERT INTO d.fact_records SELECT o.* FROM public.fact_records o
   WHERE o.ingested_at >= (SELECT max(ingested_at) - interval '1 hour' FROM d.fact_records)
   ON CONFLICT (scope_id, fact_id) DO UPDATE SET payload = EXCLUDED.payload, ingested_at = EXCLUDED.ingested_at;
 ALTER TABLE public.fact_records RENAME TO fact_records_old;
-ALTER TABLE d.fact_records RENAME TO fact_records;
 ALTER TABLE d.fact_records SET SCHEMA public;
 SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestamptz)::numeric, 3) AS exclusive_lock_held_seconds;
 COMMIT;
@@ -119,6 +118,25 @@ SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestampt
 COMMIT;
 SQL
     printf 'stage=wayback total_seconds=%.2f\n' "$(echo "$(now_s) - $t0" | bc -l)" ;;
+  swap)
+    # The catalog-only part of the cutover, with the catch-up already done: what
+    # the ACCESS EXCLUSIVE lock costs once the delta is drained outside the lock.
+    lp "$db" -q <<'SQL'
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
+SELECT clock_timestamp() AS lock_acquired \gset
+ALTER TABLE public.fact_records RENAME TO fact_records_old;
+ALTER TABLE d.fact_records SET SCHEMA public;
+SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestamptz)::numeric, 3) AS swap_exclusive_lock_held_seconds;
+COMMIT;
+BEGIN;
+LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
+ALTER TABLE public.fact_records SET SCHEMA d;
+ALTER TABLE public.fact_records_old RENAME TO fact_records;
+COMMIT;
+SQL
+    ;;
   mixed)
     echo "-- old writer (ON CONFLICT (fact_id)) against the divided PK (scope_id, fact_id):"
     lp "$db" -q -c "BEGIN; INSERT INTO d.fact_records SELECT * FROM d.fact_records LIMIT 1 ON CONFLICT (fact_id) DO NOTHING; ROLLBACK;" 2>&1 | head -2 || true
