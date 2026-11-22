@@ -289,7 +289,10 @@ different design (a snapshot-keyed layout) and was not measured here.
 ## Open questions for the snapshot-keyed layout issue
 
 These were prepared as design forks for HASH(scope_id). That design is rejected, so
-they are inputs for the snapshot-keyed layout issue, not decisions.
+they are design inputs for #11202 (the snapshot-keyed layout issue), not forks for
+#10881 and not decisions. The sub-key skew what-if below
+(`skew_split.sql`, output in `docs/internal/evidence/10881-fact-records-partition/skew-census-output.txt`)
+belongs to that issue: any layout keyed on scope must say where a 12.9% scope lands.
 
 **Key choice: plain `HASH(scope_id)` mod 32, or a skew-aware key.** One scope holds
 12.2M of 94.6M rows (12.9%), so the part that receives it holds at least 12.9% of
