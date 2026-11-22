@@ -55,6 +55,7 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_winners_keyed_idx
 
 // SupplyChainImpactForeignMemberTokensFunction is the versioned name of the
 // foreign-member token function (#10643 PR 2).
+// #nosec G101 -- the constant names a Postgres function or index, not a credential; the word token is the GIN lookup token.
 const SupplyChainImpactForeignMemberTokensFunction = "eshu_sci_foreign_member_tokens_v4"
 
 // SupplyChainImpactForeignMemberTokensIndex is the GIN index on
@@ -91,6 +92,7 @@ const SupplyChainImpactForeignMemberTokensIndex = "fact_records_sci_foreign_memb
 // by TestForeignMemberTokensFunctionIsTheFrozenV4 and, as stored in
 // pg_proc, by TestHolderKeyRangeTokenIndexValidFromMigrationsLive.
 // Migration 336 applies it on existing deployments.
+// #nosec G101 -- the SQL text names a Postgres function or index, not a credential; the word token is the GIN lookup token.
 const supplyChainImpactForeignMemberTokensFunctionSQL = `
 CREATE OR REPLACE FUNCTION eshu_sci_foreign_member_tokens_v4(p_fact_id text, p_payload jsonb) RETURNS text[]
 LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
@@ -128,6 +130,7 @@ $$;
 // key-range holder statement reads it with && on that statement's lookup
 // tokens (HolderMemberTokens). Migration 337 builds it concurrently on
 // existing deployments.
+// #nosec G101 -- the SQL text names a Postgres function or index, not a credential; the word token is the GIN lookup token.
 const supplyChainImpactForeignMemberTokensIndexSQL = `
 CREATE INDEX IF NOT EXISTS fact_records_sci_foreign_member_tokens_v4_idx
     ON fact_records USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload))
