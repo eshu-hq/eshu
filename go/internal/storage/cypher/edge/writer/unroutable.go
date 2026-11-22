@@ -182,9 +182,10 @@ func (e *targetMissingError) FailureClass() string {
 	return reducer.SharedEdgeTargetNotReadyFailureClass
 }
 
-// SampleTarget returns the batch's sample repository and intent ids so the
-// owning reducer handler can name them in its bound-expiry WARN without
-// depending on this unexported type.
+// SampleTarget returns the repository whose node was absent and the batch's
+// sample intent id so the owning reducer handler can name them in its
+// bound-expiry WARN without depending on this unexported type. The repository
+// is the missed probe's own, not the first row's (#11242).
 func (e *targetMissingError) SampleTarget() (repoID, intentID string) {
 	return e.sampleRepoID, e.sampleIntentID
 }
@@ -228,7 +229,8 @@ func (e *targetProbeError) Unwrap() error { return e.err }
 // single-clause statement (#8315). The sample intent identifies
 // the batch in the log; per-group samples would cost an intent-id index
 // through routing for no operator benefit, so the batch head stands in for
-// all groups.
+// all groups. The repository a miss names is not sampled: it is the repository
+// of the probe that found its node absent (#11242).
 func checkRoutedBatchTargets(
 	ctx context.Context,
 	w *EdgeWriter,
@@ -242,16 +244,15 @@ func checkRoutedBatchTargets(
 	if !ok {
 		return nil
 	}
-	var sampleRepoID, sampleIntentID string
+	var sampleIntentID string
 	if len(rows) > 0 {
-		sampleRepoID = rows[0].RepositoryID
 		sampleIntentID = rows[0].IntentID
 	}
 	bs := w.batchSizeForDomain(domain)
 	for _, cypher := range routeOrder {
 		group := routedRows[cypher]
 		if bs <= 0 || bs >= len(group) {
-			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group, sampleRepoID, sampleIntentID); err != nil {
+			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group, sampleIntentID); err != nil {
 				return err
 			}
 			continue
@@ -261,7 +262,7 @@ func checkRoutedBatchTargets(
 			if end > len(group) {
 				end = len(group)
 			}
-			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group[start:end], sampleRepoID, sampleIntentID); err != nil {
+			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group[start:end], sampleIntentID); err != nil {
 				return err
 			}
 		}

@@ -262,9 +262,9 @@ func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
 		"repo_id":            "repo-a",
 		"path":               "/widgets",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainHandlesRoute, rows)
+	probes, ok := buildTargetPresenceProbes(reducercontract.DomainHandlesRoute, rows)
 	if !ok {
-		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want probes anchoring Function and Endpoint")
+		t.Fatal("buildTargetPresenceProbes(handles_route) = false, want probes anchoring Function and Endpoint")
 	}
 	if len(probes) != 2 {
 		t.Fatalf("probe statements = %d, want 2 (Endpoint and Function anchors)", len(probes))
@@ -310,9 +310,9 @@ func TestEdgeWriterHandlesRouteProbeDedupNamespacesEndpointAndFunction(t *testin
 		"repo_id":            "f",
 		"path":               "shared-uid",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainHandlesRoute, rows)
+	probes, ok := buildTargetPresenceProbes(reducercontract.DomainHandlesRoute, rows)
 	if !ok {
-		t.Fatal("buildTargetPresenceProbeStatements(handles_route) = false, want both anchors probed")
+		t.Fatal("buildTargetPresenceProbes(handles_route) = false, want both anchors probed")
 	}
 	if len(probes) != 2 {
 		t.Fatalf("probe statements = %d, want 2 (Endpoint and Function anchors share no dedup key)", len(probes))
