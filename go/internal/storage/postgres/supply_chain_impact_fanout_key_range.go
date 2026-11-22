@@ -207,3 +207,9 @@ func queryScopeIDs(ctx context.Context, tx db.Transaction, query string, args ..
 // The production store always satisfies the key-range seam: a decorator that
 // stops forwarding it silently restores the unbounded hot singleton (#10643).
 var _ supplychaincore.HolderKeyRangeReader = SupplyChainImpactFanOutStore{}
+
+// HolderMemberTokens returns the foreign-member lookup tokens statement i of
+// statements carries (#10643 PR 2).
+func HolderMemberTokens(lookupIDs []string, statement, statements int) []string {
+	return nil
+}

@@ -145,16 +145,14 @@ func TestHolderKeyRangeReadMatchesShippedLive(t *testing.T) {
 	if !slices.Equal(read.Scopes, shipped) {
 		t.Fatalf("key-range holders = %v, want the shipped set %v", read.Scopes, shipped)
 	}
-	if len(read.Statements) != len(ranges)+1 {
-		t.Fatalf("statements = %d, want %d ranges + 1 member arm", len(read.Statements), len(ranges))
+	// #10643 PR 2: the member arm rides inside each key-range statement as
+	// the foreign-member token arm, so there is no separate member statement.
+	if len(read.Statements) != len(ranges) {
+		t.Fatalf("statements = %d, want %d (one per range, the token arm inside each)", len(read.Statements), len(ranges))
 	}
 	for i, stmt := range read.Statements {
-		wantKind := telemetry.FanOutReadKindHoldersKeyRange
-		if i == len(ranges) {
-			wantKind = telemetry.FanOutReadKindHoldersMembers
-		}
-		if stmt.Kind != wantKind || stmt.Err != nil {
-			t.Fatalf("statement %d = %+v, want kind %s and no error", i, stmt, wantKind)
+		if stmt.Kind != telemetry.FanOutReadKindHoldersKeyRange || stmt.Err != nil {
+			t.Fatalf("statement %d = %+v, want kind %s and no error", i, stmt, telemetry.FanOutReadKindHoldersKeyRange)
 		}
 	}
 
@@ -264,13 +262,17 @@ VALUES ($1 || '/g9', $1, 'synthetic', now(), now(), 'pending', now(), '{}'::json
 	}
 }
 
-// TestHolderKeyRangeStatementPlanLive pins the plan the bound rests on. Under
+// TestHolderKeyRangeStatementPlanLive pins the plan the bound rests on. The
+// statement is the shipped constant itself, prepared as is. Under
 // the plan mode the store sets (HolderKeyRangePlanCacheMode), each key-range
 // arm reads its own existing partial lookup index (cve_id:
 // fact_records_supply_chain_impact_lookup_idx, advisory_id:
 // ..._advisory_lookup_idx) with its lookup expression and both fact_id bounds
-// in one Index Cond line, and no Filter line carries the lookup expression or
-// fact_id: no new index, no sequential scan, no primary-key range, and not the
+// in one Index Cond line, the token arm reads the foreign-member token GIN
+// index (fact_records_sci_foreign_member_tokens_v4_idx, #10643 PR 2) with the
+// overlap in its Index Cond and no fact_id bound, and no Filter line carries
+// a lookup expression or fact_id: no sequential scan, no primary-key range,
+// and not the
 // status index, which has no cve_id column and reads a fact_id slice of every
 // finding row (keyRangePlanViolation). The
 // seeded RED is the generic plan: it cannot see the bounds and reads the
@@ -280,6 +282,10 @@ func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 	keyRangeSeed(t, ctx, sqldb)
 	ranges := supplychaincore.HolderKeyRanges()
 	mid := ranges[len(ranges)/2]
+	var tokens []string
+	for _, token := range postgres.HolderMemberTokens([]string{keyRangeHot}, len(ranges)/2, len(ranges)) {
+		tokens = append(tokens, keyRangeLiteral(token))
+	}
 	conn, err := sqldb.Conn(ctx)
 	if err != nil {
 		t.Fatalf("conn: %v", err)
@@ -290,14 +296,15 @@ func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 		if _, err := conn.ExecContext(ctx, `SELECT set_config('plan_cache_mode', $1, false)`, mode); err != nil {
 			t.Fatalf("plan_cache_mode: %v", err)
 		}
-		if _, err := conn.ExecContext(ctx, `PREPARE kr_range(text[], text, text, text) AS `+postgres.FindSupplyChainImpactHolderKeyRangeQuery); err != nil {
+		if _, err := conn.ExecContext(ctx, `PREPARE kr_range(text[], text, text, text, text[]) AS `+postgres.FindSupplyChainImpactHolderKeyRangeQuery); err != nil {
 			t.Fatalf("prepare: %v", err)
 		}
 		defer func() { _, _ = conn.ExecContext(ctx, `DEALLOCATE kr_range`) }()
 		// EXPLAIN EXECUTE takes no bind parameters, so the test-owned values
 		// are quoted literals.
 		return keyRangeExplain(t, ctx, conn, `EXPLAIN (ANALYZE, BUFFERS) EXECUTE kr_range(ARRAY[`+
-			keyRangeLiteral(keyRangeHot)+`], `+keyRangeLiteral(keyRangeOwn)+`, `+keyRangeLiteral(mid.Lower)+`, `+keyRangeLiteral(mid.Upper)+`)`)
+			keyRangeLiteral(keyRangeHot)+`], `+keyRangeLiteral(keyRangeOwn)+`, `+keyRangeLiteral(mid.Lower)+`, `+keyRangeLiteral(mid.Upper)+
+			`, ARRAY[`+strings.Join(tokens, ", ")+`]::text[])`)
 	}
 	plan := explain(postgres.HolderKeyRangePlanCacheMode)
 	if why := keyRangePlanViolation(plan); why != "" {

@@ -17,18 +17,16 @@ import (
 )
 
 // rangeStubFanOut is a stubFanOut that also serves the #10643 key-range
-// holder read the way the store does: one statement per range, then the
-// member arm, stopping at the first failing statement.
+// holder read the way the store does: one statement per range, each carrying
+// the foreign-member token arm (PR 2), stopping at the first failing
+// statement.
 type rangeStubFanOut struct {
 	*stubFanOut
 	// rangeHolders maps a key range to the holders its statement returns.
 	rangeHolders map[HolderKeyRange][]string
-	// memberHolders is what the member-arm statement returns.
-	memberHolders []string
-	rangeErr      map[HolderKeyRange]error
-	rangeCalls    []HolderKeyRange
-	rangeIDs      [][]string
-	memberCalls   [][]string
+	rangeErr     map[HolderKeyRange]error
+	rangeCalls   []HolderKeyRange
+	rangeIDs     [][]string
 }
 
 func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error) {
@@ -47,11 +45,6 @@ func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string
 		for _, id := range s.rangeHolders[keyRange] {
 			set[id] = struct{}{}
 		}
-	}
-	s.memberCalls = append(s.memberCalls, append([]string(nil), lookupIDs...))
-	read.Statements = append(read.Statements, HolderReadStatement{Kind: telemetry.FanOutReadKindHoldersMembers})
-	for _, id := range s.memberHolders {
-		set[id] = struct{}{}
 	}
 	for id := range set {
 		read.Scopes = append(read.Scopes, id)
@@ -112,8 +105,9 @@ func TestHolderKeyRangeCountDividesTheDigits(t *testing.T) {
 // TestHotSingletonHolderReadRunsAsKeyRanges is the #10643 regression: a hot
 // singleton id (mass over the split threshold) must not run as one holder
 // statement over all its rows. It runs as one bounded statement per fact_id
-// key range plus one member-arm statement, the union of their holders is
-// what the pass reopens, and cold ids keep the single packed statement.
+// key range, each carrying the member arm as its foreign-member token arm
+// (PR 2), the union of their holders is what the pass reopens, and cold ids
+// keep the single packed statement.
 func TestHotSingletonHolderReadRunsAsKeyRanges(t *testing.T) {
 	t.Parallel()
 
@@ -127,8 +121,10 @@ func TestHotSingletonHolderReadRunsAsKeyRanges(t *testing.T) {
 			ranges[0]:             {"holder-a"},
 			ranges[len(ranges)-1]: {"holder-lone"},
 			ranges[len(ranges)/2]: {"holder-a", "holder-b"},
+			// A foreign-member holder comes back through a statement's token
+			// arm, which has no key-range bound of its own.
+			ranges[3]: {"holder-member"},
 		},
-		memberHolders: []string{"holder-member"},
 	}
 	ids := []string{"CVE-2026-hot", "CVE-2026-c1", "CVE-2026-c2"}
 	writer := &changeWriter{result: SupplyChainImpactWriteResult{ChangedCVEIDs: ids}}
@@ -156,9 +152,6 @@ func TestHotSingletonHolderReadRunsAsKeyRanges(t *testing.T) {
 			t.Fatalf("ranged statement ids = %v, want the hot id alone", call)
 		}
 	}
-	if !reflect.DeepEqual(port.memberCalls, [][]string{{"CVE-2026-hot"}}) {
-		t.Fatalf("member-arm statements = %v, want one for the hot id", port.memberCalls)
-	}
 	want := []string{"cold-holder", "holder-a", "holder-b", "holder-lone", "holder-member"}
 	if !reflect.DeepEqual(port.reopened, want) {
 		t.Fatalf("reopened = %v, want the union %v", port.reopened, want)
@@ -166,8 +159,8 @@ func TestHotSingletonHolderReadRunsAsKeyRanges(t *testing.T) {
 	if got := result.SubSignals["fanout_holder_key_range_statements"]; got != float64(len(ranges)) {
 		t.Fatalf("fanout_holder_key_range_statements = %v, want %d", got, len(ranges))
 	}
-	if got := result.SubSignals["fanout_holder_statements"]; got != float64(1+len(ranges)+1) {
-		t.Fatalf("fanout_holder_statements = %v, want cold + ranges + member arm = %d", got, 1+len(ranges)+1)
+	if got := result.SubSignals["fanout_holder_statements"]; got != float64(1+len(ranges)) {
+		t.Fatalf("fanout_holder_statements = %v, want cold + ranges = %d (the member arm rides inside each range, #10643 PR 2)", got, 1+len(ranges))
 	}
 }
 
@@ -254,7 +247,6 @@ func TestKeyRangeReadRecordsDurationByKind(t *testing.T) {
 		telemetry.FanOutReadKindMassProbe + "/ok":           1,
 		telemetry.FanOutReadKindHolders + "/ok":             1,
 		telemetry.FanOutReadKindHoldersKeyRange + "/ok":     uint64(len(ranges)),
-		telemetry.FanOutReadKindHoldersMembers + "/ok":      1,
 		telemetry.FanOutReadKindHoldersKeyRangeRead + "/ok": 1,
 	}
 	if !reflect.DeepEqual(got, want) {

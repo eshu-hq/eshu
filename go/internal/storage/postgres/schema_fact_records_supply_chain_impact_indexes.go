@@ -52,3 +52,14 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_winners_keyed_idx
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 `
+
+// SupplyChainImpactForeignMemberTokensFunction is the versioned name of the
+// foreign-member token function (#10643 PR 2).
+const SupplyChainImpactForeignMemberTokensFunction = "eshu_sci_foreign_member_tokens_v4"
+
+// SupplyChainImpactForeignMemberTokensIndex is the GIN index on
+// SupplyChainImpactForeignMemberTokensFunction (#10643 PR 2).
+const SupplyChainImpactForeignMemberTokensIndex = "fact_records_sci_foreign_member_tokens_v4_idx"
+
+// supplyChainImpactForeignMemberTokensFunctionSQL is the token function DDL.
+const supplyChainImpactForeignMemberTokensFunctionSQL = ""
