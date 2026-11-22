@@ -97,9 +97,9 @@ bytes and page counts.)
 
 **Share of the fact-table write load.** Inherited counts from #10881 and #10860 (QA
 primary, 2026-11-17): 201.8M inserts and 73.0M deletes, and `n_tup_upd` of 88,254,540
-for the whole table (read 2026-11-17, before #10873 merged) (that counter mixes a class of update
-already cut by #10873 and #10965 with a class #10880 removes; no record splits it by
-fact kind). The primary's statistics were not re-read (out of bounds). Share of removal
+for the whole table, read 2026-11-17, before #10873 merged. That counter mixes a class of update
+already cut by #10873 and #10965 with a class #10880 removes, and no record splits it by
+fact kind. The primary's statistics were not re-read (out of bounds). Share of removal
 (delete plus VACUUM) in `fact_records` write WAL:
 
 | Profile | By the rule written above (inserts, deletes, vacuum) | If the 88,254,540 updates (`n_tup_upd`, read 2026-11-17, before #10873 merged) are counted at insert cost |
