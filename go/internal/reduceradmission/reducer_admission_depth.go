@@ -32,7 +32,8 @@ const reducerAdmissionBackoffCap = 10 * time.Second
 //
 // The window is the max age A (one poll interval) while the gate admits. While
 // it defers, the window is the backoff, which grows per deferred read from the
-// poll interval to the cap and resets on the first admit. Deferring on an
+// poll interval to the cap and resets on the first decision whose global
+// gates pass (an admit, or a per-source source_behind deferral). Deferring on an
 // older value only delays a producer. Admitting uses a value at most A old in
 // the common case, because the window is A whenever the last decision
 // admitted. Two corners hold a below-mark value while the window is still a
@@ -189,7 +190,9 @@ func (h *admissionDepthHolder) deferred(ctx context.Context, seq uint64, readAt 
 	return sleep
 }
 
-// admitted resets the backoff on the first admit after a deferral.
+// admitted resets the backoff on the first decision after a deferral whose
+// global gates pass: an admit, or a source_behind deferral on the per-source
+// leg, which says the global depth no longer defers.
 func (h *admissionDepthHolder) admitted(ctx context.Context) {
 	h.mu.Lock()
 	changed := h.backoff != 0

@@ -97,11 +97,14 @@ QA (`.claude/shim-11233-11234-2026-11-22.md`, query id -1132648068480399287):
 call), 4.50 per second in the attribution window, and 1,525 deferrals in 10
 minutes (2.54 per second, all `reason=high_water`, `intent_count=1`, depth
 10,000 to 10,209 against the 10,000 mark). Conflict domain: the process-wide
-holder in `reducer_admission_depth.go` (one per ingester; the projector
-workers, `ESHU_PROJECTOR_WORKERS`, share it). Settings are unchanged: mark
+holder in `go/internal/reduceradmission/reducer_admission_depth.go` (one per
+admission writer, so one per ingester; the projector workers,
+`ESHU_PROJECTOR_WORKERS`, share it, and the per-source leg of #10882,
+`enqueueBySource`, reads through it too). Settings are unchanged: mark
 10,000, poll interval 1 s (the max age A), max wait 5 m; the backoff cap is
 10 s (or half the max wait) and is not a setting. Hermetic before and after
-on the virtual clock (`reducer_admission_depth_test.go`, reads are instant).
+on the virtual clock (`reducer_admission_depth_test.go` in
+`go/internal/reduceradmission`, reads are instant).
 With instant reads, one signal or both, the deferring reads land at 0, 1, 3,
 7, 15, 25, 35 s and every 10 s after (a waiter wakes one nanosecond past the
 window), and 8 concurrent waiters read on exactly that schedule

@@ -59,7 +59,7 @@ const (
 // eshu_dp_reducer_admission_read_backoff_seconds: the current read interval
 // while the gate defers; 0 while it admits. It grows from the poll interval
 // to the cap (10 s, or half the max wait when smaller) and resets on the
-// first admit.
+// first decision whose global gates pass.
 func registerReducerAdmissionDepthInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
 	if inst.ReducerAdmissionDepthReads, err = meter.Int64Counter(
