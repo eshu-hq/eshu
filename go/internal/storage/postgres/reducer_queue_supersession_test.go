@@ -11,11 +11,12 @@ import (
 )
 
 // staleGateClaimWants are the #10863 hand-out fence pieces both claim
-// statements must carry: the read-only stale set, the generation guard
-// against the once-per-statement active generation, and the Crossplane
+// statements must carry: the read-only stale set (the #11234 stale_gate_rows
+// prefilter replaced the once-per-statement claim_active_generations set), the
+// generation guard against each stale row's active generation, and the Crossplane
 // carrier rule (#10106/#10269), with no terminalizing write anywhere.
 var staleGateClaimWants = []string{
-	"claim_active_generations AS MATERIALIZED (",
+	"stale_gate_rows AS MATERIALIZED (",
 	"stale_reducer_candidates AS MATERIALIZED (",
 	"FROM stale_reducer_candidates AS superseded",
 	"superseded.work_item_id = fact_work_items.work_item_id",
