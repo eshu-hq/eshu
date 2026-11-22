@@ -53,14 +53,27 @@ which records what is unprobed or unowned today.
 
 - Fact kinds are attributed per statement, not per relation: a statement that
   reads `fact_records` and another table with its own `fact_kind` comparison gets
-  the union of the kinds. These fail closed: a kind comparison that selects kinds
-  without naming them (`LIKE`, `SIMILAR TO`, `<>`, `!=`, `~`), `fact_kind` passed
-  as a bare argument of a function (`lower`, `starts_with`, `left`, `coalesce`),
-  a `NOT IN` that names a kind the statement does not also read by name, and any
-  `NOT LIKE`. Still open: a `fact_records` read with no kind predicate of its own
-  inside a statement that names a kind elsewhere is attributed to that kind. The
-  fix is per-relation attribution (each `fact_records` alias resolves its own
-  positive kind); it is a redesign of the classifier and stays a stated limit.
+  the union of the kinds. The classifier recognizes a kind predicate only as `=`
+  a literal or a bind, `IN (literals and binds)`, and `= ANY($n)`. These fail
+  closed: `LIKE`, `SIMILAR TO`, `<>`, `!=`, `~`, `fact_kind` as a bare argument
+  of a function (`lower`, `starts_with`, `left`, `coalesce`), a `NOT IN` that
+  names a kind the statement does not also read by name, and any `NOT LIKE`.
+  These are not classified and the classifier does not see them, so each can hide
+  a reducer-kind read beside a sibling kind literal: casts (`::text`, `CAST`),
+  `COLLATE`, `||`, `position()`, `^@`, range comparisons, `= ANY(ARRAY[..])`,
+  `IN (SELECT ..)`, `NOT (fact_kind = ..)`, `IS DISTINCT FROM`, a row compare,
+  a parenthesized column, and a `NOT IN` on one alias whose kinds another alias
+  reads positively.
+- The kind canary (`canary_test.go`) closes that class for every probed
+  statement: after the same scrub and dead-branch blanking, each live
+  `fact_records` alias must carry a recognized positive kind predicate of its
+  own, or be one of two pinned `fact_id` join-backs of the impact list (the page
+  re-read `source` and the operator `override`, which re-read rows the statement
+  already selected under its own reducer-kind filter). A new probed statement
+  with an alias that lacks one goes red. The canary reads only recorded
+  statements, so it does not cover the 155 waived capabilities (their full
+  statements are never recorded) or the census, which sees fragments; that gap is
+  #11212.
 - A subquery whose `WHERE` is always false (a literal `AND FALSE` conjunct with
   no `OR` to rescue it) returns no rows, so the tables it names are not counted.
   A compound subquery is read arm by arm (`UNION` when every arm is empty,

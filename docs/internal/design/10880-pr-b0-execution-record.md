@@ -91,10 +91,16 @@ B0 lands the pieces that need no supports table. Commits on
      subquery's `FROM`); a compound subquery is read arm by arm, so an empty first
      `UNION` arm no longer hides a live second arm; `fact_kind` as a bare function
      argument, a `NOT IN` that names an unread kind, and `NOT LIKE` fail closed;
-     a quoted `"true"` or `"false"` identifier fails closed. Per-relation kind
-     attribution (a `fact_records` read with no kind predicate of its own beside a
-     sibling literal) is not done: it needs alias-level resolution, so it stays a
-     stated limit.
+     a quoted `"true"` or `"false"` identifier fails closed. The classifier
+     recognizes a kind predicate only as `=`, `IN`, and `= ANY($n)` on that
+     alias; casts, `COLLATE`, `||`, `position()`, `^@`, ranges, `ANY(ARRAY[..])`,
+     `IN (SELECT ..)`, `NOT (=)`, `IS DISTINCT FROM`, a row compare, and a
+     `NOT IN` that crosses aliases are not classified. Round 4 adds the kind
+     canary (`canary_test.go`): every live `fact_records` alias in every recorded
+     probe statement must carry a recognized positive kind predicate of its own,
+     except two pinned `fact_id` join-backs of the impact list; the 20 hidden
+     forms are its seeded RED set. It enforces the probed capabilities only: the
+     155 waived capabilities are not enforced (#11212).
    - Waivers: 155 capabilities have no probe and 18 query packages have no census
      owner. Raising a ceiling constant is a code edit that only review catches.
 4. **`image_ref` guard.** The gate-on list and aggregate stores serve an
