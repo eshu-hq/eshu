@@ -12,9 +12,16 @@ from typing import TextIO
 INVENTORY = Path(__file__).with_name("reducer_contention_inventory.json")
 WORKFLOW = Path(".github/workflows/reducer-contention-gate.yml")
 TEST_PATTERN = re.compile(r"^func (Test\w+)\(", re.MULTILINE)
-OWNER_JOB = re.compile(
-    r"(?ms)^  contention-gate:\n(?P<body>.*?)(?=^  [A-Za-z][\w-]*:\n|\Z)"
-)
+# #11252: the storage/postgres suite outgrew one job's 45 minutes, so the gate
+# is two jobs. Both are owner jobs: each is parsed with the same fail-closed
+# grammar and its steps join one name space (a step name may appear once).
+OWNER_JOB_IDS = ("contention-gate", "contention-gate-storage-b")
+OWNER_JOB = {
+    job_id: re.compile(
+        rf"(?ms)^  {re.escape(job_id)}:\n(?P<body>.*?)(?=^  [A-Za-z][\w-]*:\n|\Z)"
+    )
+    for job_id in OWNER_JOB_IDS
+}
 STEP_NAME = re.compile(r"(?m)^      - name: ([^\n]+)\n")
 PROOF_STEPS = {
     # #10148 S5: the stress test runs in its own step against the same
@@ -22,6 +29,7 @@ PROOF_STEPS = {
     # every proof is selected by at least one of them (union).
     "github.com/eshu-hq/eshu/go/internal/storage/postgres": (
         "Run reducer contention gate",
+        "Run supply-chain and holder fan-out proofs",
         "Run fan-out stress proof",
     ),
     "github.com/eshu-hq/eshu/go/internal/query": (
@@ -31,10 +39,20 @@ PROOF_STEPS = {
         "Run readiness wait ledger proofs",
     ),
 }
+# Indexes into the storage/postgres PROOF_STEPS entry of the two halves (#11252).
+SUITE_HALVES = {
+    "github.com/eshu-hq/eshu/go/internal/storage/postgres": (0, 1),
+}
+# A step's -timeout may not exceed this bound (#11252). The job cap is 45 min and
+# its worst case is 1 min setup + 13 min cold build + the step cap + the other
+# steps' caps (the 240 s stress cap or a 6 min tail), so a cap above 20 min
+# breaks that arithmetic even before the next growth step; the workflow comment
+# derives the real caps (800 s and 900 s) from measured halves.
+MAX_STEP_TIMEOUT_SECONDS = 1200
 CONTRACT_STEP = "Verify contention runner contract"
 GO_CAPTURE = re.compile(
     r"^go test (\./internal/(?:storage/postgres/readiness/wait|storage/postgres|query)/) "
-    r"-run '([^']+)' -json -race -count=1 -timeout [0-9]+s(?: -v)? "
+    r"-run '([^']+)' -json -race -count=1 -timeout ([0-9]+)s(?: -v)? "
     r'\| tee "(\$\{RUNNER_TEMP\}/contention-[\w-]+\.jsonl)"$'
 )
 CONTRACT_COMMANDS = (
@@ -89,7 +107,7 @@ def load_inventory(path: Path = INVENTORY) -> dict[str, dict[str, object]]:
 
 
 def workflow_steps(workflow: str) -> dict[str, str]:
-    """Read the owner job and reject enclosing skip or failure suppression."""
+    """Read both owner jobs and reject enclosing skip or failure suppression."""
     workflow = without_cgo_env(workflow)
     root = canonical_keys(workflow, 0, ROOT_KEYS)
     if set(root) != ROOT_KEYS or root["jobs"] != "jobs:":
@@ -99,33 +117,36 @@ def workflow_steps(workflow: str) -> dict[str, str]:
         if line.startswith("  ") and not line.startswith("   ")
         and line.strip() and not line.lstrip().startswith("#")
     ]
-    if job_ids != ["  contention-gate:"]:
+    if job_ids != [f"  {job_id}:" for job_id in OWNER_JOB_IDS]:
         raise ValueError("inactive contention owner job: noncanonical jobs")
-    jobs = list(OWNER_JOB.finditer(workflow))
-    if len(re.findall(r"(?m)^jobs:$", workflow)) != 1 or len(jobs) != 1:
+    if len(re.findall(r"(?m)^jobs:$", workflow)) != 1:
         raise ValueError("inactive contention owner job: missing job")
-    body = jobs[0].group("body")
-    job_keys = canonical_keys(body, 4, JOB_KEYS)
-    if (set(job_keys) != JOB_KEYS or job_keys["if"] !=
-            "    if: ${{ github.event_name != 'pull_request' || "
-            "contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}"
-            or job_keys["services"] != "    services:"
-            or job_keys["steps"] != "    steps:"):
-        raise ValueError("inactive or non-fail-closed contention owner job")
-    step_list = body.split("    steps:\n", 1)[1]
-    for line in step_list.splitlines():
-        if (line.startswith("      ") and not line.startswith("       ")
-                and line.strip() and not line.lstrip().startswith("#")
-                and STEP_NAME.fullmatch(line + "\n") is None):
-            raise ValueError(f"non-fail-closed contention step header: {line}")
-    matches = list(STEP_NAME.finditer(body))
     steps: dict[str, str] = {}
-    for index, match in enumerate(matches):
-        name = match.group(1)
-        if name in steps:
-            raise ValueError(f"duplicate contention step: {name}")
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
-        steps[name] = body[match.start():end]
+    for job_id in OWNER_JOB_IDS:
+        jobs = list(OWNER_JOB[job_id].finditer(workflow))
+        if len(jobs) != 1:
+            raise ValueError("inactive contention owner job: missing job")
+        body = jobs[0].group("body")
+        job_keys = canonical_keys(body, 4, JOB_KEYS)
+        if (set(job_keys) != JOB_KEYS or job_keys["if"] !=
+                "    if: ${{ github.event_name != 'pull_request' || "
+                f"contains(fromJSON(inputs.plan_jobs || '[]'), '{job_id}') }}}}"
+                or job_keys["services"] != "    services:"
+                or job_keys["steps"] != "    steps:"):
+            raise ValueError("inactive or non-fail-closed contention owner job")
+        step_list = body.split("    steps:\n", 1)[1]
+        for line in step_list.splitlines():
+            if (line.startswith("      ") and not line.startswith("       ")
+                    and line.strip() and not line.lstrip().startswith("#")
+                    and STEP_NAME.fullmatch(line + "\n") is None):
+                raise ValueError(f"non-fail-closed contention step header: {line}")
+        matches = list(STEP_NAME.finditer(body))
+        for index, match in enumerate(matches):
+            name = match.group(1)
+            if name in steps:
+                raise ValueError(f"duplicate contention step: {name}")
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+            steps[name] = body[match.start():end]
     return steps
 
 
@@ -175,7 +196,12 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
             capture = GO_CAPTURE.fullmatch(commands[1])
             if capture is None:
                 raise ValueError(f"non-fail-closed Go event capture for {package}")
-            relative_package, expression, events = capture.groups()
+            relative_package, expression, timeout, events = capture.groups()
+            if int(timeout) > MAX_STEP_TIMEOUT_SECONDS:
+                raise ValueError(
+                    f"step timeout {timeout}s exceeds the {MAX_STEP_TIMEOUT_SECONDS}s "
+                    f"bound for {package}"
+                )
             selected_package = "github.com/eshu-hq/eshu/go/" + relative_package[2:].rstrip("/")
             if selected_package != package:
                 raise ValueError(f"no workflow selector for {package}")
@@ -188,6 +214,24 @@ def verify_inventory(root: Path, inventory: dict[str, dict[str, object]]) -> Non
                 raise ValueError(f"missing event verifier for {package}")
             owned.append(re.compile(expression))
         selectors[package] = owned
+    halves = SUITE_HALVES.get("github.com/eshu-hq/eshu/go/internal/storage/postgres")
+    if halves is not None:
+        # #11252: the two halves of the storage/postgres suite partition one
+        # filter. A proof selected by both would run twice on two runners and
+        # inflate both halves' budgets, so the halves must not overlap. Only the
+        # tests in the contention inventory are checked, not every test function
+        # in the package; the ledger policy keeps new live proofs in the inventory.
+        first = selectors["github.com/eshu-hq/eshu/go/internal/storage/postgres"][halves[0]]
+        second = selectors["github.com/eshu-hq/eshu/go/internal/storage/postgres"][halves[1]]
+        both = sorted(
+            name
+            for row in inventory.values()
+            if row["package"] == "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+            for name in row["tests"]
+            if first.search(name) and second.search(name)
+        )
+        if both:
+            raise ValueError(f"selected by both halves of the storage suite: {both}")
     for relative, row in inventory.items():
         package = row["package"]
         tests = row["tests"]
