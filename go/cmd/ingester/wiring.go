@@ -371,7 +371,12 @@ func buildIngesterProjectorService(
 		return projector.Service{}, err
 	}
 
+	sourcePacer, err := ingesterSourcePacer(database, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
 	svc := projector.Service{
+		SourcePacer:  sourcePacer, // #10882 F8: a slowed source's claim is released before any write
 		PollInterval: time.Second,
 		WorkSource:   projectorQueue,
 		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),

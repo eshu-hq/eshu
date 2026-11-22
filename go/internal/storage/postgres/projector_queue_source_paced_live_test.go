@@ -11,8 +11,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // sourcePacedProofRow reads the durable counters for the live work item.
@@ -208,5 +214,176 @@ func TestProjectorQueueSourcePacedMigration333AppliesLive(t *testing.T) {
 	if hType != dataType || hNullable != nullable || hDefault != columnDefault {
 		t.Fatalf("proof-schema helper column = (%s, nullable %s, default %q), migration 333 = (%s, nullable %s, default %q): the cycle tests would prove a different column",
 			hType, hNullable, hDefault, dataType, nullable, columnDefault)
+	}
+}
+
+// releaseSeedSQL seeds two sources' projector work: two older items for
+// source-a (the paced source) and one newer for source-b, so the claim pool
+// hands out source-a first.
+const releaseSeedSQL = `
+INSERT INTO ingestion_scopes (
+    scope_id, scope_kind, source_system, source_key, collector_kind,
+    partition_key, observed_at, ingested_at, status, active_generation_id
+) VALUES
+  ('scope-a1', 'repository', 'source-a', 'proof/a1', 'git', 'proof/a1', now(), now(), 'active', 'gen-a1'),
+  ('scope-a2', 'repository', 'source-a', 'proof/a2', 'git', 'proof/a2', now(), now(), 'active', 'gen-a2'),
+  ('scope-b1', 'repository', 'source-b', 'proof/b1', 'git', 'proof/b1', now(), now(), 'active', 'gen-b1');
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
+) VALUES
+  ('gen-a1', 'scope-a1', 'push', now() - interval '1 hour', now() - interval '1 hour', 'pending', NULL),
+  ('gen-a2', 'scope-a2', 'push', now() - interval '1 hour', now() - interval '1 hour', 'pending', NULL),
+  ('gen-b1', 'scope-b1', 'push', now() - interval '1 hour', now() - interval '1 hour', 'pending', NULL);
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status,
+    attempt_count, admission_wait_attempts, source_paced_waits, lease_owner, claim_until,
+    visible_at, payload, created_at, updated_at
+) VALUES
+  ('work-a1', 'scope-a1', 'gen-a1', 'projector', 'source_local', 'pending', 0, 0, 0, NULL, NULL, NULL, '{}'::jsonb, now() - interval '3 hour', now() - interval '3 hour'),
+  ('work-a2', 'scope-a2', 'gen-a2', 'projector', 'source_local', 'pending', 0, 0, 0, NULL, NULL, NULL, '{}'::jsonb, now() - interval '2 hour', now() - interval '2 hour'),
+  ('work-b1', 'scope-b1', 'gen-b1', 'projector', 'source_local', 'pending', 0, 0, 0, NULL, NULL, NULL, '{}'::jsonb, now() - interval '1 hour', now() - interval '1 hour');
+`
+
+// releaseSourcePacer reports only source-a slowed, with a 45s grant delay.
+type releaseSourcePacer struct{}
+
+func (releaseSourcePacer) SourcePaced(_ context.Context, source string) (bool, time.Duration) {
+	return source == "source-a", 45 * time.Second
+}
+
+// releaseWriteCounters records every projection write path a worker reaches.
+type releaseWriteCounters struct {
+	mu       sync.Mutex
+	loads    map[string]int
+	projects map[string]int
+	marks    map[string]int
+	acks     map[string]int
+}
+
+func (c *releaseWriteCounters) bump(m map[string]int, key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	m[key]++
+}
+
+func newReleaseWriteCounters() *releaseWriteCounters {
+	return &releaseWriteCounters{
+		loads: map[string]int{}, projects: map[string]int{}, marks: map[string]int{}, acks: map[string]int{},
+	}
+}
+
+func (c *releaseWriteCounters) LoadProjectionFacts(_ context.Context, w projector.ScopeGenerationWork) (projector.ProjectionFacts, error) {
+	c.bump(c.loads, w.Scope.SourceSystem)
+	return projector.ProjectionFacts{}, nil
+}
+
+func (c *releaseWriteCounters) Project(_ context.Context, sc scope.IngestionScope, _ scope.ScopeGeneration, _ []facts.Envelope) (runtime.Result, error) {
+	c.bump(c.projects, sc.SourceSystem)
+	return runtime.Result{}, nil
+}
+
+func (c *releaseWriteCounters) MarkProjectionWriteStarted(_ context.Context, w projector.ScopeGenerationWork) error {
+	c.bump(c.marks, w.Scope.SourceSystem)
+	return nil
+}
+
+func (c *releaseWriteCounters) ReadDeltaBaseline(context.Context, projector.ScopeGenerationWork) (projector.DeltaBaselineState, error) {
+	// A found, non-delta generation: the preflight, which runs before the
+	// pacing gate, lets it through.
+	return projector.DeltaBaselineState{TargetFound: true}, nil
+}
+
+func (c *releaseWriteCounters) RefuseDeltaBaseline(context.Context, projector.ScopeGenerationWork, projector.DeltaBaselineRefusal) error {
+	return nil
+}
+
+// releaseSink is the real queue for Claim and Fail; Ack is recorded only, so
+// the proof needs no full acknowledgement schema.
+type releaseSink struct {
+	ProjectorQueue
+	counters *releaseWriteCounters
+}
+
+func (s releaseSink) Ack(_ context.Context, w projector.ScopeGenerationWork, _ runtime.Result) error {
+	s.counters.bump(s.counters.acks, w.Scope.SourceSystem)
+	return nil
+}
+
+// TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive is the #10882 F8
+// live proof. With source-a slowed and source-b clear, one real projector
+// service pass over the real queue: every source-a claim is released through
+// the source-paced Fail before any fact load, write marker, project, or ack
+// (zero writer calls for source-a); the released rows hold no lease, sit at
+// least the grant delay out, consume no attempt budget and no dead letter;
+// and source-b's item is claimed and projected in the same pass, so a paced
+// source cannot hold the workers. A second pass after the delay re-releases
+// the same items with the counters advanced, never dead-lettered.
+func TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive(t *testing.T) {
+	db := liveAdmissionProofDB(t)
+	provisionLivenessSchema(t, db, releaseSeedSQL)
+	ctx := context.Background()
+
+	now := time.Date(2026, time.November, 22, 1, 0, 0, 0, time.UTC)
+	queue := NewProjectorQueue(SQLDB{DB: db}, "live-proof", 30*time.Minute)
+	queue.MaxAttempts = 3
+	queue.AdmissionMaxAttempts = 2
+	queue.RetryDelay = time.Second
+	queue.MaxRetryDelay = time.Minute
+	queue.Now = func() time.Time { return now }
+
+	counters := newReleaseWriteCounters()
+	service := projector.Service{
+		WorkSource:         queue,
+		FactStore:          counters,
+		Runner:             counters,
+		WorkSink:           releaseSink{ProjectorQueue: queue, counters: counters},
+		DeltaBaselineFence: counters,
+		WriteMarker:        counters,
+		SourcePacer:        releaseSourcePacer{},
+		Wait:               func(context.Context, time.Duration) error { return context.Canceled },
+	}
+	rowOf := func(id string) (status string, attempts, admission, paced int, leased bool, visibleAt time.Time) {
+		var lease sql.NullString
+		var visible sql.NullTime
+		if err := db.QueryRowContext(ctx, `
+SELECT status, attempt_count, admission_wait_attempts, source_paced_waits, lease_owner, visible_at
+FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&status, &attempts, &admission, &paced, &lease, &visible); err != nil {
+			t.Fatalf("read %s: %v", id, err)
+		}
+		return status, attempts, admission, paced, lease.Valid, visible.Time
+	}
+
+	for pass := 1; pass <= 3; pass++ {
+		if err := service.Run(ctx); err != nil {
+			t.Fatalf("pass %d: Run() error = %v, want nil", pass, err)
+		}
+		for _, id := range []string{"work-a1", "work-a2"} {
+			status, attempts, admission, paced, leased, visibleAt := rowOf(id)
+			if status != "retrying" || leased || attempts != pass || admission != 0 || paced != pass {
+				var failureMessage sql.NullString
+				_ = db.QueryRowContext(ctx, `SELECT failure_message FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&failureMessage)
+				t.Fatalf("pass %d %s = (%s, leased %v, attempt %d, admission %d, paced %d), want (retrying, no lease, %d, 0, %d); failure_message=%q",
+					pass, id, status, leased, attempts, admission, paced, pass, pass, failureMessage.String)
+			}
+			if visibleAt.Sub(now) < 45*time.Second {
+				t.Fatalf("pass %d %s visible_at is %s out, want at least the 45s grant delay", pass, id, visibleAt.Sub(now))
+			}
+		}
+		if counters.loads["source-a"] != 0 || counters.projects["source-a"] != 0 ||
+			counters.marks["source-a"] != 0 || counters.acks["source-a"] != 0 {
+			t.Fatalf("pass %d: source-a reached writers: load=%d project=%d mark=%d ack=%d, want 0",
+				pass, counters.loads["source-a"], counters.projects["source-a"], counters.marks["source-a"], counters.acks["source-a"])
+		}
+		if counters.projects["source-b"] < 1 {
+			t.Fatalf("pass %d: source-b projected %d times, want it claimed and projected while source-a is paced", pass, counters.projects["source-b"])
+		}
+		now = now.Add(2 * time.Hour)
+	}
+	var deadLetters int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM fact_work_items WHERE status = 'dead_letter'`).Scan(&deadLetters); err != nil {
+		t.Fatalf("count dead letters: %v", err)
+	}
+	if deadLetters != 0 {
+		t.Fatalf("dead letters = %d, want 0 after repeated paced releases", deadLetters)
 	}
 }

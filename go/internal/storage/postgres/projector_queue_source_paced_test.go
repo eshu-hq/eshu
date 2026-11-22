@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -131,3 +132,52 @@ type errProjectionBugRetryable struct{}
 
 func (errProjectionBugRetryable) Error() string   { return "transient projection failure" }
 func (errProjectionBugRetryable) Retryable() bool { return true }
+
+// TestProjectorQueueFailSourcePacedReleaseHonorsRetryAfter proves #10882 F8's
+// release is not claimable while the source stays slowed: the paced retry is
+// scheduled no earlier than the grant delay the cause carries, even when it
+// exceeds the exponential backoff cap, and still increments only
+// source_paced_waits.
+func TestProjectorQueueFailSourcePacedReleaseHonorsRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 22, 9, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name        string
+		retryAfter  time.Duration
+		wantAtLeast time.Duration
+	}{
+		{"hint above the backoff cap", 10 * time.Minute, 10 * time.Minute},
+		{"no hint", 0, 0},
+	} {
+		db := &recordingExecQueryer{}
+		queue := sourcePacedTestQueue(db)
+		queue.Now = func() time.Time { return now }
+		queue.RetryDelay = time.Second
+		queue.MaxRetryDelay = time.Minute
+		work := projector.ScopeGenerationWork{
+			Scope:        scope.IngestionScope{ScopeID: "scope-123"},
+			Generation:   scope.ScopeGeneration{GenerationID: "generation-456"},
+			AttemptCount: 3, SourcePacedWaits: 2,
+		}
+		cause := failure.SourcePacedRelease{Source: "git", RetryAfter: tc.retryAfter}
+		if err := queue.Fail(context.Background(), work, cause); err != nil {
+			t.Fatalf("%s: Fail() error = %v, want nil", tc.name, err)
+		}
+		if len(db.execs) != 1 {
+			t.Fatalf("%s: exec count = %d, want 1", tc.name, len(db.execs))
+		}
+		query := db.execs[0].query
+		if !strings.Contains(query, "source_paced_waits = fact_work_items.source_paced_waits + 1") ||
+			strings.Contains(query, "status = 'dead_letter'") {
+			t.Fatalf("%s: release must take the paced retry path, query:\n%s", tc.name, query)
+		}
+		visibleAt, ok := db.execs[0].args[4].(time.Time)
+		if !ok {
+			t.Fatalf("%s: visible_at arg = %T, want time.Time", tc.name, db.execs[0].args[4])
+		}
+		if got := visibleAt.Sub(now); got < tc.wantAtLeast {
+			t.Fatalf("%s: visible_at is %s out, want at least %s", tc.name, got, tc.wantAtLeast)
+		}
+	}
+}

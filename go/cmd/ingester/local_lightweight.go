@@ -75,3 +75,19 @@ func ingesterAdmissionIntentWriter(
 	}
 	return reduceradmission.AdmissionIntentWriter(database, inner, getenv, instruments, logger)
 }
+
+// ingesterSourcePacer builds the projector's pre-write source consult
+// (#10882 F8): a slowed source's claim is released before any canonical or
+// content write. It is nil when the per-source leg is unconfigured and under
+// the local lightweight profile, which has no reducer queue to measure.
+func ingesterSourcePacer(
+	database db.ExecQueryer,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (reduceradmission.ProjectorSourcePacer, error) {
+	if ingesterLocalLightweight(getenv) {
+		return nil, nil
+	}
+	return reduceradmission.NewSourcePacer(database, getenv, instruments, logger)
+}

@@ -224,6 +224,7 @@ TABLE = {
             "TestProjectorQueueSourcePacedLiveCycle",
             "TestProjectorQueueSourcePacedKeepsAdmissionBudgetLive",
             "TestProjectorQueueSourcePacedMigration333AppliesLive",
+            "TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive",
         ),
         "go/internal/storage/postgres/projector_queue_zombie_heal_graph_live_test.go": (
             "TestProjectorZombieHealRestoresCanonicalNodesLive",

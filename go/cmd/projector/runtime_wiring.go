@@ -129,13 +129,20 @@ func buildProjectorService(
 		return projector.Service{}, err
 	}
 
+	sourcePacer, err := reduceradmission.NewSourcePacer(database, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
+
 	return projector.Service{
 		PollInterval: time.Second,
-		WorkSource:   projectorQueue,
-		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
-		Runner:       runner,
-		WorkSink:     projectorQueue,
-		Heartbeater:  projectorQueue,
+		// #10882 F8: a slowed source's claim is released before any write.
+		SourcePacer: sourcePacer,
+		WorkSource:  projectorQueue,
+		FactStore:   postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),
+		Runner:      runner,
+		WorkSink:    projectorQueue,
+		Heartbeater: projectorQueue,
 		// #7319: the fence runs before every projection and inside Ack.
 		DeltaBaselineFence: projectorQueue,
 		// #7389: the write marker runs after LoadFacts, before the first write.

@@ -57,24 +57,76 @@ long engagement settles at the retry cap.
 - Both RED before the change (compile failure on the missing contract), GREEN
   after.
 
-**Residual.** Two costs remain, both tracked in #11186 (F8):
-- *Repeated write cost.* The admission gate sits after the canonical and
-  content writes (`projector/runtime/projection.go`), and source-paced
-  retries are unbounded, so every paced cycle of an item repeats its fact
-  load, build, canonical graph write, and content write before the wait,
-  for as long as the latch holds. `Stuck` does not release it.
-- *All workers parked.* A paced item parks its projector worker for up to
-  `MaxWait` per cycle. The claim pool's per-source in-flight rank
-  (`projector_source_inflight_count`) steers a healthy source ahead of it,
-  but with at least as many paced items as projector workers every worker
-  can sit in a paced wait and a healthy source's claims queue behind them.
+**Residual, closed by F8 (#11186).** The admission gate sat after the canonical
+and content writes, and source-paced retries are unbounded, so each paced
+cycle repeated an item's fact load, build, and writes and then parked its
+projector worker for up to `MaxWait`; with at least as many paced items as
+workers, a healthy source's claims queued behind them. The mechanism below
+removes both costs.
 
-The built-binary replay must measure both: graph and content writes for the
-slowed source during an engagement, and the healthy source's queue-wait
-p50/p95 with paced items at least equal to the worker count. The fix
-direction is a consult before the writes or before the claim, and a release of
-the claim on the source-paced path with `visible_at` at least `GrantDelay`
-out.
+## F8 decision: consult before the writes, release the claim
+
+**Mechanism.** `projector.Service.processWork` calls an optional
+`SourcePacer` once, right after the delta-baseline preflight and before the
+heartbeat, fact load, write marker, and every canonical and content write,
+with the claimed scope's `source_system`. A slowed source is released through
+`ProjectorWorkSink.Fail` with `failure.SourcePacedRelease`: retryable, a
+`SourcePacedError`, carrying the grant delay as its `RetryAfterHint`. The
+queue's source-paced retry increments only `source_paced_waits`, spends no
+attempt budget, never dead-letters, and schedules `visible_at` at
+`max(backoff, RetryAfterHint)`, so the item is not claimable while its source
+stays slowed and the worker returns after one consult. The pacer is
+`reduceradmission.SourcePacer`: the same shared latch and bounded probe as the
+admission leg, failing open (counted on
+`eshu_dp_reducer_admission_source_consult_failures_total`, never paced on a
+signal outage). It is nil, and adds no consult, when the thresholds are unset
+or under the local lightweight profile. The post-write admission wait remains
+for the rare latch that engages between the consult and the enqueue.
+
+**Why not consult before the claim.** That means a latch join or per-source
+skip inside the claim pool SQL (`projector_queue_claim_pool_sql.go`), the
+hottest queue statement, with a second source of truth about which items a
+worker may take and new lock-order and fairness questions for the in-flight
+ranking. The after-claim consult needs no claim-path change: the lease is
+held for one consult, the release is the existing attempt-fenced `Fail`
+UPDATE, and `claim_until` clears with it.
+
+**Lock, lease, and ordering.** One extra consult per claim of a configured
+deployment (the same latch read plus bounded probe the admission leg already
+costs), no new lock, and no transaction held across it. A competing worker
+cannot claim the item: its lease is live until the fenced `Fail`; after it, the
+row is invisible until `visible_at`. A stale worker's `Fail` is rejected by the
+`(lease_owner, attempt_count)` fence and treated as a lost claim. Shutdown
+during the consult reports not paced (fail open), and the existing shutdown
+handling of the following load applies; a claim abandoned at shutdown expires
+by lease as before.
+
+**Accounting.** `attempt_count` still rises per claim (the monotonic fence);
+`source_paced_waits` refunds it from the projection budget, so a paced item
+never nears `MaxAttempts` or `AdmissionMaxAttempts`. A paced release is
+counted on `eshu_dp_projector_source_paced_retries_total`, not as a projection
+failure, and logs `source_system`, `retry_after`, and `source_paced_waits`.
+The retry still backs off on the paced counter up to the retry cap, so a long
+engagement settles at about one claim per item per cap.
+
+**Source key.** The consult uses the scope's `source_system`. The admission
+writer paces intents by the intent's fact source, which equals it for
+source-local facts; a scope that mixes sources is paced by its scope source
+here and per intent at enqueue.
+
+**Proof.** Hermetic: `TestProcessWorkSourcePacedReleasesBeforeAnyWrite` (five
+paced cycles, zero fact loads, markers, projects, and acks, one consult each,
+return within one consult, hint carried),
+`TestProcessWorkProjectsWhenSourceIsClear`,
+`TestProjectorQueueFailSourcePacedReleaseHonorsRetryAfter`,
+`TestSourcePacerReportsSlowedSourceWithGrantDelay`, `TestSourcePacerFailsOpen`,
+and the ingester and projector wiring tests. Live Postgres 18, private
+container, correctness only: `TestProjectorQueueSourcePacedReleaseHoldsNoWorkerLive`
+drives the real service and queue with source-a slowed and source-b clear for
+three passes: source-a rows end `retrying`, unleased, at least the grant delay
+out, with `attempt_count` and `source_paced_waits` advancing together,
+`admission_wait_attempts` at 0, zero source-a writer calls, zero dead letters,
+and source-b is claimed and projected in every pass.
 
 ## Fork 2: multi-source families
 
@@ -152,8 +204,9 @@ not part of this PR.
   bounded-equals-grouped runs pass after review F5 (see below).
 - Production-shape confirmation of the Proposed thresholds before any
   deployment enables the leg.
-- **#11186 (F8) and #11187 (F9) must close first.** F8: a paced item repeats
-  its projection writes and parks a worker (Residual above). F9: the
+- **#11186 (F8) and #11187 (F9) must close first.** F8 (met by this branch,
+  see the F8 decision; the built-binary replay arm still owed): a paced item
+  repeated its projection writes and parked a worker. F9: the
   claimable signal counts rows the reducer cannot take now (conflict-fenced
   siblings, readiness-blocked retrying rows), so a latch can stay engaged on
   rows the paced intake would never clear. Both must close before the

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/reduceradmission"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -134,5 +135,29 @@ func TestProjectorAdmissionWriterExplicitMarkEnablesGlobalGate(t *testing.T) {
 	}
 	if got := database.count(); got == 0 {
 		t.Fatal("queue reads per enqueue = 0, want the global gate to read queue depth")
+	}
+}
+
+// TestProjectorSourcePacerIsOffUnlessConfigured pins #10882 F8's wiring: the
+// projector service takes a pre-write source consult only when the per-source
+// leg is configured, and a disabled leg is an untyped nil (a typed nil
+// pointer would pass the service's nil check and be consulted).
+func TestProjectorSourcePacerIsOffUnlessConfigured(t *testing.T) {
+	t.Parallel()
+
+	database := &admissionCountingDB{}
+	off, err := reduceradmission.NewSourcePacer(database, envFrom(nil), nil, nil)
+	if err != nil || off != nil {
+		t.Fatalf("NewSourcePacer(empty env) = (%v, %v), want (nil, nil)", off, err)
+	}
+	on, err := reduceradmission.NewSourcePacer(database, envFrom(map[string]string{
+		"ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE":     "1h",
+		"ESHU_SOURCE_BACKPRESSURE_RELEASE_AGE":    "15m",
+		"ESHU_SOURCE_BACKPRESSURE_DEPTH_FLOOR":    "25",
+		"ESHU_SOURCE_BACKPRESSURE_GRANT_DELAY":    "2s",
+		"ESHU_SOURCE_BACKPRESSURE_MAX_ENGAGEMENT": "30m",
+	}), nil, nil)
+	if err != nil || on == nil {
+		t.Fatalf("NewSourcePacer(configured) = (%v, %v), want a pacer", on, err)
 	}
 }

@@ -108,6 +108,7 @@ type Service struct {
 	Instruments       *telemetry.Instruments // optional
 	Logger            *slog.Logger           // optional
 	Workers           int                    // concurrent worker count; 0 or 1 means sequential
+	SourcePacer       SourcePacer            // optional; releases a slowed source's claim before any write (#10882 F8)
 
 	// Large-generation semaphore: limits how many large repos can be
 	// projected concurrently while letting small/medium repos proceed
@@ -262,6 +263,10 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		defer span.End()
 	}
 	if handled, err := s.preflightDeltaBaseline(workCtx, work, start, workerID); handled {
+		return err
+	}
+
+	if handled, err := s.releaseIfSourcePaced(workCtx, work, workerID); handled {
 		return err
 	}
 

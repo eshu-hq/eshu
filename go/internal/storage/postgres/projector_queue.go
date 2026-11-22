@@ -314,11 +314,13 @@ func (q ProjectorQueue) Fail(
 		case retryKindProjection: // backoffAttempt is the raw claim count
 		case retryKindAdmission:
 			backoffAttempt = work.AdmissionWaitAttempts
-		case retryKindSourcePaced:
-			// Back off on the paced counter: a long engagement settles at the retry cap.
+		case retryKindSourcePaced: // a long engagement settles at the retry cap
 			backoffAttempt = work.SourcePacedWaits
 		}
 		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, backoffAttempt, q.jitterSource())
+		if kind == retryKindSourcePaced {
+			delay = max(delay, failure.RetryAfterHint(cause)) // never claimable before the grant delay
+		}
 		args := []any{
 			now,
 			"projection_retryable",
