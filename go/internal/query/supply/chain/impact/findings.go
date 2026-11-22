@@ -220,9 +220,13 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	query := ListFindingsQuery
+	// Granted calls and image_ref calls stay on the legacy read: the winners
+	// row is one pick across scopes, so it cannot answer a grant or an
+	// existence filter from every support (#10880 PR-B ruling).
 	if s.ReadFromWinners &&
 		len(filter.AllowedRepositoryIDs) == 0 &&
-		len(filter.AllowedScopeIDs) == 0 {
+		len(filter.AllowedScopeIDs) == 0 &&
+		filter.ImageRef == "" {
 		query = ListFindingsFromWinnersQuery
 	}
 	args := []any{

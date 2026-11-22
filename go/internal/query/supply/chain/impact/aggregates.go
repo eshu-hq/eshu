@@ -161,12 +161,14 @@ func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore, readFromWinners
 }
 
 // readFromWinnersFor reports whether one aggregate call serves from the
-// winners read model. Scoped-token calls stay on the legacy CTE even when
-// the gate is on, mirroring PostgresFindingStore.
+// winners read model. Scoped-token calls and image_ref calls stay on the
+// legacy CTE even when the gate is on, mirroring PostgresFindingStore: the
+// winners row is one pick across scopes and holds one support's image ref.
 func (s PostgresAggregateStore) readFromWinnersFor(filter AggregateFilter) bool {
 	return s.ReadFromWinners &&
 		len(filter.AllowedRepositoryIDs) == 0 &&
-		len(filter.AllowedScopeIDs) == 0
+		len(filter.AllowedScopeIDs) == 0 &&
+		filter.ImageRef == ""
 }
 
 type aggregateReadQueryer interface {
