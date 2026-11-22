@@ -2,7 +2,7 @@
 
 Refs #11202. Part of #10860. Follows #10881, which measured `HASH(scope_id)` as a
 no-go for removal cost (see
-[the #10881 measurement record](10881-fact-records-hash-partition-measurements.md)).
+the #10881 measurement record, which is on the #11220 branch and not yet on main).
 This record covers boxes 1 and 2 of #11202: rank the removal cost first, then
 census the read replica. Boxes 3 to 6 (candidates, kill criteria, copies) follow only
 if these two do not close the issue.
@@ -49,8 +49,9 @@ candidate is measured; none is measured here.
 Method: the #10881 R1 cell (`removal_bench.sh`, `removal_procs.sql` and
 `pick_removal_list.sh` in `scripts/dev/10881-partition/`; none of them is in this
 branch. They come from the #10881 pull request (#11220), branch
-`drive/10881-partition-facts-queue`, introduced by commit `f03c2989d8` and later
-fixed in `98082cca96`; do not merge this pull request before that one): one fixed removal list of
+`drive/10881-partition-facts-queue`, introduced by commit `d8f5310389` and fixed in `881920df50` (script blobs `removal_bench.sh`
+2347b92e, `removal_procs.sql` 4ee77525, `pick_removal_list.sh` ae702f49; the branch was rebased, so earlier
+SHAs are not ancestors of its head); do not merge this pull request before that one): one fixed removal list of
 307 superseded generations from non-giant scopes, the same in both cells (543,145
 rows deleted in each); `VACUUM (FREEZE)` and `CHECKPOINT` before the arm; then the
 shipped retention drain and `VACUUM (VERBOSE)` in one session with per-backend WAL;
@@ -104,7 +105,7 @@ fact kind). The primary's statistics were not re-read (out of bounds). Share of 
 | Profile | By the rule written above (inserts, deletes, vacuum) | If the 88,254,540 updates (`n_tup_upd`, read 2026-11-17, before #10873 merged) are counted at insert cost |
 | --- | --- | --- |
 | Retained 5 indexes | **23.3%** | 17.5% |
-| 153 indexes | 21.9% | 16.4% |
+| 153 indexes | 21.9% | 16.34% (the arbiter's 16.4%) |
 
 By the rule written before measurement, box 1 does not close the issue (23.3% against
 a 20% bar). The rule counted inserts, deletes and vacuum and excluded updates. With the
@@ -190,48 +191,18 @@ What the census says for the candidates (boxes 3 and 4, not measured here):
 
 ## Kill criteria for candidate layouts (box 4), written 2026-11-22 before any box 3 computation
 
-Set by the arbiter (arbiter-11202, section 3.2) and recorded here before the box 3
-data is computed. A candidate that fails any of K1 to K4 is killed; they are not
-loosened after the numbers are known.
+The arbiter's text (arbiter-11202, section 3.2), verbatim. The criteria were committed in
+`980726e061` before the box 3 data was computed, with editorial wording changes only ("the
+files" for "the 13 non-test files", a shortened K6 path); the verbatim wording is restored
+here in the review fix commit and nothing was loosened. A candidate that fails any of K1 to K4 is killed; none is loosened
+after the numbers are known.
 
-- **K1, key known at insert.** The partition key value must be derivable by every
-  writer from data it holds at insert time (the collector upsert and the three
-  reducer upserts). A key on activation or supersession time fails: facts are written
-  while a generation is pending (924 pending generations hold 1.99M rows). Only the
-  generation's creation time, stamped on the row, qualifies.
-- **K2, no row moves.** A design that moves a live row to another partition is
-  killed. A unique constraint on a partitioned table must include the partition key
-  (PostgreSQL 18 documentation, section 5.12.2.3), so the conflict key becomes
-  (fact_id, key); a moved row has two possible homes and `ON CONFLICT` can no longer
-  prevent a duplicate.
-- **K3, partition count.** Leaf partitions at the policy horizon (creation to
-  supersession p99 of 6 days, plus the 90-day ceiling, plus one bucket width, times any
-  sub-part modulus) above 128 is killed without measurement. Reason: the files that
-  address a fact by `fact_id` alone (among them the retention delete,
-  `generationRetentionChunkDeleteFactsQuery`, `WHERE fact_id = ANY($1)`) cannot prune,
-  and the documentation's "few thousand" partitions holds only "provided that typical
-  queries allow the query planner to prune all but a small number". LIST per
-  generation (26.8k today, about 800 more a day) is killed by K3 on the box 2
-  numbers.
-- **K4, whole-bucket droppable share.** For each candidate and bucket width (1 day
-  and 7 days), over buckets aged at least 7 days and at least 30 days: droppable share
-  = rows in buckets that hold zero rows of a non-eligible generation, divided by all
-  superseded rows in those buckets. Non-eligible means not removable under the shipped
-  predicate at the horizon: active, pending, failed-current, first-generation, a base
-  that an active delta chain still needs (#8780,
-  `TestGenerationRetentionKeepsCumulativeDeltaBaseLive`), or held. Kill if the
-  droppable share is below 67% at both ages. Reason: rows outside a droppable bucket
-  still cost a row delete, and a 415 GB rebuild with a changed conflict key must
-  remove at least two thirds of removal work.
-- **K5, the 90-day reading.** The census window is 36.3 days, so the 90-day share
-  cannot be observed. State it as a model: the share of active-generation rows whose
-  generation is older than 30 days, by scope kind, taken as the lower bound of rows
-  pinned at 90 days. Label it a model, not a measurement.
-- **K6, scope of the saving.** A drop replaces only the `fact_records` delete and its
-  vacuum. Retention still pages every fact of a retired generation to prune content
-  files, entities and key sidecars (`generation_retention_chunk_predrain_batch.go`,
-  the page select above `generationRetentionChunkDeleteFactsQuery`). A candidate whose
-  claimed saving includes that work is mis-costed.
+- K1, key known at insert. The partition key value must be derivable by every writer from data it holds at insert time (collector upsert and the three reducer upserts). A key on activation or supersession time fails: facts are written while a generation is pending (924 pending generations hold 1.99M rows). Only the generation's creation time, stamped on the row, qualifies.
+- K2, no row moves. A design that moves a live row to another partition is killed. A unique constraint on a partitioned table must include the partition key (PostgreSQL 18 docs, 5.12.2.3), so the conflict key becomes (fact_id, key); a moved row has two possible homes and `ON CONFLICT` can no longer prevent a duplicate.
+- K3, partition count. Leaf partitions at the policy horizon (creation to supersession p99 6 days, plus the 90-day ceiling, plus one bucket width, times any sub-part modulus) above 128 is killed without measurement. Reason: the 13 non-test files that address a fact by `fact_id` alone (among them the retention delete, `generationRetentionChunkDeleteFactsQuery`, `WHERE fact_id = ANY($1)`) cannot prune, and the docs' "few thousand" holds only "provided that typical queries allow the query planner to prune all but a small number". LIST per generation (26.8k today, about 800 more a day) is killed by K3 on the box-2 numbers.
+- K4, whole-bucket droppable share. For each candidate and bucket width (1 day and 7 days), over buckets aged at least 7 days and at least 30 days: droppable share = rows in buckets that hold zero rows of a non-eligible generation, divided by all superseded rows in those buckets. Non-eligible means not removable under the shipped predicate at the horizon: active, pending, failed-current, first-generation, a base that an active delta chain still needs (#8780, `TestGenerationRetentionKeepsCumulativeDeltaBaseLive`), or held. Kill if the droppable share is below 67% at both ages. Reason: rows outside a droppable bucket still cost a row delete, and a 415 GB rebuild with a changed conflict key must remove at least two thirds of removal work.
+- K5, the 90-day reading. The census window is 36.3 days, so the 90-day share cannot be observed. State it as a model: the share of active-generation rows whose generation is older than 30 days, by scope kind, taken as the lower bound of rows pinned at 90 days. Label it a model, not a measurement.
+- K6, scope of the saving. A drop replaces only the `fact_records` delete and its vacuum. Retention still pages every fact of a retired generation to prune content files, entities and key sidecars (`go/internal/storage/postgres/generation_retention_chunk_predrain_batch.go`, the page select above `generationRetentionChunkDeleteFactsQuery`). A candidate whose claimed saving includes that work is mis-costed.
 
 ## Box 3: creation-time buckets (computed 2026-11-22, after the kill criteria above)
 
@@ -272,27 +243,53 @@ live rows.
 
 | Candidate | K1 | K2 | K3 (leaves at the horizon) | K4 | Result |
 | --- | --- | --- | --- | --- | --- |
-| LIST per generation | passes in principle | passes | 78,029 (813 a day x 96 days): **killed** | not computed | **killed by K3** |
+| LIST per generation | passes in principle | passes | 78,029 (812.8 a day x 96 days): **killed** | not computed | **killed by K3** |
 | Scope hash x time sub-parts, modulus 32, 7-day buckets | as RANGE | as RANGE | 480: **killed** | not computed (adds no drop unit beyond time) | **killed by K3** |
 | Scope hash x time sub-parts, modulus 32, 1-day buckets | as RANGE | as RANGE | 3,104: **killed** | not computed | **killed by K3** |
 | RANGE by creation time, 7-day buckets | needs a creation-time column stamped by every writer (not verified) | key never changes for a fact; conflict key becomes (fact_id, creation time) | 15: passes | droppable share 0.0% at age >= 7 d (0 of 61.0M superseded rows); no bucket aged >= 30 d | **killed by K4** |
 | RANGE by creation time, 1-day buckets | as above | as above | 97: passes | 0.0% at age >= 7 d (29 buckets, none free of pins; 0 of 61.3M) and 0.0% at age >= 30 d (6 buckets; 0 of 14.2M) | **killed by K4** |
 | The same, static split (vulnerability-intelligence and the other non-stacking kinds kept out of the time buckets) | as above | as above | 97 or 15, plus the non-time partition | 0.0% at both ages and both widths, against all superseded rows | **killed by K4** |
 
-K4 reading is the arbiter's (all five pin reasons). It does not depend on one reason:
+The verdict rests on the arbiter's reading of K4 (all five pin reasons): 0.0% at both ages
+and both widths. The table below is a sensitivity on which pins count, not the decision.
 
-| Pins counted (buckets aged >= 7 d) | 7-day: free buckets / droppable share | 1-day: free buckets / droppable share |
-| --- | --- | --- |
-| active, pending, failed, first generation, delta base (K4) | 0 of 4 / 0.0% | 0 of 29 / 0.0% |
-| without the failed pin | 0 of 4 / 0.0% | 0 of 29 / 0.0% |
-| without the first-generation pin | 0 of 4 / 0.0% | 0 of 29 / 0.0% |
-| active and pending only | 0 of 4 / 0.0% | 3 of 29 / 14.9% |
-| active only | 0 of 4 / 0.0% | 3 of 29 / 14.9% |
-| static split, active only (the most lenient reading) | 0 of 4 / 0.0% | 7 of 29 / 32.1% |
+| Pins counted | 7-day, aged >= 7 d | 1-day, aged >= 7 d | 1-day, aged >= 30 d |
+| --- | --- | --- | --- |
+| active, pending, failed, first generation, delta base (K4) | 0 of 4 free / 0.0% | 0 of 29 / 0.0% | 0 of 6 / 0.0% |
+| without the failed pin | 0.0% | 0.0% | not computed (raw file gone) |
+| without the first-generation pin | 0.0% | 0.0% | not computed (raw file gone) |
+| active and pending only | 0 of 4 / 0.0% | 3 of 29 / 14.9% | 3 of 6 / **64.0% to 64.4%** (derived) |
+| active only | 0 of 4 / 0.0% | 3 of 29 / 14.9% | 3 of 6 / **64.0% to 64.4%** (derived) |
+| static split, active only (most lenient) | 0 of 4 / 0.0% | 7 of 29 / 32.1% of all superseded rows | same 3 buckets, about 64% (inferred) |
 
-The best case anywhere is 32.1%, against the bar of 67%. A bucket is lost to even a few
-live rows: the 1-day buckets 35 and 34 days old hold 4.6M superseded rows each and
-0.00 million active rows (a few rows), and still count as pinned.
+The 64.0% to 64.4% figure is not script output. The raw census file was not kept, so it
+is derived from the committed 1-day table (evidence file `box3-buckets.txt`, appendix): the
+three buckets with no active generation hold 14.9% of 61,324,138 superseded rows (9.14M);
+only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days old fit that sum, so all three are aged
+at least 30 days, and they hold 9.11M to 9.17M of the 14,227,152 superseded rows in
+buckets aged at least 30 days. That is about three points under the 67% bar. The fixed
+`aggregate_buckets.py` now prints these variants at both ages; it was not rerun. For the
+static split the four extra free buckets are 14 to 19 days old (their live rows are
+vulnerability-intelligence), so its aged >= 30 d value is the same three buckets: an
+inference from the table, not a computation.
+
+K4 kills a candidate whose droppable share is below 67% at both ages. In every variant
+that can be derived, both ages are below the bar (14.9% and about 64%; 32.1% and about
+64%), and under the arbiter's reading both are 0.0%. So the verdict does not depend on
+which pins count. What does change is the margin: the most lenient reading at age >= 30
+days gets within three points of the bar.
+
+Cause. Of the 29 one-day buckets aged at least 7 days, 26 hold at least one active
+generation and 3 hold none (all three at least 30 days old). One of the 35- and 34-day
+buckets has no active generation: it is pinned only by failed, first-generation or
+delta-base rows. The other buckets are lost to live generations: 51.8% of active rows are
+older than 7 days, and live generations sit in most creation buckets.
+
+The pins model the arbiter's list, not the shipped predicate exactly
+(`retention/statements/targeted_candidate_lock.go` in the storage package): the shipped code has
+no "first generation" counterpart (the census uses rank 1 by creation time), matches a delta
+base by commit SHA against the newest full generation and everything newer, and has pins
+(uncovered writers, live work items) that the census cannot see and does not model.
 
 **Pinned share p** (rows of non-eligible generations as a share of all rows in buckets
 aged at least 7 days): 25.5% for 7-day buckets and 27.3% for 1-day buckets by the K4
@@ -346,10 +343,13 @@ section 3.6):
 layout passes K1 to K4. LIST per generation and scope hash with time sub-parts are killed
 by K3 (78,029 and 480 to 3,104 leaves against a limit of 128). RANGE by generation
 creation time, at 7-day and 1-day buckets, with or without a static split of non-stacking
-kinds, is killed by K4: the droppable share of superseded rows in buckets aged at least 7
-days is 0.0% by the arbiter's reading and at most 32.1% in the most lenient variant,
-against a bar of 67%, because live (active) generations are spread across every creation
-bucket (51.8% of active rows are older than 7 days).
+kinds, is killed by K4 under the arbiter's reading: the droppable share of superseded rows in
+buckets aged at least 7 days is 0.0%, and 0.0% in buckets aged at least 30 days, against a bar of 67%.
+Under the most lenient reading of what pins a bucket (only active generations pin) it is
+14.9% (1-day buckets, aged >= 7 d) and about 64% (aged >= 30 d, derived), both still below the
+bar; with the static split 32.1% and about 64% (inferred). The cause is that most creation
+buckets hold live generations (26 of the 29 one-day buckets aged >= 7 days), because 51.8%
+of active rows are older than 7 days.
 
 ## NOT_CHECKED
 
@@ -357,5 +357,7 @@ bucket (51.8% of active rows are older than 7 days).
 - The share of rows and updates that are `reducer_*` kinds.
 - "Held" generations; whether a creation-time column can be stamped by every writer (K1).
 - Facts' own `ingested_at` against the generation's creation time.
+- The aged >= 30 d lenient K4 figures are derived by hand from the committed table: the raw census file
+  was not kept and no new replica read was made.
 - Behaviour beyond a 36.4-day window (K5 is a model and says little about 90 days).
 - No copy and no DDL.

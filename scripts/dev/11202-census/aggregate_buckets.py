@@ -139,7 +139,7 @@ for k, (t, o) in sorted(byk.items(), key=lambda kv: -kv[1][0])[:6]:
 print(f"    all kinds: {sum(v[1] for v in byk.values())} of {tot} "
       f"({100*sum(v[1] for v in byk.values())/tot:.1f}% of active rows; {100*sum(v[1] for v in byk.values())/sum(g['rows'] for g in G):.1f}% of all rows)")
 
-print("\n== K4 sensitivity: which reasons pin a bucket (buckets aged >= 7 d; droppable share of superseded rows)")
+print("\n== K4 sensitivity: which reasons pin a bucket (droppable share of superseded rows, by minimum bucket age)")
 VARIANTS = {
     "ruling reading (active, pending, failed, first generation, delta base)":
         lambda g: g["status"] in ("active", "pending", "failed") or g["rasc"] == 1 or g["needed"],
@@ -152,16 +152,17 @@ VARIANTS = {
     "active only":
         lambda g: g["status"] == "active",
 }
-for width in (7, 1):
+for width, min_age in ((w, a) for w in (7, 1) for a in (7, 30)):
     B = bucketize(width)
-    old = [i for i in B if bucket_age(i, width) >= 7]
+    old = [i for i in B if bucket_age(i, width) >= min_age]
+    print(f"  -- width {width} d, buckets aged >= {min_age} d: {len(old)} buckets")
     for name, pin in VARIANTS.items():
         sup = sum(g["rows"] for i in old for g in B[i] if g["status"] == "superseded")
         free = [i for i in old if not any(pin(g) for g in B[i])]
         drop = sum(g["rows"] for i in free for g in B[i] if g["status"] == "superseded")
         pinned = sum(g["rows"] for i in old for g in B[i] if pin(g))
         allr = sum(g["rows"] for i in old for g in B[i])
-        print(f"  width {width} d, {name}: buckets free of pins {len(free)} of {len(old)}; droppable share "
+        print(f"    {name}: buckets free of pins {len(free)} of {len(old)}; droppable share "
               f"{100*drop/max(sup,1):.1f}%; pinned share p={100*pinned/max(allr,1):.1f}%")
     for name in ("ruling reading (active, pending, failed, first generation, delta base)", "active only"):
         pin = VARIANTS[name]
@@ -169,7 +170,7 @@ for width in (7, 1):
         sup_all = sum(g["rows"] for i in old for g in B[i] if g["status"] == "superseded")
         free = [i for i in old if not any(pin(g) for g in Bs[i])]
         drop = sum(g["rows"] for i in free for g in Bs[i] if g["status"] == "superseded")
-        print(f"  width {width} d, STATIC SPLIT, {name}: buckets free of pins {len(free)} of {len(old)}; droppable share "
+        print(f"    STATIC SPLIT, {name}: buckets free of pins {len(free)} of {len(old)}; droppable share "
               f"of all superseded rows {100*drop/max(sup_all,1):.1f}%")
     reasons = collections.Counter()
     for i in old:
@@ -184,7 +185,7 @@ for width in (7, 1):
                 reasons["first generation (superseded)"] += g["rows"]
             elif g["needed"]:
                 reasons["delta base (superseded)"] += g["rows"]
-    print(f"  width {width} d rows pinned by reason in buckets aged >= 7 d: {dict(reasons)}")
+    print(f"    rows pinned by reason: {dict(reasons)}")
 
 print("\n== K3 arithmetic (leaf partitions at the policy horizon = ceil((6 + 90 + width) / width) x modulus)")
 for width in (7, 1):
@@ -211,14 +212,14 @@ for n in (11, 24, 23, 12):
         gaps += [(b - a).total_seconds() / 3600 for a, b in zip(t, t[1:])]
         per_gen_rows += [g["rows"] for g in v]
     first = [min(g["ing"] for g in v) for v in sel]
-    newest = [(NOW - max(g["ing"] for g in v)).total_seconds() / DAY for v in sel]
-    hours = collections.Counter(g["ing"].hour for v in sel for g in v)
-    top_hour = hours.most_common(1)[0]
-    print(f"        newest generation age p50={statistics.median(newest):.1f} d p90={sorted(newest)[int(.9*len(newest))]:.1f} d; "
-          f"busiest hour of day (UTC) {top_hour[0]:02d}h holds {100*top_hour[1]/sum(hours.values()):.1f}% of creations")
     print(f"  N={n}: scopes={len(sel)} kinds={dict(kinds)} generations per scope p50={statistics.median(total_gens):.0f} "
           f"creation span p50={statistics.median(spans):.1f} d p90={sorted(spans)[int(.9*len(spans))]:.1f} d; "
           f"gap between consecutive generations p50={statistics.median(gaps):.1f} h p90={sorted(gaps)[int(.9*len(gaps))]:.1f} h; "
           f"rows per generation p50={statistics.median(per_gen_rows):.0f}")
     print(f"        first generation created: earliest {(NOW-min(first)).total_seconds()/DAY:.1f} d ago, latest {(NOW-max(first)).total_seconds()/DAY:.1f} d ago; "
           f"scopes with a failed generation: {sum(1 for v in sel if any(g['status']=='failed' for g in v))}")
+    newest = [(NOW - max(g["ing"] for g in v)).total_seconds() / DAY for v in sel]
+    hours = collections.Counter(g["ing"].hour for v in sel for g in v)
+    top_hour = hours.most_common(1)[0]
+    print(f"        newest generation age p50={statistics.median(newest):.1f} d p90={sorted(newest)[int(.9*len(newest))]:.1f} d; "
+          f"busiest hour of day (UTC) {top_hour[0]:02d}h holds {100*top_hour[1]/sum(hours.values()):.1f}% of creations")
