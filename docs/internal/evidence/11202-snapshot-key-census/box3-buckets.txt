@@ -1,0 +1,125 @@
+generations=26882 rows=95640829 span_days=36.4 failed_eligible=False
+non-stacking kinds (superseded rows < 5% of the kind's rows): {'vulnerability_intelligence': '13497474 rows, 1.4% superseded', 'cluster': '8479 rows, 0.0% superseded', 'scanner_worker': '1429 rows, 2.0% superseded', 'grafana_instance': '152 rows, 0.0% superseded', 'log_source': '105 rows, 0.0% superseded'}
+
+== bucket width 7 day(s): 6 buckets in the window
+  aged >= 7 d: buckets=4 with zero active rows=0 with zero non-eligible rows=0
+    rows in these buckets=72751239 superseded rows=61024496 non-eligible (pinned) rows=18549159 pinned share p=25.5%
+    K4 droppable share, RANGE all kinds = 0.0% (0 of 61024496)
+    K4 droppable share, static split: within buckets = 0.0% (0 of 60886774); against all superseded rows incl. excluded kinds = 0.0%; pinned share in split buckets = 18.8%
+  aged >= 30 d: buckets=0 with zero active rows=0 with zero non-eligible rows=0
+    rows in these buckets=0 superseded rows=0 non-eligible (pinned) rows=0 pinned share p=0.0%
+    K4 droppable share, RANGE all kinds = 0.0% (0 of 0)
+    K4 droppable share, static split: within buckets = 0.0% (0 of 0); against all superseded rows incl. excluded kinds = 0.0%; pinned share in split buckets = 0.0%
+  7-day buckets, oldest first: age_days | rows in millions: active superseded failed pending | by kind: repository vulnerability_intelligence other
+      29.4 |   0.02  14.75  0.13  0.00 |  14.89   0.01  0.01
+      22.4 |   1.57  23.24  0.00  0.00 |  24.64   0.14  0.02
+      15.4 |   0.51  19.21  0.00  0.00 |  19.18   0.53  0.01
+       8.4 |   6.79   3.83  2.70  0.00 |   6.65   5.34  1.33
+       1.4 |  11.00   5.54  1.91  0.33 |  10.44   7.26  1.08
+      -5.6 |   0.79   1.39  0.18  1.75 |   2.44   0.22  1.44
+  buckets with at least one active generation, aged >=30 d: 0 of 0
+
+== bucket width 1 day(s): 37 buckets in the window
+  aged >= 7 d: buckets=29 with zero active rows=3 with zero non-eligible rows=0
+    rows in these buckets=75011472 superseded rows=61324138 non-eligible (pinned) rows=20510552 pinned share p=27.3%
+    K4 droppable share, RANGE all kinds = 0.0% (0 of 61324138)
+    K4 droppable share, static split: within buckets = 0.0% (0 of 61176449); against all superseded rows incl. excluded kinds = 0.0%; pinned share in split buckets = 20.1%
+  aged >= 30 d: buckets=6 with zero active rows=3 with zero non-eligible rows=0
+    rows in these buckets=14264573 superseded rows=14227152 non-eligible (pinned) rows=4756292 pinned share p=33.3%
+    K4 droppable share, RANGE all kinds = 0.0% (0 of 14227152)
+    K4 droppable share, static split: within buckets = 0.0% (0 of 14227152); against all superseded rows incl. excluded kinds = 0.0%; pinned share in split buckets = 33.3%
+  1-day buckets, oldest first: age_days | rows in millions: active superseded failed pending | by kind: repository vulnerability_intelligence other
+      35.4 |   0.00   4.57  0.00  0.00 |   4.56   0.00  0.01
+      34.4 |   0.00   4.59  0.00  0.00 |   4.59   0.00  0.00
+      33.4 |   0.02   0.35  0.00  0.00 |   0.37   0.00  0.00
+      32.4 |   0.00   4.32  0.01  0.00 |   4.33   0.00  0.00
+      31.4 |   0.00   0.25  0.01  0.00 |   0.25   0.00  0.00
+      30.4 |   0.00   0.14  0.00  0.00 |   0.15   0.00  0.00
+      29.4 |   0.00   0.52  0.11  0.00 |   0.63   0.01  0.00
+      28.4 |   0.00   0.27  0.00  0.00 |   0.27   0.01  0.00
+      27.4 |   0.00   4.68  0.00  0.00 |   4.68   0.00  0.00
+      26.4 |   0.00   4.91  0.00  0.00 |   4.91   0.00  0.00
+      25.4 |   0.02   5.02  0.00  0.00 |   5.02   0.00  0.02
+      24.4 |   0.03   2.17  0.00  0.00 |   2.17   0.02  0.00
+      23.4 |   0.04   0.95  0.00  0.00 |   0.95   0.04  0.00
+      22.4 |   1.47   5.23  0.00  0.00 |   6.64   0.07  0.00
+      21.4 |   0.05   5.20  0.00  0.00 |   5.20   0.05  0.00
+      20.4 |   0.06   4.37  0.00  0.00 |   4.37   0.06  0.00
+      19.4 |   0.10   0.30  0.00  0.00 |   0.31   0.09  0.00
+      18.4 |   0.07   0.89  0.00  0.00 |   0.88   0.07  0.01
+      17.4 |   0.05   2.83  0.00  0.00 |   2.80   0.07  0.01
+      16.4 |   0.09   4.18  0.00  0.00 |   4.18   0.09  0.00
+      15.4 |   0.08   1.44  0.00  0.00 |   1.44   0.09  0.00
+      14.4 |   0.08   0.85  0.00  0.00 |   0.85   0.08  0.00
+      13.4 |   0.24   0.63  0.00  0.00 |   0.77   0.09  0.00
+      12.4 |   1.50   0.39  0.03  0.00 |   0.62   1.30  0.00
+      11.4 |   1.18   0.59  0.10  0.00 |   0.59   1.19  0.09
+      10.4 |   1.04   0.47  1.13  0.00 |   1.10   1.06  0.48
+       9.4 |   1.53   0.54  0.86  0.00 |   2.02   0.40  0.51
+       8.4 |   1.23   0.35  0.58  0.00 |   0.69   1.22  0.25
+       7.4 |   1.30   0.30  0.66  0.00 |   0.88   0.87  0.51
+       6.4 |   1.19   0.18  0.49  0.00 |   0.64   1.03  0.19
+       5.4 |   2.33   0.74  0.03  0.00 |   2.06   1.00  0.04
+       4.4 |   1.24   1.11  0.00  0.00 |   1.16   1.18  0.01
+       3.4 |   1.40   0.69  0.00  0.00 |   0.84   1.24  0.00
+       2.4 |   1.54   1.84  0.12  0.00 |   2.29   1.19  0.03
+       1.4 |   2.01   0.67  0.60  0.33 |   2.57   0.75  0.29
+       0.4 |   0.74   0.66  0.18  0.95 |   1.79   0.16  0.58
+      -0.6 |   0.05   0.74  0.00  0.80 |   0.66   0.06  0.86
+  buckets with at least one active generation, aged >=30 d: 3 of 6
+
+== age of active generations, weighted by rows (days since creation)
+  active rows in generations older than 1 d: 20432069 (98.8% of 20681579)
+  active rows in generations older than 7 d: 10716575 (51.8% of 20681579)
+  active rows in generations older than 30 d: 19202 (0.1% of 20681579)
+  rows-weighted age p25: 3.9 d
+  rows-weighted age p50: 7.3 d
+  rows-weighted age p75: 11.4 d
+  rows-weighted age p90: 15.6 d
+  K5 model (lower bound of rows pinned at 90 days): active rows older than 30 d, by scope kind
+    vulnerability_intelligence: 337 of 13116968 active rows (0.0%)
+    repository: 15619 of 7494994 active rows (0.2%)
+    account: 0 of 43672 active rows (0.0%)
+    cluster: 0 of 8479 active rows (0.0%)
+    documentation_source: 0 of 7125 active rows (0.0%)
+    state_snapshot: 2785 of 3105 active rows (89.7%)
+    all kinds: 19202 of 20681579 (0.1% of active rows; 0.0% of all rows)
+
+== K4 sensitivity: which reasons pin a bucket (buckets aged >= 7 d; droppable share of superseded rows)
+  width 7 d, ruling reading (active, pending, failed, first generation, delta base): buckets free of pins 0 of 4; droppable share 0.0%; pinned share p=25.5%
+  width 7 d, no failed pin (active, pending, first generation, delta base): buckets free of pins 0 of 4; droppable share 0.0%; pinned share p=21.8%
+  width 7 d, no first-generation pin (active, pending, failed, delta base): buckets free of pins 0 of 4; droppable share 0.0%; pinned share p=16.7%
+  width 7 d, active and pending only: buckets free of pins 0 of 4; droppable share 0.0%; pinned share p=12.2%
+  width 7 d, active only: buckets free of pins 0 of 4; droppable share 0.0%; pinned share p=12.2%
+  width 7 d, STATIC SPLIT, ruling reading (active, pending, failed, first generation, delta base): buckets free of pins 0 of 4; droppable share of all superseded rows 0.0%
+  width 7 d, STATIC SPLIT, active only: buckets free of pins 0 of 4; droppable share of all superseded rows 0.0%
+  width 7 d rows pinned by reason in buckets aged >= 7 d: {'first generation (superseded)': 6455187, 'failed': 2835339, 'active': 8891404, 'delta base (superseded)': 367229}
+  width 1 d, ruling reading (active, pending, failed, first generation, delta base): buckets free of pins 0 of 29; droppable share 0.0%; pinned share p=27.3%
+  width 1 d, no failed pin (active, pending, first generation, delta base): buckets free of pins 0 of 29; droppable share 0.0%; pinned share p=22.9%
+  width 1 d, no first-generation pin (active, pending, failed, delta base): buckets free of pins 0 of 29; droppable share 0.0%; pinned share p=18.8%
+  width 1 d, active and pending only: buckets free of pins 3 of 29; droppable share 14.9%; pinned share p=13.6%
+  width 1 d, active only: buckets free of pins 3 of 29; droppable share 14.9%; pinned share p=13.6%
+  width 1 d, STATIC SPLIT, ruling reading (active, pending, failed, first generation, delta base): buckets free of pins 0 of 29; droppable share of all superseded rows 0.0%
+  width 1 d, STATIC SPLIT, active only: buckets free of pins 7 of 29; droppable share of all superseded rows 32.1%
+  width 1 d rows pinned by reason in buckets aged >= 7 d: {'first generation (superseded)': 6455989, 'active': 10187451, 'failed': 3499883, 'delta base (superseded)': 367229}
+
+== K3 arithmetic (leaf partitions at the policy horizon = ceil((6 + 90 + width) / width) x modulus)
+  RANGE by creation time, 7-day buckets: 15 leaves (limit 128: pass)
+  scope hash x time sub-parts, modulus 32, 7-day buckets: 480 leaves (KILL)
+  RANGE by creation time, 1-day buckets: 97 leaves (limit 128: pass)
+  scope hash x time sub-parts, modulus 32, 1-day buckets: 3104 leaves (KILL)
+  LIST per generation: generations created in 96 days at 813/day = 78029 leaves (KILL)
+
+== scopes with exactly N superseded generations (N = 11 and 24)
+        newest generation age p50=1.5 d p90=9.9 d; busiest hour of day (UTC) 23h holds 10.5% of creations
+  N=11: scopes=436 kinds={'repository': 434, 'vulnerability_intelligence': 2} generations per scope p50=13 creation span p50=34.8 d p90=36.1 d; gap between consecutive generations p50=32.6 h p90=144.3 h; rows per generation p50=449
+        first generation created: earliest 36.4 d ago, latest 13.5 d ago; scopes with a failed generation: 145
+        newest generation age p50=1.1 d p90=17.7 d; busiest hour of day (UTC) 17h holds 7.3% of creations
+  N=24: scopes=60 kinds={'pagerduty_account': 1, 'repository': 45, 'security_alert': 1, 'jira_site': 1, 'vulnerability_intelligence': 8, 'ci_cd_run': 1, 'sbom_attestation': 1, 'gcp': 1, 'package_registry': 1} generations per scope p50=28 creation span p50=24.9 d p90=32.7 d; gap between consecutive generations p50=1.0 h p90=26.9 h; rows per generation p50=416
+        first generation created: earliest 36.4 d ago, latest 0.5 d ago; scopes with a failed generation: 41
+        newest generation age p50=0.9 d p90=8.5 d; busiest hour of day (UTC) 14h holds 10.5% of creations
+  N=23: scopes=32 kinds={'repository': 32} generations per scope p50=26 creation span p50=26.3 d p90=32.8 d; gap between consecutive generations p50=11.8 h p90=54.2 h; rows per generation p50=2233
+        first generation created: earliest 36.4 d ago, latest 3.7 d ago; scopes with a failed generation: 24
+        newest generation age p50=1.3 d p90=9.8 d; busiest hour of day (UTC) 21h holds 18.5% of creations
+  N=12: scopes=57 kinds={'repository': 47, 'vulnerability_intelligence': 10} generations per scope p50=14 creation span p50=28.8 d p90=36.0 d; gap between consecutive generations p50=24.5 h p90=120.2 h; rows per generation p50=874
+        first generation created: earliest 36.4 d ago, latest 13.5 d ago; scopes with a failed generation: 21

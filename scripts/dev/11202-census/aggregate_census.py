@@ -30,7 +30,7 @@ def pct(vals, q):
 rows = list(csv.reader(open(sys.argv[1])))
 gens = []
 for r in rows:
-    kind, status, obs, ing, act, sup, n, h = r
+    kind, status, obs, ing, act, sup, n, h = r[:8]
     gens.append((kind, status, ts(obs), ts(ing), ts(act), ts(sup), int(n), h))
 print(f"generations={len(gens)} scopes={len({g[7] for g in gens})} fact rows covered={sum(g[6] for g in gens)}")
 by_status = collections.Counter(g[1] for g in gens)
