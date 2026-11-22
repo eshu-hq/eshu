@@ -205,7 +205,7 @@ def main(run_dir: str) -> int:
   if os.path.exists(gc_path):
     with open(gc_path, encoding="utf-8") as handle:
       for line in handle:
-        parts = line.strip().split(",") if "," in line else line.split()
+        parts = [p.strip() for p in (line.split(",") if "," in line else line.split())]
         if len(parts) == 2 and parts[1].isdigit():
           graph_counts[parts[0].strip()] = int(parts[1])
   census_end = census_classes(os.path.join(run_dir, "census-end.txt"))

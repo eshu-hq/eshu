@@ -7,6 +7,14 @@
 # every arm collects byte-identical commits and the fact set (fact id and payload
 # hash) of each repository can be compared across arms.
 #
+# Layout under <root>: work/replay-fixture-NN (working repositories the harness
+# commits to) and remotes/replay/fixture-NN.git (bare remotes the ingester clones
+# and fetches). The ingester runs in explicit source mode, the production path,
+# with a git url.insteadOf rewrite that maps https://github.com/ to remotes/.
+# Filesystem mode is not used: its corpus manifest is stamped even when the
+# selection stretch filters every repository out, which drops a deferred
+# repository (see the design record).
+#
 # Usage: make_fixtures.sh <root> [count]
 set -euo pipefail
 
@@ -22,7 +30,7 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 
 for n in $(seq 1 "$count"); do
   i="$(printf "%02d" "$n")"
-  repo="$root/replay-fixture-$i"
+  repo="$root/work/replay-fixture-$i"
   mkdir -p "$repo/src"
   git -C "$repo" init -q -b main
   for f in $(seq 1 8); do
@@ -39,5 +47,7 @@ GO
   printf '# replay fixture %s\n' "$i" >"$repo/README.md"
   git -C "$repo" add -A
   git -C "$repo" commit -q -m "replay fixture $i"
+  mkdir -p "$root/remotes/replay"
+  git clone -q --bare "$repo" "$root/remotes/replay/fixture-$i.git"
 done
 echo "built $count fixture repositories under $root"

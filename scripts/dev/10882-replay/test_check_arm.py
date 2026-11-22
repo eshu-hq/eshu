@@ -112,5 +112,19 @@ class CheckArmTest(unittest.TestCase):
                      ["latch never engaged, or released with no claimable A row"])
 
 
+  def test_t2_claim_accounting(self):
+    arm = _treatment()
+    arm["hosted"] = {"planted": 24, "at_engagement_end": {"pending": 24, "claims": 0, "attempts": 0},
+                     "final": {"completed": 24, "expired": 0}}
+    self.assertEqual(_failed(check_arm.run_checks("t2", arm, [_control()])), [])
+    claimed = copy.deepcopy(arm)
+    claimed["hosted"]["at_engagement_end"]["claims"] = 3  # a claim got through while engaged
+    self.assertEqual(_failed(check_arm.run_checks("t2", claimed, [_control()])), ["zero claims while engaged"])
+    stuck = copy.deepcopy(arm)
+    stuck["hosted"]["final"]["completed"] = 23  # one item never completed after release
+    self.assertEqual(_failed(check_arm.run_checks("t2", stuck, [_control()])),
+                     ["each item claimed and completed after release"])
+
+
 if __name__ == "__main__":
   unittest.main()

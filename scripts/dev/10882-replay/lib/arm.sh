@@ -45,7 +45,7 @@ replay_arm_config() {
   esac
   if [[ "$ARM_A_KIND" == git ]]; then
     REPLAY_SRC_A=git REPLAY_COLLECTOR_A=git REPLAY_SRC_B="$REPLAY_HOSTED_SRC" REPLAY_COLLECTOR_B="$REPLAY_HOSTED_COLLECTOR"
-    REPLAY_A_REPO_PRED="(repo_id LIKE 'repo-replay-a-%' OR repo_id LIKE 'r\\_%')"
+    REPLAY_A_REPO_PRED="(repo_id LIKE 'repo-replay-a-%' OR repo_id LIKE 'repository:r\\_%')"
     REPLAY_A_CYPHER_PRED="(n.scope_id STARTS WITH 'replay-a-' OR n.scope_id STARTS WITH 'git-repository-scope:')"
   else
     REPLAY_SRC_A="$REPLAY_HOSTED_SRC" REPLAY_COLLECTOR_A="$REPLAY_HOSTED_COLLECTOR" REPLAY_SRC_B=git REPLAY_COLLECTOR_B=git
@@ -75,6 +75,16 @@ ENV
   fi
 }
 
+# replay_repository_rules prints the exact-repository rules for the fixtures.
+replay_repository_rules() {
+  local n sep="" out="["
+  for n in $(seq 1 6); do
+    out+="${sep}{\"kind\":\"exact\",\"value\":\"replay/fixture-$(printf '%02d' "$n")\"}"
+    sep=","
+  done
+  printf '%s]' "$out"
+}
+
 # replay_event appends one timestamped event to the run's events.tsv.
 replay_event() {
   printf '%s\t%s\t%s\t%s\n' "$(date +%s.%N)" "$1" "$2" "${3:-}" >>"$REPLAY_RUN_DIR/events.tsv"
@@ -84,14 +94,15 @@ replay_event() {
 # date, to every fixture repository. Identical in every arm.
 replay_fixture_commit() {
   local label="$1" day="$2" repo
-  for repo in "$REPLAY_FIXTURES"/replay-fixture-*; do
+  for repo in "$REPLAY_FIXTURES"/work/replay-fixture-*; do
     printf '// change %s\n' "$label" >>"$repo/src/mod1.go"
     GIT_AUTHOR_NAME=replay GIT_AUTHOR_EMAIL=replay@example.invalid GIT_COMMITTER_NAME=replay \
       GIT_COMMITTER_EMAIL=replay@example.invalid GIT_AUTHOR_DATE="2026-01-0${day}T00:00:00Z" \
       GIT_COMMITTER_DATE="2026-01-0${day}T00:00:00Z" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
       git -C "$repo" commit -q -am "replay $label"
+    git -C "$repo" push -q "$REPLAY_FIXTURES/remotes/replay/fixture-${repo##*-}.git" HEAD:main
   done
-  replay_event fixture_commit "$(ls -d "$REPLAY_FIXTURES"/replay-fixture-* | wc -l)" "$label"
+  replay_event fixture_commit "$(ls -d "$REPLAY_FIXTURES"/work/replay-fixture-* | wc -l)" "$label"
 }
 
 # replay_seed runs one mode of the seeder with the arm's identities.
@@ -163,6 +174,7 @@ replay_run_arm() {
   export REPLAY_RUN_DIR
 
   "$here/lib/reset.sh" >/dev/null
+  rm -rf "$REPLAY_HOME/workspace"
   "$here/make_fixtures.sh" "$REPLAY_FIXTURES" 6 >/dev/null
   replay_write_manifest "$arm" "$rep"
   replay_sampler_start
@@ -174,8 +186,10 @@ replay_run_arm() {
   mapfile -t ing_env < <(replay_threshold_env ingester)
   mapfile -t proj_env < <(replay_threshold_env projector)
   replay_start ingester eshu-ingester 19501 "${ing_env[@]}" \
-    ESHU_PROJECTOR_WORKERS="$REPLAY_INGESTER_PROJECTOR_WORKERS" ESHU_REPO_SOURCE_MODE=filesystem \
-    ESHU_FILESYSTEM_ROOT="$REPLAY_FIXTURES" ESHU_REPOS_DIR="$REPLAY_RUN_DIR/workspace"
+    ESHU_PROJECTOR_WORKERS="$REPLAY_INGESTER_PROJECTOR_WORKERS" ESHU_REPO_SOURCE_MODE=explicit \
+    ESHU_REPOSITORY_RULES_JSON="$(replay_repository_rules)" ESHU_REPOS_DIR="$REPLAY_HOME/workspace" \
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.file://$REPLAY_FIXTURES/remotes/.insteadOf" \
+    GIT_CONFIG_VALUE_0="https://github.com/"
   replay_start projector eshu-projector 19502 "${proj_env[@]}" ESHU_PROJECTOR_WORKERS="$REPLAY_PROJECTOR_WORKERS"
   replay_event processes_started 0
   replay_seed TestReplayFeedB >"$REPLAY_RUN_DIR/feed-b.log" 2>&1 &

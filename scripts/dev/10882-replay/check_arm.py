@@ -9,7 +9,7 @@ in test_check_arm.py (one planted A write during engagement and one missing
 generation must each fail it).
 
 Usage:
-  check_arm.py --arm RESULT [--control RESULT ...] [--kind treatment|control|t3]
+  check_arm.py --arm RESULT [--control RESULT ...] [--kind treatment|control|t2|t3]
 
 --control is repeated once per control repetition; with three repetitions the
 spread of arm C sets the AC5 tolerance. Exit code 0 means every check passed,
@@ -156,10 +156,39 @@ def check_t3(arm: dict[str, Any]) -> list[Check]:
   ]
 
 
+def check_t2(arm: dict[str, Any]) -> list[Check]:
+  """T2: claim accounting for the hosted family paced at the claim grant.
+
+  The synthetic hosted collector commits no facts, and pacing acts before the
+  claim, so no partial commit exists to lose: the proof is that items pending at
+  engagement get zero claims and no attempt change, none expire, and each is
+  claimed and completes after release (arbiter ruling, item 9).
+  """
+  engaged = _get(arm, "hosted.at_engagement_end", {})
+  final = _get(arm, "hosted.final", {})
+  planted = int(_get(arm, "hosted.planted", 0))
+  return [
+      Check("hosted items pending at engagement", planted > 0 and int(engaged.get("pending", 0)) == planted,
+            "planted=%s pending=%s" % (planted, engaged.get("pending"))),
+      Check("zero claims while engaged", int(engaged.get("claims", -1)) == 0, "claims=%s" % engaged.get("claims")),
+      Check("no attempt change while engaged", int(engaged.get("attempts", -1)) == 0,
+            "attempt_total=%s" % engaged.get("attempts")),
+      Check("none expired", int(final.get("expired", -1)) == 0, "expired=%s" % final.get("expired")),
+      Check("each item claimed and completed after release",
+            planted > 0 and int(final.get("completed", -1)) == planted,
+            "completed=%s of %s" % (final.get("completed"), planted)),
+      Check("latch engaged and released",
+            bool(_get(arm, "engaged.engage_at")) and bool(_get(arm, "engaged.release_at")),
+            "engage=%s release=%s" % (_get(arm, "engaged.engage_at"), _get(arm, "engaged.release_at"))),
+  ]
+
+
 def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]:
   """Selects and runs the checks for one arm kind."""
   if kind == "t3":
     return check_t3(arm)
+  if kind == "t2":
+    return check_t2(arm) + check_ac5(arm, controls)
   if kind == "control":
     # The no-completion control: B and the final sets must equal arm C.
     return check_ac5(arm, controls) + check_final_state(arm, controls[0])
@@ -170,7 +199,7 @@ def main(argv: list[str]) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--arm", required=True, help="result.json of the arm under test")
   parser.add_argument("--control", action="append", default=[], help="result.json of a control repetition")
-  parser.add_argument("--kind", choices=("treatment", "control", "t3"), default="treatment")
+  parser.add_argument("--kind", choices=("treatment", "control", "t2", "t3"), default="treatment")
   args = parser.parse_args(argv)
   try:
     with open(args.arm, encoding="utf-8") as handle:
