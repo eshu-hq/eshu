@@ -44,28 +44,36 @@ in the same PR as any DDL. Proof on the disposable copy:
   PR; any value above zero changes dedup semantics and stops the design
   for a fresh ruling. NOT measured on real data in this phase.
 
-Writer census (production `ON CONFLICT (fact_id)` sites that must move):
+Writer census: the sites that write `fact_records` and so must move to
+`ON CONFLICT (scope_id, fact_id)` are the five production `INSERT INTO
+fact_records` statements. Derive them, do not copy a count:
+`bash scripts/dev/10881-partition/census_code.sh` (first section). At the
+commit this record cites they are:
 
 | Site | Kind |
 | --- | --- |
-| `go/internal/storage/postgres/facts_streaming.go:186` | fact upsert |
-| `go/internal/storage/postgres/relationship_reference_keys.go:404` | reference keys upsert |
-| `go/internal/storage/postgres/migrations/058_relationship_reference_candidate_keys.sql:48` | migration upsert |
-| `go/internal/reducer/factwrite/single_insert.go:33` | reducer single insert |
-| `go/internal/reducer/factwrite/batch_insert.go:189` | reducer batch insert |
-| `go/internal/reducer/factwrite/batch_insert_versioned.go:130` | reducer versioned batch insert |
-| `go/internal/reducer/eshusearch/eshu_search_document_writer_queries.go:103` | search document writer |
+| `go/internal/storage/postgres/facts_streaming.go:186` | collector commit upsert (fenced) |
+| `go/internal/reducer/factwrite/single_insert.go:33` | reducer single insert (no fence guard) |
+| `go/internal/reducer/factwrite/batch_insert.go:189` | reducer batch insert (fenced) |
+| `go/internal/reducer/factwrite/batch_insert_versioned.go:130` | reducer versioned batch insert (fenced) |
+| `go/internal/reducer/eshusearch/eshu_search_document_writer_queries.go:103` | search document writer (no fence guard) |
 
-(Test-only `ON CONFLICT (fact_id)` sites also exist; they move with the
-same PR so the suite keeps passing. Full per-file list is regenerated at
-P4; the seven production sites above are the contract.)
+An earlier draft of this record said "seven sites". That was wrong by two:
+`relationship_reference_keys.go:404` and migration
+`058_relationship_reference_candidate_keys.sql:48` upsert
+`relationship_reference_candidate_keys` against its own primary key and do
+not move. Test-only and fixture writers (`testfixtures/*`, the bench
+seeders in `cmd/read-api-latency-gate`) move with the same PR.
 
-Reader census: 66 `JOIN fact_records` lines across 40 non-test files; at
-least 14 fact_id-only equijoin lines carry no scope predicate on the join
-(the `003b:22` class). Every remaining site is either scope-bounded
-(prunes, proven below) or a named cross-scope path with a measured
-fan-out cost. The complete per-site disposition is P3 work after #10880
-lands, because #10880 moves reads off the fact table first.
+Reader census: derive the join count with
+`git grep -n 'JOIN fact_records' -- 'go/*.go' ':!*_test.go' | wc -l`
+(and `git grep -l ... | wc -l` for files); `census_code.sh` prints both.
+The earlier draft's "66 lines across 40 non-test files" does not reproduce:
+the Go figure at the cited commit is the command's output (60 lines in 34
+files when this record was corrected). The fact_id-only lookups (a join or
+`= ANY` on `fact_id` with no `scope_id` beside it) are the second section of
+`census_code.sh`; the per-site disposition is in the measurement record
+(`10881-fact-records-hash-partition-measurements.md`).
 
 FK census: three tables reference `fact_records(fact_id)`: migration 058
 (`relationship_reference_candidate_keys`), 139
@@ -137,8 +145,9 @@ scope starvation, save-transaction latency within baseline tolerance.
 - A2 removal: mechanism proven, benefit unproven; P5 rehearsal required.
 - A3 five busiest plans: tolerance anchors recorded; per-query re-pin
   required before any migration PR.
-- A4 cross-scope inventory: 66 lines / 40 files / 14 fact_id-only lines
-  counted; per-site disposition waits on #10880 (P3 gate).
+- A4 cross-scope inventory: derived by `census_code.sh`; per-site
+  disposition is in the measurement record. Execution of the reader
+  moves still waits on #10880 (P3 gate).
 - A5 migration proof: shape and way back recorded; rehearsal is P5.
 - A6 tenant notes: index multiplication and giant-scope share measured.
 - A7 queue: left whole, with the future-proof bar stated in Decision 6.
