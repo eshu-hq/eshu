@@ -112,8 +112,10 @@ func CheckOwned(ctx context.Context, db Execer, result sql.Result, writer, factI
 // rows affected; a shortfall is either a stale write the fencing predicate
 // rightly skipped or a row another scope holds, and only the probe can tell
 // them apart. A handle that cannot query (the recording fakes of the writers'
-// own tests) cannot resolve it and reports nothing; every production handle is a
-// db.Queryer. A failing probe is an error, never a clean batch.
+// own tests) cannot resolve it and reports nothing: a fenced-out stale row is a
+// legitimate shortfall, so no error is possible without the probe. Every
+// production handle can query; CanProbeOwners pins that in the storage layer. A
+// failing probe is an error, never a clean batch.
 func resolveShortfall(ctx context.Context, result sql.Result, writer string, rows []ownerRow, probe ownerProbe) error {
 	if result == nil {
 		return nil // a recording fake that returns no result cannot report rows affected
@@ -158,10 +160,45 @@ FROM unnest($1::text[], $2::text[]) AS t(fact_id, scope_id)
 JOIN fact_records AS f ON f.fact_id = t.fact_id
 WHERE f.scope_id <> t.scope_id`
 
-// probeFor returns the owner probe for db, or nil when db cannot query.
+// OwnerProbeQueryer is implemented by a write handle that already owns a
+// QueryContext with a different signature (a transaction wrapper whose reads
+// return a package-specific row type), so it cannot satisfy db.Queryer. It lends
+// the owner probe a plain db.Queryer view of the same transaction.
+type OwnerProbeQueryer interface {
+	QueryFactOwners(ctx context.Context, query string, args ...any) (db.Rows, error)
+}
+
+// CanProbeOwners reports whether handle can resolve a write shortfall: it is a
+// db.Queryer or an OwnerProbeQueryer. A production write handle that fails this
+// would silently skip a foreign-held row, so the storage layer pins every
+// transaction wrapper with it (#11213).
+func CanProbeOwners(handle Execer) bool {
+	return ownerQueryerOf(handle) != nil
+}
+
+// ownerQueryerOf returns the query view of handle, or nil when it has none.
+func ownerQueryerOf(handle Execer) db.Queryer {
+	if queryer, ok := handle.(db.Queryer); ok {
+		return queryer
+	}
+	if lender, ok := handle.(OwnerProbeQueryer); ok {
+		return ownerProbeLender{lender}
+	}
+	return nil
+}
+
+// ownerProbeLender adapts an OwnerProbeQueryer to db.Queryer.
+type ownerProbeLender struct{ OwnerProbeQueryer }
+
+// QueryContext forwards to QueryFactOwners.
+func (l ownerProbeLender) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return l.QueryFactOwners(ctx, query, args...)
+}
+
+// probeFor returns the owner probe for database, or nil when it cannot query.
 func probeFor(database Execer) ownerProbe {
-	queryer, ok := database.(db.Queryer)
-	if !ok {
+	queryer := ownerQueryerOf(database)
+	if queryer == nil {
 		return nil
 	}
 	return func(ctx context.Context, rows []ownerRow) ([]ownerHeld, error) {
