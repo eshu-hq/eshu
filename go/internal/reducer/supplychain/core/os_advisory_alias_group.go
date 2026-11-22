@@ -242,7 +242,8 @@ type aliasGroupRecord struct {
 // groupOSAdvisoriesByAlias unions native advisory records over symmetric
 // aliases edges and rekeys grouped records to their component's group id.
 // Quarantined records keep per-record keys with markers; denied records are
-// dropped; a disabled pass (truncated load) changes nothing.
+// dropped; a disabled pass (truncated load) groups nothing but still drops
+// denied records, because the deny list holds on every pass (#11111).
 func groupOSAdvisoriesByAlias(index *supplyChainImpactIndex, config supplyChainAliasGroupConfig) {
 	started := time.Now()
 	stats := supplyChainAliasGroupStats{cells: map[supplyChainAliasGroupKey]int{}}
@@ -250,11 +251,14 @@ func groupOSAdvisoriesByAlias(index *supplyChainImpactIndex, config supplyChainA
 		stats.compute = time.Since(started)
 		index.aliasStats = stats
 	}()
-	if config.disabled || len(index.cves) == 0 {
+	if len(index.cves) == 0 || (config.disabled && len(config.deny) == 0) {
 		return
 	}
 	records := aliasGroupRecords(index.cves, config)
-	if len(records) == 0 {
+	// No records to group (recordless observations only) still sweeps the
+	// deny list, like a cut pass.
+	if config.disabled || len(records) == 0 {
+		applyAliasDenyOnly(index, records, config, &stats)
 		return
 	}
 	// Intern each id once: the union loop below then pays slice indexes

@@ -4,8 +4,11 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -301,6 +304,101 @@ func TestWinnersMaintainerCountsAnUnderLockStandDown(t *testing.T) {
 	if got := winnersCounterSum(t, reader, "eshu_dp_supply_chain_impact_winners_resweep_skipped_total"); got != 0 {
 		t.Fatalf("resweep skips = %d, want 0: a stand-down is not a resweep in flight", got)
 	}
+}
+
+// contractLine is the log message a guarded full that committed the contract
+// emits; the tests below match on it as the operator signal (#11177).
+const contractLine = "supply chain impact winners full resweep recorded the contract"
+
+// guardedFullSignals runs one contract tick against f with the lease claimed
+// or not, and returns what an operator sees: the full-resweep counter total,
+// the count of contract log lines and the tick's result.
+func guardedFullSignals(t *testing.T, f *fakeContractWinners, claim bool) (counter int64, lines int, result SupplyChainImpactWinnersResweep) {
+	t.Helper()
+	inst, reader := winnersSignalsHarness(t)
+	var logs bytes.Buffer
+	m := contractMaintainer(f)
+	m.LeaseManager = &fakeWinnersLeaseManager{claim: claim}
+	m.Instruments = inst
+	m.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	result, _, standDown, err := m.runContractTick(context.Background())
+	if err != nil || standDown {
+		t.Fatalf("runContractTick() standDown = %v, error = %v; want a plain tick", standDown, err)
+	}
+	return winnersCounterSum(t, reader, "eshu_dp_supply_chain_impact_winners_full_resweeps_total"),
+		strings.Count(logs.String(), contractLine), result
+}
+
+// TestWinnersGuardedFullWithoutTheLeaseRecordsNothing pins #11177: a tick that
+// did not claim the winners lease ran no full, so it must neither count a
+// full resweep nor claim in the log that the contract was recorded. The
+// stored contract is absent, so the tick takes the guarded-full branch.
+func TestWinnersGuardedFullWithoutTheLeaseRecordsNothing(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeContractWinners{}
+	counter, lines, result := guardedFullSignals(t, f, false)
+	if _, fullCalls, _, _ := f.counts(); fullCalls != 0 {
+		t.Fatalf("full calls = %d without the lease, want 0", fullCalls)
+	}
+	if result != (SupplyChainImpactWinnersResweep{}) {
+		t.Fatalf("result = %+v without the lease, want the empty result", result)
+	}
+	if counter != 0 || lines != 0 {
+		t.Fatalf("full-resweep counter = %d, contract log lines = %d without the lease, want 0 and 0", counter, lines)
+	}
+}
+
+// TestWinnersGuardedFullThatCommitsRecordsOnce keeps the positive half of
+// #11177: a tick that claimed the lease and committed the guarded full counts
+// one full resweep and logs the contract line once.
+func TestWinnersGuardedFullThatCommitsRecordsOnce(t *testing.T) {
+	t.Parallel()
+
+	f := &fakeContractWinners{}
+	counter, lines, _ := guardedFullSignals(t, f, true)
+	if _, _, commits, _ := f.counts(); commits != 1 {
+		t.Fatalf("committed fulls = %d, want 1", commits)
+	}
+	if counter != 1 || lines != 1 {
+		t.Fatalf("full-resweep counter = %d, contract log lines = %d after a committed full, want 1 and 1", counter, lines)
+	}
+}
+
+// TestWinnersGuardedFullSkippedOrCurrentRecordsNothing pins that a guarded
+// full skipped behind another instance, or found already current under the
+// lock, still counts and logs nothing: the other instance's commit satisfies
+// it and the next tick reads the row (#11117).
+func TestWinnersGuardedFullSkippedOrCurrentRecordsNothing(t *testing.T) {
+	t.Parallel()
+
+	skipped := &fakeContractWinners{skips: 1}
+	if counter, lines, result := guardedFullSignals(t, skipped, true); counter != 0 || lines != 0 || !result.Skipped {
+		t.Fatalf("skipped full: counter = %d, lines = %d, skipped = %v; want 0, 0, true", counter, lines, result.Skipped)
+	}
+	// An absent row on the read, then current under the lock: the other
+	// instance committed between the decision read and the lock.
+	inst, reader := winnersSignalsHarness(t)
+	var logs bytes.Buffer
+	m := contractMaintainer(&fakeContractWinners{})
+	m.Contract = &currentUnderLockContract{fakeContractWinners: &fakeContractWinners{}}
+	m.Instruments = inst
+	m.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	result, _, _, err := m.runContractTick(context.Background())
+	if err != nil || !result.ContractCurrent {
+		t.Fatalf("runContractTick() = %+v, %v; want the already-current result", result, err)
+	}
+	if got := winnersCounterSum(t, reader, "eshu_dp_supply_chain_impact_winners_full_resweeps_total"); got != 0 || strings.Contains(logs.String(), contractLine) {
+		t.Fatalf("already-current tick counted %d full resweeps or logged the contract line", got)
+	}
+}
+
+// currentUnderLockContract reports an absent contract on the decision read and
+// a current one under the resweep lock, the race the guarded full exists for.
+type currentUnderLockContract struct{ *fakeContractWinners }
+
+func (c *currentUnderLockContract) ResweepWinnersUnlessCurrent(context.Context) (SupplyChainImpactWinnersResweep, error) {
+	return SupplyChainImpactWinnersResweep{Skipped: true, ContractCurrent: true}, nil
 }
 
 // winnersCounterSum sums every data point of the named Int64 counter.
