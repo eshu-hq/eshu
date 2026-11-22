@@ -12,8 +12,15 @@
 # shellcheck disable=SC2154  # fail, temp_root, repo_root, script: the caller's.
 
 assert_pre_pr_timing_step() {
-	local case_name="$1" go_rc="$2" unwritable="$3" fixture status=0
+	local case_name="$1" go_rc="$2" unwritable="$3" fixture fixture_pre_pr status=0
 	fixture="${temp_root}/timing-${case_name}"
+	# The driver under test is a copy inside the fixture, with `go` and the gate
+	# runner stubbed, so nothing it runs can reach docker. It is held in a
+	# variable on purpose: verify-dockerhub-login.sh reads a literal
+	# scripts/dev/pre-pr.sh path as a call to the real driver, which reaches the
+	# compose scripts, and this file is sourced by a script the queue-path
+	# test-verify job runs.
+	fixture_pre_pr="${fixture}/scripts/dev/pre-pr.sh"
 	rm -rf "${fixture}"
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go/internal/alpha" "${fixture}/bin"
 	cp "${script}" "${fixture}/scripts/dev/pre-pr.sh"
@@ -56,7 +63,7 @@ UNWRITABLE
 	git -C "${fixture}" update-ref refs/remotes/origin/main "$(git -C "${fixture}" rev-parse HEAD)"
 	printf 'package alpha\n' > "${fixture}/go/internal/alpha/alpha.go"
 	git -C "${fixture}" -c core.hooksPath=/dev/null add go
-	FAKE_GO_RC="${go_rc}" PATH="${fixture}/bin:${PATH}" bash "${fixture}/scripts/dev/pre-pr.sh" \
+	FAKE_GO_RC="${go_rc}" PATH="${fixture}/bin:${PATH}" bash "${fixture_pre_pr}" \
 		> "${fixture}.log" 2>&1 || status=$?
 	if [[ "${go_rc}" != 0 ]]; then
 		[[ "${status}" != 0 ]] || { cat "${fixture}.log" >&2; fail "case ${case_name}: a failing go test was reported as success"; }
