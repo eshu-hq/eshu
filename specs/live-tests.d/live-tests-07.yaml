@@ -529,6 +529,11 @@ tests:
     class: dedicated_ci
     reason: "linuxdynasty: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 12.50s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~
     class: dedicated_ci
