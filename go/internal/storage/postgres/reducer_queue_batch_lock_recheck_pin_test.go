@@ -24,8 +24,14 @@ func TestClaimBatchLockRecheckPredicatesPinnedByCount(t *testing.T) {
 	t.Parallel()
 
 	// The query embeds -- explanations that name these shapes historically,
-	// so strip line comments before counting: only live clauses count.
-	uncommented := regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(claimReducerWorkBatchQuery, "")
+	// so strip line comments before counting: only live clauses count. The
+	// read-only stale gate is cut out first: since #11234 it carries its
+	// own per-row LATERAL lookup, which locks nothing and is not an arm.
+	gateless := strings.Replace(claimReducerWorkBatchQuery, reducerClaimStaleGateCTEs(), "", 1)
+	if gateless == claimReducerWorkBatchQuery {
+		t.Fatal("batch claim does not compose reducerClaimStaleGateCTEs()")
+	}
+	uncommented := regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(gateless, "")
 	for _, want := range []string{
 		"JOIN LATERAL (",
 		"FOR UPDATE OF lock_target SKIP LOCKED",

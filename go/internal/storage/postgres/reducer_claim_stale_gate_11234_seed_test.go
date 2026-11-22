@@ -28,6 +28,10 @@ type staleGate11234Shape struct {
 	// and dirties their visibility map after VACUUM, matching the QA read
 	// (13,064 buffers for 12,236 scopes; 12,307 heap fetches per claim).
 	physicalQA bool
+	// noStats leaves the tables without planner statistics: autovacuum
+	// off before the inserts and no ANALYZE (arbiter-11234-repro
+	// decision 3).
+	noStats bool
 }
 
 // staleGate11234QAShape is the measured QA shape (shim-11234 plan read,
@@ -71,6 +75,11 @@ func seedStaleGate11234(ctx context.Context, t testing.TB, conn db.Executor, sha
 		t.Helper()
 		if _, err := conn.ExecContext(ctx, query, args...); err != nil {
 			t.Fatalf("seed %s: %v", label, err)
+		}
+	}
+	if shape.noStats {
+		for _, table := range []string{"ingestion_scopes", "scope_generations", "fact_work_items", "graph_projection_phase_state"} {
+			exec("no autovacuum "+table, "ALTER TABLE "+table+" SET (autovacuum_enabled = false)")
 		}
 	}
 	exec("scopes", `
@@ -130,6 +139,9 @@ WHERE g.status = 'superseded'`, base, staleGate11234Domains, shape.terminalPerGe
 		for _, status := range []string{"pending", "retrying", "pending", "succeeded"} {
 			exec("terminal walk "+status, `UPDATE fact_work_items SET status = $1 WHERE work_item_id LIKE 'term-%'`, status)
 		}
+	}
+	if shape.noStats {
+		return
 	}
 	if err := analyzeReducerClaimBenchmarkTables(ctx, conn); err != nil {
 		t.Fatalf("analyze seed: %v", err)

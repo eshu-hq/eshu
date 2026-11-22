@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -28,6 +29,11 @@ type staleGate11234Plan struct {
 	// Scan on the inner side of a nested loop: the two-CTE nested loop
 	// that reads nothing and burns CPU.
 	maxRescanLoops int64
+	// scopeLoops and scopeBuffers are the largest loop count and the summed
+	// own buffers of scans on ingestion_scopes: logged, not pinned
+	// (arbiter-11234-fix-e decision 4: QA's ingestion_scopes is bloated).
+	scopeLoops   int64
+	scopeBuffers int64
 }
 
 // staleGate11234ForcedNestedLoop disables hash and merge joins for one
@@ -76,6 +82,12 @@ func explainStaleGate11234(ctx context.Context, t testing.TB, conn *sql.Conn, se
 				out.maxIndexLoops = loops
 			}
 		}
+		if relation == "ingestion_scopes" {
+			if loops := int64(staleGate11234Num(node["Actual Loops"])); loops > out.scopeLoops {
+				out.scopeLoops = loops
+			}
+			out.scopeBuffers += int64(staleGate11234Num(node["Shared Hit Blocks"]) + staleGate11234Num(node["Shared Read Blocks"]))
+		}
 		children, _ := node["Plans"].([]any)
 		for _, child := range children {
 			m, ok := child.(map[string]any)
@@ -119,43 +131,80 @@ func staleGate11234Num(v any) float64 {
 	return f
 }
 
-// openStaleGate11234Live opens a dedicated connection on a fresh benchmark
-// schema, or skips when no disposable DSN is set. It never touches QA.
-// ESHU_STALE_GATE_11234_KEEP=1 keeps the schema for manual EXPLAIN work.
-func openStaleGate11234Live(ctx context.Context, t *testing.T, label string) (*sql.Conn, reducerClaimBenchmarkConn) {
+// openStaleGate11234Live opens a dedicated connection on a fresh schema, or
+// skips when no disposable DSN is set. It never touches QA. With full set
+// the schema gets the full bootstrap (every migration, the production
+// index set, arbiter-11234-accept decision 4); otherwise the lighter
+// claim-benchmark schema, whose missing indexes hid the shipped text's
+// no-statistics cliff. ESHU_STALE_GATE_11234_KEEP=1 keeps the schema for
+// manual EXPLAIN work.
+func openStaleGate11234Live(ctx context.Context, t *testing.T, label string, full bool) (*sql.Conn, reducerClaimBenchmarkConn) {
 	t.Helper()
 	dsn := reducerClaimBenchmarkDSN()
 	if dsn == "" {
 		t.Skip("set ESHU_REDUCER_CLAIM_BENCH_DSN to a disposable Postgres to run the #11234 stale-gate plan proofs")
 	}
-	database, err := sql.Open("pgx", dsn)
+	admin, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = database.Close() })
-	sqlConn, err := database.Conn(ctx)
-	if err != nil {
-		t.Fatalf("open dedicated connection: %v", err)
-	}
-	conn := reducerClaimBenchmarkConn{conn: sqlConn}
+	t.Cleanup(func() { _ = admin.Close() })
 	schema := fmt.Sprintf("stale_gate_11234_%s_%d", label, time.Now().UnixNano())
 	t.Cleanup(func() {
 		if os.Getenv("ESHU_STALE_GATE_11234_KEEP") == "1" {
 			t.Logf("kept schema %s", schema)
-		} else {
-			_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
+			return
 		}
-		_ = sqlConn.Close()
+		dropCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if _, err := admin.ExecContext(dropCtx, "DROP SCHEMA IF EXISTS "+schema+" CASCADE"); err != nil {
+			t.Errorf("drop schema %s: %v", schema, err)
+		}
 	})
-	if err := createReducerClaimBenchmarkSchema(ctx, conn, schema); err != nil {
-		t.Fatalf("create schema: %v", err)
+	if !full {
+		sqlConn, err := admin.Conn(ctx)
+		if err != nil {
+			t.Fatalf("open dedicated connection: %v", err)
+		}
+		t.Cleanup(func() { _ = sqlConn.Close() })
+		conn := reducerClaimBenchmarkConn{conn: sqlConn}
+		if err := createReducerClaimBenchmarkSchema(ctx, conn, schema); err != nil {
+			t.Fatalf("create schema: %v", err)
+		}
+		for _, def := range []string{"fact_records", "cross_scope_completion_queue"} {
+			if _, err := conn.ExecContext(ctx, MigrationSQL(def)); err != nil {
+				t.Fatalf("create %s: %v", def, err)
+			}
+		}
+		return sqlConn, conn
 	}
-	for _, def := range []string{"fact_records", "cross_scope_completion_queue"} {
-		if _, err := conn.ExecContext(ctx, MigrationSQL(def)); err != nil {
-			t.Fatalf("create %s: %v", def, err)
+	for _, stmt := range []string{"CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public", "CREATE SCHEMA " + schema} {
+		if _, err := admin.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
 		}
 	}
-	return sqlConn, conn
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("parse DSN: %v", err)
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema+",public")
+	parsed.RawQuery = query.Encode()
+	database, err := sql.Open("pgx", parsed.String())
+	if err != nil {
+		t.Fatalf("open schema: %v", err)
+	}
+	database.SetMaxOpenConns(2)
+	t.Cleanup(func() { _ = database.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
+		t.Fatalf("bootstrap schema %s: %v", schema, err)
+	}
+	sqlConn, err := database.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open dedicated connection: %v", err)
+	}
+	t.Cleanup(func() { _ = sqlConn.Close() })
+	return sqlConn, reducerClaimBenchmarkConn{conn: sqlConn}
 }
 
 // staleGate11234RescanBound is the largest inner CTE or sequential scan
@@ -183,43 +232,67 @@ WHERE work.stage = 'reducer' AND work.status IN ('pending', 'retrying')
 	return n
 }
 
+// staleGate11234PinViolations EXPLAINs cut with hash and merge joins on and
+// off and the domain filter NULL and set, logs each plan's figures, and
+// returns every breach of the #11234 pin: index loops on fact_work_items
+// or scope_generations above bound, or a nested loop rescanning a CTE or
+// table more than staleGate11234RescanBound times.
+func staleGate11234PinViolations(ctx context.Context, t *testing.T, conn *sql.Conn, label, cut string, bound int64) []string {
+	t.Helper()
+	var violations []string
+	for _, setup := range [][]string{nil, staleGate11234ForcedNestedLoop} {
+		for _, domains := range []any{nil, staleGate11234Domains} {
+			plan := explainStaleGate11234(ctx, t, conn, setup, cut, nil, domains)
+			where := fmt.Sprintf("%s forced_nl=%v domains=%v", label, setup != nil, domains != nil)
+			t.Logf("%s exec_ms=%.1f buffers=%d max_index_loops=%d max_rescan_loops=%d ingestion_scopes_loops=%d ingestion_scopes_buffers=%d",
+				where, plan.execMS, plan.buffers, plan.maxIndexLoops, plan.maxRescanLoops, plan.scopeLoops, plan.scopeBuffers)
+			if plan.maxIndexLoops > bound {
+				violations = append(violations, fmt.Sprintf("%s: max index loops %d > %d\n%s", where, plan.maxIndexLoops, bound, plan.text))
+			}
+			if plan.maxRescanLoops > staleGate11234RescanBound {
+				violations = append(violations, fmt.Sprintf("%s: %d CTE/table rescans > %d\n%s", where, plan.maxRescanLoops, staleGate11234RescanBound, plan.text))
+			}
+		}
+	}
+	return violations
+}
+
 // TestStaleGate11234NoPerScopeLoopLive is the #11234 plan-shape pin on the
 // QA shape (12,236 active scopes, 13,366 older generations, 10,000 live
-// reducer rows), with no stale row and with 200: in the shipped gate chain,
-// derived from the constants, index loops on fact_work_items and
-// scope_generations stay within the non-active row count plus a constant,
-// and no nested loop rescans a CTE or table thousands of times. Before
-// #11234 the planner's 1-row estimate for claim_active_generations drove a
-// nested loop with 12,236 and 13,366 index loops (QA replica and primary,
-// 2026-11-22). The same bounds hold with hash and merge joins disabled, so
-// the fix does not depend on the estimate. Buffers and time are logged,
-// not pinned.
+// reducer rows), with no stale row and with 200, on the claim-benchmark
+// schema (fast guard) and on the full bootstrap schema (production index
+// set): in the shipped gate chain, derived from the constants, index loops
+// on fact_work_items and scope_generations stay within the non-active row
+// count plus a constant, and no nested loop rescans a CTE or table
+// thousands of times, with hash and merge joins on and off. Before #11234
+// the planner's 1-row estimate for claim_active_generations drove a nested
+// loop with 12,236 and 13,366 index loops (QA replica and primary,
+// 2026-11-22); on the full schema the frozen pre-#11234 chain must still
+// breach the pin in the same run (the RED half). Buffers, time and the
+// ingestion_scopes probes are logged, not pinned.
 func TestStaleGate11234NoPerScopeLoopLive(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Minute)
 	defer cancel()
-	for _, staleRows := range []int{0, 200} {
-		t.Run(fmt.Sprintf("stale=%d", staleRows), func(t *testing.T) {
-			sqlConn, conn := openStaleGate11234Live(ctx, t, fmt.Sprintf("pin%d", staleRows))
-			shape := staleGate11234QAShape()
-			shape.staleRows = staleRows
-			seedStaleGate11234(ctx, t, conn, shape)
-			bound := staleGate11234NonActiveRows(ctx, t, sqlConn) + staleGate11234LoopSlack
-			for _, setup := range [][]string{nil, staleGate11234ForcedNestedLoop} {
-				for _, domains := range []any{nil, staleGate11234Domains} {
-					plan := explainStaleGate11234(ctx, t, sqlConn, setup, staleGate11234ChainCut(), nil, domains)
-					t.Logf("forced_nl=%v domains=%v exec_ms=%.1f buffers=%d max_index_loops=%d max_rescan_loops=%d",
-						setup != nil, domains != nil, plan.execMS, plan.buffers, plan.maxIndexLoops, plan.maxRescanLoops)
-					if plan.maxIndexLoops > bound {
-						t.Errorf("stale gate probes per scope (forced_nl=%v domains=%v): max index loops %d > %d\n%s",
-							setup != nil, domains != nil, plan.maxIndexLoops, bound, plan.text)
-					}
-					if plan.maxRescanLoops > staleGate11234RescanBound {
-						t.Errorf("stale gate rescans a CTE or table per row (forced_nl=%v domains=%v): %d loops > %d\n%s",
-							setup != nil, domains != nil, plan.maxRescanLoops, staleGate11234RescanBound, plan.text)
-					}
+	for _, full := range []bool{false, true} {
+		for _, staleRows := range []int{0, 200} {
+			t.Run(fmt.Sprintf("full=%v/stale=%d", full, staleRows), func(t *testing.T) {
+				sqlConn, conn := openStaleGate11234Live(ctx, t, fmt.Sprintf("pin%d", staleRows), full)
+				shape := staleGate11234QAShape()
+				shape.staleRows = staleRows
+				seedStaleGate11234(ctx, t, conn, shape)
+				bound := staleGate11234NonActiveRows(ctx, t, sqlConn) + staleGate11234LoopSlack
+				for _, v := range staleGate11234PinViolations(ctx, t, sqlConn, "shipped", staleGate11234ChainCut(), bound) {
+					t.Error(v)
 				}
-			}
-		})
+				if !full {
+					return
+				}
+				pre := staleGate11234SwapGate(t, staleGate11234ChainCut(), staleGate11234PreGate(t))
+				if len(staleGate11234PinViolations(ctx, t, sqlConn, "pre-11234", pre, bound)) == 0 {
+					t.Error("the frozen pre-#11234 chain no longer breaches the pin: the pin cannot tell the fix from the bug")
+				}
+			})
+		}
 	}
 }
 
@@ -232,7 +305,7 @@ func TestStaleGate11234ReproLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Minute)
 	defer cancel()
-	sqlConn, conn := openStaleGate11234Live(ctx, t, "repro")
+	sqlConn, conn := openStaleGate11234Live(ctx, t, "repro", os.Getenv("ESHU_STALE_GATE_11234_FULL") == "1")
 	shape := staleGate11234QAShape()
 	shape.physicalQA = os.Getenv("ESHU_STALE_GATE_11234_PHYSICAL") == "1"
 	if n := os.Getenv("ESHU_STALE_GATE_11234_TERMINAL"); n != "" {
