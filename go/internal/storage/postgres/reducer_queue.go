@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 555 lines: the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe.
+package postgres //nolint:filelength // 556 lines (base 555): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe; #11228 adds one line for the backstop-exit probe hook.
 
 import (
 	"context"
