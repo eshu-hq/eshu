@@ -81,10 +81,12 @@ func backfillSeededInfraReadModel(ctx context.Context, postgresDSN string, pool 
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping postgres for the infra read model backfill: %w", err)
 	}
-	backfiller := inventory.Backfiller{
-		DB:     pgstore.SQLDB{DB: db},
+	// The same constructor the reducer's RunBackground uses, so the stand-in and
+	// the product record the marker through one construction. The gate calls Run
+	// directly: no retry loop, a failure stops the seed with its cause.
+	backfiller := inventory.NewBackfiller(pgstore.SQLDB{DB: db}, inventory.BackgroundOptions{
 		Logger: slog.New(slog.NewTextHandler(log, nil)),
-	}
+	})
 	return runInfraBackfillStandIn(ctx, backfiller,
 		func(ctx context.Context) (infraReadModelState, error) { return readInfraReadModelState(ctx, pool) }, log)
 }
