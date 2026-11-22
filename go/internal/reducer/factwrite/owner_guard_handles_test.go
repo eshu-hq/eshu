@@ -166,3 +166,24 @@ func TestCheckOwnedLooksUpTheStoredOwnerThroughEveryProbeShape(t *testing.T) {
 		}
 	}
 }
+
+// TestAFullBatchWriteRunsNoOwnerProbe pins the common path: when every row of a
+// chunk lands (rows affected equals rows sent) the guard issues no extra query,
+// for both batch writers and for a handle that could probe. A cost budget that
+// counts queries depends on it.
+func TestAFullBatchWriteRunsNoOwnerProbe(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	plain := &queryerExecer{shortExecer{affected: 2}}
+	if err := BatchInsertFacts(ctx, plain, []Row{ownerTestRow("f1", "scope-b"), ownerTestRow("f2", "scope-b")}); err != nil {
+		t.Fatalf("BatchInsertFacts() error = %v", err)
+	}
+	versioned := &lenderExecer{shortExecer{affected: 2}}
+	if err := BatchInsertVersionedFacts(ctx, versioned, []VersionedRow{ownerTestVersioned("f1", "scope-b"), ownerTestVersioned("f2", "scope-b")}); err != nil {
+		t.Fatalf("BatchInsertVersionedFacts() error = %v", err)
+	}
+	if plain.queries != 0 || versioned.queries != 0 {
+		t.Fatalf("a full write ran the owner probe: batch=%d versioned=%d queries, want 0", plain.queries, versioned.queries)
+	}
+}
