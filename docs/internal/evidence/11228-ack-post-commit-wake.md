@@ -216,6 +216,11 @@ production schema.
   `reconciled`. `TestWaitingBackstopClaimCounterLive` pins `backstop`
   through both claim paths, and pins that a woken-sibling row and a row
   without a wait row are not counted.
+  Mutants, each RED and restored: drop the `visible_at > reopened_at`
+  candidate filter (woken sibling counted), skip the wait-row probe (row
+  without a wait row counted), drop the `wake_site` label (both counter
+  tests), and drop the `ClaimBatch` hook
+  (`claim_batch/backstop_with_wait_row`).
 - A failed re-wake logs ERROR
   `projector post-commit generation_active wake failed; the audit and backstop still bound the miss`
   with `op=ack`, `scope_id` and `generation_id`.
