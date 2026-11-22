@@ -164,7 +164,7 @@ mean 0.19 per scope, p99 1, but one scope has 199.
 generations with both stamps): p10 0.15 days, p50 1.01, p90 3.03, p99 6.01, maximum
 22.69. About 99% of generations are superseded within 6 days of activation.
 
-**Creation and retirement rate** (last 30 complete days): 807 generations created a
+**Creation and retirement rate** (last 30 complete days, this 05:00Z run): 807 generations created a
 day on average (median 881, maximum 1,338); 1.92M rows retired a day on average
 (median 0.84M, maximum 6.47M).
 
@@ -243,7 +243,7 @@ live rows.
 
 | Candidate | K1 | K2 | K3 (leaves at the horizon) | K4 | Result |
 | --- | --- | --- | --- | --- | --- |
-| LIST per generation | passes in principle | passes | 78,029 (812.8 a day x 96 days): **killed** | not computed | **killed by K3** |
+| LIST per generation | passes in principle | passes | 78,029 (812.8 a day over the trailing 30 days of the 06:16Z rerun, which includes the partial last day, x 96 days): **killed** | not computed | **killed by K3** |
 | Scope hash x time sub-parts, modulus 32, 7-day buckets | as RANGE | as RANGE | 480: **killed** | not computed (adds no drop unit beyond time) | **killed by K3** |
 | Scope hash x time sub-parts, modulus 32, 1-day buckets | as RANGE | as RANGE | 3,104: **killed** | not computed | **killed by K3** |
 | RANGE by creation time, 7-day buckets | needs a creation-time column stamped by every writer (not verified) | key never changes for a fact; conflict key becomes (fact_id, creation time) | 15: passes | droppable share 0.0% at age >= 7 d (0 of 61.0M superseded rows); no bucket aged >= 30 d | **killed by K4** |
@@ -251,7 +251,8 @@ live rows.
 | The same, static split (vulnerability-intelligence and the other non-stacking kinds kept out of the time buckets) | as above | as above | 97 or 15, plus the non-time partition | 0.0% at both ages and both widths, against all superseded rows | **killed by K4** |
 
 The verdict rests on the arbiter's reading of K4 (all five pin reasons): 0.0% at both ages
-and both widths. The table below is a sensitivity on which pins count, not the decision.
+and both widths, for every candidate, including the static split at age >= 30 d (script
+output). The table below is a sensitivity on which pins count; it is not binding.
 
 | Pins counted | 7-day, aged >= 7 d | 1-day, aged >= 7 d | 1-day, aged >= 30 d |
 | --- | --- | --- | --- |
@@ -260,24 +261,33 @@ and both widths. The table below is a sensitivity on which pins count, not the d
 | without the first-generation pin | 0.0% | 0.0% | not computed (raw file gone) |
 | active and pending only | 0 of 4 / 0.0% | 3 of 29 / 14.9% | 3 of 6 / **64.0% to 64.4%** (derived) |
 | active only | 0 of 4 / 0.0% | 3 of 29 / 14.9% | 3 of 6 / **64.0% to 64.4%** (derived) |
-| static split, active only (most lenient) | 0 of 4 / 0.0% | 7 of 29 / 32.1% of all superseded rows | same 3 buckets, about 64% (inferred) |
+| static split, active only | 0 of 4 / 0.0% | 7 of 29 / 32.1% of all superseded rows | not determinable from the committed aggregates (64.0% to about 97%) |
 
-The 64.0% to 64.4% figure is not script output. The raw census file was not kept, so it
-is derived from the committed 1-day table (evidence file `box3-buckets.txt`, appendix): the
-three buckets with no active generation hold 14.9% of 61,324,138 superseded rows (9.14M);
-only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days old fit that sum, so all three are aged
-at least 30 days, and they hold 9.11M to 9.17M of the 14,227,152 superseded rows in
-buckets aged at least 30 days. That is about three points under the 67% bar. The fixed
-`aggregate_buckets.py` now prints these variants at both ages; it was not rerun. For the
-static split the four extra free buckets are 14 to 19 days old (their live rows are
-vulnerability-intelligence), so its aged >= 30 d value is the same three buckets: an
-inference from the table, not a computation.
+The 64.0% to 64.4% figure (active only, all kinds, RANGE) is not script output. The raw
+census file was not kept, so it is derived from the committed 1-day table (evidence file
+`box3-buckets.txt`, appendix): the three buckets with no active generation hold 14.9% of
+61,324,138 superseded rows (9.14M); only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days
+old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M of
+the 14,227,152 superseded rows in buckets aged at least 30 days. That is about three
+points under the 67% bar. The fixed `aggregate_buckets.py` now prints these variants at
+both ages; it was not rerun.
 
-K4 kills a candidate whose droppable share is below 67% at both ages. In every variant
-that can be derived, both ages are below the bar (14.9% and about 64%; 32.1% and about
-64%), and under the arbiter's reading both are 0.0%. So the verdict does not depend on
-which pins count. What does change is the margin: the most lenient reading at age >= 30
-days gets within three points of the bar.
+The static split, active only, at age >= 30 days cannot be determined from the committed
+aggregates. At age >= 7 days it frees 7 buckets (32.1% of 61,324,138 = 19.65M to 19.72M
+rows). Without the three zero-active buckets (9.13M to 9.18M) the other four would hold
+10.48M to 10.59M rows, more than the 1-day buckets aged 14 to 19 days hold (at most 9.34M),
+so they are not those. Whether the live rows of the pinned 35- and 34-day bucket are all
+of the non-stacking kinds is not in the aggregates. If they are, the split frees that
+bucket and the share at age >= 30 days is about 96% to 97%, which clears the 67% bar. K4
+kills a candidate only when the share is below 67% at both ages, so that variant would
+survive K4. Its value lies between 64.0% and about 97%.
+
+K4 therefore kills every candidate under the arbiter's reading (0.0% at both ages), and
+the NO-GO rests on that reading. The lenient sensitivities are not binding. For the
+active-only RANGE reading both ages are below the bar (14.9% and 64.0% to 64.4%). For the
+active-only static split the age >= 30 days value is undetermined, so this record does
+not establish that variant is killed, and it does not claim the verdict is independent of
+which pins count.
 
 Cause. Of the 29 one-day buckets aged at least 7 days, 26 hold at least one active
 generation and 3 hold none (all three at least 30 days old). One of the 35- and 34-day
@@ -345,11 +355,13 @@ by K3 (78,029 and 480 to 3,104 leaves against a limit of 128). RANGE by generati
 creation time, at 7-day and 1-day buckets, with or without a static split of non-stacking
 kinds, is killed by K4 under the arbiter's reading: the droppable share of superseded rows in
 buckets aged at least 7 days is 0.0%, and 0.0% in buckets aged at least 30 days, against a bar of 67%.
-Under the most lenient reading of what pins a bucket (only active generations pin) it is
-14.9% (1-day buckets, aged >= 7 d) and about 64% (aged >= 30 d, derived), both still below the
-bar; with the static split 32.1% and about 64% (inferred). The cause is that most creation
-buckets hold live generations (26 of the 29 one-day buckets aged >= 7 days), because 51.8%
-of active rows are older than 7 days.
+Under a lenient reading where only active generations pin a bucket, the RANGE share is
+14.9% (1-day buckets, aged >= 7 d) and 64.0% to 64.4% (aged >= 30 d, derived by hand), both
+below the bar. The active-only static split is 32.1% at age >= 7 d and undetermined at age
+>= 30 d (64.0% to about 97%); this record does not claim it is killed, and the no-go rests
+on the arbiter's reading. The cause is that most creation buckets hold live generations
+(26 of the 29 one-day buckets aged >= 7 days), because 51.8% of active rows are older than
+7 days.
 
 ## NOT_CHECKED
 
