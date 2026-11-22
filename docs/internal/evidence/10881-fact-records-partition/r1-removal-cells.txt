@@ -18,12 +18,16 @@ S0 divided/undivided delete+vacuum WAL = 0.897
 S1 divided/undivided delete+vacuum WAL = 0.834
 undivided S1/S0 delete+vacuum WAL = 1.084
 
+# NOTE: the raw `cell` lines below were printed by the first version of removal_cell.sql and the vacuum parser.
+# und0 shows size_before=:size_before and size_after=:size_after (the size query returned NULL for a plain table and was
+# fixed before und1 and div1). The `vacuum pages:` lines were regenerated here with the corrected parser
+# (the first version read buffer reads as "misses" and printed zero buffer counts); the table above always used the corrected parser.
 # raw cell output (r1.out)
 removal list: 202 generations -> /home/ubuntu/10881-work/removal_list.txt
 14cb9af08ca41932
 # cell db=und0 arm=drain_asis list=/home/ubuntu/10881-work/removal_list.txt generations=202 loadavg=25.50 33.32 31.39 io_psi=avg10=53.13 avg60=39.13
 cell db=und0 arm=drain_asis rows_deleted=389603 delete_wal_bytes=972567605 vacuum_wal_bytes=62235389 size_before=:size_before size_after=:size_after delete_seconds=497.80 vacuum_seconds=60.41
-vacuum pages: tables=2 pages_removed=0 pages_remain=417612 pages_scanned=163198 index_scans=2 index_pages_total=138910 index_pages_newly_deleted=16454 buf_hits=0 buf_misses=0 buf_dirtied=0 tuples_removed=176683
+vacuum pages: tables=2 pages_removed=0 pages_remain=417612 pages_scanned=163198 index_scans=2 index_pages_total=138910 index_pages_newly_deleted=16454 buf_hits=625955 buf_misses=161203 buf_dirtied=13965 tuples_removed=176683
 # cell db=div0 arm=drain_scoped list=/home/ubuntu/10881-work/removal_list.txt generations=202 loadavg=42.31 47.89 44.51 io_psi=avg10=46.79 avg60=47.05
 cell db=div0 arm=drain_scoped rows_deleted=389603 delete_wal_bytes=897923324 vacuum_wal_bytes=30642438 size_before=4445921280 size_after=4438810624 delete_seconds=254.74 vacuum_seconds=16.06
 vacuum pages: tables=64 pages_removed=868 pages_remain=420421 pages_scanned=109795 index_scans=38 index_pages_total=81658 index_pages_newly_deleted=16744 buf_hits=515274 buf_misses=68259 buf_dirtied=3697 tuples_removed=174720

@@ -20,7 +20,7 @@ BEGIN
           SELECT scope_id sid, n FROM census WHERE scope_id <> (SELECT scope_id FROM g) AND n > 0
           UNION ALL SELECT (SELECT scope_id FROM g) || '#' || i, (SELECT n FROM g)/k FROM generate_series(1,k) i
         ) s GROUP BY 1) q;
-      RAISE NOTICE 'giant split into % sub-keys, modulus %: largest part % rows = %%%', k, m, r.max, r.round;
+      RAISE NOTICE 'giant split into % sub-keys, modulus %: largest part % rows = % percent', k, m, r.max, r.round;
     END LOOP;
   END LOOP;
 END $$;

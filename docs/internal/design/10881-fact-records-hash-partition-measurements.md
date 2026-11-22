@@ -22,13 +22,17 @@ vulnerability scopes for S1; the same plus the 3.3M-row scope for S2):
 
 | Size | Rows loaded | Largest scope kept whole | Share |
 | --- | --- | --- | --- |
-| S1 | 2,053,440 | 1,110,435 rows | 54% |
+| S1 (first load, migration and plans) | 2,053,440 | 1,110,435 rows | 54% |
 | S2 | 5,361,470 | 3,308,030 rows | 62% |
 
 The 12.2M-row scope itself is NOT_CHECKED. The giant-scope share is higher than in
 production (13%), the harsher case for hash skew; production-scale skew is
 computed from the real census below. The request asked for about 5M and 15M
 rows; the 60 GB cap and the shared disk allowed 2.05M and 5.36M.
+
+The removal repair run (A2) reloaded S1 from a fresh pull two hours later, so its S1
+has 2,071,167 rows (live ingestion added rows to the same scopes) and its S0
+960,732; counts per load are in `r1-row-counts.txt` in the evidence folder.
 
 **Two shapes, same rows.** Each size is one database holding the undivided table
 (`public.fact_records`) and a `HASH(scope_id)` modulus-32 twin (`d.fact_records`)
@@ -256,10 +260,13 @@ host I/O and are not evidence.) The S0 undivided size was not captured because t
 size query was fixed between cells (a plain table returns no `pg_partition_tree`
 leaf, so the first version reported NULL); the other three cells carry it.
 
-**Result against the ruling's bar.**
+**Result against the pre-stated bar.** The 0.67x bar, the "both sizes" rule and the
+1.10x growth limit were set by the arbiter before the run; Decision 4 bullet 2 of the
+proof record says only "materially better", so the numeric bar is a pre-stated
+reading of it, not text from that record.
 
 - Divided over undivided, delete plus VACUUM WAL: **0.897 at S0 and 0.834 at S1.**
-  The bar for keeping the design alive was at most 0.67 at both sizes. It is not met
+  The pre-stated bar for keeping the design alive was at most 0.67 at both sizes. It is not met
   at either: NO-GO stands.
 - Delete WAL is the same in both shapes (0.92x at S0, 1.00x at S1): the delete
   writes the same heap and TOAST changes whichever table holds the rows. Only
@@ -268,9 +275,23 @@ leaf, so the first version reported NULL); the other three cells carry it.
 - Undivided delete plus VACUUM WAL for the same removal set grows 1.084x from S0
   to S1 (limit for "does not grow" 1.10x), so removal cost on the undivided table
   also did not grow with a 2.2x larger table here.
-- Why divided VACUUM needs fewer index pages: each part's indexes are smaller and
-  the removed rows sit in fewer parts; index pages newly deleted are equal (about
-  16.5k to 16.7k), so the same number of index entries were removed either way.
+- VACUUM VERBOSE reports fewer index pages for the divided table (81,658 against
+  138,910 at S0; 137,025 against 214,156 at S1) while index pages newly deleted are
+  equal (about 16.5k to 16.7k). Why the totals differ was not investigated.
+
+**What this does not show.**
+
+- The cells are 1.0% (S0, 960,732 rows) and 2.2% (S1, 2,071,167 rows) of the
+  production table's 94.6M rows, with a five-index profile; the kill criterion
+  quoted in the proof record says "representative scale".
+- Undivided VACUUM WAL grew 3.48x (62.2M to 216.7M bytes) for a 2.2x larger table,
+  while divided VACUUM WAL stayed flat (30.6M to 30.7M). The ratio improved with
+  size (0.897 to 0.834). Total WAL looks flat across sizes only because the delete
+  WAL, which is the same in both shapes and noisy, dominates.
+- One run per cell, no repeat.
+- This is a NO-GO for HASH(scope_id) on removal cost against the pre-stated bar. It
+  is not a finding that partitioning cannot help vacuum: at a larger size or a
+  repeat the divided VACUUM advantage could grow.
 
 **Limits of the earlier S1 row.** The first measurement (undivided 243.9 s delete,
 250.3 s VACUUM, 5.17 GB VACUUM WAL; divided 276.3 s, 510.8 s, 5.24 GB) is kept in
@@ -330,7 +351,7 @@ records deletes, with passes outside the lock until the final one is empty. Its
 cost is one index or one trigger on the hot table for the window and was NOT
 measured here.
 
-**Reader prerequisite: `scope_id` into the fact_id-only readers.** Per the owner ruling this is *not* done now: the readers stay as they are because no key change is adopted.
+**Reader prerequisite: `scope_id` into the fact_id-only readers.** Per the arbiter's ruling this is *not* done now: the readers stay as they are because no key change is adopted.
 `unchanged_guard.go` (`selectUnchangedFactIDs`) is the hot one (L3a). The others
 are the fact_id-only table in the census record (about twenty statements across
 the query, reducer and storage packages). The change is mechanical where the scope
@@ -340,10 +361,10 @@ key change; it is not done now.
 
 ## Verdict
 
-HASH(scope_id) is a **measured NO-GO** for `fact_records`. It does not make removal
-of a retired snapshot cheaper than the undivided table: with the same 389,603 rows
+HASH(scope_id) is a **measured NO-GO** for `fact_records`. It did not make removal
+of a retired snapshot cheaper by the pre-stated margin: with the same 389,603 rows
 removed, divided delete plus VACUUM WAL was 0.897x (S0) and 0.834x (S1) of the
-undivided table, against a bar of 0.67x at both sizes, and hash parts hold many
+undivided table, against a pre-stated arbiter bar of 0.67x at both sizes, and hash parts hold many
 scopes so no part can be dropped or truncated for a snapshot. The 415 GB rebuild is
 not pursued. Decision 4, bullet 2 of the proof record is the kill criterion that
 applies. Scope-bounded loads do prune to one part and run as fast as undivided
@@ -351,7 +372,7 @@ applies. Scope-bounded loads do prune to one part and run as fast as undivided
 
 What this record does **not** claim: the migration is not proven (A5 is a partial
 rehearsal of a design that is rejected); the loads' ranking is by code path, not
-measured; the reader inventory is a regex worklist, not exhaustive. Per the owner
+measured; the reader inventory is a regex worklist, not exhaustive. Per the arbiter's
 ruling, no `scope_id` is added to the fact_id-only readers now, and the question of a
 snapshot-keyed layout (retired snapshots dropped, not deleted) moves to its own
 issue with the R1 method as its measurement standard.
@@ -359,7 +380,7 @@ issue with the R1 method as its measurement standard.
 ## NOT_CHECKED
 
 - The 12.2M-row scope, 15M-row sizes, and the 153-index divided shape beyond load.
-- S2 removal arms (not ordered by the ruling); S2 verify, cutover and way back; the catalog-only `swap` stage.
+- S2 removal arms (not ordered by the arbiter); S2 verify, cutover and way back; the catalog-only `swap` stage.
 - The S0 undivided size before/after (script fix between cells).
 - Concurrent writers during backfill (catch-up under load) and delete replay.
 - Primary-side `pg_stat_statements` (out of bounds); write-side "busiest" is by

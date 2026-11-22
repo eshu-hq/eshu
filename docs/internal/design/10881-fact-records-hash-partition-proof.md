@@ -3,10 +3,12 @@
 Status: **Rejected by a measured NO-GO (2026-11-22).** Decision 4, bullet 2
 below reads: "Divided copy not materially better than undivided on
 retired-snapshot DELETE+VACUUM-to-steady-state at representative scale: NO-GO, no
-415GB rebuild for zero gain." HASH(scope_id) does not make removal of a retired
-snapshot cheaper than the undivided table: hash parts hold many scopes, so no
-part can be dropped or truncated for a snapshot, and the measured delete and
-VACUUM WAL did not fall (numbers and their limits in
+415GB rebuild for zero gain." HASH(scope_id) did not make removal of a retired
+snapshot cheaper than the undivided table by the margin the arbiter pre-stated
+for the repair run (divided delete plus VACUUM WAL at most 0.67x of undivided at both
+sizes; Decision 4 bullet 2 itself says only "materially better"). Measured: 0.897x
+and 0.834x, short of the bar. Hash parts hold many scopes, so no part can be
+dropped or truncated for a snapshot (numbers and their limits in
 [the measurement record](10881-fact-records-hash-partition-measurements.md)). The
 415 GB rebuild is not pursued. Whether a snapshot-keyed layout can do better is a
 separate question with its own kill criteria. The text below is kept as the

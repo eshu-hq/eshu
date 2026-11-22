@@ -7,6 +7,7 @@
 #
 # Secrets are never stored here: REPLICA_DSN (a read-replica DSN, reached
 # through `kubectl port-forward`) is read from the environment only.
+# shellcheck disable=SC2034 # these defaults are read by the scripts that source this file
 set -euo pipefail
 
 : "${REHEARSAL_CONTAINER:=pg-10881-rehearsal}"
