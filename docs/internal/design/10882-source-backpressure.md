@@ -72,7 +72,7 @@ Two adjacent gaps the sweep found:
 exactly the actuator AC3 asks for: a shared-storage hysteresis latch
 (`workflow_claim_pacing`), per-family `domain` signal consulted before
 a `global` ceiling, work-conserving skip in `FairClaimDispatcher`
-(`go/internal/collector/fair_claim_dispatcher.go:148`), grant delay on
+(`FairClaimDispatcher.ClaimNext` in `go/internal/collector/fair_claim_dispatcher.go`), grant delay on
 the retry-after path (`ClaimPacingDeferral`), fail-open on signal
 error, stuck-past-bound stays loud, and a full metric family
 (`eshu_dp_workflow_claim_pacing_*`, `docs/public/reference/telemetry/claim-pacing.md`).
@@ -105,7 +105,7 @@ carries `stage`, `domain`, `scope_id`, `generation_id`, `status`,
 `ingestion_scopes.source_system`, active-generation filtered, and feed
 the gauges `eshu_dp_queue_source_depth{queue,source_system,status}` and
 `eshu_dp_queue_source_oldest_age_seconds{queue,source_system}`
-(`go/internal/telemetry/instruments.go:8615`). Oldest age is
+(`RegisterObservableGauges` in `go/internal/telemetry/instruments.go`). Oldest age is
 `MIN(COALESCE(reopened_at, created_at))` over outstanding rows. What
 does **not** exist: a claimable-only variant (the observer counts rows
 whose `visible_at` is in the future and known gated cohorts such as
@@ -114,7 +114,7 @@ whose `visible_at` is in the future and known gated cohorts such as
 intake metering is still owed), and any per-source slowed state on the
 status API (`collector_backpressure` in `/admin/status` reports
 workflow claim pressure per family/instance/source —
-`go/internal/status/collector/backpressure.go:19` — not reducer pacing).
+`BackpressureSnapshot` in `go/internal/status/collector/backpressure.go` — not reducer pacing).
 
 ### The #10862 freshness target and the #10868 split
 
