@@ -111,9 +111,100 @@ says the backfill "runs in the API process today".
 So a current deployment stays on the slower graph path for these reads and
 shows `backfilling` indefinitely. That is a product gap, separate from #11170.
 
-## Open decision
+## Decision and what the gate does now
 
-Whether the gate should run `inventory.Backfiller` itself after seeding (as it
-already runs the winners maintainer's own resweep), or wait for the product to
-wire the backfill, is with the arbiter. Until it is settled the winners and
-legacy sweeps have no green run, and this note carries no latency numbers.
+The arbiter ruled that the gate runs `inventory.Backfiller.Run` itself in the
+seed phase, before any core starts, labelled `infra_backfill: gate_stand_in` in
+both legs' latency reports. Product wiring is #11196, worked separately. The
+infra route numbers therefore describe an install that holds the marker. A
+fresh install serves those routes from the graph, and this gate does not
+measure that path. On the full corpus the backfill took 15.8 s for 201
+repositories and 1,050,000 rows.
+
+## RED chain, in order
+
+1. Plain `origin/main`: `seeded Postgres tables do not hold the expected row counts: ingestion_scopes: got 42, want 41` (seed verify).
+2. The seed fix alone: `eshu-api: --core-base-url is required`.
+3. The rewired gate without the backfill: `infra read model not ready after 10m0s: infra read model installed but the backfill marker is not recorded yet`.
+
+## Calibration runs
+
+Two separately seeded runs of the rebased head (`ca232f7a89` on `origin/main`
+`194d4abbd9`), full default corpus (800 scopes, 150,000 nodes per label, 150,000
+IaC facts, 2,500,000 shared intents, 20,000 finding facts), Neo4j, io pressure
+avg60 42 to 73 and load 25 to 30 during the runs (shared, noisy host). Both runs
+exited 1 on the work breaches being recalibrated only: zero `HardFailed`, zero
+latency breaches, the coverage floor met, every named route exercised. Both legs
+exercised 77 of 128 routes and operations (four provider-unconfigured auth
+routes excluded). Findings pages were byte-identical across the legs.
+
+| Route | Legacy blocks | Winners blocks | Legacy p95 | Winners p95 |
+| --- | --- | --- | --- | --- |
+| `GET /api/v0/supply-chain/impact/findings/count` | 102,546 | 801 | 127 and 130 ms | 10 and 14 ms |
+| `GET /api/v0/supply-chain/impact/inventory` | 102,546 | 801 | 119 and 122 ms | 9 and 11 ms |
+| `GET /api/v0/cloud/ssm-host-inventory` | 2,455 | 2,455 | 18 ms | 5 and 6 ms |
+| `GET /api/v0/documentation/facts` | 36 | 36 | 2 and 5 ms | 2 and 3 ms |
+
+The two p95 figures per cell are run 1 and run 2. Latency numbers come from a
+loaded host and are not budget evidence; the work counters do not depend on
+host CPU, and they matched across the two runs.
+
+## cloud/ssm-host-inventory: 2,455 blocks for zero rows
+
+`EXPLAIN (ANALYZE, BUFFERS)` of `buildSSMHostActiveFactsSQL` on the seeded
+stack (800 scopes, no SSM facts): a nested loop over the 802 active scopes with
+one index probe each on `fact_records_scope_generation_idx` (`Index Searches:
+802`), 2,406 of the 2,454 execution buffers, zero rows, 2.355 ms. That is about
+three buffers per active scope, so the cost of an empty answer grows with the
+scope count. Product issue: #11208.
+
+## documentation/facts: 36 blocks against the 33-block default
+
+`pg_stat_statements` over 22 requests, repeated in two batches with identical
+counts, with a 5 s idle control window that held no statements:
+
+| Statement | Blocks per request |
+| --- | --- |
+| The route's facts SELECT (keyset index scan, 25 rows removed by the `fact_kind` filter, none returned) | 32 |
+| Scope status lookup | 3 |
+| Auth token lookup | 1 |
+
+All 36 blocks are the route's own statements. No core background statement
+landed in the window, so `-background-idle` is not the cause, and the plan shape
+is sound. The corpus grew: the 20,000 seeded finding facts put about 25 facts in
+every scope. The route stays unnamed and moves the default row through the
+formula, from 33 to 108 blocks.
+
+## The stand-in is temporary
+
+#11196 (reducer-owned infra backfill) is merged on `origin/main`. The gate's
+reducer image only runs the product backfill once the deploy image pinned in CI
+carries it, so the stand-in stays and stays labelled `gate_stand_in`. The
+follow-up is to drop the stand-in and assert that the reducer itself records the
+marker, once the pinned image carries #11196.
+
+## Rows the ratchet refused against the committed legacy table
+
+The committed legacy table was last rendered on 2026-10-19 and 2026-10-20, before
+the gate stopped being runnable. Rendered against it, the refresh script refused
+two rows. Neither comes from the seeded 20,000 findings.
+
+| Route | Committed blocks | Measured blocks (both runs) | Ratio |
+| --- | --- | --- | --- |
+| `MCP search_entity_content` | 311,960 | 1,200 budget from 400 measured | collapse past 20x |
+| `MCP search_file_content` | 798 | 1,740 budget from 580 measured | 2.18x growth |
+
+What is already known. The seed counts verify exactly in both runs, and the
+pilots check the exact response page on every warmup and counted request, so the
+corpus is intact. Commit `29753641d7` (2026-10-27, #8682, after the table) renamed
+the synthetic search repositories from `seed-search-` to `seed-gate-search-` so
+the entity pilot seeds sort into the first 1,000-row ordered probe window, and its
+README says measurements from before and after the rename are separate fixture
+cohorts. That README also says the historical variance in #8682 remains
+unexplained, so the cause of the file-search growth is not proven.
+
+What a single run would prove. The rename is one constant
+(`seedSearchRepoPrefix` in `seed_content_files.go`). A throwaway worktree at the
+same head with the old value, run on the same corpus and the same legacy leg,
+would show whether both rows return to their committed ratios. It has not been
+run; it waits for the arbiter's ruling.

@@ -191,9 +191,17 @@ sweep, so a regression that manifests as a hung connection — rather than an
 error status — still produces a budget breach instead of a silent pass. Only
 a genuine connection failure (eshu-api never came up) aborts the run.
 
+**Work budget tables**: each leg enforces its own generated Postgres work
+table; see [Work Budget Tables](read-api-latency-gate-budgets.md) for the legs,
+their provenance (commit, corpus, report hashes, accept flags), and the default
+row.
+
 **Coverage guards**: `ExercisedCoverageFloor` fails the run if the total
 exercised-route count drops below its pinned value (a ratchet — raise it
-when coverage genuinely improves, never lower it). Separately,
+when coverage genuinely improves, never lower it). It is pinned to the exact
+measured count: 77 of 128 routes and operations on both legs, which is the
+pinned route floor of 67 plus the 10 selected operations (the four provider
+routes above are not in the count). Separately,
 `RequireNamedRoutesExercised` fails the run if any route this gate
 *explicitly* budgets (not merely covered by the `default` row) comes back
 not-exercised — a named route silently losing its selector or auth scope
@@ -466,14 +474,9 @@ status routes' `domainBacklogQuery` under their Postgres work budgets.
 to prove the gate catches (e.g. `cd go && CGO_ENABLED=1 go build -o
 /tmp/eshu-api-pre-fix ./cmd/api` in a worktree checked out at that commit) and
 point the run script at it: `GATE_API_BIN=/tmp/eshu-api-pre-fix bash
-scripts/verify-read-api-latency-gate.sh`. This is a local mechanism only --
-there is deliberately no CI equivalent (a `workflow_dispatch` input that builds
-an operator-supplied ref would check out and execute untrusted code in a
-workflow whose trigger can write to the default branch's Actions cache scope,
-which is what CodeQL's `actions/cache-poisoning/poisonable-step` flags; see the
-workflow's own `workflow_dispatch` comment). Three RED runs against real
-pre-fix commits are already recorded verbatim in
-(#6797). To keep a stack for
+scripts/verify-read-api-latency-gate.sh`. This is a local mechanism only:
+there is deliberately no CI equivalent (the workflow's own `workflow_dispatch`
+comment explains the CodeQL cache-poisoning reason). To keep a stack for
 debugging locally, run the script with `--keep`; it leaves Postgres and
 NornicDB up with the seeded corpus and retains the live-gate lock. `eshu-api`
 is stopped on exit either way, so start your own build against the kept stack to
