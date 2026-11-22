@@ -31,10 +31,11 @@ import (
 // wait row itself (parked_wait, the lateral probe in the queries' FROM), not a
 // failure_class or timestamp shortcut: a woken row has its wait row deleted and
 // reopened_at set, is real work, and ages from the wake. A parked row is always
-// retrying, so the probe's status guard keeps a pending row off the wait table
-// and the cost does not follow the table's size. Correlated copies, a hashed
-// NOT IN, and an unguarded lateral measured +18% to +157% on the bounded probe
-// at 10x (R4-3 decision, round 4 record).
+// retrying, so the status guard keeps every other row off the wait table: at K=0
+// the table is never touched; each visible retrying row adds one primary-key
+// lookup (about 2.5 us at 13,000 wait rows, 4 us at 200,000, growing with the
+// index depth). Correlated copies, a hashed NOT IN and an unguarded lateral
+// measured +18% to +157% on the bounded probe at 10x (R4-3 decision record).
 var claimableReadySQL = "((work.domain NOT IN (SELECT domain FROM reducer_claim_readiness_requirements)\n" +
 	"            OR " + reducerClaimReadinessGateSQL("work", "readiness_req", "readiness_phase") + ")\n" +
 	"           AND parked_wait.parked IS NULL)"
@@ -68,13 +69,13 @@ const parkedWaitProbeSQL = `LEFT JOIN LATERAL (
 // row per ingestion scope (#6794 selective-probe precedent). The two forms
 // select the same rows (TestActiveFactWorkItemsFormsSelectTheSameRows).
 //
-// The grouped form serves the publication path, which needs every source at
-// once and does not run per claim. The claim-hot consult path uses the
-// bounded per-source probe (boundedSourceSignalQuery, S0 verdict): the grouped
-// scan is the slow one, p50 about 266 ms at 10x replay scale (87,130 claimable
-// rows) against about 92 ms for the bounded probe over about 13k rows of one
-// source, same session on a busy host. Treat the ratio, not the milliseconds,
-// as the evidence: both move with host load; the bounded budget is 100 ms.
+// The grouped form serves status publication (readSourcePacingStatus inside
+// the coordinator snapshot), which needs every source and does not run per
+// claim. The claim-hot consult path uses the bounded per-source probe
+// (boundedSourceSignalQuery, S0 verdict): the grouped scan is the slow one, p50
+// about 266 ms at 10x replay scale (87,130 claimable rows) against about 92 ms
+// for the bounded probe over about 13k rows of one source, same session on a
+// busy host. Read the ratio, not the milliseconds: both move with host load.
 var sourceClaimableSignalQuery = `
 WITH ` + activeFactWorkItemsPerRowCTE + `,
 ` + reducerClaimReadinessRequirementsCTE() + `
@@ -386,8 +387,8 @@ func (s *WorkflowControlStore) sourceClaimableSignals(
 			return cached.signals, nil
 		}
 	}
-	rows, err := s.database.QueryContext(ctx, sourceClaimableSignalQuery,
-		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge))
+	rows, err := s.database.QueryContext(ctx, sourceClaimableSignalQuery, unpreparedSignalArgs(
+		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge))...)
 	if err != nil {
 		return nil, err
 	}

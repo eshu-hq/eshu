@@ -108,8 +108,8 @@ func readSourceClaimableSignals(
 	asOf time.Time,
 	config workflow.SourceBackpressureConfig,
 ) ([]workflow.SourceQueueSignal, error) {
-	rows, err := queryer.QueryContext(ctx, sourceClaimableSignalQuery,
-		asOf.UTC(), asOf.UTC().Add(-config.EngageAge), asOf.UTC().Add(-config.ReleaseAge))
+	rows, err := queryer.QueryContext(ctx, sourceClaimableSignalQuery, unpreparedSignalArgs(
+		asOf.UTC(), asOf.UTC().Add(-config.EngageAge), asOf.UTC().Add(-config.ReleaseAge))...)
 	if err != nil {
 		return nil, err
 	}

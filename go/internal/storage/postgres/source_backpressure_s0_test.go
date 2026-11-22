@@ -224,7 +224,7 @@ type sourceSignalRow struct {
 func explainSignalQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, signalQuery string, now time.Time) (string, []sourceSignalRow) {
 	t.Helper()
 	explainRows, err := sqlConn.QueryContext(ctx,
-		"EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+signalQuery, s0GroupedParams(now)...)
+		"EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+signalQuery, unpreparedSignalArgs(s0GroupedParams(now)...)...)
 	if err != nil {
 		t.Fatalf("explain signal query: %v", err)
 	}
@@ -243,7 +243,7 @@ func explainSignalQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, si
 	}
 	_ = explainRows.Close()
 
-	dataRows, err := sqlConn.QueryContext(ctx, signalQuery, s0GroupedParams(now)...)
+	dataRows, err := sqlConn.QueryContext(ctx, signalQuery, unpreparedSignalArgs(s0GroupedParams(now)...)...)
 	if err != nil {
 		t.Fatalf("signal query: %v", err)
 	}
@@ -272,7 +272,7 @@ func timeQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, signalQuery
 	samples := make([]float64, 0, n)
 	for i := 0; i < n; i++ {
 		start := time.Now()
-		rows, err := sqlConn.QueryContext(ctx, signalQuery, s0GroupedParams(now)...)
+		rows, err := sqlConn.QueryContext(ctx, signalQuery, unpreparedSignalArgs(s0GroupedParams(now)...)...)
 		if err != nil {
 			t.Fatalf("time signal query: %v", err)
 		}
@@ -348,7 +348,7 @@ func timeQuerySingle(t *testing.T, ctx context.Context, sqlConn *sql.Conn, probe
 		start := time.Now()
 		var age float64
 		var depth, pastEngage, pastRelease int64
-		if err := sqlConn.QueryRowContext(ctx, probe, s0ProbeParams(now, source)...).Scan(&age, &depth, &pastEngage, &pastRelease); err != nil {
+		if err := sqlConn.QueryRowContext(ctx, probe, unpreparedSignalArgs(s0ProbeParams(now, source)...)...).Scan(&age, &depth, &pastEngage, &pastRelease); err != nil {
 			t.Fatalf("time bounded probe: %v", err)
 		}
 		samples = append(samples, float64(time.Since(start)))
@@ -360,7 +360,7 @@ func timeQuerySingle(t *testing.T, ctx context.Context, sqlConn *sql.Conn, probe
 func explainOne(t *testing.T, ctx context.Context, sqlConn *sql.Conn, probe string, now time.Time, args ...any) string {
 	t.Helper()
 	params := append([]any{now.UTC()}, args...)
-	rows, err := sqlConn.QueryContext(ctx, "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+probe, params...)
+	rows, err := sqlConn.QueryContext(ctx, "EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+probe, unpreparedSignalArgs(params...)...)
 	if err != nil {
 		t.Fatalf("explain probe: %v", err)
 	}

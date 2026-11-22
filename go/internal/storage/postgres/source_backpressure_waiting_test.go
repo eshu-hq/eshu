@@ -149,8 +149,10 @@ func TestSourceBackpressureParkedProbeIsGuardedByRetrying(t *testing.T) {
 	now := time.Now().UTC()
 	const rows = 40
 	seedTakeableShape(t, ctx, conn, now, "pp-plain", "plain", "supply_chain_impact", "pending", "", rows, 2*time.Hour)
-	seedTakeableShape(t, ctx, conn, now, "pp-other", "other", "supply_chain_impact", "retrying", "", rows, 2*time.Hour)
-	parkTakeableRows(t, ctx, conn, "pp-other", now) // a populated wait table on another source
+	// Another source holds wait rows (dangling: its rows are pending), so the
+	// wait table is populated while no retrying row exists anywhere yet.
+	seedTakeableShape(t, ctx, conn, now, "pp-other", "other", "supply_chain_impact", "pending", "", rows, 2*time.Hour)
+	parkTakeableRows(t, ctx, conn, "pp-other", now)
 	if _, err := conn.ExecContext(ctx, "ANALYZE fact_work_items"); err != nil {
 		t.Fatalf("analyze: %v", err)
 	}
@@ -173,20 +175,58 @@ func TestSourceBackpressureParkedProbeIsGuardedByRetrying(t *testing.T) {
 		}
 	}
 
+	// The grouped query has the same guard: with no retrying row anywhere its
+	// wait-table node is never executed either.
+	groupedExplain := func() string {
+		t.Helper()
+		cfg := sourceBackpressureTestConfig()
+		return explainOne(t, ctx, sqlConn, sourceClaimableSignalQuery, now, now.Add(-cfg.EngageAge), now.Add(-cfg.ReleaseAge))
+	}
+	groupedPlain := groupedExplain()
+	assertSingleGuardedProbe(t, "grouped, no retrying rows", groupedPlain, 0)
+
 	// The same source turned retrying and parked probes once per row.
 	if _, err := conn.ExecContext(ctx, `UPDATE fact_work_items SET status = 'retrying' WHERE scope_id = 'pp-plain'`); err != nil {
 		t.Fatalf("retry plain rows: %v", err)
 	}
 	parkTakeableRows(t, ctx, conn, "pp-plain", now)
-	parked := explain("plain")
-	probed := 0
-	for _, n := range waitTableScanLoops(parked) {
-		probed += n
+	assertSingleGuardedProbe(t, "bounded, retrying rows", explain("plain"), rows)
+
+	// The grouped query probes every visible retrying row it scans, once each.
+	if _, err := conn.ExecContext(ctx, `UPDATE fact_work_items SET status = 'retrying' WHERE scope_id = 'pp-other'`); err != nil {
+		t.Fatalf("retry other rows: %v", err)
 	}
-	if probed != rows {
-		t.Fatalf("retrying source ran the wait-table probe %d times, want once per row (%d)\n%s", probed, rows, parked)
+	assertSingleGuardedProbe(t, "grouped, retrying rows", groupedExplain(), 2*rows)
+}
+
+// assertSingleGuardedProbe checks one signal plan against the R4-3 cost shape:
+// exactly one wait-table node, an index-only lookup (never a sequential scan)
+// under a Limit and a Result, run wantLoops times: the number of visible
+// retrying rows the plan scanned, 0 when it scanned none ("never executed").
+func assertSingleGuardedProbe(t *testing.T, name, plan string, wantLoops int) {
+	t.Helper()
+	loops := waitTableScanLoops(plan)
+	if len(loops) != 1 {
+		t.Fatalf("%s: plan reads reducer_waiting_items %d times (loops %v), want exactly one probe node\n%s", name, len(loops), loops, plan)
 	}
-	if strings.Contains(parked, "Seq Scan on reducer_waiting_items") {
-		t.Fatalf("the wait-table probe seq-scans: it must be an index lookup per row\n%s", parked)
+	if loops[0] != wantLoops {
+		t.Fatalf("%s: the wait-table probe ran %d times, want %d (one per visible retrying row scanned; the retrying guard keeps every other row off it)\n%s", name, loops[0], wantLoops, plan)
+	}
+	var nodes []string
+	for _, line := range strings.Split(plan, "\n") {
+		if strings.Contains(line, "->") {
+			nodes = append(nodes, strings.TrimSpace(line))
+		}
+	}
+	for i, node := range nodes {
+		if !strings.Contains(node, "reducer_waiting_items") {
+			continue
+		}
+		if !strings.Contains(node, "Index Only Scan using reducer_waiting_items_pkey") {
+			t.Fatalf("%s: the wait-table probe is %q, want an Index Only Scan on the primary key\n%s", name, node, plan)
+		}
+		if i < 2 || !strings.HasPrefix(nodes[i-1], "->  Result") || !strings.HasPrefix(nodes[i-2], "->  Limit") {
+			t.Fatalf("%s: the wait-table node must sit under Limit -> Result, got %v\n%s", name, nodes[max(0, i-2):i+1], plan)
+		}
 	}
 }

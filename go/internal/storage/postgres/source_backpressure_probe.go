@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -28,8 +30,9 @@ import (
 // falling back to the scope) stays the correctness predicate, so
 // empty-payload rows resolved via their scope are never pruned.
 //
-// The grouped query stays for the publication path (SourcePacingStates),
-// which needs every source and does not run per claim.
+// The grouped query stays for status publication (readSourcePacingStatus,
+// inside the coordinator snapshot), which needs every source and does not run
+// per claim.
 const (
 	boundedSourceSignalSelectHead = "SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') AS source_system,"
 	boundedSourceSignalGroupTail  = "GROUP BY 1\nORDER BY source_system"
@@ -52,6 +55,19 @@ func boundedSourceSignalQuery() string {
 	return strings.Replace(query, boundedSourceSignalGroupTail, boundedSourceSignalPrefilter, 1)
 }
 
+// unpreparedSignalArgs prefixes a signal query's arguments with
+// pgx.QueryExecModeExec (#11187 R4-3). pgx's default mode caches prepared
+// statements, and under plan_cache_mode=auto a generic plan made while
+// reducer_waiting_items is analyzed empty keeps its sequential scan of the wait
+// table after the table fills, until a statistics update forces a re-plan:
+// measured on the 10x seed, the bounded probe went from about 95 ms to 160 ms at
+// 1,000 wait rows and 3.9 s at 50,000, the grouped query from about 300 ms to
+// 19 s. Planning each run costs 1-2 ms. pgx consumes the mode before binding,
+// so the placeholders stay $1... Precedent: internal/query entity search page.
+func unpreparedSignalArgs(args ...any) []any {
+	return append([]any{pgx.QueryExecModeExec}, args...)
+}
+
 // sourceClaimableSignalForSource reads one source's claimable reducer
 // signal through the bounded probe, reusing a cached observation younger
 // than the configured TTL. A zero TTL reads every time, which is what
@@ -65,8 +81,8 @@ func (s *WorkflowControlStore) sourceClaimableSignalForSource(
 	if cached, ok := s.cachedBoundedSignal(cfg, sourceSystem, now); ok {
 		return cached, nil
 	}
-	rows, err := s.database.QueryContext(ctx, boundedSourceSignalQuery(),
-		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge), sourceSystem)
+	rows, err := s.database.QueryContext(ctx, boundedSourceSignalQuery(), unpreparedSignalArgs(
+		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge), sourceSystem)...)
 	if err != nil {
 		return workflow.SourceQueueSignal{SourceSystem: sourceSystem}, err
 	}
