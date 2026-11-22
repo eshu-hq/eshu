@@ -14,8 +14,9 @@ on PR-B0 (`drive/10880-pr-b`). Commits on `drive/10880-pr-b1`, each test-first:
 
 1. **Migration 336.** `supply_chain_impact_finding_supports`: one row per live
    finding fact, primary key `fact_id`, generation foreign key with cascade,
-   indexes `(scope_id, generation_id)`, `(repository_id)`, `(finding_id)` and a
-   partial `(canonical_key)` index for the operator override probe. The same
+   indexes `(scope_id, generation_id)`, `(repository_id)`, `(finding_id)`, a
+   partial `(canonical_key)` index for the operator override probe, and a plain
+   `(generation_id)` index for the foreign key's cascade delete. The same
    migration adds the backfill marker and cursor table, the old-writer dirty-scope
    table, and the fence triggers on `fact_records`. The checksum manifest, the
    bootstrap golden digest, the schema order list, and the repository-retirement
@@ -73,13 +74,26 @@ Findings from reading the code:
   land from a separate flow after the finding fact: a write-time exclusion would
   race that flow. The static-authority guard stays on the read side. The equality
   test shows the guard is load-bearing: removing it fails 49 cases.
-- **The generation foreign key needs no extra index on PostgreSQL 18.** The
-  cascade deletes supports by `generation_id`. `EXPLAIN` of that delete at 144,000
-  supports in 2,400 generations shows an index scan on the `(scope_id,
-  generation_id)` index (B-tree skip scan, new in 18), 0.58 ms for the cascade
-  trigger without a `generation_id` index and 0.35 ms with one. The plan-shape
-  guard pins "no sequential scan". On a server older than 18 this would scan the
-  table, and a `generation_id` index would be needed.
+- **The generation foreign key needs its own `(generation_id)` index.** The
+  cascade runs `DELETE FROM ONLY supports WHERE generation_id = $1` once per
+  deleted generation, inside the retention and repository-retirement
+  transactions. An earlier draft of this record said PostgreSQL 18 reaches those
+  rows by B-tree skip scan on the `(scope_id, generation_id)` index and needs no
+  index of its own. That was wrong. The review measured, and the scale shim
+  confirms, that 18.6 reads the whole `(scope_id, generation_id)` index once per
+  deleted generation (`Index Searches: 1` over every leaf page; a skip scan would
+  show one search per scope; the arbiter reports the same on 17). At 300,000
+  supports the probe touches 326 buffers and at 1,200,000 it touches 1,115, and a
+  50-generation `DELETE FROM scope_generations` takes 10.8 ms and 39.3 ms of
+  trigger time. With a plain `(generation_id)` index the probe reads 1 to 3
+  index buffers at both sizes and the 50-generation cascade takes 2.1 ms and
+  2.6 ms ([cascade scale note](../evidence/10880-pr-b1/cascade_scale.md)).
+  Migration 336, still unshipped, therefore carries the fifth index. The
+  plan-shape guard pins the cascade statement, prepared under a generic plan, to
+  `supply_chain_impact_finding_supports_generation_idx` by name with
+  `generation_id` in the Index Cond, and its seeded violation drops that index in
+  a rolled-back transaction and expects the checker to reject the plan. The
+  index is required on every server version.
 
 ## The old-writer fence
 
@@ -262,7 +276,8 @@ scope's active generation; non-tombstone; non-active state; the same clock bind)
   are unchanged).
 - **Plan shape.** At the 400-scope shape over 144,000 supports in 2,400 scopes the
   plan needs both grant indexes and no sequential scan; the natural single-WHERE
-  form fails the same checker; the cascade delete does not scan sequentially.
+  form fails the same checker; the cascade delete uses the `(generation_id)`
+  index by name, and the same checker rejects it with that index dropped.
 - The HTTP reference text for B2: "the canonical copy among the copies you may see
   that match the other filters". Filters the ruling does not classify
   (`impact_status`, `subject_digest`, `repository_id`, runtime filters) keep
@@ -317,7 +332,8 @@ written), or an old writer still running (the dirty-scope gauge stays above zero
   the distinct blocks of a restarted server.
 - The trigger's WHEN-false cost at the CPU level; only WAL and wall time under
   load were measured.
-- A PostgreSQL older than 18 (the cascade plan relies on skip scan).
+- A PostgreSQL other than 18.6 (the cascade scale note is 18.6 only; the index is
+  required whichever planner release runs).
 - The keyed resweep's own read of the table: B1 adds no such reader.
 - Whether winners v2 is on QA, and the QA impact-WAL window.
 - `make pre-push`, `make pre-pr`, and CI: left to the coordinator by order.

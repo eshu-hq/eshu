@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -117,6 +118,139 @@ func TestSupplyChainImpactSupportsOldWriterFenceLive(t *testing.T) {
 	var oldSupports int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = 'fact:fence:old-writer'`).Scan(&oldSupports); err != nil || oldSupports != 1 {
 		t.Fatalf("the old writer's fact has %d supports (err %v), want 1", oldSupports, err)
+	}
+}
+
+// supportsOldWriterHold inserts one finding fact the way a reducer without the
+// maintainer would and leaves the transaction open: the fence trigger has
+// bumped and row-locked the scope's dirty mark, and nothing is visible to other
+// sessions until the returned commit runs.
+func supportsOldWriterHold(t *testing.T, ctx context.Context, db *sql.DB, factID string) (commit func()) {
+	t.Helper()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin the held old writer: %v", err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback() })
+	if _, err := tx.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key,
+    observed_at, ingested_at, is_tombstone, payload, fencing_token)
+VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1, 'synthetic', $1, now(), now(), FALSE,
+    '{"cve_id":"CVE-2026-0001","package_id":"pkg:npm/old@1","repository_id":"repository:old","impact_status":"affected_exact"}'::jsonb, 1)`,
+		factID, replaceSetLiveScope, replaceSetLiveGeneration); err != nil {
+		t.Fatalf("insert %s in the held transaction: %v", factID, err)
+	}
+	return func() {
+		if err := tx.Commit(); err != nil {
+			t.Fatalf("commit the held old writer: %v", err)
+		}
+	}
+}
+
+func supportsDirtyVersion(t *testing.T, ctx context.Context, db *sql.DB) (version int64, found bool) {
+	t.Helper()
+	err := db.QueryRowContext(ctx, `SELECT dirty_version FROM supply_chain_impact_finding_supports_dirty WHERE scope_id = $1`,
+		replaceSetLiveScope).Scan(&version)
+	if err == sql.ErrNoRows {
+		return 0, false
+	}
+	if err != nil {
+		t.Fatalf("read the dirty version: %v", err)
+	}
+	return version, true
+}
+
+// TestSupplyChainImpactSupportsDrainKeepsAMarkLandedDuringTheDrainLive proves
+// the drain's version-guarded clear, the rolling-upgrade correctness guard. A
+// drain step reads the dirty scope at version v and drains it. An old writer
+// whose transaction is still open has already bumped and row-locked the mark,
+// so the step's clear waits for it. When that writer commits a finding fact the
+// drain never read, the mark is at v+1: the clear's recheck must not match it,
+// the mark must survive, and the next step must write the new fact's support.
+// A clear that ignores the version deletes the mark and leaves the fact with no
+// support while the table reads ready.
+func TestSupplyChainImpactSupportsDrainKeepsAMarkLandedDuringTheDrainLive(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	store := postgres.SQLDB{DB: db}
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 2}
+	if _, err := replaceSetWriter(db).WriteSupplyChainImpactFindings(ctx, replaceSetWrite("intent:10880:drain-race",
+		replaceSetFinding("repository:r_drain_1"))); err != nil {
+		t.Fatalf("seed pass: %v", err)
+	}
+	supportsBackfillRunToCompletion(t, ctx, backfill)
+
+	// An old writer commits fact A: the scope is dirty at version v.
+	supportsOldWriterInsert(t, ctx, db, "fact:drain:first", "reducer_supply_chain_impact_finding", false)
+	v, found := supportsDirtyVersion(t, ctx, db)
+	if !found {
+		t.Fatal("the old writer's first insert left no dirty mark")
+	}
+
+	// A second old-writer transaction inserts fact B and stays open: it holds
+	// the dirty row at version v+1 uncommitted.
+	commit := supportsOldWriterHold(t, ctx, db, "fact:drain:second")
+	stepDone := make(chan error, 1)
+	go func() {
+		_, err := backfill.RunStep(ctx)
+		stepDone <- err
+	}()
+
+	// The step drains fact A, then its clear waits on the held row lock.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		var waiting int
+		if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM pg_stat_activity
+WHERE wait_event_type = 'Lock' AND query ILIKE '%DELETE FROM supply_chain_impact_finding_supports_dirty%'`).Scan(&waiting); err != nil {
+			t.Fatalf("poll the waiting clear: %v", err)
+		}
+		if waiting > 0 {
+			break
+		}
+		select {
+		case err := <-stepDone:
+			t.Fatalf("the step finished (err %v) without waiting on the held old writer's mark: the interleaving was not reached", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the drain's clear never waited on the held mark")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	commit()
+	if err := <-stepDone; err != nil {
+		t.Fatalf("the drain step: %v", err)
+	}
+	after, found := supportsDirtyVersion(t, ctx, db)
+	if !found {
+		t.Fatal("the drain cleared a mark an old writer re-marked after the drain read it: fact B would have no support while the table reads ready")
+	}
+	if after <= v {
+		t.Fatalf("dirty version %d did not advance past %d", after, v)
+	}
+	var supportsForSecond int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = 'fact:drain:second'`).Scan(&supportsForSecond); err != nil || supportsForSecond != 0 {
+		t.Fatalf("fact B has %d supports (err %v) before the next drain, want 0: the first step could not have read it", supportsForSecond, err)
+	}
+	if ready, err := postgres.SupplyChainImpactSupportsReady(ctx, store); err != nil || ready {
+		t.Fatalf("ready with the surviving mark = %v (err %v), want false", ready, err)
+	}
+
+	for step := 0; step < 50 && supportsDirtyScopes(t, ctx, db) > 0; step++ {
+		if _, err := backfill.RunStep(ctx); err != nil {
+			t.Fatalf("second drain step %d: %v", step, err)
+		}
+	}
+	if n := supportsDirtyScopes(t, ctx, db); n != 0 {
+		t.Fatalf("%d scopes still dirty after the second drain", n)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE fact_id = 'fact:drain:second'`).Scan(&supportsForSecond); err != nil || supportsForSecond != 1 {
+		t.Fatalf("fact B has %d supports (err %v) after the next drain, want 1", supportsForSecond, err)
+	}
+	supportsLiveAssertMirror(t, ctx, db, replaceSetLiveScope, replaceSetLiveGeneration, "after the drain that raced an old writer")
+	if ready, err := postgres.SupplyChainImpactSupportsReady(ctx, store); err != nil || !ready {
+		t.Fatalf("ready after the second drain = %v (err %v), want true", ready, err)
 	}
 }
 
