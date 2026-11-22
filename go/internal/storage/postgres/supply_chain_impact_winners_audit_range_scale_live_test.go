@@ -14,10 +14,21 @@ import (
 )
 
 // winnersAuditRangeScaleEnv selects the #11131 range-cost measurement: unset
-// skips it (the differential and the built-path proofs cover correctness);
-// a positive integer is the fixture's identifier count (30000 seeds about
-// 300,000 finding facts with about 2 KB of payload padding each).
+// or "smoke" runs a small fixture so the proof stays in the reducer
+// contention gate (which rejects an enrolled test that skips) and asserts
+// only the shape-independent checks; a positive integer is the fixture's
+// identifier count and adds the plan assertions (30000 seeds about 300,000
+// finding facts with about 2 KB of payload padding each).
 const winnersAuditRangeScaleEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_SCALE"
+
+// winnersAuditRangeSmokeIdentifiers is the smoke fixture's identifier count:
+// a few thousand facts, one range at the default budget. The planner may
+// choose a sequential scan at this size, so the plan assertions run only for
+// an explicit scale at or above winnersAuditRangePlanAssertMin.
+const (
+	winnersAuditRangeSmokeIdentifiers = 400
+	winnersAuditRangePlanAssertMin    = 20000
+)
 
 // TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive measures the
 // shipped range statement at the default budget on a scaled fixture: the
@@ -27,14 +38,15 @@ const winnersAuditRangeScaleEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_
 // single-statement audit time on the same data, the NULL probe plan and
 // time, and the per-range writer verify time.
 func TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive(t *testing.T) {
-	raw := strings.TrimSpace(winnersScaleKnob(winnersAuditRangeScaleEnv))
-	if raw == "" {
-		t.Skip("set " + winnersAuditRangeScaleEnv + " to the identifier count to measure the range cost")
+	identifiers := winnersAuditRangeSmokeIdentifiers
+	if raw := strings.TrimSpace(winnersScaleKnob(winnersAuditRangeScaleEnv)); raw != "" && raw != "smoke" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 100 {
+			t.Fatalf("%s=%q: want smoke or an identifier count of at least 100", winnersAuditRangeScaleEnv, raw)
+		}
+		identifiers = n
 	}
-	identifiers, err := strconv.Atoi(raw)
-	if err != nil || identifiers < 100 {
-		t.Fatalf("%s=%q: want an identifier count of at least 100", winnersAuditRangeScaleEnv, raw)
-	}
+	assertPlan := identifiers >= winnersAuditRangePlanAssertMin
 	h := newKeyedHarness(t, "#11131 audit range cost at scale")
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Minute)
 	t.Cleanup(cancel)
@@ -49,11 +61,11 @@ WHERE fact_kind = 'reducer_supply_chain_impact_finding'`)
 	t.Logf("seeded %d live facts over %d identifiers in %s", live, identifiers, time.Since(seedStart).Round(time.Second))
 
 	plan := h.explain("EXPLAIN (ANALYZE, BUFFERS) "+postgres.WinnersAuditFirstRangeSQLForTest, postgres.DefaultWinnersAuditRangeBudget)
-	if !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
+	if assertPlan && !strings.Contains(plan, "fact_records_supply_chain_impact_winners_keyed_idx") {
 		t.Errorf("range plan does not read the keyed winners index:\n%s", plan)
 	}
 	for _, line := range strings.Split(plan, "\n") {
-		if strings.Contains(line, "Seq Scan on fact_records") {
+		if assertPlan && strings.Contains(line, "Seq Scan on fact_records") {
 			t.Errorf("range plan scans fact_records sequentially: %s", strings.TrimSpace(line))
 		}
 	}

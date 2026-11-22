@@ -160,6 +160,14 @@ candidate and `...AuditSweepKeyedTickSkippedDuringVerifyLive` and
   en_US.utf8 the same two tests plus the differential, repairs, resume and
   guard proofs pass, exit 0.
 
+The same gate run also failed on `skipped enrolled test or subtest:
+TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive` (the gate rejects
+an enrolled test that skips, and this one skipped without its scale knob). The
+test now runs a smoke fixture of 400 identifiers when the knob is unset or
+`smoke`, with the plan assertions only for an explicit scale of 20,000
+identifiers or more; the measured scale readings below are unchanged. Under a
+`--locale=C` `postgres:18.6` container the unset run passes (5.6 s), exit 0.
+
 ## Performance Evidence
 
 Performance Evidence: theory measured before any code on the QA read-only
