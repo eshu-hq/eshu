@@ -53,6 +53,8 @@ digit, so the format only keeps ranges balanced.
 
 ## Performance Evidence
 
+Performance Evidence: on QA, cold, in a 4-way burst, the key-range statements ran at p95 581 ms and max 1.01 s with zero 57014 cancels, where the shipped read reached 13.47 s. The measurements follow.
+
 QA replica, read-only, 30 s statement timeout, replica lag 0.02-0.64 s.
 
 Causes, measured first (M15). The 20 most recent fan-out failures carry
@@ -168,6 +170,8 @@ shipped statement.
   pin.
 
 ## Observability Evidence
+
+Observability Evidence: `eshu_dp_supply_chain_impact_fanout_read_duration_seconds` records one sample per holder-read statement. The details follow.
 
 `eshu_dp_supply_chain_impact_fanout_read_duration_seconds` takes one sample
 per holder-read statement. Labels: `domain`; `kind` (`holders`,
