@@ -30,7 +30,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 - Bulk writes (`seed_postgres.go`, `seed_graph.go`) use `pgx.CopyFrom` and
   one `UNWIND CREATE` per graph label, not per-row `INSERT`/`CREATE`. Row
   counts here run into the tens of thousands; per-row writes would blow the
-  CI job's time budget.
+  run's time budget.
 - The row-shaping logic (`seed_rows.go`: `scopeRows`, `generationRows`,
   `workItemRows`) is deliberately split from the `pgx.CopyFrom` calls
   (`seed_postgres.go`) so it stays unit-testable without a live Postgres.

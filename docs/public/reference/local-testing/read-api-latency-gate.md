@@ -38,7 +38,7 @@ lanes never exercise.
    infra-labeled graph nodes (`TerraformResource`, `K8sResource`,
    `CloudResource`, ...) into the graph backend via one `UNWIND CREATE` per
    label (`SeedGraph`) — not the real ingestion pipeline, which would blow
-   the CI job's time budget at this scale. A second graph write
+   the run's time budget at this scale. A second graph write
    (`SeedIaCGraphNodes`) adds `uid`-bearing nodes whose `uid`/`id`/`name`/
    `generation_id` match the seeded IaC facts' Postgres `entity_id`/
    `entity_name`/`generation_id`, so `/api/v0/iac/resources` — which selects
@@ -55,7 +55,7 @@ lanes never exercise.
    full scan of its heap (~51k blocks) exceeds the 3x work budget of those
    routes while the shipped pending-only aggregate reads a few hundred blocks
    by index (issue #6820); the seed costs about 54 s and 1.1 GB of Postgres
-   storage in the CI job. It also seeds `reducer_supply_chain_impact_finding`
+   storage in a full run. It also seeds `reducer_supply_chain_impact_finding`
    facts across every scope's active generation
    (`BuildWinnersFindingFacts`/`SeedWinnersFactRecords`,
    `GATE_WINNERS_FACT_COUNT`, default 20k rows in multi-source canonical-key

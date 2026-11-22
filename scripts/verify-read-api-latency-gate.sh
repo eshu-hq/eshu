@@ -96,9 +96,9 @@ cd "${repo_root}"
 
 # Backend stacks moved to eshu-deploy under #8871: the base Compose file
 # and the latency overlay both come from the ESHU_DEPLOY_CHECKOUT checkout
-# (CI pins the extraction commit). GATE_STACK_DIR still overrides the base
+# (the gate's tests pin the extraction commit). GATE_STACK_DIR still overrides the base
 # file for local candidate-fix measurement.
-: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout at the extraction commit the gate pins (see compose_override_test.go)}"
 stack_dir="${GATE_STACK_DIR:-${ESHU_DEPLOY_CHECKOUT}/compose}"
 compose_file="${stack_dir}/docker-compose.yaml"
 database="nornic"
@@ -169,9 +169,8 @@ fi
 . "${repo_root}/scripts/lib/read-api-latency-core.sh"
 
 # api_log_preserve_path is where cleanup copies the running eshu-api's log
-# before deleting work_dir, so a CI failure still has the log available (the
-# "Dump service logs on failure" workflow step reads it) instead of losing
-# it to the same rm -rf that clears everything else.
+# before deleting work_dir, so a failed run still has the log available
+# instead of losing it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
 mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
 core_log_preserve_dir="${TMPDIR:-/tmp}"

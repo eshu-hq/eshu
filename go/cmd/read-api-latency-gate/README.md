@@ -2,10 +2,11 @@
 
 ## Purpose
 
-Backend-backed p95 latency benchmark for every no-arg GET read route,
-gated in CI so a regression like #6793 (infra resource aggregate full-graph
-scan) or #6794 (status/readiness routes paying an expensive per-scope
-`activeFactWorkItemsCTE` query) cannot merge without the CI job going red.
+Backend-backed p95 latency benchmark for every no-arg GET read route. It is
+run by hand: no CI job runs it (the workflow was deleted in `c77c2630aa`). It
+catches a regression like #6793 (infra resource aggregate full-graph scan) or
+#6794 (status/readiness routes paying an expensive per-scope
+`activeFactWorkItemsCTE` query) by going red.
 
 Two budget tables gate it, with different jobs. The latency ceilings
 (`testdata/benchmarks/read-api-route-budgets.txt`) are the SLO contract and
@@ -245,10 +246,10 @@ Parent buffer counts include child work; do not sum the tree or infer request,
 network or row-decoding latency from this plan. Missing or malformed plan
 evidence fails diagnostic validation.
 
-The manual Read API Latency Gate workflow accepts a `status_diagnostic` boolean,
-which defaults to false. It enables these artifacts only in the Neo4j scale
-job. The existing scale archive includes the sanitized diagnostic directory.
-Ordinary PR, push, merge-group and manual acceptance runs keep diagnostics off.
+The status diagnostic mode (`GATE_STATUS_DIAGNOSTIC_DIR`) enables these
+artifacts and is off by default. The workflow that used to expose it was deleted
+in `c77c2630aa`; the mode remains available through the environment variable
+only, and no CI job exercises it.
 The local proof compared OFF/ON/ON/OFF on one retained full seeded database,
 with fresh API processes and identical request/work settings. That comparison
 provides local observations for the touched status path; it does not establish
