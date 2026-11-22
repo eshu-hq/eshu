@@ -256,10 +256,11 @@ func (s Service) HandlerTimeoutFor(domain reducercontract.Domain) time.Duration 
 // panic value for the caller to re-raise; the boolean (rather than a nil test
 // on value) keeps panic(nil) unambiguous.
 type handlerOutcome struct {
-	result   reducercontract.Result
-	err      error
-	panicked bool
-	value    any
+	result       reducercontract.Result
+	err          error
+	panicked     bool
+	value        any
+	boundExpired bool // the bound's own deadline had passed when Execute returned
 }
 
 // executeHandler runs Executor.Execute in a goroutine and waits for its
@@ -285,9 +286,10 @@ type handlerOutcome struct {
 // and a shutdown racing the bound keeps the shutdown class.
 //
 // A handler that returns context.DeadlineExceeded is relabeled to the
-// counting timeout class only when our own timer fired (the done arm checks
-// the timer state): the cause is then our bound, never a downstream store or
-// query timeout, which keeps its own failure class.
+// counting timeout class only when the bound's own deadline had passed when
+// it returned (sampled in the handler goroutine, not read from the timer):
+// the cause is then our bound, never a downstream store or query timeout,
+// which keeps its own failure class.
 //
 // A handler panic must unwind on the caller's goroutine exactly as a direct
 // Executor.Execute call would: harnesses such as crashreplay recover crash
@@ -311,9 +313,10 @@ func (s Service) executeHandler(
 ) (result reducercontract.Result, err error, abandoned bool) {
 	bound := s.HandlerTimeoutFor(intent.Domain)
 	execStart := time.Now()
+	var handlerDeadline handlerBound
 	if bound > 0 {
 		var cancel context.CancelFunc
-		execCtx, cancel = context.WithTimeout(execCtx, bound)
+		execCtx, cancel, handlerDeadline = armHandlerBound(execCtx, bound)
 		defer cancel()
 	}
 	done := make(chan handlerOutcome, 1)
@@ -326,7 +329,7 @@ func (s Service) executeHandler(
 		}()
 		result, err := s.Executor.Execute(execCtx, intent)
 		completed = true
-		done <- handlerOutcome{result: result, err: err}
+		done <- handlerOutcome{result: result, err: err, boundExpired: handlerDeadline.expired()}
 	}()
 	reraise := func(out handlerOutcome) (reducercontract.Result, error, bool) {
 		if out.panicked {
@@ -352,17 +355,17 @@ func (s Service) executeHandler(
 			return reducercontract.Result{}, shutdownCtx.Err(), true
 		}
 	}
-	timer := time.NewTimer(bound)
+	timer := s.armBoundTimer(handlerDeadline, bound)
 	defer timer.Stop()
 	select {
 	case out := <-done:
 		if out.panicked {
 			panic(out.value)
 		}
-		if ownDeadlineExpired(out, timer) {
-			// Our own timer already fired: the bound expired at (or just
-			// before) the handler's return. The handler cooperated, so the
-			// worker is free, but the cause is our bound — report the
+		if ownDeadlineExpired(out) {
+			// The bound's deadline had passed when the handler returned,
+			// whether or not the timer has fired yet. The handler cooperated,
+			// so the worker is free, but the cause is our bound: report the
 			// counting timeout class, never a bare context error.
 			return out.result, newHandlerTimeoutError(intent, bound, time.Since(execStart), out.err), false
 		}

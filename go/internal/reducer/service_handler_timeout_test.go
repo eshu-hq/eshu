@@ -130,6 +130,29 @@ func TestExecuteHandlerCooperativeTimeoutCarriesTimeoutClass(t *testing.T) {
 	assertTimeoutFailure(t, err)
 }
 
+// TestExecuteHandlerReturnBeforeBoundTimerCarriesTimeoutClass is the #11193
+// deterministic regression. The handler observes the context deadline and
+// returns while the separate bound timer has NOT fired (the injected timer
+// never fires), the exact interleaving a loaded runner produces by
+// scheduling between the two arms. The outcome must still carry the retryable
+// timeout class: attribution comes from the derived context's own deadline,
+// not from the timer state. A bare context.DeadlineExceeded here is not
+// retryable and would dead-letter the item on the spot.
+func TestExecuteHandlerReturnBeforeBoundTimerCarriesTimeoutClass(t *testing.T) {
+	t.Parallel()
+
+	service := Service{
+		Executor:       &ctxDoneReducerExecutor{},
+		HandlerTimeout: 50 * time.Millisecond,
+		newBoundTimer:  func(time.Duration) *time.Timer { return time.NewTimer(time.Hour) },
+	}
+	_, err, abandoned := callExecuteHandlerWithWatchdog(t, service, context.Background(), context.Background(), abandonTestIntent("intent-timeout-before-timer"))
+	if abandoned {
+		t.Fatal("abandoned = true, want false: the handler cooperated and returned")
+	}
+	assertTimeoutFailure(t, err)
+}
+
 // slowCooperativeReducerExecutor observes cancellation like a real paged
 // handler but cannot return before the bound releases it: it sleeps past the
 // bound after its context ends, forcing the deadline branch deterministically.

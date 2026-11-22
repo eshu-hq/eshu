@@ -243,6 +243,11 @@ type Service struct {
 	HandlerTimeout          time.Duration
 	HandlerTimeoutOverrides map[reducercontract.Domain]time.Duration
 
+	// newBoundTimer arms the executeHandler deadline-branch timer; nil uses
+	// time.NewTimer. Tests inject a timer that never fires to force the
+	// handler's own return ahead of the timer (#11193).
+	newBoundTimer func(time.Duration) *time.Timer
+
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.
 	ackRetryBase time.Duration
