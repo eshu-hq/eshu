@@ -32,6 +32,10 @@ See `doc.go` for the full contract.
 ## Dependencies
 
 - `storage/postgres/db` — `ExecQueryer` surface the store runs against
+- `storage/postgres/queue` (`queuestore`) — `ReplayRetryAllowanceAssignments`,
+  the replay retry-allowance SET fragment the recovery statement appends
+  (#11217). That package imports only `projector/failure` and pure helpers, so
+  the import adds no cycle.
 
 Non-test files must never import the parent `postgres` package: the parent's
 tests and `cmd/reducer` import this one, so the reverse import is a cycle.
@@ -61,6 +65,16 @@ sweep outcome.
 - The attempt budget lives in the row's JSONB payload and is capped with
   `LEAST`; there is no schema column. A row at or past the ceiling is
   excluded by the candidate CTE, never retried.
+- A recovered row gets a new row's retry allowance (#11217): the recovery
+  SET list appends `queuestore.ReplayRetryAllowanceAssignments` (the shared
+  fragment of the three operator replays, never a copy) and raises a
+  projector row's `attempt_count` to at least 1. `replay_attempt_baseline`
+  takes the row's `attempt_count` and `admission_wait_attempts` goes to 0, so
+  the row gets 3 projection claims and 48 admission waits again;
+  `attempt_count` is never lowered (it is the claim fence). Reducer rows keep
+  `attempt_count` and their baseline until #11184. The per-row bound is still
+  `poison_recovery_attempts`: with a budget of M a row gets at most
+  3 x (1 + M) counting projection claims and 48 x (1 + M) admission waits.
 - `DefaultBatchLimit` (200) deliberately matches the generation-liveness sweep
   batch default; the parent package pins the equality in
   `batch_default_parity_test.go`, so changing one without the other

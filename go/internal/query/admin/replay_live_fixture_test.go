@@ -49,8 +49,9 @@ const (
 	replayViaRecoveryBounded replaySite = "recovery-bounded"
 )
 
-// replaySites is the three replay paths that carry the allowance, so each
-// replay proof runs on all three (the poison auto-retry sweep carries none).
+// replaySites is the three operator replay paths that carry the allowance, so
+// each replay proof runs on all three. The poison auto-retry sweep is the
+// fourth carrier (#11217); its proofs are in poison_sweep_*_live_test.go.
 var replaySites = []replaySite{replayViaAdmin, replayViaRecovery, replayViaRecoveryBounded}
 
 // proofProjectionError is a retryable projection failure that is not an

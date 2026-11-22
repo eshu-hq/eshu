@@ -27,6 +27,16 @@
 - The budget counter stays in the JSONB payload with a `LEAST` cap — do not
   add a schema column for it, and do not widen the candidate CTE past the
   `< maxRecoverAttempts` gate.
+- `RecoverDeadLettersQuery` carries the replay retry allowance (#11217):
+  `queuestore.ReplayRetryAllowanceAssignments` is the last SET assignment,
+  after `reopened_at`, and the `attempt_count` CASE raises projector rows to
+  at least 1. Never copy the fragment or carry only half of it (a baseline
+  without the admission reset lets the projection difference go negative),
+  and never lower `attempt_count`. When #11184 widens the fragment's CASE to
+  all stages, widen the `attempt_count` CASE here in the same commit. The
+  lockstep guard is `TestReplayAllowanceCarriersRaiseAttemptCount` in the
+  parent package; the live proofs are `poison_sweep_*_live_test.go` in
+  `query/admin` and `liveness_retry_allowance_live_test.go` here.
 - Non-test files never import the parent `postgres` package (cycle: the
   parent's tests and `cmd/reducer` import this package). The external tests
   (`package poison_test`) may import the parent for the generation-liveness
