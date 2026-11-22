@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11228 Ack/park interleave proofs: a generation_active wait that parks between the projector Ack's in-tx wake and its commit is reopened without the audit or backstop, in both orders (park-first, ack-first) and the held window; disposable database per test; enrolled in the live-postgres-readiness runner
+//eshu:readiness:reason #11228 Ack/park interleave proofs: a generation_active wait that parks between the projector Ack's in-tx wake and its commit is reopened without the audit or backstop, in both orders (park-first, ack-first) and the held window, and the crash residual (Ack re-wake skipped) resolves through the audit and counts on the fallback counter; disposable database per test; enrolled in the live-postgres-readiness runner
 //eshu:readiness:env ESHU_REDUCER_FAIRNESS_PROOF_DSN ESHU_POSTGRES_DSN
 
 import (
@@ -43,6 +43,9 @@ type ackParkRaceFixture struct {
 	waiterID  string
 	waiterQ   ReducerQueue
 	waiter    reducercontract.Intent
+	// skipRewake runs the Ack without its post-commit re-wake, standing in
+	// for a crash between the commit and the re-wake.
+	skipRewake bool
 }
 
 func newAckParkRaceFixture(t *testing.T, ctx context.Context, scopeID string) *ackParkRaceFixture {
@@ -82,6 +85,7 @@ func (f *ackParkRaceFixture) ack(ctx context.Context, ackDB *sql.DB, instruments
 	at := f.clock
 	queue.Now = func() time.Time { return at }
 	queue.AckScopeLockTimeout = maxProjectorAckLockTimeout
+	queue.skipAckPostCommitWake = f.skipRewake
 	work := projector.ScopeGenerationWork{
 		Scope: scope.IngestionScope{
 			ScopeID:       f.scopeID,
@@ -336,4 +340,50 @@ func TestWaitingAckParkOrdersLive(t *testing.T) {
 		f.park(t, ctx)
 		f.requireWoken(t, ctx)
 	})
+}
+
+// TestWaitingAckCrashResidualAuditLive is ruling decision 3's crash
+// residual: the production Ack runs the held-window interleave with its
+// post-commit re-wake skipped, as a crash after the commit would leave it.
+// The waiter stays parked; the next audit pass reopens it and counts it on
+// eshu_dp_reducer_waiting_fallback_resolved_total as reopened for its class
+// on the class's registered in_tx wake site, the lost-wake signal.
+func TestWaitingAckCrashResidualAuditLive(t *testing.T) {
+	ctx := context.Background()
+	f := newAckParkRaceFixture(t, ctx, "ack-park-crash")
+	f.skipRewake = true
+	blockerPID, release := holdAckAfterGenerationWake(t, ctx, f)
+	ackDone := make(chan error, 1)
+	go func() { ackDone <- f.ack(ctx, openReducerFairnessClaimerDB(t, ctx, f.targetDSN), nil) }()
+	waitBlockedBy(t, ctx, f.base, blockerPID, ackDone)
+	f.park(t, ctx)
+	release()
+	select {
+	case err := <-ackDone:
+		if err != nil {
+			t.Fatalf("Ack: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Ack never committed after the hold released")
+	}
+	if got := readWaitingRow(t, ctx, f.base, f.waiterID); got.waitRows != 1 {
+		t.Fatalf("waiter wait rows after the re-wake-less Ack = %d, want 1 (the crash residual)", got.waitRows)
+	}
+	instruments, reader := newEnqueueInstruments(t)
+	reopened, _, _, err := AuditWaitingItems(ctx, SQLDB{DB: f.base}, instruments, f.clock, DefaultWaitingAuditInterval, 100)
+	if err != nil {
+		t.Fatalf("AuditWaitingItems() error = %v", err)
+	}
+	if reopened != 1 {
+		t.Fatalf("audit reopened %d, want the one residual waiter", reopened)
+	}
+	f.requireWoken(t, ctx)
+	got := counterWithLabels(collectAckParkMetrics(t, reader), fallbackResolvedMetric, map[string]string{
+		"failure_class":                          reducercontract.GenerationActivationNotReadyFailureClass,
+		telemetry.MetricDimensionWaitingWakeSite: WaitingWakeSiteInTx,
+		"outcome":                                telemetry.WaitingWakeOutcomeReopened,
+	})
+	if got != 1 {
+		t.Fatalf("fallback_resolved{generation_activation_not_ready, in_tx, reopened} = %d, want 1", got)
+	}
 }

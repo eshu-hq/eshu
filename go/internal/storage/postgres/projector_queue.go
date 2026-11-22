@@ -103,6 +103,10 @@ type ProjectorQueue struct {
 	// processAckSkipLog, shared by every queue in the process; only tests set
 	// it, to own the clock.
 	ackSkipLog *logSampler
+	// skipAckPostCommitWake drops the Ack's #11228 post-commit re-wake.
+	// Only tests set it, to stand in for a crash between the commit and
+	// the re-wake.
+	skipAckPostCommitWake bool
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's

@@ -206,6 +206,9 @@ func wakeAckActivationWaits(
 // re-wake's own clock read, not the Ack's pre-transaction one: visible_at
 // and reopened_at move to the wake time, as for the in-tx wake.
 func (q ProjectorQueue) wakeAckWaitsAfterCommit(ctx context.Context, work projector.ScopeGenerationWork) {
+	if q.skipAckPostCommitWake {
+		return
+	}
 	q.wakeAckWaitsAfterCommitWithin(ctx, work, AckPostCommitWakeTimeout)
 }
 

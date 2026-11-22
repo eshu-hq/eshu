@@ -144,10 +144,15 @@ tests:
     class: postgres_ci
     reason: "#8169 disposable PostgreSQL 18 regression proof that a workload_materialization ACK landing between a catalog re-run's runtime read and its decision write flags that in-flight run, even when the scope's older decisions do not name the repository; the run's ACK returns it to pending instead of committing an empty runtime family. Local run about 2s on postgres:18; wall time is logged, not gated"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11228 contention proof: concurrent projector Acks (the activating Ack and a stale-owner duplicate), reducer Fail parks inside and across the Ack's open window, reducer and projector claims, and the waiting audit on one scope generation end with zero 40P01 and no parked waiter once the Ack committed, before any audit pass after the commit; run under -race; disposable database per round; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_ack_park_race_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#11228 Ack/park interleave proofs: a generation_active wait that parks between the projector Ack's in-tx wake and its commit is reopened without the audit or backstop, in both orders (park-first, ack-first) and the held window; disposable database per test; enrolled in the live-postgres-readiness runner"
+    reason: "#11228 Ack/park interleave proofs: a generation_active wait that parks between the projector Ack's in-tx wake and its commit is reopened without the audit or backstop, in both orders (park-first, ack-first) and the held window, and the crash residual (Ack re-wake skipped) resolves through the audit and counts on the fallback counter; disposable database per test; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_audit_resolved_live_test.go
     tag: ~
