@@ -57,14 +57,24 @@ func walBytes(t *testing.T, ctx context.Context, db *sql.DB, from string) (strin
 	return now, diff.Int64
 }
 
+// TestZZB1WriteCostScratch measures the writer's WAL for three passes (insert,
+// replay under a new intent id, retract) in three variants: without the supports
+// maintainer, with it and the generation_id index dropped (the shape before the
+// arbiter's cascade ruling), and with it and the shipped migration 336 (the
+// generation_id index present).
 func TestZZB1WriteCostScratch(t *testing.T) {
 	const n = 3000
 	type result struct {
 		wal [3]int64
 		dur [3]time.Duration
 	}
-	run := func(withSupports bool) result {
+	run := func(withSupports, dropGenerationIndex bool) result {
 		ctx, db := openReplaceSetLiveDB(t)
+		if dropGenerationIndex {
+			if _, err := db.ExecContext(ctx, `DROP INDEX supply_chain_impact_finding_supports_generation_idx`); err != nil {
+				t.Fatalf("drop generation index: %v", err)
+			}
+		}
 		var beginner supplychaincore.SupplyChainImpactBeginner = postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}}
 		if !withSupports {
 			beginner = hideSupportsBeginner{inner: beginner}
@@ -94,15 +104,15 @@ func TestZZB1WriteCostScratch(t *testing.T) {
 		return res
 	}
 	for rep := 0; rep < 3; rep++ {
-		with, without := run(true), run(false)
+		without, noIdx, withIdx := run(false, false), run(true, true), run(true, false)
 		for i, name := range []string{"insert", "replay", "retract"} {
-			t.Logf("rep %d %-7s WAL with=%9d without=%9d (+%5.1f%%)  wall with=%v without=%v (+%5.1f%%)", rep, name,
-				with.wal[i], without.wal[i], 100*float64(with.wal[i]-without.wal[i])/float64(without.wal[i]),
-				with.dur[i].Round(time.Millisecond), without.dur[i].Round(time.Millisecond),
-				100*float64(with.dur[i]-without.dur[i])/float64(without.dur[i]))
+			t.Logf("rep %d %-7s WAL without=%9d supports-no-genidx=%9d (+%5.1f%%) supports+genidx=%9d (+%5.1f%%) | genidx adds %5.1f pts, %d bytes",
+				rep, name, without.wal[i],
+				noIdx.wal[i], 100*float64(noIdx.wal[i]-without.wal[i])/float64(without.wal[i]),
+				withIdx.wal[i], 100*float64(withIdx.wal[i]-without.wal[i])/float64(without.wal[i]),
+				100*float64(withIdx.wal[i]-noIdx.wal[i])/float64(without.wal[i]), withIdx.wal[i]-noIdx.wal[i])
 		}
 	}
-	_ = sort.Strings
 }
 
 func TestZZB1BackfillDurationScratch(t *testing.T) {

@@ -104,7 +104,11 @@ WHERE marker_name = $1 AND completed_at IS NULL`
 
 // supplyChainImpactSupportsBackfillCompleteSQL sets the readiness marker in one
 // statement that rechecks the old-writer fence: when a scope is dirty the update
-// touches no row and the marker stays unset until the next step drains it.
+// touches no row and the marker stays unset until the next step drains it. The
+// recheck is defense in depth: every step drains first, so a dirty fence reaches
+// completion only through a race, and the readiness predicate's own fence check
+// is the guard a reader relies on (a mutant without this recheck survives the live
+// suite; the readiness mutants do not).
 const supplyChainImpactSupportsBackfillCompleteSQL = `
 UPDATE supply_chain_impact_finding_supports_backfill
 SET completed_at = now(), updated_at = now()

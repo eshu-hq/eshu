@@ -107,6 +107,9 @@ func runSupportsBackfillPass(
 		instruments.RecordSupplyChainImpactSupportsBackfillStepResult(ctx, outcome, time.Since(stepStarted), report.DirtyScopes)
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionUnchanged,
 			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Unchanged)
+		// The backfill's write-on-change upsert reports one Written count for
+		// supports it inserted or changed, so source=backfill counts both under
+		// action=inserted; only the writer source separates inserted from updated.
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionInserted,
 			telemetry.SupplyChainImpactSupportsSourceBackfill, report.Written)
 		instruments.RecordSupplyChainImpactSupportsRows(ctx, telemetry.SupplyChainImpactSupportsActionDeleted,

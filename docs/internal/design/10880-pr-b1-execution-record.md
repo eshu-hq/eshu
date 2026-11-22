@@ -182,26 +182,34 @@ load average about 24 on 16 cores, so wall times are noisy and WAL bytes are the
 stable figure.
 
 **Writer write cost** (the real writer, 3,000 findings in one scope, three
-repetitions; the comparison forwards every optional transaction surface but the
-supports maintainer; payload verbatim):
+repetitions, `postgres:18.6`; the comparison forwards every optional transaction
+surface but the supports maintainer; payload verbatim). Re-measured after the
+arbiter's cascade ruling added the `(generation_id)` index, with all three
+variants in each repetition ([WAL note](../evidence/10880-pr-b1/wal_generation_index.md)):
 
-| Pass | WAL with supports | WAL without | Delta |
-| --- | --- | --- | --- |
-| Insert 3,000 findings | 24.85 MB | 17.64 to 17.67 MB | +40.6% to +40.9% |
-| Replay the same 3,000 under a new intent id | 21.22 MB | 13.76 to 13.82 MB | +53.5% to +54.2% |
-| Retract 1,500 of 3,000 (1,500 kept under a new intent id) | 14.60 MB | 10.87 to 11.07 MB | +31.8% to +34.3% |
+| Pass | WAL without supports | Supports, no generation index | Supports, shipped migration | The index adds |
+| --- | --- | --- | --- | --- |
+| Insert 3,000 findings | 17.64 to 17.70 MB | +40.4% to +40.9% | **+41.9% to +42.4%** | 1.5 points |
+| Replay the same 3,000 under a new intent id | 13.76 to 14.03 MB | +51.2% to +54.2% | **+53.1% to +56.2%** | 1.9 to 2.0 points |
+| Retract 1,500 of 3,000 (1,500 kept under a new intent id) | 10.87 MB | +34.3% | **+35.5% to +36.3%** | 1.2 to 2.1 points |
 
-These are synthetic and differ from the +19.4% (insert with retraction) the ruling
-reasoned on, which measured the support statements alone and without the real
-writer's dirty-log and pass-state work. The reasons, from the runs: a verbatim
+The ruling's stop thresholds for the new index were 3 points on insert and 6 on
+replay; it adds 1.5 and 2.0, so the `(generation_id, scope_id)` swap is not
+needed. The totals are above the epic's +25% impact-WAL rule. The earlier ruling
+reasoned on +19.4% (insert with retraction), a figure from the support
+statements alone, without the real writer's dirty-log and pass-state work. **That
+premise is falsified:** the real writer measures about twice it. The payload
+stays for the PR-C reasons (PR-C makes the supports table the only copy, and a
+payload-less table needs a second backfill, a contract bump and a 503 window),
+and `arbiter-b1-cascade` reaffirmed that. B1 serves no reader, so this WAL buys
+nothing until B2 and B3. The reasons for the size, from the runs: a verbatim
 payload makes every support carry the fact's per-pass keys, so a replay that
 carries a new intent id rewrites the support as it rewrites the fact (an earlier
-build stripped those keys and measured +0.4% to +1.6% on replay and retraction, at
-the cost of the data PR-C needs); and the payload column is about half of the
+build stripped those keys and measured +0.4% to +1.6% on replay and retraction,
+at the cost of the data PR-C needs); and the payload column is about half of the
 insert delta (an earlier run with the payload set to an empty object gave +20.7% to
-+22.2%). The ruling makes the +25% impact-WAL rule a QA before/after window check
-before B3, not a B1 gate, and these numbers go to that review as a measured
-synthetic fact.
++22.2%). The +25% rule is checked as a QA before/after window (below), now a
+dated post-deploy action that returns to the arbiter before B3.
 
 **QA window for the before/after check.** Report, for equal windows before and
 after the roll: `pg_stat_wal.wal_bytes`, the table size, and the impact-write WAL
@@ -313,8 +321,20 @@ written), or an old writer still running (the dirty-scope gauge stays above zero
     AND NOT EXISTS (SELECT 1 FROM supply_chain_impact_finding_supports AS s WHERE s.fact_id = f.fact_id);
   ```
 
-- **B3 precondition on QA:** the supports v1 marker is recorded and the fence is
-  empty.
+- **B3 preconditions** (`arbiter-b1-cascade`; also posted as a comment on
+  #10880):
+  1. The supports v1 marker is recorded and the fence is empty on QA.
+  2. A QA impact-write WAL window in equal windows before and after the B1
+     roll, with the metrics named above (`pg_stat_wal.wal_bytes`, the table size,
+     WAL per row written, WAL per reopened item). Capture the before window
+     before the roll and the after window in the first full equal window after the
+     backfill completes. Post both on #10880.
+  3. If the QA delta is above +25%, return to the arbiter before B3 with three
+     measured options: strip the per-pass keys from the support payload (and what
+     PR-C then needs); keep it as is with PR-C's net WAL measured the same way;
+     or the index swap. B2 may proceed meanwhile but must not add a reader that
+     depends on per-pass payload keys.
+  4. PR-C still owes net-negative WAL, measured and not credited.
 - **Single QA pin.** The supports contract does not raise the winners contract,
   so B1 does not need its own winners full; it rides the agreed QA image pin if
   that is ready, or any later agreed pin, and its roll must record no second
@@ -335,6 +355,40 @@ written), or an old writer still running (the dirty-scope gauge stays above zero
 - A PostgreSQL other than 18.6 (the cascade scale note is 18.6 only; the index is
   required whichever planner release runs).
 - The keyed resweep's own read of the table: B1 adds no such reader.
-- Whether winners v2 is on QA, and the QA impact-WAL window.
+- Whether winners v2 is on QA, and the QA impact-WAL window (a dated post-deploy
+  action, see the B3 preconditions).
+- The QA census (`census.sql`). It reads the supports table, which does not exist
+  on QA before B1 deploys; it runs on the QA read replica after the roll and the
+  backfill, and its figures go on #10880. No QA access in this lane.
 - `make pre-push`, `make pre-pr`, and CI: left to the coordinator by order.
 </content>
+
+## Stopping the supports writes
+
+There is no runtime switch. The impact writer calls the maintainer whenever its
+transaction implements it, and the reducer starts the backfill unconditionally;
+no environment variable, setting or flag gates either. If the QA WAL is
+unacceptable, the only stop is rolling back the image. A rolled-back (old) writer
+does not maintain supports, so its finding writes mark their scopes dirty through
+the fence trigger (the table is not ready, and no reader depends on it in B1), and
+the table keeps its rows until the next roll forward drains them.
+
+## For the PR body
+
+- **At a glance row, writer WAL** (synthetic, real writer, 3,000 findings):
+  insert +41.9% to +42.4%, replay +53.1% to +56.2%, retract +35.5% to +36.3%
+  against the same writer without the maintainer, all above the epic's +25%
+  impact-WAL rule.
+- The earlier ruling reasoned on +19.4%. The measured figure is about twice that.
+  The payload stays for the PR-C reasons, and `arbiter-b1-cascade` reaffirmed it.
+  B1 serves no reader, so this WAL buys nothing until B2 and B3.
+- **The cascade finding:** the generation foreign key's cascade read the whole
+  `(scope_id, generation_id)` index once per deleted generation (326 buffers at
+  300,000 supports, 1,115 at 1,200,000; 10.8 ms and 39.3 ms of trigger time for 50
+  generations). Migration 336 now carries a `(generation_id)` index (1 to 3 index
+  buffers at both sizes; 2.1 ms and 2.6 ms for 50 generations), pinned by name in
+  the plan guard.
+- **QA census and the B2 readiness SQL.** The census needs the supports table, so
+  it is a post-roll check (see NOT_CHECKED). The readiness query is the one in
+  "Pre-merge conditions and rollout" above.
+- **Operator stop:** the section above.
