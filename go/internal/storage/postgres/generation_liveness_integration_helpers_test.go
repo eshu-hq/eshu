@@ -82,6 +82,8 @@ CREATE TABLE fact_work_items (
     -- migration 325 (#10671): the admission-wait counter Fail retries
     -- against instead of the shared projection attempt budget.
     admission_wait_attempts BIGINT NOT NULL DEFAULT 0,
+    -- migration 331 (#10882): the source-paced wait counter.
+    source_paced_waits BIGINT NOT NULL DEFAULT 0,
     lease_owner     TEXT NULL,
     claim_until     TIMESTAMPTZ NULL,
     visible_at      TIMESTAMPTZ NULL,

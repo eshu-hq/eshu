@@ -34,7 +34,7 @@ import (
 //
 // The projection mirrors the tail of claimProjectorWorkQuery (see
 // projector_queue_claim_sql.go) column-for-column, with attempt_count and
-// admission_wait_attempts the literals 0 — a corpus re-drain has no
+// admission_wait_attempts and source_paced_waits the literals 0 — a corpus re-drain has no
 // lease/retry history to carry (#10671 keeps the two counters adjacent).
 //
 // ORDER BY (scope_id, generation_id) makes the enumeration deterministic so a
@@ -60,6 +60,7 @@ SELECT
     scope.collector_kind,
     scope.partition_key,
     generation.generation_id,
+    0,
     0,
     0,
     generation.observed_at,

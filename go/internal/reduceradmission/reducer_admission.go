@@ -372,7 +372,7 @@ func (w reducerAdmissionWriter) Enqueue(
 			return result, nil
 		}
 		w.recordDeferral(ctx, reason, failureClass, "", depth, len(intents))
-		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(intents)); timeoutErr != nil {
+		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, "", depth, len(intents)); timeoutErr != nil {
 			return runtime.IntentResult{}, timeoutErr
 		}
 		if err := w.wait(ctx); err != nil {

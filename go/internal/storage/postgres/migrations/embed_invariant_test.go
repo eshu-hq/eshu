@@ -348,9 +348,12 @@ import (
 // (renumbered 326 to 332 at rebase: main owns 325-330).
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
+// 333_projector_source_paced_waits.sql (#10882) adds the projector
+// source-paced wait counter (metadata-only fast default); count 359 with the
+// 331/332 pair already counted. Digest recomputed after the rebase.
 const (
 	goldenBootstrapDefinitionsDigest = "df9dc37054beb12623f6027de2ac45ed4aa277276caa4284b62eb007f54485f6"
-	goldenBootstrapDefinitionsCount  = 358
+	goldenBootstrapDefinitionsCount  = 359
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

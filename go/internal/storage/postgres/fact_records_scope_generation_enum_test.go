@@ -93,7 +93,7 @@ func TestListScopeGenerationWorkNilDB(t *testing.T) {
 	}
 }
 
-// enumWorkRow builds the 16-column scanProjectorWork projection row for the
+// enumWorkRow builds the 18-column scanProjectorWork projection row for the
 // enumeration query (attempt_count is a literal 0 for a re-drain; no prior
 // generation exists for a single-generation B-12 fixture).
 func enumWorkRow(
@@ -112,6 +112,7 @@ func enumWorkRow(
 		generationID,  // generation_id
 		0,             // attempt_count
 		0,             // admission_wait_attempts (#10671)
+		0,             // source_paced_waits (#10882)
 		observed,      // observed_at
 		ingested,      // ingested_at
 		"accepted",    // status

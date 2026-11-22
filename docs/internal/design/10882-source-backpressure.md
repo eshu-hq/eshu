@@ -281,7 +281,9 @@ Pacing deletes nothing and terminal-fails nothing:
   letters and generation sets equal to the control run. If the
   arithmetic cannot guarantee that under the configured bounds, the
   per-source leg must defer by *requeue-without-attempt* semantics
-  instead — decided in S3 by measurement, before enforcement ships.
+  instead. Decided (#10882 fork 1, see
+  [fork rulings](10882-source-backpressure-fork-rulings.md)): paced waits
+  retry under their own `source_paced_waits` counter and never dead-letter.
 
 ### 7. Publication: metrics first, then the status surface
 
@@ -462,8 +464,8 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
   read-only measurements; this ruling verified code, schema, and
   documents on `origin/main`, not live QA state, and not the
   eshu-workflow satellite's claim-plane copy of the pacing consult —
-  S2 must confirm satellite parity or scope enforcement to in-repo
-  claim paths and say so.
+  resolved: the satellite has no `reducer_source` signal, so AC3 is scoped
+  to in-repo claim paths ([fork rulings](10882-source-backpressure-fork-rulings.md)).
 - Per-source re-read safety (decision 6) is asserted for git and
   vulnerability windows from their commit/cursor design as read here;
   the S2 proof sources must re-verify it in their own harness before

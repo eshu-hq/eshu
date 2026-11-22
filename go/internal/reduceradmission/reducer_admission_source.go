@@ -149,7 +149,7 @@ func (w reducerAdmissionWriter) enqueueBySource(
 				continue
 			}
 			w.recordDeferral(ctx, reason, failureClass, group.source, depth, len(group.intents))
-			if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(group.intents)); timeoutErr != nil {
+			if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, group.source, depth, len(group.intents)); timeoutErr != nil {
 				return runtime.IntentResult{}, timeoutErr
 			}
 			deferred = append(deferred, group)

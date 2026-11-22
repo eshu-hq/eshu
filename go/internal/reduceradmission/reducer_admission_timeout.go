@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -83,7 +84,7 @@ func (reducerAdmissionTimeoutError) IsAdmissionTimeout() bool {
 // waitStart has exceeded the claim-scoped MaxWait. A non-positive MaxWait
 // disables the timeout. Timeout ownership: the waiting worker goroutine calls
 // this inline — no new goroutine, no shared state, no lock-order change.
-func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, waitStart time.Time, reason string, depth int64, intentCount int) error {
+func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, waitStart time.Time, reason, sourceSystem string, depth int64, intentCount int) error {
 	maxWait := w.config.MaxWait
 	if maxWait <= 0 {
 		return nil
@@ -95,6 +96,7 @@ func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, wa
 	if w.logger != nil {
 		w.logger.WarnContext(ctx,
 			"reducer admission wait timed out, failing work item for retry",
+			slog.String("source_system", sourceSystem),
 			slog.String("reason", reason),
 			log.FailureClass(""),
 			slog.Int64("queue_depth", depth),
@@ -103,5 +105,45 @@ func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, wa
 			slog.Int("intent_count", intentCount),
 		)
 	}
+	if reason == workflow.SourceBackpressureReasonSourceBehind {
+		return reducerSourcePacedError{waited: waited, maxWait: maxWait, source: sourceSystem}
+	}
 	return reducerAdmissionTimeoutError{waited: waited, maxWait: maxWait, reason: reason, depth: depth}
 }
+
+// reducerSourcePacedError is the Enqueue release for a wait that outlasted
+// MaxWait while the intent batch's source was latched slowed (#10882). It is
+// retryable so ProjectorQueue.Fail returns the claim to the queue, and it
+// implements failure.SourcePacedError instead of AdmissionTimeoutError so the
+// queue refunds the wait from both attempt budgets and never dead-letters it:
+// pacing must defer a source's work, not terminate it. It carries no
+// FailureClass, so it can never label a dead letter.
+type reducerSourcePacedError struct {
+	waited  time.Duration
+	maxWait time.Duration
+	source  string
+}
+
+func (e reducerSourcePacedError) Error() string {
+	return fmt.Sprintf("%s: source %q paced, waited %s exceeding %s; releasing claim without spending an attempt",
+		ErrReducerSourcePaced, e.source, e.waited.Truncate(time.Millisecond), e.maxWait)
+}
+
+func (e reducerSourcePacedError) Unwrap() error {
+	return ErrReducerSourcePaced
+}
+
+func (reducerSourcePacedError) Retryable() bool {
+	return true
+}
+
+// IsSourcePaced opts this error into the failure.SourcePacedError contract so
+// the projector queue takes the attempt-neutral release path.
+func (reducerSourcePacedError) IsSourcePaced() bool {
+	return true
+}
+
+// ErrReducerSourcePaced reports that an admission wait outlasted MaxWait
+// while the batch's source was paced. It is not an admission timeout and
+// never matches ErrReducerAdmissionTimeout.
+var ErrReducerSourcePaced = errors.New("reducer source paced")

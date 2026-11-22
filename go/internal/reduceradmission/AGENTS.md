@@ -12,6 +12,9 @@
 - Pacing changes when work is admitted per source only. Never reduce
   worker counts, batch sizes, or concurrency here (serialization is not
   a fix).
+- A `source_behind` wait must never surface as the admission timeout.
+  The admission timeout spends the finite admission budget and
+  dead-letters, so pacing would mint dead letters (#10882 AC4).
 - Deferral is never a drop: every intent lands or the wait fails as a
   retryable admission error. Do not add a path that discards intents.
 - Consult failures fail open with the debug record. Do not fail closed
@@ -41,9 +44,11 @@
 - `source_behind` deferrals with no slowed source mean the latch is
   stuck: check `workflow_claim_pacing` rows with
   `signal = 'reducer_source'` before touching the writer.
-- Admission timeouts after release mean the attempt budget times the
-  max engagement wrong: recheck the arithmetic, do not raise MaxWait
-  blindly.
+- `admission_timeout` dead letters on a source that was only paced are
+  a bug: a `source_behind` wait past MaxWait must return the source-paced
+  error (retryable, never dead-letters, spends neither attempt budget).
+  Check that `admissionTimeoutExceeded` still branches on the reason
+  before touching MaxWait or the admission budget.
 - Whole-family throttles mean the consult resolved the wrong source set:
   the fix is in the store's family-to-source resolution, not here.
 

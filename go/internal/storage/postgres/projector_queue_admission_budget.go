@@ -55,26 +55,60 @@ func isAdmissionTimeoutCause(err error) bool {
 	return errors.As(err, &admissionErr) && admissionErr.IsAdmissionTimeout()
 }
 
-// retryDecision splits the shared attempt fence into two budgets. An
-// admission-timeout failure retries iff the item's admission waits are
-// under the admission budget, independent of the projection budget; any
-// other retryable failure retries iff the non-admission claims
-// (AttemptCount minus AdmissionWaitAttempts) are under the projection
-// budget, refunding admission waits while crash/expired-lease claims keep
-// today's budget-burning semantics. The second return value reports
-// whether the retry is an admission-wait retry (counter increment,
-// backoff input, and telemetry follow it).
-func (q ProjectorQueue) retryDecision(work projector.ScopeGenerationWork, cause error) (willRetry bool, admissionRetry bool) {
-	retryable := failure.IsRetryable(cause)
-	if !retryable {
-		return false, false
+// retryKind names which budget a retry path spends: the shared projection
+// budget, the finite admission-wait budget, or neither (a source-paced
+// release, #10882).
+type retryKind int
+
+const (
+	// retryKindProjection spends the projection attempt budget.
+	retryKindProjection retryKind = iota
+	// retryKindAdmission spends the finite admission-wait budget.
+	retryKindAdmission
+	// retryKindSourcePaced spends no budget: the wait is refunded from the
+	// projection budget and has no admission budget to exhaust.
+	retryKindSourcePaced
+)
+
+// isSourcePacedCause reports whether err is a per-source backpressure
+// release (#10882) through any %w wrapping, matching the narrow
+// failure.SourcePacedError interface.
+func isSourcePacedCause(err error) bool {
+	var pacedErr failure.SourcePacedError
+	return errors.As(err, &pacedErr) && pacedErr.IsSourcePaced()
+}
+
+// projectionClaims returns the claims that spent the projection budget:
+// every claim minus the waits refunded to the admission and source-paced
+// counters.
+func projectionClaims(work projector.ScopeGenerationWork) int {
+	return work.AttemptCount - work.AdmissionWaitAttempts - work.SourcePacedWaits
+}
+
+// retryDecision splits the shared attempt fence into three budgets. A
+// source-paced release (#10882) always retries: pacing defers a source's
+// work and must never dead-letter it, so it is bounded by the source's
+// latch (Stuck stays loud), not an attempt count. An admission-timeout
+// failure retries iff the item's admission waits are under the admission
+// budget, independent of the projection budget; any other retryable
+// failure retries iff the claims that spent the projection budget
+// (AttemptCount minus the admission and source-paced refunds) are under
+// the projection budget, so crash/expired-lease claims keep today's
+// budget-burning semantics. The second return value names which counter
+// and telemetry the retry follows.
+func (q ProjectorQueue) retryDecision(work projector.ScopeGenerationWork, cause error) (willRetry bool, kind retryKind) {
+	if !failure.IsRetryable(cause) {
+		return false, retryKindProjection
+	}
+	if isSourcePacedCause(cause) {
+		return true, retryKindSourcePaced
 	}
 	if isAdmissionTimeoutCause(cause) {
 		// +1 counts the wait being failed, matching the sibling fence
 		// (AttemptCount counts the claim being failed, retrying while
 		// AttemptCount < MaxAttempts). A budget of N endures N waits
 		// (N-1 granted retries, death on the Nth).
-		return work.AdmissionWaitAttempts+1 < q.admissionMaxAttempts(), true
+		return work.AdmissionWaitAttempts+1 < q.admissionMaxAttempts(), retryKindAdmission
 	}
-	return work.AttemptCount-work.AdmissionWaitAttempts < q.maxAttempts(), false
+	return projectionClaims(work) < q.maxAttempts(), retryKindProjection
 }

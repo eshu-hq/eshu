@@ -234,3 +234,23 @@ func (s *sourceStubClaimStore) CheckSourceBackpressure(
 	s.consultCalls++
 	return s.decision, nil
 }
+
+// TestClaimPlaneClientDoesNotServeSourceBackpressure pins the #10882 AC3
+// satellite boundary: a collector whose claims run through the eshu-workflow
+// claim plane (ESHU_WORKFLOW_CLAIM_PLANE_URL) holds a ClaimPlaneClient, which
+// has no per-source reducer-backpressure consult. The reducer queue lives in
+// core Postgres, which the claim plane does not read, and workflow.v1 has no
+// reducer_source pacing signal (eshu-workflow workflowv1/pacing.go knows only
+// domain and global). The in-repo wiring therefore refuses startup with the
+// leg enabled instead of claiming unpaced (entrypoints/service_template.go,
+// cmd/collector-component-extension/service.go). If the client ever gains
+// the consult, this test fails and the AC3 scope note in
+// docs/internal/design/10882-source-backpressure.md must be revisited.
+func TestClaimPlaneClientDoesNotServeSourceBackpressure(t *testing.T) {
+	t.Parallel()
+
+	var store any = &workflow.ClaimPlaneClient{}
+	if _, ok := store.(SourceBackpressureChecker); ok {
+		t.Fatal("ClaimPlaneClient serves SourceBackpressureChecker: plane-held claims are now pace-able, update the #10882 AC3 scope and satellite-parity notes")
+	}
+}

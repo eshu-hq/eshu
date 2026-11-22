@@ -149,4 +149,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// columns for pre-existing winner rows, split per #7961
 	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"supply_chain_impact_winners_payload_backfill",
+	// Migration 333 (#10882) adds the projector source-paced wait counter
+	// so a per-source backpressure release refunds both attempt budgets
+	// and never spends the admission budget (331 and 332 belong to the
+	// winners payload migrations).
+	"projector_source_paced_waits",
 }

@@ -44,6 +44,13 @@ type ScopeGenerationWork struct {
 	// AdmissionWaitAttempts, while admission-timeout failures retry
 	// against their own finite admission budget (#10671).
 	AdmissionWaitAttempts int
+	// SourcePacedWaits is the durable number of claims that ended in a
+	// per-source backpressure release (#10882): the batch's source was
+	// latched slowed and the wait outlasted its bound. Fail refunds these
+	// from the projection budget exactly like admission waits, but they
+	// never spend the admission budget and never dead-letter, so a slowed
+	// source defers its work instead of losing it.
+	SourcePacedWaits int
 }
 
 // ProjectorWorkSource claims one scope generation at a time.

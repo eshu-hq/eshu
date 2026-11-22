@@ -297,7 +297,7 @@ func (q ProjectorQueue) Fail(
 	}
 
 	retryable := failure.IsRetryable(cause)
-	willRetry, admissionRetry := q.retryDecision(work, cause)
+	willRetry, kind := q.retryDecision(work, cause)
 
 	if willRetry {
 		// Retry path: keep the existing retryable class and preserve any
@@ -310,8 +310,13 @@ func (q ProjectorQueue) Fail(
 		// from punishing backpressured items twice. The formula is
 		// unchanged; only the attempt input differs by cause.
 		backoffAttempt := work.AttemptCount
-		if admissionRetry {
+		switch kind {
+		case retryKindProjection: // backoffAttempt is the raw claim count
+		case retryKindAdmission:
 			backoffAttempt = work.AdmissionWaitAttempts
+		case retryKindSourcePaced:
+			// Back off on the paced counter: a long engagement settles at the retry cap.
+			backoffAttempt = work.SourcePacedWaits
 		}
 		delay := queuestore.ComputeRetryDelay(q.retryDelay(), q.retryMaxDelay(), q.JitterFraction, backoffAttempt, q.jitterSource())
 		args := []any{
@@ -326,8 +331,12 @@ func (q ProjectorQueue) Fail(
 			work.AttemptCount,
 		}
 		retryQuery := retryProjectorWorkQuery
-		if admissionRetry {
+		switch kind {
+		case retryKindProjection: // the shared retry UPDATE
+		case retryKindAdmission:
 			retryQuery = retryProjectorWorkWithAdmissionWaitQuery
+		case retryKindSourcePaced:
+			retryQuery = retryProjectorWorkWithSourcePacedWaitQuery
 		}
 		result, err := q.database.ExecContext(ctx, retryQuery, args...)
 		if err != nil {
@@ -341,7 +350,11 @@ func (q ProjectorQueue) Fail(
 			return ErrProjectorClaimRejected
 		}
 		if q.Instruments != nil {
-			if admissionRetry {
+			if kind == retryKindSourcePaced {
+				if q.Instruments.ProjectorSourcePacedRetries != nil {
+					q.Instruments.ProjectorSourcePacedRetries.Add(ctx, 1)
+				}
+			} else if kind == retryKindAdmission {
 				if q.Instruments.ProjectorAdmissionWaitRetries != nil {
 					q.Instruments.ProjectorAdmissionWaitRetries.Add(ctx, 1)
 				}

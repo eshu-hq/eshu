@@ -335,14 +335,17 @@ func TestReprojectReopenMirrorsAttemptResetForAdmissionCounter(t *testing.T) {
 	t.Parallel()
 
 	const terminal = "WHEN fact_work_items.status IN ('succeeded', 'failed', 'dead_letter') THEN 0"
-	if got := strings.Count(reprojectReopenedCTE, terminal); got != 2 {
-		t.Fatalf("reproject reopen CTE resets attempt/admission counters %d times, want 2 (one CASE each)", got)
+	if got := strings.Count(reprojectReopenedCTE, terminal); got != 3 {
+		t.Fatalf("reproject reopen CTE resets attempt/admission/source-paced counters %d times, want 3 (one CASE each)", got)
+	}
+	if !strings.Contains(reprojectReopenedCTE, "source_paced_waits = CASE") {
+		t.Fatalf("reproject reopen CTE must reset source_paced_waits with the terminal CASE (#10882)")
 	}
 	if !strings.Contains(reprojectReopenedCTE, "admission_wait_attempts = CASE") {
 		t.Fatalf("reproject reopen CTE must reset admission_wait_attempts with the terminal CASE")
 	}
 	insert, _, _ := strings.Cut(reprojectReopenedCTE, "ON CONFLICT")
-	for _, want := range []string{"attempt_count, admission_wait_attempts", "'pending', 0, 0,"} {
+	for _, want := range []string{"attempt_count, admission_wait_attempts, source_paced_waits", "'pending', 0, 0, 0,"} {
 		if !strings.Contains(insert, want) {
 			t.Fatalf("reproject reopen INSERT missing %q", want)
 		}

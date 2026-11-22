@@ -288,6 +288,16 @@ type Instruments struct {
 	// so a counter rate plus the row query gives the operator both the
 	// pace of admission retries and which items approach the budget.
 	ProjectorAdmissionWaitRetries metric.Int64Counter
+	// ProjectorSourcePacedRetries counts projector work-item retries
+	// scheduled because the batch's source was latched slowed and the
+	// admission wait outlasted its bound (#10882). These retries spend no
+	// attempt budget and never dead-letter. Unlabeled by design: the
+	// per-item position is durable row state
+	// (fact_work_items.source_paced_waits) and the per-source slowed state
+	// already rides eshu_dp_reducer_admission_deferrals_total
+	// {reason="source_behind"} plus the claim-pacing series, so the rate
+	// here plus the row query shows how long items have been paced.
+	ProjectorSourcePacedRetries metric.Int64Counter
 	// ProjectorAckDeferrals counts projector Acks deferred because a
 	// same-scope ingestion commit held the scope row (#6803), recorded by
 	// projector.AckWhenScopeFree once per deferred Ack. The closed outcome
@@ -4016,6 +4026,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorAdmissionWaitRetries counter: %w", err)
+	}
+
+	inst.ProjectorSourcePacedRetries, err = meter.Int64Counter(
+		"eshu_dp_projector_source_paced_retries_total",
+		metric.WithDescription("Total projector work-item retries scheduled because the batch's source was paced and the admission wait outlasted its bound; spends no attempt budget (#10882)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorSourcePacedRetries counter: %w", err)
 	}
 
 	inst.ProjectorAckDeferrals, err = meter.Int64Counter(

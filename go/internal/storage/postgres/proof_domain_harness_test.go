@@ -65,14 +65,16 @@ type proofWorkItem struct {
 	// admissionWaitAttempts mirrors fact_work_items.admission_wait_attempts
 	// (#10671): incremented once per admission-timeout retry.
 	admissionWaitAttempts int
-	scopeID               string
-	generationID          string
-	leaseOwner            string
-	visibleAt             time.Time
-	createdAt             time.Time
-	updatedAt             time.Time
-	claimUntil            time.Time
-	payload               []byte
+	// sourcePacedWaits mirrors fact_work_items.source_paced_waits (#10882).
+	sourcePacedWaits int
+	scopeID          string
+	generationID     string
+	leaseOwner       string
+	visibleAt        time.Time
+	createdAt        time.Time
+	updatedAt        time.Time
+	claimUntil       time.Time
+	payload          []byte
 }
 
 func newProofDomainDB(t *testing.T, now time.Time) *proofDomainDB {
@@ -462,6 +464,7 @@ func (database *proofDomainDB) claimProjectorWork(
 			generationRow.GenerationID,
 			item.attemptCount,
 			item.admissionWaitAttempts,
+			item.sourcePacedWaits,
 			generationRow.ObservedAt,
 			generationRow.IngestedAt,
 			string(generationRow.Status),

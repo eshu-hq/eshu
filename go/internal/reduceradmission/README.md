@@ -39,9 +39,14 @@ with a debug record; they are never silent and never throttle.
 
 - Deferral is never a drop: mixed-source batches partition by source so
   a healthy source lands while a slowed one waits.
-- A timeout after partial admission returns the retryable admission
-  error with the admitted count applied; enqueue is idempotent on the
-  reducer queue conflict key.
+- A high-water timeout after partial admission returns the retryable
+  admission error with the admitted count applied; enqueue is idempotent
+  on the reducer queue conflict key.
+- A `source_behind` wait past MaxWait returns `ErrReducerSourcePaced`,
+  not the admission timeout. The projector queue retries it without
+  spending either attempt budget and never dead-letters it, so a source
+  slowed for longer than MaxWait times the admission budget loses no
+  work (`fact_work_items.source_paced_waits`).
 - Consult the two S0 probes before touching the signal path:
   `TestSourceBackpressureS0SignalCost` (cost) and
   `TestSourceBackpressureProbeMatchesGroupedAndVerdicts` (equivalence).

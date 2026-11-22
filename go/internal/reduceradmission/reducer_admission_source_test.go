@@ -5,11 +5,14 @@ package reduceradmission
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/projector/failure"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -188,5 +191,80 @@ func TestSourceBackpressureEnvMatchesCollectorContract(t *testing.T) {
 		if pair[0] != pair[1] {
 			t.Fatalf("admission env %q != collector env %q: one contract, two names", pair[0], pair[1])
 		}
+	}
+}
+
+// alwaysSlowedSourceChecker reports every source slowed on every consult: a
+// source whose engagement outlasts any finite script.
+type alwaysSlowedSourceChecker struct{}
+
+func (alwaysSlowedSourceChecker) CheckSourceBackpressureForSource(
+	_ context.Context,
+	source string,
+	_ workflow.SourceBackpressureConfig,
+	_ time.Time,
+) (workflow.SourceBackpressureDecision, error) {
+	return workflow.SourceBackpressureDecision{
+		SourceSystem: source,
+		Slowed:       true,
+		Reason:       workflow.SourceBackpressureReasonSourceBehind,
+		RetryAfter:   time.Second,
+	}, nil
+}
+
+// TestReducerAdmissionSourceBehindTimeoutIsSourcePacedNotAdmissionTimeout
+// proves #10882 fork 1: a wait that outlasts MaxWait while the source is
+// latched slowed returns the source-paced error, never the admission
+// timeout. The admission timeout spends the finite admission budget and
+// dead-letters at exhaustion as admission_timeout, so a long engagement
+// would mint dead letters out of pacing (AC4). The paced error is retryable,
+// carries no dead-letter class, and releases the claim without spending
+// either attempt budget.
+func TestReducerAdmissionSourceBehindTimeoutIsSourcePacedNotAdmissionTimeout(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingReducerIntentWriter{}
+	admission := reducerAdmissionWriter{
+		inner: writer,
+		depthReader: &fakeReducerAdmissionDepthReader{
+			depths: []map[string]map[string]int64{{"reducer": {"pending": 1}}},
+		},
+		config: reducerAdmissionConfig{
+			HighWaterMark: 10_000,
+			PollInterval:  time.Millisecond,
+			MaxWait:       30 * time.Millisecond,
+		},
+		deferral:      newAdmissionDeferralState(),
+		sourceChecker: alwaysSlowedSourceChecker{},
+		sourceConfig:  admissionSourceTestConfig(),
+		sleep:         func(context.Context, time.Duration) error { return nil },
+	}
+
+	_, err := admission.Enqueue(context.Background(), []runtime.ReducerIntent{
+		{Domain: reducer.DomainWorkloadIdentity, SourceSystem: "git", EntityKey: "git-1"},
+	})
+	if err == nil {
+		t.Fatal("Enqueue() error = nil, want a source-paced release past MaxWait")
+	}
+	if errors.Is(err, ErrReducerAdmissionTimeout) {
+		t.Fatalf("Enqueue() error = %v: a source_behind wait must not surface as the admission timeout", err)
+	}
+	var admissionErr failure.AdmissionTimeoutError
+	if errors.As(err, &admissionErr) {
+		t.Fatalf("Enqueue() error %v implements AdmissionTimeoutError: it would spend the admission budget", err)
+	}
+	var pacedErr failure.SourcePacedError
+	if !errors.As(fmt.Errorf("enqueue reducer intents: %w", err), &pacedErr) || !pacedErr.IsSourcePaced() {
+		t.Fatalf("Enqueue() error = %v, want failure.SourcePacedError through the projector wrap", err)
+	}
+	if !failure.IsRetryable(err) {
+		t.Fatal("source-paced error IsRetryable = false, want true so Fail releases the claim")
+	}
+	var classed interface{ FailureClass() string }
+	if errors.As(err, &classed) {
+		t.Fatalf("source-paced error carries failure class %q: it must never label a dead letter", classed.FailureClass())
+	}
+	if writer.calls != 0 {
+		t.Fatalf("inner enqueue calls = %d, want 0 (nothing admitted while slowed)", writer.calls)
 	}
 }
