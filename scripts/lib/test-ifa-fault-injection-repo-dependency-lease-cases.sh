@@ -60,6 +60,11 @@ run_ifa_repo_dependency_partition_lease_controls() (
 				printf '%s' "${expected_pre}"
 				return 0
 				;;
+			late-lease)
+				[[ "$(<"${census_marker}")" -lt 3 ]] && return 0
+				printf '%s' "${expected_pre}"
+				return 0
+				;;
 			esac
 			[[ "$(<"${census_marker}")" -eq 1 ]] && printf '%s' "${expected_pre}" || printf '%s' "${expected_post}"
 			return 0
@@ -106,6 +111,26 @@ run_ifa_repo_dependency_partition_lease_controls() (
 	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
 	mode="wrong-domain"
 	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" post_census || return 1
+	# #11194: the runner claims its repo_dependency lease on its own first
+	# cycle, which can land after the deployment_mapping claim the cell waits
+	# on, so a pre-kill capture with a budget polls an empty census instead of
+	# failing on the first look. Without a budget the capture stays one-shot.
+	mode="late-lease"
+	printf '0' >"${census_marker}"
+	ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census 5 || return 1
+	[[ "${pre_census}" == "${expected_pre}" && "$(<"${census_marker}")" -eq 3 ]] || return 1
+	printf '0' >"${census_marker}"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census || return 1
+	[[ "$(<"${census_marker}")" -eq 1 ]] || return 1
+	mode="zero"
+	printf '0' >"${census_marker}"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census 1 || return 1
+	[[ "$(<"${census_marker}")" -eq 5 ]] || return 1
+	# A non-empty wrong-owner snapshot is not "not yet": it fails on the first look.
+	mode="wrong-owner"
+	printf '0' >"${census_marker}"
+	! ifa_repo_dependency_fault_capture_partition_leases test_cell "${dead_pid}" pre_census 5 || return 1
+	[[ "$(<"${census_marker}")" -eq 1 ]] || return 1
 	mode="partial"
 	! ifa_repo_dependency_fault_expire_partition_leases test_cell "${dead_pid}" "${expected_post}" || return 1
 	mode="remaining"

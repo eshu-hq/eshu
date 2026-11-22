@@ -295,12 +295,22 @@ func (s Service) retryTransientAck(ctx context.Context, items int, msgs ackRetry
 			break
 		}
 		s.logAckTransient(ctx, msgs.retry, "ack_transient_retry", items, attempt, err)
+		// Shutdown wins over the backoff timer. A select between a cancelled
+		// context and an already-fired timer picks at random, which re-ran ack
+		// after shutdown (#11194), so check the context before arming and
+		// again after the timer fires.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("%w: %w", errAckRetryInterrupted, ctxErr)
+		}
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			return fmt.Errorf("%w: %w", errAckRetryInterrupted, ctx.Err())
 		case <-timer.C:
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("%w: %w", errAckRetryInterrupted, ctxErr)
+			}
 		}
 		backoff = min(backoff*2, ackRetryMaxBackoff)
 	}
