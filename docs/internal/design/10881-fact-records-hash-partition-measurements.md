@@ -235,23 +235,34 @@ generations' rows, identical in both shapes; each arm runs in one session
 the replica's 3.3M-row scope holds 3.0M rows in 11 superseded generations that
 retention has not yet drained.
 
-Results at the time-box deadline (host load 24 to 26, I/O pressure 39 to 52%):
+Results (host load 24 to 26, I/O pressure 39 to 52%; the divided S1 arm overlapped
+a Go lint run and the S2 arms, so its seconds carry more contention than the
+undivided arm's; WAL bytes are per-backend and not affected):
 
-| Size | Arm | Delete | WAL (delete) | `VACUUM` | WAL (vacuum) | Rows removed |
-| --- | --- | --- | --- | --- | --- | --- |
-| S1, 2.05M rows | undivided `drain_asis` | 243.9 s | 0.86 GB | 250.3 s | 5.17 GB | 57 generations (about 25% of superseded rows) |
-| S1 | divided `drain_scoped` | running at the deadline | | | | same 57 generations |
-| S2, 5.36M rows | undivided `drain_asis` | running at the deadline | | | | 83 generations |
-| S2 | divided `drain_scoped` | not started | | | | same 83 generations |
+| Size | Arm | Delete | WAL (delete) | `VACUUM` | WAL (vacuum) |
+| --- | --- | --- | --- | --- | --- |
+| S1, 2.05M rows | undivided `drain_asis` | 243.9 s | 0.86 GB | 250.3 s | 5.17 GB |
+| S1 | divided `drain_scoped` | 276.3 s (+13%) | 0.97 GB (+13%) | 510.8 s (2.0x) | 5.24 GB (+1.4%) |
+| S2, 5.36M rows | both | NOT_CHECKED: the undivided drain was still running after 22 minutes and was stopped | | | |
 
-The divided arms and the S2 arms did not finish inside the 3 hour box
-(NOT_CHECKED). Until they land there is no divided-against-undivided removal
-number, so the issue's kill criterion ("divided materially better on retired-snapshot
-DELETE plus VACUUM") is neither met nor failed. What the undivided arm already
-shows: after a delete of this size `VACUUM` costs as much as the delete and writes
-6x its WAL, because it rewrites index pages; that is the cost a divided table has
-to beat, and with the retained five indexes it is already the smaller case (the
-production table has 153).
+Both S1 arms remove the same 57 generations (about 25% of the superseded rows).
+Reading it:
+
+- With the retained five-index profile the divided table is **not cheaper to
+  remove from**: the delete is slower, and per-backend WAL is the same within 1.4%
+  for `VACUUM`. That is what the mechanism predicts, since hash partitioning gives
+  no part to drop and each page still deletes and vacuums the same rows.
+- The 2x `VACUUM` seconds are mostly host contention (same WAL bytes), so they are
+  not evidence of a slowdown, but they are also not evidence of a win. A repeat on
+  a quiet host is needed before the ratio is quoted.
+- This is one size and one index profile. The kill criterion ("divided materially
+  better on retired-snapshot DELETE plus VACUUM at representative scale") is **not
+  met at S1**; it is not decided at S2 (NOT_CHECKED), and not decided for the
+  153-index profile, where index-page maintenance is the larger cost and 32 parts
+  split it into 32 smaller sets (NOT_CHECKED; that copy did not load in the box).
+  The honest reading today: the issue's expected benefit (removal cost independent
+  of table size) is not shown, and only a per-scope or per-snapshot partition key
+  (a different design) can give a cheap whole-partition removal.
 
 Not a partition drop: `HASH(scope_id)` has no `DETACH`/`DROP PARTITION` path for a
 generation or a scope, because every part holds many scopes. Whole-part removal
@@ -260,10 +271,25 @@ a different design (per-scope or per-snapshot partitioning) and is not measured
 here.
 
 
+## Where this leaves #10881
+
+- A1, A3, A4, A5 and A6 have measured answers above and in the census record. A2
+  has one size on one index profile and it shows no removal benefit.
+- If the table is divided at all, these must hold first: #10880 has cut the index
+  set (the 153-index shape needs a 2048-lock table and 5,017 index relations); every
+  `fact_id`-only site carries `scope_id` (L3a); the five writers move to
+  `ON CONFLICT (scope_id, fact_id)` through expand/contract; the cutover catch-up
+  is indexed or change-captured and deletes are handled.
+- The measured gain is not removal cost. What hash(scope_id) does give is
+  one-part pruning for scope-bounded loads (as fast as undivided here) and smaller
+  per-part indexes. Whether that is worth a multi-hour backfill and the skew
+  (14.9% of rows in one part) is the arbiter's call on #11180, with a quiet-host
+  repeat of the removal arms at S2 as its evidence.
+
 ## NOT_CHECKED
 
 - The 12.2M-row scope, 15M-row sizes, and the 153-index divided shape beyond load.
-- S2 verify, cutover and way back; the catalog-only `swap` stage.
+- S2 removal arms; S2 verify, cutover and way back; the catalog-only `swap` stage.
 - Concurrent writers during backfill (catch-up under load) and delete replay.
 - Primary-side `pg_stat_statements` (out of bounds); write-side "busiest" is by
   code path.

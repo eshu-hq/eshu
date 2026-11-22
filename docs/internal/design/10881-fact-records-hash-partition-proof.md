@@ -5,6 +5,12 @@ this P2 record are done. No implementation, no migration: the gate is
 #10880 (OPEN, verified 2026-11-21) plus the P3 reads-off inventory and the
 P5 representative-scale rehearsal. A measured NO-GO closes the issue.
 
+Real-sample measurements (S1 2.05M and S2 5.36M rows from the QA read replica), the
+fact_id census and the cross-scope reader inventory are in
+[the measurement record](10881-fact-records-hash-partition-measurements.md) and
+[the census record](10881-fact-records-census-and-readers.md); where they differ
+from the small-scale numbers below, they win.
+
 Refs #10881. Part of #10860 (phase 3, step 2). Blocked by #10880 (reads
 move off first) and answered by #10862 (CLOSED; baseline below). Authority:
 #10861 D6 replacement plus arbiter ruling 2026-11-18
