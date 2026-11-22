@@ -196,3 +196,24 @@ code exactly as section 1 measured them, now pinned by the live proof.
   read-latency gate are not part of B0.
 - The census is a floor: a SQL literal outside the `KnownRelations` set, or a
   query built without string literals, is invisible to it.
+
+### Performance and observability evidence for B0
+
+Performance Evidence: B0 changes no default-path query. The runtime change is
+confined to the default-off `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` gate: a call
+carrying an `image_ref` or `profile` existence filter now stays on the legacy
+read when the gate is on (the same statement the gate-off path runs today), and
+the grouped inventory answers the named 503
+`ErrGroupedInventoryFilterUnavailable` for those filters instead of reading the
+winners row. Baseline: the gate-off statements are byte-identical before and
+after. After: no new statement, index or round trip; the audit recorder and
+census (`recorder.go`, `census.go`) are test-support code that runs only under
+`go test`, and the `entries.go` change is a description string. Backend:
+PostgreSQL 18 for the live multi-support proof.
+
+No-Regression Evidence: the live multi-support suite passes on PostgreSQL 18
+with the gate off and on, and the default answers are unchanged.
+
+No-Observability-Change: no metric, span, log key or status field is added or
+changed. The 503 for the unsupported filters uses the existing
+`backend_unavailable` envelope with text that names the filters.
