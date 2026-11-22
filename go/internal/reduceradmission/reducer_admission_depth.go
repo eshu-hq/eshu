@@ -276,7 +276,7 @@ func (s *admissionSharedRead[T]) get(ctx context.Context, now time.Time, maxAge 
 
 // startLocked starts one read. The caller holds s.mu.
 func (s *admissionSharedRead[T]) startLocked(ctx context.Context, startedAt time.Time) *admissionReadCall[T] {
-	readCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	readCtx, cancel := context.WithCancel(context.WithoutCancel(ctx)) // #nosec G118 -- cancel is stored on the call; run() defers it and leave() calls it when the last waiter goes
 	call := &admissionReadCall[T]{done: make(chan struct{}), cancel: cancel}
 	s.call = call
 	go s.run(readCtx, call, startedAt)
