@@ -111,8 +111,9 @@ func TestReducerAdmissionSharedDepthConcurrentWaitersFollowOneSchedule(t *testin
 // TestReducerAdmissionSharedDepthScheduleWithBothSignalsAndReadLatency pins
 // the deferring schedule with the production signals: the graph-write-pressure
 // gate on at its default marks (500 and 100, below them here) and the queue
-// at the high-water mark, with each read taking virtual time (700 ms is the QA
-// mean of the queue statement). Each step starts from the oldest read of the
+// at the high-water mark, with instant reads and with reads that take virtual
+// time (700 ms is the QA mean of the queue statement). Instant reads keep the
+// one-signal schedule. Otherwise each step starts from the oldest read of the
 // decision (the pressure read), the queue read lags it by the pressure read
 // latency, and a decision slower than its step sleeps one more poll interval.
 // The read count over a full 5 m max wait does not change: 33 per signal.
@@ -127,6 +128,17 @@ func TestReducerAdmissionSharedDepthScheduleWithBothSignalsAndReadLatency(t *tes
 		queueLat, pressureLat   time.Duration
 		wantQueue, wantPressure []time.Duration
 	}{
+		{
+			name: "instant reads",
+			wantQueue: []time.Duration{
+				at(0, 0, 0), at(1, 0, 1), at(3, 0, 2), at(7, 0, 3), at(15, 0, 4),
+				at(25, 0, 5), at(35, 0, 6), at(45, 0, 7), at(55, 0, 8),
+			},
+			wantPressure: []time.Duration{
+				at(0, 0, 0), at(1, 0, 1), at(3, 0, 2), at(7, 0, 3), at(15, 0, 4),
+				at(25, 0, 5), at(35, 0, 6), at(45, 0, 7), at(55, 0, 8),
+			},
+		},
 		{
 			name:     "queue 700 ms, pressure 100 ms",
 			queueLat: 700 * time.Millisecond, pressureLat: 100 * time.Millisecond,
