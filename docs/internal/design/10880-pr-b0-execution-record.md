@@ -42,7 +42,9 @@ B0 lands the pieces that need no supports table. Commits on
      three audit tests). Second: the readiness block of the impact list and
      explain responses reads `fact_records_collector` and nine tables that no
      capability declared. Readiness probes (repository, CVE, image reference,
-     and package anchors, with canned rows for the readiness gate) now run under
+     and package anchors, with canned rows for the readiness gate; the CVE and
+     package variants stop at target resolution and are named so, the repository
+     and image-reference anchors reach the readiness statements) now run under
      both capabilities, and list and explain declare what they prove:
      `collector_instances`, `container_image_identity_supports`, three
      `package_manifest_consumption_*` tables, `package_registry_identity_keys`,
@@ -83,6 +85,16 @@ B0 lands the pieces that need no supports table. Commits on
      `fact_kind` compared with `LIKE`, `<>`, `!=`, or `~`. Fact kinds are still
      attributed per statement, not per relation (README states the limit), so
      kind-selecting operators fail closed instead.
+   - Round-3 classifier fixes, each with a seeded RED/GREEN case: `trim`,
+     `substring`, and `overlay` blank only the `FROM` at their own argument depth,
+     so a subquery inside them stays a read (the greedy match used to blank the
+     subquery's `FROM`); a compound subquery is read arm by arm, so an empty first
+     `UNION` arm no longer hides a live second arm; `fact_kind` as a bare function
+     argument, a `NOT IN` that names an unread kind, and `NOT LIKE` fail closed;
+     a quoted `"true"` or `"false"` identifier fails closed. Per-relation kind
+     attribution (a `fact_records` read with no kind predicate of its own beside a
+     sibling literal) is not done: it needs alias-level resolution, so it stays a
+     stated limit.
    - Waivers: 155 capabilities have no probe and 18 query packages have no census
      owner. Raising a ceiling constant is a code edit that only review catches.
 4. **`image_ref` guard.** The gate-on list and aggregate stores serve an

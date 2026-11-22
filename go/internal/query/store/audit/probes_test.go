@@ -108,10 +108,15 @@ func readinessProbes(capability string) []probe {
 			layout = "protected statement"
 		}
 		for name, query := range map[string]impact.ReadinessQuery{
-			"repository anchor":      {RepositoryID: "repository:r"},
-			"cve anchor":             {CVEID: "CVE-1"},
-			"image reference anchor": {ImageRef: "registry.example/app:1"},
-			"package anchor":         {PackageID: "pkg:npm/x@1"},
+			"repository anchor": {RepositoryID: "repository:r"},
+			// The CVE and package anchors resolve their target first; the canned
+			// rows stop that resolution before the readiness statement (the
+			// package identity check rejects them), so these two variants cover
+			// target resolution only. The repository and image-reference anchors
+			// reach the readiness statements.
+			"cve anchor (target resolution only)":     {CVEID: "CVE-1"},
+			"image reference anchor":                  {ImageRef: "registry.example/app:1"},
+			"package anchor (target resolution only)": {PackageID: "pkg:npm/x@1"},
 		} {
 			out = append(out, probe{capability, "readiness, " + layout + ", " + name, run(query, protected)})
 		}

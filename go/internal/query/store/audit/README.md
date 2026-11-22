@@ -53,12 +53,22 @@ which records what is unprobed or unowned today.
 
 - Fact kinds are attributed per statement, not per relation: a statement that
   reads `fact_records` and another table with its own `fact_kind` comparison gets
-  the union of the kinds. A kind comparison that selects kinds without naming
-  them (`LIKE`, `SIMILAR TO`, `<>`, `!=`, `~`) fails closed.
-- A subquery whose top-level `WHERE` is always false (a literal `AND FALSE`
-  conjunct with no `OR` to rescue it) returns no rows, so the tables it names are
-  not counted. The impact readiness predicate closes its scanner receipt chain
-  that way.
+  the union of the kinds. These fail closed: a kind comparison that selects kinds
+  without naming them (`LIKE`, `SIMILAR TO`, `<>`, `!=`, `~`), `fact_kind` passed
+  as a bare argument of a function (`lower`, `starts_with`, `left`, `coalesce`),
+  a `NOT IN` that names a kind the statement does not also read by name, and any
+  `NOT LIKE`. Still open: a `fact_records` read with no kind predicate of its own
+  inside a statement that names a kind elsewhere is attributed to that kind. The
+  fix is per-relation attribution (each `fact_records` alias resolves its own
+  positive kind); it is a redesign of the classifier and stays a stated limit.
+- A subquery whose `WHERE` is always false (a literal `AND FALSE` conjunct with
+  no `OR` to rescue it) returns no rows, so the tables it names are not counted.
+  A compound subquery is read arm by arm (`UNION` when every arm is empty,
+  `EXCEPT` when the first is, `INTERSECT` when any is); one that mixes set
+  operators is never dropped. The impact readiness predicate closes its scanner
+  receipt chain that way.
+- A quoted identifier named `true` or `false` fails closed, because unquoting
+  would read it as the boolean literal.
 
 ## What the audit claims
 

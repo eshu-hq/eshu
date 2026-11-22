@@ -57,6 +57,25 @@ func TestShapesThatReadARealStoreAreSeen(t *testing.T) {
 			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND TRUE)`,
 		"NOT TRUE on the left leaves the right arm live": `SELECT 1 FROM ingestion_scopes WHERE
 			((NOT TRUE) OR (EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x')))`,
+		"trim over a subquery": `SELECT trim(both ' ' from (SELECT f.k FROM fact_records f
+			WHERE f.fact_kind = 'reducer_x' LIMIT 1)) FROM ingestion_scopes w`,
+		"substring over a subquery": `SELECT substring((SELECT f.k FROM fact_records f
+			WHERE f.fact_kind = 'reducer_x' LIMIT 1) from 2) FROM ingestion_scopes w`,
+		"overlay over a subquery": `SELECT overlay((SELECT f.k FROM fact_records f
+			WHERE f.fact_kind = 'reducer_x' LIMIT 1) placing 'a' from 2) FROM ingestion_scopes w`,
+		"a live UNION arm after an empty one": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM ingestion_scopes WHERE FALSE UNION ALL
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x')`,
+		"a live first EXCEPT arm": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x'
+			EXCEPT SELECT 1 FROM ingestion_scopes WHERE FALSE)`,
+		"INTERSECT with no empty arm": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x'
+			INTERSECT SELECT 1 FROM ingestion_scopes WHERE scope_id = 'a')`,
+		"mixed set operators stay live": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM ingestion_scopes WHERE FALSE UNION
+			SELECT 1 FROM ingestion_scopes EXCEPT
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND FALSE)`,
 	} {
 		assertRedGreen(t, name, audit.Statement{SQL: sql})
 	}
@@ -80,6 +99,15 @@ func TestShapesThatReadNothingAreDropped(t *testing.T) {
 			ORDER BY f.fact_id)`,
 		"a nested always-false group": `SELECT 1 FROM ingestion_scopes WHERE
 			(EXISTS (SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x') AND (a OR FALSE) AND (FALSE))`,
+		"UNION whose every arm is empty": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND FALSE UNION ALL
+			SELECT 1 FROM fact_records g WHERE g.fact_kind = 'reducer_y' AND FALSE)`,
+		"EXCEPT with an empty first arm": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x' AND FALSE
+			EXCEPT SELECT 1 FROM ingestion_scopes)`,
+		"INTERSECT with an empty arm": `SELECT 1 FROM ingestion_scopes WHERE EXISTS (
+			SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x'
+			INTERSECT SELECT 1 FROM ingestion_scopes WHERE FALSE)`,
 	} {
 		used := audit.Classify(audit.Statement{SQL: sql})
 		if len(used.Stores) != 0 || len(used.Unresolved) != 0 {
@@ -110,6 +138,26 @@ func TestShapesTheClassifierCannotReadFailClosed(t *testing.T) {
 			AND EXISTS (SELECT 1 FROM ingestion_scopes o WHERE o.scope_id = 'x' AND f.fact_kind = 'vulnerability.cve')`},
 		"fact_kind <> literal arm":     {SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind = 'vulnerability.cve' OR f.fact_kind <> 'x'`},
 		"fact_kind regular expression": {SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind ~ '^reducer_'`},
+		"lower over fact_kind with a sibling literal": {
+			SQL: `SELECT 1 FROM fact_records f WHERE lower(f.fact_kind) = 'reducer_x' OR f.fact_kind = 'vulnerability.cve'`,
+		},
+		"starts_with over fact_kind with a sibling literal": {
+			SQL: `SELECT 1 FROM fact_records f WHERE starts_with(f.fact_kind, 'reducer_') OR f.fact_kind = 'vulnerability.cve'`,
+		},
+		"function over an unqualified fact_kind": {
+			SQL: `SELECT 1 FROM fact_records WHERE left(fact_kind, 8) = 'reducer_' OR fact_kind = 'vulnerability.cve'`,
+		},
+		"fact_kind in a later function argument": {
+			SQL: `SELECT 1 FROM fact_records f WHERE coalesce('x', f.fact_kind) = 'reducer_x' OR f.fact_kind = 'vulnerability.cve'`,
+		},
+		"NOT IN next to a sibling literal": {
+			SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind NOT IN ('vulnerability.cve') AND EXISTS (
+				SELECT 1 FROM ingestion_scopes o WHERE o.scope_id = 'x') OR f.fact_kind = 'vulnerability.warning'`,
+		},
+		"a quoted identifier named false": {
+			SQL: `SELECT 1 FROM ingestion_scopes WHERE "false" AND EXISTS (
+				SELECT 1 FROM fact_records f WHERE f.fact_kind = 'reducer_x')`,
+		},
 	} {
 		used := audit.Classify(statement)
 		if len(used.Unresolved) == 0 {
@@ -128,6 +176,20 @@ func TestShapesTheClassifierCannotReadFailClosed(t *testing.T) {
 			Args: []any{"reducer_x"},
 		},
 		"double-quote inside a literal": {SQL: `SELECT 1 FROM fact_records WHERE fact_kind = 'reducer_x' AND note <> 'say "hi"'`},
+		"NOT IN over kinds the statement reads by name": {
+			SQL: `SELECT 1 FROM fact_records f WHERE f.fact_kind IN ('reducer_x', 'reducer_y')
+				AND (f.fact_kind NOT IN ('reducer_y') OR f.scope_id = 'a')`,
+		},
+		"a comparison inside an aggregate call": {
+			SQL: `SELECT bool_or(f.fact_kind = 'reducer_x') FILTER (WHERE f.fact_kind = 'reducer_x') FROM fact_records f
+				WHERE f.fact_kind = 'reducer_x'`,
+		},
+		"fact_kind in a window clause": {
+			SQL: `SELECT row_number() OVER (PARTITION BY f.fact_kind ORDER BY f.fact_id) FROM fact_records f
+				WHERE f.fact_kind = 'reducer_x'`,
+		},
+		"trim over a column":      {SQL: `SELECT trim(both ' ' from f.k) FROM fact_records f WHERE f.fact_kind = 'reducer_x'`},
+		"substring over a column": {SQL: `SELECT substring(f.k from 2) FROM fact_records f WHERE f.fact_kind = 'reducer_x'`},
 	} {
 		used := audit.Classify(statement)
 		if len(used.Unresolved) != 0 {

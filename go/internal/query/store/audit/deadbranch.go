@@ -72,11 +72,78 @@ var whereEnd = map[string]struct{}{
 	"window": {}, "offset": {}, "fetch": {}, "for": {},
 }
 
-// subqueryYieldsNothing reports a subquery whose top-level WHERE clause is
-// always false (a literal AND FALSE conjunct with no top-level OR to rescue it),
-// so it returns no rows whatever its FROM list reads. The impact readiness
-// predicate closes its receipt branch this way.
+// setOperators are the words that join the arms of a compound subquery.
+var setOperators = map[string]struct{}{"union": {}, "intersect": {}, "except": {}}
+
+// subqueryYieldsNothing reports a subquery that returns no rows whatever its
+// FROM lists read, because the WHERE clause of each arm that matters is always
+// false (a literal AND FALSE conjunct with no top-level OR to rescue it). The
+// impact readiness predicate closes its receipt branch this way.
+//
+// A compound subquery is read arm by arm: UNION is empty only when every arm is,
+// EXCEPT when its first arm is, and INTERSECT when any arm is. A compound that
+// mixes set operators is never reported empty, since their precedence is not
+// read here; that keeps the reads it names counted.
 func subqueryYieldsNothing(text string, lo, hi int) bool {
+	arms, operators := splitSetOperators(text, lo, hi)
+	if len(arms) == 1 {
+		return armYieldsNothing(text, arms[0].start, arms[0].end)
+	}
+	kind := ""
+	for _, operator := range operators {
+		if kind != "" && operator != kind {
+			return false
+		}
+		kind = operator
+	}
+	switch kind {
+	case "union":
+		for _, arm := range arms {
+			if !armYieldsNothing(text, arm.start, arm.end) {
+				return false
+			}
+		}
+		return true
+	case "except":
+		return armYieldsNothing(text, arms[0].start, arms[0].end)
+	default:
+		for _, arm := range arms {
+			if armYieldsNothing(text, arm.start, arm.end) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// splitSetOperators cuts text[lo:hi] at depth-zero UNION, INTERSECT, and EXCEPT
+// words and returns the arms with the operators between them, lowercased.
+func splitSetOperators(text string, lo, hi int) (arms []span, operators []string) {
+	start, depth := lo, 0
+	for i := lo; i < hi; i++ {
+		switch text[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		default:
+			if depth != 0 || !isWordStart(text, i) {
+				continue
+			}
+			word := wordAt(text, i, hi)
+			if _, ok := setOperators[strings.ToLower(word)]; ok {
+				arms = append(arms, span{start, i})
+				operators = append(operators, strings.ToLower(word))
+				start = i + len(word)
+			}
+			i += len(word) - 1
+		}
+	}
+	return append(arms, span{start, hi}), operators
+}
+
+// armYieldsNothing reports one SELECT whose top-level WHERE is always false.
+func armYieldsNothing(text string, lo, hi int) bool {
 	depth, whereAt := 0, -1
 	for i := lo; i < hi; i++ {
 		switch text[i] {

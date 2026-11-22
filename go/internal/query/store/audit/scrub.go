@@ -12,6 +12,11 @@ import (
 // classifier fails closed instead of guessing where a literal or comment stops.
 var errUnterminated = errors.New("unterminated string literal, quoted identifier, or comment")
 
+// errQuotedBoolean reports a quoted identifier named true or false. Scrub turns
+// quotes into spaces, so the dead-branch pass would read the column as the
+// boolean literal and could drop a live read; the classifier fails closed.
+var errQuotedBoolean = errors.New(`quoted identifier named "true" or "false", which reads as the boolean literal`)
+
 // scrub reads one SQL text and returns two equal-length views of it:
 //
 //   - clean keeps string literals, so fact kinds can be read from them;
@@ -47,6 +52,9 @@ func scrub(sql string) (clean, masked string, err error) {
 			end, ok := closingQuote(sql, i, '"')
 			if !ok {
 				return "", "", errUnterminated
+			}
+			if name := strings.ToLower(sql[i+1 : end]); name == "true" || name == "false" {
+				return "", "", errQuotedBoolean
 			}
 			cleanBytes[i], maskedBytes[i] = ' ', ' '
 			cleanBytes[end], maskedBytes[end] = ' ', ' '

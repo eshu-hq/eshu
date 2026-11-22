@@ -85,9 +85,6 @@ var relationAliases = map[string]string{
 	// resweep statement and read by winnersFreshness to mark the answer stale or
 	// unavailable, so it is the winners store, not a separate one.
 	"supply_chain_impact_winners_materialization": ReadTablePrefix + "supply_chain_impact_canonical_winners",
-	// The winners freshness watermark is written with the winners rows by one
-	// resweep statement and read by winnersFreshness to mark the answer stale or
-	// unavailable, so it is the winners store, not a separate one.
 
 	"container_image_identity_current_supports":          ReadTablePrefix + "container_image_identity_supports",
 	"container_image_identity_current_support_facts_for": ReadTablePrefix + "container_image_identity_supports",
@@ -99,6 +96,106 @@ var sqlWords = map[string]struct{}{
 }
 
 var cteName = regexp.MustCompile(`(?i)(?:\bwith\s+(?:recursive\s+)?|,\s*)([a-z_][a-z0-9_]*)\s+as\s+(?:not\s+)?(?:materialized\s*)?\(`)
+
+// kindNotIn and kindNotLike match the negated forms on fact_kind, which exclude
+// kinds instead of naming the ones a statement reads.
+var (
+	kindNotIn   = regexp.MustCompile(`(?i)\bfact_kind\s+not\s+in\s*\(([^)]*)\)`)
+	kindNotLike = regexp.MustCompile(`(?i)\bfact_kind\s+not\s+(?:like|ilike|similar\s+to)\b`)
+)
+
+// negatedKindsUnattributed reports a NOT IN list that names a kind the statement
+// does not also read positively, or a NOT LIKE. Such an exclusion selects
+// kinds by elimination, so a statement that names another kind literal would be
+// attributed to that literal alone. A NOT IN whose every kind the statement also
+// reads by name is a keep-predicate over kinds already attributed.
+func negatedKindsUnattributed(masked, clean string, kinds []string) bool {
+	if kindNotLike.MatchString(masked) {
+		return true
+	}
+	known := map[string]struct{}{}
+	for _, kind := range kinds {
+		known[kind] = struct{}{}
+	}
+	for _, match := range kindNotIn.FindAllStringSubmatch(clean, -1) {
+		for _, item := range quoted.FindAllStringSubmatch(match[1], -1) {
+			if _, ok := known[item[1]]; !ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// factKindWord finds fact_kind, bare or qualified, as a whole word.
+var factKindWord = regexp.MustCompile(`(?i)\bfact_kind\b`)
+
+// nonFunctionWords are the words that may precede a "(" that is not a function
+// call: boolean and clause keywords, set operators, window and filter clauses,
+// and the words that open a subquery, an IN list, or a CTE body.
+var nonFunctionWords = map[string]struct{}{
+	"and": {}, "or": {}, "not": {}, "where": {}, "on": {}, "when": {}, "then": {}, "else": {}, "having": {},
+	"in": {}, "any": {}, "all": {}, "some": {}, "exists": {}, "select": {}, "from": {}, "join": {}, "lateral": {},
+	"as": {}, "values": {}, "union": {}, "intersect": {}, "except": {}, "by": {}, "case": {}, "between": {},
+	"using": {}, "returning": {}, "set": {}, "limit": {}, "materialized": {}, "distinct": {},
+	"over": {}, "filter": {}, "within": {},
+}
+
+// factKindInFunction reports fact_kind passed as a bare argument of a function
+// call (lower, upper, starts_with, left, substr, coalesce, and the like). Such a
+// comparison selects kinds the classifier cannot name, so a statement that also
+// names another kind literal would be attributed to that literal alone. A
+// comparison written inside a call, as in bool_or(fact_kind = 'x'), names its
+// kind and is read normally.
+func factKindInFunction(masked string) bool {
+	for _, loc := range factKindWord.FindAllStringIndex(masked, -1) {
+		start := loc[0]
+		if dot := lastNonSpace(masked, start); dot >= 0 && masked[dot] == '.' {
+			start = dot
+			for start > 0 && isWordByte(masked[start-1]) {
+				start--
+			}
+		}
+		prev := lastNonSpace(masked, start)
+		next := skipSpaces(masked, loc[1])
+		if prev < 0 || next >= len(masked) || (masked[prev] != '(' && masked[prev] != ',') ||
+			(masked[next] != ',' && masked[next] != ')') {
+			continue
+		}
+		depth := 0
+		for i := prev; i >= 0; i-- {
+			switch masked[i] {
+			case ')':
+				depth++
+			case '(':
+				if depth > 0 {
+					depth--
+					continue
+				}
+				j := lastNonSpace(masked, i)
+				end := j + 1
+				for j >= 0 && isWordByte(masked[j]) {
+					j--
+				}
+				word := strings.ToLower(masked[j+1 : end])
+				if _, keyword := nonFunctionWords[word]; word != "" && !keyword {
+					return true
+				}
+				i = -1
+			}
+		}
+	}
+	return false
+}
+
+// lastNonSpace returns the index of the last non-space byte before at, or -1.
+func lastNonSpace(text string, at int) int {
+	i := at - 1
+	for i >= 0 && isSpace(text[i]) {
+		i--
+	}
+	return i
+}
 
 // kindOperator matches a fact_kind comparison that names no kind to attribute.
 var kindOperator = regexp.MustCompile(`(?i)\bfact_kind\s*(?:like\b|ilike\b|similar\s+to\b|<>|!=|~)`)
@@ -168,6 +265,12 @@ func classifyOne(statement Statement, scope censusScope, used *Used) {
 	}
 	if !scope.census && kindOperator.MatchString(masked) {
 		fail("fact_kind is compared with LIKE, SIMILAR TO, <>, !=, or a regular-expression operator, which selects kinds the classifier cannot name")
+	}
+	if factKindInFunction(masked) {
+		fail("fact_kind is an argument of a function call, which selects kinds the classifier cannot name")
+	}
+	if len(kinds) > 0 && negatedKindsUnattributed(masked, clean, kinds) {
+		fail("fact_kind is compared with NOT IN or NOT LIKE for a kind the statement does not also read by name, so the excluded kinds are unattributed")
 	}
 	if len(kinds) == 0 {
 		kinds = scope.fallbackKinds

@@ -18,9 +18,12 @@ type relationRef struct {
 var (
 	fromOrJoin = regexp.MustCompile(`(?i)\b(from|join)\b`)
 	identifier = regexp.MustCompile(`^(?i:[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)`)
-	// notFromClause matches a FROM that is not a table list: IS DISTINCT FROM,
-	// EXTRACT(field FROM expr), and TRIM, SUBSTRING, and OVERLAY forms.
-	notFromClause = regexp.MustCompile(`(?i)\bis\s+(?:not\s+)?distinct\s+from\b|\bextract\s*\(\s*[a-z_]+\s+from\b|\b(?:trim|substring|overlay)\s*\([^)]*\bfrom\b`)
+	// notFromClause matches a FROM that is not a table list: IS DISTINCT FROM
+	// and EXTRACT(field FROM expr).
+	notFromClause = regexp.MustCompile(`(?i)\bis\s+(?:not\s+)?distinct\s+from\b|\bextract\s*\(\s*[a-z_]+\s+from\b`)
+	// stringFunction opens a TRIM, SUBSTRING, or OVERLAY call, whose argument
+	// list may hold a FROM keyword at its own top level.
+	stringFunction = regexp.MustCompile(`(?i)\b(?:trim|substring|overlay)\s*\(`)
 )
 
 // fromListEnd holds the words that end a FROM list at depth zero. Join words
@@ -153,13 +156,53 @@ func hasWordAt(text string, i int, word string) bool {
 
 // blankNonClauseFrom blanks the FROM keyword of IS DISTINCT FROM, EXTRACT, TRIM,
 // SUBSTRING, and OVERLAY forms and keeps everything else, parentheses included,
-// so depth counting stays right.
+// so depth counting stays right. For TRIM, SUBSTRING, and OVERLAY it blanks only
+// the first FROM at the depth of the call's own argument list, so a FROM inside a
+// nested subquery stays a real clause. A call whose own list holds a SELECT is
+// left alone, which the parser then reports instead of guessing.
 func blankNonClauseFrom(masked string) string {
-	return notFromClause.ReplaceAllStringFunc(masked, func(match string) string {
+	out := []byte(notFromClause.ReplaceAllStringFunc(masked, func(match string) string {
 		at := strings.LastIndex(strings.ToLower(match), "from")
 		if at < 0 {
 			return match
 		}
 		return match[:at] + "    " + match[at+4:]
-	})
+	}))
+	for _, loc := range stringFunction.FindAllIndex(out, -1) {
+		if at, ok := ownFromKeyword(string(out), loc[1]-1); ok {
+			copy(out[at:at+4], "    ")
+		}
+	}
+	return string(out)
+}
+
+// ownFromKeyword returns the index of the first FROM word at depth one of the
+// parenthesized argument list that opens at open, or false when the list ends
+// first or holds a SELECT of its own at that depth.
+func ownFromKeyword(text string, open int) (int, bool) {
+	depth := 0
+	for i := open; i < len(text); i++ {
+		switch text[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return 0, false
+			}
+		default:
+			if depth != 1 || !isWordStart(text, i) {
+				continue
+			}
+			word := wordAt(text, i, len(text))
+			switch strings.ToLower(word) {
+			case "from":
+				return i, true
+			case "select", "with", "values":
+				return 0, false
+			}
+			i += len(word) - 1
+		}
+	}
+	return 0, false
 }
