@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 555 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam, which must live on Service.
+package reducer //nolint:filelength // 566 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam and #11239 the outcomeBuffered seam, which must live on Service.
 
 import (
 	"context"
@@ -252,6 +252,12 @@ type Service struct {
 	// time.NewTimer. Tests inject a timer that never fires to force the
 	// handler's own return ahead of the timer (#11193).
 	newBoundTimer func(time.Duration) *time.Timer
+
+	// outcomeBuffered runs on the handler goroutine right after its outcome
+	// is buffered on the executeHandler done channel; nil does nothing. The
+	// fired-timer proof waits on it so both select arms are ready by
+	// construction, not by a settle sleep (#11239).
+	outcomeBuffered func()
 
 	// ackRetryBase is the first backoff between transient ack retries, batch or
 	// single-item; zero uses defaultAckRetryBase. Tests shrink it.

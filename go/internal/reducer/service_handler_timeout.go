@@ -109,6 +109,17 @@ func (s Service) armBoundTimer(b handlerBound, bound time.Duration) *time.Timer 
 	return time.NewTimer(d)
 }
 
+// bufferOutcome sends one handler outcome on the executeHandler done channel
+// (capacity 1, so it never blocks) and then runs the outcomeBuffered seam. The
+// seam runs after the send so a test can know the done arm is ready, not merely
+// that Execute returned.
+func (s Service) bufferOutcome(done chan<- handlerOutcome, out handlerOutcome) {
+	done <- out
+	if s.outcomeBuffered != nil {
+		s.outcomeBuffered()
+	}
+}
+
 // ownDeadlineExpired reports whether a returned handler outcome carries a
 // DeadlineExceeded caused by our own bound: the outcome's error wraps the
 // deadline AND the bound's deadline had passed when the handler returned
