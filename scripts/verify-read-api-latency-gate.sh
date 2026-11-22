@@ -2,13 +2,20 @@
 # verify-read-api-latency-gate.sh — issue #6797: backend-backed read-API
 # latency gate.
 #
-# Brings up the same Docker Compose Postgres+NornicDB pair
-# scripts/verify-golden-corpus-gate.sh uses, builds eshu-api and
-# read-api-latency-gate, starts eshu-api against the live backends, then runs
-# read-api-latency-gate to seed a synthetic corpus (ingestion scopes,
-# generations, and fact_work_items across every collector kind, plus
-# infra-labeled graph nodes) and sweep every no-arg GET route's p95 latency
-# against testdata/benchmarks/read-api-route-budgets.txt.
+# Brings up the Compose Postgres+Neo4j pair, builds the in-tree eshu-core-api,
+# the frozen satellite eshu-api, and read-api-latency-gate, seeds a synthetic
+# corpus (ingestion scopes, generations, and fact_work_items across every
+# collector kind, infra-labeled graph nodes, plus supply-chain impact finding
+# facts rebuilt into the winners read model), then sweeps every no-arg GET
+# route's p95 latency against testdata/benchmarks/read-api-route-budgets.txt.
+#
+# Serving order is seed -> core (backend-gated /readyz) -> satellite (proxied
+# /readyz against --core-base-url) -> MCP -> sweep (issue #11170: the
+# satellite serves nothing coreless, so starting it without a core can never
+# pass). A second sweep leg restarts the core with
+# ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true and re-sweeps the same corpus
+# into separate -winners reports after proving the two legs serve
+# byte-identical findings.
 #
 # Unlike the golden corpus gate, this gate seeds directly via bulk SQL/Cypher
 # writes (SeedPostgres/SeedGraph) instead of driving the real
@@ -27,21 +34,25 @@
 #                   your own build against the kept stack.
 #
 # GATE_STACK_DIR=<dir> takes docker-compose.yaml (and so the db-migrate image build
-# context: migrations and graph schema) from that checkout instead of this one. Use
-# it with GATE_API_BIN built from the SAME checkout when measuring a candidate fix
-# that ships a migration: an eshu-api from the fix against a database migrated by
-# this worktree would silently fall back to the old read path.
+# context: migrations and graph schema) from that checkout instead of this one.
+# The in-tree core (eshu-core-api) is always built from THIS checkout, so to
+# measure a candidate fix to the core, run the script from a worktree at that
+# commit; a database migrated by a different checkout than the core reads from
+# would silently take the old read path.
 #
-# GATE_API_BIN=<path> uses that pre-built eshu-api binary instead of building
-# one from this worktree — for a RED/GREEN comparison against a different
-# commit's eshu-api (e.g. main with a candidate fix merged) without rebasing
-# or disturbing this worktree's checkout.
+# GATE_API_BIN=<path> uses that pre-built satellite eshu-api binary instead of
+# building the pinned one from eshu-hq/eshu-api (see build_bin api) — for a
+# RED/GREEN comparison against a different satellite commit.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
-: "${ESHU_GRAPH_BACKEND:=nornicdb}"
+# Neo4j is the supported backend (#7331) and the only one eshu-core-api
+# starts on (anything else fails its startup guard); the satellite leg needs
+# a core, so the gate runs the Neo4j leg. There is no nornicdb leg: a core
+# cannot serve on it, and the satellite cannot serve without a core.
+: "${ESHU_GRAPH_BACKEND:=neo4j}"
 # Port defaults below are deliberately NOT 15532/7789/7576/18082: 15532 is
 # scripts/verify-ifa-replay-drive.sh's own default (a real, confirmed
 # collision), and 18082 is docker-compose.yaml's own
@@ -55,8 +66,10 @@ cd "${repo_root}"
 : "${GATE_POSTGRES_PASSWORD:=change-me}"
 : "${GATE_API_PORT:=18097}"
 : "${GATE_MCP_PORT:=18098}"
+: "${GATE_CORE_PORT:=18096}"
 : "${GATE_API_KEY:=read-api-latency-gate-local-key}"
 : "${GATE_COMPOSE_PROJECT:=eshu-read-api-latency-gate-$$}"
+: "${GATE_WINNERS_FACT_COUNT:=20000}"
 : "${GATE_TOTAL_SCOPES:=800}"
 : "${GATE_NODES_PER_LABEL:=150000}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
@@ -72,15 +85,20 @@ cd "${repo_root}"
 : "${GATE_CONCURRENT_REPORT:=}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
+# The winners leg enforces its own generated table (#11170): the same routes
+# read far less Postgres work from the maintained winners table, so a table
+# derived from the legacy read cannot guard it, and the legacy table must keep
+# guarding the default (flag off) configuration.
+: "${GATE_WINNERS_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets-winners.txt}"
 : "${GATE_WORK_REPORT:=}"
 : "${GATE_LATENCY_REPORT:=}"
 : "${GATE_STATUS_DIAGNOSTIC_DIR:=}"
 
 # Backend stacks moved to eshu-deploy under #8871: the base Compose file
 # and the latency overlay both come from the ESHU_DEPLOY_CHECKOUT checkout
-# (CI pins the extraction commit). GATE_STACK_DIR still overrides the base
+# (the gate's tests pin the extraction commit). GATE_STACK_DIR still overrides the base
 # file for local candidate-fix measurement.
-: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout; the gate workflow checks it out at the pinned extraction commit}"
+: "${ESHU_DEPLOY_CHECKOUT:?ESHU_DEPLOY_CHECKOUT must point at an eshu-hq/eshu-deploy checkout at the extraction commit the gate pins (see compose_override_test.go)}"
 stack_dir="${GATE_STACK_DIR:-${ESHU_DEPLOY_CHECKOUT}/compose}"
 compose_file="${stack_dir}/docker-compose.yaml"
 database="nornic"
@@ -147,13 +165,15 @@ if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
 fi
 # shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
 . "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
+# shellcheck source=scripts/lib/read-api-latency-core.sh
+. "${repo_root}/scripts/lib/read-api-latency-core.sh"
 
 # api_log_preserve_path is where cleanup copies the running eshu-api's log
-# before deleting work_dir, so a CI failure still has the log available (the
-# "Dump service logs on failure" workflow step reads it) instead of losing
-# it to the same rm -rf that clears everything else.
+# before deleting work_dir, so a failed run still has the log available
+# instead of losing it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
 mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
+core_log_preserve_dir="${TMPDIR:-/tmp}"
 
 cleanup() {
 	local status=$?
@@ -186,6 +206,11 @@ cleanup() {
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
 		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
 	fi
+	for leg in legacy winners; do
+		if [[ -n "${work_dir}" && -f "${work_dir}/logs/core-${leg}.log" ]]; then
+			cp "${work_dir}/logs/core-${leg}.log" "${core_log_preserve_dir}/read-api-latency-gate-core-${leg}.log" 2>/dev/null || true
+		fi
+	done
 	if [[ "${keep}" -eq 1 ]]; then
 		printf 'verify-read-api-latency-gate: --keep set; leaving %s and the compose stack up\n' "${work_dir}" >&2
 		retain_live_gate_lock
@@ -215,6 +240,11 @@ log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${log_dir}"
 
 export ESHU_GRAPH_BACKEND
+# Fail fast on a backend eshu-core-api cannot start on (issue #11170): the
+# satellite leg needs a core, and a core fails closed at startup anywhere but
+# Neo4j. Waiting until the core /readyz poll to discover this would burn the
+# Compose stack and 240s per run.
+require_neo4j_backend_for_core
 # Exported (not just inline-prefixed on one `docker compose up` call): every
 # docker compose invocation below (the postgres/graph up, the separate
 # db-migrate up, logs, down) re-resolves docker-compose.yaml's
@@ -328,19 +358,22 @@ if [[ -n "${GATE_API_BIN:-}" ]]; then
 else
 	build_bin api
 fi
+build_bin core-api
 build_bin read-api-latency-gate
 build_bin mcp-server
 
-# Recorded in the latency report's identity block (-api-binary-sha256 below)
-# so a cross-backend comparison can refuse two legs measured against
-# different eshu-api builds -- see scripts/compare-backend-latency.sh. Only
-# computed (and only then does its own log line print) when a report was
-# actually asked for: GATE_LATENCY_REPORT is the only consumer, and CI's
-# default invocation never sets it, so computing/logging this unconditionally
-# would add a shasum cost and a stdout line to every default run.
+# Recorded in the latency report's identity block (-api-binary-sha256 and
+# -core-binary-sha256 below) so a cross-backend comparison can refuse two
+# legs measured against different eshu-api or eshu-core-api builds -- see
+# scripts/compare-backend-latency.sh. Only computed (and only then does its
+# own log line print) when a report was actually asked for:
+# GATE_LATENCY_REPORT is the only consumer, and CI's default invocation never
+# sets it, so computing/logging this unconditionally would add a shasum cost
+# and stdout lines to every default run.
 # Best effort: an empty string when shasum is
 # unavailable, same as the already-conditional lsof provenance print below.
 gate_api_binary_sha256=""
+gate_core_binary_sha256=""
 # Best effort: the commit this worktree's HEAD resolves to, recorded in the
 # same identity block. Empty when git is unavailable or HEAD is detached with
 # no resolvable ref -- never fatal, the identity block is comparison metadata,
@@ -351,6 +384,8 @@ if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
 	if command -v shasum >/dev/null 2>&1; then
 		gate_api_binary_sha256="$(shasum -a 256 "${bin_dir}/eshu-api" | awk '{print $1}')"
 		log "eshu-api binary sha256: ${gate_api_binary_sha256}"
+		gate_core_binary_sha256="$(shasum -a 256 "${bin_dir}/eshu-core-api" | awk '{print $1}')"
+		log "eshu-core-api binary sha256: ${gate_core_binary_sha256}"
 	fi
 	gate_eshu_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
 fi
@@ -391,76 +426,73 @@ gate_common_args=(
 	-concurrent-requests "${GATE_CONCURRENT_REQUESTS}"
 	-eshu-commit "${gate_eshu_commit}"
 	-api-binary-sha256 "${gate_api_binary_sha256}"
+	-core-binary-sha256 "${gate_core_binary_sha256}"
+	-winners-fact-count "${GATE_WINNERS_FACT_COUNT}"
 )
 
-log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts, ${GATE_SHARED_INTENT_COUNT} shared projection intents)"
+log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts, ${GATE_SHARED_INTENT_COUNT} shared projection intents, ${GATE_WINNERS_FACT_COUNT} winners finding facts)"
 "${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -seed-only \
 	|| die "seed failed (see the reason printed above)"
 
-log "start eshu-api"
-if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
- start_bg api api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" "${bin_dir}/eshu-api"
- gate_report_args+=(-diagnostic-client-report "${GATE_STATUS_DIAGNOSTIC_DIR}/client.json")
-else
- start_bg api api_pid "${bin_dir}/eshu-api"
-fi
-if command -v lsof >/dev/null 2>&1; then
-	sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
-	log "eshu-api binary provenance (lsof -p ${api_pid})"
-	lsof -p "${api_pid}" 2>/dev/null | rg 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
-fi
-api_ready=false
-for _ in $(seq 1 240); do
-	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
-		api_ready=true
-		break
-	fi
-	sleep 1
-done
-[[ "${api_ready}" == "true" ]] || { tail -40 "${log_dir}/api.log" >&2 || true; die "eshu-api /readyz never returned on port ${GATE_API_PORT}"; }
-# A responder on GATE_API_PORT that is not our spawned process (a stale
-# service left on a shared/dev port) would pass the curl check above and
-# then measure something other than this run's eshu-api. Ports are now
-# unique to this gate (see the port comment above), but this is a cheap extra
-# check that the process we started is still the one alive.
-kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
-
-log "start satellite eshu-mcp HTTP transport"
-start_bg mcp-server mcp_pid "${bin_dir}/eshu-mcp-server" \
-	-addr="127.0.0.1:${GATE_MCP_PORT}" -core-base-url="http://127.0.0.1:${GATE_API_PORT}"
-mcp_ready=false
-for _ in $(seq 1 240); do
-	if curl -fsS "http://127.0.0.1:${GATE_MCP_PORT}/health" >/dev/null 2>&1; then
-		mcp_ready=true
-		break
-	fi
-	sleep 1
-done
-[[ "${mcp_ready}" == "true" ]] || { tail -40 "${log_dir}/mcp-server.log" >&2 || true; die "MCP /health never returned on port ${GATE_MCP_PORT}"; }
-kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) exited while /health answered"
+# Two phases, like a real deploy: seed first, THEN start the core. The
+# satellite proxies every read to the core, so the core must be serving
+# before the satellite's /readyz can answer (issue #11170).
+log "start eshu-core-api (legacy leg: winners-read off)"
+start_core_api false
+start_satellite_api
+start_mcp_server
 
 if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
  status_diagnostic_resource_start "${repo_root}" "${GATE_STATUS_DIAGNOSTIC_DIR}" "${api_pid}" "${GATE_COMPOSE_PROJECT}" || die "cannot identify diagnostic Postgres process"
 fi
 
-# Include the repeat count when more than one counted pass is requested.
-if [[ "${GATE_RUNS}" -eq 1 ]]; then
-	log "sweep (${GATE_ITERATIONS} requests/route)"
-else
-	log "sweep (${GATE_ITERATIONS} requests/route x ${GATE_RUNS} run(s))"
-fi
-gate_status=0
-"${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -skip-seed \
-	-budgets "${GATE_BUDGETS}" \
-	-work-budgets "${GATE_WORK_BUDGETS}" \
-	${gate_report_args[@]+"${gate_report_args[@]}"} || gate_status=$?
+run_sweep_leg legacy "${GATE_BUDGETS}" "${GATE_WORK_BUDGETS}" ${gate_report_args[@]+"${gate_report_args[@]}"}
 
-if [[ "${gate_status}" -ne 0 ]]; then
-	# main.go already printed the specific reason (budget breach, coverage
-	# floor, or a required route not exercised) to stderr above; this
-	# message stays neutral rather than naming one specific cause for every
-	# nonzero exit.
-	die "read-api-latency-gate failed with exit ${gate_status} (see the reason printed above)"
-fi
+# The legacy leg is the pre-winners truth the winners leg must reproduce:
+# snapshot it before restarting the core with the flag on.
+log "prove the legacy leg's findings truth"
+snapshot_findings_page "${work_dir}/findings-legacy.json"
+# Negative control: while the flag is off, the winners-sourced grouped
+# dimensions fail closed (env-registry contract), so a 200 here would mean
+# the leg is not measuring the legacy path it claims.
+require_grouped_inventory 503 service_id
+require_grouped_inventory 503 workload_id
+require_grouped_inventory 503 environment
 
-log "PASS: read-api-latency-gate green"
+# The winners flag is read once at mux build, so the leg needs its own core
+# process. The satellite and MCP stay up: they forward to the core address,
+# which does not move between legs.
+log "restart eshu-core-api (winners leg: winners-read on)"
+stop_core_api
+start_core_api true
+wait_for_satellite_readyz
+kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) did not survive the core restart"
+kill -0 "${mcp_pid}" 2>/dev/null || die "MCP server (pid ${mcp_pid}) did not survive the core restart"
+
+log "prove the winners leg serves the same truth"
+snapshot_findings_page "${work_dir}/findings-winners.json"
+require_findings_byte_identical "${work_dir}/findings-legacy.json" "${work_dir}/findings-winners.json"
+# Positive control: the seeded service/workload/environment dimensions must
+# answer 200 from the rebuilt winners table, proving the leg measured the
+# read model rather than an empty fallback.
+require_grouped_inventory 200 service_id
+require_grouped_inventory 200 workload_id
+require_grouped_inventory 200 environment
+
+# The winners leg re-sweeps the same corpus into separate reports (never
+# merged with the legacy leg's): each report's identity block carries
+# -winners-read, so a reader can tell which read model produced it.
+winners_extra_args=(-winners-read)
+if [[ -n "${GATE_LATENCY_REPORT}" ]]; then
+	winners_extra_args+=(-latency-report "$(winners_report_path "${GATE_LATENCY_REPORT}")")
+fi
+if [[ -n "${GATE_WORK_REPORT}" ]]; then
+	winners_extra_args+=(-work-report "$(winners_report_path "${GATE_WORK_REPORT}")")
+fi
+if [[ -n "${GATE_CONCURRENT_REPORT}" ]]; then
+	winners_extra_args+=(-concurrent-report "$(winners_report_path "${GATE_CONCURRENT_REPORT}")")
+fi
+run_sweep_leg winners "${GATE_BUDGETS}" "${GATE_WINNERS_WORK_BUDGETS}" "${winners_extra_args[@]}"
+
+fail_if_any_leg_failed
+log "PASS: read-api-latency-gate green (legacy + winners legs)"

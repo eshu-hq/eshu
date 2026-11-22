@@ -70,10 +70,13 @@ checksum-pinned for each architecture in the Dockerfile. Only the CLI binary
 is extracted from Docker's tar; the image has no daemon or container runtime.
 `govulncheck` v1.9.0 (newest verified 2026-11-12; baked for a future lane
 conversion — security-scan.yml still runs unpinned `@latest`) and `gosec`
-v2.27.1 (the pin security-scan.yml already runs) are version-pinned and
+v2.27.1 are version-pinned and
 built from source with `GOTOOLCHAIN=local`, so one pin covers both
 architectures; the module zip hash is verified against
 the checksum database at install time and recorded in `downloads.tsv`.
+The image still bakes gosec v2.27.1 until it is repinned: security-scan.yml
+now installs a newer pseudo-version that loads packages by directory (#11241),
+and the security-scan job does not use this image.
 
 | Download | Versioned source and license |
 | --- | --- |

@@ -38,7 +38,7 @@ func TestConcurrentPilotOptionBoundsFailBeforeSeeding(t *testing.T) {
 		{name: "too many requests", workers: 4, requests: 1001},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := runOptions{postgresDSN: "fixture", mcpBaseURL: "http://fixture", concurrentWorkers: tc.workers, concurrentRequests: tc.requests}
+			opts := runOptions{postgresDSN: "fixture", mcpBaseURL: "http://fixture", concurrentWorkers: tc.workers, concurrentRequests: tc.requests, winnersFactCount: 1}
 			err := validateRunOptions(opts)
 			if tc.valid && err != nil {
 				t.Fatalf("valid flags rejected before seeding: %v", err)

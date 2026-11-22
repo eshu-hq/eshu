@@ -274,6 +274,8 @@ nav:
         - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
         - Fleet Acceptance Gate: reference/local-testing/fleet-acceptance-gate.md
         - Read API Latency Gate: reference/local-testing/read-api-latency-gate.md
+        - Read API Latency Gate Work Budgets: reference/local-testing/read-api-latency-gate-budgets.md
+        - Read API Latency Gate Seed Notes: reference/local-testing/read-api-latency-gate-seed.md
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
         - Pre-Push Merge Step: reference/local-testing/pre-push-merge.md
         - Gate Timing: reference/local-testing/gate-timing.md
