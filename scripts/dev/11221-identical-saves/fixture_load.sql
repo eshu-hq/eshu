@@ -2,8 +2,8 @@
 -- Copyright (c) 2025-2026 eshu-hq
 --
 -- #11221 fixture: one scope, one generation, N reducer-shaped fact rows with a
--- payload of about PAYLOAD_BYTES random hex (roughly the replica's measured
--- average for reducer_eshu_search_document, 1.3 KB). Variables (psql -v): rows, payload_chunks.
+-- payload of payload_chunks x 32 random hex characters (40 chunks is about 1.3 KB, the replica's
+-- measured average for reducer_eshu_search_document). Variables (psql -v): rows, payload_chunks.
 \set ON_ERROR_STOP on
 INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status)
 VALUES ('fx-scope', 'repository', 'git', 'fx', 'git', 'p', now(), now(), 'active') ON CONFLICT DO NOTHING;

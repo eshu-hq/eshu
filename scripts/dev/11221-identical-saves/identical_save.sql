@@ -13,11 +13,7 @@
 \set ON_ERROR_STOP on
 SELECT pg_stat_force_next_flush();
 SELECT n_tup_upd AS u0, n_tup_hot_upd AS h0, n_tup_ins AS i0 FROM pg_stat_user_tables WHERE relname = 'fact_records' \gset
-SELECT wal_records AS r0, wal_fpi AS f0, wal_bytes AS w0 FROM pg_stat_get_backend_wal(pg_backend_pid()) \gset
-\if :{?changed}
-\else
-\set changed 0
-\endif
+SELECT wal_records AS r0, wal_fpi AS f0, wal_bytes AS w1 FROM pg_stat_get_backend_wal(pg_backend_pid()) \gset
 CREATE TEMP TABLE incoming AS
 SELECT CASE WHEN :'arm' = 'fresh_insert' THEN 'new-' || fact_id ELSE fact_id END AS fact_id, scope_id, generation_id, fact_kind,
   stable_fact_key, schema_version, collector_kind, fencing_token, source_confidence, source_system, source_fact_key,
@@ -27,9 +23,6 @@ SELECT CASE WHEN :'arm' = 'fresh_insert' THEN 'new-' || fact_id ELSE fact_id END
   is_tombstone,
   CASE WHEN :'arm' = 'changed_guarded' THEN payload || '{"changed": true}'::jsonb ELSE payload END AS payload
 FROM fact_records WHERE fact_id LIKE 'fx-%';
-SELECT wal_bytes AS w1 FROM pg_stat_get_backend_wal(pg_backend_pid()) \gset
-\if :{?x}
-\endif
 SELECT :'arm' IN ('guarded_new_ts', 'changed_guarded') AS guard \gset
 \if :guard
 INSERT INTO fact_records AS t (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind,

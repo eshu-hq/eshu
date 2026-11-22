@@ -1,3 +1,5 @@
+# note: this run took its wal_bytes baseline after the temporary table was built and its wal_records baseline before it (the
+# script now takes both before it); the byte figures differ by a few kilobytes, the record counts by about 126 catalog records.
 # fixture: identical re-save WAL, 50,000 rows of ~1.3 KB payload, one scope; cold = CHECKPOINT before each arm, steady = no checkpoint, second pass (the steady changed_guarded line is an identical skip, not a changed save: ignore it)
 ## retained 5-index profile (r5)
 # db=r5 rows=50000 payload_bytes_avg=1330

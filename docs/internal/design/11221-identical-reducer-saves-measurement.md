@@ -37,7 +37,9 @@ are a separate path and were not read for this record.
 production schema at two index profiles. Per-backend WAL (`pg_stat_get_backend_wal`),
 `VACUUM` and a checkpoint before the cold arms, and a second pass with no checkpoint for
 the steady arms. `scripts/dev/11221-identical-saves/` reproduces it; raw output is in
-`docs/internal/evidence/11221-identical-saves/fixture-wal.txt`.
+`docs/internal/evidence/11221-identical-saves/fixture-wal.txt`. The two replica queries
+behind the queue and sample tables are `replica_queue_aggregate.sql` and `replica_kind_sample.sql`
+in the same script directory.
 
 | WAL per row | Retained 5 indexes | 153 indexes |
 | --- | --- | --- |
@@ -52,7 +54,8 @@ the steady arms. `scripts/dev/11221-identical-saves/` reproduces it; raw output 
   steady), and it is never a heap-only-tuple update: `n_tup_hot_upd` was 0 of 50,000 in
   every arm, so every index entry that matches the row is rewritten too.
 - The guard cuts the steady cost to 54 B a row (2.5% to 2.7%): The skipped rows still
-  write one WAL record each (50,126 records for 50,000 rows), consistent with the row lock
+  write about one WAL record each (50,126 records for 50,000 rows; the surplus is catalog records of the
+  temporary table the arm builds), consistent with the row lock
   that `ON CONFLICT DO UPDATE` takes. Right after a checkpoint
   the first touch of each page writes a full-page image, so a skipped row costs 1.57 KB
   until the pages have been touched once.
@@ -87,35 +90,49 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
 - The identical-content share per fact kind was **not measured**. The replica holds only
   the current row version, so it cannot show whether a re-save changed content. What the
   queue gives is an upper bound: the share of items that ran again at all.
-- Outside the supply-chain family the re-save population is tiny. The three reducer domains with the
-  most items (workload identity, search documents, platform materialization) had no
-  re-saved item in the last seven days (0 of 1,471, 969 and 579).
+- By **row volume**, outside the supply-chain family the re-save population is tiny. The
+  three reducer domains with the most items (search documents, workload identity, platform
+  materialization) had no re-saved item in the last seven days (0 of 1,471, 969 and 579).
   Code-drifted findings had 11 of 796: at about 38 rows an item that is at most about 420
-  rewritten rows a week against about 28,000 inserted, under 1.5%, or roughly 0.8 MB of
-  WAL a week at 2 KB a row. Search documents show 4 re-saved items in 12,529 over the
-  whole history.
-- The families that re-save heavily are supply-chain impact (304 of 328 items in the
-  last seven days; its rows carry a fencing token above 1 in every sampled row), container
-  image identity (163 of 172), and three small domains. Supply-chain impact is the family
-  #10880 moves off this table, so it is excluded here: at about 13,000 rows an item the
-  upper bound is on the order of 4M rewritten rows a week, 8 GB of WAL at 2 KB a row, if
-  every reopen rewrote every row and none changed. Whether any were identical is
-  unknown. Container image identity writes through an atomic writer that deletes by fact
-  id and inserts (not read in full here, NOT_CHECKED), and its kind does not appear in the
-  1% sample.
+  rewritten rows a week against about 30,000 inserted (796 x 38 = 30,248), under 1.4%, or
+  roughly 0.8 MB of WAL a week at 2 KB a row. Search documents show 4 re-saved items in
+  12,529 over the whole history.
+- By **items**, three staying families re-save heavily: container image identity (163 of 172
+  in the last seven days), service catalog correlation (7 of 8) and aws cloud runtime drift
+  (8 of 24). They are small in rows: container image identity and service catalog do not
+  appear in the 1% sample, and aws drift has 45 sampled rows (under 0.005% of the sample).
+  The no-build recommendation below holds by row volume and not by item counts.
+- The container image identity writer is not a delete-and-insert writer. In
+  `container_image_identity_writer_atomic.go`, `containerImageIdentityPublishAndLegacyCleanupQuery`
+  is `factwrite.BatchInsertQuery`, the fencing-only upsert that rewrites an identical row,
+  and `container_image_identity_writer.go` calls `factwrite.BatchInsertFacts`. The DELETE
+  that follows its `RETURNING` removes legacy fact ids, not the ids it just wrote. So it
+  upserts through exactly the path a guard on `BatchInsertConflict` would change, and it is
+  the staying family with the highest re-save rate.
+- Supply-chain impact re-saves most of all (304 of 328 items in the last seven days; its
+  sampled rows all carry a fencing token above 1). It is the family #10880 moves off this
+  table, so it is excluded. At about 13,000 rows an item the upper bound is on the order of
+  4M rewritten rows a week, about 8 GB of WAL at the fixture's per-row cost (the sample
+  shows about 4,300 B of payload per supply-chain row against the fixture's 1.33 KB, so the
+  bound is conservative low), if every reopen rewrote every row and none changed. Whether any
+  were identical is unknown.
 - The table-wide 88,254,540 updates (`n_tup_upd`, read 2026-11-17, before #10873 merged)
-  therefore cannot be mostly reducer saves of the families that stay on the table: those
-  families re-save almost nothing. The queue evidence points to the collector path (since
-  guarded) and to the supply-chain family.
+  cannot be mostly reducer saves of the staying families **by row volume**: those families
+  re-save almost no rows. The queue evidence points to the collector path (since guarded)
+  and to the supply-chain family.
 
 ## Recommendation: do not build a reducer write-on-change guard now
 
-For the reducer families that stay on `fact_records` after #10880, the re-save population
-is at or near zero for the three largest and at most 1.5% for the next one, and an
-identical re-save costs about as much as an insert, so a guard would save little. This is a
-no-build recommendation for that scope, not a finding that the guard is useless: for
-supply-chain impact the upper bound is large, the family is leaving the table, and the
-identical share is unmeasured.
+For the reducer families that stay on `fact_records` after #10880, the number of rows that
+can be re-saved is small: at or near zero for the three biggest, at most about 1.4% of
+inserts for code-drifted findings, and small in rows for container image identity, service
+catalog and aws drift (the heavy re-savers by items). A guard is cheap per save: it cuts an
+identical re-save from about 2 KB of WAL to 54 B, about 97%. So the small total saving comes
+from the small re-save population, not from a small saving per save. This is a no-build
+recommendation for that scope, not a finding that the guard is useless: for supply-chain
+impact the upper bound is large, the family is leaving the table, and the identical share is
+unmeasured. The result does not depend on the index profile: the retained five-index and the
+153-index results have the same structure.
 
 What would change it (a bigger or different measurement, not more code):
 
@@ -125,14 +142,15 @@ What would change it (a bigger or different measurement, not more code):
    saves today.
 2. The identical-content share for supply-chain impact, by replaying one reopen on a
    fixture and comparing row versions, only if the #10880 write stop slips.
-3. A look at the container image identity atomic writer, which re-saves in almost every
-   item but writes few rows.
+3. The identical-content share for container image identity, which re-saves in almost every
+   item through `BatchInsertConflict`: a guard on that statement would cover it, and the
+   row volume says the saving is small unless this kind grows.
 
 ## NOT_CHECKED
 
 - Identical-content share per kind (needs row history or a replay).
 - Primary counters: `n_tup_upd`, `n_tup_hot_upd`, WAL volume, rows updated per day.
-- The supply-chain impact retraction updates and the container image identity writer.
+- The supply-chain impact retraction updates.
 - Whether the five reopen-fingerprint tables already suppress some reopens (they exist
   for aws drift, deployable unit, service catalog, workload materialization and container
   identity); the queue counts above are after that suppression.
