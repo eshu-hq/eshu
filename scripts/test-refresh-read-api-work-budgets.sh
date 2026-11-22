@@ -306,4 +306,32 @@ run_ratcheted --baseline "${work}/empty_baseline.txt" "${work}/r1.json" "${work}
 ratchet_out="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json")"
 [[ "${ratchet_out}" == "${out1}" ]] || fail "the ratchet must gate output, never alter it"
 
+# --- provenance (#11170) -----------------------------------------------------
+# A row accepted past the ratchet must say so in its own reason column, naming
+# the issue, so a reader of the committed table never mistakes it for a plain
+# GREEN-derived row. Rows that needed no flag keep the plain reason.
+acc_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 graph-only labels now serve from fact truth' \
+	"${work}/regressed.json" 2>/dev/null)" || fail "accepted regression must still render"
+printf '%s\n' "${acc_out}" | rg -qF "GET /a	" || fail "accepted render lost GET /a"
+a_line="$(printf '%s\n' "${acc_out}" | rg '^GET /a	')"
+[[ "${a_line##*	}" == "GREEN-derived work guard; accepted past the ratchet: #6843 graph-only labels now serve from fact truth" ]] \
+	|| fail "an accepted row must carry the accepting issue in its reason column, got: ${a_line}"
+plain_line="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json" | rg '^GET /b	')"
+[[ "${plain_line##*	}" == "GREEN-derived work guard" ]] || fail "a row that needed no flag keeps the plain reason, got: ${plain_line}"
+
+# The header restates provenance: each input report's sha256 (sorted, so report
+# order never changes the bytes), the accept flags used, and any --note lines.
+sha_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
+prov_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 graph-only labels now serve from fact truth' \
+	--note 'leg=legacy' --note 'commit=0123abc' "${work}/regressed.json" 2>/dev/null)"
+printf '%s\n' "${prov_out}" | rg -qxF "# report sha256: $(sha_of "${work}/regressed.json")" || fail "header must carry the report sha256"
+printf '%s\n' "${prov_out}" | rg -qxF "# accepted past the ratchet: GET /a=#6843 graph-only labels now serve from fact truth" || fail "header must carry the accept flag"
+printf '%s\n' "${prov_out}" | rg -qxF "# note: leg=legacy" || fail "header must carry --note lines"
+printf '%s\n' "${prov_out}" | rg -qxF "# note: commit=0123abc" || fail "header must carry every --note line"
+prov_swap="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r2.json" "${work}/r1.json")"
+prov_ord="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json")"
+[[ "${prov_swap}" == "${prov_ord}" ]] || fail "provenance header must not depend on report order"
+
 printf 'test-refresh-read-api-work-budgets: PASS\n'

@@ -61,6 +61,7 @@
 #                                            [--baseline FILE]
 #                                            [--accept-regression 'ROUTE=#ISSUE']...
 #                                            [--accept-drop 'ROUTE=#ISSUE']...
+#                                            [--note TEXT]...
 #                                            REPORT.json...
 #     --named-from FILE  latency budget table naming the routes that get their own
 #                        row (default: testdata/benchmarks/read-api-route-budgets.txt)
@@ -76,8 +77,17 @@
 #                        Repeatable. The reason must name an issue. A collapse is
 #                        usually corpus loss, so check the seed before reaching
 #                        for this.
+#     --note TEXT        add "# note: TEXT" to the table header. Repeatable. Use it
+#                        for the provenance the script cannot see: the leg, the
+#                        commit, and the corpus sizes the reports came from.
 #     One flag covers all three counters for the named route: accepting a
 #     blks regression also accepts calls/rows movement on that route.
+#
+# PROVENANCE: the table header restates what the table was derived from: the
+# sha256 of every input report (sorted, so report order never changes the
+# bytes), each --accept-regression / --accept-drop flag used, and every --note.
+# A row accepted past a ratchet also says so in its own reason column, naming
+# the issue, so it is never mistaken for a plain GREEN-derived row.
 #
 # Output is byte-identical for identical inputs (LC_ALL=C, sorted by route, no
 # timestamps).
@@ -93,6 +103,11 @@ baseline_set=0
 # /bin/bash on macOS is 3.2 and has none.
 accepted_regressions=""
 accepted_drops=""
+# Newline-delimited "route<TAB>reason" for the rows a ratchet flag actually let
+# through (set by ratchet, read when the reason column is rewritten).
+accepted_used=""
+notes=()
+accept_flags=()
 ratchet_numerator=3
 ratchet_denominator=2
 # A collapse this large is corpus loss, not an optimisation. 20x separates the
@@ -116,6 +131,7 @@ while [[ $# -gt 0 ]]; do
 		--named-from) named_from="${2:?--named-from needs a file}"; shift 2 ;;
 		--out) out="${2:?--out needs a file}"; shift 2 ;;
 		--baseline) baseline="${2:?--baseline needs a file}"; baseline_set=1; shift 2 ;;
+		--note) notes+=("${2:?--note needs text}"); shift 2 ;;
 		--accept-regression)
 			entry="${2:?--accept-regression needs 'ROUTE=#ISSUE'}"
 			case "${entry}" in
@@ -128,6 +144,7 @@ while [[ $# -gt 0 ]]; do
 			[[ "${acc_reason}" =~ \#[0-9]+ ]] || die "--accept-regression needs a reason naming an issue (e.g. '#6912'), got: ${entry}"
 			accepted_regressions="${accepted_regressions}${acc_route}	${acc_reason}
 "
+			accept_flags+=("${entry}")
 			shift 2 ;;
 		--accept-drop)
 			entry="${2:?--accept-drop needs 'ROUTE=#ISSUE'}"
@@ -137,6 +154,7 @@ while [[ $# -gt 0 ]]; do
 			[[ -n "${drop_route}" ]] || die "--accept-drop has an empty route: ${entry}"
 			[[ "${drop_reason}" =~ \#[0-9]+ ]] || die "--accept-drop needs a reason naming an issue (e.g. '#6912'), got: ${entry}"
 			accepted_drops="${accepted_drops}${drop_route}\t${drop_reason}\n"
+			accept_flags+=("${entry}")
 			shift 2 ;;
 		# Print the whole comment header, terminated by the first line of code.
 		# A hardcoded line range drifted twice while this block was being written,
@@ -214,6 +232,8 @@ ratchet() {
 				reason="$(reason_for "${accepted_regressions}" "${route}")"
 				if [[ -n "${reason}" ]]; then
 					accepted_note="${accepted_note}  ACCEPTED ${route}: ${old} -> ${new} ${name} (${reason})\n"
+					accepted_used="${accepted_used}${route}	${reason}
+"
 				else
 					violations="${violations}  ${route}: ${old} -> ${new} ${name}\n"
 				fi
@@ -221,6 +241,8 @@ ratchet() {
 				reason="$(reason_for "${accepted_drops}" "${route}")"
 				if [[ -n "${reason}" ]]; then
 					accepted_note="${accepted_note}  ACCEPTED DROP ${route}: ${old} -> ${new} ${name} (${reason})\n"
+					accepted_used="${accepted_used}${route}	${reason}
+"
 				else
 					collapses="${collapses}  ${route}: ${old} -> ${new} ${name}\n"
 				fi
@@ -302,6 +324,51 @@ if [[ "${baseline_set}" -eq 0 ]]; then
 fi
 
 ratchet "${baseline}" "${table}"
+
+# sha256_of FILE -- portable across GNU coreutils and macOS.
+sha256_of() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | awk '{print $1}'
+	else
+		shasum -a 256 "$1" | awk '{print $1}'
+	fi
+}
+
+# Provenance header lines, in a fixed order: report hashes sorted, then the
+# accept flags and notes in the order given.
+provenance=""
+while IFS= read -r report_hash; do
+	provenance="${provenance}# report sha256: ${report_hash}
+"
+done < <(for report in "${reports[@]}"; do sha256_of "${report}"; done | sort)
+if [[ ${#accept_flags[@]} -gt 0 ]]; then
+	for flag in "${accept_flags[@]}"; do
+		provenance="${provenance}# accepted past the ratchet: ${flag}
+"
+	done
+fi
+if [[ ${#notes[@]} -gt 0 ]]; then
+	for note in "${notes[@]}"; do
+		provenance="${provenance}# note: ${note}
+"
+	done
+fi
+# Insert the provenance before the first blank line (the end of the header) and
+# rewrite the reason column of every row a ratchet flag let through.
+table="$(printf '%s\n' "${table}" | awk -F'\t' -v OFS='\t' -v prov="${provenance}" -v acc="${accepted_used}" '
+	BEGIN {
+		n = split(acc, lines, "\n")
+		for (i = 1; i <= n; i++) {
+			if (lines[i] == "") continue
+			split(lines[i], kv, "\t")
+			accepted[kv[1]] = kv[2]
+		}
+		printed = 0
+	}
+	!printed && $0 == "" { printf "%s", prov; printed = 1 }
+	$1 in accepted && NF >= 5 { $5 = $5 "; accepted past the ratchet: " accepted[$1] }
+	{ print }
+')"
 
 if [[ -n "${out}" ]]; then
 	tmp="$(mktemp "${out}.XXXXXX")"
