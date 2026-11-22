@@ -1090,6 +1090,8 @@ Additional historical no-regression notes for incident freshness, incident
 routing, workflow terminal failure, readiness gating, owned dependency targets,
 and advisory targets live in [`evidence-notes.md`](evidence-notes.md). The collector terminal-failure acknowledgement store and read (#8830) are in [`terminal-failure-acknowledgement.md`](terminal-failure-acknowledgement.md).
 
+- A `fact_records` write whose `fact_id` is already held by another scope or another generation never changes that row (#11203): the upsert's conflict WHERE requires the stored `scope_id` and `generation_id` to match, `selectUnchangedFactIDs` classifies the skipped ids as unchanged, owner conflict, or fenced out in one statement, and the streaming save returns `*FactIDOwnerConflictError` at the first conflicting batch. `IngestionStore` answers by refusing the whole generation (rolled back, the prior generation keeps serving) with the closed reason `fact_id_owner_conflict`, `eshu_dp_fact_id_scope_conflicts_total{reason}`, and one ERROR log of ids, never payloads. See [AGENTS.md](AGENTS.md) and [the evidence note](../../../../docs/internal/evidence/11203-fact-id-owner-guard.md).
+
 ## Related docs
 
 - `docs/public/architecture.md` — pipeline and ownership table

@@ -3761,11 +3761,11 @@ type Instruments struct {
 	// InfraSearchKeyUnkeyedNodes is the count of unkeyed infra nodes that hold
 	// a searched field at the last successful readiness probe (#7245).
 	InfraSearchKeyUnkeyedNodes metric.Int64Gauge
-	// FactIDOwnerConflicts counts facts the streaming fact save skipped
-	// because their fact_id is held by another scope or generation (#11203),
-	// by reason (scope, generation). Registered by
+	// FactIDScopeConflicts counts facts the streaming fact save found with a
+	// fact_id held by another scope or generation (#11203), by reason (scope,
+	// generation), before it refuses the generation. Registered by
 	// registerFactIDOwnerConflictInstruments.
-	FactIDOwnerConflicts metric.Int64Counter
+	FactIDScopeConflicts metric.Int64Counter
 	// ReducerOwnGateWake counts #7597 own-gate wake statements by site
 	// (activation, fail) and outcome (reopened, noop, error), once per
 	// statement. Registered by registerOwnGateWakeInstruments.

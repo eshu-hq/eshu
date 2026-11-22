@@ -4,6 +4,7 @@
 package facts
 
 import (
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -33,34 +34,40 @@ import (
 
 // factIDProducerAllowlist names the Envelope literals whose FactID is not
 // derived from scope and generation at the literal, keyed by slash path
-// relative to the go/ directory. Every row needs a reason, and a row that no
-// longer matches a site is itself a failure.
+// relative to the go/ directory plus "::" plus the enclosing function name, so
+// one exempt site never hides another minting site in the same file. Every row
+// needs a reason, and a row that no longer matches a site is itself a failure.
 var factIDProducerAllowlist = map[string]string{
-	"internal/collector/conformance/parity/fixture.go":                            "conformance fixture facts carry no scope or generation and are never persisted",
-	"internal/ifa/vuln_collector_odu.go":                                          "planted Ifa fixture: scope and generation are the package constants plantedScopeID and plantedGenerationID, a single fixed pair",
-	"internal/query/ssm_host_inventory_overlay.go":                                "read path: forwards the stored fact's own id into an overlay row, mints nothing",
-	"internal/reducer/supplychain/core/file_payload_typed.go":                     "decode path: forwards the id of a fact already read from fact_records",
-	"internal/reducer/supplychain/core/file_reachability_fold.go":                 "in-memory digest envelopes appended to an evidence set with a constant id; never written to fact_records",
-	"internal/storage/postgres/backfill/scan.go":                                  "read path: forwards the id scanned from fact_records",
-	"internal/storage/postgres/drift_overlay_tfstate.go":                          "read path: forwards the id scanned from fact_records",
-	"internal/storage/postgres/installed_advisory_targets_os_package_envelope.go": "read path: forwards the id scanned from fact_records",
-	"internal/storage/postgres/testfixtures/activation.go":                        "test fixture helper: caller supplies the id",
-	"internal/storage/postgres/vulnerability_suppression_store.go":                "write path under one fixed scope (vulnerabilitySuppressionScopeID): the id hashes the generation and the stable key, so a scope cannot collide with another",
+	"internal/collector/conformance/parity/fixture.go::classFact":                                                          "conformance fixture facts carry no scope or generation and are never persisted",
+	"internal/ifa/vuln_collector_odu.go::plantedEnvelope":                                                                  "planted Ifa fixture: scope and generation are the package constants plantedScopeID and plantedGenerationID, a single fixed pair",
+	"internal/query/ssm_host_inventory_overlay.go::ssmObservationsFromFacts":                                               "read path: forwards the stored fact's own id into an overlay row, mints nothing",
+	"internal/reducer/supplychain/core/file_payload_typed.go::projectTypedFileEnvelope":                                    "decode path: forwards the id of a fact already read from fact_records",
+	"internal/reducer/supplychain/core/file_reachability_fold.go::FileReachabilityFold.DigestEnvelope":                     "in-memory digest envelope appended to an evidence set with a constant id; never written to fact_records",
+	"internal/reducer/supplychain/core/file_reachability_fold.go::FileReachabilityFold.PythonReachabilityDigestEnvelope":   "in-memory digest envelope appended to an evidence set with a constant id; never written to fact_records",
+	"internal/storage/postgres/backfill/scan.go::ScanFactEnvelopeWithPayloadSize":                                          "read path: forwards the id scanned from fact_records",
+	"internal/storage/postgres/drift_overlay_tfstate.go::overlayEnvelope":                                                  "read path: forwards the id scanned from fact_records",
+	"internal/storage/postgres/installed_advisory_targets_os_package_envelope.go::osPackageAdvisoryFactEnvelopeFromTarget": "read path: forwards the stored target's own fact id, mints nothing",
+	"internal/storage/postgres/testfixtures/activation.go::ActivationRepositoryFact":                                       "test fixture helper: the caller supplies the id",
+	"internal/storage/postgres/vulnerability_suppression_store.go::writeVulnerabilitySuppressionFacts":                     "MINTS its id (vulnerabilitySuppressionFactID): single constant scope (vulnerabilitySuppressionScopeID); generation hashed. Safe only while the scope stays one constant",
 }
 
 // factIDSite is one Envelope literal that sets FactID.
 type factIDSite struct {
 	pos       string
 	file      string
+	fn        string // enclosing function, "" outside one
 	expr      ast.Expr
 	enclosing *ast.FuncDecl
 }
 
+// key is the allowlist key: file plus enclosing function.
+func (s factIDSite) key() string { return s.file + "::" + s.fn }
+
 // factIDProducerViolations scans Go source text (slash path to contents) and
 // returns one message per Envelope literal whose FactID is not derived from
 // both scope and generation and has no allowlist row. sites counts the
-// literals seen, so a caller can tell a scan that saw nothing from a clean
-// one; usedAllow records which allowlist rows matched a site.
+// literals seen; a scan that sees none is an error, never a clean pass.
+// usedAllow records which allowlist rows matched a site.
 func factIDProducerViolations(files map[string]string, allow map[string]string) (violations []string, sites int, usedAllow map[string]bool, err error) {
 	usedAllow = map[string]bool{}
 	names := make([]string, 0, len(files))
@@ -96,14 +103,34 @@ func factIDProducerViolations(files map[string]string, allow map[string]string) 
 			if problem == "" {
 				continue
 			}
-			if _, ok := allow[site.file]; ok {
-				usedAllow[site.file] = true
+			if _, ok := allow[site.key()]; ok {
+				usedAllow[site.key()] = true
 				continue
 			}
-			violations = append(violations, site.pos+": FactID "+problem)
+			violations = append(violations, site.pos+" ["+site.key()+"]: FactID "+problem)
 		}
 	}
+	if sites == 0 {
+		return nil, 0, nil, errors.New("scanned zero Envelope FactID sites: the guard saw nothing and would pass vacuously")
+	}
 	return violations, sites, usedAllow, nil
+}
+
+// funcName names a function declaration, "Recv.Method" for a method, "" for none.
+func funcName(fn *ast.FuncDecl) string {
+	if fn == nil {
+		return ""
+	}
+	if fn.Recv != nil && len(fn.Recv.List) > 0 {
+		recv := fn.Recv.List[0].Type
+		if star, ok := recv.(*ast.StarExpr); ok {
+			recv = star.X
+		}
+		if id, ok := recv.(*ast.Ident); ok {
+			return id.Name + "." + fn.Name.Name
+		}
+	}
+	return fn.Name.Name
 }
 
 func slashDir(name string) string {
@@ -132,6 +159,7 @@ func envelopeFactIDSites(fset *token.FileSet, name string, file *ast.File) []fac
 					out = append(out, factIDSite{
 						pos:       fset.Position(kv.Pos()).String(),
 						file:      name,
+						fn:        funcName(fn),
 						expr:      kv.Value,
 						enclosing: fn,
 					})

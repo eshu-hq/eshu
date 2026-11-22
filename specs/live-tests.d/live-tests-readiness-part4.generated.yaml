@@ -154,6 +154,26 @@ tests:
     class: postgres_ci
     reason: "#9307 disposable PostgreSQL 18.6 fresh and populated ECS index proof: an observed active concurrent build admits a second fact writer, an ordinary build queues that writer to 55P03, and invalid-index restart recovery rebuilds 242/244"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/fact_id_owner_guard_bench_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11203 before/after cost proof for the fact_id owner guard on disposable PostgreSQL: EXPLAIN (ANALYZE, BUFFERS) of a 500-row conflicting batch with and without the owner legs (the pre-change statement is derived from the shipped constant) and a 15-run paired median-and-spread table over four 500-row mixes (all new, all changed, identical replay, one foreign row); wall time logged not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/fact_id_owner_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11203 two-transaction race proof on disposable PostgreSQL 18: two scopes writing one brand-new fact id in concurrent transactions, in both orders, leave exactly one owner and refuse the other with the typed owner-conflict error once the first commits (the second statement waits on the first's insert, then re-evaluates the conflict WHERE); also a free-for-all round with no forced order; reuses the #7978 bootstrapped proof schema; wall time logged not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/fact_id_owner_refusal_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11203 end-to-end proof on disposable PostgreSQL 18 that IngestionStore.CommitScopeGeneration refuses a whole generation whose fact id is held by another scope or another generation: nothing of the generation lands (no fact, no generation row, no projector work item), the owner's fact row and its relationship_reference_candidate_keys row stay byte-identical, the scope's prior generation stays active, the commit disposition reads refused with reason fact_id_owner_conflict, and the generation-outcome counter, the fact id scope conflict counter by reason, the skipped-refresh count, and one payload-free ERROR log all agree; reuses the #7978 bootstrapped proof schema; wall time logged not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/fact_id_scope_guard_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11203 cross-scope and cross-generation fact_id collision proof on disposable PostgreSQL: a second scope or generation writing an id another scope or generation already holds must never overwrite that row, while a same-scope same-generation re-save stays idempotent and still lands changed content"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/fact_key_foreign_key_drop_live_test.go
     tag: ~
     class: postgres_ci
@@ -468,30 +488,5 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8454 disposable PostgreSQL 18 proof of the upstream classification probe storage: classifications round-trip through the store read, a stale probe never overwrites a newer verdict, relisting a scope clears its verdict, and the CHECK rejects a verdict outside the closed set. Enrolled in the live-postgres-readiness runner; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/membership/observations_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7625 disposable PostgreSQL 18 proof of repository selection observations: the org partition read excludes other orgs, repository_ref scopes, and other collectors; over three cycles the stored rows equal membership.Evaluate's projection (a repeated state keeps state_since and adds a cycle, a changed state restarts both); a replayed or older batch changes nothing; explicit selected rows sit beside org rows; and eight writers released by a start barrier (four on one selector, four on a second) neither deadlock nor double-count. Enrolled in the live-postgres-readiness runner; 1.47-1.57s of test time on postgres:18.6 on 2026-10-08; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/membership/observations_sweep_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7774/#7840 disposable PostgreSQL 18 proof of the expired repository_selection_observations sweep: only rows strictly past their own liveness window plus the grace are deleted (live, in-grace, boundary, and long-window rows are kept); not_listed rows of a selector whose cycle marker is fresh are never deleted, so a guard-tripped selector whose rows all expired still evaluates instead of tripping the mass-miss guard, while not_listed rows of abandoned selectors (stale or missing marker) are reclaimed and counted apart; a reclaimed selector that revives re-confirms from pending below the mass-miss guard threshold and trips like a first-ever evaluation above it until the drift shrinks; a 1,203-row backlog drains in batches and a backlog past the batch cap stops at the cap and finishes on the next call; a row an open evaluation holds is skipped without waiting and kept once renewed; and an evaluation that collides with an in-flight delete waits, then inserts a fresh row. Enrolled in the live-postgres-readiness runner; 1.70-1.97s of test time on postgres:18.6 on 2026-10-09; wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/migration_169_reader_bound_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#7961 disposable PostgreSQL 18 proof that tracked migration 169 never blocks a content_files read past 1 s: migrations 001-168 applied through the tracked migrator (all nine content_files indexes and both secret-lines triggers asserted), 8,000 seeded rows, a 100 ms reader loop and pg_locks sampler (no AccessExclusiveLock during the backfill), receipt skip and a receipt-free replay that rewrites no tuple, a backend terminated mid-backfill that keeps the ALTER, writes no tag or receipt, and reruns to exactly one receipt, and a one-message control that must block a reader past the bound so the proof is not vacuous. Enrolled in the live-postgres-readiness runner; about 25s of test time (22.3s to 29.7s over three local PostgreSQL 18.6 runs on 2026-10-11, host load varied); wall time is logged, not gated"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/nvd_baseline_plan_admission_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10828 disposable PostgreSQL proof that the NVD baseline per-year plan row commits or rolls back with the work items and slot progress of one guarded admission, is written only for a chunk the insert accepted (never one the terminal-run skip, the open-target guard, or a primary-key conflict dropped), is stamped from the database clock after the planning-lock wait, and is not written by the plain or slot-progress entry points; isolated bootstrap schema with migration 312"
-    runner: live-postgres-readiness
-  - file: go/internal/storage/postgres/nvd_baseline_plan_locking_live_test.go
-    tag: ~
-    class: postgres_ci
-    reason: "#10828 disposable PostgreSQL proof of the NVD baseline plan row's locking: two coordinators of different instances that share one baseline run and name the same years in opposite order neither deadlock nor retry, because the writer takes row locks in one order, and an admission that records plan rows holds the same single advisory lock as one that does not plus only RowExclusiveLock on the plan table and its primary key; isolated bootstrap schema with migration 312"
     runner: live-postgres-readiness
 # Generated by scripts/generate-live-postgres-readiness.py; do not hand-edit.

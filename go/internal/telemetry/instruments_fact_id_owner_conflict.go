@@ -10,7 +10,7 @@ import (
 )
 
 // Fact id owner-conflict reasons (#11203), recorded on the existing reason
-// dimension of eshu_dp_fact_id_owner_conflicts_total. The set is closed.
+// dimension of eshu_dp_fact_id_scope_conflicts_total. The set is closed.
 const (
 	// FactIDOwnerConflictReasonScope means the fact_id is already held by a
 	// different scope.
@@ -20,19 +20,19 @@ const (
 	FactIDOwnerConflictReasonGeneration = "generation"
 )
 
-// registerFactIDOwnerConflictInstruments registers the #11203 fact id owner
-// conflict counter on inst. One increment per skipped fact, labeled only by the
+// registerFactIDOwnerConflictInstruments registers the #11203 fact id scope
+// conflict counter on inst. One increment per conflicting fact found, labeled only by the
 // closed reason set: no scope, generation, or fact id label, which are
 // unbounded. The scope and generation ids ride on the fact_id_owner_conflict
-// WARN log.
+// ERROR log.
 func registerFactIDOwnerConflictInstruments(meter metric.Meter, inst *Instruments) error {
 	var err error
-	if inst.FactIDOwnerConflicts, err = meter.Int64Counter(
-		"eshu_dp_fact_id_owner_conflicts_total",
-		metric.WithDescription("Facts the streaming fact save skipped because their fact_id is already held by another scope or generation, by reason (scope, generation) (#11203). Any non-zero rate is a producer minting an id that omits scope or generation; the skipped fact was not written"),
+	if inst.FactIDScopeConflicts, err = meter.Int64Counter(
+		"eshu_dp_fact_id_scope_conflicts_total",
+		metric.WithDescription("Facts found by the streaming fact save whose fact_id is already held by another scope or generation, by reason (scope: the stored scope differs; generation: the scope matches and the generation differs) (#11203). Counted per conflicting fact found before the save stops at the first conflicting batch; the generation is refused (fact_id_owner_conflict), so any non-zero rate is a producer minting an id that omits scope or generation"),
 		metric.WithUnit("{fact}"),
 	); err != nil {
-		return fmt.Errorf("register FactIDOwnerConflicts counter: %w", err)
+		return fmt.Errorf("register FactIDScopeConflicts counter: %w", err)
 	}
 	return nil
 }

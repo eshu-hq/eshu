@@ -69,7 +69,8 @@ func TestFactIDProducersDeriveFromScopeAndGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("factIDProducerViolations() error = %v", err)
 	}
-	// Floor, not an exact count: a scan that parsed nothing must not pass.
+	// Floor, not an exact count: a scan that parsed little must not pass. A scan
+	// of zero sites is already an error from the scanner itself.
 	if sites < 25 {
 		t.Fatalf("scanned %d FactID sites, want at least 25: the scan lost the tree", sites)
 	}
@@ -78,6 +79,9 @@ func TestFactIDProducersDeriveFromScopeAndGeneration(t *testing.T) {
 	}
 	var stale []string
 	for file, reason := range factIDProducerAllowlist {
+		if !strings.Contains(file, "::") {
+			t.Errorf("allowlist key %q is not file::function", file)
+		}
 		if strings.TrimSpace(reason) == "" {
 			t.Errorf("allowlist row %q has no reason", file)
 		}
@@ -202,5 +206,38 @@ func f(scopeID, generationID, key string) facts.Envelope {
 				t.Fatalf("sites=%d violations=%v, want 1 site and %d violations", sites, violations, tc.want)
 			}
 		})
+	}
+}
+
+// TestFactIDProducerGuardAllowlistIsPerFunction pins the file-plus-function
+// key (#11203 ruling): exempting one minting function must not hide another
+// function in the same file, and an exempted row that matches no site is
+// reported as unused.
+func TestFactIDProducerGuardAllowlistIsPerFunction(t *testing.T) {
+	src := map[string]string{"p/p.go": `package p
+func a(key string) facts.Envelope { return facts.Envelope{FactID: key} }
+func b(key string) facts.Envelope { return facts.Envelope{FactID: key} }`}
+	violations, sites, used, err := factIDProducerViolations(src, map[string]string{"p/p.go::a": "exempt", "p/p.go::gone": "stale"})
+	if err != nil || sites != 2 {
+		t.Fatalf("sites=%d err=%v, want 2 sites", sites, err)
+	}
+	if len(violations) != 1 || !strings.Contains(violations[0], "[p/p.go::b]") {
+		t.Fatalf("violations = %v, want only function b flagged", violations)
+	}
+	if !used["p/p.go::a"] || used["p/p.go::gone"] {
+		t.Fatalf("used = %v, want a used and gone unused", used)
+	}
+}
+
+// TestFactIDProducerGuardFailsOnZeroSites is the vacuous-pass RED: a scan that
+// sees no Envelope FactID site is an error, not a clean result.
+func TestFactIDProducerGuardFailsOnZeroSites(t *testing.T) {
+	for name, files := range map[string]map[string]string{
+		"no files":            {},
+		"files without sites": {"p/p.go": "package p\nfunc f() {}\n"},
+	} {
+		if _, sites, _, err := factIDProducerViolations(files, nil); err == nil || sites != 0 {
+			t.Fatalf("%s: err=%v sites=%d, want an error for a zero-site scan", name, err, sites)
+		}
 	}
 }
