@@ -1,0 +1,11 @@
+domain|succeeded_items|resaved_items|succeeded_updated_7d|resaved_7d
+workload_identity|14002|2|969|0
+eshu_search_document|12529|4|1471|0
+platform_infra_materialization|9770|0|579|0
+code_drifted|8052|16|796|11
+container_image_identity|1345|1331|172|163
+supply_chain_impact|928|874|328|304
+observability_coverage_correlation|443|0|93|0
+service_catalog_correlation|36|29|8|7
+aws_cloud_runtime_drift|34|18|24|8
+(9 rows)
