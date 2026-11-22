@@ -18,15 +18,11 @@ type scriptedRangeAuditor struct {
 	mu     sync.Mutex
 	passes []SupplyChainImpactWinnersAudit
 	calls  int
-	delay  time.Duration
 }
 
 func (a *scriptedRangeAuditor) AuditWinners(context.Context) (SupplyChainImpactWinnersAudit, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.delay > 0 {
-		time.Sleep(a.delay)
-	}
 	i := min(a.calls, len(a.passes)-1)
 	a.calls++
 	return a.passes[i], nil
@@ -87,19 +83,77 @@ func TestWinnersAuditTickRunsSweepRangesBackToBack(t *testing.T) {
 	}
 }
 
-// TestWinnersAuditTickStopsAtItsBudget pins the wall-time bound of one tick.
+// fakeTickClock is a settable clock for the audit tick budget. The auditor
+// advances it, so how many passes fit in a budget is decided by the script, not
+// by how fast the scheduler runs the test.
+type fakeTickClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *fakeTickClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeTickClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
+// clockAdvancingAuditor reports an unfinished range every pass and spends
+// perPass of fake time on it.
+type clockAdvancingAuditor struct {
+	clock   *fakeTickClock
+	perPass time.Duration
+	calls   int
+}
+
+func (a *clockAdvancingAuditor) AuditWinners(context.Context) (SupplyChainImpactWinnersAudit, error) {
+	a.calls++
+	a.clock.advance(a.perPass)
+	return rangePass("advanced", true, true), nil
+}
+
+// TestWinnersAuditTickStopsAtItsBudget pins the time bound of one audit tick
+// (#11131) on an injected clock: the tick runs the first pass, keeps running
+// ranges while the budget has time left, and stops on the first pass that
+// ends at or past the deadline. The pass count is exact because the auditor,
+// not the scheduler, advances the clock (#11247).
 func TestWinnersAuditTickStopsAtItsBudget(t *testing.T) {
 	t.Parallel()
-	auditor := &scriptedRangeAuditor{passes: []SupplyChainImpactWinnersAudit{rangePass("advanced", true, true)}, delay: 20 * time.Millisecond}
-	m := SupplyChainImpactWinnersMaintainer{
-		Rebuilder: &fakeWinnersRebuilder{}, LeaseManager: &fakeWinnersLeaseManager{claim: true}, Auditor: auditor,
-		AuditTickBudget: 70 * time.Millisecond,
+	const perPass = 20 * time.Millisecond
+	tests := []struct {
+		name       string
+		budget     time.Duration
+		wantPasses int
+	}{
+		{name: "stops after the pass that crosses the deadline", budget: 70 * time.Millisecond, wantPasses: 4},
+		{name: "stops when a pass ends exactly on the deadline", budget: 60 * time.Millisecond, wantPasses: 3},
+		{name: "a budget shorter than one pass still runs that pass", budget: time.Millisecond, wantPasses: 1},
 	}
-	if err := m.runAuditOnce(context.Background()); err != nil {
-		t.Fatalf("runAuditOnce() error = %v", err)
-	}
-	if auditor.calls < 2 || auditor.calls > 5 {
-		t.Fatalf("auditor passes = %d in a 70 ms budget at 20 ms each, want 2 to 5", auditor.calls)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			clock := &fakeTickClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+			auditor := &clockAdvancingAuditor{clock: clock, perPass: perPass}
+			// The lease cap ends a tick that ignores its budget, so a broken
+			// budget fails this assertion instead of hanging the test.
+			lease := &leaseStopAfter{inner: &fakeWinnersLeaseManager{claim: true}, allow: 50}
+			m := SupplyChainImpactWinnersMaintainer{
+				Rebuilder: &fakeWinnersRebuilder{}, LeaseManager: lease, Auditor: auditor,
+				AuditTickBudget: tt.budget, Now: clock.Now,
+			}
+			if err := m.runAuditOnce(context.Background()); err != nil {
+				t.Fatalf("runAuditOnce() error = %v", err)
+			}
+			if auditor.calls != tt.wantPasses {
+				t.Fatalf("auditor passes = %d in a %s budget at %s each, want exactly %d",
+					auditor.calls, tt.budget, perPass, tt.wantPasses)
+			}
+		})
 	}
 }
 
