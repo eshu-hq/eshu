@@ -74,14 +74,22 @@ which records what is unprobed or unowned today.
   predicate is searched in the ref's own scope, the innermost subquery that holds
   it (a parenthesized join tree is skipped) cut to its `UNION`, `INTERSECT`, or
   `EXCEPT` arm, so a reused alias name or another arm's predicate satisfies
-  nothing. And it must restrict: a depth-zero `AND` conjunct of the `WHERE` or
-  `ON` clause that holds the ref, climbing out of boolean groups that are
-  themselves conjuncts; a predicate that is an `OR` arm, under `NOT`, inside a
-  function or `CASE`, in the select list, or tested with `IS`, `<>`, a cast, or a
-  concatenation does not count. A new probed statement with an alias that lacks
-  one goes red. The canary reads only recorded statements, so it does not cover
-  the 155 waived capabilities (their full statements are never recorded) or the
-  census, which sees fragments; that gap is #11212.
+  nothing. And it must restrict, as far as the canary reads: a depth-zero `AND`
+  conjunct of the `WHERE` or `ON` clause that holds the match, climbing out of
+  boolean groups that are themselves conjuncts. A predicate that is an `OR` arm,
+  under `NOT`, inside a function or `CASE`, directly in the select list, or
+  tested with `IS`, `<>`, a cast, or a concatenation does not count. A new probed
+  statement with an alias that lacks one goes red. Known limits, all latent (no
+  probed production statement uses them; the census of the 24 distinct probe
+  statements is the evidence): a correlated predicate inside a nested subquery
+  (`NOT EXISTS`, `OR EXISTS`, a select-list scalar subquery, `LEFT JOIN LATERAL`)
+  counts as the ref's own predicate although it does not restrict the ref's rows,
+  and an `ON` predicate counts when the ref is the preserved side of a `LEFT` or
+  `FULL` join, where `ON` does not filter it. A correlated `EXISTS` conjunct is
+  a real restriction and stays accepted. The canary reads only recorded
+  statements, so it does not cover the 155 waived capabilities (their full
+  statements are never recorded) or the census, which sees fragments; that gap and
+  the burn-down of these limits belong to #11212.
 - A subquery whose `WHERE` is always false (a literal `AND FALSE` conjunct with
   no `OR` to rescue it) returns no rows, so the tables it names are not counted.
   A compound subquery is read arm by arm (`UNION` when every arm is empty,

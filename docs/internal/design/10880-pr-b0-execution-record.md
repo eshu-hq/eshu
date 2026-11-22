@@ -101,13 +101,20 @@ B0 lands the pieces that need no supports table. Commits on
      searched in the ref's own subquery arm (a reused alias elsewhere, or another
      `UNION` arm's predicate, does not count) and restricting (a depth-zero `AND`
      conjunct of the `WHERE` or `ON` clause, not an `OR` arm, `NOT`, function,
-     `CASE`, select-list, `IS`, or cast operand). Round 5 added both rules after
+     `CASE`, directly in the select list, `IS`, or cast operand). Round 5 added both rules after
      the reviewer showed an alias reused in another CTE satisfying a kindless
      ref. Three `fact_id` join-backs are pinned (the impact list's `source` and
      `override`, the readiness statement's package-manifest `fact`), each with its
      reason; the 20 hidden forms, the scoping cases, and the eight non-restricting
-     forms are its seeded RED set. It enforces the probed capabilities only: the
-     155 waived capabilities are not enforced (#11212).
+     forms are its seeded RED set. Known limits, all latent (no probed production
+     statement uses them; the 24-statement census is the evidence): a correlated
+     predicate inside a nested subquery (`NOT EXISTS`, `OR EXISTS`, a select-list
+     scalar subquery, `LEFT JOIN LATERAL`) and an `ON` predicate on the preserved
+     side of a `LEFT` or `FULL` join count as the ref's own predicate although they
+     do not restrict its rows; a correlated `EXISTS` conjunct, which does, stays
+     accepted. It enforces the probed capabilities only: the 155 waived
+     capabilities are not enforced, and the burn-down of these limits belongs to
+     #11212.
    - Waivers: 155 capabilities have no probe and 18 query packages have no census
      owner. Raising a ceiling constant is a code edit that only review catches.
 4. **`image_ref` guard.** The gate-on list and aggregate stores serve an
