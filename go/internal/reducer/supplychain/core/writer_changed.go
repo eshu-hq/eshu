@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	reducerderivedv1 "github.com/eshu-hq/eshu-sdk/factschema/reducerderived/v1"
@@ -78,6 +77,10 @@ type changedRow struct {
 	// ident names the row's canonical key for the winners dirty log (#9805).
 	ident            WinnersDirtyIdentifier
 	suppressionState string // the state the row is written in (#10765)
+	// evidenceFactIDs is the sorted evidence fact id set the row is written
+	// with: digest-excluded but served from the stored winner payload, so
+	// the capture secondary-compares it (#10880 ruling decision 4).
+	evidenceFactIDs []string
 }
 
 // priorGenerationSupplyChainImpactSQL selects the scope's previous generation:
@@ -114,7 +117,8 @@ SELECT fact_id,
        COALESCE(payload ->> 'advisory_id', ''),
        fencing_token,
        COALESCE(payload #>> '{provenance,advisory_group_members}', '[]'),
-       COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active')
+       COALESCE(NULLIF(payload ->> 'suppression_state', ''), 'active'),
+       COALESCE(payload #>> '{evidence_fact_ids}', '[]')
 FROM fact_records
 WHERE fact_kind = '` + supplyChainImpactFactKind + `'
   AND scope_id = $1
@@ -152,6 +156,9 @@ type storedFinding struct {
 	members []string
 	// suppressionState is the stored suppression_state, active if absent (#10765).
 	suppressionState string
+	// evidenceFactIDs is the stored row's evidence fact id set, read for
+	// the capture secondary comparison (#10880 ruling decision 4).
+	evidenceFactIDs []string
 }
 
 // readStoredSupplyChainImpactFindings returns the active rows of the generation
@@ -170,8 +177,8 @@ func readStoredSupplyChainImpactFindings(
 	var stored []storedFinding
 	for rows.Next() {
 		var row storedFinding
-		var membersRaw string
-		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState); err != nil {
+		var membersRaw, evidenceRaw string
+		if err := rows.Scan(&row.factID, &row.generationID, &row.stableKey, &row.digest, &row.cveID, &row.advisoryID, &row.fencingToken, &membersRaw, &row.suppressionState, &evidenceRaw); err != nil {
 			return nil, fmt.Errorf("scan stored supply chain impact finding: %w", err)
 		}
 		members, err := parseAdvisoryGroupMembers(membersRaw)
@@ -179,6 +186,11 @@ func readStoredSupplyChainImpactFindings(
 			return nil, fmt.Errorf("decode stored supply chain impact finding members: %w", err)
 		}
 		row.members = members
+		evidence, err := parseEvidenceFactIDs(evidenceRaw)
+		if err != nil {
+			return nil, fmt.Errorf("decode stored supply chain impact finding evidence fact ids: %w", err)
+		}
+		row.evidenceFactIDs = evidence
 		stored = append(stored, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -481,19 +493,7 @@ func readSupplyChainImpactGroupIDs(ctx context.Context, tx SupplyChainImpactTx, 
 	return sortedSetKeys(ids), nil
 }
 
-func sortedSetKeys(set map[string]struct{}) []string {
-	if len(set) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(set))
-	for key := range set {
-		out = append(out, key)
-	}
-	sort.Strings(out)
-	return out
-}
-
-// Member-set helpers (parseAdvisoryGroupMembers, addMemberIDs, memberSetsEqual;
-// #10408) live in writer_group_members.go. The touched set stays keyed by
+// Member-set helpers (#10408) live in writer_group_members.go. The
+// touched set stays keyed by
 // coalesced group id per the #10411 contract; member ids ride changedCVEIDs
 // and the recovery set (D2, see touchedGroupIDs above).

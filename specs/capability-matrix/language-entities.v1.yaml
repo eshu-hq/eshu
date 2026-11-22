@@ -1,6 +1,7 @@
 capabilities:
   - capability: symbol_graph.language_entities
     tools: [execute_language_query]
+    answering_stores: [graph, content_search]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded per-language entity-kind lookup over parser-derived semantic facts; graph-only entity kinds are unavailable without a graph sidecar}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: graph sidecar serves durable entity-kind facts for graph-backed and graph-first entity kinds; content-only entity kinds are served from the content index}

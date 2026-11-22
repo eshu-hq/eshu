@@ -90,7 +90,7 @@ func (w PostgresSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
 			return SupplyChainImpactWriteResult{}, fmt.Errorf("marshal supply chain impact payload: %w", err)
 		}
 		factID := supplyChainImpactFactID(write, finding)
-		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, members: finding.AdvisoryGroupMembers, ident: dirtyIdentifierOf(typed), suppressionState: string(supplyChainImpactSuppressionState(finding.Suppression))})
+		meta = append(meta, changedRow{factID: factID, stableKey: supplyChainImpactStableFactKey(write, finding), digest: digest, cveID: finding.CVEID, advisoryID: finding.AdvisoryID, members: finding.AdvisoryGroupMembers, ident: dirtyIdentifierOf(typed), suppressionState: string(supplyChainImpactSuppressionState(finding.Suppression)), evidenceFactIDs: typed.EvidenceFactIDs})
 		rows = append(rows, factwrite.VersionedRow{
 			FactID:           factID,
 			ScopeID:          write.ScopeID,

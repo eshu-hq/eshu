@@ -19,11 +19,13 @@ func TestExpectedRelationalCountsMatchThePlanAndTheIaCFacts(t *testing.T) {
 
 	got := expectedRelationalCounts(plan, facts)
 
-	// Each of the first three tables carries the one standing refresh seed
-	// row migration 115 leaves on a freshly migrated database.
+	// Scopes and generations carry two standing rows on a freshly migrated
+	// database: the refresh singleton migration 115 leaves, and the
+	// advisory-groups anchor migration 295 leaves. Work items carry only
+	// the migration 115 row; migration 295 seeds no work item.
 	want := map[string]int{
-		"ingestion_scopes":  800 + standingRefreshSeedRows,
-		"scope_generations": countGenerations(plan) + standingRefreshSeedRows,
+		"ingestion_scopes":  800 + standingRefreshSeedRows + standingAdvisorySeedRows,
+		"scope_generations": countGenerations(plan) + standingRefreshSeedRows + standingAdvisorySeedRows,
 		"fact_work_items":   countWorkItems(plan) + standingRefreshSeedRows,
 		"fact_records":      30,
 	}

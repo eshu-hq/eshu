@@ -8,8 +8,9 @@ import "testing"
 func testBudgetMatrix() Matrix {
 	p95 := 800
 	return Matrix{Capabilities: []MatrixCapability{{
-		Capability: "code_search.exact_symbol",
-		Tools:      []string{"find_code"},
+		Capability:      "code_search.exact_symbol",
+		Tools:           []string{"find_code"},
+		AnsweringStores: []string{"content_search"},
 		Profiles: map[string]MatrixProfile{
 			"production": {
 				Status:          "supported",

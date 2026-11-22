@@ -12,8 +12,9 @@ import (
 func testMatrix() Matrix {
 	return Matrix{Capabilities: []MatrixCapability{
 		{
-			Capability: "code_search.exact_symbol",
-			Tools:      []string{"find_code"},
+			Capability:      "code_search.exact_symbol",
+			Tools:           []string{"find_code"},
+			AnsweringStores: []string{"content_search"},
 			Profiles: map[string]MatrixProfile{
 				"local_lightweight": {Status: "supported", MaxTruthLevel: "exact"},
 				"production":        {Status: "supported", MaxTruthLevel: "exact", Verification: []MatrixVerification{{Kind: "remote_validation", Ref: "prod-code-search-exact"}}},
@@ -22,6 +23,11 @@ func testMatrix() Matrix {
 		{
 			Capability: "platform_impact.cloud_resource_list",
 			Tools:      []string{"list_cloud_resources"},
+			AnsweringStores: []string{
+				"read_table:graph_node_owner",
+				"fact_records_reducer",
+				"fact_records_collector",
+			},
 			Profiles: map[string]MatrixProfile{
 				"local_lightweight": {Status: "unsupported", MaxTruthLevel: "unsupported"},
 				"production":        {Status: "supported", MaxTruthLevel: "exact"},
@@ -76,6 +82,9 @@ func TestBuildDerivesEntriesAndSurfaces(t *testing.T) {
 	}
 	if len(exact.ProofSignals) != 1 || exact.ProofSignals[0].Ref != "prod-code-search-exact" {
 		t.Fatalf("proof = %+v", exact.ProofSignals)
+	}
+	if len(exact.AnsweringStores) != 1 || exact.AnsweringStores[0] != "content_search" {
+		t.Fatalf("answering stores = %v", exact.AnsweringStores)
 	}
 
 	cloud := catalog.Entries[1]

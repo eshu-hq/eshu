@@ -405,8 +405,8 @@ func TestFetchStoredWinnersReadsEveryComparedColumn(t *testing.T) {
 	t.Parallel()
 	// Column order must match stagedStoredWinnersSQL: canonical_key plus
 	// every data column of supply_chain_impact_canonical_winners in table
-	// order (minus materialized_at), so the fetcher cannot silently drop a
-	// column the FULL JOIN ROW(...) comparison uses.
+	// order except payload and source_confidence, which the staged audit
+	// never reads (the payload guard test pins that they stay out).
 	_ = len(supplyChainImpactWinnerDataColumns)
 	rows := &stubStagedRows{cols: [][]any{
 		{"k1", "fact-a", "scope-a", "F", 5, 2, "exploitable", "go", "high", "repo", "CVE-1", "ADV-1", "pkg", "digest", "img", "p1", "prof", "1.0", "reason", "active", nil, "[]", "[]", "[]"},

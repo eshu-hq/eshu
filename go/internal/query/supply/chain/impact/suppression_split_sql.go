@@ -3,18 +3,12 @@
 
 package impact
 
-// supplyChainImpactOperatorCandidatesCTE returns the authoritative operator
+// The operator-candidates CTE returns the authoritative operator
 // suppression stream. Caller filters and grants deliberately do not apply here:
 // authorization is established by joining an override onto an already-authorized
-// active source finding with the same canonical key.
-func supplyChainImpactOperatorCandidatesCTE(factKindExpr string) string {
-	return supplyChainImpactOperatorCandidatesWithPredicateCTE(
-		factKindExpr,
-		"",
-		false,
-	)
-}
-
+// active source finding with the same canonical key. The unbounded
+// variant was retired with the #10880 winners-payload read, which bakes
+// the override into the stored winner payload at resweep time.
 func supplyChainImpactBoundedOperatorCandidatesCTE(factKindExpr string) string {
 	return supplyChainImpactOperatorCandidatesWithPredicateCTE(
 		factKindExpr,

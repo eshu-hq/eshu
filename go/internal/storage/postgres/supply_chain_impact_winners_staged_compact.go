@@ -56,9 +56,10 @@ type StagedOverride struct {
 	SuppressionState    string
 }
 
-// StoredWinner carries every content column the FULL JOIN ROW(...) IS
-// DISTINCT FROM ROW(...) comparison reads: the canonical key plus every
-// entry of supplyChainImpactWinnerDataColumns in table order.
+// StoredWinner carries the stored winner columns the staged audit reads: the
+// canonical key plus every entry of supplyChainImpactWinnerDataColumns in
+// table order except the payload and source_confidence columns, which the
+// staged diff never reads (it pins wide fields by winner_fact_id).
 type StoredWinner struct {
 	CanonicalKey         string
 	WinnerFactID         string
@@ -326,9 +327,11 @@ func (c *StagedCompactor) DistinctKeys() int {
 	return union
 }
 
-// stagedStoredWinnersSQL fetches every column the FULL JOIN ROW(...)
-// comparison reads: the canonical key plus every content column of
-// supply_chain_impact_canonical_winners in table order.
+// stagedStoredWinnersSQL fetches the canonical key plus the columns the
+// staged audit reads: the narrow fields DiffCandidates compares and the
+// identity fields ResolveCandidateIdents reads. It deliberately leaves out
+// the payload JSONB and source_confidence (#10880): no staged code reads
+// them, and selecting payload would detoast every winner each tick.
 const stagedStoredWinnersSQL = `SELECT canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score, source_count, impact_status, ecosystem, severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket, detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at, service_ids, workload_ids, environments FROM supply_chain_impact_canonical_winners ORDER BY canonical_key ASC`
 
 // FetchStoredWinners reads the whole stored winners table into a per-key map.
@@ -392,6 +395,14 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 //     full recompute would project, so any wide-field change arrives with a
 //     new winner_fact_id and is emitted. Go never reimplements the severity
 //     CASE for the same reason.
+//   - The pin has a limit: an evidence-only rewrite keeps the content
+//     digest and the winner_fact_id while the upsert rewrites
+//     fact_records.payload, so the baked winner payload can drift under an
+//     unchanged winner_fact_id and this diff cannot see it. In staged mode
+//     only the writer's dirty-fact capture (evidence-set secondary compare,
+//     #10880 ruling decision 4) guards that case; the writer-backed
+//     AuditWinners ROW compare does cover it. See
+//     docs/internal/design/10880-pr-a-review-limits.md.
 func DiffCandidates(sourceWinners map[string]StagedWinner, overrides map[string]StagedOverride, stored map[string]StoredWinner) []string {
 	var candidates []string
 	for key, winner := range sourceWinners {

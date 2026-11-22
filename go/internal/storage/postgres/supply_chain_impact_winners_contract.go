@@ -37,12 +37,17 @@ import (
 // with its new hash pinned, or the hash is re-pinned under the same version
 // with a differential proof that winner output is byte-identical (the
 // supplyChainImpactWinnerDataColumns byte-parity rule).
-const SupplyChainImpactWinnersContractVersion int64 = 1
+const SupplyChainImpactWinnersContractVersion int64 = 2
 
 // supplyChainImpactWinnersContractPins pins each contract version to the hash
 // of the statements it names. A version maps to exactly one hash.
 var supplyChainImpactWinnersContractPins = map[int64]string{
 	1: "c5731efdb688e71bf37154ff9401a973f588d686603b10e117ca5a8f0ea4dbff",
+	// Version 2 (#10880 slice 1): the rebuild and keyed statements now
+	// carry payload and source_confidence, so winners a resweep produces
+	// change for the same facts. Every instance runs one full after
+	// the roll; migration 332 backfills at migration time.
+	2: "62ceaea5c58e0c1917a0d63f052aca02f4d567f517182e03928e241bcd19952b",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the

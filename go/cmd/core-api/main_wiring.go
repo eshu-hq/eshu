@@ -317,8 +317,10 @@ func mountCoreCLISupport(mux *http.ServeMux, _ *query.APIRouter) {
 
 // mountCoreServiceIntelligence registers the service intelligence report
 // route over durable Postgres evidence sources. It lives here because the
-// handler package imports query.
-func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger) func(*http.ServeMux, *query.APIRouter) {
+// handler package imports query. readImpactFromWinners carries the #10880
+// slice 2b aggregate read gate so the report route follows the same
+// cutover as the count and inventory routes.
+func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger, readImpactFromWinners bool) func(*http.ServeMux, *query.APIRouter) {
 	return func(mux *http.ServeMux, router *query.APIRouter) {
 		if router == nil {
 			return
@@ -332,7 +334,7 @@ func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger) func(*http
 				logger,
 			),
 			SupplyChain: serviceintelhttp.NewDurableSupplyChainEvidenceSource(
-				impact.NewPostgresAggregateStoreWithReadStore(reader),
+				impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
 				logger,
 			),
 		}).Mount(mux)

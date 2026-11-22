@@ -146,6 +146,10 @@ const SupplyChainImpactWinnersAuditDomain = "supply_chain_impact_winners_audit"
 // The #9805 capture filter skips a rewrite whose digest equals the stored one.
 // That is sound only while no payload key the winners select reads is in this
 // list; a guard in the postgres package reads the select and fails if one is.
+// Since #10880 the stored winner payload carries evidence_fact_ids, the one
+// served key in this list: the select strips the volatile keys before storing
+// and the capture secondary-compares the evidence set (#10880 arbiter ruling
+// 2026-11-21), so no key here can move a stored winner uncaptured.
 func DigestExcludedPayloadKeys() []string {
 	return []string{"intent_id", "cause", "generation_id", "evidence_fact_ids"}
 }
@@ -170,11 +174,15 @@ func dirtyIdentifierOf(payload reducerderivedv1.SupplyChainImpactFinding) Winner
 // dirtyIdentifiersToCapture returns the distinct identifiers of the rows a pass
 // is about to write that are new or changed, in row order. A row is skipped only
 // when the pass's own generation already holds that fact id with an equal,
-// non-empty content digest: a rewrite of identical content leaves every input of
-// the winners select unchanged (fact id, scope, generation and tombstone state
-// are fixed by the fact id; every payload field the select reads is inside the
-// digest). The prior generation is never consulted: a new generation mints new
-// fact ids, so an unchanged finding is a changed winner row.
+// non-empty content digest and an equal evidence fact id set: a rewrite of
+// identical content leaves every input of the winners select unchanged (fact
+// id, scope, generation and tombstone state are fixed by the fact id; every
+// payload field the select reads is inside the digest). The evidence set is
+// the one served payload field outside the digest, so it is compared beside
+// the digest (#10880 arbiter ruling decision 4); the volatile excluded keys
+// are stripped from the stored payload and need no comparison. The prior
+// generation is never consulted: a new generation mints new fact ids, so an
+// unchanged finding is a changed winner row.
 func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, generationID string) []WinnersDirtyIdentifier {
 	own := make(map[string]storedFinding, len(stored))
 	for _, row := range stored {
@@ -185,7 +193,8 @@ func dirtyIdentifiersToCapture(rows []changedRow, stored []storedFinding, genera
 	seen := make(map[WinnersDirtyIdentifier]struct{}, len(rows))
 	var out []WinnersDirtyIdentifier
 	for _, row := range rows {
-		if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest {
+		if base, ok := own[row.factID]; ok && base.digest != "" && base.digest == row.digest &&
+			memberSetsEqual(row.evidenceFactIDs, base.evidenceFactIDs) {
 			continue
 		}
 		if _, dup := seen[row.ident]; dup {

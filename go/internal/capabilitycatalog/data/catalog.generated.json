@@ -883,6 +883,9 @@
   "entries": [
     {
       "capability": "admission_decisions.list",
+      "answering_stores": [
+        "read_table:admission_decisions"
+      ],
       "display_name": "Admission Decisions List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -966,6 +969,9 @@
     },
     {
       "capability": "answer_narration.status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Answer Narration Status",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1039,6 +1045,9 @@
     },
     {
       "capability": "ask.natural_language_answer",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Ask Eshu Natural-Language Answer",
       "owner_package": "internal/ask",
       "maturity": "gated",
@@ -1120,6 +1129,9 @@
     },
     {
       "capability": "audit.events.list",
+      "answering_stores": [
+        "read_table:governance_audit_events"
+      ],
       "display_name": "Audit Events List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -1183,6 +1195,9 @@
     },
     {
       "capability": "audit.summary.read",
+      "answering_stores": [
+        "read_table:governance_audit_events"
+      ],
       "display_name": "Audit Summary Read",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -1246,6 +1261,9 @@
     },
     {
       "capability": "aws_runtime_drift.findings.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Aws Runtime Drift Findings List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1324,6 +1342,9 @@
     },
     {
       "capability": "call_graph.call_chain_path",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Call Chain Path",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1402,6 +1423,9 @@
     },
     {
       "capability": "call_graph.compare_code_paths",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Compare Code Paths",
       "maturity": "preview",
       "derived_maturity": "preview",
@@ -1475,6 +1499,9 @@
     },
     {
       "capability": "call_graph.direct_callees",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Direct Callees",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1554,6 +1581,9 @@
     },
     {
       "capability": "call_graph.direct_callers",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Direct Callers",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1633,6 +1663,9 @@
     },
     {
       "capability": "call_graph.metrics",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Metrics",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1703,6 +1736,9 @@
     },
     {
       "capability": "call_graph.relationship_story",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Relationship Story",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1774,6 +1810,9 @@
     },
     {
       "capability": "call_graph.route_to_caller",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Route To Caller",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1844,6 +1883,9 @@
     },
     {
       "capability": "call_graph.transitive_callees",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Transitive Callees",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -1922,6 +1964,9 @@
     },
     {
       "capability": "call_graph.transitive_callers",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Call Graph Transitive Callers",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2000,6 +2045,9 @@
     },
     {
       "capability": "capability_catalog.list",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Capability Catalog List",
       "owner_package": "internal/capabilitycatalog",
       "maturity": "general_availability",
@@ -2082,6 +2130,9 @@
     },
     {
       "capability": "ci_cd.run_correlations.aggregate",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Ci Cd Run Correlations Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2160,6 +2211,9 @@
     },
     {
       "capability": "ci_cd.run_correlations.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Ci Cd Run Correlations List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -2240,6 +2294,9 @@
     },
     {
       "capability": "cloud_inventory.readback.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Cloud Inventory Readback List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2314,6 +2371,9 @@
     },
     {
       "capability": "cloud_runtime_drift.readback.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Cloud Runtime Drift Readback List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2392,6 +2452,10 @@
     },
     {
       "capability": "code_divergence.findings",
+      "answering_stores": [
+        "fact_records_reducer",
+        "content_search"
+      ],
       "display_name": "Code Divergence Findings",
       "maturity": "preview",
       "derived_maturity": "preview",
@@ -2466,6 +2530,9 @@
     },
     {
       "capability": "code_flow.cfg_summary",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Code Flow Cfg Summary",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2544,6 +2611,10 @@
     },
     {
       "capability": "code_flow.pdg_summary",
+      "answering_stores": [
+        "fact_records_collector",
+        "fact_records_reducer"
+      ],
       "display_name": "Code Flow Pdg Summary",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2622,6 +2693,9 @@
     },
     {
       "capability": "code_flow.reaching_def",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Code Flow Reaching Def",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -2696,6 +2770,10 @@
     },
     {
       "capability": "code_flow.taint_path",
+      "answering_stores": [
+        "fact_records_collector",
+        "fact_records_reducer"
+      ],
       "display_name": "Code Flow Taint Path",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2774,6 +2852,9 @@
     },
     {
       "capability": "code_inventory.structural",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Inventory Structural",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2845,6 +2926,9 @@
     },
     {
       "capability": "code_quality.complexity",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Code Quality Complexity",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -2920,6 +3004,10 @@
     },
     {
       "capability": "code_quality.dead_code",
+      "answering_stores": [
+        "read_table:code_reachability_rows",
+        "content_search"
+      ],
       "display_name": "Code Quality Dead Code",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3006,6 +3094,9 @@
     },
     {
       "capability": "code_quality.refactoring",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Code Quality Refactoring",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3076,6 +3167,9 @@
     },
     {
       "capability": "code_search.content_search",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Content Search",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3151,6 +3245,9 @@
     },
     {
       "capability": "code_search.exact_symbol",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Exact Symbol",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3222,6 +3319,9 @@
     },
     {
       "capability": "code_search.fuzzy_symbol",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Fuzzy Symbol",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3293,6 +3393,9 @@
     },
     {
       "capability": "code_search.symbol_lookup",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Symbol Lookup",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3364,6 +3467,9 @@
     },
     {
       "capability": "code_search.topic_investigation",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Topic Investigation",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3435,6 +3541,9 @@
     },
     {
       "capability": "code_search.variable_lookup",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Code Search Variable Lookup",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3510,6 +3619,9 @@
     },
     {
       "capability": "code_to_cloud.trace_exposure_path",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Code To Cloud Trace Exposure Path",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3584,6 +3696,9 @@
     },
     {
       "capability": "codeowners.ownership.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Codeowners Ownership List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3658,6 +3773,9 @@
     },
     {
       "capability": "collector_extraction_readiness.family",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Collector Extraction Readiness Family",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3726,6 +3844,9 @@
     },
     {
       "capability": "collector_extraction_readiness.list",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Collector Extraction Readiness List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3794,6 +3915,9 @@
     },
     {
       "capability": "component_extensions.diagnostics",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Component Extensions Diagnostics",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3864,6 +3988,9 @@
     },
     {
       "capability": "component_extensions.inventory",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Component Extensions Inventory",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -3934,6 +4061,9 @@
     },
     {
       "capability": "dependencies.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Dependencies List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4003,6 +4133,9 @@
     },
     {
       "capability": "documentation_evidence_packet.freshness",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Documentation Evidence Packet Freshness",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4077,6 +4210,9 @@
     },
     {
       "capability": "documentation_evidence_packet.read",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Documentation Evidence Packet Read",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4151,6 +4287,9 @@
     },
     {
       "capability": "documentation_facts.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Documentation Facts List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4225,6 +4364,9 @@
     },
     {
       "capability": "documentation_findings.aggregate",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Documentation Findings Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4303,6 +4445,9 @@
     },
     {
       "capability": "documentation_findings.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Documentation Findings List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4377,6 +4522,9 @@
     },
     {
       "capability": "evidence_citation.packet",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Evidence Citation Packet",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4448,6 +4596,9 @@
     },
     {
       "capability": "fact_schema_version.detail",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Fact Schema Version Detail",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4516,6 +4667,9 @@
     },
     {
       "capability": "fact_schema_version.list",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Fact Schema Version List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4584,6 +4738,10 @@
     },
     {
       "capability": "freshness.changed_since",
+      "answering_stores": [
+        "read_table:scope_generations",
+        "read_table:ingestion_scopes"
+      ],
       "display_name": "Freshness Changed Since",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4656,6 +4814,10 @@
     },
     {
       "capability": "freshness.generation_lifecycle",
+      "answering_stores": [
+        "read_table:scope_generations",
+        "read_table:fact_work_items"
+      ],
       "display_name": "Freshness Generation Lifecycle",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4728,6 +4890,10 @@
     },
     {
       "capability": "freshness.service_changed_since",
+      "answering_stores": [
+        "read_table:scope_generations",
+        "read_table:ingestion_scopes"
+      ],
       "display_name": "Freshness Service Changed Since",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4800,6 +4966,9 @@
     },
     {
       "capability": "graph_query.read_only_cypher",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Graph Query Read Only Cypher",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4870,6 +5039,9 @@
     },
     {
       "capability": "hosted_governance.status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Hosted Governance Status",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -4942,6 +5114,10 @@
     },
     {
       "capability": "iac_inventory.resources.list",
+      "answering_stores": [
+        "fact_records_collector",
+        "graph"
+      ],
       "display_name": "Iac Inventory Resources List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5020,6 +5196,9 @@
     },
     {
       "capability": "iac_management.explain_status",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Iac Management Explain Status",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5098,6 +5277,9 @@
     },
     {
       "capability": "iac_management.find_unmanaged_resources",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Iac Management Find Unmanaged Resources",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5176,6 +5358,9 @@
     },
     {
       "capability": "iac_management.get_status",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Iac Management Get Status",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5254,6 +5439,9 @@
     },
     {
       "capability": "iac_management.propose_terraform_import_plan",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Iac Management Propose Terraform Import Plan",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5332,6 +5520,10 @@
     },
     {
       "capability": "iac_quality.dead_iac",
+      "answering_stores": [
+        "read_table:iac_reachability_rows",
+        "content_search"
+      ],
       "display_name": "Iac Quality Dead Iac",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5410,6 +5602,9 @@
     },
     {
       "capability": "incident.context.read",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Incident Context Read",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5483,6 +5678,9 @@
     },
     {
       "capability": "kubernetes.correlations.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Kubernetes Correlations List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5559,6 +5757,9 @@
     },
     {
       "capability": "manifest.dependencies.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Manifest Dependencies List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5628,6 +5829,9 @@
     },
     {
       "capability": "observability.coverage.correlations.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Observability Coverage Correlations List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -5704,6 +5908,9 @@
     },
     {
       "capability": "operations.collector_readiness_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Collector Readiness Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -5767,6 +5974,9 @@
     },
     {
       "capability": "operations.collector_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Collector Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -5830,6 +6040,9 @@
     },
     {
       "capability": "operations.evidence_bundle_live",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Evidence Bundle Live",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -5893,6 +6106,9 @@
     },
     {
       "capability": "operations.freshness_causality_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Freshness Causality Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -5956,6 +6172,9 @@
     },
     {
       "capability": "operations.hosted_readiness_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Hosted Readiness Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6019,6 +6238,10 @@
     },
     {
       "capability": "operations.index_status",
+      "answering_stores": [
+        "status_fixed",
+        "graph"
+      ],
       "display_name": "Operations Index Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6081,6 +6304,9 @@
     },
     {
       "capability": "operations.ingester_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Ingester Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6144,6 +6370,9 @@
     },
     {
       "capability": "operations.operator_control_plane_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Operator Control Plane Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6207,6 +6436,9 @@
     },
     {
       "capability": "operations.pipeline_status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Pipeline Status",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6270,6 +6502,9 @@
     },
     {
       "capability": "operations.status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Operations Status",
       "owner_package": "internal/query",
       "maturity": "general_availability",
@@ -6343,6 +6578,10 @@
     },
     {
       "capability": "operator.changed_since_poisoned_links.list",
+      "answering_stores": [
+        "read_table:changed_since_scope_cursor",
+        "read_table:fact_work_items"
+      ],
       "display_name": "Operator Changed Since Poisoned Links List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6414,6 +6653,9 @@
     },
     {
       "capability": "operator.dead_letters.list",
+      "answering_stores": [
+        "read_table:fact_work_items"
+      ],
       "display_name": "Operator Dead Letters List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -6493,6 +6735,9 @@
     },
     {
       "capability": "operator.decision_evidence.list",
+      "answering_stores": [
+        "read_table:projection_decision_evidence"
+      ],
       "display_name": "Operator Decision Evidence List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6555,6 +6800,9 @@
     },
     {
       "capability": "operator.decisions.list",
+      "answering_stores": [
+        "read_table:projection_decisions"
+      ],
       "display_name": "Operator Decisions List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6617,6 +6865,9 @@
     },
     {
       "capability": "operator.delta_union_completeness.check",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Operator Delta Union Completeness Check",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6678,6 +6929,9 @@
     },
     {
       "capability": "operator.reducer_input_invalid_facts.list",
+      "answering_stores": [
+        "read_table:reducer_input_invalid_facts"
+      ],
       "display_name": "Operator Reducer Input Invalid Facts List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -6757,6 +7011,9 @@
     },
     {
       "capability": "operator.replay_events.list",
+      "answering_stores": [
+        "read_table:fact_replay_events"
+      ],
       "display_name": "Operator Replay Events List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6819,6 +7076,9 @@
     },
     {
       "capability": "operator.repository_catalog.lookup",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Operator Repository Catalog Lookup",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6881,6 +7141,9 @@
     },
     {
       "capability": "operator.work_items.list",
+      "answering_stores": [
+        "read_table:fact_work_items"
+      ],
       "display_name": "Operator Work Items List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -6943,6 +7206,9 @@
     },
     {
       "capability": "package_registry.correlations.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Correlations List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -7023,6 +7289,9 @@
     },
     {
       "capability": "package_registry.dependencies.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Dependencies List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -7103,6 +7372,9 @@
     },
     {
       "capability": "package_registry.dependency_chains.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Dependency Chains List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7177,6 +7449,9 @@
     },
     {
       "capability": "package_registry.packages.aggregate",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Packages Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7255,6 +7530,9 @@
     },
     {
       "capability": "package_registry.packages.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Packages List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -7335,6 +7613,9 @@
     },
     {
       "capability": "package_registry.versions.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Package Registry Versions List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -7415,6 +7696,9 @@
     },
     {
       "capability": "platform_impact.blast_radius",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Blast Radius",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7495,6 +7779,9 @@
     },
     {
       "capability": "platform_impact.catalog",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Platform Impact Catalog",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7584,6 +7871,9 @@
     },
     {
       "capability": "platform_impact.change_surface",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Change Surface",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7668,6 +7958,11 @@
     },
     {
       "capability": "platform_impact.cloud_resource_list",
+      "answering_stores": [
+        "read_table:graph_node_owner",
+        "fact_records_reducer",
+        "fact_records_collector"
+      ],
       "display_name": "Platform Impact Cloud Resource List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7742,6 +8037,9 @@
     },
     {
       "capability": "platform_impact.container_image_list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Container Image List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7812,6 +8110,9 @@
     },
     {
       "capability": "platform_impact.container_image_tag_history",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Container Image Tag History",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -7888,6 +8189,11 @@
     },
     {
       "capability": "platform_impact.context_overview",
+      "answering_stores": [
+        "graph",
+        "fact_records_reducer",
+        "fact_records_collector"
+      ],
       "display_name": "Platform Impact Context Overview",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8012,6 +8318,9 @@
     },
     {
       "capability": "platform_impact.contract_impact",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Contract Impact",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8084,6 +8393,9 @@
     },
     {
       "capability": "platform_impact.dependency_path",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Dependency Path",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8164,6 +8476,9 @@
     },
     {
       "capability": "platform_impact.deployment_chain",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Deployment Chain",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8252,6 +8567,9 @@
     },
     {
       "capability": "platform_impact.deployment_config_influence",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Deployment Config Influence",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8332,6 +8650,9 @@
     },
     {
       "capability": "platform_impact.developer_change_plan",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Developer Change Plan",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8412,6 +8733,9 @@
     },
     {
       "capability": "platform_impact.entity_map",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Entity Map",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8492,6 +8816,9 @@
     },
     {
       "capability": "platform_impact.environment_compare",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Environment Compare",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8572,6 +8899,9 @@
     },
     {
       "capability": "platform_impact.graph_summary_packet",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Graph Summary Packet",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8648,6 +8978,9 @@
     },
     {
       "capability": "platform_impact.infra_resource_aggregate",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Infra Resource Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8726,6 +9059,9 @@
     },
     {
       "capability": "platform_impact.pre_change",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Pre Change",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8806,6 +9142,9 @@
     },
     {
       "capability": "platform_impact.relationships_catalog",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Relationships Catalog",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8890,6 +9229,9 @@
     },
     {
       "capability": "platform_impact.resource_investigation",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Resource Investigation",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -8970,6 +9312,9 @@
     },
     {
       "capability": "platform_impact.resource_to_code",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Platform Impact Resource To Code",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -9050,6 +9395,9 @@
     },
     {
       "capability": "platform_metrics.timeseries",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Platform Metrics Timeseries",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -9122,6 +9470,9 @@
     },
     {
       "capability": "query.investigation_workflows",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Investigation Workflows",
       "owner_package": "internal/query",
       "maturity": "general_availability",
@@ -9190,6 +9541,9 @@
     },
     {
       "capability": "query.playbooks",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Query Playbooks",
       "owner_package": "internal/query",
       "maturity": "general_availability",
@@ -9263,6 +9617,9 @@
     },
     {
       "capability": "reachability.csharp.value_flow",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "C# Reachability (value flow)",
       "owner_package": "internal/parser/csharp",
       "maturity": "gated",
@@ -9357,6 +9714,9 @@
     },
     {
       "capability": "reachability.go.govulncheck",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Go Reachability (govulncheck)",
       "owner_package": "internal/reducer/supplychain/core",
       "maturity": "general_availability",
@@ -9447,6 +9807,9 @@
     },
     {
       "capability": "reachability.java.value_flow",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Java Reachability (value flow)",
       "owner_package": "internal/parser/java",
       "maturity": "gated",
@@ -9540,6 +9903,9 @@
     },
     {
       "capability": "reachability.javascript.value_flow",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "JavaScript Reachability (value flow)",
       "owner_package": "internal/parser/javascript/jsdataflow",
       "maturity": "gated",
@@ -9632,6 +9998,9 @@
     },
     {
       "capability": "reachability.jvm.bounded",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "JVM Reachability (bounded)",
       "owner_package": "internal/reducer",
       "maturity": "preview",
@@ -9721,6 +10090,9 @@
     },
     {
       "capability": "reachability.python.value_flow",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Python Reachability (value flow)",
       "owner_package": "internal/parser/python/pydataflow",
       "maturity": "gated",
@@ -9813,6 +10185,9 @@
     },
     {
       "capability": "reachability.typescript.value_flow",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "TypeScript Reachability (value flow)",
       "owner_package": "internal/parser/javascript/jsdataflow",
       "maturity": "gated",
@@ -9905,6 +10280,9 @@
     },
     {
       "capability": "relationship_evidence.drilldown",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Relationship Evidence Drilldown",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -9983,6 +10361,9 @@
     },
     {
       "capability": "replatforming.ownership.candidates",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Replatforming Ownership Candidates",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10057,6 +10438,9 @@
     },
     {
       "capability": "replatforming.plan.readiness",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Replatforming Plan Readiness",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10131,6 +10515,9 @@
     },
     {
       "capability": "replatforming.rollups.readiness",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Replatforming Rollups Readiness",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10205,6 +10592,9 @@
     },
     {
       "capability": "replatforming.selector_inventory",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Replatforming Selector Inventory",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10278,6 +10668,9 @@
     },
     {
       "capability": "runtime_declaration.version.list",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Runtime Declaration Version List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10352,6 +10745,9 @@
     },
     {
       "capability": "secrets_iam.identity_trust_chains.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Secrets Iam Identity Trust Chains List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10426,6 +10822,9 @@
     },
     {
       "capability": "secrets_iam.posture_gaps.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Secrets Iam Posture Gaps List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10500,6 +10899,9 @@
     },
     {
       "capability": "secrets_iam.posture_summary.read",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Secrets Iam Posture Summary Read",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10574,6 +10976,9 @@
     },
     {
       "capability": "secrets_iam.privilege_posture_observations.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Secrets Iam Privilege Posture Observations List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10648,6 +11053,9 @@
     },
     {
       "capability": "secrets_iam.secret_access_paths.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Secrets Iam Secret Access Paths List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10722,6 +11130,10 @@
     },
     {
       "capability": "security.hardcoded_secrets",
+      "answering_stores": [
+        "read_table:content_file_secret_lines",
+        "content_search"
+      ],
       "display_name": "Security Hardcoded Secrets",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10793,6 +11205,9 @@
     },
     {
       "capability": "semantic_evidence.code_hints.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Semantic Evidence Code Hints List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -10864,6 +11279,9 @@
     },
     {
       "capability": "semantic_evidence.documentation_observations.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Semantic Evidence Documentation Observations List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -10935,6 +11353,9 @@
     },
     {
       "capability": "semantic_extraction.status",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Semantic Extraction Status",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11002,6 +11423,9 @@
     },
     {
       "capability": "semantic_search.curated_retrieval",
+      "answering_stores": [
+        "content_search"
+      ],
       "display_name": "Semantic Search Curated Retrieval",
       "owner_package": "internal/searchretrieval",
       "maturity": "general_availability",
@@ -11079,6 +11503,10 @@
     },
     {
       "capability": "service_catalog.correlations.list",
+      "answering_stores": [
+        "fact_records_reducer",
+        "fact_records_collector"
+      ],
       "display_name": "Service Catalog Correlations List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11155,6 +11583,9 @@
     },
     {
       "capability": "ssm_host_inventory.readback.list",
+      "answering_stores": [
+        "graph"
+      ],
       "display_name": "Ssm Host Inventory Readback List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11220,6 +11651,9 @@
     },
     {
       "capability": "supply_chain.advisory_catalog.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Supply Chain Advisory Catalog List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11289,6 +11723,9 @@
     },
     {
       "capability": "supply_chain.advisory_evidence.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Supply Chain Advisory Evidence List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11363,6 +11800,9 @@
     },
     {
       "capability": "supply_chain.container_image_identities.aggregate",
+      "answering_stores": [
+        "read_table:container_image_identity_supports"
+      ],
       "display_name": "Supply Chain Container Image Identities Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11441,6 +11881,9 @@
     },
     {
       "capability": "supply_chain.container_image_identities.list",
+      "answering_stores": [
+        "read_table:container_image_identity_supports"
+      ],
       "display_name": "Supply Chain Container Image Identities List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -11521,6 +11964,10 @@
     },
     {
       "capability": "supply_chain.impact_explanation.read",
+      "answering_stores": [
+        "fact_records_reducer",
+        "fact_records_collector"
+      ],
       "display_name": "Supply Chain Impact Explanation Read",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11599,6 +12046,10 @@
     },
     {
       "capability": "supply_chain.impact_findings.aggregate",
+      "answering_stores": [
+        "read_table:supply_chain_impact_canonical_winners",
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Impact Findings Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11677,6 +12128,10 @@
     },
     {
       "capability": "supply_chain.impact_findings.list",
+      "answering_stores": [
+        "read_table:supply_chain_impact_canonical_winners",
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Impact Findings List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -11757,6 +12212,9 @@
     },
     {
       "capability": "supply_chain.sbom_attestation_attachments.aggregate",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Sbom Attestation Attachments Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11835,6 +12293,9 @@
     },
     {
       "capability": "supply_chain.sbom_attestation_attachments.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Sbom Attestation Attachments List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -11915,6 +12376,9 @@
     },
     {
       "capability": "supply_chain.security_alert_reconciliations.aggregate",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Security Alert Reconciliations Aggregate",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -11993,6 +12457,9 @@
     },
     {
       "capability": "supply_chain.security_alert_reconciliations.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Supply Chain Security Alert Reconciliations List",
       "owner_package": "internal/query",
       "maturity": "gated",
@@ -12073,6 +12540,9 @@
     },
     {
       "capability": "supply_chain.vulnerability_scanner.contract.read",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Supply Chain Vulnerability Scanner Contract Read",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12144,6 +12614,9 @@
     },
     {
       "capability": "surface_inventory.list",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Surface Inventory List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12212,6 +12685,10 @@
     },
     {
       "capability": "symbol_graph.argument_names",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Argument Names",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -12283,6 +12760,10 @@
     },
     {
       "capability": "symbol_graph.class_methods",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Class Methods",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12362,6 +12843,10 @@
     },
     {
       "capability": "symbol_graph.decorators",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Decorators",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12437,6 +12922,10 @@
     },
     {
       "capability": "symbol_graph.import_dependencies",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Import Dependencies",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12508,6 +12997,10 @@
     },
     {
       "capability": "symbol_graph.imports",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Imports",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -12579,6 +13072,10 @@
     },
     {
       "capability": "symbol_graph.inheritance",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Inheritance",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12658,6 +13155,10 @@
     },
     {
       "capability": "symbol_graph.language_entities",
+      "answering_stores": [
+        "graph",
+        "content_search"
+      ],
       "display_name": "Symbol Graph Language Entities",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -12725,6 +13226,9 @@
     },
     {
       "capability": "terraform_config_state_drift.findings.list",
+      "answering_stores": [
+        "fact_records_reducer"
+      ],
       "display_name": "Terraform Config State Drift Findings List",
       "maturity": "experimental",
       "derived_maturity": "experimental",
@@ -12799,6 +13303,9 @@
     },
     {
       "capability": "visualization.graph_query",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Visualization Graph Query",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12869,6 +13376,9 @@
     },
     {
       "capability": "visualization.packet_derivation",
+      "answering_stores": [
+        "status_fixed"
+      ],
       "display_name": "Visualization Packet Derivation",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",
@@ -12940,6 +13450,9 @@
     },
     {
       "capability": "work_item.evidence.list",
+      "answering_stores": [
+        "fact_records_collector"
+      ],
       "display_name": "Work Item Evidence List",
       "maturity": "general_availability",
       "derived_maturity": "general_availability",

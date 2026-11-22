@@ -38,6 +38,9 @@ type Catalog struct {
 type Entry struct {
 	// Capability is the stable capability id.
 	Capability string `json:"capability"`
+	// AnsweringStores names the store or stores that answer the capability's
+	// reads, carried from the matrix row.
+	AnsweringStores []string `json:"answering_stores"`
 	// DisplayName is the human-readable name (overlay or derived from the id).
 	DisplayName string `json:"display_name"`
 	// OwnerPackage is the owning Go package import path, when declared.
@@ -171,6 +174,7 @@ func buildEntry(capability MatrixCapability, overlay OverlayCapability, signals 
 
 	return Entry{
 		Capability:      capability.Capability,
+		AnsweringStores: append([]string(nil), capability.AnsweringStores...),
 		DisplayName:     display,
 		OwnerPackage:    overlay.OwnerPackage,
 		Maturity:        maturity,

@@ -13,20 +13,135 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// TestSupplyChainImpactWinnersResweepDigestExcludedFieldsChangeNothingLive proves the same fact on
-// PostgreSQL: rewriting every digest-excluded payload key leaves the winners
-// select output unchanged, so a full resweep writes nothing.
-func TestSupplyChainImpactWinnersResweepDigestExcludedFieldsChangeNothingLive(t *testing.T) {
-	h := newKeyedHarness(t, "#9805 digest-excluded fields proof")
+// TestSupplyChainImpactWinnersResweepVolatileDigestExcludedFieldsChangeNothingLive
+// proves the #10880 arbiter ruling (2026-11-21, decision 3) on PostgreSQL:
+// rewriting every volatile digest-excluded payload key leaves the stored
+// winner payload byte-for-byte unchanged, so a full resweep writes nothing.
+// evidence_fact_ids is the one excluded key the stored payload serves; its
+// refresh is the companion proof below.
+func TestSupplyChainImpactWinnersResweepVolatileDigestExcludedFieldsChangeNothingLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10880 volatile digest-excluded fields proof")
 	scopeA, _ := keyedSeedSettled(h)
+	before := keyedStoredWinnerPayloads(t, h)
 	for _, key := range supplychaincore.DigestExcludedPayloadKeys() {
+		if key == "evidence_fact_ids" {
+			continue
+		}
 		h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, ARRAY[$2]::text[], to_jsonb('rewritten-'||$2::text), true) WHERE scope_id = $1`, scopeA, key)
 	}
 	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{provenance,content_digest}', '"another"', true) WHERE scope_id = $1`, scopeA)
 	got, err := h.store.ResweepWinners(h.ctx)
 	if err != nil || got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 {
-		t.Fatalf("full resweep after rewriting digest-excluded fields = %+v, %v; want no winner written", got, err)
+		t.Fatalf("full resweep after rewriting volatile digest-excluded fields = %+v, %v; want no winner written", got, err)
 	}
+	if after := keyedStoredWinnerPayloads(t, h); after != before {
+		t.Fatalf("stored winner payloads moved on a volatile-only rewrite\nbefore: %s\nafter:  %s", before, after)
+	}
+}
+
+// TestSupplyChainImpactWinnersResweepEvidenceFactIDsRefreshWinnerPayloadLive
+// proves the served half of the #10880 arbiter ruling (2026-11-21): an
+// evidence-only rewrite moves the stored winner payload even though the
+// content digest excludes evidence_fact_ids, so exactly one winner updates
+// and its stored evidence set equals the new set.
+func TestSupplyChainImpactWinnersResweepEvidenceFactIDsRefreshWinnerPayloadLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10880 evidence refresh proof")
+	scopeA, _ := keyedSeedSettled(h)
+	h.exec(`UPDATE fact_records SET payload = jsonb_set(payload, '{evidence_fact_ids}', '["ev-a","ev-b"]'::jsonb, true)
+WHERE scope_id = $1 AND payload->>'cve_id' = 'CVE-2026-2002'`, scopeA)
+	got, err := h.store.ResweepWinners(h.ctx)
+	if err != nil || got.Inserted != 0 || got.Updated != 1 || got.Deleted != 0 {
+		t.Fatalf("full resweep after an evidence-only rewrite = %+v, %v; want exactly one winner updated", got, err)
+	}
+	var stored string
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT (payload->'evidence_fact_ids')::text FROM supply_chain_impact_canonical_winners WHERE cve_id = 'CVE-2026-2002'`).Scan(&stored); err != nil {
+		t.Fatalf("read stored evidence set: %v", err)
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(stored), &ids); err != nil {
+		t.Fatalf("decode stored evidence set %q: %v", stored, err)
+	}
+	if len(ids) != 2 || ids[0] != "ev-a" || ids[1] != "ev-b" {
+		t.Fatalf("stored evidence set = %v, want [ev-a ev-b]", ids)
+	}
+}
+
+// TestSupplyChainImpactWinnersResweepKeyedEvidenceOnlyRefreshLive proves the
+// capture half of the #10880 arbiter ruling (2026-11-21, decision 4) through
+// the production writer: an evidence-only writer pass (content digest
+// unchanged) stages the key, the keyed resweep refreshes the stored evidence
+// set, and the audit then finds nothing to repair. An intent-only rerun —
+// the volatile keys the winner select strips — stages nothing, writes
+// nothing on the keyed tick, and also audits clean, so steady state keeps
+// Repairs=0 without staging every finding every pass.
+func TestSupplyChainImpactWinnersResweepKeyedEvidenceOnlyRefreshLive(t *testing.T) {
+	h := newKeyedHarness(t, "#10880 keyed evidence capture proof")
+	scopeA, _ := keyedSeedSettled(h)
+
+	changed := keyedFinding("CVE-2026-2002", "pkg:npm/y", 5)
+	changed.EvidenceFactIDs = []string{"cve-evidence", "ev-new"}
+	h.write(scopeA, scopeA+"/g1", keyedFinding("CVE-2026-2001", "pkg:npm/x", 5), changed)
+	if depth := h.pendingDepth(); depth == 0 {
+		t.Fatal("evidence-only writer pass staged no capture; the keyed tick would never refresh the stored evidence set")
+	}
+	if got := h.keyed(); got.Updated != 1 || got.Inserted != 0 || got.Deleted != 0 {
+		t.Fatalf("keyed tick after the evidence-only pass = %+v, want exactly one winner updated", got)
+	}
+	if ids := keyedStoredEvidence(t, h, "CVE-2026-2002"); len(ids) != 2 || ids[0] != "cve-evidence" || ids[1] != "ev-new" {
+		t.Fatalf("stored evidence set after the keyed tick = %v, want [cve-evidence ev-new]", ids)
+	}
+	if audit, err := h.store.AuditWinners(h.ctx); err != nil || audit.Skipped || audit.Repairs != 0 {
+		t.Fatalf("audit after the evidence refresh = %+v, %v; want zero repairs", audit, err)
+	}
+
+	// Intent-only rerun: same findings, new intent id and cause.
+	if _, err := h.writer.WriteSupplyChainImpactFindings(h.ctx, supplychaincore.SupplyChainImpactWrite{
+		IntentID: "intent-10880-rerun", ScopeID: scopeA, GenerationID: scopeA + "/g1",
+		SourceSystem: "vulnerability_intelligence", Cause: "10880 intent-only rerun",
+		Findings:     []supplychaincore.SupplyChainImpactFinding{keyedFinding("CVE-2026-2001", "pkg:npm/x", 5), changed},
+		FencingToken: keyedFenceTokens.Add(1),
+	}); err != nil {
+		t.Fatalf("intent-only writer pass: %v", err)
+	}
+	if depth := h.pendingDepth(); depth != 0 {
+		t.Fatalf("intent-only rerun staged %d captures, want none: volatile keys must not stage", depth)
+	}
+	if got := h.keyed(); got.Inserted != 0 || got.Updated != 0 || got.Deleted != 0 {
+		t.Fatalf("keyed tick after the intent-only rerun = %+v, want no winner written", got)
+	}
+	if audit, err := h.store.AuditWinners(h.ctx); err != nil || audit.Skipped || audit.Repairs != 0 {
+		t.Fatalf("audit after the intent-only rerun = %+v, %v; want zero repairs", audit, err)
+	}
+}
+
+// keyedStoredEvidence reads the stored winner payload's evidence fact id
+// set for one CVE.
+func keyedStoredEvidence(t *testing.T, h *keyedHarness, cve string) []string {
+	t.Helper()
+	var stored string
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT (payload->'evidence_fact_ids')::text FROM supply_chain_impact_canonical_winners WHERE cve_id = $1`, cve).Scan(&stored); err != nil {
+		t.Fatalf("read stored evidence set for %s: %v", cve, err)
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(stored), &ids); err != nil {
+		t.Fatalf("decode stored evidence set %q: %v", stored, err)
+	}
+	return ids
+}
+
+// keyedStoredWinnerPayloads reads every stored winner payload in canonical
+// key order as one string, so a byte comparison covers the whole table.
+func keyedStoredWinnerPayloads(t *testing.T, h *keyedHarness) string {
+	t.Helper()
+	var all string
+	if err := h.db.QueryRowContext(h.ctx, `
+SELECT COALESCE(string_agg(payload::text, E'\n' ORDER BY canonical_key), '')
+FROM supply_chain_impact_canonical_winners`).Scan(&all); err != nil {
+		t.Fatalf("read stored winner payloads: %v", err)
+	}
+	return all
 }
 
 // TestSupplyChainImpactWinnersResweepRetentionDeleteChangesNoWinnerLive proves that a

@@ -14,19 +14,22 @@ func TestRemoteValidationInventoryIsDeterministicAndProductionScoped(t *testing.
 
 	matrix := Matrix{Capabilities: []MatrixCapability{
 		{
-			Capability: "cap.two",
+			Capability:      "cap.two",
+			AnsweringStores: []string{"status_fixed"},
 			Profiles: map[string]MatrixProfile{
 				"production": {Status: "supported", Verification: []MatrixVerification{{Kind: "remote_validation", Ref: "prod-shared"}}},
 			},
 		},
 		{
-			Capability: "cap.one",
+			Capability:      "cap.one",
+			AnsweringStores: []string{"status_fixed"},
 			Profiles: map[string]MatrixProfile{
 				"production": {Status: "supported", Verification: []MatrixVerification{{Kind: "remote_validation", Ref: "prod-shared"}}},
 			},
 		},
 		{
-			Capability: "cap.experimental",
+			Capability:      "cap.experimental",
+			AnsweringStores: []string{"status_fixed"},
 			Profiles: map[string]MatrixProfile{
 				"production": {Status: "experimental", Verification: []MatrixVerification{{Kind: "remote_validation", Ref: "prod-experimental"}}},
 			},

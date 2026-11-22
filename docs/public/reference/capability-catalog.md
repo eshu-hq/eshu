@@ -12,7 +12,7 @@ preflight and the docs freshness guard.
 
 | Source | File | Provides |
 | --- | --- | --- |
-| Capability matrix | `specs/capability-matrix.v1.yaml` + `specs/capability-matrix/*.yaml` | capability ids, per-profile support and truth ceilings, declared tools, proof signals |
+| Capability matrix | `specs/capability-matrix.v1.yaml` + `specs/capability-matrix/*.yaml` | capability ids, per-profile support and truth ceilings, declared tools, proof signals, answering stores |
 | Editorial overlay | `specs/capability-catalog.v1.yaml` | display names, owner packages, maturity overrides, known gaps, linked issues, docs, exemptions, non-MCP surfaces |
 | Authorization catalog | `specs/authorization-catalog.v1.yaml` | built-in roles, data classes, permission families, bootstrap-owner posture, and per-capability grant metadata |
 | Live MCP registry | `go/internal/mcp` (`ReadOnlyTools`) | the tool names exposed to MCP clients |
@@ -30,6 +30,10 @@ The reconciled catalog is generated to
 API, MCP, and console to read. Each entry carries:
 
 - `capability`, `display_name`, `owner_package`
+- `answering_stores` — the store or stores that answer the capability's
+  reads: `graph`, `fact_records_reducer`, `fact_records_collector`,
+  `read_table:<table>`, `content_search`, or `status_fixed`. A capability
+  with no declared store fails `capability-inventory -mode verify`.
 - `maturity` (effective) and `derived_maturity`, with `maturity_reason` for
   overrides
 - `surfaces` — each declared tool classified as `mcp`, `api`, `logical`, or

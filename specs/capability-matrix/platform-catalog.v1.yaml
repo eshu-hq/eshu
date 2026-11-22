@@ -1,6 +1,7 @@
 capabilities:
   - capability: surface_inventory.list
     tools: [get_surface_inventory]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded, generated surface inventory artifact; no live backend read}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded surface inventory artifact; graph sidecar unused}
@@ -8,6 +9,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 400, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}], notes: bounded read over the embedded surface inventory artifact; optional category and readiness filters with deterministic ordering and limit+offset paging}
   - capability: capability_catalog.list
     tools: [get_capability_catalog, GET /api/v0/capabilities, CapabilityMatrixPage]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded read over the embedded, generated capability catalog artifact; no live backend read}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 200, max_scope_size: full_catalog, verification: [{go_test: ./internal/query}, {go_test: ./internal/mcp}], notes: bounded read over the embedded capability catalog artifact; graph sidecar unused}

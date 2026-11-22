@@ -175,7 +175,7 @@ func newCoreSupplyChainHandler(
 		AdvisoryEvidence:             advisory.NewPostgresEvidenceStoreWithReadStore(reader),
 		AdvisoryCatalog:              advisory.NewPostgresCatalogStoreWithReadStore(reader),
 		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader),
+		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
 		ImpactGroupedInventory:       impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
 		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, false),
 		ContainerImageIdentities:     NewPostgresContainerImageIdentityStoreWithReadStore(reader),

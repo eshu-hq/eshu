@@ -6,6 +6,7 @@ package core
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -26,13 +27,28 @@ import (
 // empty array reads as nil. Malformed JSON fails the pass so a corrupt row
 // can never silently narrow the fan-out.
 func parseAdvisoryGroupMembers(raw string) ([]string, error) {
+	return parseStringIDSet(raw, "advisory group members")
+}
+
+// parseEvidenceFactIDs decodes the evidence fact id set the stored-finding
+// select projects from payload.evidence_fact_ids (#10880 ruling decision
+// 4). It takes the same missing/null/empty and malformed-JSON stance as
+// parseAdvisoryGroupMembers: a corrupt row fails the pass rather than
+// reading as an empty set that would stage a spurious capture.
+func parseEvidenceFactIDs(raw string) ([]string, error) {
+	return parseStringIDSet(raw, "evidence fact ids")
+}
+
+// parseStringIDSet decodes a JSON array of ids projected as text, trimming
+// entries and dropping blanks. what names the set in the decode error.
+func parseStringIDSet(raw string, what string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" || trimmed == "[]" || trimmed == "null" {
 		return nil, nil
 	}
 	var members []string
 	if err := json.Unmarshal([]byte(trimmed), &members); err != nil {
-		return nil, fmt.Errorf("decode advisory group members: %w", err)
+		return nil, fmt.Errorf("decode %s: %w", what, err)
 	}
 	out := make([]string, 0, len(members))
 	for _, member := range members {
@@ -75,4 +91,17 @@ func memberSetsEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// sortedSetKeys returns a string set's keys in sorted order, nil when empty.
+func sortedSetKeys(set map[string]struct{}) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for key := range set {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
 }

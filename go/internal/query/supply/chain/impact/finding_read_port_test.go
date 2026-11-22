@@ -83,7 +83,7 @@ func TestImpactFindingsGuardedReadPort(t *testing.T) {
 func TestImpactAggregatesGuardedReadPort(t *testing.T) {
 	want := errors.New("reader is stale")
 	guard := &rejectingImpactReader{err: want}
-	store := NewPostgresAggregateStoreWithReadStore(guard)
+	store := NewPostgresAggregateStoreWithReadStore(guard, false)
 	_, err := store.CountSupplyChainImpactFindings(t.Context(), AggregateFilter{CVEID: "CVE-2026-1234"})
 	if !errors.Is(err, want) || guard.queries != 1 {
 		t.Fatalf("error %v, guarded queries %d; want stale reader and one row", err, guard.queries)

@@ -130,8 +130,10 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // holds one row per canonical_key (the same winner the ROW_NUMBER dedup picks),
 // denormalized with every filterable column, so this query runs the filters +
 // keyset cursor + LIMIT on the winners table alone (index-served, O(page), no
-// window, no sort spill) and joins fact_records by winner_fact_id only for the
-// page payloads.
+// window, no sort spill) and re-joins the winners table by canonical_key only
+// for the page payloads (#10880 slice 2: the payload and source_confidence
+// live on the winners row since migration 331, with the operator suppression
+// object baked in at resweep time, so no fact_records read remains here).
 //
 // It takes the SAME 30-parameter slice as ListFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a
@@ -145,17 +147,6 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
 var listFindingsFromWinnersQueryTemplate = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
-` + supplyChainImpactOperatorCandidatesCTE("$1") + `,
-operator_overrides AS MATERIALIZED (
-    SELECT DISTINCT ON (canonical_key)
-           canonical_key,
-           payload
-    FROM operator_candidates
-    ORDER BY canonical_key,
-             priority_score DESC,
-             has_payload_finding_id DESC,
-             fact_id ASC
-),
 filtered AS NOT MATERIALIZED (
     SELECT w.finding_id,
            w.canonical_key,
@@ -267,17 +258,14 @@ paged AS MATERIALIZED (
   LIMIT $19
 )
 SELECT page.finding_id,
-       refetch.source_confidence,
-       ` + supplyChainImpactPayloadWithSuppressionOverlaySQL(
-	"refetch.payload",
-	"override.payload",
+       win.source_confidence,
+       ` + supplyChainImpactPayloadWithEffectiveSuppressionSQL(
+	"win.payload",
 	"page.effective_suppression_state",
 ) + ` AS payload
 FROM paged AS page
-JOIN fact_records AS refetch
-  ON refetch.fact_id = page.winner_fact_id
-LEFT JOIN operator_overrides AS override
-  ON override.canonical_key = page.canonical_key
+JOIN supply_chain_impact_canonical_winners AS win
+  ON win.canonical_key = page.canonical_key
 ORDER BY
   CASE WHEN $18 = 'priority_score_desc' THEN page.priority_score END DESC,
   CASE WHEN $18 = 'priority_score_asc' THEN page.priority_score END ASC,

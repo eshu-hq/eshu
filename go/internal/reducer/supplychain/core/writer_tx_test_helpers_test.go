@@ -78,6 +78,9 @@ type fakeStoredFinding struct {
 	// (#10408). The fake renders it as the JSON text the production select
 	// projects, so the read path parses exactly what Postgres returns.
 	members []string
+	// evidenceFactIDs is the evidence fact id set the row's payload carries
+	// (#10880 ruling decision 4), rendered the same way as members.
+	evidenceFactIDs []string
 }
 
 // fakeImpactSuppressionState renders a stored suppression state the way the
@@ -171,7 +174,7 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState)})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs)})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:

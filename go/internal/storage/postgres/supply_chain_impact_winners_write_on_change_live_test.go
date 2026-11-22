@@ -366,3 +366,65 @@ func winnersWriteCounts(r supplychaincore.SupplyChainImpactWinnersResweep) suppl
 		PreviousWatermark: r.PreviousWatermark,
 	}
 }
+
+// TestSupplyChainImpactWinnersResweepPayloadCarriedLive proves #10880 slice 1
+// on PostgreSQL: the stored winner payload equals the winning fact
+// payload with the operator suppression object baked in, the winner's
+// source_confidence is carried, and a payload-only change (a field no
+// typed column projects) rewrites exactly that winner row.
+func TestSupplyChainImpactWinnersResweepPayloadCarriedLive(t *testing.T) {
+	_ = supplyChainImpactLiveDSN(t, "#10880 winners payload proof")
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	t.Cleanup(cancel)
+	db := openAdvisorySuppressionIsolatedDB(t)
+	store := postgres.NewSupplyChainImpactWinnersStore(postgres.SQLDB{DB: db})
+
+	winnersLiveSeedScope(t, ctx, db, winnersLiveSourceScope)
+	winnersLiveSeedScope(t, ctx, db, winnersLiveOperatorScope)
+	winnersLiveSeedFact(t, ctx, db, "f-payload", winnersLiveSourceScope, winnersLiveFinding(
+		"CVE-2026-9600", "pkg:npm/payload", 9, map[string]any{"description": "first"}))
+	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET source_confidence = 'high' WHERE fact_id = 'f-payload'`)
+	winnersLiveSeedFact(t, ctx, db, "op-payload", winnersLiveOperatorScope, winnersLiveFinding(
+		"CVE-2026-9600", "pkg:npm/payload", 0, map[string]any{
+			"suppression_state": "ignored",
+			"suppression":       map[string]any{"reason": "accepted", "expires_at": "2030-01-01T00:00:00Z"},
+		}))
+
+	if _, err := store.ResweepWinners(ctx); err != nil {
+		t.Fatalf("resweep: %v", err)
+	}
+	var payload, confidence string
+	if err := db.QueryRowContext(ctx, `
+SELECT payload::text, source_confidence FROM supply_chain_impact_canonical_winners`).Scan(&payload, &confidence); err != nil {
+		t.Fatalf("read winner payload: %v", err)
+	}
+	if confidence != "high" {
+		t.Errorf("source_confidence = %q, want high", confidence)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(payload), &got); err != nil {
+		t.Fatalf("decode stored payload: %v", err)
+	}
+	if got["description"] != "first" || got["finding_id"] != "finding:CVE-2026-9600:pkg:npm/payload" {
+		t.Errorf("stored payload lost winner fields: %v", got)
+	}
+	supp, _ := got["suppression"].(map[string]any)
+	if supp["reason"] != "accepted" {
+		t.Errorf("stored payload suppression = %v, want baked operator object", supp)
+	}
+
+	winnersLiveExec(t, ctx, db, `UPDATE fact_records SET payload = jsonb_set(payload, '{description}', '"second"') WHERE fact_id = 'f-payload'`)
+	got2, err := store.ResweepWinners(ctx)
+	if err != nil {
+		t.Fatalf("payload-change resweep: %v", err)
+	}
+	if got2.Updated != 1 || got2.Inserted != 0 || got2.Deleted != 0 {
+		t.Errorf("payload-only change resweep = %+v, want exactly 1 updated", got2)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT payload->>'description' FROM supply_chain_impact_canonical_winners`).Scan(&payload); err != nil {
+		t.Fatalf("reread winner payload: %v", err)
+	}
+	if payload != "second" {
+		t.Errorf("stored description = %q, want second", payload)
+	}
+}

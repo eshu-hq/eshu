@@ -1,6 +1,7 @@
 capabilities:
   - capability: component_extensions.inventory
     tools: [list_component_extensions]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_component_registry, p95_latency_ms: 250, max_scope_size: bounded_local_component_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: sanitized component registry readback with count, total_count, limit, and truncated; unavailable when ESHU_COMPONENT_HOME is unset; no graph or Postgres read}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_component_registry, p95_latency_ms: 250, max_scope_size: bounded_local_component_registry_page_1_500, verification: [{go_test: ./internal/query}], notes: sanitized component registry readback; installed, enabled, and claim-capable states stay distinct}
@@ -8,6 +9,7 @@ capabilities:
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services_component_registry, p95_latency_ms: 500, max_scope_size: bounded_deployed_component_registry_page_1_500, verification: [{go_test: ./internal/query}, {remote_validation: prod-component-extension-inventory}], notes: sanitized component registry readback proven live against a deployed component-extension Compose stack (installed/enabled/trusted true for a real claimed component), same handler as the local profiles (issue 5336, issue 5552, issue 5681)}
   - capability: component_extensions.diagnostics
     tools: [get_component_extension_diagnostics]
+    answering_stores: [status_fixed]
     profiles:
       local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host_component_registry, p95_latency_ms: 250, max_scope_size: one_component, verification: [{go_test: ./internal/query}], notes: singleton component diagnostics from registry readback; unavailable when ESHU_COMPONENT_HOME is unset}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_component_registry, p95_latency_ms: 250, max_scope_size: one_component, verification: [{go_test: ./internal/query}], notes: singleton component diagnostics with policy failure reasons; graph is not required}

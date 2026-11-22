@@ -164,7 +164,7 @@ func TestCov7AggregateCountReadsBuckets(t *testing.T) {
 		onRow:  func(string) db.Row { return &cov7StoreRow{scanErr: errors.New("scan boom")} },
 		onRows: func(string) (db.Rows, error) { return &cov7StoreRows{}, nil },
 	}
-	if _, err := NewPostgresAggregateStoreWithReadStore(scanFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
+	if _, err := NewPostgresAggregateStoreWithReadStore(scanFail, false).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
 		t.Fatalf("reader count scan failure = nil error, want failure")
 	}
 	bucketDecodeFail := &cov7StoreQueryer{
@@ -176,7 +176,7 @@ func TestCov7AggregateCountReadsBuckets(t *testing.T) {
 		},
 		onRows: func(string) (db.Rows, error) { return nil, errors.New("count must not fan out to bucket queries") },
 	}
-	if _, err := NewPostgresAggregateStoreWithReadStore(bucketDecodeFail).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
+	if _, err := NewPostgresAggregateStoreWithReadStore(bucketDecodeFail, false).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{}); err == nil {
 		t.Fatalf("bucket decode failure = nil error, want failure")
 	}
 	happy := &cov7StoreQueryer{
@@ -188,7 +188,7 @@ func TestCov7AggregateCountReadsBuckets(t *testing.T) {
 		},
 		onRows: func(string) (db.Rows, error) { return nil, errors.New("count must be one statement") },
 	}
-	count, err := NewPostgresAggregateStoreWithReadStore(happy).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{})
+	count, err := NewPostgresAggregateStoreWithReadStore(happy, false).CountSupplyChainImpactFindings(t.Context(), AggregateFilter{})
 	if err != nil {
 		t.Fatalf("count = %v, want envelope", err)
 	}
@@ -214,7 +214,7 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 
 	store := NewPostgresAggregateStoreWithReadStore(&cov7StoreQueryer{
 		onRows: func(string) (db.Rows, error) { return &cov7StoreRows{}, nil },
-	})
+	}, false)
 	if _, err := store.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, "bogus", 10, 0); err == nil {
 		t.Fatalf("bogus dimension = nil error, want unsupported dimension")
 	}
@@ -229,7 +229,7 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 	}
 	queryFail := NewPostgresAggregateStoreWithReadStore(&cov7StoreQueryer{
 		onRows: func(string) (db.Rows, error) { return nil, errors.New("inventory down") },
-	})
+	}, false)
 	if _, err := queryFail.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryByStatus, 10, 0); err == nil {
 		t.Fatalf("inventory query failure = nil error, want failure")
 	}
@@ -237,7 +237,7 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 		onRows: func(string) (db.Rows, error) {
 			return &cov7StoreRows{rows: [][]any{{"x", int64(1)}}, scanErr: errors.New("scan boom")}, nil
 		},
-	})
+	}, false)
 	if _, err := scanFail.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryByStatus, 10, 0); err == nil {
 		t.Fatalf("inventory scan failure = nil error, want failure")
 	}
@@ -245,7 +245,7 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 		onRows: func(string) (db.Rows, error) {
 			return &cov7StoreRows{rows: [][]any{{"x", int64(1)}}, iterErr: errors.New("iter boom")}, nil
 		},
-	})
+	}, false)
 	if _, err := iterFail.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryByStatus, 10, 0); err == nil {
 		t.Fatalf("inventory iteration failure = nil error, want failure")
 	}
@@ -253,7 +253,7 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 		onRows: func(string) (db.Rows, error) {
 			return &cov7StoreRows{rows: [][]any{{" affected_exact ", int64(4)}}}, nil
 		},
-	})
+	}, false)
 	rows, err := happy.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryBySeverity, 10, -3)
 	if err != nil || len(rows) != 1 || rows[0].Value != "affected_exact" || rows[0].Count != 4 || rows[0].Dimension != InventoryBySeverity {
 		t.Fatalf("inventory = (%#v, %v), want trimmed severity row", rows, err)

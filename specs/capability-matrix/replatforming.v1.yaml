@@ -12,6 +12,7 @@ owners:
 capabilities:
   - capability: replatforming.plan.readiness
     tools: [compose_replatforming_plan]
+    answering_stores: [fact_records_reducer]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_environment_or_service, verification: [{integration_test: local-lightweight-unsupported-replatforming-plan-readiness}], notes: requires reducer-materialized drift and IaC evidence; lightweight local cannot serve a provider-neutral readiness rollup and must return unsupported_capability}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 5000, max_scope_size: account_environment_or_service, verification: [{go_test: ./internal/query}], notes: provider-neutral source-state taxonomy rollup over reducer-owned drift and IaC evidence; preserves provider-specific fact names and per-item source state}

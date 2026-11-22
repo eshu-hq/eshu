@@ -44,7 +44,12 @@
 //
 // LoadMatrix accepts only a closed set of verification kinds (go_test,
 // integration_test, compose_e2e, remote_validation); an unrecognized key is a
-// hard load error. CheckRemoteValidationArtifacts further requires every
+// hard load error. Every matrix row also declares its answering store or
+// stores (graph, fact_records_reducer, fact_records_collector,
+// read_table:<table>, content_search, status_fixed); an unlisted token is a
+// hard load error and a row with no declared store reconciles to
+// FindingMissingAnsweringStore, which fails -mode verify.
+// CheckRemoteValidationArtifacts further requires every
 // production-supported remote_validation ref to resolve to a current-format,
 // deployed-tier docs/internal/remote-validation/<ref>.md artifact or appear in
 // the burn-down baseline (specs/remote-validation-baseline.txt). The generated

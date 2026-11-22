@@ -9,6 +9,7 @@ owners:
 capabilities:
   - capability: platform_impact.container_image_tag_history
     tools: [list_container_image_tag_history]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{go_test: ./internal/query}], notes: requires the authoritative container image graph}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: single_image_ref, verification: [{go_test: ./internal/query}], notes: bounded ordered read of one image_ref's ContainerImageTagObservation rows anchored on the container_image_tag_observation_ref index, ordered by first_observed_at then uid, limit+1 truncation, and offset continuation; requires repository_id and tag}

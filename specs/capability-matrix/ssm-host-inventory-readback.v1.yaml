@@ -16,6 +16,7 @@ owners:
 capabilities:
   - capability: ssm_host_inventory.readback.list
     tools: [list_ssm_host_inventory]
+    answering_stores: [graph]
     profiles:
       local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: graph-backed observation reads need committed SSMHostApplication/SSMHostPlatform nodes; lightweight local cannot serve host inventory and must return unsupported_capability}
       local_authoritative: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: account_project_or_subscription, verification: [{go_test: ./internal/query}], notes: graph-backed observation reads need committed SSMHostApplication/SSMHostPlatform nodes; authoritative local without graph reads cannot serve host inventory and must return unsupported_capability}
