@@ -6,6 +6,7 @@ package postgres
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -56,6 +57,22 @@ func TestForeignMemberTokensFunctionIsTheFrozenV4(t *testing.T) {
 	// The Go lookup tokens (HolderMemberTokens) bucket by the same alphabet.
 	if want := "strpos('" + holderMemberTokenAlphabet + "', right(p_fact_id, 1))"; strings.Count(ddl, want) != 3 {
 		t.Fatalf("token function DDL must bucket with %q in each of its 3 branches", want)
+	}
+	// Arbiter ruling 10643m: every branch tokenizes a string only up to
+	// HolderMemberTokenMaxBytes bytes, so no stored value can make a GIN
+	// entry exceed its 2,712-byte limit and fail the finding insert.
+	limit := strconv.Itoa(HolderMemberTokenMaxBytes)
+	for _, guard := range []string{
+		"AND octet_length(e #>> '{}') <= " + limit + "\n",
+		"WHERE octet_length(k) <= " + limit + "\n",
+		"CASE WHEN octet_length(z.s) <= " + limit + "\n",
+	} {
+		if strings.Count(ddl, guard) != 1 {
+			t.Fatalf("token function DDL must carry the length guard %q once", guard)
+		}
+	}
+	if strings.Count(ddl, "octet_length(") != 3 {
+		t.Fatalf("token function DDL must hold exactly 3 octet_length guards, one per branch")
 	}
 	sum := sha256.Sum256([]byte(foreignMemberTokensBody(t, ddl)))
 	if got := hex.EncodeToString(sum[:]); got != foreignMemberTokensBodySHA256 {

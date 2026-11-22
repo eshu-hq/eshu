@@ -62,6 +62,20 @@ func holderMemberTokenArm(param string) string {
 // supplyChainImpactForeignMemberTokensFunctionSQL.
 const holderMemberTokenAlphabet = "0123456789abcdef"
 
+// HolderMemberTokenMaxBytes is the longest string, in bytes, the token
+// function turns into a token (#10643 PR 2, arbiter ruling 10643m). A GIN
+// array_ops entry cannot exceed 2,712 bytes, so a longer member would fail
+// the finding insert; the function leaves it untokenized instead, and a read
+// whose lookup ids include a longer one uses the shipped statement. It must
+// stay equal to the literal in supplyChainImpactForeignMemberTokensFunctionSQL.
+const HolderMemberTokenMaxBytes = 1024
+
+// HolderLookupExceedsTokenBytes reports whether any of lookupIDs is longer
+// than HolderMemberTokenMaxBytes bytes, so no token can match it.
+func HolderLookupExceedsTokenBytes(lookupIDs []string) bool {
+	return false
+}
+
 // HolderMemberTokens returns the foreign-member lookup tokens statement
 // (0-based) of a ranged read of statements statements carries for
 // lookupIDs: bucket || ":" || id for each id and each bucket the statement

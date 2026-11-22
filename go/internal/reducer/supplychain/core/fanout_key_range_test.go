@@ -30,12 +30,26 @@ type rangeStubFanOut struct {
 	rangeDuration map[HolderKeyRange]time.Duration
 	rangeCalls    []HolderKeyRange
 	rangeIDs      [][]string
+	// fallback makes the read one shipped holder statement, as the store
+	// runs it for a lookup id over 1,024 bytes (#10643 PR 2, ruling 10643m):
+	// range 1 of 1, with the duration and error of the first range.
+	fallback bool
 }
 
 func (s *rangeStubFanOut) FindHolderScopesByKeyRange(_ context.Context, _ string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var read HolderKeyRangeRead
+	if s.fallback {
+		read.Fallback = true
+		done := HolderReadStatement{Kind: telemetry.FanOutReadKindHolders, Range: 1, Duration: s.rangeDuration[ranges[0]], Err: s.rangeErr[ranges[0]]}
+		read.Statements = append(read.Statements, done)
+		if done.Err != nil {
+			return read, done.Err
+		}
+		read.Scopes = append(read.Scopes, s.rangeHolders[ranges[0]]...)
+		return read, nil
+	}
 	set := map[string]struct{}{}
 	for i, keyRange := range ranges {
 		s.rangeCalls = append(s.rangeCalls, keyRange)

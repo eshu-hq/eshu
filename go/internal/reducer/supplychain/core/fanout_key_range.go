@@ -88,6 +88,9 @@ func lookupHoldsNonCVEID(ids []string) bool {
 type HolderKeyRangeRead struct {
 	Scopes     []string
 	Statements []HolderReadStatement
+	// Fallback is true when a lookup id was too long to be tokenized, so the
+	// read ran as one shipped holder statement instead of the key ranges.
+	Fallback bool
 }
 
 // HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads

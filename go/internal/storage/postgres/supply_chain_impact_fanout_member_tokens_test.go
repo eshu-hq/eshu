@@ -105,3 +105,33 @@ func TestHolderKeyRangeStatementsCarryTheTokenArm(t *testing.T) {
 		}
 	}
 }
+
+// TestHolderLookupExceedsTokenBytesCountsBytes is the reader half of arbiter
+// ruling 10643m: a lookup set falls back to the shipped statement exactly when
+// one of its ids is over HolderMemberTokenMaxBytes bytes, the bound the token
+// function applies with octet_length. Bytes, not characters: 512 two-byte
+// characters fit, 513 do not, and 256 four-byte characters fit.
+func TestHolderLookupExceedsTokenBytesCountsBytes(t *testing.T) {
+	t.Parallel()
+
+	ascii := strings.Repeat("a", postgres.HolderMemberTokenMaxBytes)
+	for _, tc := range []struct {
+		name string
+		ids  []string
+		want bool
+	}{
+		{"none", nil, false},
+		{"short alias", []string{"GHSA-aaaa-bbbb-cccc"}, false},
+		{"1,024 ASCII bytes", []string{ascii}, false},
+		{"1,025 ASCII bytes", []string{ascii + "a"}, true},
+		{"512 two-byte characters (1,024 bytes)", []string{strings.Repeat("é", 512)}, false},
+		{"513 two-byte characters (1,026 bytes)", []string{strings.Repeat("é", 513)}, true},
+		{"256 four-byte characters (1,024 bytes)", []string{strings.Repeat("𝄞", 256)}, false},
+		{"1,024 two-byte characters (2,048 bytes)", []string{strings.Repeat("é", 1024)}, true},
+		{"mixed: one long id among short ones", []string{"CVE-2026-1", ascii + "a", "GHSA-x"}, true},
+	} {
+		if got := postgres.HolderLookupExceedsTokenBytes(tc.ids); got != tc.want {
+			t.Fatalf("%s: HolderLookupExceedsTokenBytes = %t, want %t", tc.name, got, tc.want)
+		}
+	}
+}

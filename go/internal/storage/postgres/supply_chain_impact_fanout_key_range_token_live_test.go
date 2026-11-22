@@ -83,10 +83,16 @@ WHERE c.relname = $1`, postgres.SupplyChainImpactForeignMemberTokensIndex).Scan(
 
 // keyRangeTokenMatrixSQL is the F1 shape matrix of
 // docs/internal/evidence/10643-foreign-member-token-index.md
-// over function %s: 14 members shapes x 3 own-id variants x 4 fact-id buckets
-// x 5 lookup ids = 840 cells. A cell wants true exactly when jsonb ?| (one
-// id) matches the members value and the id is neither of the row's own keys;
-// it gets true when the function's tokens contain bucket:id.
+// over function %s: 18 members shapes x 3 own-id variants x 4 fact-id buckets
+// x 9 lookup ids = 1,944 cells. Four shapes and four ids hold strings at the
+// byte bound of arbiter ruling 10643m: 1,024 and 1,025 ASCII bytes, and 512
+// and 513 two-byte characters (1,024 and 1,026 bytes). A cell wants true
+// exactly when jsonb ?| (one id) matches the members value, the id is
+// neither of the row's own keys, and the id is at most 1,024 bytes; it gets
+// true when the function's tokens contain bucket:id. The last two columns
+// count the cells where ?| matches a longer id and where the function
+// tokenized one anyway (the reader serves those ids with the shipped
+// statement, so the function must not).
 const keyRangeTokenMatrixSQL = `
 WITH shapes(name, m) AS (VALUES
   ('array_strings', '["GHSA-P","CVE-OWN","GHSA-OWN"]'::jsonb),
@@ -102,9 +108,14 @@ WITH shapes(name, m) AS (VALUES
   ('number', '5'),
   ('boolean', 'true'),
   ('json_null', 'null'),
-  ('path_missing', NULL)
+  ('path_missing', NULL),
+  ('array_long', jsonb_build_array('GHSA-P', repeat('a', 1024), repeat('b', 1025), repeat('é', 512), repeat('é', 513))),
+  ('object_long', jsonb_build_object(repeat('a', 1024), 1, repeat('b', 1025), 1, repeat('é', 513), 1)),
+  ('scalar_1024', to_jsonb(repeat('é', 512))),
+  ('scalar_1025', to_jsonb(repeat('b', 1025)))
 ), owns(variant, cve, adv) AS (VALUES ('own_both', 'CVE-OWN', 'GHSA-OWN'), ('cve_null', NULL, 'GHSA-OWN'), ('adv_null', 'CVE-OWN', NULL)),
-ids(id) AS (VALUES ('GHSA-P'), ('ABSENT'), ('CVE-OWN'), ('GHSA-OWN'), ('GHSA:P:x')),
+ids(id) AS (VALUES ('GHSA-P'), ('ABSENT'), ('CVE-OWN'), ('GHSA-OWN'), ('GHSA:P:x'),
+  (repeat('a', 1024)), (repeat('b', 1025)), (repeat('é', 512)), (repeat('é', 513))),
 fids(fid) AS (VALUES ('reducer_supply_chain_impact_finding:abc0'), ('reducer_supply_chain_impact_finding:abcf'), ('reducer_supply_chain_impact_finding:abcZ'), ('reducer_supply_chain_impact_finding:ab日')),
 rows AS (
   SELECT s.name, o.variant, f.fid,
@@ -113,16 +124,39 @@ rows AS (
   FROM shapes s CROSS JOIN owns o CROSS JOIN fids f
 ), cells AS (
   SELECT COALESCE((r.payload #> '{provenance,advisory_group_members}') ? i.id, false)
-           AND i.id IS DISTINCT FROM (r.payload->>'cve_id') AND i.id IS DISTINCT FROM (r.payload->>'advisory_id') AS want,
+           AND i.id IS DISTINCT FROM (r.payload->>'cve_id') AND i.id IS DISTINCT FROM (r.payload->>'advisory_id') AS foreign_match,
+         octet_length(i.id) <= 1024 AS short,
          COALESCE(%s(r.fid, r.payload) @> ARRAY[strpos('0123456789abcdef', right(r.fid, 1))::text || ':' || i.id], false) AS got,
          r.name
   FROM rows r CROSS JOIN ids i
 )
-SELECT count(*), count(*) FILTER (WHERE want = got), count(*) FILTER (WHERE want), count(DISTINCT name)
+SELECT count(*), count(*) FILTER (WHERE (foreign_match AND short) = got), count(*) FILTER (WHERE foreign_match AND short),
+       count(DISTINCT name), count(*) FILTER (WHERE foreign_match AND NOT short), count(*) FILTER (WHERE got AND NOT short)
 FROM cells`
 
+// keyRangeTokenMatrixWantTrue and keyRangeTokenMatrixLongMatches are the
+// matrix's expected counts, derived by hand from the shapes: the 112 cells of
+// the 14 original shapes, plus 60 short and 60 long matches in the four
+// long shapes (each match is 3 own-id variants x 4 fact ids). GHSA-P in
+// array_long, a 1,024-byte and a 512-character id in array_long, the
+// 1,024-byte key of object_long and scalar_1024 are short (5 x 12); the
+// 1,025-byte and 513-character ids in array_long and object_long and
+// scalar_1025 are long (5 x 12).
+const (
+	keyRangeTokenMatrixWantTrue    = 172
+	keyRangeTokenMatrixLongMatches = 60
+)
+
+// keyRangeTokenMatrixResult is one run of keyRangeTokenMatrixSQL.
+type keyRangeTokenMatrixResult struct {
+	cells, agree, wantTrue, shapes int
+	// longMatches counts cells where ?| matches an id over 1,024 bytes;
+	// longTokenized those where the function tokenized one.
+	longMatches, longTokenized int
+}
+
 // keyRangeTokenMatrix runs the F1 matrix over function fn.
-func keyRangeTokenMatrix(t *testing.T, fn string) (cells, agree, wantTrue, shapes int) {
+func keyRangeTokenMatrix(t *testing.T, fn string) keyRangeTokenMatrixResult {
 	t.Helper()
 	ctx, sqldb := fanOutLiveDB(t)
 	if fn == keyRangeArrayOnlyFunction {
@@ -131,23 +165,25 @@ func keyRangeTokenMatrix(t *testing.T, fn string) (cells, agree, wantTrue, shape
 		}
 	}
 	query := strings.ReplaceAll(keyRangeTokenMatrixSQL, "%s", fn)
-	if err := sqldb.QueryRowContext(ctx, query).Scan(&cells, &agree, &wantTrue, &shapes); err != nil {
+	var r keyRangeTokenMatrixResult
+	if err := sqldb.QueryRowContext(ctx, query).Scan(&r.cells, &r.agree, &r.wantTrue, &r.shapes, &r.longMatches, &r.longTokenized); err != nil {
 		t.Fatalf("F1 matrix over %s: %v", fn, err)
 	}
-	return cells, agree, wantTrue, shapes
+	return r
 }
 
 // TestHolderKeyRangeTokenShapeMatrixLive is the F1 shape matrix on the
-// migrated function: all 840 cells agree with jsonb ?| minus the row's own
-// keys, 112 of them true. The seeded RED, the array-only function, must
-// disagree on the object and scalar cells.
+// migrated function: all 1,944 cells agree with jsonb ?| minus the row's own
+// keys for ids of at most 1,024 bytes, and no id over that bound is
+// tokenized although ?| matches one in 60 cells. The seeded RED, the
+// array-only function, must disagree on the object and scalar cells.
 func TestHolderKeyRangeTokenShapeMatrixLive(t *testing.T) {
-	cells, agree, wantTrue, shapes := keyRangeTokenMatrix(t, postgres.SupplyChainImpactForeignMemberTokensFunction)
-	if cells != 840 || agree != 840 || wantTrue != 112 || shapes != 14 {
-		t.Fatalf("F1 matrix = %d cells, %d agree, %d true, %d shapes; want 840, 840, 112, 14", cells, agree, wantTrue, shapes)
+	got := keyRangeTokenMatrix(t, postgres.SupplyChainImpactForeignMemberTokensFunction)
+	want := keyRangeTokenMatrixResult{cells: 1944, agree: 1944, wantTrue: keyRangeTokenMatrixWantTrue, shapes: 18, longMatches: keyRangeTokenMatrixLongMatches}
+	if got != want {
+		t.Fatalf("F1 matrix = %+v; want %+v", got, want)
 	}
-	_, redAgree, _, _ := keyRangeTokenMatrix(t, keyRangeArrayOnlyFunction)
-	if redAgree == 840 {
+	if red := keyRangeTokenMatrix(t, keyRangeArrayOnlyFunction); red.agree == red.cells {
 		t.Fatal("seeded RED: the array-only function agrees on every cell; the matrix cannot see object or scalar members")
 	}
 }
