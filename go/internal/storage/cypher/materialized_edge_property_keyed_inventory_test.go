@@ -169,9 +169,10 @@ func scanPropertyKeyedRelationshipMergeDir(t *testing.T, fset *token.FileSet, co
 }
 
 // clauseKeywordPattern finds the Cypher clause keywords that decide which
-// clause a relationship pattern sits in. The templates under scan write
-// clause keywords in upper case.
-var clauseKeywordPattern = regexp.MustCompile(`\b(OPTIONAL MATCH|MATCH|MERGE|CREATE|WHERE|WITH|UNWIND|SET|DELETE|DETACH DELETE|REMOVE|RETURN|CALL|FOREACH)\b`)
+// clause a relationship pattern sits in. Cypher keywords are case-insensitive,
+// so a lowercase `merge` is a MERGE clause and a lowercase `match` is not; the
+// scan upper-cases the captured keyword before comparing it.
+var clauseKeywordPattern = regexp.MustCompile(`(?i)\b(OPTIONAL\s+MATCH|MATCH|MERGE|CREATE|WHERE|WITH|UNWIND|SET|DELETE|DETACH\s+DELETE|REMOVE|RETURN|CALL|FOREACH)\b`)
 
 // countPropertyKeyedMergeTypes counts, per relationship type, the
 // property-keyed relationship patterns in one Cypher string that sit in a
@@ -189,7 +190,7 @@ func countPropertyKeyedMergeTypes(text string) map[string]int {
 			if k[0] >= m[0] {
 				break
 			}
-			clause = text[k[2]:k[3]]
+			clause = strings.ToUpper(text[k[2]:k[3]])
 		}
 		if clause == "MERGE" {
 			counts[text[m[2]:m[3]]]++
@@ -227,6 +228,26 @@ func TestCountPropertyKeyedMergeTypesOnlyCountsMergeClauses(t *testing.T) {
 		{
 			name: "match then merge counts only the merge",
 			text: "MATCH (a)-[x:DEPENDS_ON {k: 1}]->(b)\nMERGE (a)-[e:RUNS_ON {k: 2}]->(c)",
+			want: map[string]int{"RUNS_ON": 1},
+		},
+		{
+			name: "lowercase merge counts",
+			text: "unwind $rows as row\nmerge (r)-[e:AFFECTED_BY {package_id: $p}]->(g)",
+			want: map[string]int{"AFFECTED_BY": 1},
+		},
+		{
+			name: "lowercase match is not counted",
+			text: "unwind $rows as row\nmatch (r)-[e:AFFECTED_BY {package_id: $p}]->(g)",
+			want: map[string]int{},
+		},
+		{
+			name: "lowercase optional match with extra whitespace is not counted",
+			text: "optional   match (r)-[e:AFFECTED_BY {package_id: $p}]->(g)",
+			want: map[string]int{},
+		},
+		{
+			name: "mixed-case merge after a match counts only the merge",
+			text: "Match (a)-[x:DEPENDS_ON {k: 1}]->(b)\nMerge (a)-[e:RUNS_ON {k: 2}]->(c)",
 			want: map[string]int{"RUNS_ON": 1},
 		},
 		{
