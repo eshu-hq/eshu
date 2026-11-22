@@ -25,7 +25,8 @@ Every `ON CONFLICT (fact_id)` upsert into `fact_records` in production code
 | Reducer single row, `SingleInsertQuery` (workload identity, cloud asset, secrets and IAM, platform materialization, Kubernetes correlation, observability coverage) | none | rewritten |
 | Search document writer, `eshu_search_document_writer_queries.go` | none | rewritten |
 
-The reducer writers read for this record set `observed_at` and `ingested_at` to the time of the save, so even a
+The reducer writers read for this record set `observed_at` and `ingested_at` to the time of the
+save, so even a
 byte-identical re-derivation changes two columns. A guard has to leave those two out of
 its comparison, as the collector path does. The supply-chain impact retraction updates
 are a separate path and were not read for this record.
@@ -37,7 +38,8 @@ are a separate path and were not read for this record.
 production schema at two index profiles. Per-backend WAL (`pg_stat_get_backend_wal`),
 `VACUUM` and a checkpoint before the cold arms, and a second pass with no checkpoint for
 the steady arms. `scripts/dev/11221-identical-saves/` reproduces it; raw output is in
-`docs/internal/evidence/11221-identical-saves/fixture-wal.txt`. Per-backend WAL bytes do not depend on host load, which answers the "host load beside them"
+`docs/internal/evidence/11221-identical-saves/fixture-wal.txt`. Per-backend WAL bytes do not
+depend on host load, which answers the "host load beside them"
 acceptance criterion for the WAL figures. The two replica queries
 behind the queue and sample tables are `replica_queue_aggregate.sql` and `replica_kind_sample.sql`
 in the same script directory.
@@ -55,9 +57,10 @@ in the same script directory.
   steady), and it was never a heap-only-tuple update in the fixture: `n_tup_hot_upd` was 0 of
   50,000 in every arm, so every index entry that matches the row is rewritten too. The
   fixture's dense pages and full-table update would explain that by themselves. The
-  production reason is structural: `observed_at` is a column of several indexes on
-  `fact_records` (`schema_fact_records.go`) and the shipped writers set it to the time of the
-  save, so an identical re-save changes an indexed column and cannot be heap-only.
+  production reason is structural: `observed_at` is a column of non-partial indexes on
+  `fact_records` (`fact_records_scope_generation_keyset_idx` and `fact_records_scope_generation_idx`,
+  defined in `schema_fact_records.go`, which every row matches) and the shipped writers set it to
+  the time of the save, so an identical re-save changes an indexed column and cannot be heap-only.
 - The guard cuts the steady cost to 54 B a row (2.5% to 2.7%): The skipped rows still
   write about one WAL record each (50,126 records for 50,000 rows; the surplus is catalog records of the
   temporary table the arm builds), consistent with the row lock
@@ -102,7 +105,8 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
   item keeps only its last `reopened_at` (`reducer_queue_ack.go`), so one item may have been
   re-saved more than once. At about 38 rows an item that is about 420 rewritten rows a week
   against about 30,000 inserted (796 x 38 = 30,248), 1.4%, or roughly 0.8 MB of WAL a week at
-  2 KB a row; not a strict bound, and even ten times that is under 10 MB a week. Search documents show 4 re-saved items in
+  2 KB a row; not a strict bound, and even ten times that is under 10 MB a week. Search
+  documents show 4 re-saved items in
   12,529 over the whole history.
 - By **items**, three staying families re-save heavily: container image identity (163 of 172
   in the last seven days), service catalog correlation (7 of 8) and aws cloud runtime drift
@@ -126,20 +130,24 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
   run, so the exact row count is **not measurable here**. A catalog-statistics bound stands in
   for it, and it is a bound, not a count: the kind is not among the 26 most common values of
   `fact_kind` in the table statistics, whose smallest frequency is 0.037%, so the kind holds
-  fewer than about 35,500 of 96.85M rows. The queue has 2,040 distinct (scope, generation)
-  pairs for the domain, so at most about 17 rows per generation. The arbiter's formula, rows
-  per generation x 163 re-saved items a week x about 2.1 KB, gives at most about 6 MB a week,
-  against a materiality threshold of about 340 MB a week (5% of the search documents'
-  weekly insert WAL, 1,471 x about 2,291 rows x about 2.0 KB, about 6.7 GB), or about 1,000 rows
-  per generation. The bound is 57 times under the threshold. It rests on a statistics sample,
-  so it is a bound with the caveat that the sample is small and block-clustered; the exact
+  fewer than about 35,800 of 96.85M rows (0.037% x 96.85M = 35,835). The 163 re-saved items
+  of the last week can rewrite at most every row of the kind, once each, so the weekly rewrite
+  is at most about 35,835 rows x 2.1 KB, about 75 MB (reopens beyond the last are not counted),
+  against a materiality threshold of about 340 MB a week (5% of the search documents' weekly
+  insert WAL, 1,471 x about 2,291 rows x about 2.0 KB, about 6.7 GB). That is about 4.5 times
+  under the threshold. The queue has 2,040 distinct (scope, generation) pairs for the domain, so
+  the kind averages under about 17 rows per generation, but that is a mean and the re-saved
+  items may be the larger generations, so the mean is not used as the bound. The bound rests on a
+  statistics sample, small and block-clustered, so it is a bound with that caveat; the exact
   count would need the row-volume read the plan gate forbids.
 - Supply-chain impact re-saves most of all (304 of 328 items in the last seven days; its
   sampled rows all carry a fencing token above 1). It is the family #10880 moves off this
   table, so it is excluded. At about 13,000 rows an item the upper bound is on the order of
-  4M rewritten rows a week, an unmeasured order of magnitude of about 8 GB of WAL at the fixture's per-row cost (the
+  4M rewritten rows a week, an unmeasured order of magnitude of about 8 GB of WAL at the
+  fixture's per-row cost (the
   sample shows about 4,300 B of payload per supply-chain row against the fixture's 1.33 KB), if
-  every reopen rewrote every row and none changed. It is not a saving to credit to any change. Whether any
+  every reopen rewrote every row and none changed. It is not a saving to credit to any change.
+  Whether any
   were identical is unknown.
 - The table-wide 88,254,540 updates (`n_tup_upd`, read 2026-11-17, before #10873 merged)
   cannot be mostly reducer saves of the staying families **by row volume**: those families
@@ -152,8 +160,10 @@ about 2,300 rows per succeeded item and code-drifted findings about 38.
 
 For the reducer families that stay on `fact_records` after #10880, the number of rows that
 can be re-saved is small: at or near zero for the three biggest, at most about 1.4% of
-inserts for code-drifted findings, and small in rows for container image identity (bounded above at about 17 rows per generation by
-catalog statistics, not counted), service catalog and aws drift (the heavy re-savers by items). A guard is cheap per save: it cuts an
+inserts for code-drifted findings, and small in rows for container image identity (bounded
+above at about 35,800 rows in total by
+catalog statistics, not counted), service catalog and aws drift (the heavy re-savers by items).
+A guard is cheap per save: it cuts an
 identical re-save from about 2 KB of WAL to 54 B, about 97%. So the small total saving comes
 from the small re-save population, not from a small saving per save. This is a no-build
 recommendation for that scope, not a finding that the guard is useless: for supply-chain
