@@ -13,7 +13,8 @@ This package sequences one range per `AuditWinners` call.
   edges are core (interface and result types), storage/postgres (statements,
   store types), runtime/postgres (fleet, reasons, telemetry), and
   storage/postgres/db (reader surface).
-- Never add SQL here. Writer contact is exactly `ReadWinnersAuditSweep` and
+- Never add SQL here. Writer contact is exactly `ReadWinnersAuditSweep`,
+  `Watermark` (the keyed-yield signal, read only) and
   `VerifyWinnersAuditRange` through the `SweepStore` interface.
 - Every failure path defers with a closed reason and records it; never skip
   a range, never truncate one, never count a range as a completed audit.

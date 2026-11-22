@@ -25,11 +25,18 @@ the impact-fact corpus grew past it.
    after two misses on the same range the lock_timeout-bounded waiting
    claim), verify and queue repairs, compare-and-set the cursor. Outcomes:
    `advanced`, `completed`, `skipped`, `lock_busy`, `cursor_race`.
+   Keyed yield: after a verify that took the lock, the next verify runs with
+   `NoLock`. If that range still needs the lock it rolls back (deferral
+   `keyed_yield`), waits until a keyed commit moves the winners watermark
+   (`SweepStore.Watermark`) or one keyed interval passes, then verifies again
+   with the lock. The yield spends tick budget.
 
 ## Invariants
 
-- One range is one standby statement and one snapshot; no cross-range state
-  besides the persisted cursor and the process-local try-lock miss count.
+- One range is one standby statement and one snapshot. The only cross-range
+  state is the persisted cursor plus two process-local items: the try-lock
+  miss count and the keyed-yield state (`yieldMark`, `yieldMarkOK`,
+  `yieldSince`). A roll resets both; neither decides what a range commits.
 - A range commits only through the cursor compare-and-set, so two instances
   advance each range at most once and the loser rolls its repairs back.
 - A range is not a completed audit: only the range that completes the sweep

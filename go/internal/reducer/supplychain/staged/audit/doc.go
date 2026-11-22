@@ -10,4 +10,9 @@
 // the persisted cursor by compare-and-set. It implements the reducer core's
 // auditor interface; the maintainer runs ranges back to back while a pass
 // reports More, within its tick budget, renewing the audit lease per range.
+//
+// After a verify that took the resweep lock, the next range yields to the
+// keyed tick: it verifies without the lock and, if it needs the lock, rolls
+// back and waits for the winners watermark to move or one keyed interval to
+// pass before it verifies with the lock.
 package audit
