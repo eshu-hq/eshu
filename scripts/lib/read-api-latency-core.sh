@@ -39,8 +39,12 @@ require_neo4j_backend_for_core() {
 # between legs via stop_core_api).
 start_core_api() {
 	local winners="$1"
+	# One log per leg: the winners-leg restart must not truncate the legacy
+	# core's log, which is evidence for the legacy sweep.
+	local leg="legacy"
+	[[ "${winners}" == "true" ]] && leg="winners"
 	log "start eshu-core-api (winners-read=${winners})"
-	start_bg core core_pid env "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${winners}" \
+	start_bg "core-${leg}" core_pid env "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=${winners}" \
 		"${bin_dir}/eshu-core-api" --addr="127.0.0.1:${GATE_CORE_PORT}"
 	local ready=false
 	for _ in $(seq 1 240); do
@@ -50,7 +54,7 @@ start_core_api() {
 		fi
 		sleep 1
 	done
-	[[ "${ready}" == "true" ]] || { tail -40 "${log_dir}/core.log" >&2 || true; die "eshu-core-api /readyz never returned on port ${GATE_CORE_PORT}"; }
+	[[ "${ready}" == "true" ]] || { tail -40 "${log_dir}/core-${leg}.log" >&2 || true; die "eshu-core-api /readyz never returned on port ${GATE_CORE_PORT}"; }
 	kill -0 "${core_pid}" 2>/dev/null || die "eshu-core-api (pid ${core_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_CORE_PORT}"
 }
 
@@ -61,10 +65,11 @@ start_core_api() {
 stop_core_api() {
 	[[ -n "${core_pid}" ]] || return 0
 	kill "${core_pid}" >/dev/null 2>&1 || { core_pid=""; return 0; }
-	local deadline=$((SECONDS + 30))
+	local timeout="${GATE_CORE_STOP_TIMEOUT:-30}" deadline
+	deadline=$((SECONDS + timeout))
 	while kill -0 "${core_pid}" 2>/dev/null; do
 		if ((SECONDS >= deadline)); then
-			die "eshu-core-api (pid ${core_pid}) did not stop within 30s; refusing to start the next leg against a stale core"
+			die "eshu-core-api (pid ${core_pid}) did not stop within ${timeout}s; refusing to start the next leg against a stale core"
 		fi
 		sleep 1
 	done
@@ -89,6 +94,9 @@ snapshot_findings_page() {
 # legs measured different truth.
 require_findings_byte_identical() {
 	local legacy="$1" winners="$2"
+	# Two identical empty pages pass cmp vacuously, so the proof is only worth
+	# anything when the page it compares holds findings.
+	require_findings_nonempty "${legacy}"
 	if cmp -s "${legacy}" "${winners}"; then
 		log "findings pages byte-identical across legacy/winners legs"
 		return 0
@@ -97,16 +105,32 @@ require_findings_byte_identical() {
 	die "legacy and winners findings pages differ (first 2kB diffed above); the legs did not serve the same truth"
 }
 
+# require_findings_nonempty <file> fails unless the findings page holds at least
+# one finding (the envelope carries them in .findings), so a byte-identical
+# comparison cannot pass on two empty pages.
+require_findings_nonempty() {
+	command -v jq >/dev/null 2>&1 || die "jq is required to check that the findings page is not empty"
+	jq -e '(.findings | type == "array") and (.findings | length) > 0' "$1" >/dev/null 2>&1 \
+		|| die "findings page $1 holds no findings; a byte-identical comparison of empty pages proves nothing"
+}
+
 # require_grouped_inventory <want_code> <dimension> asserts the grouped
 # inventory dimension answers want_code on the current leg: 503 while the
 # winners flag is off (the read model is empty by contract), 200 once the
 # winners leg serves the seeded dimensions.
 require_grouped_inventory() {
-	local want_code="$1" dimension="$2" code
-	code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${GATE_API_KEY}" \
+	local want_code="$1" dimension="$2" code body="${work_dir}/grouped-${2}.json"
+	code="$(curl -sS -o "${body}" -w '%{http_code}' -H "Authorization: Bearer ${GATE_API_KEY}" \
 		"http://127.0.0.1:${GATE_API_PORT}/api/v0/supply-chain/impact/inventory?group_by=${dimension}")" \
 		|| die "grouped inventory request failed for dimension ${dimension}"
 	[[ "${code}" == "${want_code}" ]] || die "grouped inventory group_by=${dimension} answered ${code}, want ${want_code}"
+	# The positive control must prove the read model holds rows, not only that
+	# it answered: an empty winners table would otherwise pass it.
+	if [[ "${want_code}" == "200" ]]; then
+		command -v jq >/dev/null 2>&1 || die "jq is required to check the grouped inventory buckets"
+		jq -e '(.buckets | type == "array") and (.buckets | length) > 0' "${body}" >/dev/null 2>&1 \
+			|| die "grouped inventory group_by=${dimension} answered 200 with no buckets: the winners table is empty"
+	fi
 }
 
 # winners_report_path <base> derives the winners-leg report path from a

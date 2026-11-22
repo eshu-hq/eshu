@@ -174,7 +174,7 @@ fi
 # it to the same rm -rf that clears everything else.
 api_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-api.log"
 mcp_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-mcp.log"
-core_log_preserve_path="${TMPDIR:-/tmp}/read-api-latency-gate-core.log"
+core_log_preserve_dir="${TMPDIR:-/tmp}"
 
 cleanup() {
 	local status=$?
@@ -207,9 +207,11 @@ cleanup() {
 	if [[ -n "${work_dir}" && -f "${work_dir}/logs/mcp-server.log" ]]; then
 		cp "${work_dir}/logs/mcp-server.log" "${mcp_log_preserve_path}" 2>/dev/null || true
 	fi
-	if [[ -n "${work_dir}" && -f "${work_dir}/logs/core.log" ]]; then
-		cp "${work_dir}/logs/core.log" "${core_log_preserve_path}" 2>/dev/null || true
-	fi
+	for leg in legacy winners; do
+		if [[ -n "${work_dir}" && -f "${work_dir}/logs/core-${leg}.log" ]]; then
+			cp "${work_dir}/logs/core-${leg}.log" "${core_log_preserve_dir}/read-api-latency-gate-core-${leg}.log" 2>/dev/null || true
+		fi
+	done
 	if [[ "${keep}" -eq 1 ]]; then
 		printf 'verify-read-api-latency-gate: --keep set; leaving %s and the compose stack up\n' "${work_dir}" >&2
 		retain_live_gate_lock
