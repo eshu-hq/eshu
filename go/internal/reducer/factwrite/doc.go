@@ -14,7 +14,12 @@
 // Every conflict clause ends with a scope owner leg (#11213): a write can only
 // change a row of its own scope, and a row another scope holds is reported as an
 // OwnerConflictError rather than counted as written. There is deliberately no
-// generation leg.
+// generation leg. The report needs the statement's own rows-affected count and a
+// handle that can probe (a db.Queryer or an OwnerProbeQueryer). One exception:
+// the container image identity atomic statements return the claim verdict or the
+// legacy-delete count, not the insert's rows, so a foreign-held row there is
+// skipped without a report. It cannot occur today, because those ids hash both
+// scope and generation; the leg is defense in depth on that path.
 //
 // Chunking bounds the statement size: a batch is split into runs of BatchSize
 // rows so a large generation cannot build a single statement past what the

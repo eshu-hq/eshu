@@ -38,7 +38,7 @@ open.
 
 | Issue | Change | Proof |
 | --- | --- | --- |
-| #11213 | Scope-only owner leg (`fact_records.scope_id = EXCLUDED.scope_id`) on `SingleInsertQuery`, `BatchInsertConflict` and the versioned clause, after the fencing predicate. **No generation leg**: an id stable across generations of one scope keeps updating. A skipped row is reported: `CheckOwned` (single, zero rows affected) and `resolveShortfall` (batch, one primary-key probe on a shortfall) return `*OwnerConflictError`, non-retryable, failure class `fact_id_owner_conflict`, so the intent dead-letters. The reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total{reason="scope", writer=reducer_single\|reducer_batch\|reducer_versioned}`; the ingestion path now carries `writer="ingestion"`. No new log line: the failed intent already logs its failure class. | `owner_guard_test.go`, `service_fact_id_owner_conflict_test.go`, `reducer_fact_owner_live_test.go`, frozen SQL pins in `reducer_fact_batch_insert*_guard_test.go` |
+| #11213 | Scope-only owner leg (`fact_records.scope_id = EXCLUDED.scope_id`) on `SingleInsertQuery`, `BatchInsertConflict` and the versioned clause, after the fencing predicate. **No generation leg**: an id stable across generations of one scope keeps updating. A skipped row is reported (container image identity writes of at most `BatchSize` rows excepted, see Known limits): `CheckOwned` (single, zero rows affected) and `resolveShortfall` (batch, one primary-key probe on a shortfall) return `*OwnerConflictError`, non-retryable, failure class `fact_id_owner_conflict`, so the intent dead-letters. The reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total{reason="scope", writer=reducer_single\|reducer_batch\|reducer_versioned}`; the ingestion path now carries `writer="ingestion"`. No new log line: the failed intent already logs its failure class. | `owner_guard_test.go`, `service_fact_id_owner_conflict_test.go`, `reducer_fact_owner_live_test.go`, frozen SQL pins in `reducer_fact_batch_insert*_guard_test.go` |
 | #11214 | No SQL change: the id is a hash of scope, generation and document, so a collision is unreachable by construction; pinned by a test and by the producer guard. | `eshu_search_document_fact_id_test.go` |
 | #11215 | No id format change (see the migration plan). `enqueueReducerBatch` resolves a shortfall in inserted rows with one primary-key probe: a held row whose stored scope, generation, domain or entity key differs from the incoming intent is refused with `*ReducerWorkItemCollisionError` (non-retryable, failure class `reducer_work_item_id_collision`); a plain duplicate stays a benign coalesce. | `reducer_work_item_collision_test.go`, `TestEnqueueRefusesAForeignIntentWorkItemIDLive`, the #11203 characterization `TestReducerWorkItemIDIsNotInjective` |
 | #11216 | Guard reads `factwrite.Row` / `VersionedRow` literals, the id after `factwrite.SingleInsertQuery`, ids assigned after construction (`x.FactID = ...`) and every `...FactID` helper, follows helpers and `kind + ":" + hash(...)`; every allowlist row in `factIDProducerAllowlist` carries a reason (count it with that map, not from this note); zero-site failure kept. | `TestFactIDProducerGuardOtherShapes`, `TestFactIDProducerGuardSeededReducerViolations` |
@@ -91,7 +91,13 @@ shipped constants by removing the leg):
 | --- | --- | --- | --- |
 | batch (1,000 conflicting rows) | `fact_records_pkey` both | `fencing_token <= excluded.fencing_token` / `... AND scope_id = excluded.scope_id` | 18,638 / 18,648 (+0.05%) |
 | batch, first run | `fact_records_pkey` both | same | 18,088 / 18,548 (cold first run, dirtied 30 / 28) |
+| versioned (1,000 conflicting rows) | `fact_records_pkey` both | same pair | 18,638 / 18,644 (second run; cold first run 18,088 / 18,539) |
 | single row | `fact_records_pkey` both | none / `scope_id = excluded.scope_id` | 20 / 20 |
+| owner probe (`foreignOwnersQuery`, 1,000 ids, shortfall only) | nested loop, index scan on `fact_records_pkey` | n/a | 4,000 buffer hits, 3.9 ms |
+
+All three reducer statements are covered: batch and single by
+`TestReducerOwnerLegCostLive`, versioned and the probe by an independent
+re-measurement during review (same arbiter index, same buffer cost).
 
 The plan shape, the conflict arbiter index and the per-row buffer cost are
 unchanged: the leg reads `scope_id` from the heap tuple the arbiter index probe
@@ -145,12 +151,22 @@ coverage registry.
   `db.Transaction` wrapper is added without being listed. The recording fakes of
   the writers' own tests cannot query, and a shortfall without a probe is not an
   error, because a fenced-out stale row is a legitimate shortfall.
-- The container image identity atomic statements
-  (`containerImageIdentityPublishAndLegacyCleanupQuery` and the completed-cutover
-  pair) compose `BatchInsertConflict`, so they carry the owner leg, but their rows
-  affected count the legacy cleanup `DELETE`, not the insert, so the final chunk of
-  a publish does not report a foreign-held row (earlier chunks go through
-  `ExecChunk` and do). Its ids hash scope and generation (census above), so the leg
-  is defense in depth there.
+- **Container image identity writes of at most `BatchSize` rows are not reported.**
+  The atomic statements (`containerImageIdentityPublishAndLegacyCleanupQuery` for a
+  first cutover's last chunk, and the completed-cutover pair) compose
+  `BatchInsertConflict`, so they carry the owner leg, but their rows affected count
+  the legacy cleanup `DELETE`, or the call returns only the claim verdict. A
+  foreign-held row there is skipped without a report; earlier chunks go through
+  `ExecChunk` and are reported. It cannot occur today: those ids hash scope and
+  generation (census above), so the leg is defense in depth on that path. A
+  `RETURNING` count on the published CTE would close it, but it changes the
+  statement the cutover's atomicity proofs cover, so it is not done here.
+- **The probe runs after the write.** A foreign-held row deleted between the write
+  and the probe (retention, for example) reads as a fenced skip, and the refused
+  row counts as written. Narrow, and unreachable while ids hash scope and
+  generation. `RETURNING fact_id` with a probe on only the missing ids would close
+  it, but that rewrites the result handling of three statements (the single-row
+  statement has no `RETURNING` today and its caller counts rows affected), so it
+  stays a known limit.
 - A batch whose statement is skipped for several rows reports up to ten samples and
   the full count of the foreign-held rows.

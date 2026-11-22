@@ -21,7 +21,11 @@ This package owns:
   batch.
 - `ExecChunk`, `ChunkArgs`, `BatchSize` and the statement fragments.
 - `Execer` — the minimal `ExecContext` surface, so callers can pass a pool, a
-  connection, or a transaction.
+  connection, or a transaction. A handle that is neither a `db.Queryer` nor an
+  `OwnerProbeQueryer` turns the owner probe off: a short write through it is not
+  resolved to a foreign-held row.
+- The scope owner leg (#11213): `CheckOwned`, `CanProbeOwners`,
+  `OwnerConflictError` and its sample, and the closed writer labels.
 - `Now` and `CollectorKind` — the UTC write timestamp and the normalized
   collector-kind column value every fact writer stamps on its rows.
 
@@ -38,13 +42,18 @@ whether a batch runs inside a transaction and what happens when it fails.
 | `ExecChunk`, `ChunkArgs`, `BatchSize` | the unversioned chunk executor, its positional-argument builder, and the chunk-size bound |
 | `BatchInsertPrefix`, `BatchInsertSource`, `BatchInsertConflict`, `BatchInsertQuery` | the unversioned statement fragments and their composition |
 | `BatchInsertVersionedQuery` | the schema_version-carrying sibling statement |
-| `Execer` | the minimal `ExecContext` surface, so callers can pass a pool, a connection, or a transaction |
+| `Execer` | the minimal `ExecContext` surface, so callers can pass a pool, a connection, or a transaction; a handle that cannot query turns the owner probe off |
+| `CheckOwned` | classifies a single-row `SingleInsertQuery` result: zero rows affected is an `*OwnerConflictError` |
+| `CanProbeOwners`, `OwnerProbeQueryer` | whether a handle can run the shortfall probe, and the `QueryFactOwners` lender a transaction wrapper with another `QueryContext` shape implements |
+| `OwnerConflictError`, `OwnerConflictSample` | the typed, non-retryable refusal of a fact id another scope holds, and its bounded samples |
+| `OwnerConflictFailureClass`, `WriterSingle`, `WriterBatch`, `WriterVersioned` | the closed failure class and the closed `writer` label values |
 | `Now`, `CollectorKind` | the UTC-normalized write timestamp and the normalized collector-kind column value |
 
 ## Dependencies
 
-`context`, `database/sql` (through `Execer`'s `sql.Result` return), `fmt`, and
-`time`. It imports nothing from the reducer root and nothing from a
+`context`, `database/sql` (through `Execer`'s `sql.Result` return), `fmt`,
+`time`, and `internal/storage/postgres/db` (the `Queryer` and `Rows` contracts the
+owner probe reads through, #11213). It imports nothing from the reducer root and nothing from a
 domain-family subpackage — that direction is what keeps a family from having to
 import the root back.
 

@@ -43,7 +43,7 @@ func registerFactIDOwnerConflictInstruments(meter metric.Meter, inst *Instrument
 	var err error
 	if inst.FactIDScopeConflicts, err = meter.Int64Counter(
 		"eshu_dp_fact_id_scope_conflicts_total",
-		metric.WithDescription("Facts found by the streaming fact save whose fact_id is already held by another scope or generation, by reason (scope: the stored scope differs; generation: the scope matches and the generation differs) and writer (ingestion, reducer_single, reducer_batch, reducer_versioned) (#11203, #11213). Counted per conflicting fact found before the save stops at the first conflicting batch; the generation is refused (fact_id_owner_conflict), so any non-zero rate is a producer minting an id that omits scope or generation"),
+		metric.WithDescription("Facts whose fact_id is already held by another scope or generation, by reason (scope: the stored scope differs; generation: the scope matches and the generation differs) and writer (ingestion: the streaming fact save; reducer_single, reducer_batch, reducer_versioned: the reducer fact statements) (#11203, #11213). Counted per conflicting fact found. The ingestion save stops at the first conflicting batch and refuses the generation; a reducer write is refused and its intent dead-letters (fact_id_owner_conflict). Either way a non-zero rate is a producer minting an id that omits scope or generation"),
 		metric.WithUnit("{fact}"),
 	); err != nil {
 		return fmt.Errorf("register FactIDScopeConflicts counter: %w", err)

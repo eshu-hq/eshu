@@ -64,19 +64,32 @@ function hashes both, but the contract must not freeze a stable id).
 `TestOwnerLegDriftSeededViolations` pin both facts; the reducer root's frozen
 `reducerFactBatchInsert*ConflictGuard` constants pin the full clauses.
 
-A skipped row is reported, never counted as written. `CheckOwned` turns a
+A skipped row is reported, never counted as written, except on the container
+image identity atomic statements (below). `CheckOwned` turns a
 zero-rows-affected single insert into an `*OwnerConflictError`; `ExecChunk` and
 `execVersionedChunk` call `resolveShortfall`: a shortfall in rows affected is
 either a stale write the fencing predicate rightly skipped or a row another scope
 holds, and one primary-key probe (`foreignOwnersQuery`) tells them apart. The
-probe runs only on a shortfall and only when the handle is a `db.Queryer`, which
-every production handle is; the recording fakes of the writers' own tests are
-not, so they never probe. The error is non-retryable with failure class
+probe runs only on a shortfall and only when the handle is a `db.Queryer` or an
+`OwnerProbeQueryer` (`QueryFactOwners`, for a transaction wrapper whose own
+`QueryContext` has another shape). Every production write handle is one of the
+two, pinned by `TestFactOwnerWriteHandlesCanProbe` and
+`TestEveryTransactionWrapperIsAFactOwnerWriteHandle` in `storage/postgres`; the
+recording fakes of the writers' own tests are neither, so they never probe. The error is non-retryable with failure class
 `fact_id_owner_conflict`, so the intent dead-letters instead of retrying. The
 reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total` with the
 `writer` label (`reducer_single`, `reducer_batch`, `reducer_versioned`). Do not
 add a generation leg, do not swallow the error, and do not move the leg onto a
 statement whose caller derives work from `RETURNING`.
+
+**Not reported:** the container image identity atomic statements
+(`containerImageIdentityPublishAndLegacyCleanupQuery` for the last chunk, and the
+completed-cutover pair) compose `BatchInsertConflict`, so they carry the leg, but
+their rows affected count the legacy cleanup `DELETE` or return only a claim
+verdict. For a write of at most `BatchSize` rows a foreign-held row is skipped
+without a report. It cannot occur today: those ids hash scope and generation.
+The probe also runs after the write, so a foreign row deleted in between reads as
+a fenced skip. Both are known limits (`docs/internal/evidence/11213-fact-id-round2.md`).
 
 ## Failure modes
 
