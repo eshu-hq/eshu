@@ -53,28 +53,34 @@ column.
 
 | | Legacy table | Winners table |
 | --- | --- | --- |
-| Commit | `ca232f7a89` (runs 1 and 2) and `4903719505` (run 3) on `origin/main` `194d4abbd9` | the same |
+| Commit | `25c35c5c7d` (three runs, the final seed code) on `origin/main` `74bb28e1e7` | the same |
 | Corpus | 800 scopes, 150,000 nodes per label, 150,000 IaC facts, 2,500,000 shared intents, 20,000 finding facts | the same |
 | Backend | Neo4j | Neo4j |
-| Report sha256 | `4eb538610c25103364876c43aef0a5367a157ec34aa8d711f308cc443e525b3f`, `e9f1fd61e8c01a8f6cdf88b12d3277a944cc6e204329298f943bc9a4d0889d3b`, `210780a45ba0ec8200494d41572ff4aa3026c2166fd448b4614848809d3a74fb` | `36da1fe34fa4c46932a601c4a554fecb7d644b10e778b73e8312d625177179f1`, `e8848c595a042c182d3266af8763ddc7571145bf9b25b0fb3c469bc4b6eff661`, `2a2b0bfeb3c51ac98760889915deb0b7aabad2f48a7f7fa5d1450584f860e1b2` |
-| Accept flags | `--accept-drop 'MCP search_entity_content=#8682 ...'` and `--accept-regression 'MCP search_file_content=#10607 ...'`; the full text is in each table header and in the row's reason column | the same two flags (the winners table is rendered against the same committed baseline) |
+| Report sha256 | `7a8b4dddfe19a3beb0c5be5c9237b86eb09cea706a82ac12d116922757e9f615`, `73fbe265b839baeb2cd4717c93c2f3599033dafc4bec60e0d50d2c11fb4557b4`, `4bf73ee0df44709943ee47c10aceab4d2514614ed726e410330abbf7cb409e29` | `d2b91b6811c0d341f3317dccdfee066c655ba7c961e7951979f014c5cb92e12a`, `05bb84e318b473b2903b28d921fb28750eed37b85fdba1f32bf54013038daaa3`, `195f711c94f1baac4edf029cd481bae7622429bbc9759443f9de5668be7398ed` |
+| Accept flags | none: the ratchet needed none (against the committed table the entity row falls 5.5x, under the 20x drop factor, and no other row moved past a threshold) | none |
+
+The earlier acceptances (the entity row under #8682, the file-search row under
+#10607) were flags of the previous render; this render records them in header notes.
 
 ## The two content-search rows are a new fixture cohort
 
 [#8682](https://github.com/eshu-hq/eshu/issues/8682) (`29753641d7`, 2026-10-27)
 renamed the search seed repositories after the work table was last rendered
-(2026-10-20). `MCP search_entity_content` falls from 311,960 to 2,652 blocks
+(2026-10-20). `MCP search_entity_content` fell from 311,960 to 2,652 blocks
 because the pilot now finds its page in the first ordered probe. This is a
 fixture change, not a faster query, and the old and new numbers are not a
-before and after. The row now guards the dense first-probe path only; the
-continuation walk is not work-metered by this pilot. Its blocks varied across the
-separately seeded runs (396, 400, 642, 884 and 889, with identical calls and rows), so
-the budget is three times the maximum of the three reports it was derived from, 884. That is a known limit, not a feature:
-the budget is about 6.6 times the low mode (2,652 / 400), so the gate will not
-catch a regression of this row smaller than that factor when the row sits in the
-low mode. It is 2.2 times wider than the 1,200 blocks a low-mode-derived budget
-would have been. The cause of the two modes is not
-known; the follow-up issue is [#11224](https://github.com/eshu-hq/eshu/issues/11224).
+before and after. The row guards the dense first-probe path only; the
+continuation walk is not work-metered by this pilot.
+
+The 2,652 budget was derived from a row that read 396, 400, 642, 884 and 889
+blocks across five separately seeded runs, with identical calls and rows. The
+cause was the visibility map: the walk's second arm is an Index Only Scan, and
+how many heap pages it visited depended on how far autovacuum had got when the
+sweep began ([#11224](https://github.com/eshu-hq/eshu/issues/11224); see
+[Seed Notes](read-api-latency-gate-seed.md)). The seed now ends with
+`VACUUM (ANALYZE)`, and the row reads 157, 158 and 162 blocks in three
+separately seeded runs, so its budget is 486 (3 x 162). The 6.6x slack the wide
+budget carried is gone.
 
 `MCP search_file_content` rises from 798 to 1,740 blocks. The prefix change does
 not affect that route's ordering. Per statement, one request costs 14 calls, 29
@@ -113,6 +119,10 @@ topology, including the removed in-tree API's startup backfill, is gone.
   3 x 24,914 = 74,742.
 - `repositories/{repo_id}/story` calls (389 to 197): the route makes 33 + 38 + 60
   keyed `content_files` calls plus 3 others, for the 33 seeded story repositories.
+- `freshness/generations` (92,858 to 59,696 blocks, both legs): it reads 19,899
+  blocks in each of the three runs with the seed vacuum, against 30,953 in each of
+  the five runs before it. That is consistent with fewer heap fetches once the
+  visibility map is set; the plan was not checked, so it is a theory.
 - Every named row at the default row's floor (capabilities, the two
   collector-readiness rows, graph/entities, repositories, semantic-extraction,
   container-images identities count) and the floored counters of the others: the

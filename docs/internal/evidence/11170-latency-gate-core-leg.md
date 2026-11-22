@@ -340,3 +340,36 @@ tables the seed fills before that step and budgeted routes read,
 the list. The first calibration run on the seven-table version was stopped
 mid-seed, so it produced no reports and there is no before and after for those two
 tables; the later calibration reports are all from the nine-table version.
+
+## Calibration with the seed vacuum
+
+Three separately seeded full-corpus runs at `25c35c5c7d` (the seed ends with
+`VACUUM (ANALYZE)` over nine tables), each exit 0 on both legs: zero `HardFailed`,
+zero latency breaches, 77 of 128 routes exercised (floor 77), every named route
+exercised, byte-identical findings. No metered counter moved more than 10% across
+the three runs, on either leg. io pressure avg60 ranged from 14 to 42 across the runs
+(shared, noisy host). The winners rebuild logged `inserted=4000`, the count the seed now
+asserts.
+
+| Row | Before the vacuum (five runs) | With the vacuum (three runs) |
+| --- | --- | --- |
+| `MCP search_entity_content` blocks | 396, 400, 642, 884, 889 | 157, 158, 162 |
+| `MCP search_file_content` blocks | 580 in each | 580 in each |
+| `infra/resources/count` blocks | 24,912 to 24,914 | 24,913 |
+| `iac/resources` blocks | 24,974 to 24,976 | 24,975 |
+| `supply-chain/impact/*` legacy / winners blocks | 102,546 / 801 | 102,546 / 801 |
+| `freshness/generations` blocks | 30,953 in each | 19,899 in each |
+
+The entity walk now reads 157 blocks: the 32 of the vacuumed Index Only Scan plus
+the 125 of the readiness probes and the auth lookup, which is what the #11224
+probe predicted. The seed vacuums the two read-model tables the infra, iac and
+impact routes read as well; their blocks did not change, as expected for routes
+that scan the table, so the table list costs nothing there and removes a dependence
+on autovacuum timing. `freshness/generations` fell by a third; that is consistent
+with the visibility map but the plan was not checked.
+
+Rendered against the committed tables (each baselined on its own copy), neither
+table needed an accept flag: the entity row falls 2,652 to 486 (5.5x, under the 20x
+drop factor), and only that row and `freshness/generations` (92,858 to 59,696)
+moved more than 25% on either leg. The header notes keep the history of the two
+earlier acceptances (#8682, #10607) and of the bimodal row.
