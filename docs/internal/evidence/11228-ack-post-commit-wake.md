@@ -172,8 +172,11 @@ producer-terminal waits, with the production
 
 The backstop-exit probe (`selectBackstopClaimWaitRowsQuery`) adds no
 statement to a healthy reducer claim: it runs only when a claimed row of a
-parking class has `visible_at` past `reopened_at`, which a woken row never
-has. When it runs, it reads the `reducer_waiting_items` primary key by its
+parking class has `visible_at` past `reopened_at`. A wake that stamps both
+columns with the wake time leaves them equal, so such a row sends no
+statement. The winners watermark wake is the exception: its `reopened_at`
+is the covering watermark, so its claim sends one probe that finds no wait
+row (the wake deleted it) and counts nothing. When the probe runs, it reads the `reducer_waiting_items` primary key by its
 leading column. Shim on postgres:18.6 with 20,000 wait rows: 1 candidate is
 an index-only scan on `reducer_waiting_items_pkey`, 4 buffers, 0.026 ms. 8
 candidates are a bitmap index scan on the same key, 18 buffers, 0.023 to
@@ -200,9 +203,12 @@ production schema.
   - `backstop`: the reducer `Claim` or `ClaimBatch` took the row at its
     10-minute backstop with its wait row still present. The probe runs only
     for claimed rows of a parking class whose `visible_at` is past their
-    `reopened_at`. Every wake sets both to the wake time, so a woken row,
-    including one woken on one key while a sibling key's wait row survives,
-    sends no statement. The probe reads the `reducer_waiting_items` primary
+    `reopened_at`. A wake that stamps both columns with the wake time
+    leaves them equal, so a row it woke, including one woken on one key
+    while a sibling key's wait row survives, sends no statement. The
+    winners watermark wake is the exception (`reopened_at` is the covering
+    watermark): its claim sends one probe that finds no wait row and
+    counts nothing. The probe reads the `reducer_waiting_items` primary
     key after the claim committed. A failure logs WARN and never fails the
     claim.
   - `reconciled`: the queue row already left the set-aside and the audit

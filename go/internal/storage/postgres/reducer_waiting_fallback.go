@@ -64,11 +64,15 @@ SELECT DISTINCT work_item_id FROM reducer_waiting_items WHERE work_item_id = ANY
 // backstopClaimCandidates returns the claimed intents that may have left
 // the set-aside through the 10-minute backstop: a parking class from the
 // waiting registry rode the claim, and the row's visible_at is later than
-// its reopened_at. Every wake (in-tx, post-commit, audit, park re-check)
-// sets both to the wake time, so a woken row, including one woken on one
-// key while a sibling key's wait row survives, has them equal; a parked
-// row the backstop released still carries the park's visible_at (park time
-// plus WaitingBackstopDelay).
+// its reopened_at. A wake that stamps both columns with the wake time
+// (in-tx, post-commit, audit, park re-check) leaves them equal, so a row it
+// woke, including one woken on one key while a sibling key's wait row
+// survives, sends no statement. The winners watermark wake is the
+// documented exception: its reopened_at is the covering watermark, earlier
+// than visible_at, so its claim sends one primary-key probe that finds no
+// wait row (that wake deletes it) and counts nothing. A parked row the
+// backstop released still carries the park's visible_at (park time plus
+// WaitingBackstopDelay).
 func backstopClaimCandidates(intents []reducercontract.Intent) []reducercontract.Intent {
 	var candidates []reducercontract.Intent
 	for _, intent := range intents {
