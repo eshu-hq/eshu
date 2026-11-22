@@ -164,6 +164,11 @@ tests:
     class: postgres_ci
     reason: "#10876 waiting-wake proofs: a deferred intent parks with the 10-minute backstop instead of the backoff delay, past-maxAttempts Fail cycles never count and never dead-letter, both claim orders converge on byte-equal terminal state, and the audit reopens a planted satisfied wait within its bound; disposable database per test, about 30 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_narrow_interleave_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 deterministic interleaving of a narrowed wait park against the in-flight activation wake on the production schema"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_narrow_live_test.go
     tag: ~
     class: postgres_ci

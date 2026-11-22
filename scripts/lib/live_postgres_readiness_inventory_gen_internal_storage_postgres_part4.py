@@ -124,6 +124,9 @@ TABLE = {
             "TestWaitingBothOrdersEquivalenceLive",
             "TestWaitingAuditFindsMissedWakeLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_narrow_interleave_live_test.go": (
+            "TestWaitParkDuringInFlightActivationIsWokenLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_narrow_live_test.go": (
             "TestNarrowedWaitSelectiveWakeLive",
             "TestNarrowedWaitAuditReopensSatisfiedLive",
