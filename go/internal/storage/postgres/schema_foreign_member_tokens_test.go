@@ -17,7 +17,7 @@ import (
 // a new index, and a new migration, proven again with the F1 shape matrix and
 // a whole-fixture identity scan. Do not update this digest to make a test
 // pass.
-const foreignMemberTokensBodySHA256 = "f27cf0276991ca3faf9ab96a436dd3699e02427a064ffe3d989f0a1d0216bb90"
+const foreignMemberTokensBodySHA256 = "db39c3bcbd8aaec6f4be881b0773b0c616556a3376b8bc40a235ed6bf1849363"
 
 // foreignMemberTokensBody returns the text between the function's dollar
 // quotes, exactly what PostgreSQL stores in pg_proc.prosrc.

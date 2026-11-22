@@ -52,8 +52,10 @@ func HolderKeyRanges() []HolderKeyRange {
 }
 
 // HolderReadStatement is one statement of a key-range holder read: its read
-// kind (telemetry.FanOutReadKindHoldersKeyRange), how long it ran, and its
-// error, if any. The handler records each into the fan-out read-duration histogram.
+// kind (telemetry.FanOutReadKindHoldersKeyRange, or
+// telemetry.FanOutReadKindHolders for the one fallback statement of
+// HolderKeyRangeRead.Fallback), how long it ran, and its error, if any. The
+// handler records each into the fan-out read-duration histogram.
 type HolderReadStatement struct {
 	Kind string
 	// Range is the statement's 1-based index in its HolderKeyRanges read.
@@ -68,7 +70,8 @@ const keyRangeStatementLogMessage = "supply chain impact holder key-range statem
 
 // fanOutHolderSlowStatement is the per-statement bar of the holder read
 // (p95 under 2 s, #10643): a key-range statement at or over it is reported
-// by noteKeyRangeStatement.
+// by noteKeyRangeStatement, which also reports every failed or fallback
+// statement.
 const fanOutHolderSlowStatement = 2 * time.Second
 
 // lookupHoldsNonCVEID reports whether ids hold any id without the CVE- prefix,
@@ -103,8 +106,10 @@ type HolderKeyRangeRead struct {
 // transaction, so they share one snapshot and their union equals
 // FindHolderScopes for that id on that snapshot, a generation flip mid-read
 // included. Each statement keeps the 10 s holder-read guard and the typed
-// timeout error. A port without the seam keeps the shipped singleton
-// statement.
+// timeout error. A lookup id over 1,024 bytes has no foreign-member token,
+// so such a read runs the shipped singleton statement on the same snapshot
+// and reports HolderKeyRangeRead.Fallback (#10643 PR 2, ruling 10643m). A
+// port without the seam keeps the shipped singleton statement.
 type HolderKeyRangeReader interface {
 	// FindHolderScopesByKeyRange returns the scopes, other than ownScopeID,
 	// holding an active finding row for lookupIDs, read as one statement per

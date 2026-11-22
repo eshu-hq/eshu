@@ -73,6 +73,11 @@ const HolderMemberTokenMaxBytes = 1024
 // HolderLookupExceedsTokenBytes reports whether any of lookupIDs is longer
 // than HolderMemberTokenMaxBytes bytes, so no token can match it.
 func HolderLookupExceedsTokenBytes(lookupIDs []string) bool {
+	for _, id := range lookupIDs {
+		if len(id) > HolderMemberTokenMaxBytes {
+			return true
+		}
+	}
 	return false
 }
 
@@ -172,6 +177,12 @@ const setHolderKeyRangeSnapshotQuery = `SET TRANSACTION ISOLATION LEVEL REPEATAB
 // at most len(ranges) statement timeouts. An empty ranges is an error: no
 // statement would read the member arm. The returned read lists every
 // statement that ran, including a failed last one.
+//
+// A lookup set holding an id over HolderMemberTokenMaxBytes bytes cannot be
+// read through tokens: the token function never stores one for it (arbiter
+// ruling 10643m). The whole read then runs the shipped holder statement
+// (FindSupplyChainImpactHoldersQuery, kind telemetry.FanOutReadKindHolders,
+// range 1) in the same transaction, builds no token, and sets read.Fallback.
 func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	ctx context.Context,
 	ownScopeID string,
@@ -205,11 +216,6 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		return read, fmt.Errorf("set supply chain impact holder key-range timeout: %w", err)
 	}
 	_ = rows.Close()
-	rows, err = tx.QueryContext(ctx, setHolderKeyRangePlanModeQuery, HolderKeyRangePlanCacheMode)
-	if err != nil {
-		return read, fmt.Errorf("set supply chain impact holder key-range plan mode: %w", err)
-	}
-	_ = rows.Close()
 	seen := make(map[string]struct{})
 	run := func(rangeIndex int, kind, query string, args ...any) error {
 		start := time.Now()
@@ -223,6 +229,19 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		}
 		return nil
 	}
+	if HolderLookupExceedsTokenBytes(lookupIDs) {
+		read.Fallback = true
+		if err := run(1, telemetry.FanOutReadKindHolders, FindSupplyChainImpactHoldersQuery, lookupIDs, ownScopeID); err != nil {
+			return read, fmt.Errorf("%s fallback statement for a lookup id over %d bytes: %w", telemetry.FanOutReadKindHolders, HolderMemberTokenMaxBytes, err)
+		}
+		read.Scopes = sortedScopes(seen)
+		return read, nil
+	}
+	rows, err = tx.QueryContext(ctx, setHolderKeyRangePlanModeQuery, HolderKeyRangePlanCacheMode)
+	if err != nil {
+		return read, fmt.Errorf("set supply chain impact holder key-range plan mode: %w", err)
+	}
+	_ = rows.Close()
 	for i, keyRange := range ranges {
 		var err error
 		tokens := HolderMemberTokens(lookupIDs, i, len(ranges))
@@ -237,12 +256,18 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 			return read, fmt.Errorf("%s statement %d of %d: %w", telemetry.FanOutReadKindHoldersKeyRange, i+1, len(ranges), err)
 		}
 	}
-	read.Scopes = make([]string, 0, len(seen))
-	for id := range seen {
-		read.Scopes = append(read.Scopes, id)
-	}
-	sort.Strings(read.Scopes)
+	read.Scopes = sortedScopes(seen)
 	return read, nil
+}
+
+// sortedScopes returns the scope ids of seen in order.
+func sortedScopes(seen map[string]struct{}) []string {
+	scopes := make([]string, 0, len(seen))
+	for id := range seen {
+		scopes = append(scopes, id)
+	}
+	sort.Strings(scopes)
+	return scopes
 }
 
 // queryScopeIDs runs one scope-id statement on tx and classifies a timeout

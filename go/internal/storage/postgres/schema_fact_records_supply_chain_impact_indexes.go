@@ -72,12 +72,21 @@ const SupplyChainImpactForeignMemberTokensIndex = "fact_records_sci_foreign_memb
 // bucket is strpos('0123456789abcdef', right(fact_id, 1)): 1 to 16 for a
 // lower-case hex last character, 0 for any other. The members value is read
 // once; missing, JSON null, number and boolean return NULL before any
-// subquery, which keeps the per-row write cost low.
+// subquery (the CASE has no ELSE), which keeps the per-row write cost low.
 //
-// The body is frozen: an index is built on it, so altering it would leave
-// stored entries that the new body no longer produces. A change is a new
-// versioned function, a new index and a new migration, proven again with the
-// F1 shape matrix and a whole-fixture identity scan. CREATE OR REPLACE with
+// The function is total: it tokenizes a string only when octet_length is at
+// most HolderMemberTokenMaxBytes (1,024 bytes; arbiter ruling 10643m). A GIN
+// array_ops entry cannot exceed 2,712 bytes, so an untruncated token of a
+// longer member would fail the finding insert ("index row size ... exceeds
+// maximum 2712"). It mirrors jsonb ?| for strings up to 1,024 bytes; longer
+// strings are not tokenized, and a read whose lookup ids include one uses the
+// shipped statement (HolderLookupExceedsTokenBytes). No hash and no
+// truncation: either would need a recheck against the payload.
+//
+// The body is frozen once released: an index is built on it, so altering it
+// would leave stored entries that the new body no longer produces. A change
+// is a new versioned function, a new index and a new migration, proven again
+// with the F1 shape matrix and a whole-fixture identity scan. CREATE OR REPLACE with
 // the same body keeps the migration re-runnable; the body digest is pinned
 // by TestForeignMemberTokensFunctionIsTheFrozenV4 and, as stored in
 // pg_proc, by TestHolderKeyRangeTokenIndexValidFromMigrationsLive.
@@ -92,6 +101,7 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
                    strpos('0123456789abcdef', right(p_fact_id, 1))::text AS b) AS o,
            jsonb_array_elements(m.v) AS e
       WHERE jsonb_typeof(e) = 'string'
+        AND octet_length(e #>> '{}') <= 1024
         AND (e #>> '{}') IS DISTINCT FROM o.c
         AND (e #>> '{}') IS DISTINCT FROM o.a)
     WHEN 'object' THEN (
@@ -99,10 +109,12 @@ LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
       FROM (SELECT p_payload->>'cve_id' AS c, p_payload->>'advisory_id' AS a,
                    strpos('0123456789abcdef', right(p_fact_id, 1))::text AS b) AS o,
            jsonb_object_keys(m.v) AS k
-      WHERE k IS DISTINCT FROM o.c
+      WHERE octet_length(k) <= 1024
+        AND k IS DISTINCT FROM o.c
         AND k IS DISTINCT FROM o.a)
     WHEN 'string' THEN (
-      SELECT CASE WHEN z.s IS DISTINCT FROM (p_payload->>'cve_id') AND z.s IS DISTINCT FROM (p_payload->>'advisory_id')
+      SELECT CASE WHEN octet_length(z.s) <= 1024
+                   AND z.s IS DISTINCT FROM (p_payload->>'cve_id') AND z.s IS DISTINCT FROM (p_payload->>'advisory_id')
                   THEN ARRAY[strpos('0123456789abcdef', right(p_fact_id, 1))::text || ':' || z.s] END
       FROM (SELECT m.v #>> '{}' AS s) AS z)
   END

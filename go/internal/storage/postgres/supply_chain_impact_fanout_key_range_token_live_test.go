@@ -16,7 +16,7 @@ import (
 // keyRangeTokenBodySHA256 is the frozen v4 body digest, the same pin as
 // foreignMemberTokensBodySHA256 in schema_foreign_member_tokens_test.go,
 // checked here against what the migrations stored in pg_proc.prosrc.
-const keyRangeTokenBodySHA256 = "f27cf0276991ca3faf9ab96a436dd3699e02427a064ffe3d989f0a1d0216bb90"
+const keyRangeTokenBodySHA256 = "db39c3bcbd8aaec6f4be881b0773b0c616556a3376b8bc40a235ed6bf1849363"
 
 // keyRangeArrayOnlyFunction is the array-only token function (v2 of the
 // shim, docs/internal/evidence/10643-foreign-member-token-index.md), created by the tests only as a seeded

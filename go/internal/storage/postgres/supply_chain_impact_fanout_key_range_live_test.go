@@ -276,7 +276,9 @@ VALUES ($1 || '/g9', $1, 'synthetic', now(), now(), 'pending', now(), '{}'::json
 // status index, which has no cve_id column and reads a fact_id slice of every
 // finding row (keyRangePlanViolation). The
 // seeded RED is the generic plan: it cannot see the bounds and reads the
-// range through fact_records_pkey, which is why the store pins the mode.
+// range through fact_records_pkey, which is why the store pins the mode. The
+// open statement (the last range, tokens on $4) is pinned the same way, with
+// the lower bound only (keyRangeOpenPlanViolation).
 func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 	ctx, sqldb := fanOutLiveDB(t)
 	keyRangeSeed(t, ctx, sqldb)
@@ -316,6 +318,28 @@ func TestHolderKeyRangeStatementPlanLive(t *testing.T) {
 	if !strings.Contains(generic, "fact_records_pkey") {
 		t.Fatalf("seeded RED: the generic plan no longer reads fact_records_pkey; re-check why the store pins %s:\n%s",
 			postgres.HolderKeyRangePlanCacheMode, generic)
+	}
+
+	// The open statement, the last range with its tokens on $4, under the
+	// same pinned mode: lower bound only on the btree arms, and the same
+	// token arm on the token index with no fact_id bound.
+	last := ranges[len(ranges)-1]
+	var lastTokens []string
+	for _, token := range postgres.HolderMemberTokens([]string{keyRangeHot}, len(ranges)-1, len(ranges)) {
+		lastTokens = append(lastTokens, keyRangeLiteral(token))
+	}
+	if _, err := conn.ExecContext(ctx, `SELECT set_config('plan_cache_mode', $1, false)`, postgres.HolderKeyRangePlanCacheMode); err != nil {
+		t.Fatalf("plan_cache_mode: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, `PREPARE kr_open(text[], text, text, text[]) AS `+postgres.FindSupplyChainImpactHolderOpenKeyRangeQuery); err != nil {
+		t.Fatalf("prepare open: %v", err)
+	}
+	defer func() { _, _ = conn.ExecContext(ctx, `DEALLOCATE kr_open`) }()
+	open := keyRangeExplain(t, ctx, conn, `EXPLAIN (ANALYZE, BUFFERS) EXECUTE kr_open(ARRAY[`+
+		keyRangeLiteral(keyRangeHot)+`], `+keyRangeLiteral(keyRangeOwn)+`, `+keyRangeLiteral(last.Lower)+
+		`, ARRAY[`+strings.Join(lastTokens, ", ")+`]::text[])`)
+	if why := keyRangeOpenPlanViolation(open); why != "" {
+		t.Fatalf("pinned open-statement plan: %s:\n%s", why, open)
 	}
 }
 

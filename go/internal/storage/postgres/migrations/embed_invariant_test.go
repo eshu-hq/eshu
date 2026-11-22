@@ -357,9 +357,11 @@ import (
 // the frozen foreign-member token function and its concurrent GIN index
 // (numbered 336/337, the next free numbers after main's 333-335). Count 363
 // is main's 361 plus the pair; the digest is this test's own derivation on
-// the rebased tree.
+// the rebased tree, derived again red-first when 336 gained the 1,024-byte
+// token bound before release (review F1, arbiter ruling 10643m; count
+// unchanged).
 const (
-	goldenBootstrapDefinitionsDigest = "fcf30261aa5dba89f0454468a8860305a5bc93b2321b69ce925bd408a5f28b7a"
+	goldenBootstrapDefinitionsDigest = "d8c72bf67c1246c2d4c364e443d7cc03cadf5a502dfb45147e0df0a01930e4a6"
 	goldenBootstrapDefinitionsCount  = 363
 )
 

@@ -238,9 +238,20 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
 				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
 				nonCVE := lookupHoldsNonCVEID(stmt.ids)
+				count := len(ranges)
+				if read.Fallback {
+					// One shipped statement ran instead of the key ranges
+					// (a lookup id over 1,024 bytes, arbiter ruling 10643m).
+					count = 1
+					mu.Lock()
+					stats.keyRangedIDs--
+					stats.keyRangeStatements -= len(ranges)
+					stats.statements -= len(ranges) - 1
+					mu.Unlock()
+				}
 				for _, done := range read.Statements {
 					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
-					h.noteKeyRangeStatement(ctx, done, len(ranges), nonCVE)
+					h.noteKeyRangeStatement(ctx, done, count, nonCVE, read.Fallback)
 				}
 				found = read.Scopes
 			} else {

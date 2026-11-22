@@ -2,7 +2,7 @@
 
 Refs #10643, epic #10860, serving #11147. Follows PR 1
 ([key ranges](10643-holder-read-bound.md)). Ruling records:
-[10643d to 10643k](../arbiter/10643-holder-read-bound-rulings-2026-11-21.md#10643d-to-10643k-the-token-index).
+[10643d to 10643m](../arbiter/10643-holder-read-bound-rulings-2026-11-21.md#10643d-to-10643m-the-token-index).
 
 PR 1 bounded the cve_id and advisory_id arms of a hot id's holder read. It left
 the advisory-group member arm as one statement on the lossy GIN members index.
@@ -19,7 +19,9 @@ after deploy is met (below).
   matches on `provenance.advisory_group_members` that is not the row's own
   `cve_id` or `advisory_id`. Those strings are the string elements of a
   top-level array, the keys of a top-level object, and a top-level string
-  scalar. It returns NULL when no such string remains. The bucket is
+  scalar. Only strings of at most 1,024 bytes (`octet_length`) become
+  tokens (review finding F1, below). It returns NULL when no such string
+  remains. The bucket is
   `strpos('0123456789abcdef', right(fact_id, 1))`, 1 to 16 for a lower-case
   hex last character and 0 for any other. It does not use md5, which fails on
   FIPS PostgreSQL.
@@ -33,6 +35,10 @@ after deploy is met (below).
   $N::text[]`, with no fact_id bound. `HolderMemberTokens` binds statement 1
   to buckets 0 and 1 and statement k to bucket k. The separate member-arm
   statement is gone: a hot read is 16 statements, not 17, on one snapshot.
+- A lookup set holding an id over 1,024 bytes (`HolderLookupExceedsTokenBytes`)
+  reads as the shipped holder statement in the same transaction (kind
+  `holders`, range 1 of 1), builds no token, and sets
+  `HolderKeyRangeRead.Fallback`.
 - Not changed: the non-hot path (the shipped single statement and the old
   members index), the mass probe (#11166), the cve_id and advisory_id arms,
   and the snapshot, plan mode, guard and timeout classification of PR 1.
@@ -48,6 +54,16 @@ once. All 16 run in one read-only REPEATABLE READ transaction, so their union
 equals the shipped statement on that snapshot. The bucket does not need to
 match the statement's fact_id range: the result is the union.
 
+Long strings. The function mirrors jsonb `?|` for strings up to 1,024 bytes;
+longer strings are not tokenized and such lookups use the shipped statement.
+A member equal to a lookup id of at most 1,024 bytes is at most 1,024 bytes
+too, so it carries its token and the token arm finds it. A longer lookup id
+never reaches the token arm: the whole read falls back, and the shipped
+statement matches it with `?|`. The union equals the shipped statement in
+both cases. Bytes, not characters: 1,024 four-byte characters would be 4,096
+bytes. Go's `len` and PostgreSQL's `octet_length` count the same bytes on a
+UTF-8 database, which is how Eshu's databases are created.
+
 The function mirrors `?|`. An array-only function loses object-valued and
 string-scalar members, which `?|` matches (fixture edge 309). The writer
 stores only arrays today (`core/provenance.go`), and the proof does not rest
@@ -55,15 +71,20 @@ on that.
 
 ## Function text and versioning
 
-The body is the lane's `func4.sql` byte for byte. Its sha256 is
-`f27cf0276991ca3faf9ab96a436dd3699e02427a064ffe3d989f0a1d0216bb90`, pinned
+The body's sha256 is
+`db39c3bcbd8aaec6f4be881b0773b0c616556a3376b8bc40a235ed6bf1849363`, pinned
 on the Go constant (`TestForeignMemberTokensFunctionIsTheFrozenV4`) and on
 `pg_proc.prosrc` after the migrations
-(`TestHolderKeyRangeTokenIndexValidFromMigrationsLive`). The body is never
-altered after release. A change needs a new function name, a new index, a
-new migration, the F1 matrix and a whole-fixture identity scan against v4.
-The migration uses `CREATE OR REPLACE` with the same body only so that the
-local supervisor can re-apply it.
+(`TestHolderKeyRangeTokenIndexValidFromMigrationsLive`). It is the text of
+the T proofs (sha256
+`f27cf0276991ca3faf9ab96a436dd3699e02427a064ffe3d989f0a1d0216bb90`) with one
+`octet_length(...) <= 1024` test in each branch. That change came before
+release, under ruling 10643m, so the name stays v4 and migration 336 was
+re-pinned; no deployment ever held the first text. The body is never altered
+after release. A change then needs a new function name, a new index, a new
+migration, the F1 matrix and a whole-fixture identity scan against v4. The
+migration uses `CREATE OR REPLACE` with the same body only so that the local
+supervisor can re-apply it.
 
 ## Migration and deploy order
 
@@ -93,8 +114,11 @@ local supervisor can re-apply it.
 
 ## Tests in this change
 
-Each test failed first (RED commit `dbf4328953`). The live tests ran on a
-disposable postgres:18.6.
+Each test failed first, in the RED commits "drive(10643): RED tests for the
+foreign-member token arm (PR 2)", "drive(10643): RED for key-range statement
+signals (arbiter 10643l)" and "drive(10643): RED for the token byte bound and
+the long-id fallback (arbiter 10643m)". The live tests ran on a disposable
+postgres:18.6.
 
 | Test | Proves |
 |---|---|
@@ -103,10 +127,14 @@ disposable postgres:18.6.
 | `TestForeignMemberTokensFunctionIsTheFrozenV4` | the name, signature, attributes and body digest; the bucket alphabet in all three branches |
 | `TestForeignMemberTokensMigrationsMatchTheGoDDL` | the migrations carry the Go DDL byte for byte; the function sorts first; the index migration is one concurrent statement |
 | `TestHolderKeyRangeTokenIndexValidFromMigrationsLive` | the function stored as v4 and the index valid from the migration path |
-| `TestHolderKeyRangeTokenShapeMatrixLive` | F1: 840 cells, 840 agree, 112 true, 14 shapes; the array-only RED disagrees |
+| `TestHolderKeyRangeTokenShapeMatrixLive` | F1: 1,944 cells (18 shapes, 9 ids), all agree with `?` for ids of at most 1,024 bytes, 172 true; `?` matches a longer id in 60 cells and the function tokenizes none; the array-only RED disagrees |
+| `TestHolderKeyRangeTokenLongMemberInsertLive` | a finding with a 3,200-byte incompressible foreign member inserts with the index present, as an array element, an object key and a scalar; the short member of the array row keeps its token |
+| `TestHolderKeyRangeTokenLengthBoundaryLive` | 1,024 bytes tokenized and 1,025 not, ASCII; 512 two-byte characters tokenized and 513 not; 256 four-byte characters tokenized; array, object and scalar |
+| `TestHolderKeyRangeLongLookupFallsBackLive` | a long id falls back (one `holders` statement) and finds its holder; a short member of the same row is found by the token arm; a mixed set falls back whole; each equals `FindHolderScopes`; the token statements alone lose the long-id holder |
+| `TestHolderLookupExceedsTokenBytesCountsBytes` | the fallback decision counts bytes: 1,024 and 1,025 ASCII, 512 and 513 two-byte, 256 four-byte, a mixed set |
 | `TestHolderKeyRangeTokenAgreementLive` | Go lookup tokens against SQL stored tokens for 20 last characters (16 hex digits, `A`, `Z`, `é`, `日`), colon members, object keys, a scalar, prefix look-alikes and own keys |
 | `TestHolderKeyRangeTokenReadMatchesShippedLive` | the differential against `FindHolderScopes`, through the store and through the shipped constants, and three REDs (below) |
-| `TestHolderKeyRangeStatementPlanLive` | the pinned custom plan: the token arm is a Bitmap Index Scan on the token index with `&&` in the Index Cond and no fact_id bound |
+| `TestHolderKeyRangeStatementPlanLive` | the pinned custom plan, for the mid-range bounded statement and for the open statement (last range, tokens on `$4`): the token arm is a Bitmap Index Scan on the token index with `&&` in the Index Cond and no fact_id bound; the open statement's btree arms carry the lower bound only |
 | `TestKeyRangePlanViolationShapes` | the plan checker refuses a missing token arm, the lossy members index, a token heap filter, and a token fact_id bound |
 
 The differential seeds cover the object, scalar, NULL `cve_id`, NULL
@@ -129,7 +157,7 @@ Lane pr2-t measured these on a local PostgreSQL 18.6 fixture: 1,008,010
   and F4).
 - Identity: v4 equals v3 on all 997,633 live finding rows (0 differ), and v3
   differs from the array-only v2 on exactly the two non-array seeds.
-- F1 on v4: 840 of 840.
+- F1 on the first v4 text: 840 of 840.
 - T2: the seeded live agreement test, and the corpus bucket range (0 tokens
   outside 0 to 16).
 - T3 plan, generic and custom: the member arm uses the token index with 0
@@ -150,6 +178,36 @@ Lane pr2-t measured these on a local PostgreSQL 18.6 fixture: 1,008,010
   #9432 cutover.
 - Index size on the fixture: 2,301,952 bytes for 93,563 token rows. The build
   took 96 s.
+
+## Review finding F1: the 1,024-byte bound
+
+The independent review found that a GIN `array_ops` entry cannot exceed
+2,712 bytes. The first v4 text emitted each full member string as an entry,
+so a finding whose foreign member was 3,200 incompressible bytes failed its
+insert with `index row size 3216 exceeds maximum 2712`; the old `jsonb_ops`
+members index accepts it. A function inside an index on the busiest table
+must be total (ruling 10643m). The fix tokenizes only strings of at most
+1,024 bytes, with no hash and no truncation, and routes a read with a longer
+lookup id to the shipped statement.
+
+- RED: the three insert shapes failed on the first text with the reviewer's
+  error; the boundary, matrix and fallback tests failed too.
+- S1, identity: the new text against the first v4 text over the kept fixture
+  corpus, 997,633 live finding rows, 0 differ, 93,563 rows with tokens under
+  both. The fixture holds no member over 1,024 bytes, so the index content,
+  and with it the T3 plans and block counts, is unchanged.
+- Cost: the single-backend function shim (50,000 rows, 2 warm and 7 timed
+  rounds, alternating order, minimum of 7): first text 872.102 ms, new text
+  902.336 ms, ratio 1.035; net of the members-extraction baseline (125.534
+  ms), 14.93 against 15.54 us per row, ratio 1.040. The bar is 1.10. The
+  host load average was 31 to 71 during the run.
+- Carried: T3 (plans rerun by `TestHolderKeyRangeStatementPlanLive`), T4r
+  and the K1 acceptance. One length test per string does not move a cost
+  accepted at about 1 percent of QA's write time.
+- Not in this change: a length bound on advisory identifiers and aliases at
+  the reducer's intake. A `cve_id` or `advisory_id` that long already fails
+  the existing btree indexes. That is #11248, deferred under ruling 10643m;
+  any insert failure whose message contains `index row size` reopens it.
 
 ## Write cost, as measured
 
@@ -224,23 +282,29 @@ The QA bar after deploy follows. It is NOT_CHECKED here.
 ## Performance and observability
 
 Performance Evidence: the fixture T3 counts above (cost A 0.9663, B1 0.9667,
-B2 3,185 <= 5,031 blocks) and the T4r write rows. No wall-time claim is made
+B2 3,185 <= 5,031 blocks), the T4r write rows, and the F1 function shim
+(new text 1.035 times the first v4 text per row, 1.040 net). No wall-time claim is made
 locally; the QA bar after deploy is the wall-time truth.
 
 Observability Evidence: each key-range statement, the token arm included, is
 one sample of `eshu_dp_supply_chain_impact_fanout_read_duration_seconds{kind="holders_key_range"}`,
-and the whole read is `kind="holders_key_range_read"`. A timeout counts on
+and the whole read is `kind="holders_key_range_read"`. A fallback statement
+is one sample of `kind="holders"`. A timeout counts on
 `eshu_dp_supply_chain_impact_fanout_total{outcome="read_timeout",site="holders"}`
 and names the statement index in the dead-letter message. `holders_members`
 is retired. `fanout_holder_statements` now counts 16 per hot id, not 17.
 One statement cannot be timed by arm (ruling 10643l). Instead, a key-range
-statement that fails or runs at or over the 2 s bar adds the
-`holder_key_range_statement` event on the `supply_chain_impact.fanout` span
-and the warn log `supply chain impact holder key-range statement slow or
-failed`. Both carry `range_index` (1 to 16), `range_count`, `non_cve_lookup`
-(the lookup set held a non-CVE id, so the token arm was in play), `kind`,
-`outcome` and `duration_seconds` (`noteKeyRangeStatement`, pinned by
-`TestKeyRangeStatementSignalsNameTheRangeAndLookupKind`).
+read statement that fails, runs at or over the 2 s bar, or is the fallback
+adds the `holder_key_range_statement` event on the `supply_chain_impact.fanout`
+span and the warn log `supply chain impact holder key-range statement slow or
+failed`. Both carry `kind`, `range_index` (1 to 16), `range_count`,
+`non_cve_lookup` (the lookup set held a non-CVE id, so the token arm was in
+play), `fallback` (the read ran the shipped statement for a lookup id over
+1,024 bytes; it always reports, as `kind=holders`, range 1 of 1), `outcome`
+and `duration_seconds` (`noteKeyRangeStatement`, pinned by
+`TestKeyRangeStatementSignalsNameTheRangeAndLookupKind`, which asserts every
+field and the exact 2 s case). A fallback read counts one holder statement
+and no key-range statement or key-ranged id (`TestKeyRangeFallbackCountsWhatRan`).
 
 ## Unverified
 

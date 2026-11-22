@@ -88,7 +88,7 @@ Will not do, both rulings: raise the 10 s guard; lower parallelism from 4;
 cap or skip the member arm; read members on a second snapshot; close #10643
 on the key-range PR; authorize the dead-letter replay.
 
-## 10643d to 10643k: the token index
+## 10643d to 10643m: the token index
 
 These rulings (2026-11-21 and 2026-11-22) took candidate T from theory to the
 shipped change. Evidence: `../evidence/10643-foreign-member-token-index.md`.
@@ -116,6 +116,20 @@ shipped change. Evidence: `../evidence/10643-foreign-member-token-index.md`.
   percent (K1 tier 1; K2 2.88 percent of one core at 280 rows per second).
   The change ships v4. The text must not claim the change reduces primary
   load.
+
+- 10643l: one key-range statement cannot be timed by arm, so a slow (2 s
+  bar) or failed statement adds a span event and a warn log naming its range
+  and whether the lookup set held a non-CVE id.
+- 10643m (review finding F1): a GIN `array_ops` entry cannot exceed 2,712
+  bytes, so v4 as first written failed a finding insert on a 3,200-byte
+  foreign member (`index row size 3216 exceeds maximum 2712`). The function
+  must be total: it tokenizes a string only up to 1,024 bytes
+  (`octet_length`), with no hash and no truncation, and a read whose lookup
+  ids include a longer one uses the shipped statement, flagged by a
+  `fallback` boolean. The text changed before release, so it keeps the v4
+  name; S1 against the first v4 text and the single-backend benchmark were
+  rerun. A length bound on advisory identifiers at intake is #11248,
+  deferred, reopened by any insert failure containing `index row size`.
 
 The order of merges is unchanged: the key-range PR, the token index, #11147,
 #11159. #10643 closes only after the QA bar after deploy holds.

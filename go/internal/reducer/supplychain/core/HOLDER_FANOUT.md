@@ -82,9 +82,11 @@ rules, the outcomes, and the open residual are in
 - The member arm of a hot read (#10643 PR 2) rides in each key-range
   statement as a third arm: the frozen function
   `eshu_sci_foreign_member_tokens_v4` tokens each foreign member (not an own
-  key) as `bucket:member`, a partial GIN index (migrations 336, 337) serves
-  `&&`, and statement k asks bucket k (statement 1 also bucket 0). Proof:
-  `docs/internal/evidence/10643-foreign-member-token-index.md`.
+  key) of at most 1,024 bytes as `bucket:member`, a partial GIN index
+  (migrations 336, 337) serves `&&`, and statement k asks bucket k (statement
+  1 also bucket 0). A lookup id over 1,024 bytes has no token, so that read
+  runs the shipped statement instead (`fallback` on the statement signal).
+  Proof: `docs/internal/evidence/10643-foreign-member-token-index.md`.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the
