@@ -112,8 +112,8 @@ func (q *stagedScriptReader) QueryContext(ctx context.Context, query string, arg
 		}}, nil
 	case strings.Contains(query, "supply_chain_impact_canonical_winners"):
 		return &stagedScriptRows{rows: [][]any{
-			{"k1", "f1", "s1", "fid1", 5, 2, "", "", "", "repo1", "cve1", "adv1", "pkg1", "dig1", "", "", "", "", "", "active", nil, "[]", "[]", "[]", "{}", ""},
-			{"k2", "f0", "s0", "fid0", 1, 1, "", "", "", "repo2", "cve2", "adv2", "pkg2", "dig2", "", "", "", "", "", "active", nil, "[]", "[]", "[]", "{}", ""},
+			{"k1", "f1", "s1", "fid1", 5, 2, "", "", "", "repo1", "cve1", "adv1", "pkg1", "dig1", "", "", "", "", "", "active", nil, "[]", "[]", "[]"},
+			{"k2", "f0", "s0", "fid0", 1, 1, "", "", "", "repo2", "cve2", "adv2", "pkg2", "dig2", "", "", "", "", "", "active", nil, "[]", "[]", "[]"},
 		}}, nil
 	case strings.Contains(query, "fact.fact_id = $1"):
 		id, _ := args[0].(string)

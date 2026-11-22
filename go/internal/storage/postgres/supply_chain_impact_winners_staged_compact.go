@@ -56,9 +56,10 @@ type StagedOverride struct {
 	SuppressionState    string
 }
 
-// StoredWinner carries every content column the FULL JOIN ROW(...) IS
-// DISTINCT FROM ROW(...) comparison reads: the canonical key plus every
-// entry of supplyChainImpactWinnerDataColumns in table order.
+// StoredWinner carries the stored winner columns the staged audit reads: the
+// canonical key plus every entry of supplyChainImpactWinnerDataColumns in
+// table order except the payload and source_confidence columns, which the
+// staged diff never reads (it pins wide fields by winner_fact_id).
 type StoredWinner struct {
 	CanonicalKey         string
 	WinnerFactID         string
@@ -84,8 +85,6 @@ type StoredWinner struct {
 	ServiceIDs           string
 	WorkloadIDs          string
 	Environments         string
-	Payload              string
-	SourceConfidence     string
 }
 
 // StagedCompactionOverBudgetError marks a batch or tick that tripped a
@@ -328,10 +327,12 @@ func (c *StagedCompactor) DistinctKeys() int {
 	return union
 }
 
-// stagedStoredWinnersSQL fetches every column the FULL JOIN ROW(...)
-// comparison reads: the canonical key plus every content column of
-// supply_chain_impact_canonical_winners in table order.
-const stagedStoredWinnersSQL = `SELECT canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score, source_count, impact_status, ecosystem, severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket, detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at, service_ids, workload_ids, environments, payload, source_confidence FROM supply_chain_impact_canonical_winners ORDER BY canonical_key ASC`
+// stagedStoredWinnersSQL fetches the canonical key plus the columns the
+// staged audit reads: the narrow fields DiffCandidates compares and the
+// identity fields ResolveCandidateIdents reads. It deliberately leaves out
+// the payload JSONB and source_confidence (#10880): no staged code reads
+// them, and selecting payload would detoast every winner each tick.
+const stagedStoredWinnersSQL = `SELECT canonical_key, winner_fact_id, winner_scope_id, finding_id, priority_score, source_count, impact_status, ecosystem, severity_bucket, repository_id, cve_id, advisory_id, package_id, subject_digest, image_ref, priority_bucket, detection_profile, observed_version, match_reason, suppression_state, suppression_expires_at, service_ids, workload_ids, environments FROM supply_chain_impact_canonical_winners ORDER BY canonical_key ASC`
 
 // FetchStoredWinners reads the whole stored winners table into a per-key map.
 // The table is the bounded read-model size the distinct-keys cap already
@@ -348,7 +349,7 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 	stored := make(map[string]StoredWinner)
 	for rows.Next() {
 		var winner StoredWinner
-		var serviceIDs, workloadIDs, environments, payload []byte
+		var serviceIDs, workloadIDs, environments []byte
 		if err := rows.Scan(
 			&winner.CanonicalKey, &winner.WinnerFactID, &winner.WinnerScopeID,
 			&winner.FindingID, &winner.PriorityScore, &winner.SourceCount,
@@ -358,15 +359,13 @@ func FetchStoredWinners(ctx context.Context, reader db.Queryer) (map[string]Stor
 			&winner.PriorityBucket, &winner.DetectionProfile,
 			&winner.ObservedVersion, &winner.MatchReason,
 			&winner.SuppressionState, &winner.SuppressionExpiresAt,
-			&serviceIDs, &workloadIDs, &environments, &payload,
-			&winner.SourceConfidence,
+			&serviceIDs, &workloadIDs, &environments,
 		); err != nil {
 			return nil, fmt.Errorf("scan stored winner: %w", err)
 		}
 		winner.ServiceIDs = string(serviceIDs)
 		winner.WorkloadIDs = string(workloadIDs)
 		winner.Environments = string(environments)
-		winner.Payload = string(payload)
 		stored[winner.CanonicalKey] = winner
 	}
 	if err := rows.Err(); err != nil {

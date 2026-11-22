@@ -49,8 +49,13 @@ func TestWinnersPayloadColumnsCarried(t *testing.T) {
 			t.Errorf("migration 331 missing %q", want)
 		}
 	}
-	if !strings.Contains(stagedStoredWinnersSQL, "environments, payload, source_confidence") {
-		t.Error("staged stored-winners read omits payload/source_confidence")
+	// The staged audit compares only narrow fields and pins wide fields by
+	// winner_fact_id (DiffCandidates), so its every-tick stored-winners read
+	// must not detoast the payload JSONB or carry source_confidence.
+	for _, banned := range []string{"payload", "source_confidence"} {
+		if strings.Contains(stagedStoredWinnersSQL, banned) {
+			t.Errorf("staged stored-winners read selects %q; no staged code reads it", banned)
+		}
 	}
 }
 
