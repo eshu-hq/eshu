@@ -61,6 +61,12 @@ const (
 	SupplyChainImpactSupportsBackfillStepFailed = "failed"
 )
 
+// supplyChainImpactSupportsBackfillStepBuckets spans a step from a few
+// milliseconds (an idle marker read) to the minute a very large chunk under
+// contention could take, since an operator reads the tail as how long a writer
+// may wait on the backfill's advisory lock.
+var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -99,6 +105,7 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		"eshu_dp_supply_chain_impact_supports_backfill_step_duration_seconds",
 		metric.WithDescription("Wall time of one per-support backfill step, by outcome. A step holds one scope-and-generation advisory lock for at most one chunk, so the tail is the longest a writer can wait on the backfill."),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsBackfillStepBuckets...),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsBackfillStepDuration histogram: %w", err)
 	}
