@@ -20,6 +20,7 @@ This package sequences one range per `AuditWinners` call.
   a range, never truncate one, never count a range as a completed audit.
 - A behavior change starts from a failing test: the unit fakes in
   `tick_test.go` (scripted corpus, in-memory cursor with the compare-and-set)
+  and `tick_paths_test.go` (failing store, probe, and read paths; logging)
   and the live proofs in `internal/storage/postgres`
   (`supply_chain_impact_winners_audit_*_live_test.go`).
 - Keep one log line per range and one per completed sweep.
