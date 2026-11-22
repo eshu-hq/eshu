@@ -25,7 +25,10 @@ const reducerAdmissionBackoffCap = 10 * time.Second
 // admissionDepthHolder is the process-wide queue-depth read of the reducer
 // admission gate (#11233). Every admission decision takes each depth signal
 // from here: a held value no older than the current window, or the result of
-// the one read in flight. Concurrent callers never issue concurrent reads.
+// the one read in flight. Concurrent callers share one read in flight; the
+// one overlap is a read whose last waiter left: it is cancelled and
+// forgotten, and its statement can still run on the server (bounded by the
+// Postgres cancel latency) while the next caller starts a fresh one.
 //
 // The window is the max age A (one poll interval) while the gate admits. While
 // it defers, the window is the backoff, which grows per deferred read from the
@@ -146,10 +149,14 @@ func (h *admissionDepthHolder) recordAge(ctx context.Context, readAt time.Time) 
 }
 
 // deferred advances the backoff once per new read that deferred and returns
-// how long the waiter should sleep: until the value it deferred on leaves the
-// window, so the next decision reads again. A value already past the window
-// (a read slower than the window) sleeps one poll interval, so a slow read
-// never turns into back-to-back reads.
+// how long the waiter should sleep: until the value it deferred on is
+// strictly past the window, so the next decision reads again. The window is
+// inclusive (a value exactly window old is still held), so the wake lands one
+// nanosecond past it; waking on the boundary would take the held value, defer
+// again and lose one poll interval per step, which breaks the admit bound.
+// A value already past that instant (a read slower than the window) sleeps
+// one poll interval, so a slow read never turns into back-to-back reads and
+// the sleep is never zero.
 func (h *admissionDepthHolder) deferred(ctx context.Context, seq uint64, readAt time.Time) time.Duration {
 	h.mu.Lock()
 	changed := false
@@ -170,7 +177,7 @@ func (h *admissionDepthHolder) deferred(ctx context.Context, seq uint64, readAt 
 	if changed {
 		h.recordBackoff(ctx, window)
 	}
-	sleep := readAt.Add(window).Sub(h.now())
+	sleep := readAt.Add(window + time.Nanosecond).Sub(h.now())
 	if sleep <= 0 {
 		sleep = h.pollInterval
 	}
