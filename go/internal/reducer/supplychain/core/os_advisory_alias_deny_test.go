@@ -230,3 +230,25 @@ func TestAliasCutLoadWithoutDenyKeepsIndexUntouched(t *testing.T) {
 		t.Fatalf("aliasStats = %+v, want empty on a cut pass with no deny list", index.aliasStats)
 	}
 }
+
+// TestAliasDenyDropsRecordlessObservationWhenNoRecordExists pins the same
+// contract on a complete pass whose observations all lack an AdvisoryID: no
+// record is built, yet a recordless observation naming a listed id still
+// goes away.
+func TestAliasDenyDropsRecordlessObservationWhenNoRecordExists(t *testing.T) {
+	t.Parallel()
+
+	config := aliasDenyConfig(t, "CVE-2026-9003")
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{FactID: "bare-denied", CVEID: "CVE-2026-9003"},
+			{FactID: "bare-kept", CVEID: "CVE-2026-9002"},
+		},
+	}
+
+	groupOSAdvisoriesByAlias(index, config)
+
+	if kept := aliasDenyCVEIDs(index); len(kept) != 1 || kept[0] != "CVE-2026-9002" {
+		t.Fatalf("index.cves = %v, want only CVE-2026-9002: the recordless denied observation must drop", kept)
+	}
+}

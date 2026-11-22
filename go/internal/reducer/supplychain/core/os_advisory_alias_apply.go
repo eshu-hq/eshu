@@ -44,31 +44,7 @@ func applyAliasGroups(
 	for i := range records {
 		byAdvisory[records[i].advisoryID] = i
 	}
-	// A denied record and everything keyed to it leaves the index: the
-	// record contributes no observation, package, product, or edge. A
-	// recordless observation (empty AdvisoryID, so aliasGroupRecords built
-	// no record for it) keeps its place unless it names a listed id
-	// itself, so deny never sweeps recordless evidence outright. The lists
-	// ship empty, so a pass with no denials keeps the index as is.
-	if len(config.deny) > 0 {
-		kept := make([]supplychainmodel.ImpactCVE, 0, len(index.cves))
-		for _, cve := range index.cves {
-			if cve.UpstreamCopy {
-				kept = append(kept, cve)
-				continue
-			}
-			if idx, ok := byAdvisory[cve.AdvisoryID]; ok {
-				if aliasRecordDenied(records[idx], config) {
-					continue
-				}
-			} else if aliasObservationDenied(cve, config) {
-				continue
-			}
-			kept = append(kept, cve)
-		}
-		index.cves = kept
-		dropAliasDeniedEvidence(index, records, byAdvisory, config)
-	}
+	dropAliasDeniedRecords(index, records, byAdvisory, config)
 	// Classify every record in place: its outcome lives on the record, so
 	// the relabel and move steps below read one advisory->index lookup and
 	// no outcome map. Component membership is root -> record indexes.
@@ -138,6 +114,62 @@ func applyAliasGroups(
 	}
 	sources := mergeAliasGroupRiskSignals(index, components, grouped)
 	recordAliasGroupOutcomes(index, records, components, grouped, sources)
+}
+
+// dropAliasDeniedRecords applies the deny list to the index: a denied record
+// and everything keyed to it leaves the index, so the record contributes no
+// observation, package, product, or edge. A recordless observation (empty
+// AdvisoryID, so aliasGroupRecords built no record for it) keeps its place
+// unless it names a listed id itself, so deny never sweeps recordless
+// evidence outright. The lists ship empty, so a pass with no denials keeps
+// the index as is. Complete and cut passes share it: the deny list holds on
+// every pass (#11111).
+func dropAliasDeniedRecords(
+	index *supplyChainImpactIndex,
+	records []aliasGroupRecord,
+	byAdvisory map[string]int,
+	config supplyChainAliasGroupConfig,
+) {
+	if len(config.deny) == 0 {
+		return
+	}
+	kept := make([]supplychainmodel.ImpactCVE, 0, len(index.cves))
+	for _, cve := range index.cves {
+		if cve.UpstreamCopy {
+			kept = append(kept, cve)
+			continue
+		}
+		if idx, ok := byAdvisory[cve.AdvisoryID]; ok {
+			if aliasRecordDenied(records[idx], config) {
+				continue
+			}
+		} else if aliasObservationDenied(cve, config) {
+			continue
+		}
+		kept = append(kept, cve)
+	}
+	index.cves = kept
+	dropAliasDeniedEvidence(index, records, byAdvisory, config)
+}
+
+// applyAliasDenyOnly is the deny sweep of a cut-load pass: grouping stays
+// off because the alias graph may be partial, but a deny list still drops
+// the records it names and counts them under the "denied" result. No record
+// is grouped, rekeyed, or quarantined.
+func applyAliasDenyOnly(
+	index *supplyChainImpactIndex,
+	records []aliasGroupRecord,
+	config supplyChainAliasGroupConfig,
+	stats *supplyChainAliasGroupStats,
+) {
+	byAdvisory := make(map[string]int, len(records))
+	for i := range records {
+		byAdvisory[records[i].advisoryID] = i
+		if aliasRecordDenied(records[i], config) {
+			stats.cells[supplyChainAliasGroupKey{result: aliasGroupResultDenied}]++
+		}
+	}
+	dropAliasDeniedRecords(index, records, byAdvisory, config)
 }
 
 // aliasComponentOutcome classifies one component: grouped with its group id,
