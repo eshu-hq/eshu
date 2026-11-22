@@ -31,17 +31,77 @@ WHERE locktype = 'advisory' AND granted
 	return count
 }
 
-// openTransactions counts the sessions of this database inside a transaction
-// other than the counting one.
-func openTransactions(ctx context.Context, t *testing.T, db *sql.DB) int {
+// openTransactions lists the client sessions of this database inside a
+// transaction other than the listing one. It reads every session in a
+// transaction and keeps the client backends (clientTransactions), so an
+// autovacuum or parallel worker never counts (#11227); a caller that finds any
+// prints them with describeSessions.
+func openTransactions(ctx context.Context, t *testing.T, db *sql.DB) []sessionActivity {
 	t.Helper()
-	var count int
-	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM pg_stat_activity
-WHERE datname = current_database() AND pid <> pg_backend_pid() AND xact_start IS NOT NULL`).Scan(&count); err != nil {
+	rows, err := db.QueryContext(ctx, `
+SELECT pid, coalesce(backend_type, ''), coalesce(application_name, ''), coalesce(state, '')
+FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND xact_start IS NOT NULL
+ORDER BY pid`)
+	if err != nil {
 		t.Fatalf("read open transactions: %v", err)
 	}
-	return count
+	defer func() { _ = rows.Close() }()
+	var all []sessionActivity
+	for rows.Next() {
+		var row sessionActivity
+		if err := rows.Scan(&row.PID, &row.BackendType, &row.ApplicationName, &row.State); err != nil {
+			t.Fatalf("scan open transaction: %v", err)
+		}
+		all = append(all, row)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("read open transactions: %v", err)
+	}
+	return clientTransactions(all)
+}
+
+// proveOpenTransactionsProbe seeds the probe before the derive runs: a second
+// client connection inside a transaction must be counted and named, and a
+// second client connection outside a transaction must not.
+func proveOpenTransactionsProbe(ctx context.Context, t *testing.T, db *sql.DB) {
+	t.Helper()
+	if got := openTransactions(ctx, t, db); len(got) != 0 {
+		t.Fatalf("before seeding: open client transactions = %s; want none", describeSessions(got))
+	}
+	idle, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open idle client connection: %v", err)
+	}
+	defer func() { _ = idle.Close() }()
+	holder, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open holder client connection: %v", err)
+	}
+	defer func() { _ = holder.Close() }()
+	tx, err := holder.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin holder transaction: %v", err)
+	}
+	// A failed assertion below exits through t.Fatalf; the deferred rollback
+	// frees the connection first, so holder.Close does not wait on an open
+	// transaction.
+	defer func() { _ = tx.Rollback() }()
+	// SET LOCAL ends with the transaction, so the pooled connection never
+	// carries the name after holder.Close returns it.
+	if _, err := tx.ExecContext(ctx, `SET LOCAL application_name = 'derive-probe-holder'`); err != nil {
+		t.Fatalf("name holder transaction: %v", err)
+	}
+	if _, err := tx.ExecContext(ctx, `SELECT 1`); err != nil {
+		t.Fatalf("hold holder transaction: %v", err)
+	}
+	got := openTransactions(ctx, t, db)
+	if err := tx.Rollback(); err != nil {
+		t.Fatalf("roll back holder transaction: %v", err)
+	}
+	if len(got) != 1 || got[0].ApplicationName != "derive-probe-holder" || got[0].BackendType != clientBackendType {
+		t.Fatalf("seeded probe = %s; want exactly the holder client session", describeSessions(got))
+	}
 }
 
 // TestDeriveReadsVersionBeforeListLive: a content write that commits between
@@ -87,8 +147,10 @@ func TestDeriveReadsVersionBeforeListLive(t *testing.T) {
 func TestDeriveHoldsTheLockOnlyInStepThreeLive(t *testing.T) {
 	ctx, db := openDatabase(t)
 	putFile(ctx, t, db, "repo-a", "docker-compose.yml", composeBody(1))
+	proveOpenTransactionsProbe(ctx, t, db)
 
-	var duringLoad, duringLoadTx, duringWrite int
+	var duringLoad, duringWrite int
+	var duringLoadTx []sessionActivity
 	deriver := newLiveDeriver(t, db, testExtractorVersion)
 	artifacts.SetDeriveHooks(deriver, artifacts.DeriveHooks{
 		Load: func(ctx context.Context, reader contentartifacts.Reader, repo contentartifacts.Repository, files []contentartifacts.File, hasFileList bool, allowance int) ([]map[string]any, contentartifacts.ReadStats, error) {
@@ -104,8 +166,9 @@ func TestDeriveHoldsTheLockOnlyInStepThreeLive(t *testing.T) {
 	if result.Outcome != artifacts.OutcomeOK {
 		t.Fatalf("derive = %+v, want ok", result)
 	}
-	if duringLoad != 0 || duringLoadTx != 0 {
-		t.Fatalf("during step 2: %d advisory locks, %d open transactions; want 0, 0", duringLoad, duringLoadTx)
+	if duringLoad != 0 || len(duringLoadTx) != 0 {
+		t.Fatalf("during step 2: %d advisory locks, %d open client transactions; want 0, 0; sessions: %s",
+			duringLoad, len(duringLoadTx), describeSessions(duringLoadTx))
 	}
 	if duringWrite != 1 {
 		t.Fatalf("during step 3: %d advisory locks, want 1", duringWrite)
