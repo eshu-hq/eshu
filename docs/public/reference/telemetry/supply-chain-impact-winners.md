@@ -85,6 +85,19 @@ exactly up to 50,000 rows. Past that, `remaining` is the visible seq span, an
 upper bound, and `remaining_upper_bound` is `true`. The oldest capture time the
 stamp uses is always exact.
 
+When the chunk applies only part of an activation's scope row, the tick turns
+the unapplied rest into fact rows and deletes the scope row in the same
+transaction (#11145). Each converted row keeps the scope row's capture time, and
+merging into a fact row that is already queued keeps the earlier time. The
+horizon therefore stays under that activation's scope mark until every one of
+its identifiers is applied. A conversion does not wake a `winners_watermark`
+waiter enqueued after the activation early (the staging collapse has a
+separate late-commit gap, #11149), and `dirty_log_oldest_age_seconds` keeps
+reporting the activation's real age while it drains. The commit log line
+carries `remainder_rows_converted`, and
+`eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total`
+counts the rows.
+
 An audit runs beside the keyed ticks every
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL` (default 10 minutes; `0`
 turns it off). It recomputes the whole table without taking the resweep lock,
@@ -249,6 +262,7 @@ and `sub_signal_rekey_rows_tombstoned`.
 | `eshu_dp_supply_chain_impact_winners_staging_oldest_age_seconds` | gauge | none | Age of the oldest staged row at the last tick this instance sampled, 0 when the queue is empty. It bounds how long a capture can sit before the collapse folds it in. |
 | `eshu_dp_supply_chain_impact_winners_staging_depth_upper_bound` | gauge | none | 1 when the last `staging_depth` sample, and the `dirty_log_depth` that includes it, is an upper bound: past one collapse budget (50,000 staged rows) the sample reports the visible seq span instead of counting the whole queue (#11129). 0 when the depth is exact. The age gauges are exact either way. |
 | `eshu_dp_supply_chain_impact_winners_staging_collapsed_rows_total` | counter | none | Staged rows one keyed tick collapsed into the dirty log: the seq-bounded delete count, so one collapsed group counts every mark it combined. |
+| `eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total` | counter | none | Dirty-log fact rows a keyed tick wrote (inserted, or merged into a queued row) when it converted the unapplied remainder of a partly applied scope row (#11145). The rows keep the scope row's capture time, so while any is queued the watermark stays under that activation's scope mark. Recorded before the tick commits, so it includes a tick that later rolls back. |
 | `eshu_dp_supply_chain_impact_winners_write_conflicts_total` | counter | `site`, `failure_class` | Writer and tick statements the database aborted with a deadlock (`40P01`) or a serialization failure (`40001`) (#10851). `site` is `writer_capture` (the capture statement), `writer_commit` (the writer transaction commit) or `tick` (any keyed-tick phase, including the collapse, the settle and the tick commit); `failure_class` is `deadlock` or `serialization_failure`. The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it. Steady state is zero; a rising rate names the contending site. |
 | `eshu_dp_supply_chain_impact_winners_rows_total` | counter | `action` | Rows a committed resweep handled. `action` is `inserted`, `updated`, `deleted` or `unchanged`. Only the first three write a row version. |
 | `eshu_dp_supply_chain_impact_winners_resweep_skipped_total` | counter | none | Resweeps that found another in flight, so wrote and stamped nothing. A resweep can only overlap another after outlasting the lease TTL, so any rate means statements run past 60 seconds. |
@@ -375,6 +389,12 @@ No label carries a canonical key, scope, repository, or CVE.
   tick cadence while the drain runs; if the watermark age keeps climbing while
   the depth falls, ticks are not committing (check the failure log line and the
   `supply_chain_impact_winners` lease) — that climb is a stall, not the drain.
+- A rising `scope_remainder_converted_rows_total` with a flat watermark and a
+  `dirty_log_oldest_age_seconds` that keeps growing means a large activation is
+  draining over bounded ticks. The watermark is held at that activation's scope
+  mark on purpose (#11145): advisory waits enqueued after the activation stay
+  parked until its winners are applied. If `dirty_log_depth` falls tick by tick,
+  this is the drain, not a stall.
 - During a mixed-version rollout, an older reducer pod does not capture the
   impact writer's own changes (`fact_upsert`, `fact_retract`), while the
   database triggers still capture pointer, delete and scanner changes. A winner

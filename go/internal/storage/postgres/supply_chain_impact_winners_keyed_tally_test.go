@@ -59,7 +59,7 @@ func TestWinnersConvertSelectDerivesFromShippedConvert(t *testing.T) {
 	if !strings.Contains(convertWinnersKeyedScopeRemainderSQL, convertWinnersKeyedScopeRemainderSelectSQL) {
 		t.Error("convert SELECT arm is not contained verbatim in the shipped convert upsert: the plan proof would explain a different join")
 	}
-	if !strings.HasSuffix(strings.TrimSpace(convertWinnersKeyedScopeRemainderSQL), "DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1") {
+	if !strings.HasSuffix(strings.TrimSpace(convertWinnersKeyedScopeRemainderSQL), "captured_at = LEAST(supply_chain_impact_winners_dirty_log.captured_at, EXCLUDED.captured_at)") {
 		t.Error("shipped convert does not end with the versioned-upsert conflict tail")
 	}
 	if !strings.HasPrefix(strings.TrimSpace(convertWinnersKeyedScopeRemainderSQL), "INSERT INTO supply_chain_impact_winners_dirty_log") {

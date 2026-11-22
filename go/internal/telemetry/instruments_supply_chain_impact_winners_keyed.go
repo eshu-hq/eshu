@@ -309,6 +309,12 @@ func registerSupplyChainImpactWinnersKeyedInstruments(meter metric.Meter, inst *
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactWinnersStagingCollapsed counter: %w", err)
 	}
+	if inst.SupplyChainImpactWinnersScopeRemainderConverted, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_winners_scope_remainder_converted_rows_total",
+		metric.WithDescription("Supply-chain impact winners dirty-log fact rows a keyed tick wrote (inserted or merged) when it converted the unapplied remainder of a partly applied scope row. Each converted row keeps its scope row's capture time, so while any is queued the watermark stays under that activation's scope mark: a rising rate with a flat watermark means a large activation is draining over bounded ticks."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactWinnersScopeRemainderConverted counter: %w", err)
+	}
 	if inst.SupplyChainImpactWinnersWriteConflicts, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_winners_write_conflicts_total",
 		metric.WithDescription("Supply-chain impact winners writer and tick statements the database aborted with a deadlock (40P01) or a serialization failure (40001), by site (writer_capture, writer_commit, tick) and failure_class (deadlock, serialization_failure). The counter classifies the victim only: nothing retries, the transaction rolls back and the queue re-drives it."),
@@ -378,6 +384,16 @@ func (i *Instruments) RecordSupplyChainImpactWinnersStagingCollapsed(ctx context
 		return
 	}
 	i.SupplyChainImpactWinnersStagingCollapsed.Add(ctx, rows)
+}
+
+// RecordSupplyChainImpactWinnersScopeRemainderConverted counts the dirty-log
+// fact rows one keyed tick's scope-remainder convert wrote (#11145). A zero or
+// negative count records nothing. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactWinnersScopeRemainderConverted(ctx context.Context, rows int64) {
+	if i == nil || i.SupplyChainImpactWinnersScopeRemainderConverted == nil || rows <= 0 {
+		return
+	}
+	i.SupplyChainImpactWinnersScopeRemainderConverted.Add(ctx, rows)
 }
 
 // RecordSupplyChainImpactWinnersWriteConflict counts one writer or tick

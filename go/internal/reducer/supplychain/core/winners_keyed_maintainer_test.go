@@ -471,7 +471,7 @@ func TestWinnersMaintainerBoundedTickSpanAndLogFields(t *testing.T) {
 	spans := tracetest.NewSpanRecorder()
 	rebuilder := &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
 		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
-		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130,
+		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130, ScopeRemainderConverted: 5,
 	}}
 	m := SupplyChainImpactWinnersMaintainer{
 		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
@@ -506,7 +506,7 @@ func TestWinnersMaintainerBoundedTickSpanAndLogFields(t *testing.T) {
 	}
 	line := logs.String()
 	for _, want := range []string{
-		`"bounded":true`, `"remaining":7`, `"chunk_identifiers":10`, `"chunk_kept_rows":130`,
+		`"bounded":true`, `"remaining":7`, `"chunk_identifiers":10`, `"chunk_kept_rows":130`, `"remainder_rows_converted":5`,
 	} {
 		if !strings.Contains(line, want) {
 			t.Errorf("log line %q is missing %s", line, want)

@@ -3,6 +3,13 @@
 
 package postgres
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
 // Versioned settle of the supply-chain impact winners dirty log (#10827 R2:
 // Global Key-Ordered Versioned Upsert, #10851 transaction-global).
 //
@@ -66,8 +73,20 @@ func winnersDirtyKeyOrderClause(alias string) string {
 // marked the same key while the tick ran, so a plain INSERT could violate
 // the versioned unique indexes; ON CONFLICT bumps the version instead and
 // the SELECT's key order keeps the conversion's lock acquisition in the
-// global order. Converted remainder rows carry a fresh conversion-time
-// captured_at, so they can only raise a later horizon, never lower this one.
+// global order.
+//
+// #11145: a converted remainder row carries the captured_at of the scope row
+// it came from (MIN over the scope rows that name the key), and a conflict
+// with a queued fact row keeps the earlier of the two (LEAST). The horizon is
+// the residual set's earliest capture minus 1us, so the watermark stays under
+// the scope mark until every identifier of that activation is applied. A
+// fresh conversion-time capture would let the horizon pass the scope mark
+// with remainder winners still stale, and the in-transaction
+// winners_watermark wake would reopen a waiter that depends on the
+// activation too early. Carrying the earlier capture also keeps the
+// remainder's age in the oldest-first identifier chunk within the admitted
+// window (window admission is by seq, and a converted row takes a fresh seq)
+// and keeps dirty_log_oldest_age_seconds reporting the activation's real age.
 //
 // convertWinnersKeyedScopeRemainderSelectSQL is the read-only SELECT arm of
 // the convert below, key order included: plan proofs EXPLAIN this arm
@@ -90,7 +109,7 @@ WITH chunk_applied AS MATERIALIZED (
       ON (chunk.package_id, chunk.repository_id, chunk.subject_digest, chunk.c0, chunk.advisory_id)
        = (si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id)
 )
-SELECT 'fact', MIN(c.source), si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id
+SELECT 'fact', MIN(c.source), si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_id, MIN(c.captured_at)
 FROM ` + winnersKeyedConsumedTable + ` AS c
 JOIN ` + winnersKeyedScopeIdentsTable + ` AS si
   ON si.scope_id = c.scope_id AND si.generation_id = c.generation_id
@@ -106,10 +125,32 @@ ORDER BY si.package_id, si.repository_id, si.subject_digest, si.c0, si.advisory_
 
 var convertWinnersKeyedScopeRemainderSQL = `
 INSERT INTO supply_chain_impact_winners_dirty_log
-    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id)` + convertWinnersKeyedScopeRemainderSelectSQL + `
+    (kind, source, package_id, repository_id, subject_digest, c0, advisory_id, captured_at)` + convertWinnersKeyedScopeRemainderSelectSQL + `
 ON CONFLICT (package_id, repository_id, subject_digest, c0, advisory_id) WHERE kind = 'fact'
-DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1
+DO UPDATE SET dirty_version = supply_chain_impact_winners_dirty_log.dirty_version + 1,
+    captured_at = LEAST(supply_chain_impact_winners_dirty_log.captured_at, EXCLUDED.captured_at)
 `
+
+// convertWinnersKeyedScopeRemainder runs convertWinnersKeyedScopeRemainderSQL
+// in the tick transaction and returns the fact rows it wrote, inserted or
+// merged into a queued row (#11145: the scope_remainder_converted_rows_total
+// signal). A driver that cannot report affected rows yields 0, never an
+// error: the count is telemetry, and the conversion itself already
+// succeeded.
+func convertWinnersKeyedScopeRemainder(ctx context.Context, tx db.Transaction) (int64, error) {
+	result, err := tx.ExecContext(ctx, convertWinnersKeyedScopeRemainderSQL)
+	if err != nil {
+		return 0, fmt.Errorf("convert supply chain impact winners scope remainder: %w", err)
+	}
+	if result == nil {
+		return 0, nil
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return n, nil
+}
 
 // deleteWinnersKeyedAppliedDirtySQL deletes exactly the admitted dirty rows
 // this chunk applied, in one lock-then-delete statement, and tallies them by

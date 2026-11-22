@@ -20,10 +20,10 @@ import (
 )
 
 // phaseFakeResult is the sql.Result of the fake transaction's Exec statements.
-type phaseFakeResult struct{}
+type phaseFakeResult struct{ rows int64 }
 
-func (phaseFakeResult) LastInsertId() (int64, error) { return 0, nil }
-func (phaseFakeResult) RowsAffected() (int64, error) { return 0, nil }
+func (phaseFakeResult) LastInsertId() (int64, error)   { return 0, nil }
+func (r phaseFakeResult) RowsAffected() (int64, error) { return r.rows, nil }
 
 // phaseFakeRows is one scripted row (or none) for a QueryContext statement.
 type phaseFakeRows struct {
@@ -94,6 +94,8 @@ type phaseFakeTx struct {
 	// contract is the stored (version, hash) row the #11117 re-read sees;
 	// nil reports a matching contract.
 	contract []any
+	// affected scripts RowsAffected per Exec statement (the convert count).
+	affected map[string]int64
 }
 
 func (tx *phaseFakeTx) step(query string) error {
@@ -109,7 +111,7 @@ func (tx *phaseFakeTx) ExecContext(_ context.Context, query string, _ ...any) (s
 		return nil, err
 	}
 	tx.queries = append(tx.queries, query)
-	return phaseFakeResult{}, nil
+	return phaseFakeResult{rows: tx.affected[query]}, nil
 }
 
 func (tx *phaseFakeTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {

@@ -125,6 +125,11 @@ type SupplyChainImpactWinnersResweep struct {
 	RemainingUpperBound bool
 	ChunkIdentifiers    int64
 	ChunkKeptRows       int64
+	// ScopeRemainderConverted is the dirty-log fact rows a keyed tick wrote
+	// when it converted the unapplied remainder of a partly applied scope
+	// row (#11145). Each keeps the scope row's capture time, so the
+	// watermark holds under that scope mark while any is queued.
+	ScopeRemainderConverted int64
 	// Watermark is the watermark the tick committed: the DB-clock tick stamp
 	// on a drained tick, the horizon over the remainder on a bounded one, the
 	// DB clock capped under the residual marks on a full resweep (#11117),
@@ -455,5 +460,6 @@ func (m SupplyChainImpactWinnersMaintainer) emitResweep(
 		slog.Bool("remaining_upper_bound", r.RemainingUpperBound),
 		slog.Int64("chunk_identifiers", r.ChunkIdentifiers),
 		slog.Int64("chunk_kept_rows", r.ChunkKeptRows),
+		slog.Int64("remainder_rows_converted", r.ScopeRemainderConverted),
 	)
 }
