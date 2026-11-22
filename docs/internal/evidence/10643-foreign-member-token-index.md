@@ -89,8 +89,8 @@ supervisor can re-apply it.
 ## Migration and deploy order
 
 - `336_eshu_sci_foreign_member_tokens_v4.sql` creates the function. It is
-  catalog-only and takes no table lock. 333 is held by the #10882 lane and
-  335 is taken on main (#11131 audit sweep); the gaps pass the order gates.
+  catalog-only and takes no table lock. 336 and 337 are the next free
+  numbers after main's 333 (#10882), 334 (#11182) and 335 (#11131).
 - `337_fact_records_sci_foreign_member_tokens_v4_idx.sql` builds the index
   `CONCURRENTLY IF NOT EXISTS` as one statement, the pattern of 289. A failed
   build leaves an INVALID index. The apply path drops it by name before

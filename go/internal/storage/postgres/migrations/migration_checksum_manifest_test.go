@@ -500,7 +500,7 @@ var migrationShippedChecksums = map[string]string{
 	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
 	// #10643 PR 2: the foreign-member token function v4 and its
 	// concurrent GIN index for the key-range holder read's member arm
-	// (numbered 336/337: 333 is held by the #10882 lane, 335 by #11131).
+	// (numbered 336/337, the next free numbers after main's 333-335).
 	// 336 was re-pinned before release when the review's F1 finding added
 	// the 1,024-byte token bound (arbiter ruling 10643m); neither file had
 	// shipped.

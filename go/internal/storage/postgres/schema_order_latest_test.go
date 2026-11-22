@@ -164,7 +164,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	"supply_chain_impact_winners_audit_sweep",
 	// Migrations 336-337 (#10643 PR 2) add the frozen foreign-member token
 	// function and its concurrent GIN index for the key-range holder read
-	// (numbered 336: 333 is held by the #10882 lane, 335 by #11131).
+	// (numbered 336/337, the next free numbers after main's 333-335).
 	"eshu_sci_foreign_member_tokens_v4",
 	"fact_records_sci_foreign_member_tokens_v4_idx",
 }
