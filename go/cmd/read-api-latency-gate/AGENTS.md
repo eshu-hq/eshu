@@ -214,13 +214,15 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   budgeted routes read all of them. It sets the visibility map the way
   autovacuum does in production; without it an Index Only Scan (the entity search
   walk) read 32 to 512 buffers depending on how far autovacuum had got when the
-  sweep started (#11224; the EXPLAIN evidence is in
+  sweep started (#11224; the EXPLAIN figures are in
   `docs/internal/evidence/11170-latency-gate-core-leg.md`). Never run it before a
   bulk write, never make it `VACUUM FULL`, keep it in the seed phase, and add a
   newly seeded table to `analyzedSeededTables`.
-  `TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep` fails on any later
-  call that takes the Postgres pool or DSN, and `TestSeedPropagatesTheVacuumError`
-  pins that a failed step fails the seed.
+  `TestSeedVacuumsAfterEveryPostgresWriteAndBeforeTheSweep` fails on any later call
+  in `seed` that takes the Postgres pool or DSN as an argument, or is a method on
+  the pool, under the name `pool` or a simple alias of it (not a handle passed
+  through a struct field or returned from another function), and
+  `TestSeedPropagatesTheVacuumError` pins that a failed step returns its error.
 - **The seed runs the product infra read model backfill, labelled a stand-in
   (`seed_infra_backfill.go`).** The gate starts no reducer, and since #11210
   the reducer owns the backfill (it runs `inventory.RunBackground`, which wraps

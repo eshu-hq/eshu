@@ -21,7 +21,7 @@ type sqlExecer interface {
 // sweep fresh statistics instead of whatever autovacuum had computed at seed
 // time. VACUUM sets the visibility map, which an Index Only Scan reads: without
 // it the entity search walk read between 32 and 512 buffers depending on how
-// far autovacuum had got when the sweep started (#11224; the EXPLAIN evidence is
+// far autovacuum had got when the sweep started (#11224; the EXPLAIN figures are
 // in docs/internal/evidence/11170-latency-gate-core-leg.md). Production reads a
 // steady-state database whose visibility map autovacuum has set, so the gate
 // measures that state on purpose. Not VACUUM FULL: that rewrites the tables.

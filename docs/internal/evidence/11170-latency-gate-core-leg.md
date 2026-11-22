@@ -330,7 +330,9 @@ all-visible. The gate's own readings for the walk statement were 759 blocks in t
 high mode and about 270 in the low mode (the gate's 884 and 396 minus about 125
 blocks of readiness probes and the auth lookup). The visibility-map state of the
 five earlier runs was not recorded, so the mapping from reading to state is
-inferred from this arithmetic. Only one database was seeded.
+inferred from this arithmetic. Only one database was seeded. The raw `EXPLAIN`
+output was not kept in the repository; the table above holds the figures taken from
+it.
 
 The first fix vacuumed the seven counted tables. Review found two read-model
 tables the seed fills before that step and budgeted routes read,
