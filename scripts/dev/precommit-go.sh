@@ -50,9 +50,11 @@ mkdir -p "${tool_cache_dir}" "${worktree_cache_dir}" "${golangci_cache_dir}"
 
 # Tool versions — keep in lockstep with the CI install steps.
 golangci_version="$(rg -o 'golangci-lint@v[0-9.]+' "${repo_root}/.github/workflows/test.yml" 2>/dev/null | head -1 | sed 's/.*@//')"
-gosec_version="$(rg -o 'gosec@v[0-9.]+' "${repo_root}/.github/workflows/security-scan.yml" 2>/dev/null | head -1 | sed 's/.*@//')"
+# The gosec pin may be a pseudo-version (v2.30.1-0.<date>-<sha>, #11241), so the
+# extractor reads the whole version token, not just the dotted-digit prefix.
+gosec_version="$(rg -o 'gosec@v[0-9][0-9A-Za-z._+-]*' "${repo_root}/.github/workflows/security-scan.yml" 2>/dev/null | head -1 | sed 's/.*@//')"
 golangci_version="${golangci_version:-v2.12.2}"
-gosec_version="${gosec_version:-v2.27.1}"
+gosec_version="${gosec_version:-v2.30.1-0.20261026162949-ff25931a2edd}"
 
 note() { printf 'precommit-go: %s\n' "$*" >&2; }
 die() { printf 'precommit-go: %s\n' "$*" >&2; exit 1; }

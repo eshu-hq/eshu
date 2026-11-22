@@ -340,7 +340,7 @@ func copyRepositoryFile(
 	if err != nil {
 		return false, err
 	}
-	if err := targetFile.Chmod(0o644); err != nil {
+	if err := targetFile.Chmod(0o644); err != nil { // #nosec G302 -- 0o644 pins the mode of a regular repository checkout file independent of the process umask; the managed workspace directory is created 0o750, which bounds who can reach the copy
 		return false, err
 	}
 	return fileMatchesCommit, nil

@@ -24,15 +24,19 @@
 # failure on every one of those paths; scripts/test-precommit-go-gosec.sh pins
 # each of them.
 #
-# EXPLICIT PACKAGE DIRS AND THE ALIAS (#8339). go/packages splits an oversized
-# file-pattern list and loses imports, which made gosec silently skip the SSA
-# analyzers on go/internal/storage/postgres. run_gosec therefore expands every
-# pattern with `go list`, passes each package as an explicit ./<dir>/ (never
-# ./...), and routes a package over gosec_pattern_limit bytes through a short
-# symlink alias go/_g (or a lettered variant on collision) that it removes on
-# exit. It checks that gosec scanned
-# exactly the GoFiles and CgoFiles `go list` reports (tests are excluded by
-# design, as gosec does by default), so a short or empty scan cannot read clean.
+# EXPLICIT PACKAGE DIRS, LOADED BY DIRECTORY (#8339, #11241). gosec v2.27.1
+# passed one go/packages pattern per file, and x/tools splits a pattern list at
+# 16,383 bytes into several `go list` runs that share one package ID and keep only
+# the first run's imports: a package over that budget (go/internal/storage/postgres
+# at 473 files) was type-checked with missing imports and its SSA analyzers
+# (G115 G118 G405 G406 G407 G602) were skipped. The pinned gosec, a pseudo-version
+# that carries securego/gosec#1803 and #1806, loads module packages by directory,
+# so there is no per-file pattern budget and no alias. run_gosec expands every
+# pattern with `go list` and passes each package as an explicit ./<dir>/ (never
+# ./...). It checks that gosec scanned exactly the GoFiles and CgoFiles `go list`
+# reports (tests are excluded by design, as gosec does by default), so a short or
+# empty scan cannot read clean. Move to the first gosec release that contains
+# both commits when one ships (#11243).
 #
 # The caller (precommit-go.sh) provides: repo_root, go_dir, worktree_cache_dir,
 # ensure_gosec, collect_dirs (fills the global `dirs`), note and die.
@@ -46,61 +50,9 @@ gosec_fail() {
 	printf '%s\n' "${msg}" >&2
 	if [[ -n "${gosec_log}" && -s "${gosec_log}" ]]; then
 		printf 'last lines of %s:\n' "${gosec_log}" >&2
-		tail -n 20 "${gosec_log}" | gosec_unalias >&2
+		tail -n 20 "${gosec_log}" >&2
 	fi
 	exit "${code}"
-}
-
-# x/tools go/packages (defaultDriver, safeArgMax) splits a pattern list into
-# `go list` runs of at most this many bytes, each pattern counting len+1. gosec
-# passes one pattern per file, so a package whose file patterns exceed it is
-# loaded in several runs that share the ID command-line-arguments, and the merge
-# keeps only the first run's imports (#8339): gosec then type-checks the package
-# with missing imports and skips its SSA analyzers (G115 G118 G405 G406 G407
-# G602). Verified by A-control in scripts/test-precommit-go-gosec.sh against
-# x/tools v0.45.0; re-verify on an x/tools bump.
-gosec_pattern_limit=16383
-gosec_aliases=()
-gosec_alias_dirs=()
-gosec_alias_made=""
-
-# gosec_cleanup removes the alias symlinks this process created (EXIT trap).
-gosec_cleanup() {
-	local a
-	for a in ${gosec_aliases[@]+"${gosec_aliases[@]}"}; do
-		[[ -L "${go_dir}/${a}" ]] && rm -f "${go_dir}/${a}"
-	done
-	return 0
-}
-
-# gosec_new_alias <real-dir> creates go/_g (or a lettered variant) as a
-# relative symlink to the package dir and sets gosec_alias_made to its name (no
-# command substitution: it must update gosec_aliases in the calling shell). The underscore keeps
-# it out of ./..., go vet and golangci-lint; the base name is fixed-length so the
-# alias byte cost is deterministic (a PID-derived base made the gate pass or fail
-# on PID digit count, eshu-hq/eshu#10665), and ln -s fails on an existing name,
-# so a concurrent run never shares or deletes ours.
-gosec_new_alias() {
-	local dir="$1" base="_g" cand letters=bcdefghijklmnopqrstuvwxyz n=0
-	cand="${base}"
-	until ln -sn "${dir}" "${go_dir}/${cand}" 2>/dev/null; do
-		n=$((n + 1))
-		[[ ${n} -le ${#letters} ]] || gosec_fail 1 "gosec: could not create an alias under ${go_dir}"
-		cand="${base}${letters:$((n - 1)):1}"
-	done
-	gosec_aliases+=("${cand}")
-	gosec_alias_dirs+=("${dir}")
-	gosec_alias_made="${cand}"
-}
-
-# gosec_unalias maps alias dirs in stdin back to the real package dirs.
-gosec_unalias() {
-	local args=() i=0
-	while [[ ${i} -lt ${#gosec_aliases[@]} ]]; do
-		args+=(-e "s#${gosec_aliases[${i}]}/#${gosec_alias_dirs[${i}]}/#g")
-		i=$((i + 1))
-	done
-	if [[ ${#args[@]} -eq 0 ]]; then cat; else sed "${args[@]}"; fi
 }
 
 # run_gosec <label> <pattern...> runs the pinned gosec from go/ and exits
@@ -111,11 +63,10 @@ gosec_unalias() {
 #
 # Patterns are expanded with `go list` and every package is passed to gosec as an
 # explicit ./<dir>/, never ./...: that keeps gosec's file set equal to go list's
-# (gosec's own ./... walk also enters testdata dirs, which Go ignores) and lets
-# the loop below route an oversized package through a short alias.
+# (gosec's own ./... walk also enters testdata dirs, which Go ignores).
 run_gosec() {
 	local label="$1" bin out status=0 files expected=0 n_pkgs=0 n_err n_find n_dirs p
-	local listing line dir files_str rel nf bytes abytes f alias pat final=() whole=0
+	local listing dir files_str rel nf pat final=() whole=0
 	shift
 	for p in "$@"; do
 		case "${p}" in
@@ -127,7 +78,6 @@ run_gosec() {
 	[[ -f "${go_dir}/go.mod" ]] || gosec_fail 1 "gosec: must run from the module root go/ (gosec resolves patterns from the CWD but lists from the module root)"
 	listing="$(cd "${go_dir}" && go list -e -find -f '{{.Dir}}|{{join .GoFiles " "}} {{join .CgoFiles " "}}' "$@")" \
 		|| gosec_fail 1 "gosec: go list failed for: $*"
-	trap gosec_cleanup EXIT
 	while IFS='|' read -r dir files_str; do
 		[[ -n "${dir}" ]] || continue
 		local farr=(${files_str})
@@ -137,25 +87,8 @@ run_gosec() {
 		[[ "${dir}" == "${go_dir}" ]] && rel="."
 		expected=$((expected + nf))
 		n_pkgs=$((n_pkgs + 1))
-		bytes=0
-		abytes=0
-		alias=""
-		for f in "${farr[@]}"; do
-			if [[ "${rel}" == . ]]; then bytes=$((bytes + ${#f} + 1)); else bytes=$((bytes + ${#rel} + ${#f} + 2)); fi
-		done
 		pat="./${rel}/"
 		[[ "${rel}" == . ]] && pat="."
-		if [[ ${bytes} -gt ${gosec_pattern_limit} ]]; then
-			gosec_new_alias "${rel}"
-			alias="${gosec_alias_made}"
-			for f in "${farr[@]}"; do abytes=$((abytes + ${#alias} + ${#f} + 2)); done
-			if [[ ${abytes} -gt ${gosec_pattern_limit} ]]; then
-				gosec_fail 1 "gosec: ${rel} exceeds the go/packages pattern limit even via alias (${abytes} > ${gosec_pattern_limit}); split the package (#8339)"
-			fi
-			printf 'gosec: %s scanned via alias %s (pattern bytes %s > %s; alias headroom %s bytes; #8339)\n' \
-				"${rel}" "${alias}" "${bytes}" "${gosec_pattern_limit}" "$((gosec_pattern_limit - abytes))"
-			pat="./${alias}/"
-		fi
 		final+=("${pat}")
 	done < <(printf '%s\n' "${listing}")
 	if [[ ${n_pkgs} -eq 0 ]]; then
@@ -187,12 +120,12 @@ run_gosec() {
 	fi
 	n_err="$(jq -r '(."Golang errors" // {}) | length' "${out}")"
 	if [[ "${n_err}" -ne 0 ]]; then
-		jq -r '."Golang errors" | to_entries[] | .key as $f | .value[] | "  \($f):\(.line):\(.column) \(.error)"' "${out}" | gosec_unalias >&2
+		jq -r '."Golang errors" | to_entries[] | .key as $f | .value[] | "  \($f):\(.line):\(.column) \(.error)"' "${out}" >&2
 		gosec_fail 1 "gosec reported Go errors, so the packages were not fully analyzed"
 	fi
 	n_find="$(jq -r '.Issues | length' "${out}")"
 	if [[ "${n_find}" -ne 0 ]]; then
-		jq -r --arg p "${go_dir}/" '.Issues[] | "  \(.rule_id) \(.file | ltrimstr($p)):\(.line)"' "${out}" | gosec_unalias >&2
+		jq -r --arg p "${go_dir}/" '.Issues[] | "  \(.rule_id) \(.file | ltrimstr($p)):\(.line)"' "${out}" >&2
 		n_dirs="$(jq -r --arg p "${go_dir}/" '[.Issues[].file | ltrimstr($p) | sub("/[^/]*$"; "")] | unique | length' "${out}")"
 		gosec_fail 1 "gosec: ${n_find} finding(s) in ${n_dirs} package(s) — fix or annotate with a leading // #nosec <RULE> -- <reason>"
 	fi
