@@ -352,4 +352,35 @@ head -1 "${work}/read-api-route-work-budgets-winners.txt" | rg -q '^# read-api-r
 run_ratcheted --baseline /dev/null "${work}/r1.json" "${work}/r2.json" | head -1 | rg -q '^# read-api-route-work-budgets\.txt -- GENERATED' \
 	|| fail "a stdout render keeps the default table name in the header"
 
+# --- two-table render recipe (review of #11170) ------------------------------
+# Each leg's table is ratcheted against its OWN committed copy. The winners rows
+# are far smaller than the legacy rows by design, so baselining the winners table
+# against the legacy table trips the collapse ratchet (exit 3) and invites a
+# false --accept-drop.
+printf 'default\t9\t2100\t2\n\nGET /a\t20\t307638\t18\tGREEN-derived work guard\n' >"${work}/leg-legacy.txt"
+printf 'default\t9\t2100\t2\n\nGET /a\t20\t2403\t18\tGREEN-derived work guard\n' >"${work}/leg-winners.txt"
+cat >"${work}/winners-report.json" <<'JSON'
+{"routes":[
+ {"route":"GET /a","p95_ms":1,"work":{"calls":10,"blks":801,"rows":4}},
+ {"route":"GET /c","p95_ms":1,"work":{"calls":2,"blks":500,"rows":0}}
+]}
+JSON
+set +e
+run_ratcheted --baseline "${work}/leg-legacy.txt" --out "${work}/w1.txt" "${work}/winners-report.json" >/dev/null 2>&1
+wrong_rc=$?
+run_ratcheted --baseline "${work}/leg-winners.txt" --out "${work}/w2.txt" "${work}/winners-report.json" >/dev/null 2>&1
+right_rc=$?
+set -e
+[[ "${wrong_rc}" -eq 3 ]] || fail "baselining the winners render on the legacy table must trip the collapse ratchet (exit 3), got ${wrong_rc}"
+[[ "${right_rc}" -eq 0 ]] || fail "baselining the winners render on its own committed table must pass, got ${right_rc}"
+
+# The documented recipe must use each table's own baseline: the winners render in
+# docs/public/reference/local-testing/read-api-latency-gate-budgets.md never
+# pairs the legacy baseline file with the winners output file.
+recipe_doc="${repo_root}/docs/public/reference/local-testing/read-api-latency-gate-budgets.md"
+rg -q -- '--baseline /tmp/baseline-winners\.txt' "${recipe_doc}" || fail "the recipe must baseline the winners render on the committed winners table"
+if rg -U -q -- '--baseline /tmp/baseline-legacy\.txt \\\n  --out [^\n]*-winners\.txt' "${recipe_doc}"; then
+	fail "the recipe pairs the legacy baseline with the winners table"
+fi
+
 printf 'test-refresh-read-api-work-budgets: PASS\n'

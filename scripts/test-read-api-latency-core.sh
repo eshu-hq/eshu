@@ -163,7 +163,7 @@ sleep 30 &
 obedient=$!
 res="$( ( GATE_CORE_STOP_TIMEOUT=5; bin_dir="${work}/bin"; log_dir="${work}/logs"; work_dir="${work}"; log() { :; }; die() { printf 'die: %s\n' "$*" >&2; exit 1; }
   # shellcheck source=scripts/lib/read-api-latency-core.sh
-  . "${repo_root}/scripts/lib/read-api-latency-core.sh"; core_pid="${obedient}"; stop_core_api; [[ -z "${core_pid}" ]] && echo cleared ) 2>/dev/null)"
+  . "${repo_root}/scripts/lib/read-api-latency-core.sh"; core_pid="${obedient}"; stop_core_api; [[ -z "${core_pid}" ]] && echo cleared ) 2>/dev/null || true)"
 kill -9 "${obedient}" 2>/dev/null || true
 wait "${obedient}" 2>/dev/null || true
 [[ "${res}" == cleared ]] || fail "stop_core_api must clear core_pid once the core exits"

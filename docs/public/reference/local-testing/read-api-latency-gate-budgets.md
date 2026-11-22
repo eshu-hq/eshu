@@ -20,17 +20,22 @@ run: a third run with the committed tables must exit 0 on both legs.
 
 ## Re-rendering a table
 
-Render each table with `--out`, and pass the committed legacy table as the
-baseline for both, so the ratchet runs on every row. Without `--out` the default
-baseline is the legacy table file, so a stdout render of the winners table would
-trip the collapse ratchet on the impact rows (307,638 to 2,403 blocks).
+Render each table with `--out`, against its own committed copy as the baseline,
+so the ratchet runs on every row. The winners rows are far smaller than the legacy
+rows by design (the two impact routes read 801 blocks from the winners table and
+102,546 from the legacy read), so baselining the winners render on the legacy
+table trips the collapse ratchet on those rows (307,638 to 2,403 blocks) and
+exits 3. Do not pass `--accept-drop` to get past that: it would accept a
+comparison across two different read paths. Without `--baseline`, an `--out`
+render uses the file it is replacing.
 
 ```bash
 git show HEAD:testdata/benchmarks/read-api-route-work-budgets.txt > /tmp/baseline-legacy.txt
+git show HEAD:testdata/benchmarks/read-api-route-work-budgets-winners.txt > /tmp/baseline-winners.txt
 bash scripts/refresh-read-api-work-budgets.sh --baseline /tmp/baseline-legacy.txt \
   --out testdata/benchmarks/read-api-route-work-budgets.txt \
   --note 'leg=legacy commit=<sha> on origin/main <sha>' LEGACY_REPORT.json...
-bash scripts/refresh-read-api-work-budgets.sh --baseline /tmp/baseline-legacy.txt \
+bash scripts/refresh-read-api-work-budgets.sh --baseline /tmp/baseline-winners.txt \
   --out testdata/benchmarks/read-api-route-work-budgets-winners.txt \
   --note 'leg=winners commit=<sha> on origin/main <sha>' WINNERS_REPORT.json...
 ```
