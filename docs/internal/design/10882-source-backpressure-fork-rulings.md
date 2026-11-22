@@ -27,7 +27,7 @@ treats it as a third retry kind:
 | --- | --- | --- |
 | projection failure | none (spends `attempt_count`) | when projection claims reach `MaxAttempts` |
 | admission timeout | `admission_wait_attempts` | when the admission budget is spent |
-| source paced (new) | `source_paced_waits` (migration 331) | never |
+| source paced (new) | `source_paced_waits` (migration 333) | never |
 
 Projection claims are now `attempt_count - admission_wait_attempts -
 source_paced_waits`, so a paced wait is refunded from the projection budget

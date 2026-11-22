@@ -352,7 +352,7 @@ import (
 // source-paced wait counter (metadata-only fast default); count 359 with the
 // 331/332 pair already counted. Digest recomputed after the rebase.
 const (
-	goldenBootstrapDefinitionsDigest = "df9dc37054beb12623f6027de2ac45ed4aa277276caa4284b62eb007f54485f6"
+	goldenBootstrapDefinitionsDigest = "64c238594c9e4bbc1cc1b19d023dfc415491516cab3f33e33685ab7772fabdc1"
 	goldenBootstrapDefinitionsCount  = 359
 )
 
