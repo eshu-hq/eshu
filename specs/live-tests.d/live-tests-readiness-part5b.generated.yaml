@@ -44,6 +44,16 @@ tests:
     class: postgres_ci
     reason: "#8205/#10863 reducer standalone supersede sweep lock order over 400,000 analyzed background rows: two-session sweep (bounded SKIP LOCKED since #10863, so it never waits) against scoped and stage-only recovery replays in both start orders completes with no 40P01 and the held-middle-row race of the same pairs completes (main: mutual block, then 40P01), 150 rounds of the sweep racing scoped, stage-only and bounded replays with 0 x 40P01 and every stale row superseded exactly once after follow-up passes (main: 111 of 150 deadlocked), the active-generation guard keeps every active-generation row, and the held-row case keeps a row claimed before the sweep's lock step; isolated schemas; about 60 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_fact_owner_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11213 and #11215 disposable PostgreSQL 18 proofs: the reducer single-row, batch and versioned fact statements never rewrite a row another scope holds and report it as a typed non-retryable owner conflict with the stored scope, while an own-scope re-save with a newer generation still lands (no generation leg) and a fenced-out stale write is not a conflict; two writers racing one new fact id from two scopes in both orders leave one owner and one typed conflict with no deadlock; enqueue refuses a reducer intent whose non-injective work item id another intent holds while a plain duplicate stays a benign coalesce; reuses the #7978 bootstrapped proof schema; wall time logged not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_fact_owner_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11213 before/after cost proof for the reducer scope owner leg on disposable PostgreSQL 18: EXPLAIN (ANALYZE, BUFFERS) of a 1000-row conflicting batch and of a single-row upsert with and without the leg (the pre statements are derived from the shipped constants), and a 15-run paired median-and-spread table over three 1000-row mixes (all changed, identical replay, one foreign row) on a 200,000-row table; wall time logged not gated"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go
     tag: ~
     class: postgres_ci
