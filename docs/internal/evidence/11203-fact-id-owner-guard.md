@@ -161,6 +161,27 @@ the producer's id is fixed. The destructive-successor hold gauge
 counts a different condition (a shrinking successor) and its consecutive-refusal
 semantics would mislabel this one.
 
+## Where the refusal shows in status
+
+The refusal reason travels on the same commit-refusal channel as
+`destructive_successor_refused`, with no reason allow-list in between:
+
+- the collector run outcome `refused` (`telemetry.CollectorRunOutcomeRefused`)
+  and the generation outcome `skipped` with reason `fact_id_owner_conflict`;
+- `eshu_runtime_refresh_skipped_by_reason_total{reason="fact_id_owner_conflict"}`;
+- for a vulnerability-intelligence scope, the source-state row
+  (`Recorder.RecordClaimRefused` in
+  `go/internal/collector/extensionhost/vulnerability/source_state.go`) stores
+  the reason as `last_error_class` and marks the source partial, so readiness
+  reports it incomplete while keeping the last success;
+- the `fact_id_owner_conflict` ERROR log and the
+  `eshu_dp_fact_id_scope_conflicts_total` counter named above.
+
+Not verified in this change: a status or admin page outside these surfaces that
+special-cases `destructive_successor_refused` by name. A search of
+`go/internal` finds that string only in the refusal sites, the closed reason
+set, `backfill/generation_guard.go`, and tests.
+
 ## Not covered here
 
 The reducer fact writers (`factwrite` single, batch, versioned) and the search
