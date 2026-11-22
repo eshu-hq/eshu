@@ -190,7 +190,7 @@ What the census says for the candidates (boxes 3 and 4, not measured here):
 ## Kill criteria for candidate layouts (box 4), written 2026-11-22 before any box 3 computation
 
 The arbiter's text (arbiter-11202, section 3.2), verbatim. The criteria were committed in
-`980726e061` before the box 3 data was computed, with editorial wording changes only ("the
+`7630c3d83e` before the box 3 data was computed, with editorial wording changes only ("the
 files" for "the 13 non-test files", a shortened K6 path); the verbatim wording is restored
 here in the review fix commit and nothing was loosened. A candidate that fails any of K1 to K4 is killed; none is loosened
 after the numbers are known.
@@ -303,12 +303,29 @@ base by commit SHA against the newest full generation and everything newer, and 
 **Pinned share p** (rows of non-eligible generations as a share of all rows in buckets
 aged at least 7 days): 25.5% for 7-day buckets and 27.3% for 1-day buckets by the K4
 reading; 18.8% and 20.1% with the static split; 12.2% and 13.6% counting active and
-pending only. The arbiter's rule (3.5) asks for a ruling when p is above 0 and at most
-20% before costing a re-ingest or a row move. Here p is above 20% by the K4 reading and
-the split variants sit at 18.8% to 20.1%, so the 0 < p <= 20% trigger applies to the
-static-split rows. p is stated here for the arbiter and the close-out asks the arbiter to
-confirm whether that trigger needs a ruling when K4 already kills every candidate under the
-five-pin reading. No re-ingest or row move was costed or measured.
+pending only. The arbiter's rule (3.5) asks for a ruling when p is above 0 and at most 20% before costing
+a re-ingest or a row move. The arbiter ruled (arbiter-merge-11225): the trigger is met for the
+static-split 7-day row (p 18.8%); the 1-day static-split row (20.1%) is above 20% and outside
+it. p does not open a re-ingest or row-move remedy, none is costed, and the no-go stands. K2
+kills a row move. A forced re-ingest writes the live generation into the newest bucket and
+pins it until it is superseded, and that recurs for every generation that outlives its bucket
+(51.8% of active rows are older than 7 days). It also re-runs every reducer domain for the
+scope, which is unmeasured, and it does not clear the failed, first-generation or delta-base
+pins.
+
+The active-only static split at age >= 30 days is undetermined (64% to about 97%). That does
+not change the close-out, for these reasons. The binding test is the five-pin K4 committed
+before the data, and a pre-registered criterion is not loosened after the number is known.
+The active-only readings drop pins that the shipped retention enforces: only
+`status = 'superseded'` generations are removable, delta bases are protected and live work
+items block (`targeted_candidate_lock.go` in the retention statements package), so those
+readings describe a policy the code does not ship. With failed pins kept and only the
+first-generation pin dropped (the one pin the shipped code lacks), RANGE over all kinds at
+age >= 30 days is at most 4.595M of 14,227,152 rows, 32.3%, which K4 kills. The surviving
+variant would rest on one 1-day bucket 34 to 35 days old in a 36.4-day window plus a split by
+kind that the aggregates do not show. Pursuing the static split takes a new issue: a fresh
+census that keeps the raw file, the static split at age >= 30 days under the shipped pin
+set, and the gate before any copy.
 
 **K5, the 90-day reading (a model, not a measurement).** Active rows in generations older
 than 30 days: 19,202, 0.1% of active rows and 0.02% of all rows (vulnerability-intelligence
