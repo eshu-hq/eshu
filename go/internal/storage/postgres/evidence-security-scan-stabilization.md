@@ -49,8 +49,9 @@ directory (securego/gosec#1803 and #1806), and the alias code is deleted. v2.30.
 predates both commits. The move to the first release containing them is #11243.
 
 Measured locally on the same worktree, `gosec -severity=low -confidence=low
--no-fail -fmt=json ./...` over `go/` (the SARIF step's scan), host load average
-about 30:
+-no-fail -fmt=json ./...` over `go/` (the SARIF step's scan), on a shared host at
+uncontrolled load (about 30 to 60), so the wall times are indicative, not a
+comparison; CI job time is the comparison and is not measured here:
 
 | Run | Go errors | Files | Findings | Wall time |
 | --- | --- | --- | --- | --- |

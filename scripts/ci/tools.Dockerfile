@@ -28,8 +28,8 @@ ARG GO_VERSION=1.26.11
 ARG GOVULNCHECK_VERSION=v1.9.0
 ARG GOVULNCHECK_HASH=h1:12VaqnI9kJfqwRoPptxoqsUhQtdfrSbdksT7X/KY/sc=
 ARG GOVULNCHECK_LICENSE_SHA256=911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad
-ARG GOSEC_VERSION=v2.30.1-0.20261026162949-ff25931a2edd
-ARG GOSEC_HASH=h1:XUtsBsNliL+SggHYpJvnzRrB3A4abFZIWicQASg86m4=
+ARG GOSEC_VERSION=v2.27.1
+ARG GOSEC_HASH=h1:bg4lZnpCCpC8e5l0K+ADF5gG91jmT2LQgOcOflwBfJI=
 ARG GOSEC_LICENSE_SHA256=2be0a81f30d2b73cb3b5182b969175245042158735fcc8af133929212c772e78
 ARG RIPGREP_VERSION=15.2.0
 # Minimum supported yq is 4.44.3 (#8397): the oldest release the gate scripts'
@@ -118,14 +118,10 @@ RUN set -eux; \
 # scripts/ci/govulncheck-replace-recheck.sh requires). Pinning it here bakes
 # the pin for a future lane conversion: security-scan.yml still installs
 # govulncheck@latest (untouched), so a scanner release can still change that
-# lane's results until the conversion. gosec is the pseudo-version
-# security-scan.yml runs (#11241): it carries securego/gosec#1803 and #1806,
-# which load module packages by directory (v2.27.1 and v2.30.0 pass one pattern
-# per file and lose imports past 16,383 pattern bytes). The hash below is the
-# module zip hash of that pseudo-version, and the license hash is unchanged from
-# v2.27.1. Matching the consuming lane's pin is what will make the baked binary
-# provably cover that lane once converted. Move to the first release that
-# contains both commits when one ships (#11243).
+# lane's results until the conversion. gosec stays at v2.27.1, the pin
+# security-scan.yml already runs: eshu-security-scan-gates records >= v2.27.1
+# as the Go 1.26 SSA-recovery floor, and matching the consuming lane's pin is
+# what will make the baked binary provably cover that lane once converted.
 COPY go.mod go.sum /tmp/modsrc/
 ENV GOMODCACHE=/opt/ci-go-mod \
     GOPROXY=file:///opt/ci-go-mod/cache/download,https://proxy.golang.org,direct

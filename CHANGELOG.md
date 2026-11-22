@@ -18,8 +18,12 @@ recent shipped work grouped by feature area.
   `internal/storage/postgres` (473 files) skipped its SSA analyzers and then
   failed the fail-closed gate for every code PR. The gate now pins gosec
   `v2.30.1-0.20261026162949-ff25931a2edd` (securego/gosec#1803 and #1806) at
-  every install site and deletes the symlink alias. Every fail-closed check stays.
-  A whole-module scan went from 24 Go errors to 0 and from 112 s to 71 s locally.
+  the security-scan workflow, the local gate and the collector template, and
+  deletes the symlink alias. The CI tools image still bakes v2.27.1 until it is
+  repinned. Every fail-closed check stays.
+  A local whole-module scan went from 24 Go errors to 0. Its wall time (112 s,
+  then 71 s and 56 s after triage) was taken on a shared host at uncontrolled
+  load, so it is not a comparison; the CI job time is.
   Three findings from the newer rule set are fixed or annotated
   (`Chmod` G302 in `repo/git` and `graphinstall`, and a G602 in the supply-chain
   version resolution). The move to a release is tracked in
