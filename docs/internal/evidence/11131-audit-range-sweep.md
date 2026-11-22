@@ -86,8 +86,10 @@ not force a full.
 
 ## Proofs (live Postgres 18.6, disposable, one test at a time)
 
-RED commit `c9d03761bf` ran every test below against compiling stubs; each
-failed on its assertion. GREEN is `719f306056`.
+The RED commit ("Pin the staged winners audit range sweep before building
+it (RED)") ran every test below against compiling stubs; each failed on its
+assertion. GREEN is the commit "Sweep the staged winners audit by identifier
+range with a persisted cursor".
 
 | Proof | Test | Result |
 | --- | --- | --- |
@@ -100,7 +102,7 @@ failed on its assertion. GREEN is `719f306056`.
 | (c) two instances | `...AuditSweepCursorRaceLive` | the second verify of a range returns `cursor_race` and its repairs roll back; of two concurrent verifies exactly one advances; two instances sweeping together queue each stale identifier once |
 | (d) keyed tick during a verify | `...AuditSweepKeyedTickSkippedDuringVerifyLive` | Skipped while the range holds the lock; the next keyed tick commits the queued mark and the repairs |
 | (h) M5, progress at full keyed duty | `...AuditSweepAdvancesUnderFullKeyedDutyLive` | a try-lock loop holding the resweep lock back to back (88.7-95.6 percent duty): 17 of 17 ranges contended, every one advanced within 3 attempts, 0 `lock_busy` (88.1 percent after the yield landed) |
-| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`5ae3b42ee9`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
+| Keyed yield (live) | `...AuditSweepYieldsToKeyedTicksLive` | a keyed stand-in (150 ms hold, a watermark stamp, a 200 ms retry after a miss) against 54 ranges that each need the lock for 150 ms with no lock-free read between them: RED (`3516e9028d`) 10 keyed commits for 54 locked verifies; GREEN 186-188 keyed commits for 54-55 locked verifies, 53-54 `keyed_yield`, every range within 3 attempts |
 | Keyed yield (unit) | `TestStagedAuditKeyedYieldAfterLockedVerify` | a range after a locked verify asks for `NoLock`; a range that needs the lock yields until the interval passes or the watermark moves; an unlocked verify arms no yield |
 | Collation | the differential fixture | packages `@tootallnate/once`, `@scope/pkg`, `pkg:npm/@types/node`, `.dotted`, `-dashed`, `_under`, `Pkg:npm/upper` and an `@` orphan; the union still equals the single statement under `en_US.utf8`, where `@tootallnate/once` sorts after `pkg:npm/p99` |
 | Lock policy, timeout halving | `TestStagedAuditLockPolicy`, `TestStagedAuditRangeTimeoutHalvesTheBudget` | the third verify after two misses waits; budgets 10,000, 5,000, 2,500, 1,250, 625 |
