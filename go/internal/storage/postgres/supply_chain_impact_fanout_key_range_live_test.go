@@ -21,8 +21,20 @@ import (
 const (
 	keyRangeHot      = "CVE-2026-10643"
 	keyRangeOwn      = "kr:own"
+	keyRangeNoise    = "kr:noise"
 	keyRangeLoneLast = "kr:lone-last"
 	keyRangeHotRows  = 400
+	// keyRangeNoiseRows are findings for one other cve_id and advisory_id in
+	// a non-holder scope. They make the hot id a minority of the table, so
+	// PostgreSQL 18.6 keeps its cve_id lookup index under a custom plan; with
+	// the hot id near the whole table it reads the fact_id slice of every
+	// finding row through the status index instead. The count is also small
+	// enough that a generic plan, which cannot see the bound values, still
+	// prices the fact_records_pkey range as cheap: scratch sweeps from 0 to
+	// 8,500 rows kept the generic plan on the primary key and the custom plan
+	// on the lookup indexes, and 10,000 rows moved the generic plan to the
+	// lookup index, which would blind the seeded RED.
+	keyRangeNoiseRows = 5000
 )
 
 // keyRangeHolders are the holder scopes keyRangeSeed makes visible for
@@ -39,7 +51,9 @@ var keyRangeHolders = []string{
 	"kr:lone-bound",  // one row whose fact_id equals a range bound exactly
 }
 
-// keyRangeSeed seeds the #10643 key-range fixture. Bulk holders carry
+// keyRangeSeed seeds the #10643 key-range fixture. A noise scope carries
+// keyRangeNoiseRows findings for other ids, spread over the key space, so the
+// hot id is a minority of the table. Bulk holders carry
 // keyRangeHotRows rows each with digest-shaped fact ids, so they spread over
 // every key range. Lone holders carry one row each on an edge. Excluded: the
 // asking scope, a tombstone-only scope, and a scope whose rows sit only at a
@@ -49,6 +63,7 @@ func keyRangeSeed(t *testing.T, ctx context.Context, sqldb *sql.DB) {
 	fanOutSeedScope(t, ctx, sqldb, keyRangeOwn, "g1")
 	fanOutSeedScope(t, ctx, sqldb, "kr:tomb-only", "g1")
 	fanOutSeedScope(t, ctx, sqldb, "kr:superseded-only", "g2", "g1")
+	fanOutSeedScope(t, ctx, sqldb, keyRangeNoise, "g1")
 	for _, scope := range keyRangeHolders {
 		fanOutSeedScope(t, ctx, sqldb, scope, "g1")
 	}
@@ -84,6 +99,13 @@ FROM generate_series(1, 20) g`, kind, keyRangeHot)
 		insert(scope, `VALUES ($1, $2, $2 || '/g1', $3, $1, '1.0.0', 'synthetic', 'kr', now(), now(), false, $4::jsonb)`,
 			factID, scope, kind, payload)
 	}
+	insert("noise", `
+SELECT $1 || ':' || md5('noise' || g), $2::text, s.active_generation_id, $1, md5('noise' || g), '1.0.0',
+  'synthetic', 'kr', now(), now(), false,
+  jsonb_build_object('cve_id', 'CVE-2026-noise', 'advisory_id', 'GHSA-noise',
+    'impact_status', (ARRAY['affected_exact', 'possibly_affected', 'not_affected_known_fixed'])[1 + g % 3])
+FROM ingestion_scopes s CROSS JOIN generate_series(1, $3) g
+WHERE s.scope_id = $2`, kind, keyRangeNoise, keyRangeNoiseRows)
 	hot := `"` + keyRangeHot + `"`
 	lone(keyRangeLoneLast, kind+":ffff0001", `{"cve_id": `+hot+`, "impact_status": "affected_exact"}`)
 	lone("kr:lone-null", kind+":7777", `{"cve_id": `+hot+`}`)
@@ -244,10 +266,13 @@ VALUES ($1 || '/g9', $1, 'synthetic', now(), now(), 'pending', now(), '{}'::json
 
 // TestHolderKeyRangeStatementPlanLive pins the plan the bound rests on. Under
 // the plan mode the store sets (HolderKeyRangePlanCacheMode), each key-range
-// arm reads an existing partial fact_records_supply_chain_impact_ index with
-// both fact_id bounds in an index or recheck condition: no new index, no
-// sequential scan, no primary-key range (keyRangePlanViolation; the planner
-// picks the cve arm's index by fixture size, so no one index is named). The
+// arm reads its own existing partial lookup index (cve_id:
+// fact_records_supply_chain_impact_lookup_idx, advisory_id:
+// ..._advisory_lookup_idx) with its lookup expression and both fact_id bounds
+// in one Index Cond line, and no Filter line carries the lookup expression or
+// fact_id: no new index, no sequential scan, no primary-key range, and not the
+// status index, which has no cve_id column and reads a fact_id slice of every
+// finding row (keyRangePlanViolation). The
 // seeded RED is the generic plan: it cannot see the bounds and reads the
 // range through fact_records_pkey, which is why the store pins the mode.
 func TestHolderKeyRangeStatementPlanLive(t *testing.T) {

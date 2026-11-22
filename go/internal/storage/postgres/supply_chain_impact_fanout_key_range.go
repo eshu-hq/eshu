@@ -88,8 +88,8 @@ WITH candidates AS MATERIALIZED (
 // 18.6 prices the range at its default selectivity and reads it through
 // fact_records_pkey: a scan of a 1/16 slice of the whole table instead of a
 // slice of one id's rows (TestHolderKeyRangeStatementPlanLive). A custom
-// plan sees the bounds and keeps a partial impact index with fact_id in its
-// index or recheck condition.
+// plan sees the bounds and reads each arm's own lookup index with its lookup
+// expression and both fact_id bounds in the Index Cond.
 const HolderKeyRangePlanCacheMode = "force_custom_plan"
 
 // setHolderKeyRangePlanModeQuery scopes the plan mode to the read

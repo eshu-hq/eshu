@@ -17,9 +17,11 @@ longer runs as one holder statement over all of its rows. It runs as:
 
 - 16 statements, one per fact_id key range (`HolderKeyRanges`), each reading
   the shipped cve_id and advisory_id arms with `fact_id >= lower AND fact_id
-  < upper` added. Each statement reads an existing partial
-  `fact_records_supply_chain_impact_` index with both fact_id bounds in an
-  index or recheck condition. No new index.
+  < upper` added. Each statement reads an existing partial index with its
+  lookup expression and both fact_id bounds in one Index Cond:
+  `fact_records_supply_chain_impact_lookup_idx` for the cve_id arm and
+  `fact_records_supply_chain_impact_advisory_lookup_idx` for the advisory_id
+  arm. No new index.
 - one member-arm statement, the shipped GIN arm alone.
 
 All 17 run in one read-only REPEATABLE READ transaction under
@@ -118,14 +120,22 @@ fact_id bounds and reads them through `fact_records_pkey` (a Bitmap Index
 Scan with Index Cond `(fact_id >= $3) AND (fact_id < $4)`). On QA that would
 be a 1/16 slice of the whole table per statement. The store therefore pins
 `force_custom_plan` in the read transaction. `TestHolderKeyRangeStatementPlanLive`
-asserts, per Append arm, that the pinned plan reads a
-`fact_records_supply_chain_impact_` index with both fact_id bounds in an index
-or recheck condition (never a post-filter), and never a sequential scan or the
-primary key. It does not name one index: at fixture scale the planner reads
-the cve arm through `..._status_lookup_idx` (bounds in the Bitmap Index Scan
-Index Cond, cve_id a recheck filter) and at QA scale through `..._lookup_idx`.
-It asserts the generic plan reads `fact_records_pkey` as the seeded RED.
-`TestKeyRangePlanViolationShapes` plants each violation against the same
+asserts, per Append arm, that the pinned plan reads that arm's own lookup
+index (`..._lookup_idx` for cve_id, `..._advisory_lookup_idx` for
+advisory_id) with the arm's lookup expression and both fact_id bounds in one
+`Index Cond:` line. No `Filter:` line may carry the lookup expression or
+fact_id, and the plan reads no sequential scan and no primary key. It names
+the index on purpose: `..._status_lookup_idx` has no cve_id column, so a plan
+that reads the cve arm through it holds only the fact_id bounds in its Index
+Cond and filters cve_id on the heap, a 1/16 slice of every finding row per
+statement. The fixture seeds 5,000 findings for one other cve_id and
+advisory_id so the hot id is a minority of the table; with the hot id near the
+whole table the planner picked the status index. A scratch sweep of 0 to
+8,500 noise rows kept the custom plan on the lookup indexes and the generic
+plan on `fact_records_pkey`; at 10,000 rows the generic plan moved to the
+lookup index, which would blind the seeded RED. The test asserts the generic
+plan reads `fact_records_pkey` as the seeded RED. `TestKeyRangePlanViolationShapes`
+plants each violation, the status-index plan included, against the same
 assertion with no database.
 
 ## Correctness evidence
