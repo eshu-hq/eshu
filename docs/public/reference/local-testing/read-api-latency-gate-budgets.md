@@ -43,7 +43,10 @@ fixture change, not a faster query, and the old and new numbers are not a
 before and after. The row now guards the dense first-probe path only; the
 continuation walk is not work-metered by this pilot. Its blocks varied across the
 separately seeded runs (396, 400, 884 and 889, with identical calls and rows), so
-the budget is three times the maximum, 884.
+the budget is three times the maximum, 884. That is a known limit, not a feature:
+the wider budget means the gate will not catch a regression of this row smaller
+than about 2.2 times the low mode (400 blocks). The cause of the two modes is not
+known; the follow-up issue is [#11224](https://github.com/eshu-hq/eshu/issues/11224).
 
 `MCP search_file_content` rises from 798 to 1,740 blocks. The prefix change does
 not affect that route's ordering. Per statement, one request costs 14 calls, 29
