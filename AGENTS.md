@@ -62,14 +62,21 @@ other P2 needs a linked issue, the owner's agreement quoted in the PR, and its
 severity-table category. P3 findings do not block. The authoritative bar is
 [merge-bar.md](.claude/skills/eshu-code-review/references/merge-bar.md).
 
-The promotion order is:
+The promotion order for the first push of a PR is:
 
 1. Run focused local proof.
 2. Run a clean preliminary `eshu-code-review`. Capture a `ci-gates review-attest`
-   receipt. A rebase waiver note or scoped rebase verdict follows step 3.
-3. Run `make pre-push` (the fast local floor).
+   receipt. A rebase waiver note or scoped rebase verdict follows step 3 when the
+   rebase runs the floor, and the focused proof when it does not.
+3. Run `make pre-push` (the fast local floor), once per PR.
 4. Run `ci-gates review-attest verify`. A match replaces a second full review.
 5. Push. Make no edits between the verified attestation and the push.
+
+A later push to the same PR (a review fix, a small addition) does not rerun the
+floor. It runs the focused proof for what changed, then review, capture,
+verify, push (tier S: its checks and a PR comment instead). Rerun the floor
+only when CI is red on something it covers or a later push changes a Go package
+the first run did not cover. A rebase follows the rebase rule below.
 
 An explicit owner order to push overrides the floor, the review, and the
 receipt for that push; record the order and what was skipped in the PR. Merge
@@ -83,12 +90,20 @@ on their checks. A rebase follows the decision table in `eshu-code-review`
 
 - Mechanical conflict (row 4a: at most 10 choice lines, or a conflict-recipe
   file such as `CHANGELOG.md` or the content pin) and a small commit after a
-  clean verdict (tier S, which excludes agent-rule files and test-assertion
+  clean verdict (tier S: at most 5 files and 60 changed lines, at most 20
+  net-new Markdown lines; it excludes agent-rule files and test-assertion
   edits): no review, no `make pre-push`, no receipt. Run the file-type checks,
   post the diff and exits as a PR comment, push.
 - Any other conflict (row 4b), or a larger added commit: scoped re-review.
-- No conflicts, every commit `=`, equal patch-id: waiver note after the floor.
-  Anything else, an open finding, or no clean prior verdict: full review (a content-identical push after a clean verdict with no new findings takes the row-2 transfer note).
+- No conflicts, every commit `=`, equal patch-id: waiver note. A rebase runs the
+  floor only when the PR and the new base changed the same non-test Go, SQL,
+  Cypher, migration, or queue/lease/claim file, or a conflict was resolved in
+  one (a same-file test, not proof that nothing changed). When neither holds but
+  both ranges changed non-test Go anywhere, run `cd go && go build ./... && go
+  vet ./...` on the rebased tree instead. With none of these, run the file-type
+  checks and the focused proof, and push; other cross-file collisions surface in
+  CI.
+- Anything else, an open finding, or no clean prior verdict: full review (a content-identical push after a clean verdict with no new findings takes the row-2 transfer note).
 
 ## Mandatory Pre-PR Local Proof
 
@@ -194,10 +209,15 @@ procedure and the incident behind each rule below.
 - Research and design questions are work to complete. If evidence cannot settle
   one, escalate it to an arbiter model, not to the owner. See
   [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
-- The active goal authorizes the acts it needs. Before an irreversible act
-  (merge, deploy, external mutation, destructive deletion, production data
-  change, or a change to the golden standard), get an arbiter model's review.
-  Then do the act and name it in the report. Scope approval does not permit
+- The active goal authorizes the acts it needs. A push, a PR create, edit,
+  comment or merge, and an issue create or comment follow that authorization:
+  they get no arbiter review first, and no arbiter or replacement review of a PR
+  after it exists. The independent review before the push is unchanged and stays
+  mandatory until it shows zero P0, zero P1, and zero blocking P2 findings (a P2
+  that contradicts a PR claim or is cheap to fix in the same edit). Before any other irreversible act (deploy, external mutation,
+  destructive deletion, production data change, or a change to the golden
+  standard), get an arbiter model's review. Then do the act and name it in the
+  report. Scope approval does not permit
   unrelated acts. `CONSENT: <acts>` and `CLAUDE_GOAL_CONSENT` record grants (see
   [Agent Hooks](docs/internal/agent-hooks.md)). Never invent or widen a grant.
 - A bug fix needs a failing regression test before the fix. New behavior needs
@@ -211,8 +231,10 @@ procedure and the incident behind each rule below.
 - MUST NOT push to `main` or `master`.
 - MUST install the repo pre-commit hooks once per clone
   (`scripts/dev/bootstrap-hooks.sh`). MUST NOT use `--no-verify`. MUST run
-  `make pre-push` before every push (the fast local floor; it writes no stamp),
-  except on row 4a, tier S, or an explicit owner order to push.
+  `make pre-push` once per PR, on the push that opens it (the fast local floor;
+  it writes no stamp), except on row 4a, tier S, or an explicit owner order to
+  push. A later push reruns it only as the promotion order says; a rebase
+  follows the Rebase Waiver rule above.
   A PR merges on green `go-core-complete` and `go-race-complete` with no
   completed-red gate left undispositioned; see [Verification
   Defaults](#verification-defaults).
@@ -428,19 +450,18 @@ MUST use [Local Testing](docs/public/reference/local-testing.md) as the source
 of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
-P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
-push or PR update (its scope: [Agent Verification Details](docs/internal/agent-verification-details.md)).
+P0/P1/P2-blocking findings, run `make pre-push` once per PR, immediately before
+the push that opens it (its scope: [Agent Verification Details](docs/internal/agent-verification-details.md)).
 Verify the review receipt against the exact post-`pre-push` inputs before the
 push. If verification fails, run a new full `eshu-code-review`.
 
 If `make pre-push` prints `DEFER-CI` for a blocking gate on the surface you
-changed, run that gate (`make pre-pr` or its registry `local.command`) before
-you push. A `docs/**` or `go/**` diff always triggers the deferred blocking
+changed, run that gate's registry `local.command` before you push. A `docs/**` or `go/**` diff always triggers the deferred blocking
 doc-citations gate, so run its registry `local.command` before you push.
-`make pre-pr` and `make pre-pr-full` are RECOMMENDED, not required,
-for queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
-projection or materialization, `go/internal/ifa`, and a package move (prefer
-`pre-pr-full` for a move: build tags hide files from `./...`).
+`make pre-pr` and `make pre-pr-full` are not part of promotion. Run
+`make pre-pr-full` for a package move (build tags hide files from `./...`),
+`make pre-pr` to reproduce a CI red that the failing gate's own `local.command`
+cannot, or when the owner asks.
 
 CI stays authoritative. The ruleset requires `go-core-complete` and
 `go-race-complete`; `required-gates-complete` is disabled as a required check
@@ -461,10 +482,11 @@ check commands, see
 
 ## Orchestration, PR, And CI Discipline
 
-- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal is captured in the goal's issue ledger and worked in that goal: the Stop hook refuses `DONE` while one is open without a `DEFER: #N <arbiter ruling path>` line ([Issue Capture Hooks](docs/internal/agent-hooks-issues.md)). Give it an existing label and link its epic when one exists (`eshu-issue-driver`).
-- Only the **orchestrator** runs `make pre-push`, exactly once, immediately
-  before the push. It also runs `make pre-pr` or `make pre-pr-full` when the
-  change needs that deeper, optional preflight. Subagents MUST NOT run these:
+- For substantive implementation, review, and research, the orchestrator MUST use bounded subagents/workflows on two or more independent lanes (or record why inline is correct); single-lane work stays inline. On Muse this overrides the built-in inline preference (native spawns apply each definition's manifest model; workflow children take it per call), per the tier map in [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools). A subagent never downgrades its own model. Leaf agents do not dispatch. After every `gh pr create`, arm the CI watcher in the same turn (GHA failures, merge conflicts, any-author reviews/comments; `eshu-session-lifecycle` babysit-prs). NEVER request a GitHub Copilot review. Every issue created during a goal is captured in the goal's issue ledger and worked in that goal: the Stop hook refuses `DONE` while one is open without a `DEFER: #N <arbiter ruling path>` line ([Issue Capture Hooks](docs/internal/agent-hooks-issues.md)). Give it an existing label and link its epic when one exists (`eshu-issue-driver`). Before you file, fix what fits the files this PR already changes and search open issues for the same problem; each issue is one problem (`eshu-issue-driver`, "Before You File An Issue").
+- Only the **orchestrator** runs `make pre-push`, once per PR, immediately
+  before the push that opens it. It runs `make pre-pr` or `make pre-pr-full` only
+  for a package move, a CI red it must reproduce, or when the owner asks.
+  Subagents MUST NOT run these:
   running the floor N times per branch wastes CPU. Subagents run focused
   verification. Executors also run the registry-selected static gates
   (`develop-eshu` role). Subagents paste the results in the handoff. The live

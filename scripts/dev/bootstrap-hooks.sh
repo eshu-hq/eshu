@@ -26,6 +26,6 @@ pre-commit install --hook-type pre-push
 pre-commit install --hook-type commit-msg
 
 printf 'bootstrap-hooks: hooks installed for this clone (commit, pre-push, commit-msg).\n'
-printf 'bootstrap-hooks: NEVER --no-verify a commit or a push. Before every push, run\n'
+printf 'bootstrap-hooks: NEVER --no-verify a commit or a push. Once per PR, before the push that opens it, run\n'
 printf 'bootstrap-hooks: `make pre-push` (the fast local floor); CI go-core-complete and\n'
 printf 'bootstrap-hooks: go-race-complete stay the blocking, non-bypassable gates to merge.\n'
