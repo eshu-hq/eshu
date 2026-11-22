@@ -154,6 +154,8 @@ SELECT now() AS ts, count(*) AS tally_rows
 -- Snapshot 1 is the baseline: its ids are not first classifications.
 -- Sum over the 31 pulls for the closing table. For every resolved id, look up
 -- where the row went. Pass the ids with:  \set left_ids '{id1,id2,...}'
+-- (\set is interpolated only from psql stdin, -f or an interactive session,
+-- not from -c).
 SELECT now() AS ts, work_item_id, status, failure_class
   FROM fact_work_items
  WHERE work_item_id = ANY(:'left_ids'::text[]);
