@@ -40,7 +40,7 @@ func openMultiSupportDatabase(t *testing.T) (context.Context, *sql.DB) {
 	return ctx, database
 }
 
-// TestMultiSupportWinnersRecordsEverySupport pins the premise: the four
+// TestMultiSupportWinnersRecordsEverySupport pins the premise: the six
 // multi-support keys carry source_count 2, the winners sit where the corpus
 // comment says, and the derived-class fact never wins m2.
 func TestMultiSupportWinnersRecordsEverySupport(t *testing.T) {
@@ -69,6 +69,8 @@ ORDER BY winner_fact_id`)
 		"fact:m4:b": multiSupportScopeB + "|2",
 		"fact:s1:a": multiSupportScopeA + "|1",
 		"fact:s2:b": multiSupportScopeB + "|1",
+		"fact:p1:a": multiSupportScopeA + "|2",
+		"fact:p2:b": multiSupportScopeB + "|2",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("winners = %v, want %v (a derived-class row must not be a winner)", got, want)
@@ -106,19 +108,21 @@ func TestMultiSupportScopedGrantDivergenceLive(t *testing.T) {
 	}{
 		{
 			name: "scope SA only", scopes: []string{multiSupportScopeA},
-			legacy: "m1(p=40) m2(p=90) m3(p=60) m4(p=60) s1(p=70)", winners: "m2(p=90) m3(p=60) s1(p=70)",
-			legacyTotal: 5, winnersTotal: 3, dimensionsEqual: false,
+			legacy:      "m1(p=40) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=30) s1(p=70)",
+			winners:     "m2(p=90) m3(p=60) p1(p=50) s1(p=70)",
+			legacyTotal: 7, winnersTotal: 4, dimensionsEqual: false,
 		},
 		{
 			name: "scope SB only", scopes: []string{multiSupportScopeB},
-			legacy: "m1(p=80) m2(p=30) m3(p=60) m4(p=60) s2(p=65)", winners: "m1(p=80) m4(p=60) s2(p=65)",
-			legacyTotal: 5, winnersTotal: 3, dimensionsEqual: false,
+			legacy:      "m1(p=80) m2(p=30) m3(p=60) m4(p=60) p1(p=40) p2(p=45) s2(p=65)",
+			winners:     "m1(p=80) m4(p=60) p2(p=45) s2(p=65)",
+			legacyTotal: 7, winnersTotal: 4, dimensionsEqual: false,
 		},
 		{
 			name: "scope SA and SB", scopes: []string{multiSupportScopeA, multiSupportScopeB},
-			legacy:      "m1(p=80) m2(p=90) m3(p=60) m4(p=60) s1(p=70) s2(p=65)",
-			winners:     "m1(p=80) m2(p=90) m3(p=60) m4(p=60) s1(p=70) s2(p=65)",
-			legacyTotal: 6, winnersTotal: 6, dimensionsEqual: true,
+			legacy:      "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+			winners:     "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+			legacyTotal: 8, winnersTotal: 8, dimensionsEqual: true,
 		},
 		{
 			name: "repositories m1 and m2", repositories: []string{"repository:m1", "repository:m2"},
@@ -127,9 +131,9 @@ func TestMultiSupportScopedGrantDivergenceLive(t *testing.T) {
 		},
 		{
 			name: "scope SA plus repository s2", repositories: []string{"repository:s2"}, scopes: []string{multiSupportScopeA},
-			legacy:      "m1(p=40) m2(p=90) m3(p=60) m4(p=60) s1(p=70) s2(p=65)",
-			winners:     "m2(p=90) m3(p=60) s1(p=70) s2(p=65)",
-			legacyTotal: 6, winnersTotal: 4, dimensionsEqual: false,
+			legacy:      "m1(p=40) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=30) s1(p=70) s2(p=65)",
+			winners:     "m2(p=90) m3(p=60) p1(p=50) s1(p=70) s2(p=65)",
+			legacyTotal: 8, winnersTotal: 5, dimensionsEqual: false,
 		},
 	}
 	dimensions := []InventoryDimension{
@@ -237,9 +241,9 @@ func TestMultiSupportUnscopedRankFilterDivergenceLive(t *testing.T) {
 	}{
 		{
 			name: "status only", filter: FindingFilter{Limit: 50, Status: "affected_exact"},
-			legacy:      "m1(p=80) m2(p=90) m3(p=60) m4(p=60) s1(p=70) s2(p=65)",
-			winners:     "m1(p=80) m2(p=90) m3(p=60) m4(p=60) s1(p=70) s2(p=65)",
-			legacyTotal: 6, winnersTotal: 6,
+			legacy:      "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+			winners:     "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+			legacyTotal: 8, winnersTotal: 8,
 		},
 		{
 			name: "priority bucket critical", filter: FindingFilter{Limit: 50, PriorityBucket: "critical"},
@@ -259,15 +263,15 @@ func TestMultiSupportUnscopedRankFilterDivergenceLive(t *testing.T) {
 		},
 		{
 			name: "priority bucket low", filter: FindingFilter{Limit: 50, PriorityBucket: "low"},
-			legacy:      "m1(p=40) m2(p=30) m3(p=60) m4(p=60) s2(p=65)",
-			winners:     "m3(p=60) m4(p=60) s2(p=65)",
-			legacyTotal: 5, winnersTotal: 3,
+			legacy:      "m1(p=40) m2(p=30) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s2(p=65)",
+			winners:     "m3(p=60) m4(p=60) p1(p=50) p2(p=45) s2(p=65)",
+			legacyTotal: 7, winnersTotal: 5,
 		},
 		{
 			name: "severity medium", filter: FindingFilter{Limit: 50, Severity: "medium"},
-			legacy:      "m1(p=40) m2(p=30) m3(p=60) m4(p=60) s2(p=65)",
-			winners:     "m3(p=60) m4(p=60) s2(p=65)",
-			legacyTotal: 5, winnersTotal: 3,
+			legacy:      "m1(p=40) m2(p=30) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s2(p=65)",
+			winners:     "m3(p=60) m4(p=60) p1(p=50) p2(p=45) s2(p=65)",
+			legacyTotal: 7, winnersTotal: 5,
 		},
 	}
 	for _, tc := range cases {
@@ -301,6 +305,62 @@ func TestMultiSupportUnscopedRankFilterDivergenceLive(t *testing.T) {
 			if legacyCount.TotalFindings != tc.legacyTotal || winnersCount.TotalFindings != tc.winnersTotal {
 				t.Errorf("count legacy/winners = %d/%d, want %d/%d",
 					legacyCount.TotalFindings, winnersCount.TotalFindings, tc.legacyTotal, tc.winnersTotal)
+			}
+		})
+	}
+}
+
+// TestMultiSupportProfileDivergenceLive pins the profile filter, the other
+// existence filter beside image_ref. Supports of one canonical key can differ in
+// precise eligibility, and the arbiter ruling serves profile as any-support from
+// the supports table (B2). Today the legacy read tests every support; the winners
+// query tests only the picked row, so a profile=precise call loses p2, whose
+// winner is the comprehensive support while its other support is precise. The
+// shipped gate-on stores therefore keep a profile call on the legacy read.
+func TestMultiSupportProfileDivergenceLive(t *testing.T) {
+	ctx, database := openMultiSupportDatabase(t)
+	legacyList := PostgresFindingStore{DB: database, ReadFromWinners: false}
+	gatedList := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	for name, tc := range map[string]struct{ profile, legacy, winners string }{
+		"precise": {
+			profile: ProfilePrecise,
+			legacy:  "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=30) s1(p=70) s2(p=65)",
+			winners: "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) s1(p=70) s2(p=65)",
+		},
+		"comprehensive": {
+			profile: "",
+			legacy:  "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+			winners: "m1(p=80) m2(p=90) m3(p=60) m4(p=60) p1(p=50) p2(p=45) s1(p=70) s2(p=65)",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			filter := FindingFilter{Limit: 50, Status: "affected_exact", DetectionProfile: tc.profile}
+			legacy, err := legacyList.ListSupplyChainImpactFindings(ctx, filter)
+			if err != nil {
+				t.Fatalf("legacy list: %v", err)
+			}
+			winners, err := multiSupportWinnersList(ctx, database, filter)
+			if err != nil {
+				t.Fatalf("winners list: %v", err)
+			}
+			gated, err := gatedList.ListSupplyChainImpactFindings(ctx, filter)
+			if err != nil {
+				t.Fatalf("gate-on list: %v", err)
+			}
+			if got := multiSupportDescribe(legacy); got != tc.legacy {
+				t.Errorf("legacy list = %q, want %q", got, tc.legacy)
+			}
+			if got := multiSupportDescribe(winners); got != tc.winners {
+				t.Errorf("winners list = %q, want %q", got, tc.winners)
+			}
+			// A profile=precise call stays on legacy; profile=comprehensive
+			// has no profile predicate and reads winners, which agree here.
+			wantGated := tc.legacy
+			if tc.profile == "" {
+				wantGated = tc.winners
+			}
+			if got := multiSupportDescribe(gated); got != wantGated {
+				t.Errorf("gate-on list = %q, want %q", got, wantGated)
 			}
 		})
 	}

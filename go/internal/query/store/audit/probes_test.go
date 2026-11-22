@@ -43,12 +43,14 @@ func aggregateFilter(mutate func(*impact.AggregateFilter)) impact.AggregateFilte
 	return filter
 }
 
+func precise(filter *impact.FindingFilter)  { filter.DetectionProfile = impact.ProfilePrecise }
 func granted(filter *impact.FindingFilter)  { filter.AllowedScopeIDs = []string{"scope:a"} }
 func imageRef(filter *impact.FindingFilter) { filter.ImageRef = "registry.example/app:1" }
 func grantedAgg(filter *impact.AggregateFilter) {
 	filter.AllowedRepositoryIDs = []string{"repository:r"}
 }
 func imageRefAgg(filter *impact.AggregateFilter) { filter.ImageRef = "registry.example/app:1" }
+func preciseAgg(filter *impact.AggregateFilter)  { filter.DetectionProfile = impact.ProfilePrecise }
 
 func listProbe(variant string, gate bool, mutate func(*impact.FindingFilter)) probe {
 	return probe{"supply_chain.impact_findings.list", variant, func(ctx context.Context, recorder *audit.Recorder) {
@@ -73,10 +75,12 @@ func probes() []probe {
 		listProbe("gate on, ungranted", true, nil),
 		listProbe("gate on, scope grant", true, granted),
 		listProbe("gate on, image_ref", true, imageRef),
+		listProbe("gate on, precise profile", true, precise),
 		aggregateProbe("gate off", false, nil),
 		aggregateProbe("gate on, ungranted", true, nil),
 		aggregateProbe("gate on, repository grant", true, grantedAgg),
 		aggregateProbe("gate on, image_ref", true, imageRefAgg),
+		aggregateProbe("gate on, precise profile", true, preciseAgg),
 		{"supply_chain.impact_findings.aggregate", "grouped inventory", func(ctx context.Context, recorder *audit.Recorder) {
 			// A fresh watermark lets the store reach its grouped statement.
 			recorder.Rows = func(sql string) db.Rows {

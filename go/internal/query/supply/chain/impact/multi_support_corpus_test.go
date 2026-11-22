@@ -28,7 +28,7 @@ const (
 	multiSupportDerivedScope = "image://derived/scan-x"
 )
 
-// seedMultiSupportCorpus inserts ten static finding facts over six canonical
+// seedMultiSupportCorpus inserts fourteen static finding facts over eight canonical
 // keys and two derived-class facts; callers rebuild the winners. Keys and winners:
 //
 //	m1: SA p=40 cvss 5.0, SB p=80 cvss 9.5 -> SB wins (higher priority)
@@ -36,6 +36,15 @@ const (
 //	m3: SA p=60, SB p=60 (fact:m3:a < fact:m3:b)  -> SA wins (fact id)
 //	m4: SA p=60 (fact:m4:z), SB p=60 (fact:m4:b)  -> SB wins (fact id)
 //	s1: SA only, p=70; s2: SB only, p=65 (single-support controls)
+//	p1: SA p=50 precise, SB p=40 comprehensive -> SA wins (precise)
+//	p2: SA p=30 precise, SB p=45 comprehensive -> SB wins (comprehensive)
+//
+// p1 and p2 are the profile divergence: supports of one canonical key can differ
+// in precise eligibility because the match reason is not in the key (the OS path
+// gives dpkg_exact_affected_version, precise, from a vendor list and
+// dpkg_affected_range, comprehensive, from a tagged range for one observed
+// version). p2's winner is the comprehensive support, so a profile=precise filter
+// answered from the winner hides a finding that has a precise support.
 //
 // Two derived-class facts at p=99 carry an active derived classification: one
 // shares m2's canonical key inside an image://derived scope (excluded by scope
@@ -65,6 +74,17 @@ func seedMultiSupportCorpus(t *testing.T, ctx context.Context, database *sql.DB)
 	seed("fact:m4:b", multiSupportScopeB, "gen:b", "m4", 60, 6.0)
 	seed("fact:s1:a", multiSupportScopeA, "gen:a", "s1", 70, 7.0)
 	seed("fact:s2:b", multiSupportScopeB, "gen:b", "s2", 65, 6.5)
+	seedComprehensive := func(factID, scope, generation, id string, score int) {
+		payload := groupedLiveFindingPayload(id, id, score, 5.0)
+		payload["priority_bucket"] = "low"
+		payload["detection_profile"] = ProfileComprehensive
+		payload["match_reason"] = "dpkg_affected_range"
+		groupedLiveFact(t, ctx, database, factID, scope, generation, FindingFactKind, payload)
+	}
+	seed("fact:p1:a", multiSupportScopeA, "gen:a", "p1", 50, 5.0)
+	seedComprehensive("fact:p1:b", multiSupportScopeB, "gen:b", "p1", 40)
+	seed("fact:p2:a", multiSupportScopeA, "gen:a", "p2", 30, 5.0)
+	seedComprehensive("fact:p2:b", multiSupportScopeB, "gen:b", "p2", 45)
 	seed("fact:m2:derived", multiSupportDerivedScope, "gen:derived", "m2", 99, 9.9)
 	// A derived classification on a fact in an ordinary scope: the scope-prefix
 	// exclusion does not apply, so only the classification keeps it out.

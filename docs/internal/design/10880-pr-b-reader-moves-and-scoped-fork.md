@@ -433,10 +433,22 @@ B0 lands the pieces that need no supports table. Commits on
    line, with reasons `dpkg_exact_affected_version` (precise) and
    `dpkg_affected_range` (comprehensive).
    `TestDetectionProfileIsAPerSupportOutputOfOneCanonicalKey` pins it. No writer
-   invariant can hold, so B0 adds none. A `profile` filter answered from the
-   winners pick can hide a finding whose other support is precise; B2 serves it
-   as an existence filter from supports, and the arbiter ruling for the question
-   is pending.
+   invariant can hold, so B0 adds none. The arbiter ruling (decision 2) already
+   covers it: `profile` is an existence filter with any-support semantics, served
+   from supports in B2. B0 follows through three ways. The committed seed gained
+   keys p1 and p2, each with a precise and a comprehensive support (p2's winner
+   is the comprehensive one), and `TestMultiSupportProfileDivergenceLive` pins
+   that a `profile=precise` call loses p2 on the winners query and keeps it on
+   the legacy read, so the B1 equality test and the B2 move must serve profile
+   any-support. The gate-on list and aggregate stores route any call with a
+   non-empty profile filter to the legacy read; removing the guard turns the
+   proof red. And the env and HTTP wording says so. Because `precise` is the
+   API default, the guard sends nearly every default call to the legacy read:
+   with the gate on, only `profile=comprehensive` calls with no grant and no
+   `image_ref` read the winners table until B2. Grouped inventory has no legacy
+   read and still serves `profile=precise` from the winners pick; answering 503
+   for the default profile would make the feature unusable while the gate is on,
+   so B0 leaves it as a documented divergence for the arbiter to decide.
 6. **Gate text and HTTP reference.** The `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`
    description no longer says the findings output is byte-identical; the env
    reference regenerated; the inventory HTTP reference gained a section on rank

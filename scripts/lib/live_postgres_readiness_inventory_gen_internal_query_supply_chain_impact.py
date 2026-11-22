@@ -21,6 +21,7 @@ TABLE = {
             "TestMultiSupportWinnersRecordsEverySupport",
             "TestMultiSupportScopedGrantDivergenceLive",
             "TestMultiSupportUnscopedRankFilterDivergenceLive",
+            "TestMultiSupportProfileDivergenceLive",
         ),
         "go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go": (
             "TestReadinessExcludesCentralVersionPinsLive",

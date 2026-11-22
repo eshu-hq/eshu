@@ -11,6 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// A profile filter is an existence filter too (the precise profile is the API
+// default): supports of one canonical key can differ in precise eligibility
+// (TestDetectionProfileIsAPerSupportOutputOfOneCanonicalKey in the reducer's
+// supply-chain core package), so the picked row cannot answer it. The guards
+// below cover both existence filters.
+//
 // An image_ref filter is an existence filter: copies of one canonical key can
 // carry different image refs, and the arbiter ruling for #10880 PR-B answers
 // it from any support. The winners row holds only the picked support's image
@@ -36,6 +42,9 @@ func TestFindingListImageRefStaysOffWinners(t *testing.T) {
 	if query := run(t, FindingFilter{Limit: 10, ImageRef: "registry.example/app:1"}); strings.Contains(query, "supply_chain_impact_canonical_winners AS w") {
 		t.Fatalf("gate-on list with image_ref reads the winners table:\n%s", query)
 	}
+	if query := run(t, FindingFilter{Limit: 10, Status: "affected_exact", DetectionProfile: ProfilePrecise}); strings.Contains(query, "supply_chain_impact_canonical_winners AS w") {
+		t.Fatalf("gate-on list with the precise profile reads the winners table:\n%s", query)
+	}
 	if query := run(t, FindingFilter{Limit: 10, Status: "affected_exact"}); !strings.Contains(query, "supply_chain_impact_canonical_winners AS w") {
 		t.Fatalf("gate-on list without image_ref left the winners read:\n%s", query)
 	}
@@ -52,6 +61,7 @@ func TestAggregateImageRefStaysOffWinners(t *testing.T) {
 	emptyRows := func(string) (db.Rows, error) { return &cov7StoreRows{}, nil }
 	for name, filter := range map[string]AggregateFilter{
 		"image_ref": {ImageRef: "registry.example/app:1"},
+		"profile":   {Status: "affected_exact", DetectionProfile: ProfilePrecise},
 		"plain":     {Status: "affected_exact"},
 	} {
 		wantWinners := name == "plain"
