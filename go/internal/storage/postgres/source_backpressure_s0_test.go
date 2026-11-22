@@ -60,6 +60,11 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	// The replay seed attributes every row to one payload source, so the
 	// grouped signal returns exactly one group; the scan still covers the
 	// whole claimable backlog, which is what the probe measures.
+	// #11187 census: claimable rows the reducer claim could not take now,
+	// by class, on the replay fixture.
+	for source, row := range readTakeableCensus(t, ctx, conn, now) {
+		t.Logf("S0 replay census: source=%s readiness_blocked=%d fenced=%d takeable=%d", source, row.blocked, row.fenced, row.takeable)
+	}
 	plan, rows := explainSignalQuery(t, ctx, sqlConn, sourceClaimableSignalQuery, now)
 	t.Logf("S0 replay-scale (%d rows): groups=%d plan:\n%s", seeded, len(rows), plan)
 
@@ -98,6 +103,9 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	}
 	if err := analyzeReducerClaimBenchmarkTables(ctx, conn); err != nil {
 		t.Fatalf("analyze 10x tables: %v", err)
+	}
+	for source, row := range readTakeableCensus(t, ctx, conn, now) {
+		t.Logf("S0 10x census: source=%s readiness_blocked=%d fenced=%d takeable=%d", source, row.blocked, row.fenced, row.takeable)
 	}
 	plan10x, rows10x := explainSignalQuery(t, ctx, sqlConn, sourceClaimableSignalQuery, now)
 	t.Logf("S0 10x-scale: groups=%d plan:\n%s", len(rows10x), plan10x)

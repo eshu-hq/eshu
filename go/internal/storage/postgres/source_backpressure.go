@@ -16,12 +16,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
+// claimableReadySQL is the per-row takeability test the signal aggregates
+// filter on (#11187): a row the claim's own readiness gate refuses is not
+// takeable, so it is neither backlog nor lag the paced intake can clear. It
+// waits on canonical phases that the intake (and, since #11186, a paced item
+// that writes nothing) has to deliver, so counting it could hold a latch
+// forever. The hashed NOT IN skips the gate for the domains with no readiness
+// requirement. It sits in the aggregate FILTERs, not the WHERE: a subplan in
+// the WHERE flips the grouped plan to a sort-based aggregate that spills
+// (measured 235 ms to 610 ms at 10x replay scale), while the same predicate in
+// the FILTERs leaves the shipped plan alone.
+var claimableReadySQL = "(work.domain NOT IN (SELECT domain FROM reducer_claim_readiness_requirements)\n" +
+	"           OR " + reducerClaimReadinessGateSQL("work", "readiness_req", "readiness_phase") + ")"
+
 // sourceClaimableSignalQuery reads the per-source claimable reducer signal
 // in one grouped statement (#10882 decision 1): for every source system, the
 // age of its oldest claimable outstanding reducer row and its claimable
-// depth. Claimable means active generation, pending or retrying, and
-// visible now, so deliberately gated future-visible rows never throttle a
-// source. Source attribution matches the queue observer: payload
+// depth. Claimable means active generation, pending or retrying, visible
+// now, and passing the reducer claim's readiness gate, so deliberately gated
+// future-visible rows and rows still waiting on canonical phases never
+// throttle a source. Conflict-fenced rows stay counted: they wait on a holder
+// the reducer itself finishes, so they drain without intake. Source attribution matches the queue observer: payload
 // source_system, falling back to the scope's source_system.
 //
 // It uses the per-row active form, not the materialized one: the matching
@@ -36,13 +51,14 @@ import (
 // the bounded per-source probe (boundedSourceSignalQuery, S0 verdict):
 // the grouped scan costs 120-175ms at 10x replay scale, the bounded
 // probe ~41ms for ~13k claimable rows on the same fixture.
-const sourceClaimableSignalQuery = `
-WITH ` + activeFactWorkItemsPerRowCTE + `
+var sourceClaimableSignalQuery = `
+WITH ` + activeFactWorkItemsPerRowCTE + `,
+` + reducerClaimReadinessRequirementsCTE() + `
 SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') AS source_system,
-       COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(work.reopened_at, work.created_at)))), 0) AS oldest_age_seconds,
-       COUNT(*) AS claimable_depth,
-       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $2) AS rows_past_engage_age,
-       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $3) AS rows_past_release_age
+       COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(work.reopened_at, work.created_at)) FILTER (WHERE ` + claimableReadySQL + `))), 0) AS oldest_age_seconds,
+       COUNT(*) FILTER (WHERE ` + claimableReadySQL + `) AS claimable_depth,
+       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $2 AND ` + claimableReadySQL + `) AS rows_past_engage_age,
+       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $3 AND ` + claimableReadySQL + `) AS rows_past_release_age
 FROM active_fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id

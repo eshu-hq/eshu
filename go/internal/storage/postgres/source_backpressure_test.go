@@ -257,12 +257,16 @@ func TestBoundedSourceSignalQueryDerivesFromGrouped(t *testing.T) {
 		}
 	}
 	for _, column := range []string{
-		"COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $2) AS rows_past_engage_age",
-		"COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $3) AS rows_past_release_age",
+		"COALESCE(work.reopened_at, work.created_at) < $2 AND " + claimableReadySQL + ") AS rows_past_engage_age",
+		"COALESCE(work.reopened_at, work.created_at) < $3 AND " + claimableReadySQL + ") AS rows_past_release_age",
+		"COUNT(*) FILTER (WHERE " + claimableReadySQL + ") AS claimable_depth",
 	} {
 		if !strings.Contains(grouped, column) {
-			t.Fatalf("grouped signal lost the aged-row column %q (#10882 F5)", column)
+			t.Fatalf("grouped signal lost the aged-row or readiness column %q (#10882 F5, #11187)", column)
 		}
+	}
+	if strings.Contains(grouped, "\nWHERE work.stage = 'reducer'\n  AND work.status IN ('pending', 'retrying')\n  AND (work.visible_at IS NULL OR work.visible_at <= $1)\n  AND (work.domain") {
+		t.Fatal("the readiness test moved into the WHERE: a subplan there flips the grouped plan to a spilling sort aggregate")
 	}
 	if strings.Contains(grouped, "= $4") {
 		t.Fatal("grouped signal takes a source parameter, want whole-backlog scan")

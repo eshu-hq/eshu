@@ -236,3 +236,53 @@ not a timing claim.
 grouped agree on depth, oldest age, and both aged-row counts for every seeded
 source, and the new `busy` shape (one 3-day-old row among 200 fresh rows) is
 not slowed.
+
+## F9 decision: the signal counts only rows the reducer could take (#11187)
+
+**Census.** A claimable row (active generation, pending or retrying, visible
+now) is takeable, conflict-fenced, or readiness-blocked, using the claim's own
+predicates (`claimReducerWorkQuery`: the readiness gate and the same-key
+claimed or running holder). The S0 harness logs the census per source for the
+replay fixture and its 10x scale (`S0 replay census`, `S0 10x census`). Result
+on the replay fixture: every claimable row is takeable (replay 8,713 rows and
+the 10x seed 87,130 rows: 0 readiness-blocked, 0 conflict-fenced), so the
+fixture does not exercise the other two classes; `TestSourceBackpressureTakeableSignal`
+seeds them (30 blocked, 30 fenced behind a holder, 30 takeable).
+Readiness-blocked rows wait for canonical-node phases (`graph_projection_phase_state`)
+that source-local projection commits; since #11186 a paced item commits
+nothing, so those rows are a real dependence on the intake.
+
+**Decision.**
+- Readiness-blocked rows are excluded from the signal: oldest age, claimable
+  depth, and both aged-row counts. A source whose aged rows are all
+  readiness-blocked never engages, and an engaged latch on it releases on the
+  next consult. The test is the claim's own gate (`reducerClaimReadinessGateSQL`),
+  so the signal cannot drift from what the claim refuses.
+- Conflict-fenced rows stay counted. They wait on a claimed or running holder
+  the reducer itself finishes, so they drain without intake: the latch engages
+  while the backlog is real and releases as the reducer drains it
+  (`TestSourceBackpressureTakeableSignal`). Excluding them would hide a real
+  serial backlog on one key.
+- A source with only blocked rows still yields a grouped row with zero depth
+  and zero age; the bounded probe equals it.
+
+**Where the predicate sits.** In the aggregate `FILTER`s, not the `WHERE`.
+Measured on the 10x fixture (private `postgres:18`, same session): the gate in
+the `WHERE`, in any of three forms (`NOT IN`, `NOT EXISTS`, array literal), put
+a subplan in the join filter and flipped the grouped plan to a sort-based
+aggregate that spills: grouped 235 ms to 610 ms, and without the hashed
+`NOT IN` short-circuit the bounded probe went 89 ms to 238 ms. In the `FILTER`s
+the shipped plan is unchanged: grouped 264 ms, bounded 92.8 ms, claim-probe
+control 10.9 ms (before: 234, 89.4, 10.9). The hashed `NOT IN` skips the gate for
+the domains with no readiness requirement. These are same-session
+before and after numbers on a busy host, not a timing claim.
+
+**Proof.** `TestSourceBackpressureTakeableSignal` (live): census classes per
+shape, bounded equals grouped for blocked, ready, and fenced sources, a blocked
+source never engages and an engaged latch on it releases, a ready source
+engages, fenced siblings engage and release as they drain.
+`TestSourceBackpressureProbeMatchesGroupedAndVerdicts` and
+`TestSourceBackpressureS0SignalCost` pass.
+
+**Still owed (replay arm).** The built-binary two-source replay needs one arm
+with this shape: aged rows readiness-blocked while intake is paced.

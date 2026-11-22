@@ -474,8 +474,8 @@ with a `SourcePacing` OpenAPI component pinned to the wire type.
 
 - #11186 (a paced item repeats its projection writes and parks a worker; met
   by the pre-write release, built-binary replay arm owed) and
-  #11187 (the latch can stay engaged on rows the reducer cannot take) must
-  close before the replay is accepted, before #10882 closes, and before any
+  #11187 (met: readiness-blocked rows no longer count; arm owed) must close
+  before the replay is accepted, before #10882 closes, and before any
   deployment sets the thresholds ([fork rulings](10882-source-backpressure-fork-rulings.md)).
 
 - All thresholds (engage/release ages, depth floor, schedule
