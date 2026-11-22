@@ -564,6 +564,7 @@ func buildReducerService(
 		GenerationRetentionRunner:       generationRetentionRunner,
 		ChangedSinceLinkRunner:          changedSinceLinkRunnerFor(getenv, database, tracer, instruments, logger),
 		InfraInventoryReconcileRunner:   infraInventoryReconcileRunnerFor(getenv, database, tracer, instruments, logger),
+		InfraInventoryBackfillRunner:    infraInventoryBackfillRunnerFor(database, instruments, logger),
 		ConfigArtifactWalkerRunner:      configArtifactWalker,
 		GenerationLivenessRunner:        generationLivenessRunner,
 		PoisonLivenessRunner:            poisonLivenessRunner,

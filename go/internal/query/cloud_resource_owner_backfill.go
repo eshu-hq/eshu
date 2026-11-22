@@ -14,8 +14,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/graph/owner"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -105,8 +103,16 @@ type CloudResourceOwnerBackfiller struct {
 	Now      func() time.Time
 }
 
-// BackfillCloudResourceOwnerLedger runs the production upgrade backfill before
-// API or MCP routes can select a page from graph_node_owner.
+// BackfillCloudResourceOwnerLedger seeds graph_node_owner from the CloudResource
+// rows that already exist in the graph.
+//
+// It has no production caller since the in-tree API startup path was removed
+// (a012da4557), and no reader gates on its completion marker. The reducer's
+// live graph writes keep the ledger complete on a fresh install, and the first
+// page of its graph scan can exceed the graph read deadline on a large graph
+// (#6797). docs/internal/design/11196-infra-backfill-reducer-owner.md records
+// the assessment; the infra read model backfill, which the reducer now runs,
+// is a separate component (#11196).
 func BackfillCloudResourceOwnerLedger(ctx context.Context, db *sql.DB, graph GraphQuery) error {
 	if db == nil {
 		return fmt.Errorf("cloud resource owner backfill database is required")
@@ -227,46 +233,4 @@ func clonePresentCloudResourceBackfillFields(row map[string]any) map[string]any 
 		}
 	}
 	return cloned
-}
-
-// StartInfraInventoryBackfill runs the infra read model backfill in the
-// background (inventory.RunBackground) until it records its marker or ctx
-// ends, retrying failed attempts with backoff. Readers stay on the graph until
-// the marker exists, so startup never waits on it. Running it from more than
-// one process at once is safe: the processes serialize per repository on the
-// derive lock and the marker insert is idempotent. The API and the MCP server
-// both run it, so a fresh deploy pays one full derive pass up to twice, once
-// per process, before the marker exists; a process that starts after the
-// marker is recorded exits at already_complete. Moving the backfill into the
-// projector would remove the duplicate pass; no issue is filed for it yet
-// (see (#6793)).
-func StartInfraInventoryBackfill(ctx context.Context, db *sql.DB, logger *slog.Logger, instruments *telemetry.Instruments) {
-	if db == nil {
-		return
-	}
-	go func() {
-		_ = inventory.RunBackground(ctx, postgres.SQLDB{DB: db}, inventory.BackgroundOptions{
-			Logger:      logger,
-			Instruments: instruments,
-		})
-	}()
-}
-
-// RunStartupBackfills runs the query surface's startup backfills for a process
-// that mounts graph-backed routes: the blocking CloudResource owner-ledger
-// seed (#5563), then the background infra read model backfill (#6793). An
-// owner-ledger failure aborts startup exactly as before. The infra backfill
-// never blocks startup.
-func RunStartupBackfills(
-	ctx context.Context,
-	db *sql.DB,
-	graph GraphQuery,
-	logger *slog.Logger,
-	instruments *telemetry.Instruments,
-) error {
-	if err := BackfillCloudResourceOwnerLedger(ctx, db, graph); err != nil {
-		return err
-	}
-	StartInfraInventoryBackfill(ctx, db, logger, instruments)
-	return nil
 }
