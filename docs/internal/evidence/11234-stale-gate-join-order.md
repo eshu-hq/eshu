@@ -136,7 +136,8 @@ guard.
 index loops on `fact_work_items` and `scope_generations` at most the
 non-active row count plus 64, and no nested loop whose inner side rescans
 a CTE or table more than 1,000 times, with hash and merge joins on and off
-and the filter NULL and set. RED on the shipped #10863 text at 755c3d7689:
+and the filter NULL and set. RED on the shipped #10863 text at 6931873148
+(the pin's commit, before the fix):
 13,366 loops with no stale row, 12,236 with 200. GREEN on this change on
 both schemas: at most 0 loops with no stale row and 200 with 200, no
 rescans. On the full schema the same run asserts that the frozen
@@ -181,7 +182,7 @@ and the supersede and #11081 suites pass unchanged on this change.
 ## Claim replay
 
 `TestStaleGate11234ClaimReplayLive` on the full bootstrap schema, the
-test binary built at the base (755c3d7689 plus the harness files) and at
+test binary built at the base (662083f413 plus the harness files) and at
 this change, same seed, five rolled-back EXPLAINs of the whole batch claim
 and 40 `ClaimBatch(4)` calls through the production path:
 
