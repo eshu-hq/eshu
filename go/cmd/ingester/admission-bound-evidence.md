@@ -102,8 +102,17 @@ workers, `ESHU_PROJECTOR_WORKERS`, share it). Settings are unchanged: mark
 10,000, poll interval 1 s (the max age A), max wait 5 m; the backoff cap is
 10 s (or half the max wait) and is not a setting. Hermetic before and after
 on the virtual clock (`reducer_admission_depth_test.go`, reads are instant).
-The deferring schedule is the production one: reads at 0, 1, 3, 7, 15, 25,
-35 s and every 10 s after (a waiter wakes one nanosecond past the window):
+With instant reads, one signal or both, the deferring reads land at 0, 1, 3,
+7, 15, 25, 35 s and every 10 s after (a waiter wakes one nanosecond past the
+window), and 8 concurrent waiters read on exactly that schedule
+(`reducer_admission_depth_schedule_test.go`). With reads that take time and
+the pressure gate on (its default marks 500 and 100), each step starts at the
+decision's oldest read, the pressure read; the queue read lags it by the
+pressure read latency; and a decision slower than its step sleeps one more
+poll interval. Pinned cases: 700 ms queue and 100 ms pressure reads give
+queue reads at 0.1, 1.1, 3.1, 7.1 s and on; 700 ms for both gives queue reads
+at 0.7, 3.1, 5.1, 9.1, 17.1 s and on. The count over a 5 m max wait stays 33
+per signal in every pinned case:
 
 | Scenario | Before (per-decision read) | After |
 | --- | --- | --- |
@@ -115,8 +124,13 @@ The deferring schedule is the production one: reads at 0, 1, 3, 7, 15, 25,
 
 Restated contract: queue depth keeps its definition and the statement
 constant is unchanged. The gate defers when the depth it holds is at or above
-the mark. An admit always uses a depth at most A old, because the window is A
-whenever the last decision admitted; a defer may use a depth up to the
+the mark. An admit uses a depth at most A old in the common case, because the
+window is A whenever the last decision admitted. Two corners leave a
+below-mark depth held while the window is still a backoff: a read that
+completes as its last waiter leaves (its value is held though no decision
+used it), and a `deferred()` from a stale verdict that advances the backoff
+just after an admit reset it. In both, an admit may use a depth up to the
+current backoff old, at most the 10 s cap. A defer may use a depth up to the
 current backoff old, which only delays a producer. Overshoot above the mark is
 bounded by the intents that arrive within A (before: by the concurrent
 enqueuers). After depth falls below the mark a waiter is admitted within the
@@ -127,6 +141,13 @@ the last waiter out cancels it. The QA bar is a post-deploy reading, not a
 claim here: that query id's calls fall from 2.9 to 4.5 per second to at most
 0.2 per second, and its share of statement time is under 1 percent. No saving
 of primary CPU is claimed before that reading.
+
+Watch item for that reading: QA hovers at the mark (9,999 against 10,000 on
+the replica). Each dip below the mark admits and resets the backoff to the
+poll interval, so the steady read rate per signal lies between 0.11 per
+second (the gate pinned at the mark, 33 reads in 5 m) and 1 per second (a dip
+on every read). The 0.2 per second bar is therefore a post-deploy reading,
+not a guarantee of this change.
 
 Observability Evidence (shared depth read, #11233):
 `eshu_dp_reducer_admission_depth_reads_total{operation,outcome}` counts one

@@ -33,8 +33,13 @@ const reducerAdmissionBackoffCap = 10 * time.Second
 // The window is the max age A (one poll interval) while the gate admits. While
 // it defers, the window is the backoff, which grows per deferred read from the
 // poll interval to the cap and resets on the first admit. Deferring on an
-// older value only delays a producer; admitting always uses a value at most A
-// old, because the window is A whenever the last decision admitted.
+// older value only delays a producer. Admitting uses a value at most A old in
+// the common case, because the window is A whenever the last decision
+// admitted. Two corners hold a below-mark value while the window is still a
+// backoff: a read that completes as its last waiter leaves, and a deferred
+// call from a stale verdict that advances the backoff just after an admit
+// reset it. There an admit may use a value up to the current backoff old, at
+// most the backoff cap.
 //
 // Lock order: holder.mu and each read's mu are never held together, and no
 // lock is held across a database read.
