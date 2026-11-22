@@ -3,9 +3,12 @@
 Refs #11202. Part of #10860. Follows #10881, which measured `HASH(scope_id)` as a
 no-go for removal cost (see
 [the #10881 measurement record](10881-fact-records-hash-partition-measurements.md)).
-This record covers boxes 1 and 2 of #11202: rank the removal cost first, then
-census the read replica. Boxes 3 to 6 (candidates, kill criteria, copies) follow only
-if these two do not close the issue.
+The arbiter rulings cited here (arbiter-11202 and arbiter-merge-11225) are not tracked in the
+repository; the parts this record relies on are stated in the text, and the ruling text is
+pasted on #11202.
+This record covers boxes 1 to 4 of #11202: rank the removal cost first, census the read
+replica, bucket generations by creation time and apply the kill criteria. Boxes 5 and 6
+(copies) were not reached.
 
 ## Decision rule, written before any measurement (2026-11-22 04:48Z)
 
@@ -61,7 +64,8 @@ indexes, two retention key indexes). Insert cost per row comes from
 generation held 61,368, which it copied under new ids into the same table with
 `INSERT ... ON CONFLICT (fact_id) DO NOTHING` (not the production `DO UPDATE` suffix),
 triggers on, per-backend WAL. No checkpoint preceded the probe, so it differs from the
-removal cells, which follow `VACUUM (FREEZE)` and a checkpoint. Raw output: `docs/internal/evidence/11202-snapshot-key-census/`.
+removal cells, which follow `VACUUM (FREEZE)` and a checkpoint. Raw output:
+`docs/internal/evidence/11202-snapshot-key-census/`.
 
 | Metric | 153 indexes | Retained 5 indexes |
 | --- | --- | --- |
@@ -107,7 +111,8 @@ fact kind. The primary's statistics were not re-read (out of bounds). Share of r
 
 By the rule written before measurement, box 1 does not close the issue (23.3% against
 a 20% bar). The rule counted inserts, deletes and vacuum and excluded updates. With the
-88,254,540 updates (read 2026-11-17, before #10873 merged) at insert cost the share is 17.5%. The arbiter ruled (arbiter-11202) that
+88,254,540 updates (read 2026-11-17, before #10873 merged) at insert cost the share is 17.5%.
+The arbiter ruled (arbiter-11202) that
 the rule stands, that the supportable range is 16% to 46%, and that this is a share of
 write WAL, not a rank against the measured CPU limit. The range: 16.4% to 17.5%
 (all updates kept, the period before #10873); 21.9% to 23.3% (updates at zero, the
@@ -192,7 +197,8 @@ What the census says for the candidates (boxes 3 and 4, not measured here):
 The arbiter's text (arbiter-11202, section 3.2), verbatim. The criteria were committed in
 `7630c3d83e` before the box 3 data was computed, with editorial wording changes only ("the
 files" for "the 13 non-test files", a shortened K6 path); the verbatim wording is restored
-here in the review fix commit and nothing was loosened. A candidate that fails any of K1 to K4 is killed; none is loosened
+here in the review fix commit and nothing was loosened. A candidate that fails any of K1 to K4
+is killed; none is loosened
 after the numbers are known.
 
 - K1, key known at insert. The partition key value must be derivable by every writer from data it holds at insert time (collector upsert and the three reducer upserts). A key on activation or supersession time fails: facts are written while a generation is pending (924 pending generations hold 1.99M rows). Only the generation's creation time, stamped on the row, qualifies.
@@ -265,7 +271,9 @@ The 64.0% to 64.4% figure (active only, all kinds, RANGE) is not script output. 
 census file was not kept, so it is derived from the committed 1-day table (evidence file
 `box3-buckets.txt`, appendix): the three buckets with no active generation hold 14.9% of
 61,324,138 superseded rows (9.14M); only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days
-old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M (from the rounded 14.9% share; the table sums give 9.13M to 9.18M; the percentages use the first basis) of
+old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M (from
+the rounded 14.9% share; the table sums give 9.13M to 9.18M; the percentages use the first
+basis) of
 the 14,227,152 superseded rows in buckets aged at least 30 days. That is about three
 points under the 67% bar. The fixed `aggregate_buckets.py` now prints these variants at
 both ages; it was not rerun.
@@ -274,7 +282,7 @@ The static split, active only, at age >= 30 days cannot be determined from the c
 aggregates. At age >= 7 days it frees 7 buckets (32.1% of 61,324,138 = 19.65M to 19.72M
 rows). Without the three zero-active buckets (9.13M to 9.18M, the table-sum basis) the other four
 would hold 10.48M to 10.59M rows, more than any four of the 1-day buckets aged 14 to 19
-days hold (at most 9.34M; all six together about 10.49M),
+days hold (about 9.34M, 9.36M allowing for rounding; all six together about 10.49M),
 so they are not those. Whether the live rows of the pinned 35- and 34-day bucket are all
 of the non-stacking kinds is not in the aggregates. If they are, the split frees that
 bucket and the share at age >= 30 days is about 96% to 97%, which clears the 67% bar. K4
@@ -321,9 +329,13 @@ The active-only readings drop pins that the shipped retention enforces: only
 items block (`targeted_candidate_lock.go` in the retention statements package), so those
 readings describe a policy the code does not ship. With failed pins kept and only the
 first-generation pin dropped (the one pin the shipped code lacks), RANGE over all kinds at
-age >= 30 days is at most 4.595M of 14,227,152 rows, 32.3%, which K4 kills. The surviving
-variant would rest on one 1-day bucket 34 to 35 days old in a 36.4-day window plus a split by
-kind that the aggregates do not show. Pursuing the static split takes a new issue: a fresh
+age >= 30 days is at most 4.595M of 14,227,152 rows, 32.3%, which K4 kills. That is the
+arbiter's bound, derived by hand from the committed 1-day table, not script output: keeping
+the failed pins on the 32.4 and 31.4 day buckets leaves one of the 35.4 and 34.4 day
+buckets, at most 4.595M. The surviving variant would rest on one 1-day bucket 34 to 35 days
+old in a 36.4-day window plus a split by kind that the aggregates do not show, and the gate
+before any copy has items 2 to 4 unmet and K1 not verified. Pursuing the static split takes a
+new issue: a fresh
 census that keeps the raw file, the static split at age >= 30 days under the shipped pin
 set, and the gate before any copy.
 
@@ -387,7 +399,7 @@ on the arbiter's reading. The cause is that most creation buckets hold live gene
 - The share of rows and updates that are `reducer_*` kinds.
 - "Held" generations; whether a creation-time column can be stamped by every writer (K1).
 - Facts' own `ingested_at` against the generation's creation time.
-- The aged >= 30 d lenient K4 figures are derived by hand from the committed table: the raw census file
-  was not kept and no new replica read was made.
+- The aged >= 30 d lenient K4 figures and the arbiter's 32.3% bound are derived by hand from the
+  committed table: the raw census file was not kept and no new replica read was made.
 - Behaviour beyond a 36.4-day window (K5 is a model and says little about 90 days).
 - No copy and no DDL.
