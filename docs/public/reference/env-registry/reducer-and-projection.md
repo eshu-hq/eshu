@@ -46,6 +46,8 @@ The reducer, projector, workflow coordinator, push hooks, and semantic providers
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `ESHU_DOCS_BUILD_TIMEOUT_SECONDS` | int | `600` | Bound in seconds for the docs-build pre-push hook (scripts/verify-docs-build-changed.sh): past the bound the hook fails closed naming the live-gate holder. Integer 1 through 3600; unset keeps 600 (#7983). |
+| `ESHU_GATE_TIMING` | string | `1` | Set to 0 to stop make pre-push and make pre-pr from recording a timing line for the run (scripts/lib/gate-timing.sh); any other value, or unset, records. Measurement only: it never changes a step's pass or fail result. |
+| `ESHU_GATE_TIMING_DIR` | string | `~/.cache/eshu-gate-timing` | Directory that holds runs.jsonl, the per-run timing record written by make pre-push and make pre-pr and read by scripts/dev/gate-timing.py. Kept outside the repository because it measures the host. |
 
 ## reducer
 
