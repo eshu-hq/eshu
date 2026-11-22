@@ -151,7 +151,11 @@ func partitionIntentsBySource(intents []runtime.ReducerIntent) []admissionSource
 
 // enqueueBySource admits a partitioned batch: each round consults every
 // remaining group once, enqueues the clear ones, and polls once while any
-// group stays deferred. Healthy sources therefore land in the first round
+// group stays deferred. The global signals come from the shared depth holder
+// (#11233): a group whose global gates pass resets its backoff (even when
+// the source latch then defers the group), and a round with a global
+// deferral sleeps until the held depth leaves the holder's window, never
+// past the max wait. Healthy sources therefore land in the first round
 // while a slowed source waits, and every group lands by the final round —
 // deferral, never drop. A timeout after partial admission returns the
 // retryable admission error with the admitted count applied; intent
@@ -162,18 +166,24 @@ func (w reducerAdmissionWriter) enqueueBySource(
 	intents []runtime.ReducerIntent,
 ) (runtime.IntentResult, error) {
 	pending := partitionIntentsBySource(intents)
-	waitStart := time.Now()
+	waitStart := w.clock()()
 	total := 0
 	for len(pending) > 0 {
 		var deferred []admissionSourceGroup
 		allSourcePaced := true
 		var pacedDelay time.Duration
+		// global is the round's last deferral on a global reason; its read
+		// instant and sequence set the holder's backoff and the round's sleep.
+		var global admissionVerdict
 		for _, group := range pending {
 			verdict, err := w.admissionDecisionFor(ctx, group.source)
 			if err != nil {
 				return runtime.IntentResult{}, err
 			}
 			reason, failureClass, depth, retryAfter := verdict.reason, verdict.failureClass, verdict.depth, verdict.retryAfter
+			if w.holder != nil && (reason == "" || reason == workflow.SourceBackpressureReasonSourceBehind) {
+				w.holder.admitted(ctx)
+			}
 			if reason == "" {
 				result, err := w.inner.Enqueue(ctx, group.intents)
 				if err != nil {
@@ -188,6 +198,7 @@ func (w reducerAdmissionWriter) enqueueBySource(
 			}
 			if reason != workflow.SourceBackpressureReasonSourceBehind {
 				allSourcePaced = false
+				global = verdict
 			} else if pacedDelay == 0 || retryAfter < pacedDelay {
 				pacedDelay = retryAfter
 			}
@@ -195,7 +206,11 @@ func (w reducerAdmissionWriter) enqueueBySource(
 		}
 		pending = deferred
 		if len(pending) > 0 {
-			if err := w.waitFor(ctx, w.pollDelay(waitStart, allSourcePaced, pacedDelay)); err != nil {
+			delay := w.pollDelay(waitStart, allSourcePaced, pacedDelay)
+			if !allSourcePaced && w.holder != nil {
+				delay = w.deferralSleep(ctx, global, waitStart)
+			}
+			if err := w.waitFor(ctx, delay); err != nil {
 				return runtime.IntentResult{}, err
 			}
 		}
@@ -208,7 +223,9 @@ func (w reducerAdmissionWriter) enqueueBySource(
 // by what remains of MaxWait, so a paced worker stops rerunning the global
 // depth reads, the bounded probe, and the latch read every second (#10882
 // F4). Any global reason keeps PollInterval: the grant delay is a
-// source-latch backoff, not a database-protection one.
+// source-latch backoff, not a database-protection one. With the shared depth
+// holder (#11233) enqueueBySource replaces that PollInterval with the
+// holder's deferral sleep.
 func (w reducerAdmissionWriter) pollDelay(waitStart time.Time, allSourcePaced bool, retryAfter time.Duration) time.Duration {
 	delay := w.config.PollInterval
 	if !allSourcePaced || retryAfter <= delay {
@@ -216,7 +233,7 @@ func (w reducerAdmissionWriter) pollDelay(waitStart time.Time, allSourcePaced bo
 	}
 	delay = retryAfter
 	if w.config.MaxWait > 0 {
-		remaining := w.config.MaxWait - time.Since(waitStart)
+		remaining := w.config.MaxWait - w.clock()().Sub(waitStart)
 		if remaining < delay {
 			delay = max(remaining, 0)
 		}
