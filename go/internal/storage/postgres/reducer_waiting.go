@@ -244,7 +244,7 @@ func WaitingDeferralMap() []WaitingDeferral {
 			// first), so they stay on the audit terminal-progress fallback
 			// (at most two 5-minute audit cycles) plus the 10-minute
 			// backstop; see the #11016 evidence note.
-			ProvidingSave: "projector Ack activating the generation (in-tx wake + post-commit re-wake, #11228), terminal projector Fail, or projector Claim superseding the generation in any scope incl. empty sweeps (#11016); heartbeat supersede and Ack maintenance wakes in-tx; retirement fence, liveness sweep, and delta-baseline refusal via audit terminal-progress fallback (<=2 audit cycles) + 10-minute backstop",
+			ProvidingSave: "projector Ack activating the generation (in-tx wake + post-commit re-wake, #11228), terminal projector Fail, or projector Claim superseding the generation in any scope incl. empty sweeps (#11016); Ack maintenance probe in-tx plus the post-commit re-wake; heartbeat supersede post-commit on the pool (#11228 census); retirement fence, liveness sweep, and delta-baseline refusal via audit terminal-progress fallback (<=2 audit cycles) + 10-minute backstop",
 		},
 		{
 			FailureClass:  reducer.WorkloadMaterializationDeploymentSourceTargetNotReadyFailureClass,
