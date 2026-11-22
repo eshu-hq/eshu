@@ -115,8 +115,20 @@ failed only on that same clone-drop cleanup, on the first run in a fresh
 database (twice), and passed on the three runs after it and on `origin/main`.
 None asserts on the activation lock.
 
-The earlier unexplained narrowed failure did not reproduce in 20 two-kind runs,
-200 plain runs, or 200 `-race` runs of the fixed code.
+The earlier unexplained narrowed failure (a 20 s FAIL of the narrowed subtest
+while the coarse one passed) reproduced once, after the merge (1 of 140 runs of
+the two-kind test, narrowed subtest, 19.2 s, coarse subtest passed). It is not
+the fix: the only message is `clone database "..." still exists after cleanup:
+the clone drop failed` from the shared template-clone helper, with no product
+assertion failing. The disposable server's log has the cause:
+`ERROR: canceling statement due to user request` on
+`DROP DATABASE IF EXISTS "..." WITH (FORCE)`, issued while a checkpoint was in
+its sync phase (`sync=24.322 s`, `total=27.730 s`). `DROP DATABASE` waits for a
+checkpoint, the host disk stalled, and the helper's client timeout cancelled the
+drop. The same message failed other tests on `origin/main` that do not touch the
+activation path (`TestReducerContentionGateBootstrapTemplateCloneMatchesBootstrap`).
+The fixed code passed 20 of 20 two-kind runs, 200 of 200 plain and 200 of 200
+`-race` runs of the original test, and 139 of 140 runs after the merge.
 
 Performance Evidence: Improvement. The measured subject is one extra autocommit
 statement per generation-activation park and one `pg_advisory_xact_lock` per
