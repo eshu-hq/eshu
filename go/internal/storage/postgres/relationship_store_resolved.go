@@ -385,6 +385,12 @@ func (s *RelationshipStore) activateWithConsumerWake(
 			_ = tx.Rollback()
 		}
 	}()
+	// #11256: the rendezvous lock comes first, before any row lock, so it
+	// cannot join a lock cycle. A narrowed wait parking while this
+	// transaction is open waits for its commit instead of missing it.
+	if _, err := tx.ExecContext(ctx, activationRendezvousLockSQL, activationRendezvousKey(scopeID)); err != nil {
+		return 0, classifyActivationError(err)
+	}
 	result, err := tx.ExecContext(ctx, activationSQL, args...)
 	if err != nil {
 		return 0, classifyActivationError(err)

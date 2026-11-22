@@ -12,8 +12,8 @@ import (
 
 // MetricDimensionWaitingWakeSite labels eshu_dp_reducer_waiting_wake_total
 // with where the #10876 waiting wake ran. The value set is closed:
-// in-tx provider saves, the audit, and the #11104 exact-phase wake inside
-// and after the phase publish.
+// in-tx provider saves, the audit, the #11104 exact-phase wake inside
+// and after the phase publish, and the #11256 park rendezvous.
 const MetricDimensionWaitingWakeSite = "wake_site"
 
 // Waiting wake sites (#10876).
@@ -32,6 +32,13 @@ const (
 	// phase publish committed (#11104), covering a waiter that parked inside
 	// the publisher's open window.
 	WaitingWakeSitePhaseExactPostCommit = "phase_exact_post_commit"
+	// WaitingWakeSiteParkRendezvous is a generation-activation wait that
+	// found an activation of its provider scope in flight while parking
+	// (#11256). The park stood behind that activation's commit before its
+	// satisfaction check, so the activation's wake could not miss it. Outcomes
+	// are WaitingWakeOutcomeWaited and WaitingWakeOutcomeTimeout; an
+	// uncontended park records nothing.
+	WaitingWakeSiteParkRendezvous = "park_rendezvous"
 )
 
 // Waiting wake outcomes (#10876), recorded on the existing outcome dimension.
@@ -45,6 +52,13 @@ const (
 	// save rolls back (in-tx), the post-commit caller logs and keeps the
 	// committed outcome (#11016), or the audit logs and retries next cycle.
 	WaitingWakeOutcomeError = "error"
+	// WaitingWakeOutcomeWaited means a parking wait stood behind an in-flight
+	// activation of its provider scope and proceeded after it committed.
+	WaitingWakeOutcomeWaited = "waited"
+	// WaitingWakeOutcomeTimeout means the park stopped waiting for the
+	// activation at its bound and parked as before; the audit and the backstop
+	// bound the wake.
+	WaitingWakeOutcomeTimeout = "timeout"
 )
 
 // AttrWaitingWakeSite returns a wake_site attribute. v must be one of the
@@ -64,7 +78,7 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	var err error
 	if inst.ReducerWaitingWake, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_wake_total",
-		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish) and outcome (reopened, noop, error) (#10876)"),
+		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish; park_rendezvous: a generation-activation wait that stood behind an in-flight activation of its provider while parking, #11256) and outcome (reopened, noop, error; waited, timeout for park_rendezvous) (#10876)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingWake counter: %w", err)
 	}

@@ -238,7 +238,10 @@ func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGener
 func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 	t.Parallel()
 
-	beginner := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}}
+	beginner := &fakeBeginnerExecQueryer{fakeExecQueryer: fakeExecQueryer{
+		// The first exec is the #11256 rendezvous lock, the second the fenced activation.
+		execResults: []sql.Result{fakeResult{}, zeroRowsResult{}},
+	}}
 	database := &beginner.fakeExecQueryer
 	store := NewRelationshipStore(beginner)
 	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
@@ -248,10 +251,13 @@ func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 	if !errors.Is(err, reducercontract.ErrExecutionClaimRejected) {
 		t.Fatalf("ActivateResolutionGenerationForClaim() error = %v, want claim rejected", err)
 	}
-	if got, want := len(database.execs), 1; got != want {
-		t.Fatalf("exec calls = %d, want %d", got, want)
+	if got, want := len(database.execs), 2; got != want {
+		t.Fatalf("exec calls = %d, want %d (rendezvous lock, then the fenced activation)", got, want)
 	}
-	query := database.execs[0].query
+	if !strings.Contains(database.execs[0].query, "pg_advisory_xact_lock") {
+		t.Fatalf("first exec = %q, want the activation rendezvous lock before any row lock", database.execs[0].query)
+	}
+	query := database.execs[1].query
 	for _, fragment := range []string{
 		"FROM fact_work_items",
 		"work_item_id = $5",
@@ -706,6 +712,10 @@ func (database *relationshipTestDB) ExecContext(_ context.Context, query string,
 			actor:          args[8].(string),
 			updatedAt:      now,
 		}
+		return proofResult{}, nil
+
+	case strings.Contains(query, "pg_advisory_xact_lock"):
+		// The #11256 activation rendezvous lock; the fake has no lock table.
 		return proofResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO relationship_generations"):
