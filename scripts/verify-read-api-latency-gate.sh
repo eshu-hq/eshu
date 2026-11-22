@@ -85,6 +85,11 @@ cd "${repo_root}"
 : "${GATE_CONCURRENT_REPORT:=}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
+# The winners leg enforces its own generated table (#11170): the same routes
+# read far less Postgres work from the maintained winners table, so a table
+# derived from the legacy read cannot guard it, and the legacy table must keep
+# guarding the default (flag off) configuration.
+: "${GATE_WINNERS_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets-winners.txt}"
 : "${GATE_WORK_REPORT:=}"
 : "${GATE_LATENCY_REPORT:=}"
 : "${GATE_STATUS_DIAGNOSTIC_DIR:=}"
@@ -486,7 +491,7 @@ fi
 if [[ -n "${GATE_CONCURRENT_REPORT}" ]]; then
 	winners_extra_args+=(-concurrent-report "$(winners_report_path "${GATE_CONCURRENT_REPORT}")")
 fi
-run_sweep_leg winners "${GATE_BUDGETS}" "${GATE_WORK_BUDGETS}" "${winners_extra_args[@]}"
+run_sweep_leg winners "${GATE_BUDGETS}" "${GATE_WINNERS_WORK_BUDGETS}" "${winners_extra_args[@]}"
 
 fail_if_any_leg_failed
 log "PASS: read-api-latency-gate green (legacy + winners legs)"
