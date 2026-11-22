@@ -15,13 +15,12 @@ samples, logs) live under `$WORKDIR`, outside the repository.
 | 4 | `make_divided_schema.py`, `make_index_profile.py` | rewrite a `pg_dump --schema-only` of the replica into the divided shape and the retained-index profile |
 | 5 | `load_pieces.sh` | load pieces into one rehearsal database (triggers and FK checks off for the load only) |
 | 6 | `s2_pipeline.sh` | migration stages, cutover and way back, removal arms in place, then the five-load plans on both shapes |
-| 7 | `removal_bench.sh`, `removal_procs.sql` | one removal arm per session: seconds and per-backend WAL bytes, then `VACUUM (VERBOSE)` |
+| 7 | `pick_removal_list.sh`, `removal_bench.sh`, `removal_procs.sql`, `parse_vacuum.py` | one fixed removal list; per cell: `VACUUM (FREEZE)`, CHECKPOINT, delete, `VACUUM (VERBOSE)`; per-backend WAL, rows deleted, partition-tree size, vacuum page counts |
 | 8 | `explain_loads.sql`, `run_explain.sh` | the five busiest fact loads, `EXPLAIN (ANALYZE, BUFFERS)` |
 | 9 | `migration_rehearsal.sh` | expand, build, backfill, verify, cutover, way back, mixed-version writer proof; samples lock modes while each stage runs |
 | - | `skew_census.sql` | how hash(scope_id) spreads the real per-scope counts at modulus 32 and 64 |
 | - | `fact_id_collision_proof.sql` | self-checking proof of the id-rule change (needs only a scratch database) |
 | - | `census_code.sh` | derivable writer-site and reader-shape counts; run at the commit you cite |
-| - | `s1_arms.sh` | clone-based removal arms for a pair of databases |
 
 Known limits: timings depend on host load (record `loadavg` and I/O pressure with
 each result); the rehearsal container runs with `fsync=off`; the primary's

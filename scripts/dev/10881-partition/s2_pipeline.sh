@@ -38,7 +38,7 @@ step bash "$here/migration_rehearsal.sh" "$db" verify
 
 # Removal arms, in place. Undivided first; the divided table has never seen a delete.
 export CLONE=0 WORKDIR
-SCHEMA=public step bash "$here/removal_bench.sh" "$db" drain_asis
+LIST=${LIST:-} SCHEMA=public step bash "$here/removal_bench.sh" "$db" drain_asis
 SCHEMA=d step bash "$here/removal_bench.sh" "$db" drain_scoped
 
 # Plans last: they are the cheapest and the arms have already shrunk both tables by the same rows.

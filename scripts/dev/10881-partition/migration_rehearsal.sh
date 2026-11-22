@@ -52,12 +52,11 @@ case "$stage" in
     echo "lock: CREATE INDEX CONCURRENTLY holds SHARE UPDATE EXCLUSIVE (writers continue); it waits out transactions older than each of its two scans" ;;
   build)
     t0=$(now_s)
-    lp "$db" -q <<SQL
-CREATE SCHEMA IF NOT EXISTS d;
-CREATE TABLE d.fact_records (LIKE public.fact_records INCLUDING DEFAULTS INCLUDING STORAGE INCLUDING CONSTRAINTS) PARTITION BY HASH (scope_id);
-$(for i in $(seq 0 $((PARTS - 1))); do echo "CREATE TABLE d.fact_records_p$i PARTITION OF d.fact_records FOR VALUES WITH (MODULUS $PARTS, REMAINDER $i) WITH (autovacuum_vacuum_scale_factor='0.02', autovacuum_vacuum_insert_scale_factor='0.05');"; done)
-ALTER TABLE d.fact_records ADD CONSTRAINT fact_records_pkey_new PRIMARY KEY (scope_id, fact_id);
-SQL
+    lp "$db" -q -f - <"$here/migration_build.sql"
+    for i in $(seq 0 $((PARTS - 1))); do
+      echo "CREATE TABLE d.fact_records_p$i PARTITION OF d.fact_records FOR VALUES WITH (MODULUS $PARTS, REMAINDER $i) WITH (autovacuum_vacuum_scale_factor='0.02', autovacuum_vacuum_insert_scale_factor='0.05');"
+    done | lp "$db" -q -f -
+    lp "$db" -q -c "ALTER TABLE d.fact_records ADD CONSTRAINT fact_records_pkey_new PRIMARY KEY (scope_id, fact_id)"
     # The retained secondary indexes, rewritten onto d.fact_records under new names.
     lp "$db" -At -c "SELECT replace(replace(pg_get_indexdef(indexrelid), ' ON public.fact_records', ' ON d.fact_records'), 'INDEX ' || indexrelid::regclass::text, 'INDEX ' || indexrelid::regclass::text || '_new') || ';' FROM pg_index WHERE indrelid = 'public.fact_records'::regclass AND NOT indisprimary AND indexrelid::regclass::text <> 'fact_records_scope_fact_uniq'" | lp "$db" -q -f -
     # The six production triggers move with the table; the removal arms must pay them on both shapes.
@@ -86,56 +85,16 @@ SQL
   cutover)
     # Delta rows (ingested after the backfill) are simulated by the caller.
     t0=$(now_s)
-    lp "$db" -q <<'SQL'
-\timing off
-BEGIN;
-SET LOCAL lock_timeout = '5s';
-LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
-SELECT clock_timestamp() AS lock_acquired \gset
-INSERT INTO d.fact_records SELECT o.* FROM public.fact_records o
-  WHERE o.ingested_at >= (SELECT max(ingested_at) - interval '1 hour' FROM d.fact_records)
-  ON CONFLICT (scope_id, fact_id) DO UPDATE SET payload = EXCLUDED.payload, ingested_at = EXCLUDED.ingested_at;
-ALTER TABLE public.fact_records RENAME TO fact_records_old;
-ALTER TABLE d.fact_records SET SCHEMA public;
-SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestamptz)::numeric, 3) AS exclusive_lock_held_seconds;
-COMMIT;
-SQL
+    lp "$db" -q -f - <"$here/migration_cutover.sql"
     printf 'stage=cutover total_seconds=%.2f\n' "$(echo "$(now_s) - $t0" | bc -l)" ;;
   wayback)
     t0=$(now_s)
-    lp "$db" -q <<'SQL'
-BEGIN;
-SET LOCAL lock_timeout = '5s';
-LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
-LOCK TABLE public.fact_records_old IN ACCESS EXCLUSIVE MODE;
-SELECT clock_timestamp() AS lock_acquired \gset
-INSERT INTO public.fact_records_old SELECT n.* FROM public.fact_records n
-  WHERE n.ingested_at >= (SELECT max(ingested_at) - interval '1 hour' FROM public.fact_records_old)
-  ON CONFLICT (fact_id) DO UPDATE SET payload = EXCLUDED.payload, ingested_at = EXCLUDED.ingested_at;
-ALTER TABLE public.fact_records SET SCHEMA d;
-ALTER TABLE public.fact_records_old RENAME TO fact_records;
-SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestamptz)::numeric, 3) AS exclusive_lock_held_seconds;
-COMMIT;
-SQL
+    lp "$db" -q -f - <"$here/migration_wayback.sql"
     printf 'stage=wayback total_seconds=%.2f\n' "$(echo "$(now_s) - $t0" | bc -l)" ;;
   swap)
     # The catalog-only part of the cutover, with the catch-up already done: what
     # the ACCESS EXCLUSIVE lock costs once the delta is drained outside the lock.
-    lp "$db" -q <<'SQL'
-BEGIN;
-SET LOCAL lock_timeout = '5s';
-LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
-SELECT clock_timestamp() AS lock_acquired \gset
-ALTER TABLE public.fact_records RENAME TO fact_records_old;
-ALTER TABLE d.fact_records SET SCHEMA public;
-SELECT round(extract(epoch FROM clock_timestamp() - :'lock_acquired'::timestamptz)::numeric, 3) AS swap_exclusive_lock_held_seconds;
-COMMIT;
-BEGIN;
-LOCK TABLE public.fact_records IN ACCESS EXCLUSIVE MODE;
-ALTER TABLE public.fact_records SET SCHEMA d;
-ALTER TABLE public.fact_records_old RENAME TO fact_records;
-COMMIT;
-SQL
+    lp "$db" -q -f - <"$here/migration_swap.sql"
     ;;
   mixed)
     echo "-- old writer (ON CONFLICT (fact_id)) against the divided PK (scope_id, fact_id):"
