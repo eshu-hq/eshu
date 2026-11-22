@@ -142,3 +142,113 @@ func TestAliasDenyDropsRecordNamingDeniedAlias(t *testing.T) {
 		t.Fatalf("denied cell = %d, want 1 for the record naming CVE-2026-9007 through its aliases", got)
 	}
 }
+
+// TestAliasDenyHoldsOnCutLoadPass pins #11111: a truncated load disables
+// alias grouping, but the deny list is an operator promise that holds on
+// every pass. A cut pass therefore still drops a record naming a listed id
+// (advisory id, CVE id, or alias) with its packages and products, and still
+// drops a recordless observation naming one, while it groups nothing.
+func TestAliasDenyHoldsOnCutLoadPass(t *testing.T) {
+	t.Parallel()
+
+	config := aliasDenyConfig(t, "GHSA-2026-denied", "CVE-2026-9007", "CVE-2026-9003")
+	config.disabled = true
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{FactID: "denied-cve", CVEID: "CVE-2026-9001", AdvisoryID: "GHSA-2026-denied", Aliases: []string{"CVE-2026-9001"}},
+			{FactID: "alias-denied", CVEID: "GHSA-2026-0007", AdvisoryID: "GHSA-2026-0007", Aliases: []string{"GHSA-2026-0007", "CVE-2026-9007"}},
+			{FactID: "bare-denied", CVEID: "CVE-2026-9003", AdvisoryID: ""},
+			{FactID: "bare-kept", CVEID: "CVE-2026-9002", AdvisoryID: ""},
+			{FactID: "kept-cve", CVEID: "CVE-2026-0008", AdvisoryID: "CVE-2026-0008", Aliases: []string{"CVE-2026-0008"}},
+			{FactID: "upstream-copy", CVEID: "CVE-2026-9001", AdvisoryID: "DSA-1", UpstreamCopy: true},
+		},
+		affectedPackages: map[string][]supplychainmodel.AffectedPackage{
+			"CVE-2026-9001":  {{FactID: "denied-pkg", CVEID: "CVE-2026-9001", AdvisoryID: "GHSA-2026-denied"}},
+			"GHSA-2026-0007": {{FactID: "alias-pkg", CVEID: "GHSA-2026-0007", AdvisoryID: "GHSA-2026-0007"}},
+			"CVE-2026-0008":  {{FactID: "kept-pkg", CVEID: "CVE-2026-0008", AdvisoryID: "CVE-2026-0008"}},
+		},
+		affectedProducts: map[string][]supplychainmodel.AffectedProduct{
+			"GHSA-2026-0007": {{FactID: "alias-product", CVEID: "GHSA-2026-0007"}},
+			"CVE-2026-0008":  {{FactID: "kept-product", CVEID: "CVE-2026-0008"}},
+		},
+	}
+
+	groupOSAdvisoriesByAlias(index, config)
+
+	var kept []string
+	for _, cve := range index.cves {
+		kept = append(kept, cve.FactID)
+	}
+	wantKept := []string{"bare-kept", "kept-cve", "upstream-copy"}
+	if len(kept) != len(wantKept) {
+		t.Fatalf("index.cves fact ids = %v, want %v: a cut pass must still apply the deny list", kept, wantKept)
+	}
+	for i := range wantKept {
+		if kept[i] != wantKept[i] {
+			t.Fatalf("index.cves fact ids = %v, want %v", kept, wantKept)
+		}
+	}
+	for _, key := range []string{"CVE-2026-9001", "GHSA-2026-0007"} {
+		if pkgs, ok := index.affectedPackages[key]; ok {
+			t.Fatalf("affectedPackages[%s] = %#v, want the denied record's packages removed on a cut pass", key, pkgs)
+		}
+	}
+	if _, ok := index.affectedProducts["GHSA-2026-0007"]; ok {
+		t.Fatalf("affectedProducts still holds GHSA-2026-0007, want the denied record's products removed on a cut pass")
+	}
+	if len(index.affectedPackages["CVE-2026-0008"]) != 1 || len(index.affectedProducts["CVE-2026-0008"]) != 1 {
+		t.Fatalf("the kept record lost evidence: packages %#v products %#v", index.affectedPackages["CVE-2026-0008"], index.affectedProducts["CVE-2026-0008"])
+	}
+	if len(index.aliasGroups) != 0 || index.aliasStats.groups != 0 {
+		t.Fatalf("a cut pass grouped: aliasGroups %v groups %d, want none", index.aliasGroups, index.aliasStats.groups)
+	}
+	if got := index.aliasStats.cells[supplyChainAliasGroupKey{result: aliasGroupResultDenied}]; got != 2 {
+		t.Fatalf("denied cell = %d, want 2 denied records counted on the cut pass", got)
+	}
+}
+
+// TestAliasCutLoadWithoutDenyKeepsIndexUntouched pins that the deny sweep on a
+// cut pass is a no-op with empty lists: nothing is dropped, rekeyed, or
+// counted, which is the production default today.
+func TestAliasCutLoadWithoutDenyKeepsIndexUntouched(t *testing.T) {
+	t.Parallel()
+
+	config := supplyChainAliasGroupConfig{disabled: true}
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{FactID: "a", CVEID: "CVE-2026-0001", AdvisoryID: "GHSA-A", Aliases: []string{"CVE-2026-0002"}},
+			{FactID: "b", CVEID: "CVE-2026-0002", AdvisoryID: "GHSA-B", Aliases: []string{"CVE-2026-0001"}},
+		},
+	}
+
+	groupOSAdvisoriesByAlias(index, config)
+
+	if got := aliasDenyCVEIDs(index); len(got) != 2 || got[0] != "CVE-2026-0001" || got[1] != "CVE-2026-0002" {
+		t.Fatalf("index.cves = %v, want both records untouched and unrekeyed on a cut pass", got)
+	}
+	if len(index.aliasStats.cells) != 0 || index.aliasStats.groups != 0 {
+		t.Fatalf("aliasStats = %+v, want empty on a cut pass with no deny list", index.aliasStats)
+	}
+}
+
+// TestAliasDenyDropsRecordlessObservationWhenNoRecordExists pins the same
+// contract on a complete pass whose observations all lack an AdvisoryID: no
+// record is built, yet a recordless observation naming a listed id still
+// goes away.
+func TestAliasDenyDropsRecordlessObservationWhenNoRecordExists(t *testing.T) {
+	t.Parallel()
+
+	config := aliasDenyConfig(t, "CVE-2026-9003")
+	index := &supplyChainImpactIndex{
+		cves: []supplychainmodel.ImpactCVE{
+			{FactID: "bare-denied", CVEID: "CVE-2026-9003"},
+			{FactID: "bare-kept", CVEID: "CVE-2026-9002"},
+		},
+	}
+
+	groupOSAdvisoriesByAlias(index, config)
+
+	if kept := aliasDenyCVEIDs(index); len(kept) != 1 || kept[0] != "CVE-2026-9002" {
+		t.Fatalf("index.cves = %v, want only CVE-2026-9002: the recordless denied observation must drop", kept)
+	}
+}

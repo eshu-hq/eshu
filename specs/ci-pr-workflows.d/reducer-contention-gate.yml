@@ -22,5 +22,7 @@ workflows:
   - specs/ci-pr-workflows.d/reducer-contention-gate.yml
   jobs:
   - contention-gate
+  - contention-gate-storage-b
   job_names:
     contention-gate: reducer contention gate
+    contention-gate-storage-b: reducer contention gate (supply-chain proofs)
