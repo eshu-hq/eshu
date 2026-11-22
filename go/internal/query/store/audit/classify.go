@@ -39,12 +39,30 @@ type Statement struct {
 }
 
 // Used is the set of stores one or more statements read. Stores maps each
-// token to the first piece of evidence that produced it. Unresolved lists
-// reads the classifier could not attribute to a store; an audit treats each as
-// a failure, so a read it cannot see never passes silently.
+// token to the first piece of evidence that produced it. Unresolved lists the
+// reads and the statement shapes the classifier could not attribute to a store
+// (a fact_records read with no resolvable kind, an unparseable FROM item, a CTE
+// that shadows a store, unbalanced parentheses, an unterminated literal); an
+// audit treats each as a failure. The classifier fails closed on the shapes it
+// knows it cannot read; a shape it misreads without knowing is what the seeded
+// cases in classify_test.go and scrub_test.go pin one by one.
 type Used struct {
 	Stores     map[string]string
 	Unresolved []string
+}
+
+// systemCatalogPrefixes name the relations that are schema introspection, not a
+// store: PostgreSQL system catalogs and information_schema. A read of them
+// answers no capability.
+var systemCatalogPrefixes = []string{"pg_", "information_schema."}
+
+func isSystemCatalog(name string) bool {
+	for _, prefix := range systemCatalogPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // structuralTables are lifecycle and authority joins that scope a read to the
@@ -65,32 +83,34 @@ var structuralTables = map[string]string{
 // relationAliases maps views and set-returning functions to the read table
 // the capability matrix names.
 var relationAliases = map[string]string{
+	// The winners freshness watermark is written with the winners rows by one
+	// resweep statement and read by winnersFreshness to mark the answer stale or
+	// unavailable, so it is the winners store, not a separate one.
+	"supply_chain_impact_winners_materialization": ReadTablePrefix + "supply_chain_impact_canonical_winners",
+
 	"container_image_identity_current_supports":          ReadTablePrefix + "container_image_identity_supports",
 	"container_image_identity_current_support_facts_for": ReadTablePrefix + "container_image_identity_supports",
 }
-
-var (
-	lineComment  = regexp.MustCompile(`--[^\n]*`)
-	blockComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
-	stringLit    = regexp.MustCompile(`'(?:[^']|'')*'`)
-	kindEquals   = regexp.MustCompile(`(?i)\bfact_kind\s*=\s*'([^']+)'`)
-	kindIn       = regexp.MustCompile(`(?i)\bfact_kind\s+in\s*\(([^)]*)\)`)
-	kindBind     = regexp.MustCompile(`(?i)\bfact_kind\s*=\s*(?:any\s*\(\s*)?\$(\d+)`)
-	quoted       = regexp.MustCompile(`'([^']+)'`)
-	cteName      = regexp.MustCompile(`(?i)(?:\bwith\s+(?:recursive\s+)?|,\s*)([a-z_][a-z0-9_]*)\s+as\s+(?:not\s+)?(?:materialized\s*)?\(`)
-	relation     = regexp.MustCompile(`(?i)\b(?:from|join)\s+(?:only\s+)?((?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*)(\s*\()?`)
-	notRelation  = regexp.MustCompile(`(?i)\bis\s+(?:not\s+)?distinct\s+from\b|\bextract\s*\(\s*[a-z_]+\s+from\b|\b(?:trim|substring|overlay)\s*\([^)]*\bfrom\b`)
-)
 
 // sqlWords are identifiers a FROM or JOIN clause can name that are not tables.
 var sqlWords = map[string]struct{}{
 	"select": {}, "lateral": {}, "values": {}, "only": {}, "unnest": {}, "generate_series": {},
 }
 
+var cteName = regexp.MustCompile(`(?i)(?:\bwith\s+(?:recursive\s+)?|,\s*)([a-z_][a-z0-9_]*)\s+as\s+(?:not\s+)?(?:materialized\s*)?\(`)
+
+var (
+	kindEquals = regexp.MustCompile(`(?i)\bfact_kind\s*=\s*'([^']+)'`)
+	kindIn     = regexp.MustCompile(`(?i)\bfact_kind\s+in\s*\(([^)]*)\)`)
+	kindBind   = regexp.MustCompile(`(?i)\bfact_kind\s*=\s*(?:any\s*\(\s*)?\$(\d+)`)
+	quoted     = regexp.MustCompile(`'([^']+)'`)
+	bindItem   = regexp.MustCompile(`\$(\d+)`)
+)
+
 // Classify attributes every statement to the stores it reads. Literal kinds
 // resolve from the text; bind kinds resolve from Args. A fact_records read with
-// no resolvable kind, and a relation the classifier cannot name, land in
-// Unresolved instead of being dropped.
+// no resolvable kind, a bind kind of a type the classifier cannot read, and any
+// shape it cannot parse land in Unresolved instead of being dropped.
 func Classify(statements ...Statement) Used {
 	used := Used{Stores: map[string]string{}}
 	for _, statement := range statements {
@@ -101,8 +121,13 @@ func Classify(statements ...Statement) Used {
 }
 
 // censusScope carries what a literal fragment cannot see for itself. The zero
-// value classifies a complete recorded statement, where nothing is assumed.
+// value classifies a complete recorded statement, where nothing is assumed and
+// every unreadable shape fails closed.
 type censusScope struct {
+	// census marks a source fragment: it may be partial SQL, so unbalanced
+	// parentheses or an unterminated literal skip the dead-branch pass instead
+	// of failing, and a bind it cannot resolve is left to fallbackKinds.
+	census bool
 	// fallbackKinds apply to a fact_records read whose own text and arguments
 	// name no kind: a census passes the kinds its package names elsewhere,
 	// since a fragment cannot see its binds.
@@ -115,56 +140,100 @@ type censusScope struct {
 }
 
 func classifyOne(statement Statement, scope censusScope, used *Used) {
-	text := dropDeadBranches(blockComment.ReplaceAllString(lineComment.ReplaceAllString(statement.SQL, ""), ""))
-	kinds := factKinds(text, statement.Args)
+	evidence := firstLine(statement.SQL)
+	fail := func(reason string) { used.Unresolved = append(used.Unresolved, reason+": "+evidence) }
+	clean, masked, err := scrub(statement.SQL)
+	if err != nil {
+		if !scope.census {
+			fail(err.Error())
+			return
+		}
+		clean, masked = statement.SQL, statement.SQL
+	}
+	if dead, err := deadSpans(masked); err != nil {
+		if !scope.census {
+			fail(err.Error())
+			return
+		}
+	} else {
+		clean, masked = blankSpans(clean, dead), blankSpans(masked, dead)
+	}
+	kinds, kindProblems := factKinds(clean, statement.Args, scope.census)
+	for _, problem := range kindProblems {
+		fail(problem)
+	}
 	if len(kinds) == 0 {
 		kinds = scope.fallbackKinds
 	}
-	bare := notRelation.ReplaceAllString(stringLit.ReplaceAllString(text, "''"), " ")
 	ctes := map[string]struct{}{}
-	for _, match := range cteName.FindAllStringSubmatch(bare, -1) {
-		ctes[strings.ToLower(match[1])] = struct{}{}
+	for _, match := range cteName.FindAllStringSubmatch(masked, -1) {
+		name := strings.ToLower(match[1])
+		ctes[name] = struct{}{}
+		if shadowsStore(name) {
+			fail("a CTE named " + name + " shadows the relation of the same name, so reads of it cannot be attributed")
+		}
 	}
-	evidence := firstLine(statement.SQL)
-	for _, match := range relation.FindAllStringSubmatch(bare, -1) {
-		name := strings.TrimPrefix(strings.ToLower(match[1]), "public.")
-		isFunction := strings.TrimSpace(match[2]) != ""
-		if _, ok := ctes[name]; ok {
-			continue
+	refs, problems := relationsOf(masked)
+	for _, problem := range problems {
+		if !scope.census {
+			fail(problem)
 		}
-		if _, ok := scope.ctes[name]; ok {
-			continue
-		}
-		if token, ok := relationAliases[name]; ok {
-			add(used, token, evidence)
-			continue
-		}
-		if _, ok := sqlWords[name]; ok || isFunction {
-			continue
-		}
-		if _, ok := structuralTables[name]; ok {
-			continue
-		}
-		if name == factRecordsTable {
-			if len(kinds) == 0 {
-				used.Unresolved = append(used.Unresolved, "fact_records read with no resolvable fact_kind: "+evidence)
-			}
-			for _, kind := range kinds {
-				add(used, factRecordsToken(kind), evidence+" [fact_kind "+kind+"]")
-			}
-			continue
-		}
-		if scope.known != nil {
-			if _, ok := scope.known[name]; !ok {
-				continue
-			}
-		}
-		if strings.HasPrefix(name, "content_") || strings.HasPrefix(name, "eshu_search_") {
-			add(used, StoreContentSearch, evidence)
-			continue
-		}
-		add(used, ReadTablePrefix+name, evidence)
 	}
+	for _, ref := range refs {
+		attribute(ref, ctes, scope, kinds, evidence, used)
+	}
+}
+
+// shadowsStore reports a CTE name that a reader could take for a store.
+func shadowsStore(name string) bool {
+	if name == factRecordsTable || isSystemCatalog(name) || strings.HasPrefix(name, "content_") ||
+		strings.HasPrefix(name, "eshu_search_") {
+		return true
+	}
+	if _, ok := relationAliases[name]; ok {
+		return true
+	}
+	_, ok := structuralTables[name]
+	return ok
+}
+
+func attribute(ref relationRef, ctes map[string]struct{}, scope censusScope, kinds []string, evidence string, used *Used) {
+	name := strings.TrimPrefix(ref.name, "public.")
+	if token, ok := relationAliases[name]; ok {
+		add(used, token, evidence)
+		return
+	}
+	if _, ok := ctes[name]; ok {
+		return
+	}
+	if _, ok := scope.ctes[name]; ok {
+		return
+	}
+	if _, ok := sqlWords[name]; ok || ref.isFunction {
+		return
+	}
+	if _, ok := structuralTables[name]; ok || isSystemCatalog(name) {
+		return
+	}
+	if name == factRecordsTable {
+		if len(kinds) == 0 {
+			used.Unresolved = append(used.Unresolved, "fact_records read with no resolvable fact_kind: "+evidence)
+		}
+		for _, kind := range kinds {
+			add(used, factRecordsToken(kind), evidence+" [fact_kind "+kind+"]")
+		}
+		return
+	}
+	if scope.known != nil {
+		if _, ok := scope.known[name]; !ok {
+			return
+		}
+	}
+	if strings.HasPrefix(name, "content_") || strings.HasPrefix(name, "eshu_search_") {
+		add(used, StoreContentSearch, evidence)
+		return
+	}
+	add(used, ReadTablePrefix+name, evidence)
 }
 
 func add(used *Used, token, evidence string) {
@@ -181,17 +250,33 @@ func factRecordsToken(kind string) string {
 }
 
 // factKinds returns the fact kinds a statement filters on: literal equality,
-// IN lists, and bind placeholders resolved against args.
-func factKinds(text string, args []any) []string {
+// IN lists (literals and binds), and bind placeholders resolved against args.
+// A bind whose argument is missing or not a string, a string slice, or a
+// StringArray is a problem, unless the text is a census fragment whose binds a
+// fallback resolves.
+func factKinds(text string, args []any, census bool) (kinds, problems []string) {
 	seen := map[string]struct{}{}
-	var out []string
 	push := func(kind string) {
 		if kind == "" {
 			return
 		}
 		if _, ok := seen[kind]; !ok {
 			seen[kind] = struct{}{}
-			out = append(out, kind)
+			kinds = append(kinds, kind)
+		}
+	}
+	resolve := func(raw string) {
+		index, err := strconv.Atoi(raw)
+		if err == nil && index >= 1 && index <= len(args) {
+			if values, ok := stringsOf(args[index-1]); ok {
+				for _, kind := range values {
+					push(kind)
+				}
+				return
+			}
+		}
+		if !census {
+			problems = append(problems, "fact_kind bind $"+raw+" has no string argument the classifier can read")
 		}
 	}
 	for _, match := range kindEquals.FindAllStringSubmatch(text, -1) {
@@ -201,35 +286,32 @@ func factKinds(text string, args []any) []string {
 		for _, item := range quoted.FindAllStringSubmatch(match[1], -1) {
 			push(item[1])
 		}
+		for _, item := range bindItem.FindAllStringSubmatch(match[1], -1) {
+			resolve(item[1])
+		}
 	}
 	for _, match := range kindBind.FindAllStringSubmatch(text, -1) {
-		index, err := strconv.Atoi(match[1])
-		if err != nil || index < 1 || index > len(args) {
-			continue
-		}
-		for _, kind := range stringsOf(args[index-1]) {
-			push(kind)
-		}
+		resolve(match[1])
 	}
-	sort.Strings(out)
-	return out
+	sort.Strings(kinds)
+	return kinds, problems
 }
 
-func stringsOf(value any) []string {
+func stringsOf(value any) ([]string, bool) {
 	switch typed := value.(type) {
 	case string:
-		return []string{typed}
+		return []string{typed}, true
 	case []string:
-		return typed
+		return typed, true
 	case array.StringArray:
-		return []string(typed)
+		return []string(typed), true
 	case *array.StringArray:
 		if typed == nil {
-			return nil
+			return nil, false
 		}
-		return []string(*typed)
+		return []string(*typed), true
 	default:
-		return nil
+		return nil, false
 	}
 }
 
@@ -243,88 +325,4 @@ func firstLine(sql string) string {
 		}
 	}
 	return ""
-}
-
-var (
-	deadConjunct = regexp.MustCompile(`(?i)\band\s+false\s*\)`)
-	deadOrArm    = regexp.MustCompile(`(?i)\(\s*not\s+false\s*\)\s+or\s*(\()`)
-)
-
-// dropDeadBranches removes the parts of a statement that a literal makes
-// unreachable, so the tables and kinds they name are not counted as reads:
-//
-//   - a parenthesized group that ends in "AND FALSE" is false whatever precedes it;
-//   - the group after "(NOT FALSE) OR" is never needed, because the left arm is true.
-//
-// The impact reads close their protected derived branch this way until the
-// finding-authority gate opens, and the closed text still names the scanner
-// authority tables. String literals are masked first so a parenthesis inside one
-// cannot unbalance the walk.
-func dropDeadBranches(text string) string {
-	masked := stringLit.ReplaceAllStringFunc(text, func(lit string) string {
-		return strings.Repeat("x", len(lit))
-	})
-	type span struct{ start, end int }
-	var dead []span
-	for _, loc := range deadConjunct.FindAllStringIndex(masked, -1) {
-		if open, ok := matchingOpen(masked, loc[1]-1); ok {
-			dead = append(dead, span{open, loc[1]})
-		}
-	}
-	for _, loc := range deadOrArm.FindAllStringSubmatchIndex(masked, -1) {
-		if closeAt, ok := matchingClose(masked, loc[2]); ok {
-			dead = append(dead, span{loc[2], closeAt + 1})
-		}
-	}
-	if len(dead) == 0 {
-		return text
-	}
-	sort.Slice(dead, func(i, j int) bool { return dead[i].start < dead[j].start })
-	var out strings.Builder
-	cursor := 0
-	for _, d := range dead {
-		if d.start < cursor {
-			continue
-		}
-		out.WriteString(text[cursor:d.start])
-		cursor = d.end
-	}
-	out.WriteString(text[cursor:])
-	return out.String()
-}
-
-// matchingOpen returns the index of the parenthesis that opens the group
-// closed at closeAt.
-func matchingOpen(text string, closeAt int) (int, bool) {
-	depth := 0
-	for i := closeAt; i >= 0; i-- {
-		switch text[i] {
-		case ')':
-			depth++
-		case '(':
-			depth--
-			if depth == 0 {
-				return i, true
-			}
-		}
-	}
-	return 0, false
-}
-
-// matchingClose returns the index of the parenthesis that closes the group
-// opened at openAt.
-func matchingClose(text string, openAt int) (int, bool) {
-	depth := 0
-	for i := openAt; i < len(text); i++ {
-		switch text[i] {
-		case '(':
-			depth++
-		case ')':
-			depth--
-			if depth == 0 {
-				return i, true
-			}
-		}
-	}
-	return 0, false
 }

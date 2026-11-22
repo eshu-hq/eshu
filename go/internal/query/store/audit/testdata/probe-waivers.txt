@@ -142,7 +142,6 @@ supply_chain.container_image_identities.aggregate
 supply_chain.container_image_identities.list
 supply_chain.sbom_attestation_attachments.aggregate
 supply_chain.sbom_attestation_attachments.list
-supply_chain.security_alert_reconciliations.aggregate
 supply_chain.vulnerability_scanner.contract.read
 surface_inventory.list
 symbol_graph.argument_names

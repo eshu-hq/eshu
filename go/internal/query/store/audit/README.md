@@ -14,23 +14,49 @@ not declare. It is the layer-2 audit of the #10880 design record.
   `probes_test.go` builds a production store on it and drives one branch, then
   reads back the SQL and arguments the store actually issued.
 - `Classify` turns statements into store tokens (`fact_records_reducer`,
-  `fact_records_collector`, `read_table:<table>`, `content_search`). It resolves
-  fact kinds from literals, `IN` lists, and bind arguments, ignores CTE names,
-  comments, string literals, lifecycle joins, and branches a literal `AND FALSE`
-  closes, and reports an unresolvable `fact_records` read as unresolved.
+  `fact_records_collector`, `read_table:<table>`, `content_search`). `scrub`
+  blanks comments and masks string literals, so `--` inside a literal stays a
+  literal, and unquotes quoted identifiers. The classifier resolves fact kinds
+  from literals, `IN` lists, and bind arguments; reads every item of a
+  comma-separated `FROM` list; ignores CTE names, lifecycle joins, and
+  PostgreSQL system catalogs (`pg_*`, `information_schema`, schema
+  introspection, not a store); and treats the winners freshness watermark as the
+  winners store. `deadSpans` drops a branch only when a boolean constant
+  really closes it, with SQL precedence (`AND` over `OR`).
+- It fails closed. It reports as unresolved a `fact_records` read with no
+  resolvable kind, a kind bind of a type it cannot read, a CTE that shadows a
+  store name, a `FROM` item it cannot parse, unbalanced parentheses, and an
+  unterminated literal or comment. `shapes_test.go` holds one seeded RED/GREEN
+  case per shape; a shape the classifier misreads without knowing it is the
+  residual risk those cases are there to shrink.
 - `Undeclared` returns the tokens a declaration does not name.
 - `Census` classifies the SQL string literals of every non-test Go file per
   package. It needs the set of tables the schema creates (`KnownRelations`) so a
-  CTE alias or a word in prose never reads as a table.
+  CTE alias or a word in prose never reads as a table. It is a package-union
+  floor: it compares a package to the union of the stores its capabilities
+  declare, so it cannot say which capability a literal serves, and a package
+  serving capabilities with different declarations passes on the union. The
+  per-capability claim comes from the probes only.
 
 ## Waivers
 
 `testdata/probe-waivers.txt` lists capabilities with no probe yet, and
 `testdata/census-waivers.txt` lists query packages with no census owner yet.
-Both may only shrink: `probeWaiverCeiling` and `censusWaiverCeiling` in
-`audit_test.go` pin their length, and a stale entry fails. Regenerate the lists
+Both may only shrink. `CheckWaivers` (`coverage.go`) is the ratchet as a pure
+function: `probeWaiverCeiling` and `censusWaiverCeiling` in `audit_test.go` pin
+the lengths, and a stale, duplicate, or growing entry fails. Raising a ceiling
+constant is a code edit that only review catches. Regenerate the lists
 with `ESHU_UPDATE_STOREAUDIT_WAIVERS=1 go test ./internal/query/store/audit`,
 which records what is unprobed or unowned today.
+
+## What the audit claims
+
+For the capabilities and variants the probes list, every statement a probe drives
+reads a subset of the stores the capability declares. The readiness block of the
+impact list and explain responses is probed too (repository, CVE, image
+reference, and package anchors), so the readiness tables are declared. The
+remaining capabilities are waived. Graph and content-store reads are not
+recorded. #10880 acceptance criterion 1 is met for the listed capabilities only.
 
 ## Not covered
 

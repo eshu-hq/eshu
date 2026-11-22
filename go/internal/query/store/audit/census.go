@@ -151,7 +151,7 @@ func censusPackage(literals []literal, known map[string]struct{}) Used {
 			continue
 		}
 		fragment := Used{Stores: map[string]string{}}
-		classifyOne(Statement{SQL: lit.text}, censusScope{fallbackKinds: kinds, ctes: ctes, known: known}, &fragment)
+		classifyOne(Statement{SQL: lit.text}, censusScope{census: true, fallbackKinds: kinds, ctes: ctes, known: known}, &fragment)
 		for store, evidence := range fragment.Stores {
 			add(&used, store, lit.file+": "+evidence)
 		}

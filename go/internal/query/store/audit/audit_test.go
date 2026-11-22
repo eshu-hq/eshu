@@ -49,7 +49,7 @@ const updateWaiversEnv = "ESHU_UPDATE_STOREAUDIT_WAIVERS"
 // only shrink: adding a waiver fails the ceiling, and removing one fails until
 // the ceiling is lowered to match, so a shrink is never silently undone.
 const (
-	probeWaiverCeiling  = 156
+	probeWaiverCeiling  = 155
 	censusWaiverCeiling = 18
 )
 
@@ -82,16 +82,6 @@ func writeWaivers(t *testing.T, name, header string, entries []string) {
 	body := header + "\n" + strings.Join(entries, "\n") + "\n"
 	if err := os.WriteFile(waiverPath(name), []byte(body), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
-	}
-}
-
-func assertCeiling(t *testing.T, what string, got, ceiling int) {
-	t.Helper()
-	switch {
-	case got > ceiling:
-		t.Errorf("%s has %d entries, ceiling %d: a waiver list may only shrink; probe or own the new entry instead", what, got, ceiling)
-	case got < ceiling:
-		t.Errorf("%s has %d entries, ceiling %d: lower the ceiling constant to %d so the shrink holds", what, got, ceiling, got)
 	}
 }
 
@@ -153,40 +143,32 @@ func TestAuditCatchesTheAdvisoryEvidenceDeclaration(t *testing.T) {
 	}
 }
 
-// TestEveryCapabilityIsProbedOrWaived fails when a matrix capability has no
-// probe and no waiver, when a waiver names a capability that is now probed or
-// no longer exists, and when the waiver list grows.
+// TestEveryCapabilityIsProbedOrWaived runs the coverage ratchet over the matrix
+// and the probe table: a capability with no probe and no waiver fails, a stale
+// or duplicate waiver fails, and the waiver list may only shrink.
 func TestEveryCapabilityIsProbedOrWaived(t *testing.T) {
 	declared := declaredStores(t)
-	probed := map[string]struct{}{}
-	for _, p := range probes() {
-		probed[p.capability] = struct{}{}
-	}
-	var unprobed []string
+	var capabilities, probed []string
 	for capability := range declared {
-		if _, ok := probed[capability]; !ok {
-			unprobed = append(unprobed, capability)
-		}
+		capabilities = append(capabilities, capability)
+	}
+	for _, p := range probes() {
+		probed = append(probed, p.capability)
 	}
 	if os.Getenv(updateWaiversEnv) != "" {
+		var unprobed []string
+		for _, capability := range capabilities {
+			if !slices.Contains(probed, capability) {
+				unprobed = append(unprobed, capability)
+			}
+		}
 		writeWaivers(t, "probe-waivers.txt",
 			"# Capabilities with no recorded-handler probe yet. Remove a line when a probe lands;\n# the list may only shrink (probeWaiverCeiling).", unprobed)
 	}
 	waived := readWaivers(t, "probe-waivers.txt")
-	for _, capability := range unprobed {
-		if !slices.Contains(waived, capability) {
-			t.Errorf("capability %q has no probe and no waiver", capability)
-		}
+	for _, problem := range audit.CheckWaivers("capability", capabilities, probed, waived, probeWaiverCeiling) {
+		t.Error(problem)
 	}
-	for _, capability := range waived {
-		if _, ok := declared[capability]; !ok {
-			t.Errorf("waiver %q names a capability that is not in the matrix", capability)
-		}
-		if _, ok := probed[capability]; ok {
-			t.Errorf("waiver %q names a capability that now has a probe: delete the waiver", capability)
-		}
-	}
-	assertCeiling(t, "probe-waivers.txt", len(waived), probeWaiverCeiling)
 }
 
 // censusOwners maps a query package to the capabilities it serves and the
@@ -218,11 +200,10 @@ var censusOwners = map[string]struct {
 }
 
 func supportingImpactTables() map[string]string {
-	const authority = "protected source-vector authority join in the closed derived branch (finding authority opens with #9468)"
-	const readiness = "input to the readiness_state the list and explain responses carry; not declared by any capability yet"
+	const authority = "protected source-vector authority join in the closed derived branch; no probe reaches it live (finding authority opens with #9468)"
 	out := map[string]string{}
 	for _, table := range []string{
-		"collector_instances", "eshu_security.role_policy_state", "tenant_scope_grants", "tenants", "workspaces",
+		"eshu_security.role_policy_state", "tenant_scope_grants", "tenants", "workspaces",
 		"scanner_advisory_generation_facts", "scanner_advisory_generation_receipts", "scanner_advisory_private_bindings",
 		"scanner_advisory_producer_grants", "scanner_advisory_public_activations", "scanner_advisory_public_generations",
 		"scanner_advisory_public_registrations", "scanner_authority_epochs", "scanner_image_result_publications",
@@ -233,14 +214,6 @@ func supportingImpactTables() map[string]string {
 		"scanner_static_impact_public_advisory_evidence",
 	} {
 		out[audit.ReadTablePrefix+table] = authority
-	}
-	for _, table := range []string{
-		"container_image_identity_supports", "package_manifest_consumption_key_backfill_markers",
-		"package_manifest_consumption_key_dirty_scopes", "package_manifest_consumption_keys",
-		"package_registry_identity_keys", "vulnerability_source_state_packages", "vulnerability_source_states",
-		"workflow_runs",
-	} {
-		out[audit.ReadTablePrefix+table] = readiness
 	}
 	return out
 }
@@ -299,31 +272,27 @@ func TestCensusOwnedPackagesStayInsideTheirDeclarations(t *testing.T) {
 // that list from growing or going stale.
 func TestCensusUnownedPackagesAreWaived(t *testing.T) {
 	found := census(t)
-	var unowned []string
+	var readers, owned []string
 	for pkg := range found {
-		if _, ok := censusOwners[pkg]; !ok {
-			unowned = append(unowned, pkg)
+		readers = append(readers, pkg)
+		if _, ok := censusOwners[pkg]; ok {
+			owned = append(owned, pkg)
 		}
 	}
 	if os.Getenv(updateWaiversEnv) != "" {
+		var unowned []string
+		for _, pkg := range readers {
+			if !slices.Contains(owned, pkg) {
+				unowned = append(unowned, pkg)
+			}
+		}
 		writeWaivers(t, "census-waivers.txt",
 			"# Query packages that read a store and have no census owner yet (package path under go/internal/query;\n# \".\" is the root package). Own a package in audit_test.go and delete its line; the list may only shrink (censusWaiverCeiling).", unowned)
 	}
 	waived := readWaivers(t, "census-waivers.txt")
-	for _, pkg := range unowned {
-		if !slices.Contains(waived, pkg) {
-			t.Errorf("package %s reads a store but has no census owner and no waiver", pkg)
-		}
+	for _, problem := range audit.CheckWaivers("package", readers, owned, waived, censusWaiverCeiling) {
+		t.Error(problem)
 	}
-	for _, pkg := range waived {
-		if _, ok := found[pkg]; !ok {
-			t.Errorf("census waiver %q names a package with no SQL: delete the waiver", pkg)
-		}
-		if _, ok := censusOwners[pkg]; ok {
-			t.Errorf("census waiver %q names an owned package: delete the waiver", pkg)
-		}
-	}
-	assertCeiling(t, "census-waivers.txt", len(waived), censusWaiverCeiling)
 }
 
 // TestCensusFailsAPackageThatReadsAnUndeclaredStore is the seeded RED/GREEN

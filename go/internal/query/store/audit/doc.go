@@ -15,6 +15,8 @@
 //
 // Query text is built at init from package variables and helper calls, and a
 // fact kind often arrives only as a bind argument, so the recorded statement is
-// the primary evidence and the source census is the floor. A fact_records read
-// whose kind cannot be resolved is reported as unresolved rather than dropped.
+// the primary evidence and the source census is the floor. The classifier fails
+// closed: a fact_records read whose kind cannot be resolved, and every statement
+// shape it cannot parse, is reported as unresolved rather than dropped. The
+// census is a package-union floor and cannot attribute a read to one capability.
 package audit

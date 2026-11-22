@@ -5,6 +5,7 @@ package audit_test
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
@@ -54,9 +55,49 @@ func preciseAgg(filter *impact.AggregateFilter)  { filter.DetectionProfile = imp
 
 func listProbe(variant string, gate bool, mutate func(*impact.FindingFilter)) probe {
 	return probe{"supply_chain.impact_findings.list", variant, func(ctx context.Context, recorder *audit.Recorder) {
-		_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, gate).
-			ListSupplyChainImpactFindings(ctx, impactFilter(mutate))
+		store := impact.NewPostgresFindingStoreWithReadStore(recorder, gate)
+		_, _ = store.ListSupplyChainImpactFindings(ctx, impactFilter(mutate))
+		// The list handler reads the winners watermark for the truth envelope's
+		// freshness (applyWinnersFreshness); the store probes it only with the
+		// gate on.
+		_, _ = store.SupplyChainImpactWinnersWatermark(ctx)
 	}}
+}
+
+// readinessRows answers the readiness gate and the image-reference digest
+// lookup so a target-resolution anchor reaches the readiness statements.
+func readinessRows(sql string) db.Rows {
+	switch {
+	case strings.Contains(sql, "package_manifest_consumption_key_backfill_markers"):
+		return audit.StaticRows([]any{true})
+	case strings.Contains(sql, "container_image_identity_current_supports") && strings.Contains(sql, "digest"):
+		return audit.StaticRows([]any{"sha256:abc"})
+	case strings.Contains(sql, "package_registry.package") && strings.Contains(sql, "SELECT DISTINCT"):
+		return audit.StaticRows([]any{"pkg:npm/x@1", "npm", "x", "x", ""})
+	case strings.Contains(sql, "vulnerability.affected_package") && strings.Contains(sql, "SELECT DISTINCT"):
+		// One resolved package, so the target-key ownership check runs.
+		return audit.StaticRows([]any{"pkg:npm/x@1", "pkg:npm/x@1", "npm", "x"})
+	default:
+		return nil
+	}
+}
+
+// readinessProbes drives the readiness store the list and explain handlers call
+// for the readiness block of their responses, for a repository anchor and for
+// the three target-resolution anchors (CVE, image reference, package).
+func readinessProbes(capability string) []probe {
+	run := func(query impact.ReadinessQuery) func(context.Context, *audit.Recorder) {
+		return func(ctx context.Context, recorder *audit.Recorder) {
+			recorder.Rows = readinessRows
+			_, _ = impact.NewPostgresReadinessStoreWithReadStore(recorder).ReadSupplyChainImpactReadiness(ctx, query)
+		}
+	}
+	return []probe{
+		{capability, "readiness, repository anchor", run(impact.ReadinessQuery{RepositoryID: "repository:r"})},
+		{capability, "readiness, cve anchor", run(impact.ReadinessQuery{CVEID: "CVE-1"})},
+		{capability, "readiness, image reference anchor", run(impact.ReadinessQuery{ImageRef: "registry.example/app:1"})},
+		{capability, "readiness, package anchor", run(impact.ReadinessQuery{PackageID: "pkg:npm/x@1"})},
+	}
 }
 
 func aggregateProbe(variant string, gate bool, mutate func(*impact.AggregateFilter)) probe {
@@ -70,6 +111,11 @@ func aggregateProbe(variant string, gate bool, mutate func(*impact.AggregateFilt
 // probes lists every capability this audit drives. A capability absent here
 // must appear in testdata/probe-waivers.txt.
 func probes() []probe {
+	out := append(readinessProbes("supply_chain.impact_findings.list"), readinessProbes("supply_chain.impact_explanation.read")...)
+	return append(out, coreProbes()...)
+}
+
+func coreProbes() []probe {
 	return []probe{
 		listProbe("gate off", false, nil),
 		listProbe("gate on, ungranted", true, nil),
@@ -111,6 +157,12 @@ func probes() []probe {
 		{"supply_chain.advisory_catalog.list", "page", func(ctx context.Context, recorder *audit.Recorder) {
 			_, _ = advisory.NewPostgresCatalogStoreWithReadStore(recorder).
 				ListAdvisoryCatalog(ctx, advisory.CatalogFilter{Limit: 10})
+		}},
+		{"supply_chain.security_alert_reconciliations.aggregate", "count and inventory", func(ctx context.Context, recorder *audit.Recorder) {
+			store := alerts.NewPostgresAggregateStoreWithReadStore(recorder)
+			filter := supplychain.SecurityAlertReconciliationAggregateFilter{RepositoryID: "repository:r"}
+			_, _ = store.CountSecurityAlertReconciliations(ctx, filter)
+			_, _ = store.SecurityAlertReconciliationInventory(ctx, filter, supplychain.SecurityAlertReconciliationInventoryByStatus, 10, 0)
 		}},
 		{"supply_chain.security_alert_reconciliations.list", "repository anchored", func(ctx context.Context, recorder *audit.Recorder) {
 			_, _ = alerts.NewPostgresStoreWithReadStore(recorder).
