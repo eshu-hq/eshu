@@ -404,13 +404,18 @@ itself.
 No-Regression Evidence (#10408 L4, bound reworked in #11232):
 `TestRekeyPassOverheadIsMeasured` (4 rows, all changed, in-memory writer-core
 only, no Postgres round trip) runs serially, so nothing else runs beside it,
-and asserts exact allocation counts instead of a wall-time ratio: the
-realistic re-key fixture allocates within 1.5x of the ordinary pass (measured
-+1.5% to +4%), and the marginal allocation per added group member between 256
-and 2048 members per row stays under 1.0 (measured 0.02-0.03). A timing
-guard compares the per-member cost at those two scales from interleaved
-minimums and fails past 4x growth (measured 1.08-1.20x), so a union that is
-slow without allocating still fails. The earlier ordinary-vs-re-key
+and bounds allocation counts instead of a wall-time ratio. The realistic
+re-key fixture (new rows, no stored row to replace) allocates within 1.5x of
+the ordinary pass (measured +0% to +5%). The scale fixtures replace stored
+rows whose member set differs, so the stored-member parse, the member-set
+comparison, and both member unions are measured: the marginal allocation per
+added group member between 256 and 2048 members per row stays under 4.0
+(measured 1.08-1.09; a per-member set copy measured 130). A timing guard
+compares the per-member cost between 256 and 8192 members per row from
+interleaved minimums and fails past 4x growth (measured 1.14-1.68x across
+clean and CPU-loaded runs on a busy host), so a union that is slow without
+allocating still fails; 8192 keeps a non-allocating quadratic scan visible
+under `-race` (that scan measured 9-10x, non-race 16x). The earlier ordinary-vs-re-key
 median-ratio gate failed at +152.6% on a loaded CI runner with no code
 change. Overlap and keyed-tick behavior hold live
 against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentLive`

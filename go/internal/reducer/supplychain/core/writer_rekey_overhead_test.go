@@ -111,25 +111,38 @@ func TestRekeyPassIssuesNoNewStatement(t *testing.T) {
 	}
 }
 
-// Re-key overhead bound constants. The allocation bounds are exact counts, so
-// their margins guard against future legitimate helper changes, not noise; the
-// timing bound is a ratio of two per-member costs taken from interleaved
-// minimums, so a sustained runner slowdown cancels out of it.
+// Re-key overhead bound constants. Allocation counts are near-deterministic
+// (ordinary allocations vary by a few percent between runs), so the allocation
+// margins guard against helper changes, not noise; the timing bound is a ratio
+// of two per-member costs taken from interleaved minimums, so a sustained
+// runner slowdown cancels out of it.
 const (
 	// overheadRows is the number of changed findings in every measured write.
 	overheadRows = 4
 	// overheadSmallMembers and overheadLargeMembers are the per-finding
 	// advisory-group member counts of the two scale points the bound compares.
+	//
+	// The large point is 8192 so that a quadratic term that does not allocate
+	// still dominates the linear per-member cost under -race, where race
+	// instrumentation lifts the linear cost to about 2us per member and hides a
+	// quadratic scan at 2048 (#11232 review: such a scan grew only 2.8x there,
+	// and 8.3-9.3x at 8192).
 	overheadSmallMembers = 256
-	overheadLargeMembers = 2048
+	overheadLargeMembers = 8192
+	// overheadAllocMembers is the mid scale point of the allocation bound. The
+	// allocation check does not need the large point (a per-member copy shows at
+	// any scale), and a seeded allocating quadratic union stays cheap enough to
+	// fail in seconds instead of minutes.
+	overheadAllocMembers = 2048
 	// overheadParityFactor bounds the allocation count of the realistic
 	// re-key fixture against the ordinary changed pass. Measured at about +2%.
 	overheadParityFactor = 1.5
 	// overheadAllocsPerMember bounds the marginal allocations one extra
-	// advisory-group member may cost. The member union is a map insert, so the
-	// measured marginal cost is about 0.03 allocations per member; a union that
-	// copies or rescans per member costs on the order of log2(N) or N.
-	overheadAllocsPerMember = 1.0
+	// advisory-group member may cost. A member costs one string per stored
+	// member (the parse) plus the map inserts of the new and the departed set,
+	// measured at about 1.08 allocations per member; a union that copies or
+	// rescans per member costs on the order of log2(N) (14 measured) or N.
+	overheadAllocsPerMember = 4.0
 	// overheadCostGrowthFactor bounds how much the per-member time cost may
 	// grow between the two scale points. A linear union measures about 1.0; a
 	// quadratic one grows with the member count itself.
@@ -139,43 +152,79 @@ const (
 	// the number of independent attempts before the growth bound fails.
 	overheadTimingRounds   = 15
 	overheadTimingAttempts = 3
+	// overheadEarlyStopRounds and overheadEarlyStopFactor end one attempt's
+	// rounds early once the minimums taken so far already show growth of
+	// overheadEarlyStopFactor times the limit. A slow quadratic union would
+	// otherwise spend minutes on rounds whose verdict is settled; the attempt
+	// still counts as one miss, so the all-attempts rule is unchanged.
+	overheadEarlyStopRounds = 3
+	overheadEarlyStopFactor = 3.0
 )
 
-// overheadScaleWrite builds a re-key write of overheadRows findings, each
-// carrying its own id plus members synthetic group members, so the member
-// union does work proportional to members.
-func overheadScaleWrite(members int) SupplyChainImpactWrite {
+// overheadFixture is one measured pass: the write under test and the stored
+// rows the changed-row read returns for it.
+type overheadFixture struct {
+	write  SupplyChainImpactWrite
+	stored []fakeStoredFinding
+}
+
+// overheadScaleFixture builds a re-key write of overheadRows findings, each
+// carrying its own id plus members synthetic group members, over stored rows
+// from a prior generation that carry a disjoint member set of the same size.
+// Every row replaces a stored row under a changed member set, so the pass
+// exercises the replaced-row paths in memory: the stored member parse, the
+// member-set comparison, and the union of both member sets into the changed and
+// touched sets, each proportional to members.
+func overheadScaleFixture(members int) overheadFixture {
 	findings := make([]SupplyChainImpactFinding, 0, overheadRows)
+	priors := make([]SupplyChainImpactFinding, 0, overheadRows)
 	for row := range overheadRows {
 		cveID := fmt.Sprintf("CVE-2026-%04d", 1100+row)
 		group := make([]string, 0, members+1)
-		group = append(group, cveID)
+		departed := make([]string, 0, members+1)
+		group, departed = append(group, cveID), append(departed, cveID)
 		for member := range members {
 			group = append(group, fmt.Sprintf("GHSA-%d-%05d", row, member))
+			departed = append(departed, fmt.Sprintf("GHSA-old-%d-%05d", row, member))
 		}
 		findings = append(findings, rekeyFinding(cveID, group...))
+		priors = append(priors, rekeyFinding(cveID, departed...))
 	}
-	return rekeyWrite("generation-overhead", findings...)
+	write := rekeyWrite("generation-overhead", findings...)
+	prior := rekeyWrite("generation-prior", priors...)
+	stored := make([]fakeStoredFinding, 0, overheadRows)
+	for _, finding := range prior.Findings {
+		stored = append(stored, rekeyPriorRow(prior, finding))
+	}
+	return overheadFixture{write: write, stored: stored}
+}
+
+// overheadWriter returns a production writer over the fake transaction surface
+// with the fixture's stored rows loaded.
+func overheadWriter(fixture overheadFixture) PostgresSupplyChainImpactWriter {
+	writer, beginner := changedTestWriter()
+	beginner.state.stored = fixture.stored
+	return writer
 }
 
 // overheadAllocs returns the mean allocations of one production writer pass
-// over write on the fake transaction surface.
-func overheadAllocs(t *testing.T, write SupplyChainImpactWrite) float64 {
+// over the fixture on the fake transaction surface.
+func overheadAllocs(t *testing.T, fixture overheadFixture) float64 {
 	t.Helper()
 	return testing.AllocsPerRun(5, func() {
-		writer, _ := changedTestWriter()
-		if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+		if _, err := overheadWriter(fixture).WriteSupplyChainImpactFindings(context.Background(), fixture.write); err != nil {
 			t.Fatalf("overhead pass: %v", err)
 		}
 	})
 }
 
-// overheadTime returns the wall time of one production writer pass over write.
-func overheadTime(t *testing.T, write SupplyChainImpactWrite) time.Duration {
+// overheadTime returns the wall time of one production writer pass over the
+// fixture.
+func overheadTime(t *testing.T, fixture overheadFixture) time.Duration {
 	t.Helper()
-	writer, _ := changedTestWriter()
+	writer := overheadWriter(fixture)
 	start := time.Now()
-	if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), write); err != nil {
+	if _, err := writer.WriteSupplyChainImpactFindings(context.Background(), fixture.write); err != nil {
 		t.Fatalf("overhead pass: %v", err)
 	}
 	return time.Since(start)
@@ -184,7 +233,10 @@ func overheadTime(t *testing.T, write SupplyChainImpactWrite) time.Duration {
 // TestRekeyPassOverheadIsMeasured pins the in-memory writer-core cost of a
 // re-key pass: the member-union helpers cost a bounded amount, linear in the
 // member count, and the realistic re-key pass allocates like an ordinary
-// changed pass. It runs the production writer over the fake transaction
+// changed pass. The parity arm covers new rows (no stored row to replace); the
+// scale arms cover replaced rows whose stored and new member sets differ, so
+// the stored-member parse, the member-set comparison, and both unions are
+// measured. It runs the production writer over the fake transaction
 // surface, so the measured cost covers finding encode, digest, the
 // member-union helpers, and the capture filter, but no Postgres round trip: it
 // is the writer-core overhead, not an end-to-end claim.
@@ -196,7 +248,7 @@ func overheadTime(t *testing.T, write SupplyChainImpactWrite) time.Duration {
 // owns the process (parallel tests resume only after it), which testing.AllocsPerRun
 // also requires, so:
 //
-//   - allocation counts are exact: the realistic fixture stays within
+//   - allocation counts are near-deterministic: the realistic fixture stays within
 //     overheadParityFactor of the ordinary pass, and the marginal allocation
 //     per added member between two scale points stays within
 //     overheadAllocsPerMember;
@@ -219,7 +271,7 @@ func TestRekeyPassOverheadIsMeasured(t *testing.T) {
 		rekeyFinding("CVE-2026-0913", "CVE-2026-0913", "CVE-2026-0916"),
 		rekeyFinding("CVE-2026-0914", "CVE-2026-0914"),
 	)
-	ordinaryAllocs, rekeyAllocs := overheadAllocs(t, ordinary), overheadAllocs(t, rekey)
+	ordinaryAllocs, rekeyAllocs := overheadAllocs(t, overheadFixture{write: ordinary}), overheadAllocs(t, overheadFixture{write: rekey})
 	t.Logf("writer-core overhead rows=%d changed=%d: ordinary allocs=%.0f re-key allocs=%.0f ratio=%.3f",
 		overheadRows, overheadRows, ordinaryAllocs, rekeyAllocs, rekeyAllocs/ordinaryAllocs)
 	if rekeyAllocs > overheadParityFactor*ordinaryAllocs {
@@ -227,12 +279,12 @@ func TestRekeyPassOverheadIsMeasured(t *testing.T) {
 			rekeyAllocs, overheadParityFactor, ordinaryAllocs)
 	}
 
-	small, large := overheadScaleWrite(overheadSmallMembers), overheadScaleWrite(overheadLargeMembers)
-	extraMembers := float64(overheadRows * (overheadLargeMembers - overheadSmallMembers))
-	smallAllocs, largeAllocs := overheadAllocs(t, small), overheadAllocs(t, large)
-	allocsPerMember := (largeAllocs - smallAllocs) / extraMembers
+	small := overheadScaleFixture(overheadSmallMembers)
+	extraMembers := float64(overheadRows * (overheadAllocMembers - overheadSmallMembers))
+	smallAllocs, midAllocs := overheadAllocs(t, small), overheadAllocs(t, overheadScaleFixture(overheadAllocMembers))
+	allocsPerMember := (midAllocs - smallAllocs) / extraMembers
 	t.Logf("writer-core overhead member scale: members/row %d allocs=%.0f, members/row %d allocs=%.0f, marginal allocs/member=%.3f",
-		overheadSmallMembers, smallAllocs, overheadLargeMembers, largeAllocs, allocsPerMember)
+		overheadSmallMembers, smallAllocs, overheadAllocMembers, midAllocs, allocsPerMember)
 	if allocsPerMember > overheadAllocsPerMember {
 		t.Fatalf("marginal allocs per advisory-group member %.3f exceed %.1f: the member union does super-linear work",
 			allocsPerMember, overheadAllocsPerMember)
@@ -242,18 +294,26 @@ func TestRekeyPassOverheadIsMeasured(t *testing.T) {
 	// disturbs the large scale point in every round of one attempt does not
 	// repeat across independent attempts, so the check passes on the first
 	// attempt within the bound and fails only when all attempts exceed it.
-	zero := overheadScaleWrite(0)
+	// An attempt whose small-scale cost is not positive (a disturbed zero
+	// point) measured nothing, so it is a miss like an over-limit attempt.
+	zero, large := overheadScaleFixture(0), overheadScaleFixture(overheadLargeMembers)
 	var growth float64
+	measured := false
 	for attempt := 1; attempt <= overheadTimingAttempts; attempt++ {
 		var smallCost float64
 		smallCost, growth = overheadCostGrowth(t, zero, small, large)
 		if smallCost <= 0 {
-			t.Fatalf("small-scale per-member cost %.0fns is not positive: the timing scale points no longer measure the member union", smallCost)
+			t.Logf("attempt %d/%d: small-scale per-member cost %.0fns is not positive; the attempt measured nothing", attempt, overheadTimingAttempts, smallCost)
+			continue
 		}
+		measured = true
 		if growth <= overheadCostGrowthFactor {
 			return
 		}
 		t.Logf("attempt %d/%d: per-member cost grew %.2fx (limit %.1fx)", attempt, overheadTimingAttempts, growth, overheadCostGrowthFactor)
+	}
+	if !measured {
+		t.Fatalf("small-scale per-member cost was not positive in all %d attempts: the timing scale points no longer measure the member union", overheadTimingAttempts)
 	}
 	t.Fatalf("per-member cost grew %.2fx between %d and %d members per row in all %d attempts (limit %.1fx): the member union is not linear",
 		growth, overheadSmallMembers, overheadLargeMembers, overheadTimingAttempts, overheadCostGrowthFactor)
@@ -263,22 +323,30 @@ func TestRekeyPassOverheadIsMeasured(t *testing.T) {
 // across overheadTimingRounds rounds so a load phase hits all three, takes
 // each point's minimum (the pass the scheduler disturbed least), and returns
 // the small-scale per-member cost in nanoseconds and the factor by which the
-// per-member cost grew from the small to the large scale.
-func overheadCostGrowth(t *testing.T, zero, small, large SupplyChainImpactWrite) (smallCost, growth float64) {
+// per-member cost grew from the small to the large scale. A grossly
+// super-linear union ends the attempt early (see overheadEarlyStopFactor).
+func overheadCostGrowth(t *testing.T, zero, small, large overheadFixture) (smallCost, growth float64) {
 	t.Helper()
 	minZero, minSmall, minLarge := time.Duration(1<<62), time.Duration(1<<62), time.Duration(1<<62)
+	rounds := 0
 	for range overheadTimingRounds {
+		rounds++
 		minZero = min(minZero, overheadTime(t, zero))
 		minSmall = min(minSmall, overheadTime(t, small))
 		minLarge = min(minLarge, overheadTime(t, large))
+		smallCost = float64(minSmall-minZero) / float64(overheadRows*overheadSmallMembers)
+		largeCost := float64(minLarge-minSmall) / float64(overheadRows*(overheadLargeMembers-overheadSmallMembers))
+		growth = 0
+		if smallCost > 0 {
+			growth = largeCost / smallCost
+		}
+		if rounds >= overheadEarlyStopRounds && growth > overheadEarlyStopFactor*overheadCostGrowthFactor {
+			break
+		}
 	}
-	smallCost = float64(minSmall-minZero) / float64(overheadRows*overheadSmallMembers)
-	largeCost := float64(minLarge-minSmall) / float64(overheadRows*(overheadLargeMembers-overheadSmallMembers))
-	if smallCost > 0 {
-		growth = largeCost / smallCost
-	}
+	largeCost := growth * smallCost
 	t.Logf("writer-core overhead timing minimums over %d interleaved rounds: members/row 0=%.1fus %d=%.1fus %d=%.1fus; per-member cost %.0fns -> %.0fns (growth %.2fx)",
-		overheadTimingRounds, float64(minZero)/1000, overheadSmallMembers, float64(minSmall)/1000,
+		rounds, float64(minZero)/1000, overheadSmallMembers, float64(minSmall)/1000,
 		overheadLargeMembers, float64(minLarge)/1000, smallCost, largeCost, growth)
 	return smallCost, growth
 }
