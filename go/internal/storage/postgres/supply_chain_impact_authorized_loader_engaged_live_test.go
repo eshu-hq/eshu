@@ -78,33 +78,7 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	grantInventoryRequired(t, ctx, admin, roleName, "runtime-writer")
-	for _, s := range []string{
-		`GRANT CONNECT ON DATABASE "` + dbName + `" TO "` + roleName + `"`,
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
-		// The impact writer records per-scope pass state in the same
-		// transaction (#10389): an ordinary base table, so a DBA pregrant
-		// like the admission table above.
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
-		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
-		// The impact writer keeps the per-support table current in the same
-		// transaction (#10880 PR-B1): upsert and retraction delete. An ordinary base
-		// table, so a DBA pregrant like the admission table above; the fence
-		// trigger needs nothing because this writer's transaction sets the
-		// supports_v1 setting and skips it.
-		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
-		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
-		// The impact writer stages the winners it changed in the same transaction
-		// (#9805, #10837 direction C), so the worker login needs the staging
-		// queue: a DBA pregrant outside the migration set, as the
-		// protected-publish proof grants it (INSERT plus the ordering
-		// sequence; no UPDATE, no arbiter).
-		`GRANT INSERT ON supply_chain_impact_winners_dirty_staging TO "` + roleName + `"`,
-		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_staging_seq TO "` + roleName + `"`,
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
-		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
-	} {
-		mustExecProofRow(t, ctx, admin, s)
-	}
+	grantImpactWriterPregrants(t, ctx, admin, dbName, roleName)
 
 	const scopeID, generationID, repoID = "fold-engaged-scope", "fold-engaged-gen", "repo://fold-engaged/web"
 	now := time.Now().UTC().Truncate(time.Second)
