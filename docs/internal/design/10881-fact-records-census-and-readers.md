@@ -86,7 +86,8 @@ emitters, is part of the migration PR, not this record.
 ## Cross-scope readers (A4)
 
 Method: `census_code.sh` second to fifth sections, plus the replica's
-`pg_stat_statements` for the measured side. The Go regexes are a worklist, not
+`pg_stat_statements` for the measured side. **This is a regex worklist, not an
+exhaustive census.** The Go regexes are a worklist, not
 a proof: SQL built by concatenation or scope bound inside a CTE can move a row
 between groups. Three kinds of work matter, and a fourth is not a reader at all.
 

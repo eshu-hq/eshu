@@ -92,9 +92,12 @@ stages are upper bounds; the removal arms read per-backend WAL
   (drop `ONLY`). Every other statement restored unchanged: all 153 indexes and all
   six triggers, two of which are statement triggers with transition tables.
 
-## A5: migration rehearsal (locks, duration, way back, mixed-version writers)
+## A5: migration rehearsal (locks, duration, way back, mixed-version writers; not a proof)
 
-Stages are in `migration_rehearsal.sh`; each prints seconds and WAL, and a sampler
+**This is a rehearsal of parts of a migration, not a proof of one.** The design is
+rejected (see the verdict below), so the migration was not completed or proven:
+S2 verify, cutover and way back did not run, and concurrent writers and deletes
+were not replayed. Stages are in `migration_rehearsal.sh`; each prints seconds and WAL, and a sampler
 records every relation lock mode held on the fact tables while the stage runs.
 Durations are the measured contended host; scaling to 94.6M rows is linear
 extrapolation and labelled so.
@@ -184,13 +187,13 @@ S1 and in `fact_id_collision_proof.sql`). Two ways through:
 
 ## A3: the five busiest fact loads, plans on both shapes (S2, 5.36M rows)
 
-"Busiest" rests on two kinds of evidence. Reads are measured on the QA replica's
-`pg_stat_statements` (reset 2026-10-20): the top fact statement by total time is the
+**The ranking is by code path, not measured.** The replica's
+`pg_stat_statements` (reset 2026-10-20) is a cross-check for the read side only: the top fact statement by total time is the
 reducer's `active_facts` scan, 4,550,987 calls, 219,781 s total, 48.3 ms mean, 286
 rows a call; the next is a 12,739-call projector probe at 178 ms mean. Writes and
 projector loads run on the primary, whose statistics were not read (out of
 bounds), so those are ranked by how often the code path runs: once per projection
-cycle, once per ingestion batch. `explain_loads.sql` runs the same five on both
+cycle, once per ingestion batch. The plans themselves are measured. `explain_loads.sql` runs the same five on both
 shapes; warm, third run, `EXPLAIN (ANALYZE, BUFFERS)`, retained index profile.
 Raw plans: `docs/internal/evidence/10881-fact-records-partition/`.
 
@@ -220,60 +223,75 @@ What this means:
   rehearsal schema; the scope scan is the part under test. The 153-index S1 plan
   (undivided only) is kept in the evidence folder for reference.
 
-## A2: removal, undivided against divided
+## A2: removal, undivided against divided (R1, two sizes)
 
-The shipped retention drain (`generation_retention_chunk_predrain_batch.go`) pages
-one superseded generation's fact ids oldest-first through the keyset index and
-deletes each page by `fact_id = ANY(...)`, one committed transaction per page.
-`removal_procs.sql` reproduces it as a procedure with a `COMMIT` per page (page
-100,000 rows, the shipped default). Two arms: `drain_asis` (that SQL, on the
-undivided table) and `drain_scoped` (the divided form, `scope_id = $1 AND fact_id =
-ANY(...)`). The removal set is the first quarter, by generation id, of the superseded
-generations' rows, identical in both shapes; each arm runs in one session
-(per-backend WAL via `pg_stat_get_backend_wal`) and is followed by `VACUUM
-(VERBOSE, INDEX_CLEANUP on)` in the same session. The superseded rows are real:
-the replica's 3.3M-row scope holds 3.0M rows in 11 superseded generations that
-retention has not yet drained.
+**Method (R1).** A 2x2: undivided and divided(32) tables, at S1 (2,071,167 rows) and
+S0 (S1 without its 1.11M-row giant scope, 960,732 rows). Both shapes carry the
+retained five-index profile and the six triggers. One fixed removal list of 202
+superseded generations, drawn only from non-giant scopes and written to a file, is
+the same in all four cells, and every cell deleted the same 389,603 rows. Each cell
+ran alone, in order, after `VACUUM (FREEZE) fact_records` and `CHECKPOINT`, then in
+one session: the shipped retention drain (page of 100,000 ids, one committed
+transaction per page; fact_id-only SQL on the undivided table, the
+`scope_id AND fact_id` form on the divided one), then `VACUUM (VERBOSE)`. WAL is
+per-backend (`pg_stat_get_backend_wal`), so other cluster activity does not count.
+The decision rests on WAL bytes and page counts, not seconds. Raw output:
+`docs/internal/evidence/10881-fact-records-partition/r1-*`.
 
-Results (host load 24 to 26, I/O pressure 39 to 52%; the divided S1 arm overlapped
-a Go lint run and the S2 arms, so its seconds carry more contention than the
-undivided arm's; WAL bytes are per-backend and not affected):
+| Metric | S0 undivided | S0 divided | S1 undivided | S1 divided |
+| --- | --- | --- | --- | --- |
+| rows deleted | 389,603 | 389,603 | 389,603 | 389,603 |
+| delete WAL (bytes) | 972,567,605 | 897,923,324 | 905,479,301 | 905,517,223 |
+| VACUUM WAL (bytes) | 62,235,389 | 30,642,438 | 216,690,255 | 30,657,547 |
+| delete + VACUUM WAL (bytes) | 1,034,802,994 | 928,565,762 | 1,122,169,556 | 936,174,770 |
+| index pages in total (VACUUM VERBOSE) | 138,910 | 81,658 | 214,156 | 137,025 |
+| index pages newly deleted | 16,454 | 16,744 | 16,517 | 16,690 |
+| heap pages scanned | 163,198 | 109,795 | 170,077 | 113,013 |
+| buffers: hits / reads / dirtied | 625,955 / 161,203 / 13,965 | 515,274 / 68,259 / 3,697 | 637,301 / 241,352 / 50,198 | 516,576 / 128,977 / 6,822 |
+| size before / after (bytes, sum of `pg_partition_tree` leaves for divided) | not captured / not captured | 4,445,921,280 / 4,438,810,624 | 7,545,962,496 / 7,545,880,576 | 7,280,558,080 / 7,273,725,952 |
+| host loadavg (1 min) and I/O pressure avg60 at cell start | 25.5 / 39 | 42.3 / 47 | 23.5 / 60 | 20.9 / 58 |
 
-| Size | Arm | Delete | WAL (delete) | `VACUUM` | WAL (vacuum) |
-| --- | --- | --- | --- | --- | --- |
-| S1, 2.05M rows | undivided `drain_asis` | 243.9 s | 0.86 GB | 250.3 s | 5.17 GB |
-| S1 | divided `drain_scoped` | 276.3 s (+13%) | 0.97 GB (+13%) | 510.8 s (2.0x) | 5.24 GB (+1.4%) |
-| S2, 5.36M rows | both | NOT_CHECKED: the undivided drain was still running after 22 minutes and was stopped | | | |
+(Delete and VACUUM seconds are in the raw output; they moved from 16 s to 498 s with
+host I/O and are not evidence.) The S0 undivided size was not captured because the
+size query was fixed between cells (a plain table returns no `pg_partition_tree`
+leaf, so the first version reported NULL); the other three cells carry it.
 
-Both S1 arms remove the same 57 generations (about 25% of the superseded rows).
-Reading it:
+**Result against the ruling's bar.**
 
-- With the retained five-index profile the divided table is **not cheaper to
-  remove from**: the delete is slower, and per-backend WAL is the same within 1.4%
-  for `VACUUM`. That is what the mechanism predicts, since hash partitioning gives
-  no part to drop and each page still deletes and vacuums the same rows.
-- The 2x `VACUUM` seconds are mostly host contention (same WAL bytes), so they are
-  not evidence of a slowdown, but they are also not evidence of a win. A repeat on
-  a quiet host is needed before the ratio is quoted.
-- This is one size and one index profile. The kill criterion ("divided materially
-  better on retired-snapshot DELETE plus VACUUM at representative scale") is **not
-  met at S1**; it is not decided at S2 (NOT_CHECKED), and not decided for the
-  153-index profile, where index-page maintenance is the larger cost and 32 parts
-  split it into 32 smaller sets (NOT_CHECKED; that copy did not load in the box).
-  The honest reading today: the issue's expected benefit (removal cost independent
-  of table size) is not shown, and only a per-scope or per-snapshot partition key
-  (a different design) can give a cheap whole-partition removal.
+- Divided over undivided, delete plus VACUUM WAL: **0.897 at S0 and 0.834 at S1.**
+  The bar for keeping the design alive was at most 0.67 at both sizes. It is not met
+  at either: NO-GO stands.
+- Delete WAL is the same in both shapes (0.92x at S0, 1.00x at S1): the delete
+  writes the same heap and TOAST changes whichever table holds the rows. Only
+  VACUUM WAL differs (0.49x and 0.14x), and it is a small part of the total once the
+  table has been frozen first (6% to 19% of undivided delete plus VACUUM WAL).
+- Undivided delete plus VACUUM WAL for the same removal set grows 1.084x from S0
+  to S1 (limit for "does not grow" 1.10x), so removal cost on the undivided table
+  also did not grow with a 2.2x larger table here.
+- Why divided VACUUM needs fewer index pages: each part's indexes are smaller and
+  the removed rows sit in fewer parts; index pages newly deleted are equal (about
+  16.5k to 16.7k), so the same number of index entries were removed either way.
+
+**Limits of the earlier S1 row.** The first measurement (undivided 243.9 s delete,
+250.3 s VACUUM, 5.17 GB VACUUM WAL; divided 276.3 s, 510.8 s, 5.24 GB) is kept in
+`removal-arms-s1.log` and is superseded by R1 because of two defects: (1) it had no
+pre-arm `VACUUM (FREEZE)`, so each VACUUM paid a first vacuum of a freshly loaded
+table (5.17 GB of VACUUM WAL against 0.22 GB for the frozen table above); (2) its
+divided arm logged size 0 because `pg_total_relation_size` of a partitioned parent is
+0, and it did not export rows deleted per arm. It also kept 54% of rows in one scope
+and ran one size. Its S2 arms never finished.
 
 Not a partition drop: `HASH(scope_id)` has no `DETACH`/`DROP PARTITION` path for a
 generation or a scope, because every part holds many scopes. Whole-part removal
-(`TRUNCATE` of a part) is only valid when every scope in it is retired, which is
-a different design (per-scope or per-snapshot partitioning) and is not measured
-here.
+(`TRUNCATE` of a part) is only valid when every scope in it is retired, which is a
+different design (a snapshot-keyed layout) and was not measured here.
 
+## Open questions for the snapshot-keyed layout issue
 
-## Design forks for the arbiter
+These were prepared as design forks for HASH(scope_id). That design is rejected, so
+they are inputs for the snapshot-keyed layout issue, not decisions.
 
-**Fork 1: plain `HASH(scope_id)` mod 32, or a skew-aware key.** One scope holds
+**Key choice: plain `HASH(scope_id)` mod 32, or a skew-aware key.** One scope holds
 12.2M of 94.6M rows (12.9%), so the part that receives it holds at least 12.9% of
 the table whatever the modulus (14.9% at 32, 13.8% at 64 on the real placement).
 What that costs: removal and vacuum work for that scope cannot be spread over
@@ -299,7 +317,7 @@ pruning for every scope and accepts the skew. Not measured: the load plans with 
 split key (NOT_CHECKED). Options not evaluated: a LIST partition for named giant
 scopes, which also makes whole-scope removal a part drop.
 
-**Fork 2: expand/contract or atomic cutover.** Expand/contract (recommended in A5)
+**Cutover shape: expand/contract or atomic cutover.** Expand/contract (recommended in A5)
 needs a second large unique index for the window (1.22 GB at S2) and a deploy gate
 proving no old writer remains; atomic needs a global writer freeze for the whole
 drain. Both need a catch-up that does not run under `ACCESS EXCLUSIVE`: my
@@ -309,34 +327,37 @@ records deletes, with passes outside the lock until the final one is empty. Its
 cost is one index or one trigger on the hot table for the window and was NOT
 measured here.
 
-**Fork 3: `scope_id` into the fact_id-only readers before or with the key change.**
+**Reader prerequisite: `scope_id` into the fact_id-only readers.** Per the owner ruling this is *not* done now: the readers stay as they are because no key change is adopted.
 `unchanged_guard.go` (`selectUnchangedFactIDs`) is the hot one (L3a). The others
 are the fact_id-only table in the census record (about twenty statements across
 the query, reducer and storage packages). The change is mechanical where the scope
 is known at the call; any site that cannot supply it needs a per-part `fact_id`
-index (32 more indexes) or accepts a full scan. This is a prerequisite, not a
-choice, but the order (ship the readers first, key second) is the arbiter's to
-confirm.
+index (32 more indexes) or accepts a full scan. This would be a prerequisite of any
+key change; it is not done now.
 
-## Where this leaves #10881
+## Verdict
 
-- A1, A3, A4, A5 and A6 have measured answers above and in the census record. A2
-  has one size on one index profile and it shows no removal benefit.
-- If the table is divided at all, these must hold first: #10880 has cut the index
-  set (the 153-index shape needs a 2048-lock table and 5,017 index relations); every
-  `fact_id`-only site carries `scope_id` (L3a); the five writers move to
-  `ON CONFLICT (scope_id, fact_id)` through expand/contract; the cutover catch-up
-  is indexed or change-captured and deletes are handled.
-- The measured gain is not removal cost. What hash(scope_id) does give is
-  one-part pruning for scope-bounded loads (as fast as undivided here) and smaller
-  per-part indexes. Whether that is worth a multi-hour backfill and the skew
-  (14.9% of rows in one part) is the arbiter's call on #11180, with a quiet-host
-  repeat of the removal arms at S2 as its evidence.
+HASH(scope_id) is a **measured NO-GO** for `fact_records`. It does not make removal
+of a retired snapshot cheaper than the undivided table: with the same 389,603 rows
+removed, divided delete plus VACUUM WAL was 0.897x (S0) and 0.834x (S1) of the
+undivided table, against a bar of 0.67x at both sizes, and hash parts hold many
+scopes so no part can be dropped or truncated for a snapshot. The 415 GB rebuild is
+not pursued. Decision 4, bullet 2 of the proof record is the kill criterion that
+applies. Scope-bounded loads do prune to one part and run as fast as undivided
+(A3), but that was never the goal of the change.
+
+What this record does **not** claim: the migration is not proven (A5 is a partial
+rehearsal of a design that is rejected); the loads' ranking is by code path, not
+measured; the reader inventory is a regex worklist, not exhaustive. Per the owner
+ruling, no `scope_id` is added to the fact_id-only readers now, and the question of a
+snapshot-keyed layout (retired snapshots dropped, not deleted) moves to its own
+issue with the R1 method as its measurement standard.
 
 ## NOT_CHECKED
 
 - The 12.2M-row scope, 15M-row sizes, and the 153-index divided shape beyond load.
-- S2 removal arms; S2 verify, cutover and way back; the catalog-only `swap` stage.
+- S2 removal arms (not ordered by the ruling); S2 verify, cutover and way back; the catalog-only `swap` stage.
+- The S0 undivided size before/after (script fix between cells).
 - Concurrent writers during backfill (catch-up under load) and delete replay.
 - Primary-side `pg_stat_statements` (out of bounds); write-side "busiest" is by
   code path.

@@ -1,0 +1,24 @@
+# skew_census.sql output on the QA read-replica per-scope census (12,646 scopes, 94.6M rows)
+ modulus | parts_nonempty | total_rows | largest_part_rows | largest_part_pct | smallest_part_pct | ideal_pct | max_scopes_in_part
+---------+----------------+------------+-------------------+------------------+-------------------+-----------+--------------------
+      32 |             32 |   94628876 |          14073574 |             14.9 |              0.97 |      3.13 |                433
+      64 |             64 |   94628876 |          13085516 |             13.8 |              0.30 |      1.56 |                230
+(2 rows)
+
+
+# skew_split.sql (giant scope split into k sub-keys)
+  ?column?  |    n
+------------+----------
+ giant rows | 12195298
+(1 row)
+
+psql:<stdin>:26: NOTICE:  giant split into 1 sub-keys, modulus 32: largest part 15896425 rows = %16.8
+psql:<stdin>:26: NOTICE:  giant split into 1 sub-keys, modulus 64: largest part 14055741 rows = %14.9
+psql:<stdin>:26: NOTICE:  giant split into 4 sub-keys, modulus 32: largest part 6749951 rows = %7.1
+psql:<stdin>:26: NOTICE:  giant split into 4 sub-keys, modulus 64: largest part 4963926 rows = %5.2
+psql:<stdin>:26: NOTICE:  giant split into 8 sub-keys, modulus 32: largest part 6627146 rows = %7.0
+psql:<stdin>:26: NOTICE:  giant split into 8 sub-keys, modulus 64: largest part 4963926 rows = %5.2
+psql:<stdin>:26: NOTICE:  giant split into 16 sub-keys, modulus 32: largest part 6627146 rows = %7.0
+psql:<stdin>:26: NOTICE:  giant split into 16 sub-keys, modulus 64: largest part 4963926 rows = %5.2
+psql:<stdin>:26: NOTICE:  giant split into 32 sub-keys, modulus 32: largest part 6627146 rows = %7.0
+psql:<stdin>:26: NOTICE:  giant split into 32 sub-keys, modulus 64: largest part 4963926 rows = %5.2

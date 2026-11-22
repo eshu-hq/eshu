@@ -1,15 +1,21 @@
 # fact_records HASH(scope_id) partition: theory proof and design record (#10881)
 
-Status: **Proposed**. P1 theory proof (small-scale, disposable PG18) and
-this P2 record are done. No implementation, no migration: the gate is
-#10880 (OPEN, verified 2026-11-21) plus the P3 reads-off inventory and the
-P5 representative-scale rehearsal. A measured NO-GO closes the issue.
+Status: **Rejected by a measured NO-GO (2026-11-22).** Decision 4, bullet 2
+below reads: "Divided copy not materially better than undivided on
+retired-snapshot DELETE+VACUUM-to-steady-state at representative scale: NO-GO, no
+415GB rebuild for zero gain." HASH(scope_id) does not make removal of a retired
+snapshot cheaper than the undivided table: hash parts hold many scopes, so no
+part can be dropped or truncated for a snapshot, and the measured delete and
+VACUUM WAL did not fall (numbers and their limits in
+[the measurement record](10881-fact-records-hash-partition-measurements.md)). The
+415 GB rebuild is not pursued. Whether a snapshot-keyed layout can do better is a
+separate question with its own kill criteria. The text below is kept as the
+design record that led to the decision.
 
-Real-sample measurements (S1 2.05M and S2 5.36M rows from the QA read replica), the
-fact_id census and the cross-scope reader inventory are in
-[the measurement record](10881-fact-records-hash-partition-measurements.md) and
-[the census record](10881-fact-records-census-and-readers.md); where they differ
-from the small-scale numbers below, they win.
+Real-sample measurements, the fact_id census and the cross-scope reader inventory
+are in [the measurement record](10881-fact-records-hash-partition-measurements.md)
+and [the census record](10881-fact-records-census-and-readers.md); where they
+differ from the small-scale numbers below, they win.
 
 Refs #10881. Part of #10860 (phase 3, step 2). Blocked by #10880 (reads
 move off first) and answered by #10862 (CLOSED; baseline below). Authority:
@@ -154,14 +160,17 @@ scope starvation, save-transaction latency within baseline tolerance.
 
 - A1 key/count/id-rule: key `HASH(scope_id)`, modulus 32, PK `(scope_id,
   fact_id)`; evidence in the measurement record and the census record.
-- A2 removal: measured at two sizes on a real whole-scope sample in
-  [the measurement record](10881-fact-records-hash-partition-measurements.md).
-- A3 five busiest plans: named, with `EXPLAIN (ANALYZE, BUFFERS)` on both
-  shapes, in the measurement record; tolerance anchors above still apply.
+- A2 removal: measured at two sizes (S0 0.96M and S1 2.07M rows) by the R1 repair run
+  on a real whole-scope sample; divided delete plus VACUUM WAL was 0.897x and 0.834x
+  of undivided against a 0.67x bar, so NO-GO (see
+  [the measurement record](10881-fact-records-hash-partition-measurements.md)).
+- A3 five busiest plans: named (ranking by code path, not measured), with `EXPLAIN
+  (ANALYZE, BUFFERS)` on both shapes, in the measurement record; tolerance anchors above still apply.
 - A4 cross-scope inventory: derived by `census_code.sh`; per-site
-  disposition is in the measurement record. Execution of the reader
-  moves still waits on #10880 (P3 gate).
-- A5 migration proof: rehearsed with lock levels, durations, way back and the
-  mixed-version writer rule in the measurement record.
+  disposition is in the census record (a regex worklist, not exhaustive). The
+  readers are left as they are.
+- A5 migration: NOT proven. Parts were rehearsed (lock levels, durations, way back,
+  mixed-version writer rule) in the measurement record; the design is rejected, so the
+  migration was not completed.
 - A6 tenant notes: index multiplication and giant-scope share measured.
 - A7 queue: left whole, with the future-proof bar stated in Decision 6.

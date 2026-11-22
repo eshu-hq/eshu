@@ -155,6 +155,17 @@ legitimately need both — that is allowed when it is declared.
 
 ## Decision 6: Split the giant fact store into fixed slices
 
+**Status (2026-11-22, #10881): the HASH(scope_id) form of this decision is
+rejected by a measured NO-GO.** Dividing `fact_records` by `HASH(scope_id)` does
+not make removing a retired snapshot cheaper than the undivided table: hash
+parts hold many areas, so no part can be dropped or truncated for a snapshot,
+and the measured delete and cleanup work did not shrink (see
+[the measurement record](10881-fact-records-hash-partition-measurements.md)).
+One area (12.9% of rows) also sets the largest part at 14.9% of the table. The
+target below is therefore not met by this design; whether a snapshot-keyed
+layout can meet it is a separate, open question. The text below is kept as the
+original decision.
+
 **Today:** all facts sit in one store of about 417 GB with 152 indexes.
 Removing old data means deleting row by row from that one giant store, so
 cleanup gets more expensive as the store grows.
