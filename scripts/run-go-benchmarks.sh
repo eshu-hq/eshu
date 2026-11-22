@@ -26,6 +26,10 @@
 #   BENCH_COUNT    — -count value             (default: 1)
 #   BENCH_PACKAGES — package list to benchmark (default: auto-discovered)
 #   BENCH_TIMEOUT  — go test -timeout value   (default: 30m)
+#   BENCH_LIST_ONLY — when 1, print the resolved package list (one ./dir per
+#                     line) on stdout and exit 0 without running go test. The
+#                     contract mirror uses it to prove auto-discovery without
+#                     compiling every benchmark package (#11207).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -84,6 +88,11 @@ else
 	if [[ "${#packages[@]}" -eq 0 ]]; then
 		die "no benchmark packages discovered under ${go_dir} (rg=$(command -v rg), go-test files seen=$(rg --files --no-ignore-vcs "${go_dir}" 2>/dev/null | rg -c '_test\.go$' || echo 0))"
 	fi
+fi
+
+if [[ "${BENCH_LIST_ONLY:-}" == "1" ]]; then
+	printf '%s\n' "${packages[@]}"
+	exit 0
 fi
 
 mkdir -p "$(dirname "${output}")"
