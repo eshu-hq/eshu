@@ -26,7 +26,7 @@ for m in re.finditer(r"tuples: (\d+) removed", text):
 for m in re.finditer(r"index \"[^\"]+\": pages: (\d+) in total, (\d+) newly deleted", text):
     tot["index_pages_total"] += int(m.group(1))
     tot["index_pages_newly_deleted"] += int(m.group(2))
-for m in re.finditer(r"buffer usage: (\d+) hits, (\d+) misses, (\d+) dirtied", text):
+for m in re.finditer(r"buffer usage: (\d+) hits, (\d+) (?:misses|reads), (\d+) dirtied", text):
     tot["buf_hits"] += int(m.group(1))
     tot["buf_misses"] += int(m.group(2))
     tot["buf_dirtied"] += int(m.group(3))
