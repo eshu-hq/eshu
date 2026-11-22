@@ -16,13 +16,21 @@ reversal, used to reach the other copies on that scope's own cadence. Now, after
 the writer commit and before the queue acknowledgement, a pass that changed or
 retracted rows reopens the `supply_chain_impact` item of every scope that holds
 an active copy of those CVEs (`fanout.go`, `writer_changed.go`, and the store in
-`storage/postgres/supply_chain_impact_fanout.go`). The reopened pass
+`storage/postgres/supply_chain_impact_fanout.go`, whose reopen statement is in
+`supply_chain_impact_fanout_reopen.go`). The reopened pass
 re-derives its copy, so a retracted CVE reads `advisory_retracted` in a holder's
 copy once that holder's next pass runs, and a restored one returns each copy to
 its pre-retraction state: `active`, or hidden for an operator's decision when
 one applies. There is no precedence rule in the winners query. A holder's lag
 is queue latency plus one holder pass plus one winners resweep, and a CVE with
-more than 256 holders drains across claims.
+more than 256 holders drains across claims. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound.
+
+## Dead-lettered holders (#11147)
+
+A holder whose item is a dead letter at its scope's active generation is
+reopened as a full genuine pass, so a stale copy is never left pinned. The
+rules, the outcomes, and the open residual are in
+[`HOLDER_FANOUT_DEAD_LETTERS.md`](HOLDER_FANOUT_DEAD_LETTERS.md).
 
 ## Rules
 

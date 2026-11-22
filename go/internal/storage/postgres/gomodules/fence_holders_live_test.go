@@ -94,8 +94,10 @@ func seedFenceable(t *testing.T, database *sql.DB, ordinal int) (string, scanner
 
 // TestFenceReopensExactlyTheHoldersOfItsRepositoryLive is A2.4. A holder with an active
 // finding for the repository is reopened with the origin stamp, and one with no item gets
-// an item. A holder of another repository, a finding only on a superseded generation, and
-// a dead letter are all left alone.
+// an item. A dead letter at the holder's active generation is reopened as a full genuine
+// pass, unstamped (#11147: a dead-lettered holder pins its stale copy until reopened). A
+// holder of another repository and a finding only on a superseded generation are left
+// alone.
 func TestFenceReopensExactlyTheHoldersOfItsRepositoryLive(t *testing.T) {
 	database := openStoreProof(t)
 	ctx := t.Context()
@@ -141,8 +143,8 @@ WHERE scope_id = 'holder-no-item' AND generation_id = 'holder-no-item/g1' AND st
 	if enqueued != 1 {
 		t.Fatalf("items enqueued for a holder with none = %d, want 1", enqueued)
 	}
-	if status, _ := readItem(t, database, deadLetter); status != "dead_letter" {
-		t.Fatalf("dead letter status = %q, want untouched", status)
+	if status, origin := readItem(t, database, deadLetter); status != "pending" || string(origin) != "null" {
+		t.Fatalf("dead letter status = %q origin = %s, want pending and unstamped (#11147)", status, origin)
 	}
 	if status, _ := readItem(t, database, other); status != "succeeded" {
 		t.Fatalf("another repository's holder status = %q, want untouched", status)
@@ -273,5 +275,63 @@ func TestFiftySupersededGenerationsReadOnlyTheEvidenceCommitLive(t *testing.T) {
 	decision := reachability.StaleEvidence(page.Repositories, time.Now().UTC(), fenceLiveInterval, page.SlotCount)
 	if len(decision.Fences) != 1 || decision.HistoryPruned != 0 {
 		t.Fatalf("decision = %+v, want one fence from a surviving row", decision)
+	}
+}
+
+// TestFenceReopensHoldersInDeadLetterLockOrderLive is the live half of the
+// #11147 review F2 lock-order fix. The admin replay, the recovery drain, and
+// poison recovery lock dead letters in work_item_id COLLATE "C" order, so the
+// fence must reopen its holders, inside its one transaction, in that order.
+// The two holders with items sort one way by scope id and the other way by
+// item id (the item id maps ':' and '/' to '_'), and the holder with no item
+// sorts first by scope id; the fence must reopen them in item-id order with
+// the item-less holder last. The run also records the holder read's plan.
+func TestFenceReopensHoldersInDeadLetterLockOrderLive(t *testing.T) {
+	database := openStoreProof(t)
+	ctx := t.Context()
+	repository, fence := seedFenceable(t, database, 1)
+	const (
+		api    = "repo://acme/api"
+		web    = "repo://acme2/web"
+		noItem = "repo://aaa/no-item"
+	)
+	apiItem := seedFindingHolder(t, database, api, repository, "dead_letter")
+	webItem := seedFindingHolder(t, database, web, repository, "succeeded")
+	seedFindingHolder(t, database, noItem, repository, "")
+	if api >= web || webItem >= apiItem {
+		t.Fatalf("fixture lost the order disagreement: scope %q<%q, item %q<%q", api, web, webItem, apiItem)
+	}
+
+	rows, err := database.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+fenceFindHoldersQuery, repository, fence.ScopeID)
+	if err != nil {
+		t.Fatalf("explain holder read: %v", err)
+	}
+	var plan []string
+	for rows.Next() {
+		var line string
+		if err := rows.Scan(&line); err != nil {
+			t.Fatal(err)
+		}
+		plan = append(plan, line)
+	}
+	_ = rows.Close()
+	t.Logf("fence holder read plan:\n%s", strings.Join(plan, "\n"))
+
+	var order []string
+	store := NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(func(
+		ctx context.Context, tx db.ExecQueryer, holder, sourceScopeID, sourceGenerationID string, now time.Time,
+	) error {
+		order = append(order, holder)
+		return postgres.ReopenSupplyChainImpactHolderInTransaction(ctx, tx, holder, sourceScopeID, sourceGenerationID, now)
+	})
+	result, err := store.FenceStaleGoEvidence(ctx, []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
+	if err != nil || result.Fenced != 1 || result.HoldersReopened != 3 {
+		t.Fatalf("result = %+v, err = %v, want 1 fenced and 3 holders", result, err)
+	}
+	if want := []string{web, api, noItem}; strings.Join(order, ",") != strings.Join(want, ",") {
+		t.Fatalf("reopen order = %v, want %v (work_item_id COLLATE \"C\" order, item-less last)", order, want)
+	}
+	if status, origin := readItem(t, database, apiItem); status != "pending" || string(origin) != "null" {
+		t.Fatalf("dead-letter holder = %q origin %s, want pending and unstamped", status, origin)
 	}
 }

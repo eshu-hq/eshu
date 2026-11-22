@@ -218,7 +218,7 @@ func TestReopenHolderResolvesOperatorScopeActiveGenerationLive(t *testing.T) {
 // statement must reopen a succeeded item, mark a claimed one so its own
 // acknowledgement returns it to pending once, leave a queued one alone without
 // writing a row version, enqueue when the active generation has no item, and
-// leave a dead letter to the operator.
+// reopen a dead letter unstamped (#11147).
 func TestReopenHolderTransitionsLive(t *testing.T) {
 	t.Run("succeeded is reopened", func(t *testing.T) {
 		ctx, db := fanOutLiveDB(t)
@@ -326,20 +326,22 @@ func TestReopenHolderTransitionsLive(t *testing.T) {
 		}
 	})
 
-	t.Run("dead letter is left to the operator", func(t *testing.T) {
+	t.Run("dead letter at the active generation is reopened unstamped", func(t *testing.T) {
 		ctx, db := fanOutLiveDB(t)
 		store := fanOutLiveStore(db)
 		fanOutSeedScope(t, ctx, db, "holder-d", "g1")
 		id := fanOutSeedItem(t, ctx, db, "holder-d", "g1")
-		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='dead_letter', failure_class='x', failure_message='y' WHERE work_item_id=$1`, id); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='dead_letter', attempt_count=4, failure_class='x', failure_message='y' WHERE work_item_id=$1`, id); err != nil {
 			t.Fatal(err)
 		}
+		// #11147: a dead-lettered holder keeps a stale copy the bound does not
+		// cover, so the fan-out reopens it as a full genuine pass, unstamped.
 		outcome, err := store.ReopenHolder(ctx, "holder-d", fanOutLiveOrigin)
-		if err != nil || outcome != supplychaincore.FanOutPendingNoop {
-			t.Fatalf("outcome=%q err=%v, want pending_noop", outcome, err)
+		if err != nil || outcome != supplychaincore.FanOutDeadLetterReopened {
+			t.Fatalf("outcome=%q err=%v, want dead_letter_reopened", outcome, err)
 		}
-		if got := fanOutItem(t, ctx, db, id); got.status != "dead_letter" {
-			t.Fatalf("item = %+v, want the dead letter unchanged", got)
+		if got := fanOutItem(t, ctx, db, id); got.status != "pending" || got.attempts != 0 || got.originSrc != "" {
+			t.Fatalf("item = %+v, want pending, attempt 0, no stamp", got)
 		}
 	})
 

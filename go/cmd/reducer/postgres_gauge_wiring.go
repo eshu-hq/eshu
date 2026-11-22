@@ -450,6 +450,11 @@ func registerPostgresQueueGauges(
 			return err
 		}
 	}
+	if deadLetterObs, ok := queueObs.(telemetry.SupplyChainImpactDeadLetterObserver); ok {
+		if err := registerSupplyChainImpactDeadLetterGauges(refresher, instruments, meter, deadLetterObs); err != nil {
+			return err
+		}
+	}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, cached, nil); err != nil {
 		return fmt.Errorf("register queue observable gauges: %w", err)
 	}

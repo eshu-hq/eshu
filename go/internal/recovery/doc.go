@@ -40,4 +40,9 @@
 // durable projector work items existed; the source collector resolves those
 // rows after a later successful commit for the same scope. Collector generation
 // replay requires a non-blank collector kind before the store is called.
+//
+// UnsafeReplayFailureClasses is the one source of the failure classes that must
+// not be replayed blindly; the admin replay endpoint and the supply-chain impact
+// holder fan-out both read it, and UnsafeReplayFailureClassGuidance maps each
+// class to the operator guidance the admin refusal returns.
 package recovery

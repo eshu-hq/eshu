@@ -163,13 +163,16 @@ return that stale active copy instead of the retracted one. The bound is the
 holder fan-out (a changed or retracted write reopens every holder scope, the
 operator suppression scope included, at most 256 per claim with the owed
 remainder carried to the next claim), then one holder pass, then one resweep
-tick. The winners audit (every 10 minutes by default,
+tick. The bound holds only while every holder's item is reopenable and the originating pass finishes its fan-out. A dead-lettered holder, or a dead-lettered pass that still owes a fan-out, pins its copies until it is reopened. Queue latency is part of the bound. One residual is open: a running holder that a fan-out flags and that then dead-letters loses the flagged change, because the dead-letter transition clears the flag, until another change reaches it (#11159). A second residual is open: a genuine pass flagged while running that then fails in a non-counting class retries at attempt 1 with the origin stamp, so it runs as a CVE-scoped one hop and hides the genuine pass (#11173). The winners audit (every 10 minutes by default,
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_INTERVAL`) is not part of that bound: it
 keeps the winners table equal to `fact_records`, and a stale holder copy is an
 ordinary active fact there, so the audit confirms it as the winner and does not
 repair it. Only the fan-out and the holder's own next pass re-derive it. A
 holder the fan-out does not reach keeps its stale copy until that pass: a
-dead-lettered holder item is left to the operator, a holder past the 256 cap
+dead-lettered holder item at the active generation is reopened as a full pass
+unless its failure class is unsafe to replay (#11147; read
+`eshu_dp_supply_chain_impact_active_dead_letters` and its `_owing_fanout`
+subset for what is still pinned), a holder past the 256 cap
 waits for a later claim, and a suppression that names no CVE, advisory or group
 id gives the fan-out nothing to look up (counted by
 `eshu_dp_supply_chain_impact_suppression_no_identity_scope_total`). The winner

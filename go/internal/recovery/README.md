@@ -70,6 +70,13 @@ backend, or any network connection directly.
   refused), `Limit`.
 - `DrainResult` — outcome of a drain: `Stage`, `Replayed`,
   `BacklogDepthBefore`, `WorkItemIDs`.
+- `UnsafeReplayFailureClasses` — the sorted durable failure classes that must
+  not be replayed blindly (`input_invalid`, `unsafe_payload`, and the
+  manual-review triage classes). It is the one source of that set: the admin
+  replay endpoint refuses these classes without force, and the supply-chain
+  impact holder fan-out does not reopen a dead letter in one of them (#11147).
+- `UnsafeReplayFailureClassGuidance` — a copy of the same set mapped to the
+  operator guidance the admin refusal returns.
 - `RefinalizeFilter` — filter for scope re-projection: `ScopeIDs` (a non-empty
   list) or `AllScopes` (every recoverable scope: active with an active generation, or
   failed with a newest non-superseded generation).
@@ -140,7 +147,8 @@ See `doc.go` for the full godoc contract.
 Standard library (`context`, `errors`, `fmt`, `strings`, `time`) plus
 `internal/projector` for the drain's drainable/manual-review triage classes, so
 the drain's safe-bucket default and poison exclusion stay sourced from the single
-triage authority rather than re-listed here. The `ReplayStore` interface is the
+triage authority rather than re-listed here, and `internal/semanticqueue` for the
+`unsafe_payload` quarantine status in the unsafe-replay set. The `ReplayStore` interface is the
 only store injection point; the Postgres adapter lives in
 `internal/storage/postgres`.
 

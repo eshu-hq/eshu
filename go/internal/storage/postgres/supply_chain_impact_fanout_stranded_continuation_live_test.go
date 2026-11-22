@@ -154,7 +154,7 @@ func TestFanOutRacePartiallyDrainedContinuationSurvivesActivationLive(t *testing
 	// First continuation chunk: reopen the first holder the way a capped
 	// chunk does, carry only the second forward, and ack.
 	chunk := c.raceClaim(convergenceSource)
-	if outcome, err := c.fanOut.ReopenHolder(c.ctx, convergenceHolder, supplychaincore.FanOutOrigin{SourceScopeID: convergenceSource, SourceGenerationID: fanOutGen(convergenceSource, "g1"), SourceIntentID: chunk.IntentID}); err != nil || outcome != supplychaincore.FanOutReopened {
+	if outcome, err := reopenOutcome(c.ctx, c.fanOut, convergenceHolder, supplychaincore.FanOutOrigin{SourceScopeID: convergenceSource, SourceGenerationID: fanOutGen(convergenceSource, "g1"), SourceIntentID: chunk.IntentID}); err != nil || outcome != supplychaincore.FanOutReopened {
 		t.Fatalf("chunk reopen = %q %v, want reopened", outcome, err)
 	}
 	if err := c.fanOut.UpdateFanOutState(c.ctx, chunk, supplychaincore.FanOutState{ReplaceRemaining: true, Remaining: []string{holder2}}); err != nil {

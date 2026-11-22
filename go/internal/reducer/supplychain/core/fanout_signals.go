@@ -81,6 +81,7 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 	h.countFanOut(ctx, r.cause, string(FanOutReplayFlagged), r.replayFlagged)
 	h.countFanOut(ctx, r.cause, string(FanOutPendingNoop), r.pendingNoop)
 	h.countFanOut(ctx, r.cause, string(FanOutEnqueued), r.enqueued)
+	h.countFanOut(ctx, r.cause, string(FanOutNoActiveGeneration), r.noActiveGeneration)
 	h.countFanOut(ctx, r.cause, fanOutOutcomeDeferred, r.newlyDeferred)
 	if r.crashRecovery {
 		h.countFanOut(ctx, r.cause, fanOutOutcomeCrashRecovery, 1)
@@ -99,6 +100,9 @@ func (h SupplyChainImpactHandler) emitFanOut(ctx context.Context, intent reducer
 		slog.Int("replay_flagged", r.replayFlagged),
 		slog.Int("pending_noop", r.pendingNoop),
 		slog.Int("enqueued", r.enqueued),
+		slog.Int("dead_letter_reopened", r.deadLetterReopened),
+		slog.Int("dead_letter_skipped", r.deadLetterSkipped),
+		slog.Int("no_active_generation", r.noActiveGeneration),
 		slog.Int("deferred", r.deferred),
 		slog.Bool("crash_recovery", r.crashRecovery),
 		slog.Int("holder_statements", r.holderStatements),
@@ -159,6 +163,12 @@ func (r *fanOutResult) record(outcome FanOutOutcome) {
 		r.replayFlagged++
 	case FanOutEnqueued:
 		r.enqueued++
+	case FanOutDeadLetterReopened:
+		r.deadLetterReopened++
+	case FanOutDeadLetterSkipped:
+		r.deadLetterSkipped++
+	case FanOutNoActiveGeneration:
+		r.noActiveGeneration++
 	default:
 		r.pendingNoop++
 	}
@@ -174,6 +184,8 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_holder_key_range_statements"] = float64(r.keyRangeStatements)
 	subSignals["fanout_reopened"] = float64(r.reopened)
 	subSignals["fanout_replay_flagged"] = float64(r.replayFlagged)
+	subSignals["fanout_dead_letter_reopened"] = float64(r.deadLetterReopened)
+	subSignals["fanout_dead_letter_skipped"] = float64(r.deadLetterSkipped)
 	subSignals["fanout_deferred"] = float64(r.deferred)
 	subSignals["fanout_replay_cleared"] = boolSignal(r.replayCleared)
 }

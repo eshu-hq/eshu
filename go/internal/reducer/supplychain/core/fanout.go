@@ -172,10 +172,12 @@ type SupplyChainImpactFanOut interface {
 	// one bounded statement per call and fails with ErrFanOutReadTimeout when
 	// it exceeds its timeout.
 	FindHolderScopes(ctx context.Context, ownScopeID string, lookupIDs []string) ([]string, error)
-	// ReopenHolder reopens the holder's supply_chain_impact item at the scope's
-	// current active generation, stamping origin, or enqueues one when that
-	// generation has none.
-	ReopenHolder(ctx context.Context, holderScopeID string, origin FanOutOrigin) (FanOutOutcome, error)
+	// ReopenHolderDetailed reopens the holder's supply_chain_impact item at the
+	// scope's current active generation, stamping origin, or enqueues one when
+	// that generation has none. A dead letter there is reopened as a full
+	// genuine pass, without the stamp, unless its failure class is unsafe to
+	// replay (#11147); the result names the dead letter's prior class.
+	ReopenHolderDetailed(ctx context.Context, holderScopeID string, origin FanOutOrigin) (FanOutReopen, error)
 	// FindInFlightScopes returns the scopes, other than ownScopeID, whose
 	// supply_chain_impact item at the scope's active generation is claimed or
 	// running. Such a pass may have loaded its evidence before the asking pass's
@@ -219,6 +221,13 @@ type fanOutResult struct {
 	replayFlagged int
 	pendingNoop   int
 	enqueued      int
+	// deadLetterReopened, deadLetterSkipped, and noActiveGeneration count the
+	// #11147 holder outcomes for the summary line and sub-signals; their
+	// counter series are written per holder (recordHolderReopen) or with the
+	// pass (emitFanOut).
+	deadLetterReopened int
+	deadLetterSkipped  int
+	noActiveGeneration int
 	// holderStatements, splitChunks, hotIDs, and maxIDMassRows record what
 	// adaptive splitting did (#10643): statements run, chunks that split,
 	// singleton statements (hot by mass, or isolated by packing/unknown
@@ -384,14 +393,13 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		CVEIDs:             stampOut,
 	}
 	for _, holder := range batch {
-		outcome, err := h.FanOut.ReopenHolder(ctx, holder, origin)
+		reopen, err := h.FanOut.ReopenHolderDetailed(ctx, holder, origin)
 		if err != nil {
 			h.countFanOut(ctx, cause, fanOutOutcomeReopenError, 1)
 			span.RecordError(err)
 			return result, fanOutError{fmt.Errorf("reopen supply chain impact holder %q: %w", holder, err)}
 		}
-		result.record(outcome)
-		h.logFanOutHolder(ctx, intent, holder, outcome)
+		h.recordHolderReopen(ctx, intent, &result, holder, reopen)
 	}
 	if len(rest) > 0 || len(remaining) > 0 {
 		state.ReplaceRemaining = true

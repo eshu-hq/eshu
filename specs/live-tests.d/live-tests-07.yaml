@@ -360,6 +360,16 @@ tests:
     class: dedicated_ci
     reason: "dev-1-5: reducer-contention verified 4/4 named Go test passes with -json -race (summed test elapsed 8.84s)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_dead_letter_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11147: reducer-contention enrolled 4 named Go test(s) in scripts/lib/reducer_contention_inventory.json; local run against disposable PostgreSQL passed"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_dead_letter_race_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11147: reducer-contention enrolled 3 named Go test(s) in scripts/lib/reducer_contention_inventory.json; local run against disposable PostgreSQL passed"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_live_test.go
     tag: ~
     class: dedicated_ci

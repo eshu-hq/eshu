@@ -1384,16 +1384,20 @@ type Instruments struct {
 	// SupplyChainImpactFanOut counts the outcomes of the one-hop holder
 	// fan-out a supply-chain impact pass runs after its writer commit (#9695).
 	// Labels: domain (supply_chain_impact), outcome (reopened,
-	// replay_flagged, pending_noop, enqueued, crash_recovery, deferred,
+	// replay_flagged, pending_noop, enqueued, dead_letter_reopened,
+	// dead_letter_skipped, no_active_generation, crash_recovery, deferred,
 	// read_error, read_timeout, reopen_error, state_error), and cause (#9878:
 	// epss, kev, advisory, suppression, package_evidence, mixed, other — the
 	// evidence family of the committing pass's own generation; enrichment
 	// generations are single-source, so epss and kev name an enrichment
 	// re-trigger exactly). The read outcomes (read_error, read_timeout) also
 	// carry site (#10564: holders, in_flight, manifest_generation, package,
-	// repository), naming the read that failed. reopened, replay_flagged,
-	// pending_noop and
-	// enqueued count holder scopes; crash_recovery counts a pass that fanned out
+	// repository), naming the read that failed. The dead-letter outcomes
+	// (dead_letter_reopened, dead_letter_skipped) also carry failure_class
+	// (#11147), the dead letter's prior class. reopened, replay_flagged,
+	// pending_noop (a queued or already-flagged holder), enqueued,
+	// dead_letter_reopened, dead_letter_skipped, and no_active_generation
+	// count holder scopes; crash_recovery counts a pass that fanned out
 	// only because its attempt count showed an earlier attempt may have died
 	// before the fan-out; deferred counts holders carried to a later claim;
 	// read_error, read_timeout, reopen_error and state_error count a failed

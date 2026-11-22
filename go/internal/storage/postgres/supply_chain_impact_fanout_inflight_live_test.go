@@ -259,10 +259,10 @@ func TestFanOutRaceTwoSourcesFlagTheSameInFlightHolderOnceLive(t *testing.T) {
 	holder := c.raceClaim(convergenceHolder)
 	first := supplychaincore.FanOutOrigin{SourceScopeID: "scope:source-1", SourceGenerationID: "g", SourceIntentID: "i1"}
 	second := supplychaincore.FanOutOrigin{SourceScopeID: "scope:source-2", SourceGenerationID: "g", SourceIntentID: "i2"}
-	if out, err := c.fanOut.ReopenHolder(c.ctx, convergenceHolder, first); err != nil || out != supplychaincore.FanOutReplayFlagged {
+	if out, err := reopenOutcome(c.ctx, c.fanOut, convergenceHolder, first); err != nil || out != supplychaincore.FanOutReplayFlagged {
 		t.Fatalf("first source = %q %v, want replay_flagged", out, err)
 	}
-	if out, err := c.fanOut.ReopenHolder(c.ctx, convergenceHolder, second); err != nil || out != supplychaincore.FanOutPendingNoop {
+	if out, err := reopenOutcome(c.ctx, c.fanOut, convergenceHolder, second); err != nil || out != supplychaincore.FanOutPendingNoop {
 		t.Fatalf("second source = %q %v, want pending_noop", out, err)
 	}
 	result, err := c.handler.Handle(c.ctx, holder)
@@ -381,10 +381,10 @@ func TestFanOutRaceAFlaggedRerunIsItselfFlaggableLive(t *testing.T) {
 		intent := c.raceClaim(convergenceHolder)
 		runs++
 		origin := supplychaincore.FanOutOrigin{SourceScopeID: "scope:source", SourceGenerationID: "g", SourceIntentID: "i"}
-		if out, err := c.fanOut.ReopenHolder(c.ctx, convergenceHolder, origin); err != nil || out != supplychaincore.FanOutReplayFlagged {
+		if out, err := reopenOutcome(c.ctx, c.fanOut, convergenceHolder, origin); err != nil || out != supplychaincore.FanOutReplayFlagged {
 			t.Fatalf("arrival %d = %q %v, want replay_flagged on the pass in flight", arrival, out, err)
 		}
-		if out, err := c.fanOut.ReopenHolder(c.ctx, convergenceHolder, origin); err != nil || out != supplychaincore.FanOutPendingNoop {
+		if out, err := reopenOutcome(c.ctx, c.fanOut, convergenceHolder, origin); err != nil || out != supplychaincore.FanOutPendingNoop {
 			t.Fatalf("second flag during arrival %d = %q %v, want pending_noop: a burst coalesces", arrival, out, err)
 		}
 		result, err := c.handler.Handle(c.ctx, intent)

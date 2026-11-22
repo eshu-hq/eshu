@@ -88,7 +88,9 @@ func queryTerminalMatchCount(
 // activation/, scope/completion, and shared_intents lease columns belong to
 // other tables; the CASE-preserve reopeners (retouch, supply-chain fanout,
 // service-catalog retrigger, completion fanout) null the triple only for
-// succeeded rows and keep claimed/running holds intact; the remaining
+// succeeded rows, or for dead_letter rows too (retouch and, since #11147, the
+// supply-chain fanout, which also reopens dead letters; failed for retouch),
+// none of which is a hold, and keep claimed/running holds intact; the remaining
 // claimed/running writers stamp payloads or flags only (fanout
 // clear/inflight, manifest stamp, completion-wake claimed arm, identity
 // cutover epoch and claimed-to-running marks). The fence
