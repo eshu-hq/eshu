@@ -413,3 +413,43 @@ NornicDB unless the preamble's test-only backend knob names Neo4j, with
 conditional row maps and GREEN on both backends with the fix. The audit table
 covering every writer is in the repository at
 (#6782).
+
+## Pitfall: A `FOREACH` After A Relationship `MERGE` Corrupts The Edge Pattern
+
+One `FOREACH` between two `MERGE`s parses, but a second `FOREACH` after the
+relationship `MERGE` fails: the pattern splitter bleeds the trailing
+`FOREACH` text into the edge pattern, so the end-node lookup fails quoting
+the `FOREACH` body. Eshu hit this as dead-lettered projection work
+(eshu-hq/eshu#11161): the advisory-group upsert used exactly the
+`MERGE`/`FOREACH`/`MERGE`/`FOREACH` shape and the gate died at its first
+drain. Measured on the pinned v1.3.3 line (image digest
+`sha256:74a8ed7b36f37bdd1a7e32d8bc6aa3fa88908b7207bfa6568567ab94e4a4b3b1`),
+fresh store, autocommit over Bolt — the one-`FOREACH` form passes, adding
+the trailing `FOREACH` fails with `Neo.ClientError.Statement.SyntaxError
+(UNWIND MATCH failed: end node variable ... not in context (available:
+[r g]))`. The shape is valid openCypher (green on pinned Neo4j) and the
+failure is atomic (nothing persisted).
+
+The fix splits each conditional stamp into its own statement and keeps every
+`MERGE` clause-free (`go/internal/storage/cypher/edge/writer/advisory_group.go`).
+Each replacement below was measured live on both backends after its
+single-statement alternative failed on the pinned build: `MERGE...WITH...WHERE...SET`
+is silently skipped (separate `MERGE ... ON CREATE SET` for creation plus a
+`MATCH`-led update); `MATCH...WITH...WHERE...SET` on an edge ignores the
+`WHERE` (drop the `WITH`); `MATCH...WHERE <list-parameter>...` on a node is
+rejected (carry the node through `WITH g WHERE ...`); `UNWIND`+`MERGE`
+edge+`ON CREATE SET` with row params is silently skipped (stamp in the
+update); `WHERE NOT ANY(k IN $keep ...)` over parameter maps never matches
+(flatten to composite `"id|package_id"` keys with `IN`); `OPTIONAL
+MATCH...WITH g, count(e)...WHERE degree = 0 DELETE g` deletes groups that
+still have edges (use `WHERE NOT (g)<-[:AFFECTED_BY]-()`); `DELETE e WITH
+DISTINCT g DELETE g` leaves the node (single-clause `DELETE e, g`).
+
+Upstream: filed as
+[orneryd/NornicDB#1885](https://github.com/orneryd/NornicDB/issues/1885);
+adjacent closed family
+[#640](https://github.com/orneryd/NornicDB/issues/640) and
+[#621](https://github.com/orneryd/NornicDB/issues/621). Eshu does not wait on
+the upstream fix. Live RED-then-GREEN proof:
+`TestBoltAdvisoryGroupReconcileLiveBackend` and
+`TestBoltAdvisoryGroupParallelConvergenceLiveBackend`.

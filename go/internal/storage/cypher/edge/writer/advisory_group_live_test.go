@@ -47,7 +47,14 @@ func openAdvisoryGroupLive(t *testing.T) (*boltRetractTestRunner, *AdvisoryGroup
 			}
 		}
 	}
-	return runner, NewAdvisoryGroupWriter(&boltTestExecutor{runner: runner}, 0)
+	// Production serves this writer through reducerNeo4jExecutor, whose
+	// persistent RetryingExecutor absorbs transient deadlocks from
+	// concurrent same-identity writers. The convergence proofs below drive
+	// that same seam instead of the raw runner, so a deadlock the
+	// production retry absorbs cannot fail the proof. Every statement the
+	// writer emits is idempotent, which is what makes the retry safe.
+	return runner, NewAdvisoryGroupWriter(
+		&sourcecypher.RetryingExecutor{Inner: &boltTestExecutor{runner: runner}}, 0)
 }
 
 func advisoryGroupLiveCleanup(t *testing.T, runner *boltRetractTestRunner, groupIDs, repoIDs []string) {
