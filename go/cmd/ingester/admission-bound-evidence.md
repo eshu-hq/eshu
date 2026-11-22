@@ -101,14 +101,16 @@ holder in `reducer_admission_depth.go` (one per ingester; the projector
 workers, `ESHU_PROJECTOR_WORKERS`, share it). Settings are unchanged: mark
 10,000, poll interval 1 s (the max age A), max wait 5 m; the backoff cap is
 10 s (or half the max wait) and is not a setting. Hermetic before and after
-on the virtual clock (`reducer_admission_depth_test.go`, reads are instant):
+on the virtual clock (`reducer_admission_depth_test.go`, reads are instant).
+The deferring schedule is the production one: reads at 0, 1, 3, 7, 15, 25,
+35 s and every 10 s after (a waiter wakes one nanosecond past the window):
 
 | Scenario | Before (per-decision read) | After |
 | --- | --- | --- |
-| 8 enqueuers deferring at the mark for 60 s | 488 reads | at most 9 (one per backoff step) |
-| 1, 8 or 32 enqueuers deferring for 5 m | 301 x K reads | 30 reads for any K (0.1 per second) |
+| 8 enqueuers deferring at the mark for 60 s | 488 reads | 9 (one per backoff step) |
+| 1, 8 or 32 enqueuers deferring for 5 m | 301 x K reads | 33 reads for any K (0.11 per second) |
 | 16 admitted enqueues within one max age | 16 reads | 1 read |
-| 100 admitted enqueues per second for 30 s | 3,000 reads (one per decision) | 28 reads |
+| 100 admitted enqueues per second for 30 s (one every 10 ms, sequential) | 3,000 reads (one per decision) | 30 reads |
 | one waiter, max wait 20 s at the mark | 21 reads | 5 reads, timeout at exactly 20 s |
 
 Restated contract: queue depth keeps its definition and the statement
@@ -128,8 +130,12 @@ of primary CPU is claimed before that reading.
 
 Observability Evidence (shared depth read, #11233):
 `eshu_dp_reducer_admission_depth_reads_total{operation,outcome}` counts one
-lookup per signal per decision; `outcome=read` plus `outcome=error` is the SQL
-rate, and `held` and `shared` are decisions served without a new statement.
+lookup per signal per decision. `outcome=read` counts the successful
+statements a decision started, and `held` and `shared` are decisions served
+without starting one. `error` counts once per waiter of a failed statement,
+and a starter that leaves records `cancelled` while its statement runs on for
+the joiners (who record `shared`), so statements started lie between `read`
+and `read` + `error` + `cancelled`.
 `eshu_dp_reducer_admission_depth_age_seconds` shows how old the depth was at
 each decision, and `eshu_dp_reducer_admission_read_backoff_seconds` the
 current read interval (0 while admitting; with the defaults it pins at 10

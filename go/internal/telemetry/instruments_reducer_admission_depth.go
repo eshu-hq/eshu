@@ -45,9 +45,12 @@ const (
 // queue-depth read instruments of the ingester reducer admission gate.
 //
 // eshu_dp_reducer_admission_depth_reads_total{operation,outcome}: one
-// increment per signal per admission decision. The SQL rate is the read plus
-// error outcomes; held and shared are decisions served without a new
-// statement.
+// increment per signal per admission decision. read counts the successful
+// statements a decision started; held and shared are decisions served
+// without starting one. error counts once per waiter of a failed statement,
+// and a starter that leaves records cancelled while its statement runs on
+// for the joiners, so statements started lie between read and read plus
+// error plus cancelled.
 //
 // eshu_dp_reducer_admission_depth_age_seconds: the age of the oldest depth a
 // decision used, from the start of its read. Admitting decisions stay at or
@@ -61,7 +64,7 @@ func registerReducerAdmissionDepthInstruments(meter metric.Meter, inst *Instrume
 	var err error
 	if inst.ReducerAdmissionDepthReads, err = meter.Int64Counter(
 		"eshu_dp_reducer_admission_depth_reads_total",
-		metric.WithDescription("Ingester reducer admission depth lookups per decision by operation (queue_depth, graph_write_timeout_depth) and outcome (read, shared, held, error, cancelled); only read and error ran SQL (#11233)"),
+		metric.WithDescription("Ingester reducer admission depth lookups per decision by operation (queue_depth, graph_write_timeout_depth) and outcome (read, shared, held, error, cancelled); read counts successful statements a decision started; error and cancelled count once per waiter (#11233)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerAdmissionDepthReads counter: %w", err)
 	}
