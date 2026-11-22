@@ -86,3 +86,54 @@ itself, queryable directly — the counter carries no per-item labels by
 design. Coverage row added to
 `docs/public/observability/telemetry-coverage-projector-parser.md`;
 `scripts/verify-telemetry-coverage.sh` passes.
+
+## Shared queue-depth read (#11233)
+
+Performance Evidence (shared depth read, #11233): the gate used to run
+`queueDepthQuery` on every admission decision, and each deferred Enqueue
+re-ran it every poll interval, so calls = enqueuers x poll rate. Baseline on
+QA (`.claude/shim-11233-11234-2026-11-22.md`, query id -1132648068480399287):
+910 calls in 317.4 s (2.87 per second, 696.9 ms mean, 171,076 buffer hits per
+call), 4.50 per second in the attribution window, and 1,525 deferrals in 10
+minutes (2.54 per second, all `reason=high_water`, `intent_count=1`, depth
+10,000 to 10,209 against the 10,000 mark). Conflict domain: the process-wide
+holder in `reducer_admission_depth.go` (one per ingester; the projector
+workers, `ESHU_PROJECTOR_WORKERS`, share it). Settings are unchanged: mark
+10,000, poll interval 1 s (the max age A), max wait 5 m; the backoff cap is
+10 s (or half the max wait) and is not a setting. Hermetic before and after
+on the virtual clock (`reducer_admission_depth_test.go`, reads are instant):
+
+| Scenario | Before (per-decision read) | After |
+| --- | --- | --- |
+| 8 enqueuers deferring at the mark for 60 s | 488 reads | at most 9 (one per backoff step) |
+| 1, 8 or 32 enqueuers deferring for 5 m | 301 x K reads | 30 reads for any K (0.1 per second) |
+| 16 admitted enqueues within one max age | 16 reads | 1 read |
+| 100 admitted enqueues per second for 30 s | 3,000 reads (one per decision) | 28 reads |
+| one waiter, max wait 20 s at the mark | 21 reads | 5 reads, timeout at exactly 20 s |
+
+Restated contract: queue depth keeps its definition and the statement
+constant is unchanged. The gate defers when the depth it holds is at or above
+the mark. An admit always uses a depth at most A old, because the window is A
+whenever the last decision admitted; a defer may use a depth up to the
+current backoff old, which only delays a producer. Overshoot above the mark is
+bounded by the intents that arrive within A (before: by the concurrent
+enqueuers). After depth falls below the mark a waiter is admitted within the
+backoff cap plus one read. A sleep never runs past the time left before the
+max wait. A failed read reaches every waiter and is never held; the next
+decision reads again. The read runs detached from the starter's cancellation;
+the last waiter out cancels it. The QA bar is a post-deploy reading, not a
+claim here: that query id's calls fall from 2.9 to 4.5 per second to at most
+0.2 per second, and its share of statement time is under 1 percent. No saving
+of primary CPU is claimed before that reading.
+
+Observability Evidence (shared depth read, #11233):
+`eshu_dp_reducer_admission_depth_reads_total{operation,outcome}` counts one
+lookup per signal per decision; `outcome=read` plus `outcome=error` is the SQL
+rate, and `held` and `shared` are decisions served without a new statement.
+`eshu_dp_reducer_admission_depth_age_seconds` shows how old the depth was at
+each decision, and `eshu_dp_reducer_admission_read_backoff_seconds` the
+current read interval (0 while admitting; with the defaults it pins at 10
+when the queue sits at the mark). `eshu_dp_reducer_admission_deferrals_total` and its `Warn` log
+still count each deferral, now at most one per waiter per backoff step, so
+the deferral rate falls with the read rate. A read error still returns to the
+caller through the existing `read reducer admission queue depth` wrap.

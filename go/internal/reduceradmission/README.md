@@ -17,6 +17,18 @@ slowed-state verdict (`workflow.DecideSourceSlowed`), the shared latch
 selection (for example the ingester local-lightweight bypass) stays
 with the calling binary.
 
+## Shared depth read
+
+Both global signals (the reducer total of `QueueDepths` and
+`ReducerGraphWriteTimeoutDepth`) come from one process-wide
+`admissionDepthHolder` ([#11233](https://github.com/eshu-hq/eshu/issues/11233)):
+a held value no older than the window, or the one read in flight that
+concurrent callers share. The window is the poll interval while the gate
+admits; while it defers, it doubles per deferred read up to 10 s (or half
+the max wait) and resets on the first admit. A failed read reaches every
+waiter and is never held. The QA baseline, the measured schedule and the
+contract live in `go/cmd/ingester/admission-bound-evidence.md`.
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
