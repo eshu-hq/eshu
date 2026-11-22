@@ -21,7 +21,10 @@ import (
 // resync interval by the configured multiplier, so intake degrades
 // gracefully instead of cliff-edging. Selection is deferred, never
 // dropped: skipped repos keep their visit stamp and are visited once
-// the interval elapses or the latch releases.
+// the interval elapses or the latch releases. That holds only for the
+// source modes whose sync keeps durable per-repository state (explicit,
+// githubOrg, gitlabGroup); filesystem mode is refused at startup, see
+// selectionBackpressureSupportsMode.
 const (
 	// GitSelectionMinResyncIntervalEnv bounds how often one repository
 	// may be selected for sync. Unset disables the leg: without it the
@@ -103,11 +106,13 @@ func LoadSelectionBackpressureConfig(getenv func(string) string) (SelectionBackp
 
 // stretchedInterval reports the effective per-repo minimum interval for
 // one selection cycle: the base times the multiplier while slowed, the
-// base while healthy, zero when the leg is off or forced reindex runs.
+// base while healthy, zero when the leg is off, forced reindex runs, or the
+// source mode cannot defer a repository safely (filesystem mode).
 // A consult error reads as healthy (fail open): selection delay must
 // never wedge on an unreadable latch.
 func (s *NativeRepositorySelector) stretchedInterval(ctx context.Context) time.Duration {
-	if s == nil || !s.SelectionBackpressure.Enabled() || s.Config.ForceReindex {
+	if s == nil || !s.SelectionBackpressure.Enabled() || s.Config.ForceReindex ||
+		!selectionBackpressureSupportsMode(s.Config.SourceMode) {
 		return 0
 	}
 	interval := s.SelectionBackpressure.MinResyncInterval
@@ -150,6 +155,11 @@ func (s *NativeRepositorySelector) WireSelectionBackpressure(
 	if !selectionBP.Enabled() {
 		return nil
 	}
+	if !selectionBackpressureSupportsMode(s.Config.SourceMode) {
+		return fmt.Errorf(
+			"%s is set but ESHU_REPO_SOURCE_MODE=%q cannot defer a repository: the schedule leg supports only explicit, githubOrg and gitlabGroup, because filesystem mode would never select a deferred repository again; unset %s or change the source mode",
+			GitSelectionMinResyncIntervalEnv, s.Config.SourceMode, GitSelectionMinResyncIntervalEnv)
+	}
 	sourceBP, err := collector.LoadSourceBackpressureConfig(getenv)
 	if err != nil {
 		return err
@@ -176,8 +186,10 @@ func (s *NativeRepositorySelector) WireSelectionBackpressure(
 // one selection cycle under the effective interval and stamps the repos
 // it keeps. Skipped repos keep their last stamp, so they select again
 // once the interval elapses or the latch releases: deferred, never
-// dropped. Webhook-triggered selection flows through a separate
-// selector and never passes this gate.
+// dropped, in the source modes selectionBackpressureSupportsMode accepts
+// (filesystem mode gets a zero interval and is never filtered).
+// Webhook-triggered selection flows through a separate selector and
+// never passes this gate.
 func (s *NativeRepositorySelector) applySelectionBackpressure(
 	ctx context.Context,
 	repositoryIDs []string,

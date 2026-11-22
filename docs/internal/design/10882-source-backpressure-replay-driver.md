@@ -129,6 +129,28 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 - **F3, seeder shape.** A build-tagged Go test program that reuses the #10862
   mix, not a new `cmd` directory.
 
+## Filesystem mode and the git selection stretch
+
+The first replay venue ran the ingester in `filesystem` source mode and was
+abandoned for a defect it exposed. The schedule leg filters repositories before
+the filesystem sync, and that sync stamps one whole-root manifest after copying
+only the repositories it was handed, so a repository the leg deferred (by the
+stretch or by the healthy base interval) is never selected again until the
+corpus changes; copy mode also deletes its managed copy. Explicit, githubOrg and
+gitlabGroup mode keep per-repository state and re-select a deferred repository.
+
+The fix refuses the pair at startup, so the leg is undefined for filesystem mode.
+`TestWireSelectionBackpressureRefusesFilesystemMode` pins the refusal and
+`TestSelectRepositoriesFilesystemModeNeverDefersAnEditedRepository` pins the
+selector-level drop (copy and direct mode). The replay ingester runs in
+`explicit` mode against local bare remotes, and its AC4 and AC5 claims are scoped
+to explicit, githubOrg and gitlabGroup. Filesystem mode keeps the admission and
+pre-write pacing legs.
+
+No-Observability-Change: the startup error naming `ESHU_REPO_SOURCE_MODE` and
+`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` is the operator signal; the existing
+deferral and claim-pacing series are unchanged.
+
 ## Not in scope
 
 Enabling the thresholds on QA. The ruling records that as a comment on #10860
