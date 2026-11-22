@@ -7,10 +7,10 @@ per source system under per-source reducer backpressure (#10882).
 | Field | Present | Meaning |
 | --- | --- | --- |
 | `source_system` | Always | The slowed or observed source system (for example `git` or `vuln-intel`). |
-| `slowed` | Always | Whether intake from the source is currently slowed. |
+| `slowed` | Always | Whether intake from the source is currently slowed. This is the shared latch truth: the latch engages when at least `ESHU_SOURCE_BACKPRESSURE_DEPTH_FLOOR` claimable rows are older than the engage age and releases when fewer than that many are older than the release age. |
 | `reason` | When slowed | Why intake slowed (`source_behind`). |
 | `oldest_claimable_age`, `oldest_claimable_age_seconds` | Always | Age of the source's oldest claimable outstanding reducer row at read time. |
-| `claimable_depth` | Always | Count of the source's claimable outstanding reducer rows at read time. |
+| `claimable_depth` | Always | Count of the source's claimable outstanding reducer rows at read time (all ages). The slowed verdict counts only rows past the engage and release ages, so this total can sit far above the floor on a source that is not slowed. |
 | `engaged_since` | When slowed | When the current slowed engagement began. |
 | `stuck` | When stuck | Whether the engagement outlasted `ESHU_SOURCE_BACKPRESSURE_MAX_ENGAGEMENT` with the queue still behind: still slowed, and loud. |
 

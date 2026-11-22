@@ -22,6 +22,12 @@ func testSourceBackpressureConfig() SourceBackpressureConfig {
 	}
 }
 
+// rowsAt builds the observation for depth claimable rows that all sit at age,
+// so the engage and release row counts follow the configured ages.
+func rowsAt(cfg SourceBackpressureConfig, source string, age time.Duration, depth int64) SourceQueueSignal {
+	return signalFromRows(cfg, source, repeatAge(age, int(depth)))
+}
+
 // TestSourceBackpressureConfigValidate pins the config contract: the zero
 // value disables the per-source leg, an enabled config needs a release age
 // strictly below the engage age, a positive depth floor, and a positive
@@ -73,11 +79,7 @@ func TestDecideSourceSlowedEngagesOnAgeWithDepthFloor(t *testing.T) {
 	t.Parallel()
 	cfg := testSourceBackpressureConfig()
 
-	got := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: 2 * time.Hour,
-		ClaimableDepth:     25,
-	}, SourceBackpressureLatch{}, 0)
+	got := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", 2*time.Hour, 25), SourceBackpressureLatch{}, 0)
 	if !got.Slowed {
 		t.Fatal("old and deep signal Slowed = false, want true")
 	}
@@ -91,29 +93,17 @@ func TestDecideSourceSlowedEngagesOnAgeWithDepthFloor(t *testing.T) {
 		t.Fatal("fresh engagement Stuck = true, want false")
 	}
 
-	oldShallow := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: 2 * time.Hour,
-		ClaimableDepth:     24,
-	}, SourceBackpressureLatch{}, 0)
+	oldShallow := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", 2*time.Hour, 24), SourceBackpressureLatch{}, 0)
 	if oldShallow.Slowed {
 		t.Fatalf("old but shallow signal = %+v, want unslowed (single poison row must not throttle the source)", oldShallow)
 	}
 
-	youngDeep := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: 30 * time.Minute,
-		ClaimableDepth:     10000,
-	}, SourceBackpressureLatch{}, 0)
+	youngDeep := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", 30*time.Minute, 10000), SourceBackpressureLatch{}, 0)
 	if youngDeep.Slowed {
 		t.Fatalf("young but deep signal = %+v, want unslowed (fast-draining backlog is fresh)", youngDeep)
 	}
 
-	atEngage := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: time.Hour,
-		ClaimableDepth:     25,
-	}, SourceBackpressureLatch{}, 0)
+	atEngage := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", time.Hour, 25), SourceBackpressureLatch{}, 0)
 	if atEngage.Slowed {
 		t.Fatalf("age exactly at engage age = %+v, want unslowed (engage strictly above)", atEngage)
 	}
@@ -125,7 +115,7 @@ func TestDecideSourceSlowedEngagesOnAgeWithDepthFloor(t *testing.T) {
 func TestDecideSourceSlowedHysteresis(t *testing.T) {
 	t.Parallel()
 	cfg := testSourceBackpressureConfig()
-	mid := SourceQueueSignal{SourceSystem: "git", OldestClaimableAge: 30 * time.Minute, ClaimableDepth: 100}
+	mid := rowsAt(cfg, "git", 30*time.Minute, 100)
 
 	disengaged := DecideSourceSlowed(cfg, mid, SourceBackpressureLatch{}, 0)
 	if disengaged.Slowed {
@@ -136,15 +126,11 @@ func TestDecideSourceSlowedHysteresis(t *testing.T) {
 		t.Fatalf("mid-band engaged = %+v, want still slowed", engaged)
 	}
 
-	atRelease := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem: "git", OldestClaimableAge: 15 * time.Minute, ClaimableDepth: 100,
-	}, SourceBackpressureLatch{Engaged: true}, 0)
+	atRelease := DecideSourceSlowed(cfg, rowsAt(cfg, "git", 15*time.Minute, 100), SourceBackpressureLatch{Engaged: true}, 0)
 	if atRelease.Slowed {
 		t.Fatalf("age at release age = %+v, want released", atRelease)
 	}
-	aboveRelease := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem: "git", OldestClaimableAge: 15*time.Minute + time.Second, ClaimableDepth: 100,
-	}, SourceBackpressureLatch{Engaged: true}, 0)
+	aboveRelease := DecideSourceSlowed(cfg, rowsAt(cfg, "git", 15*time.Minute+time.Second, 100), SourceBackpressureLatch{Engaged: true}, 0)
 	if !aboveRelease.Slowed {
 		t.Fatalf("age just above release = %+v, want still slowed", aboveRelease)
 	}
@@ -157,7 +143,7 @@ func TestDecideSourceSlowedStuck(t *testing.T) {
 	t.Parallel()
 	cfg := testSourceBackpressureConfig()
 	latch := SourceBackpressureLatch{Engaged: true}
-	signal := SourceQueueSignal{SourceSystem: "git", OldestClaimableAge: 2 * time.Hour, ClaimableDepth: 100}
+	signal := rowsAt(cfg, "git", 2*time.Hour, 100)
 
 	fresh := DecideSourceSlowed(cfg, signal, latch, 29*time.Minute)
 	if !fresh.Slowed || fresh.Stuck {
@@ -167,9 +153,7 @@ func TestDecideSourceSlowedStuck(t *testing.T) {
 	if !stuck.Slowed || !stuck.Stuck {
 		t.Fatalf("overdue engagement = %+v, want slowed with stuck", stuck)
 	}
-	released := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem: "git", OldestClaimableAge: time.Minute, ClaimableDepth: 100,
-	}, latch, 31*time.Minute)
+	released := DecideSourceSlowed(cfg, rowsAt(cfg, "git", time.Minute, 100), latch, 31*time.Minute)
 	if released.Slowed || released.Stuck {
 		t.Fatalf("drained overdue engagement = %+v, want released without stuck", released)
 	}
@@ -196,16 +180,8 @@ func TestDecideSourceSlowedIsPerSource(t *testing.T) {
 	t.Parallel()
 	cfg := testSourceBackpressureConfig()
 
-	behind := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: 25*24*time.Hour + 19*time.Hour,
-		ClaimableDepth:     6363,
-	}, SourceBackpressureLatch{}, 0)
-	healthy := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "git",
-		OldestClaimableAge: 5 * time.Minute,
-		ClaimableDepth:     200,
-	}, SourceBackpressureLatch{}, 0)
+	behind := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", 25*24*time.Hour+19*time.Hour, 6363), SourceBackpressureLatch{}, 0)
+	healthy := DecideSourceSlowed(cfg, rowsAt(cfg, "git", 5*time.Minute, 200), SourceBackpressureLatch{}, 0)
 	if !behind.Slowed {
 		t.Fatalf("behind source = %+v, want slowed", behind)
 	}
@@ -224,11 +200,7 @@ func TestDecideSourceSlowedCarriesGrantDelay(t *testing.T) {
 	t.Parallel()
 	cfg := testSourceBackpressureConfig()
 
-	got := DecideSourceSlowed(cfg, SourceQueueSignal{
-		SourceSystem:       "vuln-intel",
-		OldestClaimableAge: 2 * time.Hour,
-		ClaimableDepth:     100,
-	}, SourceBackpressureLatch{}, 0)
+	got := DecideSourceSlowed(cfg, rowsAt(cfg, "vuln-intel", 2*time.Hour, 100), SourceBackpressureLatch{}, 0)
 	if !got.Slowed {
 		t.Fatal("Slowed = false, want true")
 	}

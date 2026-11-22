@@ -22,7 +22,7 @@ func TestReadSourcePacingStatusPublishesLatchTruth(t *testing.T) {
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"git", float64(60), int64(3)}, {"vuln-intel", float64(7200), int64(400)}}},
+		{rows: [][]any{{"git", float64(60), int64(3), int64(0), int64(0)}, {"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 		{rows: [][]any{
 			{"vuln-intel", true, now.Add(-time.Hour)},
 			{"drained", true, now.Add(-2 * time.Hour)},
@@ -69,7 +69,7 @@ func TestReadSourcePacingStatusLeavesStuckUnevaluatedWithoutConfig(t *testing.T)
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"vuln-intel", float64(7200), int64(400)}}},
+		{rows: [][]any{{"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 		{rows: [][]any{{"vuln-intel", true, now.Add(-time.Hour)}}},
 	}}
 

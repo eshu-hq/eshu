@@ -130,7 +130,7 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	// family source.
 	fullFidelityProbe := boundedSourceSignalQuery()
 	fullP50 := timeQuerySingle(t, ctx, sqlConn, fullFidelityProbe, now, "s0-source-0", 25)
-	fullPlan := explainOne(t, ctx, sqlConn, fullFidelityProbe, now, "s0-source-0")
+	fullPlan := explainOne(t, ctx, sqlConn, fullFidelityProbe, now, s0ProbeParams(now, "s0-source-0")[1:]...)
 	t.Logf("S0 10x-scale full-fidelity per-source probe: p50=%s plan:\n%s", fullP50, fullPlan)
 
 	// Sargable form is the shipped builder verbatim: the prefilter is
@@ -139,28 +139,30 @@ func TestSourceBackpressureS0SignalCost(t *testing.T) {
 	// fact_work_items_reducer_source_claim_idx with no new DDL.
 	sargableProbe := fullFidelityProbe
 	sargP50 := timeQuerySingle(t, ctx, sqlConn, sargableProbe, now, "s0-source-0", 25)
-	sargPlan := explainOne(t, ctx, sqlConn, sargableProbe, now, "s0-source-0")
+	sargPlan := explainOne(t, ctx, sqlConn, sargableProbe, now, s0ProbeParams(now, "s0-source-0")[1:]...)
 	t.Logf("S0 10x-scale sargable per-source probe: p50=%s plan:\n%s", sargP50, sargPlan)
 	for _, want := range rows10x {
 		var age float64
-		var depth int64
-		if err := sqlConn.QueryRowContext(ctx, sargableProbe, now.UTC(), want.source).Scan(&age, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := sqlConn.QueryRowContext(ctx, sargableProbe, s0ProbeParams(now, want.source)...).Scan(&age, &depth, &pastEngage, &pastRelease); err != nil {
 			t.Fatalf("sargable probe for %s: %v", want.source, err)
 		}
-		if depth != want.depth {
-			t.Fatalf("sargable probe depth for %s = %d, want grouped %d", want.source, depth, want.depth)
+		if depth != want.depth || pastEngage != want.pastEngage || pastRelease != want.pastRelease {
+			t.Fatalf("sargable probe for %s = (depth %d, past engage %d, past release %d), want grouped (%d, %d, %d)",
+				want.source, depth, pastEngage, pastRelease, want.depth, want.pastEngage, want.pastRelease)
 		}
 	}
 	// Row-equivalence between the bounded probe and the grouped signal
 	// for every 10x source: the S1 consult must see the same numbers.
 	for _, want := range rows10x {
 		var age float64
-		var depth int64
-		if err := sqlConn.QueryRowContext(ctx, fullFidelityProbe, now.UTC(), want.source).Scan(&age, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := sqlConn.QueryRowContext(ctx, fullFidelityProbe, s0ProbeParams(now, want.source)...).Scan(&age, &depth, &pastEngage, &pastRelease); err != nil {
 			t.Fatalf("bounded probe for %s: %v", want.source, err)
 		}
-		if depth != want.depth {
-			t.Fatalf("bounded probe depth for %s = %d, want grouped %d", want.source, depth, want.depth)
+		if depth != want.depth || pastEngage != want.pastEngage || pastRelease != want.pastRelease {
+			t.Fatalf("bounded probe for %s = (depth %d, past engage %d, past release %d), want grouped (%d, %d, %d)",
+				want.source, depth, pastEngage, pastRelease, want.depth, want.pastEngage, want.pastRelease)
 		}
 		if gotAge := time.Duration(age * float64(time.Second)); gotAge != want.age {
 			t.Fatalf("bounded probe age for %s = %s, want grouped %s", want.source, gotAge, want.age)
@@ -192,9 +194,11 @@ WHERE work.stage = 'reducer'
 
 // sourceSignalRow is one decoded grouped-signal row for the S0 probe.
 type sourceSignalRow struct {
-	source string
-	age    time.Duration
-	depth  int64
+	source      string
+	age         time.Duration
+	depth       int64
+	pastEngage  int64
+	pastRelease int64
 }
 
 // explainSignalQuery runs EXPLAIN (ANALYZE, BUFFERS) over a signal query
@@ -202,7 +206,7 @@ type sourceSignalRow struct {
 func explainSignalQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, signalQuery string, now time.Time) (string, []sourceSignalRow) {
 	t.Helper()
 	explainRows, err := sqlConn.QueryContext(ctx,
-		"EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+signalQuery, now.UTC())
+		"EXPLAIN (ANALYZE, TIMING OFF, COSTS OFF, BUFFERS) "+signalQuery, s0GroupedParams(now)...)
 	if err != nil {
 		t.Fatalf("explain signal query: %v", err)
 	}
@@ -221,7 +225,7 @@ func explainSignalQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, si
 	}
 	_ = explainRows.Close()
 
-	dataRows, err := sqlConn.QueryContext(ctx, signalQuery, now.UTC())
+	dataRows, err := sqlConn.QueryContext(ctx, signalQuery, s0GroupedParams(now)...)
 	if err != nil {
 		t.Fatalf("signal query: %v", err)
 	}
@@ -229,7 +233,7 @@ func explainSignalQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, si
 	for dataRows.Next() {
 		var row sourceSignalRow
 		var ageSeconds float64
-		if err := dataRows.Scan(&row.source, &ageSeconds, &row.depth); err != nil {
+		if err := dataRows.Scan(&row.source, &ageSeconds, &row.depth, &row.pastEngage, &row.pastRelease); err != nil {
 			_ = dataRows.Close()
 			t.Fatalf("scan signal row: %v", err)
 		}
@@ -250,15 +254,15 @@ func timeQuery(t *testing.T, ctx context.Context, sqlConn *sql.Conn, signalQuery
 	samples := make([]float64, 0, n)
 	for i := 0; i < n; i++ {
 		start := time.Now()
-		rows, err := sqlConn.QueryContext(ctx, signalQuery, now.UTC())
+		rows, err := sqlConn.QueryContext(ctx, signalQuery, s0GroupedParams(now)...)
 		if err != nil {
 			t.Fatalf("time signal query: %v", err)
 		}
 		for rows.Next() {
 			var source string
 			var age float64
-			var depth int64
-			if err := rows.Scan(&source, &age, &depth); err != nil {
+			var depth, pastEngage, pastRelease int64
+			if err := rows.Scan(&source, &age, &depth, &pastEngage, &pastRelease); err != nil {
 				_ = rows.Close()
 				t.Fatalf("scan signal query: %v", err)
 			}
@@ -325,8 +329,8 @@ func timeQuerySingle(t *testing.T, ctx context.Context, sqlConn *sql.Conn, probe
 	for i := 0; i < n; i++ {
 		start := time.Now()
 		var age float64
-		var depth int64
-		if err := sqlConn.QueryRowContext(ctx, probe, now.UTC(), source).Scan(&age, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := sqlConn.QueryRowContext(ctx, probe, s0ProbeParams(now, source)...).Scan(&age, &depth, &pastEngage, &pastRelease); err != nil {
 			t.Fatalf("time bounded probe: %v", err)
 		}
 		samples = append(samples, float64(time.Since(start)))
@@ -402,4 +406,18 @@ failure_details, payload, created_at, updated_at) VALUES `+strings.Join(values, 
 		}
 	}
 	return nil
+}
+
+// s0GroupedParams binds the shipped grouped signal: now plus the engage and
+// release cutoffs the two aged-row COUNT FILTER columns compare against
+// (#10882 F5), at the test config's ages.
+func s0GroupedParams(now time.Time) []any {
+	cfg := sourceBackpressureTestConfig()
+	return []any{now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge)}
+}
+
+// s0ProbeParams binds the shipped bounded probe: the grouped parameters plus
+// the source system.
+func s0ProbeParams(now time.Time, source string) []any {
+	return append(s0GroupedParams(now), source)
 }

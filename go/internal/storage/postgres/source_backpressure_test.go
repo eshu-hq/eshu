@@ -72,9 +72,9 @@ func TestCheckSourceBackpressurePacesSlowedFamilyAndAdvancesLatch(t *testing.T) 
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"vuln-intel"}}},              // pending sources for family
-		{rows: [][]any{{float64(7200), int64(400)}}}, // bounded probe: vuln-intel behind
-		{rows: [][]any{}},                            // latches: none engaged
+		{rows: [][]any{{"vuln-intel"}}},                                      // pending sources for family
+		{rows: [][]any{{float64(7200), int64(400), int64(400), int64(400)}}}, // bounded probe: vuln-intel behind
+		{rows: [][]any{}}, // latches: none engaged
 	}}
 	store := NewWorkflowControlStore(fake)
 
@@ -121,8 +121,8 @@ func TestCheckSourceBackpressureMixedFamilyStaysUnpaced(t *testing.T) {
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
 		{rows: [][]any{{"git"}, {"vuln-intel"}}},
-		{rows: [][]any{{float64(60), int64(3)}}},     // bounded probe: git healthy
-		{rows: [][]any{{float64(7200), int64(400)}}}, // bounded probe: vuln-intel behind
+		{rows: [][]any{{float64(60), int64(3), int64(0), int64(0)}}},         // bounded probe: git healthy
+		{rows: [][]any{{float64(7200), int64(400), int64(400), int64(400)}}}, // bounded probe: vuln-intel behind
 		{rows: [][]any{}},
 	}}
 	store := NewWorkflowControlStore(fake)
@@ -151,7 +151,7 @@ func TestCheckSourceBackpressureForSourceReleasesAndResumes(t *testing.T) {
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{float64(300), int64(10)}}},                        // bounded probe: 5m old
+		{rows: [][]any{{float64(300), int64(10), int64(0), int64(0)}}},    // bounded probe: 5m old
 		{rows: [][]any{{"vuln-intel", true, now.Add(-10 * time.Minute)}}}, // latch engaged
 	}}
 	store := NewWorkflowControlStore(fake)
@@ -203,7 +203,7 @@ func TestSourcePacingStatesPublishesSlowedStateAndReason(t *testing.T) {
 
 	now := time.Date(2026, time.November, 21, 12, 0, 0, 0, time.UTC)
 	fake := &sourceBackpressureFakeDB{responses: []fakeRows{
-		{rows: [][]any{{"git", float64(60), int64(3)}, {"vuln-intel", float64(7200), int64(400)}}},
+		{rows: [][]any{{"git", float64(60), int64(3), int64(0), int64(0)}, {"vuln-intel", float64(7200), int64(400), int64(400), int64(400)}}},
 		{rows: [][]any{{"vuln-intel", true, now.Add(-time.Hour)}}},
 	}}
 	store := NewWorkflowControlStore(fake)
@@ -256,14 +256,24 @@ func TestBoundedSourceSignalQueryDerivesFromGrouped(t *testing.T) {
 			t.Fatalf("grouped signal lost marker %q: bounded probe would fork", marker)
 		}
 	}
-	if strings.Contains(grouped, "= $2") {
+	for _, column := range []string{
+		"COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $2) AS rows_past_engage_age",
+		"COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $3) AS rows_past_release_age",
+	} {
+		if !strings.Contains(grouped, column) {
+			t.Fatalf("grouped signal lost the aged-row column %q (#10882 F5)", column)
+		}
+	}
+	if strings.Contains(grouped, "= $4") {
 		t.Fatal("grouped signal takes a source parameter, want whole-backlog scan")
 	}
 	bounded := boundedSourceSignalQuery()
 	for _, marker := range []string{
 		"AND (work.visible_at IS NULL OR work.visible_at <= $1)",
-		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), 'unknown') IN ($2, 'unknown')",
-		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') = $2",
+		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), 'unknown') IN ($4, 'unknown')",
+		"COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') = $4",
+		"AS rows_past_engage_age",
+		"AS rows_past_release_age",
 	} {
 		if !strings.Contains(bounded, marker) {
 			t.Fatalf("bounded probe lost marker %q", marker)

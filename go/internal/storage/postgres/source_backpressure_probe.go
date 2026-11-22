@@ -37,8 +37,8 @@ const (
 // admits no false negatives: a row the exact predicate attributes to the
 // bound source has either a matching payload source or an empty one the
 // scope fallback resolves ('unknown' arm).
-const boundedSourceSignalPrefilter = `AND COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), 'unknown') IN ($2, 'unknown')
-  AND COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') = $2`
+const boundedSourceSignalPrefilter = `AND COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), 'unknown') IN ($4, 'unknown')
+  AND COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') = $4`
 
 // boundedSourceSignalQuery builds the single-source claimable signal
 // from the shipped grouped constant, so the two cannot drift: the CTE,
@@ -63,15 +63,16 @@ func (s *WorkflowControlStore) sourceClaimableSignalForSource(
 	if cached, ok := s.cachedBoundedSignal(cfg, sourceSystem, now); ok {
 		return cached, nil
 	}
-	rows, err := s.database.QueryContext(ctx, boundedSourceSignalQuery(), now.UTC(), sourceSystem)
+	rows, err := s.database.QueryContext(ctx, boundedSourceSignalQuery(),
+		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge), sourceSystem)
 	if err != nil {
 		return workflow.SourceQueueSignal{SourceSystem: sourceSystem}, err
 	}
 	signal := workflow.SourceQueueSignal{SourceSystem: sourceSystem}
 	if rows.Next() {
 		var ageSeconds float64
-		var depth int64
-		if err := rows.Scan(&ageSeconds, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := rows.Scan(&ageSeconds, &depth, &pastEngage, &pastRelease); err != nil {
 			_ = rows.Close()
 			return signal, err
 		}
@@ -81,6 +82,8 @@ func (s *WorkflowControlStore) sourceClaimableSignalForSource(
 		}
 		signal.OldestClaimableAge = age
 		signal.ClaimableDepth = depth
+		signal.RowsPastEngageAge = pastEngage
+		signal.RowsPastReleaseAge = pastRelease
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()

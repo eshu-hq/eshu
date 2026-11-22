@@ -14,9 +14,9 @@ domain signal. The global ceiling carries no `domain` label.
 
 Per-source reducer backpressure (#10882) reuses the same series with
 `pacing_signal="reducer_source"` and `domain=<source_system>`: a source
-slows when its oldest claimable reducer work passes
-`ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE` with claimable depth at or above
-`ESHU_SOURCE_BACKPRESSURE_DEPTH_FLOOR`, and resumes at
+slows when at least `ESHU_SOURCE_BACKPRESSURE_DEPTH_FLOOR` of its
+claimable reducer rows are older than `ESHU_SOURCE_BACKPRESSURE_ENGAGE_AGE`,
+and resumes once fewer than that many rows are older than
 `ESHU_SOURCE_BACKPRESSURE_RELEASE_AGE`. The depth gauge is not emitted for
 this signal; the trigger observation is the queue observer's
 `eshu_dp_queue_source_oldest_age_seconds` and

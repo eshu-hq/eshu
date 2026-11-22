@@ -40,7 +40,9 @@ const sourceClaimableSignalQuery = `
 WITH ` + activeFactWorkItemsPerRowCTE + `
 SELECT COALESCE(NULLIF(BTRIM(work.payload->>'source_system'), ''), NULLIF(BTRIM(scope.source_system), ''), 'unknown') AS source_system,
        COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(COALESCE(work.reopened_at, work.created_at)))), 0) AS oldest_age_seconds,
-       COUNT(*) AS claimable_depth
+       COUNT(*) AS claimable_depth,
+       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $2) AS rows_past_engage_age,
+       COUNT(*) FILTER (WHERE COALESCE(work.reopened_at, work.created_at) < $3) AS rows_past_release_age
 FROM active_fact_work_items AS work
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = work.scope_id
@@ -344,7 +346,8 @@ func (s *WorkflowControlStore) sourceClaimableSignals(
 			return cached.signals, nil
 		}
 	}
-	rows, err := s.database.QueryContext(ctx, sourceClaimableSignalQuery, now.UTC())
+	rows, err := s.database.QueryContext(ctx, sourceClaimableSignalQuery,
+		now.UTC(), now.UTC().Add(-cfg.EngageAge), now.UTC().Add(-cfg.ReleaseAge))
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +356,8 @@ func (s *WorkflowControlStore) sourceClaimableSignals(
 	for rows.Next() {
 		var source string
 		var ageSeconds float64
-		var depth int64
-		if err := rows.Scan(&source, &ageSeconds, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := rows.Scan(&source, &ageSeconds, &depth, &pastEngage, &pastRelease); err != nil {
 			return nil, err
 		}
 		age := time.Duration(ageSeconds * float64(time.Second))
@@ -365,6 +368,8 @@ func (s *WorkflowControlStore) sourceClaimableSignals(
 			SourceSystem:       source,
 			OldestClaimableAge: age,
 			ClaimableDepth:     depth,
+			RowsPastEngageAge:  pastEngage,
+			RowsPastReleaseAge: pastRelease,
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -137,3 +137,26 @@ not part of this PR.
   `ESHU_PROJECTOR_ADMISSION_PROOF_DSN`).
 - Production-shape confirmation of the Proposed thresholds before any
   deployment enables the leg.
+
+## Review F5: aged-row floor, live S0 re-run (2026-11-22)
+
+The verdict now reads two `COUNT(*) FILTER` columns (rows past the engage
+age, rows past the release age) in the grouped query and the bounded probe.
+Live Postgres 18 in a private container, local host at about 55% IO
+pressure, one run each, same container and fixture, `TestSourceBackpressureS0SignalCost`:
+
+| Query (10x scale, 7 sources, about 13k claimable rows for one source) | Before F5 (`8690012e03`) | After F5 |
+| --- | --- | --- |
+| Grouped signal p50 (publication) | 224.5 ms | 234.3 ms |
+| Bounded per-source probe p50 (claim-hot consult) | 88.8 ms | 89.4 ms |
+| Claim-probe control p50 (unchanged query) | 10.2 ms | 10.9 ms |
+
+The aggregates add no measurable cost; the plan is dominated by the three
+per-row index scans, unchanged by F5. These absolute numbers are higher than
+the 146 ms and 41 ms the first S0 recorded because the host is busier now; the
+claim-probe control moved with them. They are a same-session before and after,
+not a timing claim.
+`TestSourceBackpressureProbeMatchesGroupedAndVerdicts` passes: bounded and
+grouped agree on depth, oldest age, and both aged-row counts for every seeded
+source, and the new `busy` shape (one 3-day-old row among 200 fresh rows) is
+not slowed.

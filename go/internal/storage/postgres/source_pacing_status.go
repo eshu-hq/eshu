@@ -25,7 +25,7 @@ func readSourcePacingStatus(
 	asOf time.Time,
 	config workflow.SourceBackpressureConfig,
 ) ([]collector.SourcePacingSnapshot, error) {
-	signals, err := readSourceClaimableSignals(ctx, queryer, asOf)
+	signals, err := readSourceClaimableSignals(ctx, queryer, asOf, config)
 	if err != nil {
 		return nil, fmt.Errorf("read source pacing signals: %w", err)
 	}
@@ -86,8 +86,10 @@ func readSourceClaimableSignals(
 	ctx context.Context,
 	queryer db.Queryer,
 	asOf time.Time,
+	config workflow.SourceBackpressureConfig,
 ) ([]workflow.SourceQueueSignal, error) {
-	rows, err := queryer.QueryContext(ctx, sourceClaimableSignalQuery, asOf.UTC())
+	rows, err := queryer.QueryContext(ctx, sourceClaimableSignalQuery,
+		asOf.UTC(), asOf.UTC().Add(-config.EngageAge), asOf.UTC().Add(-config.ReleaseAge))
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +98,8 @@ func readSourceClaimableSignals(
 	for rows.Next() {
 		var source string
 		var ageSeconds float64
-		var depth int64
-		if err := rows.Scan(&source, &ageSeconds, &depth); err != nil {
+		var depth, pastEngage, pastRelease int64
+		if err := rows.Scan(&source, &ageSeconds, &depth, &pastEngage, &pastRelease); err != nil {
 			return nil, err
 		}
 		age := time.Duration(ageSeconds * float64(time.Second))
@@ -108,6 +110,8 @@ func readSourceClaimableSignals(
 			SourceSystem:       source,
 			OldestClaimableAge: age,
 			ClaimableDepth:     depth,
+			RowsPastEngageAge:  pastEngage,
+			RowsPastReleaseAge: pastRelease,
 		})
 	}
 	if err := rows.Err(); err != nil {

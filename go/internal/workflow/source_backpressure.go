@@ -26,8 +26,13 @@ type SourceBackpressureConfig struct {
 	// ReleaseAge is the oldest-claimable-age at or below which a slowed
 	// source resumes. The gap between engage and release stops flapping.
 	ReleaseAge time.Duration
-	// DepthFloor is the minimum claimable depth that can slow a source. One
-	// poisoned or deliberately gated old row must never throttle a source.
+	// DepthFloor is how many claimable rows must be past an age before that
+	// age counts: a source engages only when at least DepthFloor rows are
+	// older than EngageAge, and an engaged source releases once fewer than
+	// DepthFloor rows are older than ReleaseAge. One poisoned or
+	// deliberately gated old row among fresh work never throttles a source,
+	// and a few left-behind rows never hold a latch once the real backlog
+	// clears. A floor of 1 is the plain oldest-age rule.
 	DepthFloor int64
 	// GrantDelay is the backoff a slowed verdict carries: claim grants
 	// return it on the retry-after path and admission polls wait it out,
@@ -76,12 +81,17 @@ func (c SourceBackpressureConfig) Validate() error {
 // slowed-state verdict. OldestClaimableAge is the age of the oldest
 // claimable outstanding reducer row attributed to the source (active
 // generation, pending|retrying, visible now); ClaimableDepth counts those
-// rows. Both come from the grouped claimable read the S1 store work owns;
-// this package only decides over them and never opens storage.
+// rows. RowsPastEngageAge and RowsPastReleaseAge count the claimable rows
+// strictly older than the engage and release ages: they, not the oldest age
+// and the total depth, drive the verdict (#10882 F5). The age and the total
+// depth stay for publication. All come from the claimable read the store
+// owns; this package only decides over them and never opens storage.
 type SourceQueueSignal struct {
 	SourceSystem       string
 	OldestClaimableAge time.Duration
 	ClaimableDepth     int64
+	RowsPastEngageAge  int64
+	RowsPastReleaseAge int64
 }
 
 // SourceBackpressureLatch is the shared hysteresis bit: whether the source
@@ -111,10 +121,11 @@ type SourceBackpressureDecision struct {
 // DecideSourceSlowed is the pure slowed-state verdict over one per-source
 // observation and the shared latch. It never touches storage.
 //
-// A disengaged source slows only when its oldest claimable age exceeds the
-// engage age and its claimable depth reaches the floor. An engaged source
-// releases only when its oldest claimable age falls to the release age, so
-// ages between the two follow the latch. A disabled config never slows.
+// A disengaged source slows only when at least DepthFloor of its claimable
+// rows are older than the engage age. An engaged source releases only when
+// fewer than DepthFloor rows are older than the release age, so ages between
+// the two follow the latch. With DepthFloor=1 both rules reduce to the
+// oldest-age comparison. A disabled config never slows.
 func DecideSourceSlowed(
 	cfg SourceBackpressureConfig,
 	signal SourceQueueSignal,
@@ -124,14 +135,14 @@ func DecideSourceSlowed(
 	if !cfg.Enabled() {
 		return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
 	}
-	behind := signal.OldestClaimableAge > cfg.EngageAge && signal.ClaimableDepth >= cfg.DepthFloor
+	behind := signal.RowsPastEngageAge >= cfg.DepthFloor
 	if !latch.Engaged {
 		if !behind {
 			return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
 		}
 		return slowed(cfg, signal.SourceSystem, 0)
 	}
-	if signal.OldestClaimableAge <= cfg.ReleaseAge {
+	if signal.RowsPastReleaseAge < cfg.DepthFloor {
 		return SourceBackpressureDecision{SourceSystem: signal.SourceSystem}
 	}
 	return slowed(cfg, signal.SourceSystem, engagedFor)

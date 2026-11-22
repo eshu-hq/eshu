@@ -69,7 +69,7 @@ func TestSourceBackpressureProbeMatchesGroupedAndVerdicts(t *testing.T) {
 	for _, signal := range grouped {
 		bySource[signal.SourceSystem] = signal
 	}
-	for _, source := range []string{"vuln-intel", "git", "npm", "poison"} {
+	for _, source := range []string{"vuln-intel", "git", "npm", "poison", "busy"} {
 		bounded, err := store.sourceClaimableSignalForSource(ctx, cfg, source, now)
 		if err != nil {
 			t.Fatalf("bounded probe for %s: %v", source, err)
@@ -81,10 +81,14 @@ func TestSourceBackpressureProbeMatchesGroupedAndVerdicts(t *testing.T) {
 		if bounded.ClaimableDepth != want.ClaimableDepth {
 			t.Fatalf("bounded depth for %s = %d, want grouped %d", source, bounded.ClaimableDepth, want.ClaimableDepth)
 		}
+		if bounded.RowsPastEngageAge != want.RowsPastEngageAge || bounded.RowsPastReleaseAge != want.RowsPastReleaseAge {
+			t.Fatalf("bounded aged rows for %s = (engage %d, release %d), want grouped (%d, %d)",
+				source, bounded.RowsPastEngageAge, bounded.RowsPastReleaseAge, want.RowsPastEngageAge, want.RowsPastReleaseAge)
+		}
 		if bounded.OldestClaimableAge != want.OldestClaimableAge {
 			t.Fatalf("bounded age for %s = %s, want grouped %s", source, bounded.OldestClaimableAge, want.OldestClaimableAge)
 		}
-		t.Logf("S0 verdict seed: source=%s depth=%d age=%s", source, bounded.ClaimableDepth, bounded.OldestClaimableAge)
+		t.Logf("S0 verdict seed: source=%s depth=%d age=%s past_engage=%d past_release=%d", source, bounded.ClaimableDepth, bounded.OldestClaimableAge, bounded.RowsPastEngageAge, bounded.RowsPastReleaseAge)
 	}
 
 	// Verdict simulation over the seeded shapes.
@@ -108,6 +112,13 @@ func TestSourceBackpressureProbeMatchesGroupedAndVerdicts(t *testing.T) {
 	}
 	if poison.Slowed {
 		t.Fatalf("poison verdict = %+v, want unslowed (single old row below depth floor)", poison)
+	}
+	busy, err := store.CheckSourceBackpressureForSource(ctx, "busy", cfg, now)
+	if err != nil {
+		t.Fatalf("busy consult: %v", err)
+	}
+	if busy.Slowed {
+		t.Fatalf("busy verdict = %+v, want unslowed (one old row among 200 fresh rows is below the aged-row floor)", busy)
 	}
 	// npm rows carry no payload source and resolve via the scope fallback.
 	npm, err := store.CheckSourceBackpressureForSource(ctx, "npm", cfg, now)
@@ -192,6 +203,11 @@ func seedS0VerdictShapes(t *testing.T, ctx context.Context, conn reducerClaimBen
 		{scope: "s0v-git", source: "git", payload: "git", count: 30, age: 30 * time.Minute},
 		{scope: "s0v-npm", source: "npm", payload: "", count: 30, age: 30 * 24 * time.Hour},
 		{scope: "s0v-poison", source: "poison", payload: "poison", count: 1, age: 30 * 24 * time.Hour},
+		// busy: one poisoned old row among 200 fresh rows (#10882 F5). The
+		// total depth clears the floor, but only one row is past the engage
+		// age, so the source must not slow.
+		{scope: "s0v-busy-fresh", source: "busy", payload: "busy", count: 200, age: time.Minute},
+		{scope: "s0v-busy-old", source: "busy", payload: "busy", count: 1, age: 3 * 24 * time.Hour},
 	}
 	for _, shape := range shapes {
 		if _, err := conn.ExecContext(ctx, `INSERT INTO ingestion_scopes (

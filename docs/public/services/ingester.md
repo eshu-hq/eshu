@@ -86,8 +86,8 @@ the whole allowance while another source starves. The per-source leg from
 issue #10882 (design record
 `docs/internal/design/10882-source-backpressure.md`) layers on top: when
 the `ESHU_SOURCE_BACKPRESSURE_*` thresholds are all set, intents whose
-source is latched slowed — its oldest claimable reducer work older than
-the engage age with claimable depth at or above the floor — defer under
+source is latched slowed — at least the floor's worth of its claimable
+reducer rows older than the engage age — defer under
 reason `source_behind` while other sources' intents in the same batch
 admit immediately. Unset (the default) disables the leg; no Proposed
 threshold ships as a default. The standalone projector wraps its intent

@@ -143,22 +143,31 @@ fairness (#8469, #10868 own that).
 
 ### 1. Trigger: per-source oldest claimable reducer age, with a depth floor
 
-A source is "behind" when the oldest **claimable** outstanding reducer
-row attributed to it (active generation, `status IN
+A source is "behind" when at least `DepthFloor` of its **claimable**
+outstanding reducer rows (active generation, `status IN
 pending|retrying`, `visible_at <= now`, age from
-`COALESCE(reopened_at, created_at)`) exceeds the engage age **and** the
-source's outstanding claimable depth exceeds a small floor. The latch
-releases when oldest claimable age falls to the release age.
+`COALESCE(reopened_at, created_at)`) are older than the engage age. The
+latch releases when fewer than `DepthFloor` claimable rows are older than
+the release age. With a floor of 1 both rules are the plain oldest-age
+comparison, so they reproduce the first draft's verdicts exactly (pinned by
+`TestDecideSourceSlowedFloorOneReproducesAgeOnlyVerdicts`). The oldest age
+and the total claimable depth stay on the signal for publication; the
+verdict reads two `COUNT(*) FILTER` columns, rows past the engage age and
+rows past the release age, in both the grouped query and the bounded probe.
 
 - Age is the primary signal because the freshness target is an age. A
   fact saved behind a 1 h-old claimable head cannot beat ~1 h of queue
   wait under any approximately fair drain; pacing must engage well
   before the 4 h typical / 24 h p95 targets are already lost.
-- The depth floor exists because one poisoned or deliberately gated
-  old row must not throttle a whole source (#10630's deferred cohort
-  is the standing counterexample). "Claimable-only" plus the floor
-  together make the false-throttle case require a genuinely stuck
-  *set* of rows — which is precisely when slowing intake is right.
+- The floor counts rows past the age, not all claimable rows (amended
+  after review, #10882 F5). The first draft compared the oldest age and
+  the total depth, so one poisoned old row on an active source (any
+  source with 25 fresh rows) cleared both and slowed the whole source.
+  Counting aged rows makes the false-throttle case require a genuinely
+  stuck *set* of rows (#10630's deferred cohort is the standing
+  counterexample) — which is precisely when slowing intake is right — and
+  lets a handful of left-behind rows stop holding a latch once the real
+  backlog has cleared.
 - Proposed defaults (to be confirmed or replaced by S0/S1, never
   silently shipped): engage age 1 h (¼ of the 4 h typical target),
   release age 15 m, depth floor 25. All three are env-configured,
