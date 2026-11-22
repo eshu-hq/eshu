@@ -102,8 +102,19 @@ func runAckParkContentionRound(t *testing.T, ctx context.Context, scopeID string
 	}
 	deadlocksBefore := databaseDeadlocks(t, ctx, f.base)
 	errs := &contentionErrors{}
+	// Every pool the round uses is opened and pinged before the hold, so
+	// connection setup under a loaded host cannot spend the blocked Ack's
+	// lock_timeout inside the window.
+	parkQueues := make(map[string]ReducerQueue, len(waiters))
+	for _, intent := range waiters {
+		parkQueues[intent.IntentID] = newOwnGateQueue(pingedFairnessDB(t, ctx, f.targetDSN), &f.clock, domain)
+	}
+	claimQ := newOwnGateQueue(pingedFairnessDB(t, ctx, f.targetDSN), &f.clock, domain)
+	projectorDB := pingedFairnessDB(t, ctx, f.targetDSN)
+	auditDB := SQLDB{DB: pingedFairnessDB(t, ctx, f.targetDSN)}
+	duplicateDB := pingedFairnessDB(t, ctx, f.targetDSN)
 	park := func(wg *sync.WaitGroup, intent reducercontract.Intent) {
-		queue := newOwnGateQueue(openReducerFairnessClaimerDB(t, ctx, f.targetDSN), &f.clock, domain)
+		queue := parkQueues[intent.IntentID]
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -120,7 +131,6 @@ func runAckParkContentionRound(t *testing.T, ctx context.Context, scopeID string
 	stopLoops := make(chan struct{})
 	var loops sync.WaitGroup
 	var reducerClaims atomic.Int64
-	claimQ := newOwnGateQueue(openReducerFairnessClaimerDB(t, ctx, f.targetDSN), &f.clock, domain)
 	ackContentionLoop(&loops, stopLoops, errs, "reducer claim", func() error {
 		_, ok, err := claimQ.Claim(ctx)
 		if ok {
@@ -128,7 +138,7 @@ func runAckParkContentionRound(t *testing.T, ctx context.Context, scopeID string
 		}
 		return err
 	})
-	projectorQ := NewProjectorQueue(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, f.targetDSN)},
+	projectorQ := NewProjectorQueue(SQLDB{DB: projectorDB},
 		"ack-contend-projector", 10*time.Minute)
 	frozen := f.clock
 	projectorQ.Now = func() time.Time { return frozen }
@@ -138,7 +148,6 @@ func runAckParkContentionRound(t *testing.T, ctx context.Context, scopeID string
 	})
 	stopAudit := make(chan struct{})
 	var audit sync.WaitGroup
-	auditDB := SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, f.targetDSN)}
 	ackContentionLoop(&audit, stopAudit, errs, "audit", func() error {
 		_, _, _, err := AuditWaitingItems(ctx, auditDB, nil, frozen, DefaultWaitingAuditInterval, 100)
 		return err
@@ -149,7 +158,7 @@ func runAckParkContentionRound(t *testing.T, ctx context.Context, scopeID string
 	// deadlock.
 	duplicateDone := make(chan error, 1)
 	go func() {
-		duplicate := NewProjectorQueue(SQLDB{DB: openReducerFairnessClaimerDB(t, ctx, f.targetDSN)},
+		duplicate := NewProjectorQueue(SQLDB{DB: duplicateDB},
 			"ack-contend-stale-owner", 10*time.Minute)
 		duplicate.Now = func() time.Time { return frozen }
 		duplicate.AckScopeLockTimeout = maxProjectorAckLockTimeout
@@ -257,4 +266,15 @@ func requireNoNewDeadlocks(t *testing.T, ctx context.Context, db *sql.DB, before
 	if got := databaseDeadlocks(t, ctx, db); got != before {
 		t.Fatalf("pg_stat_database.deadlocks moved %d -> %d during the round", before, got)
 	}
+}
+
+// pingedFairnessDB opens a one-connection pool and connects it, so the first
+// statement the test sends does not pay for connection setup.
+func pingedFairnessDB(t *testing.T, ctx context.Context, targetDSN string) *sql.DB {
+	t.Helper()
+	db := openReducerFairnessClaimerDB(t, ctx, targetDSN)
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("ping postgres pool: %v", err)
+	}
+	return db
 }

@@ -187,10 +187,12 @@ VALUES ($1, 'producer_domain_terminal', $2::jsonb, $3, $4, 'container_image_iden
 }
 
 // waitBlockedBy polls until some backend waits on blockerPID's locks. The
-// bound stays under the Ack's 4-second lock_timeout.
+// Ack's 4-second lock_timeout counts only once it blocks, so this pre-block
+// bound is independent of it: it covers pool setup and the Ack's earlier
+// statements on a loaded host, and is still bounded.
 func waitBlockedBy(t *testing.T, ctx context.Context, db *sql.DB, blockerPID int, ackDone <-chan error) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		var blocked int
 		if err := db.QueryRowContext(ctx,
