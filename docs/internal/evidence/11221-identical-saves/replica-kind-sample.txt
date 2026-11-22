@@ -1,3 +1,4 @@
+# pct_written_gt1h_after_generation = share of sampled rows whose ingested_at is more than an hour after the generation was created: a rough marker of late derivation; it is not used in any conclusion.
 # QA read replica, 1% system sample of fact_records (954,192 rows) joined to scope_generations, reducer_* kinds only; read-only
 fact_kind|sample_rows|avg_payload_b|pct_written_gt1h_after_generation|pct_token_gt1
 reducer_eshu_search_document|287067|1299|63.5|0.0
