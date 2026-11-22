@@ -308,8 +308,11 @@ func (q ProjectorQueue) Fail(
 		// claim count: the 5-minute waits already pace the retries, and
 		// the projection budget refund below keeps one shared exponential
 		// from punishing backpressured items twice. The formula is
-		// unchanged; only the attempt input differs by cause.
-		backoffAttempt := work.AttemptCount
+		// unchanged; only the attempt input differs by cause. A projection
+		// retry backs off on the claims since the last operator replay
+		// (#11182), so the first failure after a replay waits as a new
+		// row's first failure does.
+		backoffAttempt := work.AttemptCount - work.ReplayAttemptBaseline
 		if admissionRetry {
 			backoffAttempt = work.AdmissionWaitAttempts
 		}

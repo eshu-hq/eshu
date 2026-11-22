@@ -44,6 +44,14 @@ type ScopeGenerationWork struct {
 	// AdmissionWaitAttempts, while admission-timeout failures retry
 	// against their own finite admission budget (#10671).
 	AdmissionWaitAttempts int
+	// ReplayAttemptBaseline is the AttemptCount the row had when an operator
+	// replay last moved it from dead_letter or failed back to pending, or 0
+	// when it was never replayed (#11182). Fail subtracts it from the
+	// projection budget so a replayed row gets the retries a new row gets,
+	// while AttemptCount itself keeps growing as the claim fence. Replay
+	// also resets AdmissionWaitAttempts, so the admission budget starts
+	// fresh too.
+	ReplayAttemptBaseline int
 }
 
 // ProjectorWorkSource claims one scope generation at a time.

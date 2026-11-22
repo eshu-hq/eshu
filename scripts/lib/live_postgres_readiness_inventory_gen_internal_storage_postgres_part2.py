@@ -165,6 +165,7 @@ TABLE = {
             "TestReconcileReprojectionDeadLetterKeepsActiveGenerationLive",
             "TestPendingSameIdentitySkipsAndFailedStoresLive",
             "TestReconcileReopenResetsAttemptsSoRetryRetriesLive",
+            "TestReconcileReopenResetsReplayBaselineLive",
             "TestReconcileReopenOfDeadLetterIsBoundedLive",
             "TestStaleReconcileSkipsPendingSameIdentityLive",
             "TestReindexStoresUnchangedIdentityLive",

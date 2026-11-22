@@ -348,9 +348,13 @@ import (
 // (renumbered 326 to 332 at rebase: main owns 325-330).
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
+// 334_fact_work_items_replay_attempt_baseline.sql (#11182) adds the projector
+// replay baseline on fact_work_items (NOT NULL DEFAULT 0) and two nullable
+// audit columns on fact_replay_events; metadata-only, no backfill (numbered
+// 334: 333 is held by the #10882 lane; gaps are tolerated).
 const (
-	goldenBootstrapDefinitionsDigest = "df9dc37054beb12623f6027de2ac45ed4aa277276caa4284b62eb007f54485f6"
-	goldenBootstrapDefinitionsCount  = 358
+	goldenBootstrapDefinitionsDigest = "5d107ba192c27e40a4c5f62e61680431f96a7bead46bd46e2cbd10588b05186a"
+	goldenBootstrapDefinitionsCount  = 359
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

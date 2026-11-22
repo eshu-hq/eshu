@@ -17,6 +17,10 @@ TABLE = {
         "go/internal/query/admin/reopen_rollover_live_test.go": (
             "TestAdminHandler_ReopenRolloverActsOnCurrentGenerationLive",
         ),
+        "go/internal/query/admin/replay_activation_live_test.go": (
+            "TestAdminReplayActivatesFailedGenerationLive",
+            "TestAdminReplayNewerGenerationSweepLive",
+        ),
         "go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go": (
             "TestAdminReplayAndClaimSweepBlockOneWayLive",
             "TestAdminReplayAndClaimSweepHeldRowRaceLive",
@@ -26,6 +30,18 @@ TABLE = {
             "TestAdminReplayLockOrderBlocksOneWayLive",
             "TestAdminReplayHeldRowRaceLive",
             "TestAdminReplayDropsRowClaimedBeforeItsLockLive",
+        ),
+        "go/internal/query/admin/replay_retry_allowance_live_test.go": (
+            "TestReplayGrantsProjectionRetriesLive",
+            "TestReplayGrantsAdmissionWaitsLive",
+            "TestAdminReplayDuplicateRequestGrantsNothingLive",
+        ),
+        "go/internal/query/admin/replay_retry_fence_live_test.go": (
+            "TestReplayKeepsClaimFenceLive",
+            "TestConcurrentReplaysMoveRowOnceLive",
+            "TestReplayNeverRewritesClaimedRowLive",
+            "TestAdminReplayRecordsBaselineLive",
+            "TestRefinalizeResetsReplayBaselineLive",
         ),
         "go/internal/query/admin/scope_selector_live_test.go": (
             "TestAdminHandler_ScopeSelectorCollisionLive",

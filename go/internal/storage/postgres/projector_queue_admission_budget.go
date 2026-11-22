@@ -58,8 +58,8 @@ func isAdmissionTimeoutCause(err error) bool {
 // retryDecision splits the shared attempt fence into two budgets. An
 // admission-timeout failure retries iff the item's admission waits are
 // under the admission budget, independent of the projection budget; any
-// other retryable failure retries iff the non-admission claims
-// (AttemptCount minus AdmissionWaitAttempts) are under the projection
+// other retryable failure retries iff the non-admission claims since the
+// last operator replay (projectionAttempts) are under the projection
 // budget, refunding admission waits while crash/expired-lease claims keep
 // today's budget-burning semantics. The second return value reports
 // whether the retry is an admission-wait retry (counter increment,
@@ -76,5 +76,18 @@ func (q ProjectorQueue) retryDecision(work projector.ScopeGenerationWork, cause 
 		// (N-1 granted retries, death on the Nth).
 		return work.AdmissionWaitAttempts+1 < q.admissionMaxAttempts(), true
 	}
-	return work.AttemptCount-work.AdmissionWaitAttempts < q.maxAttempts(), false
+	return projectionAttempts(work) < q.maxAttempts(), false
+}
+
+// projectionAttempts is the number of claims since the last operator replay
+// that did not end in an admission wait: AttemptCount minus
+// AdmissionWaitAttempts minus ReplayAttemptBaseline (#11182). Replay sets the
+// baseline to the row's AttemptCount and resets AdmissionWaitAttempts, so the
+// first claim after a replay counts 1, as a new row's first claim does, while
+// AttemptCount keeps growing as the claim fence. A row never replayed has
+// baseline 0, which is the #10671 rule unchanged. There is no clamp: every
+// writer that lowers AttemptCount (reproject, refinalize) resets the
+// baseline to 0 in the same statement.
+func projectionAttempts(work projector.ScopeGenerationWork) int {
+	return work.AttemptCount - work.AdmissionWaitAttempts - work.ReplayAttemptBaseline
 }

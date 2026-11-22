@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 )
@@ -51,8 +52,8 @@ func TestReplayFailedWorkItems_RecordsPriorFailureClassInEvent(t *testing.T) {
 	now := time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC)
 	database := &replayClassQueryer{
 		rows: &replayClassRows{values: []any{
-			"wi-1", "scope-1", "gen-1", "reducer", "domain-1", "pending", 3,
-			nil, nil, nil, now, now, nil, nil, "projection_bug",
+			"wi-1", "scope-1", "gen-1", "reducer", "domain-1", "pending", 3, 0,
+			nil, nil, nil, now, now, nil, nil, "projection_bug", int64(0),
 		}},
 	}
 	store := &postgresStore{database: database, now: func() time.Time { return now }}
@@ -77,14 +78,78 @@ func TestReplayFailedWorkItems_RecordsPriorFailureClassInEvent(t *testing.T) {
 		t.Fatalf("replay event inserts = %d, want one", len(database.execs))
 	}
 	event := database.execs[0]
-	if len(event) != 7 {
-		t.Fatalf("replay event args = %d, want seven", len(event))
+	if len(event) != 9 {
+		t.Fatalf("replay event args = %d, want nine", len(event))
 	}
 	if got, want := event[4], "projection_bug"; got != want {
 		t.Fatalf("replay event failure_class = %#v, want %#v", got, want)
 	}
 	if got, want := event[5], "retry"; got != want {
 		t.Fatalf("replay event operator_note = %#v, want %#v", got, want)
+	}
+	// A reducer row gets no replay baseline (#11182 is projector-only), so
+	// both audit columns stay NULL.
+	if event[7] != nil || event[8] != nil {
+		t.Fatalf("reducer replay event baseline/prior waits = %#v/%#v, want NULL/NULL", event[7], event[8])
+	}
+}
+
+// TestReplayFailedWorkItems_RecordsReplayBaselineInEvent proves the #11182
+// audit fields: a replayed projector row returns the replay_attempt_baseline
+// the replay set, and its event records that baseline and the selection-time
+// admission_wait_attempts the replay reset to 0.
+func TestReplayFailedWorkItems_RecordsReplayBaselineInEvent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 11, 22, 0, 0, 0, 0, time.UTC)
+	database := &replayClassQueryer{
+		rows: &replayClassRows{values: []any{
+			"wi-p", "scope-1", "gen-1", "projector", "source_local", "pending", 3, 3,
+			nil, nil, nil, now, now, nil, nil, "admission_timeout", int64(47),
+		}},
+	}
+	store := &postgresStore{database: database, now: func() time.Time { return now }}
+
+	items, err := store.ReplayFailedWorkItems(context.Background(), admin.ReplayWorkItemFilter{
+		WorkItemIDs: []string{"wi-p"}, Limit: 1,
+	})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("ReplayFailedWorkItems() = (%d items, %v), want one", len(items), err)
+	}
+	if got := items[0].ReplayAttemptBaseline; got != 3 {
+		t.Fatalf("returned replay_attempt_baseline = %d, want 3", got)
+	}
+	if !strings.Contains(database.query, "selected.prior_admission_wait_attempts") {
+		t.Fatalf("replay statement lacks the prior admission-wait column:\n%s", database.query)
+	}
+	if len(database.execs) != 1 {
+		t.Fatalf("replay event inserts = %d, want one", len(database.execs))
+	}
+	event := database.execs[0]
+	if got, want := event[7], int64(3); got != want {
+		t.Fatalf("replay event replay_attempt_baseline = %#v, want %#v", got, want)
+	}
+	if got, want := event[8], int64(47); got != want {
+		t.Fatalf("replay event prior_admission_wait_attempts = %#v, want %#v", got, want)
+	}
+}
+
+// TestReplayUpdateClauseCarriesRetryAllowance is the admin-store half of the
+// #11182 lockstep guard: the shipped SET list carries the shared queuestore
+// fragment the recovery replay templates carry, and keeps attempt_count at
+// GREATEST(attempt_count, 1), never lowered, because it is the claim fence.
+func TestReplayUpdateClauseCarriesRetryAllowance(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(replayUpdateClause, queuestore.ReplayRetryAllowanceAssignments) {
+		t.Fatalf("admin replay SET list lacks queuestore.ReplayRetryAllowanceAssignments:\n%s", replayUpdateClause)
+	}
+	if !strings.Contains(replayUpdateClause, "attempt_count = GREATEST(work.attempt_count, 1)") {
+		t.Fatalf("admin replay must keep attempt_count = GREATEST(work.attempt_count, 1):\n%s", replayUpdateClause)
+	}
+	query, _ := buildMutatingWorkItemsQuery([]string{"wi"}, "", "", "", 1, 1, true, true, replayUpdateClause)
+	if !strings.Contains(query, queuestore.ReplayRetryAllowanceAssignments) {
+		t.Fatalf("rendered admin replay statement lacks the retry allowance:\n%s", query)
 	}
 }
 
@@ -145,6 +210,12 @@ func (r *replayClassRows) Scan(dest ...any) error {
 			value, ok := r.values[i].(int)
 			if !ok {
 				return fmt.Errorf("column %d = %#v, want int", i, r.values[i])
+			}
+			*target = value
+		case *int64:
+			value, ok := r.values[i].(int64)
+			if !ok {
+				return fmt.Errorf("column %d = %#v, want int64", i, r.values[i])
 			}
 			*target = value
 		case *time.Time:

@@ -285,7 +285,10 @@ projector rows matching the filter that were left `dead_letter` or `failed`
 because their scope generation is superseded (#7130), counted on every replay
 call. Replaying one would re-project the retired generation's graph and content
 over the published one, so the replay and the dead-letter backlog count both
-exclude them.
+exclude them. A replayed projector row gets the retries a new row gets: the
+replay keeps `attempt_count`, sets `replay_attempt_baseline` to it, and resets
+`admission_wait_attempts` (#11182, see
+[Admin Replay Retry Allowance](http-api/admin-replay-retry-allowance.md)).
 
 `POST /admin/retire-legacy-workloads` lists or retires the name-only `Workload`
 nodes (`workload:<name>`) that the repository-scoped identity change left behind
