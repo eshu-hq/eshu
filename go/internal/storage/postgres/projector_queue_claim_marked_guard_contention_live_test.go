@@ -70,7 +70,7 @@ func markGuardClaimOnce(ctx context.Context, database *sql.DB, statement string,
 	var generation string
 	err := database.QueryRowContext(ctx, statement, at, "bench", at.Add(time.Minute), "").Scan(
 		new(string), new(string), new(string), new(string), new(string), new(bool), new(string), new(string),
-		&generation, new(int), new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
+		&generation, new(int), new(int), new(int), new(time.Time), new(time.Time), new(string), new(string), new(string), new([]byte),
 	)
 	if err == sql.ErrNoRows {
 		return false, nil

@@ -51,8 +51,14 @@ Writers that lower a projector row's `attempt_count` also reset
 re-projection of a terminal row and the refinalize re-enqueue. A row that was
 never replayed has baseline `0`, which is the rule from before #11182.
 
-Reducer rows keep `replay_attempt_baseline` unchanged on replay. The reducer
-budget does not read it yet.
+Reducer rows keep `replay_attempt_baseline` unchanged on replay, so it stays
+`0` on every reducer row: no writer sets it for them. The reducer budget does
+not read it yet. Reducer writers that reopen rows with `attempt_count = 0`
+(the supply-chain fanout, the service-catalog retrigger, the scope completion
+fanout, the dead-letter reopen of #11147) rely on that `0`. When #11184 gives
+reducer rows a baseline, each of those writers must reset the baseline in the
+same statement. Otherwise `attempt_count - replay_attempt_baseline` goes
+negative and the row retries past its budget.
 
 ## Where to read it
 

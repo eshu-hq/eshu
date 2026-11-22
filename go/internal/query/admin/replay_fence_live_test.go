@@ -44,6 +44,10 @@ CREATE TEMP TABLE fact_work_items (
     work_item_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
     stage text NOT NULL, domain text NOT NULL, status text NOT NULL,
     attempt_count integer NOT NULL, lease_owner text, claim_until timestamptz,
+    -- migration 325 (#10671) and 334 (#11182): the replay resets the
+    -- admission counter and sets the projector replay baseline.
+    admission_wait_attempts bigint NOT NULL DEFAULT 0,
+    replay_attempt_baseline bigint NOT NULL DEFAULT 0,
     visible_at timestamptz, next_attempt_at timestamptz, last_attempt_at timestamptz,
     failure_class text, failure_message text, failure_details text,
     created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, reopened_at timestamptz,
@@ -62,7 +66,8 @@ CREATE TEMP TABLE scope_generations (generation_id text PRIMARY KEY, status text
 CREATE TEMP TABLE fact_replay_events (
     replay_event_id text PRIMARY KEY, work_item_id text NOT NULL,
     scope_id text NOT NULL, generation_id text NOT NULL,
-    failure_class text, operator_note text, created_at timestamptz NOT NULL
+    failure_class text, operator_note text, created_at timestamptz NOT NULL,
+    replay_attempt_baseline bigint, prior_admission_wait_attempts bigint
 );
 SET search_path TO pg_temp;
 INSERT INTO ingestion_scopes VALUES
@@ -287,6 +292,10 @@ CREATE TABLE `+schema+`.fact_work_items (
     work_item_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL,
     stage text NOT NULL, domain text NOT NULL, status text NOT NULL,
     attempt_count integer NOT NULL, lease_owner text, claim_until timestamptz,
+    -- migration 325 (#10671) and 334 (#11182): the replay resets the
+    -- admission counter and sets the projector replay baseline.
+    admission_wait_attempts bigint NOT NULL DEFAULT 0,
+    replay_attempt_baseline bigint NOT NULL DEFAULT 0,
     visible_at timestamptz, next_attempt_at timestamptz,
     failure_class text, failure_message text, failure_details text,
     created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL, reopened_at timestamptz,
@@ -300,7 +309,8 @@ CREATE TABLE `+schema+`.fact_work_items (
 CREATE TABLE `+schema+`.fact_replay_events (
     replay_event_id text PRIMARY KEY, work_item_id text NOT NULL,
     scope_id text NOT NULL, generation_id text NOT NULL,
-    failure_class text, operator_note text, created_at timestamptz NOT NULL
+    failure_class text, operator_note text, created_at timestamptz NOT NULL,
+    replay_attempt_baseline bigint, prior_admission_wait_attempts bigint
 );
 CREATE TABLE `+schema+`.ingestion_scopes (scope_id text PRIMARY KEY, source_key text NOT NULL);
 CREATE TABLE `+schema+`.scope_generations (generation_id text PRIMARY KEY, status text NOT NULL);
