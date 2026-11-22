@@ -33,6 +33,7 @@ type sweepStore struct {
 	watermark  time.Time
 	moveMarkAt int // Watermark call that moves it (0 = never)
 	markCalls  int
+	markFails  int  // the first markFails Watermark calls fail
 	noCands    bool // ranges carry no candidates, so no verify locks
 	mu         sync.Mutex
 	sweep      postgres.WinnersAuditSweep
@@ -54,6 +55,10 @@ func (s *sweepStore) Watermark(context.Context) (time.Time, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.markCalls++
+	if s.markFails > 0 {
+		s.markFails--
+		return time.Time{}, false, errors.New("watermark read failed")
+	}
 	if s.moveMarkAt > 0 && s.markCalls >= s.moveMarkAt {
 		s.watermark = s.watermark.Add(time.Second)
 		s.markCalls = 0
@@ -381,4 +386,26 @@ func TestStagedAuditKeyedYieldAfterLockedVerify(t *testing.T) {
 			t.Fatal("keyed_yield counted with no locked verify")
 		}
 	})
+}
+
+// TestStagedAuditKeyedYieldSurvivesAFailedStartRead is the #11131 review P3-4
+// regression: when the watermark read at the yield start fails, the first
+// successful read must not count as a moved watermark. Only a keyed commit
+// after the yield started, or the keyed interval, may end the yield.
+func TestStagedAuditKeyedYieldSurvivesAFailedStartRead(t *testing.T) {
+	t.Parallel()
+	const interval = 300 * time.Millisecond
+	store := &sweepStore{watermark: time.Unix(1_800_000_000, 0), markFails: 1}
+	a, _ := newSweepAuditor(&corpus{n: 4000, factsPer: 10}, store, nil)
+	a.KeyedInterval, a.YieldPoll = interval, time.Millisecond
+	if got, err := a.AuditWinners(context.Background()); err != nil || got.Outcome != OutcomeAdvanced {
+		t.Fatalf("locked pass = %+v, %v", got, err)
+	}
+	start := time.Now()
+	if got, err := a.AuditWinners(context.Background()); err != nil || got.Outcome != OutcomeAdvanced {
+		t.Fatalf("yielding pass = %+v, %v", got, err)
+	}
+	if waited := time.Since(start); waited < interval {
+		t.Fatalf("yield ended after %v with an unmoved watermark; want the keyed interval %v", waited, interval)
+	}
 }

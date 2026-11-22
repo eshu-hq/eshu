@@ -93,8 +93,10 @@ type StagedAuditor struct {
 	missRuns int
 	// yieldMark and yieldSince hold the keyed-yield state after a locked
 	// verify: the watermark then and when it was set (zero: no yield).
-	yieldMark  time.Time
-	yieldSince time.Time
+	// yieldMarkOK is false when the watermark read at the yield start failed.
+	yieldMark   time.Time
+	yieldSince  time.Time
+	yieldMarkOK bool
 }
 
 // Keyed-yield defaults (#11131): the maintainer's keyed interval and the
@@ -332,24 +334,24 @@ func (a *StagedAuditor) clearMiss() {
 // one keyed interval passes, so back-to-back locked ranges cannot starve the
 // keyed tick (lane-11119 M5 run1: 1 keyed commit to 1,582 skips).
 func (a *StagedAuditor) startYield(ctx context.Context) {
-	mark, _ := a.watermark(ctx)
+	mark, ok := a.watermark(ctx)
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	a.yieldMark, a.yieldSince = mark, time.Now()
+	a.yieldMark, a.yieldMarkOK, a.yieldSince = mark, ok, time.Now()
 }
 
 // yielding reports whether the keyed yield still holds, clearing it once the
 // watermark moved or the keyed interval passed.
 func (a *StagedAuditor) yielding(ctx context.Context) bool {
 	a.mu.Lock()
-	since, mark := a.yieldSince, a.yieldMark
+	since, mark, markOK := a.yieldSince, a.yieldMark, a.yieldMarkOK
 	a.mu.Unlock()
 	if since.IsZero() {
 		return false
 	}
-	if a.yieldOver(ctx, since, mark) {
+	if a.yieldOver(ctx, since, mark, markOK) {
 		a.mu.Lock()
-		a.yieldSince, a.yieldMark = time.Time{}, time.Time{}
+		a.yieldSince, a.yieldMark, a.yieldMarkOK = time.Time{}, time.Time{}, false
 		a.mu.Unlock()
 		return false
 	}
@@ -358,7 +360,9 @@ func (a *StagedAuditor) yielding(ctx context.Context) bool {
 
 // yieldOver reports a moved watermark or an elapsed keyed interval. A failed
 // watermark read counts as not moved, so the interval still bounds the wait.
-func (a *StagedAuditor) yieldOver(ctx context.Context, since, mark time.Time) bool {
+// When the read at the yield start failed (markOK false) no later read can
+// show a move against it, so only the interval ends that yield.
+func (a *StagedAuditor) yieldOver(ctx context.Context, since, mark time.Time, markOK bool) bool {
 	interval := a.KeyedInterval
 	if interval <= 0 {
 		interval = defaultKeyedInterval
@@ -367,7 +371,7 @@ func (a *StagedAuditor) yieldOver(ctx context.Context, since, mark time.Time) bo
 		return true
 	}
 	now, ok := a.watermark(ctx)
-	return ok && !now.Equal(mark)
+	return markOK && ok && !now.Equal(mark)
 }
 
 // awaitKeyedCommit waits until the keyed yield ends, polling the watermark.
