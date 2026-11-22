@@ -401,6 +401,10 @@ done
 # shellcheck source=lib/test-pre-push-registry-drift-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-registry-drift-cases.sh"
 
+# ── Cases S1-S5: each changed package's tests run once ──
+# shellcheck source=lib/test-pre-push-single-test-cases.sh
+source "${repo_root}/scripts/lib/test-pre-push-single-test-cases.sh"
+
 # ── Cases E-I: the merge-tree step (#7111 F5) ──
 # shellcheck source=lib/test-pre-push-merge-cases.sh
 source "${repo_root}/scripts/lib/test-pre-push-merge-cases.sh"
