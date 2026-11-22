@@ -17,6 +17,19 @@ slowed-state verdict (`workflow.DecideSourceSlowed`), the shared latch
 selection (for example the ingester local-lightweight bypass) stays
 with the calling binary.
 
+## Shared depth read
+
+Both global signals (the reducer total of `QueueDepths` and
+`ReducerGraphWriteTimeoutDepth`) come from one process-wide
+`admissionDepthHolder` ([#11233](https://github.com/eshu-hq/eshu/issues/11233)):
+a held value no older than the window, or the one read in flight that
+concurrent callers share. The window is the poll interval while the gate
+admits; while it defers, it doubles per deferred read up to 10 s (or half
+the max wait) and resets on the first decision whose global gates pass,
+including a per-source round that the latch then defers. A failed read reaches every
+waiter and is never held. The QA baseline, the measured schedule and the
+contract live in `go/cmd/ingester/admission-bound-evidence.md`.
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -53,7 +66,9 @@ with a debug record; they are never silent and never throttle.
   per-source leg alone never does.
 - Poll cadence: when every deferred group is `source_behind` the wait is
   max(PollInterval, the earliest verdict RetryAfter), capped by what
-  remains of MaxWait; any global reason keeps PollInterval (`pollDelay`).
+  remains of MaxWait (`pollDelay`). A round with any global reason sleeps
+  until the held depth leaves the shared holder's window, capped by what
+  remains of MaxWait (#11233); without a holder it keeps PollInterval.
 - A `source_behind` wait past MaxWait returns `ErrReducerSourcePaced`,
   not the admission timeout. The projector queue retries it without
   spending either attempt budget and never dead-letters it, so a source

@@ -3837,6 +3837,19 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// ReducerAdmissionDepthReads counts #11233 ingester reducer admission
+	// depth lookups per decision by operation (the depth signal) and outcome
+	// (read, shared, held, error, cancelled). Registered by
+	// registerReducerAdmissionDepthInstruments.
+	ReducerAdmissionDepthReads metric.Int64Counter
+	// ReducerAdmissionDepthAge records the age of the oldest depth an
+	// admission decision used (#11233). Registered by
+	// registerReducerAdmissionDepthInstruments.
+	ReducerAdmissionDepthAge metric.Float64Histogram
+	// ReducerAdmissionReadBackoff is the current read interval while the
+	// admission gate defers, 0 while it admits (#11233). Registered by
+	// registerReducerAdmissionDepthInstruments.
+	ReducerAdmissionReadBackoff metric.Float64Gauge
 	// ReducerWorkloadCandidateProbe counts #9986 workload bulk-load pre-gate
 	// candidate-precondition probe calls by outcome (may_hold, no_candidates,
 	// error) and error cause_class. Registered by
@@ -7271,6 +7284,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerReducerAdmissionDepthInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerWorkloadCandidateProbeInstruments(meter, inst); err != nil {

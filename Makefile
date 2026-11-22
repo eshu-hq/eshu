@@ -17,13 +17,13 @@ help: ## List available targets
 	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "} {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-pre-push: ## Run the fast local floor (changed-package lint/build/vet/test/exactness) before every push
+pre-push: ## Run the fast local floor (changed-package lint/build/vet/test/exactness) once per PR, before the push that opens it
 	@bash scripts/dev/pre-push.sh
 
-pre-pr: ## Run the local CI-mirror gate (lint/build/vet/test/exactness/race) before opening a PR; recommended for risky changes
+pre-pr: ## Run the local CI-mirror gate (lint/build/vet/test/exactness/race) for a package move or to reproduce a CI red; not part of promotion
 	@bash scripts/dev/pre-pr.sh
 
-pre-pr-full: ## Like pre-pr but with whole-module race and advisory gates for high-risk PRs
+pre-pr-full: ## Like pre-pr but with whole-module race and advisory gates for package moves
 	@ESHU_PRE_PR_FULL_RACE=1 ESHU_PRE_PR_INCLUDE_ADVISORY=1 bash scripts/dev/pre-pr.sh
 
 frontend-preflight: ## Run the selected frontend gates (typecheck/test/build/a11y/eslint/audit) for changed paths
