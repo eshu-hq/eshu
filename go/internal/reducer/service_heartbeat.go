@@ -381,17 +381,17 @@ func (s Service) executeHandler(
 		return reducercontract.Result{}, shutdownCtx.Err(), true
 	case <-timer.C:
 		// The bound expired first. Prefer an already-buffered outcome (the
-		// handler finished exactly at the deadline): a DeadlineExceeded
-		// there is attributed to our bound — our own timer fired, so a
-		// downstream timeout landing in the same instant is
-		// indistinguishable and takes the timeout class while the worker
-		// stays free.
+		// handler finished exactly at the deadline). Attribute it exactly as
+		// the done arm does, from the handler-sampled bound state and not
+		// from the timer having fired: both arms are ready here and Go picks
+		// one at random, so a downstream or parent DeadlineExceeded must
+		// keep its own class on this arm too. The worker stays free.
 		select {
 		case out := <-done:
 			if out.panicked {
 				panic(out.value)
 			}
-			if errors.Is(out.err, context.DeadlineExceeded) {
+			if ownDeadlineExpired(out) {
 				return out.result, newHandlerTimeoutError(intent, bound, time.Since(execStart), out.err), false
 			}
 			return out.result, out.err, false

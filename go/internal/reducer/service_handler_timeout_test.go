@@ -32,7 +32,7 @@ import (
 //   - ctxDoneReducerExecutor blocks until its context ends and returns
 //     ctx.Err(): the cooperative-handler shape. The derived bound cancels the
 //     execution context, so it returns context.DeadlineExceeded from our own
-//     timer and must be relabeled to the timeout class (not dropped, not
+//     bound and must be relabeled to the timeout class (not dropped, not
 //     double-failed).
 //
 // Both the per-item path (executeWithTelemetry) and the batch path
@@ -45,7 +45,7 @@ const wantTimeoutFailureClass = "reducer_handler_timeout"
 
 // deadlineExceededReducerExecutor returns context.DeadlineExceeded
 // immediately without blocking: the downstream-timeout shape. A generous
-// bound means our own timer never fires, so the error must stay a plain
+// bound means the bound's deadline never passes, so the error must stay a plain
 // handler failure and must NOT be relabeled to the timeout class.
 type deadlineExceededReducerExecutor struct{}
 
@@ -113,7 +113,7 @@ func TestExecuteHandlerTimesOutIgnoringHandler(t *testing.T) {
 
 // TestExecuteHandlerCooperativeTimeoutCarriesTimeoutClass pins the
 // cooperative path: the derived bound cancels the execution context, so a
-// handler that observes it returns context.DeadlineExceeded from OUR timer.
+// handler that observes it returns context.DeadlineExceeded from OUR bound.
 // Whichever side of the exact-boundary race wins — the handler's return or
 // the deadline branch — the outcome must carry the timeout class (not a bare
 // context error), and the worker must be free (the call returned). The race
@@ -188,7 +188,7 @@ func TestExecuteHandlerSlowCooperativeTakesAbandonRelease(t *testing.T) {
 
 // TestExecuteHandlerDoesNotRelabelDownstreamDeadline pins the relabel guard:
 // a handler that fails fast with context.DeadlineExceeded while the bound is
-// generous (our own timer never fired) reports a plain handler failure, never
+// generous (the bound's deadline had not passed) reports a plain handler failure, never
 // the timeout class. Relabeling it would falsely trigger timeout backpressure.
 func TestExecuteHandlerDoesNotRelabelDownstreamDeadline(t *testing.T) {
 	t.Parallel()
@@ -205,7 +205,7 @@ func TestExecuteHandlerDoesNotRelabelDownstreamDeadline(t *testing.T) {
 		t.Fatal("error = nil, want the handler's DeadlineExceeded")
 	}
 	if got := reducerExecutionFailureClass(err); got == wantTimeoutFailureClass {
-		t.Fatalf("failure class = %q, want anything but the timeout class: our own timer never fired", got)
+		t.Fatalf("failure class = %q, want anything but the timeout class: the bound's deadline had not passed", got)
 	}
 }
 
