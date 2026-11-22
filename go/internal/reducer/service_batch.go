@@ -452,11 +452,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 		// A cooperative timeout returned from the handler: its duration is
 		// recorded above like any returned execution, and the timeout
 		// counter fires here so the operator sees the bound pressure.
-		var timeoutErr *handlerTimeoutError
-		if errors.As(err, &timeoutErr) {
-			s.recordReducerHandlerTimedOut(ctx, intent)
-		}
-		s.recordReducerFactIDOwnerConflict(ctx, err)
+		s.recordReducerFailureSignals(ctx, intent, err)
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}

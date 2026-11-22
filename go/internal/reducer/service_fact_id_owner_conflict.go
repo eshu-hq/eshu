@@ -10,9 +10,22 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// recordReducerFailureSignals records the counters a failed handler run feeds
+// beside its failure class: the handler timeout (#8826) and the fact id owner
+// conflict (#11213). One call replaces the two inline checks at each execute
+// site, so the files that own those sites stay under their line caps.
+func (s Service) recordReducerFailureSignals(ctx context.Context, intent reducercontract.Intent, err error) {
+	var timeoutErr *handlerTimeoutError
+	if errors.As(err, &timeoutErr) {
+		s.recordReducerHandlerTimedOut(ctx, intent)
+	}
+	s.recordReducerFactIDOwnerConflict(ctx, err)
+}
 
 // recordReducerFactIDOwnerConflict counts a reducer fact write that another
 // scope's row refused (#11213) on the counter the collector save path shares,

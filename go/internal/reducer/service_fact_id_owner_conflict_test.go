@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -86,7 +87,7 @@ func TestServiceCountsAFactIDOwnerConflictByWriter(t *testing.T) {
 	}
 	service := Service{Instruments: instruments}
 	conflict := &factwrite.OwnerConflictError{Writer: factwrite.WriterBatch, Count: 3}
-	service.recordReducerFactIDOwnerConflict(context.Background(), fmt.Errorf("write facts: %w", conflict))
+	service.recordReducerFailureSignals(context.Background(), reducercontract.Intent{}, fmt.Errorf("write facts: %w", conflict))
 	service.recordReducerFactIDOwnerConflict(context.Background(), errors.New("an unrelated failure"))
 	Service{}.recordReducerFactIDOwnerConflict(context.Background(), conflict) // nil instruments: no panic
 
@@ -114,8 +115,9 @@ func TestServiceCountsAFactIDOwnerConflictByWriter(t *testing.T) {
 }
 
 // TestBothReducerFailurePathsCountOwnerConflicts pins the wiring: the sequential
-// path (service.go) and the batch path (service_batch.go) both record an owner
-// conflict beside the handler-timeout counter, so neither path can drop it.
+// path (service.go) and the batch path (service_batch.go) both record their failure
+// signals (handler timeout and owner conflict) through recordReducerFailureSignals,
+// so neither path can drop the owner conflict.
 func TestBothReducerFailurePathsCountOwnerConflicts(t *testing.T) {
 	t.Parallel()
 
@@ -124,7 +126,7 @@ func TestBothReducerFailurePathsCountOwnerConflicts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}
-		if !strings.Contains(string(body), "s.recordReducerFactIDOwnerConflict(ctx, err)") {
+		if !strings.Contains(string(body), "s.recordReducerFailureSignals(ctx, intent, err)") {
 			t.Errorf("%s no longer records a fact id owner conflict on a failed intent", file)
 		}
 	}

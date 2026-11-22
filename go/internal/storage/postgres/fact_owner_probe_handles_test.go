@@ -15,7 +15,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
-// factOwnerWriteHandles is every storage type that wraps a db.Transaction and is
+// factOwnerWriteHandles is every storage type that wraps a transaction (SQLTx
+// wraps a *sql.Tx; the rest wrap a db.Transaction) and is
 // handed to a reducer fact writer as its write handle. Each must be able to run
 // the #11213 owner probe: a handle that cannot resolves a write shortfall to
 // nothing, so a fact id another scope holds would be skipped silently.
@@ -25,6 +26,7 @@ func factOwnerWriteHandles() map[string]factwrite.Execer {
 		"awsCloudRuntimeDriftAdmissionTx": awsCloudRuntimeDriftAdmissionTx{},
 		"serviceMaterializationTx":        serviceMaterializationTx{},
 		"supplyChainImpactTx":             supplyChainImpactTx{},
+		"SQLTx":                           SQLTx{},
 	}
 }
 
@@ -44,10 +46,12 @@ func TestFactOwnerWriteHandlesCanProbe(t *testing.T) {
 	}
 }
 
-// TestEveryTransactionWrapperIsAFactOwnerWriteHandle finds the storage types
-// that wrap a db.Transaction and expose ExecContext, so a new wrapper cannot
-// reach a fact writer without being listed in factOwnerWriteHandles (and so
-// without the probe test above covering it).
+// TestEveryTransactionWrapperIsAFactOwnerWriteHandle finds the types of this
+// package that hold a db.Transaction, a *sql.Tx or a *sql.Conn and expose
+// ExecContext, so a new wrapper cannot reach a fact writer without being listed
+// in factOwnerWriteHandles (and so without the probe test above covering it). It
+// reads only the root storage/postgres package: a wrapper declared in a
+// subpackage or in a reducer package is outside what this test sees.
 func TestEveryTransactionWrapperIsAFactOwnerWriteHandle(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
@@ -66,6 +70,25 @@ func TestEveryTransactionWrapperIsAFactOwnerWriteHandle(t *testing.T) {
 		}
 		files = append(files, file)
 	}
+	if missing := unlistedWriteHandleWrappers(files, factOwnerWriteHandles(), factOwnerNotWriteHandles()); len(missing) > 0 {
+		t.Fatalf("transaction wrappers %v are not in factOwnerWriteHandles: list them (and give them QueryFactOwners) or name why they never reach a reducer fact writer", missing)
+	}
+}
+
+// factOwnerNotWriteHandles are wrappers that expose ExecContext over a
+// transaction or connection but never reach a reducer fact writer, with the
+// reason.
+func factOwnerNotWriteHandles() map[string]string {
+	return map[string]string{
+		"instrumentedTransaction":  "a db.Queryer itself; wraps SQLTx for telemetry",
+		"schemaConnectionExecutor": "runs schema bootstrap DDL on a dedicated connection; no reducer writer receives it",
+	}
+}
+
+// unlistedWriteHandleWrappers returns the struct types in files that hold a
+// db.Transaction, *sql.Tx or *sql.Conn field and declare ExecContext, minus the
+// listed handles and the named exemptions.
+func unlistedWriteHandleWrappers(files []*ast.File, known map[string]factwrite.Execer, exempt map[string]string) []string {
 	wrappers := map[string]bool{}
 	execs := map[string]bool{}
 	for _, file := range files {
@@ -86,18 +109,13 @@ func TestEveryTransactionWrapperIsAFactOwnerWriteHandle(t *testing.T) {
 						continue
 					}
 					for _, field := range st.Fields.List {
-						if sel, ok := field.Type.(*ast.SelectorExpr); ok && sel.Sel.Name == "Transaction" {
+						if holdsTransaction(field.Type) {
 							wrappers[ts.Name.Name] = true
 						}
 					}
 				}
 			}
 		}
-	}
-	known := factOwnerWriteHandles()
-	// Wrappers that never reach a reducer fact writer, with the reason.
-	notFactHandles := map[string]string{
-		"instrumentedTransaction": "a db.Queryer itself; wraps SQLTx for telemetry",
 	}
 	var missing []string
 	for name := range wrappers {
@@ -107,14 +125,61 @@ func TestEveryTransactionWrapperIsAFactOwnerWriteHandle(t *testing.T) {
 		if _, ok := known[name]; ok {
 			continue
 		}
-		if _, ok := notFactHandles[name]; ok {
+		if _, ok := exempt[name]; ok {
 			continue
 		}
 		missing = append(missing, name)
 	}
 	sort.Strings(missing)
-	if len(missing) > 0 {
-		t.Fatalf("transaction wrappers %v are not in factOwnerWriteHandles: list them (and give them QueryFactOwners) or name why they never reach a reducer fact writer", missing)
+	return missing
+}
+
+// holdsTransaction reports whether a field type is db.Transaction, *sql.Tx or
+// *sql.Conn.
+func holdsTransaction(expr ast.Expr) bool {
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	switch sel.Sel.Name {
+	case "Transaction", "Tx", "Conn":
+		return true
+	}
+	return false
+}
+
+// TestTransactionWrapperScanSeededViolations proves the scan is not vacuous: a
+// planted wrapper over each holder shape is reported, and a listed or exempt one
+// is not.
+func TestTransactionWrapperScanSeededViolations(t *testing.T) {
+	t.Parallel()
+	src := `package postgres
+import ("database/sql"; "context")
+type plantedTransactionTx struct{ tx db.Transaction }
+func (plantedTransactionTx) ExecContext(context.Context, string, ...any) (sql.Result, error) { return nil, nil }
+type plantedSQLTx struct{ tx *sql.Tx }
+func (*plantedSQLTx) ExecContext(context.Context, string, ...any) (sql.Result, error) { return nil, nil }
+type plantedSQLConn struct{ conn *sql.Conn }
+func (plantedSQLConn) ExecContext(context.Context, string, ...any) (sql.Result, error) { return nil, nil }
+type plantedNoExec struct{ tx *sql.Tx }
+type plantedListed struct{ tx *sql.Tx }
+func (plantedListed) ExecContext(context.Context, string, ...any) (sql.Result, error) { return nil, nil }
+type plantedExempt struct{ tx *sql.Tx }
+func (plantedExempt) ExecContext(context.Context, string, ...any) (sql.Result, error) { return nil, nil }
+`
+	file, err := parser.ParseFile(token.NewFileSet(), "planted.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse seeded source: %v", err)
+	}
+	got := unlistedWriteHandleWrappers([]*ast.File{file},
+		map[string]factwrite.Execer{"plantedListed": nil},
+		map[string]string{"plantedExempt": "never reaches a fact writer"})
+	want := []string{"plantedSQLConn", "plantedSQLTx", "plantedTransactionTx"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("unlisted wrappers = %v, want %v", got, want)
 	}
 }
 

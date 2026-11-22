@@ -77,6 +77,21 @@ WHERE w.scope_id IS DISTINCT FROM t.scope_id
    OR w.domain IS DISTINCT FROM t.domain
    OR COALESCE(w.payload ->> 'entity_key', '') IS DISTINCT FROM t.entity_key`
 
+// resolveEnqueueShortfall returns the rows an enqueue inserted, after refusing a
+// collision a shortfall hides: fewer rows than attempted is normally a benign
+// duplicate, but reducerWorkItemID is not injective (#11215), so a held id can
+// belong to a different intent, and coalescing that away would drop it silently.
+// A full insert runs no probe.
+func resolveEnqueueShortfall(ctx context.Context, database db.Queryer, batch []runtime.ReducerIntent, inserted int64) (int64, error) {
+	if inserted >= int64(len(batch)) {
+		return inserted, nil
+	}
+	if err := refuseWorkItemCollisions(ctx, database, batch); err != nil {
+		return 0, err
+	}
+	return inserted, nil
+}
+
 // refuseWorkItemCollisions resolves an enqueue shortfall (fewer rows inserted
 // than attempted). A short batch is normally a benign duplicate, the same intent
 // already queued; only a held row whose identity differs from the incoming intent
