@@ -36,6 +36,7 @@ func TestAggregatesWinnersParityLive(t *testing.T) {
 		},
 	)
 	seedGroupedInventoryLive(t, ctx, database)
+	seedMixedCaseEcosystemFindings(t, ctx, database)
 	if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
 		RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("RebuildAllWinners: %v", err)
@@ -96,5 +97,24 @@ func TestAggregatesWinnersParityLive(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// seedMixedCaseEcosystemFindings adds findings whose payload ecosystem is
+// stored in mixed case, as an older writer or a non-reducer producer could
+// leave it. The legacy canonical CTE lowers the ecosystem before grouping, so
+// the winners read must fold "NPM", "npm", "PyPI", and "Go" into the same
+// lowercase buckets; without this seed both sides only ever answer "unknown".
+func seedMixedCaseEcosystemFindings(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	for _, finding := range []struct{ id, repo, ecosystem string }{
+		{"e1", "r1", "NPM"},
+		{"e2", "r2", "npm"},
+		{"e3", "r3", "PyPI"},
+		{"e4", "r4", "Go"},
+	} {
+		payload := groupedLiveFindingPayload(finding.id, finding.repo, 40, 4.0)
+		payload["ecosystem"] = finding.ecosystem
+		groupedLiveFact(t, ctx, database, "finding:"+finding.id, "git-repository-scope:repository:"+finding.repo, "gen:"+finding.repo, FindingFactKind, payload)
 	}
 }

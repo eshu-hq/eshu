@@ -59,7 +59,10 @@ aggregate_winners AS NOT MATERIALIZED (
          w.priority_bucket,
          w.severity_bucket,
          w.repository_id,
-         w.ecosystem
+         -- Lowered at read time, as the legacy canonical CTE lowers payload
+         -- ecosystem, so a mixed-case value from an older writer lands in the
+         -- same bucket (the winners column stores the raw payload value).
+         LOWER((w.ecosystem) COLLATE "C") COLLATE "default" AS ecosystem
   FROM supply_chain_impact_canonical_winners AS w
   WHERE TRUE
     -- The six caller-authorization arguments ($21..$26) feed only the
