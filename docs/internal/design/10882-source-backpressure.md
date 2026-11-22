@@ -56,9 +56,10 @@ ingester's own intent enqueue.**
 
 Two adjacent gaps the sweep found:
 
-- The standalone projector (`go/cmd/projector/runtime_wiring.go:76`)
-  enqueues reducer intents through a plain `NewReducerQueue` — **no
-  admission gate at all**. Hosted-collector generations therefore reach
+- The standalone projector (`projectorAdmissionIntentWriter` in
+  `go/cmd/projector/runtime_wiring.go`) enqueued reducer intents through a
+  plain `NewReducerQueue` — **no admission gate at all** (it still has no
+  global gate by default; see decision 3). Hosted-collector generations therefore reach
   the reducer queue ungated at the last hop.
 - The gate guards intent enqueue, not collection. While it defers, the
   git collector keeps committing generations and the projector-stage
@@ -214,7 +215,13 @@ multi-source family.
   the latch releases. The multiplier, not a hard stop, keeps git
   freshness degrading gracefully instead of cliff-edging.
 - **Standalone projector** gets the same admission writer as the
-  ingester (global backstop + per-source leg). Without it, already
+  ingester, with the global backstop **off by default** (its marks
+  default to 0; it runs only when an operator sets
+  `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` or the retrying marks for that
+  process) and the per-source leg on when configured. The projector never
+  had the global gate; turning it on by default is an unmeasured change
+  to its enqueue path and is a separate change with its own before and
+  after measurement. Without the per-source leg, already
   committed hosted generations bypass pacing at the last hop and AC4/5
   proofs would be measuring a sieve. Intent batches are
   per-generation (single scope, single source); S3 must prove that
@@ -394,7 +401,7 @@ for claim-path changes (repo evidence rules).
 | --- | --- |
 | Trace the existing limit, per source or overall | Done above: global total outstanding depth ≥10,000 + graph-write-timeout retrying 500/100, ingester intent-enqueue only; projector ungated. |
 | Decide the trigger | Decision 1: per-source oldest claimable age with depth floor; thresholds Proposed pending S0/S1. S0 measured (below): grouped scan rejected for the hot path, bounded per-source probe ships. |
-| Slow hosted via coordinator, ingester via schedule | Landed disabled-by-default behind one env contract: coordinator claim grants (dispatcher + direct grant) consult per family through `CheckSourceBackpressure`, wired into the collector entrypoint template and `collector-component-extension`; ingester admission consults per intent-batch source through `CheckSourceBackpressureForSource` via the shared `reduceradmission` writer, which the standalone projector also wraps; git repo selection stretches its per-repo minimum resync interval while slowed (`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` × `ESHU_GIT_SELECTION_STRETCH_MULTIPLIER`, default 4). All legs fail closed on partial config and fail open on unreadable signals. |
+| Slow hosted via coordinator, ingester via schedule | Landed disabled-by-default behind one env contract: coordinator claim grants (dispatcher + direct grant) consult per family through `CheckSourceBackpressure`, wired into the collector entrypoint template and `collector-component-extension`; ingester admission consults per intent-batch source through `CheckSourceBackpressureForSource` via the shared `reduceradmission` writer, which the standalone projector also wraps (global gate off there unless an operator sets a mark for that process); git repo selection stretches its per-repo minimum resync interval while slowed (`ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL` × `ESHU_GIT_SELECTION_STRETCH_MULTIPLIER`, default 4). All legs fail closed on partial config and fail open on unreadable signals. |
 | Prove no loss + resume | Unit/stub-proven (mixed-batch partition test, engage/release/resume verdict tests, live verdict simulation in `TestSourceBackpressureProbeMatchesGroupedAndVerdicts`); built-binary two-source replay with generation/fact-set equality still owed (decision 9). |
 | Prove other sources' freshness unchanged | Mixed-family store test (`TestCheckSourceBackpressureMixedFamilyStaysUnpaced`) + mixed-batch admission test prove no whole-family throttle; built-binary p50/p95 comparison still owed (decision 9). |
 | Publish per-source slowed state + reason | Landed: metrics (`pacing_signal="reducer_source"`), admission `reason="source_behind"`, `/admin/status` `source_pacing` rows (slowed, reason, age, depth, engaged-since, stuck) in JSON/text/mapper, `SourcePacing` OpenAPI component pinned to the wire type, scoped-token parity (withheld like backpressure). |

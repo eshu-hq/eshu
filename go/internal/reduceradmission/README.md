@@ -42,6 +42,10 @@ with a debug record; they are never silent and never throttle.
 - A high-water timeout after partial admission returns the retryable
   admission error with the admitted count applied; enqueue is idempotent
   on the reducer queue conflict key.
+- `ProjectorAdmissionIntentWriter` is the standalone projector's
+  constructor: the global marks default to 0 there (the projector never
+  ran the global gate), so only an explicit env mark enables it and the
+  per-source leg alone never does.
 - A `source_behind` wait past MaxWait returns `ErrReducerSourcePaced`,
   not the admission timeout. The projector queue retries it without
   spending either attempt budget and never dead-letters it, so a source

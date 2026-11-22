@@ -91,8 +91,11 @@ the engage age with claimable depth at or above the floor — defer under
 reason `source_behind` while other sources' intents in the same batch
 admit immediately. Unset (the default) disables the leg; no Proposed
 threshold ships as a default. The standalone projector wraps its intent
-writer with the same gate, so committed hosted generations cannot bypass
-pacing at the last hop.
+writer with the per-source leg so committed hosted generations cannot
+bypass pacing at the last hop. The global gates in the table below stay
+off on the projector (marks default to 0) unless you set
+`ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` or the retrying marks for that
+process; enabling the per-source leg does not turn them on.
 
 | Signal | Engage | Release | Env |
 |---|---|---|---|

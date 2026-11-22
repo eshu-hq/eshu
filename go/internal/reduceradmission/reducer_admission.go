@@ -152,6 +152,24 @@ func AdmissionIntentWriter(
 	return reducerIntentWriterWithAdmission(database, inner, getenv, instruments, logger)
 }
 
+// ProjectorAdmissionIntentWriter is AdmissionIntentWriter for the standalone
+// projector, which has never run the global database-protection gate. The
+// global marks default to zero here, so the gate (a QueueDepths and a
+// graph-write-timeout depth read per enqueue) runs only when an operator sets
+// ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK or the retrying marks for that
+// process; enabling the per-source leg does not turn it on (#10882). Making
+// the gate default-on for the projector is its own change with its own
+// before and after measurement.
+func ProjectorAdmissionIntentWriter(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (runtime.ReducerIntentWriter, error) {
+	return reducerIntentWriterWithGlobalGate(database, inner, getenv, instruments, logger, false)
+}
+
 type reducerAdmissionWriter struct {
 	inner       runtime.ReducerIntentWriter
 	depthReader reducerAdmissionDepthReader
@@ -181,7 +199,18 @@ func reducerIntentWriterWithAdmission(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (runtime.ReducerIntentWriter, error) {
-	config, err := loadReducerAdmissionConfig(getenv)
+	return reducerIntentWriterWithGlobalGate(database, inner, getenv, instruments, logger, true)
+}
+
+func reducerIntentWriterWithGlobalGate(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+	globalGateDefaultOn bool,
+) (runtime.ReducerIntentWriter, error) {
+	config, err := loadReducerAdmissionConfigWithDefaults(getenv, globalGateDefaultOn)
 	if err != nil {
 		return nil, err
 	}
@@ -222,12 +251,21 @@ func reducerIntentWriterWithAdmission(
 }
 
 func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionConfig, error) {
+	return loadReducerAdmissionConfigWithDefaults(getenv, true)
+}
+
+// loadReducerAdmissionConfigWithDefaults parses the admission env. With
+// globalGateDefaultOn false the global high-water and retrying marks default
+// to zero (gate off) and only an explicit env value enables them.
+func loadReducerAdmissionConfigWithDefaults(getenv func(string) string, globalGateDefaultOn bool) (reducerAdmissionConfig, error) {
 	config := reducerAdmissionConfig{
-		HighWaterMark:         defaultReducerAdmissionHighWaterMark,
-		PollInterval:          defaultReducerAdmissionPoll,
-		MaxWait:               defaultReducerAdmissionMaxWait,
-		RetryingHighWaterMark: defaultReducerAdmissionRetryingHighWaterMark,
-		RetryingLowWaterMark:  defaultReducerAdmissionRetryingLowWaterMark,
+		PollInterval:         defaultReducerAdmissionPoll,
+		MaxWait:              defaultReducerAdmissionMaxWait,
+		RetryingLowWaterMark: defaultReducerAdmissionRetryingLowWaterMark,
+	}
+	if globalGateDefaultOn {
+		config.HighWaterMark = defaultReducerAdmissionHighWaterMark
+		config.RetryingHighWaterMark = defaultReducerAdmissionRetryingHighWaterMark
 	}
 	rawHighWater := strings.TrimSpace(getenv(reducerAdmissionHighWaterMarkEnv))
 	if rawHighWater != "" {
@@ -270,63 +308,6 @@ func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionCon
 	}
 
 	return config, nil
-}
-
-// loadReducerAdmissionRetryingMarks parses the graph-write-pressure high/low
-// marks and validates the hysteresis invariant (low < high when the gate is
-// enabled). A low mark of zero is clamped to the default fraction of the high
-// mark so an operator who only sets the high mark still gets sane hysteresis.
-func loadReducerAdmissionRetryingMarks(getenv func(string) string, config *reducerAdmissionConfig) error {
-	rawHigh := strings.TrimSpace(getenv(reducerAdmissionRetryingHighWaterMarkEnv))
-	if rawHigh != "" {
-		high, err := strconv.ParseInt(rawHigh, 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reducerAdmissionRetryingHighWaterMarkEnv, err)
-		}
-		if high < 0 {
-			return fmt.Errorf("%s must be zero or greater", reducerAdmissionRetryingHighWaterMarkEnv)
-		}
-		config.RetryingHighWaterMark = high
-	}
-
-	rawLow := strings.TrimSpace(getenv(reducerAdmissionRetryingLowWaterMarkEnv))
-	if rawLow != "" {
-		low, err := strconv.ParseInt(rawLow, 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reducerAdmissionRetryingLowWaterMarkEnv, err)
-		}
-		if low < 0 {
-			return fmt.Errorf("%s must be zero or greater", reducerAdmissionRetryingLowWaterMarkEnv)
-		}
-		config.RetryingLowWaterMark = low
-	}
-
-	if !config.graphWritePressureEnabled() {
-		return nil
-	}
-	if config.RetryingLowWaterMark <= 0 || config.RetryingLowWaterMark > config.RetryingHighWaterMark {
-		// Default or out-of-range low mark: clamp below the high mark so the
-		// hysteresis gap is always valid. An explicit low mark above the high
-		// mark is an operator error.
-		if rawLow != "" && config.RetryingLowWaterMark > config.RetryingHighWaterMark {
-			return fmt.Errorf("%s (%d) must be less than %s (%d)",
-				reducerAdmissionRetryingLowWaterMarkEnv, config.RetryingLowWaterMark,
-				reducerAdmissionRetryingHighWaterMarkEnv, config.RetryingHighWaterMark)
-		}
-		config.RetryingLowWaterMark = clampRetryingLowWaterMark(config.RetryingHighWaterMark)
-	}
-	return nil
-}
-
-// clampRetryingLowWaterMark derives a default low-water mark from the high-water
-// mark: one fifth of the high mark, with a floor of 1 so the gate can always
-// release.
-func clampRetryingLowWaterMark(high int64) int64 {
-	low := high / 5
-	if low < 1 {
-		low = 1
-	}
-	return low
 }
 
 func (w reducerAdmissionWriter) Enqueue(
