@@ -4,7 +4,11 @@ Refs #11234. Binding arbiter rulings (coordinator checkout, `.claude/`):
 `arbiter-11234-next.md`, `arbiter-11234-repro.md`, `arbiter-11234-fix-e.md`
 and `arbiter-11234-accept.md` (2026-11-22). Every figure below is a local
 fixture figure. Nothing here claims a QA gain; the post-deploy reading
-decides that.
+decides that. The acceptance matrix, the pin, the differential and the
+replay ran on 2026-11-22 at 14ab35ecc7, before a rebase onto
+origin/main; `git diff 14ab35ecc7 HEAD` over the claim statements, the
+readiness and generation-filter fragments and the migrations is empty, so
+the measured text is this text.
 
 Performance Evidence: on the QA-shaped fixture over the full bootstrap
 schema (12,236 active scopes, 13,366 older generations, 10,000
