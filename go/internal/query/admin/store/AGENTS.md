@@ -20,3 +20,8 @@ implements them.
   and focused `admin/*_live_test.go` files), not here:
   `admin`'s internal tests cannot import `store` (import cycle), so live
   seeding through the real constructor lives outside.
+- The replay SET list (`replayUpdateClause`) carries
+  `queuestore.ReplayRetryAllowanceAssignments`, shared with the two recovery
+  replay templates (#11182). Never lower `attempt_count` on replay: it is the
+  projector claim fence. `TestReplayUpdateClauseCarriesRetryAllowance` reads
+  the shipped constant.

@@ -146,12 +146,56 @@ func factGuardClauseDrift(suffix, prefix, discriminator string) []string {
 	return drift
 }
 
+// factGuardOwnerLegs are the two owner legs (#11203) the conflict WHERE must
+// carry, right after the fencing predicate: an upsert never rewrites a row held
+// by another scope or generation. They are deliberately NOT in
+// factwrite.BatchInsertConflict, whose reducer ids may be stable across
+// generations; a generation leg there would freeze such a row at its first
+// generation (issue #11213 owns that census).
+var factGuardOwnerLegs = []string{
+	"fact_records.scope_id = EXCLUDED.scope_id",
+	"fact_records.generation_id = EXCLUDED.generation_id",
+}
+
+// factGuardOwnerDrift reports every way the owner guard drifted: a missing or
+// reordered leg in the suffix, an owner leg placed before the fencing predicate,
+// or a classification query (the unchanged-guard source) that no longer reads the
+// stored scope and generation, which would let a foreign row with the owner's
+// exact columns be admitted as unchanged.
+func factGuardOwnerDrift(suffix, discriminator string) []string {
+	var drift []string
+	fencing := strings.Index(suffix, factGuardFencingPredicate)
+	prev := fencing
+	for _, leg := range factGuardOwnerLegs {
+		at := strings.Index(suffix, leg)
+		switch {
+		case at < 0:
+			drift = append(drift, "owner leg `"+leg+"` missing from the conflict WHERE (#11203)")
+		case at < prev:
+			drift = append(drift, "owner leg `"+leg+"` is not after the fencing predicate and the previous owner leg")
+		default:
+			prev = at
+		}
+	}
+	for _, want := range []string{
+		"f.scope_id, f.generation_id", "storedScope != incoming.ScopeID", "storedGeneration != incoming.GenerationID",
+	} {
+		if !strings.Contains(discriminator, want) {
+			drift = append(drift, "classification query no longer reads "+want+": a foreign row could read as unchanged (#11203)")
+		}
+	}
+	return drift
+}
+
 // TestUpsertFactBatchGuardLockstep fails when the shipped suffix's SET list,
 // guard legs, or INSERT columns drift apart.
 func TestUpsertFactBatchGuardLockstep(t *testing.T) {
 	t.Parallel()
 	if drift := factGuardClauseDrift(upsertFactBatchSuffix, upsertFactBatchPrefix, unchangedGuardSource(t)); len(drift) > 0 {
 		t.Fatalf("fact upsert guard drifted:\n%s", strings.Join(drift, "\n"))
+	}
+	if drift := factGuardOwnerDrift(upsertFactBatchSuffix, unchangedGuardSource(t)); len(drift) > 0 {
+		t.Fatalf("fact upsert owner guard drifted:\n%s", strings.Join(drift, "\n"))
 	}
 	if !strings.HasSuffix(upsertFactBatchSuffixReturningFactID, upsertFactBatchSuffix) &&
 		!strings.HasPrefix(upsertFactBatchSuffixReturningFactID, upsertFactBatchSuffix) {
@@ -205,6 +249,37 @@ WHERE f.payload IS NOT DISTINCT FROM v.payload
 	}
 	for name, discriminator := range discriminatorCases {
 		if drift := factGuardClauseDrift(clean, insertBase, discriminator); len(drift) == 0 {
+			t.Fatalf("seeded violation %q not reported", name)
+		}
+	}
+}
+
+// TestFactOwnerGuardDriftSeededViolations is the RED/GREEN pair for the owner
+// lockstep: the shipped statement and classification query are clean, and each
+// planted corruption (a deleted leg, a reordered leg, an owner leg before the
+// fencing predicate, a classification query without the owner columns) is
+// reported.
+func TestFactOwnerGuardDriftSeededViolations(t *testing.T) {
+	t.Parallel()
+	source := unchangedGuardSource(t)
+	if drift := factGuardOwnerDrift(upsertFactBatchSuffix, source); len(drift) != 0 {
+		t.Fatalf("shipped owner guard reported drift: %v", drift)
+	}
+	cases := map[string]struct{ suffix, source string }{
+		"scope leg deleted":      {strings.Replace(upsertFactBatchSuffix, factOwnerGuardClauseScopeLeg, "", 1), source},
+		"generation leg deleted": {strings.Replace(upsertFactBatchSuffix, factOwnerGuardClauseGenerationLeg, "", 1), source},
+		"both legs deleted":      {strings.Replace(upsertFactBatchSuffix, factOwnerGuardClause, "", 1), source},
+		"legs before fencing": {
+			strings.Replace(strings.Replace(upsertFactBatchSuffix, factOwnerGuardClause, "", 1),
+				"WHERE "+factGuardFencingPredicate, "WHERE fact_records.scope_id = EXCLUDED.scope_id AND fact_records.generation_id = EXCLUDED.generation_id AND "+factGuardFencingPredicate, 1),
+			source,
+		},
+		"classification without the stored scope column": {upsertFactBatchSuffix, strings.Replace(source, "f.scope_id, f.generation_id", "f.x, f.generation_id", 1)},
+		"classification ignoring a scope mismatch":       {upsertFactBatchSuffix, strings.Replace(source, "storedScope != incoming.ScopeID", "false", 1)},
+		"classification ignoring a generation mismatch":  {upsertFactBatchSuffix, strings.Replace(source, "storedGeneration != incoming.GenerationID", "false", 1)},
+	}
+	for name, tc := range cases {
+		if drift := factGuardOwnerDrift(tc.suffix, tc.source); len(drift) == 0 {
 			t.Fatalf("seeded violation %q not reported", name)
 		}
 	}

@@ -75,6 +75,18 @@ type SupplyChainImpactWinnersAudit struct {
 	// ReadDuration is the wall time of the audit's full recompute read, which
 	// runs outside the resweep lock.
 	ReadDuration time.Duration
+	// Partial is true when the pass covered one range of a sweep that has not
+	// completed (#11131): it is not a completed audit, so it records no audit
+	// commit and does not reset the last-success age.
+	Partial bool
+	// More is true when the auditor has more ranges to run now: the
+	// maintainer calls it again in the same tick while the tick budget and
+	// the audit lease last.
+	More bool
+	// Outcome names a range pass's result for the range span and duration
+	// histogram (advanced, completed, skipped, lock_busy, cursor_race,
+	// deferred); empty for a whole-table audit.
+	Outcome string
 }
 
 // SupplyChainImpactWinnersAuditor runs the full-recompute audit backstop.

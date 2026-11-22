@@ -44,6 +44,16 @@ tests:
     class: postgres_ci
     reason: "#7597 200-iteration interleave of the claim-fenced activation wake, a concurrent final Fail, the public admin replay (retried on 40P01) and a standalone stale-generation sweep pass on independent connections: zero 40P01 on the activation, zero lost wakes, every consumer reopened exactly once, attributed by writer pid through a test-only audit trigger (#9320: both the wake and the admin replay stamp reopened_at); plus a sequential admin replay after a committed wake that must be a no-op; about 6 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/admin/poison_sweep_allowance_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11217 PostgreSQL 18 full-bootstrap proof that the poison-liveness auto-retry sweep gives a recovered projector dead letter a new row's retry allowance through the production ProjectorQueue Claim and Fail: projection and admission budgets, the poison_recovery_attempts loop bound, the attempt_count claim fence, the attempt-0 operator-skip raise and the first-failure backoff; isolated schema, wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/poison_sweep_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11217 PostgreSQL 18 full-bootstrap concurrency proof for the poison-liveness sweep as the fourth replay-allowance writer: the sweep racing each of the three replay writers with each side holding the row lock first, two concurrent sweeps, and a committed attempt_count change while the sweep waits on the lock; exactly one writer moves the row and the baseline reads the newest committed row; isolated schema, wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/reopen_live_test.go
     tag: ~
     class: postgres_ci
@@ -54,6 +64,11 @@ tests:
     class: postgres_ci
     reason: "#7734 disposable PostgreSQL 18 proof that a reopen whose scope rolls over mid-flight acts on the current generation (scope-row fence plus authoritative in-transaction resolve) instead of the stale pinned pointer; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_activation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11183 PostgreSQL 18 full-bootstrap proof of the dead-letter to admin replay to claim to Ack path: a replayed projector row of a failed generation is claimable at attempt 4 with baseline 3 and its Ack activates the generation, repoints the scope and supersedes the older active generation, with the write-start marker set and unset; a newer unmarked same-scope generation makes the claim sweep supersede the replayed row; isolated schema, wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go
     tag: ~
     class: postgres_ci
@@ -63,6 +78,16 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#8205 admin replay lock order: admin stage-only versus scoped recovery replay in both start orders and admin versus admin wait one way on pg_blocking_pids with exact accounting (main: admin versus recovery deadlocks), and the EvalPlanQual case keeps a row claimed before the admin lock step; isolated schemas; about 22 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_retry_allowance_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11182 PostgreSQL 18 full-bootstrap proof that each replay writer (admin replay, recovery replay, bounded recovery drain) gives a dead-lettered projector row a new row's retry allowance without lowering attempt_count: three projection failures and 48 admission waits, each still ending in a dead letter, and a duplicate admin request grants nothing; isolated schema, wall time is logged, not gated"
+    runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_retry_fence_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11182 PostgreSQL 18 full-bootstrap proof that the replay retry allowance keeps the attempt_count claim fence: a work value held from before a replay is rejected by Ack, Fail and Heartbeat after the replay and reclaim; concurrent replays of one row move it once; a replay never rewrites a claimed row; the replay event and work row record the baseline; refinalize resets it; isolated schema, wall time is logged, not gated"
     runner: live-postgres-readiness
   - file: go/internal/query/admin/scope_selector_live_test.go
     tag: ~

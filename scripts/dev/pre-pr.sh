@@ -56,6 +56,8 @@ source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
 source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 # shellcheck source=../lib/pre-pr-go-paths.sh
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
+# shellcheck source=../lib/gate-timing.sh
+source "${repo_root}/scripts/lib/gate-timing.sh"
 # Root the classifier's path-existence check at the repo, so a deleted
 # allowlisted file is recognized as deleted rather than as merely changed.
 # shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
@@ -73,6 +75,11 @@ pre_pr_git_state_init
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
 pre_pr_gate_report="${pre_pr_state_dir}/selected-gates.json"
 pre_pr_whole_module_args=()
+# Measurement only (scripts/lib/gate-timing.sh): one JSONL line per run, never
+# able to change a step's result. It reads the report written just above.
+eshu_timing_init pre-pr "${base}"
+# shellcheck disable=SC2034  # read by the sourced gate-timing.sh, not by this file.
+ESHU_TIMING_GATE_REPORT="${pre_pr_gate_report}"
 
 # changed_go_files and changed_go_dirs now live in
 # scripts/lib/pre-pr-go-paths.sh (sourced above), shared with
@@ -107,14 +114,16 @@ results=()
 overall=0
 run_step() {
 	local name="$1"; shift
-	local start=${SECONDS}
+	local start=${SECONDS} rc=0
 	printf '\n\033[1m==> %s\033[0m\n' "${name}"
-	if "$@"; then
+	"$@" || rc=$?
+	if [[ ${rc} -eq 0 ]]; then
 		results+=("PASS  ${name} ($((SECONDS - start))s)")
 	else
 		results+=("FAIL  ${name} ($((SECONDS - start))s)")
 		overall=1
 	fi
+	eshu_timing_note "${name}" "$((SECONDS - start))" "${rc}"
 }
 
 step_test() {
@@ -130,7 +139,8 @@ step_test() {
 		return 0
 	fi
 	printf 'testing %d package target(s) (changed Go packages + fixture consumers)\n' "${#dirs[@]}"
-	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" )
+	( cd "${go_dir}" && go test -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_TEST_LOG:-/dev/null}"
+	return "${PIPESTATUS[0]}"
 }
 
 step_filecap() {
@@ -174,8 +184,8 @@ step_exactness() {
 step_race() {
 	if [[ "${ESHU_PRE_PR_FULL_RACE:-0}" == "1" ]]; then
 		printf 'full race: go test ./... -race (whole module)\n'
-		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s )
-		return
+		( cd "${go_dir}" && go test ./... -race -count=1 -timeout 1200s ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+		return "${PIPESTATUS[0]}"
 	fi
 	local rc=0
 	printf '== lane 1: race-category registry gates (targeted graph-write + replay; reducer-contention CI-only) ==\n'
@@ -199,7 +209,8 @@ step_race() {
 		printf 'scoped race: no changed Go packages outside the registry race gates\n'
 	else
 		printf 'scoped race: %d package(s) not covered by a race gate\n' "${#dirs[@]}"
-		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) || rc=1
+		( cd "${go_dir}" && go test -race -count=1 "${dirs[@]}" ) 2>&1 | tee -a "${ESHU_TIMING_RACE_LOG:-/dev/null}"
+		[[ "${PIPESTATUS[0]}" -eq 0 ]] || rc=1
 	fi
 	printf 'note: CI runs the authoritative full `go test ./... -race`; `make pre-pr-full` runs it locally.\n'
 	return ${rc}
@@ -377,6 +388,9 @@ else
 fi
 run_step "path-triggered live lane" step_live
 
+eshu_timing_meta lane "${PRE_PR_FASTPATH_LANE:-}"
+eshu_timing_meta full_race "${ESHU_PRE_PR_FULL_RACE:-0}"
+eshu_timing_finish "${overall}"
 printf '\n\033[1m==== pre-pr summary ====\033[0m\n'
 for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ ${overall} -ne 0 ]]; then

@@ -126,6 +126,7 @@ func TestRegisterInstrumentsFailLoud(t *testing.T) {
 		{"language_query_metadata", func(m metric.Meter) error { return registerLanguageQueryMetadataInstruments(m, &Instruments{}) }},
 		{"operator_retirement", func(m metric.Meter) error { return registerOperatorRepositoryRetirement(m, &Instruments{}) }},
 		{"own_gate_wake", func(m metric.Meter) error { return registerOwnGateWakeInstruments(m, &Instruments{}) }},
+		{"fact_id_owner_conflict", func(m metric.Meter) error { return registerFactIDOwnerConflictInstruments(m, &Instruments{}) }},
 		{"reducer_waiting", func(m metric.Meter) error { return registerReducerWaitingInstruments(m, &Instruments{}) }},
 		{"producer_activation", func(m metric.Meter) error { return registerProducerActivationInstruments(m, &Instruments{}) }},
 		{"reconcile_parse_skip", func(m metric.Meter) error { return registerReconcileParseSkipDecisions(m, &Instruments{}) }},

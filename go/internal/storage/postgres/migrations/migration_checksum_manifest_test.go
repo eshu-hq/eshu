@@ -490,6 +490,13 @@ var migrationShippedChecksums = map[string]string{
 	// columns for pre-existing winner rows, split per #7961
 	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"332_supply_chain_impact_winners_payload_backfill.sql": "0d40beb25d23cfe156292977048d2b50cb5c5bd173974a13c6f7a2e9aa187660",
+	// #11182: the projector replay baseline on fact_work_items, so a
+	// replayed row gets a new row's projection retries without resetting
+	// the attempt_count claim fence, plus its two audit columns on
+	// fact_replay_events (numbered 334: 333 is held by the #10882 lane).
+	"334_fact_work_items_replay_attempt_baseline.sql": "01b34d1e47815656588a5e6aa5159a53cf7c0ec526ba3135c85d1174cf5ad735",
+	// #11131 adds the staged winners audit sweep cursor table (renumbered 331 to 335 at rebase: main owns 331-332 and 334; 333 held by an unpushed lane).
+	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

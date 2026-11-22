@@ -1,30 +1,45 @@
 # stagedaudit
 
-The staged stale-winners audit tick (eshu-hq/eshu#10451) assembles the
-standby read phase from per-scope batches and hands the result to the
-unchanged writer-side verification.
+The staged stale-winners audit (routing `staged-audits`) is a sweep of
+identifier ranges with a persisted cursor (eshu-hq/eshu#11131). It replaced the
+whole-corpus tick of #10451, which deferred on its 1,000,000-fact budget once
+the impact-fact corpus grew past it.
 
-## Flow
+## Flow of one range (`StagedAuditor.AuditWinners`)
 
-1. `StagedAuditor.AuditWinners` pins one reader member for the tick.
-2. Every active (scope, generation) pair fetches one narrow batch on that
-   member, each in its own short transaction with a fresh snapshot.
-3. Batches compact client-side into a per-key winner map (streaming; the map
-   is the only cross-batch state).
-4. The stored winners table fetches once on the same member; the diff emits a
-   superset of the single-statement scan's candidates.
-5. Candidate keys resolve to verification identifiers (stored row first, else
-   one point lookup per new key); unresolvable keys count, never silently
-   pass.
-6. The shared writer-side verification re-checks every candidate under the
-   resweep lock and stays authoritative. Any read failure defers the tick
-   with no writer contact.
+1. Read the cursor row on the writer (`ReadWinnersAuditSweep`, migration 335).
+2. Pin one reader member. At sweep start (no cursor) run the NULL probe; a
+   source finding fact with a NULL package, repository or digest defers as
+   `null_key` before any range read.
+3. Read one range on the member (`ReadWinnersAuditRange`): the next budget rows
+   after the cursor in keyed-index order, trimmed to whole identifiers, an
+   oversize identifier alone and whole, every operator fact loaded whole, the
+   shipped winner body over the kept facts, and the diff against the stored
+   winners in the same key interval. A statement timeout retries at half the
+   budget down to one row; a one-row timeout defers as `timeout`. A '|' in a
+   range identifier defers as `pipe`.
+4. On the last range run the NULL probe again; a NULL there verifies the range
+   but restarts the sweep without counting it complete.
+5. Verify on the writer (`VerifyWinnersAuditRange`): drop candidates already
+   queued (no lock), take the resweep lock only for the rest (try-lock, or
+   after two misses on the same range the lock_timeout-bounded waiting
+   claim), verify and queue repairs, compare-and-set the cursor. Outcomes:
+   `advanced`, `completed`, `skipped`, `lock_busy`, `cursor_race`.
+   Keyed yield: after a verify that took the lock, the next verify runs with
+   `NoLock`. If that range still needs the lock it rolls back (deferral
+   `keyed_yield`), waits until a keyed commit moves the winners watermark
+   (`SweepStore.Watermark`) or one keyed interval passes, then verifies again
+   with the lock. The yield spends tick budget.
 
 ## Invariants
 
-- No cross-batch transaction or cursor ever pins a standby snapshot.
-- No partial diff reaches the writer: one failed batch aborts the whole tick.
-- Fail-closed caps abort, never truncate: 20,000 rows per batch, 1,000,000
-  staged facts, 250,000 distinct keys.
+- One range is one standby statement and one snapshot. The only cross-range
+  state is the persisted cursor plus two process-local items: the try-lock
+  miss count and the keyed-yield state (`yieldMark`, `yieldMarkOK`,
+  `yieldSince`). A roll resets both; neither decides what a range commits.
+- A range commits only through the cursor compare-and-set, so two instances
+  advance each range at most once and the loser rolls its repairs back.
+- A range is not a completed audit: only the range that completes the sweep
+  reports `Partial == false`, which is what resets the audit last-success age.
 - The legacy writer path and the split scan are untouched; routing selects
   this auditor only under the staged-audits mode.

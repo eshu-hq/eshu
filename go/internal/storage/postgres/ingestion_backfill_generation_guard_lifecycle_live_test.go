@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	projectorruntime "github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -175,6 +177,71 @@ WHERE stage = 'projector' AND generation_id = 'gen-a'`); err != nil {
 	}
 	if status, _, _, _ := p.workRowAttempts("gen-a"); status != "retrying" {
 		t.Fatalf("gen-a work after a retryable failure = %s, want retrying", status)
+	}
+}
+
+// TestReconcileReopenResetsReplayBaselineLive is the behavioral proof of
+// decision 5 of the #11182 ruling on the reconcile re-open: a replayed row
+// (baseline 3) that succeeded and is re-opened comes back with attempt_count 0
+// and replay_attempt_baseline 0, so the re-projection gets exactly three
+// projection claims. A kept baseline would make attempt_count -
+// admission_wait_attempts - replay_attempt_baseline negative and give the row
+// three extra claims.
+func TestReconcileReopenResetsReplayBaselineLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	p.commit(p.generation("gen-a", "hint-a", "sha-a", ""))
+	p.project()
+	if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items
+SET status = 'dead_letter', attempt_count = 3, failure_class = 'retry_exhausted'
+WHERE stage = 'projector' AND generation_id = 'gen-a'`); err != nil {
+		t.Fatalf("dead-letter gen-a work: %v", err)
+	}
+	replayed, err := NewRecoveryStore(SQLDB{DB: p.db}).ReplayFailedWorkItems(ctx,
+		recovery.ReplayFilter{Stage: recovery.StageProjector, ScopeIDs: []string{p.scope.ScopeID}}, time.Now().UTC())
+	if err != nil || replayed.Replayed != 1 {
+		t.Fatalf("replay gen-a = %+v (%v), want one row", replayed, err)
+	}
+	queue := NewProjectorQueue(SQLDB{DB: p.db}, "proof-worker", time.Minute)
+	queue.MaxAttempts = 3
+	work, ok, err := queue.Claim(ctx)
+	if err != nil || !ok || work.AttemptCount != 4 || work.ReplayAttemptBaseline != 3 {
+		t.Fatalf("replayed claim = attempt %d baseline %d ok=%v err=%v, want 4 and 3",
+			work.AttemptCount, work.ReplayAttemptBaseline, ok, err)
+	}
+	if err := queue.Ack(ctx, work, projectorruntime.Result{}); err != nil {
+		t.Fatalf("ack replayed gen-a: %v", err)
+	}
+	p.commit(p.generation("gen-r", "hint-a", "sha-a", "interval_elapsed"))
+	var status string
+	var attempts, baseline int
+	readRow := func() {
+		t.Helper()
+		if err := p.db.QueryRowContext(ctx, `SELECT status, attempt_count, replay_attempt_baseline
+FROM fact_work_items WHERE stage = 'projector' AND generation_id = 'gen-a'`).Scan(&status, &attempts, &baseline); err != nil {
+			t.Fatalf("read gen-a work: %v", err)
+		}
+	}
+	readRow()
+	if status != "pending" || attempts != 0 || baseline != 0 {
+		t.Fatalf("re-opened gen-a work = %s attempt %d baseline %d, want pending, 0, 0", status, attempts, baseline)
+	}
+	for claim := 1; claim <= 3; claim++ {
+		if _, err := p.db.ExecContext(ctx, `UPDATE fact_work_items SET visible_at = now(), next_attempt_at = NULL
+WHERE stage = 'projector' AND generation_id = 'gen-a' AND status = 'retrying'`); err != nil {
+			t.Fatalf("make gen-a visible: %v", err)
+		}
+		work, ok, err := queue.Claim(ctx)
+		if err != nil || !ok || work.AttemptCount != claim {
+			t.Fatalf("claim %d = attempt %d ok=%v err=%v", claim, work.AttemptCount, ok, err)
+		}
+		if err := queue.Fail(ctx, work, proofRetryableError{}); err != nil {
+			t.Fatalf("fail retryable: %v", err)
+		}
+		readRow()
+		if want := map[bool]string{true: "dead_letter", false: "retrying"}[claim == 3]; status != want {
+			t.Fatalf("after projection claim %d gen-a work = %s, want %s (exactly three claims)", claim, status, want)
+		}
 	}
 }
 

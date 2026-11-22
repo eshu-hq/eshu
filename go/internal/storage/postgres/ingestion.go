@@ -375,6 +375,15 @@ func (s IngestionStore) commitScopeGeneration(
 		},
 	)
 	if err != nil {
+		var ownerConflict *FactIDOwnerConflictError
+		if errors.As(err, &ownerConflict) {
+			// A fact id held by another scope or generation refuses the whole
+			// generation (#11203); see refuseFactIDOwnerConflict.
+			return s.refuseFactIDOwnerConflict(
+				ctx, tx, scopeValue, generation, prior, ownerConflict,
+				factStream, factStreamErr, &transactionClosed,
+			)
+		}
 		return err
 	}
 	if factStreamErr != nil {

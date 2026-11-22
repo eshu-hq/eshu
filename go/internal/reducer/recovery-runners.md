@@ -106,7 +106,19 @@ per-row `poison_recovery_attempts` budget carried in the work item's JSONB
 payload (`ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS`, default 1, mirroring the
 `liveness_recovery_attempts` idiom above; no new schema column). A row at or
 past the budget ceiling is excluded by the candidate CTE, so a genuinely poison
-item stops looping and is left `dead_letter` for an operator to inspect. The
+item stops looping and is left `dead_letter` for an operator to inspect. Each
+recovery gives a projector row a new row's retry allowance (#11217), the same
+one the operator replays grant (#11182): the UPDATE appends
+`queuestore.ReplayRetryAllowanceAssignments`, so `replay_attempt_baseline`
+takes the row's `attempt_count` and `admission_wait_attempts` goes to 0, and it
+raises a projector row at attempt 0 (the operator skip) to attempt 1.
+`attempt_count`, the claim fence, is never lowered. Without the allowance a
+row that had used up its budget dead-lettered again on its first retryable
+failure and spent the recovery budget at once. With budget M a projector row
+gets at most 3 x (1 + M) counting projection claims and 48 x (1 + M) admission
+waits; a non-retryable failure still dead-letters it on the first claim.
+Reducer rows keep `attempt_count` and their baseline until #11184, so a
+recovered reducer row resumes the budget it had left. The
 conflict domain is `work_item_id` (the `fact_work_items` primary key): the
 recovery UPDATE re-verifies `status = 'dead_letter'` at write time
 (`AND target.status = 'dead_letter'` on the target row, not only the read-time
