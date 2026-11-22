@@ -3,9 +3,15 @@
 Refs #11234. Every figure below is a local fixture figure. Nothing here
 claims a QA gain; the post-deploy reading decides that. The acceptance
 matrix, the pin, the differential and the replay ran on 2026-11-22 at a
-tree whose claim statements, readiness and generation-filter fragments and
-migrations are identical to this head (`git diff` over those files is
-empty), so the measured text is this text.
+tree whose claim statements and readiness and generation-filter fragments
+are identical to this head (`git diff` over those files is empty; the gate
+file differs only in comments), so the measured text is this text. The
+migrations differ by one: 333 (#10882) adds a `BIGINT NOT NULL DEFAULT 0`
+column to `fact_work_items`, with no index. The fresh-statistics 2,000 and
+10,000 cells reran at this head with it: 17,156 / 26.7 ms and 6,065 / 8.8
+at 2,000, and 51,984 / 72.2 against 80,716 / 89.3 and 15,742 / 23.5
+against 75,215 / 75.1 at 10,000 (filter NULL, then set). That is within
+0.2 percent of the buffers in the table, and every bar passes.
 
 The arbiter rulings of 2026-11-22 set what follows:
 
