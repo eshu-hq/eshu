@@ -401,13 +401,18 @@ already-loaded suppressions and findings in memory (no new reads, no new
 statements). `TestSuppressionStatementReadsTheAliasMembers` pins the arm
 itself.
 
-No-Regression Evidence (#10408 L4): `TestRekeyPassOverheadIsMeasured` (200
-rounds, 4 rows, all changed, in-memory writer-core only, no Postgres round
-trip) reports ordinary medians 118.0-119.2us vs re-key 119.3-121.0us
-(delta +1.1% to +1.5% across repeated runs at HEAD: shared-host noise on
-~120us medians),
-against the fail-closed gate of twice the ordinary median: the member union
-is a bounded in-memory cost. Overlap and keyed-tick behavior hold live
+No-Regression Evidence (#10408 L4, bound reworked in #11232):
+`TestRekeyPassOverheadIsMeasured` (4 rows, all changed, in-memory writer-core
+only, no Postgres round trip) runs serially, so nothing else runs beside it,
+and asserts exact allocation counts instead of a wall-time ratio: the
+realistic re-key fixture allocates within 1.5x of the ordinary pass (measured
++1.5% to +4%), and the marginal allocation per added group member between 256
+and 2048 members per row stays under 1.0 (measured 0.02-0.03). A timing
+guard compares the per-member cost at those two scales from interleaved
+minimums and fails past 4x growth (measured 1.08-1.20x), so a union that is
+slow without allocating still fails. The earlier ordinary-vs-re-key
+median-ratio gate failed at +152.6% on a loaded CI runner with no code
+change. Overlap and keyed-tick behavior hold live
 against disposable PostgreSQL 18.6: `TestRekeyTwoHolderScopesRekeySameComponentLive`
 1.32s at HEAD, both keyed-path convergence tests 0.10s each
 (`specs/live-tests.d/live-tests-07.yaml` reasons).
