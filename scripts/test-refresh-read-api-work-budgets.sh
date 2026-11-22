@@ -66,7 +66,8 @@ cmp -s <(printf '%s\n' "${out1}") <(printf '%s\n' "${out3}") || fail "output dep
 
 # --out writes the same bytes as stdout.
 run --out "${work}/table.txt" "${work}/r1.json" "${work}/r2.json"
-cmp -s <(printf '%s\n' "${out1}") "${work}/table.txt" || fail "--out differs from stdout"
+# Only line 1 may differ: the header names the file the table was rendered for.
+cmp -s <(printf '%s\n' "${out1}" | tail -n +2) <(tail -n +2 "${work}/table.txt") || fail "--out differs from stdout past the header line"
 
 # Negative cases.
 expect_exit() {
@@ -333,5 +334,22 @@ printf '%s\n' "${prov_out}" | rg -qxF "# note: commit=0123abc" || fail "header m
 prov_swap="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r2.json" "${work}/r1.json")"
 prov_ord="$(run_ratcheted --baseline "${work}/baseline.txt" "${work}/r1.json" "${work}/r2.json")"
 [[ "${prov_swap}" == "${prov_ord}" ]] || fail "provenance header must not depend on report order"
+
+# An accept flag the ratchet never needed must not print as "accepted past the
+# ratchet": the header says what was accepted, not what was passed on the command
+# line. /a does not move here, so the flag is unused.
+unused_out="$(run_ratcheted --baseline "${work}/baseline.txt" \
+	--accept-regression 'GET /a=#6843 this flag is never needed' "${work}/r1.json" "${work}/r2.json" 2>/dev/null)"
+if printf '%s\n' "${unused_out}" | rg -q 'accepted past the ratchet'; then
+	fail "an accept flag the ratchet did not need must not appear in the header or a reason column"
+fi
+
+# The table header names the file it was rendered for, so a second table (the
+# winners leg's) does not claim to be read-api-route-work-budgets.txt.
+run_ratcheted --baseline /dev/null --out "${work}/read-api-route-work-budgets-winners.txt" "${work}/r1.json" "${work}/r2.json" >/dev/null 2>&1
+head -1 "${work}/read-api-route-work-budgets-winners.txt" | rg -q '^# read-api-route-work-budgets-winners\.txt -- GENERATED' \
+	|| fail "the header must name the rendered file, got: $(head -1 "${work}/read-api-route-work-budgets-winners.txt")"
+run_ratcheted --baseline /dev/null "${work}/r1.json" "${work}/r2.json" | head -1 | rg -q '^# read-api-route-work-budgets\.txt -- GENERATED' \
+	|| fail "a stdout render keeps the default table name in the header"
 
 printf 'test-refresh-read-api-work-budgets: PASS\n'

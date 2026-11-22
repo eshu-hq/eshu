@@ -220,7 +220,7 @@ func winnersAnchorsFromPlan(plan SeedPlan) []winnersFactAnchor {
 // watermarked. The handle is separate from the seed pool because the winners
 // store takes database/sql, not pgxpool; it closes before the graph seed so
 // no extra connection lingers through the sweep.
-func rebuildSeededWinners(ctx context.Context, postgresDSN string) (inserted, updated, deleted, unchanged int64, err error) {
+func rebuildSeededWinners(ctx context.Context, postgresDSN string, wantWinners int64) (inserted, updated, deleted, unchanged int64, err error) {
 	db, err := sql.Open("pgx", postgresDSN)
 	if err != nil {
 		return 0, 0, 0, 0, fmt.Errorf("open postgres for winners rebuild: %w", err)
@@ -233,23 +233,47 @@ func rebuildSeededWinners(ctx context.Context, postgresDSN string) (inserted, up
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	if err := VerifyWinnersSeeded(ctx, db); err != nil {
+	if err := VerifyWinnersSeeded(ctx, db, wantWinners); err != nil {
 		return 0, 0, 0, 0, err
 	}
 	return inserted, updated, deleted, unchanged, nil
 }
 
-// VerifyWinnersSeeded fails unless the winners table holds rows and the
+// expectedWinnerGroups is the number of winners the seeded facts must rebuild
+// to: one canonical-key group rebuilds to exactly one winner, and
+// BuildWinnersFindingFacts emits ceil(total / sourcesPerGroup) groups.
+func expectedWinnerGroups(total, sourcesPerGroup int) int64 {
+	if total <= 0 || sourcesPerGroup <= 0 {
+		return 0
+	}
+	return int64((total + sourcesPerGroup - 1) / sourcesPerGroup)
+}
+
+// checkWinnersCount fails unless the winners table holds exactly the winners the
+// seeded groups rebuild to. A count above zero is not enough: a partial rebuild
+// would leave the winners leg measuring a smaller read model than the legacy
+// leg reads.
+func checkWinnersCount(got, want int64) error {
+	if got != want {
+		return fmt.Errorf("supply_chain_impact_canonical_winners holds %d rows, want %d (one per seeded canonical-key group)", got, want)
+	}
+	return nil
+}
+
+// VerifyWinnersSeeded fails unless the winners table holds exactly wantWinners rows and the
 // resweep stamped its watermark. Both must hold for the winners leg to prove
 // anything: rows without a watermark (or vice versa) mean a partial rebuild
 // the freshness probe would refuse to serve from.
-func VerifyWinnersSeeded(ctx context.Context, db *sql.DB) error {
+func VerifyWinnersSeeded(ctx context.Context, db *sql.DB, wantWinners int64) error {
 	var winners int64
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_canonical_winners`).Scan(&winners); err != nil {
 		return fmt.Errorf("count supply chain impact canonical winners: %w", err)
 	}
 	if winners == 0 {
 		return fmt.Errorf("supply_chain_impact_canonical_winners holds no rows: the winners leg would sweep an empty read model")
+	}
+	if err := checkWinnersCount(winners, wantWinners); err != nil {
+		return err
 	}
 	var watermark time.Time
 	if err := db.QueryRowContext(ctx, `SELECT materialized_at FROM supply_chain_impact_winners_materialization WHERE singleton = 1`).Scan(&watermark); err != nil {

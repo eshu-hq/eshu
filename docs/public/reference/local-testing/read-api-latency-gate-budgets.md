@@ -18,6 +18,27 @@ hand, from at least two work reports per leg taken from two separately seeded
 full-corpus runs. A table that was derived from a run is not confirmed by that
 run: a third run with the committed tables must exit 0 on both legs.
 
+## Re-rendering a table
+
+Render each table with `--out`, and pass the committed legacy table as the
+baseline for both, so the ratchet runs on every row. Without `--out` the default
+baseline is the legacy table file, so a stdout render of the winners table would
+trip the collapse ratchet on the impact rows (307,638 to 2,403 blocks).
+
+```bash
+git show HEAD:testdata/benchmarks/read-api-route-work-budgets.txt > /tmp/baseline-legacy.txt
+bash scripts/refresh-read-api-work-budgets.sh --baseline /tmp/baseline-legacy.txt \
+  --out testdata/benchmarks/read-api-route-work-budgets.txt \
+  --note 'leg=legacy commit=<sha> on origin/main <sha>' LEGACY_REPORT.json...
+bash scripts/refresh-read-api-work-budgets.sh --baseline /tmp/baseline-legacy.txt \
+  --out testdata/benchmarks/read-api-route-work-budgets-winners.txt \
+  --note 'leg=winners commit=<sha> on origin/main <sha>' WINNERS_REPORT.json...
+```
+
+Add an `--accept-drop` or `--accept-regression` flag only for a row the ratchet
+refuses; the table header and the row's reason column then name it, and an unused
+flag prints nothing. The header's first line names the file it was rendered for.
+
 ## Provenance
 
 Each table's header restates what it was derived from: the sha256 of every input

@@ -245,3 +245,31 @@ func TestLatencyReportRecordsProviderUnconfiguredClassPerRoute(t *testing.T) {
 		t.Fatalf("exercised route %s carries a class", raw)
 	}
 }
+
+// TestSweepRoutesProviderClassNeedsTheTableRoute is the survivor of the review's
+// mutation run: a route outside the table that answers a 4xx and then a 5xx must
+// end with no class and HardFailed. Without the table-route requirement a 4xx
+// sample alone would put the route in the class.
+func TestSweepRoutesProviderClassNeedsTheTableRoute(t *testing.T) {
+	message := providerUnconfiguredRoutes[githubLoginRoute]
+	var calls int32
+	// Two warmups answer 200, the first counted sample answers 400, the rest 503
+	// with a table message: a mixed 4xx/5xx set on a route outside the table.
+	handler := func(w http.ResponseWriter, _ *http.Request) {
+		switch n := atomic.AddInt32(&calls, 1); {
+		case n <= 2:
+			w.WriteHeader(http.StatusOK)
+		case n == 3:
+			w.WriteHeader(http.StatusBadRequest)
+		default:
+			respondWith(http.StatusServiceUnavailable, productErrorBody(message))(w, nil)
+		}
+	}
+	got := sweepOne(t, "GET /api/v0/auth/profile", handler)
+	if got.NotExercisedClass != "" {
+		t.Fatalf("NotExercisedClass = %q, want empty for a route outside the table", got.NotExercisedClass)
+	}
+	if !got.HardFailed {
+		t.Fatalf("HardFailed = false, want true (a 5xx sample on a route outside the table)")
+	}
+}

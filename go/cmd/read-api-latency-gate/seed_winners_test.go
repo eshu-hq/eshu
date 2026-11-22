@@ -161,3 +161,41 @@ func TestWinnersSeedFactKindMatchesReadModel(t *testing.T) {
 		t.Fatalf("winnersSeedFactKind %q does not match the impact read model fact kind", winnersSeedFactKind)
 	}
 }
+
+// TestExpectedWinnerGroupsMatchesTheBuilder pins the winners count the seed
+// must prove: one canonical-key group rebuilds to exactly one winner, so the
+// expected row count is the number of distinct groups BuildWinnersFindingFacts
+// emits, including a final partial group.
+func TestExpectedWinnerGroupsMatchesTheBuilder(t *testing.T) {
+	t.Parallel()
+
+	anchors := []winnersFactAnchor{{ScopeID: "s", GenerationID: "g"}}
+	for _, tc := range []struct{ total, perGroup int }{{20000, 5}, {11, 5}, {5, 5}, {1, 5}, {0, 5}} {
+		groups := map[any]bool{}
+		for _, f := range BuildWinnersFindingFacts(anchors, tc.total, tc.perGroup) {
+			groups[f.Payload["finding_id"]] = true
+		}
+		if got, want := expectedWinnerGroups(tc.total, tc.perGroup), int64(len(groups)); got != want {
+			t.Errorf("expectedWinnerGroups(%d, %d) = %d, builder emits %d groups", tc.total, tc.perGroup, got, want)
+		}
+	}
+	if got := expectedWinnerGroups(20000, 5); got != 4000 {
+		t.Errorf("expectedWinnerGroups(20000, 5) = %d, want 4000 (the default corpus)", got)
+	}
+}
+
+// TestCheckWinnersCountRefusesAShortOrLongTable proves the seed fails when the
+// rebuild produced a different number of winners than the seeded groups: a
+// partial rebuild must not pass on count > 0.
+func TestCheckWinnersCountRefusesAShortOrLongTable(t *testing.T) {
+	t.Parallel()
+
+	if err := checkWinnersCount(4000, 4000); err != nil {
+		t.Fatalf("checkWinnersCount(4000, 4000) = %v, want nil", err)
+	}
+	for _, got := range []int64{0, 3999, 4001} {
+		if err := checkWinnersCount(got, 4000); err == nil {
+			t.Errorf("checkWinnersCount(%d, 4000) = nil, want an error", got)
+		}
+	}
+}

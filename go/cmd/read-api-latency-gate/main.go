@@ -348,7 +348,7 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
 
-	if inserted, updated, deleted, unchanged, err := rebuildSeededWinners(ctx, opts.postgresDSN); err != nil {
+	if inserted, updated, deleted, unchanged, err := rebuildSeededWinners(ctx, opts.postgresDSN, expectedWinnerGroups(opts.winnersFactCount, winnersSourcesPerGroup)); err != nil {
 		return fmt.Errorf("rebuild seeded winners: %w", err)
 	} else {
 		fmt.Fprintf(os.Stderr, "read-api-latency-gate: winners rebuild inserted=%d updated=%d deleted=%d unchanged=%d\n",
