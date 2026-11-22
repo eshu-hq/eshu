@@ -31,7 +31,28 @@ column.
 | Corpus | 800 scopes, 150,000 nodes per label, 150,000 IaC facts, 2,500,000 shared intents, 20,000 finding facts | the same |
 | Backend | Neo4j | Neo4j |
 | Report sha256 | `4eb538610c25103364876c43aef0a5367a157ec34aa8d711f308cc443e525b3f`, `e9f1fd61e8c01a8f6cdf88b12d3277a944cc6e204329298f943bc9a4d0889d3b` | `36da1fe34fa4c46932a601c4a554fecb7d644b10e778b73e8312d625177179f1`, `e8848c595a042c182d3266af8763ddc7571145bf9b25b0fb3c469bc4b6eff661` |
-| Accept flags | recorded when the legacy table is committed; two rows the ratchet refused await a ruling | none (new table, no baseline) |
+| Accept flags | `--accept-drop 'MCP search_entity_content=#8682 ...'` and `--accept-regression 'MCP search_file_content=#10607 ...'`; the full text is in each table header and in the row's reason column | the same two flags (the winners table is rendered against the same committed baseline) |
+
+## The two content-search rows are a new fixture cohort
+
+[#8682](https://github.com/eshu-hq/eshu/issues/8682) (`29753641d7`, 2026-10-27)
+renamed the search seed repositories after the work table was last rendered
+(2026-10-20). `MCP search_entity_content` falls from 311,960 to 1,200 blocks
+because the pilot now finds its page in the first ordered probe. This is a
+fixture change, not a faster query, and the old and new numbers are not a
+before and after. The row now guards the dense first-probe path only; the
+continuation walk is not work-metered by this pilot.
+
+`MCP search_file_content` rises from 798 to 1,740 blocks. The prefix change does
+not affect that route's ordering. Per statement, one request costs 14 calls, 29
+rows and 580 blocks: the keyed snippet re-read that
+[#10607](https://github.com/eshu-hq/eshu/issues/10607) added (1 call, 10 rows,
+297 blocks), the walk (1 call, 12 rows, 128 blocks), the content-index readiness
+probes and their nested statements (62, 60, 2, 15 and 15 blocks), the auth token
+lookup (1 block), and two read-only transactions (`begin`, `set_config`,
+`rollback`). The re-read is 297 of the 314-block growth. The remaining 17 blocks
+(the nested lower-trigram `NOT EXISTS` and the state read) are not shown to
+come from the 2026-10-20 window.
 
 ## What the default row is
 
@@ -41,7 +62,32 @@ blocks (it was 33). All 36 blocks are the route's own statements: 32 for its
 facts SELECT (a keyset index scan that removes about 25 facts per scope by
 `fact_kind`), 3 for the scope status lookup, and 1 for the auth token lookup. The
 growth is the 20,000 seeded finding facts, about 25 per scope. No core background
-statement landed in the measurement window.
+statement landed in the measurement window. At 108 the default blocks counter is
+above the ratchet floor (100), so the ratchet covers the default row from the next
+render.
+
+## Other rows that moved more than 25%
+
+The committed rows were rendered 2026-10-20, before the gate stopped being
+runnable. The rows below moved against them. For each, the new value is shown;
+the old value is not reproducible and is not attributed, because the old
+topology, including the removed in-tree API's startup backfill, is gone.
+
+- `infra/resources/count`, `infra/resources/inventory` and `iac/resources`
+  (149,436 to 74,742 and 149,622 to 74,928 blocks, both legs): one statement reads
+  the whole `infra_resource_entities` table, 24,910 blocks per request. The table
+  is 24,894 heap blocks and 1,050,000 rows with no dead tuples, and
+  3 x 24,914 = 74,742.
+- `repositories/{repo_id}/story` calls (389 to 197): the route makes 33 + 38 + 60
+  keyed `content_files` calls plus 3 others, for the 33 seeded story repositories.
+- Every named row at the default row's floor (capabilities, the two
+  collector-readiness rows, graph/entities, repositories, semantic-extraction,
+  container-images identities count) and the floored counters of the others: the
+  cause is the default row, by the script's floor rule.
+- `supply-chain/impact/findings/count` (33 to 307,638 legacy, 2,403 winners): the
+  old row was the default floor on an empty impact corpus; the growth is the 20,000
+  seeded finding facts. The script does not ratchet a committed counter under 100,
+  so no accept flag is used.
 
 ## Named rows added for this gate
 

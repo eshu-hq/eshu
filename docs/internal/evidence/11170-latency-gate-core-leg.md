@@ -187,24 +187,71 @@ marker, once the pinned image carries #11196.
 
 The committed legacy table was last rendered on 2026-10-19 and 2026-10-20, before
 the gate stopped being runnable. Rendered against it, the refresh script refused
-two rows. Neither comes from the seeded 20,000 findings.
+two rows. Neither comes from the seeded 20,000 findings. The arbiter ruled on both.
 
-| Route | Committed blocks | Measured blocks (both runs) | Ratio |
+### MCP search_entity_content: 311,960 to 1,200 blocks (accepted, #8682)
+
+The seed counts verify exactly and the pilot checks the exact response page on
+every request, so the corpus is intact. Commit `29753641d7` (2026-10-27, #8682,
+after the table) renamed the synthetic search repositories from `seed-search-` to
+`seed-gate-search-` so the entity pilot seeds sort into the first 1,000-row
+ordered probe, and its README says measurements from before and after are
+separate fixture cohorts. This is a fixture change, not a faster query. The row now
+guards the dense first-probe path only. The gate meter read 400 blocks per request
+(15 calls, 32 rows budgeted) in each of the three seeded runs. A manual probe on
+the kept stack of the third run (one request after warmup, `pg_stat_statements`
+reset before it) read 8 statements that sum to about 884 blocks: the walk 1 call,
+12 rows, 759 blocks, the substring readiness probe 62 plus nested 60 and 2, auth 1,
+one read-only transaction. The two readings are not reconciled here. The gate's
+entity pilot uses its own statement snapshot meter, and the manual probe counts
+nested statements as well as their callers. #8682 recorded 11 calls, 18 rows, 186
+blocks for its own cohort; the readings are not comparable with either.
+
+### MCP search_file_content: 798 to 1,740 blocks (accepted, #10607)
+
+The #8682 attribution was rejected: the rename does not change the route's order.
+The per-statement proof ran on the kept stack of the third seeded run (legacy
+core, the MCP pilot body once after a warmup, `pg_stat_statements_reset()` before
+each request, two runs with identical output):
+
+| Statement | Calls | Rows | Blocks |
 | --- | --- | --- | --- |
-| `MCP search_entity_content` | 311,960 | 1,200 budget from 400 measured | collapse past 20x |
-| `MCP search_file_content` | 798 | 1,740 budget from 580 measured | 2.18x growth |
+| Keyed snippet re-read (`match_snippet`, added by #10607, `f6f8806260`) | 1 | 10 | 297 |
+| Walk (`UNION` over `content_files`) | 1 | 12 | 128 |
+| `eshu_require_content_substring_indexes_ready()` | 1 | 1 | 62 |
+| nested `EXISTS` index probe | 1 | 1 | 60 |
+| `eshu_require_content_lower_trgm_index_ready()` | 1 | 1 | 15 |
+| nested lower-trigram `NOT EXISTS` | 1 | 1 | 15 |
+| `SELECT state FROM content_substring_index_state` | 1 | 1 | 2 |
+| auth token lookup | 1 | 0 | 1 |
+| `set_config` | 2 | 2 | 0 |
+| `begin` and `rollback` (one read-only transaction each, two in all) | 4 | 0 | 0 |
+| Sum | 14 | 29 | 580 |
 
-What is already known. The seed counts verify exactly in both runs, and the
-pilots check the exact response page on every warmup and counted request, so the
-corpus is intact. Commit `29753641d7` (2026-10-27, #8682, after the table) renamed
-the synthetic search repositories from `seed-search-` to `seed-gate-search-` so
-the entity pilot seeds sort into the first 1,000-row ordered probe window, and its
-README says measurements from before and after the rename are separate fixture
-cohorts. That README also says the historical variance in #8682 remains
-unexplained, so the cause of the file-search growth is not proven.
+The sum equals the gate's measured row exactly. The committed row implies 13 calls,
+20 rows and 266 blocks (22 = ceil(13 x 1.25) + 5; 40 = 2 x 20; 798 = 3 x 266).
+Growth is +314 blocks; the re-read is 297 of them (94.6%). The walk did not grow.
+The remaining 17 blocks (the nested lower-trigram `NOT EXISTS`, 15, and the state
+read, 2) are not shown to come from the 2026-10-20 window: the lower-trigram probe
+exists since 2026-10-12, and the old composition cannot be reproduced. Calls and rows
+do not close either: #10607 predicts +4 calls and +11 rows, the committed row
+implies +1 and +9. Every other row's calls also fell by about that amount, which
+fits background statements of the removed in-tree API in the old windows, but that
+is a theory.
 
-What a single run would prove. The rename is one constant
-(`seedSearchRepoPrefix` in `seed_content_files.go`). A throwaway worktree at the
-same head with the old value, run on the same corpus and the same legacy leg,
-would show whether both rows return to their committed ratios. It has not been
-run; it waits for the arbiter's ruling.
+## Other rows that moved more than 25%
+
+For each, the new value is shown; the old value is not reproducible and is not
+attributed. Per request, on the kept stack of the third run:
+
+- `infra/resources/count`: one statement reading 24,910 blocks (39 rows), the
+  marker check 2, auth 1. `iac/resources`: one statement, 24,972 blocks, marker 2,
+  auth 1. `infra_resource_entities` is 24,894 heap blocks, 1,050,000 rows, 0 dead
+  tuples; 3 x 24,914 = 74,742. The committed 149,436 is about twice that.
+- `repositories/{repo_id}/story`: calls 33 (722 blocks), 38 (262 blocks), 60
+  (180 blocks) of keyed `content_files` reads, plus 3 (a 19,296-block correlation
+  statement and two 1,650-block statements). The seed holds 33 story repositories.
+  The committed 389 calls is not attributed.
+- Default-row floor: see above. The default calls fell from 20 to 14 because the
+  largest unnamed route now reads 7 calls (supply-chain security-alerts
+  reconciliations count) where it read 12.
