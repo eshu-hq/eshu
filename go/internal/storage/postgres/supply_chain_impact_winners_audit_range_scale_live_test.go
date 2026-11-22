@@ -5,7 +5,6 @@ package postgres_test
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -28,7 +27,7 @@ const winnersAuditRangeScaleEnv = "ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_AUDIT_RANGE_
 // single-statement audit time on the same data, the NULL probe plan and
 // time, and the per-range writer verify time.
 func TestSupplyChainImpactWinnersResweepAuditRangeCostAtScaleLive(t *testing.T) {
-	raw := strings.TrimSpace(os.Getenv(winnersAuditRangeScaleEnv))
+	raw := strings.TrimSpace(winnersScaleKnob(winnersAuditRangeScaleEnv))
 	if raw == "" {
 		t.Skip("set " + winnersAuditRangeScaleEnv + " to the identifier count to measure the range cost")
 	}
