@@ -5,6 +5,16 @@ before the core leg, what the rewired gate hit on its first full-corpus run,
 and the product gap the run found. It holds raw observations. The latency and work
 numbers of the green runs are in the calibration and confirm sections.
 
+## Commit references
+
+This branch is merged with a merge commit and is not rebased, so the SHAs cited here
+that are on the branch stay reachable from `main`, among them `cc750777cd`,
+`52df6e8c43`, `25c35c5c7d` (the commit the table headers cite) and `ff9bcf780b`.
+Four SHAs are not on the branch and not on GitHub: `ca232f7a89`, `4903719505`,
+`46db679819` and `707674e184`. They belong to the pre-rebase history of this
+branch, and the runs made at them are earlier calibration or confirm runs. Each is
+labelled where it is cited.
+
 ## Host
 
 One shared Linux box (16 CPUs, 61 GB RAM) running other lanes. Every run below
@@ -134,7 +144,8 @@ repositories and 1,050,000 rows.
 ## Calibration runs
 
 Three separately seeded runs of the rebased head (runs 1 and 2 at `ca232f7a89`, run 3
-at `4903719505`, on `origin/main` `194d4abbd9`), full default corpus (800 scopes, 150,000 nodes per label, 150,000
+at `4903719505`, on `origin/main` `194d4abbd9`; both SHAs are pre-rebase commits, not
+on GitHub), full default corpus (800 scopes, 150,000 nodes per label, 150,000
 IaC facts, 2,500,000 shared intents, 20,000 finding facts), Neo4j, io pressure
 avg60 42 to 73 and load 25 to 30 during the runs (shared, noisy host). Every run
 exited 1 on the work breaches being recalibrated only: zero `HardFailed`, zero
@@ -278,8 +289,8 @@ end (`bash scripts/verify-read-api-latency-gate.sh`, no flags).
 
 | Run | HEAD | Tables | Exit | Notes |
 | --- | --- | --- | --- | --- |
-| First | `46db679819` | first render (two reports per leg) | 0 | superseded when the tables were re-rendered |
-| Earlier final | `707674e184` | render from three pre-vacuum reports | 0 | both legs "all 77 exercised routes within budget", findings pages byte-identical; superseded by the seed vacuum |
+| First | `46db679819` (pre-rebase, not on GitHub) | first render (two reports per leg) | 0 | earlier confirm run, superseded when the tables were re-rendered |
+| Earlier final | `707674e184` (pre-rebase, not on GitHub) | render from three pre-vacuum reports | 0 | both legs "all 77 exercised routes within budget", findings pages byte-identical; superseded by the seed vacuum |
 
 Final run, host io pressure avg60 33.5 at the start and 54.9 at the end (shared,
 noisy host). The tables it enforced, by sha256 as the gate logged them:
