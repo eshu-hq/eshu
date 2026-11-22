@@ -104,7 +104,7 @@ disposable postgres:18.6.
 | `TestForeignMemberTokensMigrationsMatchTheGoDDL` | the migrations carry the Go DDL byte for byte; the function sorts first; the index migration is one concurrent statement |
 | `TestHolderKeyRangeTokenIndexValidFromMigrationsLive` | the function stored as v4 and the index valid from the migration path |
 | `TestHolderKeyRangeTokenShapeMatrixLive` | F1: 840 cells, 840 agree, 112 true, 14 shapes; the array-only RED disagrees |
-| `TestHolderKeyRangeTokenAgreementLive` | Go lookup tokens against SQL stored tokens for 21 last characters (16 hex digits, `A`, `Z`, `é`, `日`), colon members, object keys, a scalar, prefix look-alikes and own keys |
+| `TestHolderKeyRangeTokenAgreementLive` | Go lookup tokens against SQL stored tokens for 20 last characters (16 hex digits, `A`, `Z`, `é`, `日`), colon members, object keys, a scalar, prefix look-alikes and own keys |
 | `TestHolderKeyRangeTokenReadMatchesShippedLive` | the differential against `FindHolderScopes`, through the store and through the shipped constants, and three REDs (below) |
 | `TestHolderKeyRangeStatementPlanLive` | the pinned custom plan: the token arm is a Bitmap Index Scan on the token index with `&&` in the Index Cond and no fact_id bound |
 | `TestKeyRangePlanViolationShapes` | the plan checker refuses a missing token arm, the lossy members index, a token heap filter, and a token fact_id bound |
