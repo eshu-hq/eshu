@@ -199,6 +199,10 @@ func TestReducerAdmissionSharedDepthDefersAtMarkAndAdmitsBelowWithinBound(t *tes
 		{name: "falls mid backoff", fall: 12500 * time.Millisecond},
 		{name: "falls just after a capped read", fall: 15*time.Second + time.Millisecond},
 		{name: "falls late", fall: 40 * time.Second},
+		// 30.001 s and 41.001 s each follow a read that saw the mark under the
+		// inclusive-window schedule that lost one poll interval per step.
+		{name: "falls just after the 30 s read", fall: 30*time.Second + time.Millisecond},
+		{name: "falls just after the 41 s read", fall: 41*time.Second + time.Millisecond},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
