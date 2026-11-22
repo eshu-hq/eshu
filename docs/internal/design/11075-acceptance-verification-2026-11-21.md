@@ -114,6 +114,29 @@ replica with `statement_timeout` set; no writes, no deploys from the packet.
 | Satisfaction | at least one evaluated row satisfied by the watermark (E-R <= 0) — zero satisfaction fails per the issue's Q1-only refusal |
 | Inflow | sustained inflow present with the NVD/GHSA split measured and named (instrument or prefix method) |
 
+### Packet query definitions (2026-11-22)
+
+These define how the bars above are measured. They change no threshold. The
+runnable queries are in [11075-a2-packet.sql](11075-a2-packet.sql).
+
+- **First classification.** A row whose failure details carried no
+  `winners-watermark-deferral:` marker when the handler evaluated it. In the
+  packet it is a work item that first appears in a pull's id snapshot (Q4b).
+  The `attempt_count = 1` filter is withdrawn: a `not_ready` park freezes
+  `attempt_count` at 1, so a later stale re-evaluation also reads 1. On QA at
+  2026-11-22 00:01Z, 28 rows with `attempt_count = 1` and the stale class were
+  re-evaluations, not first stale classifications. Where the bars above say
+  "attempt-1", read "first classification".
+- **First-claim lag numerator.** The marker clock: `first-deferred-at` minus
+  `cycle-started-at`, which is the handler's own measure. The
+  `COALESCE(reopened_at, created_at)` figure is reported beside it, labelled
+  `legacy`, and the two are never mixed in one number. On those 28 rows the
+  two cycle starts differ by about 1.5 h (19:26:18Z against 20:57:23Z).
+- **Resolutions and satisfaction.** Set differences of the Q4b id snapshots
+  across consecutive pulls. A resolution is an id that left the winners class.
+  It is satisfied when its row now carries no failure. Summed 120 s slices are
+  not used, because launch skew leaves holes between them.
+
 ### Posting
 
 Post the packet verbatim on #11075 as closing evidence; cross-link from
@@ -159,7 +182,8 @@ Runnable form of every query: [11075-a2-packet.sql](11075-a2-packet.sql).
   Tally still 0 rows: #11078 instrument gap persists (E6 unchanged).
 - Q4 slice 02:59:46Z: 16 attempt-1 not_ready first evaluations in the
   trailing 120 s, max pre-claim lag 17 min, zero stale in-window (single
-  slice, not an AC3 judgment).
+  slice, not an AC3 judgment). The `attempt_count = 1` filter behind this
+  slice was withdrawn on 2026-11-22; see "Packet query definitions".
 - G1/G2 re-verified live: the `11075-deferral-clock-design-ruling-2026-11-20.md`
   file is still absent (only the two 2026-11-21 ruling files exist); #11086
   carries only the Cloudflare bot comment, no retroactive dispositions.
