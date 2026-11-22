@@ -70,14 +70,56 @@ func newHandlerTimeoutError(intent reducercontract.Intent, bound, elapsed time.D
 	}
 }
 
+// handlerBound is the per-execution bound: one deadline instant that both the
+// derived execution context and the deadline-branch timer are armed from, so
+// the two cannot disagree about when the bound expired (#11193). own is false
+// when a parent deadline is at or before the bound, in which case the bound
+// never caused a DeadlineExceeded the handler reports.
+type handlerBound struct {
+	deadline time.Time
+	own      bool
+}
+
+// armHandlerBound derives the execution context from a single deadline
+// instant and records whether that instant is the effective deadline.
+func armHandlerBound(parent context.Context, bound time.Duration) (context.Context, context.CancelFunc, handlerBound) {
+	deadline := time.Now().Add(bound)
+	parentDeadline, hasParent := parent.Deadline()
+	ctx, cancel := context.WithDeadline(parent, deadline)
+	return ctx, cancel, handlerBound{deadline: deadline, own: !hasParent || deadline.Before(parentDeadline)}
+}
+
+// expired reports whether the bound's own deadline has passed. The handler
+// goroutine samples it the instant Execute returns, so the answer describes
+// the moment of the return, not the later moment the caller reads the outcome.
+func (b handlerBound) expired() bool {
+	return b.own && !time.Now().Before(b.deadline)
+}
+
+// armBoundTimer arms the deadline-branch timer for one handler execution so
+// it fires at the bound's own deadline, the same instant the context expires.
+func (s Service) armBoundTimer(b handlerBound, bound time.Duration) *time.Timer {
+	d := time.Until(b.deadline)
+	if !b.own {
+		d = bound
+	}
+	if s.newBoundTimer != nil {
+		return s.newBoundTimer(d)
+	}
+	return time.NewTimer(d)
+}
+
 // ownDeadlineExpired reports whether a returned handler outcome carries a
 // DeadlineExceeded caused by our own bound: the outcome's error wraps the
-// deadline AND our own timer already fired (Stop reports false). A
-// downstream store or query timeout that beats our bound leaves the timer
-// running, so it keeps its own failure class and never triggers timeout
+// deadline AND the bound's deadline had passed when the handler returned
+// (outcome.boundExpired). Attribution reads the derived deadline, never the
+// timer, so a handler that returns between the context deadline and the
+// timer firing still carries the timeout class. A downstream store or query
+// timeout that beats our bound returns while the bound is still in the
+// future, so it keeps its own failure class and never triggers timeout
 // backpressure.
-func ownDeadlineExpired(out handlerOutcome, timer *time.Timer) bool {
-	return errors.Is(out.err, context.DeadlineExceeded) && !timer.Stop()
+func ownDeadlineExpired(out handlerOutcome) bool {
+	return out.boundExpired && errors.Is(out.err, context.DeadlineExceeded)
 }
 
 // recordReducerHandlerTimedOut counts one handler released because its
