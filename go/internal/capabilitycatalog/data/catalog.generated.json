@@ -11724,7 +11724,8 @@
     {
       "capability": "supply_chain.advisory_evidence.list",
       "answering_stores": [
-        "fact_records_collector"
+        "fact_records_collector",
+        "fact_records_reducer"
       ],
       "display_name": "Supply Chain Advisory Evidence List",
       "maturity": "general_availability",

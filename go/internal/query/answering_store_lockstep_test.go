@@ -183,6 +183,11 @@ var answeringStoreProbes = []struct {
 	},
 	// Mixed families name every store that answers the read.
 	{
+		capability: "supply_chain.advisory_evidence.list",
+		want:       []string{"fact_records_collector", "fact_records_reducer"},
+		evidence:   "go/internal/query/supply/chain/advisory/evidence_sql.go: vulnerability.* collector facts + repo_probe/impact_candidates over reducer_supply_chain_impact_finding",
+	},
+	{
 		capability: "supply_chain.impact_explanation.read",
 		want:       []string{"fact_records_reducer", "fact_records_collector"},
 		evidence:   "go/internal/query/supply/chain/impact/explain_postgres.go FindingFactKind + vulnerability/collector evidence reads",
