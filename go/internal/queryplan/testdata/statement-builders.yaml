@@ -570,14 +570,14 @@ builders:
           exempt: B-7 legs carry no SQL-relationship retract scope; fragments absent from both backends' captures
     - file: internal/storage/cypher/edge/writer/target_probe.go
       builders:
-        - symbol: buildTargetPresenceProbeStatements
+        - symbol: buildTargetPresenceProbes
           count: 1
           operation: sourcecypher.OperationCanonicalProbe
           variants:
             - fragments:
                 - MATCH
                 - RETURN 1 LIMIT 1
-          source_sha256: 775cff77834da929d784e8f8f993193a265c8f1e3a94f657bc763dbf20affd16
+          source_sha256: 061526409970da5f85ceab8f15011cdf6bdedd1ba9ca31fb8fccf0ac73cb10e0
           exempt: strings.Builder-composed probe text is opaque to static matching; executions recorded as probe records
     - file: internal/storage/cypher/kubernetes/namespace.go
       builders:

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // seedListFixture seeds the semantics fixture on instance "li" and returns the
@@ -270,7 +271,7 @@ func TestCollectorFailureDiscoveryAcknowledgeLoopLive(t *testing.T) {
 	store := f.ackStore()
 	readiness := func() collector.PromotionProof {
 		t.Helper()
-		snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf)
+		snapshot, err := readCoordinatorSnapshot(f.ctx, SQLDB{DB: f.database}, f.asOf, workflow.SourceBackpressureConfig{})
 		if err != nil || snapshot == nil {
 			t.Fatalf("readCoordinatorSnapshot() = %v, %v", snapshot, err)
 		}

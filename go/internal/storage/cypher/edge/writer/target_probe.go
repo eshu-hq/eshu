@@ -25,12 +25,23 @@ var targetMissProbeDomains = map[string]bool{
 	reducercontract.DomainDeployableUnitEdges: true,
 }
 
-// buildTargetPresenceProbeStatements returns one existence probe per distinct
-// runtime target of a routed batch, or false for domains outside the guard.
-// Every statement is a single MATCH clause over literal parameters with
-// RETURN 1 LIMIT 1, so the ProbeExecutor boolean is the verdict directly:
-// found means that target exists, not-found means it is absent and the batch
-// must be deferred. The caller ANDs the verdicts: the first miss fails the
+// targetProbe is one runtime-target existence probe plus the repository the
+// probed node belongs to. repoID is what the miss error and WARN name when the
+// probe finds the node absent (#11242): the guard reported the first batch
+// row's repository instead, so a row waiting on an absent deployment
+// Repository was logged and parked against the wrong one. It never reaches the
+// backend; only the embedded Statement does.
+type targetProbe struct {
+	sourcecypher.Statement
+	repoID string
+}
+
+// buildTargetPresenceProbes returns one existence probe per distinct runtime
+// target of a routed batch, or false for domains outside the guard. Each probe
+// carries the repository of the node it anchors. Every statement is a single
+// MATCH clause over literal parameters with RETURN 1 LIMIT 1, so the
+// ProbeExecutor boolean is the verdict directly: found means that target
+// exists, not-found means it is absent and the batch must be deferred. The caller ANDs the verdicts: the first miss fails the
 // batch.
 //
 // Shape discipline (docs/public/reference/nornicdb-query-pitfalls.md): one
@@ -50,13 +61,13 @@ var targetMissProbeDomains = map[string]bool{
 // probe shape is proven live in both directions on both backends (see the
 // #6184 run notes and the #8315 live mixed-presence tests); the unit tests
 // pin the builder output.
-func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([]sourcecypher.Statement, bool) {
+func buildTargetPresenceProbes(domain string, rows []map[string]any) ([]targetProbe, bool) {
 	if !targetMissProbeDomains[domain] {
 		return nil, false
 	}
-	var stmts []sourcecypher.Statement
+	var stmts []targetProbe
 	seen := make(map[string]struct{}, len(rows))
-	emit := func(key string, match string, kv ...any) {
+	emit := func(key string, repoID string, match string, kv ...any) {
 		if _, dup := seen[key]; dup {
 			return
 		}
@@ -67,10 +78,13 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 		for i := 0; i < len(kv); i += 2 {
 			params[kv[i].(string)] = kv[i+1]
 		}
-		stmts = append(stmts, sourcecypher.Statement{
-			Operation:  sourcecypher.OperationCanonicalProbe,
-			Cypher:     "MATCH " + match + "\nRETURN 1 LIMIT 1",
-			Parameters: params,
+		stmts = append(stmts, targetProbe{
+			Statement: sourcecypher.Statement{
+				Operation:  sourcecypher.OperationCanonicalProbe,
+				Cypher:     "MATCH " + match + "\nRETURN 1 LIMIT 1",
+				Parameters: params,
+			},
+			repoID: repoID,
 		})
 	}
 	switch domain {
@@ -92,11 +106,13 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 			// never collide with a Function "f"-prefixed uid key in the shared
 			// seen map (#8360 P2): without it, repo_id "f" plus a path equal to
 			// a Function uid in the same batch drops one target probe.
-			emit("e\x00"+repo+"\x00"+path,
+			emit("e\x00"+repo+"\x00"+path, repo,
 				"(e:Endpoint {repo_id: $repo_id, path: $path})",
 				"repo_id", repo, "path", path)
 			if uid, _ := row["function_entity_id"].(string); uid != "" {
-				emit("f\x00"+uid,
+				// A Function node carries no repository of its own in the
+				// probe, so a miss names the row's repository (#11242).
+				emit("f\x00"+uid, repo,
 					"(f:Function {uid: $uid})",
 					"uid", uid)
 			}
@@ -107,7 +123,7 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 			if repo == "" {
 				continue
 			}
-			emit(repo,
+			emit(repo, repo,
 				"(:Repository {id: $repo_id})-[:DEFINES]->(:Workload)",
 				"repo_id", repo)
 		}
@@ -120,12 +136,12 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 		// matched nothing while reporting success.
 		for _, row := range rows {
 			if repo, _ := row["repo_id"].(string); repo != "" {
-				emit(repo,
+				emit(repo, repo,
 					"(:Repository {id: $repo_id})",
 					"repo_id", repo)
 			}
 			if repo, _ := row["deployment_repo_id"].(string); repo != "" {
-				emit(repo,
+				emit(repo, repo,
 					"(:Repository {id: $repo_id})",
 					"repo_id", repo)
 			}
@@ -144,22 +160,23 @@ func buildTargetPresenceProbeStatements(domain string, rows []map[string]any) ([
 // domain is unguarded, the executor has no probe capability, or every target
 // is present. A probe failure or a detected miss emits the operator signal
 // and returns a retryable error; the caller must run no write statement for
-// the batch afterwards.
+// the batch afterwards. A miss names the repository of the probe that found
+// its node absent, not the first row's (#11242), as VerifyDeployableUnitEdges
+// does with absentRepoID.
 func (w *EdgeWriter) checkBatchTargetsPresent(
 	ctx context.Context,
 	prober sourcecypher.ProbeExecutor,
 	domain string,
 	evidenceSource string,
 	rows []map[string]any,
-	sampleRepoID string,
 	sampleIntentID string,
 ) error {
-	probes, ok := buildTargetPresenceProbeStatements(domain, rows)
+	probes, ok := buildTargetPresenceProbes(domain, rows)
 	if !ok {
 		return nil
 	}
 	for _, probe := range probes {
-		targetPresent, err := prober.ExecuteProbe(ctx, probe)
+		targetPresent, err := prober.ExecuteProbe(ctx, probe.Statement)
 		if err != nil {
 			if w.Logger != nil {
 				w.Logger.Warn(
@@ -192,14 +209,14 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 				"domain", domain,
 				"evidence_source", evidenceSource,
 				"batch_rows", len(rows),
-				"sample_repo_id", sampleRepoID,
+				"sample_repo_id", probe.repoID,
 				"sample_intent_id", sampleIntentID,
 			)
 		}
 		return &targetMissingError{
 			domain:         domain,
 			batchRows:      len(rows),
-			sampleRepoID:   sampleRepoID,
+			sampleRepoID:   probe.repoID,
 			sampleIntentID: sampleIntentID,
 		}
 	}

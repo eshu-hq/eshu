@@ -49,7 +49,7 @@ func (ackLatencyFakeTx) Commit() error   { return nil }
 func (ackLatencyFakeTx) Rollback() error { return nil }
 
 // sleepingConfigStateDriftTrigger simulates reducerAdmissionWriter.Enqueue's
-// real deferral loop (cmd/ingester/reducer_admission.go): when the shared
+// real deferral loop (internal/reduceradmission/reducer_admission.go): when the shared
 // reducer queue is over its high-water mark or under graph-write-timeout
 // pressure, that writer blocks in a for { ...; sleep(ctx, PollInterval) }
 // loop before the SAME call this hook makes (t.Queue.Enqueue) returns.

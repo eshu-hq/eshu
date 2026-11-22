@@ -99,6 +99,15 @@ type Backfiller struct {
 	Now    func() time.Time
 }
 
+// NewBackfiller builds the Backfiller every caller shares: the reducer's
+// RunBackground and the latency gate's seed stand-in (#11226). One construction
+// means both record the marker through the same code, so the gate's stand-in
+// cannot drift from the product's. Only opts.Logger is used; the retry options
+// belong to RunBackground.
+func NewBackfiller(database db.ExecQueryer, opts BackgroundOptions) Backfiller {
+	return Backfiller{DB: database, Logger: opts.Logger}
+}
+
 // BackfillResult reports what one Run did.
 type BackfillResult struct {
 	AlreadyComplete bool

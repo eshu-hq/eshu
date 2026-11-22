@@ -77,6 +77,9 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 		`if heartbeatInterval >= claimLeaseTTL {`,
 		`return "collector-pagerduty"`,
 		`func selectPagerDutyInstance(`,
+		`SourceBackpressure workflow.SourceBackpressureConfig`,
+		`sourceBackpressure, err := collector.LoadSourceBackpressureConfig(getenv)`,
+		`SourceBackpressure: sourceBackpressure,`,
 	} {
 		if !strings.Contains(configFile, want) {
 			t.Fatalf("generated config.go missing %q:\n%s", want, configFile)
@@ -95,6 +98,9 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 		`CollectorKind:       scope.CollectorPagerDuty,`,
 		`MaxAttempts:         workflow.DefaultClaimMaxAttempts(),`,
 		`return "pagerduty-claim-" + hex.EncodeToString(raw[:])`,
+		`SourceBackpressure:  sourceBackpressure,`,
+		`claimStore.Store.(collector.SourceBackpressureChecker)`,
+		`refusing startup rather than claiming unpaced`,
 	} {
 		if !strings.Contains(serviceFile, want) {
 			t.Fatalf("generated service.go missing %q:\n%s", want, serviceFile)

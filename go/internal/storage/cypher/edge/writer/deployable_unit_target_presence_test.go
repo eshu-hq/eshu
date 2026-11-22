@@ -76,9 +76,9 @@ func TestEdgeWriterDeployableUnitProbeAnchorsBothRepos(t *testing.T) {
 		"repo_id":            "repo-app",
 		"deployment_repo_id": "repo-deploy",
 	}}
-	probes, ok := buildTargetPresenceProbeStatements(reducercontract.DomainDeployableUnitEdges, rows)
+	probes, ok := buildTargetPresenceProbes(reducercontract.DomainDeployableUnitEdges, rows)
 	if !ok {
-		t.Fatal("buildTargetPresenceProbeStatements(deployable_unit_edges) = false, want one probe per Repository endpoint")
+		t.Fatal("buildTargetPresenceProbes(deployable_unit_edges) = false, want one probe per Repository endpoint")
 	}
 	if len(probes) != 2 {
 		t.Fatalf("probe statements = %d, want 2 (source and deployment repo)", len(probes))

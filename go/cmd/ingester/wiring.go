@@ -215,6 +215,15 @@ func buildIngesterCollectorService(
 			Logger:      logger,
 		},
 	}
+	// #10882 schedule leg: while the git source is slowed, repo
+	// selection stretches its per-repo minimum resync interval. A
+	// stretch without verdict thresholds fails startup in the wire
+	// call; unset leaves every-cycle selection untouched.
+	selectionStore := postgres.NewWorkflowControlStore(database)
+	selectionStore.Instruments = instruments
+	if err := nativeSelector.WireSelectionBackpressure(selectionStore, getenv); err != nil {
+		return collector.Service{}, err
+	}
 	selector := git.RepositorySelector(nativeSelector)
 	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)
 	if !scheduledSyncConfig.Enabled && !handoffConfig.Enabled {
@@ -303,7 +312,7 @@ func buildIngesterProjectorService(
 	logger *slog.Logger,
 ) (projector.Service, error) {
 	projectorQueue := postgres.NewProjectorQueue(database, "ingester", 5*time.Minute)
-	reducerWriter, err := ingesterReducerIntentWriter(database, getenv, instruments, logger)
+	reducerWriter, err := ingesterAdmissionIntentWriter(database, getenv, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
 	}
@@ -362,7 +371,12 @@ func buildIngesterProjectorService(
 		return projector.Service{}, err
 	}
 
+	sourcePacer, err := ingesterSourcePacer(database, getenv, instruments, logger)
+	if err != nil {
+		return projector.Service{}, err
+	}
 	svc := projector.Service{
+		SourcePacer:  sourcePacer, // #10882 F8: a slowed source's claim is released before any write
 		PollInterval: time.Second,
 		WorkSource:   projectorQueue,
 		FactStore:    postgres.NewFactStore(database).WithInstruments(instruments).WithLogger(logger),

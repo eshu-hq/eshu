@@ -3,20 +3,31 @@
 Two steps in the [read API latency gate](read-api-latency-gate.md)'s seed phase
 change what the sweep measures. Each is labelled in the seed log.
 
-## Infra read model backfill (stand-in)
+## Infra read model backfill (permanent stand-in)
 
-The seed phase runs the product's
-`inventory.Backfiller` after the content seeds and before any core starts, then
-requires the infra read model to be installed, marked, and free of dirty
-repositories. The gate does this because it starts no reducer, and since
-[#11210](https://github.com/eshu-hq/eshu/pull/11210) the reducer owns the
-backfill (it runs the same `Backfiller.Run`). Both legs' latency reports carry
-`infra_backfill: gate_stand_in` in their identity block. The infra route numbers
-therefore describe an install that holds the marker, and a regression in the
-reducer's wiring would not show here. Starting the reducer and dropping the
-stand-in is [#11226](https://github.com/eshu-hq/eshu/issues/11226).
-`awaitInfraReadModel` and the truth-basis check still run unchanged as the guard
-on the same outcome.
+The seed phase runs the product's `inventory.Backfiller` after the content seeds
+and before any core starts, then requires the infra read model to be installed,
+marked, and free of dirty repositories. The reducer has owned this backfill since
+[#11210](https://github.com/eshu-hq/eshu/pull/11210), but a real reducer cannot run
+on the gate's seeded corpus. Measured on the full corpus with every restriction the
+reducer offers (claims limited to an unseeded domain, retention, liveness and the
+other switchable runners off), a reducer started between the seed and the sweep:
+
+- set 7,680 seeded `fact_work_items` rows to `superseded`, in its stale-generation
+  sweep, across the 320 superseded generations the gate seeds on purpose;
+- ran the config-artifact walker, which derived 45 repositories of its own;
+- polled Postgres at about 45 statements per second (1,407 commits in 30 seconds),
+  against the gate's idle limit of 2 per second.
+
+It did record the marker, in 22 seconds. So the gate runs the same code through
+the shared `inventory.NewBackfiller` constructor, which `RunBackground` also uses,
+and labels both legs' reports `infra_backfill: gate_stand_in`. The infra route
+numbers describe an install that holds the marker. That the reducer process
+records the marker is proved elsewhere, by
+`TestInfraInventoryBackfillRunnerRecordsTheMarkerLive` in `go/cmd/reducer`
+([#11226](https://github.com/eshu-hq/eshu/issues/11226)).
+`awaitInfraReadModel` and the truth-basis check still run as the guard on the same
+outcome.
 
 ## VACUUM (ANALYZE) after the bulk seed
 

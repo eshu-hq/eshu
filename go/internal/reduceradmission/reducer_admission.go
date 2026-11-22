@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package main
+package reduceradmission
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -134,14 +135,39 @@ type reducerAdmissionDepthReader interface {
 	ReducerGraphWriteTimeoutDepth(context.Context) (int64, error)
 }
 
-func ingesterReducerIntentWriter(
-	database db.ExecQueryer,
+// AdmissionIntentWriter wraps a reducer intent writer with the reducer
+// admission gate the ingester and the standalone projector share
+// (#10882 decision 3): the global database-protection backstop plus the
+// per-source slowed leg. Callers pass their own inner writer (including
+// any deployment-profile selection) and keep profile bypasses: a fully
+// disabled gate (no global or per-source thresholds) returns the inner
+// writer unwrapped.
+func AdmissionIntentWriter(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (runtime.ReducerIntentWriter, error) {
-	writer := reducerIntentWriterForProfile(getenv, postgres.NewReducerQueue(database, "ingester", time.Minute))
-	return reducerIntentWriterWithAdmission(database, writer, getenv, instruments, logger)
+	return reducerIntentWriterWithAdmission(database, inner, getenv, instruments, logger)
+}
+
+// ProjectorAdmissionIntentWriter is AdmissionIntentWriter for the standalone
+// projector, which has never run the global database-protection gate. The
+// global marks default to zero here, so the gate (a QueueDepths and a
+// graph-write-timeout depth read per enqueue) runs only when an operator sets
+// ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK or the retrying marks for that
+// process; enabling the per-source leg does not turn it on (#10882). Making
+// the gate default-on for the projector is its own change with its own
+// before and after measurement.
+func ProjectorAdmissionIntentWriter(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+) (runtime.ReducerIntentWriter, error) {
+	return reducerIntentWriterWithGlobalGate(database, inner, getenv, instruments, logger, false)
 }
 
 type reducerAdmissionWriter struct {
@@ -151,6 +177,12 @@ type reducerAdmissionWriter struct {
 	instruments *telemetry.Instruments
 	logger      *slog.Logger
 	sleep       func(context.Context, time.Duration) error
+	// sourceChecker and sourceConfig form the per-source admission leg
+	// (#10882): intents whose source is latched slowed defer under reason
+	// source_behind exactly like high-water deferrals. A nil checker or a
+	// disabled config leaves the leg off.
+	sourceChecker reducerAdmissionSourceChecker
+	sourceConfig  workflow.SourceBackpressureConfig
 	// deferral holds the shared graph-write-pressure hysteresis flag. It is a
 	// pointer so copies of the writer value share one state.
 	deferral *admissionDeferralState
@@ -167,15 +199,26 @@ func reducerIntentWriterWithAdmission(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (runtime.ReducerIntentWriter, error) {
-	if ingesterLocalLightweight(getenv) {
-		return inner, nil
-	}
+	return reducerIntentWriterWithGlobalGate(database, inner, getenv, instruments, logger, true)
+}
 
-	config, err := loadReducerAdmissionConfig(getenv)
+func reducerIntentWriterWithGlobalGate(
+	database db.Queryer,
+	inner runtime.ReducerIntentWriter,
+	getenv func(string) string,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+	globalGateDefaultOn bool,
+) (runtime.ReducerIntentWriter, error) {
+	config, err := loadReducerAdmissionConfigWithDefaults(getenv, globalGateDefaultOn)
 	if err != nil {
 		return nil, err
 	}
-	if !config.enabled() {
+	sourceConfig, err := loadSourceBackpressureConfig(getenv)
+	if err != nil {
+		return nil, err
+	}
+	if !config.enabled() && !sourceConfig.Enabled() {
 		return inner, nil
 	}
 	if inner == nil {
@@ -185,24 +228,44 @@ func reducerIntentWriterWithAdmission(
 		return nil, errors.New("reducer admission queue depth reader database is required")
 	}
 
-	return reducerAdmissionWriter{
-		inner:       inner,
-		depthReader: postgres.NewQueueObserverStore(database),
-		config:      config,
-		instruments: instruments,
-		logger:      logger,
-		sleep:       sleepContext,
-		deferral:    newAdmissionDeferralState(),
-	}, nil
+	writer := reducerAdmissionWriter{
+		inner:        inner,
+		depthReader:  postgres.NewQueueObserverStore(database),
+		config:       config,
+		sourceConfig: sourceConfig,
+		instruments:  instruments,
+		logger:       logger,
+		sleep:        sleepContext,
+		deferral:     newAdmissionDeferralState(),
+	}
+	if sourceConfig.Enabled() {
+		execQueryer, ok := database.(db.ExecQueryer)
+		if !ok {
+			return nil, errors.New("source backpressure requires an exec-capable database handle for the shared latch")
+		}
+		store := postgres.NewWorkflowControlStore(execQueryer)
+		store.Instruments = instruments
+		writer.sourceChecker = store
+	}
+	return writer, nil
 }
 
 func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionConfig, error) {
+	return loadReducerAdmissionConfigWithDefaults(getenv, true)
+}
+
+// loadReducerAdmissionConfigWithDefaults parses the admission env. With
+// globalGateDefaultOn false the global high-water and retrying marks default
+// to zero (gate off) and only an explicit env value enables them.
+func loadReducerAdmissionConfigWithDefaults(getenv func(string) string, globalGateDefaultOn bool) (reducerAdmissionConfig, error) {
 	config := reducerAdmissionConfig{
-		HighWaterMark:         defaultReducerAdmissionHighWaterMark,
-		PollInterval:          defaultReducerAdmissionPoll,
-		MaxWait:               defaultReducerAdmissionMaxWait,
-		RetryingHighWaterMark: defaultReducerAdmissionRetryingHighWaterMark,
-		RetryingLowWaterMark:  defaultReducerAdmissionRetryingLowWaterMark,
+		PollInterval:         defaultReducerAdmissionPoll,
+		MaxWait:              defaultReducerAdmissionMaxWait,
+		RetryingLowWaterMark: defaultReducerAdmissionRetryingLowWaterMark,
+	}
+	if globalGateDefaultOn {
+		config.HighWaterMark = defaultReducerAdmissionHighWaterMark
+		config.RetryingHighWaterMark = defaultReducerAdmissionRetryingHighWaterMark
 	}
 	rawHighWater := strings.TrimSpace(getenv(reducerAdmissionHighWaterMarkEnv))
 	if rawHighWater != "" {
@@ -247,63 +310,6 @@ func loadReducerAdmissionConfig(getenv func(string) string) (reducerAdmissionCon
 	return config, nil
 }
 
-// loadReducerAdmissionRetryingMarks parses the graph-write-pressure high/low
-// marks and validates the hysteresis invariant (low < high when the gate is
-// enabled). A low mark of zero is clamped to the default fraction of the high
-// mark so an operator who only sets the high mark still gets sane hysteresis.
-func loadReducerAdmissionRetryingMarks(getenv func(string) string, config *reducerAdmissionConfig) error {
-	rawHigh := strings.TrimSpace(getenv(reducerAdmissionRetryingHighWaterMarkEnv))
-	if rawHigh != "" {
-		high, err := strconv.ParseInt(rawHigh, 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reducerAdmissionRetryingHighWaterMarkEnv, err)
-		}
-		if high < 0 {
-			return fmt.Errorf("%s must be zero or greater", reducerAdmissionRetryingHighWaterMarkEnv)
-		}
-		config.RetryingHighWaterMark = high
-	}
-
-	rawLow := strings.TrimSpace(getenv(reducerAdmissionRetryingLowWaterMarkEnv))
-	if rawLow != "" {
-		low, err := strconv.ParseInt(rawLow, 10, 64)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", reducerAdmissionRetryingLowWaterMarkEnv, err)
-		}
-		if low < 0 {
-			return fmt.Errorf("%s must be zero or greater", reducerAdmissionRetryingLowWaterMarkEnv)
-		}
-		config.RetryingLowWaterMark = low
-	}
-
-	if !config.graphWritePressureEnabled() {
-		return nil
-	}
-	if config.RetryingLowWaterMark <= 0 || config.RetryingLowWaterMark > config.RetryingHighWaterMark {
-		// Default or out-of-range low mark: clamp below the high mark so the
-		// hysteresis gap is always valid. An explicit low mark above the high
-		// mark is an operator error.
-		if rawLow != "" && config.RetryingLowWaterMark > config.RetryingHighWaterMark {
-			return fmt.Errorf("%s (%d) must be less than %s (%d)",
-				reducerAdmissionRetryingLowWaterMarkEnv, config.RetryingLowWaterMark,
-				reducerAdmissionRetryingHighWaterMarkEnv, config.RetryingHighWaterMark)
-		}
-		config.RetryingLowWaterMark = clampRetryingLowWaterMark(config.RetryingHighWaterMark)
-	}
-	return nil
-}
-
-// clampRetryingLowWaterMark derives a default low-water mark from the high-water
-// mark: one fifth of the high mark, with a floor of 1 so the gate can always
-// release.
-func clampRetryingLowWaterMark(high int64) int64 {
-	low := high / 5
-	if low < 1 {
-		low = 1
-	}
-	return low
-}
-
 func (w reducerAdmissionWriter) Enqueue(
 	ctx context.Context,
 	intents []runtime.ReducerIntent,
@@ -311,14 +317,21 @@ func (w reducerAdmissionWriter) Enqueue(
 	if len(intents) == 0 {
 		return runtime.IntentResult{Count: 0}, nil
 	}
-	if !w.config.enabled() {
-		return w.inner.Enqueue(ctx, intents)
+	if !w.config.enabled() && !w.sourceLegEnabled() {
+		result, err := w.inner.Enqueue(ctx, intents)
+		if err != nil {
+			return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents: %w", err)
+		}
+		return result, nil
 	}
 	if w.inner == nil {
 		return runtime.IntentResult{}, errors.New("reducer admission inner writer is required")
 	}
 	if w.depthReader == nil {
 		return runtime.IntentResult{}, errors.New("reducer admission depth reader is required")
+	}
+	if w.sourceLegEnabled() {
+		return w.enqueueBySource(ctx, intents)
 	}
 
 	// waitStart bounds the total admission wait across all deferral iterations.
@@ -333,10 +346,14 @@ func (w reducerAdmissionWriter) Enqueue(
 			return runtime.IntentResult{}, err
 		}
 		if reason == "" {
-			return w.inner.Enqueue(ctx, intents)
+			result, err := w.inner.Enqueue(ctx, intents)
+			if err != nil {
+				return runtime.IntentResult{}, fmt.Errorf("enqueue reducer intents: %w", err)
+			}
+			return result, nil
 		}
-		w.recordDeferral(ctx, reason, failureClass, depth, len(intents))
-		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, depth, len(intents)); timeoutErr != nil {
+		w.recordDeferral(ctx, reason, failureClass, "", depth, len(intents))
+		if timeoutErr := w.admissionTimeoutExceeded(ctx, waitStart, reason, "", depth, len(intents)); timeoutErr != nil {
 			return runtime.IntentResult{}, timeoutErr
 		}
 		if err := w.wait(ctx); err != nil {
@@ -358,34 +375,55 @@ func (w reducerAdmissionWriter) Enqueue(
 // *_n classes) reports zero graph-write-timeout depth and therefore never
 // false-throttles unrelated reducer admission.
 func (w reducerAdmissionWriter) admissionDecision(ctx context.Context) (string, string, int64, error) {
+	reason, failureClass, depth, _, err := w.admissionDecisionFor(ctx, "")
+	return reason, failureClass, depth, err
+}
+
+// admissionDecisionFor is admissionDecision plus the per-source leg: when
+// sourceSystem names a source latched slowed, the group defers under
+// reason source_behind and the fifth result carries the verdict's
+// RetryAfter (the grant delay the poll wait honors, #10882 F4). The source leg is consulted after the global
+// database-protection gates so a saturated backend still reports its own
+// reason first. An empty source (unattributed intents) skips the leg.
+func (w reducerAdmissionWriter) admissionDecisionFor(ctx context.Context, sourceSystem string) (string, string, int64, time.Duration, error) {
 	if w.config.graphWritePressureEnabled() && w.deferral != nil {
 		graphWriteTimeoutDepth, err := w.depthReader.ReducerGraphWriteTimeoutDepth(ctx)
 		if err != nil {
-			return "", "", 0, fmt.Errorf("read reducer graph-write-timeout depth: %w", err)
+			return "", "", 0, 0, fmt.Errorf("read reducer graph-write-timeout depth: %w", err)
 		}
 		if w.deferral.graphWritePressure(graphWriteTimeoutDepth, w.config.RetryingHighWaterMark, w.config.RetryingLowWaterMark) {
-			return admissionDeferralReasonGraphWritePressure, admissionGraphWriteTimeoutFailureClass, graphWriteTimeoutDepth, nil
+			return admissionDeferralReasonGraphWritePressure, admissionGraphWriteTimeoutFailureClass, graphWriteTimeoutDepth, 0, nil
 		}
 	}
 
 	if w.config.HighWaterMark > 0 {
 		depths, err := w.depthReader.QueueDepths(ctx)
 		if err != nil {
-			return "", "", 0, fmt.Errorf("read reducer admission queue depth: %w", err)
+			return "", "", 0, 0, fmt.Errorf("read reducer admission queue depth: %w", err)
 		}
 		var total int64
 		for _, count := range depths["reducer"] {
 			total += count
 		}
 		if total >= w.config.HighWaterMark {
-			return admissionDeferralReasonHighWater, "", total, nil
+			return admissionDeferralReasonHighWater, "", total, 0, nil
 		}
 	}
 
-	return "", "", 0, nil
+	if sourceSystem != "" && w.sourceLegEnabled() {
+		decision, err := w.sourceDecision(ctx, sourceSystem)
+		if err != nil {
+			return "", "", 0, 0, err
+		}
+		if decision.Slowed {
+			return workflow.SourceBackpressureReasonSourceBehind, "", 0, decision.RetryAfter, nil
+		}
+	}
+
+	return "", "", 0, 0, nil
 }
 
-func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass string, depth int64, intentCount int) {
+func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, failureClass, sourceSystem string, depth int64, intentCount int) {
 	if w.failureClassSink != nil {
 		w.failureClassSink(ctx, reason, failureClass, depth, intentCount)
 		return
@@ -395,11 +433,13 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 		if failureClass != "" {
 			attrs = append(attrs, telemetry.AttrFailureClass(failureClass))
 		}
+		if sourceSystem != "" {
+			attrs = append(attrs, telemetry.AttrSourceSystem(sourceSystem))
+		}
 		w.instruments.ReducerAdmissionDeferrals.Add(ctx, 1, metric.WithAttributes(attrs...))
 	}
 	if w.logger != nil {
-		w.logger.WarnContext(
-			ctx, "reducer admission deferring enqueue",
+		args := []any{
 			slog.String("reason", reason),
 			log.FailureClass(failureClass),
 			slog.Int64("queue_depth", depth),
@@ -408,16 +448,24 @@ func (w reducerAdmissionWriter) recordDeferral(ctx context.Context, reason, fail
 			slog.Int64("retrying_low_water_mark", w.config.RetryingLowWaterMark),
 			slog.Duration("poll_interval", w.config.PollInterval),
 			slog.Int("intent_count", intentCount),
-		)
+		}
+		if sourceSystem != "" {
+			args = append(args, slog.String("source_system", sourceSystem))
+		}
+		w.logger.WarnContext(ctx, "reducer admission deferring enqueue", args...)
 	}
 }
 
 func (w reducerAdmissionWriter) wait(ctx context.Context) error {
+	return w.waitFor(ctx, w.config.PollInterval)
+}
+
+func (w reducerAdmissionWriter) waitFor(ctx context.Context, delay time.Duration) error {
 	sleep := w.sleep
 	if sleep == nil {
 		sleep = sleepContext
 	}
-	return sleep(ctx, w.config.PollInterval)
+	return sleep(ctx, delay)
 }
 
 func sleepContext(ctx context.Context, duration time.Duration) error {
@@ -425,7 +473,7 @@ func sleepContext(ctx context.Context, duration time.Duration) error {
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("reducer admission wait: %w", ctx.Err())
 	case <-timer.C:
 		return nil
 	}

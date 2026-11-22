@@ -57,13 +57,17 @@ func TestRunInfraBackfillStandInNamesTheStandInInOneLogLine(t *testing.T) {
 	for _, line := range strings.Split(strings.TrimSpace(log.String()), "\n") {
 		if strings.Contains(line, infraBackfillStandIn) {
 			standInLines++
-			for _, want := range []string{"starts no reducer", "#11210", "#11226"} {
+			// The stand-in is permanent (#11226): a real reducer cannot run on the
+			// seeded corpus, and the line says why and where the shared code lives.
+			for _, want := range []string{"reducer cannot run on the seeded corpus", "supersedes seeded work items", "#11226"} {
 				if !strings.Contains(line, want) {
 					t.Fatalf("stand-in line %q does not say %q", line, want)
 				}
 			}
-			if strings.Contains(line, "no product runtime") || strings.Contains(line, "#11196") {
-				t.Fatalf("stand-in line %q carries the stale rationale", line)
+			for _, stale := range []string{"starts no reducer", "#11210", "temporary", "drop"} {
+				if strings.Contains(line, stale) {
+					t.Fatalf("stand-in line %q carries the stale wording %q", line, stale)
+				}
 			}
 		}
 	}

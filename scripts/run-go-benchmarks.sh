@@ -26,6 +26,10 @@
 #   BENCH_COUNT    — -count value             (default: 1)
 #   BENCH_PACKAGES — package list to benchmark (default: auto-discovered)
 #   BENCH_TIMEOUT  — go test -timeout value   (default: 30m)
+#   BENCH_LIST_ONLY — when 1, print the resolved package list (one ./dir per
+#                     line) on stdout and exit 0 without running go test. The
+#                     contract mirror uses it to prove auto-discovery without
+#                     compiling every benchmark package (#11207).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -86,6 +90,11 @@ else
 	fi
 fi
 
+if [[ "${BENCH_LIST_ONLY:-}" == "1" ]]; then
+	printf '%s\n' "${packages[@]}"
+	exit 0
+fi
+
 mkdir -p "$(dirname "${output}")"
 
 printf 'run-go-benchmarks: bench=%s benchtime=%s count=%s packages=%d -> %s\n' \
@@ -97,7 +106,7 @@ printf 'run-go-benchmarks: bench=%s benchtime=%s count=%s packages=%d -> %s\n' \
 # on) a live database. Clear them for the subprocess so the run is hermetic
 # regardless of the ambient environment. Keep this list in sync with the env
 # vars that benchmark _test.go files read to gate backend access.
-backend_dsn_vars=(ESHU_POSTGRES_DSN ESHU_REDUCER_CLAIM_BENCH_DSN)
+backend_dsn_vars=(ESHU_POSTGRES_DSN ESHU_REDUCER_CLAIM_BENCH_DSN ESHU_GOVERNANCE_AUDIT_BENCH_DSN)
 env_unset=()
 for v in "${backend_dsn_vars[@]}"; do
 	env_unset+=(-u "${v}") # -u is portable across GNU and BSD env; --unset is GNU-only

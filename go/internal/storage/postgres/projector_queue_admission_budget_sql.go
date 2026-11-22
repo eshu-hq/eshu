@@ -32,3 +32,28 @@ WHERE stage = 'projector'
   AND attempt_count = $9
   AND status IN ('claimed', 'running')
 `
+
+// retryProjectorWorkWithSourcePacedWaitQuery is the retryProjectorWorkQuery
+// twin for per-source backpressure releases (#10882): besides the shared
+// retry transition it increments source_paced_waits inside the same fenced
+// UPDATE. It never touches admission_wait_attempts, so pacing cannot spend
+// the admission budget a later genuine admission timeout owns.
+const retryProjectorWorkWithSourcePacedWaitQuery = `
+UPDATE fact_work_items
+SET status = 'retrying',
+    lease_owner = NULL,
+    claim_until = NULL,
+    visible_at = $5,
+    next_attempt_at = $5,
+    updated_at = $1,
+    failure_class = $2,
+    failure_message = $3,
+    failure_details = $4,
+    source_paced_waits = fact_work_items.source_paced_waits + 1
+WHERE stage = 'projector'
+  AND scope_id = $6
+  AND generation_id = $7
+  AND lease_owner = $8
+  AND attempt_count = $9
+  AND status IN ('claimed', 'running')
+`

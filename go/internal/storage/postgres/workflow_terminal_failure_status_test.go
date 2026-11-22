@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/status/collector"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 func terminalFailureInstance(kind, id string, scanInterval time.Duration) collector.InstanceSummary {
@@ -281,7 +282,7 @@ func TestReadCoordinatorSnapshotIncludesTerminalFailures(t *testing.T) {
 		},
 	}
 
-	got, err := readCoordinatorSnapshot(context.Background(), queryer, now)
+	got, err := readCoordinatorSnapshot(context.Background(), queryer, now, workflow.SourceBackpressureConfig{})
 	if err != nil {
 		t.Fatalf("readCoordinatorSnapshot() error = %v, want nil", err)
 	}

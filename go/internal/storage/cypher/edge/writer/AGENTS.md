@@ -30,6 +30,11 @@
   (#7268). `targetProbeError` must stay classless so a probe fault counts
   and fails closed. `TestTargetMissingErrorCarriesNonCountingReadinessClass`
   and `TestTargetProbeErrorStaysCounting` pin both.
+- The repository `targetMissingError` names (`sample repo`, `SampleTarget()`,
+  the `sample_repo_id` WARN field) is the repository of the probe that found
+  its node absent, carried by `targetProbe.repoID` out of
+  `buildTargetPresenceProbes`; never fall back to the batch's first row.
+  `TestTargetGuardNamesTheMissingTargetRepository` pins every guarded domain.
 - `VerifyDeployableUnitEdges` (`deployable_unit_verify.go`) keeps one
   single-pattern probe per edge (no multi-clause MATCH, no inline
   relationship properties), returns `targetMissingError` only when an

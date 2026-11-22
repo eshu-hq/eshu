@@ -7,7 +7,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_attachment_wait_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#11105 T1 (impact defers while its own attachment retries; the attachment Ack reopens it and the finding publishes) and T2 (no attachment work proceeds at attempt 1), real queue, fact store, and writers; reducer-contention selects the 2 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 2/2 on postgres:18 (the -race run is the CI job's)"
+    reason: "#11105 T1 (impact defers while its own attachment retries; the attachment Ack reopens it and the finding publishes), T2 (no attachment work proceeds at attempt 1), and T3 (both intents through Enqueue, attachment fails transiently, impact defers, attachment Ack reopens it, no unrelated trigger), real queue, fact store, and writers; reducer-contention selects the 3 TestReducerContentionGate*Live test(s) in this file; local run without -race passed 3/3 on postgres:18 (the -race run is the CI job's)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_attachment_cross_scope_live_test.go
     tag: ~

@@ -49,8 +49,11 @@ one bounded label:
   batch every cycle, so neither the class nor the bound applies to them.
 
 Read it alongside the `shared edge batch target absent, deferring batch`
-WARN, which carries the evidence source and one sample intent id —
-deliberately kept out of the metric labels to bound cardinality. A miss is a
+WARN, which carries the evidence source, one sample intent id, and
+`sample_repo_id`, the repository whose node was absent (the probe that missed,
+not the first row of the batch, #11242) — deliberately kept out of the metric
+labels to bound cardinality. The miss error text and the bound-expiry WARN
+name that same repository. A miss is a
 timing state, not a payload defect: the target commits later in the same
 generation and the re-selected batch binds then, so a transient rise during a
 rebuild drain is expected and a stuck non-zero rate across generations is

@@ -263,6 +263,7 @@ import (
 	"time"
 
 	"{{.Source.ImportPath}}"
+	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -283,6 +284,10 @@ type claimedRuntimeConfig struct {
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
 	Source            {{.Source.ConfigType}}
+	// SourceBackpressure carries the per-source reducer slowdown
+	// thresholds (#10882). The zero value disables the leg; partial
+	// configuration fails startup in the loader below.
+	SourceBackpressure workflow.SourceBackpressureConfig
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -316,13 +321,18 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 	if heartbeatInterval >= claimLeaseTTL {
 		return claimedRuntimeConfig{}, fmt.Errorf("{{.CollectorLabel}} heartbeat interval must be less than claim lease TTL")
 	}
+	sourceBackpressure, err := collector.LoadSourceBackpressureConfig(getenv)
+	if err != nil {
+		return claimedRuntimeConfig{}, err
+	}
 	return claimedRuntimeConfig{
-		Instance:          instance,
-		OwnerID:           ownerID(getenv),
-		PollInterval:      pollInterval,
-		ClaimLeaseTTL:     claimLeaseTTL,
-		HeartbeatInterval: heartbeatInterval,
-		Source:            sourceConfig,
+		Instance:           instance,
+		OwnerID:            ownerID(getenv),
+		PollInterval:       pollInterval,
+		ClaimLeaseTTL:      claimLeaseTTL,
+		HeartbeatInterval:  heartbeatInterval,
+		Source:             sourceConfig,
+		SourceBackpressure: sourceBackpressure,
 	}, nil
 }
 

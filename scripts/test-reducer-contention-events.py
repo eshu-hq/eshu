@@ -16,6 +16,14 @@ assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
+# #11252: the two-owner-job cases sit beside the validator to keep this file under the cap.
+SPLIT_SPEC = importlib.util.spec_from_file_location(
+    "reducer_contention_split_cases", LIB.with_name("reducer_contention_split_cases.py")
+)
+assert SPLIT_SPEC and SPLIT_SPEC.loader
+SPLIT = importlib.util.module_from_spec(SPLIT_SPEC)
+SPLIT_SPEC.loader.exec_module(SPLIT)
+TwoJobSplitTest = SPLIT.build(MODULE)
 
 
 class EventProofTest(unittest.TestCase):
@@ -131,50 +139,64 @@ class EventProofTest(unittest.TestCase):
                 f"--select '{expression}'\n"
             )
 
+        def job(job_id: str, steps: str) -> str:
+            return (
+                f"  {job_id}:\n"
+                "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), '" + job_id + "') }}\n"
+                "    name: gate\n"
+                "    runs-on: ubuntu-24.04\n"
+                "    timeout-minutes: 45\n"
+                "    services:\n"
+                "      postgres:\n"
+                "        image: fixture\n"
+                "    steps:\n" + steps
+            )
+
+        contract = "      - name: Verify contention runner contract\n        run: |\n" + "".join(
+            f"          {command}\n" for command in MODULE.CONTRACT_COMMANDS
+        )
         workflow = (
             "name: fixture\n"
             "on: push\n"
             "concurrency: {}\n"
             "permissions: {}\n"
             "jobs:\n"
-            "  contention-gate:\n"
-            "    if: ${{ github.event_name != 'pull_request' || contains(fromJSON(inputs.plan_jobs || '[]'), 'contention-gate') }}\n"
-            "    name: gate\n"
-            "    runs-on: ubuntu-24.04\n"
-            "    timeout-minutes: 45\n"
-            "    services:\n"
-            "      postgres:\n"
-            "        image: fixture\n"
-            "    steps:\n"
-            "      - name: Verify contention runner contract\n"
-            "        run: |\n"
-            "          python3 scripts/lib/reducer_contention_events.py\n"
-            "          python3 scripts/test-reducer-contention-events.py\n"
-            "          python3 scripts/test-reducer-contention-ledger-policy.py\n"
-            "          bash scripts/verify-live-tests-ledger.sh\n"
-            + proof_step(
-                "Run reducer contention gate",
-                "./internal/storage/postgres/",
-                "^(TestMainLive)$",
-                "contention-storage_postgres",
+            + job(
+                "contention-gate",
+                contract
+                + proof_step(
+                    "Run reducer contention gate",
+                    "./internal/storage/postgres/",
+                    "^(TestMainLive)$",
+                    "contention-storage_postgres",
+                )
+                + proof_step(
+                    "Run story target-support semantics proof",
+                    "./internal/query/",
+                    "^(TestStoryLive)$",
+                    "contention-query_story",
+                )
+                + proof_step(
+                    "Run readiness wait ledger proofs",
+                    "./internal/storage/postgres/readiness/wait/",
+                    "^(TestWaitLive)$",
+                    "contention-readiness_wait",
+                ),
             )
-            + proof_step(
-                "Run fan-out stress proof",
-                "./internal/storage/postgres/",
-                "^(TestStressLive)$",
-                "contention-storage_postgres_stress",
-            )
-            + proof_step(
-                "Run story target-support semantics proof",
-                "./internal/query/",
-                "^(TestStoryLive)$",
-                "contention-query_story",
-            )
-            + proof_step(
-                "Run readiness wait ledger proofs",
-                "./internal/storage/postgres/readiness/wait/",
-                "^(TestWaitLive)$",
-                "contention-readiness_wait",
+            + job(
+                "contention-gate-storage-b",
+                proof_step(
+                    "Run supply-chain and holder fan-out proofs",
+                    "./internal/storage/postgres/",
+                    "^(TestSecondHalfLive)$",
+                    "contention-storage_postgres_supply_chain",
+                )
+                + proof_step(
+                    "Run fan-out stress proof",
+                    "./internal/storage/postgres/",
+                    "^(TestStressLive)$",
+                    "contention-storage_postgres_stress",
+                ),
             )
         )
         stress_verifier = (
@@ -191,6 +213,7 @@ class EventProofTest(unittest.TestCase):
                 "go/internal/storage/postgres/proof_live_test.go": (
                     "package postgres\n"
                     "func TestMainLive(t *testing.T) {}\n"
+                    "func TestSecondHalfLive(t *testing.T) {}\n"
                     "func TestStressLive(t *testing.T) {}\n"
                 ),
                 "go/internal/query/proof_live_test.go": (
@@ -207,7 +230,7 @@ class EventProofTest(unittest.TestCase):
             inventory = {
                 "go/internal/storage/postgres/proof_live_test.go": {
                     "package": package,
-                    "tests": ["TestMainLive", "TestStressLive"],
+                    "tests": ["TestMainLive", "TestSecondHalfLive", "TestStressLive"],
                 },
                 "go/internal/query/proof_live_test.go": {
                     "package": "github.com/eshu-hq/eshu/go/internal/query",
@@ -280,6 +303,8 @@ class EventProofTest(unittest.TestCase):
             "Run reducer contention gate",
             "Run story target-support semantics proof",
             "Run readiness wait ledger proofs",
+            "Run supply-chain and holder fan-out proofs",
+            "Run fan-out stress proof",
         )
         contract = "Verify contention runner contract"
         # Proof steps run unconditionally: disabling one means adding a guard.

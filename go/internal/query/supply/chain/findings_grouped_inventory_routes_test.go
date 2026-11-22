@@ -112,6 +112,28 @@ func TestGroupedInventoryReadModelUnavailableAnswers503(t *testing.T) {
 	}
 }
 
+// TestGroupedInventoryUnsupportedFilterAnswers503WithAFilterMessage pins that an
+// image_ref or precise-profile call answers the 503 backend_unavailable
+// envelope with text that names the filter combination, so an operator can tell
+// it from a gate-off deployment (#10880 PR-B0).
+func TestGroupedInventoryUnsupportedFilterAnswers503WithAFilterMessage(t *testing.T) {
+	t.Parallel()
+
+	store := &fakeGroupedInventoryStore{err: impact.ErrGroupedInventoryFilterUnavailable}
+	rec, _ := serveGrouped(t, &Handler{ImpactGroupedInventory: store},
+		"/api/v0/supply-chain/impact/inventory?group_by=environment&image_ref=registry.example/app:1", nil)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "image_ref") || !strings.Contains(body, "profile") {
+		t.Fatalf("body = %s, want text naming the image_ref and profile filters", body)
+	}
+	if strings.Contains(body, "require the Postgres reducer read model") {
+		t.Fatalf("body = %s, reads like a gate-off or missing read model", body)
+	}
+}
+
 func TestGroupedInventoryStoreFailureAnswersFixedMessage(t *testing.T) {
 	t.Parallel()
 

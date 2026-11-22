@@ -63,6 +63,7 @@ go/internal/recovery		panic-recovery HTTP middleware; not projected truth
 # before keeping this entry, since the reason below would no longer hold.
 go/internal/coordinator	only coordinator/schedule is linked, through storage/postgres's status reader (#8803), to parse scan_interval for the collector terminal-failure window; the read runs only for a registered collector instance and none exists in this corpus, so no projected graph or asserted query/MCP value changes
 go/internal/workflow		coordinator run/work-item scheduling types used for dynamic collector-instance and component-extension planning outside the gate's fixed cassette/fixture corpus; no such live instance exists in this corpus
+go/internal/reduceradmission	reducer admission gate and the projector's pre-write source pacer (#10882): both legs are off unless the ESHU_REDUCER_ADMISSION_* or ESHU_SOURCE_BACKPRESSURE_* thresholds are set, which the gate never sets, so the writer wrapper returns the inner writer unchanged and no consult runs; a change here paces enqueue and claims, never what the gate projects or asserts
 
 # --- search/semantic packages not reachable from the six gate binaries -----
 # Checked during #5538's review and confirmed NOT present in `go list -deps`

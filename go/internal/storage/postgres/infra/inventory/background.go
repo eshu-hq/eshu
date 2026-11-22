@@ -45,7 +45,7 @@ func RunBackground(ctx context.Context, database db.ExecQueryer, opts Background
 	if maxBackoff <= 0 {
 		maxBackoff = defaultBackfillMaxBackoff
 	}
-	backfiller := Backfiller{DB: database, Logger: opts.Logger}
+	backfiller := NewBackfiller(database, opts)
 	for {
 		result, err := backfiller.Run(ctx)
 		switch {

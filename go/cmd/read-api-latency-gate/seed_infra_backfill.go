@@ -29,12 +29,17 @@ type infraBackfiller interface {
 
 // runInfraBackfillStandIn runs the product's infra read model backfill and
 // proves it left the read model ready: installed, marker recorded, and no
-// repository marked dirty. It is a seed-phase stand-in: the gate starts no
-// reducer, and since #11210 the reducer owns the backfill (it runs
-// inventory.RunBackground, which wraps the same Backfiller.Run this calls). So
-// the gate's infra read model fence would never clear without this step, and a
-// regression in the reducer's wiring would not show here. Starting the reducer
-// and dropping this stand-in is #11226.
+// repository marked dirty. It is a permanent seed-phase stand-in (#11226): the
+// reducer owns the backfill since #11210, but a real reducer cannot run on the
+// gate's seeded corpus. Measured on the full corpus, with every restriction the
+// reducer offers, a reducer started between seed and sweep set 7,680 seeded
+// fact_work_items rows to superseded (its stale-generation sweep, across the 320
+// superseded generations), the config-artifact walker wrote its own derive, and it
+// polls Postgres at about 45 statements per second against the gate's idle limit
+// of 2. The stand-in calls inventory.NewBackfiller, the constructor the reducer's
+// RunBackground uses, so the two record the marker through one construction. That
+// the reducer process records it is proved by the live test
+// TestInfraInventoryBackfillRunnerRecordsTheMarkerLive in go/cmd/reducer.
 //
 // It calls the product Backfiller rather than writing the marker or copying
 // the derive SQL, so the measured read model is the one the product derives.
@@ -46,7 +51,7 @@ func runInfraBackfillStandIn(
 	readState func(context.Context) (infraReadModelState, error),
 	log io.Writer,
 ) error {
-	_, _ = fmt.Fprintf(log, "read-api-latency-gate: infra_backfill=%s: running inventory.Backfiller after the seed because the gate starts no reducer (since #11210 the reducer owns the backfill and runs the same Backfiller.Run; follow-up #11226); infra route numbers describe an install that holds the marker\n",
+	_, _ = fmt.Fprintf(log, "read-api-latency-gate: infra_backfill=%s: running inventory.Backfiller after the seed because the reducer cannot run on the seeded corpus (it supersedes seeded work items and polls Postgres at about 45 statements/s); the stand-in shares the reducer's Backfiller constructor (#11226); infra route numbers describe an install that holds the marker\n",
 		infraBackfillStandIn)
 	result, err := backfiller.Run(ctx)
 	if err != nil {
@@ -81,10 +86,12 @@ func backfillSeededInfraReadModel(ctx context.Context, postgresDSN string, pool 
 	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping postgres for the infra read model backfill: %w", err)
 	}
-	backfiller := inventory.Backfiller{
-		DB:     pgstore.SQLDB{DB: db},
+	// The same constructor the reducer's RunBackground uses, so the stand-in and
+	// the product record the marker through one construction. The gate calls Run
+	// directly: no retry loop, a failure stops the seed with its cause.
+	backfiller := inventory.NewBackfiller(pgstore.SQLDB{DB: db}, inventory.BackgroundOptions{
 		Logger: slog.New(slog.NewTextHandler(log, nil)),
-	}
+	})
 	return runInfraBackfillStandIn(ctx, backfiller,
 		func(ctx context.Context) (infraReadModelState, error) { return readInfraReadModelState(ctx, pool) }, log)
 }

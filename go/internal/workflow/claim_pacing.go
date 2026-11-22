@@ -19,13 +19,17 @@ const (
 	// ClaimPacingSignalGlobal paces every claim to protect the database
 	// itself: table growth, claim-query cost, and retention lag.
 	ClaimPacingSignalGlobal ClaimPacingSignal = "global"
+	// ClaimPacingSignalReducerSource paces intake for one source system
+	// whose oldest claimable reducer work is older than the freshness
+	// engage age (#10882). The latch domain carries the source system.
+	ClaimPacingSignalReducerSource ClaimPacingSignal = "reducer_source"
 )
 
 // Validate rejects an unknown pacing signal. Unknown signals fail safe at
 // the decision layer, which re-evaluates them as disengaged.
 func (s ClaimPacingSignal) Validate() error {
 	switch s {
-	case ClaimPacingSignalDomain, ClaimPacingSignalGlobal:
+	case ClaimPacingSignalDomain, ClaimPacingSignalGlobal, ClaimPacingSignalReducerSource:
 		return nil
 	default:
 		return fmt.Errorf("unknown claim pacing signal %q", string(s))
@@ -172,6 +176,12 @@ func DecideClaimPacing(
 			}
 			return ClaimPacingDecision{}
 		}
+	case ClaimPacingSignalReducerSource:
+		// Depth observations never release a reducer-source engagement:
+		// that latch is owned by the source-backpressure verdict
+		// (DecideSourceSlowed), and the depth consult never reads its
+		// rows. An engaged reducer-source latch reaching here stays
+		// paced rather than releasing on an unrelated signal.
 	}
 	decision := paced(cfg, latch.Signal, engagedFor)
 	return decision

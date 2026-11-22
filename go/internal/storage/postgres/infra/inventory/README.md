@@ -29,9 +29,11 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
 - `Target`, `Stats` — derive input and row counts
 - `LockRepositoriesForGenerations`, `DeleteOrphanedRows` — generation
   retention's lock-before-prune and orphan cleanup, run inside its transaction
-- `Backfiller`, `BackfillResult`, `BackfillComplete`, `BackfillMarker`,
-  `RunBackground`, `BackgroundOptions` — populate every existing repository
-  once, then record the marker readers gate on; `RunBackground` retries with
+- `Backfiller`, `NewBackfiller`, `BackfillResult`, `BackfillComplete`,
+  `BackfillMarker`, `RunBackground`, `BackgroundOptions` — populate every
+  existing repository once, then record the marker readers gate on;
+  `NewBackfiller` is the one constructor the reducer path and the latency gate
+  share; `RunBackground` retries with
   backoff and counts attempts
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from

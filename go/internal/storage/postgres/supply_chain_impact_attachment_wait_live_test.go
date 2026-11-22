@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
+	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
@@ -303,5 +304,113 @@ func TestReducerContentionGateSupplyChainImpactWithoutAttachmentWorkProceedsLive
 	}
 	if got := w.attachedFindings(scope); got != 1 {
 		t.Fatalf("attached findings = %d, want 1", got)
+	}
+}
+
+// attachWaitTransientError is the retryable failure an attachment handler
+// returns when a registry read blips; Fail parks the row retrying with a
+// future visible_at, the window in which its impact sibling is claimable.
+type attachWaitTransientError struct{}
+
+func (attachWaitTransientError) Error() string   { return "transient registry read failure" }
+func (attachWaitTransientError) Retryable() bool { return true }
+
+// workItemCount counts every fact_work_items row of the scope, so a proof can
+// show that no unrelated or manually enqueued item took part.
+func (w *attachWait) workItemCount(scope string) int {
+	w.t.Helper()
+	var count int
+	if err := w.db.QueryRowContext(w.ctx, `SELECT count(*) FROM fact_work_items WHERE scope_id = $1`, scope).Scan(&count); err != nil {
+		w.t.Fatalf("count work items: %v", err)
+	}
+	return count
+}
+
+// TestReducerContentionGateSupplyChainImpactLateAttachmentReachesFindingViaEnqueueLive
+// is the #11105 run-then-commit proof on the production queue path. Both
+// intents of one scope generation go through ReducerQueue.Enqueue in one call
+// (the way the projector emits them) and no work item is seeded by SQL. The
+// attachment sorts first and is claimed first, then fails transiently, so its
+// row retries with a future visible_at and the impact row becomes claimable.
+// The impact pass runs in that window and defers without writing. The
+// attachment then commits and is acked, and that Ack alone must reopen the
+// parked impact row, which publishes the attachment-backed finding. The proof
+// holds the scope to exactly the two enqueued rows, so no unrelated trigger,
+// second enqueue, or manual reopen can have produced the finding.
+func TestReducerContentionGateSupplyChainImpactLateAttachmentReachesFindingViaEnqueueLive(t *testing.T) {
+	w := newAttachWait(t)
+	const scope = "scope:11105:enqueue-path"
+	seedAttachWaitScope(w, scope)
+
+	generation := fanOutGen(scope, "g1")
+	intents := []projectorintent.ReducerIntent{
+		{
+			ScopeID: scope, GenerationID: generation, Domain: reducercontract.DomainSBOMAttestationAttachment,
+			EntityKey: "sbom_attestation_attachment:" + scope, Reason: "sbom or attestation subject evidence observed",
+			FactID: "fact:11105:referrer:" + scope, SourceSystem: "oci",
+		},
+		{
+			ScopeID: scope, GenerationID: generation, Domain: reducercontract.DomainSupplyChainImpact,
+			EntityKey: "supply_chain_impact:" + scope, Reason: "supply chain evidence observed",
+			FactID: "fact:11105:cve:" + scope, SourceSystem: "synthetic",
+		},
+	}
+	if res, err := w.impactQ.Enqueue(w.ctx, intents); err != nil || res.Count != 2 {
+		t.Fatalf("Enqueue() count=%d err=%v, want 2 rows admitted", res.Count, err)
+	}
+
+	// The attachment is claimed first and fails transiently: it retries with a
+	// future visible_at, so the impact sibling is no longer fenced.
+	attach := w.claim(w.attachQ, "first attachment claim", true)
+	if err := w.attachQ.Fail(w.ctx, attach, attachWaitTransientError{}); err != nil {
+		t.Fatalf("attachment Fail(): %v", err)
+	}
+	if status, _, attempts := w.item(attach.IntentID); status != "retrying" || attempts != 1 {
+		t.Fatalf("attachment row = %s attempts=%d, want retrying at 1", status, attempts)
+	}
+
+	// The impact pass runs before the attachment commits: it defers and
+	// writes nothing.
+	impact := w.claim(w.impactQ, "impact claim while the attachment retries", true)
+	if got := failureClassOf(w.runImpact(impact)); got != supplyChainImpactAttachmentNotReadyClass {
+		t.Fatalf("impact pass before the attachment: class %q, want the %s deferral; attached findings = %d",
+			got, supplyChainImpactAttachmentNotReadyClass, w.attachedFindings(scope))
+	}
+	if got := w.attachedFindings(scope); got != 0 {
+		t.Fatalf("attached findings after the deferral = %d, want 0", got)
+	}
+
+	// Past the attachment's backoff and inside the impact backstop: the parked
+	// impact row stays fenced until the attachment acks.
+	w.clock = w.clock.Add(3 * time.Minute)
+	w.claim(w.impactQ, "impact claim while parked", false)
+	retry := w.claim(w.attachQ, "attachment retry claim", true)
+	if retry.IntentID != attach.IntentID {
+		t.Fatalf("attachment retry claimed %s, want %s", retry.IntentID, attach.IntentID)
+	}
+	w.writeAttachment(scope, retry)
+	if err := w.attachQ.Ack(w.ctx, retry, reducercontract.Result{}); err != nil {
+		t.Fatalf("attachment Ack(): %v", err)
+	}
+
+	// The attachment Ack is the only event since the park: the impact row must
+	// be claimable now, without a clock advance, a second enqueue, or any
+	// other trigger, and the finding must appear.
+	reopened := w.claim(w.impactQ, "impact claim after the attachment Ack", true)
+	if reopened.IntentID != impact.IntentID || reopened.AttemptCount != 1 {
+		t.Fatalf("reopened impact = %s attempt %d, want %s at attempt 1 (the deferral is non-counting)",
+			reopened.IntentID, reopened.AttemptCount, impact.IntentID)
+	}
+	if err := w.runImpact(reopened); err != nil {
+		t.Fatalf("reopened impact pass: %v", err)
+	}
+	if got := w.attachedFindings(scope); got != 1 {
+		t.Fatalf("attached findings after the attachment commit = %d, want 1", got)
+	}
+	if status, _, attempts := w.item(impact.IntentID); status != "succeeded" || attempts != 1 {
+		t.Fatalf("impact terminal = %s attempts=%d, want succeeded at 1", status, attempts)
+	}
+	if got := w.workItemCount(scope); got != 2 {
+		t.Fatalf("work items in scope = %d, want exactly the 2 enqueued (no unrelated or manual trigger)", got)
 	}
 }

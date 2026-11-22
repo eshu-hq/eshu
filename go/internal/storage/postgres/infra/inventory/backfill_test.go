@@ -7,7 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -40,5 +43,28 @@ func TestBackfillCompleteTreatsMissingTableAsNotReady(t *testing.T) {
 	broken := &pgconn.PgError{Code: "08006", Message: "connection failure"}
 	if _, err := BackfillComplete(context.Background(), queryErrDB{err: broken}); err == nil {
 		t.Fatal("BackfillComplete(connection failure) error = nil, want it surfaced")
+	}
+}
+
+// TestNewBackfillerCarriesTheDatabaseAndLogger pins the shared constructor: the
+// reducer's RunBackground and the latency gate's seed stand-in both build their
+// Backfiller through it, so the two paths record the marker through one
+// construction (#11226). The retry options belong to RunBackground, not to the
+// Backfiller.
+func TestNewBackfillerCarriesTheDatabaseAndLogger(t *testing.T) {
+	t.Parallel()
+
+	database := queryErrDB{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	backfiller := NewBackfiller(database, BackgroundOptions{Logger: logger, InitialBackoff: time.Hour, MaxBackoff: 2 * time.Hour})
+
+	if backfiller.DB != database {
+		t.Errorf("Backfiller.DB = %v, want the database passed in", backfiller.DB)
+	}
+	if backfiller.Logger != logger {
+		t.Errorf("Backfiller.Logger = %v, want the logger passed in", backfiller.Logger)
+	}
+	if backfiller.Now != nil {
+		t.Error("Backfiller.Now is set, want nil (the constructor must not pin a clock)")
 	}
 }
