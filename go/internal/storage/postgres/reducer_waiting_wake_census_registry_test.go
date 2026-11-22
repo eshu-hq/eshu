@@ -82,7 +82,7 @@ var waitingWakeCensusRegistry = map[string]wakeCensusEntry{
 // (#11228, ruling decision 1).
 func TestWaitingWakeCensus(t *testing.T) {
 	t.Parallel()
-	for _, violation := range auditWakeCensus(parsePackageSources(t, "."), waitingWakeCensusRegistry) {
+	for _, violation := range auditWakeCensus(wakeCensusParseSources(t, "."), waitingWakeCensusRegistry) {
 		t.Error(violation)
 	}
 }

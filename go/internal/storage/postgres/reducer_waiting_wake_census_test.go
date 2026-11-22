@@ -90,13 +90,13 @@ func collectWakeCensusSites(files map[string]*ast.File) []wakeCensusSite {
 			if !ok || fn.Body == nil {
 				continue
 			}
-			txNames := transactionIdents(fn)
+			txNames := wakeCensusTxIdents(fn)
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
 				call, ok := n.(*ast.CallExpr)
 				if !ok {
 					return true
 				}
-				callee := calleeName(call)
+				callee := wakeCensusCallee(call)
 				if !waitingWakeHelpers[callee] || len(call.Args) < 2 {
 					return true
 				}
@@ -105,7 +105,7 @@ func collectWakeCensusSites(files map[string]*ast.File) []wakeCensusSite {
 						return true
 					}
 				}
-				dbArg := exprText(call.Args[1])
+				dbArg := wakeCensusExprText(call.Args[1])
 				sites = append(sites, wakeCensusSite{
 					key: name + ":" + fn.Name.Name, callee: callee, dbArg: dbArg,
 					inTx: txNames[dbArg], callPos: call.Pos(), function: fn,
@@ -117,13 +117,13 @@ func collectWakeCensusSites(files map[string]*ast.File) []wakeCensusSite {
 	return sites
 }
 
-// transactionIdents names the identifiers in fn bound to an open
+// wakeCensusTxIdents names the identifiers in fn bound to an open
 // transaction: assigned from a Begin call, or a parameter typed as a
 // transaction.
-func transactionIdents(fn *ast.FuncDecl) map[string]bool {
+func wakeCensusTxIdents(fn *ast.FuncDecl) map[string]bool {
 	names := map[string]bool{}
 	for _, field := range fn.Type.Params.List {
-		if t := exprText(field.Type); strings.Contains(t, "Transaction") || strings.HasSuffix(t, "sql.Tx") {
+		if t := wakeCensusExprText(field.Type); strings.Contains(t, "Transaction") || strings.HasSuffix(t, "sql.Tx") {
 			for _, n := range field.Names {
 				names[n.Name] = true
 			}
@@ -135,7 +135,7 @@ func transactionIdents(fn *ast.FuncDecl) map[string]bool {
 			return true
 		}
 		call, ok := assign.Rhs[0].(*ast.CallExpr)
-		if !ok || !strings.Contains(calleeName(call), "Begin") {
+		if !ok || !strings.Contains(wakeCensusCallee(call), "Begin") {
 			return true
 		}
 		if id, ok := assign.Lhs[0].(*ast.Ident); ok {
@@ -146,8 +146,8 @@ func transactionIdents(fn *ast.FuncDecl) map[string]bool {
 	return names
 }
 
-// calleeName returns the called function or method name.
-func calleeName(call *ast.CallExpr) string {
+// wakeCensusCallee returns the called function or method name.
+func wakeCensusCallee(call *ast.CallExpr) string {
 	switch fn := call.Fun.(type) {
 	case *ast.Ident:
 		return fn.Name
@@ -157,21 +157,21 @@ func calleeName(call *ast.CallExpr) string {
 	return ""
 }
 
-// exprText renders a short expression (identifier, selector, star).
-func exprText(e ast.Expr) string {
+// wakeCensusExprText renders a short expression (identifier, selector, star).
+func wakeCensusExprText(e ast.Expr) string {
 	switch v := e.(type) {
 	case *ast.Ident:
 		return v.Name
 	case *ast.SelectorExpr:
-		return exprText(v.X) + "." + v.Sel.Name
+		return wakeCensusExprText(v.X) + "." + v.Sel.Name
 	case *ast.StarExpr:
-		return "*" + exprText(v.X)
+		return "*" + wakeCensusExprText(v.X)
 	}
 	return ""
 }
 
-// paramNames returns fn's parameter names.
-func paramNames(fn *ast.FuncDecl) map[string]bool {
+// wakeCensusParams returns fn's parameter names.
+func wakeCensusParams(fn *ast.FuncDecl) map[string]bool {
 	names := map[string]bool{}
 	for _, field := range fn.Type.Params.List {
 		for _, n := range field.Names {
@@ -190,7 +190,7 @@ func callsAfterCommit(fn *ast.FuncDecl, rewake string) bool {
 		if !ok {
 			return true
 		}
-		switch calleeName(call) {
+		switch wakeCensusCallee(call) {
 		case "Commit":
 			if commitPos == token.NoPos {
 				commitPos = call.Pos()
@@ -216,7 +216,7 @@ func wakeFollowsAnyCommit(site wakeCensusSite) bool {
 		if !ok {
 			return true
 		}
-		name := calleeName(call)
+		name := wakeCensusCallee(call)
 		switch {
 		case strings.Contains(name, "Begin"):
 			begins = true
@@ -254,7 +254,7 @@ func auditWakeCensus(files map[string]*ast.File, registry map[string]wakeCensusE
 				" is not an open transaction: reclassify the site")
 		case entry.class == wakeCensusInTxRewoken && !callsAfterCommit(site.function, entry.rewake):
 			violations = append(violations, site.key+": in-tx wake without a call to "+entry.rewake+" after Commit")
-		case entry.class == wakeCensusForwarder && (!paramNames(site.function)[site.dbArg] || !waitingWakeHelpers[site.function.Name.Name]):
+		case entry.class == wakeCensusForwarder && (!wakeCensusParams(site.function)[site.dbArg] || !waitingWakeHelpers[site.function.Name.Name]):
 			violations = append(violations, site.key+": registered forwarder but "+site.dbArg+" is not its own database parameter of a wake helper")
 		case entry.class == wakeCensusPostCommit && !wakeFollowsAnyCommit(site):
 			violations = append(violations, site.key+": registered post_commit but the function opens a transaction "+
@@ -272,8 +272,8 @@ func auditWakeCensus(files map[string]*ast.File, registry map[string]wakeCensusE
 	return violations
 }
 
-// parsePackageSources parses the package's non-test Go files in dir.
-func parsePackageSources(t *testing.T, dir string) map[string]*ast.File {
+// wakeCensusParseSources parses the package's non-test Go files in dir.
+func wakeCensusParseSources(t *testing.T, dir string) map[string]*ast.File {
 	t.Helper()
 	paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
