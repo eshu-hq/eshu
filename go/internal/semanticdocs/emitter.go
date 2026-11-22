@@ -115,7 +115,7 @@ func (e *Emitter) Emit(ctx context.Context, section doctruth.SectionInput, obser
 			return nil, err
 		}
 		envelopes = append(envelopes, facts.Envelope{
-			FactID:           stableKey,
+			FactID:           semantic.ScopedFactID(semantic.SemanticDocumentationObservationFactKind, stableKey, section.ScopeID, section.GenerationID),
 			ScopeID:          section.ScopeID,
 			GenerationID:     section.GenerationID,
 			FactKind:         semantic.SemanticDocumentationObservationFactKind,

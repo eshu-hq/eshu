@@ -82,8 +82,11 @@ func TestEmitProducesAnAdmissibleCodeHintFact(t *testing.T) {
 	if envelope.SchemaVersion != semantic.SemanticFactSchemaVersion {
 		t.Errorf("SchemaVersion = %q, want %q", envelope.SchemaVersion, semantic.SemanticFactSchemaVersion)
 	}
-	if envelope.StableFactKey == "" || envelope.FactID != envelope.StableFactKey {
-		t.Errorf("FactID/StableFactKey = %q/%q, want a non-empty matching pair", envelope.FactID, envelope.StableFactKey)
+	if envelope.StableFactKey == "" || envelope.FactID == "" || envelope.FactID == envelope.StableFactKey {
+		t.Errorf("FactID/StableFactKey = %q/%q, want a non-empty pair whose FactID is scoped, not the bare stable key (#11203)", envelope.FactID, envelope.StableFactKey)
+	}
+	if want := semantic.ScopedFactID(envelope.FactKind, envelope.StableFactKey, envelope.ScopeID, envelope.GenerationID); envelope.FactID != want {
+		t.Errorf("FactID = %q, want %q (hash of scope and generation)", envelope.FactID, want)
 	}
 	if envelope.ScopeID != testSpan().ScopeID || envelope.GenerationID != testSpan().GenerationID {
 		t.Errorf("scope/generation = %q/%q, want the span's", envelope.ScopeID, envelope.GenerationID)
@@ -461,5 +464,40 @@ func TestEmitRejectsImpossibleEntityLineRanges(t *testing.T) {
 	unattributed.Subject.LineStart, unattributed.Subject.LineEnd = 0, 0
 	if _, err := emitter.Emit(context.Background(), testSpan(), []HintInput{unattributed}); err != nil {
 		t.Errorf("unattributed range: Emit() error = %v, want nil", err)
+	}
+}
+
+// TestEmitFactIDIsScopedButStableKeyIsNot is the #11203 regression: the same
+// hint emitted under another scope or generation must get a different FactID
+// (fact_records is keyed on fact_id alone), while StableFactKey stays the
+// semantic identity shared across them.
+func TestEmitFactIDIsScopedButStableKeyIsNot(t *testing.T) {
+	t.Parallel()
+
+	emitter, err := NewEmitter(testConfig())
+	if err != nil {
+		t.Fatalf("NewEmitter() error = %v", err)
+	}
+	emitOne := func(span CodeSpanInput) facts.Envelope {
+		t.Helper()
+		out, err := emitter.Emit(context.Background(), span, []HintInput{testHint()})
+		if err != nil || len(out) != 1 {
+			t.Fatalf("Emit() = %d envelopes, error %v, want 1, nil", len(out), err)
+		}
+		return out[0]
+	}
+	base := emitOne(testSpan())
+	otherScope := testSpan()
+	otherScope.ScopeID = "git:repository:billing-api"
+	otherGeneration := testSpan()
+	otherGeneration.GenerationID = "gen-2"
+	for name, span := range map[string]CodeSpanInput{"scope": otherScope, "generation": otherGeneration} {
+		got := emitOne(span)
+		if got.FactID == base.FactID {
+			t.Errorf("FactID is identical across another %s: %q", name, got.FactID)
+		}
+		if got.StableFactKey != base.StableFactKey {
+			t.Errorf("StableFactKey changed across another %s: %q vs %q", name, got.StableFactKey, base.StableFactKey)
+		}
 	}
 }
