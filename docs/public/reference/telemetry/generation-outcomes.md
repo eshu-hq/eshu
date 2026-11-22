@@ -20,7 +20,7 @@ outcome. Every label is a closed set:
 | --- | --- |
 | `collector_kind` | A collector kind from `scope.AllCollectorKinds` (for example `git`, `vulnerability_intelligence`), or `other` for any value outside that list. A skip recorded without scope identity (the reconcile re-projection path) lands in `other`. |
 | `outcome` | `minted` (a new generation was stored) or `skipped` (nothing was stored). |
-| `reason` | `none` when `outcome` is `minted`. When `outcome` is `skipped`, one value of the closed refresh-skip set: `unchanged`, `pending_same_identity`, `reconcile_reprojected`, `reconcile_reprojection_pending`, `reconcile_superseded`, `finalized_generation_replay`, `destructive_successor_refused`, or `other`. |
+| `reason` | `none` when `outcome` is `minted`. When `outcome` is `skipped`, one value of the closed refresh-skip set: `unchanged`, `pending_same_identity`, `reconcile_reprojected`, `reconcile_reprojection_pending`, `reconcile_superseded`, `finalized_generation_replay`, `destructive_successor_refused`, `fact_id_owner_conflict` (#11203: a fact id of the generation is already held by another scope or by another generation of the same scope, so the whole generation was refused and the scope keeps serving its previous generation), or `other`. |
 
 It never carries a scope id. A collector such as OSV owns more than 1,600
 scopes, so a scope label would explode the series count. The per-scope source of

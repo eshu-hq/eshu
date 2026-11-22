@@ -82,8 +82,11 @@ func TestEmitProducesAnAdmissibleCodeHintFact(t *testing.T) {
 	if envelope.SchemaVersion != semantic.SemanticFactSchemaVersion {
 		t.Errorf("SchemaVersion = %q, want %q", envelope.SchemaVersion, semantic.SemanticFactSchemaVersion)
 	}
-	if envelope.StableFactKey == "" || envelope.FactID != envelope.StableFactKey {
-		t.Errorf("FactID/StableFactKey = %q/%q, want a non-empty matching pair", envelope.FactID, envelope.StableFactKey)
+	if envelope.StableFactKey == "" || envelope.FactID == "" || envelope.FactID == envelope.StableFactKey {
+		t.Errorf("FactID/StableFactKey = %q/%q, want a non-empty pair whose FactID is scoped, not the bare stable key (#11203)", envelope.FactID, envelope.StableFactKey)
+	}
+	if want := semantic.ScopedFactID(envelope.FactKind, envelope.StableFactKey, envelope.ScopeID, envelope.GenerationID); envelope.FactID != want {
+		t.Errorf("FactID = %q, want %q (hash of scope and generation)", envelope.FactID, want)
 	}
 	if envelope.ScopeID != testSpan().ScopeID || envelope.GenerationID != testSpan().GenerationID {
 		t.Errorf("scope/generation = %q/%q, want the span's", envelope.ScopeID, envelope.GenerationID)
