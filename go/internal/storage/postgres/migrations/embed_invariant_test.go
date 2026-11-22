@@ -352,9 +352,15 @@ import (
 // source-paced wait counter (metadata-only fast default); 334 (#11182) and 335
 // (#11131) are main's. Count 361 is main's 360 plus 333; the digest is
 // recomputed on the merged tree by this test's own derivation.
+// 336_eshu_sci_foreign_member_tokens_v4.sql and
+// 337_fact_records_sci_foreign_member_tokens_v4_idx.sql (#10643 PR 2) add
+// the frozen foreign-member token function and its concurrent GIN index
+// (numbered 336/337, the next free numbers after main's 333-335). Count 363
+// is main's 361 plus the pair; the digest is this test's own derivation on
+// the rebased tree.
 const (
-	goldenBootstrapDefinitionsDigest = "a41699b2ba613aa24f2eacd3a1d8d4a218053da80039c93286fa8d1232e02d2c"
-	goldenBootstrapDefinitionsCount  = 361
+	goldenBootstrapDefinitionsDigest = "fcf30261aa5dba89f0454468a8860305a5bc93b2321b69ce925bd408a5f28b7a"
+	goldenBootstrapDefinitionsCount  = 363
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

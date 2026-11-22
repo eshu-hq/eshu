@@ -498,6 +498,11 @@ var migrationShippedChecksums = map[string]string{
 	"334_fact_work_items_replay_attempt_baseline.sql": "01b34d1e47815656588a5e6aa5159a53cf7c0ec526ba3135c85d1174cf5ad735",
 	// #11131 adds the staged winners audit sweep cursor table (renumbered 331 to 335 at rebase: main owns 331-332 and 334; 333 held by an unpushed lane).
 	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
+	// #10643 PR 2: the frozen foreign-member token function v4 and its
+	// concurrent GIN index for the key-range holder read's member arm
+	// (numbered 336/337: 333 is held by the #10882 lane, 335 by #11131).
+	"336_eshu_sci_foreign_member_tokens_v4.sql":             "22a2d5fc0958200c6eba65782f61dc0fda5ec5c7c82b5537e930ada795c08993",
+	"337_fact_records_sci_foreign_member_tokens_v4_idx.sql": "7dfba4e2f18c8c4a24b591eba32be31d938ebd6af415055e79ba65f830f370c3",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

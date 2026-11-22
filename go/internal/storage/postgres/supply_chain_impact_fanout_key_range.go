@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -37,6 +38,59 @@ func holderKeyRangeArm(expr string, bounded bool) string {
       AND finding.fact_id >= $3` + upper
 }
 
+// holderMemberTokenArm is the member arm of the shipped holder read as a
+// foreign-member token arm (#10643 PR 2): the finding rows whose token
+// function output overlaps the statement's lookup tokens, through
+// SupplyChainImpactForeignMemberTokensIndex. It has no fact_id bound: the
+// token's bucket, not the key range, splits the foreign rows over the
+// statements (HolderMemberTokens), and the union over all statements on one
+// snapshot is what makes the read exact. Own-key rows never carry a token;
+// the cve_id and advisory_id arms return them. param is the tokens
+// parameter.
+func holderMemberTokenArm(param string) string {
+	return `
+    SELECT finding.scope_id, finding.generation_id
+    FROM fact_records AS finding
+    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
+      AND finding.is_tombstone = FALSE
+      AND ` + SupplyChainImpactForeignMemberTokensFunction + `(finding.fact_id, finding.payload) && ` + param + `::text[]`
+}
+
+// holderMemberTokenAlphabet is the bucket alphabet of the token function:
+// strpos over it of a fact id's last character is the bucket, 1 to 16 for
+// these characters and 0 for any other. It must stay equal to the literal in
+// supplyChainImpactForeignMemberTokensFunctionSQL.
+const holderMemberTokenAlphabet = "0123456789abcdef"
+
+// HolderMemberTokens returns the foreign-member lookup tokens statement
+// (0-based) of a ranged read of statements statements carries for
+// lookupIDs: bucket || ":" || id for each id and each bucket the statement
+// owns. Bucket b in 1..16 belongs to statement (b-1) mod statements, and
+// bucket 0 to statement 0, so over the statements every (bucket, id) pair is
+// carried exactly once. With the shipped 16 ranges, statement 0 carries
+// buckets 0 and 1 and statement k carries bucket k+1. It returns nil when
+// lookupIDs is empty or statements is not positive.
+func HolderMemberTokens(lookupIDs []string, statement, statements int) []string {
+	if len(lookupIDs) == 0 || statements <= 0 {
+		return nil
+	}
+	var tokens []string
+	for bucket := 0; bucket <= len(holderMemberTokenAlphabet); bucket++ {
+		owner := 0
+		if bucket > 0 {
+			owner = (bucket - 1) % statements
+		}
+		if owner != statement {
+			continue
+		}
+		prefix := strconv.Itoa(bucket) + ":"
+		for _, id := range lookupIDs {
+			tokens = append(tokens, prefix+id)
+		}
+	}
+	return tokens
+}
+
 // holderActiveScopesTail joins a candidate (scope_id, generation_id) set to
 // the scope's active generation and drops the asking scope, exactly like the
 // shipped holder read. $2 is the asking scope.
@@ -51,36 +105,27 @@ ORDER BY candidates.scope_id
 `
 
 // FindSupplyChainImpactHolderKeyRangeQuery is the cve_id and advisory_id arms
-// of the shipped holder read over one bounded fact_id key range [$3, $4)
+// of the shipped holder read over one bounded fact_id key range [$3, $4),
+// plus its member arm as the foreign-member token arm on lookup tokens $5
 // (#10643). A hot singleton id runs it once per range with
-// FindSupplyChainImpactHolderOpenKeyRangeQuery for the last range and
-// FindSupplyChainImpactMemberHoldersQuery for the member arm; on one snapshot
-// their union is the shipped read. Exported for plan-shape and differential
-// proofs.
+// FindSupplyChainImpactHolderOpenKeyRangeQuery for the last range; on one
+// snapshot their union is the shipped read. Exported for plan-shape and
+// differential proofs.
 var FindSupplyChainImpactHolderKeyRangeQuery = `
 WITH candidates AS MATERIALIZED (` + holderKeyRangeArm("cve_id", true) + `
     UNION` + holderKeyRangeArm("advisory_id", true) + `
+    UNION` + holderMemberTokenArm("$5") + `
 )` + holderActiveScopesTail
 
 // FindSupplyChainImpactHolderOpenKeyRangeQuery is
 // FindSupplyChainImpactHolderKeyRangeQuery for the last, unbounded-above range
-// [$3, +inf). A separate text, not an "upper is empty OR" clause, keeps the
-// lower bound an index condition under a generic plan.
+// [$3, +inf), its lookup tokens in $4. A separate text, not an "upper is
+// empty OR" clause, keeps the lower bound an index condition under a generic
+// plan.
 var FindSupplyChainImpactHolderOpenKeyRangeQuery = `
 WITH candidates AS MATERIALIZED (` + holderKeyRangeArm("cve_id", false) + `
     UNION` + holderKeyRangeArm("advisory_id", false) + `
-)` + holderActiveScopesTail
-
-// FindSupplyChainImpactMemberHoldersQuery is the advisory-group member arm of
-// the shipped holder read alone, on its GIN partial index. A GIN bitmap has
-// no key order to range over, so a hot id reads it as one statement.
-const FindSupplyChainImpactMemberHoldersQuery = `
-WITH candidates AS MATERIALIZED (
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND finding.payload #> '{provenance,advisory_group_members}' ?| $1::text[]
+    UNION` + holderMemberTokenArm("$4") + `
 )` + holderActiveScopesTail
 
 // HolderKeyRangePlanCacheMode is the plan_cache_mode every key-range read
@@ -101,14 +146,17 @@ const setHolderKeyRangePlanModeQuery = `SELECT set_config('plan_cache_mode', $1,
 const setHolderKeyRangeSnapshotQuery = `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`
 
 // FindHolderScopesByKeyRange implements supplychaincore.HolderKeyRangeReader
-// (#10643): the hot singleton's cve_id and advisory_id arms as one statement
-// per key range, then its member arm, all in one read-only REPEATABLE READ
-// transaction under HolderKeyRangePlanCacheMode. It runs on the primary (the
+// (#10643): the hot singleton's cve_id, advisory_id and foreign-member token
+// arms as one statement per key range, all in one read-only REPEATABLE READ
+// transaction under HolderKeyRangePlanCacheMode. Statement i carries the
+// lookup tokens HolderMemberTokens(lookupIDs, i, len(ranges)), so the token
+// arms together read every foreign-member row once. It runs on the primary (the
 // reducer's own database), so the snapshot holds xmin for the whole read. One snapshot makes the union equal the shipped single
 // statement on that snapshot, a generation flip mid-read included. Each
 // statement runs under the same statement timeout as the holder read and
 // fails with supplychaincore.ErrFanOutReadTimeout; the snapshot is held for
-// at most len(ranges)+1 statement timeouts. The returned read lists every
+// at most len(ranges) statement timeouts. An empty ranges is an error: no
+// statement would read the member arm. The returned read lists every
 // statement that ran, including a failed last one.
 func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	ctx context.Context,
@@ -119,6 +167,9 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	var read supplychaincore.HolderKeyRangeRead
 	if len(lookupIDs) == 0 {
 		return read, nil
+	}
+	if len(ranges) == 0 {
+		return read, errors.New("supply chain impact holder key-range read needs at least one key range")
 	}
 	if s.Beginner == nil {
 		return read, errors.New("supply chain impact fan-out beginner is required")
@@ -160,19 +211,17 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	}
 	for i, keyRange := range ranges {
 		var err error
+		tokens := HolderMemberTokens(lookupIDs, i, len(ranges))
 		if keyRange.Upper == "" {
-			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderOpenKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower)
+			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderOpenKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, tokens)
 		} else {
-			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, keyRange.Upper)
+			err = run(telemetry.FanOutReadKindHoldersKeyRange, FindSupplyChainImpactHolderKeyRangeQuery, lookupIDs, ownScopeID, keyRange.Lower, keyRange.Upper, tokens)
 		}
 		if err != nil {
 			// The kind and range index reach the dead letter's failure message,
 			// so it names which statement timed out.
 			return read, fmt.Errorf("%s statement %d of %d: %w", telemetry.FanOutReadKindHoldersKeyRange, i+1, len(ranges), err)
 		}
-	}
-	if err := run(telemetry.FanOutReadKindHoldersMembers, FindSupplyChainImpactMemberHoldersQuery, lookupIDs, ownScopeID); err != nil {
-		return read, fmt.Errorf("%s statement: %w", telemetry.FanOutReadKindHoldersMembers, err)
 	}
 	read.Scopes = make([]string, 0, len(seen))
 	for id := range seen {
@@ -207,9 +256,3 @@ func queryScopeIDs(ctx context.Context, tx db.Transaction, query string, args ..
 // The production store always satisfies the key-range seam: a decorator that
 // stops forwarding it silently restores the unbounded hot singleton (#10643).
 var _ supplychaincore.HolderKeyRangeReader = SupplyChainImpactFanOutStore{}
-
-// HolderMemberTokens returns the foreign-member lookup tokens statement i of
-// statements carries (#10643 PR 2).
-func HolderMemberTokens(lookupIDs []string, statement, statements int) []string {
-	return nil
-}

@@ -87,3 +87,35 @@ non-own members as one unranged statement.
 Will not do, both rulings: raise the 10 s guard; lower parallelism from 4;
 cap or skip the member arm; read members on a second snapshot; close #10643
 on the key-range PR; authorize the dead-letter replay.
+
+## 10643d to 10643k: the token index
+
+These rulings (2026-11-21 and 2026-11-22) took candidate T from theory to the
+shipped change. Evidence: `../evidence/10643-foreign-member-token-index.md`.
+
+- 10643d and 10643e set the count proofs: T1 exactness, T2 token agreement,
+  T3 plan and cost, T4r write cost (50,000 rows, four A B B A pairs). They
+  also set the deploy-review reading of holder timeouts by `kind`.
+- 10643f withdrew the 0.9 layout bar as wrong in unit and level. Cost B is
+  judged per statement, with buffers evicted before each statement, and its
+  absolute half is projected to QA's layout (the alias at one page per row,
+  the cve arm at QA's 0.7896). No text may say the 0.9 bar was met.
+- 10643g: the function mirrors jsonb `?|` on the members value (array
+  strings, object keys, a string scalar), not arrays only. An array-only arm
+  drops a row the shipped statement returns, without a signal. It allowed one
+  fix attempt, proven by the F1 shape matrix (840 cells) and a whole-fixture
+  differential.
+- 10643h: the delta form (mean of pair deltas plus 2 SE) governs every
+  "at most" bar. CPU has three outcomes: pass at +10 percent; accepted and
+  stated cost at an absolute add of at most 100 us per row; otherwise return.
+  The text must never say "within 10 percent".
+- 10643i set the function-cost shim. v4 is identical to v3 on every fixture
+  row and cheaper.
+- 10643k accepted the CPU write cost as a stated cost. The add is at most
+  about 103 us per row against QA's 10.8 ms per row of fact write, about 1
+  percent (K1 tier 1; K2 2.88 percent of one core at 280 rows per second).
+  The change ships v4. The text must not claim the change reduces primary
+  load.
+
+The order of merges is unchanged: the key-range PR, the token index, #11147,
+#11159. #10643 closes only after the QA bar after deploy holds.

@@ -200,3 +200,8 @@ plan cost, and write cost are NOT_CHECKED.
 On QA, read holder timeouts by `kind` on the read-duration histogram. A
 `read_timeout` with `kind=holders_members` is this open residual. One with
 `kind=holders_key_range` is a regression from the key-range change and blocks.
+
+Update, #10643 PR 2: the foreign-member token index ships and the member arm
+rides inside each key-range statement, so `holders_members` is no longer
+emitted and a member-arm timeout reads as `holders_key_range`. Proof and the
+measured write cost: `10643-foreign-member-token-index.md`.

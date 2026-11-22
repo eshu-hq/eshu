@@ -51,9 +51,8 @@ func HolderKeyRanges() []HolderKeyRange {
 }
 
 // HolderReadStatement is one statement of a key-range holder read: its read
-// kind (telemetry.FanOutReadKindHoldersKeyRange or
-// telemetry.FanOutReadKindHoldersMembers), how long it ran, and its error, if
-// any. The handler records each into the fan-out read-duration histogram.
+// kind (telemetry.FanOutReadKindHoldersKeyRange), how long it ran, and its
+// error, if any. The handler records each into the fan-out read-duration histogram.
 type HolderReadStatement struct {
 	Kind     string
 	Duration time.Duration
@@ -69,9 +68,11 @@ type HolderKeyRangeRead struct {
 
 // HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads
 // (#10643). A hot singleton id, one whose measured mass is over
-// fanOutHolderHotMassRows, reads its cve_id and advisory_id arms as one
-// statement per HolderKeyRanges range and its advisory-group member arm as
-// one more statement. All of them run in one read-only REPEATABLE READ
+// fanOutHolderHotMassRows, reads as one statement per HolderKeyRanges range.
+// Each statement carries the cve_id and advisory_id arms over its fact_id
+// range and the advisory-group member arm as a foreign-member token arm over
+// its share of the token buckets (#10643 PR 2), so no statement reads all of
+// the id's rows from any arm. All of them run in one read-only REPEATABLE READ
 // transaction, so they share one snapshot and their union equals
 // FindHolderScopes for that id on that snapshot, a generation flip mid-read
 // included. Each statement keeps the 10 s holder-read guard and the typed
@@ -80,7 +81,7 @@ type HolderKeyRangeRead struct {
 type HolderKeyRangeReader interface {
 	// FindHolderScopesByKeyRange returns the scopes, other than ownScopeID,
 	// holding an active finding row for lookupIDs, read as one statement per
-	// range plus one member-arm statement on one snapshot. On error the
+	// range on one snapshot. On error the
 	// returned read still lists the statements that ran.
 	FindHolderScopesByKeyRange(ctx context.Context, ownScopeID string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error)
 }

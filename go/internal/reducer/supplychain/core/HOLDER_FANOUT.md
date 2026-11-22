@@ -66,18 +66,25 @@ rules, the outcomes, and the open residual are in
   hottest id holds 83,642 cve-arm rows and its read spent 7.7 s of I/O against
   the 10 s guard, so committed passes dead-lettered with `fanout_owed` set
   (#10643). On a port with the key-range seam, a hot singleton now runs as 16
-  fact_id key-range statements over its cve_id and advisory_id arms plus one
-  member-arm statement. Each one reads the same partial lookup index with
-  `fact_id` in the index condition and keeps the 10 s guard. All 17 run in one
+  fact_id key-range statements over its cve_id and advisory_id arms. Each one
+  reads the same partial lookup index with `fact_id` in the index condition and
+  keeps the 10 s guard. Since #10643 PR 2 each statement also carries the member
+  arm as a foreign-member token arm (below), so there is no separate member
+  statement. All 16 run in one
   read-only REPEATABLE READ transaction, so their union is the shipped read on
   one snapshot, a generation flip mid-read included. The ranges partition the
   whole text key space, so a fact_id of any format falls in exactly one; the
   digest shape of finding ids only keeps them balanced. Total rows read are
-  unchanged and the snapshot is held for at most 17 statement guards. Ordered
+  unchanged and the snapshot is held for at most 16 statement guards. Ordered
   keyset pages were measured and rejected: each row is a separate random heap
-  fetch, about 10x the shipped cost cold. The GIN member arm has no key order
-  and stays one statement. Proof and numbers:
+  fetch, about 10x the shipped cost cold. Proof and numbers:
   `docs/internal/evidence/10643-holder-read-bound.md`.
+- The member arm of a hot read (#10643 PR 2) rides in each key-range
+  statement as a third arm: the frozen function
+  `eshu_sci_foreign_member_tokens_v4` tokens each foreign member (not an own
+  key) as `bucket:member`, a partial GIN index (migrations 336, 337) serves
+  `&&`, and statement k asks bucket k (statement 1 also bucket 0). Proof:
+  `docs/internal/evidence/10643-foreign-member-token-index.md`.
 - One hop: only the attempt a fan-out created is one hop (attempt 1; the reopen
   and the replay both reset the count to 0). That pass re-derives its copy,
   fans out nothing of its own rewrite, and consumes the stamp — except the

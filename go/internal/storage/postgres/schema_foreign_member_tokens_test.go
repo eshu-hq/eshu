@@ -11,7 +11,7 @@ import (
 )
 
 // foreignMemberTokensBodySHA256 pins the body of the shipped token function
-// (#10643 PR 2, function v4 per .claude/arbiter-10643k.md decision 3). The
+// (#10643 PR 2, function v4; docs/internal/evidence/10643-foreign-member-token-index.md). The
 // body is never altered after release: a change is a new versioned function,
 // a new index, and a new migration, proven again with the F1 shape matrix and
 // a whole-fixture identity scan. Do not update this digest to make a test
@@ -53,6 +53,10 @@ func TestForeignMemberTokensFunctionIsTheFrozenV4(t *testing.T) {
 	if !strings.HasPrefix(strings.TrimSpace(ddl), header) {
 		t.Fatalf("token function DDL does not open with %q:\n%s", header, ddl)
 	}
+	// The Go lookup tokens (HolderMemberTokens) bucket by the same alphabet.
+	if want := "strpos('" + holderMemberTokenAlphabet + "', right(p_fact_id, 1))"; strings.Count(ddl, want) != 3 {
+		t.Fatalf("token function DDL must bucket with %q in each of its 3 branches", want)
+	}
 	sum := sha256.Sum256([]byte(foreignMemberTokensBody(t, ddl)))
 	if got := hex.EncodeToString(sum[:]); got != foreignMemberTokensBodySHA256 {
 		t.Fatalf("token function body sha256 = %s, want the frozen v4 %s", got, foreignMemberTokensBodySHA256)
@@ -83,7 +87,13 @@ func TestForeignMemberTokensMigrationsMatchTheGoDDL(t *testing.T) {
 		t.Fatalf("%s is not a concurrent build of %s:\n%s", idxPath, SupplyChainImpactForeignMemberTokensIndex, idxSQL)
 	}
 	stmt := idxSQL[at:]
-	if strings.Count(idxSQL, ";") != 1 || !strings.HasSuffix(strings.TrimSpace(stmt), ";") {
+	var code []string
+	for _, line := range strings.Split(idxSQL, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code = append(code, line)
+		}
+	}
+	if strings.Count(strings.Join(code, "\n"), ";") != 1 || !strings.HasSuffix(strings.TrimSpace(stmt), ";") {
 		t.Fatalf("%s must be one statement: a concurrent build cannot run in a transaction block", idxPath)
 	}
 	// A failed concurrent build leaves an INVALID index that IF NOT EXISTS

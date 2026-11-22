@@ -120,7 +120,7 @@ WHERE s.scope_id = $2`, kind, keyRangeNoise, keyRangeNoiseRows)
 }
 
 // TestHolderKeyRangeReadMatchesShippedLive is the #10643 store contract on
-// live Postgres: a hot id read as key ranges plus the member arm returns
+// live Postgres: a hot id read as key ranges, each with its token arm, returns
 // exactly the shipped holder read's scopes, edge holders included and
 // excluded scopes excluded, and dropping the last range (seeded RED) loses the
 // holders keyed there.

@@ -51,7 +51,7 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_winners_keyed_idx
     )
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
-`
+` + supplyChainImpactForeignMemberTokensFunctionSQL + supplyChainImpactForeignMemberTokensIndexSQL
 
 // SupplyChainImpactForeignMemberTokensFunction is the versioned name of the
 // foreign-member token function (#10643 PR 2).
@@ -61,5 +61,64 @@ const SupplyChainImpactForeignMemberTokensFunction = "eshu_sci_foreign_member_to
 // SupplyChainImpactForeignMemberTokensFunction (#10643 PR 2).
 const SupplyChainImpactForeignMemberTokensIndex = "fact_records_sci_foreign_member_tokens_v4_idx"
 
-// supplyChainImpactForeignMemberTokensFunctionSQL is the token function DDL.
-const supplyChainImpactForeignMemberTokensFunctionSQL = ""
+// supplyChainImpactForeignMemberTokensFunctionSQL is the foreign-member token
+// function (#10643 PR 2), function v4 of
+// docs/internal/evidence/10643-foreign-member-token-index.md. For a finding
+// row it returns one token, bucket || ':' || member, for every string the
+// jsonb ?| operator matches on
+// provenance.advisory_group_members (the string elements of a top-level
+// array, the keys of a top-level object, a top-level string scalar) that is
+// not the row's own cve_id or advisory_id, and NULL when none remains.
+// bucket is strpos('0123456789abcdef', right(fact_id, 1)): 1 to 16 for a
+// lower-case hex last character, 0 for any other. The members value is read
+// once; missing, JSON null, number and boolean return NULL before any
+// subquery, which keeps the per-row write cost low.
+//
+// The body is frozen: an index is built on it, so altering it would leave
+// stored entries that the new body no longer produces. A change is a new
+// versioned function, a new index and a new migration, proven again with the
+// F1 shape matrix and a whole-fixture identity scan. CREATE OR REPLACE with
+// the same body keeps the migration re-runnable; the body digest is pinned
+// by TestForeignMemberTokensFunctionIsTheFrozenV4 and, as stored in
+// pg_proc, by TestHolderKeyRangeTokenIndexValidFromMigrationsLive.
+// Migration 336 applies it on existing deployments.
+const supplyChainImpactForeignMemberTokensFunctionSQL = `
+CREATE OR REPLACE FUNCTION eshu_sci_foreign_member_tokens_v4(p_fact_id text, p_payload jsonb) RETURNS text[]
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+  SELECT CASE jsonb_typeof(m.v)
+    WHEN 'array' THEN (
+      SELECT array_agg(DISTINCT o.b || ':' || (e #>> '{}'))
+      FROM (SELECT p_payload->>'cve_id' AS c, p_payload->>'advisory_id' AS a,
+                   strpos('0123456789abcdef', right(p_fact_id, 1))::text AS b) AS o,
+           jsonb_array_elements(m.v) AS e
+      WHERE jsonb_typeof(e) = 'string'
+        AND (e #>> '{}') IS DISTINCT FROM o.c
+        AND (e #>> '{}') IS DISTINCT FROM o.a)
+    WHEN 'object' THEN (
+      SELECT array_agg(DISTINCT o.b || ':' || k)
+      FROM (SELECT p_payload->>'cve_id' AS c, p_payload->>'advisory_id' AS a,
+                   strpos('0123456789abcdef', right(p_fact_id, 1))::text AS b) AS o,
+           jsonb_object_keys(m.v) AS k
+      WHERE k IS DISTINCT FROM o.c
+        AND k IS DISTINCT FROM o.a)
+    WHEN 'string' THEN (
+      SELECT CASE WHEN z.s IS DISTINCT FROM (p_payload->>'cve_id') AND z.s IS DISTINCT FROM (p_payload->>'advisory_id')
+                  THEN ARRAY[strpos('0123456789abcdef', right(p_fact_id, 1))::text || ':' || z.s] END
+      FROM (SELECT m.v #>> '{}' AS s) AS z)
+  END
+  FROM (SELECT p_payload #> '{provenance,advisory_group_members}' AS v) AS m
+$$;
+`
+
+// supplyChainImpactForeignMemberTokensIndexSQL is the GIN array_ops index on
+// the token function, partial on the finding kind and live rows, the variant
+// the #10643 PR 2 T3 and T4r proofs measured. The member arm of each
+// key-range holder statement reads it with && on that statement's lookup
+// tokens (HolderMemberTokens). Migration 337 builds it concurrently on
+// existing deployments.
+const supplyChainImpactForeignMemberTokensIndexSQL = `
+CREATE INDEX IF NOT EXISTS fact_records_sci_foreign_member_tokens_v4_idx
+    ON fact_records USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload))
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
+`

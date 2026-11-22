@@ -90,8 +90,9 @@ type fanOutSplitStats struct {
 	hotIDs      int
 	maxMass     int64
 	// keyRangedIDs counts hot singleton ids read as key ranges (#10643) and
-	// keyRangeStatements the key-range statements they ran (the member-arm
-	// statement of each is counted in statements, not here).
+	// keyRangeStatements the key-range statements they ran. Each key-range
+	// statement carries the member arm as its foreign-member token arm
+	// (#10643 PR 2), so there is no separate member statement to count.
 	keyRangedIDs       int
 	keyRangeStatements int
 }
@@ -192,7 +193,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			stmt.ranged = true
 			stats.keyRangedIDs++
 			stats.keyRangeStatements += len(ranges)
-			stats.statements += len(ranges) + 1
+			stats.statements += len(ranges)
 		} else {
 			stats.statements++
 		}

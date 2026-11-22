@@ -19,7 +19,7 @@ import (
 const keyRangeTokenBodySHA256 = "f27cf0276991ca3faf9ab96a436dd3699e02427a064ffe3d989f0a1d0216bb90"
 
 // keyRangeArrayOnlyFunction is the array-only token function (v2 of the
-// shim, .claude/pr2-t-2026-11-22.md), created by the tests only as a seeded
+// shim, docs/internal/evidence/10643-foreign-member-token-index.md), created by the tests only as a seeded
 // RED: it drops object keys and string scalars, which jsonb ?| matches.
 const keyRangeArrayOnlyFunction = "eshu_sci_foreign_member_tokens_red_array_only"
 
@@ -81,7 +81,8 @@ WHERE c.relname = $1`, postgres.SupplyChainImpactForeignMemberTokensIndex).Scan(
 	}
 }
 
-// keyRangeTokenMatrixSQL is the F1 shape matrix of .claude/pr2-t-2026-11-22.md
+// keyRangeTokenMatrixSQL is the F1 shape matrix of
+// docs/internal/evidence/10643-foreign-member-token-index.md
 // over function %s: 14 members shapes x 3 own-id variants x 4 fact-id buckets
 // x 5 lookup ids = 840 cells. A cell wants true exactly when jsonb ?| (one
 // id) matches the members value and the id is neither of the row's own keys;

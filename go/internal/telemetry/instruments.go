@@ -3819,7 +3819,7 @@ type Instruments struct {
 	ReducerStaleSweepDuration metric.Float64Histogram
 	// SupplyChainImpactFanOutReadDuration records one #10643 holder fan-out
 	// read statement's duration in seconds by kind (holders,
-	// holders_key_range, holders_members, mass_probe, and
+	// holders_key_range, mass_probe, and
 	// holders_key_range_read for a whole key-range read) and outcome (ok,
 	// read_timeout, read_error). Registered by
 	// registerFanOutReadDurationInstruments.
