@@ -145,8 +145,10 @@ outcome `skipped` with reason `fact_id_owner_conflict`
 the collector run outcome `refused`, `eshu_dp_fact_id_scope_conflicts_total{reason=scope|generation}`
 (one increment per conflicting fact in the conflicting batch), and one
 `fact_id_owner_conflict` ERROR log per refusal with the scope and generation
-ids, the count, and up to 10 samples of fact id, fact kind, and the incoming and
-stored owners, never a payload
+ids, the count, and one `conflicts` array of up to 10 samples of fact id, fact
+kind, and the incoming and stored owners, never a payload (one array attribute,
+not one group per sample: the JSON handler would repeat the key and a parser
+would keep only the last sample)
 (`TestCommitScopeGenerationRefusesFactIDOwnerConflictLive`,
 `TestRecordFactIDOwnerConflictCountsByReasonAndLogsIdsOnly`). Documented in the
 metrics reference, `generation-outcomes.md`, and the telemetry coverage

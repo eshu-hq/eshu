@@ -90,12 +90,25 @@ func (e *FactIDOwnerConflictError) Error() string {
 	)
 }
 
+// factIDOwnerConflictLogSample is one sample in the refusal log's conflicts
+// array. Identifiers only, never a payload. It has exactly the fields of
+// factIDOwnerConflict, in order, so a conversion between them compiles only
+// while both stay in lockstep.
+type factIDOwnerConflictLogSample struct {
+	FactID               string `json:"fact_id"`
+	FactKind             string `json:"fact_kind"`
+	IncomingScopeID      string `json:"incoming_scope_id"`
+	IncomingGenerationID string `json:"incoming_generation_id"`
+	StoredScopeID        string `json:"stored_scope_id"`
+	StoredGenerationID   string `json:"stored_generation_id"`
+}
+
 // recordFactIDOwnerConflict makes a refused generation visible to an operator:
 // one counter increment per conflicting fact found, labeled by the closed
 // reason set (scope, generation), and one ERROR log per refusal carrying the
-// scope and generation ids, the count, and up to factOwnerConflictSampleCap
-// samples of fact id, fact kind, and the incoming and stored owners. No payload
-// is logged and there is no per-fact log line.
+// scope and generation ids, the count, and a conflicts array of up to
+// factOwnerConflictSampleCap samples of fact id, fact kind, and the incoming
+// and stored owners. No payload is logged and there is no per-fact log line.
 func recordFactIDOwnerConflict(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
@@ -126,15 +139,12 @@ func recordFactIDOwnerConflict(
 		slog.Int("sampled", len(conflict.Samples)),
 		slog.String(telemetry.LogKeyFailureClass, "fact_id_owner_conflict"),
 	)
+	// One slice attribute, never one group per sample: the production handler is
+	// a JSON handler, and repeated keys keep only the last value in any parser.
+	samples := make([]factIDOwnerConflictLogSample, 0, len(conflict.Samples))
 	for _, sample := range conflict.Samples {
-		attrs = append(attrs, slog.Group("conflict",
-			slog.String("fact_id", sample.FactID),
-			slog.String("fact_kind", sample.FactKind),
-			slog.String("incoming_scope_id", sample.IncomingScopeID),
-			slog.String("incoming_generation_id", sample.IncomingGenerationID),
-			slog.String("stored_scope_id", sample.StoredScopeID),
-			slog.String("stored_generation_id", sample.StoredGenerationID),
-		))
+		samples = append(samples, factIDOwnerConflictLogSample(sample))
 	}
+	attrs = append(attrs, slog.Any("conflicts", samples))
 	logger.ErrorContext(ctx, "fact_id_owner_conflict", attrs...)
 }

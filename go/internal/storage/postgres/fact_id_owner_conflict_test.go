@@ -6,6 +6,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -103,6 +104,25 @@ func TestRecordFactIDOwnerConflictCountsByReasonAndLogsIdsOnly(t *testing.T) {
 	}
 
 	line := logs.String()
+	// The production handler is a JSON handler, so the line must survive a JSON
+	// parse with every sample intact: duplicate keys (one group per sample) keep
+	// only the last sample in any parser.
+	var record struct {
+		Conflicts []map[string]string `json:"conflicts"`
+	}
+	if err := json.Unmarshal([]byte(line), &record); err != nil {
+		t.Fatalf("log line is not valid JSON: %v: %s", err, line)
+	}
+	if len(record.Conflicts) != 3 {
+		t.Fatalf("parsed %d samples from the log line, want 3: %s", len(record.Conflicts), line)
+	}
+	ids := map[string]bool{}
+	for _, sample := range record.Conflicts {
+		ids[sample["fact_id"]] = true
+	}
+	if len(ids) != 3 || !ids["f1"] || !ids["f2"] || !ids["f3"] {
+		t.Fatalf("parsed sample fact ids = %v, want f1, f2, f3", ids)
+	}
 	if strings.Count(line, "\n") != 1 {
 		t.Fatalf("want exactly one log line per refusal, got %q", line)
 	}

@@ -242,7 +242,11 @@ func (p *reprojectProof) assertOwnerRefusalSignals(logs *bytes.Buffer, reader me
 	if record["scope_id"] != scopeID || record["generation_id"] != generationID || record["conflict_count"] != float64(1) {
 		p.t.Fatalf("ERROR log ids = %v, want scope %q generation %q count 1", record, scopeID, generationID)
 	}
-	sample, _ := record["conflict"].(map[string]any)
+	samples, _ := record["conflicts"].([]any)
+	if len(samples) != 1 {
+		p.t.Fatalf("ERROR log conflicts = %v, want one sample", record["conflicts"])
+	}
+	sample, _ := samples[0].(map[string]any)
 	if sample["fact_id"] != "collide" || sample["fact_kind"] != "file" ||
 		sample["incoming_scope_id"] != scopeID || sample["incoming_generation_id"] != generationID ||
 		sample["stored_scope_id"] == nil || sample["stored_generation_id"] == nil {
