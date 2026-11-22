@@ -207,9 +207,9 @@ entity pilot uses its own statement snapshot meter, and the manual probe counts
 nested statements as well as their callers. #8682 recorded 11 calls, 18 rows, 186
 blocks for its own cohort; the readings are not comparable with either.
 
-The row is bimodal across separately seeded runs: 396 and 400 blocks in the two
-calibration runs, 884 and 889 in the third run and the first confirm run, with the
-same 8 calls and 16 rows each time. No other metered route differs by more than
+The row is not stable across separately seeded runs: 396 and 400 blocks in the two
+calibration runs, 884 in the third run, 889 in the first confirm run and 642 in
+the final confirm run, with the same 8 calls and 16 rows each time. No other metered route differs by more than
 10% across the four runs. The first render used the two calibration reports and
 set the budget to 1,200, which the first confirm run's 889 still passed. The tables
 were then re-rendered from all three calibration-quality reports (the third run
@@ -264,3 +264,36 @@ attributed. Per request, on the kept stack of the third run:
 - Default-row floor: see above. The default calls fell from 20 to 14 because the
   largest unnamed route now reads 7 calls (supply-chain security-alerts
   reconciliations count) where it read 12.
+
+## Confirm runs
+
+Both confirm runs seeded the full default corpus afresh and ran the script end to
+end (`bash scripts/verify-read-api-latency-gate.sh`, no flags).
+
+| Run | HEAD | Tables | Exit | Notes |
+| --- | --- | --- | --- | --- |
+| First | `46db679819` | first render (two reports per leg) | 0 | superseded when the tables were re-rendered |
+| Final | `707674e184` | final render (three reports per leg) | 0 | both legs "all 77 exercised routes within budget", findings pages byte-identical |
+
+Final run, host io pressure avg60 33.5 at the start and 54.9 at the end (shared,
+noisy host). The tables it enforced, by sha256 as the gate logged them:
+`read-api-route-work-budgets.txt` `a958861c9660c02596ee4406f8229e1ed76157e80e51fc02cb8c2e8cb91c8f4c`,
+`read-api-route-work-budgets-winners.txt` `1d8a7ea8f460566bf14217abbac8bb0e04446937743c7bb8321b6b92840eb8c8`,
+`read-api-route-budgets.txt` `35b576671f5a08a2b10f0a34d63495461347b29303a9c7248b423299092c3cca`.
+Its reports: `latency.json` `c2fdf11f944ec7f973ac7cae737728b8f991ea5cbd4f6ab86785afbf002755dc`,
+`latency-winners.json` `c9f5c02c6157d0358d6929d698c3141d6ad73e235568ae22817b29c547cf2d74`,
+`work.json` `b8e8558039ff31f76a74ecedb0891d3ae3ae7b5421915f1804d51adae771ff98`,
+`work-winners.json` `8130bbfbbc15c5f521ab1a6f2bbeee7b5cbf1c8c325239467c2a75d1444fbdda`.
+
+| Route | Legacy blocks | Winners blocks | Legacy p95 | Winners p95 |
+| --- | --- | --- | --- | --- |
+| `supply-chain/impact/findings/count` | 102,546 | 801 | 141 ms | 19 ms |
+| `supply-chain/impact/inventory` | 102,546 | 801 | 134 ms | 20 ms |
+| `cloud/ssm-host-inventory` | 2,455 | 2,455 | 5.5 ms | 5.3 ms |
+| `documentation/facts` | 36 | 36 | 2.1 ms | 4.2 ms |
+| `MCP search_file_content` | 580 | 580 | 14 ms | 4.8 ms |
+| `MCP search_entity_content` | 642 | 642 | 8.4 ms | 2.0 ms |
+
+Seeded RED (the #10880 AC4 proof): the first confirm run's legacy work report,
+evaluated against the winners table, breaches both impact aggregate routes (102,546
+blocks against a 2,403-block row each) and nothing else.
