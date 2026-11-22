@@ -123,15 +123,17 @@ winners_report_path() {
 # here with a start log showing the missing flag is the RED signature of
 # issue #11170. In status-diagnostic mode the API runs under the diagnostic
 # report wrapper and records the client report arg, mirroring the previous
-# inline block this replaces.
+# inline block this replaces. The satellite honors only -addr (it ignores the
+# in-tree ESHU_API_ADDR and defaults to :8080), so the gate port travels on the
+# flag; without it /readyz is probed on a port nothing listens on.
 start_satellite_api() {
 	if [[ -n "${GATE_STATUS_DIAGNOSTIC_DIR}" ]]; then
 		start_bg api api_pid env ESHU_STATUS_DIAGNOSTIC_REPORT="${GATE_STATUS_DIAGNOSTIC_DIR}/server.json" "${bin_dir}/eshu-api" \
-			--core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
+			-addr=":${GATE_API_PORT}" --core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
 		gate_report_args+=(-diagnostic-client-report "${GATE_STATUS_DIAGNOSTIC_DIR}/client.json")
 	else
 		start_bg api api_pid "${bin_dir}/eshu-api" \
-			--core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
+			-addr=":${GATE_API_PORT}" --core-base-url="http://127.0.0.1:${GATE_CORE_PORT}"
 	fi
 	if command -v lsof >/dev/null 2>&1; then
 		sleep 0.2 # give the process a moment to finish exec() before lsof inspects it
