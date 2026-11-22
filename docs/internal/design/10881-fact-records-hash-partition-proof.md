@@ -64,11 +64,11 @@ commit this record cites they are:
 
 | Site | Kind |
 | --- | --- |
-| `go/internal/storage/postgres/facts_streaming.go:186` | collector commit upsert (fenced) |
-| `go/internal/reducer/factwrite/single_insert.go:33` | reducer single insert (no fence guard) |
-| `go/internal/reducer/factwrite/batch_insert.go:189` | reducer batch insert (fenced) |
-| `go/internal/reducer/factwrite/batch_insert_versioned.go:130` | reducer versioned batch insert (fenced) |
-| `go/internal/reducer/eshusearch/eshu_search_document_writer_queries.go:103` | search document writer (no fence guard) |
+| `go/internal/storage/postgres/facts_streaming.go` | collector commit upsert (fenced) |
+| `go/internal/reducer/factwrite/single_insert.go` | reducer single insert (no fence guard) |
+| `go/internal/reducer/factwrite/batch_insert.go` | reducer batch insert (fenced) |
+| `go/internal/reducer/factwrite/batch_insert_versioned.go` | reducer versioned batch insert (fenced) |
+| `go/internal/reducer/eshusearch/eshu_search_document_writer_queries.go` | search document writer (no fence guard) |
 
 An earlier draft of this record said "seven sites". That was wrong by two:
 `relationship_reference_keys.go:404` and migration

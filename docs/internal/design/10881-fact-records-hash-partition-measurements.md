@@ -271,6 +271,53 @@ a different design (per-scope or per-snapshot partitioning) and is not measured
 here.
 
 
+## Design forks for the arbiter
+
+**Fork 1: plain `HASH(scope_id)` mod 32, or a skew-aware key.** One scope holds
+12.2M of 94.6M rows (12.9%), so the part that receives it holds at least 12.9% of
+the table whatever the modulus (14.9% at 32, 13.8% at 64 on the real placement).
+What that costs: removal and vacuum work for that scope cannot be spread over
+parts, and a part's autovacuum, bloat and index size are set by it. Reducer
+ownership of parts does not follow from the key (claims come from the whole
+queue), so skew does not unbalance reducers; it unbalances Postgres maintenance.
+`skew_split.sql` evaluates the cheap alternative on the same census, splitting the
+giant scope into k sub-keys (for example `(scope_id, hash(fact_id) mod k)` in the
+key):
+
+| Giant split into | Largest part, modulus 32 | Largest part, modulus 64 |
+| --- | --- | --- |
+| 1 (renamed; placement luck) | 16.8% | 14.9% |
+| 4 | 7.1% | 5.2% |
+| 8, 16, 32 | 7.0% | 5.2% |
+
+From four sub-keys up the floor is set by the next scopes (2.5% to 3.3M-row
+scopes), not by the giant. The price: a scope-bounded load of the giant scope
+touches k parts instead of one (pruning is lost for it alone), the PK and every
+site that binds `scope_id` must also bind the bucket for that scope, and the id
+rule needs a bucket function every writer shares. Plain hash keeps one-part
+pruning for every scope and accepts the skew. Not measured: the load plans with a
+split key (NOT_CHECKED). Options not evaluated: a LIST partition for named giant
+scopes, which also makes whole-scope removal a part drop.
+
+**Fork 2: expand/contract or atomic cutover.** Expand/contract (recommended in A5)
+needs a second large unique index for the window (1.22 GB at S2) and a deploy gate
+proving no old writer remains; atomic needs a global writer freeze for the whole
+drain. Both need a catch-up that does not run under `ACCESS EXCLUSIVE`: my
+measured 318.8 s hold (S1) was an unindexed `ingested_at` scan plus 50k upserts.
+The alternative is an indexed watermark or a change-capture trigger that also
+records deletes, with passes outside the lock until the final one is empty. Its
+cost is one index or one trigger on the hot table for the window and was NOT
+measured here.
+
+**Fork 3: `scope_id` into the fact_id-only readers before or with the key change.**
+`unchanged_guard.go` (`selectUnchangedFactIDs`) is the hot one (L3a). The others
+are the fact_id-only table in the census record (about twenty statements across
+the query, reducer and storage packages). The change is mechanical where the scope
+is known at the call; any site that cannot supply it needs a per-part `fact_id`
+index (32 more indexes) or accepts a full scan. This is a prerequisite, not a
+choice, but the order (ship the readers first, key second) is the arbiter's to
+confirm.
+
 ## Where this leaves #10881
 
 - A1, A3, A4, A5 and A6 have measured answers above and in the census record. A2
