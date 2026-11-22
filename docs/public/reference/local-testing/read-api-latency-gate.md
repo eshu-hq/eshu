@@ -1,19 +1,16 @@
 # Read API Latency Gate
 
 Issue #6797. Backend-backed p95 latency benchmark for every no-arg GET read
-route. When the CI cell is on, it catches a regression like #6793 (infra
-resource aggregate full-graph scan) or #6794 (status/readiness routes paying an
-expensive per-scope `activeFactWorkItemsCTE` query) before it merges by going
-red. The CI cell is off today (see the status note below).
+route. Run by hand, it catches a regression like #6793 (infra resource aggregate
+full-graph scan) or #6794 (status/readiness routes paying an expensive per-scope
+`activeFactWorkItemsCTE` query) by going red.
 
-**Status: the NornicDB CI cell is disabled** (owner order, 2026-11-03), and
-the script now requires Neo4j (issue #11170): eshu-core-api only starts on
-the pinned Neo4j backend, and the satellite the gate measures serves nothing
-without a core. Neo4j is the supported backend, so the
-`latency-gate (nornicdb)` job no longer runs in CI and its registry row is
-`manual` and non-blocking. The script still runs by hand
-(`bash scripts/verify-read-api-latency-gate.sh`). A NornicDB comparison is a
-separate issue, not this gate's job.
+**Status: local only.** No CI job runs this gate or its two shell tests: the
+workflow was deleted in `c77c2630aa` and the latency registry rows were retired.
+The script requires Neo4j (issue #11170): eshu-core-api only starts on the pinned
+Neo4j backend, and the satellite the gate measures serves nothing without a core.
+Run it with `bash scripts/verify-read-api-latency-gate.sh`. A NornicDB comparison
+is a separate issue, not this gate's job.
 
 It exists because that class of regression is invisible to hermetic tests:
 the cost only appears at repo/scope scale against a real Postgres+graph
@@ -231,15 +228,11 @@ client overlap; it does not measure backend resource use by itself. Both
 sweep legs' reports (legacy and `-winners`) and the core/satellite/MCP logs
 are the run's evidence; a green run on one leg alone is not a pass.
 
-The dedicated manual Neo4j job allows 45 minutes for cold Compose startup,
-database migration and seeding, host builds, the serial sweep, and the later
-concurrent pass. In [run 38032713508](https://github.com/eshu-hq/eshu/actions/runs/38032713508),
-the serial report arrived 30m8s after the first job-setup log; the former
-30-minute job deadline canceled the remaining work. At 3 operations, 20
-requests each, 4 workers, and a 30-second request timeout, the normal
-concurrent request envelope is 7m30s before cleanup. This job deadline is
-separate from each route's latency and work budgets. The canceled run's raw
-artifacts are incomplete proof; a passing hosted rerun is still required.
+A cold local run takes roughly 25 to 45 minutes on a shared host (Compose
+startup, database migration and seeding, host builds, the sweeps, and the later
+concurrent pass). At 3 operations, 20 requests each, 4 workers, and a 30-second
+request timeout, the normal concurrent request envelope is 7m30s before cleanup.
+That time is separate from each route's latency and work budgets.
 
 Flags mirror the golden corpus gate's: `--keep` leaves the stack up for
 debugging a breach, `--no-compose` assumes Postgres/graph are already
@@ -470,13 +463,12 @@ infra aggregate is guarded by its latency ceiling only. The
 `shared_projection_intents` seed defaults to 2.5M rows and exercises the
 status routes' `domainBacklogQuery` under their Postgres work budgets.
 
-**Producing a RED run.** Build the pre-fix `eshu-api` from the commit you want
-to prove the gate catches (e.g. `cd go && CGO_ENABLED=1 go build -o
-/tmp/eshu-api-pre-fix ./cmd/api` in a worktree checked out at that commit) and
-point the run script at it: `GATE_API_BIN=/tmp/eshu-api-pre-fix bash
-scripts/verify-read-api-latency-gate.sh`. This is a local mechanism only:
-there is deliberately no CI equivalent (the workflow's own `workflow_dispatch`
-comment explains the CodeQL cache-poisoning reason). To keep a stack for
+**Producing a RED run.** For a change in this repository (the in-tree core), check
+out the commit you want to prove the gate catches in a worktree and run
+`scripts/verify-read-api-latency-gate.sh` from it: the core is built from the
+checkout. For the frozen satellite, build `eshu-api` from the
+[eshu-hq/eshu-api](https://github.com/eshu-hq/eshu-api) commit and point the
+script at it with `GATE_API_BIN=<path>`. This is a local mechanism only. To keep a stack for
 debugging locally, run the script with `--keep`; it leaves Postgres and
 NornicDB up with the seeded corpus and retains the live-gate lock. `eshu-api`
 is stopped on exit either way, so start your own build against the kept stack to

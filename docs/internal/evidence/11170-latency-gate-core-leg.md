@@ -2,8 +2,8 @@
 
 This note records the failing baseline for `scripts/verify-read-api-latency-gate.sh`
 before the core leg, what the rewired gate hit on its first full-corpus run,
-and one product gap the run found. It holds raw observations only. Latency
-numbers land in a later section once a full green run exists.
+and the product gap the run found. It holds raw observations. The latency and work
+numbers of the green runs are in the calibration and confirm sections.
 
 ## Host
 
@@ -37,7 +37,7 @@ IO pressure at the second run: avg60 53.5 at start, 48.5 at end. Load 33.
 
 The first row is the migration 295 `synthetic:advisory-groups` standing scope and
 generation that `VerifyRelationalCounts` did not count. It is a separate bug,
-fixed test-first in this branch. The second row is the failure the issue
+fixed on `origin/main` in `95e4bb6d0c` (this branch carried the same fix before the rebase and dropped it). The second row is the failure the issue
 describes: the frozen satellite `eshu-api` (pin `c041d7ec`) refuses to start
 without `--core-base-url`, so the gate cannot pass on any branch.
 
@@ -197,8 +197,9 @@ after the table) renamed the synthetic search repositories from `seed-search-` t
 `seed-gate-search-` so the entity pilot seeds sort into the first 1,000-row
 ordered probe, and its README says measurements from before and after are
 separate fixture cohorts. This is a fixture change, not a faster query. The row now
-guards the dense first-probe path only. The gate meter read 400 blocks per request
-(15 calls, 32 rows budgeted) in each of the three seeded runs. A manual probe on
+guards the dense first-probe path only. The gate meter read 396 and 400 blocks per
+request in the two calibration runs, and 884, 889 and 642 in the later runs
+(8 calls and 16 rows every time; the table budgets 15 calls and 32 rows). A manual probe on
 the kept stack of the third run (one request after warmup, `pg_stat_statements`
 reset before it) read 8 statements that sum to about 884 blocks: the walk 1 call,
 12 rows, 759 blocks, the substring readiness probe 62 plus nested 60 and 2, auth 1,

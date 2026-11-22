@@ -34,15 +34,15 @@
 #                   your own build against the kept stack.
 #
 # GATE_STACK_DIR=<dir> takes docker-compose.yaml (and so the db-migrate image build
-# context: migrations and graph schema) from that checkout instead of this one. Use
-# it with GATE_API_BIN built from the SAME checkout when measuring a candidate fix
-# that ships a migration: an eshu-api from the fix against a database migrated by
-# this worktree would silently fall back to the old read path.
+# context: migrations and graph schema) from that checkout instead of this one.
+# The in-tree core (eshu-core-api) is always built from THIS checkout, so to
+# measure a candidate fix to the core, run the script from a worktree at that
+# commit; a database migrated by a different checkout than the core reads from
+# would silently take the old read path.
 #
-# GATE_API_BIN=<path> uses that pre-built eshu-api binary instead of building
-# one from this worktree — for a RED/GREEN comparison against a different
-# commit's eshu-api (e.g. main with a candidate fix merged) without rebasing
-# or disturbing this worktree's checkout.
+# GATE_API_BIN=<path> uses that pre-built satellite eshu-api binary instead of
+# building the pinned one from eshu-hq/eshu-api (see build_bin api) — for a
+# RED/GREEN comparison against a different satellite commit.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

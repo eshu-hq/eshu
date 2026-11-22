@@ -44,8 +44,10 @@ before and after. The row now guards the dense first-probe path only; the
 continuation walk is not work-metered by this pilot. Its blocks varied across the
 separately seeded runs (396, 400, 642, 884 and 889, with identical calls and rows), so
 the budget is three times the maximum of the three reports it was derived from, 884. That is a known limit, not a feature:
-the wider budget means the gate will not catch a regression of this row smaller
-than about 2.2 times the low mode (400 blocks). The cause of the two modes is not
+the budget is about 6.6 times the low mode (2,652 / 400), so the gate will not
+catch a regression of this row smaller than that factor when the row sits in the
+low mode. It is 2.2 times wider than the 1,200 blocks a low-mode-derived budget
+would have been. The cause of the two modes is not
 known; the follow-up issue is [#11224](https://github.com/eshu-hq/eshu/issues/11224).
 
 `MCP search_file_content` rises from 798 to 1,740 blocks. The prefix change does
