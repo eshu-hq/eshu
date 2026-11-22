@@ -187,10 +187,11 @@ Name plainly: with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, grouped inventory
 profile and for `image_ref`. Before B0 it returned a `200` that could under-count.
 There is no CLI caller and no in-repo configuration turns the gate on; the 503 is
 interim and its removal is the B2 checklist item above. Two in-repo callers send
-the default profile and so answer 503 gate-on until B2: the console's
-`VulnerabilitiesByGroup.tsx` default view (it sends `profile` only for
-`comprehensive`) and the MCP grouped call (it forwards `profile` verbatim, so a
-call without it is a default call). No console code changes in B0.
+the default profile and so answer 503 gate-on until B2: the console's default
+precise view (`loadImpactInventory` always sends `profile: precise` by default;
+`filterHref` in `VulnerabilitiesByGroup.tsx` is only the link builder and omits
+it) and the MCP grouped call (it forwards `profile` verbatim, so a call without
+it is a default call). No console code changes in B0.
 
 The #9875 fleet acceptance gate reads its service rollup with
 `profile=comprehensive`, which binds an empty profile filter and so is exact on
