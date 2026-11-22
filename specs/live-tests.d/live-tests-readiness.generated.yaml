@@ -49,6 +49,11 @@ tests:
     class: postgres_ci
     reason: "#7734 disposable PostgreSQL 18 proof that a reopen whose scope rolls over mid-flight acts on the current generation (scope-row fence plus authoritative in-transaction resolve) instead of the stale pinned pointer; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/query/admin/replay_activation_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11183 PostgreSQL 18 full-bootstrap proof of the dead-letter to admin replay to claim to Ack path: a replayed projector row of a failed generation is claimable at attempt 4 with baseline 3 and its Ack activates the generation, repoints the scope and supersedes the older active generation, with the write-start marker set and unset; a newer unmarked same-scope generation makes the claim sweep supersede the replayed row; isolated schema, wall time is logged, not gated"
+    runner: live-postgres-readiness
   - file: go/internal/query/admin/replay_claim_sweep_lock_order_live_test.go
     tag: ~
     class: postgres_ci

@@ -133,10 +133,14 @@ reclaimed_stale_projector_duplicates AS (
 -- re-claim) must never be claimed, because projecting one retracts the
 -- published generation's canonical graph before Ack refuses. A live lease is
 -- left to its heartbeat, which refuses a superseded generation. failed and
--- dead_letter rows are never claim candidates and replay already leaves them
--- terminal, so this branch leaves them and their triage failure_class alone,
--- which also keeps a large legacy dead-letter backlog out of one claim
--- statement's sweep. The first branch is the pre-#7130 text, so its plan
+-- dead_letter rows are not claim candidates, and neither replay path reopens
+-- one whose generation is superseded (the #7130 fence in the admin store and
+-- in the recovery replay), so this branch leaves them and their triage
+-- failure_class alone, which also keeps a large legacy dead-letter backlog
+-- out of one claim statement's sweep. A replay of a pending or failed
+-- generation's row does make it pending and claimable again; the first branch
+-- covers that row, and its Ack can activate the failed generation (#11183).
+-- The first branch is the pre-#7130 text, so its plan
 -- (newer-sibling EXISTS as an index semi-join) is unchanged. The second scans
 -- work rows through the (status) index and applies the source filter as a
 -- probe that folds away when $4 is empty, instead of hash-joining every
