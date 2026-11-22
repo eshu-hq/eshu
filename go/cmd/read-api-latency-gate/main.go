@@ -414,8 +414,9 @@ func seed(ctx context.Context, opts runOptions) error {
 	}
 
 	// The infra read model derives from the content_entities seeded above and is
-	// ready only once its backfill marker exists. No product runtime records it
-	// (#11196), so the seed does, before any core starts.
+	// ready only once its backfill marker exists. The gate starts no reducer
+	// (which owns the backfill since #11210), so the seed runs the same
+	// Backfiller before any core starts; dropping this stand-in is #11226.
 	if err := backfillSeededInfraReadModel(ctx, opts.postgresDSN, pool, os.Stderr); err != nil {
 		return fmt.Errorf("backfill seeded infra read model: %w", err)
 	}

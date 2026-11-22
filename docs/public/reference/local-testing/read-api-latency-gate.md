@@ -100,14 +100,15 @@ lanes never exercise.
 **Infra read model backfill (stand-in).** The seed phase runs the product's
 `inventory.Backfiller` after the content seeds and before any core starts, then
 requires the infra read model to be installed, marked, and free of dirty
-repositories. The gate does this because the in-tree API that used to start the
-backfill was removed (commit `a012da4557`) and no product runtime runs it today
-([#11196](https://github.com/eshu-hq/eshu/issues/11196)). Both legs' latency
-reports carry `infra_backfill: gate_stand_in` in their identity block. The infra
-route numbers therefore describe an install that holds the marker. A fresh
-install serves those routes from the graph, and this gate does not measure that
-path. `awaitInfraReadModel` and the truth-basis check still run unchanged as the
-guard on the same outcome.
+repositories. The gate does this because it starts no reducer, and since
+[#11210](https://github.com/eshu-hq/eshu/pull/11210) the reducer owns the
+backfill (it runs the same `Backfiller.Run`). Both legs' latency reports carry
+`infra_backfill: gate_stand_in` in their identity block. The infra route numbers
+therefore describe an install that holds the marker, and a regression in the
+reducer's wiring would not show here. Starting the reducer and dropping the
+stand-in is [#11226](https://github.com/eshu-hq/eshu/issues/11226).
+`awaitInfraReadModel` and the truth-basis check still run unchanged as the guard
+on the same outcome.
 
 The #7881 pilot adds a seeded `GET /api/v0/status/ingesters/repository`,
 `POST /api/v0/relationships/catalog` with `{}`, and an actual MCP HTTP

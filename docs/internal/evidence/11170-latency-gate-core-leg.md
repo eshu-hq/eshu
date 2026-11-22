@@ -64,7 +64,11 @@ winners-read leg.
    `infra read model not ready after 10m0s: infra read model installed but the backfill marker is not recorded yet`.
    See the next section.
 
-## The infra read model backfill has no caller
+## The infra read model backfill had no caller
+
+This section records the state at the time of the finding (base `194d4abbd9`).
+It was fixed in #11210 (the reducer now runs `inventory.RunBackground`, in
+`go/cmd/reducer/infra_inventory_backfill_wiring.go`).
 
 The gate waits for `infra_resource_entity_backfill_markers` to hold a row. The
 only writer is `inventory.Backfiller.Run`, started through
@@ -115,10 +119,10 @@ shows `backfilling` indefinitely. That is a product gap, separate from #11170.
 
 The arbiter ruled that the gate runs `inventory.Backfiller.Run` itself in the
 seed phase, before any core starts, labelled `infra_backfill: gate_stand_in` in
-both legs' latency reports. Product wiring is #11196, worked separately. The
-infra route numbers therefore describe an install that holds the marker. A
-fresh install serves those routes from the graph, and this gate does not
-measure that path. On the full corpus the backfill took 15.8 s for 201
+both legs' latency reports. Product wiring was #11196, merged as #11210 while this
+work was in review: the reducer now owns the backfill. The infra route numbers
+therefore describe an install that holds the marker, and a regression in the
+reducer's wiring would not show in the gate. On the full corpus the backfill took 15.8 s for 201
 repositories and 1,050,000 rows.
 
 ## RED chain, in order
@@ -177,11 +181,12 @@ formula, from 33 to 108 blocks.
 
 ## The stand-in is temporary
 
-#11196 (reducer-owned infra backfill) is merged on `origin/main`. The gate's
-reducer image only runs the product backfill once the deploy image pinned in CI
-carries it, so the stand-in stays and stays labelled `gate_stand_in`. The
-follow-up is to drop the stand-in and assert that the reducer itself records the
-marker, once the pinned image carries #11196.
+#11196 (reducer-owned infra backfill) is merged on `origin/main` as #11210. The
+gate starts no reducer (it runs the core, the satellite and the MCP server, all
+built from the worktree), so it cannot exercise the reducer-owned path. The
+stand-in stays and stays labelled `gate_stand_in` until the gate starts the
+reducer, asserts that the reducer records the marker, and drops the stand-in:
+that is #11226.
 
 ## Rows the ratchet refused against the committed legacy table
 

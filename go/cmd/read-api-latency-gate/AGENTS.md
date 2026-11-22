@@ -208,17 +208,17 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   and watermarked before any sweep runs. A zero-winner rebuild fails the
   seed instead of sweeping an empty read model.
 - **The seed runs the product infra read model backfill, labelled a stand-in
-  (`seed_infra_backfill.go`).** The in-tree API that started
-  `inventory.RunBackground` was removed in a012da4557 and no product runtime
-  runs it (#11196), so the gate calls the product `inventory.Backfiller` after
-  the content seeds and before any core starts, and fails the seed if it errors
-  or leaves the read model uninstalled, unmarked, or with a dirty repository.
+  (`seed_infra_backfill.go`).** The gate starts no reducer, and since #11210
+  the reducer owns the backfill (it runs `inventory.RunBackground`, which wraps
+  `Backfiller.Run`). So the gate calls the same `inventory.Backfiller` after the
+  content seeds and before any core starts, and fails the seed if it errors or
+  leaves the read model uninstalled, unmarked, or with a dirty repository.
   Never hand-write the marker or copy the derive SQL, and never relax
   `awaitInfraReadModel` or `assertInfraServedFromReadModel`: they are the
   outside guard on the same outcome. Both legs' reports carry
   `infra_backfill: gate_stand_in`; the infra route numbers describe an install
-  that holds the marker, and a fresh install serves those routes from the graph.
-  Remove the stand-in when #11196 gives a product runtime the backfill.
+  that holds the marker, and a regression in the reducer's wiring would not show
+  here. Remove the stand-in when the gate starts the reducer (#11226).
 - **The gate measures two legs, legacy then winners, never merged.** The
   winners flag is read once at core mux build, so the legs are separate core
   processes against one seed; the byte-identical findings proof and the

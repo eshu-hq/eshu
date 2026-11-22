@@ -57,8 +57,13 @@ func TestRunInfraBackfillStandInNamesTheStandInInOneLogLine(t *testing.T) {
 	for _, line := range strings.Split(strings.TrimSpace(log.String()), "\n") {
 		if strings.Contains(line, infraBackfillStandIn) {
 			standInLines++
-			if !strings.Contains(line, "no product runtime") {
-				t.Fatalf("stand-in line %q does not say no product runtime runs the backfill", line)
+			for _, want := range []string{"starts no reducer", "#11210", "#11226"} {
+				if !strings.Contains(line, want) {
+					t.Fatalf("stand-in line %q does not say %q", line, want)
+				}
+			}
+			if strings.Contains(line, "no product runtime") || strings.Contains(line, "#11196") {
+				t.Fatalf("stand-in line %q carries the stale rationale", line)
 			}
 		}
 	}

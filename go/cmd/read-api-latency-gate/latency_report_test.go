@@ -230,7 +230,7 @@ func TestLatencyReportIdentityFromCarriesCoreAndWinnersLeg(t *testing.T) {
 
 // TestLatencyReportIdentityRecordsInfraBackfillStandIn pins that both legs'
 // reports say the infra read model marker came from the gate's own backfill
-// (#11196: no product runtime runs it), so a reader cannot mistake the infra
+// (the gate starts no reducer; #11226), so a reader cannot mistake the infra
 // route numbers for those of an install whose product wiring recorded it.
 func TestLatencyReportIdentityRecordsInfraBackfillStandIn(t *testing.T) {
 	for name, opts := range map[string]runOptions{

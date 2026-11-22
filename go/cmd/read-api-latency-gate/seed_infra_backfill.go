@@ -29,10 +29,12 @@ type infraBackfiller interface {
 
 // runInfraBackfillStandIn runs the product's infra read model backfill and
 // proves it left the read model ready: installed, marker recorded, and no
-// repository marked dirty. It is the seed-phase stand-in for the backfill the
-// removed in-tree API used to start (a012da4557): no product runtime runs it
-// today (#11196), so without this step the gate's infra read model fence
-// never clears and awaitInfraReadModel times out.
+// repository marked dirty. It is a seed-phase stand-in: the gate starts no
+// reducer, and since #11210 the reducer owns the backfill (it runs
+// inventory.RunBackground, which wraps the same Backfiller.Run this calls). So
+// the gate's infra read model fence would never clear without this step, and a
+// regression in the reducer's wiring would not show here. Starting the reducer
+// and dropping this stand-in is #11226.
 //
 // It calls the product Backfiller rather than writing the marker or copying
 // the derive SQL, so the measured read model is the one the product derives.
@@ -44,7 +46,7 @@ func runInfraBackfillStandIn(
 	readState func(context.Context) (infraReadModelState, error),
 	log io.Writer,
 ) error {
-	_, _ = fmt.Fprintf(log, "read-api-latency-gate: infra_backfill=%s: running inventory.Backfiller after the seed because no product runtime runs it (the in-tree API that did was removed in a012da4557; product issue #11196); infra route numbers describe an install that holds the marker\n",
+	_, _ = fmt.Fprintf(log, "read-api-latency-gate: infra_backfill=%s: running inventory.Backfiller after the seed because the gate starts no reducer (since #11210 the reducer owns the backfill and runs the same Backfiller.Run; follow-up #11226); infra route numbers describe an install that holds the marker\n",
 		infraBackfillStandIn)
 	result, err := backfiller.Run(ctx)
 	if err != nil {

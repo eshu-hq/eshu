@@ -50,11 +50,12 @@ uninstrumented acceptance or matched mode-off/on overhead proof.
 - `runInfraBackfillStandIn`, `backfillSeededInfraReadModel` — run the
   product `inventory.Backfiller` in the seed phase and prove the infra read
   model is installed, marked, and has no dirty repository before any core
-  starts. The gate runs the backfill the removed in-tree API used to run
-  (a012da4557); no product runtime runs it today (#11196). Both legs'
-  reports carry `infra_backfill: gate_stand_in`, and the infra route numbers
-  describe an install that holds the marker: a fresh install serves those
-  routes from the graph, which this gate does not measure
+  starts. The gate starts no reducer, and since #11210 the reducer owns the
+  backfill, so the gate calls the same `Backfiller.Run` itself (#11226 starts
+  the reducer and drops this). Both legs' reports carry
+  `infra_backfill: gate_stand_in`, and the infra route numbers describe an
+  install that holds the marker; a regression in the reducer's wiring would not
+  show here
 - `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
   `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
   `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row

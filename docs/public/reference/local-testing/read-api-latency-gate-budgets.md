@@ -108,7 +108,8 @@ topology, including the removed in-tree API's startup backfill, is gone.
 
 ## Not measured here
 
-The gate stands in for the infra read model backfill that no product runtime
-runs today ([#11196](https://github.com/eshu-hq/eshu/issues/11196)), so its infra
-route numbers describe an install that holds the marker. A fresh install serves
-those routes from the graph, and this gate does not measure that path.
+The gate starts no reducer and stands in for the infra read model backfill that
+the reducer has owned since [#11210](https://github.com/eshu-hq/eshu/pull/11210),
+so its infra route numbers describe an install that holds the marker, and a
+regression in the reducer's wiring would not show here. Starting the reducer and
+dropping the stand-in is [#11226](https://github.com/eshu-hq/eshu/issues/11226).
