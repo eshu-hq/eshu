@@ -69,9 +69,13 @@ func anyLatchEngaged(latches map[string]sourceLatchState) bool {
 }
 
 // sourcePacingSnapshot joins one claimable observation with its latch row
-// into the published slowed state. Stuck mirrors the consult verdict: an
-// engaged source still behind past the configured bound stays slowed and
-// loud. A disabled config never marks stuck.
+// into the published slowed state. Slowed is the latch truth. Stuck is the
+// consult verdict's own Stuck, taken from DecideSourceSlowed over the same
+// observation (#10882 review R3-1), so the two cannot drift: an engagement
+// past MaxEngagement is stuck only while DepthFloor claimable rows are still
+// past the release age, and a latch the next consult will release because
+// fewer rows remain is not published as stuck. A disabled config never marks
+// stuck, and an unstamped engagement cannot prove overdue.
 func sourcePacingSnapshot(
 	signal workflow.SourceQueueSignal,
 	latch sourceLatchState,
@@ -87,13 +91,9 @@ func sourcePacingSnapshot(
 		row.Slowed = true
 		row.Reason = workflow.SourceBackpressureReasonSourceBehind
 		row.EngagedSince = latch.engagedAt
-		// An unstamped engagement cannot prove overdue: stuck needs a
-		// real start time, the queue still behind, and a bound passed.
-		if config.Enabled() && !latch.engagedAt.IsZero() &&
-			signal.OldestClaimableAge > config.ReleaseAge &&
-			asOf.Sub(latch.engagedAt) > config.MaxEngagement {
-			row.Stuck = true
-		}
+		verdict := workflow.DecideSourceSlowed(
+			config, signal, workflow.SourceBackpressureLatch{Engaged: true}, engagedFor(latch, asOf))
+		row.Stuck = verdict.Slowed && verdict.Stuck
 	}
 	return row
 }

@@ -144,3 +144,41 @@ func TestReadSourcePacingStatusScansWhenConfiguredOrEngaged(t *testing.T) {
 		}
 	}
 }
+
+// TestReadSourcePacingStatusStuckMirrorsTheAgedRowVerdict proves the
+// published stuck flag follows the same aged-row rule as the consult verdict
+// (#10882 review R3-1). An engagement past MaxEngagement is stuck only while
+// DepthFloor claimable rows are still past the release age; one poisoned old
+// row among a thousand fresh ones is a release the next consult will make,
+// so publishing it as stuck would contradict the verdict.
+func TestReadSourcePacingStatusStuckMirrorsTheAgedRowVerdict(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 22, 12, 0, 0, 0, time.UTC)
+	cfg := sourceBackpressureTestConfig() // floor 25, max engagement 30m
+	for _, tc := range []struct {
+		name        string
+		pastRelease int64
+		wantStuck   bool
+	}{
+		{"one old row among 1000 fresh", 1, false},
+		{"floor minus one rows past release", cfg.DepthFloor - 1, false},
+		{"floor rows past release", cfg.DepthFloor, true},
+	} {
+		queryer := &sourceBackpressureFakeDB{responses: []fakeRows{
+			{rows: [][]any{{"busy", true, now.Add(-time.Hour)}}}, // engaged past the 30m bound
+			{rows: [][]any{{"busy", float64((72 * time.Hour).Seconds()), int64(1001), tc.pastRelease, tc.pastRelease}}},
+		}}
+		rows, err := readSourcePacingStatus(context.Background(), queryer, now, cfg)
+		if err != nil {
+			t.Fatalf("%s: readSourcePacingStatus() error = %v, want nil", tc.name, err)
+		}
+		if len(rows) != 1 || !rows[0].Slowed {
+			t.Fatalf("%s: rows = %+v, want one row still slowed (latch truth)", tc.name, rows)
+		}
+		if rows[0].Stuck != tc.wantStuck {
+			t.Fatalf("%s: stuck = %v, want %v (past release age: %d rows, floor %d)",
+				tc.name, rows[0].Stuck, tc.wantStuck, tc.pastRelease, cfg.DepthFloor)
+		}
+	}
+}
