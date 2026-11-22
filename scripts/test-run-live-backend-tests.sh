@@ -227,12 +227,14 @@ EOF
 # the canonical-ownership regression; Neo4j-only by ledger pin)
 # (#10411: +1 neo4j ledger row for storage/cypher/edge/writer/advisory_group_live_test.go,
 # the writer reconcile proof; Neo4j-only by ledger pin)
+# (#11161: +1 neo4j ledger row for storage/cypher/edge/writer/advisory_group_backend_live_test.go,
+# the FOREACH-free reconcile proof; Neo4j-only by ledger pin)
 mapfile -t plan < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend both)
-[[ "${#plan[@]}" == "91" ]] || fail "planned runs ${#plan[@]}, want 91 (34 nornicdb + 57 neo4j)"
+[[ "${#plan[@]}" == "92" ]] || fail "planned runs ${#plan[@]}, want 92 (34 nornicdb + 58 neo4j)"
 mapfile -t plan_nornicdb < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend nornicdb)
 [[ "${#plan_nornicdb[@]}" == "34" ]] || fail "nornicdb planned runs ${#plan_nornicdb[@]}, want 34"
 mapfile -t plan_neo4j < <(ESHU_LIVE_RUNNER_SELFTEST=plan bash "${script}" --backend neo4j)
-[[ "${#plan_neo4j[@]}" == "57" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 57"
+[[ "${#plan_neo4j[@]}" == "58" ]] || fail "neo4j planned runs ${#plan_neo4j[@]}, want 58"
 printf '%s\n' "${plan_neo4j[@]}" | rg -q '^neo4j\|[^|]*\|.*repository_context_workload_count_neo4j_live_test' ||
 	fail "materialized workload-count regression missing from neo4j plan"
 assert_workload_count_neo4j_only() {
