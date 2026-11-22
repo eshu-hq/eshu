@@ -414,9 +414,9 @@ func seed(ctx context.Context, opts runOptions) error {
 	}
 
 	// The infra read model derives from the content_entities seeded above and is
-	// ready only once its backfill marker exists. The gate starts no reducer
-	// (which owns the backfill since #11210), so the seed runs the same
-	// Backfiller before any core starts; dropping this stand-in is #11226.
+	// ready only once its backfill marker exists. A real reducer cannot run on the
+	// seeded corpus (it supersedes seeded work items), so the seed runs the same
+	// Backfiller before any core starts: a permanent stand-in (#11226).
 	if err := backfillSeededInfraReadModel(ctx, opts.postgresDSN, pool, os.Stderr); err != nil {
 		return fmt.Errorf("backfill seeded infra read model: %w", err)
 	}

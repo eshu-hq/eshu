@@ -40,9 +40,8 @@
 // the frozen satellite eshu-api and this binary, seeds (including supply
 // chain impact finding facts rebuilt into the winners read model through
 // the maintainer's own full resweep, and the infra read model backfill,
-// labelled infra_backfill=gate_stand_in because the gate starts no reducer
-// and the reducer owns that backfill since #11210; dropping the stand-in is
-// #11226), starts the core,
+// labelled infra_backfill=gate_stand_in, a permanent stand-in because a real
+// reducer cannot run on the seeded corpus, #11226), starts the core,
 // then the satellite
 // against --core-base-url and the MCP server, runs this binary to sweep the
 // legacy leg, restarts the core with ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ

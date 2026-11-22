@@ -1,0 +1,20 @@
+# Query packages that read a store and have no census owner yet (package path under go/internal/query;
+# "." is the root package). Own a package in audit_test.go and delete its line; the list may only shrink (censusWaiverCeiling).
+.
+admin/store
+cicd
+codemodel
+codequery/deadcode
+codetopicparallel
+iac
+impact/deployment
+incident/sql
+incident/store
+kubernetes
+observability/coverage
+package/registry
+search/unscoped
+secrets
+service
+support
+workitem

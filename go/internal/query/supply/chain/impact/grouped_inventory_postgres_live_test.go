@@ -46,7 +46,10 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 
 	store := PostgresGroupedInventoryStore{DB: database, ReadFromWinners: true}
 	counts := PostgresAggregateStore{DB: database}
-	precise := AggregateFilter{DetectionProfile: ProfilePrecise}
+	// base carries no profile filter: the precise profile answers
+	// ErrGroupedInventoryFilterUnavailable until the per-copy read model lands, and
+	// every seeded finding is precise-eligible, so the set is the same.
+	base := AggregateFilter{}
 	read := func(t *testing.T, s PostgresGroupedInventoryStore, filter AggregateFilter, dimension GroupedInventoryDimension, limit int) GroupedInventoryPage {
 		t.Helper()
 		page, err := s.SupplyChainImpactGroupedInventory(ctx, filter, dimension, limit, 0)
@@ -65,12 +68,12 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	}
 
 	t.Run("service buckets fan out and match the count route", func(t *testing.T) {
-		page := read(t, store, precise, GroupedInventoryByService, 50)
+		page := read(t, store, base, GroupedInventoryByService, 50)
 		got := groupedLiveCounts(page)
 		want := map[string]int{"service:a": 3, "service:b": 2, "service:c": 1, "service:d": 1, "": 1}
 		assertGroupedLiveCounts(t, got, want)
-		if page.DistinctFindings != 6 || page.DistinctFindings != total(t, precise) {
-			t.Fatalf("DistinctFindings = %d, want 6 and the count route total %d", page.DistinctFindings, total(t, precise))
+		if page.DistinctFindings != 6 || page.DistinctFindings != total(t, base) {
+			t.Fatalf("DistinctFindings = %d, want 6 and the count route total %d", page.DistinctFindings, total(t, base))
 		}
 		for _, row := range page.Rows {
 			if row.Unattributed {
@@ -82,7 +85,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			if row.Completeness != GroupCompletenessComplete {
 				t.Fatalf("%s completeness = %q, want complete unscoped", row.Value, row.Completeness)
 			}
-			filter := precise
+			filter := base
 			filter.ServiceID = row.Value
 			if want := total(t, filter); row.Count != want {
 				t.Fatalf("bucket %s = %d, count route service_id=%s = %d", row.Value, row.Count, row.Value, want)
@@ -95,17 +98,17 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	})
 
 	t.Run("workload and environment buckets match their filters", func(t *testing.T) {
-		workloads := read(t, store, precise, GroupedInventoryByWorkload, 50)
+		workloads := read(t, store, base, GroupedInventoryByWorkload, 50)
 		assertGroupedLiveCounts(t, groupedLiveCounts(workloads), map[string]int{
 			"workload:w1": 2, "workload:w2": 2, "workload:w3": 1, "": 3,
 		})
-		environments := read(t, store, precise, GroupedInventoryByEnvironment, 50)
+		environments := read(t, store, base, GroupedInventoryByEnvironment, 50)
 		assertGroupedLiveCounts(t, groupedLiveCounts(environments), map[string]int{"prod": 2, "qa": 1, "": 3})
 		for _, row := range append(workloads.Rows, environments.Rows...) {
 			if row.Unattributed {
 				continue
 			}
-			filter := precise
+			filter := base
 			if row.Dimension == GroupedInventoryByWorkload {
 				filter.WorkloadID = row.Value
 			} else {
@@ -115,14 +118,14 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 				t.Fatalf("%s bucket %q = %d, count route = %d", row.Dimension, row.Value, row.Count, want)
 			}
 		}
-		composed := precise
+		composed := base
 		composed.ServiceID = "service:a"
 		assertGroupedLiveCounts(t, groupedLiveCounts(read(t, store, composed, GroupedInventoryByEnvironment, 50)),
 			map[string]int{"prod": 2, "qa": 1})
 	})
 
 	t.Run("repository grant hides ungranted services and marks partial", func(t *testing.T) {
-		scoped := precise
+		scoped := base
 		scoped.AllowedRepositoryIDs = []string{"repository:r1", "repository:r2"}
 		page := read(t, store, scoped, GroupedInventoryByService, 50)
 		assertGroupedLiveCounts(t, groupedLiveCounts(page), map[string]int{"service:a": 3, "service:b": 2})
@@ -143,14 +146,14 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	})
 
 	t.Run("operator suppression expiry is evaluated at read time", func(t *testing.T) {
-		withSuppressed := precise
+		withSuppressed := base
 		withSuppressed.IncludeSuppressed = true
 		assertGroupedLiveCounts(t, groupedLiveCounts(read(t, store, withSuppressed, GroupedInventoryByService, 50)),
 			map[string]int{"service:a": 3, "service:b": 2, "service:c": 1, "service:d": 2, "": 1})
 		later := groupedLiveOperatorExpiry.Add(time.Minute)
 		future := store
 		future.Now = func() time.Time { return later }
-		page := read(t, future, precise, GroupedInventoryByService, 50)
+		page := read(t, future, base, GroupedInventoryByService, 50)
 		d := groupedLiveRow(t, page, "service:d")
 		if d.Count != 2 {
 			t.Fatalf("service:d after expiry = %d, want 2 (the hidden suppression expired)", d.Count)
@@ -160,7 +163,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			t.Fatalf("service:d completeness/freshness = %q/%q, want read_model_unavailable/stale", d.Completeness, page.Freshness.State)
 		}
 		laterCounts := PostgresAggregateStore{DB: database, Now: func() time.Time { return later }}
-		filter := precise
+		filter := base
 		filter.ServiceID = "service:d"
 		count, err := laterCounts.CountSupplyChainImpactFindings(ctx, filter)
 		if err != nil || count.TotalFindings != 2 {
@@ -169,14 +172,14 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	})
 
 	t.Run("ordering and truncation keep the whole-set distinct count", func(t *testing.T) {
-		page := read(t, store, precise, GroupedInventoryByService, 2)
+		page := read(t, store, base, GroupedInventoryByService, 2)
 		if len(page.Rows) != 2 || page.Rows[0].Value != "service:a" || page.Rows[1].Value != "service:b" {
 			t.Fatalf("first page = %#v, want service:a then service:b (max 90, count 3 then 2)", page.Rows)
 		}
 		if page.DistinctFindings != 6 {
 			t.Fatalf("truncated DistinctFindings = %d, want whole-set 6", page.DistinctFindings)
 		}
-		all := read(t, store, precise, GroupedInventoryByService, 50)
+		all := read(t, store, base, GroupedInventoryByService, 50)
 		order := make([]string, 0, len(all.Rows))
 		for _, row := range all.Rows {
 			order = append(order, row.Value)
@@ -193,7 +196,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	})
 
 	t.Run("scope-id grant hides ungranted services and marks spanning buckets partial", func(t *testing.T) {
-		scoped := precise
+		scoped := base
 		scoped.AllowedScopeIDs = []string{"git-repository-scope:repository:r1", "git-repository-scope:repository:r2"}
 		page := read(t, store, scoped, GroupedInventoryByService, 50)
 		assertGroupedLiveCounts(t, groupedLiveCounts(page), map[string]int{"service:a": 3, "service:b": 2})
@@ -221,7 +224,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			RebuildAllWinners(ctx); err != nil {
 			t.Fatalf("RebuildAllWinners: %v", err)
 		}
-		scoped := precise
+		scoped := base
 		scoped.AllowedScopeIDs = []string{"catalog:central", "git-repository-scope:repository:r7"}
 		page := read(t, store, scoped, GroupedInventoryByService, 50)
 		e := groupedLiveRow(t, page, "service:e")
@@ -258,7 +261,7 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 				t.Fatalf("%s: service:e = %q count %d, want partial count 1 regardless of the filter", name, row.Completeness, row.Count)
 			}
 		}
-		onlyHidden := precise
+		onlyHidden := base
 		onlyHidden.AllowedScopeIDs = []string{"catalog:central"}
 		hiddenPage := read(t, store, onlyHidden, GroupedInventoryByService, 50)
 		if len(hiddenPage.Rows) != 0 || hiddenPage.DistinctFindings != 0 {
@@ -269,13 +272,13 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 
 	t.Run("gate off and absent watermark answer the typed error", func(t *testing.T) {
 		off := PostgresGroupedInventoryStore{DB: database}
-		if _, err := off.SupplyChainImpactGroupedInventory(ctx, precise, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
+		if _, err := off.SupplyChainImpactGroupedInventory(ctx, base, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
 			t.Fatalf("gate off err = %v", err)
 		}
 		if _, err := database.ExecContext(ctx, `DELETE FROM supply_chain_impact_winners_materialization`); err != nil {
 			t.Fatalf("delete watermark: %v", err)
 		}
-		if _, err := store.SupplyChainImpactGroupedInventory(ctx, precise, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
+		if _, err := store.SupplyChainImpactGroupedInventory(ctx, base, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryReadModelUnavailable) {
 			t.Fatalf("absent watermark err = %v", err)
 		}
 	})
