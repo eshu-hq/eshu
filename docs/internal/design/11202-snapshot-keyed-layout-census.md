@@ -267,15 +267,16 @@ The 64.0% to 64.4% figure (active only, all kinds, RANGE) is not script output. 
 census file was not kept, so it is derived from the committed 1-day table (evidence file
 `box3-buckets.txt`, appendix): the three buckets with no active generation hold 14.9% of
 61,324,138 superseded rows (9.14M); only {35.4, 32.4, 31.4} or {34.4, 32.4, 31.4} days
-old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M of
+old fit that sum, so all three are aged at least 30 days, and they hold 9.11M to 9.17M (from the rounded 14.9% share; the table sums give 9.13M to 9.18M; the percentages use the first basis) of
 the 14,227,152 superseded rows in buckets aged at least 30 days. That is about three
 points under the 67% bar. The fixed `aggregate_buckets.py` now prints these variants at
 both ages; it was not rerun.
 
 The static split, active only, at age >= 30 days cannot be determined from the committed
 aggregates. At age >= 7 days it frees 7 buckets (32.1% of 61,324,138 = 19.65M to 19.72M
-rows). Without the three zero-active buckets (9.13M to 9.18M) the other four would hold
-10.48M to 10.59M rows, more than the 1-day buckets aged 14 to 19 days hold (at most 9.34M),
+rows). Without the three zero-active buckets (9.13M to 9.18M, the table-sum basis) the other four
+would hold 10.48M to 10.59M rows, more than any four of the 1-day buckets aged 14 to 19
+days hold (at most 9.34M; all six together about 10.49M),
 so they are not those. Whether the live rows of the pinned 35- and 34-day bucket are all
 of the non-stacking kinds is not in the aggregates. If they are, the split frees that
 bucket and the share at age >= 30 days is about 96% to 97%, which clears the 67% bar. K4
@@ -306,8 +307,10 @@ aged at least 7 days): 25.5% for 7-day buckets and 27.3% for 1-day buckets by th
 reading; 18.8% and 20.1% with the static split; 12.2% and 13.6% counting active and
 pending only. The arbiter's rule (3.5) asks for a ruling when p is above 0 and at most
 20% before costing a re-ingest or a row move. Here p is above 20% by the K4 reading and
-the split variants sit at 18.8% to 20.1%, but the question is moot for #11202: no candidate
-passes K4, so nothing is costed. No re-ingest or row move was costed or measured.
+the split variants sit at 18.8% to 20.1%, so the 0 < p <= 20% trigger applies to the
+static-split rows. p is stated here for the arbiter and the close-out asks the arbiter to
+confirm whether that trigger needs a ruling when K4 already kills every candidate under the
+five-pin reading. No re-ingest or row move was costed or measured.
 
 **K5, the 90-day reading (a model, not a measurement).** Active rows in generations older
 than 30 days: 19,202, 0.1% of active rows and 0.02% of all rows (vulnerability-intelligence
