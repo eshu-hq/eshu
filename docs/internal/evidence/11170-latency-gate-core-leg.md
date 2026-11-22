@@ -279,7 +279,7 @@ end (`bash scripts/verify-read-api-latency-gate.sh`, no flags).
 | Run | HEAD | Tables | Exit | Notes |
 | --- | --- | --- | --- | --- |
 | First | `46db679819` | first render (two reports per leg) | 0 | superseded when the tables were re-rendered |
-| Final | `707674e184` | final render (three reports per leg) | 0 | both legs "all 77 exercised routes within budget", findings pages byte-identical |
+| Earlier final | `707674e184` | render from three pre-vacuum reports | 0 | both legs "all 77 exercised routes within budget", findings pages byte-identical; superseded by the seed vacuum |
 
 Final run, host io pressure avg60 33.5 at the start and 54.9 at the end (shared,
 noisy host). The tables it enforced, by sha256 as the gate logged them:
@@ -373,3 +373,39 @@ table needed an accept flag: the entity row falls 2,652 to 486 (5.5x, under the 
 drop factor), and only that row and `freshness/generations` (92,858 to 59,696)
 moved more than 25% on either leg. The header notes keep the history of the two
 earlier acceptances (#8682, #10607) and of the bimodal row.
+
+## Final confirm run
+
+`bash scripts/verify-read-api-latency-gate.sh`, no flags, from a throwaway worktree at
+`ff9bcf780b` (the tables and code of the final render), fresh full default corpus:
+exit 0, started 08:56:27Z and ended 09:22:44Z (26 min 17 s); io pressure avg60 32
+at the start and 59 at the end (shared, noisy host). Both legs: "exercised 77/128
+routes (floor 77)", "all 77 exercised routes within budget", zero `HardFailed`,
+findings pages byte-identical, "PASS: read-api-latency-gate green (legacy + winners
+legs)". The seed logged `winners rebuild inserted=4000 updated=0 deleted=0
+unchanged=0`, `infra read model backfilled ... duration=1m20.2s` (the earlier runs
+took 16 to 24 s; this host was loaded), and `VACUUM (ANALYZE) finished in 40.254s`.
+
+Tables the gate enforced, by sha256 as it logged them:
+`read-api-route-work-budgets.txt` `0a493e2e0888d88695b69eac1d71dbc171779a10a7a886c47ddb7613ba615224`,
+`read-api-route-work-budgets-winners.txt` `e0316bfb0a7a661ef8bc1b7aea2acaccdd4128a3ab7cb0a0412c4f015cdc99ea`,
+`read-api-route-budgets.txt` `35b576671f5a08a2b10f0a34d63495461347b29303a9c7248b423299092c3cca`.
+Reports: `latency.json` `39f0a93f5ddf00b0b799b9ca18df91e24dde863296c314e904894c33eab93bbf`,
+`latency-winners.json` `8c6e0e3e5380916fb0dcf60884d3cee786b86bd0af132dbb560f147546140125`,
+`work.json` `aae85a0918177935a4fee0c7d06ad2e7b2d790218d995a74a18de69d00d124d6`,
+`work-winners.json` `fd639860a00e5179922adb8c29be1986c40973700b57c72abb32b6a4c0c2268e`.
+
+| Route | Legacy blocks | Winners blocks | Legacy p95 | Winners p95 |
+| --- | --- | --- | --- | --- |
+| `supply-chain/impact/findings/count` | 102,546 | 801 | 139 ms | 16 ms |
+| `supply-chain/impact/inventory` | 102,546 | 801 | 129 ms | 17 ms |
+| `cloud/ssm-host-inventory` | 2,455 | 2,455 | 5.7 ms | 7.7 ms |
+| `documentation/facts` | 36 | 36 | 2.6 ms | 2.6 ms |
+| `freshness/generations` | 19,899 | 19,899 | 28.5 ms | 26.7 ms |
+| `infra/resources/count` | 24,912 | 24,912 | 265.5 ms | 290.1 ms |
+| `MCP search_file_content` | 580 | 580 | 4.2 ms | 5.5 ms |
+| `MCP search_entity_content` | 164 | 164 | 2.0 ms | 2.8 ms |
+
+The entity row read 164 blocks, the fourth reading with the vacuum (157, 158, 162,
+164), against its 486-block budget. Latency numbers come from a loaded host and are
+not budget evidence.
