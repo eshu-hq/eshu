@@ -1,0 +1,286 @@
+# database=s2 divided=1 host_load=45.36 27.35 26.09 2026-11-22T02:20:55Z
+== parameters
+                giant_scope                 |                            giant_gen                             |                 mid_scope                  |           mid_kind
+--------------------------------------------+------------------------------------------------------------------+--------------------------------------------+------------------------------
+ scope-<repository> | <id64> | scope-<repository> | reducer_eshu_search_document
+(1 row)
+
+== L1 projector fact page (giant scope, active gen, first 5000 rows by keyset order)
+                                                                                                         QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.81..8608.02 rows=5000 width=962) (actual time=0.067..3.541 rows=5000.00 loops=1)
+   Buffers: shared hit=5193
+   ->  Subquery Scan on q  (cost=0.81..505086.05 rows=293408 width=962) (actual time=0.066..3.284 rows=5000.00 loops=1)
+         Buffers: shared hit=5193
+         ->  Index Scan using fact_records_p30_scope_id_generation_id_observed_at_fact_id_idx on fact_records_p30 fact_records  (cost=0.81..502151.97 rows=293408 width=970) (actual time=0.066..2.956 rows=5000.00 loops=1)
+               Index Cond: ((scope_id = 'scope-<repository>'::text) AND (generation_id = '<id64>'::text))
+               Index Searches: 1
+               Buffers: shared hit=5193
+ Planning Time: 0.099 ms
+ Execution Time: 3.687 ms
+(10 rows)
+
+== L2 reducer active-facts scan (mid scope, active gen, one kind)
+                                                                                                                 QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=59.90..59.97 rows=27 width=116) (actual time=0.846..0.854 rows=212.00 loops=1)
+   Sort Key: fact.fact_id
+   Sort Method: quicksort  Memory: 48kB
+   Buffers: shared hit=214
+   ->  Index Scan using fact_records_p28_scope_id_generation_id_fact_kind_observed__idx on fact_records_p28 fact  (cost=0.41..59.26 rows=27 width=116) (actual time=0.018..0.430 rows=212.00 loops=1)
+         Index Cond: ((scope_id = 'scope-<repository>'::text) AND (generation_id = '<id64>'::text) AND (fact_kind = 'reducer_eshu_search_document'::text))
+         Filter: (NOT is_tombstone)
+         Index Searches: 1
+         Buffers: shared hit=214
+ Planning Time: 0.067 ms
+ Execution Time: 0.865 ms
+(11 rows)
+
+== L3a unchanged guard, shipped SQL (fact_id only join)
+psql:<stdin>:82: ERROR:  canceling statement due to user request
+
+# --- L3a execution was cancelled after 8 minutes (Append of 32 seq scans); L3b onward re-run from explain_rest.sql ---
+== parameters
+                giant_scope                 |                            giant_gen                             |                 mid_scope                  |           mid_kind
+--------------------------------------------+------------------------------------------------------------------+--------------------------------------------+------------------------------
+ scope-<repository> | <id64> | scope-<repository> | reducer_eshu_search_document
+(1 row)
+
+== L3b unchanged guard, scope-aware form (divided PK is (scope_id, fact_id)); batch scope known at the call
+                                                                                   QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=0.81..4487.25 rows=1 width=53) (actual time=0.024..5.008 rows=400.00 loops=1)
+   Buffers: shared hit=3683, local hit=213
+   ->  Seq Scan on guard_batch v  (cost=0.00..70.00 rows=500 width=597) (actual time=0.004..0.053 rows=500.00 loops=1)
+         Buffers: local hit=65
+   ->  Index Scan using fact_records_p30_pkey on fact_records_p30 f  (cost=0.81..8.82 rows=1 width=964) (actual time=0.010..0.010 rows=0.80 loops=500)
+         Index Cond: ((scope_id = 'scope-<repository>'::text) AND (fact_id = v.fact_id))
+         Filter: ((NOT (fact_kind IS DISTINCT FROM v.fact_kind)) AND (NOT (stable_fact_key IS DISTINCT FROM v.stable_fact_key)) AND (NOT (payload IS DISTINCT FROM v.payload)))
+         Index Searches: 500
+         Buffers: shared hit=3683, local hit=148
+ Planning Time: 0.156 ms
+ Execution Time: 5.032 ms
+(11 rows)
+
+== L4 streaming upsert (250 changed existing + 250 new), rolled back
+                                                                QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------
+ Insert on fact_records  (cost=0.00..75.00 rows=0 width=0) (actual time=2466.502..2466.503 rows=0.00 loops=1)
+   Conflict Resolution: UPDATE
+   Conflict Arbiter Indexes: fact_records_pkey_new
+   Conflict Filter: ((fact_records.fencing_token <= excluded.fencing_token) AND (fact_records.payload IS DISTINCT FROM excluded.payload))
+   Tuples Inserted: 250
+   Conflicting Tuples: 250
+   Buffers: shared hit=15143 read=512 dirtied=901 written=75, local hit=517
+   I/O Timings: shared read=2402.442 write=21.562
+   ->  Seq Scan on upsert_batch  (cost=0.00..75.00 rows=500 width=704) (actual time=0.003..0.388 rows=500.00 loops=1)
+         Buffers: local hit=70
+ Planning:
+   Buffers: shared hit=74
+ Planning Time: 0.129 ms
+ Trigger fact_records_legacy_container_image_identity_cutover_guard_inse on fact_records: time=0.140 calls=1
+ Trigger fact_records_legacy_container_image_identity_cutover_guard_upda on fact_records: time=8.959 calls=1
+ Trigger for constraint fact_records_generation_id_fkey_new on fact_records_p30: time=1.377 calls=250
+ Trigger for constraint fact_records_scope_id_fkey_new on fact_records_p30: time=2.120 calls=250
+ Trigger package_manifest_consumption_keys_dirty_update on fact_records_p30: time=27.815 calls=4
+ Execution Time: 2506.985 ms
+(19 rows)
+
+== L5 cross-scope active facts by kind, keyset page of 500 ordered by fact_id (catalog / ListFactsByKind family)
+                                                                                                       QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=259.24..259.24 rows=1 width=733) (actual time=7.327..7.337 rows=25.00 loops=1)
+   Buffers: shared hit=2015
+   ->  Sort  (cost=259.24..259.24 rows=1 width=733) (actual time=7.326..7.334 rows=25.00 loops=1)
+         Sort Key: fact.fact_id
+         Sort Method: quicksort  Memory: 47kB
+         Buffers: shared hit=2015
+         ->  Nested Loop  (cost=13.75..259.23 rows=1 width=733) (actual time=0.555..7.281 rows=25.00 loops=1)
+               Buffers: shared hit=2015
+               ->  Hash Join  (cost=13.21..89.33 rows=1 width=128) (actual time=0.538..1.654 rows=299.00 loops=1)
+                     Hash Cond: ((scope.scope_id = generation.scope_id) AND (scope.active_generation_id = generation.generation_id))
+                     Buffers: shared hit=574
+                     ->  Seq Scan on ingestion_scopes scope  (cost=0.00..69.54 rows=1254 width=64) (actual time=0.007..0.072 rows=324.00 loops=1)
+                           Buffers: shared hit=57
+                     ->  Hash  (cost=13.01..13.01 rows=13 width=64) (actual time=0.470..0.472 rows=299.00 loops=1)
+                           Buckets: 1024  Batches: 1  Memory Usage: 302kB
+                           Buffers: shared hit=119
+                           ->  Bitmap Heap Scan on scope_generations generation  (cost=9.00..13.01 rows=13 width=64) (actual time=0.067..0.175 rows=299.00 loops=1)
+                                 Recheck Cond: ((status = ANY ('{pending,active}'::text[])) AND (status = 'active'::text))
+                                 Heap Blocks: exact=81
+                                 Buffers: shared hit=119
+                                 ->  BitmapAnd  (cost=9.00..9.00 rows=1 width=0) (actual time=0.057..0.058 rows=0.00 loops=1)
+                                       Buffers: shared hit=38
+                                       ->  Bitmap Index Scan on scope_generations_active_pending_activity_idx  (cost=0.00..4.27 rows=26 width=0) (actual time=0.012..0.012 rows=326.00 loops=1)
+                                             Index Searches: 1
+                                             Buffers: shared hit=1
+                                       ->  Bitmap Index Scan on scope_generations_active_scope_idx  (cost=0.00..4.47 rows=13 width=0) (actual time=0.042..0.042 rows=299.00 loops=1)
+                                             Index Searches: 1
+                                             Buffers: shared hit=37
+               ->  Append  (cost=0.54..169.57 rows=32 width=971) (actual time=0.018..0.018 rows=0.08 loops=299)
+                     Buffers: shared hit=1441
+                     ->  Index Scan using fact_records_p0_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p0 fact_1  (cost=0.54..6.05 rows=1 width=1009) (actual time=0.014..0.014 rows=0.14 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=29
+                     ->  Index Scan using fact_records_p1_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p1 fact_2  (cost=0.54..6.11 rows=1 width=1019) (actual time=0.029..0.029 rows=0.09 loops=11)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 11
+                           Buffers: shared hit=45
+                     ->  Index Scan using fact_records_p2_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p2 fact_3  (cost=0.54..5.96 rows=1 width=1020) (actual time=0.016..0.016 rows=0.06 loops=18)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 18
+                           Buffers: shared hit=73
+                     ->  Index Scan using fact_records_p3_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p3 fact_4  (cost=0.54..5.98 rows=1 width=1003) (actual time=0.012..0.012 rows=0.11 loops=9)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 9
+                           Buffers: shared hit=37
+                     ->  Index Scan using fact_records_p4_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p4 fact_5  (cost=0.28..3.64 rows=1 width=820) (actual time=0.007..0.007 rows=0.00 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=14
+                     ->  Index Scan using fact_records_p5_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p5 fact_6  (cost=0.55..7.61 rows=1 width=931) (actual time=0.013..0.013 rows=0.27 loops=11)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 11
+                           Buffers: shared hit=47
+                     ->  Index Scan using fact_records_p6_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p6 fact_7  (cost=0.54..6.02 rows=1 width=980) (actual time=0.014..0.014 rows=0.08 loops=13)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 13
+                           Buffers: shared hit=53
+                     ->  Index Scan using fact_records_p7_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p7 fact_8  (cost=0.41..5.76 rows=1 width=1038) (actual time=0.014..0.014 rows=0.12 loops=8)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 8
+                           Buffers: shared hit=25
+                     ->  Index Scan using fact_records_p8_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p8 fact_9  (cost=0.42..6.33 rows=1 width=1001) (actual time=0.013..0.013 rows=0.11 loops=9)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 9
+                           Buffers: shared hit=28
+                     ->  Index Scan using fact_records_p9_scope_id_generation_id_fact_kind_observed_a_idx on fact_records_p9 fact_10  (cost=0.54..6.01 rows=1 width=1070) (actual time=0.018..0.018 rows=0.12 loops=8)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 8
+                           Buffers: shared hit=33
+                     ->  Index Scan using fact_records_p10_scope_id_generation_id_fact_kind_observed__idx on fact_records_p10 fact_11  (cost=0.54..5.59 rows=1 width=1131) (actual time=0.015..0.015 rows=0.00 loops=12)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 12
+                           Buffers: shared hit=48
+                     ->  Index Scan using fact_records_p11_scope_id_generation_id_fact_kind_observed__idx on fact_records_p11 fact_12  (cost=0.41..3.14 rows=1 width=1142) (actual time=0.012..0.012 rows=0.00 loops=5)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 5
+                           Buffers: shared hit=15
+                     ->  Index Scan using fact_records_p12_scope_id_generation_id_fact_kind_observed__idx on fact_records_p12 fact_13  (cost=0.54..6.08 rows=1 width=903) (actual time=0.015..0.015 rows=0.25 loops=8)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 8
+                           Buffers: shared hit=34
+                     ->  Index Scan using fact_records_p13_scope_id_generation_id_fact_kind_observed__idx on fact_records_p13 fact_14  (cost=0.41..5.83 rows=1 width=975) (actual time=0.012..0.012 rows=0.14 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=22
+                     ->  Index Scan using fact_records_p14_scope_id_generation_id_fact_kind_observed__idx on fact_records_p14 fact_15  (cost=0.28..4.12 rows=1 width=972) (actual time=0.008..0.008 rows=0.17 loops=6)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 6
+                           Buffers: shared hit=13
+                     ->  Index Scan using fact_records_p15_scope_id_generation_id_fact_kind_observed__idx on fact_records_p15 fact_16  (cost=0.41..5.76 rows=1 width=966) (actual time=0.014..0.014 rows=0.14 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=22
+                     ->  Index Scan using fact_records_p16_scope_id_generation_id_fact_kind_observed__idx on fact_records_p16 fact_17  (cost=0.54..5.64 rows=1 width=1151) (actual time=0.018..0.018 rows=0.10 loops=10)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 10
+                           Buffers: shared hit=41
+                     ->  Index Scan using fact_records_p17_scope_id_generation_id_fact_kind_observed__idx on fact_records_p17 fact_18  (cost=0.41..4.72 rows=1 width=1024) (actual time=0.012..0.012 rows=0.00 loops=9)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 9
+                           Buffers: shared hit=27
+                     ->  Index Scan using fact_records_p18_scope_id_generation_id_fact_kind_observed__idx on fact_records_p18 fact_19  (cost=0.41..4.72 rows=1 width=1176) (actual time=0.011..0.011 rows=0.00 loops=12)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 12
+                           Buffers: shared hit=36
+                     ->  Index Scan using fact_records_p19_scope_id_generation_id_fact_kind_observed__idx on fact_records_p19 fact_20  (cost=0.54..3.88 rows=1 width=986) (actual time=0.016..0.016 rows=0.00 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=28
+                     ->  Index Scan using fact_records_p20_scope_id_generation_id_fact_kind_observed__idx on fact_records_p20 fact_21  (cost=0.42..6.26 rows=1 width=1038) (actual time=0.011..0.011 rows=0.08 loops=12)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 12
+                           Buffers: shared hit=37
+                     ->  Index Scan using fact_records_p21_scope_id_generation_id_fact_kind_observed__idx on fact_records_p21 fact_22  (cost=0.54..3.82 rows=1 width=1047) (actual time=0.013..0.013 rows=0.00 loops=10)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 10
+                           Buffers: shared hit=40
+                     ->  Index Scan using fact_records_p22_scope_id_generation_id_fact_kind_observed__idx on fact_records_p22 fact_23  (cost=0.41..6.05 rows=1 width=1014) (actual time=0.048..0.048 rows=0.09 loops=11)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 11
+                           Buffers: shared hit=34
+                     ->  Index Scan using fact_records_p23_scope_id_generation_id_fact_kind_observed__idx on fact_records_p23 fact_24  (cost=0.41..4.83 rows=1 width=990) (actual time=0.013..0.013 rows=0.20 loops=5)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 5
+                           Buffers: shared hit=16
+                     ->  Index Scan using fact_records_p24_scope_id_generation_id_fact_kind_observed__idx on fact_records_p24 fact_25  (cost=0.41..4.73 rows=1 width=1046) (actual time=0.011..0.011 rows=0.00 loops=8)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 8
+                           Buffers: shared hit=24
+                     ->  Index Scan using fact_records_p25_scope_id_generation_id_fact_kind_observed__idx on fact_records_p25 fact_26  (cost=0.41..5.61 rows=1 width=1021) (actual time=0.010..0.010 rows=0.25 loops=8)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 8
+                           Buffers: shared hit=26
+                     ->  Index Scan using fact_records_p26_scope_id_generation_id_fact_kind_observed__idx on fact_records_p26 fact_27  (cost=0.41..4.42 rows=1 width=1042) (actual time=0.012..0.012 rows=0.00 loops=10)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 10
+                           Buffers: shared hit=30
+                     ->  Index Scan using fact_records_p27_scope_id_generation_id_fact_kind_observed__idx on fact_records_p27 fact_28  (cost=0.54..3.91 rows=1 width=937) (actual time=0.013..0.013 rows=0.00 loops=11)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 11
+                           Buffers: shared hit=44
+                     ->  Index Scan using fact_records_p28_scope_id_generation_id_fact_kind_observed__idx on fact_records_p28 fact_29  (cost=0.41..5.69 rows=1 width=988) (actual time=0.012..0.012 rows=0.15 loops=13)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 13
+                           Buffers: shared hit=41
+                     ->  Index Scan using fact_records_p29_scope_id_generation_id_fact_kind_observed__idx on fact_records_p29 fact_30  (cost=0.28..2.93 rows=1 width=810) (actual time=0.008..0.008 rows=0.00 loops=7)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 7
+                           Buffers: shared hit=14
+                     ->  Index Scan using fact_records_p30_scope_id_generation_id_fact_kind_observed__idx on fact_records_p30 fact_31  (cost=0.56..8.16 rows=1 width=940) (actual time=0.014..0.014 rows=0.10 loops=10)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 10
+                           Buffers: shared hit=41
+                     ->  Index Scan using fact_records_p31_scope_id_generation_id_fact_kind_observed__idx on fact_records_p31 fact_32  (cost=0.54..4.05 rows=1 width=1032) (actual time=0.016..0.016 rows=0.00 loops=10)
+                           Index Cond: ((scope_id = scope.scope_id) AND (generation_id = scope.active_generation_id) AND (fact_kind = 'repository'::text))
+                           Filter: (NOT is_tombstone)
+                           Index Searches: 10
+                           Buffers: shared hit=40
+ Planning:
+   Buffers: shared hit=26
+ Planning Time: 2.064 ms
+ Execution Time: 7.576 ms
+(194 rows)
