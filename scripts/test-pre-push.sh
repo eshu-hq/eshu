@@ -18,6 +18,10 @@ set -euo pipefail
 
 # Fixture repositories define their own bases; the caller's pinned SHA is absent.
 unset ESHU_PRE_PUSH_BASE
+# The fixtures run the real driver; keep their runs out of the developer's own
+# timing store (scripts/lib/gate-timing.sh). scripts/test-gate-timing.py covers
+# the recorder itself.
+export ESHU_GATE_TIMING=0
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 script="${repo_root}/scripts/dev/pre-push.sh"
@@ -116,6 +120,8 @@ build_fixture() {
 	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}/scripts/lib/go-toolchain.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
+	cp "${repo_root}/scripts/lib/gate-timing.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/dev/gate-timing.py" "${fixture}/scripts/dev/"
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
 	cat > "${fixture}/scripts/dev/precommit-go.sh" <<'PRECOMMIT'
@@ -229,6 +235,8 @@ build_fixture_deleted_package() {
 	cp "${repo_root}/scripts/lib/cgo-cflags.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}/scripts/lib/go-toolchain.sh" "${fixture}/scripts/lib/"
 	cp "${repo_root}"/scripts/lib/pre-push-*.sh "${fixture}/scripts/lib/" 2>/dev/null || true
+	cp "${repo_root}/scripts/lib/gate-timing.sh" "${fixture}/scripts/lib/"
+	cp "${repo_root}/scripts/dev/gate-timing.py" "${fixture}/scripts/dev/"
 	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
 	chmod +x "${fixture}/bin/go"
 	cat > "${fixture}/scripts/dev/precommit-go.sh" <<'PRECOMMIT'

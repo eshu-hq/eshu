@@ -274,6 +274,7 @@ nav:
         - Read API Latency Gate: reference/local-testing/read-api-latency-gate.md
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
         - Pre-Push Merge Step: reference/local-testing/pre-push-merge.md
+        - Gate Timing: reference/local-testing/gate-timing.md
         - Cgo C Dialect Flag: reference/local-testing/cgo-cflags.md
         - CI Go Build Cache: reference/local-testing/ci-go-build-cache.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
