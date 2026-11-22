@@ -11,6 +11,19 @@ TABLE = {
             "TestActivationWakeInterleaveLive",
             "TestAdminReplayAfterCommittedWakeIsANoOpLive",
         ),
+        "go/internal/query/admin/poison_sweep_allowance_live_test.go": (
+            "TestPoisonSweepGrantsProjectionRetriesLive",
+            "TestPoisonSweepGrantsAdmissionWaitsLive",
+            "TestPoisonSweepBudgetBoundsRecoveriesLive",
+            "TestPoisonSweepKeepsClaimFenceLive",
+            "TestPoisonSweepRaisesOperatorSkipAttemptLive",
+            "TestPoisonSweepBackoffMatchesNewRowLive",
+        ),
+        "go/internal/query/admin/poison_sweep_race_live_test.go": (
+            "TestPoisonSweepRacesReplayWritersLive",
+            "TestConcurrentPoisonSweepsMoveRowOnceLive",
+            "TestPoisonSweepReadsCommittedAttemptWhileWaitingLive",
+        ),
         "go/internal/query/admin/reopen_live_test.go": (
             "TestAdminHandler_ReopenLive",
         ),

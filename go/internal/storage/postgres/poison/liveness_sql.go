@@ -3,6 +3,8 @@
 
 package poison
 
+import queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
+
 // CountDeadLettersQuery detects the dead-letter/poison class the #4727
 // projector-claimer fix and the generation-liveness sweep do not reach: a
 // fact_work_items row whose status is 'dead_letter' with no strictly-newer
@@ -90,6 +92,25 @@ WHERE dead.status = 'dead_letter'
 // row another worker reclaimed or re-drove after the selection read it is
 // dropped there; the UPDATE repeats the status check.
 //
+// Retry allowance (#11217): a recovered row gets the retries a new row gets,
+// the same allowance the three operator replay writers grant (#11182). The
+// SET list appends queuestore.ReplayRetryAllowanceAssignments, the shared
+// fragment, never a copy: replay_attempt_baseline takes the row's
+// attempt_count (projector rows only) and admission_wait_attempts goes back to
+// 0. It also raises a projector row's attempt_count to at least 1, as the
+// replays do, so a dead letter at attempt 0 (the operator skip of a pending
+// row) gets baseline 1 at attempt 1 and its first claim counts 1, not 0.
+// attempt_count is never lowered: it stays the monotonic claim fence. A
+// reducer row keeps attempt_count and its baseline; the reducer budget does
+// not read the baseline yet (#11184). The fragment is the last assignment,
+// after reopened_at, so the literal that opens the SET list still names
+// reopened_at for the #9320 source guard. The right-hand sides read the row
+// version the UPDATE locked, so under a concurrent commit the baseline is the
+// newest committed attempt_count, not the snapshot value. The per-row bound
+// is unchanged: poison_recovery_attempts < $2 is still the only gate, so a
+// row gets at most 1 + $2 allowances of three projection claims and 48
+// admission waits each.
+//
 // Parameter order:
 //
 //	$1 now              (updated_at / visible_at stamp)
@@ -149,6 +170,10 @@ SET status = 'pending',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL,
+    attempt_count = CASE
+        WHEN target.stage = 'projector' THEN GREATEST(target.attempt_count, 1)
+        ELSE target.attempt_count
+    END,
     payload = jsonb_set(
         COALESCE(target.payload, '{}'::jsonb),
         '{poison_recovery_attempts}',
@@ -157,7 +182,8 @@ SET status = 'pending',
         )
     ),
     updated_at = $1,
-    reopened_at = $1
+    reopened_at = $1,
+    ` + queuestore.ReplayRetryAllowanceAssignments + `
 WHERE target.work_item_id = ANY(ARRAY(SELECT work_item_id FROM poison_locked))
   -- Write-time re-verify (#4464-grade guard): only a row still genuinely
   -- dead_letter at UPDATE time is re-driven. A concurrent reclaim that moved

@@ -180,7 +180,7 @@ rows stuck in `dead_letter` with no strictly-newer generation). The bounded
 | --- | --- | --- |
 | `ESHU_POISON_LIVENESS_AUTO_RETRY_ENABLED` | `false` | Opt into the bounded recovery arm. When `false` only the stuck-gauge runs and nothing is mutated |
 | `ESHU_POISON_LIVENESS_POLL_INTERVAL` | `5m` | How often the arm sweeps for poison rows to re-drive |
-| `ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS` | `1` | Per-item recovery budget; at the ceiling the row is left `dead_letter` for the operator while the gauge keeps alarming |
+| `ESHU_POISON_LIVENESS_MAX_RECOVER_ATTEMPTS` | `1` | Per-item recovery budget; at the ceiling the row is left `dead_letter` for the operator while the gauge keeps alarming. Each recovery gives a projector row a new row's retry allowance (3 projection failures, 48 admission waits, #11217), so with budget M the worst case per row is 3 x (1 + M) counting projection claims and 48 x (1 + M) admission waits. A non-retryable failure still dead-letters on the first claim |
 | `ESHU_POISON_LIVENESS_BATCH_LIMIT` | `200` | Max poison work items re-driven per sweep |
 
 The #7584 activation obligation consumer is **on by default**:

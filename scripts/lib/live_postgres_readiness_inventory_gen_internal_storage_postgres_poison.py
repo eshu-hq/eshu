@@ -10,6 +10,9 @@ TABLE = {
         "go/internal/storage/postgres/poison/liveness_integration_live_test.go": (
             "TestPoisonLivenessIntegration",
         ),
+        "go/internal/storage/postgres/poison/liveness_retry_allowance_live_test.go": (
+            "TestPoisonSweepRetryAllowanceInvariantTable",
+        ),
         "go/internal/storage/postgres/poison/liveness_write_time_race_live_test.go": (
             "TestRecoverPoisonDeadLettersQueryDoesNotClobberConcurrentReclaim",
         ),

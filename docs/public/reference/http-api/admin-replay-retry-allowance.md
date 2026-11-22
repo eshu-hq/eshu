@@ -2,7 +2,9 @@
 
 A replayed projector row gets the same retry allowance as a new row. This
 applies to `POST /api/v0/admin/replay` and to the runtime recovery replay
-(`POST /admin/replay`, including the dead-letter backlog drain) (#11182).
+(`POST /admin/replay`, including the dead-letter backlog drain) (#11182). The
+reducer's poison-liveness auto-retry sweep gives a recovered row the same
+allowance (#11217).
 
 ## What a replay changes on the row
 
@@ -42,16 +44,37 @@ duplicate request with the same `idempotency_key` returns the recorded outcome
 from the `admin_replay_requests` ledger and changes nothing, so a retried
 request never grants a second allowance.
 
+## The poison-liveness sweep
+
 A fourth writer moves `dead_letter` rows back to `pending` on a timer: the
 reducer's poison-liveness auto-retry sweep, when its enable setting in the
 [service runtimes](../../deployment/service-runtimes.md) page is on (default
-off). It covers
-projector rows too and is out of scope here (#11217). The poison-liveness
-sweep does not carry the allowance. It keeps `attempt_count`,
-`admission_wait_attempts` and `replay_attempt_baseline`, so a recovered row
-resumes the budget it had left. A row that used up its projection budget
-dead-letters again on its first projection failure (#11217).
-`poison_recovery_attempts` bounds how many times the sweep recovers a row.
+off). Since #11217 it writes the same three counters as a replay, so a
+recovered projector row gets a new row's allowance: 3 projection failures and
+48 admission waits.
+
+The four writers that carry the allowance are the admin replay, the recovery
+replay, the bounded dead-letter drain and the poison-liveness sweep. They share
+one SET-list fragment, so a change to it reaches all four.
+
+A projector row can be a dead letter at `attempt_count = 0`: the operator skip
+dead-letters `pending` rows that were never claimed. Every carrier raises such
+a row to attempt 1 with baseline 1, so its first claim counts as claim 1 and
+it gets exactly 3 projection claims, not 4.
+
+The sweep's own budget, `poison_recovery_attempts` in the row's JSONB payload,
+still bounds how many times it recovers a row (its per-item recovery budget,
+default 1, set next to the enable setting). Each recovery grants
+one allowance, so with a budget of M a row gets at most 3 x (1 + M) counting
+projection claims and 48 x (1 + M) admission waits before it stays
+`dead_letter`. A non-retryable failure still dead-letters the row on its first
+claim. Reducer rows keep `attempt_count` and `replay_attempt_baseline` until
+#11184, so a recovered reducer row resumes the budget it had left.
+
+The sweep writes no replay event. To tell a sweep-set baseline from a replay's,
+read `payload ->> 'poison_recovery_attempts'` on the row: a sweep-recovered
+row has it, and `POST /api/v0/admin/replay-events/query` shows no event for
+that recovery.
 
 Before #11182 a replay kept `attempt_count` but no baseline. A row
 dead-lettered at attempt 3 claimed at attempt 4, so its first projection
@@ -82,14 +105,15 @@ negative and the row retries past its budget.
   written before migration 334.
 - The `admin_replay_requests` ledger row is unchanged. It is one row per
   request with a flat `work_item_ids` list.
-- The runtime recovery replay writes no replay events. Read the work row to see
-  its baseline.
+- The runtime recovery replay and the poison-liveness sweep write no replay
+  events. Read the work row to see the baseline.
 
 To see how much allowance a replayed row has left, read the row:
 
 ```sql
 SELECT status, attempt_count, admission_wait_attempts, replay_attempt_baseline,
-       attempt_count - admission_wait_attempts - replay_attempt_baseline AS projection_claims_used
+       attempt_count - admission_wait_attempts - replay_attempt_baseline AS projection_claims_used,
+       payload ->> 'poison_recovery_attempts' AS poison_recoveries
 FROM fact_work_items
 WHERE work_item_id = '<work_item_id>';
 ```
