@@ -490,6 +490,9 @@ var migrationShippedChecksums = map[string]string{
 	// columns for pre-existing winner rows, split per #7961
 	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"332_supply_chain_impact_winners_payload_backfill.sql": "0d40beb25d23cfe156292977048d2b50cb5c5bd173974a13c6f7a2e9aa187660",
+	// #10880 PR-B1: the per-support table behind the grant-scoped reads
+	// (333-335 are held by other in-flight work; re-check at rebase).
+	"336_supply_chain_impact_finding_supports.sql": "06b4ffd05aa106e0d4efed07bc99b7d2c379818c137054c9a714cf2330e4f210",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -1,0 +1,58 @@
+-- 336_supply_chain_impact_finding_supports.sql: one row per active finding
+-- fact (a "support") so grant-scoped and existence-filtered impact reads can
+-- leave the fact CTE (#10880 PR-B1, arbiter option B). The row identity is the
+-- support's fact_id: the SQL canonical key collapses the CVE and advisory ids
+-- that the writer's fact id keeps apart, so (canonical_key, scope_id) is not
+-- unique. The table carries the generation id (a cascading foreign key, so
+-- retention and repository retirement remove supports with their generation,
+-- as they remove the facts) and readers keep the active-generation join. Operator suppression overlay facts (scope
+-- operator:vulnerability_suppressions) share the table and are told apart by
+-- scope_id, as the legacy CTE does. The writer fills it in the transaction that
+-- writes the finding facts; a marker-gated reducer backfill fills existing
+-- rows. No reader uses it in this migration's release.
+--
+-- Indexes are those a measured plan needs (docs/internal/design/
+-- 10880-pr-b1-supports-table-proof.md): the primary key (page and override
+-- joins), (scope_id, generation_id) for the scope grant leg and the stale
+-- generation skip, (repository_id) for the repository grant leg (14x slower
+-- without it), (finding_id) for explain by public finding id, and a partial
+-- canonical_key index for the operator override probe.
+
+CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports (
+    fact_id                TEXT PRIMARY KEY,
+    canonical_key          TEXT NOT NULL,
+    scope_id               TEXT NOT NULL,
+    generation_id          TEXT NOT NULL REFERENCES scope_generations(generation_id) ON DELETE CASCADE,
+    finding_id             TEXT NOT NULL,
+    has_payload_finding_id SMALLINT NOT NULL,
+    priority_score         INTEGER NOT NULL,
+    source_confidence      TEXT NOT NULL,
+    suppression_state      TEXT NOT NULL,
+    impact_status          TEXT NOT NULL DEFAULT '',
+    ecosystem              TEXT NOT NULL DEFAULT '',
+    severity_bucket        TEXT NOT NULL DEFAULT '',
+    repository_id          TEXT NOT NULL DEFAULT '',
+    cve_id                 TEXT NOT NULL DEFAULT '',
+    advisory_id            TEXT NOT NULL DEFAULT '',
+    package_id             TEXT NOT NULL DEFAULT '',
+    subject_digest         TEXT NOT NULL DEFAULT '',
+    image_ref              TEXT NOT NULL DEFAULT '',
+    priority_bucket        TEXT NOT NULL DEFAULT '',
+    detection_profile      TEXT NOT NULL DEFAULT '',
+    observed_version       TEXT NOT NULL DEFAULT '',
+    match_reason           TEXT NOT NULL DEFAULT '',
+    payload                JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_scope_generation_idx
+    ON supply_chain_impact_finding_supports (scope_id, generation_id);
+
+CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_repository_idx
+    ON supply_chain_impact_finding_supports (repository_id);
+
+CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_finding_idx
+    ON supply_chain_impact_finding_supports (finding_id);
+
+CREATE INDEX IF NOT EXISTS supply_chain_impact_finding_supports_operator_idx
+    ON supply_chain_impact_finding_supports (canonical_key)
+    WHERE scope_id = 'operator:vulnerability_suppressions';

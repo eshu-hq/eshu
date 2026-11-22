@@ -149,4 +149,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// columns for pre-existing winner rows, split per #7961
 	// (renumbered 326 to 332 at rebase: main owns 325-330).
 	"supply_chain_impact_winners_payload_backfill",
+	// Migration 336 (#10880 PR-B1) adds the per-support table behind the
+	// grant-scoped impact reads (333-335 are held by other in-flight work).
+	"supply_chain_impact_finding_supports",
 }
