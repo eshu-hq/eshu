@@ -46,6 +46,7 @@ CREATE TEMP TABLE fact_work_items (
     -- migration 325 (#10671) and 334 (#11182): the replay resets the
     -- admission counter and sets the projector replay baseline.
     admission_wait_attempts bigint NOT NULL DEFAULT 0,
+    source_paced_waits bigint NOT NULL DEFAULT 0,
     replay_attempt_baseline bigint NOT NULL DEFAULT 0,
     visible_at timestamptz, next_attempt_at timestamptz, last_attempt_at timestamptz,
     failure_class text, failure_message text, failure_details text,

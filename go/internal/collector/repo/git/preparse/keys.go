@@ -40,6 +40,9 @@ var NonOutputEnvKeys = map[string]string{
 	"ESHU_GIT_RESOLVE_CACHE_LOOKUP_SECONDS":  "address-cache lookup deadline (#8092); only bounds how long a first command waits for its pin",
 	"ESHU_GIT_RESOLVE_CACHE_REFRESH_SECONDS": "address-cache background refresh period (#8092); decides when a host is re-resolved, never what a snapshot emits",
 
+	"ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL": "repo-selection schedule (#10882); bounds how often a repository is selected for sync, so it decides when a snapshot runs, never what one emits",
+	"ESHU_GIT_SELECTION_STRETCH_MULTIPLIER":  "repo-selection schedule (#10882); stretches that interval while the git source is slowed, so it decides when a snapshot runs, never what one emits",
+
 	"ESHU_GIT_AUTH_METHOD":            "credential",
 	"ESHU_GIT_TOKEN":                  "credential",
 	"ESHU_GITHUB_APP_ID":              "credential",
