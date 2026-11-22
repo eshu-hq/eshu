@@ -17,7 +17,9 @@ This package owns failure-cause reconciliation (`QueueFailureMetadata`,
 `DeadLetterTriageMetadata`) and retry-delay computation
 (`ComputeRetryDelay`, `DefaultRetryMaxDelayFallback`,
 `DefaultJitterSource`), plus the shared `reopened_at` value of the
-fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320). The parent
+fact_work_items re-drive upserts (`ReopenedAtUpsertValue`, #9320), and the
+replay retry-allowance SET fragment every operator replay carries
+(`ReplayRetryAllowanceAssignments`, #11182). The parent
 `postgres` package owns the queue types
 that call these helpers, the claim/fail/ack SQL, and the lease fencing.
 `internal/projector/failure` owns the operator-facing triage classification
@@ -36,6 +38,11 @@ this package's dead-letter path defers to.
   `ON CONFLICT (work_item_id) DO UPDATE` that re-drives a fact work item to
   pending; stamps `EXCLUDED.updated_at` only when the conflicting row had
   finished (#9320)
+- `ReplayRetryAllowanceAssignments` (const SQL text): the SET-list fragment of
+  the admin replay, the recovery replay and the bounded drain. It sets a
+  projector row's `replay_attempt_baseline` to its kept `attempt_count` and
+  resets `admission_wait_attempts` to 0, so a replayed row gets a new row's
+  retries without lowering the claim fence (#11182)
 
 See `doc.go` for the godoc contract.
 
@@ -57,6 +64,14 @@ them own the retry-surge counters and failure-class attributes.
   the target table and whose inserted `updated_at` is the writer's timestamp. Keep `pending`, `retrying`,
   `claimed`, and `running` on the keep branch: stamping an expired claim that
   a sweep re-drives would understate its age and hide a stall.
+- `ReplayRetryAllowanceAssignments` must never lower `attempt_count`: every
+  projector worker shares one lease owner, so `attempt_count` is the only
+  claim fence. Its column references are unqualified so it fits both the
+  aliased admin UPDATE and the recovery UPDATE; neither FROM list may expose a
+  column named `stage`, `attempt_count`, `replay_attempt_baseline`, or
+  `admission_wait_attempts`. The lockstep tests read the three shipped SET
+  lists (`TestReplayUpdateClauseCarriesRetryAllowance`,
+  `TestRecoveryReplayTemplatesCarryRetryAllowance`).
 
 - `QueueFailureMetadata` and `DeadLetterTriageMetadata` never change a
   self-classifying error's own class or details; they only supply a

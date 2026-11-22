@@ -183,7 +183,7 @@ const Admin = `
         "summary": "Query fact work items",
         "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.work_items.list in its error envelope.",
         "responses": {
-          "200": {"description": "Admin work-item query results"},
+          "200": {"description": "Admin work-item query results. Each item carries replay_attempt_baseline: the attempt_count a projector row had at its last operator replay, or 0 when it was never replayed (#11182)."},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -340,7 +340,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Replay failed work items",
-        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set, whether they arrive as the failure_class selector or as explicit work_item_ids. A 200 with replayed_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
+        "description": "Safely replays terminal work items. Requires an explicit reason and idempotency_key, an admin (all-scopes) token, and refuses unsafe failure classes (input_invalid, unsafe_payload, and the manual-review dead-letter triage classes projection_bug and resource_exhausted) unless force is set, whether they arrive as the failure_class selector or as explicit work_item_ids. A 200 with replayed_count 0 means nothing matched. Duplicate delivery of the same idempotency_key returns the prior outcome instead of replaying again. A replayed projector row gets the retry allowance of a new row (#11182): the replay keeps attempt_count (the claim fence, never lowered), sets replay_attempt_baseline to it, and resets admission_wait_attempts to 0, so the row has 3 projection retries (attempt_count - admission_wait_attempts - replay_attempt_baseline < 3) and 48 admission waits before it dead-letters again; each returned item carries replay_attempt_baseline. A 503 with Retry-After means the request checkpoint step failed, a transient condition that is safe to retry; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text.",
         "requestBody": {
           "required": true,
           "content": {
@@ -474,7 +474,7 @@ const Admin = `
         "summary": "Query replay events",
         "description": "A 503 with Retry-After means a transient condition that is safe to retry: the read hit a stale or timed-out PostgreSQL reader, or the request checkpoint step failed; a 503 without Retry-After means a configuration state: the admin store or the checkpoint source is not configured on this API instance. No 503 body carries backend error text. The read runs with no route deadline, so it never answers 504. A reader-verdict 503 names capability operator.replay_events.list in its error envelope.",
         "responses": {
-          "200": {"description": "Replay-event query results"},
+          "200": {"description": "Replay-event query results. Each event carries replay_attempt_baseline (the baseline the replay set on a projector row) and prior_admission_wait_attempts (the admission waits the row had spent before the replay reset them); both are null for reducer rows and for events written before migration 334 (#11182)."},
           "400": {"$ref": "#/components/responses/BadRequest"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

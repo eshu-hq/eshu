@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	queuestore "github.com/eshu-hq/eshu/go/internal/storage/postgres/queue"
 )
 
 // Guard for #7597: every statement that sets a relationship_generations row
@@ -192,7 +194,12 @@ func TestActivationWriterGuardBitesOnAPlantedWriter(t *testing.T) {
 // TestActivationWakeSetClauseMatchesReplayReset keeps the wake's SET list in
 // lockstep with the recovery replay reset list it mirrors: the same
 // assignments, reopened_at included (the replay stamps it too since #9320).
-// The replay list is derived from the shipped template, not copied.
+// The replay list is derived from the shipped template, not copied. The one
+// difference is queuestore.ReplayRetryAllowanceAssignments (#11182): the
+// replay's projector retry allowance, which an operator replay grants and the
+// reducer consumer wake does not (the reducer budget does not read the
+// baseline until #11184). The test removes exactly that fragment from the
+// replay list and fails if the template stops carrying it.
 func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	t.Parallel()
 	normalize := func(s string) string { return strings.Join(strings.Fields(s), " ") }
@@ -209,7 +216,12 @@ func TestActivationWakeSetClauseMatchesReplayReset(t *testing.T) {
 	if start < 0 || end < start {
 		t.Fatal("cannot find the SET list in replayFailedWorkItemsTemplate")
 	}
-	replay := normalize(template[start+len("SET ") : end])
+	setList := template[start+len("SET ") : end]
+	if !strings.Contains(setList, queuestore.ReplayRetryAllowanceAssignments) {
+		t.Fatal("replayFailedWorkItemsTemplate lost queuestore.ReplayRetryAllowanceAssignments (#11182)")
+	}
+	// The fragment is the last assignment, so drop it with its leading comma.
+	replay := strings.TrimSuffix(normalize(strings.Replace(setList, queuestore.ReplayRetryAllowanceAssignments, "", 1)), ",")
 	wake := normalize(activationWakeSetClause)
 	if want := replay; wake != want {
 		t.Fatalf("activation wake SET list drifted from the replay reset list:\n got: %s\nwant: %s", wake, want)

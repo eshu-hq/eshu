@@ -947,9 +947,9 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `eshu_dp_postgres_query_duration_seconds{store="facts", operation="write"}`
   elevated means fact batch writes are slow; check connection pool and batch
   size (default 500).
-- Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
-  MaxAttempts`; use `RecoveryStore` to replay after investigating
-  `failure_class`.
+- Dead-letter items accumulate in `fact_work_items` when a retry budget is
+  spent; replay with `RecoveryStore` after investigating `failure_class`. A
+  replay grants a new row's retries via `replay_attempt_baseline` (#11182).
 - An unbounded `ReplayFailedWorkItems` (no `Limit`) locks its rows first in
   `work_item_id COLLATE "C"` order (`locked` CTE, `FOR NO KEY UPDATE`), the
   order of `AckBatch`, the own-gate wake and the admin replay, then updates

@@ -27,6 +27,18 @@ TABLE = {
             "TestAdminReplayHeldRowRaceLive",
             "TestAdminReplayDropsRowClaimedBeforeItsLockLive",
         ),
+        "go/internal/query/admin/replay_retry_allowance_live_test.go": (
+            "TestReplayGrantsProjectionRetriesLive",
+            "TestReplayGrantsAdmissionWaitsLive",
+            "TestAdminReplayDuplicateRequestGrantsNothingLive",
+        ),
+        "go/internal/query/admin/replay_retry_fence_live_test.go": (
+            "TestReplayKeepsClaimFenceLive",
+            "TestConcurrentReplaysMoveRowOnceLive",
+            "TestReplayNeverRewritesClaimedRowLive",
+            "TestAdminReplayRecordsBaselineLive",
+            "TestRefinalizeResetsReplayBaselineLive",
+        ),
         "go/internal/query/admin/scope_selector_live_test.go": (
             "TestAdminHandler_ScopeSelectorCollisionLive",
         ),
