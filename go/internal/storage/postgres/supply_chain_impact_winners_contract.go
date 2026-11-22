@@ -44,8 +44,10 @@ const SupplyChainImpactWinnersContractVersion int64 = 2
 // was re-pinned without a bump when #11145 added the scope-remainder convert
 // to the set and changed only the capture time a converted row carries: the
 // stored winners are byte-identical for the same facts (differential in
-// docs/internal/evidence/11145-scope-remainder-horizon.md). Version 1 keeps
-// the hash of the statements it named.
+// docs/internal/evidence/11145-scope-remainder-horizon.md, measured on the
+// version 1 statements; version 2 rests on the scope-remainder live tests and
+// on the convert writing only the dirty log). Version 1 keeps the hash of the
+// statements it named.
 var supplyChainImpactWinnersContractPins = map[int64]string{
 	1: "c5731efdb688e71bf37154ff9401a973f588d686603b10e117ca5a8f0ea4dbff",
 	// Version 2 (#10880 slice 1): the rebuild and keyed statements now

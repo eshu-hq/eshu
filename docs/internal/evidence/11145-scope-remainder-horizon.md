@@ -118,7 +118,8 @@ behavior.
 What the re-pin does on the roll: nothing different. The maintainer decides
 on versions only (`decideWinnersContract` in `winners_keyed_maintainer.go`).
 `StoredHash` and `BinaryHash` are read into the contract but nothing branches
-on them. Both full paths stamp the hash; no tick compares it. A binary carrying
+on them. The guarded and unguarded full (`resweepFull`) stamp the hash; the
+over-cap keyed fallback does not, and no tick compares it. A binary carrying
 the new hash, rolled over a table at version 2 whose last full recorded
 `62ceaea5...`, runs keyed ticks and the audit on its first tick: no full, no
 stand-down, no new reason on `full_resweeps_total`. The stored hash stays
