@@ -19,12 +19,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$here/../../.." && pwd)"
 # shellcheck source=lib/env.sh
 source "$here/lib/env.sh"
-for lib in host proc sampler collect arm; do
+for lib in host proc sampler collect hosted arm; do
   # shellcheck source=/dev/null
   source "$here/lib/$lib.sh"
 done
 
-arms="C C0 T1 T1TTL T3"
+arms="C C0 T1 T1TTL T2 T3"
 reps=3
 results="$REPLAY_SCRATCH/results"
 build=1

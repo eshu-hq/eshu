@@ -29,6 +29,7 @@ for dir in "$results"/*-rep*; do
     C-rep*) continue ;;
     C0-rep*) kind=control ;;
     T3-rep*) kind=t3 ;;
+    T2-rep*) kind=t2 ;;
   esac
   echo "== $name ($kind)"
   python3 -I "$here/check_arm.py" --arm "$dir/result.json" --kind "$kind" "${controls[@]}" || status=1

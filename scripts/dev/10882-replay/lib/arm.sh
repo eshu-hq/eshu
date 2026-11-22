@@ -164,10 +164,6 @@ replay_run_arm() {
   local arm="$1" rep="$2" here
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   replay_arm_config "$arm" || return 1
-  if [[ "$arm" == T2 ]]; then
-    echo "T2 needs the hosted-collector step (not yet wired in this driver)" >&2
-    return 3
-  fi
   REPLAY_RUN_DIR="$REPLAY_RESULTS/$arm-rep$rep"
   rm -rf "$REPLAY_RUN_DIR"
   mkdir -p "$REPLAY_RUN_DIR"
@@ -178,10 +174,13 @@ replay_run_arm() {
   "$here/make_fixtures.sh" "$REPLAY_FIXTURES" 6 >/dev/null
   replay_write_manifest "$arm" "$rep"
   replay_sampler_start
-  trap 'replay_stop ingester; replay_stop projector; replay_sampler_stop' RETURN
+  trap 'replay_stop ingester; replay_stop projector; replay_stop hosted; replay_sampler_stop' RETURN
 
   replay_seed TestReplaySeedBacklog >"$REPLAY_RUN_DIR/seed-backlog.log" 2>&1
   replay_seed TestReplaySeedProjector >"$REPLAY_RUN_DIR/seed-projector.log" 2>&1
+  if [[ "$arm" == T2 ]]; then
+    replay_hosted_prepare
+  fi
   local -a ing_env proj_env
   mapfile -t ing_env < <(replay_threshold_env ingester)
   mapfile -t proj_env < <(replay_threshold_env projector)
@@ -191,6 +190,11 @@ replay_run_arm() {
     GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.file://$REPLAY_FIXTURES/remotes/.insteadOf" \
     GIT_CONFIG_VALUE_0="https://github.com/"
   replay_start projector eshu-projector 19502 "${proj_env[@]}" ESHU_PROJECTOR_WORKERS="$REPLAY_PROJECTOR_WORKERS"
+  if [[ "$arm" == T2 ]]; then
+    local -a hosted_env
+    mapfile -t hosted_env < <(replay_threshold_env hosted)
+    replay_hosted_start "${hosted_env[@]}"
+  fi
   replay_event processes_started 0
   replay_seed TestReplayFeedB >"$REPLAY_RUN_DIR/feed-b.log" 2>&1 &
   local feeder=$!
@@ -201,6 +205,10 @@ replay_run_arm() {
   replay_census pre
   replay_scrape ingester engaged
   replay_scrape projector engaged
+  if [[ "$arm" == T2 ]]; then
+    replay_scrape hosted engaged
+    replay_hosted_export at_engagement_end
+  fi
   if [[ "$ARM_COMPLETE" == 1 ]]; then
     replay_event catchup_start 0
     replay_seed TestReplayCompleteA >"$REPLAY_RUN_DIR/catchup.log" 2>&1
@@ -210,6 +218,9 @@ replay_run_arm() {
     replay_wait_until 180 "latch release" replay_latch_released || true
   fi
   replay_fixture_commit after_release 3
+  if [[ "$arm" == T2 ]]; then
+    replay_wait_until 180 "hosted items to complete" replay_hosted_complete || true
+  fi
   wait "$feeder" || true
   replay_wait_until 240 "projector queue to settle" replay_projector_settled || true
   sleep 40 # let the post-release fixture commit be selected and projected
@@ -217,6 +228,10 @@ replay_run_arm() {
   replay_census end
   replay_scrape ingester final
   replay_scrape projector final
+  if [[ "$arm" == T2 ]]; then
+    replay_scrape hosted final
+    replay_hosted_export final
+  fi
   replay_sampler_stop
   replay_export_state
   replay_event run_done 0

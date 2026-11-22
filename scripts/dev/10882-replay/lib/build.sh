@@ -31,6 +31,7 @@ mkdir -p "$GOTMPDIR"
     nice -n 5 go build -trimpath -o "$REPLAY_BIN/eshu-$cmd" "./cmd/$cmd"
   done
   nice -n 5 go test -c -tags replayseed -o "$REPLAY_BIN/replayseed.test" ./internal/storage/postgres
+  nice -n 5 go test -c -tags replayseed -o "$REPLAY_BIN/replayseed-synth.test" ./cmd/collector-synth-zero
 )
 {
   echo "commit=$commit"

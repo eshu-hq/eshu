@@ -228,6 +228,11 @@ def main(run_dir: str) -> int:
       "census": {"classes": census_classes(os.path.join(run_dir, "census-pre.txt")),
                  "classes_end": census_end, "claimable_a_at_release": census_end.get("takeable", 0)},
       "selection": selection(samples, run_dir),
+      "hosted": {
+          "planted": read_json(os.path.join(export, "hosted-final.json"), {}).get("planted", 0),
+          "at_engagement_end": read_json(os.path.join(export, "hosted-at_engagement_end.json"), {}),
+          "final": read_json(os.path.join(export, "hosted-final.json"), {}),
+      },
       "final": {
           "generations": read_json(os.path.join(export, "generations.json"), {}),
           "real_fact_sets": read_json(os.path.join(export, "real_fact_sets.json"), {}),
