@@ -38,11 +38,17 @@ in the same PR as any DDL. Proof on the disposable copy:
   (`duplicate key violates "fact_undivided_pkey"`); the divided PK accepts
   it (row visible under both `scope-1` and `scope-X`), then the probe row
   was deleted to keep the corpora identical.
-- Dedup-census query shape (decision 3a gate): `SELECT fact_id ...
-  GROUP BY fact_id HAVING count(DISTINCT scope_id) > 1` returns 0 on the
-  synthetic corpus. On real data this MUST return 0 before any migration
-  PR; any value above zero changes dedup semantics and stops the design
-  for a fresh ruling. NOT measured on real data in this phase.
+- The planned dedup census (`SELECT fact_id ... GROUP BY fact_id HAVING
+  count(DISTINCT scope_id) > 1`) is vacuous: `fact_id` is the primary key, so it
+  returns zero by construction, on synthetic or real data. A cross-scope
+  collision today is merged silently into the first scope's row (the upsert's
+  SET list omits `scope_id` and `generation_id`), so it leaves nothing to count.
+  What can be shown, and is, is in
+  [the census record](10881-fact-records-census-and-readers.md): the upsert's
+  behavior, the per-producer id derivation (every live producer hashes scope and
+  generation; one dormant emitter pair does not), and a self-checking SQL proof.
+  The row-count comparison on a real replayed stream is still owed before a
+  migration PR.
 
 Writer census: the sites that write `fact_records` and so must move to
 `ON CONFLICT (scope_id, fact_id)` are the five production `INSERT INTO
@@ -140,14 +146,16 @@ scope starvation, save-transaction latency within baseline tolerance.
 
 ## Acceptance mapping (arbiter A1-A7)
 
-- A1 key/count/id-rule: recorded above; collision count 0 on synthetic
-  corpus, NOT_CHECKED on real data (P1 executor item).
-- A2 removal: mechanism proven, benefit unproven; P5 rehearsal required.
-- A3 five busiest plans: tolerance anchors recorded; per-query re-pin
-  required before any migration PR.
+- A1 key/count/id-rule: key `HASH(scope_id)`, modulus 32, PK `(scope_id,
+  fact_id)`; evidence in the measurement record and the census record.
+- A2 removal: measured at two sizes on a real whole-scope sample in
+  [the measurement record](10881-fact-records-hash-partition-measurements.md).
+- A3 five busiest plans: named, with `EXPLAIN (ANALYZE, BUFFERS)` on both
+  shapes, in the measurement record; tolerance anchors above still apply.
 - A4 cross-scope inventory: derived by `census_code.sh`; per-site
   disposition is in the measurement record. Execution of the reader
   moves still waits on #10880 (P3 gate).
-- A5 migration proof: shape and way back recorded; rehearsal is P5.
+- A5 migration proof: rehearsed with lock levels, durations, way back and the
+  mixed-version writer rule in the measurement record.
 - A6 tenant notes: index multiplication and giant-scope share measured.
 - A7 queue: left whole, with the future-proof bar stated in Decision 6.
