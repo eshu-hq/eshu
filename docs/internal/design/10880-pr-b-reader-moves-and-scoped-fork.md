@@ -1,7 +1,9 @@
 # PR-B for #10880: reader inventory, the scoped-token fork, and the layer-2 audit
 
-Status: **Evidence record, awaiting an arbiter ruling on the fork.** No code
-changes yet. Refs #10880, part of #10860. Companion to
+Status: **Evidence record.** The arbiter ruled option B (per-support table) for
+grant-scoped and existence-filtered reads; PR-B0 is executed (see the B0
+execution record at the end). The sections before it are the evidence the ruling
+rested on and are not rewritten. Refs #10880, part of #10860. Companion to
 [the first-result-family design record](10880-first-result-family-move.md) and
 [the PR-A review limits](10880-pr-a-review-limits.md). PR-A and #11161 are merged
 (origin/main `81a8cffd97` at the time of writing).
@@ -332,7 +334,7 @@ The advisory evidence declaration is wrong today and is the audit's first
 required fix.
 
 Size and placement: the recorder, classifier, and census live in a new leaf
-package under `go/internal/query` (for example `go/internal/query/storeaudit`)
+package under `go/internal/query` (for example `go/internal/query/store/audit`)
 with its three package files; the probe table stays beside
 `answeringStoreProbes`. Both new files and the existing lockstep test stay
 under 500 lines by splitting the probe table per family.
@@ -365,3 +367,93 @@ Arbiter questions, in order:
   any deployed profile.
 - Static gates and `make pre-push`, per the owner order for this lane. Lint
   and vet were run on the doc-only change as described in the handoff report.
+
+## B0 execution record (2026-11-22)
+
+Arbiter ruling: option B for every grant-scoped and existence-filtered read,
+canonical pick-then-filter for rank filters, any-support filter-then-pick for
+existence filters; PR-B splits into B0..B3 and the legacy read retires in PR-C.
+B0 lands the pieces that need no supports table. Commits on
+`drive/10880-pr-b`, each test-first:
+
+1. **Advisory evidence declaration.** `supply_chain.advisory_evidence.list`
+   now declares `fact_records_collector` and `fact_records_reducer`. The
+   lockstep probe failed on the old row first. The catalog regenerated and
+   verified through the stub satellite harness, and the "source-only" note
+   says impact findings are read only to select evidence.
+2. **Multi-support live proof.** The corpus of section 1, plus two derived-class
+   facts, is committed as a live test (`TestMultiSupportScopedGrantDivergenceLive`,
+   `TestMultiSupportUnscopedRankFilterDivergenceLive`,
+   `TestMultiSupportWinnersRecordsEverySupport`), enrolled in the
+   live-postgres-readiness plan. It pins today's answers, so a later PR cannot
+   change them silently: the legacy and winners answers for each grant shape and
+   rank filter, the gate-on stores keeping granted calls on the legacy read, and
+   derived-class facts appearing in no answer. One derived fact sits in an
+   `image://derived/` scope and one in an ordinary scope, so scope-prefix
+   exclusion and classification exclusion are each shown to hold alone; dropping
+   the classification turns the proof red. The third grant leg in the legacy
+   SQL, `OR finding_class.source_class = 'derived'`, is dead in static mode: the
+   derived branch is closed by a literal `AND FALSE`, so no derived-class row
+   reaches it. The PR-B3 expectations for rank filters change on purpose.
+3. **Layer-2 audit** (`go/internal/query/store/audit`). A recorder, a
+   classifier, a source census, and tests that read the real matrix.
+   - Seeded RED/GREEN pairs: a reducer-kind read under a graph-only declaration,
+     bind-argument kinds, an unresolvable `fact_records` read, and a fixture
+     package for the census.
+   - First real find: the advisory evidence declaration. Reverting it in the
+     matrix fails three audit tests; with it restored they pass.
+   - Probes drive impact list (gate off, gate on, scope grant, `image_ref`),
+     aggregate and inventory (same variants), grouped inventory (with a static
+     watermark row so it reaches its grouped statement), explain (by public id
+     and by selector), advisory evidence (two anchors), catalog, and alert
+     reconciliations. After the classifier drops the closed derived branch,
+     every probe reads a subset of its declaration.
+   - The census found what the probes cannot see: the impact package's readiness
+     code reads eight tables no capability declares
+     (`container_image_identity_supports`, three `package_manifest_consumption_*`
+     tables, `package_registry_identity_keys`, two `vulnerability_source_state*`
+     tables, `workflow_runs`). They feed the `readiness_state` the list and
+     explain responses carry. B0 lists them as supporting tables with the reason
+     rather than invent declarations; whether list and explain should declare
+     them is a question for the arbiter.
+   - Waivers: 156 capabilities have no probe yet (162 minus six probed) and 18
+     query packages have no census owner. Both lists can only shrink; the
+     ceilings are pinned in `audit_test.go`.
+   - Not recorded yet: graph and content-store reads. Those capabilities sit in
+     the waiver list until a graph recorder lands.
+4. **`image_ref` guard.** The gate-on list and aggregate stores serve an
+   `image_ref` call from the legacy read; grouped inventory, which has no legacy
+   read, answers `ErrGroupedInventoryReadModelUnavailable` (503). The tests
+   failed before the guard.
+5. **Profile proof: supports of one key can differ.** The detection profile
+   is a function of status, observed version, and match reason. The first two
+   are in the canonical key; the match reason is not, and the package path never
+   sets the criteria ids. On the OS path a vendor exact-version list and a tagged
+   OSV range both give `affected_exact` for one observed version and release
+   line, with reasons `dpkg_exact_affected_version` (precise) and
+   `dpkg_affected_range` (comprehensive).
+   `TestDetectionProfileIsAPerSupportOutputOfOneCanonicalKey` pins it. No writer
+   invariant can hold, so B0 adds none. A `profile` filter answered from the
+   winners pick can hide a finding whose other support is precise; B2 serves it
+   as an existence filter from supports, and the arbiter ruling for the question
+   is pending.
+6. **Gate text and HTTP reference.** The `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`
+   description no longer says the findings output is byte-identical; the env
+   reference regenerated; the inventory HTTP reference gained a section on rank
+   and existence filters on multi-scope findings and a corrected "bodies match"
+   sentence.
+
+### What B0 does not do
+
+No supports table, no reader switch, no default flip, no change to the legacy
+read. The scope-id grant divergence and the rank-filter divergence stay in the
+code exactly as section 1 measured them, now pinned by the live proof.
+
+### NOT_CHECKED in B0
+
+- The live proofs ran against a private `postgres:18` container; no QA or
+  production census of multi-support keys exists.
+- Golden-corpus API and MCP equality (acceptance criterion 3) and the
+  read-latency gate are not part of B0.
+- The census is a floor: a SQL literal outside the `KnownRelations` set, or a
+  query built without string literals, is invisible to it.
