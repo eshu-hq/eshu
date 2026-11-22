@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 equality proof: the test-only candidate list read over the per-support table (filled by the marker-gated backfill from the multi-support corpus) returns exactly the findings the legacy fact read returns for every granted shape and every filter, including image_ref and profile existence filters, a same-scope canonical-key collision, operator suppression overlays, and derived-class rows under a grant that covers their scope and one that does not; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 equality proof: the test-only candidate list read over the per-support table (filled by the marker-gated backfill from the multi-support corpus) returns the legacy read's page for every granted shape and every non-rank filter, and the ruled pick-then-filter page for every rank filter (compared with an independent oracle, nine differences from legacy pinned for B3), including image_ref and profile existence filters, a same-scope canonical-key collision, operator overlays (live, expired, invalid expiry, competing, superseded generation), and derived-class rows under a grant that covers their scope and one that does not; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core/cvss"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -47,14 +48,34 @@ func seedSupportsEqualityExtras(t *testing.T, ctx context.Context, database *sql
 	}
 	collision("fact:c1:a", "c1", "ADV-C1")
 	collision("fact:c2:a", "c2", "")
-	overlay := func(factID, id, state, expires string) {
-		payload := groupedLiveFindingPayload(id, id, 50, 5.0)
+	overlay := func(factID, id, state, expires, generationID string, score int) {
+		payload := groupedLiveFindingPayload(id, id, score, 5.0)
 		payload["suppression_state"] = state
 		payload["suppression"] = map[string]any{"expires_at": expires, "reason": "supports equality"}
-		groupedLiveFact(t, ctx, database, factID, supportsOperatorScope, "gen:operator", FindingFactKind, payload)
+		groupedLiveFact(t, ctx, database, factID, supportsOperatorScope, generationID, FindingFactKind, payload)
 	}
-	overlay("fact:op:m1", "m1", "accepted_risk", "2099-01-01T00:00:00Z")
-	overlay("fact:op:m3", "m3", "false_positive", "2020-01-01T00:00:00Z")
+	// The first operator generation is superseded below, so its overlays must
+	// reach neither read: p1 would be hidden if one did. The overlays sit on keys
+	// the rank filters do not split, so the divergent keys (m1, m2) stay visible.
+	overlay("fact:op:old:p1", "p1", "false_positive", "2099-01-01T00:00:00Z", "gen:operator", 90)
+	for _, statement := range []string{
+		`UPDATE scope_generations SET status = 'superseded', superseded_at = now() WHERE generation_id = 'gen:operator'`,
+		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
+VALUES ('gen:operator:2', 'operator:vulnerability_suppressions', 'synthetic', now(), now(), 'active', now(), '{}'::jsonb)`,
+		`UPDATE ingestion_scopes SET active_generation_id = 'gen:operator:2' WHERE scope_id = 'operator:vulnerability_suppressions'`,
+	} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("supersede the operator generation: %v", err)
+		}
+	}
+	overlay("fact:op:s1", "s1", "accepted_risk", "2099-01-01T00:00:00Z", "gen:operator:2", 50)
+	overlay("fact:op:m3", "m3", "false_positive", "2020-01-01T00:00:00Z", "gen:operator:2", 50)
+	// Two competing overrides for s2: the higher priority wins, whatever the state.
+	overlay("fact:op:s2:low", "s2", "accepted_risk", "2099-01-01T00:00:00Z", "gen:operator:2", 40)
+	overlay("fact:op:s2:high", "s2", "ignored", "2099-01-01T00:00:00Z", "gen:operator:2", 70)
+	// An expiry the cast cannot read: the legacy read and the candidate must agree
+	// on what it does, whatever that is.
+	overlay("fact:op:m4", "m4", "accepted_risk", "not-a-timestamp", "gen:operator:2", 50)
 }
 
 // openSupportsEqualityDatabase seeds the multi-support corpus and the extras,
@@ -111,15 +132,61 @@ func supportsCandidateList(ctx context.Context, database *sql.DB, query string, 
 	return out, rows.Err()
 }
 
+// supportsRankOracle answers a rank-filter call by the ruled rule without the
+// candidate: run the legacy read with the rank binds empty (the pick over
+// granted supports that pass the key and existence filters, unpaged (the corpus holds fewer than 200 findings)), then
+// filter the picked rows in Go. It shares no SQL with the candidate beyond the
+// legacy read it is built on.
+func supportsRankOracle(ctx context.Context, store PostgresFindingStore, filter FindingFilter) ([]FindingRow, error) {
+	base := filter
+	base.Severity, base.PriorityBucket, base.MinPriorityScore = "", "", 0
+	base.Limit, base.AfterFindingID = 200, ""
+	picked, err := store.ListSupplyChainImpactFindings(ctx, base)
+	if err != nil {
+		return nil, err
+	}
+	out := []FindingRow{}
+	for _, row := range picked {
+		if filter.Severity != "" && cvss.Bucket(row.CVSSScore) != filter.Severity {
+			continue
+		}
+		if filter.PriorityBucket != "" && row.PriorityBucket != filter.PriorityBucket {
+			continue
+		}
+		if filter.MinPriorityScore > 0 && row.PriorityScore < filter.MinPriorityScore {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// supportsRankDifferences lists, for B3, every grant and rank filter where the
+// ruled order and the legacy filter-then-pick order return different pages. The
+// list is pinned: a new difference or a vanished one fails the test, so the
+// change in answers PR-B3 makes on purpose is exactly this list.
+var supportsRankDifferences = map[string]string{
+	"repositories m1 and m2/priority bucket low":                                      "legacy m1(p=40) m2(p=30) | ruled (empty)",
+	"repositories m1 and m2/severity medium":                                          "legacy m1(p=40) m2(p=30) | ruled (empty)",
+	"repositories m1 and m2/severity medium with profile precise":                     "legacy m1(p=40) m2(p=30) | ruled (empty)",
+	"scope SA and SB/priority bucket low":                                             "legacy m1(p=40) m2(p=30) m3(p=60) m4(p=60) p1(p=50) p2(p=45) | ruled m3(p=60) m4(p=60) p1(p=50) p2(p=45)",
+	"scope SA and SB/severity medium":                                                 "legacy c1(p=62) i1(p=75) m1(p=40) m2(p=30) m3(p=60) m4(p=60) p1(p=50) p2(p=45) | ruled c1(p=62) i1(p=75) m3(p=60) m4(p=60) p1(p=50) p2(p=45)",
+	"scope SA and SB/severity medium with profile precise":                            "legacy c1(p=62) i1(p=75) m1(p=40) m2(p=30) m3(p=60) m4(p=60) p1(p=50) p2(p=30) | ruled c1(p=62) i1(p=75) m3(p=60) m4(p=60) p1(p=50) p2(p=30)",
+	"scope SA plus repository m1 (arms overlap)/priority bucket low":                  "legacy m1(p=40) m3(p=60) m4(p=60) p1(p=50) p2(p=30) | ruled m3(p=60) m4(p=60) p1(p=50) p2(p=30)",
+	"scope SA plus repository m1 (arms overlap)/severity medium":                      "legacy c1(p=62) i1(p=55) m1(p=40) m3(p=60) m4(p=60) p1(p=50) p2(p=30) | ruled c1(p=62) i1(p=55) m3(p=60) m4(p=60) p1(p=50) p2(p=30)",
+	"scope SA plus repository m1 (arms overlap)/severity medium with profile precise": "legacy c1(p=62) i1(p=55) m1(p=40) m3(p=60) m4(p=60) p1(p=50) p2(p=30) | ruled c1(p=62) i1(p=55) m3(p=60) m4(p=60) p1(p=50) p2(p=30)",
+}
+
 // TestSupportsCandidateListEqualsLegacyLive is the equality gate of #10880
-// PR-B1: for every granted shape and filter the candidate read over the
-// supports table returns the legacy read's page, row for row and payload for
-// payload. The candidate applies every filter to the supports before the pick,
-// as the legacy read does; PR-B2 changes the rank filters to the canonical
-// pick-then-filter order the arbiter ruled and rewrites these expectations on
-// purpose. The grant shapes include a scope grant for the derived-image scope
-// and one for an ordinary scope that holds a derived-class fact: neither read
-// may return the derived fact, with or without a grant that covers its scope.
+// PR-B1. For every granted shape and every non-rank filter the candidate read
+// over the supports table returns the legacy read's page, row for row and
+// payload for payload. Rank filters (severity, priority bucket, minimum
+// priority) follow the ruled order, pick then filter, which the legacy read
+// does not, so those cases compare against supportsRankOracle and each
+// difference from legacy is listed. The grant shapes include a scope grant for
+// the derived-image scope and one for an ordinary scope that holds a
+// derived-class fact: neither read may return the derived fact, with or
+// without a grant that covers its scope.
 func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 	ctx, database := openSupportsEqualityDatabase(t)
 	candidate := supportsCandidateListQuery(t)
@@ -138,33 +205,39 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 		{"derived scope", nil, []string{multiSupportDerivedScope}},
 		{"derived scope and SA", nil, []string{multiSupportDerivedScope, multiSupportScopeA}},
 		{"operator scope", nil, []string{supportsOperatorScope}},
+		{"operator scope and SA", nil, []string{supportsOperatorScope, multiSupportScopeA}},
 		{"repository without findings", []string{"repository:none"}, nil},
 	}
 	filters := []struct {
 		name   string
 		filter FindingFilter
+		rank   bool
 	}{
-		{"status", FindingFilter{Status: "affected_exact"}},
-		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}},
-		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}},
-		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}},
-		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}},
-		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}},
-		{"severity critical", FindingFilter{Severity: "critical"}},
-		{"severity medium", FindingFilter{Severity: "medium"}},
-		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}},
-		{"priority bucket low", FindingFilter{PriorityBucket: "low"}},
-		{"min priority 60", FindingFilter{MinPriorityScore: 60}},
-		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}},
-		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}},
-		{"include suppressed", FindingFilter{IncludeSuppressed: true}},
-		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}},
-		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}},
+		{"status", FindingFilter{Status: "affected_exact"}, false},
+		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}, false},
+		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}, false},
+		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
+		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
+		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
+		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
+		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
+		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},
+		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}, false},
+		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}, false},
+		{"severity critical", FindingFilter{Severity: "critical"}, true},
+		{"severity medium", FindingFilter{Severity: "medium"}, true},
+		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}, true},
+		{"priority bucket low", FindingFilter{PriorityBucket: "low"}, true},
+		{"min priority 60", FindingFilter{MinPriorityScore: 60}, true},
+		{"priority bucket low with image_ref b", FindingFilter{PriorityBucket: "low", ImageRef: "registry.example/b:2"}, true},
+		{"severity medium with profile precise", FindingFilter{Severity: "medium", DetectionProfile: ProfilePrecise}, true},
 	}
 	compared, nonEmpty := 0, 0
+	differences := map[string]string{}
 	for _, grant := range grants {
 		for _, tc := range filters {
-			t.Run(grant.name+"/"+tc.name, func(t *testing.T) {
+			name := grant.name + "/" + tc.name
+			t.Run(name, func(t *testing.T) {
 				filter := tc.filter
 				filter.AllowedRepositoryIDs, filter.AllowedScopeIDs = grant.repositories, grant.scopes
 				if filter.Limit == 0 {
@@ -182,10 +255,25 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 				if err != nil {
 					t.Fatalf("candidate list: %v", err)
 				}
-				legacyJSON, _ := json.Marshal(legacy)
+				want := legacy
+				if tc.rank {
+					if want, err = supportsRankOracle(ctx, legacyStore, filter); err != nil {
+						t.Fatalf("rank oracle: %v", err)
+					}
+					legacyJSON, _ := json.Marshal(legacy)
+					wantJSON, _ := json.Marshal(want)
+					if string(legacyJSON) != string(wantJSON) {
+						differences[name] = "legacy " + multiSupportDescribe(legacy) + " | ruled " + multiSupportDescribe(want)
+						if len(want) == 0 {
+							differences[name] += "(empty)"
+						}
+					}
+				}
+				wantJSON, _ := json.Marshal(want)
 				gotJSON, _ := json.Marshal(got)
-				if string(legacyJSON) != string(gotJSON) {
-					t.Fatalf("candidate differs from legacy\nlegacy:    %s\ncandidate: %s", multiSupportDescribe(legacy), multiSupportDescribe(got))
+				if string(wantJSON) != string(gotJSON) {
+					t.Fatalf("candidate differs from its reference (rank=%v)\nreference: %s\ncandidate: %s",
+						tc.rank, multiSupportDescribe(want), multiSupportDescribe(got))
 				}
 				for _, row := range got {
 					if strings.Contains(row.FindingID, "derived") {
@@ -205,5 +293,16 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 	if nonEmpty < compared/3 {
 		t.Fatalf("only %d of %d cases returned rows: the matrix proves little", nonEmpty, compared)
 	}
-	t.Logf("compared %d grant x filter cases, %d non-empty", compared, nonEmpty)
+	t.Logf("compared %d grant x filter cases, %d non-empty, %d rank cases differ from legacy", compared, nonEmpty, len(differences))
+	for name, diff := range differences {
+		t.Logf("B3 difference: %s: %s", name, diff)
+	}
+	if len(differences) != len(supportsRankDifferences) {
+		t.Errorf("rank differences from legacy = %d, pinned list has %d: update supportsRankDifferences with the cases logged above", len(differences), len(supportsRankDifferences))
+	}
+	for name, diff := range differences {
+		if supportsRankDifferences[name] != diff {
+			t.Errorf("rank difference %q = %q, pinned %q", name, diff, supportsRankDifferences[name])
+		}
+	}
 }

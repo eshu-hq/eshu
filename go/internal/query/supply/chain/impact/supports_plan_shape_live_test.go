@@ -204,4 +204,19 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	if ok, _ := supportsPlanIsGrantDriven(naturalScans); ok {
 		t.Fatalf("the checker accepted the natural single-WHERE form (scans %v): it would not catch a rewrite", naturalScans)
 	}
+
+	// The generation foreign key cascades. Its delete reads the supports by
+	// generation_id; PostgreSQL 18 reaches them through the (scope_id,
+	// generation_id) index by skip scan, so no separate generation_id index is
+	// needed. A sequential scan here would make every generation delete scan the
+	// whole table, so the plan is pinned.
+	cascadeScans, err := explainSupportsScans(ctx, database,
+		`DELETE FROM supply_chain_impact_finding_supports WHERE generation_id = 'gen:plan:7'`, nil)
+	if err != nil {
+		t.Fatalf("explain the cascade delete: %v", err)
+	}
+	t.Logf("cascade delete scans of the supports table: %v", cascadeScans)
+	if len(cascadeScans) == 0 || strings.Contains(strings.Join(cascadeScans, " | "), "Seq Scan") {
+		t.Fatalf("the generation delete reads the supports by sequential scan (scans %v): add a generation_id index", cascadeScans)
+	}
 }

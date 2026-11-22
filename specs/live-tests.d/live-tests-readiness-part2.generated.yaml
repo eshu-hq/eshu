@@ -117,7 +117,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/supports_equality_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B1 disposable PostgreSQL 18 equality proof: the test-only candidate list read over the per-support table (filled by the marker-gated backfill from the multi-support corpus) returns exactly the findings the legacy fact read returns for every granted shape and every filter, including image_ref and profile existence filters, a same-scope canonical-key collision, operator suppression overlays, and derived-class rows under a grant that covers their scope and one that does not; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B1 disposable PostgreSQL 18 equality proof: the test-only candidate list read over the per-support table (filled by the marker-gated backfill from the multi-support corpus) returns the legacy read's page for every granted shape and every non-rank filter, and the ruled pick-then-filter page for every rank filter (compared with an independent oracle, nine differences from legacy pinned for B3), including image_ref and profile existence filters, a same-scope canonical-key collision, operator overlays (live, expired, invalid expiry, competing, superseded generation), and derived-class rows under a grant that covers their scope and one that does not; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go
     tag: ~

@@ -14,6 +14,13 @@ import (
 // can answer what the legacy read answers, and pins the plan shape the
 // theory proofs measured (docs/internal/design/10880-pr-b1-supports-read-theory-proof.md).
 //
+// It implements the ruled rank-filter order (arbiter ruling for #10880 PR-B1,
+// Q2): the pick runs over the granted supports that pass the key and existence
+// filters, and the rank filters (severity, priority bucket, minimum priority
+// score) then apply to the picked row, before the suppression filters. The
+// legacy read filters first and picks after, so rank cases differ from it on
+// purpose and are compared with an independent oracle instead.
+//
 // It is derived from the shipped constant, not copied: the text before the
 // source candidates, the sources' winner pick, the suppression overlay, the
 // paging, and the payload overlay are the legacy text unchanged, so the legacy
@@ -32,7 +39,8 @@ const supportsCandidateSourceCTE = `
 source_candidates AS (
   SELECT fact.fact_id, fact.scope_id, fact.finding_id, fact.source_confidence,
          fact.suppression_state, fact.priority_score,
-         fact.has_payload_finding_id, fact.canonical_key
+         fact.has_payload_finding_id, fact.canonical_key,
+         fact.severity_bucket, fact.priority_bucket
   FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($23::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($22::text[])
@@ -63,7 +71,6 @@ source_candidates AS (
     AND ($6 = '' OR fact.impact_status = $6)
     AND ($7 = '' OR fact.advisory_id = $7)
     AND ($8 = '' OR fact.ecosystem = LOWER(($8) COLLATE "C") COLLATE "default")
-    AND ($12 = '' OR fact.severity_bucket = $12)
     AND (
           $13 = ''
           OR fact.detection_profile = $13
@@ -83,8 +90,6 @@ source_candidates AS (
                     )
              )
         )
-    AND ($14 = '' OR fact.priority_bucket = $14)
-    AND ($15 = 0 OR fact.priority_score >= $15)
     AND ($16 = '' OR fact.image_ref = $16)
 )`
 
@@ -105,6 +110,14 @@ const supportsCandidateOverrideLateral = `LEFT JOIN LATERAL (
     ORDER BY fact.priority_score DESC, fact.has_payload_finding_id DESC, fact.fact_id ASC
     LIMIT 1
   ) AS override ON TRUE`
+
+// supportsCandidateRankFilter is the rank predicate the candidate applies to the
+// picked row, ahead of the suppression filters. $12, $14 and $15 keep the legacy
+// bind order.
+const supportsCandidateRankFilter = `  WHERE ($12 = '' OR severity_bucket = $12)
+    AND ($14 = '' OR priority_bucket = $14)
+    AND ($15 = 0 OR priority_score >= $15)
+    AND ($20 = '' OR effective_suppression_state = $20)`
 
 // supportsCandidateListQuery derives the candidate from the legacy list query.
 func supportsCandidateListQuery(t testing.TB) string {
@@ -133,6 +146,12 @@ func supportsCandidateListQuery(t testing.TB) string {
 		t.Fatalf("legacy list query lost the operator_overrides join: update the candidate derivation")
 	}
 	query = strings.Replace(query, overrideJoin, supportsCandidateOverrideLateral, 1)
+	// The rank filters apply to the picked row, ahead of the suppression filters.
+	const suppressionFilter = "  WHERE ($20 = '' OR effective_suppression_state = $20)"
+	if !strings.Contains(query, suppressionFilter) {
+		t.Fatalf("legacy list query lost the canonical_facts filter: update the candidate derivation")
+	}
+	query = strings.Replace(query, suppressionFilter, supportsCandidateRankFilter, 1)
 	// The page and the override payload come from the supports table.
 	const sourceJoin = "JOIN fact_records AS source\n  ON source.fact_id = page.fact_id\nLEFT JOIN fact_records AS override\n  ON override.fact_id = page.override_fact_id"
 	if !strings.Contains(query, sourceJoin) {
