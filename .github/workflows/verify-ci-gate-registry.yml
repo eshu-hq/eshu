@@ -91,6 +91,7 @@ jobs:
           scripts/test-regen-conflicts.sh
           scripts/test-verify-live-required-status-checks.sh
           scripts/test-resolve-required-gates-pr.sh
+          python3 scripts/test-gate-timing.py
           scripts/test-main-health.sh
           scripts/test-dirgate-main-alarm.sh
           scripts/dev/test-pre-enqueue-check.sh

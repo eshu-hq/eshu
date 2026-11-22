@@ -319,4 +319,6 @@ var coreEntries = []Entry{
 	// code ownership for every public citation. Local tooling only; never set
 	// any of these in production.
 	{Name: "ESHU_DOCS_BUILD_TIMEOUT_SECONDS", Type: VarInt, Default: "600", Subsystem: "push-hooks", Description: "Bound in seconds for the docs-build pre-push hook (scripts/verify-docs-build-changed.sh): past the bound the hook fails closed naming the live-gate holder. Integer 1 through 3600; unset keeps 600 (#7983)."},
+	{Name: "ESHU_GATE_TIMING", Type: VarString, Default: "1", Subsystem: "push-hooks", Description: "Set to 0 to stop make pre-push and make pre-pr from recording a timing line for the run (scripts/lib/gate-timing.sh); any other value, or unset, records. Measurement only: it never changes a step's pass or fail result."},
+	{Name: "ESHU_GATE_TIMING_DIR", Type: VarString, Default: "~/.cache/eshu-gate-timing", Subsystem: "push-hooks", Description: "Directory that holds runs.jsonl, the per-run timing record written by make pre-push and make pre-pr and read by scripts/dev/gate-timing.py. Kept outside the repository because it measures the host."},
 }

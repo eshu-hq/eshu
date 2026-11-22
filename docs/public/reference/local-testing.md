@@ -25,7 +25,7 @@ Use this fixed promotion order before opening or updating a PR:
 4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
 `make pre-push` is the fast local floor run before every push (except row 4a, tier S, or an owner push order; see Rebase Waiver in `eshu-code-review`), scoped to
-changed packages/paths: `go test` and `go test -race`, the file cap, gofumpt/lint/build/vet,
+changed packages/paths: `go test -race` on every changed package (plus a plain `go test` for any changed package with a `//go:build !race` file, whose tests the race binary leaves out, and for fixture consumers and parser-tree child packages that are not themselves changed), the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
 a conflict fails closed; `main` has no merge queue, so the required checks on the PR head are the authority), the
 registry-selected blocking exactness/telemetry/hygiene/docs/security/frontend gates, and the
@@ -45,6 +45,10 @@ make pre-push          # or: bash scripts/dev/pre-push.sh
 make pre-pr            # or: bash scripts/dev/pre-pr.sh
 make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
+
+Every `make pre-push` and `make pre-pr` run also records where its time went, and
+[Gate Timing](local-testing/gate-timing.md) shows how to read those records and
+the matching CI job times.
 
 CI remains authoritative and should rarely be the *first* place a
 credential-free failure appears. Race gates block on Go changes: `make pre-push`
