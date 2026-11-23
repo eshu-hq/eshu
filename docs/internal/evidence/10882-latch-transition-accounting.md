@@ -72,7 +72,7 @@ All on disposable PostgreSQL 18.6 (`postgres:18.6`).
   and release of one row racing. Each round's row-changing writes leave the
   row on the state their parity predicts; across the run engage wins minus
   release wins equal the final bit; the fleet gauge equals it after every
-  process observes. With the `WHERE` deleted it fails in round 2 (12
+  process observes. With the `WHERE` deleted it fails in round 1 or 2, depending on the run (12
   row-changing writes from `engaged=false`).
 - Race and repeat: `go test -race -count=50` on the three live tests at `1903c4c709` against disposable PostgreSQL 18.6: exit 0, 0 failed tests, 0 data races, 609.6 s (150 test runs). A first run of the interleaving test failed 26 of 50 in round 0 only: the row did not exist yet, so a racing release inserted a disengaged row, a change that is not a flip. A real release is only written against a row the consult read engaged, so the test now seeds the row first.
 
@@ -122,6 +122,11 @@ unchanged. Wording updated in
   the latch from stale data. This is a real second transition, counted once,
   and the next consult releases it. It is the pre-existing staleness of a
   read-then-write consult, not changed here.
+- A stale release can overwrite a newer engagement: the `WHERE` compares only
+  the engaged bit, so a consult that read engagement E1 and decides to release
+  can flip an E2 written in between. The effect is a short flap: both are
+  counted as real transitions and the next consult re-engages. The old
+  unconditional upsert did the same, so this is not new.
 - A release won before the winning engage's process has recorded its raise
   (a window of microseconds inside one process) leaves a raise that the next
   read settles.

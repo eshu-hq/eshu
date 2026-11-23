@@ -77,6 +77,7 @@ raising process's gauge on its next consult or publication. A process that
 raised the gauge and restarts while the latch stays engaged loses its raise;
 the gauge reads 0 for that engagement until the next one. Latch truth stays
 correct in the shared row and in the coordinator `source_pacing` rows.
+A stale release can also overwrite a newer engagement, because the write compares only the engaged bit; both flips are counted as real transitions and the next consult re-engages.
 Per-component quota throttle signals (`quota_exceeded`, floor-rate
 fallback) are not pacing signals: they belong to #8471, merged in #8557
 and documented in [Claim Quota Signals](claim-quotas.md). They share the
