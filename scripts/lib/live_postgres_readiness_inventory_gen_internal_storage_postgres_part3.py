@@ -75,6 +75,13 @@ TABLE = {
             "TestOwnedTargetSlotProgressLive",
             "TestOwnedTargetSlotProgressSurvivesPFlipLive",
         ),
+        "go/internal/storage/postgres/pacing_latch_interleave_live_test.go": (
+            "TestPacingLatchEngageReleaseInterleavingLive",
+        ),
+        "go/internal/storage/postgres/pacing_latch_race_live_test.go": (
+            "TestSourceBackpressureLatchRaceCountsOneTransitionLive",
+            "TestWorkflowClaimPacingLatchRaceCountsOneTransitionLive",
+        ),
         "go/internal/storage/postgres/package_manifest_central_pin_live_test.go": (
             "TestNotCentralVersionDeclarationSQLAgreesWithGoLive",
         ),

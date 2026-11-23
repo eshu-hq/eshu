@@ -31,6 +31,16 @@ func TestPacingLatchEngageReleaseInterleavingLive(t *testing.T) {
 	key := pacingLatchKey{signal: workflow.ClaimPacingSignalReducerSource, domain: "interleave-source"}
 	consumers := newLatchConsumers(t, database, latchRaceConsumers, time.Now().UTC())
 
+	// Start from a row that exists and is disengaged, the state every real
+	// release is written against: a consult only writes a release for a row
+	// it read engaged. A release against a missing row would insert a
+	// disengaged row, a change that is not a flip, and would break the
+	// parity the rounds check.
+	for _, engaged := range []bool{true, false} {
+		if err := consumers[0].store.writeClaimPacingLatch(ctx, key, engaged, consumers[0].now); err != nil {
+			t.Fatalf("seed latch row engaged=%v: %v", engaged, err)
+		}
+	}
 	const rounds = 60
 	state := false
 	for round := 0; round < rounds; round++ {
