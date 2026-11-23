@@ -14,14 +14,33 @@ import (
 var (
 	forClausePattern = regexp.MustCompile(`(?i)\bfor\s+(no\s+key\s+update|update|share|key\s+share)\b`)
 	dmlPattern       = regexp.MustCompile(`(?i)\b(insert|update|delete)\b`)
+
+	// workItemRefPattern matches every mention of the work-item table, under any
+	// alias or clause (FROM, JOIN, a subselect, a CTE body, the UPDATE target).
+	workItemRefPattern = regexp.MustCompile(`\bfact_work_items\b`)
+	// countCallPattern matches every count aggregate; allowedCountPattern the
+	// only shape the fan-out may carry: a count over one of its own CTEs.
+	countCallPattern    = regexp.MustCompile(`(?i)\bcount\(`)
+	allowedCountPattern = regexp.MustCompile(`(?i)\bcount\(\*\)\s+FROM\s+(captured|current_consumers|scheduled|deleted)\b`)
 )
+
+// fanoutWorkItemRefs is the exact number of times the shipped fan-out names
+// fact_work_items: the FROM in current_consumers and the UPDATE target of the
+// scheduling statement. Any further mention is a second pass over the work-item
+// rows, whatever its alias or clause.
+const fanoutWorkItemRefs = 2
 
 // manifestMarkerFanoutShapeError reports how query fails the #10972 shape of the
 // fan-out statement: the locked, scheduled current_consumers set excludes
-// manifest markers, and the statement makes no second fact_work_items pass over
-// the marker rows and returns only the four fan-out counts (the marker count is
-// a separate statement, see manifestMarkerCountShapeError). It exists as a
-// function so the seeded-violation tests can feed it a broken statement.
+// manifest markers; fact_work_items is named exactly twice (that read and the
+// UPDATE target); the marker predicate appears once, only negated; every
+// count aggregate runs over one of the statement's own CTEs; and the statement
+// returns only the four fan-out counts (the marker count is a separate
+// statement, see manifestMarkerCountShapeError). The checks are textual and
+// class-wide, not a list of spellings, but they cannot see a read through a
+// view or function that hides the table name; the live twin proves the rows.
+// It exists as a function so the seeded-violation tests can feed it a broken
+// statement.
 func manifestMarkerFanoutShapeError(query string) string {
 	consumers := between(query, "current_consumers AS MATERIALIZED (", "), captured AS MATERIALIZED (")
 	switch {
@@ -29,10 +48,16 @@ func manifestMarkerFanoutShapeError(query string) string {
 		return "current_consumers CTE is missing"
 	case !strings.Contains(consumers, "AND NOT ("+manifestMarkerPredicate+")"):
 		return "current_consumers does not exclude manifest markers"
-	case strings.Contains(query, "skipped_markers") || strings.Contains(query, "AND ("+manifestMarkerPredicate+")"):
-		return "fan-out statement must not read the marker rows a second time"
-	case strings.Count(query, "FROM fact_work_items AS source") != 1:
-		return "fan-out statement must make exactly one fact_work_items pass (current_consumers)"
+	case len(workItemRefPattern.FindAllStringIndex(query, -1)) != fanoutWorkItemRefs ||
+		strings.Count(consumers, "fact_work_items") != 1 ||
+		strings.Count(query, "UPDATE fact_work_items AS consumer") != 1:
+		return "fan-out statement must name fact_work_items exactly twice (the current_consumers read and the UPDATE target): any other mention is a second pass over the rows"
+	case strings.Count(query, manifestMarkerPredicate) != 1 ||
+		strings.Count(query, "NOT ("+manifestMarkerPredicate+")") != 1 ||
+		strings.Count(query, supplychaincore.TriggerManifestDependency) != 1:
+		return "marker predicate must appear exactly once, in its NOT form"
+	case len(countCallPattern.FindAllStringIndex(query, -1)) != len(allowedCountPattern.FindAllStringIndex(query, -1)):
+		return "fan-out statement may count only its own CTEs, never fact_work_items"
 	case strings.Count(query[strings.LastIndex(query, "SELECT (SELECT count(*) FROM captured)"):], "(SELECT ") != 4:
 		return "fan-out statement must return exactly four counts"
 	case !strings.Contains(query, activeGenerationsCTE) ||
@@ -80,10 +105,12 @@ func between(s, from, to string) string {
 	return rest[:j]
 }
 
-// TestFanoutQueryExcludesManifestMarkers pins that the shipped completion
-// fan-out leaves manifest markers unlocked and unscheduled (#10972) without a
-// second pass over them; the live twin proves the rows. Each seeded violation
-// must fail the guard.
+// TestFanoutQueryExcludesManifestMarkers pins the text of the shipped
+// completion fan-out (#10972): markers are excluded from the locked set,
+// fact_work_items is named only for that read and the UPDATE, and the marker
+// predicate appears once, negated. It proves the statement text, not the rows;
+// the live twin proves the rows. Each seeded violation, including a second read
+// under any alias, join, subselect or new CTE name, must fail the guard.
 func TestFanoutQueryExcludesManifestMarkers(t *testing.T) {
 	t.Parallel()
 
