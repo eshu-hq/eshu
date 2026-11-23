@@ -10,7 +10,9 @@ landing: false
 # NVD feed transport: governed enable and trip lines
 
 Use this page when you operate the NVD 2.0 JSON feed transport (design:
-`docs/internal/design/10671-nvd-feed-transport-fallback.md`, ruling: #10719).
+`docs/internal/design/10671-nvd-feed-transport-fallback.md`, arbiter ruling
+`docs/internal/arbiter/10671-cvelist-mirror-ruling-2026-11-15.md`, design PR
+#10719).
 The feed is a second transport for NVD window claims, not a replacement: the
 API stays primary when healthy, and cutover back is automatic — once the cursor
 catches up, every window fails feed coverage and the API walk resumes with no
@@ -21,8 +23,8 @@ operator action.
 The top-level `nvd_feed_transport` key in the vulnerability-intelligence
 configuration gates the feed. It defaults to off until soaked; setting it to
 off forces the API walk from the next claim and logs the reason. A value that
-is not on or off reads as off (with a warning), so a typo can only subtract
-the feed, never enable it. Nothing flips the switch automatically: an alert
+is not on or off reads as off (a present-but-unknown value warns), so a typo
+can only subtract the feed, never enable it. Nothing flips the switch automatically: an alert
 pages, the operator flips.
 
 ## What to read at 3 AM
@@ -62,7 +64,9 @@ proxy over-counts and trips early — the safe direction).
 
 - More than 15,000 NVD-proxy dirty rows an hour in two consecutive hourly
   samples.
-- The oldest dirty-log row is over 96 h.
+- The oldest dirty-log row is over 96 h. Compare against the pre-enable
+  baseline before acting: the OSV/GHSA backlog is already 58 h old, so a
+  pre-existing backlog is not a trip.
 
 Re-enable only when the oldest dirty-log row is under 48 h, then record six
 hourly samples. The #10706 bars stay soak bars, and the 2026-11-12 soak bar
