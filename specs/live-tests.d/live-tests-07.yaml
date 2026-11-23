@@ -350,6 +350,11 @@ tests:
     class: dedicated_ci
     reason: "#10972: reducer-contention enrolled TestFindQueuedHolderScopesPlanAvoidsQueueSeqScanLive (plan never scans fact_work_items sequentially; scope_generation_idx or stage_domain_status_idx accepted) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes alternative; the coordinator's disposable PostgreSQL 18.3 run passed the earlier per-scope-probe form at 54b50516cc; the relaxed guard is NOT_CHECKED until the coordinator reruns it"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_stamp_widen_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled the stamp-widening proofs (prefilter keeps a pending holder stamped for another change; reopen widens a pending holder's stamp without moving its claim order; reopen widens a flagged in-flight holder's stamp) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_adaptive_split_live_test.go
     tag: ~
     class: dedicated_ci
