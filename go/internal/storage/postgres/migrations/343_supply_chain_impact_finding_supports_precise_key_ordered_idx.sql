@@ -1,0 +1,43 @@
+-- SPDX-License-Identifier: MIT
+-- Copyright (c) 2025-2026 eshu-hq
+
+-- 343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql (#10880
+-- PR-B2a, arbiter ruling V and its index amendment): the partial index behind the
+-- supplement of the unscoped profile=precise read. A winner is the best support
+-- of its key (priority_score DESC, has_payload_finding_id DESC, fact_id ASC). A
+-- winner that fails the precise filter says nothing about the key's other
+-- supports, so the read probes the best precise-eligible support of each such key,
+-- one probe per key (docs/internal/evidence/10880-pr-b2a/RESULTS.md).
+--
+-- The index is ORDERED in the probe's own order, and the plain (canonical_key)
+-- form the first ruling named is not used: with it each probe fetches every
+-- precise support of the key (about 53 of 100) and sorts them, which measured
+-- 5.6 s for the status-filtered list at 8,000,481 supports and 21,936 candidate
+-- keys; with this key order the probe stops at the first eligible support, 0.75 s.
+-- It is partial on the shipped read's precise filter, so only precise supports are
+-- indexed: 4.2M of 8.0M in the proof corpus, 199 MB at that size (a btree cannot
+-- deduplicate these keys). The probe keeps an explicit ORDER BY and LIMIT 1; it
+-- never relies on the index order for the answer.
+--
+-- The WHERE clause is the read's precise predicate, one text: the Go constant
+-- impact.SupportsPreciseIndexPredicateSQL builds both, and
+-- TestPreciseIndexMigrationCarriesThePredicate fails when this file and the
+-- constant differ. A change to the precise filter needs a NEW index migration, not
+-- an edit of this file, because the planner uses the index only when the read's
+-- WHERE clause implies the index predicate.
+--
+-- The real writer's WAL cost with this index and migration 344, per 3,000
+-- supports: insert +3.3 to +6.2 percent (steady state and after a checkpoint, worst
+-- case and blend), replay +3.2 to +4.1, retract within noise (the arbiter's return
+-- rule is +7 insert and +6 replay). Updates are never HOT in this table, so no
+-- index changes that.
+--
+-- CONCURRENTLY so bootstrap never blocks writers on this table; IF NOT EXISTS for
+-- rerun safety. One statement per file so the migration coordinator runs it outside
+-- a transaction on a dedicated bootstrap connection, and an INVALID index left by a
+-- failed build is dropped by name before the definition reruns
+-- (SQLDB.dropInvalidConcurrentIndexes). A NEW migration file per issue #7002: never
+-- edit an applied migration.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_precise_key_ordered_idx
+    ON supply_chain_impact_finding_supports (canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id ASC)
+    WHERE (detection_profile = 'precise' OR (detection_profile = '' AND impact_status IN ('affected_exact', 'not_affected_known_fixed') AND observed_version <> '' AND match_reason IN ('npm_semver_affected_range', 'npm_semver_known_fixed', 'nuget_semver_affected_range', 'nuget_semver_known_fixed', 'cargo_semver_affected_range', 'cargo_semver_known_fixed', 'hex_semver_affected_range', 'hex_semver_known_fixed', 'maven_range_match', 'maven_known_fixed', 'swift_semver_affected_range', 'swift_semver_known_fixed')));
