@@ -27,4 +27,6 @@ stores (not the theory-proof statements), on the corpus the theory proof built
 | `results_hot_supports_defined.txt`, `results_hot_many_keys_list.txt`, `results_hot_many_keys_count_inventory.txt` | Hot-key timings: the 8M corpus with a hot package and a hot CVE, and the 2.6M-key corpus. |
 | `hot_key_plan_*.txt` | Raw `auto_explain` plans of the V statements on the 2.6M-key corpus (list: no selector, package, CVE, CVE and package; count: no selector). |
 | `results_jit_custom_plan.txt`, `hot_and_jit_harness.go.txt` | The custom-plan arm of the JIT 20 % measurement and its harness. |
+| `results_jit_generic_plan_steady.txt`, `results_jit_plan_state_capture.txt`, `results_jit_wrapper_cost.txt`, `p1_p4_harness.go.txt` | The generic-plan steady arm on separated connections, the per-execution plan state of the raw connection, the wrapper cost, and the harness of the P1 and P4 runs. |
+| `p1_plan_*.txt` | Raw `auto_explain` plans of the V list, count and inventory reads for the hot package and the hot CVE on the 8M corpus, plus one count at `work_mem` = 4MB. |
 | `product_timing_harness.go.txt` | The Go harness that produced the rows. It is a `.txt` file: it needs a database on the supports schema and runtime facts the harness seeds, and is not a test the repository runs. |

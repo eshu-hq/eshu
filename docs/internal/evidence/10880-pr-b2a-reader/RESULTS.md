@@ -90,18 +90,50 @@ values (the update to the mutated values ran 52 minutes and was cancelled). The 
 after on real data is the D2 pair on the QA replica.
 
 **JIT, measured through the Go stores (8M lab corpus, server `jit` on by default, wrapper
-against the same store without it, interleaved).** Custom-plan executions (the first five
-executions of a statement on a connection, and again after a connection is recycled,
-n = 12): list with status 1663.5 ms without the wrapper and 287.6 ms with it (82.7 % saved);
-count with status 1607.6 and 293.0 (81.8 %); count with no selector 1610.3 and 290.0
-(82.0 %). Without the wrapper these executions are over the 1,000 ms bar. The generic-plan
-steady-state arm is being re-measured on separated connections and is not reported here.
-A generic plan is compiled when it is built with `jit` on: the plan costs 261,215 against
-`jit_above_cost` 100,000. The wrapper adds three round trips (BEGIN, `set_config`, COMMIT),
-0.06 ms measured locally per scope. Lab figures only: the QA reader pool,
-`plan_cache_mode`, the JIT cost settings, any pooler and the round-trip time are not
+against the same store without it).**
+
+Custom-plan executions (the first five executions of a statement on a connection, and
+again after a connection is recycled; interleaved, n = 12, before the lab I/O change):
+list with status 1663.5 ms without the wrapper and 287.6 ms with it (82.7 % saved); count
+with status 1607.6 and 293.0 (81.8 %); count with no selector 1610.3 and 290.0 (82.0 %).
+Without the wrapper these executions are over the 1,000 ms bar.
+
+Generic-plan steady state (each arm on its own connection, `SetMaxOpenConns(1)`, so the
+unwrapped arm's plan was built with `jit` on; 8 warm-ups per arm; the V statement's
+`pg_prepared_statements.generic_plans` asserted >= 1 on the raw connection before
+sampling; n = 25 interleaved; after the lab I/O change):
+
+| Read | no wrapper | wrapper | net saving | generic plans on the raw connection |
+| --- | --- | --- | --- | --- |
+| list with status | 736.8 ms | 233.2 ms | 68.3 % | 3 |
+| count with status | 229.8 ms | 231.2 ms | -0.6 % | 28 |
+| count with no selector | 234.9 ms | 231.9 ms | 1.3 % | 36 |
+
+A generic plan is compiled when it is built with `jit` on: the list's generic plan runs
+with a JIT block (`Inlining false`, 679 to 698 ms) and the plan costs 261,215 against
+`jit_above_cost` 100,000. The two counts' generic plans carry no JIT block in the
+captured executions (241 to 248 ms), so the wrapper neither helps nor hurts them in
+steady state (within 1.3 %, no state worse by more than 1 %); their first five executions
+on a connection are custom plans with JIT (1.5 s, `Inlining true`), which the wrapper
+removes. The plan-state capture is `results_jit_plan_state_capture.txt`.
+
+The wrapper adds three round trips (BEGIN, `set_config`, COMMIT): 9.5 ms per 100 scopes
+(0.095 ms each) on localhost TCP with an idle one-connection pool, after the lab I/O
+change (5.9 ms per 100 before it); against an in-cluster replica the three round trips add
+about 1.5 ms at 0.5 ms each (arithmetic, not measured). Lab figures only: the QA reader
+pool, `plan_cache_mode`, the JIT cost settings, any pooler and the round-trip time are not
 measured; D2 records them and W1 reads the `pg_stat_statements` JIT counters for the two
 routes.
+
+**P1 plans (8M lab corpus, `auto_explain` analyze and buffers, V statements through the
+product stores, after the lab I/O change).** Hot package axios has 3,557 supplement
+candidate keys and the hot CVE has 4,416 (counted from the winners table with the same
+predicate); the supplement probe node runs `loops=3557` and `loops=4416`, one per
+candidate key, in every list, count and inventory plan (`p1_plan_*.txt`). No plan has a
+node that loops over the active scopes, a `temp read` or `temp written` line, or an
+external sort. The count with the hot CVE at `work_mem` = 4MB (`p1_plan_hotcve_count_wm4.txt`,
+labelled) also writes no temp file at 4,416 candidates. Executions of the captured
+connections: 53.9 to 62.9 ms in the plans kept, first runs up to 218 ms.
 
 ## Limits
 

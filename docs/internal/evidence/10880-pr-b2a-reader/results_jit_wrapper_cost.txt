@@ -1,0 +1,1 @@
+RESULT jit-off scope open+close x100 (ms per 100)                 median      9.5 ms  max     11.1 ms
