@@ -246,6 +246,10 @@ func TestSupplyChainImpactSupportsPagePlanGuardLive(t *testing.T) {
 			t.Fatalf("no partial (%s_id, fact_id) btree on the supports table: the guard has nothing to prove", col)
 		}
 	}
+	// The guard proves the arms on these indexes by name; the -v output records which
+	// (a zz_b2c_guard_* name is the test-built stand-in, any other is a migration's).
+	t.Logf("plan guard indexes: package=%s repository=%s cve=%s advisory=%s",
+		indexes["package"], indexes["repository"], indexes["cve"], indexes["advisory"])
 	var cursor string
 	guardPackage := envOr("B2C_PLAN_GUARD_PACKAGE", "pkg:hot")
 	if err := db.QueryRowContext(ctx, `
