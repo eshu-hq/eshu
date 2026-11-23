@@ -50,40 +50,79 @@ change. A first run read 33 ms for the members GIN probe because the 20,000 test
 inserts had left an unflushed GIN pending list; after `gin_clean_pending_list` the
 probe reads 0.2 ms. Scratch generator: not committed (arbiter-b2b).
 
-## Writer WAL cost of the four indexes (the real writer)
+## Writer WAL cost (W-A, the real writer)
 
-Harness: the B1 write-cost harness shape on `PostgresSupplyChainImpactWriter`
-(3,000 findings: insert, replay under a new intent id, retract 1,500), fresh
-isolated database per run, three repetitions per cell, `pg_stat_wal` deltas
-(records, full-page images, bytes) of the writer's whole WAL, the GIN pending list
-flushed inside every measured pass. Indexes added one at a time, cumulatively, on
-top of B1-shipped. Cold = `CHECKPOINT` before each pass; warm = after a priming
-insert, replay and retract, no checkpoint. S1 is the B1 shape (no group members);
-S2 adds six group members per finding (two shared, one hot foreign member).
+Harness: the B1 write-cost harness shape on `PostgresSupplyChainImpactWriter` (3,000
+findings: insert, replay under a new intent id, retract 1,500), a fresh isolated
+database per (arm, rep), cold (`CHECKPOINT` before each pass) and warm (after a priming
+insert, replay and retract) cells, `pg_stat_wal` deltas of the whole WAL bracketed with
+`pg_stat_checkpointer` (a checkpoint inside a pass voids it; 0 voids in every run
+below), arms rotated per rep, server `checkpoint_timeout` 30 min, `max_wal_size` 8 GB,
+autovacuum off, volume after the I/O change. S1 has no group members; S2 gives every
+finding one member shared by all 3,000 and one of 50 shared ids. Arms that keep a
+default-fastupdate GIN flush it with `gin_clean_pending_list` inside each pass, and
+every arm with the members GIN off asserts 0 pending pages. Raw: `wa-all.txt`,
+`wa-gin.txt`, `wa-final.txt`, summaries by `wa_sum.py`.
 
-| Pass (S2) | B1-shipped bytes | +cve | +advisory | +members | +tokens (final set) |
-| --- | --- | --- | --- | --- | --- |
-| Cold insert | 27,129,085 | +2.6% | +5.0% | +15.3% | +27.4% (34,576,011; 117,121 records, 506 FPI) |
-| Cold replay | 39,923,909 | +3.1% | +4.2% | +11.7% | +18.8% (47,427,865; 119,443 records, 2,968 FPI) |
-| Warm insert | 31,786,868 | +12.6% (13% spread) | +5.5% | +12.0% | +19.8% (38,070,548; 134,833 records, 70 FPI) |
-| Warm replay | 22,864,751 | +2.9% | +5.6% | +14.9% | +26.4% (28,906,054; 116,662 records, 65 FPI) |
-| Cold / warm retract, final set | 44,546,040 / 18,971,020 | | | | +4.4% / -1.7% (spreads 22% and 0%) |
+**Shipped set** (339 and 340 plain btrees, 341 `fastupdate = off`, 342 default), built
+from the unmodified migration files, 10 reps, spread 0.0% in every cell, points over the
+same-session B1-shipped median (stops: +30 insert, +36 replay):
 
-S1 (no group members): cold insert +6.6%, cold replay +15.7% (25% spread), warm
-insert +4.6%, warm replay +7.7%. The arbiter's stop lines were +30 points for
-insert and +36 for replay; the worst cells are S2 cold insert +27.4 and S2 warm
-replay +26.4. This is **above the epic's +25% impact-WAL rule** on the insert and
-replay passes of S2, and the two GINs carry most of it. The earlier +15.7% figure
-was one S1 cell. Index sizes per 3,000 findings (S2): cve 0.93 MB, advisory
-0.72 MB, members 1.43 MB, tokens 1.75 MB.
+| Cell | Insert | Replay | Retract (no stop) |
+| --- | --- | --- | --- |
+| S1 cold | +17.3 | +5.3 | +2.9 |
+| S1 warm | +5.2 | +6.0 | +4.4 |
+| S2 cold | **+28.9** | +17.2 | +31.6 |
+| S2 warm | +22.6 | **+31.9** | +28.3 |
 
-HOT updates: the replay pass wrote `n_tup_upd` 9,000 (3 reps of 3,000) with
-`n_tup_hot_upd` 0 in every variant, B1-shipped included: the supports rewrite is
-not HOT today (the payload changes and the page is full), so the GINs on the
-payload cost no HOT share and no stored-column variant is needed.
+The worst cells are 1.1 and 4.1 points inside the stops. This is **above the epic's
++25% impact-WAL rule**; the rule is not met or moved, and the QA window W1b decides
+before B3. It reproduces the earlier five-rep run of the same set (`mo`) to 0.00 points
+in every cell. Pass time against the default-fastupdate arm is 1.00 to 1.03 in every
+cell (return line 1.15).
 
-The only stop for the supports writes is an image rollback; there is no runtime
-switch.
+**Why `fastupdate` is off on one GIN only.** Ten-rep run of ten arms, no INCLUDE
+(`nd` both GINs default; `no` both off; the legend of the first run named `co` the
+covering set and built `d`, `e`, `g` on it, so only `fn` is on the final set):
+
+| Cell | `nd` | `no` | `mo` members off only | `to` tokens off only |
+| --- | --- | --- | --- | --- |
+| S2 cold insert | +23.0 | +28.3 | +28.9 | +22.3 |
+| S2 cold replay | +16.5 | +19.9 | +17.2 | +19.2 |
+| S2 warm insert | +17.1 | **+39.0** | +22.6 | +33.5 |
+| S2 warm replay | +22.5 | **+54.2** | +31.9 | +44.9 |
+
+With both GINs off the S2 warm cells breach both stops. The excess is additive per
+index: S2 warm insert members 2,065,306 B (688 B per finding) and tokens 6,186,833 B
+(2,062 B), replay 2,477,852 B and 5,896,148 B, so the tokens GIN carries 75% of the
+insert gap and 70% of the replay gap. The members GIN is the one whose pending list
+flipped the mass probe, so it is the one that ships off. Shape split (S2 warm, `no`
+minus `nd`, insert / replay, points): S2 +27.0 / +29.4; one of 50 shared ids and no
+hot member (S2y) +41.2 / +0.7; own members only (S2x) -6.1 / -6.2; six unique members
+(S2z) -4.9 / -5.3. The cost needs a member shared by many findings; the one-of-50 ids
+(60 rows per id per pass) carry the insert excess without the member on every row. QA's
+largest alias is on 0.6% of rows.
+
+**The B2c and B3 bars.** B2c reads the final set against `fn` minus `no`: S1 cold +4.7
+insert / +5.2 replay, S1 warm +5.0 / +4.7, S2 warm +4.0 / +3.9 (met), S2 cold +10.2 / +7.8
+(missed; 398 full-page images, 3.26 MB of the 4.21 MB insert difference, and 551 on replay). B3 (arm `f`, the shipped set plus 345, 343, 344 and the repository swap, below
+twice the writer without supports): measured `f` on the shipped set reads 1.46 to 2.06,
+missed in S2 cold retract (2.06); S2 warm replay reads 1.94. It returns to the arbiter
+before B3; PR-C's derived S2 warm replay is +31.9 + 3.9 = +35.8 against a break-even of
+about +28.
+
+**Bimodal cells.** Eleven cells (S2 cold replay and retract) did not reach 5% spread in
+ten reps: one fixed block of 3,027 full-page images (11.08 MB) lands in the replay
+window, the retract window or neither, so the three-pass sum takes two values 11.08 MB
+apart (`fn` 193.96 or 205.05 MB; `nd` S2 cold replay 9 reps at 61,958,855 B and 1 at
+73,042,399 B; `no` 10 of 10 at 63,772 kB). The medians land on the likelier value and
+`b1` and `no` are resolved in all 12 cells.
+
+HOT updates: the replay pass wrote `n_tup_upd` 9,000 with `n_tup_hot_upd` 0 in every
+variant, B1-shipped included. The only stop for the supports writes is an image
+rollback; there is no runtime switch for the writes. The pre-declared flip for the GINs
+is `ALTER INDEX ... RESET (fastupdate)` on 341, or `SET (fastupdate = off)` on 342, each
+returning with both W1b windows and writer transaction p95 and max.
 
 ## Readiness
 
@@ -177,14 +216,15 @@ index cost is measured by the WAL table above.
 | Supports statements equal the retired fact statements on one corpus, and keep answering after every finding fact is deleted | `TestSupplyChainImpactSupportsHolderFamilyEqualsTheFactOracleLive` |
 | Repository holders, scoped seed and out-of-stamp equal their fact reads and refuse a table that is not ready | `TestSupplyChainImpactSupportsHolderReadsEqualFactReadsLive`, `TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive` |
 | Every holder statement reads its supports indexes by name with no sequential or primary-key scan; four seeded index drops each fail the check; the generic plan fails it | `TestSupplyChainImpactSupportsHolderPlanShapeLive` |
-| Holder reads, the real writer, a GIN pending-list flush and a cascade-deleting scope run together with no read error, no deadlock, no torn replacement | `TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive` |
+| Holder reads, the real writer and a cascade-deleting scope run together with no read error, no deadlock, no torn replacement | `TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive` |
 | The fence checks readiness before it detaches, and keeps the #11147 reopen order | `TestFenceStopsBeforeDetachingWhenSupportsAreNotReady`, `TestFenceReopensHoldersInWorkItemLockOrder`, `TestFenceReopensHoldersInDeadLetterLockOrderLive` |
 | The typed refusal reaches the queue unwrapped | `core/fanout_supports_not_ready_test.go` |
 
 Performance Evidence: the plans table above (supports buffers at or below the fact
-statements on every moved read, final indexes, `VACUUM (ANALYZE)`) and the WAL table
-(S2 cold insert +27.4% and warm replay +26.4% over B1-shipped, inside the arbiter's +30
-and +36 stop lines; above the epic's +25% impact-WAL rule, which this note names).
+statements on every moved read, final indexes, `VACUUM (ANALYZE)`), the W-A table
+(shipped set: worst cells S2 cold insert +28.9 and S2 warm replay +31.9 over
+B1-shipped, inside the +30 and +36 stop lines; above the epic's +25% impact-WAL rule,
+which this note names), and the 8M plan and flush proofs below.
 
 No-Regression Evidence: no fan-out, queue, lease or lock path changes: the holder
 statements keep their shape and their chunking, the fence keeps the #11147 reopen
@@ -226,20 +266,41 @@ flip to a Seq Scan. Probe of five ids, hot id included:
 | `fastupdate = off` | 252 ms | 0.78 ms |
 | `gin_pending_list_limit = 64 kB` | 245 ms | 0.90 ms |
 
-A list at the default 4 MB limit is the steady state under a write load, because the
-inserter that overflows it flushes it synchronously: `gin_clean_pending_list` on a
-full list took 12.5 s (members, 220.8 MB of WAL) and 15.4 s (tokens, 175.1 MB).
-Autovacuum does not keep it empty: the insert trigger fires after about 0.2 x
-reltuples + 1,000 inserted rows (1.66M at 8.3M rows). So migrations 341 and 342 ship
-`fastupdate = off`, and the mass-probe transaction sets `enable_seqscan = off`,
-transaction-local, for the cost race that remains when the table grows. A fence
-around the member arm (`OFFSET 0`) does not change the plan (Seq Scan, 686 s); a
-`MATERIALIZED` CTE does (470 ms) but reads every match of a hot member, the read
-the `LIMIT` exists to prevent, so it is not shipped. The holder and key-range
-statements keep the planner's own choice. `TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive`
-pins both: RED-1 (default options, 411 pending pages on each GIN, no setting) must be
-a Seq Scan, and the shipped options or the setting must keep the member arm on the
-index.
+These rows were measured with `fastupdate` on, the default, and describe what the
+option removes; the flip between 129 and 257 pages is a derivation from the planner's
+costs, not a property of the shipped configuration. The members GIN (341) ships with
+`fastupdate = off`, so there is no list for the planner to price. A fence around the
+member arm (`OFFSET 0`) does not change the plan (Seq Scan, 686 s); a `MATERIALIZED`
+CTE does (470 ms) but reads every match of a hot member, the read the `LIMIT` exists
+to prevent, so it is not shipped. The mass-probe transaction sets
+`enable_seqscan = off`, transaction-local, for the cost race that survives the list:
+the sequential side is constant (about 10,000 heap rows under `LIMIT`) and the GIN side
+grows with the table, a 1.71x margin at 8M, so a table a few times larger flips the
+probe with an empty list. The holder and key-range statements keep the planner's own
+choice. The tokens GIN (342) keeps the default list; see the W-A section for why.
+`TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive` pins this: RED-1 (the
+members option reset, both lists at 411 and 407 pages, no setting) must be a Seq Scan;
+under the shipped options the members list stays empty and the member arm is on its
+index; under the helper's settings in the RED state the arm is on the index and the
+probe's masses equal the flushed run's; with both lists full the 5-id statement and both
+key-range statements keep every arm on its named index.
+
+**Proofs at 8,600,000 supports for the shipped set** (tokens list filled to 500 of 512
+pages, members list 0; both plan modes; each statement run twice, warm = second, then
+again after `gin_clean_pending_list` on the tokens list; raw `p1-full.txt`,
+`p1-flushed.txt`, `p1_sum.py`). P1, plans: bounded range 8 and open range 16 for the hot
+member and for a 400-row member, the 5-id holder statement and the mass probe under the
+helper's setting: every arm on its named index, no Seq Scan on supports, no planner
+setting on the key-range and holder statements; warm full-list time minus flushed time
+at most +8.0 ms (50 ms line). P2, flush: `gin_clean_pending_list` on the limit-full
+tokens list three times, refilled between runs: 0.487 s / 49.3 MB of WAL, 0.845 s /
+182.8 MB, 0.502 s / 49.2 MB, on a quiet host. The line is a quarter of the smaller of
+the work-item lease (`reducerClaimLeaseDuration` = 1 min, `cmd/reducer/main_helpers.go:49`)
+and the handler timeout (`ESHU_REDUCER_HANDLER_TIMEOUT` unset is unbounded,
+`go/internal/envregistry/entries.go:239`; the lab evidence sets `supply_chain_impact=30m`,
+`10643-holder-read-bound.md:96`): 15 s, and the maximum is 0.845 s. An earlier flush
+figure of 12 to 15 s was taken with `fastupdate` on both GINs and no raw output was
+kept; it is not a measurement of this configuration.
 
 ### Hot ids: the key-range read is bound by heap pages
 
@@ -263,48 +324,65 @@ cold id above capacity dead-letters, as the fact read does on QA today.
 
 ### Capacity limit
 
-A key-range statement fetches about one heap page per matching row. At 8M supports a
-100,000-row range costs about 89,500 pages and the hot foreign member's token arm
-42,000 to 50,000 pages per range. An id whose range does not fit the 10 s statement
-guard on the host's storage times out three times and dead-letters. The token and
-members arms are heap-bound by construction (GIN cannot return columns), and so are
-the cve and advisory arms unless the covering shape is adopted (below).
+The cve and advisory arms fetch about 0.75 heap pages per matching row. Lab at 8M, about
+100,000 rows per statement: 44k-75k pages and 7.7-11.7 s cold on a quiet host, 97.7 s on
+a loaded one; 127-195 ms warm. An id above capacity times out at 10 s, retries three times
+and dead-letters under `supply_chain_impact_fanout_failed` with the owed marker kept.
+QA's hottest id is 83,642 rows, about 5,200 per statement: 0.6 s per statement at the
+quiet lab rate, 4.9 s at the loaded rate (derived, not measured on QA). The lab hot ids
+are synthetic at 19 and 16 times QA.
+
+The token and members arms fetch about one heap page per matching row. Lab at 8M:
+42k-52k pages and 22-84 s per statement for a member in 800,000 rows. A member above
+capacity times out, retries three times and dead-letters, as the fact read does today.
+QA's largest measured alias is 49,133 rows, about 3,100 rows per statement.
 
 ### Covering `INCLUDE (scope_id, generation_id)`: measured, not adopted
 
 The cve and advisory arms select only `scope_id` and `generation_id`
-(`supply_chain_impact_fanout_key_range.go:25-36`), so a covering btree can serve them
-index-only. Same 8M table, shipped indexes against `(cve_id, fact_id) INCLUDE (scope_id,
-generation_id) WHERE cve_id <> ''` and the advisory twin (arbiter-b2b-gin-covering
-decision 9). Raw: `c1-cov-cold.txt`, `c2-ranges.txt`, `c3-*.txt`, `c4-*.txt`.
+(`supply_chain_impact_fanout_key_range.go:31,48`), so a covering btree can serve them
+index-only. Measured on the 8M table against the plain indexes (raw `c1-*`, `c2-*`,
+`c3-*`, `c4-*`):
 
-| Bar | Result | Verdict |
-| --- | --- | --- |
-| C1 plan, 16 hot-CVE statements | Index Only Scan on both covering indexes, id and both bounds in the Index Cond (lower only on the open range), no Seq Scan, temp 0 | pass |
-| C2 after VACUUM: Heap Fetches 0, <= 9,000 buffers per statement | Heap Fetches 0; 96,800 to 97,900 hit plus about 1,950 read per statement | **buffers fail**: an index-only scan pins a visibility-map page for each heap block it checks, about 100,000 pins over about 35 distinct pages; physical reads are about 1,950 cold and 0 warm |
-| C2 store read after a restart, 10 s guard | pass 1: 1.756 s total, max statement 195 ms, 0 timeouts; pass 2: 0.684 s, max 43 ms (no-INCLUDE: statement 1 times out) | pass |
-| C3 churn: every 20th row rewritten (399,064 rows), no VACUUM | no-INCLUDE 90,900 to 91,400 buffers per range; covering 124,100 to 125,000 (+36%), Heap Fetches 30,088 to 30,284 per range; cold reads 28.9k, 23.1k, 18.8k pages vs 74.5k, 58.2k, 44.0k, but cold time 15.3, 12.8, 10.9 s vs 11.6, 11.7, 7.7 s | **fail** (not 40% fewer buffers) |
-| C4 5-id statement, mass probe, hot foreign member range | 149 buffers both; probe 336 and 319 ms vs 340 and 296 ms; token range 50,270 vs 50,304 buffers, 3,974 vs 4,171 ms | pass |
-| C6 size and build | cve 1,342,865,408 B vs 897,933,312 (+49.6%), advisory 1,062,502,400 vs 720,158,720 (+47.5%); concurrent builds 85.9 s and 72.4 s vs 57.9 s and 54.0 s (host load 5 to 12; the loaded run took 387 s and 201 s) | reported |
+| Check | Result |
+| --- | --- |
+| Plan, 16 hot-CVE statements, after VACUUM | Index Only Scan on both covering indexes, id and both bounds in the Index Cond (lower only on the open range), no Seq Scan, temp 0 |
+| Footprint after VACUUM | Heap Fetches 0; 1,918 to 2,005 `shared read` per statement; through the store 1.756 s with a 195 ms worst statement, 0 timeouts (pass 2: 0.684 s) |
+| Natural state, a vacuum several hundred thousand inserts old | Heap Fetches 3,329 to 3,500 per statement |
+| 5% of rows rewritten, no VACUUM (Heap Fetches 30,088 to 30,284 per range, 30% of rows) | cold execution covering 15.3 / 12.8 / 10.9 s against plain 11.6 / 11.7 / 7.7 s in ranges 1 / 8 / 16: slower in all three, over the 10 s guard in all three; 28,814 pages at 0.52 ms per page against 74,436 pages at 0.14 ms per page (range 1) |
+| 5-id statement, mass probe, hot foreign member range | within 10% `shared read`, not slower warm |
+| Size and build | +49.6% (cve) and +47.5% (advisory) index bytes; concurrent builds 85.9 s and 72.4 s against 57.9 s and 54.0 s on a quiet host |
 
-C2's buffer bar and C3 fail, so 339 and 340 stay without `INCLUDE`. The cost of that
-choice is the capacity limit above. For the record, covering turned the cold 16-range
-read of the hot CVE from 351 s to 1.76 s when the visibility map is set; with 5% churn
-and no vacuum it needs about 30,000 heap fetches per range and is no faster cold.
+Visibility is per page, so 5% churn leaves about 30% of rows on not-all-visible pages
+(1 - 0.95^7 at about 7 rows per page); the cold crossover is about 22 to 28% of the id's
+rows on such pages (three ranges, one session, this device). QA shows 7.9% dead tuples
+during the backfill and a snapshot held for over an hour that keeps vacuum from setting
+pages all-visible, so the benefit depends on a state nobody maintains, the cost (index
+bytes, build time, an unmeasured share of the insert headroom) is paid on every write,
+and no QA shape needs it today. The time is the bar, not `shared read`. Covering
+returns to the arbiter at the B3 gate only if, with the shipped index, the top cve or
+advisory id on QA misses the 2.5 s line (rows / 16 x QA cold ms per row) or its range 1
+or open range takes over 5 s, its heap-fetch share is at most 10% on three reads at least
+1 h apart (one under writer load), and a covering arm is inside the stops. The census read
+`EXPLAIN (ANALYZE, BUFFERS) SELECT count(*) FROM supply_chain_impact_finding_supports WHERE cve_id = '<id>'`
+plans as an Index Only Scan on the shipped cve index and prints Heap Fetches (0 after a
+VACUUM on a 300,000-row corpus).
 
-### W-B: default `fastupdate` against off, 100,000-row windows (8M table)
+### W-B: default `fastupdate` against off, 100,000-row windows (8M table; supporting)
 
-Each window after `CHECKPOINT` with no checkpoint inside (`pg_stat_checkpointer`
-unchanged), default and off interleaved three times, the default window ending with
-`gin_clean_pending_list` on both GINs:
+Each window after `CHECKPOINT` with no checkpoint inside, default and off interleaved
+three times, both GINs, the default window ending with `gin_clean_pending_list`:
+2,927,735,615 / 2,799,385,896 / 2,242,879,049 B (default) against 2,705,492,259 /
+2,750,007,457 / 2,431,355,465 B (off); medians 2,799 MB and 2,705 MB, ranges overlap.
+Off is not above default there. The corpus has 400-row members spread evenly and no
+clustering of one member in a transaction, so it is the weaker guide for hot ids; the
+W-A cells above bind.
 
-| | Bytes per window | Records | Full-page images | Seconds |
-| --- | --- | --- | --- | --- |
-| Default, 3 windows | 2,927,735,615 / 2,799,385,896 / 2,242,879,049 | median 1,803,734 | median 291,276 | median 74.5 |
-| `fastupdate = off`, 3 windows | 2,705,492,259 / 2,750,007,457 / 2,431,355,465 | median 1,641,979 | median 290,370 | median 74.9 |
+### QA census fields owed at the B3 gate
 
-Medians differ by -3.4% (27.99 KB against 27.05 KB per row) and the ranges overlap, so
-off is not above default. By resource manager (pg_walinspect): `Gin/INSERT` 779,418
-records and 699 MB (default) against 800,000 and 708 MB (off); the default window alone
-carries `Gin/UPDATE_META_PAGE` (200,000 records, 65.3 MB) and `Gin/INSERT_LISTPAGE`
-(5,136 records, 1.25 MB).
+H1 on QA lists the top 20 ids by rows for `cve_id`, `advisory_id` and the foreign
+member, and per read: `relallvisible / relpages`, `n_dead_tup` with `n_ins_since_vacuum`,
+and the oldest `backend_xmin` age. A replica census adds keys and rows per member
+list-length bucket (under 30, 30 to 1,500, over 1,500), which tells whether the S2
+shared-member shape exists. H3 reads the first-touch range 1 and open range of the top id
+of each arm.
