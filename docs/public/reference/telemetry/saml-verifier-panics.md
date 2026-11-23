@@ -3,8 +3,8 @@
 Eshu validates SAML sign-in responses with the `crewjam/saml` library. That
 library panicked on signed but incomplete assertions
 ([GO-2026-6909](https://pkg.go.dev/vuln/GO-2026-6909); see
-[SAML library advisory](../../operate/saml-library-advisory.md)). The
-`eshu-hq/saml` fork fixes the known cases. The verifier also recovers any panic
+[SAML library advisory](../../operate/saml-library-advisory.md)). Upstream
+v0.5.2 fixes the known cases. The verifier also recovers any panic
 that gets through, so a login fails closed instead of dropping the connection.
 
 ## Metric
@@ -33,5 +33,5 @@ that gets through, so a login fails closed instead of dropping the connection.
 3. Ask the identity provider's administrator what that provider sent. The
    known triggers were an assertion with no `Subject`, no
    `SubjectConfirmationData`, or no `Conditions` element.
-4. Report the stack to the `eshu-hq/saml` fork and to the tracking issue for
-   retiring the fork.
+4. Report the stack to the upstream `crewjam/saml` project and to the tracking
+   issue ([#10221](https://github.com/eshu-hq/eshu/issues/10221)).

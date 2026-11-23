@@ -4,14 +4,15 @@
 [environment variable reference](../reference/environment-variables.md)). SAML
 sign-in is off unless an operator configures it.
 
-**Fixed in:** the Eshu build that pins `github.com/eshu-hq/saml v0.5.1-eshu.1`
-(see `replace github.com/crewjam/saml` in `go/go.mod`). Earlier builds link
-`crewjam/saml v0.5.1`.
+**Fixed in:** the Eshu build that links upstream `github.com/crewjam/saml v0.5.2`
+(see `go/go.mod`). Builds between the first fix and that build carried a fork,
+`github.com/eshu-hq/saml v0.5.1-eshu.1`, through a `replace` directive. Earlier
+builds link `crewjam/saml v0.5.1`.
 
 ## What the advisory says
 
-`crewjam/saml` through v0.5.1 has no upstream fix. Two defects sit in assertion
-validation:
+`crewjam/saml` through v0.5.1 had no upstream fix when the advisory landed;
+upstream v0.5.2 fixes it. Two defects sit in assertion validation:
 
 - **Panics.** An assertion that omits `Subject`, `SubjectConfirmationData`, or
   `Conditions` made `ServiceProvider.ParseResponse` dereference a nil pointer.
@@ -34,10 +35,15 @@ signs. No unsigned request reaches these paths.
 
 ## What Eshu did
 
-- Runs a fork, `github.com/eshu-hq/saml`, tagged `v0.5.1-eshu.1`. It rejects
-  the three incomplete shapes and binds `NameID` to the SAML assertion
-  namespace. The fork differs from upstream v0.5.1 only by those fixes and their
-  tests.
+- Carried a fork, `github.com/eshu-hq/saml`, tagged `v0.5.1-eshu.1`, while
+  upstream had no fix. It rejected the three incomplete shapes and bound
+  `NameID` to the SAML assertion namespace. Once the vulnerability database
+  listed upstream v0.5.2 as the fixed version, the re-check below failed the
+  build, and Eshu moved to upstream v0.5.2 and removed the `replace`. The
+  regression tests named for the advisory
+  (`TestVerifySAMLResponseGO20266909`) pass against upstream v0.5.2, including
+  the incomplete-assertion cases and the foreign-namespace `NameID` cases, for
+  plaintext and encrypted assertions.
 - Recovers any panic that still gets through, answers `401`, writes an
   `assertion_invalid` audit event, logs the stack, and increments
   [`eshu_dp_query_saml_verifier_panics_total`](../reference/telemetry/saml-verifier-panics.md).
@@ -56,13 +62,19 @@ signs. No unsigned request reaches these paths.
 
 ## What operators should do
 
-- Upgrade to the fixed build. No configuration change is needed.
+- Upgrade to the fixed build. No Eshu configuration changes. Upstream v0.5.2
+  validates assertions more strictly than v0.5.1 and the fork did: it rejects
+  an assertion with no `AudienceRestriction` in `Conditions` and an assertion
+  with no bearer `SubjectConfirmation`. An identity provider that omits one of
+  these now gets a `401` and an `assertion_invalid` audit event after the
+  upgrade. Check the provider's assertion before you roll
+  the build out to a deployment that uses SAML.
 - Watch the panic counter. A non-zero value after the upgrade means a provider
-  sent a shape the fork still mishandles.
+  sent a shape the library still mishandles.
 - Treat an assertion that changes a user's principal, with no change at the
   identity provider, as a security event and check the provider's signing
   configuration.
 
-The fork is temporary. Retiring it (upstreaming the patch, reporting the
-advisory mismatch to the Go vulnerability database, and deciding whether to move
-off `crewjam/saml`) is tracked in a follow-up issue.
+The fork is gone. The re-check stays: it covers any module that `go.mod`
+replaces in the future. Whether to move off `crewjam/saml` is tracked in
+[#10221](https://github.com/eshu-hq/eshu/issues/10221).

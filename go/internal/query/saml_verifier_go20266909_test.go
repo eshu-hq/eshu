@@ -26,10 +26,13 @@ import (
 // The tests in this file are the regression suite for GO-2026-6909 in
 // crewjam/saml. The test names carry the advisory ID without dashes
 // (GO20266909) because scripts/ci/govulncheck-replace-recheck.sh selects them
-// by that name: it runs them once with the replace directive dropped (they must
-// fail on upstream crewjam/saml) and once with the real go.mod (they must
-// pass). Each row is an IdP-signed assertion driven through the real
-// CrewjamSAMLVerifier, in plaintext and inside an EncryptedAssertion.
+// by that name for any module that go.mod replaces: it runs them once with the
+// replace directive dropped (they must fail on the upstream module) and once
+// with the real go.mod (they must pass). go.mod no longer replaces crewjam/saml
+// (upstream v0.5.2 carries the fix), so the script does not select them today;
+// they run as ordinary tests against upstream. Each row is an IdP-signed
+// assertion driven through the real CrewjamSAMLVerifier, in plaintext and inside
+// an EncryptedAssertion.
 
 type go20266909Fixture struct {
 	provider SAMLProviderConfig
@@ -95,7 +98,9 @@ type go20266909Case struct {
 	omitSubject bool
 	omitSCData  bool
 	omitCond    bool
-	nameIDs     string
+	// omitAudience keeps Conditions but drops its AudienceRestriction.
+	omitAudience bool
+	nameIDs      string
 	// wantRejected means VerifySAMLResponse must return an ordinary error. A
 	// recovered panic (ErrSAMLVerifierPanic) does not count: the library must
 	// reject these assertions itself.
@@ -115,6 +120,10 @@ func go20266909Cases() []go20266909Case {
 		{name: "no_subject", omitSubject: true, wantRejected: true},
 		{name: "no_subject_confirmation_data", nameIDs: go20266909GoodNameID, omitSCData: true, wantRejected: true},
 		{name: "no_conditions", nameIDs: go20266909GoodNameID, omitCond: true, wantRejected: true},
+		// upstream v0.5.2 rejects an assertion whose Conditions carry no
+		// AudienceRestriction; v0.5.1 and the eshu-hq fork accepted it. The row
+		// pins the stricter behavior so a later crewjam change cannot loosen it.
+		{name: "no_audience_restriction", nameIDs: go20266909GoodNameID, omitAudience: true, wantRejected: true},
 		{name: "foreign_namespace_nameid_only", nameIDs: go20266909EvilNameID, wantNameID: ""},
 		{name: "saml_nameid_then_foreign_nameid", nameIDs: go20266909GoodNameID + go20266909EvilNameID, wantNameID: "alice"},
 		{name: "foreign_nameid_then_saml_nameid", nameIDs: go20266909EvilNameID + go20266909GoodNameID, wantNameID: "alice"},
@@ -144,7 +153,11 @@ func (c go20266909Case) assertionXML(now time.Time) string {
 		b.WriteString(`</saml:SubjectConfirmation></saml:Subject>`)
 	}
 	if !c.omitCond {
-		b.WriteString(`<saml:Conditions NotBefore="` + ts + `" NotOnOrAfter="` + later + `"><saml:AudienceRestriction><saml:Audience>` + samlFixtureSP + `</saml:Audience></saml:AudienceRestriction></saml:Conditions>`)
+		b.WriteString(`<saml:Conditions NotBefore="` + ts + `" NotOnOrAfter="` + later + `">`)
+		if !c.omitAudience {
+			b.WriteString(`<saml:AudienceRestriction><saml:Audience>` + samlFixtureSP + `</saml:Audience></saml:AudienceRestriction>`)
+		}
+		b.WriteString(`</saml:Conditions>`)
 	}
 	b.WriteString(`<saml:AuthnStatement AuthnInstant="` + ts + `" SessionIndex="s1"><saml:AuthnContext><saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef></saml:AuthnContext></saml:AuthnStatement>`)
 	b.WriteString(`</saml:Assertion>`)

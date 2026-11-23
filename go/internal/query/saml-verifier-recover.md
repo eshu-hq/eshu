@@ -2,8 +2,9 @@
 
 `CrewjamSAMLVerifier.VerifySAMLResponse` now runs the whole verify path
 (response decoding, metadata parsing, the crewjam call, and claim extraction)
-under a deferred `recover()`, and `go.mod` replaces `github.com/crewjam/saml`
-with the `eshu-hq/saml` fork (GO-2026-6909). The ACS handler's control flow is
+under a deferred `recover()`. `go.mod` links upstream `github.com/crewjam/saml`
+v0.5.2, which fixes GO-2026-6909 (an earlier build used the `eshu-hq/saml`
+fork). The ACS handler's control flow is
 unchanged: any verifier error already takes the `assertion_invalid` audit path
 and a `401`.
 
