@@ -29,9 +29,11 @@ pages, the operator flips.
 
 ## What to read at 3 AM
 
-All window claim signals carry a closed `transport` label (`api`, `feed`,
-`unknown`); on the feed path the lag head is the feed horizon, not the server
-clock.
+The window claim counters, the duration histogram, and the lag gauge carry
+a closed `transport` label (`api`, `feed`, `unknown`); the feed age gauge
+(`source`), the guard trips (`failure_class`), and the deadline-short,
+mismatch, and meta-unavailable counters carry their own labels. On the feed
+path the lag head is the feed horizon, not the server clock.
 
 - `eshu_dp_vulnerability_nvd_window_claims_total` (`transport`, `outcome`):
   which transport served each window and how it ended.
@@ -65,7 +67,8 @@ proxy over-counts and trips early — the safe direction).
 - More than 15,000 NVD-proxy dirty rows an hour in two consecutive hourly
   samples.
 - The oldest dirty-log row is over 96 h. Compare against the pre-enable
-  baseline before acting: the OSV/GHSA backlog is already 58 h old, so a
+  baseline before acting: the OSV/GHSA backlog was ~58 h old at measurement,
+  so compare against your own pre-enable baseline, not this number — a
   pre-existing backlog is not a trip.
 
 Re-enable only when the oldest dirty-log row is under 48 h, then record six
