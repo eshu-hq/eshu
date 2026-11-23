@@ -40,7 +40,9 @@ type ReducerWorkItemCollisionSample struct {
 // different scope, generation, domain or entity key can map to one id, and the
 // ON CONFLICT (work_item_id) DO NOTHING coalesce would have dropped the second
 // with no error (#11215). The enqueue is refused. It is not retryable: the id is
-// a pure function of the intent, so a retry collides again.
+// a pure function of the intent, so a retry collides again. Detection compares
+// the stored scope, generation and domain columns, and the stored entity key only
+// when it reproduces the row's own id (heldIsDifferentIntent).
 type ReducerWorkItemCollisionError struct {
 	Count   int
 	Samples []ReducerWorkItemCollisionSample

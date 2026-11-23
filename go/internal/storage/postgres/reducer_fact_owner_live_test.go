@@ -226,3 +226,37 @@ func TestEnqueueRefusesAForeignIntentWorkItemIDLive(t *testing.T) {
 		t.Fatalf("duplicate enqueue = %+v, %v, want a benign zero-count coalesce", result, err)
 	}
 }
+
+// TestEnqueueRefusesAnEntityKeyAliasLive is the live proof of the entity key
+// leg: two intents of one scope and generation whose entity keys differ only in
+// ':' versus '/' share a work item id. The stored payload key reproduces that id,
+// so the second enqueue is refused with the typed error and the first row is
+// untouched; the first intent again is a benign coalesce.
+func TestEnqueueRefusesAnEntityKeyAliasLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	held := runtime.ReducerIntent{
+		ScopeID: "git-repository-scope:alias", GenerationID: "gen-k1", Domain: reducer.DomainWorkloadMaterialization,
+		EntityKey: "repo:team/service", Reason: "proof", SourceSystem: "git",
+	}
+	incoming := held
+	incoming.EntityKey = "repo/team:service"
+	if reducerWorkItemID(held) != reducerWorkItemID(incoming) {
+		t.Fatalf("test bug: the intents must share a work item id")
+	}
+	seedUnchangedSkipScope(t, ctx, p.db, held.ScopeID, held.GenerationID, now)
+	queue := NewReducerQueue(SQLDB{DB: p.db}, "owner-proof", time.Minute)
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{held}); err != nil || result.Count != 1 {
+		t.Fatalf("first enqueue = %+v, %v, want one inserted", result, err)
+	}
+	_, err := queue.Enqueue(ctx, []runtime.ReducerIntent{incoming})
+	var collision *ReducerWorkItemCollisionError
+	if !errors.As(err, &collision) || collision.Count != 1 || collision.Samples[0].StoredEntityKey != held.EntityKey ||
+		collision.Samples[0].IncomingEntityKey != incoming.EntityKey || collision.Retryable() {
+		t.Fatalf("alias enqueue error = %v, want one non-retryable collision on the entity key", err)
+	}
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{held}); err != nil || result.Count != 0 {
+		t.Fatalf("duplicate enqueue = %+v, %v, want a benign zero-count coalesce", result, err)
+	}
+}

@@ -20,8 +20,10 @@ import (
 // and enqueue ends in ON CONFLICT (work_item_id) DO NOTHING, so a second, different
 // intent that maps to a held id was coalesced into the first and never queued, with
 // no error. The enqueue now resolves a shortfall: a held row whose stored scope,
-// generation, domain or entity key differs from the incoming intent is a collision
-// and is refused with a typed, non-retryable error; a plain duplicate (the same
+// generation or domain differs from the incoming intent is a collision, and so is
+// one whose stored entity key reproduces the row's own id yet differs from the
+// incoming key; either is refused with a typed, non-retryable error. A stored key
+// that does not reproduce the id says nothing, and a plain duplicate (the same
 // intent already queued) is still a benign coalesce.
 func TestEnqueueRefusesAnIntentWhoseWorkItemIDAnotherIntentHolds(t *testing.T) {
 	t.Parallel()

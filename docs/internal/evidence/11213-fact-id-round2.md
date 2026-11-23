@@ -136,6 +136,45 @@ The ingestion path keeps its single ERROR log and now labels the counter
 `writer="ingestion"`. Documented in the metrics reference and the telemetry
 coverage registry.
 
+## Enqueue probe fix after #11270
+
+The first version of the enqueue shortfall probe also failed a healthy duplicate
+(see Known limits, first bullet). The fixed probe is `heldWorkItemsQuery`:
+`WHERE work_item_id = ANY($1)` on the primary key, returning every held row of
+the batch, with Go deciding which are a different intent. It runs only when an
+enqueue inserts fewer rows than it attempted, and it reads at most one batch
+(500 ids).
+
+No-Regression Evidence: measured with `EXPLAIN (ANALYZE, BUFFERS)` on a
+disposable `postgres:18` with the bootstrap schema, 200,001 `fact_work_items`
+rows (`ANALYZE`d), a batch of 500 ids, third of three runs. The pre-fix column
+is the #11270 statement (`unnest` join with the identity filter in SQL).
+
+| Case | Statement | Plan | Shared buffer hits | Time | Rows returned |
+| --- | --- | --- | --- | --- | --- |
+| shortfall of 1 (1 of 500 ids held) | pre-fix | nested loop, 500 probes of `fact_work_items_pkey` | 1,501 | 4.41 ms | 0 |
+| shortfall of 1 | fixed | bitmap index scan on `fact_work_items_pkey` (`ANY`) | 7 | 0.73 ms | 1 |
+| shortfall of 500 (all 500 held) | pre-fix | nested loop, 500 probes of `fact_work_items_pkey` | 2,000 | 4.84 ms | 0 |
+| shortfall of 500 | fixed | bitmap index scan on `fact_work_items_pkey` (`ANY`) | 1,375 | 7.19 ms | 500 |
+
+Both statements use the primary key and read no other index. The fixed probe
+reads fewer buffers in both cases (7 against 1,501; 1,375 against 2,000). When
+every id is held (a full coalesce of a replayed batch) it takes 2.4 ms longer
+(7.19 against 4.84 ms), because it returns all 500 rows to Go instead of
+filtering them in SQL; that is one bounded statement per shortfall, not per row.
+Timings were taken on a shared host and are indicative; the buffer counts do not
+depend on load. The common path, where every row is inserted, runs no probe.
+
+Observability Evidence: unchanged. A real collision still fails the enqueue with
+the non-retryable `*ReducerWorkItemCollisionError` (failure class
+`reducer_work_item_id_collision`), so the caller's intent dead-letters and the
+ERROR log of the failed item carries that class and the first colliding id with
+the stored and incoming scope, generation and domain. What changed is that a
+benign duplicate (same scope, generation and domain, and a stored entity key that
+is absent, unrelated to the id, or equal after trimming) no longer raises it. No
+new metric, span or log line. `TestEnqueueRefusesAnEntityKeyAliasLive` pins the
+refusal for a same-scope entity key alias on the real queue.
+
 ## Known limits
 
 - **The enqueue probe trusts the entity key only when it reproduces the row id.**

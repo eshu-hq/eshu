@@ -26,6 +26,7 @@ TABLE = {
             "TestReducerFactStatementsRefuseAForeignScopeRowLive",
             "TestReducerFactOwnerRaceTwoScopesLive",
             "TestEnqueueRefusesAForeignIntentWorkItemIDLive",
+            "TestEnqueueRefusesAnEntityKeyAliasLive",
         ),
         "go/internal/storage/postgres/reducer_fact_owner_plan_live_test.go": (
             "TestReducerOwnerLegPreStatementsAreDerived",
