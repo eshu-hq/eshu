@@ -377,12 +377,12 @@ import (
 // (345 to 347 are reserved for PR-B2c); count 371 is 370 plus 348, and the digest
 // is this test's own derivation.
 // 345_supply_chain_impact_supports_package_idx.sql (#10880 PR-B2c) adds the partial
-// package_id btree on the supports table, built CONCURRENTLY. 
-// package_id btree on the supports table, built CONCURRENTLY. Count 371 is 370 plus 345.
+// package_id btree on the supports table, built CONCURRENTLY.
 // 346_supply_chain_impact_supports_repository_fact_idx.sql (#10880 PR-B2c) adds the
-// partial (repository_id, fact_id) btree, built CONCURRENTLY.
+// partial (repository_id, fact_id) btree, built CONCURRENTLY. Count 373 is 371 plus
+// 345 and 346; the digest is this test's own derivation on the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "57d77f4b161567a3193acd18138944ec9932d58dcd18d5359edfa0078d103f8b"
+	goldenBootstrapDefinitionsDigest = "577b542bdb8c37c5350185c70849d3f6d430d3aee308eacec5d93dcb58b84fd7"
 	goldenBootstrapDefinitionsCount  = 373
 )
 

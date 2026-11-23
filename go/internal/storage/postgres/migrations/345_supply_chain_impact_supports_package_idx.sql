@@ -10,7 +10,7 @@
 -- statement (an OR of the four arms) scanned the whole 5.2 GB heap for every shape
 -- while one arm had no index (8,000,000 supports: 0.7 to 0.97 s warm, 52 to 111 s
 -- cold), and with the package index present its page for a package of 1,600,000
--- supports still read 5.5 million buffers and wrote 0.94 GB of temp. The shipped
+-- supports still read 5.5 million buffers and wrote 120,463 temp blocks (0.92 GiB). The shipped
 -- per-key ordered page, with this index, reads 5,958 buffers in 3.9 ms for that
 -- package. The cve_id and advisory_id btrees are PR-B2b's migrations; the
 -- repository_id arm is served by migration 346's (repository_id, fact_id) btree.
