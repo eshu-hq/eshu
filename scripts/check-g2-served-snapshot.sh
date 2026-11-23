@@ -54,16 +54,7 @@ if [ "${1:-}" = "--derive" ]; then
   echo "export G2_EXPECT_TIERC=$tierc_n"
   echo "export G2_EXPECT_RELAY=$relay_n"
   echo "export G2_EXPECT_ABSENT=$absent_n"
-  python3 - "${SNAPSHOT}" <<'EOF'
-import re, sys
-sn = open(sys.argv[1]).read()
-relay = set(re.findall(r"^\| `(GET|POST|PATCH|PUT|DELETE) [^`]+` \| relay-disclosed \|", sn, re.M))
-surv = set()
-m = re.search(r"## Survivor exemption list.*?\n\n(.*?)\n\n## ", sn, re.S)
-if m:
-    surv = set(re.findall(r"^- `([^`]+)`", m.group(1), re.M))
-print(f"export G2_EXPECT_NONSURVIVOR={len(relay - surv)}")
-EOF
+  python3 scripts/lib/g2_snapshot_gate.py derive-nonsurvivor "${SNAPSHOT}"
   exit 0
 fi
 
@@ -109,26 +100,7 @@ bad_served=$(awk -F'|' '/^\| `/ {
 # non-survivor blocker list. The gate exits 0 only when no non-survivor
 # relay row and no absent row remains.
 nonsurv_out="${tmp_dir}/nonsurvivors.txt"
-if ! python3 - "${SNAPSHOT}" >"${nonsurv_out}" 2>"${tmp_dir}/set-err.txt" <<'EOF'
-import re, sys
-sys.path.insert(0, "scripts/lib")
-from g2_snapshot_data import SURVIVOR_ROUTES, TIER_C_ROUTES
-sn = open(sys.argv[1]).read()
-rowclass = {}
-for m in re.finditer(r"^\| `(GET|POST|PATCH|PUT|DELETE) ([^`]+)` \| (\S+) \|", sn, re.M):
-    rowclass[f"{m.group(1)} {m.group(2)}"] = m.group(3)
-relay = {r for r, c in rowclass.items() if c == "relay-disclosed"}
-tierc = {r for r, c in rowclass.items() if c == "tier-C-dispatch"}
-surv = set(SURVIVOR_ROUTES)
-if not surv <= relay:
-    print(f"survivor outside relay: {sorted(surv - relay)}")
-    sys.exit(1)
-if tierc != set(TIER_C_ROUTES):
-    print(f"tier-C drift: extra={sorted(tierc - set(TIER_C_ROUTES))} missing={sorted(set(TIER_C_ROUTES) - tierc)}")
-    sys.exit(1)
-for r in sorted(relay - surv):
-    print(r)
-EOF
+if ! python3 scripts/lib/g2_snapshot_gate.py survivor-check "${SNAPSHOT}" >"${nonsurv_out}" 2>"${tmp_dir}/set-err.txt"
 then
   echo "FAIL survivor/tier-C integrity:"; cat "${tmp_dir}/set-err.txt" "${nonsurv_out}"; exit 1
 fi
@@ -137,27 +109,7 @@ nonsurv_n=$(wc -l <"${nonsurv_out}" | tr -d ' ')
   || fail "nonsurvivor=${nonsurv_n} want ${EXPECT_NONSURVIVOR}"
 
 # In-tree tree:sha256 digests must equal the recomputed fragment bytes.
-if ! python3 - "${SNAPSHOT}" >"${tmp_dir}/digest-err.txt" 2>&1 <<'EOF'
-import hashlib, re, sys
-from pathlib import Path
-sys.path.insert(0, "scripts/lib")
-from g2_snapshot_derive import fragment_index
-sn = open(sys.argv[1]).read()
-frags = fragment_index(".")
-bad = []
-for m in re.finditer(r"^\| `(GET|POST|PATCH|PUT|DELETE) ([^`]+)` \| (?:relay-disclosed \| core-relay|tier-C-dispatch \| tier-C) \| tree:sha256:([0-9a-f]{64}) \|", sn, re.M):
-    method, path, want = m.group(1), m.group(2), m.group(3)
-    flist = frags.get(path)
-    if not flist:
-        bad.append(f"{method} {path}: no in-tree fragment")
-        continue
-    got = hashlib.sha256(Path(flist[0]).read_bytes()).hexdigest()
-    if got != want:
-        bad.append(f"{method} {path}: digest drift in {flist[0]}")
-if bad:
-    print("\n".join(bad))
-    sys.exit(1)
-EOF
+if ! python3 scripts/lib/g2_snapshot_gate.py digest-check "${SNAPSHOT}" >"${tmp_dir}/digest-err.txt" 2>&1
 then
   echo "FAIL in-tree digest drift:"; cat "${tmp_dir}/digest-err.txt"; exit 1
 fi
@@ -199,56 +151,7 @@ rg -q "PASS g2-served-snapshot: rows=${EXPECT_ROWS} native=${EXPECT_NATIVE} tier
 
 # Satellite half: re-verify only when a repo is provided (read-only plumbing).
 if [ -n "${G2_SATELLITE_REPO:-}" ]; then
-  if ! python3 - "${SNAPSHOT}" "${G2_SATELLITE_REPO}" "${sat_sha}" >"${tmp_dir}/sat-err.txt" 2>&1 <<'EOF'
-import hashlib, re, subprocess, sys
-from pathlib import Path
-sys.path.insert(0, "scripts/lib")
-from g2_snapshot_data import DIRECT_TERMINATE, WAVE_TERMINATE_OVERRIDE
-sn, repo, sha = sys.argv[1], sys.argv[2], sys.argv[3]
-def show(path):
-    p = subprocess.run(["git", "-C", repo, "show", f"{sha}:{path}"],
-                       capture_output=True)
-    if p.returncode != 0:
-        print(f"satellite blob missing: {path}")
-        sys.exit(1)
-    return p.stdout
-router = show("api/router.go").decode()
-bad = []
-for m in re.finditer(r"^\| `(GET|POST|PATCH|PUT|DELETE) ([^`]+)` \| native-served \| satellite-native \| sat:sha256:([0-9a-f]{64}) \|", sn, re.M):
-    method, path, want = m.group(1), m.group(2), m.group(3)
-    row = m.group(0)
-    sm = re.search(r"sat (\S+) .*?router (.*?) viaNative @", row)
-    if not sm:
-        bad.append(f"{method} {path}: unparseable sat evidence")
-        continue
-    src = sm.group(1)
-    if src in WAVE_TERMINATE_OVERRIDE:
-        term = WAVE_TERMINATE_OVERRIDE[src]
-    elif src.endswith("_wave.go"):
-        term = "api/" + Path(src).name.replace("_wave.go", "_terminate.go")
-    elif src in DIRECT_TERMINATE:
-        term = DIRECT_TERMINATE[src]
-    else:
-        bad.append(f"{method} {path}: unknown sat source {src}")
-        continue
-    got = hashlib.sha256(show(term)).hexdigest()
-    if got != want:
-        bad.append(f"{method} {path}: satellite digest drift in {term}")
-        continue
-    # Row must sit in the source's frozen table (waves) or consts (direct).
-    body = show(src).decode(errors="replace")
-    if path not in body:
-        bad.append(f"{method} {path}: not covered by {src}")
-        continue
-    # Registration line from the evidence must exist verbatim in router.go.
-    for rl in sm.group(2).split(" ;; "):
-        rl = rl.strip()
-        if rl and rl not in router:
-            bad.append(f"{method} {path}: registration absent from router.go: {rl[:80]}")
-if bad:
-    print("\n".join(bad))
-    sys.exit(1)
-EOF
+  if ! python3 scripts/lib/g2_snapshot_gate.py satellite-check "${SNAPSHOT}" "${G2_SATELLITE_REPO}" "${sat_sha}" >"${tmp_dir}/sat-err.txt" 2>&1
   then
     echo "FAIL satellite-side drift:"; cat "${tmp_dir}/sat-err.txt"; exit 1
   fi
