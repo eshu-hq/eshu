@@ -349,6 +349,10 @@ func (s Service) ackReducerWork(
 		return nil
 	}
 
+	if stoppedByShutdown(ctx, err) {
+		return s.recordShutdownInterrupt(ctx, intent, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
+	}
+
 	s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_failed", workerID, err)
 	return fmt.Errorf("ack reducer work: %w", err)
 }
@@ -467,6 +471,9 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 			// (#7142).
 			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 			return batchAckItem{}, false, nil
+		}
+		if stoppedByShutdown(ctx, failErr) {
+			return batchAckItem{}, false, s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, errors.Join(err, failErr))
 		}
 		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 		if failErr != nil {

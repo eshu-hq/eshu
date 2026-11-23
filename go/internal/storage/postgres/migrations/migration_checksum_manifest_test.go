@@ -513,8 +513,12 @@ var migrationShippedChecksums = map[string]string{
 	// table, one concurrent build per file (339 to 342; 338 is B1's).
 	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "17697db84b367777ac82492ed39f4fd6e4798af724360f46301ad3943f0910ef",
 	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "2aadef166920a1007eeb9ead0cbccbe86e12cd3fc34a07ce61131b3027be25a4",
-	"341_supply_chain_impact_finding_supports_members_idx.sql":  "8f0a45ea6cfbc204b1a9e337d6d1b771dbdceee3d23e6d974f2f18575890d150",
-	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "14f149b6185ae738d9a6cfb05944a9e658f74ffd662ecf48fdafb3ae2270c60f",
+	"341_supply_chain_impact_finding_supports_members_idx.sql":  "e792a890ff8830ca224f9ab6ba1449963b105f8b4156b5a4c4aa816c1584fb7a",
+	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "f6e1a35f207258af5c065af9cd11eb726b60c12de6525894e6d418badf7eb559",
+	// #10880 PR-B2a: the two partial indexes behind the unscoped existence-filter
+	// reads (numbered 343 and 344; 339 to 342 are reserved for PR-B2b).
+	"343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql": "26542615642bf2df191537b44df8a539e7d2b0db158fe8e53e6fcf83f9a0af2d",
+	"344_supply_chain_impact_finding_supports_image_ref_idx.sql":           "66f8c261f923edcd0ee8988beeab6406f92bbed90ac21fb7c674ced430c3c21f",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

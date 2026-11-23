@@ -356,11 +356,16 @@ func (e ActivationWakeContentionError) Unwrap() error { return e.err }
 func (ActivationWakeContentionError) Retryable() bool { return true }
 
 // activateWithConsumerWake runs one relationship_generations activation
-// statement and the #7597 consumer wake in one transaction: activation, then
-// SET LOCAL lock_timeout, then lockInflightOwnGateConsumersSQL, then
-// wakeProducerTerminalConsumersSQL. Lock order: claimant work row (claim
-// variant) -> relationship_generations -> in-flight consumer rows (ordered by
-// work_item_id) -> dead-lettered consumer rows (SKIP LOCKED). It returns the
+// statement and the #7597 consumer wake in one transaction: the #11256
+// rendezvous lock, then activation, then SET LOCAL lock_timeout, then
+// lockInflightOwnGateConsumersSQL, then wakeProducerTerminalConsumersSQL. Lock
+// order: advisory exclusive lock on this scope (activationRendezvousKey, taken
+// before any row lock, so a parking wait can order itself against this
+// transaction) -> claimant work row (claim variant) -> relationship_generations
+// -> in-flight consumer rows (ordered by work_item_id) -> dead-lettered
+// consumer rows (SKIP LOCKED). A same-scope activation waits on the advisory
+// lock with no timeout (it waited on the generation rows the same way); a
+// parking wait holds the shared lock for at most one statement. It returns the
 // activation statement's affected rows; zero rolls back with no wake.
 // TestEveryRelationshipActivationWakesConsumers enumerates the module source
 // so no activation statement can run outside this function.
@@ -385,6 +390,12 @@ func (s *RelationshipStore) activateWithConsumerWake(
 			_ = tx.Rollback()
 		}
 	}()
+	// #11256: the rendezvous lock comes first, before any row lock, so it
+	// cannot join a lock cycle. A narrowed wait parking while this
+	// transaction is open waits for its commit instead of missing it.
+	if _, err := tx.ExecContext(ctx, activationRendezvousLockSQL, activationRendezvousKey(scopeID)); err != nil {
+		return 0, classifyActivationError(err)
+	}
 	result, err := tx.ExecContext(ctx, activationSQL, args...)
 	if err != nil {
 		return 0, classifyActivationError(err)

@@ -142,6 +142,11 @@ func setAsideWaitingForKey(
 	if err := insertWaitingItem(ctx, database, intent, entry, keyJSON, now); err != nil {
 		return false, err
 	}
+	// #11256: order this park against an in-flight activation of its provider
+	// before the satisfaction check below (see awaitInFlightActivations).
+	if err := awaitInFlightActivations(ctx, database, instruments, entry.WaitsForKind, keyJSON); err != nil {
+		return true, err
+	}
 	satisfied, err := waitingSatisfiedForIntent(ctx, database, intent, entry, keyJSON, now)
 	if err != nil {
 		return true, err

@@ -1,0 +1,10 @@
+-- PostgreSQL: 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1)
+-- ApplyBootstrap from this branch (the migration worktree binary) on a throwaway cluster, then:
+                          index_name                          | indisvalid | indisready | indislive |    size
+--------------------------------------------------------------+------------+------------+-----------+------------
+ supply_chain_impact_finding_supports_image_ref_idx           | t          | t          | t         | 8192 bytes
+ supply_chain_impact_finding_supports_precise_key_ordered_idx | t          | t          | t         | 8192 bytes
+(2 rows)
+
+CREATE INDEX supply_chain_impact_finding_supports_image_ref_idx ON public.supply_chain_impact_finding_supports USING btree (image_ref) WHERE (image_ref <> ''::text)
+CREATE INDEX supply_chain_impact_finding_supports_precise_key_ordered_idx ON public.supply_chain_impact_finding_supports USING btree (canonical_key, priority_score DESC, has_payload_finding_id DESC, fact_id) WHERE ((detection_profile = 'precise'::text) OR ((detection_profile = ''::text) AND (impact_status = ANY (ARRAY['affected_exact'::text, 'not_affected_known_fixed'::text])) AND (observed_version <> ''::text) AND (match_reason = ANY (ARRAY['npm_semver_affected_range'::text, 'npm_semver_known_fixed'::text, 'nuget_semver_affected_range'::text, 'nuget_semver_known_fixed'::text, 'cargo_semver_affected_range'::text, 'cargo_semver_known_fixed'::text, 'hex_semver_affected_range'::text, 'hex_semver_known_fixed'::text, 'maven_range_match'::text, 'maven_known_fixed'::text, 'swift_semver_affected_range'::text, 'swift_semver_known_fixed'::text]))))

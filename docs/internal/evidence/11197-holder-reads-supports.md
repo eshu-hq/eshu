@@ -126,9 +126,9 @@ is unfinished or an old-writer image is still running.
 Disposable `postgres:18`, bootstrap schema with migrations 339 to 342, 100,000
 impact facts across 2,000 scopes (hot CVE at 10% of rows, a hot foreign group member,
 superseded generations), supports filled by the real backfill, then
-`VACUUM (ANALYZE)` on both tables (a GIN pending list left by the backfill makes the
-planner price the members arm at a seq scan, so the flush is part of the setup, as
-autovacuum is in production). `fact_records` 156 MB with 218 MB of indexes;
+`VACUUM (ANALYZE)` on both tables. The vacuum flushes the GIN pending list, which
+this table of plans needs only because it was measured before `fastupdate = off`
+shipped; see "The pending list" below for what an unflushed list does. `fact_records` 156 MB with 218 MB of indexes;
 supports 156 MB with 106 MB of indexes. `EXPLAIN (ANALYZE, BUFFERS)`, third of three
 runs, the retired fact statements against the shipped supports statements.
 Host load average 20 to 40 during the run, so the times are indicative; buffers are
@@ -196,3 +196,76 @@ carries the seven new readers; `outcome` `served` or `not_ready`), the existing
 `eshu_dp_supply_chain_impact_supports_backfill_ready` gauge and the shared
 not-ready failure class `supply_chain_impact_supports_not_ready`; the fence emits the
 same counter with `source=go_modules_fence`.
+
+## 8,000,000 supports: scale, the pending list, hot ids
+
+Disposable `postgres:18.6` in a 6 GB container, `shared_buffers` 2 GB, `work_mem`
+64 MB, autovacuum off; 8,000,000 supports (8.9 GB table, 3.5 GB of indexes: cve
+856 MB, advisory 687 MB, members 207 MB, tokens 381 MB), a hot CVE on 20% of rows
+(1.6M rows) and a hot foreign group member on 10%. Raw logs: `scale3.txt` (states),
+`r1-cve-cold.txt`, `r1-cve-warm.txt`, `r1-adv.txt` (16-range reads). Plain builds of
+the four indexes under load took 387, 201, 176 and 201 s as `CREATE INDEX
+CONCURRENTLY`; the writer is not blocked.
+
+### The pending list
+
+A GIN with `fastupdate` on batches inserts in a pending list that the planner prices
+into every scan. The mass probe asks each id for at most 101 rows through a per-id
+`LIMIT`; for an unknown parameter the planner assumes 1% of the table matches and
+prices a sequential scan under `LIMIT` at about 10,000 heap rows, a constant (1,594
+at 8M). The bitmap side grows with the table and with every pending page (about 4.25
+cost units each). Plan-only measurements of the shipped probe as the members pending
+list grows: 8, 34, 65 and 129 pages stay on the members index; 257 and 400 pages
+flip to a Seq Scan. Probe of five ids, hot id included:
+
+| State | Probe | 5-id holders (no hot id) |
+| --- | --- | --- |
+| Flushed (VACUUM) | 291 ms | 0.84 ms |
+| Default list, 480 of 512 pages | 254,293 ms, members arm Seq Scan 50.9 s per id | 5.3 ms |
+| Same, no hot id | 355,699 ms | |
+| `fastupdate = off` | 252 ms | 0.78 ms |
+| `gin_pending_list_limit = 64 kB` | 245 ms | 0.90 ms |
+
+A list at the default 4 MB limit is the steady state under a write load, because the
+inserter that overflows it flushes it synchronously: `gin_clean_pending_list` on a
+full list took 12.5 s (members, 220.8 MB of WAL) and 15.4 s (tokens, 175.1 MB).
+Autovacuum does not keep it empty: the insert trigger fires after about 0.2 x
+reltuples + 1,000 inserted rows (1.66M at 8.3M rows). So migrations 341 and 342 ship
+`fastupdate = off`, and the mass-probe transaction sets `enable_seqscan = off`,
+transaction-local, for the cost race that remains when the table grows. A fence
+around the member arm (`OFFSET 0`) does not change the plan (Seq Scan, 686 s); a
+`MATERIALIZED` CTE does (470 ms) but reads every match of a hot member, the read
+the `LIMIT` exists to prevent, so it is not shipped. The holder and key-range
+statements keep the planner's own choice. `TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive`
+pins both: RED-1 (default options, 411 pending pages on each GIN, no setting) must be
+a Seq Scan, and the shipped options or the setting must keep the member arm on the
+index.
+
+### Hot ids: the key-range read is bound by heap pages
+
+The 16-range read with the hot CVE (1.6M rows) on the shipped indexes, plan checked
+per statement (each arm on its index with both `fact_id` bounds in the Index Cond,
+lower only on the open range; no Seq Scan; zero temp written: all 16 pass):
+
+| Run | Range 1 | Ranges 2 to 5 | Ranges 6 to 16 | Sum |
+| --- | --- | --- | --- | --- |
+| Cold (container restart) | 97.7 s | 65.6, 39.5, 28.1, 15.2 s | 7.3 to 13.7 s | 351 s |
+| Second pass | | | 7.3 to 22.5 s | 153.7 s |
+| Hot foreign member (token GIN arm), cold | | | 21.8 to 84 s per range | 710 s |
+
+The earlier "117 ms" for a hot-id range was one range repeated three times, not the
+read: a range's 100,490 hot rows sit on about 87,000 distinct heap pages, so the 16
+ranges together touch about the whole 9 GB table, more than the 6 GB the container
+caches, and every pass reads 15,000 to 20,000 pages per statement from disk. The
+store's statement timeout is 10 s; a timeout is `ErrFanOutReadTimeout`, a retryable,
+counting failure with a budget of 3 attempts, and each attempt restarts at range 1, so a
+cold id above capacity dead-letters, as the fact read does on QA today.
+
+### Capacity limit
+
+A key-range statement fetches about one heap page per matching row. At 8M supports a
+100,000-row range costs about 89,500 pages and the hot foreign member's token arm
+42,000 to 50,000 pages per range. An id whose range does not fit the 10 s statement
+guard on the host's storage times out three times and dead-letters. The token and
+members arms are heap-bound by construction (GIN cannot return columns), and so are
+the cve and advisory arms unless the covering shape is adopted (below).

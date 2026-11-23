@@ -176,4 +176,8 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	"supply_chain_impact_finding_supports_advisory_idx",
 	"supply_chain_impact_finding_supports_members_idx",
 	"supply_chain_impact_finding_supports_tokens_idx",
+	// Migrations 343-344 (#10880 PR-B2a) add the two partial indexes behind the
+	// unscoped existence-filter reads of that table.
+	"supply_chain_impact_finding_supports_precise_key_ordered_idx",
+	"supply_chain_impact_finding_supports_image_ref_idx",
 }

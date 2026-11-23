@@ -540,6 +540,11 @@ tests:
     class: dedicated_ci
     reason: "#11197: the moved holder reads run against the real writer, a GIN pending-list flush loop and a cascade-deleting scope with no read error, no deadlock and no torn replacement (disposable PostgreSQL 18, -race, GOMAXPROCS=2)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_pending_list_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the mass probe keeps its member arm on the GIN once fastupdate is off and its transaction turns enable_seqscan off; RED-1 reproduces the seq scan with a full pending list on about 40,000 supports (disposable PostgreSQL 18)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_holder_supports_plan_live_test.go
     tag: ~
     class: dedicated_ci
