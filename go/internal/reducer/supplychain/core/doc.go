@@ -31,8 +31,9 @@
 // evaluation.go (Decision + Evaluate), decode.go, reasons.go, and scope.go,
 // with the suppression-only holder fan-out decided in suppression_diff.go
 // and suppression_walk.go and wired in suppression_fanout_wire.go (#10019);
-// the holder fan-out drops holders already pending or retrying with one set
-// read before its 256 cap (fanout_prefilter.go, #10972);
+// the holder fan-out drops holders whose queued pass already covers the
+// change with one set read before its 256 cap, and the reopen widens the stamp
+// of an uncovered one (fanout_prefilter.go, #10972);
 // and the Go reachability classifier in go_reachability*.go.
 //
 // The exported surface is the join contract other families program against:
