@@ -422,8 +422,8 @@ WHERE generation_id = ANY($1::text[])
 // single-column generation indexes the generation-only probes rely on: the
 // intents index (#10512, migration 292) behind the intents count arm and
 // DELETE, and the work-items index (#10525, migration 294) behind the
-// fact_work_items count arm and pre-delete lock. Without either, its
-// statements scan the whole table. It reads only pg_catalog, so it takes no
+// fact_work_items count arm and pre-delete lock, and the supports index (#10880,
+// migration 336) behind its count arm. Without one, its statements scan the table. It reads only pg_catalog, so it takes no
 // lock on fact_records. to_regclass resolves names through the session's
 // search_path, as the retention statements do.
 const generationRetentionKeyIndexesQuery = `
@@ -456,7 +456,8 @@ UNION ALL
 SELECT expected.index_name
 FROM (VALUES
     ('shared_projection_intents_generation_idx', 'shared_projection_intents'),
-    ('fact_work_items_generation_idx', 'fact_work_items')
+    ('fact_work_items_generation_idx', 'fact_work_items'),
+    ('supply_chain_impact_finding_supports_generation_idx', 'supply_chain_impact_finding_supports')
 ) AS expected(index_name, table_name)
 WHERE NOT EXISTS (
     SELECT 1

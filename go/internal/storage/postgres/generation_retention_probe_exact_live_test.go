@@ -52,9 +52,9 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			// read-state tables, the #9376 commit fence rows, the #10875
 			// security-alert key sidecar, the four reopen
 			// fingerprint/epoch sidecars (#10878 x2, #10877 x2), and the
-			// #10879 lease sidecar. Equality holds on the oracle's
-			// tables; the pair count pins the probe's full 45-table
-			// coverage (13 + 16 + 1 + 5 + 1 + 2 + 1 + 1 + 4 + 1).
+			// #10879 lease sidecar and the #10880 supports table. Equality holds on the oracle's
+			// tables; the pair count pins the probe's full 46-table
+			// coverage (13 + 16 + 1 + 5 + 1 + 2 + 1 + 1 + 4 + 1 + 1).
 			legacyTables := map[string]bool{}
 			for key := range groupedCounts {
 				if i := strings.LastIndexByte(key, '|'); i >= 0 {
@@ -75,8 +75,8 @@ func TestGenerationRetentionProbeMatchesGroupedPassLive(t *testing.T) {
 			if len(groupedCounts) != len(tc.candidates)*13 {
 				t.Errorf("oracle covers %d (generation, table) pairs, want %d", len(groupedCounts), len(tc.candidates)*13)
 			}
-			if len(probeCounts) != len(tc.candidates)*45 {
-				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*45)
+			if len(probeCounts) != len(tc.candidates)*46 {
+				t.Errorf("row counts cover %d (generation, table) pairs, want %d", len(probeCounts), len(tc.candidates)*46)
 			}
 			probeKept := retentionPruneSurvivors(t, ctx, database, tc.candidates, [3]string{
 				pruneContentFileReferencesForGenerationsQuery,
