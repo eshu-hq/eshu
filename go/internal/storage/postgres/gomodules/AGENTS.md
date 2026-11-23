@@ -40,8 +40,10 @@
   The EXPLAIN in (#10055) holds its loop count.
 - The holder read answers from `supply_chain_impact_finding_supports`, never the finding facts
   (#11197). `Store.WithSupportsReadiness` is required by `FenceStaleGoEvidence`; the check runs
-  after the timeouts and before the pointer detach, so a not-ready table rolls back with nothing
-  retracted. Keep the `ORDER BY ... COLLATE "C"` lock order of the holder reopen.
+  twice: after the timeouts and before the pointer detach, and again after the holder read and
+  before any reopen, so a not-ready table rolls back with nothing retracted. Keep the second
+  check: the holder read is a separate READ COMMITTED snapshot, and the order of the two checks
+  is pinned by `TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack`. Keep the `ORDER BY ... COLLATE "C"` lock order of the holder reopen.
 - `HolderReopener` is injected because no subpackage imports the postgres root. A store with
   no reopener refuses to fence.
 

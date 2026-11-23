@@ -145,10 +145,14 @@ snapshot of the read, so a table that goes not-ready cannot be read half-way. Th
 go-modules fence is the exception: it runs at READ COMMITTED, so its check and its
 holder read are not one snapshot. It runs the check twice, before the detach and again
 after the holder read and before any reopen, and rolls back when either says not ready.
-The trigger's dirty mark commits atomically with the old writer's finding, so a finding
-the holder read missed is seen by the second check unless it commits after that check's
-own snapshot (a window of the reopen statements only). A committed fence does not re-run
-for that generation, so that last window is stated, not closed; the unit test
+An old writer's finding writes no support row, only a dirty mark that commits atomically
+with it, and the backfill drain writes the support and then clears the mark. A finding the
+holder read missed is therefore seen by the second check unless it commits after that
+check's snapshot, or the backfill drains its scope (writes the support and clears the
+mark) between the holder read and the check. A committed fence does not re-run for that
+generation, so that window is stated, not closed. The closing option, not taken here, is
+to evaluate the readiness predicate inside the holder-read statement so both share one
+snapshot; it needs its own proof. The unit test
 `TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack` pins the order of the two
 checks around the read. A table that is
 not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`; there is
@@ -163,7 +167,8 @@ no fall back to the finding facts.
   read runs the pass full (the seed-failure warning carries `supports_not_ready`).
 - The go-modules fence takes the check right after its timeouts and before the
   pointer detach (`Store.WithSupportsReadiness`, required by
-  `FenceStaleGoEvidence`), so a table that is not ready rolls the fence back with
+  `FenceStaleGoEvidence`), and again after the holder read and before any reopen,
+  so a table that is not ready at either check rolls the fence back with
   nothing retracted, and the coordinator retries the page.
 - The supply-chain impact handler asks its fan-out port for the same check
   before the manifest marker, any evidence load, the fencing token, the writer or
@@ -236,7 +241,7 @@ index cost is measured by the WAL table above.
 | Repository holders, scoped seed and out-of-stamp equal their fact reads and refuse a table that is not ready | `TestSupplyChainImpactSupportsHolderReadsEqualFactReadsLive`, `TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive` |
 | Every holder statement reads its supports indexes by name with no sequential or primary-key scan; four seeded index drops each fail the check; the generic plan fails it | `TestSupplyChainImpactSupportsHolderPlanShapeLive` |
 | Holder reads, the real writer and a cascade-deleting scope run together with no read error, no deadlock, no torn replacement | `TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive` |
-| The fence checks readiness before it detaches, and keeps the #11147 reopen order | `TestFenceStopsBeforeDetachingWhenSupportsAreNotReady`, `TestFenceReopensHoldersInWorkItemLockOrder`, `TestFenceReopensHoldersInDeadLetterLockOrderLive` |
+| The fence checks readiness before it detaches and again after the holder read, and keeps the #11147 reopen order | `TestFenceStopsBeforeDetachingWhenSupportsAreNotReady`, `TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack`, `TestFenceReopensHoldersInWorkItemLockOrder`, `TestFenceReopensHoldersInDeadLetterLockOrderLive` |
 | The typed refusal reaches the queue unwrapped | `core/fanout_supports_not_ready_test.go` |
 
 Performance Evidence: the plans table above (supports buffers at or below the fact

@@ -152,6 +152,12 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "fence stale go evidence") {
 		t.Fatalf("schedule error = %v, want the fence's lock timeout", err)
 	}
+	// A supports-not-ready refusal also carries the fence prefix, so pin the cause:
+	// the lock timeout (SQLSTATE 55P03), and not the readiness check.
+	if msg := err.Error(); strings.Contains(msg, "supports readiness") ||
+		(!strings.Contains(msg, "lock timeout") && !strings.Contains(msg, "55P03")) {
+		t.Fatalf("schedule error = %v, want the lock timeout and not a supports-not-ready refusal", err)
+	}
 	if got := countRuns(); got != 0 {
 		t.Fatalf("runs after a failed fence = %d, want 0", got)
 	}

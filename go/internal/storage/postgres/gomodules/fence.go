@@ -94,11 +94,15 @@ const (
 // runs at READ COMMITTED, so the check and the holder read are not one snapshot: an
 // old-writer image marking a scope dirty between them could let a fence retract with
 // a holder missed. The fence therefore runs the check twice, before the detach and
-// again after the holder read, and rolls back when either says not ready. A dirty
-// mark commits atomically with the old writer's finding, so a finding the holder read
-// missed is seen by the second check unless it commits after that check's own
-// snapshot, a window of the reopen statements only. A committed fence does not re-run
-// for that generation, so that last window is stated, not closed.
+// again after the holder read, and rolls back when either says not ready. An old
+// writer's finding writes no support row, only a dirty mark that commits with it, and
+// the backfill drain writes the support and then clears the mark. A finding the holder
+// read missed is therefore seen by the second check unless it commits after that
+// check's snapshot, or the backfill drains its scope (writes the support and clears the
+// mark) between the holder read and the check. A committed fence does not re-run for
+// that generation, so that window is stated, not closed. Closing option, not taken
+// here: evaluate the readiness predicate inside the holder-read statement so both
+// share one snapshot.
 type SupportsReadiness func(ctx context.Context, tx db.Queryer) error
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's

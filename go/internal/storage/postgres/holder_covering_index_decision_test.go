@@ -20,8 +20,8 @@ import (
 // on PostgreSQL 18.6 the planner generates no index-only path for a query
 // that filters on an indexed expression ((payload->>'cve_id') = ANY(...)),
 // so the arms keep their heap fetches with or without the pair —
-// TestHolderCoveringExpressionBlocksIndexOnlyLive guards the mechanism, and
-// evidence-holder-covering-index-h3.md records the proof. A follow-up that
+// evidence-holder-covering-index-h3.md records the proof and the mechanism (its
+// live test was retired with the fact-based holder reads in #11197). A follow-up that
 // changes the mechanism (a generated column plus query rewrite, or a
 // planner behavior change) revises this test with its migration in the
 // same change.

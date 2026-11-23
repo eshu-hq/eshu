@@ -144,6 +144,11 @@ func (s SupplyChainImpactFanOutStore) RequireSupportsReady(ctx context.Context) 
 	return requireSupplyChainImpactSupportsReady(ctx, s.DB, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolders)
 }
 
+// The store carries the handler-entry gate. The handler finds the gate by an
+// optional type assertion, so a signature drift or a wrapping decorator would turn
+// the gate off without an error; this pin fails the build instead.
+var _ supplychaincore.SupplyChainImpactSupportsGate = SupplyChainImpactFanOutStore{}
+
 func (s SupplyChainImpactFanOutStore) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()
