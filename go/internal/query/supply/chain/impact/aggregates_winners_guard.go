@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -60,12 +61,23 @@ const aggregateWinnersProbeErrorMaxBytes = 256
 // the watermark is absent, stale, or unprobed. Otherwise (the legacy path:
 // gate off, scoped-token grants, or existence filters) it reports
 // serveWinners=false with a fresh, unwatermarked freshness and issues no
-// probe, so the legacy read costs exactly one statement as before.
+// probe, so the legacy read costs exactly one statement as before. A granted
+// call with the gate on is answered from the supports table (#10880 PR-B2a): it
+// probes the supports readiness predicate and refuses with
+// ErrAggregateReadModelUnavailable (also matching ErrFindingSupportsUnavailable)
+// while the table cannot serve an exact answer; the supports table is current by
+// construction, so it reports fresh with no watermark.
 func (s PostgresAggregateStore) resolveAggregateFreshness(
 	ctx context.Context,
 	filter AggregateFilter,
 	readAt time.Time,
 ) (freshness AggregateFreshness, serveWinners bool, err error) {
+	if s.readFromSupportsFor(filter) {
+		if err := s.requireAggregateSupportsReady(ctx); err != nil {
+			return AggregateFreshness{}, false, err
+		}
+		return AggregateFreshness{State: packet.FreshnessLabelFresh}, false, nil
+	}
 	if !s.readFromWinnersFor(filter) {
 		return AggregateFreshness{State: packet.FreshnessLabelFresh}, false, nil
 	}
@@ -101,4 +113,25 @@ func (s PostgresAggregateStore) logAggregateWinnersProbeFailure(ctx context.Cont
 		telemetry.EventAttr(aggregateWinnersProbeFailedEvent),
 		slog.String("error", text),
 	)
+}
+
+// readFromSupportsFor reports whether one aggregate call is answered from the
+// per-support table: the gate is on and the call carries a repository or scope
+// grant. The winners row is one pick across scopes and cannot answer a grant
+// (arbiter ruling for #10880 PR-B, decision 1).
+func (s PostgresAggregateStore) readFromSupportsFor(filter AggregateFilter) bool {
+	return s.ReadFromWinners &&
+		(len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0)
+}
+
+// requireAggregateSupportsReady refuses a supports-served aggregate while the
+// table is not ready, wrapping both the aggregate and the supports sentinels so
+// the handler can name the model that refused. A probe failure refuses too.
+func (s PostgresAggregateStore) requireAggregateSupportsReady(ctx context.Context) error {
+	probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
+	if err := probe.requireSupportsReady(ctx); err != nil {
+		s.logAggregateWinnersProbeFailure(ctx, err)
+		return fmt.Errorf("%w: %w", ErrAggregateReadModelUnavailable, err)
+	}
+	return nil
 }

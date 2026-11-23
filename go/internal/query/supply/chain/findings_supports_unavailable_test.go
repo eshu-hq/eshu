@@ -86,3 +86,45 @@ func TestListImpactFindingsAsksTheRoutedFreshness(t *testing.T) {
 		t.Fatalf("routed freshness asked = %v, unconditional watermark asked = %v; want routed only", store.routed, store.watermark)
 	}
 }
+
+// TestImpactAggregatesAnswer503NamingTheSupportsModel pins the aggregate side of
+// the fail-closed read: a granted count or inventory call the supports table
+// cannot serve answers the retryable 503 with the supports text and the backfill
+// poll Retry-After (30 s), not the winners text and window (120 s), and a plain
+// winners refusal keeps its own text.
+func TestImpactAggregatesAnswer503NamingTheSupportsModel(t *testing.T) {
+	t.Parallel()
+
+	supportsErr := fmt.Errorf("%w: %w", impact.ErrAggregateReadModelUnavailable, impact.ErrFindingSupportsUnavailable)
+	for name, tc := range map[string]struct {
+		err        error
+		retryAfter string
+		text       string
+	}{
+		"supports not ready": {supportsErr, "30", "supports read model is not ready"},
+		"winners stale":      {impact.ErrAggregateReadModelUnavailable, "120", "winners read model is not fresh"},
+	} {
+		for route, target := range map[string]string{
+			"count":     "/api/v0/supply-chain/impact/findings/count?cve_id=CVE-2026-0001",
+			"inventory": "/api/v0/supply-chain/impact/inventory?group_by=impact_status&limit=10",
+		} {
+			t.Run(name+"/"+route, func(t *testing.T) {
+				t.Parallel()
+				handler := &Handler{ImpactAggregates: errImpactAggregateStore{countErr: tc.err, inventoryErr: tc.err}}
+				mux := http.NewServeMux()
+				handler.Mount(mux)
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+				if rec.Code != http.StatusServiceUnavailable {
+					t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+				}
+				if got := rec.Header().Get("Retry-After"); got != tc.retryAfter {
+					t.Fatalf("Retry-After = %q, want %s", got, tc.retryAfter)
+				}
+				if !strings.Contains(rec.Body.String(), tc.text) {
+					t.Fatalf("body = %s, want %q", rec.Body.String(), tc.text)
+				}
+			})
+		}
+	}
+}

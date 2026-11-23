@@ -129,10 +129,12 @@ type PostgresAggregateStore struct {
 	// an operator env gate so the cutover is reversible and is only
 	// enabled once the reducer maintainer has populated the winners
 	// table. Output is byte-identical either way on the parity corpus.
-	// Scoped-token calls always stay on the legacy CTE, mirroring the
+	// Scoped-token calls are answered from the per-support table
+	// (supply_chain_impact_finding_supports, #10880 PR-B2a), mirroring the
 	// list read, because the winners table picks one winner per canonical
-	// key before the grant applies while the legacy CTE applies the grant
-	// before the pick.
+	// key before the grant applies while the supports read applies the grant
+	// before the pick. A supports table that is not ready answers
+	// ErrAggregateReadModelUnavailable, never the winners or legacy read.
 	ReadFromWinners bool
 }
 
@@ -250,7 +252,10 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	query := AggregateCombinedCountQuery
-	if serveWinners {
+	switch {
+	case s.readFromSupportsFor(filter):
+		query = AggregateSupportsCombinedCountQuery
+	case serveWinners:
 		query = AggregateWinnersCombinedCountQuery
 	}
 	row := s.queryer().QueryRowContext(ctx, query, args...)
@@ -336,7 +341,10 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 		return AggregateInventoryPage{}, err
 	}
 	q := InventoryQuery(groupExpr)
-	if serveWinners {
+	switch {
+	case s.readFromSupportsFor(filter):
+		q = InventorySupportsQuery(groupExpr)
+	case serveWinners:
 		q = AggregateWinnersInventoryQuery(groupExpr)
 	}
 	args := []any{
@@ -397,6 +405,17 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 func InventoryQuery(groupExpr string) string {
 	return strings.Replace(
 		InventoryQueryTemplate,
+		supplyChainImpactInventoryGroupExpressionPlaceholder,
+		groupExpr,
+		1,
+	)
+}
+
+// InventorySupportsQuery is InventoryQuery over the supports CTE, the read a
+// granted call takes (#10880 PR-B2a).
+func InventorySupportsQuery(groupExpr string) string {
+	return strings.Replace(
+		InventorySupportsQueryTemplate,
 		supplyChainImpactInventoryGroupExpressionPlaceholder,
 		groupExpr,
 		1,

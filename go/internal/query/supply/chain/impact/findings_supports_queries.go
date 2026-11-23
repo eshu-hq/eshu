@@ -8,24 +8,55 @@ import (
 	"strings"
 )
 
-// supportsListSourceCTE replaces the legacy source_candidates and
-// operator_candidates CTEs. The grant legs come first, as two index arms of one
-// UNION ALL, and the active-generation join is applied to the granted supports
-// afterward (raw-first); the second arm excludes the scopes the first already
-// covers, so a support matched by both grants appears once. The static-authority
-// guard stays: the supports table mirrors every live finding fact, and the
-// scanner classification rows decide which are source truth. $22 and $23 are the
-// allowed repository and scope ids, as in the legacy bind order.
-var supportsListSourceCTE = `
+// supportsSourceBinds names the positional parameters one supports read binds,
+// so the list and the aggregates share one source CTE while keeping their own
+// bind order (the list reads $22/$23 for the grants, the aggregates $18/$19).
+// columns is the select list the read's later stages need from the granted
+// supports; guard is an extra always-true predicate the list uses to type $1.
+type supportsSourceBinds struct {
+	columns, guard                                      string
+	cve, pkg, repo, digest, status, advisory, ecosystem string
+	service, workload, environment, profile, image      string
+	repoGrant, scopeGrant                               string
+	protectedFlag, protected2, protected3, protected4   string
+	protected5, protectedList                           string
+}
+
+// supportsSourceCTE builds the source_candidates CTE of a supports read. The
+// grant legs come first, as two index arms of one UNION ALL, and the
+// active-generation join is applied to the granted supports afterward
+// (raw-first); the second arm excludes the scopes the first already covers, so a
+// support matched by both grants appears once. The static-authority guard stays:
+// the supports table mirrors every live finding fact, and the scanner
+// classification rows decide which are source truth. Every predicate is the
+// legacy one over the support row's own columns.
+func supportsSourceCTE(b supportsSourceBinds) string {
+	guard := ""
+	if b.guard != "" {
+		guard = "WHERE " + b.guard + "\n    AND "
+	} else {
+		guard = "WHERE "
+	}
+	return strings.NewReplacer(
+		"{columns}", b.columns, "{guard}", guard,
+		"{cve}", b.cve, "{pkg}", b.pkg, "{repo}", b.repo, "{digest}", b.digest,
+		"{status}", b.status, "{advisory}", b.advisory, "{ecosystem}", b.ecosystem,
+		"{profile}", b.profile, "{image}", b.image,
+		"{repoGrant}", b.repoGrant, "{scopeGrant}", b.scopeGrant,
+		"{p1}", b.protectedFlag, "{p2}", b.protected2, "{p3}", b.protected3,
+		"{p4}", b.protected4, "{p5}", b.protected5, "{p6}", b.protectedList,
+	).Replace(supportsSourceCTETemplate) +
+		supplyChainImpactRuntimeFilterPredicate("fact.repository_id", b.service, b.workload, b.environment) + `
+)`
+}
+
+const supportsSourceCTETemplate = `
 source_candidates AS (
-  SELECT fact.fact_id, fact.scope_id, fact.finding_id, fact.source_confidence,
-         fact.suppression_state, fact.priority_score,
-         fact.has_payload_finding_id, fact.canonical_key,
-         fact.severity_bucket, fact.priority_bucket
-  FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($23::text[])
+  SELECT {columns}
+  FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY({scopeGrant}::text[])
         UNION ALL
-        SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($22::text[])
-          AND NOT COALESCE(scope_id = ANY($23::text[]), FALSE)) AS fact
+        SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY({repoGrant}::text[])
+          AND NOT COALESCE(scope_id = ANY({scopeGrant}::text[]), FALSE)) AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
    AND scope.active_generation_id = fact.generation_id
@@ -36,28 +67,27 @@ source_candidates AS (
     ON finding_class.finding_fact_id = fact.fact_id
   LEFT JOIN scanner_image_result_fact_associations AS finding_association
     ON finding_association.finding_fact_id = fact.fact_id
-  WHERE $1::text IS NOT NULL
-    AND generation.status = 'active'
+  {guard}generation.status = 'active'
     AND fact.scope_id <> 'operator:vulnerability_suppressions'
-    AND $25::boolean IS NOT NULL AND $26::text IS NOT NULL AND $27::text IS NOT NULL
-    AND $28::text IS NOT NULL AND $29::text IS NOT NULL AND $30::text[] IS NOT NULL
+    AND {p1}::boolean IS NOT NULL AND {p2}::text IS NOT NULL AND {p3}::text IS NOT NULL
+    AND {p4}::text IS NOT NULL AND {p5}::text IS NOT NULL AND {p6}::text[] IS NOT NULL
     AND finding_association.finding_fact_id IS NULL
     AND fact.scope_id NOT LIKE 'image://derived/%'
     AND (finding_class.finding_fact_id IS NULL
          OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
-    AND ($2 = '' OR fact.cve_id = $2)
-    AND ($3 = '' OR fact.package_id = $3)
-    AND ($4 = '' OR fact.repository_id = $4)
-    AND ($5 = '' OR fact.subject_digest = $5)
-    AND ($6 = '' OR fact.impact_status = $6)
-    AND ($7 = '' OR fact.advisory_id = $7)
-    AND ($8 = '' OR fact.ecosystem = LOWER(($8) COLLATE "C") COLLATE "default")
+    AND ({cve} = '' OR fact.cve_id = {cve})
+    AND ({pkg} = '' OR fact.package_id = {pkg})
+    AND ({repo} = '' OR fact.repository_id = {repo})
+    AND ({digest} = '' OR fact.subject_digest = {digest})
+    AND ({status} = '' OR fact.impact_status = {status})
+    AND ({advisory} = '' OR fact.advisory_id = {advisory})
+    AND ({ecosystem} = '' OR fact.ecosystem = LOWER(({ecosystem}) COLLATE "C") COLLATE "default")
     AND (
-          $13 = ''
-          OR fact.detection_profile = $13
-          OR ($13 = 'comprehensive' AND fact.detection_profile = '')
+          {profile} = ''
+          OR fact.detection_profile = {profile}
+          OR ({profile} = 'comprehensive' AND fact.detection_profile = '')
           OR (
-                $13 = 'precise'
+                {profile} = 'precise'
                 AND fact.detection_profile = ''
                 AND fact.impact_status IN ('affected_exact', 'not_affected_known_fixed')
                 AND fact.observed_version <> ''
@@ -71,9 +101,22 @@ source_candidates AS (
                     )
              )
         )
-    AND ($16 = '' OR fact.image_ref = $16)
-` + supplyChainImpactRuntimeFilterPredicate("fact.repository_id", "$9", "$10", "$11") + `
-)`
+    AND ({image} = '' OR fact.image_ref = {image})
+`
+
+// supportsListSourceCTE is the list read's source CTE. $22 and $23 are the
+// allowed repository and scope ids, as in the legacy bind order.
+var supportsListSourceCTE = supportsSourceCTE(supportsSourceBinds{
+	columns: `fact.fact_id, fact.scope_id, fact.finding_id, fact.source_confidence,
+         fact.suppression_state, fact.priority_score,
+         fact.has_payload_finding_id, fact.canonical_key,
+         fact.severity_bucket, fact.priority_bucket`,
+	guard: "$1::text IS NOT NULL",
+	cve:   "$2", pkg: "$3", repo: "$4", digest: "$5", status: "$6", advisory: "$7", ecosystem: "$8",
+	service: "$9", workload: "$10", environment: "$11", profile: "$13", image: "$16",
+	repoGrant: "$22", scopeGrant: "$23",
+	protectedFlag: "$25", protected2: "$26", protected3: "$27", protected4: "$28", protected5: "$29", protectedList: "$30",
+})
 
 // supportsListOverrideLateral replaces the legacy operator_overrides CTE
 // with an indexed probe over the partial operator index, one probe per surviving

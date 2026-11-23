@@ -200,48 +200,7 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 	candidate := supportsCandidateListQuery(t)
 	legacyStore := PostgresFindingStore{DB: database, ReadFromWinners: false}
 
-	grants := []struct {
-		name                 string
-		repositories, scopes []string
-	}{
-		{"scope SA", nil, []string{multiSupportScopeA}},
-		{"scope SB", nil, []string{multiSupportScopeB}},
-		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
-		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
-		{"scope SA plus repository s2", []string{"repository:s2"}, []string{multiSupportScopeA}},
-		{"scope SA plus repository m1 (arms overlap)", []string{"repository:m1"}, []string{multiSupportScopeA}},
-		{"derived scope", nil, []string{multiSupportDerivedScope}},
-		{"derived scope and SA", nil, []string{multiSupportDerivedScope, multiSupportScopeA}},
-		{"operator scope", nil, []string{supportsOperatorScope}},
-		{"operator scope and SA", nil, []string{supportsOperatorScope, multiSupportScopeA}},
-		{"repository without findings", []string{"repository:none"}, nil},
-	}
-	filters := []struct {
-		name   string
-		filter FindingFilter
-		rank   bool
-	}{
-		{"status", FindingFilter{Status: "affected_exact"}, false},
-		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}, false},
-		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}, false},
-		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
-		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
-		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
-		{"service m1", FindingFilter{ServiceID: "service:m1"}, false},
-		{"environment prod", FindingFilter{Environment: "prod"}, false},
-		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
-		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
-		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},
-		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}, false},
-		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}, false},
-		{"severity critical", FindingFilter{Severity: "critical"}, true},
-		{"severity medium", FindingFilter{Severity: "medium"}, true},
-		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}, true},
-		{"priority bucket low", FindingFilter{PriorityBucket: "low"}, true},
-		{"min priority 60", FindingFilter{MinPriorityScore: 60}, true},
-		{"priority bucket low with image_ref b", FindingFilter{PriorityBucket: "low", ImageRef: "registry.example/b:2"}, true},
-		{"severity medium with profile precise", FindingFilter{Severity: "medium", DetectionProfile: ProfilePrecise}, true},
-	}
+	grants, filters := supportsEqualityGrants(), supportsEqualityFilters()
 	compared, nonEmpty := 0, 0
 	differences := map[string]string{}
 	for _, grant := range grants {
@@ -411,5 +370,61 @@ func TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive(t *testing.T) 
 				t.Fatalf("list after restoring readiness: %v", err)
 			}
 		})
+	}
+}
+
+type supportsEqualityGrant struct {
+	name                 string
+	repositories, scopes []string
+}
+
+// supportsEqualityGrants is the grant shapes both equality gates run: scope and
+// repository grants, overlapping arms, the derived and operator scopes.
+func supportsEqualityGrants() []supportsEqualityGrant {
+	return []supportsEqualityGrant{
+		{"scope SA", nil, []string{multiSupportScopeA}},
+		{"scope SB", nil, []string{multiSupportScopeB}},
+		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
+		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
+		{"scope SA plus repository s2", []string{"repository:s2"}, []string{multiSupportScopeA}},
+		{"scope SA plus repository m1 (arms overlap)", []string{"repository:m1"}, []string{multiSupportScopeA}},
+		{"derived scope", nil, []string{multiSupportDerivedScope}},
+		{"derived scope and SA", nil, []string{multiSupportDerivedScope, multiSupportScopeA}},
+		{"operator scope", nil, []string{supportsOperatorScope}},
+		{"operator scope and SA", nil, []string{supportsOperatorScope, multiSupportScopeA}},
+		{"repository without findings", []string{"repository:none"}, nil},
+	}
+}
+
+type supportsEqualityFilter struct {
+	name   string
+	filter FindingFilter
+	rank   bool
+}
+
+// supportsEqualityFilters is the filter shapes both equality gates run; rank
+// marks the filters that follow the ruled pick-then-filter order.
+func supportsEqualityFilters() []supportsEqualityFilter {
+	return []supportsEqualityFilter{
+		{"status", FindingFilter{Status: "affected_exact"}, false},
+		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}, false},
+		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}, false},
+		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
+		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
+		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
+		{"service m1", FindingFilter{ServiceID: "service:m1"}, false},
+		{"environment prod", FindingFilter{Environment: "prod"}, false},
+		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
+		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
+		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},
+		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}, false},
+		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}, false},
+		{"severity critical", FindingFilter{Severity: "critical"}, true},
+		{"severity medium", FindingFilter{Severity: "medium"}, true},
+		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}, true},
+		{"priority bucket low", FindingFilter{PriorityBucket: "low"}, true},
+		{"min priority 60", FindingFilter{MinPriorityScore: 60}, true},
+		{"priority bucket low with image_ref b", FindingFilter{PriorityBucket: "low", ImageRef: "registry.example/b:2"}, true},
+		{"severity medium with profile precise", FindingFilter{Severity: "medium", DetectionProfile: ProfilePrecise}, true},
 	}
 }

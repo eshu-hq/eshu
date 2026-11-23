@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/aggregates_supports_live_test.go": (
+            "TestSupportsAggregatesEqualTheListAndLegacyLive",
+            "TestSupportsAggregatesRefuseWhenNotReadyLive",
+        ),
         "go/internal/query/supply/chain/impact/aggregates_winners_failclosed_live_test.go": (
             "TestAggregatesWinnersFailClosedLive",
             "TestAggregatesWinnersConcurrentResweepReadLive",
@@ -86,6 +90,7 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/supports_equality_live_test.go": (
             "TestSupportsCandidateListEqualsLegacyLive",
+            "TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive",
         ),
         "go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go": (
             "TestSupportsCandidatePlanDrivesFromTheGrantLive",
