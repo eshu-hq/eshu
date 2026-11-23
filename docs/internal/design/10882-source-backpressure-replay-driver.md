@@ -186,7 +186,7 @@ Performance Evidence: the replay is the measurement for the schedule-leg and
 consult-instrument changes; its record is written when the arms are accepted.
 The code the branch adds to hot paths is two monotonic clock reads and one
 histogram record per enabled per-source consult (nanoseconds against the 12 to
-100 ms consult measured in the driver smoke), and one string comparison per
+37 ms consult p50 measured in the driver smoke (not evidence)), and one string comparison per
 selection cycle for the source-mode predicate.
 
 No-Regression Evidence: a disabled per-source leg records no sample and reads no
