@@ -24,6 +24,15 @@
   source skips the leg; it must not whole-batch throttle.
 - Partial config fails startup. Do not add lenient defaults for
   half-set thresholds.
+- One shared admission depth read (#11233): every admission decision,
+  in `Enqueue` and in `enqueueBySource`, takes queue depth and
+  graph-write-timeout depth from the one `admissionDepthHolder` the
+  constructor builds (`reducer_admission_depth.go`): a held value inside
+  the window, or the one read in flight. Do not add a per-decision
+  `QueueDepths` call or a second holder; a new per-admission queue read
+  goes through the holder or its PR states why it cannot. Never hold a
+  failed read, and never let a sleep run past the max wait.
+  `reducer_admission_depth_test.go` pins the contract.
 - The bounded consult probe (`boundedSourceSignalQuery` in
   `internal/storage/postgres`) is the S0 verdict. Do not point the
   per-source consult back at the grouped scan without a new S0

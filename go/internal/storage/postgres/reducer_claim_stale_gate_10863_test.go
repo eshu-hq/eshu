@@ -52,8 +52,10 @@ func TestReducerClaimQueriesGateStaleWithoutSweeping(t *testing.T) {
 		t.Fatalf("batch claim lock-arm gate rechecks = %d, want 2 (reserved + rest)", got)
 	}
 	for _, want := range []string{
-		"claim_active_generations AS MATERIALIZED (",
 		"stale_reducer_candidates AS MATERIALIZED (",
+		// #11234: the gate is driven from the prefiltered work rows.
+		"stale_gate_rows AS MATERIALIZED (",
+		"FROM stale_gate_rows AS stale",
 		"stale.status IN ('pending', 'retrying')",
 		"stale.generation_id <> scope.active_generation_id",
 		"stale_generation.ingested_at < scope.active_ingested_at",

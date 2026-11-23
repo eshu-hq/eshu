@@ -25,6 +25,16 @@ construction. `lib/goal-issues.py` reads and writes the ledger bytes and runs
 `scripts/test-goal-refresh-hook-parity-cases.sh` runs goal-file layouts through
 all three and compares.
 
+## Before an issue is filed
+
+The ledger catches an issue after it exists. The better place to stop a pile is
+before the filing: fix what fits the files the PR already changes, search open
+issues for the same problem, and file one issue per problem, only for work that
+needs a design decision, its own measurement, access the agent lacks, or more
+than one package owner (`eshu-issue-driver`, "Before You File An Issue"). Those
+steps are guidance. No hook checks them. The ledger below still holds every
+filed issue to the goal.
+
 ## The ledger
 
 A sidecar next to the goal file: `<goal file>.issues`, for example

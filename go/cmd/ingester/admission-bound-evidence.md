@@ -86,3 +86,91 @@ itself, queryable directly — the counter carries no per-item labels by
 design. Coverage row added to
 `docs/public/observability/telemetry-coverage-projector-parser.md`;
 `scripts/verify-telemetry-coverage.sh` passes.
+
+## Shared queue-depth read (#11233)
+
+Performance Evidence (shared depth read, #11233): the gate used to run
+`queueDepthQuery` on every admission decision, and each deferred Enqueue
+re-ran it every poll interval, so calls = enqueuers x poll rate. Baseline on
+QA (`.claude/shim-11233-11234-2026-11-22.md`, query id -1132648068480399287):
+910 calls in 317.4 s (2.87 per second, 696.9 ms mean, 171,076 buffer hits per
+call), 4.50 per second in the attribution window, and 1,525 deferrals in 10
+minutes (2.54 per second, all `reason=high_water`, `intent_count=1`, depth
+10,000 to 10,209 against the 10,000 mark). Conflict domain: the process-wide
+holder in `go/internal/reduceradmission/reducer_admission_depth.go` (one per
+admission writer, so one per ingester; the projector workers,
+`ESHU_PROJECTOR_WORKERS`, share it, and the per-source leg of #10882,
+`enqueueBySource`, reads through it too). Settings are unchanged: mark
+10,000, poll interval 1 s (the max age A), max wait 5 m; the backoff cap is
+10 s (or half the max wait) and is not a setting. Hermetic before and after
+on the virtual clock (`reducer_admission_depth_test.go` in
+`go/internal/reduceradmission`, reads are instant).
+With instant reads, one signal or both, the deferring reads land at 0, 1, 3,
+7, 15, 25, 35 s and every 10 s after (a waiter wakes one nanosecond past the
+window), and 8 concurrent waiters read on exactly that schedule
+(`reducer_admission_depth_schedule_test.go`). With reads that take time and
+the pressure gate on (its default marks 500 and 100), each step starts at the
+decision's oldest read, the pressure read; the queue read lags it by the
+pressure read latency; and a decision slower than its step sleeps one more
+poll interval. Pinned cases: 700 ms queue and 100 ms pressure reads give
+queue reads at 0.1, 1.1, 3.1, 7.1 s and on; 700 ms for both gives queue reads
+at 0.7, 3.1, 5.1, 9.1, 17.1 s and on. The count over a 5 m max wait stays 33
+per signal in every pinned case. The per-source leg of #10882
+(`enqueueBySource`, off by default, so not the QA path) follows the same
+schedule: before, it read both signals on every group decision and slept
+the poll interval, one read per waiter per second; after, 8 sourced waiters
+at the mark read at 0, 1, 3, 7, 15 ... 55 s over a 60 s max wait, and a round
+whose global gates pass resets the backoff even when the latch then defers
+the group (`reducer_admission_depth_source_test.go`). The summary of
+scenarios:
+
+| Scenario | Before (per-decision read) | After |
+| --- | --- | --- |
+| 8 enqueuers deferring at the mark for 60 s | 488 reads | 9 (one per backoff step) |
+| 1, 8 or 32 enqueuers deferring for 5 m | 301 x K reads | 33 reads for any K (0.11 per second) |
+| 16 admitted enqueues within one max age | 16 reads | 1 read |
+| 100 admitted enqueues per second for 30 s (one every 10 ms, sequential) | 3,000 reads (one per decision) | 30 reads |
+| one waiter, max wait 20 s at the mark | 21 reads | 5 reads, timeout at exactly 20 s |
+
+Restated contract: queue depth keeps its definition and the statement
+constant is unchanged. The gate defers when the depth it holds is at or above
+the mark. An admit uses a depth at most A old in the common case, because the
+window is A whenever the last decision admitted. Two corners leave a
+below-mark depth held while the window is still a backoff: a read that
+completes as its last waiter leaves (its value is held though no decision
+used it), and a `deferred()` from a stale verdict that advances the backoff
+just after an admit reset it. In both, an admit may use a depth up to the
+current backoff old, at most the 10 s cap. A defer may use a depth up to the
+current backoff old, which only delays a producer. Overshoot above the mark is
+bounded by the intents that arrive within A (before: by the concurrent
+enqueuers). After depth falls below the mark a waiter is admitted within the
+backoff cap plus one read. A sleep never runs past the time left before the
+max wait. A failed read reaches every waiter and is never held; the next
+decision reads again. The read runs detached from the starter's cancellation;
+the last waiter out cancels it. The QA bar is a post-deploy reading, not a
+claim here: that query id's calls fall from 2.9 to 4.5 per second to at most
+0.2 per second, and its share of statement time is under 1 percent. No saving
+of primary CPU is claimed before that reading.
+
+Watch item for that reading: QA hovers at the mark (9,999 against 10,000 on
+the replica). Each dip below the mark admits and resets the backoff to the
+poll interval, so the steady read rate per signal lies between 0.11 per
+second (the gate pinned at the mark, 33 reads in 5 m) and 1 per second (a dip
+on every read). The 0.2 per second bar is therefore a post-deploy reading,
+not a guarantee of this change.
+
+Observability Evidence (shared depth read, #11233):
+`eshu_dp_reducer_admission_depth_reads_total{operation,outcome}` counts one
+lookup per signal per decision. `outcome=read` counts the successful
+statements a decision started, and `held` and `shared` are decisions served
+without starting one. `error` counts once per waiter of a failed statement,
+and a starter that leaves records `cancelled` while its statement runs on for
+the joiners (who record `shared`), so statements started lie between `read`
+and `read` + `error` + `cancelled`.
+`eshu_dp_reducer_admission_depth_age_seconds` shows how old the depth was at
+each decision, and `eshu_dp_reducer_admission_read_backoff_seconds` the
+current read interval (0 while admitting; with the defaults it pins at 10
+when the queue sits at the mark). `eshu_dp_reducer_admission_deferrals_total` and its `Warn` log
+still count each deferral, now at most one per waiter per backoff step, so
+the deferral rate falls with the read rate. A read error still returns to the
+caller through the existing `read reducer admission queue depth` wrap.

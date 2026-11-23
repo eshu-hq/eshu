@@ -16,15 +16,15 @@ for that platform's own commands and layers.
 
 ## Before You Push
 
-Use this fixed promotion order before opening or updating a PR:
+Use this fixed promotion order before opening a PR. A later push runs only the focused proof for what it changed, and a rebase follows the Rebase Waiver table in `eshu-code-review`:
 
 1. Complete TDD and focused proof for every touched surface, including applicable frontend, security, runtime, or Ifa gates.
 2. Run a preliminary full `eshu-code-review` of the rebased diff. A rebase may follow the Rebase Waiver table in that skill instead. Fix any P0, P1, or blocking P2 finding, rerun affected proof, and repeat the review. Do **not** run `make pre-push` while a blocking finding remains.
 3. Once clean (`P0=0, P1=0, P2-blocking=0`; every deferred P2 handled per
    `.agents/skills/eshu-code-review/references/merge-bar.md`), capture a receipt.
-4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
+4. Run `make pre-push` once per PR as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
-`make pre-push` is the fast local floor run before every push (except row 4a, tier S, or an owner push order; see Rebase Waiver in `eshu-code-review`), scoped to
+`make pre-push` is the fast local floor run once per PR, on the push that opens it (never on row 4a, tier S, or an owner push order; a rebase runs it only on the same-file test in Rebase Waiver in `eshu-code-review`), scoped to
 changed packages/paths: `go test -race` on every changed package (plus a plain `go test` for any changed package with a `//go:build !race` file, whose tests the race binary leaves out, and for fixture consumers and parser-tree child packages that are not themselves changed), the file cap, gofumpt/lint/build/vet,
 `go vet ./...` on the merge of HEAD with the `origin/main` commit its summary names (the [merge step](local-testing/pre-push-merge.md);
 a conflict fails closed; `main` has no merge queue, so the required checks on the PR head are the authority), the
@@ -35,10 +35,9 @@ The gate step is an allowlist: only gates registered `local.pre_push: floor`
 in `specs/ci-gates.v1.yaml` run (lint, caps, package-docs, perf-evidence, telemetry, changed-package gosec, measurement citations, docs build, contract-registry, and repo-wide sweep gates).
 Every other triggered gate prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in `make pre-pr` and in CI, where a red result is a finding that must be fixed or dispositioned before merge.
 `make` and the entrypoints export `CGO_CFLAGS` with `-std=gnu17`, so a cold Go cache builds on GCC 15 with glibc 2.43. On an affected host, set it once for direct `go` runs too; see [Cgo C Dialect Flag](local-testing/cgo-cflags.md).
-Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
-preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
-reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
-from `./...`):
+Measured on a one-line `go/internal/query` change on a shared host: about 370s before the merge-vet and race steps, 416s with them at matched load (+45s, see [pre-push merge](local-testing/pre-push-merge.md)). `make pre-pr`/`pre-pr-full` are not part of promotion: use
+`pre-pr-full` for package moves (build tags hide files from `./...`),
+`pre-pr` to reproduce a CI red, or when the owner asks:
 
 ```bash
 make pre-push          # or: bash scripts/dev/pre-push.sh
@@ -70,7 +69,7 @@ The local and hosted layers have different jobs; do not remove one because the o
 | Proof | Mandatory locally | Mandatory in GitHub Actions |
 | --- | --- | --- |
 | TDD reproduction and focused touched-surface tests | Before review and before `make pre-push` | Re-run when selected; CI is not the first proof attempt |
-| Credential-free promotion checks | `make pre-push` once on the final reviewed diff; use `make pre-pr`/`make pre-pr-full` when the risk tier warrants that deeper, optional preflight | Re-run independently on the exact PR head |
+| Credential-free promotion checks | `make pre-push` once per PR on the final reviewed diff; `make pre-pr-full` for a package move, `make pre-pr` to reproduce a CI red | Re-run independently on the exact PR head |
 | Advisory analysis | Outside the default promotion path; run with `make pre-pr-full` or its focused command when useful | May publish evidence but does not block the local promotion floor |
 | Frontend and security-heavy checks | Run the matching preflight when those surfaces change | Blocking path-selected jobs remain authoritative |
 | OS-, credential-, service-, or artifact-dependent checks | Run locally or on the dedicated remote validation host when the change contract requires that proof | Mandatory hosted owner; a local or remote pass does not create a GitHub required status |
