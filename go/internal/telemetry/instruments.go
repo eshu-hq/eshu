@@ -3806,6 +3806,22 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingKeyBounded counts #11297 narrowed corpus waits whose
+	// waits_for_key could not carry the full blocking or read scope set inside
+	// the btree row limit, by reason: cut (parked with a sorted prefix),
+	// unrepresentable (nothing parked; the queue's 10-minute backstop
+	// retries), or index_row_rejected (Postgres still refused the park INSERT
+	// with SQLSTATE 54000; Fail logged it and returned nil). Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingKeyBounded metric.Int64Counter
+	// ReducerWaitingFallbackResolved counts parked waits a fallback
+	// resolved instead of a wake (#11228): the #10876 slow audit (outcome
+	// reopened or reconciled) or the reducer claim at the 10-minute
+	// backstop (outcome backstop), by reason (failure_class) and the
+	// reason's registered wake site (wake_site). A reopened or backstop
+	// wait whose wake site is not audit means its wake was lost.
+	// Registered by registerReducerWaitingInstruments.
+	ReducerWaitingFallbackResolved metric.Int64Counter
 	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
 	// recorded by the waiting audit each cycle. Registered by
 	// registerReducerWaitingInstruments.

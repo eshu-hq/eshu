@@ -85,6 +85,9 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducercontr
 	// operator can see the #10568 slot engaging (reserved_used) versus
 	// falling back to the rest arm (fallback) without a per-row label.
 	q.emitReservedSlotClaim(ctx, intents)
+	// #11228: count rows claimed at the backstop with their wait row
+	// still present (telemetry only; never fails the claim).
+	q.recordBackstopClaims(ctx, intents)
 
 	return intents, nil
 }

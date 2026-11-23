@@ -57,6 +57,11 @@ type WorkflowControlStore struct {
 	// source for the claim-hot consult path, under the same TTL; the
 	// latch row stays authoritative and is read fresh.
 	sourceSingleSignals map[string]sourceSignalCacheEntry
+	// pacingGaugeHolds records the latch rows this process raised the
+	// claim-pacing active gauge for, so a release another process wrote still
+	// drops this process's gauge once it observes the row disengaged. Guarded
+	// by pacingMu.
+	pacingGaugeHolds map[pacingLatchKey]pacingGaugeHold
 	// Instruments records the terminal-dead-letter-block signal (#4459) and
 	// the unknown-trigger skip signal (#10369) during
 	// ReconcileWorkflowRuns. Nil is a no-op, so binaries without a

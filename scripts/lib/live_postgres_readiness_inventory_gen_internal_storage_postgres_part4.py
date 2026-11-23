@@ -101,6 +101,20 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
         ),
+        "go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go": (
+            "TestWaitingAckParkContentionLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_ack_park_race_live_test.go": (
+            "TestWaitingAckParkInterleaveLive",
+            "TestWaitingAckParkOrdersLive",
+            "TestWaitingAckCrashResidualAuditLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_audit_resolved_live_test.go": (
+            "TestWaitingAuditResolvedCounterLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_backstop_claim_live_test.go": (
+            "TestWaitingBackstopClaimCounterLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go": (
             "TestBackwardEvidenceWakeContentionLive",
         ),
@@ -132,6 +146,13 @@ TABLE = {
             "TestWaitingSetAsideParksWithBackstopLive",
             "TestWaitingBothOrdersEquivalenceLive",
             "TestWaitingAuditFindsMissedWakeLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_narrow_bound_live_test.go": (
+            "TestNarrowedWaitLargeFenceParksThroughFailLive",
+            "TestNarrowedWaitWorstCaseKeyFitsLive",
+            "TestNarrowedWaitPrefixWakeSelectivityLive",
+            "TestNarrowedWaitAdversarialOrderConvergesLive",
+            "TestNarrowedWaitAuditReopensClearedPrefixLive",
         ),
         "go/internal/storage/postgres/reducer_waiting_narrow_live_test.go": (
             "TestNarrowedWaitSelectiveWakeLive",

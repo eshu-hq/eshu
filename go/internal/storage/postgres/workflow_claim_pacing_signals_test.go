@@ -20,7 +20,9 @@ import (
 // signals end to end. These proofs chain the real observer output shape
 // (workflow.ClaimPacingDepths: one family's pending depth plus the global
 // ceiling) through the real verdict (workflow.DecideClaimPacing) into the
-// real emission (recordClaimPacing), and assert what the instruments record.
+// real latch advance and emission (advanceClaimPacingLatch against a fake
+// database whose latch writes always change a row, then recordClaimPacing),
+// and assert what the instruments record.
 // quota_exceeded is excluded: it lives in unmerged PR #8557.
 
 const (
@@ -48,7 +50,7 @@ func newPacingSignalsStore(t *testing.T) (*WorkflowControlStore, *sdkmetric.Manu
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
-	return &WorkflowControlStore{Instruments: inst}, reader
+	return &WorkflowControlStore{Instruments: inst, database: &sourceBackpressureFakeDB{}}, reader
 }
 
 // pacingSignalPoint is one collected data point: its value (counter sum or
@@ -116,7 +118,14 @@ func decideAndRecord(
 ) workflow.ClaimPacingDecision {
 	decision := workflow.DecideClaimPacing(cfg, depths, latch, engagedFor)
 	decision.Domain = pacingDecisionDomain(decision.Signal, domainKey)
-	store.recordClaimPacing(context.Background(), domainKey, latch, decision)
+	prior := claimPacingLatchState{rows: map[workflow.ClaimPacingSignal]claimPacingLatchRow{}}
+	if latch.Engaged {
+		prior.rows[latch.Signal] = claimPacingLatchRow{engaged: true}
+	}
+	if err := store.advanceClaimPacingLatch(context.Background(), domainKey, prior, decision, time.Now()); err != nil {
+		panic(err)
+	}
+	store.recordClaimPacing(context.Background(), decision)
 	return decision
 }
 
@@ -200,24 +209,47 @@ func TestClaimPacingSignalsReleaseDropsActiveGauge(t *testing.T) {
 	const domainKey = "git/test-instance"
 	prior := workflow.ClaimPacingLatch{Engaged: true, Signal: workflow.ClaimPacingSignalDomain}
 
-	// Depth drains to the release watermark: the verdict goes unpaced and
-	// the active gauge must drop back, with no new engagement counted.
+	// This process engages, then depth drains to the release watermark: the
+	// verdict goes unpaced and the gauge takes back the raise this process
+	// made, with no second engagement counted.
+	decideAndRecord(cfg, workflow.ClaimPacingDepths{Domain: 50, Global: 50},
+		workflow.ClaimPacingLatch{}, 0, store, domainKey)
 	decision := decideAndRecord(cfg,
 		workflow.ClaimPacingDepths{Domain: 4, Global: 10},
 		prior, 0, store, domainKey)
 	if decision.Paced {
 		t.Fatalf("DecideClaimPacing() paced = true, want false at the release watermark")
 	}
-	if engaged := pacingSignalPoints(t, reader, pacingSignalsEngagedMetric); len(engaged) != 0 {
-		t.Fatalf("engaged_total = %+v, want no new engagement on release", engaged)
+	if engaged := pacingSignalPoints(t, reader, pacingSignalsEngagedMetric); engaged["domain"].value != 1 {
+		t.Fatalf("engaged_total = %+v, want the one engagement, none added by the release", engaged)
 	}
 	active := pacingSignalPoints(t, reader, pacingSignalsActiveMetric)
 	got, ok := active["domain"]
-	if !ok || got.value != -1 {
-		t.Fatalf("active{domain} = %+v, want -1 on release", active)
+	if !ok || got.value != 0 {
+		t.Fatalf("active{domain} = %+v, want 0 after this process's engage and release", active)
 	}
 	if got.domain != domainKey {
 		t.Fatalf("active{domain} domain = %q, want %q", got.domain, domainKey)
+	}
+}
+
+// TestClaimPacingSignalsReleaseWithoutRaiseLeavesGaugeAlone pins the #10882
+// contract: a process that never raised the gauge (it observed an engagement
+// another process made) must not push it below zero when it writes the
+// release. The process that did raise it drops it on its next observation.
+func TestClaimPacingSignalsReleaseWithoutRaiseLeavesGaugeAlone(t *testing.T) {
+	cfg := pacingSignalsTestConfig()
+	store, reader := newPacingSignalsStore(t)
+	const domainKey = "git/test-instance"
+	prior := workflow.ClaimPacingLatch{Engaged: true, Signal: workflow.ClaimPacingSignalDomain}
+
+	decideAndRecord(cfg, workflow.ClaimPacingDepths{Domain: 4, Global: 10}, prior, 0, store, domainKey)
+
+	if active := pacingSignalPoints(t, reader, pacingSignalsActiveMetric); len(active) != 0 {
+		t.Fatalf("active = %+v, want no point: this process never raised the gauge", active)
+	}
+	if engaged := pacingSignalPoints(t, reader, pacingSignalsEngagedMetric); len(engaged) != 0 {
+		t.Fatalf("engaged_total = %+v, want no engagement on a release", engaged)
 	}
 }
 
@@ -284,7 +316,10 @@ func TestClaimPacingSignalsHandoffDomainToGlobal(t *testing.T) {
 	// A domain-engaged latch draining to the release watermark while the
 	// global ceiling is hot must hand off: domain active drops, global
 	// engages with no domain label, and the delay rides the global attrs.
-	// A regression dropping either side of the handoff stays loud.
+	// A regression dropping either side of the handoff stays loud. This
+	// process engaged the domain first, so the handoff takes its raise back.
+	decideAndRecord(cfg, workflow.ClaimPacingDepths{Domain: 50, Global: 50},
+		workflow.ClaimPacingLatch{}, 0, store, domainKey)
 	decision := decideAndRecord(cfg,
 		workflow.ClaimPacingDepths{Domain: 4, Global: 500},
 		prior, 0, store, domainKey)
@@ -293,8 +328,8 @@ func TestClaimPacingSignalsHandoffDomainToGlobal(t *testing.T) {
 	}
 
 	active := pacingSignalPoints(t, reader, pacingSignalsActiveMetric)
-	if got, ok := active["domain"]; !ok || got.value != -1 {
-		t.Fatalf("active{domain} = %+v, want -1 for the released domain side", active)
+	if got, ok := active["domain"]; !ok || got.value != 0 {
+		t.Fatalf("active{domain} = %+v, want 0 once the released domain side is taken back", active)
 	}
 	engaged := pacingSignalPoints(t, reader, pacingSignalsEngagedMetric)
 	got, ok := engaged["global"]
