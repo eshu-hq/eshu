@@ -17,8 +17,11 @@ import (
 // unbounded when either side is unbounded or the union exceeds
 // supplychaincore.FanOutOriginCVEIDCap: the sentinel when the incoming stamp
 // names a set, or the incoming stamp itself (no cves key, or the sentinel)
-// when it does not. A row with no stamp object has nothing to merge, so it
-// takes the incoming stamp as the statement always wrote it.
+// when it does not. A stored cves array with no usable string id is unbounded
+// too: the Go reader (fanOutStampCVEIDs) finds no set there and runs the pass
+// full, so a union with the incoming ids alone would narrow it. A row with no
+// stamp object has nothing to merge, so it takes the incoming stamp as the
+// statement always wrote it.
 //
 // Every fragment reads work.payload, the row the UPDATE locked and evaluates
 // under EvalPlanQual, never the target CTE's snapshot: two fan-outs that reach
@@ -47,6 +50,7 @@ func fanOutMergedStampSQL(incomingArg, cvesArg, boundedArg string) string {
             WHEN NOT ` + boundedArg + ` THEN ` + incomingArg + `
             WHEN jsonb_typeof(` + fanOutStampSQL + `) IS DISTINCT FROM 'object' THEN ` + incomingArg + `
             WHEN ` + fanOutStampUnboundedSQL(fanOutStampSQL) + ` THEN ` + sentinel + `
+            WHEN NOT EXISTS (` + fanOutStampIDsSQL(stored) + `) THEN ` + sentinel + `
             ELSE (
                 SELECT CASE
                     WHEN count(*) > ` + fanOutStampMergeCapSQL + ` THEN ` + sentinel + `
