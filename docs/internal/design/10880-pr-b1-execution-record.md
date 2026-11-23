@@ -119,6 +119,29 @@ without it, and the backfill's sweep may already have passed their scope.
   this binary's version is complete, no marker for a higher version exists (a
   newer binary ran the sweep), and the dirty-scope table is empty. A missing table
   reads as an error, which a reader treats as not ready.
+- **Privilege (arbiter ruling `arbiter-b1-fence-privilege`).** The trigger
+  function runs as its owner, not as the writing login. Migration 338 creates the
+  dirty table and arms the trigger in one transaction, so no grant could exist
+  in time: run as the caller, every finding write by a previous-release reducer
+  on a least-privilege database would have failed with SQLSTATE 42501 until a DBA
+  granted by hand, and the unqualified table name let a caller's temp table or
+  search_path divert the mark. The function is `SECURITY DEFINER`, its
+  search_path is pinned to `pg_catalog`, its own schema and `pg_temp`, and PUBLIC
+  execute is revoked (the form of migration 307). The body, the triggers and the
+  WHEN clauses are byte-identical, the `CREATE TABLE` and `CREATE INDEX`
+  statements stay above the search_path change, and 338 is unshipped, so its
+  checksum and the golden digest moved in place. Proofs, all live, each RED
+  against the caller-rights function first: P1 a login with `INSERT` and
+  `UPDATE` on `fact_records` and nothing on the dirty table marks its scope on an
+  insert (version 1) and an update (version 2), and failed with 42501 before; P2
+  the definer posture in `public` and in an isolated schema, with the mark landing
+  in the function's own schema; P3 the writer setting, another fact kind and the
+  real writer through the role-bound logins mark nothing; P4 a temp table named
+  like the dirty table does not take the mark; P5 the old fence, drain, racing
+  writer, role-bound and manifest tests stay green; P6 a 1,000-row old-style
+  insert, same database, seven rounds with the function swapped in place, median
+  35.5 ms caller-rights against 37.4 ms definer (1.05 times, +1.9 ms). Not proven
+  on a deployed least-privilege database.
 
 Trigger cost, measured on a private `postgres:18` with 8,000 rows per case, three
 repetitions, the host at load about 24 (so wall time and small WAL differences are

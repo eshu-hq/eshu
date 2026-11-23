@@ -421,11 +421,10 @@ WHERE generation_id = ANY($1::text[])
 // plus each unusable key sidecar partition index (#7420, factkeys), plus the
 // single-column generation indexes the generation-only probes rely on: the
 // intents index (#10512, migration 292) behind the intents count arm and
-// DELETE, and the work-items index (#10525, migration 294) behind the
-// fact_work_items count arm and pre-delete lock, and the supports index (#10880,
-// migration 338) behind its count arm. Without one, its statements scan the table. It reads only pg_catalog, so it takes no
-// lock on fact_records. to_regclass resolves names through the session's
-// search_path, as the retention statements do.
+// DELETE, the work-items index (#10525, migration 294) behind the fact_work_items count arm
+// and pre-delete lock, and the supports index (#10880, migration 338) behind its count arm.
+// Without one, its statements scan the table. It reads only pg_catalog, so it takes no lock on
+// fact_records. to_regclass resolves names through the session's search_path, as retention does.
 const generationRetentionKeyIndexesQuery = `
 WITH generation_retention_key_indexes(index_name, key_column, fact_kind) AS (
     VALUES
