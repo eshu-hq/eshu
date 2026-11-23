@@ -90,12 +90,21 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	query := route.selector
 	if filter.FindingID != "" {
 		query = route.publicID
+	} else if route.winners {
+		if err := readStore.requireWinnersFresh(ctx); err != nil {
+			return ExplanationRow{}, err
+		}
 	}
 	findings, err := readStore.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 	if err != nil {
 		return ExplanationRow{}, err
 	}
 	if filter.FindingID != "" && len(findings) == 0 {
+		if route.winners {
+			if err := readStore.requireWinnersFresh(ctx); err != nil {
+				return ExplanationRow{}, err
+			}
+		}
 		findings, err = readStore.loadSupplyChainImpactExplanationFindings(
 			ctx,
 			route.selector,

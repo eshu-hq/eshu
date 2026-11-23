@@ -163,3 +163,38 @@ func TestImpactExplanationAnswers503WhenSupportsAreUnavailable(t *testing.T) {
 		})
 	}
 }
+
+// TestImpactExplanationAnswers503WhenTheWinnersModelIsNotFresh pins the explain
+// side of the unscoped selector read: a stale or unmaterialized winners table
+// answers the retryable 503 naming the winners model on both routes, never a
+// not-found body for a key the table has not caught up to.
+func TestImpactExplanationAnswers503WhenTheWinnersModelIsNotFresh(t *testing.T) {
+	t.Parallel()
+
+	refusal := fmt.Errorf("explain: %w", impact.ErrExplanationWinnersUnavailable)
+	for route, target := range map[string]string{
+		"explain": "/api/v0/supply-chain/impact/explain?cve_id=CVE-2026-1&package_id=pkg:npm/p",
+		"packet":  "/api/v0/investigations/supply-chain/impact/packet?cve_id=CVE-2026-1&package_id=pkg:npm/p",
+	} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+			handler := &Handler{
+				ImpactExplanations: errExplanationStore{err: refusal},
+				PacketResponder:    stubImpactPacketResponder{},
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("Retry-After"); got != "30" {
+				t.Fatalf("Retry-After = %q, want 30", got)
+			}
+			if body := rec.Body.String(); !strings.Contains(body, "winners read model is not fresh") {
+				t.Fatalf("body = %s, want the winners text", body)
+			}
+		})
+	}
+}

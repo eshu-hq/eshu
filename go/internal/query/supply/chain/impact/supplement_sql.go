@@ -45,6 +45,31 @@ type supplementBinds struct {
 	includeSuppressed, readAt                           string
 }
 
+// supportsEligibleCopySQL is the read-time eligibility of one supports row aliased
+// alias, written as AND-ed lines: not an operator row, in the active generation of
+// its scope, not an associated or derived-image finding, and not a classified
+// finding that is anything but static and active. It mirrors the winners store's
+// source candidate eligibility (the shortcut invariant test holds the two to the
+// same picks), and the explain identity lookup reuses it so a derived or inactive
+// copy never resolves a key.
+func supportsEligibleCopySQL(alias string) string {
+	return `      AND ` + alias + `.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
+      AND COALESCE((SELECT TRUE
+                    FROM ingestion_scopes AS sc
+                    JOIN scope_generations AS gen
+                      ON gen.scope_id = sc.scope_id AND gen.generation_id = sc.active_generation_id
+                    WHERE sc.scope_id = ` + alias + `.scope_id AND sc.active_generation_id = ` + alias + `.generation_id
+                      AND gen.status = 'active'
+                    LIMIT 1), FALSE)
+      AND NOT EXISTS (SELECT 1 FROM scanner_image_result_fact_associations AS association
+                      WHERE association.finding_fact_id = ` + alias + `.fact_id)
+      AND ` + alias + `.scope_id NOT LIKE 'image://derived/%'
+      AND COALESCE((SELECT class.source_class = 'static' AND class.lifecycle = 'active'
+                    FROM scanner_image_result_fact_classifications AS class
+                    WHERE class.finding_fact_id = ` + alias + `.fact_id
+                    LIMIT 1), TRUE)`
+}
+
 // supplementProbe returns the best precise-eligible support of the candidate key
 // c.canonical_key as one row aliased source.
 var supplementProbe = `CROSS JOIN LATERAL (
@@ -53,21 +78,7 @@ var supplementProbe = `CROSS JOIN LATERAL (
     FROM supply_chain_impact_finding_supports AS s
     WHERE s.canonical_key = c.canonical_key
       AND ` + supplyChainImpactPrecisePredicateSQL("s") + `
-      AND s.scope_id <> '` + supplyChainImpactOperatorSuppressionScopeID + `'
-      AND COALESCE((SELECT TRUE
-                    FROM ingestion_scopes AS sc
-                    JOIN scope_generations AS gen
-                      ON gen.scope_id = sc.scope_id AND gen.generation_id = sc.active_generation_id
-                    WHERE sc.scope_id = s.scope_id AND sc.active_generation_id = s.generation_id
-                      AND gen.status = 'active'
-                    LIMIT 1), FALSE)
-      AND NOT EXISTS (SELECT 1 FROM scanner_image_result_fact_associations AS association
-                      WHERE association.finding_fact_id = s.fact_id)
-      AND s.scope_id NOT LIKE 'image://derived/%'
-      AND COALESCE((SELECT class.source_class = 'static' AND class.lifecycle = 'active'
-                    FROM scanner_image_result_fact_classifications AS class
-                    WHERE class.finding_fact_id = s.fact_id
-                    LIMIT 1), TRUE)
+` + supportsEligibleCopySQL("s") + `
     ORDER BY s.priority_score DESC, s.has_payload_finding_id DESC, s.fact_id ASC
     LIMIT 1
   ) AS source`

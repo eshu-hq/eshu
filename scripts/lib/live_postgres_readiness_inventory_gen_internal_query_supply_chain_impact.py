@@ -25,6 +25,12 @@ TABLE = {
             "TestExplainFromSupportsLive",
             "TestExplainFromSupportsSelectorAndPublicIDLive",
         ),
+        "go/internal/query/supply/chain/impact/explain_unscoped_live_test.go": (
+            "TestExplainUnscopedEqualsLegacyLive",
+            "TestExplainRoundTripFromAnUnscopedPreciseListLive",
+            "TestExplainSelectorRefusesWhenWinnersAreStaleLive",
+            "TestCollapsedKeyCVEFilterLive",
+        ),
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
             "TestFindingsWinnersPayloadParityLive",
             "TestFindingsWinnersPayloadBackfillServesWithoutResweepLive",

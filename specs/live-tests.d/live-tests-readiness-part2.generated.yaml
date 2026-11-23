@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced explain on the multi-support corpus: for every grant shape and non-rank filter, each finding id the granted list returns explains for the same caller with the same payload (the list-then-explain round trip), the granted explain equals the legacy explain for each of those ids, an ungranted public-id lookup equals the legacy read, a granted selector lookup equals the legacy read, and a supports table that is not ready refuses instead of answering from the facts; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/explain_unscoped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the unscoped explain on the multi-support corpus (arbiter ruling V): an ungranted selector lookup reads the winners table's winning supports, an ungranted image selector reads the image partial index, and an identity fallback (canonical key, winner or non-winner fact id) resolves through the winners table; every outcome equals the legacy explain, the case list of differences is recorded, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and a stale winners table refuses; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
     tag: ~
     class: postgres_ci

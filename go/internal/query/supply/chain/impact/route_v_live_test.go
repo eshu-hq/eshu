@@ -46,6 +46,32 @@ func seedRouteVExtras(t *testing.T, ctx context.Context, database *sql.DB) {
 	loud["detection_profile"] = ProfileComprehensive
 	loud["match_reason"] = "dpkg_affected_range"
 	groupedLiveFact(t, ctx, database, "fact:q1:b", multiSupportScopeB, "gen:b", FindingFactKind, loud)
+	seedRouteVAmbiguousKeys(t, ctx, database)
+	seedRouteVCollapsedKey(t, ctx, database)
+}
+
+// seedRouteVAmbiguousKeys adds two keys that share a CVE and a package but differ
+// in repository, so a selector pair names both and the explain is ambiguous.
+// seedRouteVCollapsedKey adds c3 to the c1/c2 key (the key collapses the CVE and
+// advisory ids): c3 carries only the advisory, and outranks both, so the winners
+// row holds an empty cve_id while a lower copy (c1) carries the CVE.
+func seedRouteVCollapsedKey(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	payload := groupedLiveFindingPayload("c3", "c", 95, 6.2)
+	payload["cve_id"] = ""
+	payload["advisory_id"] = "ADV-C1"
+	payload["package_id"] = "pkg:npm/example-c@1.0.0"
+	groupedLiveFact(t, ctx, database, "fact:c3:a", multiSupportScopeA, "gen:a", FindingFactKind, payload)
+}
+
+func seedRouteVAmbiguousKeys(t *testing.T, ctx context.Context, database *sql.DB) {
+	t.Helper()
+	for _, id := range []string{"amb1", "amb2"} {
+		payload := groupedLiveFindingPayload(id, id, 33, 5.0)
+		payload["cve_id"] = "CVE-2026-amb"
+		payload["package_id"] = "pkg:npm/example-amb@1.0.0"
+		groupedLiveFact(t, ctx, database, "fact:"+id+":a", multiSupportScopeA, "gen:a", FindingFactKind, payload)
+	}
 }
 
 // routeVFilters are the unscoped existence-filter shapes; rank marks the filters
