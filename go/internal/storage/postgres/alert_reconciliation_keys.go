@@ -37,7 +37,6 @@ const SecurityAlertReconciliationKeyBackfillMarker = "security_alert_reconciliat
 var securityAlertReconciliationFactKinds = []string{
 	"security_alert.repository_alert",
 	"reducer_package_consumption_correlation",
-	"reducer_supply_chain_impact_finding",
 }
 
 func isSecurityAlertReconciliationFactKind(factKind string) bool {
@@ -274,7 +273,7 @@ ON CONFLICT (fact_id, key_kind, key_value) DO UPDATE SET
 // the ORDER BY fact_id ASC / LIMIT cursor paging the caller relies on. The
 // kind surface, tombstone and generation-status gates, empty-filter early
 // return, and ($5, $6) cursor paging are unchanged from the legacy query.
-const listActiveSecurityAlertReconciliationFactsKeyedQuery = `
+const listActiveSecurityAlertReconciliationFactsKeyedArm = `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -301,8 +300,7 @@ JOIN scope_generations AS generation
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
     'security_alert.repository_alert',
-    'reducer_package_consumption_correlation',
-    'reducer_supply_chain_impact_finding'
+    'reducer_package_consumption_correlation'
 )
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
@@ -340,3 +338,7 @@ WHERE fact.fact_kind IN (
 ORDER BY fact.fact_id ASC
 LIMIT $6
 `
+
+// listActiveSecurityAlertReconciliationFactsKeyedQuery is the loader statement
+// over the keyed fact arm, merged with the supports arm like the legacy one.
+var listActiveSecurityAlertReconciliationFactsKeyedQuery = securityAlertReconciliationMergedQuery(listActiveSecurityAlertReconciliationFactsKeyedArm)

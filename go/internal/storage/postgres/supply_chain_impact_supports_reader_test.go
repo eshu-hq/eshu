@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -117,4 +118,34 @@ func supportsReadSeries(t *testing.T, reader *sdkmetric.ManualReader, source, ou
 		}
 	}
 	return total
+}
+
+// TestSupportsReadersCountServedOnce pins that each reducer loader counts one
+// served read per load, under its own reader label.
+func TestSupportsReadersCountServedOnce(t *testing.T) {
+	t.Parallel()
+
+	t.Run("service vulnerability advisory loader", func(t *testing.T) {
+		inst, reader := supportsReaderMetrics(t)
+		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{supportsReadyResponse(), {}}})
+		store.instruments = inst
+		if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a"}); err != nil {
+			t.Fatalf("GetSupplyChainAdvisoriesForRepos() error = %v, want nil", err)
+		}
+		if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory, telemetry.SupplyChainImpactSupportsReadServed); got != 1 {
+			t.Fatalf("served = %d, want 1", got)
+		}
+	})
+	t.Run("security alert reconciliation loader", func(t *testing.T) {
+		inst, reader := supportsReaderMetrics(t)
+		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{supportsReadyResponse(), {rows: [][]any{{false}}}, {}}})
+		store.instruments = inst
+		if _, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(),
+			securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}}); err != nil {
+			t.Fatalf("ListActiveSecurityAlertReconciliationFacts() error = %v, want nil", err)
+		}
+		if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation, telemetry.SupplyChainImpactSupportsReadServed); got != 1 {
+			t.Fatalf("served = %d, want 1", got)
+		}
+	})
 }
