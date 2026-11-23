@@ -18,7 +18,7 @@ import statistics
 import sys
 from typing import Any
 
-ARM_ORDER = ("C", "CF", "C0", "T1", "T1TTL", "C2", "T2", "T3", "T3TTL", "CG", "IFC", "IF", "IWC", "IW")
+ARM_ORDER = ("C", "CF", "C0", "T1", "T1TTL", "C2", "T2", "T2TTL", "T3", "T3TTL", "CG", "IFC", "IF", "IWC", "IW")
 
 
 def load(results: str) -> dict[str, dict[str, Any]]:

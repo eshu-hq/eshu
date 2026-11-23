@@ -32,6 +32,7 @@ REPLAY_ENGAGE_AGE_SECONDS=3600
 #   T1TTL    treatment at the candidate TTL
 #   C2       control for T2: thresholds unset, A hosted, B=git, hosted collector running
 #   T2       treatment, A hosted paced at the claim grant, B=git
+#   T2TTL    T2 at the candidate TTL on every process, the hosted collector included
 #   T3       treatment, A's aged rows all not takeable (#11187), TTL 0
 #   T3TTL    T3 at the candidate TTL (consult cost with parked rows present)
 #   CF       reference for T1 shapes: thresholds unset, both fixture commits pushed BEFORE
@@ -48,6 +49,7 @@ replay_arm_config() {
     T1TTL) ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
     C2) ARM_THRESHOLDS=0 ARM_A_KIND=hosted ARM_HOSTED=1 ;;
     T2) ARM_A_KIND=hosted ARM_HOSTED=1 ;;
+    T2TTL) ARM_A_KIND=hosted ARM_HOSTED=1 ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
     T3) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ;;
     T3TTL) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
     CG) ARM_THRESHOLDS=0 ARM_GLOBAL_MARKS=default ;;

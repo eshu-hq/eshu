@@ -4,7 +4,7 @@
 #
 # Checks every assembled result with check_arm.py and prints the evidence summary:
 # the control sets (count and equality), one block per run against the right
-# control (C for C0, T1, T1TTL, T3, T3TTL; C2 for T2), the proof that two control
+# control (C for C0, T1, T1TTL, T3, T3TTL; C2 for T2 and T2TTL), the proof that two control
 # runs differ only in the normalised payload fields, CG as a reported reading, and
 # the numbers the enablement gate and the recommended TTL need. Exit 1 when any
 # check failed; nothing here retunes a check.
@@ -72,7 +72,7 @@ for dir in "$results"/*-rep*; do
     CF-rep*) kind=cfref; ref=("${controls[@]:0:2}") ;;
     C0-rep*) kind=control; ref=("${controls[@]}") ;;
     T3-rep*|T3TTL-rep*) kind=t3; ref=("${controls[@]}") ;;
-    T2-rep*) kind=t2; ref=("${controls2[@]}") ;;
+    T2-rep*|T2TTL-rep*) kind=t2; ref=("${controls2[@]}") ;;
     CG-rep*) kind=cg; ref=() ;;
     *) kind=treatment; ref=("${controls[@]}") ;;
   esac
@@ -104,5 +104,9 @@ for path in sorted(glob.glob(os.path.join(sys.argv[1], "*-rep*", "result.json"))
             a.get("within_100ms", 0), a.get("count", 0), rep["k_peak"], rep["parked_rows_peak"], rep["woken_holding_wait"],
             rep["wait_table_rows_final"], r["paced"]["superseded_scopes"], r["paced"]["paced_items"].get("A", 0),
             r.get("a_drain", {}).get("after_catchup_s"), rep.get("load1_max"), rep.get("load1_end")))
+  g = r.get("consult_claim_grant", {})
+  if g.get("count"):
+    print("%-12s claim-grant consult (collector_kind series, hosted collector): n=%d p50=%.1fms p95=%.1fms within100ms=%.2f" % (
+        os.path.basename(os.path.dirname(path)), g["count"], 1000 * g["p50_s"], 1000 * g["p95_s"], g["within_100ms"]))
 PY
 exit "$status"
