@@ -68,7 +68,7 @@ func supplyChainImpactWriterFor(database db.ExecQueryer, instruments *telemetry.
 // over the same database as the writer. It is nil exactly when the writer is
 // nil (no transaction beginner), in which case supply_chain_impact is not
 // registered at all, so the seam never ships inert on a registered handler.
-func supplyChainImpactFanOutFor(database db.ExecQueryer) supplychaincore.SupplyChainImpactFanOut {
+func supplyChainImpactFanOutFor(database db.ExecQueryer, instruments *telemetry.Instruments) supplychaincore.SupplyChainImpactFanOut {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
@@ -77,6 +77,9 @@ func supplyChainImpactFanOutFor(database db.ExecQueryer) supplychaincore.SupplyC
 		Beginner:   beginner,
 		DB:         database,
 		LeaseOwner: reducerWorkQueueLeaseOwner,
+		// The supports reads of the fan-out count on
+		// eshu_dp_supply_chain_impact_supports_reads_total (#11197).
+		Instruments: instruments,
 	}
 }
 
@@ -280,7 +283,7 @@ func buildReducerSupplyChainSecurityHandlers(
 		// #9695: after its writer commit a pass reopens the scopes that hold stale
 		// copies of what it changed. Wired beside the writer; the registration test
 		// fails when either side of this line is dropped.
-		SupplyChainImpactFanOut: supplyChainImpactFanOutFor(database),
+		SupplyChainImpactFanOut: supplyChainImpactFanOutFor(database, instruments),
 		// #10411: after the commit and before the fan-out (so a failed
 		// enqueue aborts while the owed marker stands), a pass admits one
 		// advisory_group_projection intent per advisory group it touched.

@@ -38,11 +38,16 @@ func TestHolderMassProbeQueryIsCappedSingleStatement(t *testing.T) {
 	if got := strings.Count(q, "LEFT JOIN"); got != 3 {
 		t.Fatalf("probe joins %d times, want 3 (one per-id LATERAL arm) with zero-fill", got)
 	}
-	if got := strings.Count(q, "is_tombstone = FALSE"); got != 3 {
-		t.Fatalf("probe carries the tombstone predicate %d times, want 3 (one per arm, proving the partial-index predicates)", got)
+	if got := strings.Count(q, "FROM supply_chain_impact_finding_supports AS support"); got != 3 {
+		t.Fatalf("probe reads the supports table %d times, want 3 (one per arm)", got)
 	}
-	if !strings.Contains(q, facts.ReducerSupplyChainImpactFindingFactKind) {
-		t.Fatalf("probe lost the literal fact kind")
+	if got := strings.Count(q, "<> ''"); got != 2 {
+		t.Fatalf("probe carries the non-empty predicate %d times, want 2 (the cve_id and advisory_id arms prove their partial indexes)", got)
+	}
+	for _, banned := range []string{"fact_records", facts.ReducerSupplyChainImpactFindingFactKind, "is_tombstone"} {
+		if strings.Contains(q, banned) {
+			t.Fatalf("probe still reads the finding facts (%q)", banned)
+		}
 	}
 	if !strings.Contains(q, "advisory_group_members") {
 		t.Fatalf("probe lost the group-members arm")

@@ -282,3 +282,17 @@ fan-out holder counters and `fanout_holders` log field now exclude in-flight
 markers; marker executions per hour stay on the `manifest_trigger` signal. The
 completion fan-out's skipped-marker counter is described in
 `go/internal/storage/postgres/scope/completion/README.md`.
+
+## Holder reads answer from supports (#11197)
+
+Every holder read answers from
+`supply_chain_impact_finding_supports`, not the finding facts: the 5-id holder
+statement, the 16 key-range statements with the foreign-member token arm, the
+mass probe, `FindRepositoryFindingHolders`, the scoped seed read, the out-of-stamp
+probe and the Go-modules fence read. Migrations 339 to 342 add the `cve_id` and
+`advisory_id` btrees and the group-member and token GINs; they serve these reads
+in place of the `fact_records` lookup indexes of 283/289/290, which stay until
+the finding facts stop being written. A supports table that
+is not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`, which
+`fanOutReadFailure` returns unwrapped so the queue defers the item without counting
+an attempt. Evidence: `docs/internal/evidence/11197-holder-reads-supports.md`.

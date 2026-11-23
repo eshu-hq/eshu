@@ -75,6 +75,11 @@ VALUES ($1, $2, $3, $4, $5, '1.0.0', $6, $1, now(), now(), $7, $8::jsonb)`,
 		envelope.IsTombstone, string(payload)); err != nil {
 		t.Fatalf("seed fact %s: %v", envelope.FactID, err)
 	}
+	// The repository holder read answers from the supports table (#11197),
+	// which no maintainer filled for a directly written fact.
+	if envelope.FactKind == facts.ReducerSupplyChainImpactFindingFactKind {
+		settleSupplyChainImpactSupports(t, ctx, db)
+	}
 }
 
 // manifestLiveSeedMarker inserts the git scope's marker item for generation

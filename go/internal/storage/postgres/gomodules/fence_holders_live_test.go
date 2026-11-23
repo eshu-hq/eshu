@@ -55,6 +55,7 @@ VALUES ($1, $2, $3, 'reducer_supply_chain_impact_finding', $1, 'reducer', $1, no
 		holderScopeID+"/finding", holderScopeID, generationID, repositoryID); err != nil {
 		t.Fatalf("seed holder finding: %v", err)
 	}
+	settleSupports(t, database)
 	if itemStatus == "" {
 		return ""
 	}
@@ -69,6 +70,24 @@ VALUES ($1, $2, $3, 'reducer', 'supply_chain_impact', 'scope', $2, $4, 1, '{}'::
 		t.Fatalf("seed holder item: %v", err)
 	}
 	return itemID
+}
+
+// settleSupports fills the supports table from the finding facts the test wrote
+// directly (no maintainer ran) and drains the old-writer fence the direct insert
+// marked, so the fence's supports readiness check passes (#11197).
+func settleSupports(t *testing.T, database *sql.DB) {
+	t.Helper()
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: database}, ChunkSize: 100}
+	for step := 0; step < 500; step++ {
+		report, err := backfill.RunStep(t.Context())
+		if err != nil {
+			t.Fatalf("supports backfill step %d: %v", step, err)
+		}
+		if report.Complete && report.DirtyScopes == 0 {
+			return
+		}
+	}
+	t.Fatal("supports backfill did not settle in 500 steps")
 }
 
 func readItem(t *testing.T, database *sql.DB, itemID string) (string, json.RawMessage) {
@@ -117,7 +136,7 @@ UPDATE ingestion_scopes SET active_generation_id = NULL WHERE scope_id = 'holder
 		t.Fatal(err)
 	}
 
-	result, err := fenceStore(database).FenceStaleGoEvidence(ctx, []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
+	result, err := fenceStore(t, database).FenceStaleGoEvidence(ctx, []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
 	if err != nil || result.Fenced != 1 || result.HoldersReopened != 3 {
 		t.Fatalf("result = %+v, err = %v, want 1 fenced and 3 holders (reopened, enqueued, dead letter visited)", result, err)
 	}
@@ -161,7 +180,7 @@ func TestFenceRollsBackWhenAHolderReopenFailsLive(t *testing.T) {
 	repository, fence := seedFenceable(t, database, 1)
 	seedFindingHolder(t, database, "holder-a", repository, "succeeded")
 	boom := errors.New("reopen failed")
-	failing := NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(
+	failing := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(testSupportsReadiness).WithHolderReopener(
 		func(context.Context, db.ExecQueryer, string, string, string, time.Time) error { return boom })
 
 	result, err := failing.FenceStaleGoEvidence(t.Context(), []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
@@ -194,7 +213,7 @@ func TestFenceTimesOutBehindAHeldHolderAndRetriesLive(t *testing.T) {
 	}
 
 	fences := []scannercomponent.StaleEvidenceFence{fence}
-	store := fenceStore(database)
+	store := fenceStore(t, database)
 	if result, err := store.FenceStaleGoEvidence(ctx, fences, time.Now().UTC()); err == nil || result.Fenced != 0 {
 		t.Fatalf("result = %+v, err = %v, want a lock timeout and nothing fenced", result, err)
 	}
@@ -240,7 +259,7 @@ func TestFenceYieldsToTheRetirementFenceTableLockLive(t *testing.T) {
 	}
 
 	fences := []scannercomponent.StaleEvidenceFence{fence}
-	store := fenceStore(database)
+	store := fenceStore(t, database)
 	if result, err := store.FenceStaleGoEvidence(ctx, fences, time.Now().UTC()); err == nil || result.Fenced != 0 {
 		t.Fatalf("result = %+v, err = %v, want a lock timeout behind the table lock", result, err)
 	}
@@ -318,7 +337,7 @@ func TestFenceReopensHoldersInDeadLetterLockOrderLive(t *testing.T) {
 	t.Logf("fence holder read plan:\n%s", strings.Join(plan, "\n"))
 
 	var order []string
-	store := NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(func(
+	store := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(testSupportsReadiness).WithHolderReopener(func(
 		ctx context.Context, tx db.ExecQueryer, holder, sourceScopeID, sourceGenerationID string, now time.Time,
 	) error {
 		order = append(order, holder)

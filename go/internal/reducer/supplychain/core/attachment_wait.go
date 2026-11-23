@@ -143,15 +143,20 @@ func (h SupplyChainImpactHandler) awaitOwnSBOMAttachment(ctx context.Context, in
 	return nil
 }
 
-// beforeEvidenceLoad runs the two decisions Handle makes before it issues a
-// fencing token or loads any evidence: a #9874 git manifest marker reopens
-// holders and writes no findings, and the #11105 attachment wait defers a pass
-// whose own attachment is still in flight. handled reports that Handle must
-// return result and err as they are.
+// beforeEvidenceLoad runs the decisions Handle makes before it issues a
+// fencing token or loads any evidence: the #11197 supports-readiness gate, which
+// defers the pass non-counting while the holder reads' table is not ready (it
+// runs first because the manifest marker below already reads repository
+// holders); a #9874 git manifest marker reopens holders and writes no findings;
+// and the #11105 attachment wait defers a pass whose own attachment is still in
+// flight. handled reports that Handle must return result and err as they are.
 func (h SupplyChainImpactHandler) beforeEvidenceLoad(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (reducercontract.Result, bool, error) {
+	if err := h.requireSupportsReady(ctx); err != nil {
+		return reducercontract.Result{}, true, err
+	}
 	if result, handled, err := h.handleManifestTrigger(ctx, intent); handled {
 		return result, true, err
 	}

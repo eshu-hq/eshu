@@ -1,0 +1,120 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+func supportsReadyFake(rows [][]any) *fakeExecQueryer {
+	return &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: rows}}}
+}
+
+func supportsReaderMetrics(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	return inst, reader
+}
+
+// TestRequireSupplyChainImpactSupportsReadyUsesThePinnedPredicate pins that the
+// helper runs the pinned readiness statement and nothing else.
+func TestRequireSupplyChainImpactSupportsReadyUsesThePinnedPredicate(t *testing.T) {
+	t.Parallel()
+
+	database := supportsReadyFake([][]any{{true}})
+	if err := requireSupplyChainImpactSupportsReady(context.Background(), database, nil, "x"); err != nil {
+		t.Fatalf("requireSupplyChainImpactSupportsReady() error = %v, want nil", err)
+	}
+	if len(database.queries) != 1 || !strings.Contains(database.queries[0].query, supplyChainImpactSupportsReadySQL) {
+		t.Fatalf("queries = %+v, want exactly the pinned readiness statement", database.queries)
+	}
+}
+
+// TestRequireSupplyChainImpactSupportsReadyRefusesNonCounting pins the refusal:
+// a not-ready table returns the typed error that is retryable, an expected wait
+// and carries the non-counting class, and counts not_ready for its reader.
+func TestRequireSupplyChainImpactSupportsReadyRefusesNonCounting(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	err := requireSupplyChainImpactSupportsReady(context.Background(), supportsReadyFake([][]any{{false}}), inst,
+		telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation)
+	var notReady *supplychaincore.SupplyChainImpactSupportsNotReadyError
+	if !errors.As(err, &notReady) {
+		t.Fatalf("error = %v, want *SupplyChainImpactSupportsNotReadyError", err)
+	}
+	if !reducercontract.IsRetryable(err) || !reducercontract.IsExpectedWait(err) ||
+		notReady.FailureClass() != supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass {
+		t.Fatalf("refusal retryable=%v expectedWait=%v class=%q, want retryable expected wait of the not-ready class",
+			reducercontract.IsRetryable(err), reducercontract.IsExpectedWait(err), notReady.FailureClass())
+	}
+	if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation, telemetry.SupplyChainImpactSupportsReadNotReady); got != 1 {
+		t.Fatalf("not_ready = %d, want 1", got)
+	}
+}
+
+// TestRequireSupplyChainImpactSupportsReadyProbeFailureKeepsItsOwnClass pins
+// that a failing probe is not the not-ready refusal and counts failed.
+func TestRequireSupplyChainImpactSupportsReadyProbeFailureKeepsItsOwnClass(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	probeErr := errors.New("probe boom")
+	err := requireSupplyChainImpactSupportsReady(context.Background(), errReadinessQueryer{err: probeErr}, inst,
+		telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory)
+	if err == nil || errors.As(err, new(*supplychaincore.SupplyChainImpactSupportsNotReadyError)) {
+		t.Fatalf("error = %v, want the probe failure, never the not-ready refusal", err)
+	}
+	if reducercontract.IsRetryable(err) {
+		t.Fatalf("probe failure is retryable; it must keep its own classification")
+	}
+	if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory, telemetry.SupplyChainImpactSupportsReadFailed); got != 1 {
+		t.Fatalf("failed = %d, want 1", got)
+	}
+}
+
+// supportsReadSeries returns the eshu_dp_supply_chain_impact_supports_reads_total
+// value for one reader and outcome, 0 when the series was never written.
+func supportsReadSeries(t *testing.T, reader *sdkmetric.ManualReader, source, outcome string) int64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	var total int64
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_supports_reads_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok {
+				t.Fatalf("reads_total data = %T, want Sum[int64]", m.Data)
+			}
+			for _, p := range sum.DataPoints {
+				gotSource, _ := p.Attributes.Value(attribute.Key("source"))
+				gotOutcome, _ := p.Attributes.Value(attribute.Key("outcome"))
+				if gotSource.AsString() == source && gotOutcome.AsString() == outcome {
+					total += p.Value
+				}
+			}
+		}
+	}
+	return total
+}

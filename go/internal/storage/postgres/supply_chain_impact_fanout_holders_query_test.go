@@ -15,9 +15,10 @@ import (
 // three lookup arms projecting only (scope_id, generation_id) pairs, then a
 // single active-generation join. Materialization is what puts the
 // advisory-group-members arm on its GIN bitmap instead of a scope nested
-// loop, and the UNION deduplicates pairs before the heap-heavy join. Each
-// arm keeps the literal fact kind and the tombstone predicate so the arms
-// still prove their partial-index predicates under a generic plan.
+// loop, and the UNION deduplicates pairs before the heap-heavy join. The
+// statement reads the per-support table (#11197): no arm reads a finding fact,
+// and the two btree arms carry the literal non-empty predicate that proves the
+// partial index under a generic plan.
 func TestFindSupplyChainImpactHoldersQueryUsesMaterializedPairUnion(t *testing.T) {
 	t.Parallel()
 
@@ -37,22 +38,24 @@ func TestFindSupplyChainImpactHoldersQueryUsesMaterializedPairUnion(t *testing.T
 	if !strings.Contains(q, "scope.active_generation_id") {
 		t.Fatalf("holders query lost the active-generation join:\n%s", q)
 	}
-	if !strings.Contains(q, facts.ReducerSupplyChainImpactFindingFactKind) {
-		t.Fatalf("holders query lost the literal fact kind")
+	if got := strings.Count(q, "FROM supply_chain_impact_finding_supports AS support"); got != 3 {
+		t.Fatalf("holders query reads the supports table %d times, want 3 (one per arm)", got)
 	}
-	if got := strings.Count(q, "is_tombstone = FALSE"); got != 3 {
-		t.Fatalf("holders query carries the tombstone predicate %d times, want 3 (one per arm)", got)
+	for _, banned := range []string{"fact_records", facts.ReducerSupplyChainImpactFindingFactKind, "is_tombstone"} {
+		if strings.Contains(q, banned) {
+			t.Fatalf("holders query still reads the finding facts (%q)", banned)
+		}
 	}
 	for _, arm := range []string{
-		"payload->>'cve_id' = ANY($1::text[])",
-		"payload->>'advisory_id' = ANY($1::text[])",
-		"provenance,advisory_group_members}' ?| $1::text[]",
+		"support.cve_id <> ''\n      AND support.cve_id = ANY($1::text[])",
+		"support.advisory_id <> ''\n      AND support.advisory_id = ANY($1::text[])",
+		"support.payload #> '{provenance,advisory_group_members}' ?| $1::text[]",
 	} {
 		if !strings.Contains(q, arm) {
 			t.Fatalf("holders query lost the %q arm", arm)
 		}
 	}
-	if strings.Contains(q, "OR finding.payload") {
+	if strings.Contains(q, "OR support.") {
 		t.Fatalf("holders query still ORs the three arms in one WHERE clause instead of unioning pair sets")
 	}
 	if !strings.Contains(q, "SELECT DISTINCT") {

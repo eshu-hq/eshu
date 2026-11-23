@@ -28,6 +28,9 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), $5,
 		tombstone, cve, advisory, pkg, purl, name, eco); err != nil {
 		t.Fatalf("seed finding row %s: %v", factID, err)
 	}
+	// The seed read answers from the supports table (#11197), which no
+	// maintainer filled for a directly written fact.
+	settleSupplyChainImpactSupports(t, ctx, db)
 }
 
 // TestListScopedFindingPackagesLive pins the #9779 seed read: distinct CVE,

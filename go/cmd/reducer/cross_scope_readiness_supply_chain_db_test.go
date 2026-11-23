@@ -28,6 +28,9 @@ type supplyChainReadinessWiringDB struct {
 	// probedAttachmentReadiness records that the pass asked the wired #11105
 	// attachment readiness store about its own scope generation.
 	probedAttachmentReadiness bool
+	// probedSupportsReadiness records that the pass asked the wired #11197
+	// handler-entry gate whether the supports table is ready.
+	probedSupportsReadiness bool
 }
 
 func (f *supplyChainReadinessWiringDB) QueryContext(
@@ -42,6 +45,12 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 		args[2] == "sbom_attestation_attachment" {
 		f.probedAttachmentReadiness = true
 		return &crossScopeReadinessRows{rows: [][]any{{0, 0, 0, 0, 0, 0, 0, nil}}}, nil
+	}
+	// The #11197 handler-entry gate: the supports table reads ready, so the pass
+	// proceeds to the floor.
+	if strings.Contains(query, "FROM supply_chain_impact_finding_supports_backfill") {
+		f.probedSupportsReadiness = true
+		return &crossScopeReadinessRows{rows: [][]any{{true}}}, nil
 	}
 	// The fencing-token issuer (#7142): Handle draws the token from the
 	// supply_chain_impact_fencing_token_seq sequence before the evidence load.

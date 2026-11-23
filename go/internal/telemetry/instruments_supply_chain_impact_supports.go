@@ -61,6 +61,52 @@ const (
 	SupplyChainImpactSupportsBackfillStepFailed = "failed"
 )
 
+// Reducer reads of the per-support table (#10880 PR-B2) for the reader
+// label (carried as the source dimension, a closed set) and outcome of
+// eshu_dp_supply_chain_impact_supports_reads_total.
+const (
+	// SupplyChainImpactSupportsReaderSecurityAlertReconciliation is the
+	// security-alert reconciliation evidence loader.
+	SupplyChainImpactSupportsReaderSecurityAlertReconciliation = "security_alert_reconciliation"
+	// SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory is the
+	// service-catalog vulnerability loader.
+	SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory = "service_vulnerability_advisory"
+	// SupplyChainImpactSupportsReaderFanoutHolders is the impact pass's
+	// reopen fan-out holder read.
+	SupplyChainImpactSupportsReaderFanoutHolders = "fanout_holders"
+	// SupplyChainImpactSupportsReaderFanoutHoldersKeyRange is the fan-out's
+	// key-range holder read.
+	SupplyChainImpactSupportsReaderFanoutHoldersKeyRange = "fanout_holders_key_range"
+	// SupplyChainImpactSupportsReaderFanoutHolderMass is the fan-out's
+	// mass-probe holder read.
+	SupplyChainImpactSupportsReaderFanoutHolderMass = "fanout_holder_mass"
+	// SupplyChainImpactSupportsReaderRepositoryHolders is the repository
+	// holder read.
+	SupplyChainImpactSupportsReaderRepositoryHolders = "repository_holders"
+	// SupplyChainImpactSupportsReaderScopedPackages is the scoped-package
+	// holder read.
+	SupplyChainImpactSupportsReaderScopedPackages = "scoped_packages"
+	// SupplyChainImpactSupportsReaderOutOfStamp is the out-of-stamp holder
+	// read.
+	SupplyChainImpactSupportsReaderOutOfStamp = "out_of_stamp"
+	// SupplyChainImpactSupportsReaderGoModulesFence is the Go-modules fence's
+	// holder read.
+	SupplyChainImpactSupportsReaderGoModulesFence = "go_modules_fence"
+)
+
+// Outcomes of a reducer read of the per-support table. They are the closed set
+// of the outcome label of eshu_dp_supply_chain_impact_supports_reads_total.
+const (
+	// SupplyChainImpactSupportsReadServed is a read that loaded every page.
+	SupplyChainImpactSupportsReadServed = "served"
+	// SupplyChainImpactSupportsReadNotReady is a read the reader refused because
+	// the supports table was not ready; the intent retries.
+	SupplyChainImpactSupportsReadNotReady = "not_ready"
+	// SupplyChainImpactSupportsReadFailed is a read that failed on the readiness
+	// probe or a page load.
+	SupplyChainImpactSupportsReadFailed = "failed"
+)
+
 // supplyChainImpactSupportsBackfillStepBuckets spans a step from a few
 // milliseconds (an idle marker read) to the minute a very large chunk under
 // contention could take, since an operator reads the tail as how long a writer
@@ -83,6 +129,11 @@ var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025,
 //     ..._dirty_scopes and ..._last_success_timestamp_seconds: how long a step
 //     holds a lock, the old-writer fence depth, and when the loop last worked.
 //
+//   - eshu_dp_supply_chain_impact_supports_reads_total{source,outcome}: reducer
+//     reads of the supports table by reader (carried as source) and outcome
+//     (served, not_ready, failed). A rising not_ready count means a reducer
+//     intent is waiting on the backfill; it clears when the ready gauge reads 1.
+//
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
 //     marker is set at the current contract version and the fence is empty, else 0.
 //
@@ -94,6 +145,12 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		metric.WithDescription("Per-support table rows written, by action (inserted, updated, unchanged, deleted) and source (writer, backfill). The impact writer's rows count after its transaction commits."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsRows counter: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsReads, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_supports_reads_total",
+		metric.WithDescription("Reducer reads of the per-support table by reader (source label) and outcome (served, not_ready, failed). A rising not_ready count means a reducer intent is waiting on the supports backfill."),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsReads counter: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsBackfillSteps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_steps_total",
@@ -138,6 +195,16 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRows(ctx context.Context, a
 		return
 	}
 	i.SupplyChainImpactSupportsRows.Add(ctx, rows, metric.WithAttributes(AttrAction(action), AttrSource(source)))
+}
+
+// RecordSupplyChainImpactSupportsRead counts one reducer read of the supports
+// table by reader and outcome, which must be one of the
+// SupplyChainImpactSupportsRead* constants. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsRead(ctx context.Context, reader, outcome string) {
+	if i == nil || i.SupplyChainImpactSupportsReads == nil {
+		return
+	}
+	i.SupplyChainImpactSupportsReads.Add(ctx, 1, metric.WithAttributes(AttrSource(reader), AttrOutcome(outcome)))
 }
 
 // RecordSupplyChainImpactSupportsBackfillStep counts one backfill step under

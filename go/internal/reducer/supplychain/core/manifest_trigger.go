@@ -272,7 +272,7 @@ func (h SupplyChainImpactHandler) runManifestTrigger(ctx context.Context, intent
 				repositoryHolders, err = h.FanOut.FindRepositoryFindingHolders(ctx, intent.ScopeID, repositories)
 				if err != nil {
 					h.countFanOutRead(ctx, fanOutCauseManifestDependency, err, telemetry.FanOutReadSiteRepository)
-					return reducercontract.Result{}, fanOutError{fmt.Errorf("find supply chain impact repository holders: %w", err)}
+					return reducercontract.Result{}, fanOutReadFailure(err, "find supply chain impact repository holders")
 				}
 			}
 			repositoryHolders = withoutScope(repositoryHolders, intent.ScopeID)

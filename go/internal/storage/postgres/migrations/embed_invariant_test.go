@@ -365,13 +365,16 @@ import (
 // is main's 363 plus 338. The digest is this test's own derivation on the merged
 // tree, regenerated whenever 338 changes (338 is unshipped, so its checksum and
 // this digest move in place).
+// 339 to 342 (#11197, #10880 PR-B2b) add the four holder-read indexes on the
+// per-support table, one concurrent build per file.
 // 343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql and
 // 344_supply_chain_impact_finding_supports_image_ref_idx.sql (#10880 PR-B2a) add the
-// two partial indexes behind the unscoped existence-filter reads; count 366 is
-// 364 plus the pair, and the digest is this test's own derivation on the merged tree.
+// two partial indexes behind the unscoped existence-filter reads. Count 370 is
+// 364 plus the four of 339 to 342 plus the pair; the digest is this test's own
+// derivation on the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "445266a4c2ff9635e47366fa14f2ce5886994415a0d93b5d1402c503a0af2a52"
-	goldenBootstrapDefinitionsCount  = 366
+	goldenBootstrapDefinitionsDigest = "fe0b754a62f1c5e276b93974920a72a89b6204f624f01ba7bba2eea8b21fe3d0"
+	goldenBootstrapDefinitionsCount  = 370
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

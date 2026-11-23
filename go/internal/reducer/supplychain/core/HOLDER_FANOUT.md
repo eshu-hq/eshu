@@ -44,7 +44,7 @@ rules, the outcomes, and the open residual are in
   the digest existed count as changed once.
 - Holders come from chunked indexed reads, 5 lookup ids per chunk (#10564 H3;
   the stamp cap stays one 200-id CVE chunk)
-  (`fact_records_supply_chain_impact_lookup_idx`), the asking scope excluded,
+  (`supply_chain_impact_finding_supports_cve_idx` since #11197), the asking scope excluded,
   the operator scope included, plus the scopes whose item at their active
   generation is claimed or running (`fact_work_items_stage_domain_status_idx`),
   read first: a pass in flight may have loaded evidence before this pass's facts

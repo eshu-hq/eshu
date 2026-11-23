@@ -7,9 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // holderMassProbeQueryTemplate estimates, per lookup id, how many live
@@ -50,10 +53,9 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload->>'cve_id' = ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.cve_id <> ''
+          AND support.cve_id = ids.id
         LIMIT %d
     ) AS limited
 ) AS cve ON TRUE
@@ -61,10 +63,9 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload->>'advisory_id' = ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.advisory_id <> ''
+          AND support.advisory_id = ids.id
         LIMIT %d
     ) AS limited
 ) AS adv ON TRUE
@@ -72,10 +73,8 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload #> '{provenance,advisory_group_members}' ? ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.payload #> '{provenance,advisory_group_members}' ? ids.id
         LIMIT %d
     ) AS limited
 ) AS m3 ON (COALESCE(cve.mass, 0) + COALESCE(adv.mass, 0)) < %d
@@ -113,10 +112,60 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 	ctx context.Context,
 	lookupIDs []string,
 ) (map[string]int64, error) {
+	// A blank id names no finding; it keeps mass 0 (readIDMasses fills every
+	// requested id), and sending it would defeat the partial indexes.
+	probed := nonBlankLookupIDs(lookupIDs)
 	if len(lookupIDs) == 0 {
 		return map[string]int64{}, nil
 	}
-	return s.readIDMasses(ctx, HolderMassProbeQuery, lookupIDs)
+	masses := make(map[string]int64, len(lookupIDs))
+	if len(probed) > 0 {
+		read, err := s.readIDMasses(ctx, HolderMassProbeQuery, probed)
+		if err != nil {
+			return nil, err
+		}
+		masses = read
+		// A read that ran is counted served; an all-blank lookup ran none.
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass, telemetry.SupplyChainImpactSupportsReadServed)
+	}
+	for _, id := range lookupIDs {
+		if _, ok := masses[id]; !ok {
+			masses[id] = 0
+		}
+	}
+	return masses, nil
+}
+
+// setHolderMassProbeNoSeqScanQuery scopes enable_seqscan = off to the mass-probe
+// transaction (arbiter-b2b-gin-covering decision 3). The probe asks each id for
+// "at most 101 rows" through a per-id LIMIT. For an id the planner knows nothing
+// about it assumes about 1% of the table matches, prices a sequential scan under
+// LIMIT at the cost of reading roughly 10,000 rows (about 1,600 at 8,000,000
+// supports) and compares that with a bitmap scan whose cost grows with the table.
+// A sequential scan wins that race whenever the GIN scan costs more than the
+// constant: with an unflushed pending list, or on a table a few times larger
+// than the lab's, and a probe for an id that matches nothing then reads the whole
+// table (254 s for five ids at 8,000,000 supports). The setting applies to this
+// transaction only: the holder and key-range statements keep the planner's own
+// choice, which arbiter-hotkey-page decision 10 pins.
+const setHolderMassProbeNoSeqScanQuery = `SELECT set_config('enable_seqscan', 'off', true)`
+
+// ApplyHolderMassProbeSettings sets the statement timeout and the mass probe's
+// planner setting in the current transaction. readIDMasses calls it; the plan
+// guard calls the same helper so the proof runs under exactly the settings
+// production applies.
+func ApplyHolderMassProbeSettings(ctx context.Context, tx db.Queryer, timeout time.Duration) error {
+	rows, err := tx.QueryContext(ctx, setSupplyChainImpactFanOutReadTimeoutQuery, fmt.Sprintf("%dms", timeout.Milliseconds()))
+	if err != nil {
+		return fmt.Errorf("set supply chain impact holder mass read timeout: %w", err)
+	}
+	_ = rows.Close()
+	rows, err = tx.QueryContext(ctx, setHolderMassProbeNoSeqScanQuery)
+	if err != nil {
+		return fmt.Errorf("set supply chain impact holder mass read planner setting: %w", err)
+	}
+	_ = rows.Close()
+	return nil
 }
 
 // readIDMasses runs one mass-probe statement as a short read-only transaction
@@ -136,15 +185,18 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 		return nil, fmt.Errorf("begin supply chain impact holder mass read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
-		return nil, fmt.Errorf("set supply chain impact holder mass read read-only: %w", err)
+	// One repeatable-read snapshot: the readiness check below and the probe read
+	// the same table state, so a table that goes not-ready cannot be read half-way.
+	if _, err := tx.ExecContext(ctx, setHolderKeyRangeSnapshotQuery); err != nil {
+		return nil, fmt.Errorf("set supply chain impact holder mass read snapshot: %w", err)
 	}
-	rows, err := tx.QueryContext(ctx, setSupplyChainImpactFanOutReadTimeoutQuery, fmt.Sprintf("%dms", timeout.Milliseconds()))
-	if err != nil {
-		return nil, fmt.Errorf("set supply chain impact holder mass read timeout: %w", err)
+	if err := ApplyHolderMassProbeSettings(ctx, tx, timeout); err != nil {
+		return nil, err
 	}
-	_ = rows.Close()
-	rows, err = tx.QueryContext(ctx, query, lookupIDs)
+	if err := requireSupplyChainImpactSupportsReady(ctx, tx, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass); err != nil {
+		return nil, err
+	}
+	rows, err := tx.QueryContext(ctx, query, lookupIDs)
 	if err != nil {
 		return nil, classifyFanOutReadError(err)
 	}
