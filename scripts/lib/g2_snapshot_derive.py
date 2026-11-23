@@ -57,7 +57,8 @@ def cutover_routes(root: str | Path) -> list[tuple[str, str, str]]:
     """Parse the CUTOVER route table.
 
     Args:
-        root: Worktree root holding go/cmd/api/CUTOVER_OWNERSHIP.md.
+        root: Worktree root holding the vendored CUTOVER route table
+            (docs/internal/g2-route-inventory.md).
 
     Returns:
         (method, path, family) triples in file order.

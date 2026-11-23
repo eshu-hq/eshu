@@ -3,9 +3,9 @@
 # The committed full-inventory snapshot must match the in-tree served
 # surface for every row (route set equality, fragment digest equality,
 # pin versions, class vocabulary, survivor-set integrity), and class
-# counts must hit the reconciled expects (defaults: 282 = 223 native +
-# 27 tier-C + 32 relay + 0 absent; 19 of the relay rows are committed
-# core-owned survivors, 13 are disclosed blockers). The gate exits 0
+# counts must hit the reconciled expects (defaults: 282 = 236 native +
+# 27 tier-C + 19 relay + 0 absent; all 19 relay rows are committed
+# core-owned survivors, 0 disclosed blockers). The gate exits 0
 # only when relay-nonsurvivor + absent == 0. Satellite-side digests,
 # wave coverage, and router registration re-verify only when
 # G2_SATELLITE_REPO points at a satellite checkout holding the pinned
@@ -145,7 +145,7 @@ from g2_snapshot_derive import fragment_index
 sn = open(sys.argv[1]).read()
 frags = fragment_index(".")
 bad = []
-for m in re.finditer(r"^\| `(GET|POST|PATCH|PUT|DELETE) ([^`]+)` \| relay-disclosed \| core-relay \| tree:sha256:([0-9a-f]{64}) \|", sn, re.M):
+for m in re.finditer(r"^\| `(GET|POST|PATCH|PUT|DELETE) ([^`]+)` \| (?:relay-disclosed \| core-relay|tier-C-dispatch \| tier-C) \| tree:sha256:([0-9a-f]{64}) \|", sn, re.M):
     method, path, want = m.group(1), m.group(2), m.group(3)
     flist = frags.get(path)
     if not flist:

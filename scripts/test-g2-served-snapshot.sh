@@ -2,8 +2,8 @@
 #
 # test-g2-served-snapshot.sh — test mirror for the G2 served-spec snapshot
 # tooling (v2 full inventory, eshu#9669 gate G2): generator idempotency,
-# committed artifact parity, checker behavior on the frozen tree (RED with
-# the 13 named non-survivor blockers), seeded-violation RED (fail-closed)
+# committed artifact parity, checker behavior on the frozen tree (GREEN with
+# 0 non-survivors), seeded-violation RED (fail-closed)
 # proof, cross-links, and the offline (no live fetch) rule. No Go build,
 # no Postgres, no NornicDB, no network: every input is a committed file
 # or a local git object.
