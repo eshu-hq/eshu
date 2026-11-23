@@ -25,6 +25,9 @@ var queuedHolderStates = []struct {
 	{"h-pending", true},
 	{"h-retrying", true},
 	{"h-two-pending", true},
+	// A failed row is outside the reopen's matched status set, so the matched
+	// rows are the pending one alone: the reopen classifies the holder
+	// pending_noop and the prefilter drops it.
 	{"h-pending-and-failed", true},
 	{"h-claimed", false},
 	{"h-running", false},
@@ -36,13 +39,21 @@ var queuedHolderStates = []struct {
 	{"h-old-generation-pending", false},
 }
 
+// queuedActiveItemID is the stored work_item_id of a holder's seeded item at its
+// active generation g2. fanOutSeedItem stores the item under the scoped
+// generation id (fanOutGen), and fanOutItemID hashes that stored id, so the id
+// must be built from fanOutGen(scope, "g2"): the short name "g2" names no row.
+func queuedActiveItemID(scope string) string {
+	return fanOutItemID(scope, fanOutGen(scope, "g2"))
+}
+
 // seedQueuedHolderStates creates one scope per queuedHolderStates entry and puts
 // its active-generation items in that state.
 func seedQueuedHolderStates(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
 	settle := func(id, status string) {
 		t.Helper()
-		if _, err := db.ExecContext(ctx, `
+		res, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = $2,
     lease_owner = CASE WHEN $2 IN ('claimed','running') THEN 'w' END,
@@ -50,13 +61,19 @@ SET status = $2,
     last_attempt_at = CASE WHEN $2 IN ('claimed','running') THEN now() END,
     next_attempt_at = CASE WHEN $2 = 'retrying' THEN now() + interval '1 minute' END,
     failure_class = CASE WHEN $2 IN ('dead_letter','failed') THEN 'synthetic' END
-WHERE work_item_id = $1`, id, status); err != nil {
+WHERE work_item_id = $1`, id, status)
+		if err != nil {
 			t.Fatalf("settle %s %s: %v", id, status, err)
+		}
+		// An UPDATE that matches no row is not an error. Without this check a
+		// wrong id leaves the item pending and every holder looks queued.
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
+			t.Fatalf("settle %s %s updated %d rows (err %v), want 1", id, status, n, err)
 		}
 	}
 	extra := func(scope, status string) {
 		t.Helper()
-		id := fanOutItemID(scope, "g2") + "_second"
+		id := queuedActiveItemID(scope) + "_second"
 		if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain, conflict_key,
   status, attempt_count, payload, created_at, updated_at)
@@ -76,12 +93,12 @@ VALUES ($1, $2, $3, 'reducer', 'supply_chain_impact', 'scope', $1, 'pending', 0,
 			fanOutSeedItem(t, ctx, db, state.scope, "g2")
 		}
 	}
-	settle(fanOutItemID("h-retrying", "g2"), "retrying")
-	settle(fanOutItemID("h-claimed", "g2"), "claimed")
-	settle(fanOutItemID("h-running", "g2"), "running")
-	settle(fanOutItemID("h-succeeded", "g2"), "succeeded")
-	settle(fanOutItemID("h-dead-letter", "g2"), "dead_letter")
-	settle(fanOutItemID("h-failed-only", "g2"), "failed")
+	settle(queuedActiveItemID("h-retrying"), "retrying")
+	settle(queuedActiveItemID("h-claimed"), "claimed")
+	settle(queuedActiveItemID("h-running"), "running")
+	settle(queuedActiveItemID("h-succeeded"), "succeeded")
+	settle(queuedActiveItemID("h-dead-letter"), "dead_letter")
+	settle(queuedActiveItemID("h-failed-only"), "failed")
 	extra("h-two-pending", "pending")
 	extra("h-pending-and-failed", "failed")
 	extra("h-pending-and-succeeded", "succeeded")
@@ -206,7 +223,7 @@ func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionAndALateClaime
 	before := queuedRowVersions(t, ctx, db)
 
 	// Between the prefilter read and the loop, the succeeded holder is claimed.
-	succeeded := fanOutItemID("h-succeeded", "g2")
+	succeeded := queuedActiveItemID("h-succeeded")
 	if _, err := db.ExecContext(ctx, `
 UPDATE fact_work_items SET status = 'claimed', lease_owner = 'late', claim_until = now() + interval '1 hour', last_attempt_at = now()
 WHERE work_item_id = $1`, succeeded); err != nil {
@@ -231,7 +248,11 @@ WHERE work_item_id = $1`, succeeded); err != nil {
 	}
 	after := queuedRowVersions(t, ctx, db)
 	for _, scope := range queued {
-		for _, id := range []string{fanOutItemID(scope, "g2"), fanOutItemID(scope, "g2") + "_second"} {
+		// The primary item must exist in the snapshot, or the check proves nothing.
+		if _, ok := before[queuedActiveItemID(scope)]; !ok {
+			t.Fatalf("prefiltered holder %s has no seeded item %s in the version snapshot", scope, queuedActiveItemID(scope))
+		}
+		for _, id := range []string{queuedActiveItemID(scope), queuedActiveItemID(scope) + "_second"} {
 			if beforeVersion, ok := before[id]; ok && after[id] != beforeVersion {
 				t.Fatalf("prefiltered holder row %s changed version %s -> %s", id, beforeVersion, after[id])
 			}
