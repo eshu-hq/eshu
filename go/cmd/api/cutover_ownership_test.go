@@ -40,7 +40,7 @@ var cutoverDocOnlyRoutes = map[string]bool{
 // so the newRouter-level probe cannot reach them. Their mount correctness is
 // proven by their own family tests (cited in the map's proof column); the
 // exact count below fails loudly if the excluded set grows silently.
-const cutoverWireAPIProbeExclusions = 31
+const cutoverWireAPIProbeExclusions = 32
 
 type cutoverMapRow struct {
 	route       string
@@ -233,7 +233,7 @@ const cutoverReadRowsHoldingWriterHandle = 20
 // cutoverMuxLevelRows pins how many rows use n/a (mux-level) persistence
 // (liveness probe, spec browsers, served spec document). A new one means a
 // route without an owning store and needs map review.
-const cutoverMuxLevelRows = 4
+const cutoverMuxLevelRows = 5
 
 // TestCutoverOwnershipPersistencePairingsAreReviewed is the #8872
 // acceptance-criterion 1 lock for the persistence half of the map: every row

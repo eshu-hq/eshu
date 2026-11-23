@@ -234,6 +234,7 @@ the `querycontract.CoreReadContractsVersion` port set.
 | `GET /api/v0/workloads/{workload_id}/context` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /api/v0/workloads/{workload_id}/story` | Entities | paths/search/entities.go | read | reader (ReadStore/graph/content, no durable writes) | newRouter |
 | `GET /health` | APIRouter | <mux-health> | read | n/a (mux-level) | newRouter |
+| `GET /readyz` | APIRouter | <mux-health> | read | n/a (mux-level) | wireAPI |
 | `PATCH /api/v0/auth/admin/sign-in-policy` | SignInPolicyMutations | paths/auth/sign_in_policy.go | mutation | writer: sign-in-policy store | wireAPI |
 | `PATCH /api/v0/auth/browser-session/context` | BrowserSessions | paths/auth/routes.go | mutation | writer: browser-session store | newRouter |
 | `POST /api/v0/admin/backfill` | Admin | paths/status/admin.go | mutation | writer: Postgres recovery/reindex/dead-letter/queue stores | newRouter |
