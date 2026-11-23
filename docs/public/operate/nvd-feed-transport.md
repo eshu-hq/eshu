@@ -35,6 +35,14 @@ a closed `transport` label (`api`, `feed`, `unknown`); the feed age gauge
 mismatch, and meta-unavailable counters carry their own labels. On the feed
 path the lag head is the feed horizon, not the server clock.
 
+Satellite-to-host contract (#11287): the satellite stamps `nvd_window_transport`
+(`api` or `feed`) into the source snapshot payload; the host folds it onto the
+closed set and an absent or non-string stamp reads as `unknown`, never `feed`.
+A `feed` series therefore proves a satellite-stamped feed window. Verify with
+`sum by (transport) (rate(eshu_dp_vulnerability_nvd_window_claims_total[5m]))`:
+after seed-served windows a `transport="feed"` series appears; before the
+satellite pin every window reads `unknown`.
+
 - `eshu_dp_vulnerability_nvd_window_claims_total` (`transport`, `outcome`):
   which transport served each window and how it ended.
 - `eshu_dp_vulnerability_nvd_window_cursor_advance_total` (`transport`,
