@@ -14,8 +14,11 @@ import (
 // observed version. Both are parts of the SQL canonical key, so every support of a
 // key shares them with its winner, and a winner whose status or observed version
 // rules precise out can be skipped when the supplement looks for a precise support.
-// The read prunes with `impact_status IN (...) AND observed_version <> ”`; this
-// test fails if the classifier ever calls a finding precise outside that set.
+// The read prunes with the empty-string comparison on observed_version after the
+// status list; this test fails if the classifier ever calls a finding precise
+// outside that set. It feeds the classifier's typed fields (Status,
+// ObservedVersion, MatchReason), not the stored payload keys of the same names; the
+// storage-side test pins that the canonical key text carries both columns.
 func TestPreciseImpliesStatusAndObservedVersion(t *testing.T) {
 	t.Parallel()
 	statuses := []SupplyChainImpactStatus{
@@ -42,7 +45,7 @@ func TestPreciseImpliesStatusAndObservedVersion(t *testing.T) {
 				if status != SupplyChainImpactAffectedExact && status != SupplyChainImpactNotAffectedKnownFixed {
 					t.Fatalf("status %q classified precise: the route V status prune would skip a precise support", status)
 				}
-				if strings.TrimSpace(version) == "" || version == "" {
+				if strings.TrimSpace(version) == "" {
 					t.Fatalf("observed version %q classified precise: the prune requires observed_version <> ''", version)
 				}
 			}
