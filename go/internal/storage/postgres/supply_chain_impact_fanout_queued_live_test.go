@@ -161,7 +161,7 @@ func TestFindQueuedHolderScopesMatchesThePerHolderClassificationLive(t *testing.
 		}
 	}
 
-	got, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, queuedHolderScopes())
+	got, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, queuedHolderScopes(), nil)
 	if err != nil {
 		t.Fatalf("FindQueuedHolderScopes() error = %v", err)
 	}
@@ -180,11 +180,11 @@ func TestFindQueuedHolderScopesMatchesThePerHolderClassificationLive(t *testing.
 	}
 	// A holder outside the asked list is never returned, an empty list reads
 	// nothing, and an unknown scope is not queued.
-	only, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, []string{"h-pending", "h-unknown"})
+	only, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, []string{"h-pending", "h-unknown"}, nil)
 	if err != nil || !reflect.DeepEqual(only, []string{"h-pending"}) {
 		t.Fatalf("bounded list = %v, %v, want [h-pending]", only, err)
 	}
-	if none, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, nil); err != nil || len(none) != 0 {
+	if none, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, nil, nil); err != nil || len(none) != 0 {
 		t.Fatalf("empty list = %v, %v", none, err)
 	}
 }
@@ -221,7 +221,7 @@ func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionAndALateClaime
 	seedQueuedHolderStates(t, ctx, db)
 	store := fanOutLiveStore(db)
 
-	queued, err := store.FindQueuedHolderScopes(ctx, queuedHolderScopes())
+	queued, err := store.FindQueuedHolderScopes(ctx, queuedHolderScopes(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ func TestFindQueuedHolderScopesTimesOutUnderALockedTableLive(t *testing.T) {
 	}
 	store := fanOutLiveStore(db)
 	store.ReadTimeout = 150_000_000
-	if _, err := store.FindQueuedHolderScopes(ctx, []string{"h-pending"}); !errors.Is(err, supplychaincore.ErrFanOutReadTimeout) {
+	if _, err := store.FindQueuedHolderScopes(ctx, []string{"h-pending"}, nil); !errors.Is(err, supplychaincore.ErrFanOutReadTimeout) {
 		t.Fatalf("error = %v, want ErrFanOutReadTimeout", err)
 	}
 }

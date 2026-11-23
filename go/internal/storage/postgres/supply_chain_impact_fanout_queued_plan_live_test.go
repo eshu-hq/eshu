@@ -57,7 +57,9 @@ FROM generate_series(1, $1) AS n`,
 		`UPDATE ingestion_scopes SET active_generation_id = scope_id || '/g1' WHERE scope_id LIKE 'plan-%' AND $1 > 0`,
 		`INSERT INTO fact_work_items (work_item_id, scope_id, generation_id, stage, domain, conflict_domain, conflict_key, status, attempt_count, payload, created_at, updated_at)
 SELECT 'plan-item-' || n, 'plan-' || n, 'plan-' || n || '/g1', 'reducer', 'supply_chain_impact', 'scope', 'plan-' || n,
-       CASE WHEN n % 3 = 0 THEN 'pending' WHEN n % 3 = 1 THEN 'succeeded' ELSE 'retrying' END, 0, '{}'::jsonb, now(), now()
+       CASE WHEN n % 3 = 0 THEN 'pending' WHEN n % 3 = 1 THEN 'succeeded' ELSE 'retrying' END, 0,
+       CASE WHEN n % 2 = 0 THEN jsonb_build_object('fanout_origin', jsonb_build_object('scope_id', 'src', 'cves', jsonb_build_array('CVE-2026-' || n)))
+            ELSE '{}'::jsonb END, now(), now()
 FROM generate_series(1, $1) AS n`,
 	} {
 		if _, err := db.ExecContext(ctx, statement, scopes); err != nil {
@@ -73,7 +75,10 @@ FROM generate_series(1, $1) AS n`,
 	for n := 1; n <= 300; n++ {
 		holders = append(holders, fmt.Sprintf("plan-%d", n*13))
 	}
-	rows, err := db.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+postgres.FindQueuedSupplyChainImpactHoldersQueryForTest, holders)
+	// Half the rows carry a bounded stamp, so the cover arms read payload the
+	// way they do on QA; the change is bounded, so every arm is evaluated.
+	rows, err := db.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+postgres.FindQueuedSupplyChainImpactHoldersQueryForTest,
+		holders, `["CVE-2026-7002"]`, true)
 	if err != nil {
 		t.Fatalf("explain prefilter: %v", err)
 	}

@@ -73,6 +73,10 @@ const (
 	// FanOutEnqueued means the holder's active generation had no queue item and
 	// one was created.
 	FanOutEnqueued FanOutOutcome = "enqueued"
+	// FanOutStampWidened means a queued item, or an in-flight one already
+	// flagged, had a stamp that did not name this change, and the reopen merged
+	// the change into it without touching anything else (#10972).
+	FanOutStampWidened FanOutOutcome = "stamp_widened"
 )
 
 // The closed fan-out cause set (#9878): the evidence family of the
@@ -177,11 +181,13 @@ type SupplyChainImpactFanOut interface {
 	// replay (#11147); the result names the dead letter's prior class.
 	ReopenHolderDetailed(ctx context.Context, holderScopeID string, origin FanOutOrigin) (FanOutReopen, error)
 	// FindQueuedHolderScopes returns, from holders, those whose supply_chain_impact
-	// item at the scope's active generation is pending or retrying and has no
-	// item in another reopen-relevant state: the holders a reopen would classify
-	// pending_noop and leave untouched (#10972). One set read at one snapshot.
-	// Same bounded timeout and error contract as FindHolderScopes.
-	FindQueuedHolderScopes(ctx context.Context, holders []string) ([]string, error)
+	// items at the scope's active generation are all pending or retrying with a
+	// next pass that covers stampOut, the canonical stamp set this fan-out
+	// writes: a full pass, or a scoped one whose stamp names every id (#10972).
+	// An empty or sentinel stampOut is unbounded, so only full next passes cover
+	// it. One set read at one snapshot. Same bounded timeout and error contract
+	// as FindHolderScopes.
+	FindQueuedHolderScopes(ctx context.Context, holders, stampOut []string) ([]string, error)
 	// FindInFlightNonMarkerScopes returns the scopes, other than ownScopeID,
 	// whose findings item at the active generation is claimed or running; a
 	// manifest marker is left out (#10972: it loads no evidence, so flagging it
@@ -225,6 +231,9 @@ type fanOutResult struct {
 	replayFlagged int
 	pendingNoop   int
 	enqueued      int
+	// stampWidened counts holders whose queued or already-flagged item got
+	// this change merged into its stamp (#10972).
+	stampWidened int
 	// prefiltered counts holders the queued-holder prefilter dropped before
 	// the cap slice: their item was already pending or retrying (#10972).
 	prefiltered int
@@ -341,11 +350,11 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		return fanOutResult{cause: cause}, err
 	}
 
-	// One set read drops the holders whose item is already pending or retrying
+	// One set read drops the holders whose queued pass already covers stampOut
 	// BEFORE the cap slice, so the cap and the continuation list count only
 	// holders that still need a reopen statement (#10972).
 	holderTotal := len(ordered)
-	ordered, prefiltered, err := h.dropQueuedHolders(ctx, cause, ordered)
+	ordered, prefiltered, err := h.dropQueuedHolders(ctx, cause, ordered, stampOut)
 	if err != nil {
 		span.RecordError(err)
 		return fanOutResult{cause: cause}, err
@@ -422,6 +431,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		attribute.Int("holders", result.holders),
 		attribute.Int("reopened", result.reopened),
 		attribute.Int("replay_flagged", result.replayFlagged),
+		attribute.Int("stamp_widened", result.stampWidened),
 		attribute.Int("deferred", result.deferred),
 		attribute.Int("prefiltered_pending", result.prefiltered),
 		attribute.Int("holder_statements", result.holderStatements),

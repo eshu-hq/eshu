@@ -114,7 +114,7 @@ func widenSeedPending(t *testing.T, ctx context.Context, db *sql.DB, scope strin
 func TestFindQueuedHolderScopesKeepsAPendingHolderStampedForAnotherChangeLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	widenSeedPending(t, ctx, db, "h-widen-keep")
-	got, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, []string{"h-widen-keep"})
+	got, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, []string{"h-widen-keep"}, widenOriginB.CVEIDs)
 	if err != nil {
 		t.Fatalf("FindQueuedHolderScopes() error = %v", err)
 	}

@@ -55,11 +55,13 @@ type stubFanOut struct {
 	inFlightMarkers []string
 	owedRecorded    int
 	// queued names the holders whose active-generation item is already pending
-	// or retrying; queuedErr fails the prefilter read; queuedCalls records the
-	// holder list of every FindQueuedHolderScopes call (#10972 PR-2).
-	queued      map[string]bool
-	queuedErr   error
-	queuedCalls [][]string
+	// or retrying with a covering next pass; queuedErr fails the prefilter
+	// read; queuedCalls and queuedStampOuts record the holder list and the
+	// stampOut of every FindQueuedHolderScopes call (#10972 PR-2).
+	queued          map[string]bool
+	queuedErr       error
+	queuedCalls     [][]string
+	queuedStampOuts [][]string
 	// mu guards every recording append below: split holder reads run
 	// concurrently, so unguarded appends race under -race.
 	mu sync.Mutex
@@ -136,12 +138,14 @@ func (s *stubFanOut) FindInFlightNonMarkerScopes(_ context.Context, _ string) ([
 }
 
 // FindQueuedHolderScopes serves the #10972 prefilter: it reports, in input
-// order, the holders the test marked queued.
-func (s *stubFanOut) FindQueuedHolderScopes(_ context.Context, holders []string) ([]string, error) {
+// order, the holders the test marked queued, and records the stampOut the
+// handler passed.
+func (s *stubFanOut) FindQueuedHolderScopes(_ context.Context, holders, stampOut []string) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reads = append(s.reads, "prefilter")
 	s.queuedCalls = append(s.queuedCalls, append([]string(nil), holders...))
+	s.queuedStampOuts = append(s.queuedStampOuts, append([]string(nil), stampOut...))
 	if s.queuedErr != nil {
 		return nil, s.queuedErr
 	}

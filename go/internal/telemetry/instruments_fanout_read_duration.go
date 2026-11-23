@@ -28,6 +28,9 @@ const (
 	// singleton id: every key-range statement, which is also how long its
 	// REPEATABLE READ snapshot pinned xmin.
 	FanOutReadKindHoldersKeyRangeRead = "holders_key_range_read"
+	// FanOutReadKindHolderPrefilter is the #10972 queued-holder prefilter: one
+	// set read per claim over the collected holder list.
+	FanOutReadKindHolderPrefilter = "holder_prefilter"
 )
 
 // AttrFanOutReadKind returns the kind attribute for the fan-out
@@ -39,8 +42,9 @@ func AttrFanOutReadKind(v string) attribute.KeyValue {
 
 // registerFanOutReadDurationInstruments registers the #10643 holder fan-out
 // read-duration histogram on inst: one sample per holder-read statement, by
-// kind (holders, holders_key_range, mass_probe, and
-// holders_key_range_read for a whole key-range read) and
+// kind (holders, holders_key_range, mass_probe,
+// holders_key_range_read for a whole key-range read, and holder_prefilter for
+// the #10972 queued-holder set read) and
 // outcome (ok, read_timeout, read_error). The buckets bracket the 2 s
 // per-statement bar and the 10 s statement guard, so p95 against the bar and
 // the share of samples at the guard read straight off the histogram. No scope,

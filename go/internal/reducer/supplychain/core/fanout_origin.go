@@ -56,3 +56,14 @@ func (h SupplyChainImpactHandler) owedRecorder(intent reducercontract.Intent) Fa
 	}
 	return h.FanOut.OwedRecorder(intent)
 }
+
+// ScopedPassCVEIDs returns the sorted CVE ids the findings pass for intent
+// re-derives when it runs scoped (#9779), or nil when it runs full. It is the
+// Go rule the Postgres queued-holder prefilter mirrors in SQL (#10972): a
+// holder may be dropped for a change only when the pass its queued item runs
+// is full or scoped on a superset of that change. The storage lockstep proof
+// reads it through a real claim, so the SQL and Go rules cannot drift apart
+// unnoticed.
+func ScopedPassCVEIDs(intent reducercontract.Intent) []string {
+	return scopedPassCVEIDs(intent)
+}
