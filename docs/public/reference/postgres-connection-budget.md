@@ -17,8 +17,9 @@ workloads (chart defaults, operator-run primaries).
 Every Eshu process that opens Postgres bounds one pool at
 `ESHU_POSTGRES_MAX_OPEN_CONNS` (default `30`,
 `go/internal/runtime/data_stores.go`). The reducer opens one more connection
-from a dedicated one-connection pool while its secret-lines repair holds the
-rebuild lock. Size the server so the simultaneous worst case fits:
+from a dedicated one-connection pool while repair is enabled (startup ping,
+not-ready polls, and secret-lines rebuilds). Size the server so the
+simultaneous worst case fits:
 
 ```text
 sum(writer-facing share of configured ESHU_POSTGRES_MAX_OPEN_CONNS)
@@ -29,7 +30,9 @@ sum(writer-facing share of configured ESHU_POSTGRES_MAX_OPEN_CONNS)
 
 The writer-facing share is the full cap for single-pool processes and the
 writer half for reader/writer-split ones (an omitted
-`ESHU_POSTGRES_READ_MAX_OPEN_CONNS` defaults to half the cap).
+`ESHU_POSTGRES_READ_MAX_OPEN_CONNS` defaults to half the cap). Under the
+`SamePrimary` topology (`go/internal/runtime/postgres/config.go`) both pools
+can land on the primary, so size a split process at the full cap there.
 
 A rolling restart of all workloads at once is the demand spike to size for:
 every pool re-establishes toward its maximum within the same window. Steady
@@ -65,7 +68,10 @@ most at the `30` default, two reducers capped lower at `12` and `20`.
 Reader/writer-split processes (API, core, MCP, both reducers) halve that cap
 between the primary writer pool and the replica reader pool
 (`go/internal/runtime/postgres/config.go`), so the primary-facing worst case
-is roughly `27 * 30 + 3 * 15 + 6 + 10 + 2 ≈ 873` against the 97 budget, while
+is roughly `27 * 30 + 3 * 15 + 6 + 10 + 2 ≈ 873` against the 97 budget —
+27 single-pool processes at the default, API/core/MCP writer halves, the two
+reducer writer halves (caps 12 and 20), and the two dedicated reducer lock
+pools — while
 steady state held only about 61 backends (36 free). Two restart bursts that
 month exhausted the budget with `53300` once coincident demand filled the
 pools; a later simultaneous restart of the five heaviest workloads produced no
