@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -272,4 +273,99 @@ func TestSupportsDrainRecordsOneSamplePerServiceCatalogCall(t *testing.T) {
 	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != 6 {
 		t.Fatalf("drain raw rows points = %+v, want one sample of one call summing 6 raw rows over its three repositories", points)
 	}
+}
+
+// TestSupportsDrainRecordsPartialSampleWhenAServiceCallFails pins the failure path of
+// the call-level sample: repository a is read, repository b fails, and the call
+// still records one sample of the rows it read before failing, with outcome failed.
+func TestSupportsDrainRecordsPartialSampleWhenAServiceCallFails(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+		supportsReadyResponse(),
+		{rows: [][]any{
+			supportsPageRowForTest("fact-1", true, `{"repository_id":"repo-a"}`),
+			supportsPageRowForTest("fact-2", false, ""),
+		}},
+		{err: errors.New("deadline exceeded")},
+	}})
+	store.instruments = inst
+	if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a", "repo-b"}); err == nil {
+		t.Fatal("GetSupplyChainAdvisoriesForRepos() error = nil, want the page failure")
+	}
+	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory)
+	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != 2 {
+		t.Fatalf("drain raw rows points = %+v, want one sample summing the 2 raw rows read before the failure", points)
+	}
+	if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory, telemetry.SupplyChainImpactSupportsReadFailed); got != 1 {
+		t.Fatalf("failed = %d, want 1", got)
+	}
+}
+
+// TestReconciliationDrainRecordsPartialSampleWhenASupportsPageFails pins the same
+// path for the reconciliation loader's supports drain: one full page of 500 raw rows
+// is read and the next page fails, so the sample carries the 500 rows and failed
+// counts one.
+func TestReconciliationDrainRecordsPartialSampleWhenASupportsPageFails(t *testing.T) {
+	t.Parallel()
+
+	var full [][]any
+	for i := 0; i < listFactsByKindPageSize; i++ {
+		full = append(full, supportsPageRowForTest(fmt.Sprintf("fact-%04d", i), false, ""))
+	}
+	inst, reader := supportsReaderMetrics(t)
+	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+		supportsReadyResponse(),
+		{rows: [][]any{{false}}}, // keyed sidecar not ready
+		{rows: nil},              // the fact stream: empty
+		{rows: full},
+		{err: errors.New("deadline exceeded")},
+	}})
+	store.instruments = inst
+	if _, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(),
+		securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}}); err == nil {
+		t.Fatal("ListActiveSecurityAlertReconciliationFacts() error = nil, want the page failure")
+	}
+	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation)
+	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != int64(listFactsByKindPageSize) {
+		t.Fatalf("drain raw rows points = %+v, want one sample of the %d raw rows read before the failure", points, listFactsByKindPageSize)
+	}
+}
+
+// TestOnlySupportsReadFailuresCountAsFailedReads pins the failed outcome of
+// eshu_dp_supply_chain_impact_supports_reads_total: a failure of the alert and
+// consumption fact stream is not a supports read and counts nothing; a failure of
+// the supports drain counts one.
+func TestOnlySupportsReadFailuresCountAsFailedReads(t *testing.T) {
+	t.Parallel()
+
+	filter := securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}}
+	source := telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation
+	t.Run("fact stream failure", func(t *testing.T) {
+		inst, reader := supportsReaderMetrics(t)
+		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+			supportsReadyResponse(), {rows: [][]any{{false}}}, {err: errors.New("fact stream boom")},
+		}})
+		store.instruments = inst
+		if _, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(), filter); err == nil {
+			t.Fatal("error = nil, want the fact stream failure")
+		}
+		if got := supportsReadSeries(t, reader, source, telemetry.SupplyChainImpactSupportsReadFailed); got != 0 {
+			t.Fatalf("failed = %d after a fact-stream failure, want 0: it is not a supports read", got)
+		}
+	})
+	t.Run("supports drain failure", func(t *testing.T) {
+		inst, reader := supportsReaderMetrics(t)
+		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+			supportsReadyResponse(), {rows: [][]any{{false}}}, {rows: nil}, {err: errors.New("supports boom")},
+		}})
+		store.instruments = inst
+		if _, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(), filter); err == nil {
+			t.Fatal("error = nil, want the supports failure")
+		}
+		if got := supportsReadSeries(t, reader, source, telemetry.SupplyChainImpactSupportsReadFailed); got != 1 {
+			t.Fatalf("failed = %d after a supports failure, want 1", got)
+		}
+	})
 }

@@ -150,9 +150,12 @@ func newSupplyChainImpactSupportsDrain(
 
 // supplyChainImpactSupportsDrainStats is what one drain, or one call of several
 // drains, read: the page and row counts, the keys it filtered on and its wall time.
+// failed marks a drain or call that stopped on an error; its counts are what it read
+// before stopping.
 type supplyChainImpactSupportsDrainStats struct {
 	pages, rawRows, activeRows, keys int
 	elapsed                          time.Duration
+	failed                           bool
 }
 
 // add folds another drain's counts into the call total. Wall time is the caller's:
@@ -164,41 +167,60 @@ func (s *supplyChainImpactSupportsDrainStats) add(other supplyChainImpactSupport
 	s.keys += other.keys
 }
 
+// Scopes of one drain sample, the scope field of the large-drain log line.
+const (
+	// supplyChainImpactSupportsSampleDrain is a sample of one drain: the
+	// reconciliation loader's supports stream.
+	supplyChainImpactSupportsSampleDrain = "drain"
+	// supplyChainImpactSupportsSampleCall is a sample of one whole call over every
+	// repository it drained: the service-catalog loader.
+	supplyChainImpactSupportsSampleCall = "call"
+)
+
 // recordSupplyChainImpactSupportsDrain records one sample of the drain signals for
-// reader: the raw-rows and duration histograms and, at 100,000 raw rows or more,
-// the large-drain log line. A sample is one drain for the reconciliation loader
-// and one whole GetSupplyChainAdvisoriesForRepos call (every repository it drains)
-// for the service-catalog loader, so the per-call return triggers of the ruling
-// (a call past 1,000,000 raw rows, a call near half the handler timeout) read
-// straight off these signals.
+// reader: the raw-rows and duration histograms and, at 100,000 raw rows or more
+// (or on a failed drain that read any), the large-drain log line. scope says what
+// the sample covers (supplyChainImpactSupportsSample*). A sample is one drain for
+// the reconciliation loader and one whole GetSupplyChainAdvisoriesForRepos call
+// (every repository it drains) for the service-catalog loader, so the per-call
+// return triggers of the ruling (a call past 1,000,000 raw rows, a call near half
+// the handler timeout) read straight off these signals. A failed drain, including
+// one the handler timeout cancelled, still records the rows it read before it
+// stopped, so the hot key can be found from the log on the dead-letter path.
 func recordSupplyChainImpactSupportsDrain(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
-	reader string,
+	reader, scope string,
 	stats supplyChainImpactSupportsDrainStats,
 ) {
 	instruments.RecordSupplyChainImpactSupportsDrainRawRows(ctx, reader, int64(stats.rawRows))
 	instruments.RecordSupplyChainImpactSupportsDrainDuration(ctx, reader, stats.elapsed)
-	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows {
-		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
-			reader, stats.keys, stats.pages, stats.rawRows, stats.activeRows, stats.elapsed.Milliseconds())
+	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows || (stats.failed && stats.rawRows > 0) {
+		outcome := "served"
+		if stats.failed {
+			outcome = "failed"
+		}
+		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s scope=%s outcome=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
+			reader, scope, outcome, stats.keys, stats.pages, stats.rawRows, stats.activeRows, stats.elapsed.Milliseconds())
 	}
 }
 
-// run drains every page, records one drain sample and returns the active supports
-// as impact-kind envelopes in fact_id order.
+// run drains every page, records one drain sample (also when the drain fails, with
+// the rows it read before failing) and returns the active supports as impact-kind
+// envelopes in fact_id order.
 func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Queryer) ([]facts.Envelope, error) {
 	loaded, stats, err := d.drain(ctx, queryer)
+	recordSupplyChainImpactSupportsDrain(ctx, d.instruments, d.reader, supplyChainImpactSupportsSampleDrain, stats)
 	if err != nil {
 		return nil, err
 	}
-	recordSupplyChainImpactSupportsDrain(ctx, d.instruments, d.reader, stats)
 	return loaded, nil
 }
 
 // drain reads every page without recording a sample, for a caller that records
 // one sample over several drains. The cursor advances on the last raw id of each
-// page and the drain stops on a raw page shorter than the page size.
+// page and the drain stops on a raw page shorter than the page size. On an error
+// it returns the stats of what it read so far, marked failed.
 func (d supplyChainImpactSupportsDrain) drain(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -207,6 +229,11 @@ func (d supplyChainImpactSupportsDrain) drain(
 	var loaded []facts.Envelope
 	var cursorFactID string
 	pages, rawRows := 0, 0
+	stats := func(failed bool) supplyChainImpactSupportsDrainStats {
+		return supplyChainImpactSupportsDrainStats{
+			pages: pages, rawRows: rawRows, activeRows: len(loaded), keys: d.keyCount(), elapsed: time.Since(started), failed: failed,
+		}
+	}
 	for {
 		query, args := d.firstQuery, d.keyArgs
 		if cursorFactID != "" {
@@ -214,7 +241,7 @@ func (d supplyChainImpactSupportsDrain) drain(
 		}
 		pageRaw, lastRawID, active, err := d.page(ctx, queryer, query, args)
 		if err != nil {
-			return nil, supplyChainImpactSupportsDrainStats{}, err
+			return nil, stats(true), err
 		}
 		loaded = append(loaded, active...)
 		pages++
@@ -227,9 +254,7 @@ func (d supplyChainImpactSupportsDrain) drain(
 		}
 		cursorFactID = lastRawID
 	}
-	return loaded, supplyChainImpactSupportsDrainStats{
-		pages: pages, rawRows: rawRows, activeRows: len(loaded), keys: d.keyCount(), elapsed: time.Since(started),
-	}, nil
+	return loaded, stats(false), nil
 }
 
 // keyCount is the number of keys the drain filters on, summed over its arms.

@@ -171,13 +171,14 @@ var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0
 //     intent is waiting on the backfill; it clears when the ready gauge reads 1.
 //
 //   - eshu_dp_supply_chain_impact_supports_drain_raw_rows{source}: raw supports
-//     rows one reducer drain read (every row the ordered key scans returned,
-//     active or not), by reader. A drain whose raw rows run far above its active
+//     rows one drain read (one whole call for the service-catalog reader; every
+//     row the ordered key scans returned, active or not, including the rows a failed
+//     drain read before it stopped), by reader. A drain whose raw rows run far above its active
 //     rows is reading superseded generations; a drain in the hundred thousands is
 //     a hot key.
 //
 //   - eshu_dp_supply_chain_impact_supports_drain_duration_seconds{source}: wall time
-//     of one reducer drain, by reader. A drain near half the domain's handler
+//     of one drain (one whole call for the service-catalog reader), by reader. A drain near half the domain's handler
 //     timeout is the signal to return the hot-key page contract to its owner.
 //
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
@@ -206,14 +207,14 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	}
 	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
-		metric.WithDescription("Raw per-support rows one reducer drain read (active or not), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
+		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
 		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainRowBuckets...),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsDrainRawRows histogram: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsDrainDuration, err = meter.Float64Histogram(
 		"eshu_dp_supply_chain_impact_supports_drain_duration_seconds",
-		metric.WithDescription("Wall time of one reducer drain of the per-support table, by reader (source label). A drain near half the domain's handler timeout means a hot key is paging too slowly."),
+		metric.WithDescription("Wall time of one drain of the per-support table (one whole call for the service-catalog reader), by reader (source label). A drain near half the domain's handler timeout means a hot key is paging too slowly."),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainDurationBuckets...),
 	); err != nil {
@@ -306,7 +307,8 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRead(ctx context.Context, r
 }
 
 // RecordSupplyChainImpactSupportsDrainRawRows records the raw supports rows one
-// reducer drain read, by reader (one of the SupplyChainImpactSupportsReader*
+// drain read (one whole call for the service-catalog reader, including the rows a
+// failed drain read before it stopped), by reader (one of the SupplyChainImpactSupportsReader*
 // constants). It is safe on a nil receiver.
 func (i *Instruments) RecordSupplyChainImpactSupportsDrainRawRows(ctx context.Context, reader string, rawRows int64) {
 	if i == nil || i.SupplyChainImpactSupportsDrainRawRows == nil || rawRows < 0 {
@@ -316,7 +318,8 @@ func (i *Instruments) RecordSupplyChainImpactSupportsDrainRawRows(ctx context.Co
 }
 
 // RecordSupplyChainImpactSupportsDrainDuration records the wall time of one
-// reducer drain of the supports table, by reader. It is safe on a nil receiver.
+// drain of the supports table (one whole call for the service-catalog reader), by
+// reader. It is safe on a nil receiver.
 func (i *Instruments) RecordSupplyChainImpactSupportsDrainDuration(ctx context.Context, reader string, d time.Duration) {
 	if i == nil || i.SupplyChainImpactSupportsDrainDuration == nil {
 		return
