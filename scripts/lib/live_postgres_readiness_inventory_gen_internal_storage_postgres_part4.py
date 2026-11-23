@@ -136,6 +136,13 @@ TABLE = {
             "TestWaitingConcurrentClaimAndWakeLive",
             "TestWaitingDeferShareImprovementLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_rendezvous_contended_live_test.go": (
+            "TestRendezvousContendedLatencyLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_rendezvous_live_test.go": (
+            "TestParkWaitingOnOneScopeDoesNotStallAnotherScopesActivationLive",
+            "TestParkWithManyBlockingScopesTakesBoundedLocksLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_wake_locality_live_test.go": (
             "TestProducerTerminalWakeForeignImpactAckLeavesReconciliationParkedLive",
             "TestProducerTerminalWakeCatalogRuntimeCrossScopeLive",

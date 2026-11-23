@@ -45,9 +45,13 @@ is operator-visible latency, so the window is closed rather than documented.
   activates a relationship generation goes through that function
   (`TestEveryRelationshipActivationWakesConsumers`).
 - A park of a generation-activation wait takes the shared lock on each provider
-  scope between its insert and its satisfaction check, bounded by a 3 s context
-  deadline (`narrowedParkRendezvousTimeout`). A non-blocking try comes first, so
-  the common park costs one statement.
+  scope between its insert and its satisfaction check, bounded by one 3 s
+  context deadline across all keys (`narrowedParkRendezvousTimeout`). A
+  non-blocking try over the keys comes first, in chunks of at most 128 keys per
+  statement (`rendezvousTryChunkSize`), so the common park costs one statement
+  per 128 blocking scopes and one statement never holds more locks than that.
+  The keys that were held are then waited on one statement each, so the park
+  holds no lock while it waits.
 - Why the two cases are exhaustive: let `Wake` be the activation's wake snapshot
   and `Ins` the parker's insert commit.
   - `Ins` before `Wake`: the wake sees the row and reopens it.
@@ -57,24 +61,36 @@ is operator-visible latency, so the window is closed rather than documented.
     so the existing in-park reopen fires.
   - The parker passes the lock before the activation starts: the activation's
     snapshot is later than the insert, so the first case applies.
-- A timeout or cancellation of the wait parks as before (the audit and the
-  backstop bound it) and records `timeout`. Any other error is returned so the
-  Fail path retries.
+- The wait row is already committed when the rendezvous runs, and a missed wake
+  is a hint the audit and the backstop bound. So a rendezvous that cannot
+  finish never fails the park: the bound firing records `timeout`, any other
+  statement error records `error`, both log a warning, and the satisfaction
+  check still runs. Returning the error would not retry anything (the Fail
+  path's retry UPDATE has already committed, and an error from the park makes
+  the service cancel every worker). Only the caller's own cancellation is
+  returned.
 
 ### Lock order (concurrency-deadlock-rigor)
 
 | Actor | Order | Holds while waiting |
 | --- | --- | --- |
 | Activation transaction | advisory X(scope), then `relationship_generations` rows, then `SET LOCAL lock_timeout`, then in-flight own-gate consumer rows by `work_item_id COLLATE "C"`, then wake updates (waiting rows `FOR UPDATE`, queue rows) | its own locks only |
-| Parker (autocommit) | insert wait row (commits), try advisory S, advisory S (waits), satisfaction read | nothing: each statement is its own transaction |
+| Parker (autocommit) | insert wait row (commits), try advisory S over chunks of at most 128 keys (never waits), then advisory S on one busy key per statement (waits), satisfaction read | nothing while it waits: the try statements release at their end, each blocking statement holds one key |
 | Two activations, same scope | serialize on advisory X before any row lock | no cycle: the second holds nothing |
 | Two activations, different scopes | different keys | same row-lock order as before |
 | Two parkers | shared with shared | compatible |
 
-A parker that waits holds no lock, so it cannot be one edge of a cycle. The one
-new wait an activation can have is on a parker's shared lock, which a parker
-holds only inside its own statement and releases when that statement returns or
-hits its 3 s bound. No other code in the repository takes this key.
+A parker that waits holds no lock, so it cannot be one edge of a cycle, and an
+activation of one scope never waits behind a parker that waits on another
+scope. The one new wait an activation can have is on a parker's shared lock on
+its own scope, which a parker holds only inside its own statement and releases
+when that statement returns or hits the 3 s bound. No other code in the
+repository takes this key. The first version waited on all busy keys in one
+statement, which kept the shared locks it had already taken while it waited on
+a later key; a reviewer measured an unrelated scope's activation stalled for
+3.93 s that way. `TestParkWaitingOnOneScopeDoesNotStallAnotherScopesActivationLive`
+reads `pg_locks` while a park waits and requires it to hold none, and it failed
+on that version (`the waiting park holds 1 advisory locks, want 0`).
 
 ### Kinds covered and not covered
 
@@ -130,11 +146,13 @@ activation path (`TestReducerContentionGateBootstrapTemplateCloneMatchesBootstra
 The fixed code passed 20 of 20 two-kind runs, 200 of 200 plain and 200 of 200
 `-race` runs of the original test, and 139 of 140 runs after the merge.
 
-Performance Evidence: Improvement. The measured subject is one extra autocommit
-statement per generation-activation park and one `pg_advisory_xact_lock` per
-activation. Conflict domain: one provider scope's activation. No worker, lease or
-batch setting changes. `pgbench -c 1 -T 8` on postgres 18.6 (server side only,
-host load about 25, so read the differences, not the absolute values):
+Performance Evidence: Added cost, measured. The measured subject is the
+rendezvous: one `pg_advisory_xact_lock` per activation and one try statement per
+128 blocking scopes per generation-activation park. Conflict domain: one provider
+scope's activation. No worker, lease or batch setting changes.
+
+Uncontended, `pgbench -c 1 -T 8` on postgres 18.6 (server side only, host load
+about 25, so read the differences, not the absolute values):
 
 | Statement | Latency |
 | --- | --- |
@@ -144,24 +162,71 @@ host load about 25, so read the differences, not the absolute values):
 | try-lock shared, one scope | 0.022 ms (+0.013 ms per park) |
 | try-lock shared, three scopes | 0.025 ms |
 
-The cost of a park is that statement's round trip, once, and only for the two
-generation-activation kinds. The contended path adds a wait only while an
-activation of the same scope is open, bounded by 3 s. Before and after on the
-interleaving: 1 wait row survives on `main`, 0 with the fix.
+Contended, `TestRendezvousContendedLatencyLive` (postgres 18.6, host load 15 to
+30, 10 s per run): A activators each loop the production exclusive lock with 5 ms
+of held work, P parkers loop the production `awaitInFlightActivations` over a
+random blocking set. Before is the first version of the rendezvous (`5dead1db4d`,
+all busy keys in one statement), after is this branch. Same test file, same
+database, run back to back.
+
+| Run | Version | Activations | Parks | Activation lock wait p50 / p99 / max | Park p50 / p99 / max |
+| --- | --- | --- | --- | --- | --- |
+| 16 activators, 16 parkers, 32 scopes, 20 blocking | before | 11857 | 2081 | 0.13 / 106.9 / 193.3 ms | 76.6 / 181.7 / 216.2 ms |
+| 16 activators, 16 parkers, 32 scopes, 20 blocking | after | 21228 | 7312 | 0.15 / 12.1 / 28.1 ms | 21.0 / 46.7 / 85.9 ms |
+| 32 activators, 32 parkers, 8 scopes, 6 blocking | before | 6919 | 1401 | 5.3 / 356.0 / 423.0 ms | 280.4 / 415.5 / 429.9 ms |
+| 32 activators, 32 parkers, 8 scopes, 6 blocking | after | 12126 | 2632 | 13.5 / 98.1 / 136.4 ms | 124.8 / 198.5 / 238.0 ms |
+
+The second row pair is dominated by same-scope queueing (32 activators on 8
+scopes, 5 ms each), which no version avoids; the first version added a
+cross-scope convoy on top of it. These runs are measurements, not a throughput
+claim: the activation stand-in is the lock plus 5 ms, not the production
+activation. The test asserts only that no activation waits more than half the
+park bound (1.5 s).
+
+A park whose blocking set spans several chunks takes bounded locks:
+`TestParkWithManyBlockingScopesTakesBoundedLocksLive` (400 blocking scopes, the
+in-flight activation in a middle chunk) failed on the first version with the
+park holding 200 advisory locks while it waited, and passes with none. The
+first version's single statement took one lock per blocking scope, and stock
+postgres 18.6 failed with `out of shared memory` at about 20000 keys in one
+session (reviewer shim). Today the key itself bounds the blocking set: it is
+part of the primary key of `reducer_waiting_items`, so a set of a few hundred
+scope IDs already fails the insert with `index row size ... exceeds btree
+version 4 maximum 2704` (measured with 37-character IDs: 100 fail; with
+sequential IDs 500 fit and 1000 fail). That insert failure is older than this
+change and is not fixed here; it is the next bound on a bootstrap-sized blocking
+set, and the rendezvous no longer adds one of its own.
+
+The cost of a park is one try statement per 128 blocking scopes, and only for the
+two generation-activation kinds. The contended path adds a wait only while an
+activation of the same scope is open, bounded by 3 s in total. Before and after
+on the interleaving: 1 wait row survives on `main`, 0 with the fix.
 
 Concurrency proof: the lock order table above, no cycle (an activation holds one
-advisory lock and takes it before any row lock; a parker holds nothing between
-statements), the deterministic interleaving test for both kinds (RED on `main`
-3 of 3, GREEN 20 of 20), 200 plain and 200 `-race` runs of the concurrent
-convergence test, and the live activation, claim-fence and refinalize tests
-above.
+advisory lock and takes it before any row lock; a parker holds nothing while it
+waits), the deterministic interleaving test for both kinds (RED on `main` 3 of
+3, GREEN 20 of 20), the `pg_locks` test that a waiting park holds no lock, 200
+plain and 200 `-race` runs of the concurrent convergence test, and the live
+activation, claim-fence and refinalize tests above.
 
 Observability Evidence: `eshu_dp_reducer_waiting_wake_total{wake_site="park_rendezvous"}`
-with outcome `waited` (a park stood behind an in-flight activation) or `timeout`
-(it gave up at 3 s), plus the warning log
-`reducer_waiting.narrowed_park_rendezvous_timeout` with the provider scope IDs.
-A rising `timeout` count with a rising `eshu_dp_reducer_waiting_missed_wake_total`
-points at a stalled database, not at this rendezvous.
+with outcome `waited` (a park stood behind an in-flight activation), `timeout`
+(it gave up at 3 s) or `error` (a rendezvous statement failed), plus the warning
+logs `reducer_waiting.narrowed_park_rendezvous_timeout` and
+`reducer_waiting.narrowed_park_rendezvous_error`, each with the provider scope
+count, the first five scope IDs and the error. Hermetic tests cover the free
+park (no metric), `waited`, `timeout`, `error` and the shutdown path. A rising
+`timeout` or `error` count with a rising
+`eshu_dp_reducer_waiting_missed_wake_total` points at a stalled database, not at
+this rendezvous. There is no signal yet for an activation waiting on the
+advisory lock; the contended test above is the measurement for that.
+
+Template-clone flake, not in scope: the first test of a fresh process can fail
+on `clone database ... still exists after cleanup`, because the shared
+template-clone helper cancels `DROP DATABASE ... WITH (FORCE)` at its 15 s
+client timeout while the server is in a checkpoint. It is the helper's timeout
+(`go/internal/testutil/postgresproof/template_clone.go`), already failing
+unrelated tests on `origin/main`, and is tracked separately.
 
 ## #11074: the advisory round's own workers terminalize its targets
 
@@ -180,10 +245,19 @@ every visible admitted item at once, as a worker would.
 round: `round 0: 25 admitting goroutines, 100 items inserted (want 1 and 4)`.
 
 Fix: the round admits its items with `VisibleAt = now + AdvisoryHold` (default
-`CallTimeout`, 30 s; unit tests use 300 ms), so claims skip them and the targets
-stay open until every goroutine passed the guard. A guard call is cancelled
-after `CallTimeout`, so no goroutine can still be waiting when the hold ends.
-The fake honors `VisibleAt` on admission as the real insert and claim do. The
+`CallTimeout`, 30 s; unit tests use 300 ms), so claims skip them and the
+targets stay open while the goroutines run. The hold is a window, not a
+guarantee: a goroutine delayed past it (a stalled runner) can still reach the
+guard after workers drained the items, and a first version of this note claimed
+otherwise. So the round records when each guard call returned and judges its
+verdict only if every call returned before the hold ended; a round that did not
+is voided (counted as `voided_rounds`, logged, never recorded as a duplicate).
+A guard that returned before `visibleAt` evaluated its targets while they were
+still hidden from claims, so the verdict it gave is the guard's own.
+`TestAdvisoryRoundVoidsWhenTheHoldEndsBeforeEveryGuardReturned` stretches every
+guard call past the hold and requires no duplicate to be recorded; it failed on
+the first version (`round 0: 25 admitting goroutines, 100 items inserted`). The
+fake honors `VisibleAt` on admission as the real insert and claim do. The
 criterion, the goroutine count and the item count are unchanged.
 
 | Check | Result |

@@ -179,6 +179,16 @@ tests:
     class: postgres_ci
     reason: "#10876 waiting-race proofs: competing claimers drain parked waits while the provider commits mid-flight with exactly-once execution; disposable database per test; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_rendezvous_contended_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 contended rendezvous measurement: activation lock wait and park latency with concurrent activators and multi-scope parkers"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_rendezvous_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 rendezvous cost contract: a park waiting on one scope holds no lock another scope's activation needs, and a many-scope blocking set takes bounded locks"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_wake_locality_live_test.go
     tag: ~
     class: postgres_ci

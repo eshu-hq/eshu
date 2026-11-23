@@ -36,8 +36,8 @@ const (
 	// found an activation of its provider scope in flight while parking
 	// (#11256). The park stood behind that activation's commit before its
 	// satisfaction check, so the activation's wake could not miss it. Outcomes
-	// are WaitingWakeOutcomeWaited and WaitingWakeOutcomeTimeout; an
-	// uncontended park records nothing.
+	// are WaitingWakeOutcomeWaited, WaitingWakeOutcomeTimeout and
+	// WaitingWakeOutcomeError; an uncontended park records nothing.
 	WaitingWakeSiteParkRendezvous = "park_rendezvous"
 )
 
@@ -50,7 +50,9 @@ const (
 	WaitingWakeOutcomeNoop = "noop"
 	// WaitingWakeOutcomeError means the wake statement failed; the providing
 	// save rolls back (in-tx), the post-commit caller logs and keeps the
-	// committed outcome (#11016), or the audit logs and retries next cycle.
+	// committed outcome (#11016), or the audit logs and retries next cycle. On
+	// the park_rendezvous site it means a rendezvous statement failed; the park
+	// proceeds to its satisfaction check and the audit bounds a missed wake.
 	WaitingWakeOutcomeError = "error"
 	// WaitingWakeOutcomeWaited means a parking wait stood behind an in-flight
 	// activation of its provider scope and proceeded after it committed.
@@ -78,7 +80,7 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	var err error
 	if inst.ReducerWaitingWake, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_wake_total",
-		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish; park_rendezvous: a generation-activation wait that stood behind an in-flight activation of its provider while parking, #11256) and outcome (reopened, noop, error; waited, timeout for park_rendezvous) (#10876)"),
+		metric.WithDescription("Reducer waiting-set-aside wake statements by site (in_tx: inside a providing save's transaction; audit: the 5-minute slow audit; phase_exact_in_tx and phase_exact_post_commit: the #11104 exact-phase wake inside and after the phase publish; park_rendezvous: a generation-activation wait that stood behind an in-flight activation of its provider while parking, #11256) and outcome (reopened, noop, error; waited, timeout, error for park_rendezvous) (#10876)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingWake counter: %w", err)
 	}
