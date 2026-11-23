@@ -16,6 +16,22 @@ per the arbiter conditions on #10839.
 
 Observability Evidence: no new telemetry; the existing BuildActiveFacts
 tick-phase histogram and per-tick statement count expose the dropped round
-trips. Default bound 200 keeps 1,000 params, far under the 65,535 ceiling;
+trips. Default bound 1000 keeps 5,000 params, far under the 65,535 ceiling;
 non-default operator bounds above 13,107 identifiers are a known cliff
 tracked in #11157.
+
+## Nov-23 default raise to 1,000 (#10839)
+
+Performance Evidence (#10839): arbiter-verified Nov-23 sequence replay at the
+1,000-identifier default: throughput 2.30x/2.30x (ident/s, rows-deleted/s),
+max tick 554ms against the 15s per-tick bar. version-sums/s 0.86x is disclosed
+as a non-gated diagnostic: it rides the replay as an observation only and
+gates nothing. A saturated default tick carries 1,000 identifiers x 5 columns
+= 5,000 params, far under the 65,535 ceiling and the 13,107-row #11157 clamp;
+admitted set, oldest-first order, truncate rule, temp table/unique
+index/ANALYZE/restrict, S/H horizon, and exact-applied delete are unchanged,
+and no admit-window, clamp, cadence, or lane knob changed.
+
+No-Observability-Change (#10839): no new telemetry; the existing
+BuildActiveFacts tick-phase histogram and per-tick statement count expose the
+tick, and default-bound ticks emit nothing new.

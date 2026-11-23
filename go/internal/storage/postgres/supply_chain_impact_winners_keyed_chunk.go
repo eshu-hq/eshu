@@ -39,7 +39,7 @@ import (
 //     to the full rebuild.
 const (
 	defaultWinnersChunkMaxDirtyRows = 5000
-	defaultWinnersChunkMaxIdents    = 200
+	defaultWinnersChunkMaxIdents    = 1000
 )
 
 // winnersChunkBounds is one keyed transaction's resolved chunk bounds.

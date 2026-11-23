@@ -205,3 +205,34 @@ func TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds(t *testing.T) {
 		t.Fatalf("identifier INSERT statements = %d, want 1", got)
 	}
 }
+
+// TestWinnersChunkDefaultBoundsResolveTo1000 is the #10839 failing-first
+// contract test for the Nov-23 default raise: an unconfigured store must
+// resolve to the 1,000-identifier default (dirty-row window unchanged at
+// 5,000), and a saturated default tick must admit exactly 1,000 identifiers
+// in one batched INSERT with the remainder left queued. RED at the shipped
+// 200 default, GREEN at 1,000.
+func TestWinnersChunkDefaultBoundsResolveTo1000(t *testing.T) {
+	var unconfigured SupplyChainImpactWinnersStore
+	bounds := unconfigured.chunkBounds()
+	if bounds.dirtyRows != 5000 {
+		t.Fatalf("default dirtyRows = %d, want 5000 (admit window unchanged)", bounds.dirtyRows)
+	}
+	if bounds.identifiers != 1000 {
+		t.Fatalf("default identifiers = %d, want 1000", bounds.identifiers)
+	}
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(1001)}
+	outcome, err := buildWinnersKeyedChunk(context.Background(), fake, bounds)
+	if err != nil {
+		t.Fatalf("buildWinnersKeyedChunk at the default bound: %v", err)
+	}
+	if outcome.identifiers != 1000 {
+		t.Fatalf("identifiers = %d, want 1000", outcome.identifiers)
+	}
+	if !outcome.truncated {
+		t.Fatalf("truncated = false, want true for a 1001-row identifier set against the 1000 default")
+	}
+	if got := insertExecs(fake); got != 1 {
+		t.Fatalf("identifier INSERT statements = %d, want 1 batched statement", got)
+	}
+}
