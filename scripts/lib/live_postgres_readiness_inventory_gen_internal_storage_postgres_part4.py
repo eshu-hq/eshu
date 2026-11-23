@@ -22,6 +22,15 @@ TABLE = {
             "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
             "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
+        "go/internal/storage/postgres/reducer_fact_owner_live_test.go": (
+            "TestReducerFactStatementsRefuseAForeignScopeRowLive",
+            "TestReducerFactOwnerRaceTwoScopesLive",
+            "TestEnqueueRefusesAForeignIntentWorkItemIDLive",
+        ),
+        "go/internal/storage/postgres/reducer_fact_owner_plan_live_test.go": (
+            "TestReducerOwnerLegPreStatementsAreDerived",
+            "TestReducerOwnerLegCostLive",
+        ),
         "go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go": (
             "TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres",
         ),

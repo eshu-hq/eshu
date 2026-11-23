@@ -49,6 +49,7 @@ skillworkflowrefs:
   # The shared skills live in the eshu-agent-kit, so the kit pin is what
   # selects this gate when the installed material changes.
   - '.agent-kit-version'
+  - 'scripts/ci/install-eshu-agent-kit.sh'
   - '.github/workflows/**'
   - 'scripts/*verify-skill-workflow-refs*.sh'
   - 'scripts/lib/test-skill-workflow-refs-real-tree-cases.sh'

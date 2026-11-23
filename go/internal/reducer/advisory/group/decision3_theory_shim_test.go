@@ -4,13 +4,14 @@
 // Prove-theory-first shim for eshu-hq/eshu#11080 Decision-3 (part of #9669,
 // follow-up of #10839). It measured the two candidate mechanisms with
 // A2-packet-shaped fixtures and recorded the before numbers the arbiter
-// needed for Q1 (stale-clock semantics) and Q2 (watermark pace). The
-// arbiter ruled Q1 option (a) + pace-the-watermark, and the production
-// edit landed on this branch: the two TestDecision3_* tests at the bottom
-// now pin the shipped contract (both green), and the three TestDecision3Shim_*
-// probes above keep pinning the before-state they measured. The A2
-// before-state below is the historical record the ruling built on, not a
-// live claim about this tree.
+// needed for Q1 (stale-clock semantics) and Q2 (watermark pace). The lane
+// ruling (prior result 1, upholding the committed anchor-conflict ruling)
+// keeps the post-claim first-deferral clock and rejects the first-data
+// fast-path verdict: the stamp stays telemetry/provenance only. The two
+// TestDecision3_* tests at the bottom now pin the corrected contract, and
+// the three TestDecision3Shim_* probes above keep pinning the before-state
+// they measured. The A2 before-state below is the historical record the
+// ruling built on, not a live claim about this tree.
 //
 // A2 before-state under test (packet 2026-11-20T21:24Z..22:24Z, 31 pulls):
 // T-lag FAIL (first-claim lag 436.1..11675.7 min vs the 30-min bar),
@@ -191,26 +192,24 @@ func TestDecision3Shim_Q2WatermarkPaceTrailsWall(t *testing.T) {
 		"(0.860 x 966/min peak), shedding >= 14%% of observed inflow", pace*966)
 }
 
-// TestDecision3_FirstDataAnchoredStaleOnFirstEval is the failing-first
-// contract for the Q1 option-(a) production change: when the row's first
-// underlying-data time is older than winnersWatermarkMaxWait, the FIRST
-// evaluation already reads stale instead of spending one not_ready cycle.
-// It was RED before the wire existed (the intent carried no first-data
-// timestamp and the handler anchored on post-claim deferral); the fixture
-// now stamps the new optional field with the production value, and the
-// handler anchors on it.
-func TestDecision3_FirstDataAnchoredStaleOnFirstEval(t *testing.T) {
+// TestDecision3_StampedAncientDataStillDefersNotReadyOnFirstEval is the
+// failing-first contract for the lane-ruling correction (prior result 1,
+// upholding the committed anchor-conflict ruling): the first-data stamp is
+// telemetry/provenance only and must NOT drive the stale verdict. A stamped
+// ancient row on its FIRST evaluation defers not_ready under the post-claim
+// first-deferral clock even though its stamped time is older than
+// winnersWatermarkMaxWait; the stale verdict lands one deferral cycle
+// later, when the same-cycle marker has aged past the bound. It is RED
+// while the fast-path verdict use reads stale on the stamp.
+func TestDecision3_StampedAncientDataStillDefersNotReadyOnFirstEval(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	now := decision3Now
 	intent := decision3AncientIntent(now)
-	// Decision-3 wire (Q1 option a): the producer stamps the touching
-	// pass's cycle start as the row's first-underlying-data time. The
-	// fixture completes the new optional field with the production value
-	// (the pass cycle that touched the group, here the bound itself);
-	// rows enqueued before the wire carry no field and the handler falls
-	// back to the post-claim deferral clock. Assertions below are
-	// unchanged.
+	// Decision-3 wire retained for telemetry/provenance only: the producer
+	// stamps the touching pass's cycle start, and the verdict must ignore
+	// it. Rows enqueued before the wire carry no field; both shapes read
+	// the same post-claim deferral clock.
 	intent.Payload = map[string]any{
 		PayloadKeyFirstUnderlyingDataAt: intent.CycleStartedAt.UTC().Format(time.RFC3339Nano),
 	}
@@ -223,9 +222,33 @@ func TestDecision3_FirstDataAnchoredStaleOnFirstEval(t *testing.T) {
 	if err == nil {
 		t.Fatal("want a deferral error")
 	}
-	if got := decision3FailureClass(t, err); got != WinnersWatermarkStaleFailureClass {
-		t.Fatalf("first-eval class = %q, want %q once the verdict "+
-			"anchors on first underlying-data time", got, WinnersWatermarkStaleFailureClass)
+	if got := decision3FailureClass(t, err); got != WinnersWatermarkNotReadyFailureClass {
+		t.Fatalf("first-eval class = %q, want %q (the stamp must not "+
+			"drive the verdict; post-claim deferral is ~0)", got, WinnersWatermarkNotReadyFailureClass)
+	}
+	var waiter interface{ FailureDetails() string }
+	if !errors.As(err, &waiter) {
+		t.Fatalf("first-eval error carries no failure details: %v", err)
+	}
+
+	// Second evaluation 31 min later with the marker the queue persisted:
+	// the same-cycle deferral has aged past the bound, so the verdict is
+	// stale and counts attempts.
+	later := now.Add(31 * time.Minute)
+	intentEval2 := intent
+	intentEval2.Failure = &reducercontract.FailureRecord{
+		FailureClass: WinnersWatermarkNotReadyFailureClass,
+		Details:      waiter.FailureDetails(),
+	}
+	handlerEval2 := handler
+	handlerEval2.Now = func() time.Time { return later }
+	_, errEval2 := handlerEval2.Handle(ctx, intentEval2)
+	if errEval2 == nil {
+		t.Fatal("eval2: want a deferral error, the watermark still trails the bound")
+	}
+	if got := decision3FailureClass(t, errEval2); got != WinnersWatermarkStaleFailureClass {
+		t.Fatalf("eval2 class = %q, want %q (same-cycle deferral aged 31 min past the bound)",
+			got, WinnersWatermarkStaleFailureClass)
 	}
 }
 

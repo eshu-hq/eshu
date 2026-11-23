@@ -46,7 +46,7 @@ func (w PostgresObservabilityCoverageCorrelationWriter) WriteObservabilityCovera
 		if err != nil {
 			return ObservabilityCoverageCorrelationWriteResult{}, fmt.Errorf("marshal observability coverage correlation payload: %w", err)
 		}
-		if _, err := w.DB.ExecContext(
+		result, err := w.DB.ExecContext(
 			ctx,
 			factwrite.SingleInsertQuery,
 			observabilityCoverageCorrelationFactID(write, decision),
@@ -64,8 +64,12 @@ func (w PostgresObservabilityCoverageCorrelationWriter) WriteObservabilityCovera
 			now,
 			false,
 			payloadJSON,
-		); err != nil {
+		)
+		if err != nil {
 			return ObservabilityCoverageCorrelationWriteResult{}, fmt.Errorf("write observability coverage correlation fact: %w", err)
+		}
+		if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, observabilityCoverageCorrelationFactID(write, decision), write.ScopeID, write.GenerationID, observabilityCoverageCorrelationFactKind); err != nil {
+			return ObservabilityCoverageCorrelationWriteResult{}, err
 		}
 	}
 	return ObservabilityCoverageCorrelationWriteResult{

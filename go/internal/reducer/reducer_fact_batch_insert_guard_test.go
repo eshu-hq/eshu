@@ -52,7 +52,8 @@ const reducerFactBatchInsertConflictGuard = "ON CONFLICT (fact_id) DO UPDATE SET
 	"is_tombstone = EXCLUDED.is_tombstone, " +
 	"payload = EXCLUDED.payload, " +
 	"fencing_token = EXCLUDED.fencing_token " +
-	"WHERE fact_records.fencing_token <= EXCLUDED.fencing_token"
+	"WHERE fact_records.fencing_token <= EXCLUDED.fencing_token " +
+	"AND fact_records.scope_id = EXCLUDED.scope_id"
 
 // normalizeReducerSQL collapses all runs of ASCII whitespace to single spaces
 // and trims the ends, so a frozen statement fragment can stay readable while
