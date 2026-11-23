@@ -24,13 +24,16 @@ const fanOutOutcomePrefilteredPending = "prefiltered_pending"
 // dead-letter, and item-less holders are kept and reach ReopenHolderDetailed
 // unchanged.
 //
-// Soundness is the argument the per-holder statement already relies on, taken
-// at one snapshot. The source pass committed its rows before this read, so a
-// holder pending (or retrying) at the read claims after that commit and loads
-// evidence that includes it; reopening it would change nothing. A holder
-// claimed after the read is not dropped for being claimed: it was not queued
-// at the read, so it stays in the list and the reopen statement flags it. No
-// lock, lease, claim query, or ordering changes. A crash before
+// Dropping a queued holder is equivalent to the reopen's own pending_noop,
+// taken at one snapshot, and it inherits that statement's stale-stamp limit: a
+// pending attempt-0 item that carries a bounded fan-out stamp runs a one-hop
+// pass scoped to the stamped CVE set only, and the reopen never widens a
+// pending row's stamp (supply_chain_impact_fanout_reopen.go), so this read
+// does not either. It does not claim that the pending holder's next claim
+// loads every CVE's evidence. A holder claimed after the read is not dropped
+// for being claimed: it was not queued at the read, so it stays in the list
+// and the reopen statement flags it. No lock, lease, claim query, or ordering
+// changes. A crash before
 // UpdateFanOutState leaves the stored list as it was, and the retry reads and
 // filters the same list again, which is idempotent.
 //

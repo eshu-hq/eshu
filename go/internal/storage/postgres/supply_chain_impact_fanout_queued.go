@@ -22,10 +22,12 @@ import (
 // A scope's active generation can hold more than one reducer item for the
 // domain; bool_and over the matched rows returns a holder only when every
 // matched row is queued, the same strongest-outcome rule the reopen applies. The
-// read takes no row lock and writes nothing. It is bounded by the holder list
-// (at most the stored continuation plus one read's holders) and reads
-// fact_work_items_scope_generation_idx per scope. Argument: $1 the holder scope
-// ids. The external test package reads it through
+// read takes no row lock and writes nothing. It never scans fact_work_items
+// sequentially: the planner reads it through fact_work_items_scope_generation_idx
+// (a per-scope probe, short lists) or fact_work_items_stage_domain_status_idx
+// (one range read of the domain's matched-status rows with the list as a
+// filter, long lists), so the cost is bounded by the holder list or by those
+// matched rows, not by the queue table. Argument: $1 the holder scope ids. The external test package reads it through
 // supply_chain_impact_fanout_queued_export_test.go for the differential and
 // plan proofs, so no test hand-copies it.
 const findQueuedSupplyChainImpactHoldersQuery = `

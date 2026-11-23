@@ -423,6 +423,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		attribute.Int("reopened", result.reopened),
 		attribute.Int("replay_flagged", result.replayFlagged),
 		attribute.Int("deferred", result.deferred),
+		attribute.Int("prefiltered_pending", result.prefiltered),
 		attribute.Int("holder_statements", result.holderStatements),
 		attribute.Int("split_chunks", result.splitChunks),
 		attribute.Int("hot_ids", result.hotIDs),

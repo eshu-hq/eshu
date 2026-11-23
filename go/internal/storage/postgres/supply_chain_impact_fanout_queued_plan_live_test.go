@@ -11,25 +11,40 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// queuedPlanViolation returns why plan is not the per-scope probe shape, or ""
-// when it is: fact_work_items must be read through an index keyed by scope (no
-// sequential scan of the queue table), and the plan must not sort or hash the
-// whole queue to find the holders.
+// queuedPlanViolation returns why plan is not an accepted prefilter plan, or ""
+// when it is. The contract is that the queue table is never read by a
+// sequential scan: the cost has to stay bounded by an index, not by the table.
+// Two indexes are accepted, because the planner correctly chooses between them
+// by the size of the holder list:
+//
+//   - fact_work_items_scope_generation_idx: a per-scope probe, best when the
+//     list is short against a large queue.
+//   - fact_work_items_stage_domain_status_idx: one range read of the domain's
+//     matched-status rows with the holder list applied as a filter, best when
+//     the list is a large share of those rows. On the QA replica the largest
+//     stored list (4,013 holders) takes this plan: 4,017 rows kept, 5,029
+//     removed by the filter, so the cost follows the domain's matched-status
+//     rows (about 9k), not the holder count.
+//
+// Any other plan, including one with no index on fact_work_items, is refused so
+// a new plan shape is looked at before it ships.
 func queuedPlanViolation(plan string) string {
 	if strings.Contains(plan, "Seq Scan on fact_work_items") {
 		return "sequential scan of fact_work_items"
 	}
-	if !strings.Contains(plan, "fact_work_items_scope_generation_idx") && !strings.Contains(plan, "fact_work_items_pkey") {
-		return "fact_work_items is not read through a scope-keyed index"
+	if !strings.Contains(plan, "fact_work_items_scope_generation_idx") &&
+		!strings.Contains(plan, "fact_work_items_stage_domain_status_idx") {
+		return "fact_work_items is read through neither fact_work_items_scope_generation_idx nor fact_work_items_stage_domain_status_idx"
 	}
 	return ""
 }
 
-// TestFindQueuedHolderScopesPlanProbesTheQueueByScopeLive explains the shipped
+// TestFindQueuedHolderScopesPlanAvoidsQueueSeqScanLive explains the shipped
 // prefilter over a queue where the asked holders are a small minority of the
-// rows. The prefilter must probe the queue per scope instead of scanning it.
-// The plan is logged so the QA replica EXPLAIN can be compared with it.
-func TestFindQueuedHolderScopesPlanProbesTheQueueByScopeLive(t *testing.T) {
+// rows. The prefilter must read the queue through an index, never a sequential
+// scan; queuedPlanViolation names the two accepted shapes. The plan is logged
+// so the QA replica EXPLAIN can be compared with it.
+func TestFindQueuedHolderScopesPlanAvoidsQueueSeqScanLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	const scopes = 4000
 	for _, statement := range []string{
@@ -76,6 +91,6 @@ FROM generate_series(1, $1) AS n`,
 	}
 	t.Logf("prefilter plan over %d queue rows, %d holders:\n%s", scopes, len(holders), plan.String())
 	if why := queuedPlanViolation(plan.String()); why != "" {
-		t.Fatalf("prefilter plan violates the probe shape: %s\n%s", why, plan.String())
+		t.Fatalf("prefilter plan is not an accepted shape: %s\n%s", why, plan.String())
 	}
 }

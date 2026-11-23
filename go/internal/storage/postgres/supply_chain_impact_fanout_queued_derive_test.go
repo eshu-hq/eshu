@@ -60,17 +60,31 @@ func TestDerivedReopenClassificationIsAPrefixOfTheShippedStatement(t *testing.T)
 	}
 }
 
-// TestQueuedHolderPlanViolationSeededRedGreen pins the plan checker itself: a
-// plan that scans the queue table is a violation, and the probe shape is not.
+// TestQueuedHolderPlanViolationSeededRedGreen pins the plan checker itself and
+// needs no database: a plan that sequentially scans the queue table is a
+// violation, an unnamed index is refused, and both accepted shapes pass (the
+// per-scope probe and the stage, domain, status range read).
 func TestQueuedHolderPlanViolationSeededRedGreen(t *testing.T) {
 	t.Parallel()
 
-	good := "Index Scan using fact_work_items_scope_generation_idx on fact_work_items work"
-	bad := "Seq Scan on fact_work_items work\n  Filter: (scope_id = ANY ($1))"
-	if got := queuedPlanViolation(good); got != "" {
-		t.Fatalf("probe plan flagged: %s", got)
+	cases := []struct {
+		name string
+		plan string
+		bad  bool
+	}{
+		{"seq scan", "Seq Scan on fact_work_items work\n  Filter: (scope_id = ANY ($1))", true},
+		{"seq scan beside an accepted index", "Seq Scan on fact_work_items work\nIndex Scan using fact_work_items_scope_generation_idx on fact_work_items work", true},
+		{"unnamed index", "Index Scan using fact_work_items_pkey on fact_work_items work", true},
+		{"scope probe", "Index Scan using fact_work_items_scope_generation_idx on fact_work_items work", false},
+		{"stage domain status range", "Index Scan using fact_work_items_stage_domain_status_idx on fact_work_items work\n  Filter: (scope_id = ANY ($1))", false},
 	}
-	if queuedPlanViolation(bad) == "" {
-		t.Fatal("a sequential scan of fact_work_items was not flagged: the checker is inert")
+	for _, tc := range cases {
+		why := queuedPlanViolation(tc.plan)
+		if tc.bad && why == "" {
+			t.Errorf("%s: plan was accepted, want a violation: the checker is inert", tc.name)
+		}
+		if !tc.bad && why != "" {
+			t.Errorf("%s: plan was refused (%s), want accepted", tc.name, why)
+		}
 	}
 }

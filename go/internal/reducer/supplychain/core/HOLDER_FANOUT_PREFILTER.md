@@ -42,13 +42,18 @@ matched row is queued, which is the reopen's strongest-outcome rule.
 
 ## Why it is sound
 
-The source pass commits its rows before this read. A holder pending or retrying
-at the read claims after that commit and loads evidence that includes it, so a
-reopen would change nothing: the same argument the per-holder statement already
-relies on (it leaves a queued row untouched), taken at one snapshot. A holder
-that is not queued at the read is not dropped, so one claimed after the read is
-still flagged by the reopen. The in-flight read still runs first and the row
-read second; the prefilter reads last.
+Dropping a queued holder is equivalent to the reopen's own `pending_noop`,
+taken at one snapshot. The per-holder statement already leaves a queued row
+untouched, and the prefilter skips the same row one statement earlier. It
+therefore inherits the reopen's stale-stamp limit and does not remove it (see
+[Known limit](#known-limit-a-pending-holders-stamp-is-not-widened)): a pending
+attempt-0 item that carries a bounded fan-out stamp runs a one-hop pass scoped
+to the stamped CVE set only, and the reopen never widens a pending row's stamp
+(`supply_chain_impact_fanout_reopen.go`). This section does not claim that the
+pending holder's next claim loads every CVE's evidence. A holder that is not
+queued at the read is not dropped, so one claimed after the read is still
+flagged by the reopen. The in-flight read still runs first and the row read
+second; the prefilter reads last.
 
 No lock, lease, claim query, or ordering changes. The read takes no row lock and
 writes nothing. A crash before `UpdateFanOutState` leaves the stored list as it
@@ -63,7 +68,9 @@ read costs one `pending_noop` statement, as it does today.
 
 - `eshu_dp_supply_chain_impact_fanout_total{outcome="prefiltered_pending"}`
   counts the holders dropped. `pending_noop` now means a holder that queued
-  between the prefilter read and its reopen, or one already flagged.
+  between the prefilter read and its reopen, one already flagged, or an enqueue
+  that conflicted with an item that appeared after the reopen's read
+  (`enqueueMissingHolder`).
 - Read failures carry `site="holder_prefilter"`.
 - The fan-out info log carries `prefiltered_pending`, and the result sub-signal
   `fanout_prefiltered_pending` carries the same count. `fanout_holders` still
@@ -83,8 +90,13 @@ holders are not queued, and the cap is doing real work.
 - Postgres, live (run by the coordinator): the prefilter equals the reopen's own
   classification, derived from the shipped statement; queued holders keep their
   row version (`xmin`); a holder claimed between the read and the loop is still
-  flagged; the read has the fan-out timeout; the plan probes the queue by scope
-  (`supply_chain_impact_fanout_queued_*_test.go`).
+  flagged; the read has the fan-out timeout; a holder pending at an old generation but
+  succeeded at the active one is kept; the plan never scans `fact_work_items`
+  sequentially and reads it through `fact_work_items_scope_generation_idx` or
+  `fact_work_items_stage_domain_status_idx`
+  (`supply_chain_impact_fanout_queued_*_test.go`). The plan guard has a
+  database-free seeded pair (`TestQueuedHolderPlanViolationSeededRedGreen`): a plan with a
+  sequential scan of `fact_work_items` fails, and both accepted plans pass.
 
 Performance Evidence (#10972 PR-2 holder prefilter): baseline is the QA
 replica reading at 16:27 to 16:41Z under the 338 backfill. 1,248 open
@@ -94,13 +106,26 @@ succeeded (3,577 pending, 713 retrying, 4 claimed, 4 dead_letter). Per hour the
 fan-out ran 24,202 `pending_noop` and 13,896 `deferred` per-holder statements
 (`eshu_dp_supply_chain_impact_fanout_total`). The change replaces those with one
 set read per claim over the stored list; it touches no claim, lease, or queue
-path and adds a read-only statement at one snapshot. The statement is keyed by
-scope on `fact_work_items_scope_generation_idx`; its QA `EXPLAIN (ANALYZE,
-BUFFERS)` over the largest stored list is NOT_CHECKED here and is run by the
-coordinator from `.claude/pr2-prefilter-explain.sql`. The success bar is the
+path and adds a read-only statement at one snapshot. The statement never
+scans `fact_work_items` sequentially (see the QA plan below). The success bar is the
 arbiter's: deferred holder statements per hour down at least 90% from 13,896
 across three consecutive hours, and open `supply_chain_impact` work lower at the
 end than the start.
+
+QA plan (QA replica read of 2026-11-23 17:30Z, a single warm sample, so a
+shape and an order of magnitude and not a distribution): the prefilter over the
+largest stored list, 4,013 holders, returned 4,011 holders to drop in 514.9 ms
+(planning 12.4 ms). The planner correctly took
+`fact_work_items_stage_domain_status_idx`, not a per-scope probe: an Index Scan
+over the domain's matched-status rows kept 4,017 rows and removed 5,029 by the
+holder filter (43,127 buffers, 58.9 ms), then hash-joined a Seq Scan of
+`ingestion_scopes` (14,357 rows, 12,650 in the hash), grouped, and applied the
+`bool_and` filter (2 groups removed). The first, cold read of the same list took
+1.88 s. The cost is bounded by the domain's matched-status rows (about 9k on
+QA), not by the holder count, and it is paid once per claim in place of up to
+256 locking statements. Settings were `work_mem` 64MB, `effective_cache_size`
+18GB, `random_page_cost` 1.1. The guard accepts this plan and the per-scope
+probe, and refuses a Seq Scan of `fact_work_items`.
 
 No-Regression Evidence (#10972 PR-2 holder prefilter): a pass with no queued
 holders pays one extra read-only statement and drops nothing; every kept holder
@@ -114,3 +139,13 @@ Observability Evidence (#10972 PR-2 holder prefilter): new counter outcome
 the fan-out info log, and the `fanout_prefiltered_pending` sub-signal. A
 failing prefilter read counts `read_error` or `read_timeout` with its site, and
 the fan-out span records the error.
+
+## Known limit: a pending holder's stamp is not widened
+
+This is pre-existing, and PR-2 neither introduces nor widens it; it is recorded
+here because the prefilter makes the case easier to see. When a fan-out for CVE
+B reaches a holder that is pending with a stamp for CVE A (or one that is
+claimed and already flagged), B is not added to the stamp. That holder's next
+pass derives only A. The reopen has always behaved this way (the per-holder
+statement leaves a pending row untouched), and the prefilter drops the same
+rows one statement earlier. It is not fixed here.

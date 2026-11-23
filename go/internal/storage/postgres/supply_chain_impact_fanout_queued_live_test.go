@@ -37,6 +37,10 @@ var queuedHolderStates = []struct {
 	{"h-no-item", false},
 	{"h-failed-only", false},
 	{"h-old-generation-pending", false},
+	// Pending at an old generation but succeeded at the active one: only the
+	// active generation's item counts, and it is not queued, so the holder is
+	// kept and the reopen returns it to pending.
+	{"h-old-pending-active-succeeded", false},
 }
 
 // queuedActiveItemID is the stored work_item_id of a holder's seeded item at its
@@ -89,6 +93,9 @@ VALUES ($1, $2, $3, 'reducer', 'supply_chain_impact', 'scope', $1, 'pending', 0,
 		case "h-no-item":
 		case "h-old-generation-pending":
 			fanOutSeedItem(t, ctx, db, state.scope, "g1")
+		case "h-old-pending-active-succeeded":
+			fanOutSeedItem(t, ctx, db, state.scope, "g1")
+			fanOutSeedItem(t, ctx, db, state.scope, "g2")
 		default:
 			fanOutSeedItem(t, ctx, db, state.scope, "g2")
 		}
@@ -97,6 +104,8 @@ VALUES ($1, $2, $3, 'reducer', 'supply_chain_impact', 'scope', $1, 'pending', 0,
 	settle(queuedActiveItemID("h-claimed"), "claimed")
 	settle(queuedActiveItemID("h-running"), "running")
 	settle(queuedActiveItemID("h-succeeded"), "succeeded")
+	// The old-generation item stays pending; only the active one is settled.
+	settle(queuedActiveItemID("h-old-pending-active-succeeded"), "succeeded")
 	settle(queuedActiveItemID("h-dead-letter"), "dead_letter")
 	settle(queuedActiveItemID("h-failed-only"), "failed")
 	extra("h-two-pending", "pending")
