@@ -1,0 +1,247 @@
+== control set IFC
+PASS at least 3 control repetitions: have 3
+PASS control rep 1: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 1: graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS control rep 1: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 1: no wait timed out: timeouts=[]
+PASS control rep 1: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 1: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1404
+PASS control rep 2: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 2: graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS control rep 2: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 2: no wait timed out: timeouts=[]
+PASS control rep 2: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 2: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1404
+PASS control rep 3: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 3: graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS control rep 3: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 3: no wait timed out: timeouts=[]
+PASS control rep 3: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 3: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=1404
+PASS control rep 2 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 2 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 2 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 2 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 2 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 2 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 2 vs rep 1: graph counts per label: equal
+PASS control rep 2 vs rep 1: relationship counts per type: equal
+PASS control rep 2 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 2 vs rep 1: content rows: control=144 arm=144
+PASS control rep 2 vs rep 1: committed generation set (source commit sha): equal
+PASS control rep 3 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 3 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 3 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 3 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 3 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 3 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 3 vs rep 1: graph counts per label: equal
+PASS control rep 3 vs rep 1: relationship counts per type: equal
+PASS control rep 3 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 3 vs rep 1: content rows: control=144 arm=144
+PASS control rep 3 vs rep 1: committed generation set (source commit sha): equal
+== IF-rep1 (inflight)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS admission-writer leg deferred A (source_behind deferrals >= 1): A deferrals=120.0
+PASS the deferred items enqueued their intents after the release: scopes with intents enqueued after release=6 rows=144
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:18:55Z release=2026-11-23T22:20:36Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None] (None = no series in that scrape)
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+== IF-rep2 (inflight)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS admission-writer leg deferred A (source_behind deferrals >= 1): A deferrals=120.0
+PASS the deferred items enqueued their intents after the release: scopes with intents enqueued after release=6 rows=144
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:32:38Z release=2026-11-23T22:34:19Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[None, 0.0] (None = no series in that scrape)
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+== IF-rep3 (inflight)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS admission-writer leg deferred A (source_behind deferrals >= 1): A deferrals=120.0
+PASS the deferred items enqueued their intents after the release: scopes with intents enqueued after release=6 rows=144
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:46:24Z release=2026-11-23T22:48:05Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[None, 0.0] (None = no series in that scrape)
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+== control set IWC
+PASS at least 3 control repetitions: have 3
+PASS control rep 1: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 1: graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS control rep 1: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 1: no wait timed out: timeouts=[]
+PASS control rep 1: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 1: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=156
+PASS control rep 2: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 2: graph reading present in every sample (no swallowed Neo4j error): samples=60 missing=0 final_counts=True
+PASS control rep 2: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 2: no wait timed out: timeouts=[]
+PASS control rep 2: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 2: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=156
+PASS control rep 3: build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS control rep 3: graph reading present in every sample (no swallowed Neo4j error): samples=61 missing=0 final_counts=True
+PASS control rep 3: projector queue settled (0 unsettled): unsettled=0
+PASS control rep 3: no wait timed out: timeouts=[]
+PASS control rep 3: fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS control rep 3: positive control: unpaced A graph nodes at t+120 s are above the first sample: first=0 at_t120=156
+PASS control rep 2 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 2 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 2 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 2 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 2 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 2 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 2 vs rep 1: graph counts per label: equal
+PASS control rep 2 vs rep 1: relationship counts per type: equal
+PASS control rep 2 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 2 vs rep 1: content rows: control=144 arm=144
+PASS control rep 2 vs rep 1: committed generation set (source commit sha): equal
+PASS control rep 3 vs rep 1: every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS control rep 3 vs rep 1: active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS control rep 3 vs rep 1: active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS control rep 3 vs rep 1: reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS control rep 3 vs rep 1: sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS control rep 3 vs rep 1: the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS control rep 3 vs rep 1: graph counts per label: equal
+PASS control rep 3 vs rep 1: relationship counts per type: equal
+PASS control rep 3 vs rep 1: content identity sets (files by repo, path and content hash; entities by id): equal
+PASS control rep 3 vs rep 1: content rows: control=144 arm=144
+PASS control rep 3 vs rep 1: committed generation set (source commit sha): equal
+== IW-rep1 (warm)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=67 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS the final delta of every scope names both changed paths (X while engaged, Y after release): 28dfe9df delta=True paths=['src/mod1.go', 'src/mod2.go']; 4f8f9419 delta=True paths=['src/mod1.go', 'src/mod2.go']; 8b13b71f delta=True paths=['src/mod1.go', 'src/mod2.go']
+PASS a delta was paced and superseded unprojected while engaged: superseded scopes=6 pre-write releases=12.0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:25:37Z release=2026-11-23T22:27:46Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the first engaged sample
+PASS positive control: A writes after release are above 0: A writes (graph, content or projection) after release=6
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+== IW-rep2 (warm)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=68 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS the final delta of every scope names both changed paths (X while engaged, Y after release): 28dfe9df delta=True paths=['src/mod1.go', 'src/mod2.go']; 4f8f9419 delta=True paths=['src/mod1.go', 'src/mod2.go']; 8b13b71f delta=True paths=['src/mod1.go', 'src/mod2.go']
+PASS a delta was paced and superseded unprojected while engaged: superseded scopes=6 pre-write releases=12.0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:39:21Z release=2026-11-23T22:41:30Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the first engaged sample
+PASS positive control: A writes after release are above 0: A writes (graph, content or projection) after release=6
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+== IW-rep3 (warm)
+PASS build identity: one commit, every binary pinned: commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' build.json commit='9e63e08c11e4d78e24900f1c8f088434d66d7389' binaries=5 unmatched=[] vcs-stamped=0
+PASS graph reading present in every sample (no swallowed Neo4j error): samples=67 missing=0 final_counts=True
+PASS projector queue settled (0 unsettled): unsettled=0
+PASS no wait timed out: timeouts=[]
+PASS fixture vacuity guards: 6 scopes, each at the last pushed sha, git-side intents present: scopes=6 active_is_last_push=True git-side intents=96
+PASS the final delta of every scope names both changed paths (X while engaged, Y after release): 28dfe9df delta=True paths=['src/mod1.go', 'src/mod2.go']; 4f8f9419 delta=True paths=['src/mod1.go', 'src/mod2.go']; 8b13b71f delta=True paths=['src/mod1.go', 'src/mod2.go']
+PASS a delta was paced and superseded unprojected while engaged: superseded scopes=6 pre-write releases=12.0
+PASS latch engaged and released (latch row times): engage=2026-11-23T22:53:07Z release=2026-11-23T22:55:17Z
+PASS one engaged interval and one distinct engaged_at: reengaged=False distinct engagements=1
+PASS latch row untouched after the release (updated_at at the second released sample == final dump): stable=True
+PASS fleet-summed engaged counter == 1: engaged counter=1.0
+PASS active gauge series present and 0 in every scrape that has it: gauges per final scrape=[0.0, None] (None = no series in that scrape)
+PASS zero A graph, content and projection writes while engaged: graph=0 content=0 succeeded=0 against the first engaged sample
+PASS positive control: A writes after release are above 0: A writes (graph, content or projection) after release=6
+PASS zero dead letters: dead letters=0
+PASS zero admission_timeout: timeouts=0
+PASS every fixture scope matches the shape of C or of CF: 28dfe9df: same shape as C (delta=True); 4f8f9419: same shape as C (delta=True); 8b13b71f: same shape as C (delta=True); d6de3306: same shape as C (delta=True); e8f65308: same shape as C (delta=True); f72430bc: same shape as C (delta=True)
+PASS active-generation fact sets equal the reference of the same shape (3-field normalisation): failing scopes=[]
+PASS active-generation intents equal C (same shape) or are a superset of C's (full at the final sha): failing scopes=[]
+PASS reducer intents (scope, domain) over every generation equal C's: failing scopes=[]
+PASS sha chain equals C's where the arm is full at the final sha: failing scopes=[]
+PASS the sha1 full generation of every scope equals C's strictly: failing scopes=[]
+PASS graph counts per label: equal
+PASS relationship counts per type: equal
+PASS content identity sets (files by repo, path and content hash; entities by id): equal
+PASS content rows: control=144 arm=144
+PASS committed generation set (source commit sha): equal
+slot 3 finished rc=0 22:56:43

@@ -1,0 +1,374 @@
+NOTICE:  database "t3explain" does not exist, skipping
+== rows: reducer 21906, parked 6500, retrying 7738
+== run 1
+SET
+PREPARE
+Aggregate  (cost=1037.68..1037.69 rows=1 width=56) (actual time=162.856..162.866 rows=1.00 loops=1)
+  Buffers: shared hit=190397 read=269
+  CTE reducer_claim_readiness_requirements
+    ->  Values Scan on "*VALUES*"  (cost=0.00..0.29 rows=23 width=160) (actual time=0.002..0.007 rows=23.00 loops=1)
+  ->  Nested Loop Left Join  (cost=452.21..999.93 rows=1 width=203) (actual time=1.853..110.566 rows=13048.00 loops=1)
+        Buffers: shared hit=138399 read=267
+        ->  Nested Loop  (cost=451.93..991.62 rows=1 width=230) (actual time=1.824..89.208 rows=13048.00 loops=1)
+              Join Filter: ((scope_1.scope_id = scope.scope_id) AND (COALESCE(NULLIF(btrim((work.payload ->> 'source_system'::text)), ''::text), NULLIF(btrim(scope.source_system), ''::text), 'unknown'::text) = 'git'::text))
+              Buffers: shared hit=118975 read=191
+              ->  Nested Loop Left Join  (cost=451.66..991.09 rows=1 width=276) (actual time=1.812..62.492 rows=13048.00 loops=1)
+                    Join Filter: (active_generation.scope_id = work.scope_id)
+                    Filter: ((work.stage <> 'reducer'::text) OR (work.status <> ALL ('{pending,retrying,failed,dead_letter}'::text[])) OR (active_generation.generation_id IS NULL) OR (work.generation_id = scope_1.active_generation_id) OR ((stale_generation.ingested_at >= active_generation.ingested_at) AND ((stale_generation.ingested_at <> active_generation.ingested_at) OR (stale_generation.generation_id >= active_generation.generation_id))))
+                    Rows Removed by Filter: 144
+                    Buffers: shared hit=79831 read=191
+                    ->  Nested Loop  (cost=451.38..990.60 rows=1 width=347) (actual time=1.800..32.702 rows=13192.00 loops=1)
+                          Join Filter: (scope_1.scope_id = work.scope_id)
+                          Buffers: shared hit=40256 read=190
+                          ->  Hash Join  (cost=451.11..990.08 rows=1 width=297) (actual time=1.786..6.509 rows=13192.00 loops=1)
+                                Hash Cond: ((work.scope_id = stale_generation.scope_id) AND (work.generation_id = stale_generation.generation_id))
+                                Buffers: shared hit=680 read=190
+                                ->  Bitmap Heap Scan on fact_work_items work  (cost=396.16..934.25 rows=167 width=238) (actual time=1.567..3.521 rows=13192.00 loops=1)
+                                      Recheck Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])) AND (stage = 'reducer'::text))
+                                      Filter: ((visible_at IS NULL) OR (visible_at <= '2026-11-23 22:04:51.307912+00'::timestamp with time zone))
+                                      Heap Blocks: exact=645
+                                      Buffers: shared hit=648 read=190
+                                      ->  Bitmap Index Scan on fact_work_items_reducer_source_claim_idx  (cost=0.00..396.12 rows=217 width=0) (actual time=1.509..1.509 rows=13192.00 loops=1)
+                                            Index Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])))
+                                            Index Searches: 2
+                                            Buffers: shared hit=3 read=190
+                                ->  Hash  (cost=41.18..41.18 rows=918 width=59) (actual time=0.211..0.211 rows=918.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 92kB
+                                      Buffers: shared hit=32
+                                      ->  Seq Scan on scope_generations stale_generation  (cost=0.00..41.18 rows=918 width=59) (actual time=0.006..0.103 rows=918.00 loops=1)
+                                            Buffers: shared hit=32
+                          ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope_1  (cost=0.28..0.50 rows=1 width=50) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                                Index Cond: (scope_id = stale_generation.scope_id)
+                                Index Searches: 13192
+                                Buffers: shared hit=39576
+                    ->  Index Scan using scope_generations_pkey on scope_generations active_generation  (cost=0.28..0.47 rows=1 width=59) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                          Index Cond: (generation_id = scope_1.active_generation_id)
+                          Index Searches: 13192
+                          Buffers: shared hit=39575 read=1
+              ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..0.50 rows=1 width=32) (actual time=0.002..0.002 rows=1.00 loops=13048)
+                    Index Cond: (scope_id = stale_generation.scope_id)
+                    Index Searches: 13048
+                    Buffers: shared hit=39144
+        ->  Limit  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+              Buffers: shared hit=19424 read=76
+              ->  Result  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+                    One-Time Filter: (work.status = 'retrying'::text)
+                    Buffers: shared hit=19424 read=76
+                    ->  Index Only Scan using reducer_waiting_items_pkey on reducer_waiting_items wait  (cost=0.28..8.30 rows=1 width=0) (actual time=0.003..0.003 rows=1.00 loops=6500)
+                          Index Cond: (work_item_id = work.work_item_id)
+                          Heap Fetches: 6500
+                          Index Searches: 6500
+                          Buffers: shared hit=19424 read=76
+  SubPlan 2
+    ->  CTE Scan on reducer_claim_readiness_requirements  (cost=0.00..0.46 rows=23 width=32) (actual time=0.003..0.014 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 3
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase.keyspace = readiness_req.keyspace) AND (readiness_phase.phase = readiness_req.phase) AND (readiness_phase.acceptance_unit_id = CASE readiness_req.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=12998 read=2
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=12998 read=2
+  SubPlan 4
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_1  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 5
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_1.keyspace = readiness_req_1.keyspace) AND (readiness_phase_1.phase = readiness_req_1.phase) AND (readiness_phase_1.acceptance_unit_id = CASE readiness_req_1.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_1.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_1  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_1  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 6
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_2  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 7
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_2.keyspace = readiness_req_2.keyspace) AND (readiness_phase_2.phase = readiness_req_2.phase) AND (readiness_phase_2.acceptance_unit_id = CASE readiness_req_2.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_2.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_2  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_2  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 8
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_3  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 9
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_3.keyspace = readiness_req_3.keyspace) AND (readiness_phase_3.phase = readiness_req_3.phase) AND (readiness_phase_3.acceptance_unit_id = CASE readiness_req_3.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_3.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_3  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_3  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+Settings: plan_cache_mode = 'force_custom_plan'
+Planning:
+  Buffers: shared hit=1053 read=17
+Planning Time: 2.968 ms
+Execution Time: 163.061 ms
+== run 2
+SET
+PREPARE
+Aggregate  (cost=1037.68..1037.69 rows=1 width=56) (actual time=162.009..162.020 rows=1.00 loops=1)
+  Buffers: shared hit=190666
+  CTE reducer_claim_readiness_requirements
+    ->  Values Scan on "*VALUES*"  (cost=0.00..0.29 rows=23 width=160) (actual time=0.001..0.006 rows=23.00 loops=1)
+  ->  Nested Loop Left Join  (cost=452.21..999.93 rows=1 width=203) (actual time=0.895..109.696 rows=13048.00 loops=1)
+        Buffers: shared hit=138666
+        ->  Nested Loop  (cost=451.93..991.62 rows=1 width=230) (actual time=0.873..88.400 rows=13048.00 loops=1)
+              Join Filter: ((scope_1.scope_id = scope.scope_id) AND (COALESCE(NULLIF(btrim((work.payload ->> 'source_system'::text)), ''::text), NULLIF(btrim(scope.source_system), ''::text), 'unknown'::text) = 'git'::text))
+              Buffers: shared hit=119166
+              ->  Nested Loop Left Join  (cost=451.66..991.09 rows=1 width=276) (actual time=0.862..61.714 rows=13048.00 loops=1)
+                    Join Filter: (active_generation.scope_id = work.scope_id)
+                    Filter: ((work.stage <> 'reducer'::text) OR (work.status <> ALL ('{pending,retrying,failed,dead_letter}'::text[])) OR (active_generation.generation_id IS NULL) OR (work.generation_id = scope_1.active_generation_id) OR ((stale_generation.ingested_at >= active_generation.ingested_at) AND ((stale_generation.ingested_at <> active_generation.ingested_at) OR (stale_generation.generation_id >= active_generation.generation_id))))
+                    Rows Removed by Filter: 144
+                    Buffers: shared hit=80022
+                    ->  Nested Loop  (cost=451.38..990.60 rows=1 width=347) (actual time=0.854..31.759 rows=13192.00 loops=1)
+                          Join Filter: (scope_1.scope_id = work.scope_id)
+                          Buffers: shared hit=40446
+                          ->  Hash Join  (cost=451.11..990.08 rows=1 width=297) (actual time=0.843..5.571 rows=13192.00 loops=1)
+                                Hash Cond: ((work.scope_id = stale_generation.scope_id) AND (work.generation_id = stale_generation.generation_id))
+                                Buffers: shared hit=870
+                                ->  Bitmap Heap Scan on fact_work_items work  (cost=396.16..934.25 rows=167 width=238) (actual time=0.623..2.588 rows=13192.00 loops=1)
+                                      Recheck Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])) AND (stage = 'reducer'::text))
+                                      Filter: ((visible_at IS NULL) OR (visible_at <= '2026-11-23 22:04:51.49597+00'::timestamp with time zone))
+                                      Heap Blocks: exact=645
+                                      Buffers: shared hit=838
+                                      ->  Bitmap Index Scan on fact_work_items_reducer_source_claim_idx  (cost=0.00..396.12 rows=217 width=0) (actual time=0.566..0.566 rows=13192.00 loops=1)
+                                            Index Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])))
+                                            Index Searches: 2
+                                            Buffers: shared hit=193
+                                ->  Hash  (cost=41.18..41.18 rows=918 width=59) (actual time=0.212..0.213 rows=918.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 92kB
+                                      Buffers: shared hit=32
+                                      ->  Seq Scan on scope_generations stale_generation  (cost=0.00..41.18 rows=918 width=59) (actual time=0.005..0.105 rows=918.00 loops=1)
+                                            Buffers: shared hit=32
+                          ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope_1  (cost=0.28..0.50 rows=1 width=50) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                                Index Cond: (scope_id = stale_generation.scope_id)
+                                Index Searches: 13192
+                                Buffers: shared hit=39576
+                    ->  Index Scan using scope_generations_pkey on scope_generations active_generation  (cost=0.28..0.47 rows=1 width=59) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                          Index Cond: (generation_id = scope_1.active_generation_id)
+                          Index Searches: 13192
+                          Buffers: shared hit=39576
+              ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..0.50 rows=1 width=32) (actual time=0.002..0.002 rows=1.00 loops=13048)
+                    Index Cond: (scope_id = stale_generation.scope_id)
+                    Index Searches: 13048
+                    Buffers: shared hit=39144
+        ->  Limit  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+              Buffers: shared hit=19500
+              ->  Result  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+                    One-Time Filter: (work.status = 'retrying'::text)
+                    Buffers: shared hit=19500
+                    ->  Index Only Scan using reducer_waiting_items_pkey on reducer_waiting_items wait  (cost=0.28..8.30 rows=1 width=0) (actual time=0.003..0.003 rows=1.00 loops=6500)
+                          Index Cond: (work_item_id = work.work_item_id)
+                          Heap Fetches: 6500
+                          Index Searches: 6500
+                          Buffers: shared hit=19500
+  SubPlan 2
+    ->  CTE Scan on reducer_claim_readiness_requirements  (cost=0.00..0.46 rows=23 width=32) (actual time=0.003..0.013 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 3
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase.keyspace = readiness_req.keyspace) AND (readiness_phase.phase = readiness_req.phase) AND (readiness_phase.acceptance_unit_id = CASE readiness_req.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 4
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_1  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 5
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_1.keyspace = readiness_req_1.keyspace) AND (readiness_phase_1.phase = readiness_req_1.phase) AND (readiness_phase_1.acceptance_unit_id = CASE readiness_req_1.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_1.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_1  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_1  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 6
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_2  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 7
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_2.keyspace = readiness_req_2.keyspace) AND (readiness_phase_2.phase = readiness_req_2.phase) AND (readiness_phase_2.acceptance_unit_id = CASE readiness_req_2.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_2.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_2  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_2  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 8
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_3  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 9
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_3.keyspace = readiness_req_3.keyspace) AND (readiness_phase_3.phase = readiness_req_3.phase) AND (readiness_phase_3.acceptance_unit_id = CASE readiness_req_3.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_3.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_3  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_3  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+Settings: plan_cache_mode = 'force_custom_plan'
+Planning:
+  Buffers: shared hit=1070
+Planning Time: 2.843 ms
+Execution Time: 162.218 ms
+== run 3
+SET
+PREPARE
+Aggregate  (cost=1037.68..1037.69 rows=1 width=56) (actual time=161.664..161.675 rows=1.00 loops=1)
+  Buffers: shared hit=190666
+  CTE reducer_claim_readiness_requirements
+    ->  Values Scan on "*VALUES*"  (cost=0.00..0.29 rows=23 width=160) (actual time=0.001..0.007 rows=23.00 loops=1)
+  ->  Nested Loop Left Join  (cost=452.21..999.93 rows=1 width=203) (actual time=0.949..109.414 rows=13048.00 loops=1)
+        Buffers: shared hit=138666
+        ->  Nested Loop  (cost=451.93..991.62 rows=1 width=230) (actual time=0.925..88.060 rows=13048.00 loops=1)
+              Join Filter: ((scope_1.scope_id = scope.scope_id) AND (COALESCE(NULLIF(btrim((work.payload ->> 'source_system'::text)), ''::text), NULLIF(btrim(scope.source_system), ''::text), 'unknown'::text) = 'git'::text))
+              Buffers: shared hit=119166
+              ->  Nested Loop Left Join  (cost=451.66..991.09 rows=1 width=276) (actual time=0.913..61.471 rows=13048.00 loops=1)
+                    Join Filter: (active_generation.scope_id = work.scope_id)
+                    Filter: ((work.stage <> 'reducer'::text) OR (work.status <> ALL ('{pending,retrying,failed,dead_letter}'::text[])) OR (active_generation.generation_id IS NULL) OR (work.generation_id = scope_1.active_generation_id) OR ((stale_generation.ingested_at >= active_generation.ingested_at) AND ((stale_generation.ingested_at <> active_generation.ingested_at) OR (stale_generation.generation_id >= active_generation.generation_id))))
+                    Rows Removed by Filter: 144
+                    Buffers: shared hit=80022
+                    ->  Nested Loop  (cost=451.38..990.60 rows=1 width=347) (actual time=0.905..31.716 rows=13192.00 loops=1)
+                          Join Filter: (scope_1.scope_id = work.scope_id)
+                          Buffers: shared hit=40446
+                          ->  Hash Join  (cost=451.11..990.08 rows=1 width=297) (actual time=0.893..5.608 rows=13192.00 loops=1)
+                                Hash Cond: ((work.scope_id = stale_generation.scope_id) AND (work.generation_id = stale_generation.generation_id))
+                                Buffers: shared hit=870
+                                ->  Bitmap Heap Scan on fact_work_items work  (cost=396.16..934.25 rows=167 width=238) (actual time=0.665..2.624 rows=13192.00 loops=1)
+                                      Recheck Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])) AND (stage = 'reducer'::text))
+                                      Filter: ((visible_at IS NULL) OR (visible_at <= '2026-11-23 22:04:51.683868+00'::timestamp with time zone))
+                                      Heap Blocks: exact=645
+                                      Buffers: shared hit=838
+                                      ->  Bitmap Index Scan on fact_work_items_reducer_source_claim_idx  (cost=0.00..396.12 rows=217 width=0) (actual time=0.609..0.609 rows=13192.00 loops=1)
+                                            Index Cond: ((COALESCE(NULLIF(btrim((payload ->> 'source_system'::text)), ''::text), 'unknown'::text) = ANY ('{git,unknown}'::text[])) AND (status = ANY ('{pending,retrying}'::text[])))
+                                            Index Searches: 2
+                                            Buffers: shared hit=193
+                                ->  Hash  (cost=41.18..41.18 rows=918 width=59) (actual time=0.218..0.218 rows=918.00 loops=1)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 92kB
+                                      Buffers: shared hit=32
+                                      ->  Seq Scan on scope_generations stale_generation  (cost=0.00..41.18 rows=918 width=59) (actual time=0.006..0.110 rows=918.00 loops=1)
+                                            Buffers: shared hit=32
+                          ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope_1  (cost=0.28..0.50 rows=1 width=50) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                                Index Cond: (scope_id = stale_generation.scope_id)
+                                Index Searches: 13192
+                                Buffers: shared hit=39576
+                    ->  Index Scan using scope_generations_pkey on scope_generations active_generation  (cost=0.28..0.47 rows=1 width=59) (actual time=0.002..0.002 rows=1.00 loops=13192)
+                          Index Cond: (generation_id = scope_1.active_generation_id)
+                          Index Searches: 13192
+                          Buffers: shared hit=39576
+              ->  Index Scan using ingestion_scopes_pkey on ingestion_scopes scope  (cost=0.28..0.50 rows=1 width=32) (actual time=0.002..0.002 rows=1.00 loops=13048)
+                    Index Cond: (scope_id = stale_generation.scope_id)
+                    Index Searches: 13048
+                    Buffers: shared hit=39144
+        ->  Limit  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+              Buffers: shared hit=19500
+              ->  Result  (cost=0.28..8.30 rows=1 width=1) (actual time=0.001..0.001 rows=0.50 loops=13048)
+                    One-Time Filter: (work.status = 'retrying'::text)
+                    Buffers: shared hit=19500
+                    ->  Index Only Scan using reducer_waiting_items_pkey on reducer_waiting_items wait  (cost=0.28..8.30 rows=1 width=0) (actual time=0.003..0.003 rows=1.00 loops=6500)
+                          Index Cond: (work_item_id = work.work_item_id)
+                          Heap Fetches: 6500
+                          Index Searches: 6500
+                          Buffers: shared hit=19500
+  SubPlan 2
+    ->  CTE Scan on reducer_claim_readiness_requirements  (cost=0.00..0.46 rows=23 width=32) (actual time=0.002..0.016 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 3
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase.keyspace = readiness_req.keyspace) AND (readiness_phase.phase = readiness_req.phase) AND (readiness_phase.acceptance_unit_id = CASE readiness_req.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 4
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_1  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 5
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_1.keyspace = readiness_req_1.keyspace) AND (readiness_phase_1.phase = readiness_req_1.phase) AND (readiness_phase_1.acceptance_unit_id = CASE readiness_req_1.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_1.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_1  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_1  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 6
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_2  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 7
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_2.keyspace = readiness_req_2.keyspace) AND (readiness_phase_2.phase = readiness_req_2.phase) AND (readiness_phase_2.acceptance_unit_id = CASE readiness_req_2.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_2.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_2  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_2  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+  SubPlan 8
+    ->  CTE Scan on reducer_claim_readiness_requirements reducer_claim_readiness_requirements_3  (cost=0.00..0.46 rows=23 width=32) (actual time=0.000..0.002 rows=23.00 loops=1)
+          Storage: Memory  Maximum Storage: 20kB
+  SubPlan 9
+    ->  Nested Loop Anti Join  (cost=0.27..8.84 rows=1 width=0) (actual time=0.002..0.002 rows=1.00 loops=6500)
+          Join Filter: ((readiness_phase_3.keyspace = readiness_req_3.keyspace) AND (readiness_phase_3.phase = readiness_req_3.phase) AND (readiness_phase_3.acceptance_unit_id = CASE readiness_req_3.acceptance_unit_source WHEN 'payload_entity_key'::text THEN COALESCE(NULLIF((work.payload ->> 'entity_key'::text), ''::text), work.scope_id) WHEN 'scope_prefix'::text THEN (readiness_req_3.acceptance_unit_prefix || work.scope_id) ELSE work.scope_id END))
+          Buffers: shared hit=13000
+          ->  CTE Scan on reducer_claim_readiness_requirements readiness_req_3  (cost=0.00..0.52 rows=1 width=128) (actual time=0.000..0.000 rows=1.00 loops=6500)
+                Filter: (domain = work.domain)
+                Storage: Memory  Maximum Storage: 20kB
+          ->  Index Only Scan using graph_projection_phase_state_pkey on graph_projection_phase_state readiness_phase_3  (cost=0.27..8.29 rows=1 width=87) (actual time=0.001..0.001 rows=0.00 loops=6500)
+                Index Cond: ((scope_id = work.scope_id) AND (source_run_id = work.generation_id) AND (generation_id = work.generation_id))
+                Heap Fetches: 0
+                Index Searches: 6500
+                Buffers: shared hit=13000
+Settings: plan_cache_mode = 'force_custom_plan'
+Planning:
+  Buffers: shared hit=1070
+Planning Time: 2.903 ms
+Execution Time: 161.884 ms

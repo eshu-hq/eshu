@@ -138,6 +138,7 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 | `assemble_result.py`, `replay_state.py`, `replay_facts.py`, `replay_prom.py` | Turn a run directory into `result.json`. |
 | `check_arm.py`, `checks_lib.py` | The pass/fail gate. An absent claim-pacing series fails; T2 needs a claim-grant consult count above 0 (the `collector_kind` series). |
 | `b_item_table.py`, `test_b_item_table.py` | Per-item queue wait of the healthy source, per arm and pooled, plus the burst waits of the git-B arms. Reports, judges nothing. |
+| `per_worker_timeline.py`, `neo4j_plan_discards.py`, `explain_probe.sh` | Which worker held the burst items; the burst's first canonical write matched to Neo4j stale-plan discards; EXPLAIN of the bounded probe on a saved run. Reports, judge nothing. |
 | `report.sh` | Runs the gate over every run and prints the numbers. |
 | `test_check_arm.py`, `test_replay_readers.py`, `test_census.sh` | Seeded RED/GREEN proofs. |
 
@@ -221,3 +222,7 @@ is the new operator signal (coverage row in
 `telemetry-coverage-reducer-core.md`, metric reference in
 `docs/public/reference/telemetry/metrics.md`); the filesystem-mode refusal is a
 startup error naming both variables.
+
+## Rulings after the matrix
+
+The results and their rulings are in `docs/internal/evidence/10882-replay/`. Three changes to what the driver judges were made after seeing data, each by the arbiter and each named in the PR: the AC5 queue-wait percentiles are published as INCONCLUSIVE and replaced by a per-item table (the control repetitions differ among themselves by more than the 10% tolerance because the projector polls every second and the feed commits every second); the T1 consult gate is read by a pooled quiet-rep rule fixed before the supplementary reps ran, with loaded reps reported and not judged; an absent claim-pacing series fails the checker, and T2 needs a claim-grant consult count above 0 from the `collector_kind` series (the matrix T2 reps found that the hosted collector emitted none). T2 and T2TTL are rerun against a same-build C2 on the build that carries the wiring fix.
