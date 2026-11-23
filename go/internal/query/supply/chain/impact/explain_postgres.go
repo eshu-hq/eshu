@@ -79,9 +79,17 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 		defer func() { _ = commit(false) }()
 	}
 	args := supplyChainImpactExplanationQueryArgs(ctx, filter, s.Now)
-	query := ExplainFindingQuery
+	route := s.explainRoute(filter)
+	if route.supports {
+		// A lookup the per-support table answers refuses while the table is not
+		// ready, inside the same snapshot as the read; there is no fallback.
+		if err := readStore.requireSupportsReady(ctx); err != nil {
+			return ExplanationRow{}, err
+		}
+	}
+	query := route.selector
 	if filter.FindingID != "" {
-		query = ExplainFindingByPublicIDQuery
+		query = route.publicID
 	}
 	findings, err := readStore.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 	if err != nil {
@@ -90,7 +98,7 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	if filter.FindingID != "" && len(findings) == 0 {
 		findings, err = readStore.loadSupplyChainImpactExplanationFindings(
 			ctx,
-			ExplainFindingQuery,
+			route.selector,
 			args,
 		)
 		if err != nil {

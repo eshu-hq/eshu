@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory and grouped-inventory reads (#10880 PR-B2a) drive from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, the public-id explain probes the finding index, and the advisory evidence read probes the repository index or walks the scope-and-generation index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
@@ -259,6 +260,58 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	t.Logf("natural aggregate form scans of the supports table: %v", naturalCountScans)
 	if ok, _ := supportsPlanIsGrantDriven(naturalCountScans); ok {
 		t.Fatalf("the checker accepted the natural single-WHERE aggregate (scans %v)", naturalCountScans)
+	}
+
+	// The explain reads: a public finding id probes the finding index (no
+	// sequential scan, the grant applies to the few rows it names), and a granted
+	// selector lookup drives from the grant arms.
+	explainArgs := []any{
+		FindingFactKind, "finding:plan:7:7", "", "", "", "", "", "", "", "",
+		array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs), time.Now().UTC(),
+	}
+	explainArgs = append(explainArgs, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	idScans, err := explainSupportsScans(ctx, database, ExplainFindingByPublicIDFromSupportsQuery, explainArgs)
+	if err != nil {
+		t.Fatalf("explain the public-id read: %v", err)
+	}
+	t.Logf("public-id explain scans of the supports table: %v", idScans)
+	if joined := strings.Join(idScans, " | "); strings.Contains(joined, "Seq Scan") ||
+		!strings.Contains(joined, "supply_chain_impact_finding_supports_finding_idx") {
+		t.Fatalf("the public-id explain does not probe the finding index (scans %v)", idScans)
+	}
+	selectorArgs := append([]any{}, explainArgs...)
+	selectorArgs[1], selectorArgs[3] = "", "CVE-2026-7"
+	selectorScans, err := explainSupportsScans(ctx, database, ExplainFindingFromSupportsQuery, selectorArgs)
+	if err != nil {
+		t.Fatalf("explain the granted selector read: %v", err)
+	}
+	t.Logf("granted selector explain scans of the supports table: %v", selectorScans)
+	if ok, reason := supportsPlanIsGrantDriven(selectorScans); !ok {
+		t.Fatalf("granted selector explain plan is not grant-driven: %s (scans %v)", reason, selectorScans)
+	}
+
+	// The advisory evidence read derives its anchors from the supports of one
+	// selector: a repository anchor probes the repository index, and a
+	// service-only anchor walks the active scopes through the scope-and-generation
+	// index. Neither may read the table sequentially.
+	for name, tc := range map[string]struct {
+		repository, service, index string
+	}{
+		"repository anchor":   {"repository:plan:7", "", "supply_chain_impact_finding_supports_repository_idx"},
+		"service-only anchor": {"", "service:plan", "supply_chain_impact_finding_supports_scope_generation_idx"},
+	} {
+		evidenceArgs := []any{
+			array.Of([]string{"vulnerability.cve"}), array.Of([]string{}), array.Of([]string{}), "", 50,
+			tc.repository, tc.service, "", array.Of([]string{}),
+		}
+		evidenceScans, err := explainSupportsScans(ctx, database, advisory.ListEvidenceFromSupportsQuery, evidenceArgs)
+		if err != nil {
+			t.Fatalf("explain the advisory evidence %s: %v", name, err)
+		}
+		t.Logf("advisory evidence %s scans of the supports table: %v", name, evidenceScans)
+		if joined := strings.Join(evidenceScans, " | "); strings.Contains(joined, "Seq Scan") || !strings.Contains(joined, tc.index) {
+			t.Fatalf("advisory evidence %s does not read the supports table through %s (scans %v)", name, tc.index, evidenceScans)
+		}
 	}
 
 	// The generation foreign key cascades. The trigger runs

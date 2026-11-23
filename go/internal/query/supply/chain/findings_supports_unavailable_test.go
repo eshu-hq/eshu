@@ -128,3 +128,38 @@ func TestImpactAggregatesAnswer503NamingTheSupportsModel(t *testing.T) {
 		}
 	}
 }
+
+// TestImpactExplanationAnswers503WhenSupportsAreUnavailable pins the explain and
+// packet side of the fail-closed read: a lookup the supports table cannot serve
+// answers the retryable 503 naming the supports model on both routes, never a 500
+// or a not-found body.
+func TestImpactExplanationAnswers503WhenSupportsAreUnavailable(t *testing.T) {
+	t.Parallel()
+
+	refusal := fmt.Errorf("explain: %w", impact.ErrFindingSupportsUnavailable)
+	for route, target := range map[string]string{
+		"explain": "/api/v0/supply-chain/impact/explain?finding_id=finding-1",
+		"packet":  "/api/v0/investigations/supply-chain/impact/packet?finding_id=finding-1",
+	} {
+		t.Run(route, func(t *testing.T) {
+			t.Parallel()
+			handler := &Handler{
+				ImpactExplanations: errExplanationStore{err: refusal},
+				PacketResponder:    stubImpactPacketResponder{},
+			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503; body = %s", rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("Retry-After"); got != "30" {
+				t.Fatalf("Retry-After = %q, want 30", got)
+			}
+			if body := rec.Body.String(); !strings.Contains(body, "supports read model is not ready") {
+				t.Fatalf("body = %s, want the supports text", body)
+			}
+		})
+	}
+}

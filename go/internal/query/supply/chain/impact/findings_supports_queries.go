@@ -57,6 +57,17 @@ func supportsSourceCTE(b supportsSourceBinds) string {
 )`
 }
 
+// supportsStaticAuthoritySQL is the static-authority guard of every supports
+// read over the scanner classification and association joins aliased
+// finding_class and finding_association: derived-class and associated findings
+// never answer from the supports table (a derived row is read through its own
+// path, #9468).
+const supportsStaticAuthoritySQL = `    AND finding_association.finding_fact_id IS NULL
+    AND fact.scope_id NOT LIKE 'image://derived/%'
+    AND (finding_class.finding_fact_id IS NULL
+         OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
+`
+
 // supportsSourceProtectedGuards types the six caller-authorization binds the
 // legacy reads carry. It is its own constant so a read without those binds can
 // drop it from the template.
@@ -83,11 +94,7 @@ source_candidates AS (
     ON finding_association.finding_fact_id = fact.fact_id
   {guard}generation.status = 'active'
     AND fact.scope_id <> 'operator:vulnerability_suppressions'
-` + supportsSourceProtectedGuards + `    AND finding_association.finding_fact_id IS NULL
-    AND fact.scope_id NOT LIKE 'image://derived/%'
-    AND (finding_class.finding_fact_id IS NULL
-         OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))
-    AND ({cve} = '' OR fact.cve_id = {cve})
+` + supportsSourceProtectedGuards + supportsStaticAuthoritySQL + `    AND ({cve} = '' OR fact.cve_id = {cve})
     AND ({pkg} = '' OR fact.package_id = {pkg})
     AND ({repo} = '' OR fact.repository_id = {repo})
     AND ({digest} = '' OR fact.subject_digest = {digest})

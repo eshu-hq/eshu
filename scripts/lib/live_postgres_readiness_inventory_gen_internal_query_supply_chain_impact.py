@@ -7,6 +7,9 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/advisory_evidence_supports_live_test.go": (
+            "TestAdvisoryEvidenceFromSupportsLive",
+        ),
         "go/internal/query/supply/chain/impact/aggregates_supports_live_test.go": (
             "TestSupportsAggregatesEqualTheListAndLegacyLive",
             "TestSupportsAggregatesRefuseWhenNotReadyLive",
@@ -17,6 +20,10 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go": (
             "TestAggregatesWinnersParityLive",
+        ),
+        "go/internal/query/supply/chain/impact/explain_supports_live_test.go": (
+            "TestExplainFromSupportsLive",
+            "TestExplainFromSupportsSelectorAndPublicIDLive",
         ),
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
             "TestFindingsWinnersPayloadParityLive",

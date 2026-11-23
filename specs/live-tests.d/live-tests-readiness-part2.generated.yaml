@@ -19,6 +19,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/advisory_evidence_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced advisory evidence on the multi-support corpus: for every repository anchor and grant shape, the evidence derived from the per-support table equals the legacy fact read, including a repository whose supports sit in two scopes and an operator-scope row; a mutation that ignores the active generation or the repository anchor fails; a supports table that is not ready refuses; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/aggregates_supports_live_test.go
     tag: ~
     class: postgres_ci
@@ -33,6 +38,11 @@ tests:
     tag: ~
     class: postgres_ci
     reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which are served from the per-support table with it filled by the backfill, and return the same envelopes on this single-support seed); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/explain_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced explain on the multi-support corpus: for every grant shape and non-rank filter, each finding id the granted list returns explains for the same caller with the same payload (the list-then-explain round trip), the granted explain equals the legacy explain for each of those ids, an ungranted public-id lookup equals the legacy read, a granted selector lookup equals the legacy read, and a supports table that is not ready refuses instead of answering from the facts; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
     tag: ~
@@ -137,7 +147,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory and grouped-inventory reads (#10880 PR-B2a) drive from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, and the public-id explain probes the finding index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~

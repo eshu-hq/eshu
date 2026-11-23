@@ -158,6 +158,10 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	explanationTimer.Done(r.Context(), slog.Bool("error", err != nil))
+	if errors.Is(err, impact.ErrFindingSupportsUnavailable) {
+		h.writeImpactExplanationSupportsUnavailable(w, r)
+		return
+	}
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
 		// retryable 503 envelope. The mapped verdict is not a handler-owned

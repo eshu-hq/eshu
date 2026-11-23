@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
@@ -66,5 +67,41 @@ func (h *Handler) writeImpactAggregateReadModelUnavailable(w http.ResponseWriter
 		ImpactAggregateCapability,
 		h.profile(),
 		querycontract.RequiredProfile(ImpactAggregateCapability),
+	)
+}
+
+// writeImpactExplanationSupportsUnavailable answers the 503 backend_unavailable
+// envelope for an explain call the supports table cannot serve exactly (#10880
+// PR-B2a): a granted lookup, or a lookup by public finding id, while the backfill
+// marker is incomplete or behind this binary's contract version, the old-writer
+// fence is not empty, or the readiness probe failed.
+func (h *Handler) writeImpactExplanationSupportsUnavailable(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", strconv.Itoa(supplyChainImpactSupportsRetryAfterSeconds))
+	querycontract.WriteContractError(
+		w,
+		r,
+		http.StatusServiceUnavailable,
+		"supply-chain impact explanations are unavailable: the supports read model is not ready; retry after the supports backfill completes",
+		querycontract.ErrorCodeBackendUnavailable,
+		ImpactExplanationCapability,
+		h.profile(),
+		querycontract.RequiredProfile(ImpactExplanationCapability),
+	)
+}
+
+// writeAdvisoryEvidenceSupportsUnavailable answers the 503 backend_unavailable
+// envelope for a repository, service, or workload anchored advisory evidence call
+// the supports table cannot serve exactly (#10880 PR-B2a).
+func (h *Handler) writeAdvisoryEvidenceSupportsUnavailable(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", strconv.Itoa(supplyChainImpactSupportsRetryAfterSeconds))
+	querycontract.WriteContractError(
+		w,
+		r,
+		http.StatusServiceUnavailable,
+		"advisory evidence is unavailable: the supports read model is not ready; retry after the supports backfill completes",
+		querycontract.ErrorCodeBackendUnavailable,
+		advisory.EvidenceCapability,
+		h.profile(),
+		querycontract.RequiredProfile(advisory.EvidenceCapability),
 	)
 }
