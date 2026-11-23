@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -370,5 +371,119 @@ WHERE w.finding_id = 'finding:m1'`).Scan(&winnerFact, &key); err != nil {
 	}
 	if strings.Contains(multiSupportDescribe(gone), "m1(") {
 		t.Fatalf("a key with no winners row must not be returned before the resweep adds it: %q", multiSupportDescribe(gone))
+	}
+}
+
+// TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive proves the ruling's JIT
+// test on a real server. Inside the scope withJITOff opens, the statement sees
+// jit = off; after end() the same pool answers jit = on again, so the setting
+// reaches neither the session nor the pooled connection. The pool is pinned to one
+// connection so the "after" read provably lands on the connection that ran the
+// scope.
+func TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive(t *testing.T) {
+	_, database := openRouteVDatabase(t)
+	database.SetMaxOpenConns(1)
+	ctx := t.Context()
+	show := func(queryer interface {
+		QueryRowContext(context.Context, string, ...any) *sql.Row
+	},
+	) string {
+		var setting string
+		if err := queryer.QueryRowContext(ctx, `SHOW jit`).Scan(&setting); err != nil {
+			t.Fatalf("SHOW jit: %v", err)
+		}
+		return setting
+	}
+	if before := show(database); before != "on" {
+		t.Skipf("server jit = %q: the proof needs the default (on) to show the switch", before)
+	}
+	for _, route := range []ReadRoute{RouteWinnersSupplement, RouteSupportsImage} {
+		if !route.wantsJITOff() {
+			t.Fatalf("route %q must want jit off", route)
+		}
+	}
+	queryer, rowQueryer, end, err := withJITOff(ctx, nil, database, nil, nil)
+	if err != nil {
+		t.Fatalf("withJITOff: %v", err)
+	}
+	var inside string
+	if err := rowQueryer.QueryRowContext(ctx, `SHOW jit`).Scan(&inside); err != nil {
+		t.Fatalf("SHOW jit inside the scope: %v", err)
+	}
+	if inside != "off" {
+		t.Fatalf("jit inside the scope = %q, want off", inside)
+	}
+	rows, err := queryer.QueryContext(ctx, `SELECT 1`)
+	if err != nil {
+		t.Fatalf("statement in the scope: %v", err)
+	}
+	_ = rows.Close()
+	end()
+	if after := show(database); after != "on" {
+		t.Fatalf("jit after the scope = %q, want on: the setting leaked past the transaction", after)
+	}
+}
+
+// shortcutDifferences returns the canonical keys whose winners row differs from
+// the best support the supplement probe would pick for the same key when the
+// precise filter is removed. It is the shortcut invariant of ruling V: a winner
+// that passes the filter is the filter-then-pick answer for its key only because
+// the winners eligibility and order equal the supports probe's eligibility and
+// order. probe is the probe text, so a seeded violation can weaken it.
+func shortcutDifferences(ctx context.Context, database *sql.DB, probe string) ([]string, error) {
+	open := strings.Replace(probe, "      AND "+supplyChainImpactPrecisePredicateSQL("s")+"\n", "", 1)
+	if open == probe {
+		return nil, fmt.Errorf("the probe lost its precise predicate: update the invariant test")
+	}
+	rows, err := database.QueryContext(ctx, `
+SELECT c.canonical_key
+FROM (SELECT canonical_key, winner_fact_id FROM supply_chain_impact_canonical_winners) AS c
+`+open+`
+WHERE source.fact_id IS DISTINCT FROM c.winner_fact_id
+ORDER BY c.canonical_key`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var keys []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	return keys, rows.Err()
+}
+
+// TestWinnersEligibilityEqualsTheSupportsProbeLive is ruling V's shortcut
+// invariant (required proof 5). With the precise filter removed, the supplement
+// probe must pick the very row the winners table holds for every key of a corpus
+// that carries derived-class, associated and operator rows, and the same check
+// must fail once the probe's derived-image guards are removed (a planted
+// violation), so the equality is not satisfied vacuously.
+func TestWinnersEligibilityEqualsTheSupportsProbeLive(t *testing.T) {
+	ctx, database := openRouteVDatabase(t)
+	differences, err := shortcutDifferences(ctx, database, supplementProbe)
+	if err != nil {
+		t.Fatalf("probe differential: %v", err)
+	}
+	if len(differences) != 0 {
+		t.Fatalf("the supports probe picks a different row than the winners table for keys %v", differences)
+	}
+
+	weak := strings.Replace(supplementProbe, "      AND s.scope_id NOT LIKE 'image://derived/%'\n", "", 1)
+	start := strings.Index(weak, "      AND NOT EXISTS (SELECT 1 FROM scanner_image_result_fact_associations")
+	end := strings.Index(weak, "    ORDER BY s.priority_score DESC")
+	if weak == supplementProbe || start < 0 || end < start {
+		t.Fatal("the seeded violation did not apply: update the invariant test")
+	}
+	weak = weak[:start] + weak[end:]
+	planted, err := shortcutDifferences(ctx, database, weak)
+	if err != nil {
+		t.Fatalf("planted differential: %v", err)
+	}
+	if len(planted) == 0 {
+		t.Fatal("the invariant accepted a probe without the derived-image guards: it would not catch eligibility drift")
 	}
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // WinnersReadEnv is the operator gate (#3389 Phase 2) that
@@ -92,6 +93,10 @@ type PostgresFindingStore struct {
 	// populated the winners table. Output is byte-identical either way; the
 	// winners read is bounded O(page) instead of an O(filtered set) dedup sort.
 	ReadFromWinners bool
+	// Instruments receives the per-route read counter
+	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter; the
+	// route attribute is still set on the active span.
+	Instruments *telemetry.Instruments
 }
 
 // NewPostgresFindingStore creates the Postgres-backed impact
@@ -124,6 +129,18 @@ type legacyFindingQueryer struct{ database FindingQueryer }
 
 func (q legacyFindingQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return q.database.QueryContext(ctx, query, args...)
+}
+
+// readScope returns the queryer that runs a route's one read statement and the
+// function that ends its scope. A route that wants jit off runs inside a short
+// read transaction with a transaction-local jit = off (jit_off.go); every other
+// route reads on the plain queryer and end does nothing.
+func (s PostgresFindingStore) readScope(ctx context.Context, route ReadRoute) (db.Queryer, func(), error) {
+	if !route.wantsJITOff() {
+		return s.queryer(), func() {}, nil
+	}
+	queryer, _, end, err := withJITOff(ctx, s.reader, s.DB, s.queryer(), nil)
+	return queryer, end, err
 }
 
 func (s PostgresFindingStore) queryer() db.Queryer {
@@ -220,6 +237,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	route := filter.route(s.ReadFromWinners)
+	observeRoute(ctx, s.Instruments, route)
 	if route.readsSupports() {
 		// The per-support table answers a grant, an image reference, and the
 		// supplement of an unscoped precise call; it refuses, and never falls back
@@ -269,7 +287,12 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		SuppressionReadAt(s.Now),
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	rows, err := s.queryer().QueryContext(ctx, query, args...)
+	queryer, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
+	}
+	defer endRead()
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
 	}

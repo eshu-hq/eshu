@@ -76,6 +76,9 @@ ALTER TABLE supply_chain_impact_canonical_winners
 	if err := winners.RebuildAllWinners(ctx); err != nil {
 		t.Fatalf("initial winners rebuild: %v", err)
 	}
+	// An unscoped precise call reads the winners table plus the supports table
+	// (route V), which refuses until the supports backfill is complete.
+	runSupportsBackfillWithChunk(t, ctx, db, 10_000)
 	var winnerCount int
 	if err := db.QueryRowContext(
 		ctx,

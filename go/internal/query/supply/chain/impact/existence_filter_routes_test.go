@@ -20,9 +20,12 @@ import (
 
 // routeQueryer answers the supports readiness probe as ready, the winners
 // watermark as fresh, a count row, and every other statement with no rows.
-func routeQueryer() *cov7StoreQueryer {
-	return &cov7StoreQueryer{
-		onRow: func(string) db.Row {
+func routeQueryer() *routeFake {
+	return &routeFake{cov7StoreQueryer: &cov7StoreQueryer{
+		onRow: func(query string) db.Row {
+			if strings.Contains(query, "set_config('jit'") {
+				return &cov7StoreRow{values: []any{"off"}}
+			}
 			return &cov7StoreRow{values: []any{
 				cov7NullInt(0), cov7NullInt(0), cov7NullInt(0), cov7NullInt(0), cov7NullInt(0), cov7NullInt(0),
 				[]byte(`[]`), []byte(`[]`),
@@ -37,7 +40,7 @@ func routeQueryer() *cov7StoreQueryer {
 			}
 			return &cov7StoreRows{}, nil
 		},
-	}
+	}}
 }
 
 // routeOf names the read model a statement reads.
@@ -109,7 +112,7 @@ func TestListReadFollowsTheRoute(t *testing.T) {
 			if got := routeOf(read); got != tc.want {
 				t.Fatalf("list read the %q model, want %q", got, tc.want)
 			}
-			probed := len(probe.queries) == 2 && strings.Contains(probe.queries[0], "supply_chain_impact_finding_supports_backfill")
+			probed := strings.Contains(probe.queries[0], "supply_chain_impact_finding_supports_backfill")
 			if probed != tc.want.readsSupports() {
 				t.Fatalf("supports readiness probed = %v, want %v for route %q", probed, tc.want.readsSupports(), tc.want)
 			}
@@ -194,7 +197,7 @@ func TestGroupedInventoryReadFollowsTheRoute(t *testing.T) {
 // accept: a fallback to bare winners when supports are not ready).
 func TestSupplementRouteRefusesWhenSupportsAreNotReady(t *testing.T) {
 	t.Parallel()
-	notReady := func() *cov7StoreQueryer {
+	notReady := func() *routeFake {
 		probe := routeQueryer()
 		inner := probe.onRows
 		probe.onRows = func(query string) (db.Rows, error) {

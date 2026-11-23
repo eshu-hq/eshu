@@ -100,6 +100,11 @@ TABLE = {
             "TestUnscopedExistenceFilterPagesLikeLegacyLive",
             "TestUnscopedGroupedInventoryEqualsTheCountRouteLive",
             "TestPrecisePageStaysOnWinnersWhenTheSupportTableLagsLive",
+            "TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive",
+            "TestWinnersEligibilityEqualsTheSupportsProbeLive",
+        ),
+        "go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go": (
+            "TestRouteVReadsKeepTheirIndexedPlanShapeLive",
         ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",

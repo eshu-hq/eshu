@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // AggregateStore reads cheap-summary aggregates over
@@ -122,6 +123,9 @@ type PostgresAggregateStore struct {
 	// ErrAggregateReadModelUnavailable, mirroring the grouped inventory
 	// store.
 	Logger *slog.Logger
+	// Instruments receives the per-route read counter
+	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter.
+	Instruments *telemetry.Instruments
 	// ReadFromWinners switches the count and inventory reads to the
 	// maintained supply_chain_impact_canonical_winners read model (#10880
 	// slice 2b). When false (the default) the reads deduplicate at query
@@ -193,6 +197,18 @@ func (q legacyAggregateQueryer) QueryRowContext(ctx context.Context, query strin
 	return q.database.QueryRowContext(ctx, query, args...)
 }
 
+// readScope returns the queryers that run a route's one read statement and the
+// function that ends its scope: a short read transaction with a transaction-local
+// jit = off for the routes that want it (jit_off.go), the plain queryer and a
+// no-op otherwise.
+func (s PostgresAggregateStore) readScope(ctx context.Context, route ReadRoute) (db.Queryer, db.RowQueryer, func(), error) {
+	plain := s.queryer()
+	if !route.wantsJITOff() {
+		return plain, plain, func() {}, nil
+	}
+	return withJITOff(ctx, s.reader, s.DB, plain, plain)
+}
+
 func (s PostgresAggregateStore) queryer() aggregateReadQueryer {
 	if s.reader != nil {
 		return s.reader
@@ -257,7 +273,12 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	case RouteWinners:
 		query = AggregateWinnersCombinedCountQuery
 	}
-	row := s.queryer().QueryRowContext(ctx, query, args...)
+	_, rowQueryer, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return AggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
+	}
+	defer endRead()
+	row := rowQueryer.QueryRowContext(ctx, query, args...)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	var priorityBuckets, severityBuckets []byte
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected, &priorityBuckets, &severityBuckets); err != nil {
@@ -376,7 +397,12 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	args = append(args, limit, offset)
-	rows, err := s.queryer().QueryContext(ctx, q, args...)
+	rowsQueryer, _, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return AggregateInventoryPage{}, fmt.Errorf("supply chain impact inventory: %w", err)
+	}
+	defer endRead()
+	rows, err := rowsQueryer.QueryContext(ctx, q, args...)
 	if err != nil {
 		return AggregateInventoryPage{}, fmt.Errorf("inventory supply chain impact findings: %w", err)
 	}

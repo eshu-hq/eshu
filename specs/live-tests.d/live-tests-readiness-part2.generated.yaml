@@ -139,6 +139,11 @@ tests:
     class: postgres_ci
     reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the unscoped existence-filter reads on the multi-support corpus (arbiter ruling V): an unscoped profile=precise call (winners plus the supplement, one statement) and an unscoped image_ref call (supports through the image partial index) return the legacy filter-then-pick answer for list, count, the five inventory dimensions and grouped inventory, including key p2 whose winner fails precise and a key whose winner carries another image; rank filters follow the ruled pick-then-filter order and equal an independent oracle with every difference from legacy listed for B3; all three sorts and a cursor that starts on a supplement row page like legacy; a winners row whose support is gone and a support with no winners row behave as documented; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 plan-shape guard for the two partial indexes of ruling V: the supplement probe of an unscoped precise read reaches the supports table by an Index Scan on the ordered precise partial index with canonical_key in its Index Cond, the image read fetches its candidates through the image partial index inside a MATERIALIZED CTE, neither by a sequential or bitmap scan of the probe; each guard rejects its seeded violation (the index dropped in a rolled-back transaction); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: ~
     class: postgres_ci

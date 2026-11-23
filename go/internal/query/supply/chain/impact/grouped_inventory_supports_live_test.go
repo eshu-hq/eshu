@@ -24,7 +24,14 @@ import (
 // marker-gated backfill, so the readiness predicate the store probes is true.
 func runSupportsBackfillToCompletion(t *testing.T, ctx context.Context, database *sql.DB) {
 	t.Helper()
-	backfill := storagepostgres.SupplyChainImpactSupportsBackfill{DB: storagepostgres.SQLDB{DB: database}, ChunkSize: 3}
+	runSupportsBackfillWithChunk(t, ctx, database, 3)
+}
+
+// runSupportsBackfillWithChunk is runSupportsBackfillToCompletion with a chunk
+// size, so a corpus of tens of thousands of facts fills in a few steps.
+func runSupportsBackfillWithChunk(t *testing.T, ctx context.Context, database *sql.DB, chunk int) {
+	t.Helper()
+	backfill := storagepostgres.SupplyChainImpactSupportsBackfill{DB: storagepostgres.SQLDB{DB: database}, ChunkSize: chunk}
 	for step := 0; ; step++ {
 		report, err := backfill.RunStep(ctx)
 		if err != nil {
@@ -173,7 +180,11 @@ func TestGroupedInventorySupportsServesGrantsLive(t *testing.T) {
 	t.Run("unscoped image_ref and precise are served and agree with the count route", func(t *testing.T) {
 		// Route V (winners plus the supplement) and the image read replace the typed
 		// refusal an unscoped call with these filters used to get. The grouped seed
-		// has one support per key, so the legacy count is the exact oracle.
+		// has one support per key, so the legacy count is the exact oracle. The
+		// precise route reads the winners table, so the table is rebuilt first.
+		if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).RebuildAllWinners(ctx); err != nil {
+			t.Fatalf("RebuildAllWinners: %v", err)
+		}
 		for name, filter := range map[string]AggregateFilter{
 			"precise profile":   {DetectionProfile: ProfilePrecise},
 			"image_ref (none)":  {ImageRef: "registry.example/none:0"},

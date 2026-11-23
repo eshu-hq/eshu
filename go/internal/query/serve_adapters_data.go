@@ -170,6 +170,13 @@ func newCoreSupplyChainHandler(
 	// lagging maintainer is distinguishable from an unwired route.
 	impactAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
 	impactAggregates.Logger = logger
+	impactAggregates.Instruments = instruments
+	impactFindings := impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners)
+	impactFindings.Instruments = instruments
+	impactExplanations := impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners)
+	impactExplanations.Instruments = instruments
+	impactGrouped := impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger)
+	impactGrouped.Instruments = instruments
 	return &SupplyChainHandler{
 		Neo4j:                        neo4jReader,
 		Logger:                       logger,
@@ -178,10 +185,10 @@ func newCoreSupplyChainHandler(
 		SBOMAttachmentAggregates:     NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
 		AdvisoryEvidence:             advisory.NewPostgresEvidenceStoreWithReadModel(reader, readImpactFromWinners),
 		AdvisoryCatalog:              advisory.NewPostgresCatalogStoreWithReadStore(reader),
-		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
+		ImpactFindings:               impactFindings,
 		ImpactAggregates:             impactAggregates,
-		ImpactGroupedInventory:       impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
-		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
+		ImpactGroupedInventory:       impactGrouped,
+		ImpactExplanations:           impactExplanations,
 		ContainerImageIdentities:     NewPostgresContainerImageIdentityStoreWithReadStore(reader),
 		ContainerImageAggregates:     NewPostgresContainerImageIdentityAggregateStoreWithReadStore(reader),
 		SecurityAlerts:               alerts.NewPostgresStoreWithReadStore(reader),

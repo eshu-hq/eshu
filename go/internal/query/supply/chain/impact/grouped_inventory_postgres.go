@@ -75,6 +75,9 @@ type PostgresGroupedInventoryStore struct {
 	// Logger receives the WARN line of a failed watermark probe. A nil
 	// logger drops it; the response still reads freshness unknown.
 	Logger *slog.Logger
+	// Instruments receives the per-route read counter
+	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter.
+	Instruments *telemetry.Instruments
 }
 
 // NewPostgresGroupedInventoryStoreWithReadStore routes the grouped read
@@ -85,6 +88,16 @@ func NewPostgresGroupedInventoryStoreWithReadStore(
 	logger *slog.Logger,
 ) PostgresGroupedInventoryStore {
 	return PostgresGroupedInventoryStore{reader: reader, ReadFromWinners: readFromWinners, Logger: logger}
+}
+
+// readScope returns the queryer that runs a route's one read statement and the
+// function that ends its scope (see PostgresFindingStore.readScope).
+func (s PostgresGroupedInventoryStore) readScope(ctx context.Context, route ReadRoute) (db.Queryer, func(), error) {
+	if !route.wantsJITOff() {
+		return s.queryer(), func() {}, nil
+	}
+	queryer, _, end, err := withJITOff(ctx, s.reader, s.DB, s.queryer(), nil)
+	return queryer, end, err
 }
 
 func (s PostgresGroupedInventoryStore) queryer() db.Queryer {
@@ -131,6 +144,7 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	// precise call reads the winners table plus the supplement, and everything else
 	// reads the winners table.
 	route := filter.route(s.ReadFromWinners)
+	observeRoute(ctx, s.Instruments, route)
 	build := groupedInventoryQuery
 	switch route {
 	case RouteLegacy, RouteWinners:
@@ -200,7 +214,12 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 		limit,
 		offset,
 	}
-	rows, err := s.queryer().QueryContext(ctx, query, args...)
+	queryer, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory: %w", err)
+	}
+	defer endRead()
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return GroupedInventoryPage{}, fmt.Errorf("grouped inventory supply chain impact findings: %w", err)
 	}
