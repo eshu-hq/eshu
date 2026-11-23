@@ -538,7 +538,12 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_holder_reads_contention_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#11197: the moved holder reads run against the real writer, a GIN pending-list flush loop and a cascade-deleting scope with no read error, no deadlock and no torn replacement (disposable PostgreSQL 18, -race, GOMAXPROCS=2)"
+    reason: "#11197: the moved holder reads run against the real writer and a cascade-deleting scope with no read error, no deadlock and no torn replacement (disposable PostgreSQL 18, -race, GOMAXPROCS=2)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_covering_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the migration-built covering btrees of 339 and 340 carry INCLUDE (scope_id, generation_id), keep the key-range arms on their named indexes with both fact_id bounds, and run index-only with Heap Fetches 0 after a VACUUM; the same indexes without INCLUDE are rejected (disposable PostgreSQL 18)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_holder_pending_list_live_test.go
     tag: ~

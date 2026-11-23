@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -77,6 +78,31 @@ func pendingPages(t *testing.T, ctx context.Context, tx *sql.Tx, index string) i
 		t.Fatalf("pending pages of %s: %v", index, err)
 	}
 	return pages
+}
+
+// probeMasses runs the shipped mass probe in tx and returns its masses.
+func probeMasses(t *testing.T, ctx context.Context, tx *sql.Tx, applySettings bool, ids []string) map[string]int64 {
+	t.Helper()
+	if applySettings {
+		if err := postgres.ApplyHolderMassProbeSettings(ctx, sqlTxQueryer{tx}, 10*time.Second); err != nil {
+			t.Fatalf("apply the mass probe settings: %v", err)
+		}
+	}
+	rows, err := tx.QueryContext(ctx, postgres.HolderMassProbeQuery, array.StringArray(ids))
+	if err != nil {
+		t.Fatalf("run the mass probe: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	masses := map[string]int64{}
+	for rows.Next() {
+		var id string
+		var mass int64
+		if err := rows.Scan(&id, &mass); err != nil {
+			t.Fatal(err)
+		}
+		masses[id] = mass
+	}
+	return masses
 }
 
 // explainInTx plans one holder statement in tx; settings, when set, run first.
@@ -207,6 +233,31 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 			_ = redTx.Rollback()
 			t.Fatalf("RED state: %s: %s\n%s", st.name, v, plan)
 		}
+	}
+	// GREEN-2 also RUNS the probe: under the settings its masses equal the masses of
+	// the same probe after the pending lists are flushed and no setting applies.
+	probeIDs := []string{"CVE-HOT", "CVE-5", "GHSA-HOT", "adv-hot-foreign", "CVE-2026-none"}
+	withSetting := probeMasses(t, ctx, redTx, true, probeIDs)
+	for _, index := range []string{holderMembersIdx, holderTokensIdx} {
+		if _, err := redTx.ExecContext(ctx, `SELECT gin_clean_pending_list($1::regclass)`, index); err != nil {
+			_ = redTx.Rollback()
+			t.Fatalf("flush %s: %v", index, err)
+		}
+	}
+	if _, err := redTx.ExecContext(ctx, `RESET enable_seqscan`); err != nil {
+		_ = redTx.Rollback()
+		t.Fatal(err)
+	}
+	flushed := probeMasses(t, ctx, redTx, false, probeIDs)
+	for _, id := range probeIDs {
+		if withSetting[id] != flushed[id] {
+			_ = redTx.Rollback()
+			t.Fatalf("mass of %q under the settings = %d, flushed run = %d", id, withSetting[id], flushed[id])
+		}
+	}
+	if withSetting["adv-hot-foreign"] == 0 {
+		_ = redTx.Rollback()
+		t.Fatalf("masses %v: the foreign group member must have mass, or the probe proves nothing", withSetting)
 	}
 	if err := redTx.Rollback(); err != nil {
 		t.Fatal(err)

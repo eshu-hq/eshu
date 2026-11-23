@@ -34,8 +34,9 @@ func contentionFatal(err error) bool {
 }
 
 // TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive runs the
-// moved holder reads against the real writer, a GIN pending-list flusher and a
-// cascade-deleting churn scope at once (#11197). Two scopes always hold the CVE
+// moved holder reads against the real writer and a cascade-deleting churn scope at
+// once (#11197), on GINs built with fastupdate = off (migrations 341 and 342), so
+// the writer maintains them in place and no pending list exists to flush. Two scopes always hold the CVE
 // while their finding sets are replaced over and over (each replacement
 // tombstones the older facts and inserts new ones in one transaction), so a read
 // that ever misses one of them saw a torn replacement: the invariant is atomic
@@ -111,19 +112,6 @@ func TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive(t *testin
 			}
 		}()
 	}
-	readers.Add(1)
-	go func() { // flush the GIN pending lists while the readers and writers run
-		defer readers.Done()
-		for !stop.Load() {
-			for _, idx := range []string{holderMembersIdx, holderTokensIdx} {
-				if _, err := db.ExecContext(ctx, `SELECT gin_clean_pending_list($1::regclass)`, idx); err != nil {
-					fail("gin flush: %v", err)
-				}
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
-
 	const iterations = 25
 	for _, scoped := range []bool{false, true} {
 		writers.Add(1)
@@ -179,6 +167,12 @@ func TestSupplyChainImpactSupportsHolderReadsUnderWriterContentionLive(t *testin
 	read, err := store.FindHolderScopesByKeyRange(ctx, "scope:none", cve, ranges)
 	if err != nil || !sameStrings(read.Scopes, want) {
 		t.Fatalf("key-range after the load = %v, %v, want the fact oracle's %v", read.Scopes, err, want)
+	}
+	for _, index := range []string{holderMembersIdx, holderTokensIdx} {
+		var pages int
+		if err := db.QueryRowContext(ctx, `SELECT coalesce((SELECT n_pending_pages FROM gin_metapage_info(get_raw_page($1, 0))), -1)`, index).Scan(&pages); err == nil && pages != 0 {
+			t.Fatalf("%s holds %d pending pages after the load, want 0 under fastupdate = off", index, pages)
+		}
 	}
 	supportsLiveAssertMirror(t, ctx, db, replaceSetLiveScope, replaceSetLiveGeneration, "after the contention load")
 	supportsLiveAssertMirror(t, ctx, db, replaceSetSecondScope, replaceSetSecondGeneration, "after the contention load (second scope)")
