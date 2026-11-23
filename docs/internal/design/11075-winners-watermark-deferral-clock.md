@@ -6,6 +6,8 @@ Phase-1 evidence: comment 7052476882 on #11075 (bounded R(t) + queue-composition
 
 **Routing note:** this answer changes clock semantics (not the bound value, not enrollment, not concurrency). Per Decision 3 it routes to the arbiter as a design ruling on this record before the implementation lands. Nothing here is pushed, PR'd, or deployed by the lane.
 
+**Post-landing arbiter reconciliation (2026-11-23):** `docs/internal/arbiter/11075-design-record-ruling-2026-11-23.md` records the verdict Q1 = DEFECT with candidate (a) adopted as implemented in #11086, rejects (b)/(c), rules the #11151 stamped fast path counts against unchanged T-outcome, and keeps #11075 open on AC3 (one fresh A2-identical QA packet at unchanged bars).
+
 ## Q1 verdict: DEFECT, candidate (a)
 
 Pre-claim queue residency consuming `winnersWatermarkMaxWait` is a defect. The stale class exists to assert "the maintainer is down" (`handler.go:26-36`: 60 missed 30 s ticks); phase 1 measured the maintainer advancing (A2 51.6 min, 0.860x wall) while every first evaluation classified stale and burned budget. An unclaimed row has performed zero deferrals, yet the row-age clock (`now − cycleStart`) bills it for queue wait. An intended-design answer would have to certify born-stale churn (148/154 attempt-1 rows) as correct while the bound's rationale names a different cause — the same contradiction the arbiter already found.

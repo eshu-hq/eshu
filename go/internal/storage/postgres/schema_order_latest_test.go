@@ -162,4 +162,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// table (renumbered 331 to 335 at rebase: main owns 331-332 and 334;
 	// 333 held by an unpushed lane).
 	"supply_chain_impact_winners_audit_sweep",
+	// Migrations 336-337 (#10643 PR 2) add the frozen foreign-member token
+	// function and its concurrent GIN index for the key-range holder read
+	// (numbered 336/337, the next free numbers after main's 333-335).
+	"eshu_sci_foreign_member_tokens_v4",
+	"fact_records_sci_foreign_member_tokens_v4_idx",
 }
