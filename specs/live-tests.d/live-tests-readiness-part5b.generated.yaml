@@ -197,7 +197,7 @@ tests:
   - file: go/internal/storage/postgres/reducer_waiting_narrow_bound_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, a repeated Fail keeps one row, and a cut key races an activation without a lost wake; disposable database per test, about 40 s locally"
+    reason: "#11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, and a repeated Fail keeps one row (the cut-key-versus-activation race belongs to #11256); disposable database per test, about 40 s locally"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_narrow_live_test.go
     tag: ~

@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // #11297 live proofs: a narrowed corpus wait for a large fence parks through
@@ -24,7 +26,7 @@ import (
 // the production bootstrap schema, on a disposable database.
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, a repeated Fail keeps one row, and a cut key races an activation without a lost wake; disposable database per test, about 40 s locally
+//eshu:readiness:reason #11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, and a repeated Fail keeps one row (the cut-key-versus-activation race belongs to #11256); disposable database per test, about 40 s locally
 //eshu:readiness:env ESHU_REDUCER_FAIRNESS_PROOF_DSN ESHU_POSTGRES_DSN
 
 const (
@@ -164,28 +166,53 @@ func TestNarrowedWaitLargeFenceParksThroughFailLive(t *testing.T) {
 // TestNarrowedWaitWorstCaseKeyFitsLive: maximum-budget key built from random
 // incompressible ids, with a realistic and then an extreme work_item_id. The
 // realistic row inserts; the extreme one is unrepresentable and parks nothing
-// while the queue row stays retrying on its backstop.
+// while the queue row stays retrying on its backstop. The extreme id is random
+// hex, which the index cannot compress, so a lost whole-row cap would send an
+// over-limit row to Postgres. A rejected park is also survived with no wait
+// row, so the test reads the closed-reason counter: the cap working means
+// "unrepresentable" counts and "index_row_rejected" never does.
 func TestNarrowedWaitWorstCaseKeyFitsLive(t *testing.T) {
 	ctx := context.Background()
 	db, _ := openNarrowFenceDB(t, ctx)
 	at := time.Now().UTC().Truncate(time.Microsecond)
 	holders := randomHolderIDs(t, 300)
 	boundFleet(t, ctx, db, at, holders)
+	reader := sdkmetric.NewManualReader()
+	instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("bound-live"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
 
 	realistic := "reducer_git-repository-scope_repository_r_5d621369_" + strings.Repeat("ab", 32) +
 		"_workload_materialization_repo_r_5d621369"
 	q := newBoundQueue(t, ctx, db, realistic, at)
+	q.queue.Instruments = instruments
 	q.failWith(t, ctx, holders)
 	if _, _, waits := waitKey(t, ctx, db, realistic); waits != 1 {
 		t.Fatalf("realistic work_item_id (%d bytes): wait rows = %d, want 1", len(realistic), waits)
 	}
 	t.Logf("measured longest realistic work_item_id %d bytes", len(realistic))
+	if got := keyBoundedCounts(t, reader); got["unrepresentable"] != 0 || got["index_row_rejected"] != 0 {
+		t.Fatalf("realistic id counts = %v, want no unrepresentable or index_row_rejected", got)
+	}
 
-	extreme := strings.Repeat("w", 3000)
+	// 2000 random hex characters: small enough for fact_work_items_pkey (which
+	// holds the same id and rejects an incompressible id near 2.7 KB at
+	// enqueue), too large for the wait row once the key is added.
+	extremeBytes := make([]byte, 1000)
+	if _, err := rand.Read(extremeBytes); err != nil {
+		t.Fatalf("random extreme work_item_id: %v", err)
+	}
+	extreme := hex.EncodeToString(extremeBytes)
 	q = newBoundQueue(t, ctx, db, extreme, at)
+	q.queue.Instruments = instruments
 	q.failWith(t, ctx, holders)
 	if _, _, waits := waitKey(t, ctx, db, extreme); waits != 0 {
 		t.Fatalf("extreme work_item_id: wait rows = %d, want 0 (unrepresentable parks nothing)", waits)
+	}
+	got := keyBoundedCounts(t, reader)
+	if got["unrepresentable"] != 1 || got["index_row_rejected"] != 0 {
+		t.Fatalf("extreme id counts = %v, want unrepresentable=1 and index_row_rejected=0: the whole-row cap must refuse it before Postgres does", got)
 	}
 	status, attempts, visibleAt := narrowQueueState(t, ctx, db, extreme)
 	if status != "retrying" || attempts != 1 {
@@ -332,57 +359,5 @@ func TestNarrowedWaitAuditReopensClearedPrefixLive(t *testing.T) {
 	}
 	if next.BlockingScopeIDs[0] != remaining[0] || slices.Contains(next.BlockingScopeIDs, first.BlockingScopeIDs[0]) {
 		t.Fatalf("next prefix starts at %s, want the next holder %s", next.BlockingScopeIDs[0], remaining[0])
-	}
-}
-
-// TestNarrowedWaitCutKeyRacesActivationLive: a cut-key park races the
-// activation of every scope in its prefix. Once all of them committed, the
-// wait must be gone and the queue row retrying on its original attempt: the
-// activation wake or the park-time check, never neither.
-func TestNarrowedWaitCutKeyRacesActivationLive(t *testing.T) {
-	ctx := context.Background()
-	db, _ := openNarrowFenceDB(t, ctx)
-	at := time.Now().UTC().Truncate(time.Microsecond)
-	holders := sequentialHolderIDs(80)
-	boundFleet(t, ctx, db, at, holders)
-	prefix, _, _ := boundWaitingScopeIDs(holders, narrowedWaitingBlockingBudgetBytes)
-	if len(prefix) == 0 || len(prefix) >= len(holders) {
-		t.Fatalf("prefix = %d of %d, want a cut", len(prefix), len(holders))
-	}
-	seedNarrowRetryRow(t, ctx, db, "wait-bw-race", boundWaiterScope, boundWaiterGen,
-		"workload_materialization", "workload_materialization_resolution_not_ready", at)
-	intent := narrowWaitIntent("wait-bw-race", boundWaiterScope, boundWaiterGen)
-
-	var wg sync.WaitGroup
-	errs := make(chan error, len(prefix)+1)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if _, err := setAsideWaitingForCause(ctx, SQLDB{DB: db}, nil, intent, narrowWaitEntry(),
-			narrowCapCause{repos: []string{"repo-bw"}, blocking: holders}, nil, time.Now().UTC()); err != nil {
-			errs <- fmt.Errorf("park: %w", err)
-		}
-	}()
-	for _, id := range prefix {
-		id := id
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := NewRelationshipStore(SQLDB{DB: db}).ActivateResolutionGeneration(ctx, "gen-"+id, id); err != nil {
-				errs <- fmt.Errorf("activate %s: %w", id, err)
-			}
-		}()
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		t.Fatalf("race error: %v", err)
-	}
-	if got := countNarrowWaits(t, ctx, db, "wait-bw-race"); got != 0 {
-		t.Fatalf("wait rows after every prefix scope activated = %d, want 0: a lost wake", got)
-	}
-	status, attempts, _ := narrowQueueState(t, ctx, db, "wait-bw-race")
-	if status != "retrying" || attempts != 1 {
-		t.Fatalf("queue row = %s attempts %d, want retrying/1", status, attempts)
 	}
 }

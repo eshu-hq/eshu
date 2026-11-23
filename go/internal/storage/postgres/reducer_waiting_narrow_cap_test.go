@@ -67,7 +67,7 @@ func TestNarrowedWaitUnrepresentableParksNothing(t *testing.T) {
 // must stay under the cap whatever the id length.
 func TestNarrowedWaitBoundsTheWholeIndexRow(t *testing.T) {
 	t.Parallel()
-	const indexRowCap = 2000 // 704 bytes under Postgres's 2704-byte btree row limit
+	const indexRowCap = 2000 // counted row cap; 376 bytes of real headroom under Postgres's 2704-byte btree limit
 	for _, idLen := range []int{140, 600, 1500, 3000} {
 		idLen := idLen
 		t.Run(fmt.Sprintf("work_item_id_%d", idLen), func(t *testing.T) {

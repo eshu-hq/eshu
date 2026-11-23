@@ -153,7 +153,6 @@ TABLE = {
             "TestNarrowedWaitPrefixWakeSelectivityLive",
             "TestNarrowedWaitAdversarialOrderConvergesLive",
             "TestNarrowedWaitAuditReopensClearedPrefixLive",
-            "TestNarrowedWaitCutKeyRacesActivationLive",
         ),
         "go/internal/storage/postgres/reducer_waiting_narrow_live_test.go": (
             "TestNarrowedWaitSelectiveWakeLive",

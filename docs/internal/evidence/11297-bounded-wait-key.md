@@ -16,7 +16,19 @@ treats a broken `WorkSink.Fail` as fatal.
 - `narrowedWaitingKey` keeps a sorted prefix of the blocking set (at most 1200
   JSON bytes) and the read set (at most 400). The whole index row (work_item_id,
   waits_for_kind, rendered key) must stay under `waitingIndexRowBudgetBytes`
-  (2000), which leaves 704 bytes under Postgres's 2704-byte btree limit.
+  (2000). The cap counts JSON text length; Postgres stores the key as JSONB,
+  which costs one more byte per array element. The independent reviewer
+  measured the worst case (a set of 2-character ids) at a 2328-byte index row
+  for a 2000-byte counted row, so the real headroom under Postgres's 2704-byte
+  btree limit is 376 bytes.
+- `work_item_id` is unbounded by construction: `reducerWorkItemID`
+  (`reducer_queue_helpers.go`) is `"reducer_"` plus scope, generation, domain
+  and entity key with no length cap. The code is safe at any length because
+  the budget subtracts `len(work_item_id)` before it sizes the key sets. The queue
+  row's own primary key (`fact_work_items_pkey`) already refuses an
+  incompressible id near 2.7 KB at enqueue (`index row size 3016 exceeds btree
+  version 4 maximum 2704`, observed while building the live worst-case test),
+  so the wait row's `work_item_id` is below that in practice.
 - A set whose first id does not fit is unrepresentable. Nothing parks and the
   queue row keeps its 10-minute backstop. The coarse `{scope_id, generation_id}`
   key is never used for a narrowing-carrying deferral: the own generation is
@@ -31,23 +43,33 @@ treats a broken `WorkSink.Fail` as fatal.
 ## No-Regression Evidence:
 
 Wakes per waiter are at most the full-key count: the wake matches only the retained
-prefix, a subset of the full set. Backend: Postgres 18 (throwaway container),
-production bootstrap schema. Input shapes and results from
-`go test ./internal/storage/postgres -run 'TestNarrowedWait.*Live'` (exit 0, 49.9 s):
+prefix, a subset of the full set. Backend: Postgres 18.6 (throwaway container),
+production bootstrap schema. Input shapes and results from the five new live
+proofs, run with `go test ./internal/storage/postgres -run '<name>'` on the final head:
 
 | Proof | Shape | Result |
 |---|---|---|
 | `TestNarrowedWaitLargeFenceParksThroughFailLive` | 600 random-id holders, `ReducerQueue.Fail` | 1 wait row under the cap, queue row `retrying`, `visible_at` at the 10-minute backstop; a repeated Fail keeps 1 row |
-| `TestNarrowedWaitWorstCaseKeyFitsLive` | 300 incompressible ids, 156-byte work_item_id, then 3000-byte work_item_id | realistic id parks; the extreme id parks nothing and stays on the backstop |
+| `TestNarrowedWaitWorstCaseKeyFitsLive` | 300 incompressible ids, 156-byte work_item_id, then a random 2000-byte work_item_id | realistic id parks; the extreme id parks nothing, counts `unrepresentable` (never `index_row_rejected`) and stays on the backstop |
 | `TestNarrowedWaitPrefixWakeSelectivityLive` | 200 holders | an outside-prefix activation leaves the row parked; a prefix activation reopens it |
 | `TestNarrowedWaitAdversarialOrderConvergesLive` | 90 holders, non-prefix cleared first | converged in 28 re-parks (at most 90 members); each re-park unsatisfied at park time |
 | `TestNarrowedWaitAuditReopensClearedPrefixLive` | 120 holders, prefix cleared with no activation | audit reopens 1; the next park carries the next prefix |
-| `TestNarrowedWaitCutKeyRacesActivationLive` | 80 holders, cut park races 26 prefix activations | wait row gone, queue row `retrying` attempt 1 |
+
+Not claimed here: a cut-key park racing a prefix activation. The park INSERT and
+its satisfied check run outside the activation transaction while the activation
+wake runs inside it under READ COMMITTED, so a wake can be lost. That is the open
+base defect #11256. It is not caused by the bound: the existing
+`TestNarrowedWaitConcurrentConvergenceLive` fails the same way on `origin/main`
+(3 of 5 runs), and a cut-key race test written for this PR flaked about 3 in 8
+runs for the same reason, so the test was removed rather than enrolled flaky. The
+race proof belongs to #11256's fix. `TestNarrowedWaitConcurrentConvergenceLive` is
+therefore excluded from this PR's pass claim; the other existing narrowed live
+tests are listed in the PR body with their results.
 
 RED on the base commit: a 600-scope `Fail` on `origin/main` (live Postgres 18) returns
 `park waiting reducer work: ERROR: index row requires 27192 bytes, maximum size is 8191 (SQLSTATE 54000)`. Longest work_item_id measured
 here is the constructed 156-byte shape from the QA partition key; the real
-fleet maximum is NOT_CHECKED.
+fleet maximum is NOT_CHECKED (the code does not depend on it: see above).
 
 ## Observability Evidence:
 

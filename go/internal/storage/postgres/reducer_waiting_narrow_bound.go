@@ -30,9 +30,13 @@ const (
 	// waitingIndexRowBudgetBytes caps the whole index row a narrowed wait may
 	// build: the work_item_id, the waits_for_kind, and the rendered key. The
 	// work_item_id is unbounded text, so it counts against the cap rather than
-	// being assumed small. 704 bytes of headroom under the 2704-byte btree
-	// limit cover the JSONB per-element entries, the tuple and varlena
-	// headers, and the arithmetic slack of rendering by JSON text length.
+	// being assumed small. The cap counts JSON text length; Postgres stores the
+	// key as JSONB, which costs one more byte per array element than the text,
+	// and the index tuple adds its own headers. The measured worst case (a
+	// set of 2-character ids, which maximizes elements per byte) is a
+	// 2328-byte index row for a 2000-byte counted row, so the real headroom
+	// under the 2704-byte btree limit is 376 bytes, not the 704 the
+	// arithmetic gap suggests.
 	waitingIndexRowBudgetBytes = 2000
 	// narrowedWaitingKeyOverheadBytes is the slack reserved for the key's field
 	// names, brackets, and separators that the set budgets do not count.
