@@ -41,67 +41,67 @@ The largest single reading is 685.5 ms (grouped, every winner failing precise);
 the largest maximum is 703.0 ms. Over 40 reads, the slowest ordinary read is 406.0
 ms. The jit-off scope costs 0.06 ms per read.
 
-## Hot-key probe (arbiter-hotkey-page.md decision 11) and the JIT 20 % rule
+## Scale of the unscoped precise reads (route V), hot keys, and JIT
 
-Both ran through the real stores on private PostgreSQL 18.6 clusters (JIT default on,
-the two B2a partial indexes present, supports marker and fresh winners watermark set).
+**Envelope.** Measured on the 8,000,481-support lab corpus: 80,001 canonical keys,
+about 100 supports per key, 21,936 supplement candidates (64,001 when every winner fails
+the precise filter). QA held 79,585 keys and 8,178,450 supports on 2026-11-21. List,
+count and inventory read 226 to 247 ms warm, and 496 to 520 ms when every winner fails
+the precise filter (grouped inventory 686 ms). A hot package (15,000 keys, 1,500,000
+supports) reads 54 to 77 ms. A hot CVE on 20 % of supports (16,242 keys) reads 69 to
+96 ms, max 136. That corpus is the proven envelope; nothing above it is proven.
 
-**Supports-defined hot keys (the 8,000,481-support corpus, about 100 supports per key).**
-A hot package with 1,500,000 supports is `pkg:npm/axios` (15,000 keys); a hot CVE on 20 %
-of the table is 16,242 keys holding 1,624,200 supports (winners rows tagged; the V
-statements never read `supports.cve_id`). Warm medians, p95 = max of eight runs:
+**These reads are not O(page).** Each one scans every stored winners row twice and probes
+one index entry per candidate key. On a 2,600,000-key corpus with one support per key
+(the b2c hot corpus, copied read-only into a private cluster; half the keys precise,
+CVE-HOT on 520,085 keys, `pkg:hot` on 1,600,000 keys) the same statements miss the
+1,500 ms bar: 5,171 ms with no selector, 3,637 ms for a 1,600,000-key package, 1,937 ms
+for a 520,085-key CVE. The count's grouping sort of `winner_groups` writes a 48,408 kB
+temp file there (the statement is the shipped `aggregates_winners_queries.go` text, not
+text this PR adds). The four list plans fit 1.12 s plus 1.56 us per matching key; every
+read on that table pays the 1.12 s (two sequential scans of all 2,600,000 winners
+rows), whatever the selector.
 
-| Read | hot package (axios) | hot CVE (20 % of supports) |
-| --- | --- | --- |
-| list, page of 201 | 54.3 to 77.0 ms | 96.4 ms (p95 136.3) |
-| count | 53.6 to 62.7 ms | 70.1 ms (p95 80.3) |
-| inventory by status | 195.8 ms for the unselected read | 68.7 ms (p95 79.4) |
+Derived, not measured: the no-selector read reaches 1,500 ms near 230,000 keys when every
+winner fails precise at 100 supports per key, near 500,000 keys at the lab corpus's
+candidate share, and near 750,000 keys when no probe finds a support. No fix ships here.
+The limit, the QA census and the candidate fixes are recorded on #10880.
 
-All under the 1,500 ms bar; the plans have no per-scope probe loop and no sort on disk.
-
-**Many-keys regime (the b2c hot corpus copied read-only into a private cluster: 2,600,000
-keys with one support each, 9,002 active scopes, half precise and half comprehensive,
-1,300,999 precise winners, CVE-HOT on 520,085 keys, `pkg:hot` on 1,600,000 keys).**
-This is the corpus the hot-key ruling points at, and it is harsher than the arbiter's
-supports definition: 1,600,000 supports on one package is 1,600,000 keys here. The V
-statement costs about 2 us per winners row that matches the selectors with an exact
-status (a sequential scan of winners, then one ordered-index probe per failing winner).
-
-| Read | median | p95 (max of 8 to 20) | plan |
+| Many-keys read (2,600,000 keys, one support each) | median | max | note |
 | --- | --- | --- | --- |
-| list, no selector, status | 5,170.9 ms | 5,206.0 | 1,300,999 rows through a top-N sort, 1,299,001 probes |
-| list, package `pkg:hot` | 3,637.0 ms | 3,690.9 | the same shape over 1,600,000 matching keys |
+| list, no selector, status | 5,170.9 ms | 5,206.0 | 1,300,999 rows through a top-N sort, 1,299,001 probes that all miss |
+| list, package `pkg:hot` (1,600,000 keys) | 3,637.0 ms | 3,690.9 | |
 | list, CVE-HOT and `pkg:hot` | 1,614.3 ms | 1,629.4 | |
-| list, CVE-HOT | 1,936.9 ms | 6,055.9 (first run) | |
-| count, no selector | 5,217.0 ms | 5,521.4 | de-duplication sort spills 48,408 kB to disk (`temp read=6051 written=6056`) |
-| count, package `pkg:hot` | 3,655.3 ms | 3,759.9 | |
+| list, CVE-HOT (520,085 keys) | 1,936.9 ms | 6,055.9 (first run) | |
+| count, no selector | 5,217.0 ms | 5,521.4 | grouping sort of `winner_groups` writes 48,408 kB (`temp read=6051 written=6056`) |
+| count, package `pkg:hot` | 3,655.3 ms | 3,759.9 | no raw plan kept |
 | inventory by status, no selector | 4,979.2 ms | 5,104.7 | |
 | inventory by status, package `pkg:hot` | 3,536.1 ms | 3,595.1 | |
 
-That misses the 1,500 ms bar and shows a temp file sized by the match set, two of the
-ruling's FAIL conditions, so this returns to the arbiter with the raw plans
-(`hot_key_plan_*.txt`). It scales linearly with the matching keys: 80,000 keys (QA)
-reads at 226 to 238 ms, 500,000 keys would read at about 1.0 s, 750,000 at about 1.5 s.
-The legacy comparison on this corpus is not run: updating 2,600,000 finding facts to the
-mutated values did not finish in 52 minutes and was cancelled, so the legacy read has
-no consistent facts here.
+The lab associations and classifications tables are empty, so the anti-join probes on them
+are excluded from these timings. The route-labelled
+`eshu_dp_supply_chain_impact_read_duration_seconds` histogram is the operator signal for
+this limit. The temp file is a decision-11 condition whose trigger is `work_mem`
+(37 B per matching key), not the key count; it blocks B3, not this PR.
 
-**JIT 20 % rule, end to end through the Go stores, with and without the wrapper**
-(same store, `BeginTx` hidden for the "without" side, interleaved):
+**Legacy.** No legacy baseline exists on either corpus: the 8M corpus holds supports and
+winners but no finding facts, and the many-keys corpus's finding facts hold the unmutated
+values (the update to the mutated values ran 52 minutes and was cancelled). The before and
+after on real data is the D2 pair on the QA replica.
 
-| Read | jit on, no wrapper | wrapper (jit off) | net saving | executions |
-| --- | --- | --- | --- | --- |
-| list status | 242.1 ms | 243.8 ms | -0.7 % | steady state, generic plan (n = 25) |
-| count status | 243.3 ms | 243.5 ms | -0.1 % | steady state |
-| count, no selector | 242.7 ms | 243.7 ms | -0.4 % | steady state |
-| list status | 1,663.5 ms | 287.6 ms | 82.7 % | fresh connection, custom plan (n = 12) |
-| count status | 1,607.6 ms | 293.0 ms | 81.8 % | fresh connection |
-| count, no selector | 1,610.3 ms | 290.0 ms | 82.0 % | fresh connection |
-
-pgx's statement cache runs a statement's first five executions on each connection on a
-custom plan, which PostgreSQL compiles with JIT (`Functions: 179`, inlining and
-optimization on); later executions reuse a generic plan that is not compiled. The wrapper
-removes a 1.3 s penalty from every custom-plan execution and is neutral otherwise (0.06 ms).
+**JIT, measured through the Go stores (8M lab corpus, server `jit` on by default, wrapper
+against the same store without it, interleaved).** Custom-plan executions (the first five
+executions of a statement on a connection, and again after a connection is recycled,
+n = 12): list with status 1663.5 ms without the wrapper and 287.6 ms with it (82.7 % saved);
+count with status 1607.6 and 293.0 (81.8 %); count with no selector 1610.3 and 290.0
+(82.0 %). Without the wrapper these executions are over the 1,000 ms bar. The generic-plan
+steady-state arm is being re-measured on separated connections and is not reported here.
+A generic plan is compiled when it is built with `jit` on: the plan costs 261,215 against
+`jit_above_cost` 100,000. The wrapper adds three round trips (BEGIN, `set_config`, COMMIT),
+0.06 ms measured locally per scope. Lab figures only: the QA reader pool,
+`plan_cache_mode`, the JIT cost settings, any pooler and the round-trip time are not
+measured; D2 records them and W1 reads the `pg_stat_statements` JIT counters for the two
+routes.
 
 ## Limits
 
@@ -111,7 +111,6 @@ removes a 1.3 s penalty from every custom-plan execution and is neutral otherwis
 - Payloads are padded text on the winners row and the best support of each key.
   Production width is not known; 6.25 KB is a stated stand-in, and the page read
   is 201 rows.
-- The 1,600,000-key regime misses the bar (see the hot-key section).
 - The hot image (160,000 supports) was not re-run through the product statements.
   The theory proof sized it at about 50 to 85 ms per 10,000 supports; ruling
   decision 7 accepts it as a documented limit.

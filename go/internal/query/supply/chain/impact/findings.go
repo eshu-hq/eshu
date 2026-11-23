@@ -91,7 +91,9 @@ type PostgresFindingStore struct {
 	// ROW_NUMBER query. The wiring sets this from an operator env gate so the
 	// cutover is reversible and is only enabled once the reducer maintainer has
 	// populated the winners table. Output is byte-identical either way; the
-	// winners read is bounded O(page) instead of an O(filtered set) dedup sort.
+	// winners read replaces the O(filtered set) dedup sort with a read over the
+	// winners table; the unscoped precise route is not O(page) (see
+	// ListFindingsFromWinnersSupplementQuery).
 	ReadFromWinners bool
 	// Instruments receives the per-route read counter
 	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter; the
