@@ -194,6 +194,11 @@ tests:
     class: postgres_ci
     reason: "#10876 waiting-wake proofs: a deferred intent parks with the 10-minute backstop instead of the backoff delay, past-maxAttempts Fail cycles never count and never dead-letter, both claim orders converge on byte-equal terminal state, and the audit reopens a planted satisfied wait within its bound; disposable database per test, about 30 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_narrow_bound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, a repeated Fail keeps one row, and a cut key races an activation without a lost wake; disposable database per test, about 40 s locally"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_narrow_live_test.go
     tag: ~
     class: postgres_ci

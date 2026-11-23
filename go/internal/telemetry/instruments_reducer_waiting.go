@@ -102,7 +102,7 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	}
 	if inst.ReducerWaitingKeyBounded, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_key_bounded_total",
-		metric.WithDescription("Narrowed corpus waits parked with their blocking or read scope set cut to the bounded key budget, so the waits_for_key fits the reducer_waiting_items primary-key btree row limit. A bounded wait still parks and wakes on the retained scopes; the 10-minute backstop and the audit cover the rest (#11297)"),
+		metric.WithDescription("Narrowed corpus waits whose key could not carry the full blocking or read scope set inside the reducer_waiting_items primary-key btree row limit, by reason (cut: parked with a sorted prefix; unrepresentable: nothing parked and the queue's 10-minute backstop retries; index_row_rejected: Postgres still rejected the park INSERT with SQLSTATE 54000 and Fail logged it and returned nil). A parked wait still wakes on its retained scopes and the retried handler re-checks the full fence (#11297)"),
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingKeyBounded counter: %w", err)
 	}

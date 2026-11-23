@@ -147,6 +147,14 @@ TABLE = {
             "TestWaitingBothOrdersEquivalenceLive",
             "TestWaitingAuditFindsMissedWakeLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_narrow_bound_live_test.go": (
+            "TestNarrowedWaitLargeFenceParksThroughFailLive",
+            "TestNarrowedWaitWorstCaseKeyFitsLive",
+            "TestNarrowedWaitPrefixWakeSelectivityLive",
+            "TestNarrowedWaitAdversarialOrderConvergesLive",
+            "TestNarrowedWaitAuditReopensClearedPrefixLive",
+            "TestNarrowedWaitCutKeyRacesActivationLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_narrow_live_test.go": (
             "TestNarrowedWaitSelectiveWakeLive",
             "TestNarrowedWaitAuditReopensSatisfiedLive",

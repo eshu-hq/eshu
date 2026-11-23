@@ -54,36 +54,6 @@ type corpusWaitNarrowing interface {
 	CorpusWaitBlockingScopeIDs() []string
 }
 
-// narrowedWaitingKey renders the narrowed corpus waits_for key for one parked
-// intent: the waiter's own scope and generation plus the verdict-time
-// blocking scope set and read set the activation wake matches on. Both sets
-// are cut to a bounded sorted prefix (#11297) so the key fits the primary-key
-// btree row limit; truncated reports that a set was cut.
-func narrowedWaitingKey(scopeID, generationID string, blockingScopeIDs, repoIDs []string) (key string, truncated bool, ok bool) {
-	scope := strings.TrimSpace(scopeID)
-	gen := strings.TrimSpace(generationID)
-	if scope == "" || gen == "" {
-		return "", false, false
-	}
-	blocking, blockingCut := boundWaitingScopeIDs(
-		normalizeWaitingScopeIDs(blockingScopeIDs), narrowedWaitingBlockingBudgetBytes)
-	if len(blocking) == 0 {
-		return "", false, false
-	}
-	repos, reposCut := boundWaitingScopeIDs(
-		normalizeWaitingScopeIDs(repoIDs), narrowedWaitingRepoBudgetBytes)
-	raw, err := json.Marshal(waitingKey{
-		ScopeID:          scope,
-		GenerationID:     gen,
-		BlockingScopeIDs: blocking,
-		RepoIDs:          repos,
-	})
-	if err != nil {
-		return "", false, false
-	}
-	return string(raw), blockingCut || reposCut, true
-}
-
 // normalizeWaitingScopeIDs trims, drops empties and duplicates, and sorts,
 // so a wait key rendered from two equal sets compares equal.
 func normalizeWaitingScopeIDs(values []string) []string {
@@ -105,21 +75,22 @@ func normalizeWaitingScopeIDs(values []string) []string {
 }
 
 // narrowedWaitingKeyForCause extracts the narrowed wait key from a deferral
-// cause. It reports false when the cause carries no narrowing (global path)
-// or the key cannot render, and the caller keeps the coarse wait.
+// cause. narrowing is false when the cause carries no narrowing (global path)
+// or the kind is not the corpus wait, and the caller keeps the coarse wait.
+// When narrowing is true the result is either a key or Unrepresentable.
 func narrowedWaitingKeyForCause(
 	intent contract.Intent,
 	entry WaitingDeferral,
 	cause error,
-) (key string, truncated bool, ok bool) {
+) (key narrowedWaitKey, narrowed bool) {
 	if entry.WaitsForKind != WaitingKindRelationshipGenerationActive {
-		return "", false, false
+		return narrowedWaitKey{}, false
 	}
 	var narrowing corpusWaitNarrowing
 	if cause == nil || !errors.As(cause, &narrowing) {
-		return "", false, false
+		return narrowedWaitKey{}, false
 	}
-	return narrowedWaitingKey(intent.ScopeID, intent.GenerationID,
+	return narrowedWaitingKey(intent.ScopeID, intent.GenerationID, intent.IntentID,
 		narrowing.CorpusWaitBlockingScopeIDs(), narrowing.CorpusWaitRepoIDs())
 }
 
@@ -143,11 +114,16 @@ func setAsideWaitingForCause(
 	if entry.WakeSite == WaitingWakeSiteCounting || entry.WakeSite == WaitingWakeSiteNotAWait {
 		return false, nil
 	}
-	if keyJSON, truncated, ok := narrowedWaitingKeyForCause(intent, entry, cause); ok {
-		if truncated {
-			recordWaitingKeyBounded(ctx, instruments)
+	if key, narrowing := narrowedWaitingKeyForCause(intent, entry, cause); narrowing {
+		if key.Unrepresentable {
+			// No coarse fallback: see narrowedWaitKey.Unrepresentable.
+			recordWaitingKeyBounded(ctx, instruments, waitingKeyBoundedReasonUnrepresentable)
+			return false, nil
 		}
-		return setAsideWaitingForKey(ctx, database, instruments, intent, entry, keyJSON, now)
+		if key.Cut {
+			recordWaitingKeyBounded(ctx, instruments, waitingKeyBoundedReasonCut)
+		}
+		return setAsideWaitingForKey(ctx, database, instruments, intent, entry, key.Key, now)
 	}
 	return setAsideWaiting(ctx, database, instruments, intent, entry, producerDomains, now)
 }

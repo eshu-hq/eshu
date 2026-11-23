@@ -62,7 +62,8 @@ func TestNarrowedWaitingKeyStaysWithinIndexBudget(t *testing.T) {
 	blocking := manyScopeIDs(600)
 	repos := manyScopeIDs(400)
 
-	keyJSON, truncated, ok := narrowedWaitingKey("scope-unit", "gen-unit", blocking, repos)
+	narrowed, ok := narrowedWaitingKey("scope-unit", "gen-unit", "wi-unit", blocking, repos)
+	keyJSON, truncated := narrowed.Key, narrowed.Cut
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key for a large blocking set")
 	}
@@ -84,8 +85,8 @@ func TestNarrowedWaitingKeyStaysWithinIndexBudget(t *testing.T) {
 	if !slices.Equal(key.BlockingScopeIDs, want[:len(key.BlockingScopeIDs)]) {
 		t.Fatal("bounded blocking set is not the sorted prefix of the verdict-time set")
 	}
-	again, _, _ := narrowedWaitingKey("scope-unit", "gen-unit", blocking, repos)
-	if again != keyJSON {
+	again, _ := narrowedWaitingKey("scope-unit", "gen-unit", "wi-unit", blocking, repos)
+	if again.Key != keyJSON {
 		t.Fatal("bounded key is not deterministic for equal inputs")
 	}
 }
