@@ -4,6 +4,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -53,3 +54,26 @@ func (fanOutError) Retryable() bool { return true }
 
 // FailureClass names the durable failure class for the retrying row.
 func (fanOutError) FailureClass() string { return SupplyChainImpactFanOutFailureClass }
+
+// SupplyChainImpactSupportsGate is the optional readiness check of a fan-out port
+// whose holder reads answer from the supports table (#11197). The handler asks it
+// once at entry, beside the producer-readiness floor and before any load, write,
+// fencing token or holder read, so a table that is not ready defers the whole
+// pass instead of failing it part-way after the writer committed. The port
+// returns the supports-not-ready refusal, which the handler returns unwrapped so
+// the queue defers without counting an attempt (arbiter-b2c decision 3).
+type SupplyChainImpactSupportsGate interface {
+	// RequireSupportsReady returns nil when the supports table is ready, the
+	// not-ready refusal when it is not, and its own error when the probe fails.
+	RequireSupportsReady(ctx context.Context) error
+}
+
+// requireSupportsReady runs the entry gate when the fan-out port carries one. A
+// handler with no fan-out port, or a port with no gate, reads no supports.
+func (h SupplyChainImpactHandler) requireSupportsReady(ctx context.Context) error {
+	gate, ok := h.FanOut.(SupplyChainImpactSupportsGate)
+	if !ok || h.FanOut == nil {
+		return nil
+	}
+	return gate.RequireSupportsReady(ctx)
+}

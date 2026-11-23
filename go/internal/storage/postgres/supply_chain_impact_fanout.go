@@ -130,6 +130,20 @@ type SupplyChainImpactFanOutStore struct {
 	ReadTimeout time.Duration
 }
 
+// RequireSupportsReady is the handler-entry gate of the holder reads
+// (supplychaincore.SupplyChainImpactSupportsGate, #11197): one autocommit read of
+// the readiness predicate before the pass loads or writes anything. A table that
+// is not ready returns the typed non-counting refusal, counted as not_ready on
+// eshu_dp_supply_chain_impact_supports_reads_total under the fan-out holder
+// reader; a ready table records nothing here, since each holder read counts its
+// own served outcome.
+func (s SupplyChainImpactFanOutStore) RequireSupportsReady(ctx context.Context) error {
+	if s.DB == nil {
+		return errors.New("supply chain impact fan-out database is required")
+	}
+	return requireSupplyChainImpactSupportsReady(ctx, s.DB, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolders)
+}
+
 func (s SupplyChainImpactFanOutStore) now() time.Time {
 	if s.Now != nil {
 		return s.Now().UTC()

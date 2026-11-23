@@ -278,6 +278,18 @@ func TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive(t *testing.T) {
 		if _, err := fanOut.FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); !isSupportsNotReady(err) {
 			t.Errorf("%s: repository holders error = %v, want the supports-not-ready refusal", label, err)
 		}
+		if err := fanOut.RequireSupportsReady(ctx); !isSupportsNotReady(err) {
+			t.Errorf("%s: handler-entry gate error = %v, want the supports-not-ready refusal", label, err)
+		}
+		if _, err := fanOut.FindHolderScopes(ctx, "scope-a", []string{"CVE-X"}); !isSupportsNotReady(err) {
+			t.Errorf("%s: holders error = %v, want the supports-not-ready refusal", label, err)
+		}
+		if _, err := fanOut.FindHolderScopesByKeyRange(ctx, "scope-a", []string{"CVE-X"}, supplychaincore.HolderKeyRanges()); !isSupportsNotReady(err) {
+			t.Errorf("%s: key-range error = %v, want the supports-not-ready refusal", label, err)
+		}
+		if _, err := fanOut.EstimateHolderMasses(ctx, []string{"CVE-X"}); !isSupportsNotReady(err) {
+			t.Errorf("%s: mass probe error = %v, want the supports-not-ready refusal", label, err)
+		}
 		facts := postgres.NewFactStore(store)
 		if _, err := facts.ListScopedSupplyChainImpactFindingPackages(ctx, "scope-a", fanOutGen("scope-a", "gen-2"), []string{"CVE-X"}); !isSupportsNotReady(err) {
 			t.Errorf("%s: scoped packages error = %v, want the supports-not-ready refusal", label, err)
@@ -296,6 +308,9 @@ func TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive(t *testing.T) {
 
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports_dirty`); err != nil {
 		t.Fatalf("clear the fence: %v", err)
+	}
+	if err := (postgres.SupplyChainImpactFanOutStore{Beginner: store, DB: store, LeaseOwner: fanOutLiveOwner}).RequireSupportsReady(ctx); err != nil {
+		t.Fatalf("ready again: handler-entry gate error = %v, want nil", err)
 	}
 	if got, err := (postgres.SupplyChainImpactFanOutStore{Beginner: store, DB: store, LeaseOwner: fanOutLiveOwner}).FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); err != nil || len(got) == 0 {
 		t.Fatalf("ready again: repository holders = %v, %v, want the holders", got, err)
