@@ -48,7 +48,7 @@ func registerCrossScopeCompletionInstruments(meter metric.Meter, inst *Instrumen
 	var err error
 	if inst.CrossScopeCompletionMarkersSkipped, err = meter.Int64Counter(
 		"eshu_dp_cross_scope_completion_markers_skipped_total",
-		metric.WithDescription("Manifest-marker supply_chain_impact consumers a cross-scope completion fan-out left unscheduled and unflagged, by producer domain (#10972)"),
+		metric.WithDescription("Census of manifest markers in an eligible state at an active generation, added once per committed cross-scope completion fan-out for a producer that feeds supply_chain_impact, by producer domain; an upper bound on the re-pends avoided, not a measured saving (#10972)"),
 	); err != nil {
 		return fmt.Errorf("register CrossScopeCompletionMarkersSkipped counter: %w", err)
 	}

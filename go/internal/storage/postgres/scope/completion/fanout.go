@@ -151,8 +151,11 @@ SELECT (SELECT count(*) FROM captured),
 // marker), and deletes only that captured event set in one statement.
 //
 // When the producer has a supply_chain_impact consumer edge, Fanout then counts
-// the markers it left alone into ManifestMarkersSkipped with a separate
-// read-only statement (manifestMarkerCountQuery). That count runs only after
+// the manifest markers in an eligible state at an active generation into
+// ManifestMarkersSkipped with a separate read-only statement
+// (manifestMarkerCountQuery). The count is a census, an upper bound on the
+// re-pends the exclusion avoided, not a measured saving: it is taken whether or
+// not this fan-out scheduled anything. That count runs only after
 // the fan-out statement returned and committed (autocommit, no lock held), under
 // its own bounded context, so it adds nothing to the lock hold of the fan-out
 // or to a producer ack waiting on the event row. A count failure is the one
