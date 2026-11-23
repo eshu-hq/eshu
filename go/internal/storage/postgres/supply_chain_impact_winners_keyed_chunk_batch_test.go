@@ -201,7 +201,7 @@ func TestWinnersChunkDefaultBoundIsCapacityRuled(t *testing.T) {
 	if got := empty.chunkBounds(); got.identifiers != 1000 || got.dirtyRows != 5000 {
 		t.Fatalf("default chunkBounds() = %+v, want {dirtyRows:5000 identifiers:1000}", got)
 	}
-	if params := int64(1000 * 5); params > 65535 || 1000 > int64(maxWinnersKeyedChunkBatchIdents) {
+	if params := empty.chunkBounds().identifiers * 5; params > 65535 || empty.chunkBounds().identifiers > int64(maxWinnersKeyedChunkBatchIdents) {
 		t.Fatalf("default batch is 5000 params at 1000 identifiers, want under the 65535 parameter ceiling and the %d-row clamp", maxWinnersKeyedChunkBatchIdents)
 	}
 	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(1001)}
