@@ -294,11 +294,13 @@ helper's setting: every arm on its named index, no Seq Scan on supports, no plan
 setting on the key-range and holder statements; warm full-list time minus flushed time
 at most +8.0 ms (50 ms line). P2, flush: `gin_clean_pending_list` on the limit-full
 tokens list three times, refilled between runs: 0.487 s / 49.3 MB of WAL, 0.845 s /
-182.8 MB, 0.502 s / 49.2 MB, on a quiet host. The line is a quarter of the smaller of
+182.8 MB, 0.502 s / 49.2 MB, on a quiet host with a warm cache. Cold: the list filled to 500
+pages, a checkpoint, a container restart (cold `shared_buffers`), one flush: 2.545 s / 183.0 MB
+of WAL (399 MB read), then 0.755 s and 0.729 s on two repeats. The line is a quarter of the smaller of
 the work-item lease (`reducerClaimLeaseDuration` = 1 min, `cmd/reducer/main_helpers.go:49`)
 and the handler timeout (`ESHU_REDUCER_HANDLER_TIMEOUT` unset is unbounded,
 `go/internal/envregistry/entries.go:239`; the lab evidence sets `supply_chain_impact=30m`,
-`10643-holder-read-bound.md:96`): 15 s, and the maximum is 0.845 s. An earlier flush
+`10643-holder-read-bound.md:96`): 15 s; the warm maximum is 0.845 s and the cold maximum 2.545 s. An earlier flush
 figure of 12 to 15 s was taken with `fastupdate` on both GINs and no raw output was
 kept; it is not a measurement of this configuration.
 
