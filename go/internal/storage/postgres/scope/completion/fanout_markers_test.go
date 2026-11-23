@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 var (
@@ -97,6 +99,17 @@ func TestFanoutQueryExcludesManifestMarkers(t *testing.T) {
 		"positive marker read re-added": strings.Replace(FanoutCrossScopeCompletionQuery,
 			"ORDER BY source.work_item_id COLLATE \"C\"",
 			"AND ("+manifestMarkerPredicate+")\n    ORDER BY source.work_item_id COLLATE \"C\"", 1),
+		"second read under another alias": strings.Replace(FanoutCrossScopeCompletionQuery,
+			"), captured AS MATERIALIZED (",
+			"), marker_census AS MATERIALIZED (\n    SELECT count(*) AS n\n    FROM fact_work_items AS m\n    WHERE m.domain = 'supply_chain_impact'\n), captured AS MATERIALIZED (", 1),
+		"second read through a join": strings.Replace(FanoutCrossScopeCompletionQuery,
+			"FROM fact_work_items AS source",
+			"FROM fact_work_items AS source\n    JOIN fact_work_items x ON x.scope_id = source.scope_id", 1),
+		"second read in a subselect": strings.Replace(FanoutCrossScopeCompletionQuery,
+			"AND (SELECT count(*) FROM current_consumers) >= 0",
+			"AND (SELECT count(*) FROM fact_work_items AS m WHERE m.domain = 'x') >= 0", 1),
+		"reworded positive trigger comparison": strings.Replace(FanoutCrossScopeCompletionQuery,
+			exclusion, exclusion+"\n      AND source.payload->>'"+supplychaincore.PayloadKeyTrigger+"' = '"+supplychaincore.TriggerManifestDependency+"'", 1),
 		"fifth result column re-added": strings.Replace(FanoutCrossScopeCompletionQuery,
 			"(SELECT count(*) FROM deleted)", "(SELECT count(*) FROM deleted),\n       (SELECT 0)", 1),
 		"private active-generation copy": strings.Replace(FanoutCrossScopeCompletionQuery,
