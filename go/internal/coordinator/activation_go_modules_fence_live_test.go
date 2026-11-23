@@ -78,6 +78,21 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 		func(ctx context.Context, db *sql.DB) error {
 			return postgres.ApplyBootstrap(ctx, postgres.SQLDB{DB: db})
 		})
+	// The fence refuses a supports table that is not ready (#11197); the real
+	// backfill marks this empty one ready, as it does on a deployed install.
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: database}, ChunkSize: 100}
+	for step := 0; ; step++ {
+		report, err := backfill.RunStep(t.Context())
+		if err != nil {
+			t.Fatalf("supports backfill step %d: %v", step, err)
+		}
+		if report.Complete && report.DirtyScopes == 0 {
+			break
+		}
+		if step > 100 {
+			t.Fatal("supports backfill did not settle in 100 steps")
+		}
+	}
 	now := time.Now().UTC()
 	scopeID, generationID := seedSkewedGoRepository(t, database, now)
 
