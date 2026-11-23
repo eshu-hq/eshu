@@ -41,10 +41,14 @@ closed set and an absent or non-string stamp reads as `unknown`, never `feed`.
 A `feed` series therefore proves a satellite-stamped feed window. Verify with
 `sum by (transport) (rate(eshu_dp_vulnerability_nvd_window_claims_total[5m]))`:
 after feed-served windows a `transport="feed"` series appears; before the
-satellite pin every window reads `unknown`.
+satellite pin every counted window reads `unknown` (uncounted windows emit
+nothing at all).
 
 - `eshu_dp_vulnerability_nvd_window_claims_total` (`transport`, `outcome`):
-  which transport served each window and how it ended.
+  which transport served each counted window and how it ended. Never counted:
+  pre-satellite host failures, `invalid_claim`, `identity_mismatch`,
+  `invalid_result`, `launch_failure`, and `status_record` verdicts, plus
+  commits lost when a newer generation takes the stash slot first.
 - `eshu_dp_vulnerability_nvd_window_cursor_advance_total` (`transport`,
   `outcome=advanced|held`): held means the facts committed and the verdict
   held the cursor.
