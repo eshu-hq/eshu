@@ -112,8 +112,36 @@ def engaged_counter(rows: list, source_a: str) -> float:
   return total
 
 
-def active_gauge(rows: list, source_a: str) -> float:
-  """The claim-pacing active gauge for source A in one scrape (0 after release)."""
-  return sum(value for name, labels, value in rows
-             if name == "eshu_dp_workflow_claim_pacing_active" and labels.get("pacing_signal") == "reducer_source"
-             and labels.get("domain") == source_a)
+def active_gauge(rows: list, source_a: str) -> float | None:
+  """The claim-pacing active gauge for source A in one scrape (0 after release).
+
+  None when the scrape has no such series at all: a process that never ran the
+  latch transition exposes none, and a missing series must never read as 0.
+  """
+  values = [value for name, labels, value in rows
+            if name == "eshu_dp_workflow_claim_pacing_active" and labels.get("pacing_signal") == "reducer_source"
+            and labels.get("domain") == source_a]
+  return sum(values) if values else None
+
+
+def claim_grant_consult(rows: list) -> dict[str, Any]:
+  """The family consult at a coordinator claim grant: the histogram series that
+  carry collector_kind instead of source_system. Count, p50, p95 and the share
+  inside the 100 ms edge over every such series, plus the count per collector kind.
+  Empty (count 0) when no process emitted the series, which is the T2 gap."""
+  buckets: dict[float, float] = defaultdict(float)
+  by_kind: dict[str, float] = defaultdict(float)
+  total = 0.0
+  for name, labels, value in rows:
+    if labels.get("outcome") != "ok" or "collector_kind" not in labels:
+      continue
+    if name.endswith("source_consult_duration_seconds_bucket"):
+      le = float("inf") if labels["le"] == "+Inf" else float(labels["le"])
+      buckets[le] += value
+    elif name.endswith("source_consult_duration_seconds_count"):
+      by_kind[labels["collector_kind"]] += value
+      total += value
+  pairs = list(buckets.items())
+  inside = sum(c for le, c in pairs if abs(le - GATE_EDGE_S) < 1e-9)
+  return {"count": total, "by_kind": dict(by_kind), "p50_s": quantile(pairs, 0.5) if pairs else 0.0,
+          "p95_s": quantile(pairs, 0.95) if pairs else 0.0, "within_100ms": (inside / total) if total else 0.0}

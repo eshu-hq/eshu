@@ -173,6 +173,7 @@ def main(run_dir: str) -> int:
       "b": read_json(os.path.join(export, "b_stats.json"), {}),
       "consult": replay_prom.consult_stats(engaged_rows, sources),
       "consult_final": replay_prom.consult_stats(final_rows, sources),
+      "consult_claim_grant": replay_prom.claim_grant_consult(final_rows),
       "report": {"k_peak": max((s["k"] for s in samples), default=0),
                  "parked_rows_peak": max((s["waits"] for s in samples), default=0),
                  "woken_holding_wait": census_pre.get("woken_holding_wait", 0),

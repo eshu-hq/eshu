@@ -150,6 +150,32 @@ class PromTest(unittest.TestCase):
     self.assertAlmostEqual(stats["within_100ms"], 0.4)  # 40 of 100 inside the edge: the p50 is NOT within 100 ms
     self.assertEqual(replay_prom.engaged_counter(rows, "git"), 2.0)
 
+  def test_red_an_absent_gauge_series_is_none_not_zero(self):
+    # The T2 gap: no process exposed the active gauge, and the old reader summed an
+    # empty list to 0, so "active gauge 0" passed vacuously.
+    rows = replay_prom.parse_prom(_file('eshu_dp_other_total{domain="git"} 1'))
+    self.assertIsNone(replay_prom.active_gauge(rows, "git"))
+    rows = replay_prom.parse_prom(_file(
+        'eshu_dp_workflow_claim_pacing_active{pacing_signal="reducer_source",domain="git"} 0'))
+    self.assertEqual(replay_prom.active_gauge(rows, "git"), 0.0)
+    self.assertIsNone(replay_prom.active_gauge(rows, "other-source"))
+
+  def test_claim_grant_consult_reads_only_the_collector_kind_series(self):
+    text = "\n".join([
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_bucket{outcome="ok",collector_kind="synth_zero_fact",le="0.05"} 4',
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_bucket{outcome="ok",collector_kind="synth_zero_fact",le="0.1"} 9',
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_bucket{outcome="ok",collector_kind="synth_zero_fact",le="+Inf"} 10',
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_count{outcome="ok",collector_kind="synth_zero_fact"} 10',
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_count{outcome="ok",source_system="git"} 99',
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_count{outcome="error",collector_kind="synth_zero_fact"} 7'])
+    stats = replay_prom.claim_grant_consult(replay_prom.parse_prom(_file(text)))
+    self.assertEqual(stats["count"], 10.0)
+    self.assertEqual(stats["by_kind"], {"synth_zero_fact": 10.0})
+    self.assertAlmostEqual(stats["within_100ms"], 0.9)
+    none = replay_prom.claim_grant_consult(replay_prom.parse_prom(_file(
+        'eshu_dp_reducer_admission_source_consult_duration_seconds_count{outcome="ok",source_system="git"} 99')))
+    self.assertEqual(none["count"], 0.0)
+
 
 if __name__ == "__main__":
   unittest.main()

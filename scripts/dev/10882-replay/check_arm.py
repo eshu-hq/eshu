@@ -87,6 +87,14 @@ def check_t2(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, 
       Check("each item claimed and completed after release", planted > 0 and int(final.get("completed", -1)) == planted,
             "completed=%s of %s" % (final.get("completed"), planted)),
   ]
+  grant = arm.get("consult_claim_grant", {})
+  checks.append(Check(
+      "claim-grant consults ran on the hosted collector (collector_kind series, final scrape)",
+      float(grant.get("count", 0)) > 0,
+      "count=%s by collector_kind=%s p50=%.1f ms p95=%.1f ms share within 100 ms=%.2f (the per-source consult of "
+      "'consult(A)' is the ingester and projector pre-write consult, not this one)" % (
+          grant.get("count", 0), grant.get("by_kind", {}), 1000 * float(grant.get("p50_s", 0)),
+          1000 * float(grant.get("p95_s", 0)), float(grant.get("within_100ms", 0)))))
   checks += check_engagement(arm) + check_zero_writes(arm)
   return checks + check_final_state(arm, controls[0], cf) + check_ac5(arm, controls)
 

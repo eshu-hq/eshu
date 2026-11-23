@@ -124,8 +124,11 @@ class TreatmentTest(unittest.TestCase):
         (lambda e: e.update(distinct_engagements=2), "one engaged interval and one distinct engaged_at"),
         (lambda e: e.update(updated_at_stable=False), "latch row untouched after the release (updated_at at the second released sample == final dump)"),
         (lambda e: e.update(engaged_counter=3.0), "fleet-summed engaged counter == 1"),
-        (lambda e: e.update(gauge_final=[0.0, 1.0]), "active gauge 0 in every final scrape"),
-        (lambda e: e.update(gauge_final=[-1.0, 1.0]), "active gauge 0 in every final scrape")):
+        (lambda e: e.update(gauge_final=[0.0, 1.0]), "active gauge series present and 0 in every scrape that has it"),
+        (lambda e: e.update(gauge_final=[-1.0, 1.0]), "active gauge series present and 0 in every scrape that has it"),
+        # An absent series everywhere (no process emitted it: the T2 gap) must fail, not read as 0.
+        (lambda e: e.update(gauge_final=[None, None, None]), "active gauge series present and 0 in every scrape that has it"),
+        (lambda e: e.update(gauge_final=[]), "active gauge series present and 0 in every scrape that has it")):
       arm = _treatment()
       mutate(arm["engaged"])
       self.assertEqual(_run("treatment", arm, _controls()), [name])
@@ -283,6 +286,8 @@ class HostedTest(unittest.TestCase):
     arm = _treatment()
     arm["hosted"] = {"planted": 24, "at_engagement_end": {"pending": 24, "claims": 0, "attempts": 0},
                      "final": {"completed": 24, "expired": 0}}
+    arm["consult_claim_grant"] = {"count": 48.0, "by_kind": {"synth_zero_fact": 48.0}, "p50_s": 0.01, "p95_s": 0.1,
+                                  "within_100ms": 0.9}
     c2 = _control()
     c2["hosted"] = {"at_engagement_end": {"claims": 24}}
     return arm, [c2, c2, c2]
@@ -295,6 +300,18 @@ class HostedTest(unittest.TestCase):
     arm, controls = self._t2()
     arm["hosted"]["final"]["completed"] = 23
     self.assertEqual(_run("t2", arm, controls), ["each item claimed and completed after release"])
+
+  def test_red_t2_without_a_claim_grant_consult_series_fails(self):
+    # The original T2 reps: the hosted collector never emitted the collector_kind
+    # series (WorkflowControlStore.Instruments unset), so the claim grant was never
+    # measured. The run must fail on that, not pass on the latch row alone.
+    arm, controls = self._t2()
+    arm["consult_claim_grant"] = {"count": 0.0, "by_kind": {}, "p50_s": 0.0, "p95_s": 0.0, "within_100ms": 0.0}
+    self.assertEqual(_run("t2", arm, controls),
+                     ["claim-grant consults ran on the hosted collector (collector_kind series, final scrape)"])
+    del arm["consult_claim_grant"]
+    self.assertEqual(_run("t2", arm, controls),
+                     ["claim-grant consults ran on the hosted collector (collector_kind series, final scrape)"])
 
   def test_t2_needs_the_c2_positive_control_and_final_state(self):
     arm, controls = self._t2()

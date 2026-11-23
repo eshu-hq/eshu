@@ -1,0 +1,25 @@
+{
+ "consult_claim_grant": {
+  "by_kind": {},
+  "count": 0.0,
+  "p50_s": 0.0,
+  "p95_s": 0.0,
+  "within_100ms": 0.0
+ },
+ "engaged": {
+  "distinct_engagements": 1,
+  "engage_at": "2026-11-23T19:11:47Z",
+  "engaged_counter": 1.0,
+  "first_engaged_ts": 1795461108.901,
+  "gauge_final": [
+   null,
+   0.0
+  ],
+  "last_engaged_ts": 1795461234.356,
+  "latch_row_for_a": true,
+  "latch_row_seen": true,
+  "reengaged": false,
+  "release_at": "2026-11-23T19:13:57Z",
+  "updated_at_stable": true
+ }
+}

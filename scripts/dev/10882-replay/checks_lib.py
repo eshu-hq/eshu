@@ -153,6 +153,11 @@ def check_engagement(arm: dict[str, Any]) -> list[Check]:
   """
   engaged = arm.get("engaged", {})
   gauges = engaged.get("gauge_final", [])
+  # A process that never ran the latch transition exposes no gauge series, which is
+  # None, not 0. The gate needs the series present in at least one scrape (the
+  # process that engaged) and every present series 0; an absent series everywhere
+  # (the T2 gap: no process emitted it) fails instead of passing vacuously.
+  present = [g for g in gauges if g is not None]
   return [
       Check("latch engaged and released (latch row times)",
             bool(engaged.get("engage_at")) and bool(engaged.get("release_at")),
@@ -164,7 +169,9 @@ def check_engagement(arm: dict[str, Any]) -> list[Check]:
             engaged.get("updated_at_stable") is True, "stable=%s" % engaged.get("updated_at_stable")),
       Check("fleet-summed engaged counter == 1", float(engaged.get("engaged_counter", -1)) == 1.0,
             "engaged counter=%s" % engaged.get("engaged_counter")),
-      Check("active gauge 0 in every final scrape", bool(gauges) and all(g == 0 for g in gauges), "gauges=%s" % gauges),
+      Check("active gauge series present and 0 in every scrape that has it",
+            bool(present) and all(g == 0 for g in present),
+            "gauges per final scrape=%s (None = no series in that scrape)" % gauges),
   ]
 
 

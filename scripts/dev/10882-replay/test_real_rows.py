@@ -25,7 +25,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import assemble_result  # noqa: E402  pylint: disable=wrong-import-position
+import check_arm  # noqa: E402  pylint: disable=wrong-import-position
 import checks_final  # noqa: E402  pylint: disable=wrong-import-position
+import checks_lib  # noqa: E402  pylint: disable=wrong-import-position
 
 SOURCES = {"A": "git", "B": "hosted"}
 SCOPE = "git-repository-scope:repository:r_28dfe9df"
@@ -135,6 +137,43 @@ class RealRowsTest(unittest.TestCase):
     mutated_cf = _result("CF", corrupt)
     checks = checks_final.check_cf_reference(self.c, mutated_cf)
     self.assertIn("the repository fact differs between C and CF only in the delta keys", _failed(checks))
+
+
+class RealT2EngagementTest(unittest.TestCase):
+  """The T2 matrix reps that found the claim-pacing metric gap, read back through the checker.
+
+  testdata/T2-rep1-engagement.json and T1-rep1-engagement.json are the engaged
+  block and the claim-grant consult reading assembled from the real matrix scrapes
+  (results-3980a07cad). RED: the real T2 rep, in which no process emitted the
+  claim-pacing counter, the active gauge or the collector_kind consult series, must
+  fail all three readings (before the checker fix the gauge check passed vacuously
+  on an empty list). GREEN: the real T1 rep, whose projector emitted the series,
+  passes the counter and the gauge.
+  """
+
+  def _arm(self, name: str) -> dict:
+    import json
+    with open(os.path.join(HERE, "testdata", name), encoding="utf-8") as handle:
+      return json.load(handle)
+
+  def test_red_the_real_t2_rep_fails_counter_gauge_and_claim_grant_readings(self):
+    arm = self._arm("T2-rep1-engagement.json")
+    failed = _failed(checks_lib.check_engagement(arm))
+    self.assertIn("fleet-summed engaged counter == 1", failed)
+    self.assertIn("active gauge series present and 0 in every scrape that has it", failed)
+    self.assertEqual(arm["consult_claim_grant"]["count"], 0.0)
+    grant = [c for c in check_arm.run_checks("t2", {**_t2_shell(), **arm}, [_t2_shell()])
+             if c.name.startswith("claim-grant consults")]
+    self.assertEqual([c.passed for c in grant], [False])
+
+  def test_green_the_real_t1_rep_passes_counter_and_gauge(self):
+    arm = self._arm("T1-rep1-engagement.json")
+    self.assertEqual(_failed(checks_lib.check_engagement(arm)), [])
+
+
+def _t2_shell() -> dict:
+  return {"hosted": {"planted": 24, "at_engagement_end": {"pending": 24, "claims": 0, "attempts": 0, "tolerance": 0},
+                     "final": {"completed": 24, "expired": 0}}}
 
 
 if __name__ == "__main__":
