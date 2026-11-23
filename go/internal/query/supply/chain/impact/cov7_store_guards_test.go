@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -254,9 +255,12 @@ func TestCov7AggregateInventoryValidation(t *testing.T) {
 			return &cov7StoreRows{rows: [][]any{{" affected_exact ", int64(4)}}}, nil
 		},
 	}, false)
-	rows, err := happy.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryBySeverity, 10, -3)
-	if err != nil || len(rows) != 1 || rows[0].Value != "affected_exact" || rows[0].Count != 4 || rows[0].Dimension != InventoryBySeverity {
-		t.Fatalf("inventory = (%#v, %v), want trimmed severity row", rows, err)
+	page, err := happy.SupplyChainImpactInventory(t.Context(), AggregateFilter{}, InventoryBySeverity, 10, -3)
+	if err != nil || len(page.Rows) != 1 || page.Rows[0].Value != "affected_exact" || page.Rows[0].Count != 4 || page.Rows[0].Dimension != InventoryBySeverity {
+		t.Fatalf("inventory = (%#v, %v), want trimmed severity row", page, err)
+	}
+	if page.Freshness.State != packet.FreshnessLabelFresh || page.Freshness.LatestObservedAt != "" {
+		t.Fatalf("legacy inventory freshness = %+v, want fresh with no watermark", page.Freshness)
 	}
 	exprs := map[string]bool{}
 	for _, dimension := range []InventoryDimension{InventoryByStatus, InventoryByPriorityBucket, InventoryBySeverity, InventoryByRepository, InventoryByEcosystem} {

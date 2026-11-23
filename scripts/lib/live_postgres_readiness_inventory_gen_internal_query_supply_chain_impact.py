@@ -7,6 +7,10 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/aggregates_winners_failclosed_live_test.go": (
+            "TestAggregatesWinnersFailClosedLive",
+            "TestAggregatesWinnersConcurrentResweepReadLive",
+        ),
         "go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go": (
             "TestAggregatesWinnersParityLive",
         ),
@@ -79,6 +83,12 @@ TABLE = {
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
             "TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive",
+        ),
+        "go/internal/query/supply/chain/impact/supports_equality_live_test.go": (
+            "TestSupportsCandidateListEqualsLegacyLive",
+        ),
+        "go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go": (
+            "TestSupportsCandidatePlanDrivesFromTheGrantLive",
         ),
         "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go": (
             "TestSupplyChainSuppressionPathsPerformanceLive",

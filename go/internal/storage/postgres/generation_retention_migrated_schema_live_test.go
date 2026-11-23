@@ -182,6 +182,8 @@ func TestGenerationRetentionPrunesMigratedSchemaLive(t *testing.T) {
 		// fixture plants no live leases, and prune-time lease rows
 		// cascade with their queue row, never counted separately.
 		"fact_work_item_leases": 0,
+		// #10880 PR-B1: the per-support table; this fixture writes none.
+		"supply_chain_impact_finding_supports": 0,
 		// The changed-since link ledger (#7127 ruling 2.8); this fixture
 		// writes none of it.
 		"changed_since_activations":        0,

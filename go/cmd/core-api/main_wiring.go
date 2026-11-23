@@ -326,6 +326,10 @@ func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger, readImpact
 			return
 		}
 		reader := pgstatus.NewSQLReadStore(rawDB)
+		supplyChainAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+		// The probe-failure WARN names the deployment the 503 blames, so a
+		// lagging maintainer is distinguishable from an unwired route.
+		supplyChainAggregates.Logger = logger
 		(&serviceintelhttp.ReportHandler{
 			Entities: router.Entities,
 			Incidents: serviceintelhttp.NewDurableIncidentEvidenceSource(
@@ -334,7 +338,7 @@ func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger, readImpact
 				logger,
 			),
 			SupplyChain: serviceintelhttp.NewDurableSupplyChainEvidenceSource(
-				impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
+				supplyChainAggregates,
 				logger,
 			),
 		}).Mount(mux)

@@ -159,6 +159,7 @@ TABLE = {
             "TestWinnersAuditReopenedWaitConvergesOnNextTickLive",
         ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
+            "TestReplayOfDeadLetteredProductionItemIsNotACollisionLive",
             "TestActivationWakesOwnGateConsumersLive",
         ),
         "go/internal/storage/postgres/relationship_activation_wake_race_live_test.go": (

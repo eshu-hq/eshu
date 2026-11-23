@@ -242,18 +242,6 @@ type SupplyChainImpactBeginner struct {
 	Instruments *telemetry.Instruments
 }
 
-// BeginSupplyChainImpactTx opens a transaction wrapped in the reducer's
-// supply-chain impact writer surface.
-func (b SupplyChainImpactBeginner) BeginSupplyChainImpactTx(
-	ctx context.Context,
-) (supplychaincore.SupplyChainImpactTx, error) {
-	tx, err := b.Beginner.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &supplyChainImpactTx{tx: tx, instruments: b.Instruments}, nil
-}
-
 type supplyChainImpactTx struct {
 	tx          db.Transaction
 	instruments *telemetry.Instruments
@@ -268,6 +256,8 @@ type supplyChainImpactTx struct {
 	// (#9957). captureCtx carries the trace of the last recorded statement.
 	pendingCapture map[string]int64
 	captureCtx     context.Context
+	// pendingSupports holds support rows written, by action, until Commit counts them.
+	pendingSupports map[string]int64
 }
 
 var (

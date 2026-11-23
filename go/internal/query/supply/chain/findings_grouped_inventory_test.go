@@ -58,9 +58,11 @@ func (s *countingAggregateStore) CountSupplyChainImpactFindings(
 
 func (s *countingAggregateStore) SupplyChainImpactInventory(
 	context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int,
-) ([]impact.InventoryRow, error) {
+) (impact.AggregateInventoryPage, error) {
 	s.inventoryCalls++
-	return []impact.InventoryRow{{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 1}}, nil
+	return impact.AggregateInventoryPage{
+		Rows: []impact.InventoryRow{{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 1}},
+	}, nil
 }
 
 type groupedResponse struct {

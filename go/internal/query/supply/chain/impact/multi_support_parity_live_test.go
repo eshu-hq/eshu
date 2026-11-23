@@ -197,10 +197,11 @@ func TestMultiSupportScopedGrantDivergenceLive(t *testing.T) {
 			}
 
 			for _, dimension := range dimensions {
-				legacyRows, err := legacyAggregate.SupplyChainImpactInventory(ctx, aggregateFilter, dimension, 50, 0)
+				legacyPage, err := legacyAggregate.SupplyChainImpactInventory(ctx, aggregateFilter, dimension, 50, 0)
 				if err != nil {
 					t.Fatalf("legacy inventory %s: %v", dimension, err)
 				}
+				legacyRows := legacyPage.Rows
 				winnersRows, err := multiSupportWinnersInventory(ctx, database, aggregateFilter, dimension, at)
 				if err != nil {
 					t.Fatalf("winners inventory %s: %v", dimension, err)

@@ -57,6 +57,13 @@ func TestWriteEmptyScopePages(t *testing.T) {
 		if body["total_findings"] != float64(0) || body["detection_profile"] != "precise" {
 			t.Fatalf("body = %v, want the zero-count shape", body)
 		}
+		freshness, ok := body["freshness"].(map[string]any)
+		if !ok || freshness["state"] != "fresh" {
+			t.Fatalf("body = %v, want a fresh freshness object with no watermark", body)
+		}
+		if _, hasWatermark := freshness["watermark"]; hasWatermark {
+			t.Fatalf("body = %v, empty-grant count must not carry a watermark", body)
+		}
 	})
 	t.Run("ImpactInventory", func(t *testing.T) {
 		t.Parallel()
@@ -65,6 +72,13 @@ func TestWriteEmptyScopePages(t *testing.T) {
 		body := decodeDataBody(t, recorder)
 		if body["count"] != float64(0) || body["group_by"] != "severity" || body["next_offset"] != nil || body["detection_profile"] != "comprehensive" {
 			t.Fatalf("body = %v, want the empty inventory shape", body)
+		}
+		freshness, ok := body["freshness"].(map[string]any)
+		if !ok || freshness["state"] != "fresh" {
+			t.Fatalf("body = %v, want a fresh freshness object with no watermark", body)
+		}
+		if _, hasWatermark := freshness["watermark"]; hasWatermark {
+			t.Fatalf("body = %v, empty-grant inventory must not carry a watermark", body)
 		}
 	})
 	t.Run("ContainerImageIdentityPage", func(t *testing.T) {

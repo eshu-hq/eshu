@@ -13,8 +13,8 @@ package postgres
 // Per table the per-generation counts therefore sum to the rows the content
 // prunes delete, and BatchRowLimit compares against that sum (#6809).
 //
-// The eighteen cascade-child arms (sixteen from #7396 plus #7751, the
-// #9376 fence arm, and the #10879 lease arm below) count the cascade children of scope_generations
+// The nineteen cascade-child arms (sixteen from #7396 plus #7751, the
+// #9376 fence arm, the #10879 lease arm and the #10880 supports arm below) count the cascade children of scope_generations
 // the final DELETE removes implicitly: without them BatchRowLimit and the
 // retention events under-count the prune. Each #7396 and #7751 arm joins its table through scope_generations on both
 // (scope_id, generation_id), the fact_records shape: a generation-only
@@ -490,4 +490,4 @@ FROM generation_retention_row_counts AS candidate
 LEFT JOIN security_alert_unread_repositories AS unread
   ON unread.generation_id = candidate.generation_id
 GROUP BY candidate.generation_id
-` + generationRetentionRowCountsLeaseArm
+` + generationRetentionRowCountsLeaseArm + generationRetentionRowCountsSupportsArm
