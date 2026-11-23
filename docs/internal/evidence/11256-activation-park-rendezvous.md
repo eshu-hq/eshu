@@ -116,6 +116,19 @@ on that version (`the waiting park holds 1 advisory locks, want 0`).
 | Hermetic `./internal/reducer/... ./internal/workflow/... ./internal/telemetry/...` | ok, except the census alert-rule tests that need `ESHU_DEPLOY_CHECKOUT` |
 | Live activation, refinalize, claim-fence and contention-gate tests that take the activation path, against a postgres 18.6 container | 204 PASS; the 4 failures are not this change (see below) |
 
+After the review fixes (per-key waits, bounded try chunks, errors handled like
+the timeout, the void rule), at `0d8ee73d3b` on postgres 18.6, every live run
+with zero skips:
+
+| Check | Result |
+| --- | --- |
+| Interleaving (2 kinds), convoy, 400-scope and contended tests, `-count=20` | 120 PASS, 0 FAIL, 0 SKIP |
+| `TestNarrowedWaitConcurrentConvergenceLive` `-count=200`, plain and `-race` | 200 PASS and 200 PASS, 0 FAIL, no DATA RACE |
+| Live activation, refinalize, claim-fence, replay and contention-gate tests that take the activation path, all opt-ins set | 218 PASS, 0 FAIL, 17 SKIP (supply-chain attachment and fan-out proofs that need other fixtures, unrelated to the activation lock) |
+| `-race` contention package, `GOMAXPROCS=2` advisory round tests `-count=30` three times | ok; 60 of 60 PASS each |
+| Hermetic storage/postgres, reducer, workflow, telemetry | only the known environment failures above |
+| golangci-lint and `go vet` on the touched packages | 0 issues, clean |
+
 The first hermetic run found ten `TestRelationshipStore*` tests failing: their
 fake database did not know the new rendezvous statement. The fakes now accept
 it, and the claim-fenced test asserts the lock is the first exec.
