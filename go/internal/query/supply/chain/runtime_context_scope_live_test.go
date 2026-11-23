@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -92,8 +93,18 @@ func assertGrantReadRefusedWhileSupportsUnfilled(
 	t.Helper()
 	resetSupplyChainImpactSupportsMarker(t, ctx, tx)
 	store := impact.NewPostgresFindingStoreWithReadModel(tx, true)
-	if _, err := store.ListSupplyChainImpactFindings(ctx, filter); !errors.Is(err, impact.ErrFindingSupportsUnavailable) {
+	_, err := store.ListSupplyChainImpactFindings(ctx, filter)
+	if !errors.Is(err, impact.ErrFindingSupportsUnavailable) {
 		t.Fatalf("grant list on an unfilled supports table error = %v, want ErrFindingSupportsUnavailable", err)
+	}
+	// The sentinel also wraps a failed readiness probe. The probe wraps its error
+	// with this text, so its absence plus a probe that answers "not ready" without
+	// an error pins the reset marker as the reason, not a broken probe.
+	if strings.Contains(err.Error(), "read supply chain impact supports readiness") {
+		t.Fatalf("grant list refused because the readiness probe failed, not because the marker is incomplete: %v", err)
+	}
+	if ready, probeErr := storagepostgres.SupplyChainImpactSupportsReady(ctx, storagepostgres.SQLTx{Tx: tx}); probeErr != nil || ready {
+		t.Fatalf("supports readiness after the marker reset = %v (err %v), want false with no error", ready, probeErr)
 	}
 }
 

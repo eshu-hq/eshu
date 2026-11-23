@@ -4,7 +4,7 @@
 package postgres_test
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in; the service rollup reads profile=comprehensive because the grouped read model answers a precise (default) profile 503 until the supports table serves existence filters (#10880 PR-B2), and the same run pins that default-profile 503
+//eshu:readiness:reason #9875 fleet acceptance gate on disposable PostgreSQL 18: an advisory, a KEV listing, and an owned package on a catalogued service drain through the real SupplyChainImpactHandler and queue, the keyed winners tick, and the grouped inventory HTTP route; the service bucket must be complete with the KEV-scored critical winner, the unmapped control must sit in the unattributed bucket, and source commit to rollup read must stay within ESHU_FLEET_GATE_MAX_ELAPSED (default 30s); withholding the KEV, affected_package, or service mapping fact must fail the gate; reads ESHU_FLEET_GATE_PROOF_DSN with its disposable opt-in; the service rollup reads profile=comprehensive; after the supports backfill completes the same run expects the default (precise) profile to answer the same rollup from the supports table, and expects 503 naming the supports read model while the readiness marker is reset, then 200 again once the backfill completes
 //eshu:readiness:env ESHU_FLEET_GATE_PROOF_DISPOSABLE ESHU_FLEET_GATE_PROOF_DSN
 
 import (
@@ -124,7 +124,7 @@ func (r *fleetGateRun) completeSupportsBackfill() {
 // rollup answers 503 and names the supports read model, then it is served again
 // once the backfill completes. It resets the marker the way a version bump does,
 // so the 503 is the intended refusal and not a missing fixture.
-func (r *fleetGateRun) assertDefaultProfileRollupRefusedWhileSupportsAreNotReady() {
+func (r *fleetGateRun) assertDefaultProfileRollupRefusedWhileSupportsAreNotReady(want fleetGateObservation) {
 	r.t.Helper()
 	if _, err := r.db.ExecContext(r.ctx, `
 UPDATE supply_chain_impact_finding_supports_backfill
@@ -139,6 +139,7 @@ WHERE marker_name = $1`, postgres.SupplyChainImpactSupportsBackfillMarker); err 
 		r.t.Fatalf("default-profile rollup with an incomplete supports marker = %d %s, want 503 naming the supports read model", rec.Code, rec.Body.String())
 	}
 	r.completeSupportsBackfill()
+	r.assertDefaultProfileRollupIsServed(want)
 }
 
 // seed commits the gate's facts and their pending work items. The advisory
@@ -314,7 +315,7 @@ func TestFleetAcceptanceGateKEVReachesServiceRollup9875Live(t *testing.T) {
 		t.Fatalf("fleet gate failed on the clean seed:\n%v", violations)
 	}
 	run.assertDefaultProfileRollupIsServed(o)
-	run.assertDefaultProfileRollupRefusedWhileSupportsAreNotReady()
+	run.assertDefaultProfileRollupRefusedWhileSupportsAreNotReady(o)
 }
 
 // assertDefaultProfileRollupIsServed pins the contract of #10880 PR-B2a: the

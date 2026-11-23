@@ -15,7 +15,7 @@ HELPER_PROOFS = {
         "consumer_sha256": "16f36a2d3839278146b4145f862d535a639c4385de501fbf102811311ca4e27e",
     },
     "go/internal/query/supply/chain/runtime_context_scope_live_test.go": {
-        "helper_sha256": "0943efe4c034c49a55efdc171649778f861cc299a120a7a5be5556e8711a9170",
+        "helper_sha256": "fcc2b6acd87a5014d100a3023cc5aeceee28b49bb41d9ec5d85cbf2d1893ef21",
         "consumers": [
             {
                 "consumer_file": "go/internal/query/supply/chain/runtime_filter_live_test.go",
@@ -50,18 +50,18 @@ HELPER_PROOFS = {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "574e514e6724665ec9bfbe89cfb30414e28ba48e686bcedd0173ff13ef772821",
-        "consumer_sha256": "24b72c61d6c0e7bf8e163bc52cbc13d93014e88ee3352d38ee7a309830a9eb92",
+        "consumer_sha256": "72bbd09ed5d751798ff56c62180e3b4be23093c1c85674b316cfb98892b659c3",
     },
     "go/internal/query/supply/chain/suppression_authority_assertions_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "7b5bfe8e62cf5ecceb720257b1bf54d587d379d4677b981d14e8ffd385bfb8f2",
-        "consumer_sha256": "24b72c61d6c0e7bf8e163bc52cbc13d93014e88ee3352d38ee7a309830a9eb92",
+        "consumer_sha256": "72bbd09ed5d751798ff56c62180e3b4be23093c1c85674b316cfb98892b659c3",
     },
     "go/internal/query/supply/chain/suppression_authority_scoped_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
         "helper_sha256": "d011faaa67edd2515ef82f43d40706ca737f573d3e7e989984d0c704abed062d",
-        "consumer_sha256": "24b72c61d6c0e7bf8e163bc52cbc13d93014e88ee3352d38ee7a309830a9eb92",
+        "consumer_sha256": "72bbd09ed5d751798ff56c62180e3b4be23093c1c85674b316cfb98892b659c3",
     },
 }
