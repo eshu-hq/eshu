@@ -40,7 +40,7 @@ open.
 | --- | --- | --- |
 | #11213 | Scope-only owner leg (`fact_records.scope_id = EXCLUDED.scope_id`) on `SingleInsertQuery`, `BatchInsertConflict` and the versioned clause, after the fencing predicate. **No generation leg**: an id stable across generations of one scope keeps updating. A skipped row is reported (container image identity writes of at most `BatchSize` rows excepted, see Known limits): `CheckOwned` (single, zero rows affected) and `resolveShortfall` (batch, one primary-key probe on a shortfall) return `*OwnerConflictError`, non-retryable, failure class `fact_id_owner_conflict`, so the intent dead-letters. The reducer service counts it on `eshu_dp_fact_id_scope_conflicts_total{reason="scope", writer=reducer_single\|reducer_batch\|reducer_versioned}`; the ingestion path now carries `writer="ingestion"`. No new log line: the failed intent already logs its failure class. | `owner_guard_test.go`, `service_fact_id_owner_conflict_test.go`, `reducer_fact_owner_live_test.go`, frozen SQL pins in `reducer_fact_batch_insert*_guard_test.go` |
 | #11214 | No SQL change: the id is a hash of scope, generation and document, so a collision is unreachable by construction; pinned by a test and by the producer guard. | `eshu_search_document_fact_id_test.go` |
-| #11215 | No id format change (see the migration plan). `enqueueReducerBatch` resolves a shortfall in inserted rows with one primary-key probe: a held row whose stored scope, generation, domain or entity key differs from the incoming intent is refused with `*ReducerWorkItemCollisionError` (non-retryable, failure class `reducer_work_item_id_collision`); a plain duplicate stays a benign coalesce. | `reducer_work_item_collision_test.go`, `TestEnqueueRefusesAForeignIntentWorkItemIDLive`, the #11203 characterization `TestReducerWorkItemIDIsNotInjective` |
+| #11215 | No id format change (see the migration plan). `enqueueReducerBatch` resolves a shortfall in inserted rows with one primary-key probe: a held row whose stored scope, generation or domain differs from the incoming intent, or whose stored entity key reproduces the row's own id yet differs from the incoming key, is refused with `*ReducerWorkItemCollisionError` (non-retryable, failure class `reducer_work_item_id_collision`); a plain duplicate stays a benign coalesce. | `reducer_work_item_collision_test.go`, `TestEnqueueRefusesAForeignIntentWorkItemIDLive`, the #11203 characterization `TestReducerWorkItemIDIsNotInjective` |
 | #11216 | Guard reads `factwrite.Row` / `VersionedRow` literals, the id after `factwrite.SingleInsertQuery`, ids assigned after construction (`x.FactID = ...`) and every `...FactID` helper, follows helpers and `kind + ":" + hash(...)`; every allowlist row in `factIDProducerAllowlist` carries a reason (count it with that map, not from this note); zero-site failure kept. | `TestFactIDProducerGuardOtherShapes`, `TestFactIDProducerGuardSeededReducerViolations` |
 
 ## #11215 migration plan for an injective work item id (not done here)
@@ -137,6 +137,19 @@ The ingestion path keeps its single ERROR log and now labels the counter
 coverage registry.
 
 ## Known limits
+
+- **The enqueue probe trusts the entity key only when it reproduces the row id.**
+  The scope, generation and domain columns are always stored; the entity key is
+  only in the payload, which enqueue fills but refinalize, the freshness
+  reproject, seeds, older rows and test fixtures do not (the shared fairness
+  fixture stores the work item id there). A first version compared the payload
+  key unconditionally and failed `TestActivationWakesOwnGateConsumersLive` on
+  PR #11270 (the replay enqueue saw a legitimate duplicate as a collision;
+  3 of 3 subtests failed on every run). A stored key now counts only when
+  `reducerWorkItemID` rebuilt from the stored columns and that key equals the
+  row id, and every part compares trimmed like the id does. A foreign writer
+  that stores a key unrelated to its id is therefore never refused, at the cost
+  of not detecting an alias that row would have hidden.
 
 - The producer guard cannot see ids minted in SQL, or built in a function not named
   like an id helper and handed through a parameter to a row literal (the allowlist

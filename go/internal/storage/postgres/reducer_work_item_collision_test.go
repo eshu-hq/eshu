@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,15 @@ func TestEnqueueRefusesAnIntentWhoseWorkItemIDAnotherIntentHolds(t *testing.T) {
 	}{
 		{"a different intent holds the id", []any{reducerWorkItemID(held), held.ScopeID, held.GenerationID, string(held.Domain), held.EntityKey}, true},
 		{"nothing differs: a benign duplicate", nil, false},
+		// The probe returns every held id; Go decides. A stored payload with no
+		// entity key (rows other writers insert, and older rows) says nothing
+		// about the key, so the same scope, generation and domain is the same
+		// intent: a benign coalesce, never a collision (#11270 wake regression).
+		{"held row stores no entity key", []any{reducerWorkItemID(incoming), incoming.ScopeID, incoming.GenerationID, string(incoming.Domain), ""}, false},
+		{"held row differs only by surrounding whitespace in the entity key", []any{reducerWorkItemID(incoming), incoming.ScopeID, incoming.GenerationID, string(incoming.Domain), "  " + incoming.EntityKey + "\t"}, false},
+		{"held row stores a key that does not reproduce its id (a fixture or foreign writer)", []any{reducerWorkItemID(incoming), incoming.ScopeID, incoming.GenerationID, string(incoming.Domain), reducerWorkItemID(incoming)}, false},
+		{"held row stores another key that reproduces the id (an entity key alias)", []any{reducerWorkItemID(incoming), incoming.ScopeID, incoming.GenerationID, string(incoming.Domain), strings.ReplaceAll(incoming.EntityKey, ":", "/")}, true},
+		{"held row differs only by whitespace in the scope", []any{reducerWorkItemID(incoming), " " + incoming.ScopeID + " ", incoming.GenerationID, string(incoming.Domain), incoming.EntityKey}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var rows [][]any
@@ -65,7 +75,7 @@ func TestEnqueueRefusesAnIntentWhoseWorkItemIDAnotherIntentHolds(t *testing.T) {
 					t.Fatalf("Enqueue() error = %v, want *ReducerWorkItemCollisionError", err)
 				}
 				if collision.Count != 1 || collision.Samples[0].IncomingScopeID != incoming.ScopeID ||
-					collision.Samples[0].StoredScopeID != held.ScopeID || collision.Retryable() {
+					collision.Samples[0].StoredScopeID != tc.stored[1] || collision.Retryable() {
 					t.Fatalf("collision = %+v", collision)
 				}
 				return

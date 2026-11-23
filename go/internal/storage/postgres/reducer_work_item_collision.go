@@ -6,8 +6,10 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -65,17 +67,46 @@ func (*ReducerWorkItemCollisionError) FailureClass() string {
 }
 
 // heldWorkItemsQuery returns the stored identity of every incoming work item id
-// whose queued row differs from the incoming intent in scope, generation, domain
-// or entity key. A primary-key probe; it reads no payload but the entity key.
+// that a queued row already holds. A primary-key probe; it reads no payload but
+// the entity key. Go, not SQL, decides which held rows are a different intent
+// (heldIsDifferentIntent), so the comparison trims exactly as reducerWorkItemID
+// does.
 const heldWorkItemsQuery = `
-SELECT t.work_item_id, w.scope_id, w.generation_id, w.domain, COALESCE(w.payload ->> 'entity_key', '')
-FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
-    AS t(work_item_id, scope_id, generation_id, domain, entity_key)
-JOIN fact_work_items AS w ON w.work_item_id = t.work_item_id
-WHERE w.scope_id IS DISTINCT FROM t.scope_id
-   OR w.generation_id IS DISTINCT FROM t.generation_id
-   OR w.domain IS DISTINCT FROM t.domain
-   OR COALESCE(w.payload ->> 'entity_key', '') IS DISTINCT FROM t.entity_key`
+SELECT w.work_item_id, w.scope_id, w.generation_id, w.domain, COALESCE(w.payload ->> 'entity_key', '')
+FROM fact_work_items AS w
+WHERE w.work_item_id = ANY($1::text[])`
+
+// heldIsDifferentIntent reports whether a held row belongs to an intent other
+// than incoming. The scope, generation and domain columns are always stored, so
+// any difference there is a different intent. The entity key lives only in the
+// payload, and the payload is not a trustworthy identity on its own: enqueue
+// writes the intent's key, but other writers of reducer rows (refinalize, the
+// freshness reproject, seeds), older rows and test fixtures store no key or an
+// unrelated one. A stored key therefore counts only when it reproduces the row's
+// own work item id; then it is the key the id was built from, and a different
+// incoming key under that id is the alias #11215 describes. Anything else says
+// nothing about the intent and is never a difference, because refusing a
+// legitimate duplicate would dead-letter a healthy item. Every part is compared
+// trimmed, the way reducerWorkItemID builds the id, so a spelling that differs
+// only by surrounding whitespace is a plain duplicate, not a collision.
+func heldIsDifferentIntent(stored ReducerWorkItemCollisionSample, incoming runtime.ReducerIntent) bool {
+	if strings.TrimSpace(stored.StoredScopeID) != strings.TrimSpace(incoming.ScopeID) ||
+		strings.TrimSpace(stored.StoredGenerationID) != strings.TrimSpace(incoming.GenerationID) ||
+		strings.TrimSpace(stored.StoredDomain) != strings.TrimSpace(string(incoming.Domain)) {
+		return true
+	}
+	storedKey := strings.TrimSpace(stored.StoredEntityKey)
+	if storedKey == "" || storedKey == strings.TrimSpace(incoming.EntityKey) {
+		return false
+	}
+	reproduces := reducerWorkItemID(runtime.ReducerIntent{
+		ScopeID:      stored.StoredScopeID,
+		GenerationID: stored.StoredGenerationID,
+		Domain:       reducercontract.Domain(stored.StoredDomain),
+		EntityKey:    stored.StoredEntityKey,
+	}) == stored.WorkItemID
+	return reproduces
+}
 
 // resolveEnqueueShortfall returns the rows an enqueue inserted, after refusing a
 // collision a shortfall hides: fewer rows than attempted is normally a benign
@@ -98,19 +129,12 @@ func resolveEnqueueShortfall(ctx context.Context, database db.Queryer, batch []r
 // is a collision. It runs one primary-key probe, and only on a shortfall.
 func refuseWorkItemCollisions(ctx context.Context, database db.Queryer, batch []runtime.ReducerIntent) error {
 	ids := make([]string, len(batch))
-	scopes := make([]string, len(batch))
-	generations := make([]string, len(batch))
-	domains := make([]string, len(batch))
-	entityKeys := make([]string, len(batch))
 	byID := make(map[string]runtime.ReducerIntent, len(batch))
 	for i, intent := range batch {
 		ids[i] = reducerWorkItemID(intent)
-		scopes[i], generations[i], domains[i], entityKeys[i] = intent.ScopeID, intent.GenerationID, string(intent.Domain), intent.EntityKey
 		byID[ids[i]] = intent
 	}
-	rows, err := database.QueryContext(ctx, heldWorkItemsQuery,
-		array.StringArray(ids), array.StringArray(scopes), array.StringArray(generations),
-		array.StringArray(domains), array.StringArray(entityKeys))
+	rows, err := database.QueryContext(ctx, heldWorkItemsQuery, array.StringArray(ids))
 	if err != nil {
 		return fmt.Errorf("probe held reducer work items after a short enqueue: %w", err)
 	}
@@ -122,9 +146,12 @@ func refuseWorkItemCollisions(ctx context.Context, database db.Queryer, batch []
 		if err := rows.Scan(&sample.WorkItemID, &sample.StoredScopeID, &sample.StoredGenerationID, &sample.StoredDomain, &sample.StoredEntityKey); err != nil {
 			return fmt.Errorf("scan held reducer work item: %w", err)
 		}
+		incoming := byID[sample.WorkItemID]
+		if !heldIsDifferentIntent(sample, incoming) {
+			continue
+		}
 		collision.Count++
 		if len(collision.Samples) < reducerWorkItemCollisionSampleCap {
-			incoming := byID[sample.WorkItemID]
 			sample.IncomingScopeID, sample.IncomingGenerationID = incoming.ScopeID, incoming.GenerationID
 			sample.IncomingDomain, sample.IncomingEntityKey = string(incoming.Domain), incoming.EntityKey
 			collision.Samples = append(collision.Samples, sample)
