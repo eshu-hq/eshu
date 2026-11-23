@@ -26,13 +26,13 @@ identifier. It did not predict the QA per-kept-row cost, so it is not evidence
 that 1000 is safe at QA scale. Any future attempt to raise the bound needs a
 QA-shaped measurement (kept rows per tick in the 200k range) before it lands.
 
-## Performance Evidence (no regression)
+## Performance Evidence (no regression):
 
 The revert restores the deployed 0772ee6913 behaviour: one default constant back
 to 200, no SQL, lock, worker, batch, window, cadence, or clamp change (#11157
 stays 13,107; 200 x 5 = 1000 INSERT params).
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 The diff touches no SQL and no settle predicate, so the sound S/H horizon,
 oldest-first chunk order, exact-applied delete, and scope-remainder conversion
@@ -43,7 +43,7 @@ tick (200 admitted, truncated, one INSERT). The #10839 batch tests and the
 #11157 clamp tests, including the #11302 derived clamp assertion, pass
 unchanged.
 
-## Observability Evidence (no new telemetry)
+## Observability Evidence (no new telemetry):
 
 No new spans or metrics. The existing `BuildActiveFacts` tick-phase histogram,
 the per-tick statement count, and
