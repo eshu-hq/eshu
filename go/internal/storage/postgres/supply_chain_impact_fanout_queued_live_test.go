@@ -7,17 +7,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"reflect"
 	"sort"
 	"testing"
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// queuedHolderStates names every holder shape the prefilter must classify the
-// way the reopen does. queued is the documented expectation; the differential
-// below checks the same shapes against the shipped reopen's own classification.
+// queuedHolderStates names every holder status shape the prefilter must
+// classify the way the reopen does. None carries a stamp, so with an unbounded
+// change queued means "dropped". The differential in
+// supply_chain_impact_fanout_queued_cover_live_test.go runs the same shapes
+// against the shipped reopen.
 var queuedHolderStates = []struct {
 	scope  string
 	queued bool
@@ -120,73 +120,6 @@ func queuedHolderScopes() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// TestFindQueuedHolderScopesMatchesThePerHolderClassificationLive is the
-// differential: for every holder shape, the prefilter returns exactly the
-// holders the shipped reopen statement would classify as nothing-to-write (every
-// matched row pending or retrying, and at least one). The classification runs
-// the reopen's own target CTE, derived from the shipped text.
-func TestFindQueuedHolderScopesMatchesThePerHolderClassificationLive(t *testing.T) {
-	ctx, db := fanOutLiveDB(t)
-	seedQueuedHolderStates(t, ctx, db)
-	classify, ok := deriveReopenClassification(postgres.ReopenSupplyChainImpactHolderQueryForTest)
-	if !ok {
-		t.Fatal("cannot derive the reopen classification from the shipped statement")
-	}
-
-	var naive []string
-	for _, scope := range queuedHolderScopes() {
-		rows, err := db.QueryContext(ctx, classify, scope)
-		if err != nil {
-			t.Fatalf("classify %s: %v", scope, err)
-		}
-		matched, allQueued := 0, true
-		for rows.Next() {
-			var status string
-			if err := rows.Scan(&status); err != nil {
-				_ = rows.Close()
-				t.Fatal(err)
-			}
-			matched++
-			if status != "pending" && status != "retrying" {
-				allQueued = false
-			}
-		}
-		if err := rows.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if matched > 0 && allQueued {
-			naive = append(naive, scope)
-		}
-	}
-
-	got, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, queuedHolderScopes(), nil)
-	if err != nil {
-		t.Fatalf("FindQueuedHolderScopes() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, naive) {
-		t.Fatalf("prefilter = %v, per-holder classification = %v", got, naive)
-	}
-	var want []string
-	for _, state := range queuedHolderStates {
-		if state.queued {
-			want = append(want, state.scope)
-		}
-	}
-	sort.Strings(want)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("prefilter = %v, want %v", got, want)
-	}
-	// A holder outside the asked list is never returned, an empty list reads
-	// nothing, and an unknown scope is not queued.
-	only, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, []string{"h-pending", "h-unknown"}, nil)
-	if err != nil || !reflect.DeepEqual(only, []string{"h-pending"}) {
-		t.Fatalf("bounded list = %v, %v, want [h-pending]", only, err)
-	}
-	if none, err := fanOutLiveStore(db).FindQueuedHolderScopes(ctx, nil, nil); err != nil || len(none) != 0 {
-		t.Fatalf("empty list = %v, %v", none, err)
-	}
 }
 
 func queuedRowVersions(t *testing.T, ctx context.Context, db *sql.DB) map[string]string {

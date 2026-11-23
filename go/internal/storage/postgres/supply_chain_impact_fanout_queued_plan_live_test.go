@@ -22,9 +22,10 @@ import (
 //   - fact_work_items_stage_domain_status_idx: one range read of the domain's
 //     matched-status rows with the holder list applied as a filter, best when
 //     the list is a large share of those rows. On the QA replica the largest
-//     stored list (4,013 holders) takes this plan: 4,017 rows kept, 5,029
-//     removed by the filter, so the cost follows the domain's matched-status
-//     rows (about 9k), not the holder count.
+//     stored list (3,732 holders, covered-only predicate, 2026-11-23) takes
+//     this plan: 3,736 rows kept, 5,576 removed by the filter, so the cost
+//     follows the domain's matched-status rows (about 9k), not the holder
+//     count. ingestion_scopes is a Seq Scan (15,408 rows) feeding the hash.
 //
 // Any other plan, including one with no index on fact_work_items, is refused so
 // a new plan shape is looked at before it ships.

@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -191,5 +193,76 @@ func TestReopenWidensAFlaggedInFlightHoldersStampLive(t *testing.T) {
 	cleared, err := store.ClearReplayFlagIfStampSeen(ctx, intent, seen)
 	if err != nil || cleared {
 		t.Fatalf("clear with the claim-time stamp = %v err = %v, want false: the widened stamp must rerun the pass", cleared, err)
+	}
+}
+
+// TestReopenWidensOnceAndASecondSameOriginReopenWritesNothingLive: after the
+// widen, the stamp names the change, so a second reopen with the same origin
+// writes no row version and reports pending_noop, and the prefilter then drops
+// the holder for that change.
+func TestReopenWidensOnceAndASecondSameOriginReopenWritesNothingLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	store := fanOutLiveStore(db)
+	id := widenSeedPending(t, ctx, db, "h-widen-idem")
+	if reopen, err := store.ReopenHolderDetailed(ctx, "h-widen-idem", widenOriginB); err != nil || string(reopen.Outcome) != "stamp_widened" {
+		t.Fatalf("first reopen = %+v err=%v, want stamp_widened", reopen, err)
+	}
+	before := widenRead(t, ctx, db, id)
+	reopen, err := store.ReopenHolderDetailed(ctx, "h-widen-idem", widenOriginB)
+	if err != nil || reopen.Outcome != supplychaincore.FanOutPendingNoop {
+		t.Fatalf("second reopen = %+v err=%v, want pending_noop", reopen, err)
+	}
+	if after := widenRead(t, ctx, db, id); after.version != before.version {
+		t.Fatalf("second same-origin reopen wrote a row version %s -> %s", before.version, after.version)
+	}
+	got, err := store.FindQueuedHolderScopes(ctx, []string{"h-widen-idem"}, widenOriginB.CVEIDs)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("prefilter after the widen = %v err=%v, want the holder dropped", got, err)
+	}
+}
+
+// TestReopenWidensToTheSentinelPastTheStampCapLive: a union of exactly the
+// cap stays bounded, one id past it becomes the sentinel, and a set-less
+// change makes the stamp set-less, so the next pass runs full.
+func TestReopenWidensToTheSentinelPastTheStampCapLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	store := fanOutLiveStore(db)
+	stored := make([]string, 0, supplychaincore.FanOutOriginCVEIDCap)
+	for i := 0; i < supplychaincore.FanOutOriginCVEIDCap-1; i++ {
+		stored = append(stored, fmt.Sprintf("CVE-2026-1%04d", i))
+	}
+	capped := widenOriginA
+	capped.CVEIDs = stored
+	fanOutSeedScope(t, ctx, db, "h-widen-cap", "g1")
+	id := fanOutSeedItem(t, ctx, db, "h-widen-cap", "g1")
+	widenSetStamp(t, ctx, db, id, widenStamp(t, capped))
+
+	// cap-1 stored plus one new id is exactly the cap: still bounded.
+	if _, err := store.ReopenHolderDetailed(ctx, "h-widen-cap", widenOriginB); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := fanOutStampCVEs(t, ctx, db, id); len(got) != supplychaincore.FanOutOriginCVEIDCap || !slices.Contains(got, widenCVEB) {
+		t.Fatalf("stamp at the cap holds %d ids, want %d including %s", len(got), supplychaincore.FanOutOriginCVEIDCap, widenCVEB)
+	}
+	// One more id goes past the cap: the sentinel.
+	other := widenOriginB
+	other.CVEIDs = []string{"CVE-2026-9999"}
+	if _, err := store.ReopenHolderDetailed(ctx, "h-widen-cap", other); err != nil {
+		t.Fatal(err)
+	}
+	if row := widenRead(t, ctx, db, id); row.cves != `["`+supplychaincore.FanOutStampSentinel+`"]` {
+		t.Fatalf("stamp past the cap = %s, want the sentinel", row.cves)
+	}
+
+	// A set-less change on a bounded stamp removes the cves key.
+	setless := widenSeedPending(t, ctx, db, "h-widen-setless")
+	if reopen, err := store.ReopenHolderDetailed(ctx, "h-widen-setless", fanOutLiveOrigin); err != nil || string(reopen.Outcome) != "stamp_widened" {
+		t.Fatalf("set-less reopen = %+v err=%v, want stamp_widened", reopen, err)
+	}
+	if _, present := fanOutStampCVEs(t, ctx, db, setless); present {
+		t.Fatal("a set-less change left a cves key: the next pass would stay scoped")
+	}
+	if row := widenRead(t, ctx, db, setless); row.scopeID != fanOutLiveOrigin.SourceScopeID {
+		t.Fatalf("set-less stamp source = %q, want the incoming origin %q", row.scopeID, fanOutLiveOrigin.SourceScopeID)
 	}
 }
