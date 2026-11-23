@@ -21,7 +21,13 @@ const jitOffSQL = `SELECT set_config('jit', 'off', true)`
 // jit_pair.sh) showed jit = off at least 20 percent faster for the supplement
 // reads and the image reads, in both corpus states: the planner estimates a large
 // probe count, JIT compiles the statement, and the compile costs more than the
-// probes it speeds up. The winners and grant routes are unchanged.
+// probes it speeds up. Through the Go stores the saving is per plan state
+// (docs/internal/evidence/10880-pr-b2a-reader/RESULTS.md): a custom plan (the first
+// five executions of a statement on a connection) is 82 percent faster for the list
+// and both counts, and the list's generic plan is 68 percent faster; the counts'
+// generic plan costs 2.7 percent less than jit_above_cost on the lab corpus, is not
+// compiled, and the wrapper is neutral there (within 1 percent), a state a larger
+// corpus can change. The winners and grant routes are unchanged.
 func (r ReadRoute) wantsJITOff() bool {
 	return r == RouteWinnersSupplement || r == RouteSupportsImage
 }

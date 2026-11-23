@@ -39,7 +39,7 @@ Performance Evidence: every shipped read finishes under the ruling's bar.
 
 The largest single reading is 685.5 ms (grouped, every winner failing precise);
 the largest maximum is 703.0 ms. Over 40 reads, the slowest ordinary read is 406.0
-ms. The jit-off scope costs 0.06 ms per read.
+ms. The jit-off scope costs 0.06 ms per read (5.9 ms per 100 scopes, before the lab I/O change; 9.5 ms per 100 after it, see the JIT section).
 
 ## Scale of the unscoped precise reads (route V), hot keys, and JIT
 
@@ -103,24 +103,40 @@ unwrapped arm's plan was built with `jit` on; 8 warm-ups per arm; the V statemen
 `pg_prepared_statements.generic_plans` asserted >= 1 on the raw connection before
 sampling; n = 25 interleaved; after the lab I/O change):
 
-| Read | no wrapper | wrapper | net saving | generic plans on the raw connection |
+| Read | no wrapper | wrapper | net saving | highest `generic_plans` of any V statement on the raw connection |
 | --- | --- | --- | --- | --- |
 | list with status | 736.8 ms | 233.2 ms | 68.3 % | 3 |
-| count with status | 229.8 ms | 231.2 ms | -0.6 % | 28 |
+| count with status | 229.8 ms | 231.2 ms | 0.6 % slower with the wrapper | 28 |
 | count with no selector | 234.9 ms | 231.9 ms | 1.3 % | 36 |
 
-A generic plan is compiled when it is built with `jit` on: the list's generic plan runs
-with a JIT block (`Inlining false`, 679 to 698 ms) and the plan costs 261,215 against
-`jit_above_cost` 100,000. The two counts' generic plans carry no JIT block in the
-captured executions (241 to 248 ms), so the wrapper neither helps nor hurts them in
-steady state (within 1.3 %, no state worse by more than 1 %); their first five executions
-on a connection are custom plans with JIT (1.5 s, `Inlining true`), which the wrapper
-removes. The plan-state capture is `results_jit_plan_state_capture.txt`.
+The check before sampling reads the highest counter of any V statement on the raw
+connection, and the list and the counts share that connection, so the 28 is the list
+statement's counter (3 after its warm-ups plus 25 samples), not the count's. The count
+statement's state follows from the counters: 36 is 3 after the count warm-ups, 25 samples
+and 8 more warm-ups of the no-selector count, all on the generic plan. The per-execution
+capture shows the same switch at execution 6.
+
+A generic plan is compiled when it is built with `jit` on and costs more than
+`jit_above_cost` (100,000). The list's generic plan costs 260,840 in this capture
+(261,215 in the arbiter's earlier psql shim run) and runs with a JIT block (904 functions,
+`Inlining false`, 679 to 698 ms). The two counts' shared generic plan costs 97,259 on this
+corpus and is not compiled, only because it is under `jit_above_cost`: the margin is 2.7 %,
+and a larger corpus or different statistics can put it over the threshold, after which the
+counts would pay the compile in steady state without the wrapper. In the captured
+executions the counts run 241 to 248 ms in steady state, within 1.3 % of the wrapped arm
+(no state worse by more than 1 %); their first five executions on a connection are custom
+plans with JIT (1.5 s, `Inlining true`), which the wrapper removes. The 20 % bar is read per
+plan state: the list clears it in both states, the counts clear it in the custom-plan state
+and are neutral in steady state. The plan-state capture is
+`results_jit_plan_state_capture.txt`. D2 records the count statement's generic-plan cost on
+the QA replica against its `jit_above_cost`.
 
 The wrapper adds three round trips (BEGIN, `set_config`, COMMIT): 9.5 ms per 100 scopes
-(0.095 ms each) on localhost TCP with an idle one-connection pool, after the lab I/O
-change (5.9 ms per 100 before it); against an in-cluster replica the three round trips add
-about 1.5 ms at 0.5 ms each (arithmetic, not measured). Lab figures only: the QA reader
+(0.095 ms each; median of three batches of 100) on localhost TCP with an idle
+one-connection pool, through the plain `*sql.DB` path, each scope also running a
+`SELECT 1`, after the lab I/O change (5.9 ms per 100 before it). It is not the cost through
+the guarded read port (`BeginReadOnlySnapshot`, repeatable read). Not measured: at an
+assumed 0.5 ms round trip the three add about 1.5 ms (arithmetic). Lab figures only: the QA reader
 pool, `plan_cache_mode`, the JIT cost settings, any pooler and the round-trip time are not
 measured; D2 records them and W1 reads the `pg_stat_statements` JIT counters for the two
 routes.
@@ -133,7 +149,7 @@ candidate key, in every list, count and inventory plan (`p1_plan_*.txt`). No pla
 node that loops over the active scopes, a `temp read` or `temp written` line, or an
 external sort. The count with the hot CVE at `work_mem` = 4MB (`p1_plan_hotcve_count_wm4.txt`,
 labelled) also writes no temp file at 4,416 candidates. Executions of the captured
-connections: 53.9 to 62.9 ms in the plans kept, first runs up to 218 ms.
+connections: 53.9 to 63.2 ms in the plans kept, first runs up to 218 ms.
 
 ## Limits
 
