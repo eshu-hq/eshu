@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_backfill (
 -- pins its search_path to pg_catalog, this schema and pg_temp last (the form of
 -- migration 307), so a caller's temp table or search_path cannot divert the
 -- mark, and PUBLIC may not execute it. The search_path is set only after every
--- CREATE TABLE and CREATE INDEX above, which must still target this schema, and
--- restored before the triggers are created.
+-- table and index statement in this file, which must still target this schema,
+-- and restored before the triggers are created.
 CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty (
     scope_id      TEXT PRIMARY KEY,
     dirty_version BIGINT NOT NULL DEFAULT 1,

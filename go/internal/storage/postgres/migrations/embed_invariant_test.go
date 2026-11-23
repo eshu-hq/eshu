@@ -366,7 +366,7 @@ import (
 // tree, regenerated whenever 338 changes (338 is unshipped, so its checksum and
 // this digest move in place).
 const (
-	goldenBootstrapDefinitionsDigest = "fdfd25b2a63fb1944d151d9ef64f4c4813804f9ef552306cc21952388de8f0c3"
+	goldenBootstrapDefinitionsDigest = "c827350ee2149a2aeb6863551409278e615a83fb7e044f3e3cc9ef33e672b7c6"
 	goldenBootstrapDefinitionsCount  = 364
 )
 
