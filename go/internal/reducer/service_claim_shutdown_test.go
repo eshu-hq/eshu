@@ -204,3 +204,143 @@ type succeedingShutdownExecutor struct{}
 func (succeedingShutdownExecutor) Execute(_ context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	return reducercontract.Result{IntentID: intent.IntentID, Domain: intent.Domain, Status: reducercontract.ResultStatusSucceeded}, nil
 }
+
+// failingExecutor returns an execution error for every intent, which routes
+// the intent to WorkSink.Fail.
+type failingShutdownExecutor struct{ err error }
+
+func (e failingShutdownExecutor) Execute(context.Context, reducercontract.Intent) (reducercontract.Result, error) {
+	return reducercontract.Result{}, e.err
+}
+
+// shutdownFailSink fails every Fail with the wrapped context error once the run
+// context is done, the way Fail's retry UPDATE or its wait-park statements
+// (insert, rendezvous, satisfaction check) fail when the shutdown signal lands
+// mid-Fail. With a live context it returns liveErr.
+type shutdownFailSink struct {
+	started chan struct{}
+	liveErr error
+}
+
+func (*shutdownFailSink) Ack(context.Context, reducercontract.Intent, reducercontract.Result) error {
+	return nil
+}
+
+func (s *shutdownFailSink) Fail(ctx context.Context, _ reducercontract.Intent, _ error) error {
+	select {
+	case s.started <- struct{}{}:
+	default:
+	}
+	if s.liveErr != nil {
+		return s.liveErr
+	}
+	<-ctx.Done()
+	return fmt.Errorf("park waiting reducer work: %w", ctx.Err())
+}
+
+// TestServiceRunTreatsShutdownDuringFailAsCleanStop pins that a Fail that
+// errors only because shutdown cancelled its context ends the run cleanly.
+// Fail's retry UPDATE has committed before the park runs, so the item is safe on
+// its backstop and only the exit code would misreport (#11256).
+func TestServiceRunTreatsShutdownDuringFailAsCleanStop(t *testing.T) {
+	t.Parallel()
+	for _, workers := range []int{0, 3} {
+		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
+			t.Parallel()
+			sink := &shutdownFailSink{started: make(chan struct{}, 1)}
+			service := Service{
+				PollInterval: time.Millisecond, Workers: workers, WorkSource: &oneIntentSource{},
+				WorkSink: sink, Executor: failingShutdownExecutor{err: errors.New("handler deferred")},
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- service.Run(ctx) }()
+			select {
+			case <-sink.started:
+			case <-time.After(10 * time.Second):
+				t.Fatal("no fail started")
+			}
+			cancel()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatalf("Service.Run after shutdown during a Fail = %v, want nil", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Service.Run did not return after shutdown")
+			}
+		})
+	}
+}
+
+// TestServiceRunStillReturnsAFailFailure pins the other side: a Fail error with
+// a live run context stays fatal, in both loops.
+func TestServiceRunStillReturnsAFailFailure(t *testing.T) {
+	t.Parallel()
+	for _, workers := range []int{0, 3} {
+		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
+			t.Parallel()
+			boom := errors.New("park insert failed")
+			service := Service{
+				PollInterval: time.Millisecond, Workers: workers, WorkSource: &oneIntentSource{},
+				WorkSink: &shutdownFailSink{started: make(chan struct{}, 1), liveErr: boom},
+				Executor: failingShutdownExecutor{err: errors.New("handler deferred")},
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := service.Run(ctx); !errors.Is(err, boom) {
+				t.Fatalf("Service.Run = %v, want the Fail failure %v", err, boom)
+			}
+		})
+	}
+}
+
+// batchOneIntentSource claims one intent through ClaimBatch, then idles until
+// shutdown, so the service takes the batch loop.
+type batchOneIntentSource struct{ oneIntentSource }
+
+func (s *batchOneIntentSource) ClaimBatch(ctx context.Context, _ int) ([]reducercontract.Intent, error) {
+	intent, ok, err := s.Claim(ctx)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return []reducercontract.Intent{intent}, nil
+}
+
+// batchShutdownFailSink adds the batch ack surface to shutdownFailSink so the
+// service picks the batch loop.
+type batchShutdownFailSink struct{ shutdownFailSink }
+
+func (*batchShutdownFailSink) AckBatch(context.Context, []reducercontract.Intent, []reducercontract.Result) error {
+	return nil
+}
+
+// TestServiceBatchRunTreatsShutdownDuringFailAsCleanStop pins the same clean stop
+// in the batch loop (the production default, through executeAndReport).
+func TestServiceBatchRunTreatsShutdownDuringFailAsCleanStop(t *testing.T) {
+	t.Parallel()
+	sink := &batchShutdownFailSink{shutdownFailSink{started: make(chan struct{}, 1)}}
+	service := Service{
+		PollInterval: time.Millisecond, Workers: 3, WorkSource: &batchOneIntentSource{},
+		WorkSink: sink, Executor: failingShutdownExecutor{err: errors.New("handler deferred")},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- service.Run(ctx) }()
+	select {
+	case <-sink.started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no fail started")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Service.Run (batch) after shutdown during a Fail = %v, want nil", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Service.Run did not return after shutdown")
+	}
+}

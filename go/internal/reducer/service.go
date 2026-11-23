@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 572 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam and #11239 the outcomeBuffered seam, which must live on Service; #11256 added two clean-shutdown guards (claim and ack) to the claim loops.
+package reducer //nolint:filelength // 575 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam and #11239 the outcomeBuffered seam, which must live on Service; #11256 added clean-shutdown guards for the claim and the Fail failure to the claim loops (the ack guard lives in service_batch.go).
 
 import (
 	"context"
@@ -551,6 +551,9 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 			// instead of stopping the run on an ordinary lease race (#7142).
 			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 			return nil
+		}
+		if stoppedByShutdown(ctx, failErr) {
+			return s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, failErr)
 		}
 		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, status, workerID, err)
 		if failErr != nil {

@@ -440,3 +440,33 @@ func (s Service) logAckTransient(ctx context.Context, message, failureClass stri
 		log.Err(err),
 	)
 }
+
+// failStatusInterruptedByShutdown is the result status recorded for an intent
+// whose WorkSink.Fail was cut short by shutdown. Fail's retry UPDATE commits
+// before its wait-park statements run, so the item is already retrying on its
+// backstop; only the park (or the retry UPDATE itself, in which case the claim
+// expires for reclaim) did not finish.
+const failStatusInterruptedByShutdown = "fail_interrupted_by_shutdown"
+
+// stoppedByShutdown reports whether err is the run context's own cancellation:
+// the context is done and err wraps its error. A claim, ack or Fail that fails
+// only for that reason is a stopping process, not a failed run (#11256).
+func stoppedByShutdown(ctx context.Context, err error) bool {
+	return err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err())
+}
+
+// recordShutdownInterrupt records an intent whose claim-side work shutdown cut
+// short (its Fail, or its ack, ended on the cancelled run context) and returns
+// nil so the run stops cleanly: the retry UPDATE already committed and the item
+// is on its backstop, or the claim expires for reclaim.
+func (s Service) recordShutdownInterrupt(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	duration, queueWait float64,
+	status string,
+	workerID int,
+	err error,
+) error {
+	s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, status, workerID, err)
+	return nil
+}
