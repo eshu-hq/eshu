@@ -35,8 +35,11 @@ const (
 	// (wakeTerminalGenerationActiveWaits in the Ack transaction). Both
 	// wakes are load-bearing (a parked waiter otherwise strands until the
 	// audit), and the WAL/blocks bounds above still hold, so the pin
-	// moves with the feature instead of against it.
-	ajCostStatementsOnAck = 11
+	// moves with the feature instead of against it. The #11228 post-commit
+	// re-wake adds two statements per committed Ack (the generation_active
+	// wake and the terminal-wait probe, run again on the pool after Commit),
+	// so the count is 13 with the journal on or off.
+	ajCostStatementsOnAck = 13
 )
 
 // ajCostSample is one measured batch of Acks.
