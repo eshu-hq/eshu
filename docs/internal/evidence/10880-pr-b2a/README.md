@@ -77,7 +77,8 @@ only standing exception is the #7002 restore of migration 093, and no exception 
 | Migration 343 indexes the predicate the constant builds | `TestPreciseIndexMigrationCarriesThePredicate` |
 | Every shipped read that applies the precise filter spells the constant's match reason list, in order | `TestShippedReadsSpellThePreciseMatchReasonList` |
 | A finding the classifier calls precise has status `affected_exact` or `not_affected_known_fixed` and a non-empty observed version | `TestPreciseImpliesStatusAndObservedVersion` (reducer core) |
-| `impact_status` and `observed_version` are parts of the canonical key, so every support of a key shares them with its winner | `TestCanonicalKeyCarriesStatusAndObservedVersion` (storage) |
+| `impact_status` and `observed_version` are parts of the canonical key the supports writer builds, so every support of a key shares them with its winner | `TestCanonicalKeyCarriesStatusAndObservedVersion` (storage) |
+| `impact_status` and `observed_version` are parts of the legacy read's canonical key literal, so every support of a key shares them with its winner | `TestQueryCanonicalKeyCarriesStatusAndObservedVersion` (query) |
 
-The last two together are the premise of the status prune of the unscoped precise
+The last three together are the premise of the status prune of the unscoped precise
 read. A change to the precise filter needs a new index migration, not an edit of 343.
