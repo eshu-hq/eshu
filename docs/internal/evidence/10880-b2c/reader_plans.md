@@ -278,6 +278,15 @@ time, as the ruling authorized: the largest page of any repository in the three 
 (201 drains for the third shape). Equality and concurrency tests pass with the
 per-repository drain and migration 346 present.
 
+The 200-repository single-drain shape failed (92,259 buffers a page, against a bound
+of 15,000); the per-repository-id drain is the shipped form.
+
+The service loader returned `records=0` for `repo:hotrepo` in the built-binary run
+only because the lab seed changed the `repository_id` column and not the
+`repository_id` in the payload, which is the value the loader groups its records by;
+the drain read all 160,000 active rows. In real data the column and the payload value
+are the same. It is not a read problem.
+
 Built binary after the I/O change of the host volume (about 15:37Z; buffer counts are
 unaffected, timings are not comparable with the earlier runs): `repo:hotrepo` through
 `GetSupplyChainAdvisoriesForRepos` is 321 pages, 160,000 raw and active rows, 6.97 s;
