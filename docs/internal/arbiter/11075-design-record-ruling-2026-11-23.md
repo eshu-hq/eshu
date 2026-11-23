@@ -153,7 +153,8 @@ stale and (c) drain-only are rejected as the fix. Step B stays refused and
    `Fail`: not_ready park (attempt frozen at 1) → backstop re-claims on stuck
    watermark → exactly `MaxAttempts=3` counting stale evaluations → observed
    `status='dead_letter'`
-   (`go/internal/storage/postgres/reducer_queue_failure_evidence_live_test.go:50`,
+   (`TestReducerQueueClaimCarriesFailureEvidenceLive` in
+   `go/internal/storage/postgres/reducer_queue_failure_evidence_live_test.go`,
    RED-first: dead_letter after first stale Fail must fail with `retrying`). No
    clock change lands on a handler-only matrix; the queue-observed dead-letter is
    the proof.
