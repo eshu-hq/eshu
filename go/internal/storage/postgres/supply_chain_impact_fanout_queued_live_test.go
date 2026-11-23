@@ -229,11 +229,18 @@ UPDATE fact_work_items SET status = 'claimed', lease_owner = 'late', claim_until
 WHERE work_item_id = $1`, succeeded); err != nil {
 		t.Fatal(err)
 	}
-	outcomes := map[string]supplychaincore.FanOutOutcome{}
-	for _, scope := range queuedHolderScopes() {
+	// Every kept holder must still reach the per-holder statement; the loop
+	// below runs it for the holders whose reopen this fixture can complete. A
+	// failed-only holder has no matched item, so its reopen would enqueue a new
+	// intent that collides with the fixture's failed row: that enqueue path is
+	// covered by the reopen tests, not by this one.
+	for _, scope := range []string{"h-claimed", "h-running", "h-succeeded"} {
 		if dropped[scope] {
-			continue
+			t.Fatalf("holder %s was dropped by the prefilter, want kept", scope)
 		}
+	}
+	outcomes := map[string]supplychaincore.FanOutOutcome{}
+	for _, scope := range []string{"h-claimed", "h-running", "h-succeeded"} {
 		reopen, err := store.ReopenHolderDetailed(ctx, scope, fanOutLiveOrigin)
 		if err != nil {
 			t.Fatalf("reopen %s: %v", scope, err)
