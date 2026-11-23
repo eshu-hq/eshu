@@ -535,6 +535,11 @@ tests:
     class: dedicated_ci
     reason: "#11197: the moved fan-out holder family (5-id statement, 16-range key-range read with the open range and foreign-member token arm, over-length fallback, exact mass) equals the retired finding-fact statements kept as the oracle and keeps answering after every finding fact is deleted (disposable PostgreSQL 18)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_reads_contention_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the moved holder reads run against the real writer, a GIN pending-list flush loop and a cascade-deleting scope with no read error, no deadlock and no torn replacement (disposable PostgreSQL 18, -race, GOMAXPROCS=2)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_holder_supports_plan_live_test.go
     tag: ~
     class: dedicated_ci
