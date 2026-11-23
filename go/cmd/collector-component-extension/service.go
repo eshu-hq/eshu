@@ -92,6 +92,9 @@ func buildClaimedService(
 	// by explicit carve-out below, never by falling through to whichever
 	// store serves claims. Installation selection reads the same rows.
 	controlStore := postgres.NewWorkflowControlStore(database)
+	// Instruments lets the claim-grant leg's latch transitions reach the
+	// eshu_dp_workflow_claim_pacing_* series; a nil value silences them (#10882).
+	controlStore.Instruments = instruments
 	// Host-minted App tokens are optional: when the operator configures all
 	// three GitHub App variables the host mints one installation token per
 	// claim for the security-alerts activation; otherwise the static config

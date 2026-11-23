@@ -7,8 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/claim/store"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -52,5 +55,31 @@ func TestBuildClaimedServiceSelectsClaimStoreFromEnv(t *testing.T) {
 	_, err = buildClaimedService(nil, withURL("ftp://claim-plane"), nil, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), store.EnvClaimPlaneURL) {
 		t.Fatalf("buildClaimedService(invalid) error = %v, want one naming %s", err, store.EnvClaimPlaneURL)
+	}
+}
+
+// TestBuildClaimedServiceAssignsInstrumentsToClaimControlStore pins the field
+// assignment only: the core control store carries the process instruments. It
+// proves no series. This binary sets no SourceBackpressure on its
+// ClaimedService, so its grant leg never consults and records no claim-pacing
+// series today; the assignment keeps a later SourceBackpressure wiring from
+// recording nothing (#10882).
+func TestBuildClaimedServiceAssignsInstrumentsToClaimControlStore(t *testing.T) {
+	t.Parallel()
+
+	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider().Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	service, err := buildClaimedService(nil, testCICDRunGetenv, nil, inst, nil)
+	if err != nil {
+		t.Fatalf("buildClaimedService() error = %v, want nil", err)
+	}
+	control, ok := service.ControlStore.(*postgres.WorkflowControlStore)
+	if !ok {
+		t.Fatalf("ControlStore = %T, want *postgres.WorkflowControlStore", service.ControlStore)
+	}
+	if control.Instruments != inst {
+		t.Fatal("ControlStore.Instruments is not the process instruments; latch transitions would record nothing")
 	}
 }
