@@ -83,11 +83,11 @@ func (s errImpactAggregateStore) SupplyChainImpactInventory(
 	impact.InventoryDimension,
 	int,
 	int,
-) ([]impact.InventoryRow, error) {
+) (impact.AggregateInventoryPage, error) {
 	if s.inventoryErr != nil {
-		return nil, s.inventoryErr
+		return impact.AggregateInventoryPage{}, s.inventoryErr
 	}
-	return nil, nil
+	return impact.AggregateInventoryPage{}, nil
 }
 
 type errContainerImageStore struct{ err error }

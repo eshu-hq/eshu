@@ -6,6 +6,10 @@ package chain
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,5 +134,29 @@ func TestApplyWinnersFreshness(t *testing.T) {
 				t.Fatalf("observed_at present = %v, want %v", gotObserved, tc.wantObserved)
 			}
 		})
+	}
+}
+
+// TestImpactAggregateReadModelUnavailableCarriesRetryAfter pins that the
+// fail-closed 503 names the stale model, carries Retry-After for one
+// freshness window (120 s), and sets no retry-unrelated headers, so a
+// caller receiving only 503s still gets a backoff signal (#11169).
+func TestImpactAggregateReadModelUnavailableCarriesRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	handler := &Handler{}
+	recorder := httptest.NewRecorder()
+	handler.writeImpactAggregateReadModelUnavailable(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	res := recorder.Result()
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", res.StatusCode)
+	}
+	if got := res.Header.Get("Retry-After"); got != "120" {
+		t.Fatalf("Retry-After = %q, want one freshness window (120 s)", got)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "winners read model is not fresh") {
+		t.Fatalf("body = %s, want the stale-model text", body)
 	}
 }

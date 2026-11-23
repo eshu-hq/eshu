@@ -108,7 +108,7 @@ func assertSuppressionAuthorityState(
 		impact.InventoryByPriorityBucket,
 		impact.InventoryBySeverity,
 	} {
-		inventory, err := aggregates.SupplyChainImpactInventory(
+		inventoryPage, err := aggregates.SupplyChainImpactInventory(
 			ctx,
 			impact.AggregateFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
@@ -119,6 +119,7 @@ func assertSuppressionAuthorityState(
 			10,
 			0,
 		)
+		inventory := inventoryPage.Rows
 		if err != nil {
 			t.Fatalf("inventory %s include_suppressed=%t: %v", dimension, includeSuppressed, err)
 		}

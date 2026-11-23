@@ -52,6 +52,13 @@ Read `doc.go` and `README.md` first.
   `ErrGroupedInventoryReadModelUnavailable` instead of falling back to
   another read shape. Do not add its dimensions to `InventoryDimension`: the
   five single-valued dimensions keep their one-column `GROUP BY`.
+- `AggregateStore` (`aggregates.go`, #11169) answers
+  `ErrAggregateReadModelUnavailable` instead of falling back to the legacy
+  CTE whenever a winners-eligible call finds the winners watermark absent,
+  stale, or unprobed: exact totals and buckets cannot be labeled partial, so
+  an unavailable model fails visibly as 503 rather than serving an
+  approximate answer. The gate-off, scoped-token, and existence-filter paths
+  keep the legacy read and MUST NOT issue the watermark probe.
 - `PostgresGroupedInventoryStore` (`grouped_inventory_postgres.go`,
   `grouped_inventory_sql.go`) reads only the winners table. It MUST NOT
   join the operator-override facts per finding (the measured #9873 CTE cost)
@@ -127,6 +134,9 @@ to this list.
   `EvidenceFact` and its summary,
   `ExplanationFilter/Row/Result/Anchors/Freshness`,
   `AggregateFilter/Count`,
+  `AggregateFreshness`, `AggregateInventoryPage`,
+  `ErrAggregateReadModelUnavailable` (#11169: the aggregate fail-closed
+  sentinel, answered as 503 by the `chain` count/inventory handlers),
   `InventoryRow/Dimension`,
   `PathHop`, `Remediation`,
   `Provenance`, `TargetScope`,

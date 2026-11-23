@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -74,11 +75,8 @@ func TestAggregatesWinnersParityLive(t *testing.T) {
 			if err != nil {
 				t.Fatalf("winners count: %v", err)
 			}
-			wantJSON, _ := json.Marshal(want)
-			gotJSON, _ := json.Marshal(got)
-			if string(wantJSON) != string(gotJSON) {
-				t.Fatalf("winners count differs from legacy count\nlegacy:  %s\nwinners: %s", wantJSON, gotJSON)
-			}
+			assertAggregateFreshnessParity(t, name, winners.readFromWinnersFor(filter), want.Freshness, got.Freshness)
+			assertAggregateCountParity(t, name, want, got)
 		})
 		for _, dimension := range dimensions {
 			t.Run("inventory/"+name+"/"+string(dimension), func(t *testing.T) {
@@ -90,13 +88,54 @@ func TestAggregatesWinnersParityLive(t *testing.T) {
 				if err != nil {
 					t.Fatalf("winners inventory: %v", err)
 				}
-				wantJSON, _ := json.Marshal(want)
-				gotJSON, _ := json.Marshal(got)
+				wantJSON, _ := json.Marshal(want.Rows)
+				gotJSON, _ := json.Marshal(got.Rows)
 				if string(wantJSON) != string(gotJSON) {
 					t.Fatalf("winners inventory differs from legacy inventory\nlegacy:  %s\nwinners: %s", wantJSON, gotJSON)
 				}
+				assertAggregateFreshnessParity(t, name, winners.readFromWinnersFor(filter), want.Freshness, got.Freshness)
 			})
 		}
+	}
+}
+
+// assertAggregateCountParity pins the byte-identical totals contract minus
+// freshness (the one field that legitimately differs: the live read is
+// always current, the winners read carries its watermark), then pins the
+// freshness split itself.
+func assertAggregateCountParity(t *testing.T, name string, want, got AggregateCount) {
+	t.Helper()
+	want.Freshness = AggregateFreshness{}
+	got.Freshness = AggregateFreshness{}
+	wantJSON, _ := json.Marshal(want)
+	gotJSON, _ := json.Marshal(got)
+	if string(wantJSON) != string(gotJSON) {
+		t.Fatalf("winners count differs from legacy count\nlegacy:  %s\nwinners: %s", wantJSON, gotJSON)
+	}
+}
+
+// assertAggregateFreshnessParity pins the freshness split. The legacy
+// live-facts read reports fresh with no watermark timestamp. A
+// winners-eligible filter served from the model reports fresh with the
+// maintainer watermark the count and inventory envelopes disclose, while a
+// legacy-routed filter (scoped-token grants, existence filters) reports
+// fresh with no watermark on both sides.
+func assertAggregateFreshnessParity(t *testing.T, name string, winnersEligible bool, want, got AggregateFreshness) {
+	t.Helper()
+	if want.State != packet.FreshnessLabelFresh || want.LatestObservedAt != "" {
+		t.Fatalf("legacy freshness for %s = %+v, want fresh with no watermark", name, want)
+	}
+	if !winnersEligible {
+		if got.State != packet.FreshnessLabelFresh || got.LatestObservedAt != "" {
+			t.Fatalf("legacy-routed freshness for %s = %+v, want fresh with no watermark", name, got)
+		}
+		return
+	}
+	if got.State != packet.FreshnessLabelFresh || got.LatestObservedAt == "" {
+		t.Fatalf("winners freshness for %s = %+v, want fresh with the maintainer watermark", name, got)
+	}
+	if _, err := time.Parse(time.RFC3339Nano, got.LatestObservedAt); err != nil {
+		t.Fatalf("winners observed_at for %s = %q, want RFC3339Nano: %v", name, got.LatestObservedAt, err)
 	}
 }
 

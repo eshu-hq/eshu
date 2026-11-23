@@ -133,13 +133,13 @@ func (f *fakeSupplyChainAggregateStore) SupplyChainImpactInventory(
 	dimension impact.InventoryDimension,
 	limit int,
 	offset int,
-) ([]impact.InventoryRow, error) {
+) (impact.AggregateInventoryPage, error) {
 	f.inventoryCall++
 	f.gotFilter = filter
 	f.gotDimension = dimension
 	f.gotLimit = limit
 	f.gotOffset = offset
-	return append([]impact.InventoryRow(nil), f.rows...), f.err
+	return impact.AggregateInventoryPage{Rows: append([]impact.InventoryRow(nil), f.rows...)}, f.err
 }
 
 func TestDurableSupplyChainEvidenceSourceLoadsBoundedWorkloadInventory(t *testing.T) {

@@ -15,18 +15,19 @@ import (
 )
 
 type stubSupplyChainImpactAggregateStore struct {
-	count           impact.AggregateCount
-	countErr        error
-	inventory       []impact.InventoryRow
-	inventoryErr    error
-	lastFilter      impact.AggregateFilter
-	lastCountFilter impact.AggregateFilter
-	lastInvFilter   impact.AggregateFilter
-	lastDimension   impact.InventoryDimension
-	lastLimit       int
-	lastOffset      int
-	callCountCount  int
-	callInvCount    int
+	count              impact.AggregateCount
+	countErr           error
+	inventory          []impact.InventoryRow
+	inventoryFreshness impact.AggregateFreshness
+	inventoryErr       error
+	lastFilter         impact.AggregateFilter
+	lastCountFilter    impact.AggregateFilter
+	lastInvFilter      impact.AggregateFilter
+	lastDimension      impact.InventoryDimension
+	lastLimit          int
+	lastOffset         int
+	callCountCount     int
+	callInvCount       int
 }
 
 func (s *stubSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
@@ -48,7 +49,7 @@ func (s *stubSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	dim impact.InventoryDimension,
 	limit int,
 	offset int,
-) ([]impact.InventoryRow, error) {
+) (impact.AggregateInventoryPage, error) {
 	s.callInvCount++
 	s.lastFilter = filter
 	s.lastInvFilter = filter
@@ -56,9 +57,12 @@ func (s *stubSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	s.lastLimit = limit
 	s.lastOffset = offset
 	if s.inventoryErr != nil {
-		return nil, s.inventoryErr
+		return impact.AggregateInventoryPage{}, s.inventoryErr
 	}
-	return append([]impact.InventoryRow(nil), s.inventory...), nil
+	return impact.AggregateInventoryPage{
+		Rows:      append([]impact.InventoryRow(nil), s.inventory...),
+		Freshness: s.inventoryFreshness,
+	}, nil
 }
 
 func TestSupplyChainImpactAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {
@@ -492,5 +496,98 @@ func TestNextSupplyChainImpactAggregateOffsetBound(t *testing.T) {
 					tc.offset, tc.limit, tc.truncated, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestSupplyChainImpactAggregateRoutesReturn503WhenReadModelUnavailable
+// pins the #11169 fail-closed contract: a winners-eligible call the
+// maintainer cannot serve exactly answers 503 backend_unavailable, never
+// an approximate total or bucket.
+func TestSupplyChainImpactAggregateRoutesReturn503WhenReadModelUnavailable(t *testing.T) {
+	t.Parallel()
+
+	store := &stubSupplyChainImpactAggregateStore{
+		countErr:     impact.ErrAggregateReadModelUnavailable,
+		inventoryErr: impact.ErrAggregateReadModelUnavailable,
+	}
+	handler := &SupplyChainHandler{ImpactAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for _, target := range []string{
+		"/api/v0/supply-chain/impact/findings/count",
+		"/api/v0/supply-chain/impact/inventory",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusServiceUnavailable; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			body := w.Body.String()
+			if !strings.Contains(body, "winners read model is not fresh") {
+				t.Fatalf("body = %s, want text naming the stale winners model", body)
+			}
+			if strings.Contains(body, "require the Postgres reducer read model") {
+				t.Fatalf("body = %s, reads like a gate-off or missing deployment", body)
+			}
+		})
+	}
+}
+
+// TestSupplyChainImpactAggregateEnvelopesDiscloseFreshness pins the #11169
+// freshness disclosure: the count and inventory envelopes carry the store
+// freshness so a caller can tell a live-facts answer from a
+// winners-watermarked one.
+func TestSupplyChainImpactAggregateEnvelopesDiscloseFreshness(t *testing.T) {
+	t.Parallel()
+
+	store := &stubSupplyChainImpactAggregateStore{
+		count: impact.AggregateCount{
+			TotalFindings: 7,
+			Freshness:     impact.AggregateFreshness{State: "fresh", LatestObservedAt: "2026-11-22T12:00:00Z"},
+		},
+		inventory: []impact.InventoryRow{
+			{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 7},
+		},
+	}
+	handler := &SupplyChainHandler{ImpactAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	decode := func(t *testing.T, target string) map[string]any {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+		}
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+		}
+		return body
+	}
+
+	countBody := decode(t, "/api/v0/supply-chain/impact/findings/count?repository_id=repo-A")
+	freshness, ok := countBody["freshness"].(map[string]any)
+	if !ok {
+		t.Fatalf("count body = %v, want freshness object", countBody)
+	}
+	if freshness["state"] != "fresh" || freshness["latest_observed_at"] != "2026-11-22T12:00:00Z" {
+		t.Fatalf("count freshness = %v, want fresh with the stub watermark", freshness)
+	}
+
+	store.inventoryFreshness = impact.AggregateFreshness{State: "fresh", LatestObservedAt: "2026-11-22T12:05:00Z"}
+	invBody := decode(t, "/api/v0/supply-chain/impact/inventory?group_by=impact_status&limit=10")
+	invFreshness, ok := invBody["freshness"].(map[string]any)
+	if !ok {
+		t.Fatalf("inventory body = %v, want freshness object", invBody)
+	}
+	if invFreshness["state"] != "fresh" || invFreshness["latest_observed_at"] != "2026-11-22T12:05:00Z" {
+		t.Fatalf("inventory freshness = %v, want fresh with the stub watermark", invFreshness)
 	}
 }
