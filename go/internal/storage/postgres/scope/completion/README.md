@@ -96,8 +96,11 @@ on the two statements that now ship:
 - The marker count, `manifestMarkerCountQuery`: 1,082 ms, no lock, no write.
   It is a separate unlocked read after the fanout committed, not part of the
   locking statement. It runs only for producers that feed `supply_chain_impact`.
-  QA saw four such fanouts in 8 h (13:14:12, 13:14:40, 14:52:43 and 16:29:34Z on
-  2026-11-23), about 0.5 per hour.
+  QA showed at least four such fanouts in 8 h (the bulk re-pend statements at
+  13:14:12, 13:14:40, 14:52:43 and 16:29:34Z on 2026-11-23, seen through
+  `reopened_at`; a fanout that scheduled nothing leaves no such trace, so the
+  total is not measured). The runner's `fanout_duration_ms` includes this
+  count, about 1 s on QA.
 
 The UPDATE saving from 561 fewer rows is not measured. Lock order, lease
 fencing, and the event horizon are unchanged. The 603-of-1,318 figure in the
