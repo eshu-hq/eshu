@@ -36,7 +36,7 @@ family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-family-cases.sh"
 maintenance_family_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-maintenance-family-cases.sh"; post_delta_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-post-delta-cases.sh"; direct_leaf_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-direct-leaf-cases.sh"  # packed for the 500-line cap
 registry_lockstep_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-registry-lockstep-cases.sh"
 family_registry_pins_lib="${repo_root}/scripts/lib/test-ifa-family-registry-derived-pins-cases.sh"
-teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"; dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"  # packed for the 500-line cap
+teeth_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-teeth-cases.sh"; drain_dump_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-drain-dump-cases.sh"; pin_behaviour_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-pin-behaviour-cases.sh"; private_data_cases_lib="${repo_root}/scripts/lib/test-ifa-determinism-private-data-cases.sh"; private_data_pattern_lib="${repo_root}/scripts/lib/ifa_private_data_pattern.sh"; dead_command_lib="${repo_root}/scripts/lib/ifa_dead_command_line.sh"  # packed for the 500-line cap
 # registry_family_lib (ifa_family_registry.sh) is used by both
 # test-ifa-determinism-family-cases.sh (the shared-cell drive/assert loop's
 # totality check) and test-ifa-family-registry-derived-pins-cases.sh (its own
@@ -66,7 +66,7 @@ fail() { printf 'test-verify-ifa-determinism: %s\n' "$*" >&2; exit 1; }
 [[ -f "${family_cases_lib}" ]] || fail "missing ${family_cases_lib}"
 [[ -f "${maintenance_family_cases_lib}" ]] || fail "missing ${maintenance_family_cases_lib}"; [[ -f "${post_delta_cases_lib}" ]] || fail "missing ${post_delta_cases_lib}"; [[ -f "${direct_leaf_cases_lib}" ]] || fail "missing ${direct_leaf_cases_lib}"
 [[ -f "${registry_lockstep_cases_lib}" ]] || fail "missing ${registry_lockstep_cases_lib}"; [[ -f "${family_registry_pins_lib}" ]] || fail "missing ${family_registry_pins_lib}"
-[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"; [[ -f "${dead_command_lib}" ]] || fail "missing ${dead_command_lib}"
+[[ -f "${teeth_cases_lib}" ]] || fail "missing ${teeth_cases_lib}"; [[ -f "${drain_dump_cases_lib}" ]] || fail "missing ${drain_dump_cases_lib}"; [[ -f "${pin_behaviour_cases_lib}" ]] || fail "missing ${pin_behaviour_cases_lib}"; [[ -f "${private_data_cases_lib}" ]] || fail "missing ${private_data_cases_lib}"; [[ -f "${private_data_pattern_lib}" ]] || fail "missing ${private_data_pattern_lib}"; [[ -f "${dead_command_lib}" ]] || fail "missing ${dead_command_lib}"
 [[ -f "${registry_family_lib}" ]] || fail "missing ${registry_family_lib}"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 [[ -f "${registry}" ]] || fail "missing ${registry}"
@@ -87,7 +87,7 @@ bash -n "${family_cases_lib}" || fail "test-ifa-determinism-family-cases.sh has 
 bash -n "${maintenance_family_cases_lib}" || fail "test-ifa-determinism-maintenance-family-cases.sh has a syntax error"; bash -n "${post_delta_cases_lib}" || fail "test-ifa-determinism-post-delta-cases.sh has a syntax error"; bash -n "${direct_leaf_cases_lib}" || fail "test-ifa-determinism-direct-leaf-cases.sh has a syntax error"
 bash -n "${registry_lockstep_cases_lib}" || fail "test-ifa-determinism-registry-lockstep-cases.sh has a syntax error"
 bash -n "${family_registry_pins_lib}" || fail "test-ifa-family-registry-derived-pins-cases.sh has a syntax error"
-bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"; bash -n "${dead_command_lib}" || fail "ifa_dead_command_line.sh has a syntax error"
+bash -n "${teeth_cases_lib}" || fail "test-ifa-determinism-teeth-cases.sh has a syntax error"; bash -n "${drain_dump_cases_lib}" || fail "test-ifa-determinism-drain-dump-cases.sh has a syntax error"; bash -n "${pin_behaviour_cases_lib}" || fail "test-ifa-determinism-pin-behaviour-cases.sh has a syntax error"; bash -n "${private_data_cases_lib}" || fail "test-ifa-determinism-private-data-cases.sh has a syntax error"; bash -n "${private_data_pattern_lib}" || fail "ifa_private_data_pattern.sh has a syntax error"; bash -n "${dead_command_lib}" || fail "ifa_dead_command_line.sh has a syntax error"
 bash -n "${registry_family_lib}" || fail "ifa_family_registry.sh has a syntax error"
 # This mirror needs the same guard as its fault-injection sibling. The fault
 # side has always asserted on both itself (test-verify-ifa-fault-injection.sh
@@ -462,8 +462,8 @@ fi
 # own sourced case module (mirroring the family/registry/pins splits above) to
 # keep this structural verifier under the repository's 500-line cap.
 # shellcheck source=scripts/lib/test-ifa-determinism-teeth-cases.sh
-source "${teeth_cases_lib}"
-run_ifa_determinism_teeth_cases
+source "${teeth_cases_lib}"; source "${drain_dump_cases_lib}"
+run_ifa_determinism_teeth_cases; run_ifa_determinism_drain_dump_cases  # #11228 drain-failure dump
 
 # No private data: hostnames, IPs, cloud account IDs, keys, internal paths.
 # The scan derives its own file list, so it lives in a sourced case module for

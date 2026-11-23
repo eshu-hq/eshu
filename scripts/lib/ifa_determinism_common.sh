@@ -223,3 +223,45 @@ ifa_det_run_n_loop_maintenance_pass() {
 	ifa_repo_dependency_live_run_maintenance_pass "determinism-n${n}" "${bin_dir}" "${log_dir}" \
 		|| die "N=${n}: bootstrap-index maintenance pass failed"
 }
+
+# ifa_det_drain_dump_queries lists the Postgres state a failed drain dumps
+# (#11228), one "title<TAB>sql" pair per line: every scope generation with
+# its lifecycle stamps, every parked reducer wait, and every non-terminal
+# work item. A stuck generation_active wait is only diagnosable with all
+# three: whether the generation activated, when the wait parked, and what
+# the queue row's horizon is.
+ifa_det_drain_dump_queries() {
+	printf '%s\t%s\n' \
+		"scope_generations" \
+		"SELECT scope_id, generation_id, status, ingested_at, activated_at, superseded_at FROM scope_generations ORDER BY scope_id, ingested_at;" \
+		"reducer_waiting_items" \
+		"SELECT work_item_id, waits_for_kind, waits_for_key, failure_class, first_deferred_at, updated_at FROM reducer_waiting_items ORDER BY first_deferred_at;" \
+		"fact_work_items (non-terminal)" \
+		"SELECT stage, domain, scope_id, generation_id, status, attempt_count, failure_class, visible_at, updated_at FROM fact_work_items WHERE status NOT IN ('succeeded', 'superseded') ORDER BY stage, domain, scope_id;"
+}
+
+# ifa_det_dump_drain_failure prints the queue and generation state and the
+# FULL projector and reducer logs of one cell whose drain did not converge
+# (#11228). A `tail -30` hid the projector Ack of the stuck scope in run
+# 44992661362, so a lost wake could only be inferred, not observed. Every
+# section prints even when a query fails, and the function always returns 0:
+# the caller dies with its own message right after.
+#
+# Args: label compose_project use_compose dsn compose_file log_dir
+#       reducer_log_name projector_log_name
+ifa_det_dump_drain_failure() {
+	local label="$1" compose_project="$2" use_compose="$3" dsn="$4" compose_file="$5" log_dir="$6"
+	local reducer_log="${log_dir}/$7.log" projector_log="${log_dir}/$8.log"
+	local title sql
+	while IFS=$'\t' read -r title sql; do
+		printf '\n=== %s: drain failure dump: %s ===\n' "${label}" "${title}" >&2
+		ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" "${sql}" "${compose_file}" >&2 \
+			|| printf '%s: query for %s failed\n' "${label}" "${title}" >&2
+	done < <(ifa_det_drain_dump_queries)
+	local log_file
+	for log_file in "${reducer_log}" "${projector_log}"; do
+		printf '\n=== %s: drain failure dump: full log %s ===\n' "${label}" "${log_file##*/}" >&2
+		cat "${log_file}" >&2 || printf '%s: log %s unreadable\n' "${label}" "${log_file}" >&2
+	done
+	return 0
+}

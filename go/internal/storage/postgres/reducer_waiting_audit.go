@@ -247,6 +247,7 @@ func AuditWaitingItems(
 		wakeKey := string(row.kind) + "\x00" + row.keyJSON
 		if wokenKeys[wakeKey] {
 			reopened++
+			recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
 			if interval > 0 && now.Sub(row.firstSeen) > 2*interval {
 				missed++
 				recordWaitingMissedWake(ctx, instruments)
@@ -266,6 +267,7 @@ func AuditWaitingItems(
 				}
 				if cleared {
 					reconciled++
+					recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
 				}
 				continue
 			}
@@ -280,6 +282,7 @@ func AuditWaitingItems(
 			}
 			if cleared {
 				reconciled++
+				recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingAuditOutcomeReconciled)
 			}
 			continue
 		}
@@ -308,6 +311,7 @@ func AuditWaitingItems(
 		}
 		wokenKeys[wakeKey] = true
 		reopened++
+		recordWaitingFallbackResolved(ctx, instruments, row.failureClass, telemetry.WaitingWakeOutcomeReopened)
 		if interval > 0 && now.Sub(row.firstSeen) > 2*interval {
 			missed++
 			recordWaitingMissedWake(ctx, instruments)
