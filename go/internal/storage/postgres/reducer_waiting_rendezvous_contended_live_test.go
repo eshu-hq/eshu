@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -97,11 +98,14 @@ func TestRendezvousContendedLatencyLive(t *testing.T) {
 					blocking = append(blocking, scopes[idx])
 				}
 				slices.Sort(blocking)
-				keyJSON, ok := narrowedWaitingKey("scope-waiter-contended", "gen-waiter-contended", blocking, []string{"repo-contended"})
-				if !ok {
-					t.Error("narrowedWaitingKey refused the key")
+				rawKey, err := json.Marshal(waitingKey{
+					ScopeID: "scope-waiter-contended", GenerationID: "gen-waiter-contended", BlockingScopeIDs: blocking,
+				})
+				if err != nil {
+					t.Errorf("marshal key: %v", err)
 					return
 				}
+				keyJSON := string(rawKey)
 				began := time.Now()
 				if err := awaitInFlightActivations(ctx, SQLDB{DB: database}, nil,
 					WaitingKindRelationshipGenerationActive, keyJSON); err != nil {

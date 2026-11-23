@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -101,13 +102,19 @@ func (f *rendezvousFake) ExecContext(ctx context.Context, query string, args ...
 	return fakeResult{}, nil
 }
 
+// rendezvousKeyJSON renders a key naming every ID given, bypassing the
+// narrowedWaitingKey bound: rows parked before the #11256 bound carry whole
+// verdict sets, and the rendezvous must still take bounded locks for them.
 func rendezvousKeyJSON(t *testing.T, blocking []string) string {
 	t.Helper()
-	keyJSON, ok := narrowedWaitingKey("scope-waiter", "gen-waiter", blocking, []string{"repo-1"})
-	if !ok {
-		t.Fatal("narrowedWaitingKey refused the key")
+	raw, err := json.Marshal(waitingKey{
+		ScopeID: "scope-waiter", GenerationID: "gen-waiter",
+		BlockingScopeIDs: normalizeWaitingScopeIDs(blocking), RepoIDs: []string{"repo-1"},
+	})
+	if err != nil {
+		t.Fatalf("marshal key: %v", err)
 	}
-	return keyJSON
+	return string(raw)
 }
 
 func rendezvousMetrics(t *testing.T) (*telemetry.Instruments, func(outcome string) int64) {

@@ -3797,6 +3797,17 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingKeyTruncated counts narrowed waits parked with fewer
+	// blocking scopes named than the verdict held (#11256), by domain. The wait
+	// is still exact: the key names the sorted prefix and the retried handler
+	// re-checks the whole fence. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingKeyTruncated metric.Int64Counter
+	// ReducerWaitingKeyOversize counts wait rows refused because the row would
+	// not fit the btree indexes the waiting table carries (#11256), by wait
+	// kind. The queue row keeps its timer path. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingKeyOversize metric.Int64Counter
 	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
 	// recorded by the waiting audit each cycle. Registered by
 	// registerReducerWaitingInstruments.

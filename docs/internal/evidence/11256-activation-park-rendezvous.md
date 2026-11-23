@@ -206,14 +206,11 @@ in-flight activation in a middle chunk) failed on the first version with the
 park holding 200 advisory locks while it waited, and passes with none. The
 first version's single statement took one lock per blocking scope, and stock
 postgres 18.6 failed with `out of shared memory` at about 20000 keys in one
-session (reviewer shim). Today the key itself bounds the blocking set: it is
-part of the primary key of `reducer_waiting_items`, so a set of more than 63
-random 36-character scope IDs already fails the insert with `index row size ...
-exceeds btree version 4 maximum 2704` (reproduced: 63 insert, 64 fail; with
-sequential IDs 500 fit and 1000 fail; real git scope IDs reach 220 and fail at
-230 in the arbiter's measurement). That insert failure is older than this
-change and is not fixed here; it is the next bound on a bootstrap-sized blocking
-set, and the rendezvous no longer adds one of its own.
+session (reviewer shim). Before the key bound below, the key itself capped the
+blocking set (more than 63 random 36-character IDs, or more than 220 real git scope
+IDs, failed the insert); the bound now limits
+a new key to 16 scopes, and the rendezvous keeps its chunked try for rows
+parked before the bound.
 
 The cost of a park is one try statement per 128 blocking scopes, and only for the
 two generation-activation kinds. The contended path adds a wait only while an
@@ -247,56 +244,148 @@ client timeout while the server is in a checkpoint. It is the helper's timeout
 environment on `origin/main` tests that do not touch the activation path, and
 is not part of this change.
 
-## Pre-existing limit found here: the blocking set must fit a btree key
+## The narrowed wait key must fit two btree indexes (#11256)
 
-Not caused by this change and not fixed in it. It bounds how large a narrowed
-wait's blocking set can be, so it is recorded here exactly.
+A pre-existing defect on `main`, found while measuring the rendezvous and
+fixed here by bounding the key. The arbiter's ruling is
+`.claude/arbiter-waits-for-key.md`.
 
-- **Where the key is built:** `narrowedWaitingKey`
-  (`go/internal/storage/postgres/reducer_waiting_narrow.go`) renders the whole
-  sorted blocking set, the read set, the scope and the generation into the
-  `waits_for_key` JSONB. `insertWaitingItem`
-  (`reducer_waiting_producer_terminal.go`) inserts it.
-- **Why it fails:** `waits_for_key` is part of the primary key,
-  `reducer_waiting_items_pkey (work_item_id, waits_for_kind, waits_for_key)`
-  (`migrations/316_reducer_waiting_items.sql`). A btree entry may not exceed
-  2704 bytes after compression.
-- **Error text** (through the production park path, 600 sequential scope IDs):
-  `park waiting reducer work: ERROR: index row size 2864 exceeds btree version 4
-  maximum 2704 for index "reducer_waiting_items_pkey" (SQLSTATE 54000)`. Past
-  about 8191 bytes the text is `index row requires N bytes, maximum size is 8191`.
-- **Repro** (postgres 18.6, no application code, same primary key shape; run with
-  `docker exec -i <container> psql -U <user> -d postgres`):
+**Root-Cause Evidence:** `narrowedWaitingKey` rendered the whole blocking set
+and the whole read set into `waits_for_key`, which sits in two btree indexes
+(`reducer_waiting_items_pkey` and `reducer_waiting_items_wake_idx`, migration
+316). A btree entry may not exceed 2,704 bytes after compression. Through the
+real `ReducerQueue.Fail` on the migrated schema, 600 real-shape blocking scope
+IDs (`git-repository-scope:repository:r_<8 hex>`, random hex) returned
+`park waiting reducer work: ERROR: index row size 6288 exceeds btree version 4
+maximum 2704 for index "reducer_waiting_items_pkey" (SQLSTATE 54000)`, and one
+blocker plus 600 read-set repositories returned 6312. The failure comes after
+Fail's retry UPDATE committed, and `Service.Run` returns the error, so the
+whole reducer exits and does so again at each backstop while the verdict
+stays wide (`TestServiceSurvivesAWideVerdictDeferralLive` on the unfixed
+code: `Service.Run` returned the error before the normal item was
+acknowledged). The arbiter measured 220 git scope IDs inserting and 230
+failing, and one blocker plus 245 repository IDs inserting and 250 failing.
 
-  ```sql
-  CREATE TEMP TABLE t(work_item_id text NOT NULL, waits_for_kind text NOT NULL,
-    waits_for_key jsonb NOT NULL,
-    PRIMARY KEY (work_item_id, waits_for_kind, waits_for_key));
-  -- N random 36-character IDs in the blocking set; raise N until the INSERT fails
-  INSERT INTO t SELECT 'wi', 'relationship_generation_active',
-    jsonb_build_object('scope_id','scope-waiter','generation_id','gen-waiter',
-      'repo_ids', jsonb_build_array('repo-1'),
-      'blocking_scope_ids', (SELECT jsonb_agg(gen_random_uuid()::text)
-                             FROM generate_series(1, 64)));
-  ```
+Reachability, measured with the built reducer (item below): a fresh bootstrap
+of 600 git repositories on the unfixed code made the reducer exit 1 on the
+first wide deferral (a verdict holding 598 scopes) with exactly that error.
 
-- **Measured maximum safe blocking-set size:** 63 random 36-character IDs
-  (the 64th fails: `index row size 2744 exceeds btree version 4 maximum 2704`).
-  Compressible IDs go further: 400 sequential 27-character IDs insert, and on the
-  JSONB key alone 500 fit and 1000 do not. Real scope IDs carry a prefix such as
-  `git-repository-scope:` (`internal/scope/scope.go`), so expect the random-ID
-  bound, in the tens, not the hundreds.
-- **Effect:** the insert error is returned from the park. The wait row is not
-  written, and the Fail path returns it as `park waiting reducer work`; the
-  reviewer traced that error to the service cancelling every worker
-  (`internal/reducer/service.go:540-551`). A restricted-fence verdict with more
-  blocking scopes than the bound cannot park at all. The first rendezvous
-  version's lock count was never the first limit for that reason.
-- **Options for the design question:** hash or shorten the key (a digest of the
-  sorted set in `waits_for_key`, the set itself in a non-key column, which the
-  narrowed wake would then match through a containment index), or bound the set
-  at the verdict (fall back to the coarse wait above N scopes). Neither is in
-  this change.
+### The fix
+
+- Key: `{scope_id, generation_id, blocking_scope_ids}` where
+  `blocking_scope_ids` is the longest sorted prefix of the verdict set that
+  fits 16 IDs and 1,024 bytes of rendered key. An ID that cannot fit alone is
+  skipped. `repo_ids` is no longer written (nothing read it; old rows still
+  decode). The key is deterministic for a set in any order. No migration, no
+  primary-key change, no new index.
+- Exact because the wake is a hint and the retried handler re-checks the whole
+  fence; once 16 or fewer blockers remain all are named, so the last
+  activation always wakes the item. The audit predicate needs the named
+  scopes complete, so a satisfied prefix reopens and the next park names the
+  next prefix.
+- Size guard in `insertWaitingItem` for every kind: `work_item_id`, `scope_id`
+  and `generation_id` have no length bound. A row whose `work_item_id`, kind
+  and key exceed 2,048 uncompressed bytes is not inserted: no wait row, the
+  queue row keeps the timer path the retry UPDATE set, the counter
+  `eshu_dp_reducer_waiting_key_oversize_total{kind}` increments and
+  `reducer_waiting.key_oversize` logs at ERROR; `Fail` returns nil. A
+  narrowed deferral with no ID that fits takes the same path. It never falls
+  back to the coarse wait: that wait is satisfied by the waiter's own active
+  generation, so it would reopen the item at once and spin.
+- `eshu_dp_reducer_waiting_key_truncated_total{domain}` counts a park that
+  named fewer scopes than the verdict held.
+- The budget 2,048 comes from measurement: with incompressible text both
+  indexes took about 2.6 KB of composite `work_item_id + kind + key` text for
+  any split between `work_item_id` and key (work_item_id of 64, 256, 512 and
+  1,024 bytes accepted keys of 2,554, 2,358, 2,102 and 1,590 bytes). The
+  worst row the guard admits (a key at the 1,024 byte cap and the longest
+  `work_item_id`) inserts on both indexes in
+  `TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive`.
+
+### Proof
+
+| # | Proof | Result |
+| --- | --- | --- |
+| 1 | RED through `ReducerQueue.Fail`, real PG, real migrations, real-shape IDs | unfixed: SQLSTATE 54000 for 600 blockers and for 1 blocker + 600 repos; fixed: Fail nil, one wait row, `retrying` in the non-counting class, attempt count unchanged |
+| 2 | `Service.Run`, one wide and one normal item | unfixed: Run returned the error before the normal item was acknowledged; fixed: normal item acknowledged, Run nil on shutdown |
+| 3 | Hermetic key builder, 1/5/16/17/200/5,000 IDs, real-shape and incompressible 200-byte | key at most 1,024 B, at most 16 named, sorted prefix, order independent, no `repo_ids`, oversize-alone ID skipped |
+| 4 | Worst admitted row on both indexes | inserts (key at the cap, longest work_item_id, incompressible) |
+| 5 | Guard RED/GREEN | oversize composite: no insert, counter 1, Fail nil; with the guard neutered `inserted true ... want false` |
+| 6 | Contention, `-race`, `GOMAXPROCS=2`, `-count=20`: 12 waiters with 20 to 40 blockers through `Service.Run`, activations in sorted, reverse and random order | 80 PASS (20 parents, 60 subtests), 0 FAIL, 0 DATA RACE, 0 SKIP, no 40P01; every item succeeded on the wake path in seconds with `attempt_count` 1, no wait row left, audit reopened 0. A first run of this proof failed 8 times on a data race in the test's own shared random source (fixed in the test); a harness that seeded the waiter without its own active relationship generation never satisfied the park check and was also fixed |
+| 7 | No hot loop | activating 3 un-named blockers left the wait row and `visible_at` untouched; activating a named blocker reopened it |
+| 8 | Old-shape row (wide set plus `repo_ids`) | still wakes by a named scope and reopens by audit |
+| 9 | Performance | tables below |
+| 10 | Built binaries, 600 git repositories | below |
+
+**Per-park cost** (`setAsideWaitingForCause` through the production path on
+the migrated schema, 150 parks per row, postgres 18.6, load about 20; WAL from
+`pg_current_wal_lsn()`), real-shape random IDs:
+
+| Blockers | Unfixed p50 / p99 | Unfixed WAL per park | Fixed p50 / p99 | Fixed WAL per park |
+| --- | --- | --- | --- | --- |
+| 5 | 3.58 / 10.35 ms | 3,255 B | 1.53 / 2.89 ms | 3,368 B |
+| 16 | 5.22 / 16.2 ms | 4,716 B | 3.3 / 11.3 ms | 3,893 B |
+| 200 | fails 150 of 150 (SQLSTATE 54000) | 0 (nothing written) | 3.04 / 16.5 ms | 3,883 B |
+| 600 | fails 150 of 150 (12,288 B row over the 8,191 B limit) | 12,599 B of failed writes | 3.0 / 13.1 ms | 3,831 B |
+| 5,000 | fails 150 of 150 (93,256 B) | 99,956 B of failed writes | 2.59 / 3.68 ms | 3,803 B |
+
+The fixed cost is flat in the verdict size. Timing at 5 and 16 blockers is
+within the load noise of the host; the WAL per park is the figure to read.
+
+**Wake statement at scale** (`wakeNarrowedCorpusWaitsForScopeQuery`,
+unchanged by this change; `EXPLAIN (ANALYZE, BUFFERS)` inside a rolled-back
+transaction on the migrated schema, parked rows with 16-scope keys drawn from
+a 600-scope pool):
+
+| Parked rows | Activated scope | Rows reopened | Execution | Plan |
+| --- | --- | --- | --- | --- |
+| 8,713 | named by no wait | 0 | 4.0 ms, 1,247 buffers | seq scan of `reducer_waiting_items` |
+| 8,713 | inside many named prefixes | 238 | 12.0 ms, 8,294 buffers | seq scan, then 238 pkey probes |
+| 87,130 | named by no wait | 0 | 48.2 ms, 12,450 buffers (5,397 read cold) | seq scan |
+| 87,130 | inside many named prefixes | 2,386 | 149.5 ms, 85,061 buffers | seq scan, then 2,386 pkey probes |
+
+The scan is linear in parked rows, as the arbiter's shim found at 8,713 rows.
+At the fleet's present scale (tens of parked rows in QA) it is not a cost; at
+87,130 parked rows it is about 50 ms per activation inside the activation
+transaction, which the arbiter ruled does not justify a GIN expression index
+(a migration on a table QA applied) until a measured scan dominates.
+
+**Built binary, 600 git repositories** (`bootstrap-data-plane`,
+`bootstrap-index --path` over 600 generated repositories each with a
+Dockerfile, a Kubernetes Deployment and a Go module, then the `reducer`
+binary, postgres 18.6, pinned neo4j community image, 11,401 reducer work items
+per arm). Before is the F1 to F6 head `3c418af75f`, after is this branch:
+
+| Arm | Reducer outcome |
+| --- | --- |
+| Before | exit 1 within seconds of start: `fail reducer work: park waiting reducer work: ... ERROR: index row size 6496 exceeds btree version 4 maximum 2704 for index "reducer_waiting_items_pkey" (SQLSTATE 54000)`, on a deferral whose verdict held 598 scopes; 1 wait row parked, the rest of the queue undrained |
+| After | no exit; 1,788 wide deferrals (verdicts of up to 598 scopes) parked and woke; the queue drained in 330 s with 11,401 of 11,401 items `succeeded`, 0 wait rows left, no 54000 and no `reducer_waiting.key_oversize` in the log |
+
+Performance Evidence: Improvement for any verdict wider than the btree limit (63
+random 36-character IDs in the first measurement, 220 git scope IDs in the
+arbiter's; it could not park before and now parks), and no change below it. The
+measured subject is the narrowed park: one statement for the insert, the same
+rendezvous (at most 16 keys now), and the wake statement unchanged. Conflict
+domain: one waiting row and one scope's activation; no worker, lease or batch
+setting changes. The cost of a park is flat in the verdict size (about 3.8 KB
+of WAL and 3 ms), and the park rate is bounded by the number of wide deferrals.
+No-Regression Evidence: parks of 5 and 16 blockers cost the same WAL (3.4 and
+3.9 KB against 3.3 and 4.7 KB) and the same order of time; the wake statement is
+unchanged, its plan and cost are above. The size guard adds one length
+comparison per park.
+
+Observability Evidence: `eshu_dp_reducer_waiting_key_truncated_total{domain}`
+counts a park that named fewer scopes than its verdict held (expected during a
+bootstrap); `eshu_dp_reducer_waiting_key_oversize_total{kind}` and the ERROR log
+`reducer_waiting.key_oversize` (item, kind, row bytes, budget, blocking
+scopes) report a wait that was not parked, with the queue row still `retrying`
+at the backstop. Both counters have telemetry-coverage rows and a reference
+page (`docs/public/reference/telemetry/waiting-key-bound.md`). Hermetic tests
+read both counters.
+
+Not changed here, by design: the key still reaches `reducer_waiting_items` as
+before; a rolling deploy leaves old pods writing wide keys that the new code
+reads, wakes and audits (proof 8).
 
 ## #11074: the advisory round's own workers terminalize its targets
 

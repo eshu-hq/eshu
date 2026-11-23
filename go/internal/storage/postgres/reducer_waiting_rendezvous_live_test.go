@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -115,14 +116,8 @@ WHERE held.locktype = 'advisory' AND held.granted
 func TestParkWithManyBlockingScopesTakesBoundedLocksLive(t *testing.T) {
 	ctx := context.Background()
 	database, _ := openNarrowFenceDB(t, ctx)
-	at := time.Now().UTC().Truncate(time.Microsecond)
 
-	seedNarrowWaitScope(t, ctx, database, "scope-waiter-big", "gen-waiter-big", "active", at)
-	seedNarrowRetryRow(t, ctx, database, "wait-big", "scope-waiter-big", "gen-waiter-big",
-		"workload_materialization", "workload_materialization_resolution_not_ready", at)
-
-	// Large enough to span four chunks, small enough for the wait key's
-	// primary-key index row (a pre-existing bound on the blocking set).
+	// Large enough to span four chunks.
 	blocking := make([]string, 0, 400)
 	for i := range 400 {
 		blocking = append(blocking, fmt.Sprintf("scope-incomplete-big-%06d", i))
@@ -137,13 +132,16 @@ func TestParkWithManyBlockingScopesTakesBoundedLocksLive(t *testing.T) {
 		t.Fatalf("hold a middle scope's activation lock: %v", err)
 	}
 
-	cause := narrowWaitTestCause{repos: []string{"repo-big"}, blocking: blocking}
+	// A key that names the whole set, as rows parked before the #11256 key
+	// bound do (new keys name at most 16 scopes).
+	wide, err := json.Marshal(waitingKey{ScopeID: "scope-waiter-big", GenerationID: "gen-waiter-big", BlockingScopeIDs: blocking})
+	if err != nil {
+		t.Fatalf("marshal wide key: %v", err)
+	}
 	parked := make(chan error, 1)
 	go func() {
-		_, err := setAsideWaitingForCause(ctx, SQLDB{DB: database}, nil,
-			narrowWaitIntent("wait-big", "scope-waiter-big", "gen-waiter-big"), narrowWaitEntry(),
-			cause, nil, time.Now().UTC())
-		parked <- err
+		parked <- awaitInFlightActivations(ctx, SQLDB{DB: database}, nil,
+			WaitingKindRelationshipGenerationActive, string(wide))
 	}()
 	if awaitBlockedBackends(t, ctx, database, 1, parked) {
 		t.Fatalf("the park returned without waiting on the in-flight activation of %s", blocking[200])

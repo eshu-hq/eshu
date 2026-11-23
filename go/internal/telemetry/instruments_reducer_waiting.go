@@ -90,6 +90,18 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingMissedWake counter: %w", err)
 	}
+	if inst.ReducerWaitingKeyTruncated, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_key_truncated_total",
+		metric.WithDescription("Narrowed reducer waits parked naming fewer blocking scopes than the verdict held, by domain: the key is bounded to a sorted prefix (16 scopes, 1,024 bytes) so it fits the waiting table's btree indexes; the wait stays exact because the retried handler re-checks the whole fence (#11256)"),
+	); err != nil {
+		return fmt.Errorf("register ReducerWaitingKeyTruncated counter: %w", err)
+	}
+	if inst.ReducerWaitingKeyOversize, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_key_oversize_total",
+		metric.WithDescription("Reducer waits not parked because the wait row would not fit the waiting table's btree indexes, by wait kind (kind); the queue row keeps its timer path and the backstop re-runs it (#11256)"),
+	); err != nil {
+		return fmt.Errorf("register ReducerWaitingKeyOversize counter: %w", err)
+	}
 	if inst.ReducerWaitingCount, err = meter.Int64Gauge(
 		"eshu_dp_reducer_waiting_items",
 		metric.WithDescription("Parked reducer waits by reason (failure_class), recorded by the waiting audit each cycle (#10876)"),

@@ -29,8 +29,11 @@ import (
 // and the retried handler re-checks the restricted fence. The audit and the
 // 10-minute backstop bound a missed wake exactly like the coarse waits.
 
-// waitingKey is the JSON waits_for_key per kind. BlockingScopeIDs and RepoIDs
-// are set only on narrowed corpus waits; coarse waits omit them.
+// waitingKey is the JSON waits_for_key per kind. BlockingScopeIDs is set only
+// on narrowed corpus waits (a bounded sorted prefix of the verdict set, see
+// narrowedWaitingKey); coarse waits omit it. RepoIDs is decode-only: rows
+// parked before #11256 carry the read set there, and nothing reads it, so new
+// keys never write it.
 type waitingKey struct {
 	ScopeID          string   `json:"scope_id,omitempty"`
 	GenerationID     string   `json:"generation_id,omitempty"`
@@ -50,33 +53,97 @@ type waitingKey struct {
 // a per-item wait. Defined structurally so callers never import the reducer
 // root: any deferral error carrying the verdict-time sets satisfies it.
 type corpusWaitNarrowing interface {
-	CorpusWaitRepoIDs() []string
 	CorpusWaitBlockingScopeIDs() []string
 }
 
+// Narrowed wait key bounds (#11256). waits_for_key sits in two btree indexes
+// (the primary key and the wake index, migration 316) whose entries may not
+// exceed 2704 bytes after compression, and the verdict-time blocking set is
+// unbounded (a bootstrap can leave every incomplete git scope blocking). The
+// key therefore names a bounded sorted prefix of the set. That is exact: the
+// activation wake is a hint and the retried handler re-checks the whole
+// restricted fence, and once at most narrowedWaitKeyMaxBlockingScopes blockers
+// remain every one is named, so the last activation always wakes the item.
+const (
+	// narrowedWaitKeyMaxBlockingScopes caps the blocking scopes a key names.
+	narrowedWaitKeyMaxBlockingScopes = 16
+	// narrowedWaitKeyMaxBytes caps the rendered key, scope_id and generation_id
+	// included.
+	narrowedWaitKeyMaxBytes = 1024
+	// waitingRowIndexBudgetBytes caps the uncompressed size of a wait row's
+	// indexed columns (work_item_id, waits_for_kind and the rendered key). A
+	// narrowed key is bounded above, but work_item_id, scope_id and
+	// generation_id have no length bound and the other wait kinds carry them
+	// in their keys. Measured on postgres 18.6 with incompressible text, both
+	// indexes accept rows up to about 2.6 KB of composite text for any split
+	// between work_item_id and key; the budget leaves the rest for the jsonb
+	// encoding and the index tuple header.
+	waitingRowIndexBudgetBytes = 2048
+)
+
+// narrowedWaitKey is a rendered narrowed wait key with how much of the
+// verdict set it names. JSON is empty when no blocking scope fits the key.
+type narrowedWaitKey struct {
+	JSON  string
+	Named int
+	Total int
+}
+
 // narrowedWaitingKey renders the narrowed corpus waits_for key for one parked
-// intent: the waiter's own scope and generation plus the verdict-time
-// blocking scope set and read set the activation wake matches on.
-func narrowedWaitingKey(scopeID, generationID string, blockingScopeIDs, repoIDs []string) (string, bool) {
+// intent: {scope_id, generation_id, blocking_scope_ids}, where
+// blocking_scope_ids is the longest sorted prefix of the verdict set that fits
+// narrowedWaitKeyMaxBlockingScopes IDs and narrowedWaitKeyMaxBytes of rendered
+// key. An ID that cannot fit even alone is skipped. The set is normalized
+// (trimmed, de-duplicated, sorted) first, so one set in any order renders one
+// key and a repeated park stays one idempotent row. It reports false when the
+// waiter has no scope or generation or the verdict set is empty (the caller
+// then parks the coarse wait), and a key with no JSON when a set is present
+// but no ID fits.
+func narrowedWaitingKey(scopeID, generationID string, blockingScopeIDs []string) (narrowedWaitKey, bool) {
 	scope := strings.TrimSpace(scopeID)
 	gen := strings.TrimSpace(generationID)
 	if scope == "" || gen == "" {
-		return "", false
+		return narrowedWaitKey{}, false
 	}
 	blocking := normalizeWaitingScopeIDs(blockingScopeIDs)
 	if len(blocking) == 0 {
-		return "", false
+		return narrowedWaitKey{}, false
 	}
-	raw, err := json.Marshal(waitingKey{
-		ScopeID:          scope,
-		GenerationID:     gen,
-		BlockingScopeIDs: blocking,
-		RepoIDs:          normalizeWaitingScopeIDs(repoIDs),
-	})
+	out := narrowedWaitKey{Total: len(blocking)}
+	base, err := json.Marshal(waitingKey{ScopeID: scope, GenerationID: gen})
 	if err != nil {
-		return "", false
+		return out, true
 	}
-	return string(raw), true
+	baseSize := len(base) + len(`,"blocking_scope_ids":[]`)
+	size := baseSize
+	chosen := make([]string, 0, narrowedWaitKeyMaxBlockingScopes)
+	for _, id := range blocking {
+		if len(chosen) == narrowedWaitKeyMaxBlockingScopes {
+			break
+		}
+		quoted, err := json.Marshal(id)
+		if err != nil || baseSize+len(quoted) > narrowedWaitKeyMaxBytes {
+			continue // cannot fit alone
+		}
+		separator := 0
+		if len(chosen) > 0 {
+			separator = 1
+		}
+		if size+separator+len(quoted) > narrowedWaitKeyMaxBytes {
+			break // the sorted prefix ends here
+		}
+		chosen = append(chosen, id)
+		size += separator + len(quoted)
+	}
+	if len(chosen) == 0 {
+		return out, true
+	}
+	raw, err := json.Marshal(waitingKey{ScopeID: scope, GenerationID: gen, BlockingScopeIDs: chosen})
+	if err != nil || len(raw) > narrowedWaitKeyMaxBytes {
+		return out, true
+	}
+	out.JSON, out.Named = string(raw), len(chosen)
+	return out, true
 }
 
 // normalizeWaitingScopeIDs trims, drops empties and duplicates, and sorts,
@@ -100,22 +167,23 @@ func normalizeWaitingScopeIDs(values []string) []string {
 }
 
 // narrowedWaitingKeyForCause extracts the narrowed wait key from a deferral
-// cause. It reports false when the cause carries no narrowing (global path)
-// or the key cannot render, and the caller keeps the coarse wait.
+// cause that carries the verdict-time blocking set, for the generation-active
+// kind only. The second result is false when the cause is not a narrowing
+// deferral (the caller parks the coarse wait); a true result with an empty
+// JSON means the set has no ID that fits the key.
 func narrowedWaitingKeyForCause(
 	intent contract.Intent,
 	entry WaitingDeferral,
 	cause error,
-) (string, bool) {
+) (narrowedWaitKey, bool) {
 	if entry.WaitsForKind != WaitingKindRelationshipGenerationActive {
-		return "", false
+		return narrowedWaitKey{}, false
 	}
 	var narrowing corpusWaitNarrowing
 	if cause == nil || !errors.As(cause, &narrowing) {
-		return "", false
+		return narrowedWaitKey{}, false
 	}
-	return narrowedWaitingKey(intent.ScopeID, intent.GenerationID,
-		narrowing.CorpusWaitBlockingScopeIDs(), narrowing.CorpusWaitRepoIDs())
+	return narrowedWaitingKey(intent.ScopeID, intent.GenerationID, narrowing.CorpusWaitBlockingScopeIDs())
 }
 
 // setAsideWaitingForCause parks one deferred intent, preferring the narrowed
@@ -138,8 +206,21 @@ func setAsideWaitingForCause(
 	if entry.WakeSite == WaitingWakeSiteCounting || entry.WakeSite == WaitingWakeSiteNotAWait {
 		return false, nil
 	}
-	if keyJSON, ok := narrowedWaitingKeyForCause(intent, entry, cause); ok {
-		return setAsideWaitingForKey(ctx, database, instruments, intent, entry, keyJSON, now)
+	if key, ok := narrowedWaitingKeyForCause(intent, entry, cause); ok {
+		if key.JSON == "" {
+			// A narrowing deferral whose blocking set has no ID that fits the
+			// key parks nothing. The coarse wait is no substitute: it is
+			// satisfied by the waiter's own generation being active, so it
+			// would reopen the item at once and spin. The queue row keeps the
+			// backstop timer the retry UPDATE already set.
+			recordWaitingKeyOversize(ctx, instruments, intent, entry.WaitsForKind, 0, key.Total)
+			return false, nil
+		}
+		parked, err := setAsideWaitingForKey(ctx, database, instruments, intent, entry, key.JSON, now)
+		if err == nil && parked && key.Named < key.Total {
+			recordWaitingKeyTruncated(ctx, instruments, intent)
+		}
+		return parked, err
 	}
 	return setAsideWaiting(ctx, database, instruments, intent, entry, producerDomains, now)
 }
@@ -155,8 +236,12 @@ func setAsideWaitingForKey(
 	keyJSON string,
 	now time.Time,
 ) (bool, error) {
-	if err := insertWaitingItem(ctx, database, intent, entry, keyJSON, now); err != nil {
+	inserted, err := insertWaitingItem(ctx, database, instruments, intent, entry, keyJSON, now)
+	if err != nil {
 		return false, err
+	}
+	if !inserted {
+		return false, nil
 	}
 	if err := awaitInFlightActivations(ctx, database, instruments, entry.WaitsForKind, keyJSON); err != nil {
 		return true, err
