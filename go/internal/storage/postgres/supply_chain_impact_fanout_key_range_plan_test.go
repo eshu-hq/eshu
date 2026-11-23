@@ -42,9 +42,18 @@ func keyRangeArmSegments(plan string) []string {
 // it carries only the fact_id bounds in its Index Cond and filters cve_id on
 // the heap: a 1/16 slice of every finding row per statement, the harm the
 // plan pin exists to prevent.
-var keyRangeArms = []struct{ name, expr, index string }{
-	{"cve_id", "payload ->> 'cve_id'", "fact_records_supply_chain_impact_lookup_idx"},
-	{"advisory_id", "payload ->> 'advisory_id'", "fact_records_supply_chain_impact_advisory_lookup_idx"},
+//
+// The third arm is the foreign-member token arm (#10643 PR 2): it reads the
+// token GIN index with the && overlap in its Index Cond and carries no
+// fact_id bound, because the token's bucket, not the key range, partitions
+// the foreign rows over the statements.
+var keyRangeArms = []struct {
+	name, expr, index string
+	bounded           bool
+}{
+	{"cve_id", "payload ->> 'cve_id'", "fact_records_supply_chain_impact_lookup_idx", true},
+	{"advisory_id", "payload ->> 'advisory_id'", "fact_records_supply_chain_impact_advisory_lookup_idx", true},
+	{"token", "eshu_sci_foreign_member_tokens_v4(fact_id, payload) &&", "fact_records_sci_foreign_member_tokens_v4_idx", false},
 }
 
 // keyRangePlanViolation returns why plan is not the bounded key-range shape,
@@ -54,6 +63,20 @@ var keyRangeArms = []struct{ name, expr, index string }{
 // line, and no Filter line may carry the lookup expression or fact_id. The
 // plan must read no sequential scan of fact_records and no primary-key range.
 func keyRangePlanViolation(plan string) string {
+	return keyRangeStatementPlanViolation(plan, false)
+}
+
+// keyRangeOpenPlanViolation is keyRangePlanViolation for the open statement
+// (FindSupplyChainImpactHolderOpenKeyRangeQuery), the last range: its btree
+// arms carry the lower fact_id bound and no upper one in their Index Cond,
+// and its token arm on $4 is the same as the bounded statement's.
+func keyRangeOpenPlanViolation(plan string) string {
+	return keyRangeStatementPlanViolation(plan, true)
+}
+
+// keyRangeStatementPlanViolation checks plan against the bounded shape, or
+// the open shape when open is set.
+func keyRangeStatementPlanViolation(plan string, open bool) string {
 	for _, banned := range []string{"Seq Scan on fact_records", "fact_records_pkey"} {
 		if strings.Contains(plan, banned) {
 			return fmt.Sprintf("plan reads %q", banned)
@@ -61,7 +84,7 @@ func keyRangePlanViolation(plan string) string {
 	}
 	segments := keyRangeArmSegments(plan)
 	if len(segments) != len(keyRangeArms) {
-		return fmt.Sprintf("plan has %d key-range arms under Append, want %d (cve_id, advisory_id)", len(segments), len(keyRangeArms))
+		return fmt.Sprintf("plan has %d key-range arms under Append, want %d (cve_id, advisory_id, token)", len(segments), len(keyRangeArms))
 	}
 	for i, segment := range segments {
 		arm := keyRangeArms[i]
@@ -74,13 +97,32 @@ func keyRangePlanViolation(plan string) string {
 			if strings.HasPrefix(cond, "Filter:") && (strings.Contains(cond, "fact_id") || strings.Contains(cond, arm.expr)) {
 				return fmt.Sprintf("%s arm: the lookup expression or fact_id bounds are a heap filter, not an index condition", arm.name)
 			}
-			if strings.HasPrefix(cond, "Index Cond:") && strings.Contains(cond, arm.expr) &&
-				strings.Contains(cond, "fact_id >=") && strings.Contains(cond, "fact_id <") {
+			if !strings.HasPrefix(cond, "Index Cond:") || !strings.Contains(cond, arm.expr) {
+				continue
+			}
+			bounds := strings.Contains(cond, "fact_id >=") && strings.Contains(cond, "fact_id <")
+			if open {
+				if strings.Contains(cond, "fact_id <") {
+					return fmt.Sprintf("%s arm: the open statement's Index Cond carries an upper fact_id bound", arm.name)
+				}
+				bounds = strings.Contains(cond, "fact_id >=")
+			}
+			if !arm.bounded && strings.Contains(cond, "fact_id >=") {
+				return fmt.Sprintf("%s arm: the Index Cond carries a fact_id bound the token arm must not have", arm.name)
+			}
+			if bounds || !arm.bounded {
 				keyed = true
 			}
 		}
+		if !keyed && arm.bounded {
+			want := "both fact_id bounds"
+			if open {
+				want = "the lower fact_id bound"
+			}
+			return fmt.Sprintf("%s arm: no Index Cond line holds %s together with %s", arm.name, arm.expr, want)
+		}
 		if !keyed {
-			return fmt.Sprintf("%s arm: no Index Cond line holds %s together with both fact_id bounds", arm.name, arm.expr)
+			return fmt.Sprintf("%s arm: no Index Cond line holds %s", arm.name, arm.expr)
 		}
 	}
 	return ""
@@ -116,6 +158,12 @@ func TestKeyRangePlanViolationShapes(t *testing.T) {
 	advisory := `                ->  Index Scan using fact_records_supply_chain_impact_advisory_lookup_idx on fact_records finding_1
                       Index Cond: (((payload ->> 'advisory_id'::text) = ANY ('{X}'::text[])) AND ` + bounds + `)
 `
+	token := `                ->  Bitmap Heap Scan on fact_records finding_2
+                      Recheck Cond: ((eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{1:X}'::text[]) AND (fact_kind = 'k'::text) AND (NOT is_tombstone))
+                      ->  Bitmap Index Scan on fact_records_sci_foreign_member_tokens_v4_idx
+                            Index Cond: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{1:X}'::text[])
+`
+	advisory += token
 	tail := `    ->  Sort
           ->  Seq Scan on ingestion_scopes scope
 `
@@ -134,13 +182,36 @@ func TestKeyRangePlanViolationShapes(t *testing.T) {
 		{"fact_id bounds are a heap filter", keyRangePlanHead + cveLookup + advisory + "                      Filter: (fact_id >= 'a'::text)\n" + tail, "heap filter"},
 		{"cve Index Cond lacks the upper bound", keyRangePlanHead + strings.ReplaceAll(cveLookup, " AND (fact_id < 'b'::text)", "") + advisory + tail, "no Index Cond line holds payload ->> 'cve_id'"},
 		{"advisory arm reads the cve index", keyRangePlanHead + cveLookup + strings.ReplaceAll(advisory, "impact_advisory_lookup_idx", "impact_lookup_idx") + tail, "advisory_id arm does not read"},
-		{"only one arm", keyRangePlanHead + cveLookup + tail, "want 2"},
+		{"only one arm", keyRangePlanHead + cveLookup + tail, "want 3"},
+		{"no token arm (the PR 1 two-arm statement)", keyRangePlanHead + cveLookup + strings.TrimSuffix(advisory, token) + tail, "want 3"},
+		{"token arm on the lossy members index", keyRangePlanHead + cveLookup + strings.ReplaceAll(advisory, "fact_records_sci_foreign_member_tokens_v4_idx", "fact_records_supply_chain_impact_group_members_idx") + tail, "token arm does not read fact_records_sci_foreign_member_tokens_v4_idx"},
+		{"token arm as a heap filter", keyRangePlanHead + cveLookup + strings.TrimSuffix(advisory, token) + "                ->  Seq Scan on fact_records finding_2\n                      Filter: (eshu_sci_foreign_member_tokens_v4(fact_id, payload) && '{1:X}'::text[])\n" + tail, "Seq Scan on fact_records"},
+		{"token arm with a fact_id bound", keyRangePlanHead + cveLookup + strings.ReplaceAll(advisory, "&& '{1:X}'::text[])\n", "&& '{1:X}'::text[]) AND (fact_id >= 'a'::text)\n") + tail, "must not have"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := keyRangePlanViolation(tt.plan)
 			if (tt.want == "") != (got == "") || !strings.Contains(got, tt.want) {
 				t.Fatalf("keyRangePlanViolation() = %q, want containing %q", got, tt.want)
+			}
+		})
+	}
+
+	// The open statement (the last range, tokens on $4): lower bound only.
+	openPlan := strings.ReplaceAll(keyRangePlanHead+cveLookup+advisory+tail, " AND (fact_id < 'b'::text)", "")
+	for _, tt := range []struct {
+		name, plan, want string
+	}{
+		{"open: lower bound only, token arm on the token index", openPlan, ""},
+		{"open: a bounded plan carries an upper bound", keyRangePlanHead + cveLookup + advisory + tail, "upper fact_id bound"},
+		{"open: cve Index Cond lacks the lower bound", strings.Replace(openPlan, " AND (fact_id >= 'a'::text)", "", 1), "the lower fact_id bound"},
+		{"open: no token arm", strings.ReplaceAll(keyRangePlanHead+cveLookup+strings.TrimSuffix(advisory, token)+tail, " AND (fact_id < 'b'::text)", ""), "want 3"},
+		{"open: token arm with a fact_id bound", strings.ReplaceAll(openPlan, "&& '{1:X}'::text[])\n", "&& '{1:X}'::text[]) AND (fact_id >= 'a'::text)\n"), "must not have"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := keyRangeOpenPlanViolation(tt.plan)
+			if (tt.want == "") != (got == "") || !strings.Contains(got, tt.want) {
+				t.Fatalf("keyRangeOpenPlanViolation() = %q, want containing %q", got, tt.want)
 			}
 		})
 	}

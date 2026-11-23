@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// The per-support table (migration 336, #10880 PR-B1) holds one row per live
+// The per-support table (migration 338, #10880 PR-B1) holds one row per live
 // finding fact. These statements derive every column from fact_records, never
 // from in-memory findings, so the fact payload stays the one source of truth for
 // the canonical key and the filter columns. The canonical key, finding id,

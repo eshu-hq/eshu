@@ -14,7 +14,7 @@ import (
 )
 
 // supportsGenerationIndex is the index the generation foreign key's cascade
-// delete must use. Migration 336 creates it for that one statement.
+// delete must use. Migration 338 creates it for that one statement.
 const supportsGenerationIndex = "supply_chain_impact_finding_supports_generation_idx"
 
 // supportsCascadeStatement is the statement the foreign key's ON DELETE

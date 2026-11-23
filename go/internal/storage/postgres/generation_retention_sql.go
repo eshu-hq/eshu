@@ -423,7 +423,7 @@ WHERE generation_id = ANY($1::text[])
 // intents index (#10512, migration 292) behind the intents count arm and
 // DELETE, and the work-items index (#10525, migration 294) behind the
 // fact_work_items count arm and pre-delete lock, and the supports index (#10880,
-// migration 336) behind its count arm. Without one, its statements scan the table. It reads only pg_catalog, so it takes no
+// migration 338) behind its count arm. Without one, its statements scan the table. It reads only pg_catalog, so it takes no
 // lock on fact_records. to_regclass resolves names through the session's
 // search_path, as the retention statements do.
 const generationRetentionKeyIndexesQuery = `

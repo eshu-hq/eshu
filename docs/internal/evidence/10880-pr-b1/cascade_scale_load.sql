@@ -1,4 +1,4 @@
--- Loads the cascade shim: same columns and indexes as migration 336 (without the
+-- Loads the cascade shim: same columns and indexes as migration 338 (without the
 -- generation_id index, which the probe script adds for the "with" variant), 60
 -- supports per generation, one generation per scope.
 DROP SCHEMA IF EXISTS shim CASCADE;

@@ -42,7 +42,7 @@ No label carries a scope, repository, canonical key or CVE.
 
 ## Least-privilege logins
 
-Migration 336 creates the tables and grants nothing. A database that uses
+Migration 338 creates the tables and grants nothing. A database that uses
 least-privilege writer logins must grant the reducer login, after the schema
 migration that creates the tables and before the new reducer writes impact
 findings:

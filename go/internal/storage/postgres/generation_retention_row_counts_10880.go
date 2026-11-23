@@ -8,7 +8,7 @@ package postgres
 // Its generation_id foreign key cascades from scope_generations, so the arm
 // is generation-only like the fact_work_items arm (#10525): it charges exactly
 // the rows the final scope_generations delete removes, and it probes the
-// (generation_id) btree migration 336 adds for the cascade, so the cost
+// (generation_id) btree migration 338 adds for the cascade, so the cost
 // follows the batch, not the table. The retention key index check refuses the
 // cycle while that index is unusable. It lives in its own file because the
 // composed row-counts query must stay under the 500-line file cap; the

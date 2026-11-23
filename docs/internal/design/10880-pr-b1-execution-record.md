@@ -9,10 +9,10 @@ serves from it; PR-B2 switches the readers.
 
 Built under the arbiter's binding ruling for B1 (separate supports contract,
 payload kept verbatim, a reducer-owned backfill with an old-writer fence,
-migration 336, the read-time operator probe, and the rank-filter order). Stacked
+migration 338, the read-time operator probe, and the rank-filter order). Stacked
 on PR-B0 (`drive/10880-pr-b`). Commits on `drive/10880-pr-b1`, each test-first:
 
-1. **Migration 336.** `supply_chain_impact_finding_supports`: one row per live
+1. **Migration 338.** `supply_chain_impact_finding_supports`: one row per live
    finding fact, primary key `fact_id`, generation foreign key with cascade,
    indexes `(scope_id, generation_id)`, `(repository_id)`, `(finding_id)`, a
    partial `(canonical_key)` index for the operator override probe, and a plain
@@ -89,7 +89,7 @@ Findings from reading the code:
   With a plain `(generation_id)` index the scan node touches about 63 buffers at
   both sizes (1 to 3 index pages) and the 50-generation cascade takes 2.1 ms and
   2.6 ms ([cascade scale note](../evidence/10880-pr-b1/cascade_scale.md)).
-  Migration 336, still unshipped, therefore carries the fifth index. The
+  Migration 338, still unshipped, therefore carries the fifth index. The
   plan-shape guard pins the cascade statement, prepared under a generic plan, to
   `supply_chain_impact_finding_supports_generation_idx` by name with
   `generation_id` in the Index Cond, and its seeded violation drops that index in
@@ -393,7 +393,7 @@ the table keeps its rows until the next roll forward drains them.
   `(scope_id, generation_id)` index once per deleted generation (scan-node buffers: 326
   at 300,000 supports, about 266 of them index pages; 1,115 at 1,200,000, about
   1,055 index pages; 10.8 ms and 39.3 ms of trigger time for 50 generations).
-  Migration 336 now carries a `(generation_id)` index (scan-node buffers about 63
+  Migration 338 now carries a `(generation_id)` index (scan-node buffers about 63
   at both sizes, 1 to 3 index pages; 2.1 ms and 2.6 ms for 50 generations), pinned by name in
   the plan guard.
 - **QA census and the B2 readiness SQL.** The census needs the supports table, so

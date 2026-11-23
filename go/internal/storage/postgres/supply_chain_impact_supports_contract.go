@@ -27,7 +27,7 @@ import (
 const SupplyChainImpactSupportsContractVersion = 1
 
 // supplyChainImpactSupportsWriterSetting is the transaction setting the
-// maintainer's writer carries. The fence trigger on fact_records (migration 336)
+// maintainer's writer carries. The fence trigger on fact_records (migration 338)
 // skips rows written under it; every other writer of finding facts marks its
 // scope dirty.
 const (

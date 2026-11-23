@@ -162,7 +162,12 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// table (renumbered 331 to 335 at rebase: main owns 331-332 and 334;
 	// 333 held by an unpushed lane).
 	"supply_chain_impact_winners_audit_sweep",
-	// Migration 336 (#10880 PR-B1) adds the per-support table behind the
-	// grant-scoped impact reads (333-335 are held by other in-flight work).
+	// Migrations 336-337 (#10643 PR 2) add the frozen foreign-member token
+	// function and its concurrent GIN index for the key-range holder read
+	// (numbered 336/337, the next free numbers after main's 333-335).
+	"eshu_sci_foreign_member_tokens_v4",
+	"fact_records_sci_foreign_member_tokens_v4_idx",
+	// Migration 338 (#10880 PR-B1) adds the per-support table behind the
+	// grant-scoped impact reads (333 to 337 are main's).
 	"supply_chain_impact_finding_supports",
 }

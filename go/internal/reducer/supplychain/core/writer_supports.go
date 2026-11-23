@@ -16,7 +16,7 @@ type SupplyChainImpactSupportsWrite struct {
 
 // SupplyChainImpactSupportsMaintainer is the optional surface a write
 // transaction offers for keeping the per-support table current (#10880 PR-B1,
-// migration 336). postgres.SupplyChainImpactBeginner's transaction implements
+// migration 338). postgres.SupplyChainImpactBeginner's transaction implements
 // it. A transaction without it maintains nothing, which is only valid in a test:
 // the marker-gated backfill and the drift audit repair a missed write in
 // production.

@@ -1,4 +1,4 @@
--- 336_supply_chain_impact_finding_supports.sql: one row per active finding
+-- 338_supply_chain_impact_finding_supports.sql: one row per active finding
 -- fact (a "support") so grant-scoped and existence-filtered impact reads can
 -- leave the fact CTE (#10880 PR-B1, arbiter option B). The row identity is the
 -- support's fact_id: the SQL canonical key collapses the CVE and advisory ids

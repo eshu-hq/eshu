@@ -5,7 +5,7 @@ writer harness ([m6_write_cost_and_backfill_harness.go.txt](m6_write_cost_and_ba
 `TestZZB1WriteCostScratch`), `postgres:18.6` (disposable container,
 `shared_buffers=1GB`, `fsync=off`), 3,000 findings in one scope, three
 repetitions, host load about 50. Each repetition runs three fresh databases:
-without the supports maintainer (the baseline), with it and migration 336's
+without the supports maintainer (the baseline), with it and migration 338's
 `(generation_id)` index dropped (the shape measured before the ruling), and with
 it and the shipped migration. WAL bytes are the figure; wall times are not kept
 (host load). The passes are insert, replay of the same 3,000 under a new intent

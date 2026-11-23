@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Scale shim for the supports generation-FK cascade (#10880 PR-B1, arbiter
 # check 2). For each corpus size it builds a table with the same columns and
-# indexes as migration 336 plus a parent generation table with the same
+# indexes as migration 338 plus a parent generation table with the same
 # ON DELETE CASCADE, then measures, with and without the (generation_id) index:
 #   1. the cascade probe: DELETE FROM ONLY <supports> WHERE generation_id = $1
 #      as a prepared statement under plan_cache_mode = force_generic_plan (what

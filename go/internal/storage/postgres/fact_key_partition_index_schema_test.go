@@ -84,7 +84,7 @@ func TestRetentionKeyIndexCheckCoversFactKeyPartitionIndexes(t *testing.T) {
 		// #10525: the work-items generation index arm (migration 294).
 		"fact_work_items_generation_idx",
 		"fact_work_items",
-		// #10880: the supports generation index arm (migration 336).
+		// #10880: the supports generation index arm (migration 338).
 		"supply_chain_impact_finding_supports_generation_idx",
 		"ARRAY['generation_id']",
 		"index_state.indpred IS NULL",

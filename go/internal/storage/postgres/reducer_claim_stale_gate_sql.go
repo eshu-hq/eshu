@@ -5,9 +5,8 @@ package postgres
 
 // reducerClaimStaleGateCTEs renders the read-only stale-generation fence
 // both reducer claim statements (and the batch funnel census) compose
-// since #10863: claim_active_generations resolves every scope's active
-// generation once per statement, and stale_reducer_candidates lists the
-// pending/retrying reducer rows the periodic sweep would terminalize, so
+// since #10863: stale_reducer_candidates lists the pending/retrying
+// reducer rows the periodic sweep would terminalize, so
 // `base` (batch) and `candidate` (single) can refuse them at hand-out
 // without the claim locking or updating anything.
 //
@@ -17,8 +16,9 @@ package postgres
 //
 //   - generation guard: the row's generation is not the scope's active
 //     generation and is older in activation order (ingested_at, then
-//     generation_id), read from the once-per-statement
-//     claim_active_generations set.
+//     generation_id), read from the row's own active-generation lookup
+//     (#11234; before it, a once-per-statement claim_active_generations
+//     set).
 //   - readiness hold (#4445/#7664): the same own-generation OR
 //     active-generation readiness gate text the sweep applies, so a row
 //     whose phases exist under neither generation is not fenced here
@@ -44,34 +44,77 @@ package postgres
 // selected them). Terminalization of every status stays with the
 // standalone periodic sweep (supersedeStaleReducerGenerationsQuery).
 //
-// Both CTEs are MATERIALIZED: claim_active_generations is one hash join
-// over the scope tables, and stale_reducer_candidates joins it to the
-// candidate rows once, instead of re-probing ingestion_scopes and
-// scope_generations per candidate row (the per-scope index-probe shape
-// that made the in-claim sweep cost ~10k buffers even when it superseded
-// nothing). The #10863 gate shim measured this shape at 67 ms / 29,684
-// buffers vs the shipped sweep's 83 ms / 85,476 on the 8,713-row replay
-// with 4,000 scopes and 35k terminal rows, and 70 ms / 31,447 vs 275 ms /
-// 299,980 with 200 stale rows pending, with candidate and hand-out sets
-// identical (EXCEPT 0/0 both ways).
+// Join order (#11234). The gate is driven from the pending/retrying work
+// rows, never from the scope set. stale_gate_rows lists the rows not on
+// their scope's active generation id, by one join of the work rows to
+// ingestion_scopes, before any probe of scope_generations: with no stale
+// row (the normal state) it is empty and nothing below it runs per row.
+// Each such row then looks up its scope's active generation through a
+// CROSS JOIN LATERAL ... OFFSET 0 of two primary-key probes; it yields no
+// row when the scope has no valid active generation row, as the old inner
+// join to a per-scope set did. OFFSET 0 keeps the planner from pulling the
+// subquery up. The hermetic body guard pins its presence, but no live
+// proof shows it is needed: without it the pin stays green with fresh
+// statistics, and the no-statistics 2,000-stale cells read the same
+// buffers in the same time. The proven plan fence is MATERIALIZED
+// (PostgreSQL 18 docs, section 7.8.3). No CTE is joined to another CTE,
+// so no plan can rescan one per row (without planner statistics the old
+// per-scope set was rescanned once per stale row). Both CTEs stay MATERIALIZED: stale_gate_rows so the
+// prefilter runs once ahead of every lookup, and stale_reducer_candidates
+// so base's NOT EXISTS and the lock arms read one computed set instead of
+// inlining the gate.
+//
+// The shipped #10863 text built claim_active_generations for every scope
+// and joined it to the candidate rows. Postgres estimates that
+// (scope_id, generation_id) join between ingestion_scopes and
+// scope_generations at 1 row (#6794 records the same misestimate), so it
+// drove a nested loop from that "1 row" over all 12,236 active scopes and
+// probed scope_generations and fact_work_items per scope to find nothing
+// (QA replica and primary plans, 2026-11-22: 210,728 of the cut's 251,521
+// buffers and 8.6 of 9.8 s, 0 rows). The prefilter is implied by the
+// verbatim generation guard below, so the fenced set is unchanged: the
+// body of stale_reducer_candidates is the #10863 text with only its FROM
+// line and its scope join replaced, and the lookup carries the #10863 ON
+// text verbatim. (#10863's gate shim measured 29,684 buffers on the
+// 8,713-row replay with 4,000 scopes, before QA's scope count made the
+// misestimate drive the plan.) Evidence:
+// docs/internal/evidence/11234-stale-gate-join-order.md.
 //
 // The CTEs must be declared AFTER reducerClaimReadinessRequirementsCTE in
 // the enclosing WITH list, like the sweep they replace: the readiness
-// fragments reference reducer_claim_readiness_requirements.
+// fragments reference reducer_claim_readiness_requirements. Only
+// stale_reducer_candidates is read outside this text; stale_gate_rows must
+// carry every column the body reads through the stale alias.
 func reducerClaimStaleGateCTEs() string {
-	return `claim_active_generations AS MATERIALIZED (
-    SELECT scope.scope_id,
-           scope.active_generation_id,
-           active_generation.ingested_at AS active_ingested_at
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS active_generation
-      ON active_generation.generation_id = scope.active_generation_id
-     AND active_generation.scope_id = scope.scope_id
+	return `stale_gate_rows AS MATERIALIZED (
+    SELECT work.work_item_id,
+           work.scope_id,
+           work.generation_id,
+           work.stage,
+           work.domain,
+           work.status,
+           work.payload
+    FROM fact_work_items AS work
+    JOIN ingestion_scopes AS work_scope ON work_scope.scope_id = work.scope_id
+    WHERE work.stage = 'reducer'
+      AND work.status IN ('pending', 'retrying')
+      AND ($2::text[] IS NULL OR work.domain = ANY($2::text[]))
+      AND work.generation_id <> work_scope.active_generation_id
 ),
 stale_reducer_candidates AS MATERIALIZED (
     SELECT stale.work_item_id
-    FROM fact_work_items AS stale
-    JOIN claim_active_generations AS scope ON scope.scope_id = stale.scope_id
+    FROM stale_gate_rows AS stale
+    CROSS JOIN LATERAL (
+        SELECT scope.scope_id,
+               scope.active_generation_id,
+               active_generation.ingested_at AS active_ingested_at
+        FROM ingestion_scopes AS scope
+        JOIN scope_generations AS active_generation
+          ON active_generation.generation_id = scope.active_generation_id
+         AND active_generation.scope_id = scope.scope_id
+        WHERE scope.scope_id = stale.scope_id
+        OFFSET 0
+    ) AS scope
     JOIN scope_generations AS stale_generation
       ON stale_generation.scope_id = stale.scope_id
      AND stale_generation.generation_id = stale.generation_id

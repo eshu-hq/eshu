@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
-// The old-writer fence (migration 336) marks the scope of every finding fact a
+// The old-writer fence (migration 338) marks the scope of every finding fact a
 // writer without the maintainer touches. The backfill drains one dirty scope per
 // step: it re-reads every generation of the scope that holds finding facts, chunk
 // by chunk under each pair's conflict-domain lock, and deletes the mark only if

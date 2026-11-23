@@ -2,7 +2,7 @@
 
 Refs #10880. Arbiter ruling `arbiter-b1-cascade`, acceptance check 2. Records
 what the generation foreign key's cascade reads, with and without the
-`(generation_id)` index that migration 336 now carries.
+`(generation_id)` index that migration 338 now carries.
 
 Harness: [cascade_scale.sh](cascade_scale.sh) with
 [cascade_scale_load.sql](cascade_scale_load.sql) and
@@ -10,7 +10,7 @@ Harness: [cascade_scale.sh](cascade_scale.sh) with
 [cascade_scale_raw.txt](cascade_scale_raw.txt). `postgres:18.6` (disposable
 container, `shared_buffers=1GB`, `fsync=off`), host load about 25 during the
 run (so times are noisy; buffer counts are the stable figure). The shim has the
-columns and the five other indexes of migration 336 and a parent table with the
+columns and the five other indexes of migration 338 and a parent table with the
 same `ON DELETE CASCADE`; 60 supports per generation, one generation per scope.
 
 The cascade trigger runs `DELETE FROM ONLY supports WHERE generation_id = $1`

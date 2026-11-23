@@ -346,28 +346,28 @@ import (
 // 332_supply_chain_impact_winners_payload_backfill.sql (#10880 slice 1
 // follow-up) backfills those columns for pre-existing winner rows
 // (renumbered 326 to 332 at rebase: main owns 325-330).
-// 336_supply_chain_impact_finding_supports.sql (#10880 PR-B1) adds the
-// per-support table behind the grant-scoped impact reads (333-335 are main's).
 // Digest recomputed red-first after the 331/332 rebase (count 358:
 // main's 329-330 plus the branch pair).
 // 333_projector_source_paced_waits.sql (#10882) adds the projector
-// source-paced wait counter (metadata-only fast default).
-// 334_fact_work_items_replay_attempt_baseline.sql (#11182) adds the projector
-// replay baseline on fact_work_items (NOT NULL DEFAULT 0) and two nullable
-// audit columns on fact_replay_events; metadata-only, no backfill.
-// #11131 adds 335_supply_chain_impact_winners_audit_sweep.sql (the staged
-// winners audit sweep's singleton cursor table; DDL only, the row is created
-// on first read).
-// Count 362 is main's 361 (333 to 335 included) plus 336 (#10880 PR-B1). The
-// digest was recomputed on the merged tree by this test's own derivation, and
-// again when 336 gained its (generation_id) index and the header comment that
-// explains it, once more when that header stopped crediting a PostgreSQL 17
-// measurement that was never taken, and once more when 336's fence function
-// became SECURITY DEFINER with a pinned search_path (336 is unshipped, so its
-// checksum and this digest move in place).
+// source-paced wait counter (metadata-only fast default); 334 (#11182) and 335
+// (#11131) are main's. Count 361 is main's 360 plus 333; the digest is
+// recomputed on the merged tree by this test's own derivation.
+// 336_eshu_sci_foreign_member_tokens_v4.sql and
+// 337_fact_records_sci_foreign_member_tokens_v4_idx.sql (#10643 PR 2) add
+// the frozen foreign-member token function and its concurrent GIN index
+// (numbered 336/337, the next free numbers after main's 333-335). Count 363
+// is main's 361 plus the pair; the digest is this test's own derivation on
+// the rebased tree, derived again red-first when 336 gained the 1,024-byte
+// token bound before release (review F1, arbiter ruling 10643m; count
+// unchanged).
+// 338_supply_chain_impact_finding_supports.sql (#10880 PR-B1) adds the per-support
+// table, its dirty-scope fence and backfill marker; 333 to 337 are main's. Count 364
+// is main's 363 plus 338. The digest is this test's own derivation on the merged
+// tree, regenerated whenever 338 changes (338 is unshipped, so its checksum and
+// this digest move in place).
 const (
-	goldenBootstrapDefinitionsDigest = "210060a7db81771238b4e4ec865319675cb22741a99a6e9cbf8e400629329d60"
-	goldenBootstrapDefinitionsCount  = 362
+	goldenBootstrapDefinitionsDigest = "fdfd25b2a63fb1944d151d9ef64f4c4813804f9ef552306cc21952388de8f0c3"
+	goldenBootstrapDefinitionsCount  = 364
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

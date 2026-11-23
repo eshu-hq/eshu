@@ -498,9 +498,17 @@ var migrationShippedChecksums = map[string]string{
 	"334_fact_work_items_replay_attempt_baseline.sql": "01b34d1e47815656588a5e6aa5159a53cf7c0ec526ba3135c85d1174cf5ad735",
 	// #11131 adds the staged winners audit sweep cursor table (renumbered 331 to 335 at rebase: main owns 331-332 and 334; 333 held by an unpushed lane).
 	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
+	// #10643 PR 2: the foreign-member token function v4 and its
+	// concurrent GIN index for the key-range holder read's member arm
+	// (numbered 336/337, the next free numbers after main's 333-335).
+	// 336 was re-pinned before release when the review's F1 finding added
+	// the 1,024-byte token bound (arbiter ruling 10643m); neither file had
+	// shipped.
+	"336_eshu_sci_foreign_member_tokens_v4.sql":             "0e9bd61512fbaa996b3b14794029bc629f5b77acc0ce81e527feb4d3230fcb58",
+	"337_fact_records_sci_foreign_member_tokens_v4_idx.sql": "7dfba4e2f18c8c4a24b591eba32be31d938ebd6af415055e79ba65f830f370c3",
 	// #10880 PR-B1: the per-support table behind the grant-scoped reads
-	// (numbered 336 after main took 333 to 335).
-	"336_supply_chain_impact_finding_supports.sql": "04d6d5da843a4e080bb38f31966e3416fcba864549038eb43d599a8cabb40b2d",
+	// (numbered 338: 333 to 337 are main's).
+	"338_supply_chain_impact_finding_supports.sql": "f9c3b2bbcbb6608b2b60fedb8d21209b0c436ffa44fee5ac781473b56812e9b6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

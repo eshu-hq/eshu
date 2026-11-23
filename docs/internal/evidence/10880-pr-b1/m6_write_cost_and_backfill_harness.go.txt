@@ -60,7 +60,7 @@ func walBytes(t *testing.T, ctx context.Context, db *sql.DB, from string) (strin
 // TestZZB1WriteCostScratch measures the writer's WAL for three passes (insert,
 // replay under a new intent id, retract) in three variants: without the supports
 // maintainer, with it and the generation_id index dropped (the shape before the
-// arbiter's cascade ruling), and with it and the shipped migration 336 (the
+// arbiter's cascade ruling), and with it and the shipped migration 338 (the
 // generation_id index present).
 func TestZZB1WriteCostScratch(t *testing.T) {
 	const n = 3000

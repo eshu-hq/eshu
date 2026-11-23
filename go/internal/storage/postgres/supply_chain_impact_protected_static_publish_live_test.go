@@ -282,7 +282,7 @@ func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB
 		// transaction (#10880 PR-B1): upsert and retraction delete. An ordinary base
 		// table, so a DBA pregrant like the admission table above. The old-writer
 		// fence trigger needs no grant for any login: its function runs as the
-		// owner (migration 336), and this writer's transaction sets the
+		// owner (migration 338), and this writer's transaction sets the
 		// supports_v1 setting so the trigger skips its rows anyway.
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations

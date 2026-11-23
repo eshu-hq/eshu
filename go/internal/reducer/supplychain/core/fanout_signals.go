@@ -190,6 +190,54 @@ func (r fanOutResult) mergeSubSignals(subSignals map[string]float64) {
 	subSignals["fanout_replay_cleared"] = boolSignal(r.replayCleared)
 }
 
+// noteKeyRangeStatement reports one statement of a key-range read that
+// failed, ran at or over fanOutHolderSlowStatement, or was the fallback
+// (#10643 PR 2, arbiter rulings 10643l decision 3 and 10643m). The member arm
+// rides inside each key-range statement as its token arm, and one statement
+// cannot be timed by arm, so the signal names the statement instead: one
+// event on the fan-out span and one warn log line, each with the statement's
+// kind, range index (1 to statements), range count, whether the lookup set
+// held a non-CVE id (the token arm in play), whether the read fell back to
+// the shipped statement for a lookup id over 1,024 bytes, the outcome and
+// the duration. A fallback always reports, so an operator sees the long id
+// that caused it. A fast key-range statement that succeeds reports nothing;
+// the read-duration histogram already counts it.
+func (h SupplyChainImpactHandler) noteKeyRangeStatement(ctx context.Context, done HolderReadStatement, statements int, nonCVELookup, fallback bool) {
+	if done.Err == nil && done.Duration < fanOutHolderSlowStatement && !fallback {
+		return
+	}
+	outcome := fanOutReadOutcomeOK
+	if done.Err != nil {
+		outcome = readFailureOutcome(done.Err)
+	}
+	trace.SpanFromContext(ctx).AddEvent("holder_key_range_statement", trace.WithAttributes(
+		attribute.String("kind", done.Kind),
+		attribute.Int("range_index", done.Range),
+		attribute.Int("range_count", statements),
+		attribute.Bool("non_cve_lookup", nonCVELookup),
+		attribute.Bool("fallback", fallback),
+		attribute.String("outcome", outcome),
+		attribute.Float64("duration_seconds", done.Duration.Seconds()),
+	))
+	if h.Logger == nil {
+		return
+	}
+	attrs := []any{
+		slog.String("domain", string(reducercontract.DomainSupplyChainImpact)),
+		slog.String("kind", done.Kind),
+		slog.Int("range_index", done.Range),
+		slog.Int("range_count", statements),
+		slog.Bool("non_cve_lookup", nonCVELookup),
+		slog.Bool("fallback", fallback),
+		slog.String("outcome", outcome),
+		slog.Float64("duration_seconds", done.Duration.Seconds()),
+	}
+	if done.Err != nil {
+		attrs = append(attrs, slog.String("error", done.Err.Error()))
+	}
+	h.Logger.WarnContext(ctx, keyRangeStatementLogMessage, attrs...)
+}
+
 // observeFanOutRead records one holder-read statement's duration (#10643) by
 // read kind (one of the telemetry.FanOutReadKind* constants) and outcome (ok,
 // read_timeout, read_error), so an operator reads per-statement p95 against
