@@ -181,7 +181,7 @@ and 94.8 to 105.4 ms on the generic plan. A cold OS cache was not measured. Raw 
 
 Observability Evidence: `eshu_dp_supply_chain_impact_read_route_total{route}` and the
 `eshu.supply_chain.impact.read_route` span attribute name the read model of every
-call; a refused call counts the route it tried; the 503 envelopes name the model
+call; a refused call (list, count, inventory, grouped) counts the route it tried; the 503 envelopes name the model
 (supports or winners) that is not ready.
 
 **NOT_CHECKED:** QA candidate counts and skew, the QA replica latency and cold read,
