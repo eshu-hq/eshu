@@ -44,6 +44,16 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that a complete protected static impact write commits its finding fact and authority revision instead of dead-lettering on the missing publication transaction"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_drain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 and #11199 hot-key page contract on real PostgreSQL: the supports drain returns exactly the rows the frozen finding-fact read returns, in the database's fact_id order, on adversarial seeds (two full pages of superseded-generation rows in the middle of a key and at its end, raw counts of exactly one page and one page plus one row, rows that match two, three and four arms, more than one page of rows that each match all four arms, ids that sort differently under the C collation), and two seeded-wrong readers (stopping on a short active page, advancing on the last active id) fail the same seeds"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_page_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (package, CVE and advisory arms on their own partial btrees with the key and the cursor in the Index Cond, the repository arm on its btree) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and three seeded violations (the package index dropped, an active join inside the lateral, the cursor written as an OR filter) each fail the guard"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_supports_reader_live_test.go
     tag: ~
     class: postgres_ci
