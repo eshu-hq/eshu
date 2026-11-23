@@ -151,6 +151,19 @@ external sort. The count with the hot CVE at `work_mem` = 4MB (`p1_plan_hotcve_c
 labelled) also writes no temp file at 4,416 candidates. Executions of the captured
 connections: 53.9 to 63.2 ms in the plans kept, first runs up to 218 ms.
 
+**Image explain with an identity (the public-id miss with an `image_ref`).** The image
+explain statement with a non-empty `$2` on the largest seeded image (`registry.example/hot:1`,
+100,219 supports; 8M lab corpus, after the lab I/O change; median of 5 after 1 warm-up).
+Custom plan (a fresh connection each run, so each run includes connecting and planning):
+205.4 ms with the fact id of a lower copy, 198.2 ms with the canonical key, 206.0 ms with the
+fact id of the winner. Generic plan (`plan_cache_mode = force_generic_plan`, one connection):
+70.3, 69.1 and 70.6 ms. All under the 1,000 ms bar. Every plan names
+`supply_chain_impact_finding_supports_image_ref_idx` with no sequential scan of the supports
+table (the generic plan from `EXPLAIN (GENERIC_PLAN)`). After a cluster restart (shared
+buffers cold, OS cache warm) the first executions took 207.9 to 212.6 ms on the custom plan
+and 94.8 to 105.4 ms on the generic plan. A cold OS cache was not measured. Raw lines:
+`results_image_identity_arm.txt`.
+
 ## Limits
 
 - The shim runs on a shared host at load 6 to 17, and the theory-proof JIT pair
