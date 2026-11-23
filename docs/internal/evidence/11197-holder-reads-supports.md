@@ -299,7 +299,7 @@ pages, a checkpoint, a container restart (cold `shared_buffers`), one flush: 2.5
 of WAL (399 MB read), then 0.755 s and 0.729 s on two repeats. The line is a quarter of the smaller of
 the work-item lease (`reducerClaimLeaseDuration` = 1 min, `cmd/reducer/main_helpers.go:49`)
 and the handler timeout (`ESHU_REDUCER_HANDLER_TIMEOUT` unset is unbounded,
-`go/internal/envregistry/entries.go:239`; the lab evidence sets `supply_chain_impact=30m`,
+the `ESHU_REDUCER_HANDLER_TIMEOUT` entry in `go/internal/envregistry/entries.go`; the lab evidence sets `supply_chain_impact=30m`,
 `10643-holder-read-bound.md:96`): 15 s; the warm maximum is 0.845 s and the cold maximum 2.545 s. An earlier flush
 figure of 12 to 15 s was taken with `fastupdate` on both GINs and no raw output was
 kept; it is not a measurement of this configuration.
