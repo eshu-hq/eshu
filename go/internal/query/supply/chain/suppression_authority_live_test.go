@@ -78,6 +78,7 @@ func TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive(t *testi
 	defer func() { _ = tx.Rollback() }()
 
 	seedSupplyChainSuppressionAuthorityLiveFacts(t, ctx, tx)
+	fillSupplyChainImpactSupports(t, ctx, tx)
 	readAt := time.Date(2026, 7, 27, 12, 0, 10, 0, time.UTC)
 	now := func() time.Time { return readAt }
 	direct := impact.NewPostgresFindingStore(tx)

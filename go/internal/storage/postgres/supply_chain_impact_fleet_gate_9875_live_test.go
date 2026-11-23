@@ -95,7 +95,50 @@ func newFleetGateRun(t *testing.T) *fleetGateRun {
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
-	return &fleetGateRun{convergence: c, mux: mux}
+	run := &fleetGateRun{convergence: c, mux: mux}
+	run.completeSupportsBackfill()
+	return run
+}
+
+// completeSupportsBackfill runs the real supports backfill to completion, as a
+// deployment does after the migration. A fresh clone's readiness marker starts
+// incomplete, and a gate-on precise read from the per-support table is refused
+// until it completes (#10880 PR-B2a), so the gate runs it before it seeds.
+func (r *fleetGateRun) completeSupportsBackfill() {
+	r.t.Helper()
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: r.db}}
+	for step := 0; step <= 500; step++ {
+		report, err := backfill.RunStep(r.ctx)
+		if err != nil {
+			r.t.Fatalf("supports backfill step %d: %v", step, err)
+		}
+		if report.Complete {
+			return
+		}
+	}
+	r.t.Fatal("supports backfill did not complete in 500 steps")
+}
+
+// assertDefaultProfileRollupRefusedWhileSupportsAreNotReady pins the fail-closed
+// half of the same contract: with the readiness marker reset, the default-profile
+// rollup answers 503 and names the supports read model, then it is served again
+// once the backfill completes. It resets the marker the way a version bump does,
+// so the 503 is the intended refusal and not a missing fixture.
+func (r *fleetGateRun) assertDefaultProfileRollupRefusedWhileSupportsAreNotReady() {
+	r.t.Helper()
+	if _, err := r.db.ExecContext(r.ctx, `
+UPDATE supply_chain_impact_finding_supports_backfill
+SET completed_at = NULL, cursor_scope_id = '', cursor_generation_id = '', cursor_fact_id = ''
+WHERE marker_name = $1`, postgres.SupplyChainImpactSupportsBackfillMarker); err != nil {
+		r.t.Fatalf("reset supports backfill marker: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	r.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
+		"/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=50", nil).WithContext(r.ctx))
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "supports read model is not ready") {
+		r.t.Fatalf("default-profile rollup with an incomplete supports marker = %d %s, want 503 naming the supports read model", rec.Code, rec.Body.String())
+	}
+	r.completeSupportsBackfill()
 }
 
 // seed commits the gate's facts and their pending work items. The advisory
@@ -270,26 +313,30 @@ func TestFleetAcceptanceGateKEVReachesServiceRollup9875Live(t *testing.T) {
 	if violations := fleetGateViolations(o, fleetGateLiveExpectation(t)); len(violations) != 0 {
 		t.Fatalf("fleet gate failed on the clean seed:\n%v", violations)
 	}
-	run.assertDefaultProfileRollupIsUnavailable()
+	run.assertDefaultProfileRollupIsServed(o)
+	run.assertDefaultProfileRollupRefusedWhileSupportsAreNotReady()
 }
 
-// assertDefaultProfileRollupIsUnavailable pins the interim contract of #10880
-// PR-B0: the grouped read model cannot serve an existence filter from the
-// picked winner copy, and the API default profile is precise, so a gate-on
-// group_by=service_id call without profile=comprehensive answers 503 with the
-// text that names the filters. PR-B2 serves the precise profile from the
-// supports table and deletes this pin together with the comprehensive read
-// in observe, so the flip cannot happen silently.
-func (r *fleetGateRun) assertDefaultProfileRollupIsUnavailable() {
+// assertDefaultProfileRollupIsServed pins the contract of #10880 PR-B2a: the
+// API default profile is precise, and a gate-on group_by=service_id call without
+// profile=comprehensive reads the per-support table (the unscoped precise route),
+// so it answers the same service rollup as the comprehensive read the gate
+// observes. Before PR-B2a this call answered 503, because the winners row is one
+// pick and cannot carry an existence filter.
+func (r *fleetGateRun) assertDefaultProfileRollupIsServed(want fleetGateObservation) {
 	r.t.Helper()
-	rec := httptest.NewRecorder()
-	r.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet,
-		"/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=50", nil).WithContext(r.ctx))
-	if rec.Code != http.StatusServiceUnavailable {
-		r.t.Fatalf("default-profile group_by=service_id answered %d, want 503 until the supports table serves the precise profile (body %s)", rec.Code, rec.Body.String())
+	var rollup struct {
+		Buckets          []fleetGateBucket `json:"buckets"`
+		DistinctFindings int               `json:"distinct_findings"`
 	}
-	if body := rec.Body.String(); !strings.Contains(body, "image_ref") || !strings.Contains(body, "profile=precise") {
-		r.t.Fatalf("default-profile 503 body = %s, want the text that names the image_ref filter and profile=precise", body)
+	if status := r.get("/api/v0/supply-chain/impact/inventory?group_by=service_id&limit=50", &rollup); status != http.StatusOK {
+		r.t.Fatalf("default-profile group_by=service_id answered %d, want 200 from the supports table", status)
+	}
+	if got, wantSummary := fleetGateBucketSummary(rollup.Buckets), fleetGateBucketSummary(want.Buckets); got != wantSummary {
+		r.t.Fatalf("default-profile rollup buckets = %s, want %s (the comprehensive rollup)", got, wantSummary)
+	}
+	if rollup.DistinctFindings != want.DistinctFindings {
+		r.t.Fatalf("default-profile distinct findings = %d, want %d", rollup.DistinctFindings, want.DistinctFindings)
 	}
 }
 
