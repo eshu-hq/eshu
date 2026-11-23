@@ -107,8 +107,13 @@ no fall back to the finding facts.
   pointer detach (`Store.WithSupportsReadiness`, required by
   `FenceStaleGoEvidence`), so a table that is not ready rolls the fence back with
   nothing retracted, and the coordinator retries the page.
-- The handler-entry gate is the shared B2c commit's; the store check is the
-  backstop that reaches the queue unwrapped.
+- The supply-chain impact handler asks its fan-out port for the same check
+  before the manifest marker, any evidence load, the fencing token, the writer or
+  any holder read (`SupplyChainImpactSupportsGate`, `beforeEvidenceLoad`), so a
+  table that is not ready defers the whole pass instead of failing it after the
+  writer committed. `TestHandlerDefersBeforeAnyWorkWhileSupportsAreNotReady` pins
+  zero writer calls, zero tokens and zero loads on the refusal. The per-read
+  store check stays as the backstop that reaches the queue unwrapped.
 
 Operators watch `eshu_dp_supply_chain_impact_supports_reads_total` (`source` label:
 `fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`,
