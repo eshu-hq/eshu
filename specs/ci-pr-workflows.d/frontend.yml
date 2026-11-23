@@ -50,6 +50,7 @@ workflows:
   - .pre-commit-config.yaml
   - .github/workflows/frontend.yml
   - scripts/lib/auth_e2e_cli.sh
+  - scripts/test-auth-e2e-cli.sh
   - scripts/run-auth-e2e.sh
   - scripts/ci/go-mod-download-retry.sh
   - scripts/console-auth-e2e-runtime.mjs
@@ -58,6 +59,7 @@ workflows:
   - docker-compose.yaml
   - Dockerfile
   - go/cmd/mock-oidc-idp/**
+  - go/cmd/api/**
   - go/internal/oidclogin/**
   - scripts/run-auth-mcp-e2e.sh
   - scripts/auth-mcp-e2e-runtime.mjs
@@ -78,6 +80,8 @@ workflows:
   - specs/ci-pr-workflows.d/frontend.yml
   jobs:
   - audit
+  - auth-mcp-e2e
+  - auth-sso-e2e
   - console
   - console-a11y
   - format
@@ -85,6 +89,8 @@ workflows:
   - marketing-site
   job_names:
     audit: npm audit (fail on high/critical)
+    auth-mcp-e2e: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
+    auth-sso-e2e: SSO auth E2E (browser, fresh stack)
     console: Console (apps/console)
     console-a11y: Console a11y audit (axe-core)
     format: 'Prettier format check (issue #3763)'

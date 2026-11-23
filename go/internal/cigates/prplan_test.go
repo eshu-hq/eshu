@@ -421,7 +421,7 @@ func TestDornyRunnabilityModelsBothQuantifiers(t *testing.T) {
 func TestDocsOnlyPathsSkipHeavyFragments(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..", "..")
-	files := []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "sdk-go.yml"}
+	files := []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "read-api-latency-gate.yml", "sdk-go.yml"}
 	var defs []PRWorkflowDefinition
 	for _, file := range files {
 		raw, err := os.ReadFile(filepath.Join(root, "specs/ci-pr-workflows.d", file))
@@ -451,7 +451,7 @@ func TestDocsOnlyPathsSkipHeavyFragments(t *testing.T) {
 		{"docs/public/reference/code-coverage-shield.json"},
 	} {
 		got, _ := PlanPRWorkflows(defs, probe, false, "main", "full", nil)
-		for _, heavy := range []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "sdk-go.yml"} {
+		for _, heavy := range []string{"bench.yml", "build.yml", "e2e-tests.yml", "live-backend-tests.yml", "read-api-latency-gate.yml", "sdk-go.yml"} {
 			if _, ok := got[heavy]; ok {
 				t.Fatalf("scoped JSON %v must not select heavy workflow %s: %#v", probe, heavy, got)
 			}

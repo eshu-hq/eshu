@@ -36,6 +36,7 @@ gates:
       # to any collector command selected none of this gate's triggers. The
       # workflow copy is correct in its own dialect and is left alone.
       - "go/cmd/collector-*/**"
+      - "go/cmd/api/**"
       - "go/cmd/golden-corpus-gate/**"
       - "go/cmd/mock-prometheus-mimir/**"
       - "go/cmd/mock-openai-compatible/**"
@@ -173,6 +174,176 @@ gates:
     # pin), mirroring the #8871 compose-lane move noted above. Triggers stay
     # until then: the binary is still built in-tree.
 
+  - id: read-api-latency-gate
+    name: Read API Latency Gate (Docker)
+    category: exactness
+    layer: performance
+    purpose: "Runs the read API against Docker/NornicDB and fails if route latency or Postgres work exceeds committed budgets."
+    tier: manual
+    blocking: false
+    triggers:
+      - "scripts/lib/cgo-cflags.sh"
+      # cmd/api compiles 363 of the repo's 558 internal packages (go list
+      # -deps ./cmd/api, 2026-09). A narrower,
+      # hand-picked package list drifts silently as eshu-api's own imports
+      # grow — exactly the gap such a list left (go/internal/status, go.mod/go.sum,
+      # and ~280 other compiled-in packages were missing). "go/**" mirrors
+      # the golden-corpus-filter-exhaustive gate's own trigger below, which
+      # covers the same whole-module-compile-in problem the same way.
+      - "go/**"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - "scripts/verify-read-api-latency-gate.sh"
+      # Sourced by scripts/verify-read-api-latency-gate.sh: without this row
+      # a PR editing only the core module would not select this gate locally
+      # and would first fail in CI.
+      - "scripts/lib/read-api-latency-core.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/golden-corpus-host-helpers.sh"
+      # Sourced by golden-corpus-host-helpers.sh for the satellite mcp-server
+      # clone: without this row a PR editing only the git wrapper would not
+      # select this gate locally and would first fail in CI (#9670).
+      - "scripts/lib/golden-corpus-git.sh"
+      - "scripts/lib/compose_verification_runtime_common.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/read-api-latency-gate.yml"
+      - "scripts/ci/compose.sh"
+      - "scripts/lib/ci-image-compose.sh"
+      - "scripts/lib/ci_image_compose.py"
+      - "specs/ci-images.v1.json"
+      - "scripts/lib/ci_image_compose_signature.py"
+    local:
+      command: "bash scripts/verify-read-api-latency-gate.sh"
+      test_command: ""
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "latency-gate (nornicdb)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: "Disabled by owner order (2026-11-03): the NornicDB latency gate does not run in CI while Neo4j is the supported backend. Revisit NornicDB once Neo4j works as expected; run it by hand with the local command."
+    # D13 (#9669 removal prep): RETIRE in core at the removal PR, owner
+    # eshu-api satellite (checklist row 12: the satellite repo owns the
+    # latency gate against a pinned core image; core keeps only the
+    # contract-registry and static-contract gates). The in-process latency
+    # measurement of the in-tree path has no meaning once the path lives
+    # off-repo. Removal-PR action: delete this row and the
+    # read-api-latency-gate.yml workflow (or hand both to the satellite);
+    # the static mirrors below retire with it unless the satellite adopts
+    # them. Triggers stay until then: the binary is still built in-tree.
+  - id: query-methodology-scale-neo4j
+    name: Query Methodology Neo4j Scale Calibration
+    category: exactness
+    layer: performance
+    purpose: "Captures hosted Neo4j scale, concurrency and resource evidence for query methodology calibration."
+    tier: manual
+    blocking: false
+    triggers:
+      - "go/**"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
+      - ".github/workflows/read-api-latency-gate.yml"
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "methodology scale (neo4j)"
+    requirements:
+      - go
+      - docker
+      - postgres
+    ci_only_reason: "Manually dispatched hosted Neo4j scale/concurrency/resource evidence, not an automatic PR or merge-group check; claim-specific calibration remains required."
+    # D13 (#9669 removal prep): RETIRE in core at the removal PR, owner
+    # eshu-api satellite (checklist row 12). Scale/concurrency calibration
+    # of reads served off-repo belongs to the satellite's latency evidence,
+    # not the core registry. Removal-PR action: delete this row with the
+    # read-api-latency-gate.yml workflow (or hand both to the satellite).
+
+  - id: read-api-work-budget-mirror
+    name: Read API work budget refresh mirror (static)
+    category: hygiene
+    layer: performance
+    purpose: "Self-tests work-budget rendering and selective extension: formulas, ratchets, and preservation of existing rows."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
+      - "scripts/extend-read-api-work-budgets.sh"
+      - "scripts/test-extend-read-api-work-budgets.sh"
+      - "scripts/test-methodology-scale-resource-observer.sh"
+      - "scripts/lib/test-methodology-scale-resource-observer-*.sh"
+      - "scripts/lib/status-diagnostic-runner.sh"
+      - "scripts/lib/status_diagnostic_artifacts.py"
+      - "scripts/lib/status_diagnostic_resources.py"
+      - "scripts/test-status-diagnostic-artifacts.py"
+      - "scripts/test-status-diagnostic-resources.py"
+      - "scripts/test-status-diagnostic-runner.sh"
+    local:
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh && bash scripts/test-extend-read-api-work-budgets.sh && bash scripts/test-methodology-scale-resource-observer.sh && python3 scripts/test-status-diagnostic-artifacts.py && python3 scripts/test-status-diagnostic-resources.py && bash scripts/test-status-diagnostic-runner.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (work budget refresh)"
+    requirements: []
+    # D13 (#9669 removal prep): RETIRE in core with the latency-gate parent
+    # above (checklist row 12), owner eshu-api satellite. This mirror
+    # self-tests the satellite-owned work-budget scripts; it retires with
+    # them unless the satellite adopts it.
+  # #6965 phase 6: the cross-backend comparator (scripts/compare-backend-latency.sh)
+  # reads -latency-report JSON but never runs the live gate itself, so its
+  # formulas and identity-mismatch/non-comparable refusals get the same
+  # hermetic static-mirror treatment as read-api-work-budget-mirror above.
+  - id: backend-latency-compare-mirror
+    name: Cross-backend latency comparator mirror (static)
+    category: hygiene
+    layer: performance
+    purpose: "Self-tests the script that renders the NornicDB-vs-Neo4j latency comparison table; no live backend needed."
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/compare-backend-latency.sh"
+      - "scripts/test-compare-backend-latency.sh"
+      - "scripts/lib/test-compare-backend-latency-report.json"
+    local:
+      command: "bash scripts/test-compare-backend-latency.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (backend latency comparator)"
+    requirements: []
+    # D13 (#9669 removal prep): RETIRE in core with the latency-gate parent
+    # above (checklist row 12), owner eshu-api satellite. This mirror
+    # self-tests the satellite-owned comparator script; it retires with it
+    # unless the satellite adopts it.
+  # #6782 slice 1 added the B-7 golden corpus on Neo4j as the second cell of
+  # golden-corpus-gate.yml's corpus-gate matrix. It landed non-blocking because
+  # required-gates judges a PR with main's registry: a new blocking check_name
+  # cannot be introduced in the PR that first produces it. #7362 (#7331 phase 2)
+  # flips it to blocking: it passed 60 of 60 main runs from 2026-09-27 to
+  # 2026-09-29 (the NornicDB leg failed 2 of those 60). Triggers mirror
+  # golden-corpus-gate exactly.
   - id: golden-corpus-gate-neo4j
     name: Golden Corpus Gate on Neo4j (Docker)
     category: exactness
@@ -197,6 +368,7 @@ gates:
       - "go/cmd/projector/**"
       - "go/cmd/reducer/**"
       - "go/cmd/collector-*/**"
+      - "go/cmd/api/**"
       - "go/cmd/golden-corpus-gate/**"
       - "go/cmd/mock-prometheus-mimir/**"
       - "go/cmd/mock-openai-compatible/**"

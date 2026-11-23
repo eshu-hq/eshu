@@ -15,8 +15,7 @@ import (
 // Queue-path jobs carry no Docker Hub login step: every queue-path image
 // resolves to a GHCR digest in specs/ci-images.v1.json, so a login only
 // spends shared-runner pulls against the anonymous limit (#7886). This test
-// pins the invariant for all nine workflows that carried one (the tenth,
-// read-api-latency-gate.yml, retired with the D13 removal); the readiness
+// pins the invariant for all ten workflows that carried one; the readiness
 // split test additionally pins the live job's shape.
 func TestQueueWorkflowsCarryNoDockerHubLogin(t *testing.T) {
 	t.Parallel()
@@ -29,6 +28,7 @@ func TestQueueWorkflowsCarryNoDockerHubLogin(t *testing.T) {
 		"ifa-determinism-gate.yml",
 		"live-backend-tests.yml",
 		"live-postgres-readiness.yml",
+		"read-api-latency-gate.yml",
 		"static-contract-gates.yml",
 		"test.yml",
 	} {

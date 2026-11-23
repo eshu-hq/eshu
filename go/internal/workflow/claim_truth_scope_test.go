@@ -26,9 +26,8 @@ import (
 //     no production file constructs a fact envelope or writes fact records;
 //   - no reducer projection or graph builder reads workflow state; the
 //     only reducer touch is the retirement disposition census, and the
-//     query touches are read-only collection-state explanations — all
-//     transport, not truth content. The former API config-shape parse
-//     retired with the D13 removal of the in-tree relay surface.
+//     query/API touches are read-only collection-state explanations plus
+//     one config-shape parse — all transport, not truth content.
 // The one write coupling (HeartbeatClaim in the ingestion transaction,
 // storage/postgres/ingestion.go) is a commit gate, not content: it can
 // refuse a stale commit but cannot alter admitted facts. Its replacement
@@ -234,8 +233,9 @@ var truthScopeKnownReaders = map[string]string{
 	"go/internal/query/openapi/components_active_work_source.go":                "status description text",
 	"go/internal/query/security_alert_collection_state_postgres.go":             "collection-state explanation",
 	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": "readiness explanation",
-	// The former config-shape parse reader retired with the D13 removal;
-	// the map below now lists only live readers.
+	// Parses DesiredCollectorInstance JSON for metrics-source selection;
+	// config shape only, no workflow state read.
+	"go/cmd/api/metrics_source.go": "config-shape parse",
 }
 
 // truthScopePinnedReaderHits pins the per-marker workflow-state reference
@@ -260,14 +260,16 @@ var truthScopePinnedReaderHits = map[string]map[string]int{
 	"go/internal/query/supply/chain/impact/readiness_postgres_query_targets.go": {
 		"workflow_runs": 1,
 	},
+	"go/cmd/api/metrics_source.go": {
+		"go/internal/workflow\"": 1,
+	},
 }
 
 // TestTruthSurfacesReadNoWorkflowState guards the consumer half of the
-// verdict: no reducer projection, graph builder, MCP tool, or query
-// handler reads workflow claim state except the known read-only readers
-// above (the former in-tree API command retired with the D13 removal).
-// A new reference fails this test, as does a substitution that keeps
-// the file total.
+// verdict: no reducer projection, graph builder, MCP tool, query handler,
+// or API command reads workflow claim state except the known read-only
+// readers above. A new reference fails this test, as does a substitution
+// that keeps the file total.
 func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 	t.Parallel()
 
@@ -277,6 +279,7 @@ func TestTruthSurfacesReadNoWorkflowState(t *testing.T) {
 		"go/internal/graph",
 		"go/internal/mcp",
 		"go/internal/query",
+		"go/cmd/api",
 	}
 	markers := []string{
 		"go/internal/workflow\"",

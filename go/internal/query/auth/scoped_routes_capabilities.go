@@ -15,9 +15,9 @@ import "net/http"
 // invalid one. It uses this route because /api/v0/auth/profile answers 401 for
 // a valid token that carries no subject hash. Pulling this route off the
 // allowlist or out of the no-caller-grant class, or gating it on a permission
-// feature, breaks that check. TestCapabilitiesProbe* in the former in-tree
-// API contract test pinned it; that pin retired with the D13 removal —
-// change this only with the satellite.
+// feature, breaks that check. TestCapabilitiesProbe* in
+// go/cmd/api/capabilities_probe_contract_test.go pins it; change them together
+// with the satellite.
 func scopedCapabilityCatalogRoute(r *http.Request) bool {
 	return r.Method == http.MethodGet && r.URL.Path == "/api/v0/capabilities"
 }

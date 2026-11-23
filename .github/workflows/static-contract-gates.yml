@@ -44,6 +44,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       openapi: ${{ steps.filter.outputs.openapi }}
+      route: ${{ steps.filter.outputs.route }}
       edge: ${{ steps.filter.outputs.edge }}
       evidence: ${{ steps.filter.outputs.evidence }}
       skill: ${{ steps.filter.outputs.skill }}
@@ -146,6 +147,7 @@ jobs:
           }
 
           append_gate "${{ steps.filter.outputs.openapi }}" "openapi" "Verify OpenAPI gate" "bash scripts/test-verify-openapi.sh && bash scripts/test-verify-openapi-subpackage.sh" "scripts/verify-openapi.sh" "openapi-surface"
+          append_gate "${{ steps.filter.outputs.route }}" "route" "Verify route coverage gate" "scripts/test-verify-route-coverage.sh && bash scripts/test-gate-fetch-base-guard.sh" "scripts/verify-route-coverage.sh" "route-coverage"
           append_gate "${{ steps.filter.outputs.edge }}" "edge" "Verify edge source-tool coverage gate" "bash scripts/test-verify-edge-source-tool-coverage.sh" "scripts/verify-edge-source-tool-coverage.sh" "edge-source-tool-coverage"
           append_gate "${{ steps.filter.outputs.evidence }}" "evidence" "Verify evidence continuity gate" "scripts/test-verify-evidence-continuity.sh" "scripts/verify-evidence-continuity.sh" "evidence-continuity"
           append_gate "${{ steps.filter.outputs.skill }}" "skill" "Verify skillgen roundtrip gate" "scripts/test-verify-skill-roundtrip.sh" "scripts/verify-skill-roundtrip.sh" "skill-roundtrip"

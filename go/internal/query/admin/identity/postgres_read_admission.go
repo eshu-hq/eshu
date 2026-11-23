@@ -12,7 +12,8 @@ import (
 // NewAdminIdentityReadAdmission binds the core-owned Postgres identity
 // subject store behind the versioned #9669 D3 admission contract, so the
 // API handler depends on the pin instead of a direct store handle. The
-// caller owns the store (including any instrumentation wrapping); this adapter only
+// caller owns the store (including any instrumentation wrapping —
+// compare go/cmd/api/admin_identity_reads.go); this adapter only
 // translates the metadata-only item sets between the two type sets. A
 // nil store yields a nil admission, and the handler answers 503 through
 // its existing storeReady gate — never a confident empty page.

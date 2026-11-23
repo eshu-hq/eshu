@@ -92,8 +92,8 @@ func TestCallableFragmentOnlyChangeSelectsOwnFullJobs(t *testing.T) {
 			}
 		})
 	}
-	if fragmentCount != 27 {
-		t.Fatalf("checked %d callable fragments; want 27", fragmentCount)
+	if fragmentCount != 28 {
+		t.Fatalf("checked %d callable fragments; want 28", fragmentCount)
 	}
 }
 

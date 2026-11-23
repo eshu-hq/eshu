@@ -10,9 +10,8 @@ errors for every API and MCP route. See `doc.go` for the contract.
 
 Owns the time-series route, its metric allow-list, the Prometheus/Mimir
 `query_range` client, and the request-metrics middleware. Where the source
-comes from (formerly the in-tree API metrics selector, retired with the
-D13 removal) and which muxes the middleware wraps are decided by the
-commands.
+comes from (`cmd/api/metrics_source.go`) and which muxes the middleware wraps
+(`cmd/api`, `cmd/mcp-server`) are decided by the commands.
 
 ## Layout
 

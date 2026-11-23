@@ -26,7 +26,7 @@ cp "${repo_root}/scripts/lib/ci-gate-docs-planner-checks.sh" "${tmp}/scripts/lib
 cp "${repo_root}/scripts/lib/ci-gates-resolved-fixtures.sh" "${tmp}/scripts/lib/ci-gates-resolved-fixtures.sh"
 mkdir -p "${tmp}/scripts/ci" "${tmp}/specs/ci-pr-workflows.d"
 cp "${repo_root}/scripts/ci/assert-go-complete.sh" "${tmp}/scripts/ci/assert-go-complete.sh"
-for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml sdk-go.yml; do cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"; done
+for frag in bench.yml build.yml e2e-tests.yml live-backend-tests.yml read-api-latency-gate.yml sdk-go.yml; do cp "${repo_root}/specs/ci-pr-workflows.d/${frag}" "${tmp}/specs/ci-pr-workflows.d/${frag}"; done
 cp "${repo_root}/specs/ci-docs-lockstep-paths.txt" "${tmp}/specs/ci-docs-lockstep-paths.txt"
 mkdir -p "${tmp}/.github"
 cp "${repo_root}/.github/leaf-code-filter.yml" "${tmp}/.github/leaf-code-filter.yml"

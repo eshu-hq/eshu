@@ -43,19 +43,6 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-# D13: the fresh-stack MCP-identity gate needs a live query-truth API, which
-# no longer exists in this repo (the in-tree relay is removed; the satellite
-# has no core in CI). Serving-truth proof moves to the cutover lane with
-# the satellite core. Full-suite runs fail closed here (P1: a job named as
-# an E2E gate must not pass vacuously, consistent with the manifest step's
-# loud missing-report failure); a --module run (catalog sweep,
-# sensitivity) proceeds to fail honestly where it needs the removed API.
-# Remove this gate from the required set, or land the cutover, to go green.
-if [[ "${1:-}" != "--module" ]]; then
-	echo "run-auth-mcp-e2e: BLOCKED (D13): no live API in this repo; serving proof moves to the cutover lane" >&2
-	exit 1
-fi
-
 # Stack builds compile Eshu source: anchor them at this checkout (dest
 # compose files default the build context to their own directory).
 export ESHU_REPO_ROOT="${ESHU_REPO_ROOT:-${repo_root}}"

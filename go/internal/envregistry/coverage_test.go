@@ -29,8 +29,13 @@ var coreScanFiles = []string{
 	"cmd/reducer/infra_inventory_reconcile_wiring.go",
 	"cmd/reducer/generation_retention_wiring.go",
 	"cmd/collector-cicd-run/config.go",
+	"cmd/api/metrics_source.go",
 	"internal/collector/claim/store/select.go",
 	"cmd/collector-component-extension/config.go",
+	"cmd/api/config_helpers.go",
+	"cmd/api/main.go",
+	"cmd/api/diagnostic/collector.go",
+	"cmd/api/oidc_login.go",
 	"cmd/ingester/files_group_probe.go",
 	"internal/collector/repo/git/selection_pinned_refs.go",
 }
