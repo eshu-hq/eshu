@@ -39,8 +39,9 @@ const (
 // origin_scope_id and origin_generation_id record the touching pass for
 // drill-down only: they affect no work item id, conflict key, predicate,
 // or handler read. The first-underlying-data key is the Decision-3 wire
-// (Q1 option a, eshu-hq/eshu#11080): the handler reads it, so its name
-// lives on the handler's contract.
+// (Q1 option a, eshu-hq/eshu#11080): the handler ignores it for the
+// verdict and reads only the post-claim deferral clock, so the key lives
+// on the telemetry/provenance contract only.
 const (
 	advisoryGroupPayloadGroupID     = "group_id"
 	advisoryGroupPayloadOriginScope = "origin_scope_id"
@@ -68,8 +69,9 @@ type advisoryGroupIntentQueue interface {
 // origin source system mirrored. The related scope is the synthetic slot
 // scope, which the claim read derives from the work item's own scope; the
 // origin pass's scope and generation ride the payload for drill-down only,
-// while its cycle start rides it as the handler-read first-underlying-data
-// time (#11080). The work item id is
+// while its cycle start rides it as the telemetry-only first-underlying-data
+// time (#11080; the verdict ignores it and reads the post-claim deferral
+// clock). The work item id is
 // a pure function of the group, so the existing ON CONFLICT DO NOTHING
 // plus RetouchWorkItem is the race-free coalescing primitive.
 //
@@ -144,11 +146,11 @@ func (e AdvisoryGroupProjectionEnqueuer) EnqueueAdvisoryGroupProjections(
 		// the group's first-touch vintage, not the latest touch: a
 		// retouch that collides on the work item id (ON CONFLICT DO
 		// NOTHING) advances the cycle start while this payload keeps the
-		// first stamp, so a re-touched row with ancient underlying data
-		// still reads stale at once while the watermark trails the new
-		// bound. That matches the field name: the advisory's first data
-		// does not get younger when the group is touched again. The
-		// pass's write postdates the stamp by the pass duration,
+		// first stamp, so a re-touched row keeps ancient underlying data
+		// as provenance while the verdict reads only the post-claim
+		// deferral clock. That matches the field name: the advisory's
+		// first data does not get younger when the group is touched again.
+		// The pass's write postdates the stamp by the pass duration,
 		// immaterial against the 30-minute stale bound. An origin with no
 		// times at all stamps nothing, so the handler falls back to the
 		// post-claim deferral clock. The stamp rides the payload, never
