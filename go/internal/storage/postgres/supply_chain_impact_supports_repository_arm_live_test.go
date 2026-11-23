@@ -160,8 +160,9 @@ func pqArray(ids []string) string { return "{" + strings.Join(ids, ",") + "}" }
 // shapes over an existing lab corpus (B2C_REPO_ARM_DSN) holding repo:hotrepo,
 // repo:hotrepo2 and repo:hotrepo3 of 160,000 supports each and repo:mid-1 to
 // repo:mid-200 of at least 1,000 each: one repository; three repositories; 200
-// repositories plus one of 160,000. Every page: no temp, at most 50 ms warm, at most
-// 15,000 buffers.
+// repositories plus one of 160,000. The loader drains one repository at a time, so
+// every repository's pages are measured: no temp, at most 50 ms warm, at most 15,000
+// buffers.
 func TestSupplyChainImpactSupportsServiceCatalogShapesLive(t *testing.T) {
 	dsn := os.Getenv("B2C_REPO_ARM_DSN")
 	if dsn == "" {
@@ -189,15 +190,24 @@ func TestSupplyChainImpactSupportsServiceCatalogShapesLive(t *testing.T) {
 		"200 repositories plus one of 160,000": append(append([]string{}, mid...), "repo:hotrepo"),
 	} {
 		t.Run(name, func(t *testing.T) {
-			for _, mode := range []string{"force_generic_plan", "force_custom_plan"} {
-				page1, midPage, last := repositoryArmPages(t, ctx, db, conn, mode, supplyChainAdvisoriesForReposArms, repos)
-				t.Logf("%s, %s: page 1 %d, midpoint %d, last page %d buffers", name, mode, page1, midPage, last)
-				for page, got := range map[string]int{"page 1": page1, "midpoint": midPage, "last page": last} {
-					if got > 15000 {
-						t.Errorf("%s %s %s read %d buffers, want at most 15,000", name, mode, page, got)
+			// The loader drains one repository id at a time (GetSupplyChainAdvisoriesForRepos):
+			// a single 200-key drain read 92,259 buffers a page, past the bound. The bound
+			// holds for every repository's pages, so the largest page is what is reported.
+			worst := 0
+			for _, repo := range repos {
+				for _, mode := range []string{"force_generic_plan", "force_custom_plan"} {
+					page1, midPage, last := repositoryArmPages(t, ctx, db, conn, mode, supplyChainAdvisoriesForReposArms, []string{repo})
+					for page, got := range map[string]int{"page 1": page1, "midpoint": midPage, "last page": last} {
+						if got > worst {
+							worst = got
+						}
+						if got > 15000 {
+							t.Errorf("%s: %s %s %s read %d buffers, want at most 15,000", name, repo, mode, page, got)
+						}
 					}
 				}
 			}
+			t.Logf("%s: %d drains, largest page %d buffers", name, len(repos), worst)
 		})
 	}
 }

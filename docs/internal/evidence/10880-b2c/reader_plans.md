@@ -264,6 +264,29 @@ the test. On a fresh single-scope database the same pages read 2,017, 2,016 and
 1,009 buffers (2,296, 2,282 and 1,143 rewritten): with 9,000 scopes the per-row
 scope probes no longer memoize, which is the figure to quote.
 
+## The service-catalog call shapes and the repository drains
+
+Raw: [service_catalog_shapes_and_drain_raw.txt](service_catalog_shapes_and_drain_raw.txt).
+Lab corpus: three repositories of 160,000 supports and 200 of 1,250, on the index
+migration 346 builds. The loader's first design drained all requested ids as one
+statement: one repository of 160,000 read 5,908, 5,899 and 2,958 buffers for page 1,
+midpoint and last page; three of 160,000 read 6,719, 6,303 and 2,958; 200 repositories
+plus one of 160,000 read 92,259, 66,872 and 3,758, past the 15,000 bound (200 lateral
+keys of up to 500 index entries each). The loader now drains one repository id at a
+time, as the ruling authorized: the largest page of any repository in the three shapes is
+5,908, 5,912 and 5,954 buffers, temp 0 and at most 50 ms warm, both plan cache modes
+(201 drains for the third shape). Equality and concurrency tests pass with the
+per-repository drain and migration 346 present.
+
+Built binary after the I/O change of the host volume (about 15:37Z; buffer counts are
+unaffected, timings are not comparable with the earlier runs): `repo:hotrepo` through
+`GetSupplyChainAdvisoriesForRepos` is 321 pages, 160,000 raw and active rows, 6.97 s;
+through the reconciliation loader 321 pages, 160,000 envelopes, supports drain 1.9 s,
+whole loader 13.0 s (the fact stream takes the rest); peak RSS 431 MB for both runs in
+one process. That is 21 ms a page for the service loader and 6 ms for the
+reconciliation one, against the 58 to 146 ms a page the ruling quotes from the earlier,
+slower volume.
+
 ## When the package array is non-empty
 
 `securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
