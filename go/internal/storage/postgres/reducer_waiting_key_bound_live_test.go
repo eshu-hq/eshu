@@ -19,7 +19,7 @@ import (
 )
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11256 bounded narrowed wait key: a wide verdict set parks through the real ReducerQueue.Fail on the migrated schema instead of failing the btree key insert (SQLSTATE 54000) after the retry UPDATE committed
+//eshu:readiness:reason #11256 wide verdict sets through the real queue: ReducerQueue.Fail parks one wait row for 600 blockers and for one blocker beside 600 read-set repositories, Service.Run keeps going past a wide deferral and stops cleanly on shutdown, and a wait row parked before the key bound still wakes and audits
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_REDUCER_FAIRNESS_PROOF_DSN
 
 // realShapeScopeIDs returns n distinct sorted scope IDs of the shape the git
@@ -207,102 +207,6 @@ func TestServiceSurvivesAWideVerdictDeferralLive(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("the normal item was not acknowledged within 15s")
-}
-
-// TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive pins the guard
-// constant (#11256): the largest row the guard admits, an incompressible key
-// at the byte cap beside the longest work_item_id the budget allows, inserts
-// into the real table with both btree indexes (the primary key and the wake
-// index). The uncompressed text is the guard's own measure, so the proof uses
-// random printable bytes that cannot compress.
-func TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive(t *testing.T) {
-	dsn := reducerDomainFairnessDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11256 key-bound proof")
-	}
-	ctx := context.Background()
-	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
-
-	// A narrowed key at the byte cap: random 60-byte IDs fill it.
-	scope := string(incompressibleIDs(t, 1, 40)[0])
-	key, ok := narrowedWaitingKey(scope, "gen-"+incompressibleIDs(t, 1, 30)[0], incompressibleIDs(t, 200, 60))
-	if !ok || key.JSON == "" || len(key.JSON) < narrowedWaitKeyMaxBytes-80 {
-		t.Fatalf("test key = ok %v, %d bytes, want one near the %d byte cap", ok, len(key.JSON), narrowedWaitKeyMaxBytes)
-	}
-	kind := WaitingKindRelationshipGenerationActive
-	longest := waitingRowIndexBudgetBytes - len(kind) - len(key.JSON)
-	workItemID := incompressibleIDs(t, 1, longest)[0]
-	intent := reducercontract.Intent{
-		IntentID: workItemID, ScopeID: scope, GenerationID: "gen-worst", Domain: reducer.DomainWorkloadMaterialization,
-	}
-	entry := WaitingDeferral{WaitsForKind: kind, WakeSite: WaitingWakeSiteInTx, FailureClass: reducer.WorkloadMaterializationResolutionNotReadyFailureClass}
-	inserted, err := insertWaitingItem(ctx, SQLDB{DB: db}, nil, intent, entry, key.JSON, time.Now().UTC())
-	if err != nil || !inserted {
-		t.Fatalf("insertWaitingItem(%d byte work_item_id, %d byte key) = inserted %v, err %v, want a row on both indexes",
-			len(workItemID), len(key.JSON), inserted, err)
-	}
-	if got := countNarrowWaits(t, ctx, db, workItemID); got != 1 {
-		t.Fatalf("wait rows = %d, want 1", got)
-	}
-	// The wake index serves the activation wake's lookup; planting the row
-	// through it proves the second index took the entry too.
-	var viaWakeIdx int
-	if err := db.QueryRowContext(ctx, `
-SELECT count(*) FROM reducer_waiting_items
-WHERE waits_for_kind = 'relationship_generation_active' AND waits_for_key = $1::jsonb`, key.JSON).Scan(&viaWakeIdx); err != nil {
-		t.Fatalf("read via the wake index key: %v", err)
-	}
-	if viaWakeIdx != 1 {
-		t.Fatalf("rows by (kind, key) = %d, want 1", viaWakeIdx)
-	}
-}
-
-// TestUnnamedBlockerActivationDoesNotReopenAWideWaitLive pins the no-hot-loop
-// rule (#11256): a wide verdict parks naming a sorted prefix, and activations
-// of blockers outside that prefix do not touch the wait (the wake matches only
-// named scopes), while the activation of a named blocker reopens it.
-func TestUnnamedBlockerActivationDoesNotReopenAWideWaitLive(t *testing.T) {
-	dsn := reducerDomainFairnessDSN()
-	if dsn == "" {
-		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11256 key-bound proof")
-	}
-	ctx := context.Background()
-	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
-	at := time.Now().UTC().Truncate(time.Microsecond)
-	store := NewRelationshipStore(SQLDB{DB: db})
-	ids := realShapeScopeIDs(t, 600)
-	named, unnamed := ids[0], []string{ids[100], ids[300], ids[599]}
-	for _, id := range append([]string{named}, unnamed...) {
-		seedNarrowWaitScope(t, ctx, db, id, "gen-"+id, "pending", at)
-	}
-	_, err := claimAndFailWide(t, ctx, db, "hot-1", wideWaitCause{blocking: ids})
-	if err != nil {
-		t.Fatalf("Fail: %v", err)
-	}
-	if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 1 {
-		t.Fatalf("wait rows after the park = %d, want 1", got)
-	}
-	_, _, parkedUntil := narrowQueueState(t, ctx, db, "hot-1")
-	for _, id := range unnamed {
-		if err := store.ActivateResolutionGeneration(ctx, "gen-"+id, id); err != nil {
-			t.Fatalf("activate un-named blocker %s: %v", id, err)
-		}
-		if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 1 {
-			t.Fatalf("wait rows after activating un-named %s = %d, want 1: only named blockers wake the item", id, got)
-		}
-	}
-	if _, _, visibleAt := narrowQueueState(t, ctx, db, "hot-1"); !visibleAt.Equal(parkedUntil) {
-		t.Fatalf("queue visible_at moved to %s from %s: an un-named activation touched the item", visibleAt, parkedUntil)
-	}
-	if err := store.ActivateResolutionGeneration(ctx, "gen-"+named, named); err != nil {
-		t.Fatalf("activate named blocker: %v", err)
-	}
-	if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 0 {
-		t.Fatalf("wait rows after activating a named blocker = %d, want 0: the wake must reopen the item", got)
-	}
-	if _, _, visibleAt := narrowQueueState(t, ctx, db, "hot-1"); !visibleAt.Before(parkedUntil) {
-		t.Fatalf("queue visible_at = %s, want reopened before the parked horizon %s", visibleAt, parkedUntil)
-	}
 }
 
 // TestOldShapeWideWaitRowStillWakesAndAuditsLive pins compatibility (#11256):

@@ -7,13 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 	"sync"
 	"time"
-
-	"go.opentelemetry.io/otel/metric"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -101,12 +98,8 @@ func parkProducerTerminalWaits(
 			continue
 		}
 		seen[keyJSON] = true
-		inserted, err := insertWaitingItem(ctx, database, instruments, intent, entry, keyJSON, now)
-		if err != nil {
+		if err := insertWaitingItem(ctx, database, intent, entry, keyJSON, now); err != nil {
 			return parked, err
-		}
-		if !inserted {
-			continue
 		}
 		parked = true
 		satisfied, err := waitingSatisfiedForIntent(ctx, database, intent, entry, keyJSON, now)
@@ -123,69 +116,25 @@ func parkProducerTerminalWaits(
 	return parked, nil
 }
 
-// insertWaitingItem parks one wait row and reports whether one was written.
-// The primary-key upsert keeps a repeated Fail for the same wait idempotent:
-// the first deferral wins as the anchor and later ones only refresh updated_at.
-//
-// A row whose indexed text (work_item_id, kind and key) exceeds
-// waitingRowIndexBudgetBytes is not written (#11256): the insert would fail
-// with SQLSTATE 54000 after Fail's retry UPDATE committed, and that error
-// stops the reducer. The queue row keeps the timer path the retry UPDATE set
-// (the backstop for a parked kind), so the item re-runs; the oversize counter
-// and an ERROR log name it.
+// insertWaitingItem parks one wait row. The primary-key upsert keeps a
+// repeated Fail for the same wait idempotent: the first deferral wins as
+// the anchor and later ones only refresh updated_at.
 func insertWaitingItem(
 	ctx context.Context,
 	database db.ExecQueryer,
-	instruments *telemetry.Instruments,
 	intent reducercontract.Intent,
 	entry WaitingDeferral,
 	keyJSON string,
 	now time.Time,
-) (bool, error) {
-	if rowBytes := len(intent.IntentID) + len(entry.WaitsForKind) + len(keyJSON); rowBytes > waitingRowIndexBudgetBytes {
-		recordWaitingKeyOversize(ctx, instruments, intent, entry.WaitsForKind, rowBytes, 0)
-		return false, nil
-	}
+) error {
 	if _, err := database.ExecContext(ctx, insertWaitingItemQuery,
 		intent.IntentID, string(entry.WaitsForKind), keyJSON,
 		strings.TrimSpace(intent.ScopeID), strings.TrimSpace(intent.GenerationID),
 		string(intent.Domain), entry.FailureClass, now,
 	); err != nil {
-		return false, fmt.Errorf("park waiting reducer work: %w", err)
+		return classifyWaitingInsertError(err, intent.IntentID, string(entry.WaitsForKind), keyJSON)
 	}
-	return true, nil
-}
-
-// recordWaitingKeyOversize counts and logs a wait that could not be parked
-// because its row cannot fit the waiting table's btree indexes. rowBytes is the
-// indexed text size of the refused row, or 0 when a narrowed deferral had no
-// blocking ID that fits the key (blockingScopes is then its set size).
-func recordWaitingKeyOversize(
-	ctx context.Context,
-	instruments *telemetry.Instruments,
-	intent reducercontract.Intent,
-	kind WaitingWakeKind,
-	rowBytes, blockingScopes int,
-) {
-	if instruments != nil && instruments.ReducerWaitingKeyOversize != nil {
-		instruments.ReducerWaitingKeyOversize.Add(ctx, 1, metric.WithAttributes(telemetry.AttrKind(string(kind))))
-	}
-	slog.Default().ErrorContext(ctx, "reducer waiting row does not fit the waiting table's btree indexes; the item keeps its timer path",
-		"event_name", "reducer_waiting.key_oversize",
-		"work_item_id", intent.IntentID,
-		"waits_for_kind", string(kind),
-		"row_bytes", rowBytes,
-		"budget_bytes", waitingRowIndexBudgetBytes,
-		"blocking_scopes", blockingScopes)
-}
-
-// recordWaitingKeyTruncated counts a narrowed wait parked naming fewer
-// blocking scopes than its verdict held.
-func recordWaitingKeyTruncated(ctx context.Context, instruments *telemetry.Instruments, intent reducercontract.Intent) {
-	if instruments == nil || instruments.ReducerWaitingKeyTruncated == nil {
-		return
-	}
-	instruments.ReducerWaitingKeyTruncated.Add(ctx, 1, metric.WithAttributes(telemetry.AttrDomain(string(intent.Domain))))
+	return nil
 }
 
 // wakeProducerTerminalCrossScopeQuery reopens scope-bound producer-terminal

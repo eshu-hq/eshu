@@ -406,7 +406,6 @@ nav:
       - Service Catalog Runtime Re-trigger: reference/telemetry/service-catalog-runtime-retrigger.md
       - Security Alert Reconciliation Impact Wait: reference/telemetry/security-alert-reconciliation-impact-wait.md
       - Supply Chain Impact Attachment Wait: reference/telemetry/supply-chain-impact-attachment-wait.md
-      - Reducer Waiting Key Bound: reference/telemetry/waiting-key-bound.md
     - Observability:
       - Telemetry Coverage Contract: observability/telemetry-coverage.md
       - "Telemetry Coverage: Reducer Runtime And Code Graph": observability/telemetry-coverage-reducer-core.md

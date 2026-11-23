@@ -197,12 +197,22 @@ tests:
   - file: go/internal/storage/postgres/reducer_waiting_key_bound_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#11256 bounded narrowed wait key: a wide verdict set parks through the real ReducerQueue.Fail on the migrated schema instead of failing the btree key insert (SQLSTATE 54000) after the retry UPDATE committed"
+    reason: "#11256 wide verdict sets through the real queue: ReducerQueue.Fail parks one wait row for 600 blockers and for one blocker beside 600 read-set repositories, Service.Run keeps going past a wide deferral and stops cleanly on shutdown, and a wait row parked before the key bound still wakes and audits"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_live_test.go
     tag: ~
     class: postgres_ci
     reason: "#10876 waiting-wake proofs: a deferred intent parks with the 10-minute backstop instead of the backoff delay, past-maxAttempts Fail cycles never count and never dead-letter, both claim orders converge on byte-equal terminal state, and the audit reopens a planted satisfied wait within its bound; disposable database per test, about 30 s locally; enrolled in the live-postgres-readiness runner"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_narrow_bound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11297 bounded narrowed corpus wait key: a 600-scope fence parks through ReducerQueue.Fail under the btree row limit, the worst-case incompressible key fits, an unrepresentable key parks nothing, a prefix activation wakes and an outside-prefix one does not, adversarial-order and audit convergence re-park on fresh prefixes, and a repeated Fail keeps one row (the cut-key-versus-activation race belongs to #11256); disposable database per test, about 40 s locally"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_narrow_cutkey_race_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 cut-key park versus activation race on the production schema: a bounded-prefix narrowed wait parks while every scope in its prefix activates, and the activation wake or the park's rendezvous must reopen it (the proof #11297 left to #11256's lost-wake fix); disposable database per run"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_narrow_interleave_live_test.go
     tag: ~

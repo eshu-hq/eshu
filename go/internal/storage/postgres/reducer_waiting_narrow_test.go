@@ -51,21 +51,25 @@ func narrowUnitEntry() WaitingDeferral {
 
 func TestNarrowedWaitingKeyRendersDeterministically(t *testing.T) {
 	t.Parallel()
-	first, ok := narrowedWaitingKey("scope-unit", "gen-unit", []string{"scope-b", "scope-a", "scope-a", " "})
+	firstKey, ok := narrowedWaitingKey("scope-unit", "gen-unit", "wi-unit",
+		[]string{"scope-b", "scope-a", "scope-a", " "}, []string{"repo-b", "repo-a"})
+	first := firstKey.Key
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key")
 	}
-	second, ok := narrowedWaitingKey("scope-unit", "gen-unit", []string{"scope-a", "scope-b"})
+	secondKey, ok := narrowedWaitingKey("scope-unit", "gen-unit", "wi-unit",
+		[]string{"scope-a", "scope-b"}, []string{"repo-a", "repo-b"})
+	second := secondKey.Key
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key")
 	}
 	if first != second {
-		t.Fatalf("narrowed keys differ:\n%s\n%s", first.JSON, second.JSON)
+		t.Fatalf("narrowed keys differ:\n%s\n%s", first, second)
 	}
-	if _, ok := narrowedWaitingKey("scope-unit", "gen-unit", nil); ok {
+	if _, ok := narrowedWaitingKey("scope-unit", "gen-unit", "wi-unit", nil, []string{"repo-a"}); ok {
 		t.Fatal("narrowedWaitingKey() with empty blocking = true, want false (fall back to coarse)")
 	}
-	if _, ok := narrowedWaitingKey("", "gen-unit", []string{"scope-a"}); ok {
+	if _, ok := narrowedWaitingKey("", "gen-unit", "wi-unit", []string{"scope-a"}, nil); ok {
 		t.Fatal("narrowedWaitingKey() with empty scope = true, want false")
 	}
 }
@@ -74,12 +78,13 @@ func TestNarrowedWaitingKeyForCauseUnwraps(t *testing.T) {
 	t.Parallel()
 	cause := narrowUnitTestCause{repos: []string{"repo-a"}, blocking: []string{"scope-b"}}
 	wrapped := fmt.Errorf("load resolved relationships: %w", cause)
-	narrowed, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), wrapped)
+	narrowedKey, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), wrapped)
+	keyJSON := narrowedKey.Key
 	if !ok {
 		t.Fatal("narrowedWaitingKeyForCause() = false for a wrapped narrowing cause, want a key")
 	}
 	var key waitingKey
-	if err := json.Unmarshal([]byte(narrowed.JSON), &key); err != nil {
+	if err := json.Unmarshal([]byte(keyJSON), &key); err != nil {
 		t.Fatalf("decode narrowed key: %v", err)
 	}
 	if key.ScopeID != "scope-unit" || key.GenerationID != "gen-unit" {
@@ -88,8 +93,8 @@ func TestNarrowedWaitingKeyForCauseUnwraps(t *testing.T) {
 	if len(key.BlockingScopeIDs) != 1 || key.BlockingScopeIDs[0] != "scope-b" {
 		t.Fatalf("narrowed key blocking = %v, want [scope-b]", key.BlockingScopeIDs)
 	}
-	if len(key.RepoIDs) != 0 {
-		t.Fatalf("narrowed key repos = %v, want none: the read set no longer rides in the key (#11256)", key.RepoIDs)
+	if len(key.RepoIDs) != 1 || key.RepoIDs[0] != "repo-a" {
+		t.Fatalf("narrowed key repos = %v, want [repo-a]", key.RepoIDs)
 	}
 }
 
