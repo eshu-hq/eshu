@@ -18,8 +18,10 @@ earlier eshu-hq/saml fork, now in upstream v0.5.2) add no work
 proportional to input size. `go test ./internal/query -run 'SAML|GO20266909'
 -count=1` passes. `TestVerifySAMLResponseGO20266909` fails on `crewjam/saml`
 v0.5.1 (three panics and two accepted foreign `NameID` rows, plaintext and
-inside an `EncryptedAssertion`) and passes on upstream v0.5.2 and on the
-earlier fork.
+inside an `EncryptedAssertion`) and passes on upstream v0.5.2. The earlier
+eshu-hq/saml fork passed the original rows; two later rows pin checks
+upstream v0.5.2 adds (no `AudienceRestriction`, no bearer
+`SubjectConfirmation`), which the fork did not make.
 
 Observability Evidence: one new counter, `eshu_dp_query_saml_verifier_panics_total`
 (`samlVerifierPanics`, an `Int64Counter` registered once by
