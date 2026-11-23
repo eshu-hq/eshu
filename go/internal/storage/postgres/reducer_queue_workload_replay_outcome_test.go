@@ -113,12 +113,18 @@ func TestReducerQueueReplayStatusQueryReadsStableItemStatus(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ReplayWorkloadMaterializationOutcome() error = %v", err)
 	}
-	if got := len(db.queries); got != 1 {
-		t.Fatalf("query count = %d, want 1", got)
+	// The enqueue that follows the unmatched update admits no row (the fake
+	// reports none), so it runs the #11215 held-work-item probe first; the status
+	// read is the second query.
+	if got := len(db.queries); got != 2 {
+		t.Fatalf("query count = %d, want 2 (held-work-item probe, then status)", got)
+	}
+	if db.queries[0].query != heldWorkItemsQuery {
+		t.Fatalf("first query = %q, want the held-work-item probe", db.queries[0].query)
 	}
 	for _, want := range []string{"SELECT status", "work_item_id = $1", "stage = 'reducer'"} {
-		if !strings.Contains(db.queries[0].query, want) {
-			t.Fatalf("status query missing %q:\n%s", want, db.queries[0].query)
+		if !strings.Contains(db.queries[1].query, want) {
+			t.Fatalf("status query missing %q:\n%s", want, db.queries[1].query)
 		}
 	}
 }

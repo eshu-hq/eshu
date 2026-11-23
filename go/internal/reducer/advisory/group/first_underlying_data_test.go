@@ -12,13 +12,12 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// TestFirstUnderlyingDataAtParsesTheWireField pins the Decision-3 (Q1
-// option a, eshu-hq/eshu#11080) wire read: the producer stamps the touching
-// pass's cycle start as an RFC3339Nano string under
-// PayloadKeyFirstUnderlyingDataAt, and the handler honors it. The queue
-// JSON round-trip delivers strings; a hand-built intent may carry a
-// time.Time. Anything else is absent: the handler falls back to the
-// post-claim deferral clock.
+// TestFirstUnderlyingDataAtParsesTheWireField pins the Decision-3
+// (eshu-hq/eshu#11080) wire read: the producer stamps the touching pass's
+// cycle start as an RFC3339Nano string under
+// PayloadKeyFirstUnderlyingDataAt for telemetry/provenance and packet
+// discrimination. The queue JSON round-trip delivers strings; a hand-built
+// intent may carry a time.Time. Anything else reads as absent.
 func TestFirstUnderlyingDataAtParsesTheWireField(t *testing.T) {
 	t.Parallel()
 	stamp := time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
@@ -112,11 +111,12 @@ func TestAdvisoryOriginDerivesNVDGHSAOther(t *testing.T) {
 	}
 }
 
-// TestStampedAncientDataReadsStaleOnFirstEval pins the Q1-a fast path: a
-// first evaluation whose stamped first-underlying-data time is older than
-// the stale bound reads stale instead of spending one not_ready cycle,
-// while the watermark still trails the bound.
-func TestStampedAncientDataReadsStaleOnFirstEval(t *testing.T) {
+// TestStampedAncientDataStillDefersNotReadyOnFirstEval pins the
+// lane-ruling correction: a first evaluation whose stamped
+// first-underlying-data time is older than the stale bound still defers
+// not_ready under the post-claim first-deferral clock. The stamp is
+// telemetry/provenance only and must not drive the verdict.
+func TestStampedAncientDataStillDefersNotReadyOnFirstEval(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	now := handlerTestEnqueuedAt.Add(10 * time.Minute)
@@ -134,11 +134,11 @@ func TestStampedAncientDataReadsStaleOnFirstEval(t *testing.T) {
 		t.Fatal("stamped ancient data behind the watermark: want a deferral error")
 	}
 	var classified interface{ FailureClass() string }
-	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkStaleFailureClass {
-		t.Fatalf("failure class = %v, want %q (stamped data older than the bound skips the not_ready cycle)", err, WinnersWatermarkStaleFailureClass)
+	if !errors.As(err, &classified) || classified.FailureClass() != WinnersWatermarkNotReadyFailureClass {
+		t.Fatalf("failure class = %v, want %q (the stamp must not drive the verdict)", err, WinnersWatermarkNotReadyFailureClass)
 	}
-	if reducercontract.IsExpectedWait(err) {
-		t.Fatalf("stale fast path must count attempts, got expected wait: %v", err)
+	if !reducercontract.IsExpectedWait(err) {
+		t.Fatalf("first-deferral not_ready must stay an expected wait: %v", err)
 	}
 }
 

@@ -132,6 +132,12 @@ type proofResult struct{}
 func (proofResult) LastInsertId() (int64, error) { return 0, nil }
 func (proofResult) RowsAffected() (int64, error) { return 1, nil }
 
+// proofInsertResult reports the rows an INSERT really admitted.
+type proofInsertResult struct{ rows int64 }
+
+func (proofInsertResult) LastInsertId() (int64, error)   { return 0, nil }
+func (r proofInsertResult) RowsAffected() (int64, error) { return r.rows, nil }
+
 func cloneScopes(input map[string]scope.IngestionScope) map[string]scope.IngestionScope {
 	cloned := make(map[string]scope.IngestionScope, len(input))
 	for key, value := range input {

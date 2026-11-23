@@ -96,7 +96,7 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 	if err != nil {
 		return fmt.Errorf("marshal secrets/IAM trust-chain payload: %w", err)
 	}
-	if _, err := w.DB.ExecContext(
+	result, err := w.DB.ExecContext(
 		ctx,
 		factwrite.SingleInsertQuery,
 		secretsIAMReadModelFactID(write, factKind, modelID),
@@ -114,8 +114,12 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 		now,
 		false,
 		payloadJSON,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("write secrets/IAM trust-chain fact: %w", err)
+	}
+	if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, secretsIAMReadModelFactID(write, factKind, modelID), write.ScopeID, write.GenerationID, factKind); err != nil {
+		return err
 	}
 	return nil
 }

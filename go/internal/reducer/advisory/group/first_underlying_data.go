@@ -11,14 +11,16 @@ import (
 )
 
 // PayloadKeyFirstUnderlyingDataAt is the optional intent/queue payload key
-// carrying the row's first-underlying-data time (Decision-3 Q1 option a,
-// eshu-hq/eshu#11080). The projection producer stamps the touching
-// supply_chain_impact pass's cycle start (its enqueue when the cycle start
-// is zero) as an RFC3339Nano string; rows enqueued before the wire carry
-// no field and the handler falls back to the post-claim deferral clock.
-// The key is payload-scoped, so old rows, the work-item id, the conflict
-// key, and the claim path need no migration: the claim restores the whole
-// payload onto the intent.
+// carrying the row's first-underlying-data time (eshu-hq/eshu#11080). The
+// projection producer stamps the touching supply_chain_impact pass's cycle
+// start (its enqueue when the cycle start is zero) as an RFC3339Nano
+// string; rows enqueued before the wire carry no field. The stale verdict
+// deliberately ignores the stamp — it stays telemetry/provenance and
+// packet-discrimination only, read via firstUnderlyingDataAt — so every
+// row reads the same post-claim deferral clock (#11075). The key is
+// payload-scoped, so old rows, the work-item id, the conflict key, and the
+// claim path need no migration: the claim restores the whole payload onto
+// the intent.
 const PayloadKeyFirstUnderlyingDataAt = "first_underlying_data_at"
 
 // Closed advisory-origin values for the per-verdict origin attribution on
@@ -37,12 +39,13 @@ const (
 )
 
 // firstUnderlyingDataAt reads the Decision-3 wire field off the claimed
-// intent: the producer-stamped first-underlying-data time. It accepts the
-// RFC3339Nano string the queue JSON round-trip delivers and a time.Time a
-// hand-built intent may carry. It reports false when the field is absent
-// (a row enqueued before the wire), unparsable, zero, or future-dated, so
-// the handler falls back to the post-claim deferral clock on every input
-// the producer cannot vouch for.
+// intent: the producer-stamped first-underlying-data time, for telemetry,
+// provenance, and packet discrimination only (the stale verdict never
+// consults it). It accepts the RFC3339Nano string the queue JSON
+// round-trip delivers and a time.Time a hand-built intent may carry. It
+// reports false when the field is absent (a row enqueued before the wire),
+// unparsable, zero, or future-dated, so readers treat every input the
+// producer cannot vouch for as unstamped.
 func firstUnderlyingDataAt(intent reducercontract.Intent, now time.Time) (time.Time, bool) {
 	raw, ok := intent.Payload[PayloadKeyFirstUnderlyingDataAt]
 	if !ok {

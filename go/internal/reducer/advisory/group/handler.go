@@ -243,11 +243,9 @@ func winnersBoundStart(intent reducercontract.Intent) time.Time {
 // (#11075): a row that waited in queue past the bound still defers
 // not_ready on its first evaluation, and only a still-waiting row whose
 // deferral started more than winnersWatermarkMaxWait ago reads stale. The
-// Decision-3 fast path (#11080, Q1 option a) additionally reads stale when
-// the producer-stamped first-underlying-data time is already older than
-// the bound: the underlying data predates the wait, so the first
-// evaluation skips the not_ready cycle. A row without the stamp keeps the
-// post-claim clock exactly.
+// producer-stamped first-underlying-data time (#11080) is deliberately
+// ignored by the verdict — it stays telemetry/provenance only — so every
+// row, stamped or not, reads the same post-claim clock.
 func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontract.Intent, origin string) error {
 	watermark, err := h.Winners.AdvisoryGroupWinnersWatermark(ctx)
 	if err != nil {
@@ -260,11 +258,6 @@ func (h Handler) awaitWinnersWatermark(ctx context.Context, intent reducercontra
 	now := h.now()
 	deferralStart, markerLossReason := resolveDeferralStart(intent, now)
 	stale := now.Sub(deferralStart) > winnersWatermarkMaxWait
-	if !stale {
-		if firstData, ok := firstUnderlyingDataAt(intent, now); ok && now.Sub(firstData) > winnersWatermarkMaxWait {
-			stale = true
-		}
-	}
 	h.recordWatermarkMarkerLoss(ctx, intent, markerLossReason)
 	h.recordWatermarkWait(ctx, intent, origin, required, watermark, now, deferralStart, stale)
 	return winnersWatermarkWaitError{

@@ -132,8 +132,17 @@ type postgresExecCountingQueryer struct {
 	execCalls atomic.Int64
 }
 
-func (q *postgresExecCountingQueryer) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (q *postgresExecCountingQueryer) ExecContext(_ context.Context, _ string, args ...any) (sql.Result, error) {
 	q.execCalls.Add(1)
+	// A batched fact upsert binds one array per column, so its first argument
+	// is the fact id array: report one row affected per id, as Postgres does
+	// when every row lands. A fixed 1 would read as a shortfall on a two-row
+	// batch and run the #11213 owner probe, a query a full write never issues.
+	if len(args) > 0 {
+		if factIDs, ok := args[0].([]string); ok {
+			return postgresFakeResult{rows: int64(len(factIDs))}, nil
+		}
+	}
 	return postgresFakeResult{}, nil
 }
 
@@ -255,10 +264,17 @@ func (postgresCountingTx) Commit() error   { return nil }
 func (postgresCountingTx) Rollback() error { return nil }
 
 // postgresFakeResult is a no-op sql.Result for the counting queryer above.
-type postgresFakeResult struct{}
+type postgresFakeResult struct{ rows int64 }
 
 func (postgresFakeResult) LastInsertId() (int64, error) { return 0, nil }
-func (postgresFakeResult) RowsAffected() (int64, error) { return 1, nil }
+
+// RowsAffected reports the rows a batch bound, or 1 for any other statement.
+func (r postgresFakeResult) RowsAffected() (int64, error) {
+	if r.rows > 0 {
+		return r.rows, nil
+	}
+	return 1, nil
+}
 
 // newInstrumentedAWSCloudRuntimeDriftWriter builds the production
 // awscloud.PostgresAWSCloudRuntimeDriftWriter (constructed at

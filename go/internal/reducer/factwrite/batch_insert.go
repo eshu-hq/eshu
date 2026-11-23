@@ -184,7 +184,12 @@ FROM unnest(
 
 // BatchInsertConflict is the ON CONFLICT clause that makes a re-run idempotent.
 // It updates on fact_id and is guarded by the fencing-token comparison, so a
-// late-arriving older write cannot overwrite a newer one.
+// late-arriving older write cannot overwrite a newer one, and by the scope owner
+// leg (#11213), so a write can only change a row of its own scope. The owner leg
+// follows the fencing predicate, which stays first and verbatim; there is no
+// generation leg, so an id stable across generations keeps updating its row.
+// A skipped row is absent from the rows affected; resolveShortfall tells a stale
+// write from a foreign-held row and reports the latter as an OwnerConflictError.
 const BatchInsertConflict = `
 ON CONFLICT (fact_id) DO UPDATE SET
     fact_kind         = EXCLUDED.fact_kind,
@@ -201,6 +206,7 @@ ON CONFLICT (fact_id) DO UPDATE SET
     payload           = EXCLUDED.payload,
     fencing_token     = EXCLUDED.fencing_token
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
+  AND fact_records.scope_id = EXCLUDED.scope_id
 `
 
 // BatchInsertQuery is the composed statement the unversioned batch writer
@@ -321,14 +327,15 @@ func ExecChunk(
 	db Execer,
 	chunk []Row,
 ) error {
-	if _, err := db.ExecContext(
+	result, err := db.ExecContext(
 		ctx,
 		BatchInsertQuery,
 		ChunkArgs(chunk)...,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("batch insert reducer facts: %w", err)
 	}
-	return nil
+	return resolveShortfall(ctx, result, WriterBatch, ownerRowsOf(chunk), probeFor(db))
 }
 
 // ChunkArgs flattens one chunk into the positional arguments the batch
