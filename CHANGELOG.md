@@ -9,6 +9,19 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### SAML sign-in links upstream `crewjam/saml` again
+
+- **`crewjam/saml` moves from the `eshu-hq/saml` fork to upstream v0.5.2, and the
+  `replace` is gone** ([#10221](https://github.com/eshu-hq/eshu/issues/10221),
+  GO-2026-6909). The Go vulnerability database now lists v0.5.2 as the fixed
+  version, so the `govulncheck` re-check for replaced modules failed the
+  build, as designed. The advisory's regression tests
+  (`TestVerifySAMLResponseGO20266909`) pass against upstream v0.5.2. The
+  re-check stays for the other replaced modules. Upstream v0.5.2 is stricter than the
+  fork: it rejects an assertion with no `AudienceRestriction` or with no bearer
+  `SubjectConfirmation`. An identity provider that omits one now gets a `401` and
+  an `assertion_invalid` audit event.
+
 ### The gosec gate scans packages of any size
 
 - **gosec loads packages by directory, so the gate no longer refuses a large

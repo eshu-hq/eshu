@@ -10,8 +10,8 @@
 // provider configuration, atomic replay reservation, role/grant resolution, and
 // browser-session creation.
 //
-// The SAML library is crewjam/saml, replaced in go.mod by the eshu-hq/saml fork
-// for GO-2026-6909. This package parses metadata only and never calls the
+// The SAML library is upstream crewjam/saml v0.5.2, which fixes GO-2026-6909
+// (an earlier build carried the eshu-hq/saml fork). This package parses metadata only and never calls the
 // affected ParseResponse path; go/internal/query owns that call and recovers a
 // library panic.
 package samlauth
