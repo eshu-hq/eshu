@@ -553,7 +553,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent reducercontrac
 			return nil
 		}
 		if stoppedByShutdown(ctx, failErr) {
-			return s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, failErr)
+			return s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, errors.Join(err, failErr))
 		}
 		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, status, workerID, err)
 		if failErr != nil {

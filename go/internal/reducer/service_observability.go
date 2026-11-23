@@ -133,6 +133,13 @@ func (s Service) recordReducerResult(ctx context.Context, intent reducercontract
 			s.Logger.WarnContext(ctx, "reducer claim lost its lease during handler execution", logAttrs...)
 		case "ack_claim_rejected":
 			// The ACK path emits a separate warning with the stale-claim context.
+		case failStatusInterruptedByShutdown:
+			// Shutdown cut Fail short: the handler error and the cancelled Fail
+			// error are both on the line, since the retry UPDATE may or may not
+			// have committed (the item is retrying on its backstop, or the
+			// claim expires for reclaim).
+			logAttrs = append(logAttrs, telemetry.FailureClassAttr(failStatusInterruptedByShutdown), log.Err(execErr))
+			s.Logger.WarnContext(ctx, "reducer fail interrupted by shutdown; the item retries on its backstop or its claim expires", logAttrs...)
 		case ackStatusOutcomeUnknown:
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr(ackStatusOutcomeUnknown), log.Err(execErr))
 			s.Logger.WarnContext(ctx, "reducer batch ack outcome unknown", logAttrs...)

@@ -473,7 +473,7 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 			return batchAckItem{}, false, nil
 		}
 		if stoppedByShutdown(ctx, failErr) {
-			return batchAckItem{}, false, s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, failErr)
+			return batchAckItem{}, false, s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, errors.Join(err, failErr))
 		}
 		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 		if failErr != nil {

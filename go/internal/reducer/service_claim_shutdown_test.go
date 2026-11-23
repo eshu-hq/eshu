@@ -4,9 +4,13 @@
 package reducer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -342,5 +346,132 @@ func TestServiceBatchRunTreatsShutdownDuringFailAsCleanStop(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("Service.Run did not return after shutdown")
+	}
+}
+
+// syncBuffer is a goroutine-safe log sink for the logging proofs.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// runUntilSink cancels the run once started fires and returns Run's error.
+func runUntilSink(t *testing.T, service Service, started <-chan struct{}) error {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- service.Run(ctx) }()
+	select {
+	case <-started:
+	case <-time.After(10 * time.Second):
+		t.Fatal("no Fail or ack started")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(10 * time.Second):
+		t.Fatal("Service.Run did not return after shutdown")
+		return nil
+	}
+}
+
+// TestServiceShutdownInterruptedFailIsLoggedAsAWarning pins how a Fail that
+// shutdown cut short is reported: a WARN that names the status, the failure
+// class, and both the handler error and the cancelled Fail error. Before this the
+// status fell to the default branch and logged "reducer execution succeeded"
+// with no error, so a handler failure whose Fail was cut disappeared (#11256).
+func TestServiceShutdownInterruptedFailIsLoggedAsAWarning(t *testing.T) {
+	t.Parallel()
+	for name, workers := range map[string]int{"sequential": 0, "per-item": 3, "batch": -1} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			logs := &syncBuffer{}
+			logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			service := Service{
+				PollInterval: time.Millisecond, Logger: logger,
+				Executor: failingShutdownExecutor{err: errors.New("handler deferred")},
+			}
+			var started <-chan struct{}
+			if workers == -1 {
+				sink := &batchShutdownFailSink{shutdownFailSink{started: make(chan struct{}, 1)}}
+				service.Workers, service.WorkSource, service.WorkSink = 3, &batchOneIntentSource{}, sink
+				started = sink.started
+			} else {
+				sink := &shutdownFailSink{started: make(chan struct{}, 1)}
+				service.Workers, service.WorkSource, service.WorkSink = workers, &oneIntentSource{}, sink
+				started = sink.started
+			}
+			if err := runUntilSink(t, service, started); err != nil {
+				t.Fatalf("Service.Run = %v, want nil", err)
+			}
+			out := logs.String()
+			for _, want := range []string{
+				"level=WARN", "reducer fail interrupted by shutdown", "status=" + failStatusInterruptedByShutdown,
+				"failure_class=" + failStatusInterruptedByShutdown, "handler deferred", "context canceled",
+			} {
+				if !strings.Contains(out, want) {
+					t.Fatalf("log is missing %q:\n%s", want, out)
+				}
+			}
+			if strings.Contains(out, "reducer execution succeeded") {
+				t.Fatalf("an interrupted Fail logged as a success:\n%s", out)
+			}
+		})
+	}
+}
+
+// TestServiceShutdownInterruptedAckIsLoggedAsAWarning pins the ack side: an ack cut
+// short by shutdown logs at WARN with the error, never as a success.
+func TestServiceShutdownInterruptedAckIsLoggedAsAWarning(t *testing.T) {
+	t.Parallel()
+	logs := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	sink := &shutdownAckSink{started: make(chan struct{}, 1)}
+	service := Service{
+		PollInterval: time.Millisecond, Logger: logger, WorkSource: &oneIntentSource{},
+		WorkSink: sink, Executor: succeedingShutdownExecutor{},
+	}
+	if err := runUntilSink(t, service, sink.started); err != nil {
+		t.Fatalf("Service.Run = %v, want nil", err)
+	}
+	out := logs.String()
+	for _, want := range []string{"level=WARN", "outcome unknown", "status=" + ackStatusOutcomeUnknown, "context canceled"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log is missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "reducer execution succeeded") {
+		t.Fatalf("an interrupted ack logged as a success:\n%s", out)
+	}
+}
+
+// TestServiceBatchRunStillReturnsAFailFailure pins the fatal side in the batch
+// loop (executeAndReport): a Fail error with a live run context ends the run.
+func TestServiceBatchRunStillReturnsAFailFailure(t *testing.T) {
+	t.Parallel()
+	boom := errors.New("park insert failed")
+	sink := &batchShutdownFailSink{shutdownFailSink{started: make(chan struct{}, 1), liveErr: boom}}
+	service := Service{
+		PollInterval: time.Millisecond, Workers: 3, WorkSource: &batchOneIntentSource{},
+		WorkSink: sink, Executor: failingShutdownExecutor{err: errors.New("handler deferred")},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := service.Run(ctx); !errors.Is(err, boom) {
+		t.Fatalf("Service.Run (batch) = %v, want the Fail failure %v", err, boom)
 	}
 }
