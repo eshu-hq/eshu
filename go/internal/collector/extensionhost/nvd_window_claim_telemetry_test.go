@@ -96,13 +96,25 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 	// record helper.
 	driveCompleted := func(item workflow.WorkItem, transport any, advanced bool, commit bool) {
 		t.Helper()
-		source.runner = &recordingRunner{result: completeResult(item, nvdFacts(item, transport)...)}
 		if advanced {
-			// The advance decision rides the collected generation; the
-			// runner result path below leaves it unset (no StateWriter),
-			// so advanced commits are pinned separately below.
-			t.Fatalf("advanced stash requires a StateWriter the test runner cannot provide")
+			// The advance decision rides the collected generation's
+			// StateWriter, which the runner path leaves unset; pin the
+			// advanced branch by driving observe directly with a stamping
+			// writer, then the commit hook like production does.
+			collected := collector.CollectedGeneration{
+				StateWriter: func(context.Context, collector.CommitExecutor) error { return nil },
+			}
+			source.observeNVDWindowClaim(ctx, item, testObservedAt(), collected,
+				completeResult(item, nvdFacts(item, transport)...), true, nil)
+			if !commit {
+				t.Fatalf("advanced case requires the commit hook in this test")
+			}
+			if err := source.ObserveClaimedGenerationCommitted(ctx, item); err != nil {
+				t.Fatalf("ObserveClaimedGenerationCommitted() error = %v", err)
+			}
+			return
 		}
+		source.runner = &recordingRunner{result: completeResult(item, nvdFacts(item, transport)...)}
 		if _, _, err := source.NextClaimed(ctx, item); err != nil {
 			t.Fatalf("NextClaimed() error = %v", err)
 		}
@@ -117,9 +129,9 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 		}
 	}
 
-	// Feed completed, committed.
+	// Feed completed, committed through the advanced path.
 	feedItem := nvdItem("work-nvd-feed-1", "generation-nvd-1")
-	driveCompleted(feedItem, "feed", false, true)
+	driveCompleted(feedItem, "feed", true, true)
 	// API completed, refused.
 	apiItem := nvdItem("work-nvd-api-1", "generation-nvd-1")
 	driveCompleted(apiItem, "api", false, false)
@@ -136,6 +148,11 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 	source.observeNVDWindowClaim(ctx, terminalItem, testObservedAt(), collector.CollectedGeneration{},
 		completeResult(terminalItem, nvdFacts(terminalItem, "api")...), false,
 		extensionFailure{class: "test_terminal_for_unit_test", terminal: true})
+	// Retryable feed-body digest mismatch names the sha-mismatch counter.
+	mismatchItem := nvdItem("work-nvd-mismatch-1", "generation-nvd-1")
+	source.observeNVDWindowClaim(ctx, mismatchItem, testObservedAt(), collector.CollectedGeneration{},
+		completeResult(mismatchItem, nvdFacts(mismatchItem, "feed")...), false,
+		extensionFailure{class: telemetry.NVDFeedFailureSHA256Mismatch})
 	// Excluded host classes stay uncounted even with a stamp.
 	for i, class := range []string{
 		FailureClassInvalidClaim, FailureClassIdentityMismatch,
@@ -159,23 +176,52 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 	}
 
 	got := map[string]int64{}
+	var durationCount int64
+	advance := map[string]int64{}
+	var mismatch int64
 	var rm metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &rm); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
 	for _, scopeMetrics := range rm.ScopeMetrics {
 		for _, m := range scopeMetrics.Metrics {
-			if m.Name != "eshu_dp_vulnerability_nvd_window_claims_total" {
-				continue
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				t.Fatalf("claims data = %#v, want Sum[int64]", m.Data)
-			}
-			for _, point := range sum.DataPoints {
-				transport, _ := point.Attributes.Value("transport")
-				outcome, _ := point.Attributes.Value("outcome")
-				got[transport.AsString()+"/"+outcome.AsString()] += point.Value
+			switch m.Name {
+			case "eshu_dp_vulnerability_nvd_window_claims_total":
+				sum, ok := m.Data.(metricdata.Sum[int64])
+				if !ok {
+					t.Fatalf("claims data = %#v, want Sum[int64]", m.Data)
+				}
+				for _, point := range sum.DataPoints {
+					transport, _ := point.Attributes.Value("transport")
+					outcome, _ := point.Attributes.Value("outcome")
+					got[transport.AsString()+"/"+outcome.AsString()] += point.Value
+				}
+			case "eshu_dp_vulnerability_nvd_window_cursor_advance_total":
+				sum, ok := m.Data.(metricdata.Sum[int64])
+				if !ok {
+					t.Fatalf("advance data = %#v, want Sum[int64]", m.Data)
+				}
+				for _, point := range sum.DataPoints {
+					transport, _ := point.Attributes.Value("transport")
+					outcome, _ := point.Attributes.Value("outcome")
+					advance[transport.AsString()+"/"+outcome.AsString()] += point.Value
+				}
+			case "eshu_dp_vulnerability_nvd_window_claim_duration_seconds":
+				hist, ok := m.Data.(metricdata.Histogram[float64])
+				if !ok {
+					t.Fatalf("duration data = %#v, want Histogram[float64]", m.Data)
+				}
+				for _, point := range hist.DataPoints {
+					durationCount += int64(point.Count)
+				}
+			case "eshu_dp_vulnerability_nvd_feed_sha256_mismatch_total":
+				sum, ok := m.Data.(metricdata.Sum[int64])
+				if !ok {
+					t.Fatalf("mismatch data = %#v, want Sum[int64]", m.Data)
+				}
+				for _, point := range sum.DataPoints {
+					mismatch += point.Value
+				}
 			}
 		}
 	}
@@ -183,7 +229,7 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 		"feed/committed":        1,
 		"api/refused":           1,
 		"unknown/committed":     1,
-		"feed/failed_retryable": 1,
+		"feed/failed_retryable": 2,
 		"api/failed_terminal":   1,
 	}
 	if len(got) != len(want) {
@@ -193,6 +239,26 @@ func TestObserveNVDWindowClaimRoutesOutcomes(t *testing.T) {
 		if got[k] != v {
 			t.Fatalf("claims series = %v, want %v", got, want)
 		}
+	}
+	// The advanced feed commit advances the cursor once; the committed
+	// unknown-transport window holds (facts committed, verdict held the
+	// cursor). The lag tracker records the stamped head minus cursor
+	// position for each advanced-or-held series.
+	if advance["feed/advanced"] != 1 || advance["unknown/held"] != 1 || len(advance) != 2 {
+		t.Fatalf("advance series = %v, want exactly map[feed/advanced:1 unknown/held:1]", advance)
+	}
+	// Every counted outcome records exactly one duration observation:
+	// 2 commits + 1 refusal + 3 satellite failures.
+	if durationCount != 6 {
+		t.Fatalf("duration observations = %d, want 6", durationCount)
+	}
+	lags := inst.NVDCursorLags.LagSeconds()
+	if lags[telemetry.NVDLagSeries{Source: "nvd", Transport: telemetry.NVDTransportFeed}] != 21600 {
+		t.Fatalf("feed lag series = %v, want exactly map[{nvd feed}:21600]", lags)
+	}
+	// The stamped sha-mismatch failure lights the mismatch counter once.
+	if mismatch != 1 {
+		t.Fatalf("sha256 mismatch count = %d, want 1", mismatch)
 	}
 }
 
