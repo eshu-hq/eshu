@@ -78,6 +78,8 @@ All on disposable PostgreSQL 18.6 (`postgres:18.6`).
 
 ## No-Regression Evidence
 
+No-Regression Evidence: baseline is the unconditional upsert on `156b6a53ce`, after is the conditional upsert on PostgreSQL 18.6 (`postgres:18.6`), input is one `workflow_claim_pacing` row per (signal, domain) with 41 rows loaded for the plan, and the terminal row count of a 12-way race is 1 row change (before: 4 of 12). The statement is safe because it is the same single-row upsert with one predicate on the conflict row, no new lock, index, or worker setting.
+
 Conflict domain: one `workflow_claim_pacing` row per (signal, domain); worker
 and lease settings are unchanged (no worker count, batch size, or lease
 change). The statement is the same single-row upsert with one added predicate
@@ -99,6 +101,8 @@ A genuine transition costs the same one row write as before (0.013 ms before,
 0.030 ms after, one sample each, rolled back).
 
 ## Observability Evidence
+
+Observability Evidence: `eshu_dp_workflow_claim_pacing_engaged_total` and `eshu_dp_workflow_claim_pacing_active` now follow latch transitions (proved by the live race tests through per-process meter readers), the coordinator `source_pacing` rows show the latch row itself, and the stuck and delay series are unchanged.
 
 No new instruments. `eshu_dp_workflow_claim_pacing_engaged_total` now counts
 latch transitions, one per transition fleet-wide, and
