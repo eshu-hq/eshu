@@ -382,7 +382,7 @@ import (
 // 346_supply_chain_impact_supports_repository_fact_idx.sql (#10880 PR-B2c) adds the
 // partial (repository_id, fact_id) btree, built CONCURRENTLY.
 const (
-	goldenBootstrapDefinitionsDigest = "8b5e221aeb3729f7d5b196ddea226c1efc98bb7cb98c0ad9c5ed9a843955176d"
+	goldenBootstrapDefinitionsDigest = "57d77f4b161567a3193acd18138944ec9932d58dcd18d5359edfa0078d103f8b"
 	goldenBootstrapDefinitionsCount  = 373
 )
 

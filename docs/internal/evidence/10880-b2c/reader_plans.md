@@ -148,11 +148,22 @@ The first execution after a container start is cold: 763 ms for page 1, 407 ms f
 the midpoint. The bounds of the ruling (at most 6,000 buffers, temp 0, at most 50
 ms warm, midpoint at most 1.5x page 1) hold for the single hot key, with page 1 at
 5,958 of 6,000. The plan guard (`TestSupplyChainImpactSupportsPagePlanGuardLive`)
-is green on this corpus for both modes and both page texts, and the package-index
-and cursor-as-OR violations fail it. On this corpus the planner keeps the ordered
-scans even with the active join inside the lateral, so that violation fails the
-statement-text test, not the plan guard; on the 400,000-row seed with 300 scopes
-it fails the plan guard too.
+ran on this corpus at its first form ([plan_guard_hot_corpus_raw.txt](plan_guard_hot_corpus_raw.txt)):
+green for both modes and both page texts, and the package-index and cursor-as-OR
+violations fail it. On this corpus the planner keeps the ordered scans even with the
+active join inside the lateral, so that violation fails the statement-text test, not
+the plan guard; on the 400,000-row seed with 300 scopes it fails the plan guard too.
+
+The guard now covers the repository arm and the service-catalog statement, reads the
+Index Cond of the node that scans each arm's own index and requires the arm's key (and,
+on a next page, the cursor) in it. Its current run on the fresh seed
+([plan_guard_fresh_seed_raw.txt](plan_guard_fresh_seed_raw.txt)): 8 greens (the
+reconciliation and the service-catalog statement, both plan cache modes, first and next
+page) and six seeded violations that each fail it (package or repository index dropped,
+package or repository guard literal removed, active join inside the lateral, cursor
+written as an `OR`). Its CVE and advisory arms use test-named copies of PR-B2b's
+btrees until this branch is rebased onto B2b. The hot-corpus run of the current guard
+was not repeated; the committed hot-corpus run predates the repository arm.
 
 Drain of the hot key on a built binary (`ListActiveSecurityAlertReconciliationFacts`,
 package filter only): 3,201 supports pages, 1,600,000 raw rows, all active.
@@ -282,8 +293,8 @@ per-repository drain and migration 346 present.
 
 A call of 200 repositories with five supports each, through the loader on a fresh
 database ([many_small_repositories_raw.txt](many_small_repositories_raw.txt)): 201
-statements (one readiness probe and one page per repository id), 56 to 98 ms wall time over
-two runs (0.28 to 0.49 ms a repository; the raw file holds the second). A call costs at least one statement per repository id, plus a page for every
+statements (one readiness probe and one page per repository id), 98 ms wall time (0.49 ms a
+repository). A call costs at least one statement per repository id, plus a page for every
 500 supports of a repository.
 
 The 200-repository single-drain shape failed (92,259 buffers a page, against a bound
