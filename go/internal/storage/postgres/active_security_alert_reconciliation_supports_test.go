@@ -130,3 +130,23 @@ func TestSupplyChainImpactFindingPayloadCarriesNoIDArrays(t *testing.T) {
 		}
 	}
 }
+
+// TestSupplyChainImpactSupportsPackageIndexMatchesTheArm pins that the package
+// arm of the reconciliation read carries the exact predicate of the partial
+// package_id btree, so the planner can use the index for it (#10880 PR-B2c).
+func TestSupplyChainImpactSupportsPackageIndexMatchesTheArm(t *testing.T) {
+	t.Parallel()
+
+	want := "(support." + supplyChainImpactSupportsPackageIndexPredicate + " AND support.package_id = ANY($2::text[]))"
+	for name, statement := range map[string]string{
+		"legacy": listActiveSecurityAlertReconciliationFactsQuery,
+		"keyed":  listActiveSecurityAlertReconciliationFactsKeyedQuery,
+	} {
+		if !strings.Contains(statement, want) {
+			t.Errorf("%s statement missing the guarded package arm %q", name, want)
+		}
+	}
+	if supplyChainImpactSupportsPackageIndexPredicate != "package_id <> ''" {
+		t.Errorf("package index predicate = %q, want %q", supplyChainImpactSupportsPackageIndexPredicate, "package_id <> ''")
+	}
+}

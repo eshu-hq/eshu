@@ -1,52 +1,87 @@
 # #10880 PR-B2c reader plans: security-alert reconciliation and service-catalog vulnerability loaders
 
 Refs #11198, #11199, #11200, #11201, #10880. Ruling:
-[arbiter-10880-prb-ruling.md decision 5](../../../.claude/arbiter-10880-prb-ruling.md).
+[arbiter-10880-prb-ruling.md decision 5](../../../.claude/arbiter-10880-prb-ruling.md)
+and the B2c ruling `arbiter-b2c.md`.
 
 Two reducer loaders read supply-chain impact finding facts as input. They now
 read `supply_chain_impact_finding_supports` (migration 338), whose payload is the
-fact payload verbatim. This note records why both reads use the raw-first shape
-and what they cost.
+fact payload verbatim. This note records the read shape, what it costs at 600,000
+and 8,000,000 supports, and what the shape needs from the schema.
 
-## The plan flip
+## The read shape
 
-The natural form, one `WHERE` over the supports joined to the active scopes and
-generations, lets the planner drive the join from the active scopes: one
-`(scope_id, generation_id)` index probe per active scope, in a nested loop, then
-the filter. Its cost scales with the number of active scopes, not with the rows
-the filter keeps.
+Both reads use a raw-first shape (`supplyChainImpactSupportRawFirstCTE`): the
+supports are selected by their filter in a `MATERIALIZED` CTE, then only those
+rows are joined to the active-generation check. The natural single-`WHERE` form
+lets the planner drive the join from the active scopes (one
+`(scope_id, generation_id)` index probe per active scope), so its cost scales
+with the scope count, not the rows kept.
 
-The raw-first form selects the supports by their filter first, in a
-`MATERIALIZED` CTE, then joins only those rows to the active-generation check
-(`supplyChainImpactSupportRawFirstCTE`). Its cost scales with the rows kept.
+The security-alert reconciliation read is one statement: an alert-and-consumption
+fact arm (legacy fact scan, or the keyed sidecar once its marker is ready)
+`UNION ALL` the supports arm, each arm ordered and limited by the page size, the
+outer query ordered by `fact_id` with the same limit, one keyset cursor. The
+supports arm has four filter arms: `repository_id`, `package_id`, `cve_id`,
+`advisory_id`. The package, cve and advisory arms carry the literal `<> ''`
+guard so a partial btree on the column can serve them.
 
-## Measurements
+## Measurements at 8,000,000 supports
 
-Disposable PostgreSQL 18.6 (`postgres:18.6`), one session, warm cache, host load
-average about 25 from other lanes (read the ratios, not the milliseconds). The
-corpus is synthetic: 600,000 supports (table 419 MB with its indexes) over
-6,000 active scopes, one active generation each, 60,000 distinct repositories,
-20,000 packages, 5,000 CVEs and 7,000 advisories, with the migration-338 columns
-and the primary key, `(scope_id, generation_id)`, `repository_id`, `finding_id`
-and `generation_id` indexes (the foreign key is omitted).
+Disposable PostgreSQL 18.6 (`postgres:18.6`), host load average 13 to 40 from
+other lanes. Corpus (synthetic): 8,000,000 supports, heap 5,207 MB, 9,000 active
+scopes with one active generation each, 400,000 repositories, 60,000 packages,
+40,000 CVEs, 50,000 advisories, the migration-338 primary key and
+`(scope_id, generation_id)`, `repository_id`, `finding_id` and `generation_id`
+btrees, plus partial btrees `(cve_id, fact_id) WHERE cve_id <> ''` (404 MB) and
+`(advisory_id, fact_id) WHERE advisory_id <> ''` (416 MB). `LIMIT 500`. The first
+four reads were cold (650,000 buffers read from disk); the all-arms read after
+them was warm. The raw `EXPLAIN (ANALYZE, BUFFERS)` output is in
+[reader_plans_8m_raw.txt](reader_plans_8m_raw.txt); the statements use literal
+arrays, not bound parameters.
 
-| Read | Filter | Plan | Execution | Buffers touched |
-| --- | --- | --- | --- | --- |
-| Join form (shipped statement shape before this change) | repository, package, 3 CVEs, 2 advisories | nested loop, 6,000 probes of `(scope_id, generation_id)` | 389.5 ms | 618,084 |
-| Join form | repository only | same | 349.8 ms | 618,084 |
-| Join form | 5 repositories (#11199 shape) | same | 313.6 ms | not recorded |
-| Raw-first, with new `package_id`, `cve_id`, `advisory_id` indexes | all four arms | `BitmapOr` over four index scans | 3.9 ms | 572 rows kept |
-| Raw-first, with those indexes | repository only | bitmap scan of `repository_id` | 0.1 ms | 10 rows kept |
-| Raw-first, no new indexes | all four arms | parallel sequential scan of the supports | 50.8 ms | one pass over the table |
-| Raw-first | 5 repositories (#11199 shape) | bitmap scan of `repository_id` | 1.1 ms | 50 rows kept |
+| Read | Plan | Execution |
+| --- | --- | --- |
+| Join form, repository only | nested loop, 9,000 probes of `(scope_id, generation_id)` | 158,921 ms, 7.25M buffer hits |
+| Raw-first, repository arm only, no `package_id` index | parallel sequential scan of the supports | 106,386 ms (cold) |
+| Raw-first, package arm only, no `package_id` index | same | 111,514 ms (cold) |
+| Raw-first, CVE arm only, no `package_id` index | same | 92,910 ms (cold) |
+| Raw-first, advisory arm only, no `package_id` index | same | 4,794 ms (partly cached) |
+| Raw-first, all four arms, no `package_id` index | same | 917 ms (warm) |
+| Raw-first, package arm only, with `(package_id, fact_id) WHERE package_id <> ''` (451 MB) | `BitmapOr` over four index scans | 86 ms, 1,141 buffers |
+| Raw-first, all four arms, with that index | `BitmapOr` over four index scans | 172 ms, 3,855 buffers |
 
-The `repository_id` index exists today, so #11199 and the repository arm of
-#11198 run in the raw-first form at 0.1 to 1.1 ms with no new index. The
-package, CVE and advisory arms of #11198 have no index: without one the OR scans
-the table (51 ms at 600,000 supports, parallel, growing with the table). This PR
-ships the raw-first form with no new index. Three btree indexes on those columns
-would bring the read to 3.9 ms; they add write cost to every impact save and
-need a migration, so they are a separate decision (see Open points).
+What the numbers say:
+
+- The filter is an `OR`. An `OR` is only indexable when every arm is. Without a
+  `package_id` index the planner scans the whole table for every shape, including
+  the repository-only and CVE-only shapes that have their own btrees.
+- The sequential scan reads 5.2 GB of heap. It is fast only when that heap is in
+  cache (0.9 s); cold it is 90 to 110 s. A reducer worker does not keep 5 GB hot.
+- With a partial `package_id` btree the read is 0.09 to 0.17 s and touches under
+  4,000 buffers.
+- The join form is 159 s; the raw-first form is the faster of the two on every
+  shape measured.
+
+The same shapes at 600,000 supports (6,000 scopes, 419 MB with indexes): join form
+313 to 389 ms; raw-first 0.1 to 1.1 ms for the repository arm, 3.9 ms for all
+four arms with three new btrees, 51 ms for all four arms with none.
+
+This PR adds no index and no migration (the arbiter rules on the index).
+**The reconciliation read at QA scale depends on a partial
+`(package_id, fact_id) WHERE package_id <> ''` btree on the supports table.** Not
+measured here: the write cost (WAL) the extra index adds to every impact save;
+the arbiter's +25% impact-write WAL bar applies to it.
+
+## When the package array is non-empty
+
+`securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
+arrays from the intent's own envelopes: a provider repository-alert fact adds its
+`repository_id`, `package_id`, CVE and GHSA ids, and a package-registry package
+fact adds its `package_id` (or its scope id). So the package array is non-empty
+for every item that carries a package-registry package fact and for every
+provider alert that names a package. How often that is in QA data was not
+measured here.
 
 ## The legacy payload array arms
 
@@ -62,41 +97,67 @@ ever added.
 `TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive` writes a
 multi-scope seed through the production impact writer (two repositories sharing
 a package, a CVE-less advisory finding, a repository-less finding, a superseded
-generation, a retracted finding) and compares each new read with the frozen
-finding-fact read, for every filter shape: same fact ids, same kind, same
-payload, same order. Deleting the CVE arm of the supports query fails its `cve`
+generation, a retracted finding, interleaved alert and consumption fact ids) and
+old-writer direct inserts (an operator-scope row, a numeric and a blank
+repository id, a tombstone). It compares each new read with the frozen
+finding-fact read for every filter shape: same fact ids, same kind, same payload,
+same order. It runs once after the backfill is ready and once after an old-writer
+insert and the drain. Deleting the CVE arm of the supports query fails its `cve`
 and `combined` cases.
+
+## Census of finding-fact reads left in the paths
+
+`git grep` over `go/internal/storage/postgres` for the finding fact kind, outside
+tests: the security-alert and service-catalog loaders read none (the one literal
+in `facts_active_security_alert_reconciliation.go` is the kind the supports arm
+reports). The remaining readers are the impact holder reads (fanout, key range,
+mass, repository holders, scoped packages, out of stamp, the Go-modules fence:
+#11197, PR-B2b), the supports backfill, drain and maintainer, the schema's partial
+indexes, and the canonical-winner audits. `securityAlertReconciliationFactKinds`
+and the three key-backfill statements no longer list the impact kind
+(`TestSecurityAlertReconciliationPathsReadNoFindingFacts`). Rows the key sidecar
+built for impact findings before this change stay, unread.
+
+## Poll cost of a not-ready deferral
+
+While the supports table is not ready a reducer intent defers without counting an
+attempt. `TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive` runs the real
+queue, fact store and reconciliation handler on PostgreSQL 18.6 and logs one cycle
+(claim, alert-fact load, readiness probe, retry update): 4 statements, 22 to 66 ms
+on a loaded host, 19 to 163 KB of WAL (163 KB on the first cycle, 19 to 52 KB
+after). The intent re-claims about every 60 s. This is measured in the test, not
+on a built binary.
 
 ## No-Regression Evidence
 
-No-Regression Evidence: baseline is the finding-fact loaders on `bccdb88982`;
-after is the supports loaders on PostgreSQL 18.6 over the synthetic corpus above.
-The join form measured 313 to 389 ms and the raw-first form 0.1 to 51 ms, so the
-shipped form is the faster of the two on every shape measured; the
-reconciliation read costs 51 ms without the three optional indexes where the
-legacy keyed read (sidecar index probes) was not measured here. Worker, lease and
-batch settings are unchanged: both loaders are single read statements per page.
-The finding-fact write path gains no statement.
+No-Regression Evidence: baseline is the finding-fact loaders on `5bec799579`
+(join form, 313 to 389 ms at 600,000 supports and 159 s at 8,000,000, cold);
+after is the supports loaders on PostgreSQL 18.6 over the synthetic corpora
+above: raw-first, 0.1 to 51 ms at 600,000 and 0.09 to 0.17 s at 8,000,000 with a
+`package_id` btree, 0.9 s warm and about 100 s cold without it. Worker, lease and
+batch settings are unchanged: each loader is one read statement per page. The
+finding-fact write path gains no statement; the advisory-group cell admission
+uses the production writer step (one more statement per admission batch, the
+supports upsert, in the same transaction).
 
 ## Observability Evidence
 
 Observability Evidence: `eshu_dp_supply_chain_impact_supports_reads_total`
 (`source` = reader, `outcome` = `served`, `not_ready`, `failed`) shows each
-loader's use of the supports table, and a refusal is a retryable error with
-failure class `supply_chain_impact_supports_not_ready` in the durable queue.
+loader's use of the supports table; a refusal is a retryable, non-counting error
+with failure class `supply_chain_impact_supports_not_ready` in the durable queue.
 `eshu_dp_supply_chain_impact_supports_backfill_ready` says when the refusals
 stop. Both are documented in
 [supply-chain-impact-supports.md](../../../public/reference/telemetry/supply-chain-impact-supports.md).
 
+No-Observability-Change: #11200 (the key sidecar stops covering the impact kind)
+changes no signal; the existing `eshu_dp_supply_chain_impact_supports_reads_total`
+counter and the key backfill status keep their meaning.
+
 ## Open points
 
-- Three indexes (`package_id`, `cve_id`, `advisory_id`) on the supports table
-  would cut the reconciliation read from 51 ms to 3.9 ms at this size. They need
-  a migration and add write cost to every impact save; the arbiter's WAL bar for
-  the supports table (impact-write WAL not above +25%) applies. Not built here.
-- Rows the key sidecar built for impact finding facts before this change remain
-  in `security_alert_reconciliation_keys`. Nothing reads them; a cleanup delete is
-  a separate write on a large table and is not part of this change.
-- The supports readiness check adds one marker read per load. Until the backfill
-  is ready both loaders refuse and their intents retry; the not-ready counter is
-  the signal.
+- The `package_id` btree above needs a migration and an arbiter ruling on its
+  write cost before the reconciliation reader is enabled at QA scale.
+- `LookupKeyBackfill` and `MarkSecurityAlertReconciliationKeysReady` have no
+  production caller, so the keyed reconciliation reader is never ready unless a
+  marker is set by hand (recorded on #10875).

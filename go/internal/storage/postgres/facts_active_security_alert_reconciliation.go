@@ -168,8 +168,12 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 // at 600,000 supports over 6,000 scopes). A support row holds the fact payload
 // verbatim, so each arm is the fact arm over the same value: the repository,
 // package, cve and advisory columns hold payload->>'repository_id',
-// 'package_id', 'cve_id' and 'advisory_id'. The cve and advisory arms carry the
-// literal <> ” guard so they match the partial btrees on those columns. The
+// 'package_id', 'cve_id' and 'advisory_id'. The package, cve and advisory arms
+// carry the literal <> ” guard so they can use a partial btree on those
+// columns. The OR is only indexable when every arm is: with no package_id
+// index the planner scans the whole table for every shape (8,000,000 supports:
+// 0.9 s warm, about 100 s cold; with a partial package_id btree 0.09 to 0.17 s,
+// docs/internal/evidence/10880-b2c/reader_plans.md). The
 // legacy payload array arms (payload->'cve_ids' and 'ghsa_ids') are not
 // reproduced: the typed finding payload has no such field, so they never matched
 // a finding fact (TestSupplyChainImpactFindingPayloadCarriesNoIDArrays pins it),
@@ -177,12 +181,20 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 // envelope columns a support row does not carry; the reconciliation handler
 // reads only the fact id and the payload of an impact envelope
 // (extractSecurityAlertImpacts), and the carrier kind is the impact kind.
+// supplyChainImpactSupportsPackageIndexPredicate is the partial-index predicate
+// of the supports table's package_id btree ((package_id, fact_id) WHERE
+// package_id <> ”, migration 345, #10880 PR-B2c). The package arm of the
+// reconciliation read repeats it as a literal guard so the planner can prove
+// the partial index usable; TestSupplyChainImpactSupportsPackageIndexMatchesTheArm
+// derives the arm and the migration from this one constant.
+const supplyChainImpactSupportsPackageIndexPredicate = `package_id <> ''`
+
 const securityAlertReconciliationSupportsCTE = `matched AS MATERIALIZED (
     SELECT support.fact_id, support.scope_id, support.generation_id, support.source_confidence, support.payload
     FROM supply_chain_impact_finding_supports AS support
     WHERE (
           support.repository_id = ANY($1::text[])
-          OR support.package_id = ANY($2::text[])
+          OR (support.` + supplyChainImpactSupportsPackageIndexPredicate + ` AND support.package_id = ANY($2::text[]))
           OR (support.cve_id <> '' AND support.cve_id = ANY($3::text[]))
           OR (support.advisory_id <> '' AND support.advisory_id = ANY($4::text[]))
       )
