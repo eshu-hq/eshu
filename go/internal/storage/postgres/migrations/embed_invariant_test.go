@@ -378,9 +378,12 @@ import (
 // is this test's own derivation.
 // 345_supply_chain_impact_supports_package_idx.sql (#10880 PR-B2c) adds the partial
 // package_id btree on the supports table, built CONCURRENTLY. 
+// package_id btree on the supports table, built CONCURRENTLY. Count 371 is 370 plus 345.
+// 346_supply_chain_impact_supports_repository_fact_idx.sql (#10880 PR-B2c) adds the
+// partial (repository_id, fact_id) btree, built CONCURRENTLY.
 const (
-	goldenBootstrapDefinitionsDigest = "7b2a70824ccd7ecca082bbcb5104c0a3fbdfff2fb9dccd59ead063f135a59d45"
-	goldenBootstrapDefinitionsCount  = 372
+	goldenBootstrapDefinitionsDigest = "44e037ce0ac177cdd6afe986e0fd6102da603f93185c8be648e438f84b4729d0"
+	goldenBootstrapDefinitionsCount  = 373
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

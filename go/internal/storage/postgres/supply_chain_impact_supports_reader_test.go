@@ -201,3 +201,44 @@ func TestSupportsDrainRecordsRawRowsPerReader(t *testing.T) {
 		t.Fatalf("drain raw rows points = %+v, want one point of one drain summing 2 raw rows", points)
 	}
 }
+
+// TestSupportsDrainRecordsDurationPerReader pins the drain duration histogram
+// (ruling arbiter-b2c-wal-repo-arm.md decision 8): one point per drain under its
+// reader.
+func TestSupportsDrainRecordsDurationPerReader(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+		supportsReadyResponse(),
+		{rows: [][]any{supportsPageRowForTest("fact-2", true, `{"repository_id":"repo-a"}`)}},
+	}})
+	store.instruments = inst
+	if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a"}); err != nil {
+		t.Fatalf("GetSupplyChainAdvisoriesForRepos() error = %v, want nil", err)
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	var points int64
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_supports_drain_duration_seconds" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("drain_duration data = %T, want Histogram[float64]", m.Data)
+			}
+			for _, p := range hist.DataPoints {
+				if got, _ := p.Attributes.Value(attribute.Key("source")); got.AsString() == telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory {
+					points += int64(p.Count)
+				}
+			}
+		}
+	}
+	if points != 1 {
+		t.Fatalf("drain duration points = %d, want 1 (one drain)", points)
+	}
+}

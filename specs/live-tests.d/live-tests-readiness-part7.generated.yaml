@@ -57,7 +57,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_supports_page_plan_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (package, CVE and advisory arms on their own partial btrees with the key and the cursor in the Index Cond, the repository arm on its btree) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and three seeded violations (the package index dropped, an active join inside the lateral, the cursor written as an OR filter) each fail the guard"
+    reason: "#11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (the package, CVE, advisory and repository arms each on their own partial btree with the key and the cursor in the Index Cond) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and seeded violations (the package or repository index dropped, a package or repository guard literal removed, an active join inside the lateral, the cursor written as an OR filter) each fail the guard"
     runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_supports_reader_live_test.go
     tag: ~

@@ -4,7 +4,7 @@
 package postgres
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (package, CVE and advisory arms on their own partial btrees with the key and the cursor in the Index Cond, the repository arm on its btree) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and three seeded violations (the package index dropped, an active join inside the lateral, the cursor written as an OR filter) each fail the guard
+//eshu:readiness:reason #11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (the package, CVE, advisory and repository arms each on their own partial btree with the key and the cursor in the Index Cond) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and seeded violations (the package or repository index dropped, a package or repository guard literal removed, an active join inside the lateral, the cursor written as an OR filter) each fail the guard
 //eshu:readiness:env ESHU_POSTGRES_DSN ESHU_POSTGRES_DISPOSABLE
 
 import (
@@ -195,9 +195,10 @@ func TestSupplyChainImpactSupportsPagePlanGuardLive(t *testing.T) {
 	t.Cleanup(func() { _ = conn.Close() })
 
 	indexes := map[string]string{
-		"package":  planGuardIndexName(t, ctx, db, "package_id"),
-		"cve":      planGuardIndexName(t, ctx, db, "cve_id"),
-		"advisory": planGuardIndexName(t, ctx, db, "advisory_id"),
+		"package":    planGuardIndexName(t, ctx, db, "package_id"),
+		"repository": planGuardIndexName(t, ctx, db, "repository_id"),
+		"cve":        planGuardIndexName(t, ctx, db, "cve_id"),
+		"advisory":   planGuardIndexName(t, ctx, db, "advisory_id"),
 	}
 	for col, name := range indexes {
 		if name == "" {
@@ -233,36 +234,50 @@ OFFSET (SELECT count(*) / 2 FROM supply_chain_impact_finding_supports WHERE pack
 	// Seeded violations. Each must make the guard fail, or the guard proves
 	// nothing. They run on the next page, generic plan: the shape that carries the
 	// cursor.
-	t.Run("violation: the package index dropped", func(t *testing.T) {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			t.Fatalf("begin: %v", err)
-		}
-		defer func() { _ = tx.Rollback() }()
-		if _, err := tx.ExecContext(ctx, "DROP INDEX "+indexes["package"]); err != nil {
-			t.Fatalf("drop index: %v", err)
-		}
-		var plan strings.Builder
-		if _, err := tx.ExecContext(ctx, "SET LOCAL plan_cache_mode = force_generic_plan"); err != nil {
-			t.Fatalf("set plan_cache_mode: %v", err)
-		}
-		if _, err := tx.ExecContext(ctx, "PREPARE page_guard(text[],text[],text[],text[],text) AS "+next); err != nil {
-			t.Fatalf("prepare: %v", err)
-		}
-		rows, err := tx.QueryContext(ctx, fmt.Sprintf("EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE page_guard(%s,'%s')", planGuardKeys, cursor))
-		if err != nil {
-			t.Fatalf("explain: %v", err)
-		}
-		for rows.Next() {
-			var line string
-			_ = rows.Scan(&line)
-			plan.WriteString(line + "\n")
-		}
-		_ = rows.Close()
-		if why := planGuardViolation(plan.String(), indexes, true); why == "" {
-			t.Fatalf("the guard passed a plan with the package index dropped:\n%s", plan.String())
-		}
-	})
+	for _, arm := range []string{"package", "repository"} {
+		t.Run("violation: the "+arm+" index dropped", func(t *testing.T) {
+			tx, err := db.BeginTx(ctx, nil)
+			if err != nil {
+				t.Fatalf("begin: %v", err)
+			}
+			defer func() { _ = tx.Rollback() }()
+			if _, err := tx.ExecContext(ctx, "DROP INDEX "+indexes[arm]); err != nil {
+				t.Fatalf("drop index: %v", err)
+			}
+			var plan strings.Builder
+			if _, err := tx.ExecContext(ctx, "SET LOCAL plan_cache_mode = force_generic_plan"); err != nil {
+				t.Fatalf("set plan_cache_mode: %v", err)
+			}
+			if _, err := tx.ExecContext(ctx, "PREPARE page_guard_"+arm+"(text[],text[],text[],text[],text) AS "+next); err != nil {
+				t.Fatalf("prepare: %v", err)
+			}
+			rows, err := tx.QueryContext(ctx, fmt.Sprintf("EXPLAIN (ANALYZE, BUFFERS, COSTS OFF) EXECUTE page_guard_%s(%s,'%s')", arm, planGuardKeys, cursor))
+			if err != nil {
+				t.Fatalf("explain: %v", err)
+			}
+			for rows.Next() {
+				var line string
+				_ = rows.Scan(&line)
+				plan.WriteString(line + "\n")
+			}
+			_ = rows.Close()
+			if why := planGuardViolation(plan.String(), indexes, true); why == "" {
+				t.Fatalf("the guard passed a plan with the %s index dropped:\n%s", arm, plan.String())
+			}
+		})
+	}
+	for _, arm := range []struct{ name, column string }{{"package", "package_id"}, {"repository", "repository_id"}} {
+		t.Run("violation: the "+arm.name+" guard literal removed", func(t *testing.T) {
+			bare := strings.ReplaceAll(next, " AND s."+arm.column+" <> ''", "")
+			if bare == next {
+				t.Fatal("the seeded violation did not change the statement")
+			}
+			plan := planGuardPlan(t, ctx, conn, "force_generic_plan", bare, cursor)
+			if why := planGuardViolation(plan, indexes, true); why == "" {
+				t.Fatalf("the guard passed a plan with the %s guard literal removed:\n%s", arm.name, plan)
+			}
+		})
+	}
 	t.Run("violation: an active join inside the lateral", func(t *testing.T) {
 		joined := strings.ReplaceAll(next, "SELECT s.fact_id FROM supply_chain_impact_finding_supports AS s\n",
 			"SELECT s.fact_id FROM supply_chain_impact_finding_supports AS s\n"+

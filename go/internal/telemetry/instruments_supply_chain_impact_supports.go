@@ -145,6 +145,10 @@ var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025,
 // the millions a hot package could hold.
 var supplyChainImpactSupportsDrainRowBuckets = []float64{0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000}
 
+// supplyChainImpactSupportsDrainDurationBuckets spans a drain from a few
+// milliseconds (one page) to the hour a drain of a very hot key could take.
+var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 3600}
+
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -171,6 +175,10 @@ var supplyChainImpactSupportsDrainRowBuckets = []float64{0, 1, 10, 100, 1000, 10
 //     active or not), by reader. A drain whose raw rows run far above its active
 //     rows is reading superseded generations; a drain in the hundred thousands is
 //     a hot key.
+//
+//   - eshu_dp_supply_chain_impact_supports_drain_duration_seconds{source}: wall time
+//     of one reducer drain, by reader. A drain near half the domain's handler
+//     timeout is the signal to return the hot-key page contract to its owner.
 //
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
 //     marker is set at the current contract version and the fence is empty, else 0.
@@ -202,6 +210,14 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainRowBuckets...),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsDrainRawRows histogram: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsDrainDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_supports_drain_duration_seconds",
+		metric.WithDescription("Wall time of one reducer drain of the per-support table, by reader (source label). A drain near half the domain's handler timeout means a hot key is paging too slowly."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainDurationBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsDrainDuration histogram: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsBackfillSteps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_steps_total",
@@ -297,6 +313,15 @@ func (i *Instruments) RecordSupplyChainImpactSupportsDrainRawRows(ctx context.Co
 		return
 	}
 	i.SupplyChainImpactSupportsDrainRawRows.Record(ctx, rawRows, metric.WithAttributes(AttrSource(reader)))
+}
+
+// RecordSupplyChainImpactSupportsDrainDuration records the wall time of one
+// reducer drain of the supports table, by reader. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsDrainDuration(ctx context.Context, reader string, d time.Duration) {
+	if i == nil || i.SupplyChainImpactSupportsDrainDuration == nil {
+		return
+	}
+	i.SupplyChainImpactSupportsDrainDuration.Record(ctx, d.Seconds(), metric.WithAttributes(AttrSource(reader)))
 }
 
 // RecordSupplyChainImpactSupportsBackfillStep counts one backfill step under

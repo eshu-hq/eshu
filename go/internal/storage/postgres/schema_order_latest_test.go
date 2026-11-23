@@ -183,6 +183,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// Migration 345 (#10880 PR-B2c) adds the partial package_id btree on the
 	// supports table (339 to 342 are PR-B2b's, 343 and 344 PR-B2a's).
 	"supply_chain_impact_supports_package_idx",
+	// Migration 346 (#10880 PR-B2c) adds the partial (repository_id, fact_id) btree
+	// on the supports table.
+	"supply_chain_impact_supports_repository_fact_idx",
 	// Migration 348 (#10880 decision 6) adds the resumable verification cursor
 	// to the supports backfill marker.
 	"supply_chain_impact_finding_supports_backfill_verify_cursor",

@@ -118,14 +118,14 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 // payload->>'repository_id', 'package_id', 'cve_id' and 'advisory_id'. The
 // package, cve and advisory arms carry the literal <> ” guard of their partial
 // btrees (the package one from supplyChainImpactSupportsPackageIndexPredicate);
-// the repository arm uses migration 338's repository_id btree. The legacy
+// the repository arm carries the guard of migration 346's (repository_id, fact_id) btree. The legacy
 // payload array arms (payload->'cve_ids' and 'ghsa_ids') are not reproduced: the
 // typed finding payload has no such field, so they never matched a finding fact
 // (TestSupplyChainImpactFindingPayloadCarriesNoIDArrays pins it). The
 // reconciliation handler reads only the fact id and the payload of an impact
 // envelope (extractSecurityAlertImpacts).
 var securityAlertReconciliationSupportsArms = []supplyChainImpactSupportsArm{
-	{column: "repository_id", param: 1},
+	{column: "repository_id", guard: supplyChainImpactSupportsRepositoryIndexPredicate, param: 1},
 	{column: "package_id", guard: supplyChainImpactSupportsPackageIndexPredicate, param: 2},
 	{column: "cve_id", guard: "cve_id <> ''", param: 3},
 	{column: "advisory_id", guard: "advisory_id <> ''", param: 4},

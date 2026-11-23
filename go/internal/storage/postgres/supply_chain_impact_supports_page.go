@@ -50,6 +50,14 @@ import (
 // the migration and the arm from this one constant.
 const supplyChainImpactSupportsPackageIndexPredicate = `package_id <> ''`
 
+// supplyChainImpactSupportsRepositoryIndexPredicate is the partial-index predicate
+// of the supports table's repository btree ((repository_id, fact_id) WHERE
+// repository_id <> ”, migration 346, #10880 PR-B2c), repeated as the repository
+// arm's literal guard the way the package arm repeats the package predicate.
+// TestSupplyChainImpactSupportsRepositoryIndexMatchesTheMigration derives the
+// migration and the arm from this one constant.
+const supplyChainImpactSupportsRepositoryIndexPredicate = `repository_id <> ''`
+
 // supplyChainImpactSupportsArm names one filter arm of a supports page read.
 type supplyChainImpactSupportsArm struct {
 	// column is the supports column the arm matches a key against.
@@ -168,12 +176,25 @@ func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Quer
 		}
 		cursorFactID = lastRawID
 	}
+	elapsed := time.Since(started)
 	d.instruments.RecordSupplyChainImpactSupportsDrainRawRows(ctx, d.reader, int64(rawRows))
+	d.instruments.RecordSupplyChainImpactSupportsDrainDuration(ctx, d.reader, elapsed)
 	if rawRows >= supplyChainImpactSupportsDrainLogRows {
-		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
-			d.reader, pages, rawRows, len(loaded), time.Since(started).Milliseconds())
+		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
+			d.reader, d.keyCount(), pages, rawRows, len(loaded), elapsed.Milliseconds())
 	}
 	return loaded, nil
+}
+
+// keyCount is the number of keys the drain filters on, summed over its arms.
+func (d supplyChainImpactSupportsDrain) keyCount() int {
+	count := 0
+	for _, arg := range d.keyArgs {
+		if keys, ok := arg.([]string); ok {
+			count += len(keys)
+		}
+	}
+	return count
 }
 
 // page reads one page statement and returns the raw row count, the last raw

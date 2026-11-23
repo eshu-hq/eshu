@@ -123,7 +123,7 @@ func TestSupplyChainImpactSupportsPageQueryRendersTheGuardsOfPartialIndexes(t *t
 
 	statement := supplyChainImpactSupportsPageQuery(supportsPageArmsForTest, 0)
 	for _, want := range []string{
-		"WHERE s.repository_id = k.v\n",
+		"WHERE s.repository_id = k.v AND s.repository_id <> ''",
 		"WHERE s.package_id = k.v AND s.package_id <> ''",
 		"WHERE s.cve_id = k.v AND s.cve_id <> ''",
 		"WHERE s.advisory_id = k.v AND s.advisory_id <> ''",
