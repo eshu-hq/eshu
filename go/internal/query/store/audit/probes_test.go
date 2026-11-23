@@ -64,6 +64,20 @@ func supportsReady(recorder *audit.Recorder) {
 	}
 }
 
+// explainReady answers the supports readiness predicate and a fresh winners
+// watermark, so an ungranted selector explain drives its read statement.
+func explainReady(recorder *audit.Recorder) {
+	recorder.Rows = func(sql string) db.Rows {
+		switch {
+		case strings.Contains(sql, "supply_chain_impact_finding_supports_backfill"):
+			return audit.StaticRows([]any{true})
+		case sql == impact.SelectWinnersWatermarkQuery:
+			return audit.StaticRows([]any{time.Now().UTC()})
+		}
+		return nil
+	}
+}
+
 func listProbe(variant string, gate bool, mutate func(*impact.FindingFilter)) probe {
 	return probe{"supply_chain.impact_findings.list", variant, func(ctx context.Context, recorder *audit.Recorder) {
 		supportsReady(recorder)
@@ -138,7 +152,7 @@ func readinessProbes(capability string) []probe {
 
 func aggregateProbe(variant string, gate bool, mutate func(*impact.AggregateFilter)) probe {
 	return probe{"supply_chain.impact_findings.aggregate", variant, func(ctx context.Context, recorder *audit.Recorder) {
-		supportsReady(recorder)
+		explainReady(recorder) // supports readiness and a fresh winners watermark, so the supplement route reaches its statement
 		store := impact.NewPostgresAggregateStoreWithReadStore(recorder, gate)
 		_, _ = store.CountSupplyChainImpactFindings(ctx, aggregateFilter(mutate))
 		_, _ = store.SupplyChainImpactInventory(ctx, aggregateFilter(mutate), impact.InventoryByStatus, 10, 0)
@@ -178,6 +192,16 @@ func coreProbes() []probe {
 			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
 				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(nil), impact.GroupedInventoryByService, 10, 0)
 		}},
+		{"supply_chain.impact_findings.aggregate", "grouped inventory, precise profile", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
+				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(preciseAgg), impact.GroupedInventoryByService, 10, 0)
+		}},
+		{"supply_chain.impact_findings.aggregate", "grouped inventory, image_ref", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
+				SupplyChainImpactGroupedInventory(ctx, aggregateFilter(imageRefAgg), impact.GroupedInventoryByService, 10, 0)
+		}},
 		{"supply_chain.impact_findings.aggregate", "grouped inventory, granted", func(ctx context.Context, recorder *audit.Recorder) {
 			supportsReady(recorder)
 			_, _ = impact.NewPostgresGroupedInventoryStoreWithReadStore(recorder, true, nil).
@@ -189,8 +213,18 @@ func coreProbes() []probe {
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
 				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", RepositoryID: "repository:r", AllowedScopeIDs: []string{"scope:a"}})
 		}},
+		{"supply_chain.impact_explanation.read", "ungranted selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
+				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", RepositoryID: "repository:r"})
+		}},
+		{"supply_chain.impact_explanation.read", "ungranted image selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
+			explainReady(recorder)
+			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
+				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", ImageRef: "registry.example/a:1"})
+		}},
 		{"supply_chain.impact_explanation.read", "by public finding id, gate on", func(ctx context.Context, recorder *audit.Recorder) {
-			supportsReady(recorder)
+			explainReady(recorder)
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
 				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{FindingID: "finding:x"})
 		}},
