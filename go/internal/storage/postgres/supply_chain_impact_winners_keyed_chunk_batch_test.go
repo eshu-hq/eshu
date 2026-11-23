@@ -189,6 +189,34 @@ func TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling(t *testing.T) {
 	}
 }
 
+// TestWinnersChunkDefaultBoundIsCapacityRuled pins the arbiter-ruled capacity
+// bound (eshu-hq/eshu#10839, chunk 200 -> 1000): the zero-value store resolves
+// the 1000-identifier default, the default batch stays one INSERT far under
+// the Postgres parameter ceiling (1000 x 5 = 5000 params vs the 13107-row
+// clamp), and a saturated default-bound tick admits exactly the bound in one
+// statement with truncation (oldest-first order is pinned element-wise by
+// TestBuildWinnersKeyedChunkBatchesIdentifierInserts).
+func TestWinnersChunkDefaultBoundIsCapacityRuled(t *testing.T) {
+	var empty SupplyChainImpactWinnersStore
+	if got := empty.chunkBounds(); got.identifiers != 1000 || got.dirtyRows != 5000 {
+		t.Fatalf("default chunkBounds() = %+v, want {dirtyRows:5000 identifiers:1000}", got)
+	}
+	if params := int64(1000 * 5); params > 65535 || 1000 > int64(maxWinnersKeyedChunkBatchIdents) {
+		t.Fatalf("default batch is 5000 params at 1000 identifiers, want under the 65535 parameter ceiling and the %d-row clamp", maxWinnersKeyedChunkBatchIdents)
+	}
+	fake := &chunkBatchFakeTx{idents: chunkBatchIdents(1001)}
+	outcome, err := buildWinnersKeyedChunk(context.Background(), fake, empty.chunkBounds())
+	if err != nil {
+		t.Fatalf("buildWinnersKeyedChunk at the default bound: %v", err)
+	}
+	if outcome.identifiers != 1000 || !outcome.truncated {
+		t.Fatalf("outcome = %+v, want {identifiers:1000 truncated:true}", outcome)
+	}
+	if got := insertExecs(fake); got != 1 {
+		t.Fatalf("identifier INSERT statements = %d, want 1 batched statement", got)
+	}
+}
+
 // TestBuildWinnersKeyedChunkBatchExactCeilingSucceeds pins the clamp boundary:
 // exactly maxWinnersKeyedChunkBatchIdents (13,107 = 65,535/5) identifiers must
 // still build one INSERT (the clamp fires strictly above the ceiling).

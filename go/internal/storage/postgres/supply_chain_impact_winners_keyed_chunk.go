@@ -23,23 +23,30 @@ import (
 // vs 4,000 identifiers, stored scale 5,000 winners, warm cache, disposable
 // Postgres 18): 31.6ms vs 281.7ms, i.e. apply scales linearly at ~70us per
 // identifier with a few ms of fixed winner-body cost (a third point at 1,000
-// identifiers, 74.5ms, sits on the same line). The QA calibration uses
-// the accepted QA anchors (shim 2026-11-10: ~71k stored winners, pre-chunk
-// apply p95 4.04s at ~865 keys p95, i.e. a ~5ms/key upper envelope; ~13 kept
-// facts per identifier): 200 identifiers imply on the order of a one-second
-// apply, 5x under the 15s per-tick bar with headroom for cold I/O, and a
-// ~10.5k-row QA backlog drains in short spaced ticks. The deleted node
-// (identifier Semi Join over a stored-winners Seq Scan, 295 buffers at 5k
-// stored) extrapolates to tens of milliseconds at the QA stored count, far
-// below the narrow (B)-trigger's 1.5s, so no winners-table index is added.
+// identifiers, 74.5ms, sits on the same line). The 1000-identifier bound is
+// the arbiter-ruled capacity value (#10839, 2026-11-23): the fixed-cost
+// convert tail is gone (MATERIALIZED chunk_applied, ~8-11ms at the 41,400-row
+// slow window), and the Decision-5 replay on the identical 5000-row window
+// drains 2.30x faster than the 200 control on both gated legs
+// (settled-identifiers/s 3646.7 vs 1584.3, dirty-rows/s 388.5 vs 168.8;
+// 47 ticks/12.9s vs 235/29.6s, max tick 554ms) with zero errors under the
+// concurrent re-mark writer. 1000 x 5 = 5000 INSERT params, 13x under the
+// 13107-row clamp (#11157). QA-scale wall time at 1.5M+ depth stays
+// NOT_CHECKED here: the live p95 <= 40s / zero >= 60s bars and the
+// single-knob rollback to 200 ride with the Bounded segment and the
+// A-triple-prime run. The deleted node (identifier Semi Join over a
+// stored-winners Seq Scan,
+// 295 buffers at 5k stored) extrapolates to tens of milliseconds at the QA
+// stored count, far below the narrow (B)-trigger's 1.5s, so no winners-table
+// index is added.
 //
-//   - 5,000 admitted dirty rows bound the window the expansion reads; QA's
-//     ~10.5k backlog at shim time is at least three windows. The existing
-//     50,000-identifier cap still sends a backlog whose expansion exceeds it
-//     to the full rebuild.
+//   - 5,000 admitted dirty rows bound the window the expansion reads; the
+//     1.25M-class backlog drains over successive windows at ~2.3x the
+//     control rate. The existing 50,000-identifier cap still sends a backlog
+//     whose expansion exceeds it to the full rebuild.
 const (
 	defaultWinnersChunkMaxDirtyRows = 5000
-	defaultWinnersChunkMaxIdents    = 200
+	defaultWinnersChunkMaxIdents    = 1000
 )
 
 // winnersChunkBounds is one keyed transaction's resolved chunk bounds.
