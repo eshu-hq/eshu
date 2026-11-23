@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 504 lines (base 498): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe.
+package postgres //nolint:filelength // 555 lines: the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe.
 
 import (
 	"context"
@@ -363,8 +363,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 	if err != nil {
 		return 0, fmt.Errorf("enqueue reducer batch (%d intents): rows affected: %w", len(batch), err)
 	}
-
-	return inserted, nil
+	return resolveEnqueueShortfall(ctx, q.database, batch, inserted)
 }
 
 // Claim implements reducer.WorkSource over fact_work_items.

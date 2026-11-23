@@ -143,6 +143,7 @@ ON CONFLICT (fact_id) DO UPDATE SET
     payload           = EXCLUDED.payload,
     fencing_token     = EXCLUDED.fencing_token
 WHERE fact_records.fencing_token <= EXCLUDED.fencing_token
+  AND fact_records.scope_id = EXCLUDED.scope_id
 `
 
 // VersionedRow is one canonical fact-record row for a batched
@@ -248,7 +249,7 @@ func execVersionedChunk(
 		fencingTokens[i] = row.FencingToken
 	}
 
-	if _, err := db.ExecContext(
+	result, err := db.ExecContext(
 		ctx,
 		BatchInsertVersionedQuery,
 		factIDs,
@@ -268,8 +269,9 @@ func execVersionedChunk(
 		isTombstones,
 		payloads,
 		fencingTokens,
-	); err != nil {
+	)
+	if err != nil {
 		return fmt.Errorf("batch insert versioned reducer facts: %w", err)
 	}
-	return nil
+	return resolveShortfall(ctx, result, WriterVersioned, ownerRowsOfVersioned(chunk), probeFor(db))
 }

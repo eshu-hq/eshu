@@ -123,7 +123,10 @@ func recordFactIDOwnerConflict(
 		for reason, count := range conflict.ByReason {
 			instruments.FactIDScopeConflicts.Add(
 				context.WithoutCancel(ctx), int64(count),
-				metric.WithAttributes(telemetry.AttrReason(reason)),
+				metric.WithAttributes(
+					telemetry.AttrReason(reason),
+					telemetry.AttrWriter(telemetry.FactIDOwnerConflictWriterIngestion),
+				),
 			)
 		}
 	}
