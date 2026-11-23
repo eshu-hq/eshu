@@ -150,6 +150,7 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 		// arguments per intent; record every row, not only the first, so a
 		// generation that enqueues several domains (#9874 adds the manifest
 		// marker beside the others) keeps them all.
+		inserted := int64(0)
 		for offset := 0; offset+columnsPerReducerEnqueue <= len(args); offset += columnsPerReducerEnqueue {
 			row := args[offset : offset+columnsPerReducerEnqueue]
 			workItemID := row[0].(string)
@@ -171,8 +172,11 @@ func (database *proofDomainDB) ExecContext(_ context.Context, query string, args
 				updatedAt:    row[6].(time.Time).UTC(),
 				payload:      row[7].([]byte),
 			}
+			inserted++
 		}
-		return proofResult{}, nil
+		// Report the rows ON CONFLICT DO NOTHING really admitted, like
+		// Postgres, so a coalesced duplicate is a shortfall (#11215).
+		return proofInsertResult{rows: inserted}, nil
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
@@ -194,6 +198,11 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 	// so it answers zero keys; exact constant so an unknown statement
 	// still falls through to the error below.
 	case query == terminalGenerationActiveWaitKeysQuery:
+		return newProofRows(nil), nil
+	// #11215: the held-work-item probe after a short enqueue. The proof
+	// domain re-enqueues the same intents, never a different intent under one
+	// id, so no held row differs.
+	case query == heldWorkItemsQuery:
 		return newProofRows(nil), nil
 	// Exact query matches come before the substring matches below: the
 	// summary's grouped history CTE contains "GROUP BY status" and

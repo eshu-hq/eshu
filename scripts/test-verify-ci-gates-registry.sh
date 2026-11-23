@@ -123,6 +123,9 @@ done < <(
 # shellcheck source=scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh
 . "${repo_root}/scripts/lib/test-verify-ci-gates-registry-parser-relationship-cases.sh"
 check_parser_relationship_trigger_parity
+# shellcheck source=scripts/lib/test-verify-ci-gates-registry-kit-pin-cases.sh
+. "${repo_root}/scripts/lib/test-verify-ci-gates-registry-kit-pin-cases.sh"
+check_kit_pin_installer_selects_kit_gates
 
 [[ -f "${frontend_inventory}" ]] || fail "missing ${frontend_inventory}"
 require "frontend PR inventory identity" "- file: frontend.yml" "${frontend_inventory}"

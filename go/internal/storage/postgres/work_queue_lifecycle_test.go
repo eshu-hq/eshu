@@ -179,6 +179,11 @@ type fakeExecQueryer struct {
 	// path, independent of FIFO order. Nil yields zero rows: shared fixtures
 	// model a repository with nothing stored.
 	contentFilePathRows [][]any
+
+	// heldWorkItemRows answers the #11215 held-work-item probe
+	// (heldWorkItemsQuery) with one row per colliding id, independent of FIFO
+	// order. Nil yields zero rows: a shortfall is then a benign duplicate.
+	heldWorkItemRows [][]any
 }
 
 type fakeExecCall struct {
@@ -258,6 +263,20 @@ func (f *fakeExecQueryer) QueryContext(
 	// probe must not consume a scripted response staged for a later query.
 	if query == backfill.DeferredRelationshipKeyFallbackProbeSQL {
 		return &queueFakeRows{rows: [][]any{{int64(0)}}}, nil
+	}
+
+	// #11213 and #11215: a write whose rows-affected count falls short of the
+	// attempt (fakeResult reports none, and ON CONFLICT DO NOTHING coalescing is
+	// scripted the same way) runs one primary-key probe for a held row that
+	// belongs to a different owner. The probe answers independent of FIFO order,
+	// like the arms above, so it never consumes a response staged for a later
+	// query: heldWorkItemRows when a test stages a collision, otherwise zero rows
+	// (fixtures model no foreign owner).
+	if query == heldWorkItemsQuery {
+		return &queueFakeRows{rows: f.heldWorkItemRows}, nil
+	}
+	if strings.Contains(query, "JOIN fact_records AS f ON f.fact_id = t.fact_id") {
+		return &queueFakeRows{}, nil
 	}
 
 	// #10876: the phase publish wakes parked phase_committed waits, on the

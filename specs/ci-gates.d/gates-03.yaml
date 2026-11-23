@@ -198,6 +198,9 @@ gates:
     triggers:
       - ".github/workflows/**"
       - ".agent-kit-version"
+      # The gate scans the installed skills under .agents/skills/, and the REF
+      # in this script decides which kit revision installs them.
+      - "scripts/ci/install-eshu-agent-kit.sh"
       - "scripts/verify-skill-workflow-refs.sh"
       - "scripts/test-verify-skill-workflow-refs.sh"
       # The real-tree case is a sourced companion, so it is a trigger path

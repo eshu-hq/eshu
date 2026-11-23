@@ -241,3 +241,118 @@ func TestFactIDProducerGuardFailsOnZeroSites(t *testing.T) {
 		}
 	}
 }
+
+// TestFactIDProducerGuardOtherShapes pins the mint shapes beyond the
+// facts.Envelope literal that #11216 closed: reducer factwrite.Row and
+// factwrite.VersionedRow literals, the positional fact id argument of
+// factwrite.SingleInsertQuery, and an id assigned after construction. Each
+// shape has a RED case (a bare id, one violation) and a GREEN case (an id
+// hashed from a scope and a generation, none), so none of them can turn into a
+// silent no-op.
+func TestFactIDProducerGuardOtherShapes(t *testing.T) {
+	const hashed = `facts.StableID("K", map[string]any{"scope_id": scopeID, "generation_id": generationID, "k": key})`
+	cases := []struct {
+		name string
+		path string
+		src  string
+		want int
+	}{
+		{"factwrite.Row bare id", "r/w.go", `package r
+func f(key string) { _ = factwrite.Row{FactID: key} }`, 1},
+		{"factwrite.Row hashed id", "r/w.go", `package r
+func f(scopeID, generationID, key string) { _ = factwrite.Row{FactID: ` + hashed + `} }`, 0},
+		{"factwrite.VersionedRow bare id", "r/w.go", `package r
+func f(key string) { _ = factwrite.VersionedRow{FactID: key} }`, 1},
+		{"factwrite.VersionedRow hashed id", "r/w.go", `package r
+func f(scopeID, generationID, key string) { _ = factwrite.VersionedRow{FactID: ` + hashed + `} }`, 0},
+		{"bare Row inside the factwrite package", "internal/reducer/factwrite/x.go", `package factwrite
+func f(key string) Row { return Row{FactID: key} }`, 1},
+		{"a Row type elsewhere is not a fact row", "r/w.go", `package r
+func f(key string) { _ = Row{FactID: key} ; _ = facts.Envelope{FactID: ` + hashed + `} }`, 0},
+		{"SingleInsertQuery positional bare id", "r/w.go", `package r
+func f(ctx, db, key string) { db.ExecContext(ctx, factwrite.SingleInsertQuery, key, "scope") }`, 1},
+		{"SingleInsertQuery positional hashed id", "r/w.go", `package r
+func f(ctx, db, scopeID, generationID, key string) { db.ExecContext(ctx, factwrite.SingleInsertQuery, ` + hashed + `, "scope") }`, 0},
+		{"id assigned after construction, bare", "r/w.go", `package r
+func f(env facts.Envelope, key string) { env.FactID = key }`, 1},
+		{"id assigned after construction, hashed", "r/w.go", `package r
+func f(env facts.Envelope, scopeID, generationID, key string) { env.FactID = ` + hashed + ` }`, 0},
+		{"blanking an id mints nothing", "r/w.go", `package r
+func f(env facts.Envelope) { env.FactID = "" }`, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// A hashed-only source has one site; a no-site source would be an error,
+			// so every case carries at least one recognised site of its own shape.
+			violations, sites, _, err := factIDProducerViolations(map[string]string{tc.path: tc.src}, nil)
+			if tc.name == "a Row type elsewhere is not a fact row" || tc.name == "blanking an id mints nothing" {
+				if err != nil && sites == 0 && tc.want == 0 {
+					return // no recognised site: the zero-site error is the expected outcome
+				}
+			}
+			if err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			if len(violations) != tc.want || sites < 1 {
+				t.Fatalf("sites=%d violations=%v, want %d violations and at least 1 site", sites, violations, tc.want)
+			}
+		})
+	}
+}
+
+// TestFactIDProducerGuardSeededReducerViolations is the RED/GREEN pair on the
+// real reducer writers (#11216): GREEN is the unmodified source, RED removes
+// the scope from a real fact id and the guard must name that file. Two shapes
+// are seeded: a ...FactID helper whose identity call is replaced by a bare map
+// (service catalog), and a VersionedRow literal whose id loses its scope_id
+// key (code divergence).
+func TestFactIDProducerGuardSeededReducerViolations(t *testing.T) {
+	all := readProductionGoFiles(t, goSourceRoot(t))
+	cases := []struct {
+		name, dir, file, old, new string
+	}{
+		{
+			"FactID helper without the identity call",
+			"internal/reducer/servicecatalog/", "internal/reducer/servicecatalog/service_catalog_correlation_writer.go",
+			"serviceCatalogCorrelationIdentity(write, decision),\n\t)\n}\n\nfunc serviceCatalogCorrelationStableFactKey",
+			"map[string]any{\"k\": decision},\n\t)\n}\n\nfunc serviceCatalogCorrelationStableFactKey",
+		},
+		{
+			"VersionedRow id without its scope_id key",
+			"internal/reducer/codedivergence/", "internal/reducer/codedivergence/writer.go",
+			"\t\t\t\"scope_id\":      strings.TrimSpace(write.ScopeID),\n\t\t\t\"generation_id\": strings.TrimSpace(write.GenerationID),\n\t\t\t\"finding_id\":    findingID,",
+			"\t\t\t\"generation_id\": strings.TrimSpace(write.GenerationID),\n\t\t\t\"finding_id\":    findingID,",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clean := map[string]string{}
+			seeded := map[string]string{}
+			for name, body := range all {
+				if strings.HasPrefix(name, tc.dir) {
+					clean[name] = body
+					seeded[name] = body
+				}
+			}
+			body, ok := clean[tc.file]
+			if !ok || !strings.Contains(body, tc.old) {
+				t.Fatalf("seed anchor missing in %s: the seeded case must be updated with the source", tc.file)
+			}
+			seeded[tc.file] = strings.Replace(body, tc.old, tc.new, 1)
+			if violations, _, _, err := factIDProducerViolations(clean, factIDProducerAllowlist); err != nil || len(violations) != 0 {
+				t.Fatalf("GREEN: clean source violations=%v err=%v", violations, err)
+			}
+			violations, _, _, err := factIDProducerViolations(seeded, factIDProducerAllowlist)
+			if err != nil || len(violations) == 0 {
+				t.Fatalf("RED: the seeded violation in %s was not reported: violations=%v err=%v", tc.file, violations, err)
+			}
+			named := false
+			for _, v := range violations {
+				named = named || strings.HasPrefix(v, tc.file+":")
+			}
+			if !named {
+				t.Fatalf("RED: violations %v do not name %s", violations, tc.file)
+			}
+		})
+	}
+}
