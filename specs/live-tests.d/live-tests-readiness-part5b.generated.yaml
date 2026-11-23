@@ -169,6 +169,11 @@ tests:
     class: postgres_ci
     reason: "#11000 cross-scope producer-terminal waits under -race: concurrent parks, a mid-flight producer reducer Ack, and a concurrent projector-Ack activation converge on exactly-once reopen with the attempt budget frozen; disposable database, about 45 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_key_bound_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 bounded narrowed wait key: a wide verdict set parks through the real ReducerQueue.Fail on the migrated schema instead of failing the btree key insert (SQLSTATE 54000) after the retry UPDATE committed"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_live_test.go
     tag: ~
     class: postgres_ci
