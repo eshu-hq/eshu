@@ -7,38 +7,34 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // hasOutOfStampActiveSupplyChainImpactRowsQuery is the #10415 fallback
-// trigger: one bounded existence probe for active finding rows of one
-// generation whose CVE id the stamp does not name. The fact kind is a literal
-// so the planner proves the predicate of the partial finding indexes under a
-// generic plan, the same shape the seed read and the writer's stored read
-// use. LIMIT 1 bounds the probe to one row: a quiet holder with no drift
-// pays one index probe on its scoped path, and a full pass never runs it.
-// Rows without a CVE id never match an equality on the stamp, so the probe
-// names them explicitly empty-excluded: they are not CVE drift and the next
-// genuine full pass converges them, while counting them would turn the
-// fallback into every reopen for holders carrying them. No new index: the
-// predicate reuses the partial finding-index shape the seed read proves.
+// trigger: one bounded existence probe for active finding supports of one
+// generation whose CVE id the stamp does not name (#11197). It reads the
+// per-support table through the (scope_id, generation_id) index. LIMIT 1 bounds
+// the probe to one row: a quiet holder with no drift pays one index probe on
+// its scoped path, and a full pass never runs it. Supports without a CVE id
+// store the empty string, which the probe excludes: they are not CVE drift and
+// the next genuine full pass converges them, while counting them would turn the
+// fallback into every reopen for holders carrying them. No new index.
 const hasOutOfStampActiveSupplyChainImpactRowsQuery = `
 SELECT 1
-FROM fact_records
-WHERE fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-  AND scope_id = $1
-  AND generation_id = $2
-  AND is_tombstone = FALSE
-  AND payload->>'cve_id' <> ''
-  AND NOT (payload->>'cve_id' = ANY($3::text[]))
+FROM supply_chain_impact_finding_supports AS support
+WHERE support.scope_id = $1
+  AND support.generation_id = $2
+  AND support.cve_id <> ''
+  AND NOT (support.cve_id = ANY($3::text[]))
 LIMIT 1
 `
 
 // HasOutOfStampActiveSupplyChainImpactRows reports whether one (scope,
 // generation) holds an active finding row outside a stamped CVE set. An empty
-// stamp reads nothing: the caller runs full without it. A tombstoned copy
-// never triggers: a retracted row is already reaped.
+// stamp reads nothing: the caller runs full without it. A retracted copy has
+// no support, so it never triggers. The read refuses with
+// supplychaincore.ErrSupportsNotReady while the supports table is not ready
+// (#11197).
 func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 	ctx context.Context,
 	scopeID string,
@@ -53,6 +49,9 @@ func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 	}
 	var has bool
 	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
+		if err := requireSupplyChainImpactSupportsReady(ctx, queryer); err != nil {
+			return err
+		}
 		rows, err := queryer.QueryContext(ctx, hasOutOfStampActiveSupplyChainImpactRowsQuery, scopeID, generationID, cveIDs)
 		if err != nil {
 			return fmt.Errorf("read out-of-stamp supply chain impact finding rows: %w", err)

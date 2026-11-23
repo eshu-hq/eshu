@@ -26,8 +26,13 @@ const fenceLiveInterval = time.Hour
 
 var fenceLiveEvidenceCommit = strings.Repeat("e", 40)
 
-func fenceStore(database *sql.DB) Store {
-	return NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction)
+// fenceStore returns the store the live proofs fence with. It first settles the
+// supports table: the proofs write finding facts directly, so no maintainer
+// filled it, and the fence refuses to read an unready table (#11197).
+func fenceStore(t *testing.T, database *sql.DB) Store {
+	t.Helper()
+	settleSupports(t, database)
+	return NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady)
 }
 
 // seedStampedEvidence writes a repository's go-reachability scope holding kinds, with
@@ -124,7 +129,7 @@ func countScopeFacts(t *testing.T, database *sql.DB, scopeID string) int {
 // in place because only retirement deletes them.
 func TestCommitSkewRuleOnThePageReadLive(t *testing.T) {
 	database := openStoreProof(t)
-	store := fenceStore(database)
+	store := fenceStore(t, database)
 	const module = "vulnerability.go_module_evidence"
 	month := 30 * 24 * time.Hour
 	past, inside := 3*fenceLiveInterval, fenceLiveInterval
@@ -286,7 +291,7 @@ func TestFencedRepositoryWithNoGoModDropsOutLive(t *testing.T) {
 		t.Fatalf("page = %+v, want the repository planned while it holds evidence", page)
 	}
 	decision := reachability.StaleEvidence(page.Repositories, time.Now().UTC(), fenceLiveInterval, page.SlotCount)
-	if _, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), decision.Fences, time.Now().UTC()); err != nil {
+	if _, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), decision.Fences, time.Now().UTC()); err != nil {
 		t.Fatalf("fence: %v", err)
 	}
 	if next, planned := readGoPage(t, database); planned[repository] {
@@ -330,7 +335,7 @@ func TestUnusableRemoteEvidenceRetractsAtTheBoundLive(t *testing.T) {
 
 	later := now.Add(2 * fenceLiveInterval)
 	past := reachability.StaleEvidence(page.Repositories, later, fenceLiveInterval, page.SlotCount)
-	result, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), past.Fences, later)
+	result, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), past.Fences, later)
 	if err != nil || result.Fenced != 1 {
 		t.Fatalf("result = %+v, err = %v, want 1 fenced", result, err)
 	}
@@ -384,7 +389,7 @@ func TestFenceLogsTheGenerationAndALaterTickConsumesItLive(t *testing.T) {
 	}
 
 	fence := []scannercomponent.StaleEvidenceFence{{ScopeID: scopeID, GenerationID: generationID}}
-	if _, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fence, time.Now().UTC()); err != nil {
+	if _, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), fence, time.Now().UTC()); err != nil {
 		t.Fatalf("fence: %v", err)
 	}
 	if got := readStaged(); got != 1 {
@@ -587,7 +592,7 @@ func TestFencePurgeInterplayLedgerLive(t *testing.T) {
 		t.Fatalf("fences for %s = %+v, want exactly the one skew verdict", scopeA, fencesA)
 	}
 	observedA := time.Now().UTC().Truncate(time.Microsecond)
-	resultA, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fencesA, observedA)
+	resultA, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), fencesA, observedA)
 	if err != nil || resultA.Fenced != 1 {
 		t.Fatalf("fence result = %+v, err = %v, want 1 fenced", resultA, err)
 	}
@@ -632,7 +637,7 @@ func TestFencePurgeInterplayLedgerLive(t *testing.T) {
 	}
 	assertLedgerMatchesPreview("rr_fence_purge_b", previewB, ledgerB)
 	assertResidueGone(gitB, scopeB)
-	resultB, err := fenceStore(database).FenceStaleGoEvidence(t.Context(), fencesB, time.Now().UTC())
+	resultB, err := fenceStore(t, database).FenceStaleGoEvidence(t.Context(), fencesB, time.Now().UTC())
 	if err != nil || resultB.Fenced != 0 {
 		t.Fatalf("fence after purge = %+v, err = %v, want 0 fenced", resultB, err)
 	}

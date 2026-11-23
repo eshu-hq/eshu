@@ -276,7 +276,7 @@ func run(parent context.Context) error {
 		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		GoModuleRepositoryReader:          gomodules.NewStore(goModuleRepositoriesDB),
-		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction),
+		GoEvidenceFencer:                  gomodules.NewStore(goModuleRepositoriesDB).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,

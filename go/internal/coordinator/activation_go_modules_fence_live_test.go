@@ -87,7 +87,7 @@ func TestGoModulesFenceLockTimeoutLeavesNoRunAndRetriesLive(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction)
+	store := gomodules.NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady)
 	service := Service{
 		Config: Config{
 			DeploymentMode: deploymentModeActive, ClaimsEnabled: true, ReconcileInterval: time.Hour,

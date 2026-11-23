@@ -10,6 +10,15 @@ import "errors"
 // as read_timeout rather than read_error.
 var ErrFanOutReadTimeout = errors.New("supply chain impact holder read timed out")
 
+// ErrSupportsNotReady marks a holder, seed or fence read that refused to run
+// because the supports table it reads is not ready: the backfill marker for the
+// binary's contract version is not complete, a newer contract's marker exists, or
+// the old-writer fence still holds a dirty scope (#11197). The reads no longer
+// fall back to the finding facts, so a partial table must never answer; the pass
+// fails with it, the queue retries, and the counter reports it as
+// supports_not_ready rather than read_error.
+var ErrSupportsNotReady = errors.New("supply chain impact supports are not ready")
+
 // SupplyChainImpactFanOutFailureClass classifies a pass that failed in its holder
 // fan-out. It is a counting class on purpose: the queue retries the pass up to
 // its attempt budget and then dead-letters it, which is loud and replayable,

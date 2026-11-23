@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sort"
 
@@ -129,6 +130,17 @@ func (h SupplyChainImpactHandler) scopeSupplyChainImpactPass(
 	if source, ok := h.FactLoader.(scopedFindingPackageSource); ok && source != nil {
 		rows, err := source.ListScopedSupplyChainImpactFindingPackages(ctx, intent.ScopeID, intent.GenerationID, stamp)
 		if err != nil {
+			// The pass runs full, which is correct but loses the scoping, so
+			// the failure is logged: a supports table that is not ready
+			// (#11197) would otherwise read as a quiet drop in scoped passes.
+			if h.Logger != nil {
+				h.Logger.WarnContext(ctx, "supply chain impact scoped seed read failed; running the pass full",
+					slog.String("scope_id", intent.ScopeID),
+					slog.String("generation_id", intent.GenerationID),
+					slog.Bool("supports_not_ready", errors.Is(err, ErrSupportsNotReady)),
+					slog.String("error", err.Error()),
+				)
+			}
 			return nil
 		}
 		seeds = rows

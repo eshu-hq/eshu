@@ -155,6 +155,19 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopes(
 // read goes through it, so each has the same timeout, the same typed timeout
 // error, and the same retry semantics.
 func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query string, args ...any) ([]string, error) {
+	return s.readScopeIDsIn(ctx, false, query, args...)
+}
+
+// readScopeIDsFromSupports is readScopeIDs for a read that answers from the
+// supports table (#11197): the transaction is one repeatable-read snapshot whose
+// first statement checks that the table is ready, and a table that is not ready
+// fails the read with supplychaincore.ErrSupportsNotReady instead of answering
+// from a partial table.
+func (s SupplyChainImpactFanOutStore) readScopeIDsFromSupports(ctx context.Context, query string, args ...any) ([]string, error) {
+	return s.readScopeIDsIn(ctx, true, query, args...)
+}
+
+func (s SupplyChainImpactFanOutStore) readScopeIDsIn(ctx context.Context, fromSupports bool, query string, args ...any) ([]string, error) {
 	if s.Beginner == nil {
 		return nil, errors.New("supply chain impact fan-out beginner is required")
 	}
@@ -167,7 +180,11 @@ func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query st
 		return nil, fmt.Errorf("begin supply chain impact fan-out read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
+	setMode := "SET TRANSACTION READ ONLY"
+	if fromSupports {
+		setMode = setHolderKeyRangeSnapshotQuery
+	}
+	if _, err := tx.ExecContext(ctx, setMode); err != nil {
 		return nil, fmt.Errorf("set supply chain impact fan-out read read-only: %w", err)
 	}
 	rows, err := tx.QueryContext(ctx, setSupplyChainImpactFanOutReadTimeoutQuery, fmt.Sprintf("%dms", timeout.Milliseconds()))
@@ -175,6 +192,11 @@ func (s SupplyChainImpactFanOutStore) readScopeIDs(ctx context.Context, query st
 		return nil, fmt.Errorf("set supply chain impact fan-out read timeout: %w", err)
 	}
 	_ = rows.Close()
+	if fromSupports {
+		if err := requireSupplyChainImpactSupportsReady(ctx, tx); err != nil {
+			return nil, classifyFanOutReadError(err)
+		}
+	}
 	rows, err = tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, classifyFanOutReadError(err)

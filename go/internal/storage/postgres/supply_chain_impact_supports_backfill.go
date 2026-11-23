@@ -153,6 +153,33 @@ func SupplyChainImpactSupportsReady(ctx context.Context, queryer db.Queryer) (bo
 	return ready, nil
 }
 
+// requireSupplyChainImpactSupportsReady is the first statement of every
+// holder, seed and fence read that answers from the supports table (#11197).
+// Those reads no longer have a finding-fact twin to fall back to, so a table the
+// backfill has not finished, a contract newer than this binary, or an old-writer
+// fence that still holds a dirty scope must refuse the read instead of answering
+// from a partial table. The check and the read run in one repeatable-read
+// snapshot, so a scope marked dirty between them cannot slip past the check. A
+// failed readiness read is an error, not a pass.
+func requireSupplyChainImpactSupportsReady(ctx context.Context, queryer db.Queryer) error {
+	ready, err := SupplyChainImpactSupportsReady(ctx, queryer)
+	if err != nil {
+		return err
+	}
+	if !ready {
+		return fmt.Errorf("%w: the backfill marker for contract version %d is incomplete, a newer contract exists, or the old-writer fence is not empty",
+			supplychaincore.ErrSupportsNotReady, SupplyChainImpactSupportsContractVersion)
+	}
+	return nil
+}
+
+// CheckSupplyChainImpactSupportsReady is requireSupplyChainImpactSupportsReady for
+// a caller outside this package: the go-modules fence binds it as its supports
+// readiness check (gomodules.Store.WithSupportsReadiness, #11197).
+func CheckSupplyChainImpactSupportsReady(ctx context.Context, queryer db.Queryer) error {
+	return requireSupplyChainImpactSupportsReady(ctx, queryer)
+}
+
 // SupplyChainImpactSupportsBackfill fills supply_chain_impact_finding_supports
 // for the finding facts written before the same-transaction maintainer shipped,
 // in resumable steps, and sets the readiness marker only after a verification

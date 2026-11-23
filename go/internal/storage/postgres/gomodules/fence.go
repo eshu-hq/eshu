@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -45,19 +44,13 @@ const (
 	// hold the fence's locks. Both values are transaction-local. The lock value matches
 	// the projector ack's default.
 	fenceTimeoutsQuery = `SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '10000ms', true)`
-	// fenceDetachPointerQuery takes the scope row, conditional on the generation read.
-	fenceDetachPointerQuery = `UPDATE ingestion_scopes SET active_generation_id = NULL
-		WHERE scope_id = $1 AND active_generation_id = $2`
-	// fenceSupersedeGeneration writes the terminal status the ack's status predicate
-	// refuses to revive. It runs only after the pointer update hit a row.
-	fenceSupersedeGeneration = `UPDATE scope_generations SET status = 'superseded', superseded_at = $3
-		WHERE scope_id = $1 AND generation_id = $2 AND status = 'active'`
-	// fenceFindHoldersQuery finds the scopes holding an active finding for the
-	// repository, on fact_records_supply_chain_impact_repository_lookup_idx. The fact
-	// kind is a literal because a bound parameter would not prove the partial-index
-	// predicate under a generic plan. Holders are found by repository, not by CVE, so no
-	// osv-to-CVE alias mapping is needed here. Over-reopening is safe: a pass re-derives
-	// its own findings from active facts.
+	// fenceFindHoldersQuery finds the scopes holding an active finding support for
+	// the repository (#11197), on supply_chain_impact_finding_supports_repository_idx.
+	// The table holds live finding facts only, so no tombstone predicate applies, and
+	// the empty repository id it stores for a finding without one never matches a
+	// repository id. Holders are found by repository, not by CVE, so no osv-to-CVE
+	// alias mapping is needed here. Over-reopening is safe: a pass re-derives its own
+	// findings from active supports.
 	//
 	// The holders come back in the lock order of their supply_chain_impact work item at
 	// the active generation, work_item_id COLLATE "C" (#11147). The fence reopens every
@@ -67,15 +60,14 @@ const (
 	// with '_'. A holder with no item takes no row lock (it is enqueued), so it sorts last.
 	fenceFindHoldersQuery = `SELECT holder.scope_id
 		FROM (
-		    SELECT DISTINCT finding.scope_id, scope.active_generation_id
-		    FROM fact_records AS finding
+		    SELECT DISTINCT support.scope_id, scope.active_generation_id
+		    FROM supply_chain_impact_finding_supports AS support
 		    JOIN ingestion_scopes AS scope
-		      ON scope.scope_id = finding.scope_id
-		     AND scope.active_generation_id = finding.generation_id
-		    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-		      AND finding.is_tombstone = FALSE
-		      AND finding.payload->>'repository_id' = $1
-		      AND finding.scope_id <> $2
+		      ON scope.scope_id = support.scope_id
+		     AND scope.active_generation_id = support.generation_id
+		    WHERE support.repository_id = $1
+		      AND support.repository_id <> ''
+		      AND support.scope_id <> $2
 		) AS holder
 		LEFT JOIN LATERAL (
 		    SELECT min(work.work_item_id COLLATE "C") AS lock_key
@@ -86,7 +78,20 @@ const (
 		      AND work.domain = 'supply_chain_impact'
 		) AS item ON TRUE
 		ORDER BY item.lock_key COLLATE "C" NULLS LAST, holder.scope_id COLLATE "C"`
+	// fenceDetachPointerQuery takes the scope row, conditional on the generation read.
+	fenceDetachPointerQuery = `UPDATE ingestion_scopes SET active_generation_id = NULL
+		WHERE scope_id = $1 AND active_generation_id = $2`
+	// fenceSupersedeGeneration writes the terminal status the ack's status predicate
+	// refuses to revive. It runs only after the pointer update hit a row.
+	fenceSupersedeGeneration = `UPDATE scope_generations SET status = 'superseded', superseded_at = $3
+		WHERE scope_id = $1 AND generation_id = $2 AND status = 'active'`
 )
+
+// SupportsReadiness checks, on the fence's own transaction, that the supports table
+// the holder read answers from is ready, and returns an error when it is not
+// (#11197). The composition root binds it to postgres.CheckSupplyChainImpactSupportsReady;
+// it is a function so this leaf package does not import the postgres root.
+type SupportsReadiness func(ctx context.Context, tx db.Queryer) error
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's
 // transaction, stamped with the generation that changed. The composition root binds it
@@ -103,6 +108,13 @@ type HolderReopener func(
 // leaves the receiver unchanged.
 func (s Store) WithHolderReopener(reopen HolderReopener) Store {
 	s.reopenHolder = reopen
+	return s
+}
+
+// WithSupportsReadiness returns the store with the supports readiness check the
+// fence needs. It leaves the receiver unchanged.
+func (s Store) WithSupportsReadiness(check SupportsReadiness) Store {
+	s.supportsReady = check
 	return s
 }
 
@@ -133,6 +145,9 @@ func (s Store) FenceStaleGoEvidence(
 	}
 	if s.reopenHolder == nil {
 		return result, errors.New("go module repository store needs a holder reopener to fence evidence")
+	}
+	if s.supportsReady == nil {
+		return result, errors.New("go module repository store needs a supports readiness check to fence evidence")
 	}
 	for _, fence := range fences {
 		retracted, holders, err := s.fenceOne(ctx, beginner, fence, observedAt)
@@ -169,6 +184,13 @@ func (s Store) fenceOne(
 
 	if _, err := tx.ExecContext(ctx, fenceTimeoutsQuery); err != nil {
 		return false, 0, fmt.Errorf("set timeouts: %w", err)
+	}
+	// The holder read answers from the supports table, so a table that is not ready
+	// must stop the fence before it detaches anything: the transaction rolls back
+	// with nothing retracted, and the coordinator retries the page (#11197). A fence
+	// that retracted without reopening its holders would leave them stale.
+	if err := s.supportsReady(ctx, tx); err != nil {
+		return false, 0, fmt.Errorf("check supports readiness: %w", err)
 	}
 	affected, err := execAffected(ctx, tx, fenceDetachPointerQuery, fence.ScopeID, fence.GenerationID)
 	if err != nil {
