@@ -90,9 +90,16 @@ type PostgresFindingStore struct {
 	// false (the default) the read deduplicates at query time with the legacy
 	// ROW_NUMBER query. The wiring sets this from an operator env gate so the
 	// cutover is reversible and is only enabled once the reducer maintainer has
-	// populated the winners table. Output is byte-identical either way; the
-	// winners read replaces the O(filtered set) dedup sort with a read over the
-	// winners table; the unscoped precise route is not O(page) (see
+	// populated the winners table. The plain winners route (an unscoped call
+	// whose filters are all key-determined) returns the same pages as the
+	// legacy read on the parity corpus; the winners read replaces the
+	// O(filtered set) dedup sort with a read over the winners table. The routes
+	// that read the per-support table (scoped-token grants and unscoped
+	// image_ref calls) and the unscoped precise supplement are not
+	// byte-identical to legacy in every case: the PR-B2a "Behavior to know"
+	// list (a blank repository id, a cve_id filter that is not key-determined,
+	// rank filters that test the canonical pick) names the intentional
+	// differences. The unscoped precise route is not O(page) (see
 	// ListFindingsFromWinnersSupplementQuery).
 	ReadFromWinners bool
 	// Instruments receives the per-route read counter
