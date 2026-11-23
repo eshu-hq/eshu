@@ -37,9 +37,12 @@ const activeGenerationJoin = `JOIN active_generations AS generation
 const consumerStatePredicate = `source.stage = 'reducer'
       AND source.status IN ('claimed', 'running', 'succeeded')`
 
-// manifestMarkerCountQuery counts the manifest markers the fan-out left alone
-// (#10972): supply_chain_impact items at an active generation that match
-// manifestMarkerPredicate. It is a plain read: no FOR clause, no DML, no
+// manifestMarkerCountQuery counts the manifest markers in an eligible state at
+// an active generation (#10972): supply_chain_impact items that match
+// manifestMarkerPredicate and consumerStatePredicate. It is a census of every
+// such marker, not of the markers a particular fan-out would have touched, and
+// it takes no before/after difference, so it is an upper bound on the re-pends
+// the exclusion avoided. It is a plain read: no FOR clause, no DML, no
 // parameters. Fanout runs it as its own autocommit statement after the fan-out
 // statement has committed, so it holds no lock the fan-out or a producer ack
 // waits on. The markers are not scheduled, so the count feeds only

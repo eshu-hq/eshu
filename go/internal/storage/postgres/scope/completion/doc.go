@@ -12,8 +12,10 @@
 // for the staying root plan tests, which EXPLAIN the shipped query rather
 // than a copy). Fanout schedules the active-generation consumers whose
 // handler reads the producer's output and never a manifest marker (#10972).
-// For a producer that feeds supply_chain_impact it then counts the markers it
-// left alone into ManifestMarkersSkipped with a separate read-only statement
+// For a producer that feeds supply_chain_impact it then counts the manifest
+// markers in an eligible state at an active generation (a census, an upper
+// bound on the re-pends avoided, taken even when the fan-out scheduled nothing)
+// into ManifestMarkersSkipped with a separate read-only statement
 // run after the fan-out committed, under its own bounded context; a failed
 // count logs a warning and leaves the field zero without failing the committed
 // fan-out. CrossScopeProducerReadinessStore answers per-producer-domain
