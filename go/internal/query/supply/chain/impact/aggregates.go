@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // page through the full list endpoint.
 type AggregateStore interface {
 	CountSupplyChainImpactFindings(context.Context, AggregateFilter) (AggregateCount, error)
-	SupplyChainImpactInventory(context.Context, AggregateFilter, InventoryDimension, int, int) ([]InventoryRow, error)
+	SupplyChainImpactInventory(context.Context, AggregateFilter, InventoryDimension, int, int) (AggregateInventoryPage, error)
 }
 
 // InventoryDimension names the grouping dimension for the
@@ -84,7 +85,10 @@ type AggregateFilter struct {
 // the count handler. AffectedExact and AffectedDerived correspond to the
 // reducer-owned impact_status values 'affected_exact' and 'affected_derived';
 // PossiblyAffected covers 'possibly_affected'. NotAffected counts every
-// impact_status value with the 'not_affected' prefix.
+// impact_status value with the 'not_affected' prefix. Freshness reports the
+// evidence behind the totals: the legacy live-facts read is always current,
+// while a winners-served envelope carries the maintainer watermark the
+// handler discloses.
 type AggregateCount struct {
 	TotalFindings    int
 	AffectedFindings int
@@ -94,6 +98,7 @@ type AggregateCount struct {
 	PossiblyAffected int
 	ByPriorityBucket map[string]int
 	BySeverity       map[string]int
+	Freshness        AggregateFreshness
 }
 
 // InventoryRow is one grouped bucket returned by the
@@ -112,6 +117,11 @@ type PostgresAggregateStore struct {
 	// Now supplies the single UTC clock value shared by every SQL statement
 	// in one aggregate call. It defaults to time.Now.
 	Now func() time.Time
+	// Logger receives the WARN line of a failed winners watermark probe. A
+	// nil logger drops it; the call still answers
+	// ErrAggregateReadModelUnavailable, mirroring the grouped inventory
+	// store.
+	Logger *slog.Logger
 	// ReadFromWinners switches the count and inventory reads to the
 	// maintained supply_chain_impact_canonical_winners read model (#10880
 	// slice 2b). When false (the default) the reads deduplicate at query
@@ -209,6 +219,13 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	}
 
 	readAt := SuppressionReadAt(s.Now)
+	// A winners-eligible call probes the maintainer watermark first and
+	// fails closed when the model cannot serve an exact answer; the legacy
+	// path reports plain freshness and issues no probe.
+	freshness, serveWinners, err := s.resolveAggregateFreshness(ctx, filter, readAt)
+	if err != nil {
+		return AggregateCount{}, err
+	}
 	args := []any{
 		filter.CVEID,
 		filter.PackageID,
@@ -233,7 +250,7 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	query := AggregateCombinedCountQuery
-	if s.readFromWinnersFor(filter) {
+	if serveWinners {
 		query = AggregateWinnersCombinedCountQuery
 	}
 	row := s.queryer().QueryRowContext(ctx, query, args...)
@@ -252,6 +269,7 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 		NotAffected:      int(notAffected.Int64),
 		ByPriorityBucket: map[string]int{},
 		BySeverity:       map[string]int{},
+		Freshness:        freshness,
 	}
 
 	if err := decodeAggregateBucketJSON(priorityBuckets, count.ByPriorityBucket); err != nil {
@@ -285,35 +303,42 @@ func decodeAggregateBucketJSON(raw []byte, out map[string]int) error {
 
 // SupplyChainImpactInventory returns a paginated grouped count along the
 // requested dimension. Limit and offset must already be normalized by the
-// caller.
+// caller. A winners-eligible call probes the maintainer watermark first and
+// fails closed with ErrAggregateReadModelUnavailable when the model cannot
+// serve an exact answer; the page carries the freshness the handler
+// discloses.
 func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	ctx context.Context,
 	filter AggregateFilter,
 	dimension InventoryDimension,
 	limit int,
 	offset int,
-) ([]InventoryRow, error) {
+) (AggregateInventoryPage, error) {
 	if s.DB == nil && s.reader == nil {
-		return nil, fmt.Errorf("supply chain impact aggregate database is required")
+		return AggregateInventoryPage{}, fmt.Errorf("supply chain impact aggregate database is required")
 	}
 	groupExpr, err := supplyChainImpactInventoryGroupExpression(dimension)
 	if err != nil {
-		return nil, err
+		return AggregateInventoryPage{}, err
 	}
 	// The handler asks for one extra row to detect truncation, so the store
 	// accepts up to MaxLimit+1 for that internal pagination probe (mirrors
 	// PostgresFindingStore.ListSupplyChainImpactFindings).
 	if limit <= 0 || limit > AggregateMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", AggregateMaxLimit+1)
+		return AggregateInventoryPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", AggregateMaxLimit+1)
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	readAt := SuppressionReadAt(s.Now)
+	freshness, serveWinners, err := s.resolveAggregateFreshness(ctx, filter, readAt)
+	if err != nil {
+		return AggregateInventoryPage{}, err
+	}
 	q := InventoryQuery(groupExpr)
-	if s.readFromWinnersFor(filter) {
+	if serveWinners {
 		q = AggregateWinnersInventoryQuery(groupExpr)
 	}
-	readAt := SuppressionReadAt(s.Now)
 	args := []any{
 		filter.CVEID,
 		filter.PackageID,
@@ -340,26 +365,29 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	args = append(args, limit, offset)
 	rows, err := s.queryer().QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("inventory supply chain impact findings: %w", err)
+		return AggregateInventoryPage{}, fmt.Errorf("inventory supply chain impact findings: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]InventoryRow, 0, limit)
+	page := AggregateInventoryPage{
+		Rows:      make([]InventoryRow, 0, limit),
+		Freshness: freshness,
+	}
 	for rows.Next() {
 		var bucket string
 		var bucketCount int64
 		if err := rows.Scan(&bucket, &bucketCount); err != nil {
-			return nil, fmt.Errorf("scan supply chain impact inventory row: %w", err)
+			return AggregateInventoryPage{}, fmt.Errorf("scan supply chain impact inventory row: %w", err)
 		}
-		out = append(out, InventoryRow{
+		page.Rows = append(page.Rows, InventoryRow{
 			Dimension: dimension,
 			Value:     strings.TrimSpace(bucket),
 			Count:     int(bucketCount),
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate supply chain impact inventory rows: %w", err)
+		return AggregateInventoryPage{}, fmt.Errorf("iterate supply chain impact inventory rows: %w", err)
 	}
-	return out, nil
+	return page, nil
 }
 
 // InventoryQuery inserts one expression selected by the

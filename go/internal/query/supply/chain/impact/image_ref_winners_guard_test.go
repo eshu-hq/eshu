@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -59,6 +60,15 @@ func TestAggregateImageRefStaysOffWinners(t *testing.T) {
 		}}
 	}
 	emptyRows := func(string) (db.Rows, error) { return &cov7StoreRows{}, nil }
+	// A winners-eligible call probes the watermark first, so the plain case
+	// serves a fresh watermark; the existence-filter cases stay on the
+	// legacy CTE and must never issue that probe.
+	freshRows := func(query string) (db.Rows, error) {
+		if query == SelectWinnersWatermarkQuery {
+			return &cov7StoreRows{rows: [][]any{{time.Now().UTC()}}}, nil
+		}
+		return emptyRows(query)
+	}
 	for name, filter := range map[string]AggregateFilter{
 		"image_ref": {ImageRef: "registry.example/app:1"},
 		"profile":   {Status: "affected_exact", DetectionProfile: ProfilePrecise},
@@ -67,23 +77,37 @@ func TestAggregateImageRefStaysOffWinners(t *testing.T) {
 		wantWinners := name == "plain"
 		t.Run("count/"+name, func(t *testing.T) {
 			t.Parallel()
-			probe := &cov7StoreQueryer{onRow: countRow, onRows: emptyRows}
+			probe := &cov7StoreQueryer{onRow: countRow, onRows: freshRows}
 			store := NewPostgresAggregateStoreWithReadStore(probe, true)
 			if _, err := store.CountSupplyChainImpactFindings(t.Context(), filter); err != nil {
 				t.Fatalf("count = %v", err)
 			}
-			if got := strings.Contains(probe.queries[0], "aggregate_winners AS"); got != wantWinners {
+			got := false
+			for _, query := range probe.queries {
+				got = got || strings.Contains(query, "aggregate_winners AS")
+			}
+			if got != wantWinners {
 				t.Fatalf("count reads winners = %v, want %v", got, wantWinners)
+			}
+			if wantWinners && len(probe.queries) != 2 {
+				t.Fatalf("plain count issued %d queries, want watermark probe plus one winners statement", len(probe.queries))
+			}
+			if !wantWinners && len(probe.queries) != 1 {
+				t.Fatalf("existence-filter count issued %d queries, want one legacy statement with no probe", len(probe.queries))
 			}
 		})
 		t.Run("inventory/"+name, func(t *testing.T) {
 			t.Parallel()
-			probe := &cov7StoreQueryer{onRow: countRow, onRows: emptyRows}
+			probe := &cov7StoreQueryer{onRow: countRow, onRows: freshRows}
 			store := NewPostgresAggregateStoreWithReadStore(probe, true)
 			if _, err := store.SupplyChainImpactInventory(t.Context(), filter, InventoryByStatus, 10, 0); err != nil {
 				t.Fatalf("inventory = %v", err)
 			}
-			if got := strings.Contains(probe.queries[0], "aggregate_winners AS"); got != wantWinners {
+			got := false
+			for _, query := range probe.queries {
+				got = got || strings.Contains(query, "aggregate_winners AS")
+			}
+			if got != wantWinners {
 				t.Fatalf("inventory reads winners = %v, want %v", got, wantWinners)
 			}
 		})

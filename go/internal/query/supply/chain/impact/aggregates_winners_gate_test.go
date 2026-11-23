@@ -6,6 +6,7 @@ package impact
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -24,20 +25,23 @@ func TestAggregatesWinnersReadGate(t *testing.T) {
 			[]byte(`[{"bucket":"p1","bucket_count":2}]`), []byte(`[{"bucket":"critical","bucket_count":3}]`),
 		}}
 	}
-	emptyRows := func(string) (db.Rows, error) { return &cov7StoreRows{}, nil }
-
 	// routed runs one count call and returns every issued statement so each
-	// subtest can assert the read model of the whole call. The count is one
-	// combined statement (#10970), winners or legacy.
+	// subtest can assert the read model of the whole call. A winners-eligible
+	// call issues the watermark probe first, so the fake serves a fresh
+	// watermark and a winners call issues two statements: the probe plus one
+	// combined statement (#10970).
 	routed := func(store PostgresAggregateStore, filter AggregateFilter) []string {
 		t.Helper()
-		probe := &cov7StoreQueryer{onRow: func(string) db.Row { return countRow() }, onRows: emptyRows}
+		onRows := func(query string) (db.Rows, error) {
+			if query == SelectWinnersWatermarkQuery {
+				return &cov7StoreRows{rows: [][]any{{time.Now().UTC()}}}, nil
+			}
+			return &cov7StoreRows{}, nil
+		}
+		probe := &cov7StoreQueryer{onRow: func(string) db.Row { return countRow() }, onRows: onRows}
 		store.reader = probe
 		if _, err := store.CountSupplyChainImpactFindings(t.Context(), filter); err != nil {
 			t.Fatalf("count = %v, want envelope", err)
-		}
-		if len(probe.queries) != 1 {
-			t.Fatalf("count issued %d queries, want exactly one combined statement", len(probe.queries))
 		}
 		return probe.queries
 	}
@@ -49,7 +53,10 @@ func TestAggregatesWinnersReadGate(t *testing.T) {
 			t.Fatal("gated constructor left ReadFromWinners false")
 		}
 		queries := routed(store, AggregateFilter{Status: "affected_exact"})
-		for _, query := range queries {
+		if len(queries) != 2 || queries[0] != SelectWinnersWatermarkQuery {
+			t.Fatalf("gated count issued %d queries, want watermark probe plus one winners statement", len(queries))
+		}
+		for _, query := range queries[1:] {
 			if !strings.Contains(query, "aggregate_winners AS") ||
 				!strings.Contains(query, "supply_chain_impact_canonical_winners AS w") {
 				t.Fatalf("gated count query misses the winners read:\n%s", query)
@@ -89,18 +96,23 @@ func TestAggregatesWinnersReadGate(t *testing.T) {
 
 	t.Run("gated ungranted inventory reads winners", func(t *testing.T) {
 		t.Parallel()
-		probe := &cov7StoreQueryer{onRows: emptyRows}
+		probe := &cov7StoreQueryer{onRows: func(query string) (db.Rows, error) {
+			if query == SelectWinnersWatermarkQuery {
+				return &cov7StoreRows{rows: [][]any{{time.Now().UTC()}}}, nil
+			}
+			return &cov7StoreRows{}, nil
+		}}
 		store := NewPostgresAggregateStoreWithReadStore(probe, true)
 		if _, err := store.SupplyChainImpactInventory(
 			t.Context(), AggregateFilter{Status: "affected_exact"}, InventoryByStatus, 10, 0,
 		); err != nil {
 			t.Fatalf("inventory = %v, want page", err)
 		}
-		if len(probe.queries) != 1 {
-			t.Fatalf("inventory issued %d queries, want one", len(probe.queries))
+		if len(probe.queries) != 2 || probe.queries[0] != SelectWinnersWatermarkQuery {
+			t.Fatalf("inventory issued %d queries, want watermark probe plus one winners statement", len(probe.queries))
 		}
-		if !strings.Contains(probe.queries[0], "aggregate_winners AS") {
-			t.Fatalf("gated inventory query misses the winners read:\n%s", probe.queries[0])
+		if !strings.Contains(probe.queries[1], "aggregate_winners AS") {
+			t.Fatalf("gated inventory query misses the winners read:\n%s", probe.queries[1])
 		}
 	})
 

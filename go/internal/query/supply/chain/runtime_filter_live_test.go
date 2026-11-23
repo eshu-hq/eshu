@@ -126,13 +126,14 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			if count.TotalFindings != 1 {
 				t.Fatalf("count %s = %d, want 1", tc.name, count.TotalFindings)
 			}
-			inventory, err := aggregateStore.SupplyChainImpactInventory(
+			inventoryPage, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
 				impact.InventoryByStatus,
 				10,
 				0,
 			)
+			inventory := inventoryPage.Rows
 			if err != nil {
 				t.Fatalf("inventory %s: %v", tc.name, err)
 			}

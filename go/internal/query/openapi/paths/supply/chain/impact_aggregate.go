@@ -12,6 +12,7 @@ const ImpactAggregate = `
     "/api/v0/supply-chain/impact/findings/count": {
       "get": {
         "summary": "Count supply-chain impact findings without paging the list endpoint",
+        "description": "A winners-eligible call served from the maintained winners read model carries freshness with the maintainer watermark. When the model is absent, older than the freshness window, or its probe fails, the call answers 503 backend_unavailable instead of an approximate total; there is no fallback to the legacy read.",
         "operationId": "countSupplyChainImpactFindings",
         "x-scoped-token-support": true,
         "parameters": [
@@ -55,6 +56,7 @@ const ImpactAggregate = `
                     "by_priority_bucket": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_severity": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Echo of the detection profile applied to the aggregate; precise is returned when no profile parameter was supplied."},
+                    "freshness": {"type": "object", "description": "Evidence freshness behind the totals. The legacy live-facts read reports fresh with no watermark; a winners-served answer reports fresh with the maintainer watermark.", "properties": {"state": {"type": "string", "enum": ["fresh"]}, "latest_observed_at": {"type": "string"}}},
                     "scope": {"type": "object"}
                   }
                 }
@@ -67,6 +69,7 @@ const ImpactAggregate = `
     "/api/v0/supply-chain/impact/inventory": {
       "get": {
         "summary": "Group supply-chain impact findings by one dimension without paging the list endpoint",
+        "description": "The five single-column dimensions served from the maintained winners read model carry freshness with the maintainer watermark. When the model is absent, older than the freshness window, or its probe fails, the call answers 503 backend_unavailable instead of approximate buckets; there is no fallback to the legacy read.",
         "operationId": "getSupplyChainImpactInventory",
         "x-scoped-token-support": true,
         "parameters": [
@@ -129,7 +132,7 @@ const ImpactAggregate = `
                     "truncated": {"type": "boolean"},
                     "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
                     "distinct_findings": {"type": "integer", "description": "Grouped dimensions only. Each finding counted once across the whole filtered set, independent of limit and offset (a truncated page does not change it). Normally equals total_findings of the count route for the same filters. It is read from the winners read model, so it can differ in two known cases: a scope-id grant (the winner copy is chosen before the grant applies) and stale winners (buckets read read_model_unavailable). A rank filter (priority_bucket, severity, min_priority_score) tests the canonical copy, as the contract defines. A call with image_ref or profile=precise (the default profile) answers 503, because copies of one finding can differ on both and the grouped read model holds one copy; request profile=comprehensive without image_ref. Bucket counts summed over every page are at least this value."},
-                    "freshness": {"type": "object", "description": "Grouped dimensions only. Evidence freshness behind the page.", "properties": {"state": {"type": "string", "enum": ["fresh", "stale", "unknown"]}, "latest_observed_at": {"type": "string"}}},
+                    "freshness": {"type": "object", "description": "Evidence freshness behind the page. Grouped dimensions report fresh, stale, or unknown; the five single-column dimensions report fresh with the maintainer watermark when served from the winners read model, and fresh with no watermark on the legacy read.", "properties": {"state": {"type": "string", "enum": ["fresh", "stale", "unknown"]}, "latest_observed_at": {"type": "string"}}},
                     "scope": {"type": "object"}
                   }
                 }

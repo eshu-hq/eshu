@@ -50,6 +50,10 @@ func NewSupplyChainReadAdmissionWithReadStore(reader db.ReadStore, readImpactFro
 		return nil
 	}
 	cloudResources := NewPostgresCloudResourceListStoreWithReadStore(reader)
+	// The probe-failure WARN names the deployment the 503 blames, so a
+	// lagging maintainer is distinguishable from an unwired route.
+	supplyChainAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+	supplyChainAggregates.Logger = logger
 	return &supplyChainReadAdmission{
 		SBOMAttestationAttachmentStore:            NewPostgresSBOMAttestationAttachmentStoreWithReadStore(reader),
 		SBOMAttestationAttachmentAggregateStore:   NewPostgresSBOMAttestationAttachmentAggregateStoreWithReadStore(reader),
@@ -62,7 +66,7 @@ func NewSupplyChainReadAdmissionWithReadStore(reader db.ReadStore, readImpactFro
 		CloudResourceRuntimeDigestResolver:        cloudResources,
 		KubernetesWorkloadCurrentInventoryFilter:  kubernetes.NewPostgresRuntimeWorkloadStoreWithReadStore(reader),
 		FindingStore:                              impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		AggregateStore:                            impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
+		AggregateStore:                            supplyChainAggregates,
 		GroupedInventoryStore:                     impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
 		ExplanationStore:                          impact.NewPostgresFindingStoreWithReadStore(reader, false),
 		ReadinessStore:                            impact.NewPostgresReadinessStoreWithReadStore(reader),

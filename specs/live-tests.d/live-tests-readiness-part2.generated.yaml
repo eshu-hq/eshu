@@ -19,6 +19,11 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/aggregates_winners_failclosed_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11169 disposable PostgreSQL 18 proof that the winners-served aggregate read fails closed (absent, stale, or unprobed watermark answers ErrAggregateReadModelUnavailable, never an approximate total) and that parallel winners reads during an in-flight maintainer resweep all succeed with identical totals; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go
     tag: ~
     class: postgres_ci

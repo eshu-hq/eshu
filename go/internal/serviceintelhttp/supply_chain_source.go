@@ -61,7 +61,7 @@ func (s DurableSupplyChainEvidenceSource) SupplyChainInventoryForWorkload(
 		DetectionProfile: impact.ProfilePrecise,
 	}
 	limit := impact.AggregateMaxLimit
-	rows, err := s.store.SupplyChainImpactInventory(
+	page, err := s.store.SupplyChainImpactInventory(
 		ctx,
 		filter,
 		impact.InventoryByStatus,
@@ -72,6 +72,7 @@ func (s DurableSupplyChainEvidenceSource) SupplyChainInventoryForWorkload(
 		s.warn(ctx, workloadID)
 		return nil, fmt.Errorf("load supply-chain impact inventory: %w", err)
 	}
+	rows := page.Rows
 	if len(rows) == 0 {
 		return nil, nil
 	}
