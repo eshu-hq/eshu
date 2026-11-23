@@ -44,14 +44,7 @@ WITH lease AS MATERIALIZED (
     SELECT producer_domain, consumer_domain
     FROM unnest($7::text[], $8::text[])
          AS edge(producer_domain, consumer_domain)
-), active_generations AS MATERIALIZED (
-    SELECT scope.scope_id, generation.generation_id
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS generation
-      ON generation.scope_id = scope.scope_id
-     AND generation.generation_id = scope.active_generation_id
-     AND generation.status = 'active'
-), current_consumers AS MATERIALIZED (
+), ` + activeGenerationsCTE + `, current_consumers AS MATERIALIZED (
     SELECT source.work_item_id,
            source.status,
            source.cross_scope_replay_required
@@ -60,11 +53,8 @@ WITH lease AS MATERIALIZED (
       ON dependency.consumer_domain = source.domain
     JOIN lease
       ON lease.producer_domain = dependency.producer_domain
-    JOIN active_generations AS generation
-      ON generation.scope_id = source.scope_id
-     AND generation.generation_id = source.generation_id
-    WHERE source.stage = 'reducer'
-      AND source.status IN ('claimed', 'running', 'succeeded')
+    ` + activeGenerationJoin + `
+    WHERE ` + consumerStatePredicate + `
       AND NOT (` + manifestMarkerPredicate + `)
     ORDER BY source.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF source
@@ -77,11 +67,8 @@ WITH lease AS MATERIALIZED (
       ON dependency.consumer_domain = source.domain
     JOIN lease
       ON lease.producer_domain = dependency.producer_domain
-    JOIN active_generations AS generation
-      ON generation.scope_id = source.scope_id
-     AND generation.generation_id = source.generation_id
-    WHERE source.stage = 'reducer'
-      AND source.status IN ('claimed', 'running', 'succeeded')
+    ` + activeGenerationJoin + `
+    WHERE ` + consumerStatePredicate + `
       AND (` + manifestMarkerPredicate + `)
 ), captured AS MATERIALIZED (
     SELECT event.event_id, event.producer_item_count

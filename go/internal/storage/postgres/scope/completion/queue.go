@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -122,6 +123,12 @@ var ErrCrossScopeCompletionClaimRejected = errors.New("cross-scope completion cl
 type CrossScopeCompletionStore struct {
 	database db.ExecQueryer
 	Now      func() time.Time
+	// Logger receives the warning Fanout writes when the post-commit
+	// manifest-marker count fails. A nil Logger falls back to slog.Default so
+	// the failure is never silent.
+	Logger *slog.Logger
+	// markerCountTimeout overrides defaultManifestMarkerCountTimeout in tests.
+	markerCountTimeout time.Duration
 }
 
 // NewCrossScopeCompletionStore returns a completion queue over db.
