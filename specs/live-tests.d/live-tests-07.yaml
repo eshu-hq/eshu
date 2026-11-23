@@ -343,7 +343,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10972: reducer-contention enrolled TestFindQueuedHolderScopes* (3 proofs in this file: reopen-classification differential, xmin and late-claim, read timeout) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes alternative; the coordinator's disposable PostgreSQL 18.3 run passed the prefilter live tests at 54b50516cc; the later 'pending at an old generation, succeeded at the active one' holder shape is NOT_CHECKED until the coordinator reruns them"
+    reason: "#10972: reducer-contention enrolled TestFindQueuedHolderScopes* (3 proofs in this file: reopen-classification differential, prefiltered holders keep their row version, read timeout) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes alternative; the coordinator's disposable PostgreSQL 18.3 run passed the status-only form at 54b50516cc; the covered-only predicate is NOT_CHECKED until the coordinator reruns them"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_plan_live_test.go
     tag: ~
@@ -354,6 +354,11 @@ tests:
     tag: ~
     class: dedicated_ci
     reason: "#10972: reducer-contention enrolled the stamp-widening proofs (prefilter keeps a pending holder stamped for another change; reopen widens a pending holder's stamp without moving its claim order; reopen widens a flagged in-flight holder's stamp) in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_queued_late_claim_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972: reducer-contention enrolled 3 stamp-cover proofs in this file in the -run filter of .github/workflows/reducer-contention-gate.yml via the TestFindQueuedHolderScopes and TestReopenWidens alternatives; NOT_CHECKED until the coordinator runs them on disposable PostgreSQL 18.3"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_adaptive_split_live_test.go
     tag: ~

@@ -210,13 +210,13 @@ func queuedRowVersions(t *testing.T, ctx context.Context, db *sql.DB) map[string
 	return out
 }
 
-// TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionAndALateClaimedHolderIsStillFlaggedLive
-// runs the fan-out loop the way the handler does: the prefilter read, then one
-// reopen per kept holder. Pending and retrying holders must keep the row
-// version (xmin) they had, which is the write the prefilter exists to avoid. A
-// holder that was succeeded at the read and claimed before the loop reaches it
-// is not dropped, and the reopen flags it for one rerun.
-func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionAndALateClaimedHolderIsStillFlaggedLive(t *testing.T) {
+// TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionLive runs the
+// fan-out loop the way the handler does: the prefilter read, then one reopen
+// per kept holder. Pending and retrying holders must keep the row version
+// (xmin) they had, which is the write the prefilter exists to avoid. The late
+// claim of a kept holder is proven through a real claim in
+// supply_chain_impact_fanout_queued_late_claim_live_test.go.
+func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	seedQueuedHolderStates(t, ctx, db)
 	store := fanOutLiveStore(db)
@@ -230,37 +230,19 @@ func TestFindQueuedHolderScopesPrefilteredHoldersWriteNoRowVersionAndALateClaime
 		dropped[scope] = true
 	}
 	before := queuedRowVersions(t, ctx, db)
-
-	// Between the prefilter read and the loop, the succeeded holder is claimed.
-	succeeded := queuedActiveItemID("h-succeeded")
-	if _, err := db.ExecContext(ctx, `
-UPDATE fact_work_items SET status = 'claimed', lease_owner = 'late', claim_until = now() + interval '1 hour', last_attempt_at = now()
-WHERE work_item_id = $1`, succeeded); err != nil {
-		t.Fatal(err)
-	}
 	// Every kept holder must still reach the per-holder statement; the loop
 	// below runs it for the holders whose reopen this fixture can complete. A
 	// failed-only holder has no matched item, so its reopen would enqueue a new
 	// intent that collides with the fixture's failed row: that enqueue path is
 	// covered by the reopen tests, not by this one.
-	for _, scope := range []string{"h-claimed", "h-running", "h-succeeded"} {
+	kept := []string{"h-claimed", "h-running", "h-succeeded"}
+	for _, scope := range kept {
 		if dropped[scope] {
 			t.Fatalf("holder %s was dropped by the prefilter, want kept", scope)
 		}
-	}
-	outcomes := map[string]supplychaincore.FanOutOutcome{}
-	for _, scope := range []string{"h-claimed", "h-running", "h-succeeded"} {
-		reopen, err := store.ReopenHolderDetailed(ctx, scope, fanOutLiveOrigin)
-		if err != nil {
+		if _, err := store.ReopenHolderDetailed(ctx, scope, fanOutLiveOrigin); err != nil {
 			t.Fatalf("reopen %s: %v", scope, err)
 		}
-		outcomes[scope] = reopen.Outcome
-	}
-	if got := outcomes["h-succeeded"]; got != supplychaincore.FanOutReplayFlagged {
-		t.Fatalf("late-claimed holder outcome = %q, want replay_flagged", got)
-	}
-	if got := fanOutItem(t, ctx, db, succeeded); got.status != "claimed" || !got.flag {
-		t.Fatalf("late-claimed holder = %+v, want claimed with the replay bit", got)
 	}
 	after := queuedRowVersions(t, ctx, db)
 	for _, scope := range queued {
