@@ -62,33 +62,54 @@ func TestSupplyChainImpactFindingSupportsMigrationShape(t *testing.T) {
 	}
 }
 
+// holderIndexStatements are the single statements of migrations 339 to 342
+// (#11197). 341 carries fastupdate = off and 342 carries no fastupdate option: the
+// members GIN's pending list flipped the mass probe to a sequential scan, and the
+// tokens GIN carried most of the writer WAL cost of turning the option off (the
+// W-A amendment of arbiter-b2b-w-a-return).
+var holderIndexStatements = map[string]string{
+	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_cve_idx ON supply_chain_impact_finding_supports (cve_id, fact_id) WHERE cve_id <> '';",
+	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_advisory_idx ON supply_chain_impact_finding_supports (advisory_id, fact_id) WHERE advisory_id <> '';",
+	"341_supply_chain_impact_finding_supports_members_idx.sql":  "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_members_idx ON supply_chain_impact_finding_supports USING GIN ((payload #> '{provenance,advisory_group_members}')) WITH (fastupdate = off);",
+	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_tokens_idx ON supply_chain_impact_finding_supports USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload));",
+}
+
+// migrationStatement returns the code of a migration file as one normalized
+// statement, comments dropped.
+func migrationStatement(raw string) string {
+	var code []string
+	for _, line := range strings.Split(raw, "\n") {
+		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+			code = append(code, line)
+		}
+	}
+	return strings.Join(strings.Fields(strings.Join(code, " ")), " ")
+}
+
 // TestSupplyChainImpactHolderIndexMigrationsShape pins migrations 339 to 342
 // (#11197): one concurrent build per file, the two btrees partial on a non-blank
-// id and covering (INCLUDE scope_id, generation_id), and both GINs created with fastupdate = off. A GIN with fastupdate on
-// carries a pending list that the planner prices into every scan; the mass probe
-// then flipped to a sequential scan of the supports table (254 s for five ids at
-// 8,000,000 supports, arbiter-b2b-gin-covering decision 1).
+// id, the members GIN with fastupdate = off and the tokens GIN with no
+// fastupdate option. The check is exercised in both directions: a members GIN
+// without the option and a tokens GIN with it are each rejected.
 func TestSupplyChainImpactHolderIndexMigrationsShape(t *testing.T) {
 	t.Parallel()
-	for file, want := range map[string]string{
-		"339_supply_chain_impact_finding_supports_cve_idx.sql":      "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_cve_idx ON supply_chain_impact_finding_supports (cve_id, fact_id) INCLUDE (scope_id, generation_id) WHERE cve_id <> '';",
-		"340_supply_chain_impact_finding_supports_advisory_idx.sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_advisory_idx ON supply_chain_impact_finding_supports (advisory_id, fact_id) INCLUDE (scope_id, generation_id) WHERE advisory_id <> '';",
-		"341_supply_chain_impact_finding_supports_members_idx.sql":  "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_members_idx ON supply_chain_impact_finding_supports USING GIN ((payload #> '{provenance,advisory_group_members}')) WITH (fastupdate = off);",
-		"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_tokens_idx ON supply_chain_impact_finding_supports USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload)) WITH (fastupdate = off);",
-	} {
+	for file, want := range holderIndexStatements {
 		raw, err := os.ReadFile("migrations/" + file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}
-		var code []string
-		for _, line := range strings.Split(string(raw), "\n") {
-			if !strings.HasPrefix(strings.TrimSpace(line), "--") {
-				code = append(code, line)
-			}
-		}
-		stmt := strings.Join(strings.Fields(strings.Join(code, " ")), " ")
-		if stmt != want {
+		if stmt := migrationStatement(string(raw)); stmt != want {
 			t.Errorf("%s statement = %q, want %q", file, stmt, want)
 		}
+	}
+	// Seeded violations: the same text with the option flipped must not equal the
+	// pinned statement.
+	members := holderIndexStatements["341_supply_chain_impact_finding_supports_members_idx.sql"]
+	if migrationStatement(strings.Replace(members, " WITH (fastupdate = off)", "", 1)) == members {
+		t.Error("a members GIN without fastupdate = off is accepted")
+	}
+	tokens := holderIndexStatements["342_supply_chain_impact_finding_supports_tokens_idx.sql"]
+	if migrationStatement(strings.Replace(tokens, ";", " WITH (fastupdate = off);", 1)) == tokens {
+		t.Error("a tokens GIN with fastupdate = off is accepted")
 	}
 }

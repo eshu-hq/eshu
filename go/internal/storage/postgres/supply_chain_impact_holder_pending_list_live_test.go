@@ -23,6 +23,18 @@ func (q sqlTxQueryer) QueryContext(ctx context.Context, query string, args ...an
 	return q.tx.QueryContext(ctx, query, args...)
 }
 
+// ginOptionsViolation returns why the reloptions of the members and tokens GINs
+// are not the shipped ones: members fastupdate=off, tokens no fastupdate option.
+func ginOptionsViolation(members, tokens string) string {
+	if !strings.Contains(members, "fastupdate=off") {
+		return "the members GIN lacks fastupdate=off"
+	}
+	if strings.Contains(tokens, "fastupdate") {
+		return "the tokens GIN carries a fastupdate option"
+	}
+	return ""
+}
+
 // pendingListCorpus seeds scopes and a base set of supports directly (no finding
 // facts), with the table's autovacuum off, and ANALYZEs once. It never vacuums:
 // a vacuum flushes a GIN pending list, and the guard needs the list the planner
@@ -117,25 +129,29 @@ func explainInTx(t *testing.T, ctx context.Context, tx *sql.Tx, st holderPlanSta
 }
 
 // TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive is the plan guard
-// for the two decisions of arbiter-b2b-gin-covering (#11197): the group-member and
-// token GINs ship with fastupdate = off (no pending list for the planner to price),
-// and the mass probe's transaction turns enable_seqscan off (the probe's per-id
-// LIMIT otherwise lets a sequential scan win the cost race against any GIN scan
-// that is not nearly free). On about 40,000 supports with autovacuum off and no
-// vacuum after the seed:
+// for the two decisions of arbiter-b2b-gin-covering and its W-A amendment (#11197):
+// the group-member GIN ships with fastupdate = off (no pending list for the planner
+// to price; the tokens GIN keeps the default list), and the mass probe's
+// transaction turns enable_seqscan off (the probe's per-id LIMIT otherwise lets a
+// sequential scan win the cost race against any GIN scan that is not nearly free).
+// On about 40,000 supports with autovacuum off and no vacuum after the seed:
 //
-//	RED-1   a rolled-back transaction resets fastupdate on both GINs and inserts
-//	        until each holds 400 pending pages; the shipped probe text, planned
-//	        without the setting, must be a Seq Scan on supports (else the guard
-//	        proves nothing: "RED not reproduced").
-//	GREEN-1 the same inserts under the shipped options leave 0 pending pages on
-//	        both GINs, and the probe's member arm is on the members index with no
+//	RED-1   a rolled-back transaction resets fastupdate on the members GIN and
+//	        inserts until both GINs hold 400 pending pages (the tokens GIN is as
+//	        shipped); the shipped probe text, planned without the setting, must be a
+//	        Seq Scan on supports (else the guard proves nothing: "RED not
+//	        reproduced").
+//	GREEN-1 the same inserts under the shipped options leave 0 pending pages on the
+//	        members GIN, and the probe's member arm is on the members index with no
 //	        setting.
 //	GREEN-2 the RED-1 state planned after ApplyHolderMassProbeSettings, the helper
-//	        the reader runs: the member arm is on the members index, no Seq Scan.
+//	        the reader runs: the member arm is on the members index, no Seq Scan, and
+//	        the probe runs with masses equal to the flushed run.
 //
-// In the RED-1 state the 5-id holder statement and both key-range statements keep
-// every arm on its index by name, with no setting.
+// In the RED-1 state, with both lists full, the 5-id holder statement and both
+// key-range statements keep every arm on its index by name, with no setting. The
+// reloptions assertion rejects a members GIN without fastupdate=off and a tokens
+// GIN with it.
 func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T) {
 	ctx, database := fanOutLiveDB(t)
 	pendingListCorpus(t, ctx, database, 40000)
@@ -147,15 +163,23 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 		}
 	}
 
-	// Schema: both GINs carry fastupdate = off on the migrated database.
-	for _, index := range []string{holderMembersIdx, holderTokensIdx} {
-		var opts []byte
+	// Schema: the members GIN carries fastupdate = off and the tokens GIN carries
+	// no fastupdate option, and the check rejects each direction when seeded.
+	reloptions := func(index string) string {
+		var opts string
 		if err := database.QueryRowContext(ctx, `SELECT coalesce(reloptions::text, '') FROM pg_class WHERE relname = $1`, index).Scan(&opts); err != nil {
 			t.Fatalf("reloptions of %s: %v", index, err)
 		}
-		if !strings.Contains(string(opts), "fastupdate=off") {
-			t.Fatalf("%s reloptions = %q, want fastupdate=off", index, opts)
-		}
+		return opts
+	}
+	if v := ginOptionsViolation(reloptions(holderMembersIdx), reloptions(holderTokensIdx)); v != "" {
+		t.Fatalf("migrated GIN options: %s", v)
+	}
+	if ginOptionsViolation("", "") == "" {
+		t.Fatal("seeded violation accepted: a members GIN without fastupdate=off")
+	}
+	if ginOptionsViolation("{fastupdate=off}", "{fastupdate=off}") == "" {
+		t.Fatal("seeded violation accepted: a tokens GIN with fastupdate=off")
 	}
 
 	insertUntil := func(tx *sql.Tx, wantPending int) int {
@@ -182,10 +206,8 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 		t.Fatal(err)
 	}
 	insertUntil(greenTx, 0)
-	for _, index := range []string{holderMembersIdx, holderTokensIdx} {
-		if pages := pendingPages(t, ctx, greenTx, index); pages != 0 {
-			t.Fatalf("GREEN-1: %s holds %d pending pages under fastupdate = off, want 0", index, pages)
-		}
+	if pages := pendingPages(t, ctx, greenTx, holderMembersIdx); pages != 0 {
+		t.Fatalf("GREEN-1: %s holds %d pending pages under fastupdate = off, want 0", holderMembersIdx, pages)
 	}
 	plan := explainInTx(t, ctx, greenTx, probe, false)
 	if v := holderPlanViolation(plan, holderMembersIdx); v != "" {
@@ -200,11 +222,11 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, index := range []string{holderMembersIdx, holderTokensIdx} {
-		if _, err := redTx.ExecContext(ctx, `ALTER INDEX `+index+` RESET (fastupdate)`); err != nil {
-			_ = redTx.Rollback()
-			t.Fatalf("reset fastupdate on %s: %v", index, err)
-		}
+	// RED-1 resets the option on the members GIN only; the tokens GIN is as shipped
+	// (default fastupdate), so both lists fill.
+	if _, err := redTx.ExecContext(ctx, `ALTER INDEX `+holderMembersIdx+` RESET (fastupdate)`); err != nil {
+		_ = redTx.Rollback()
+		t.Fatalf("reset fastupdate on %s: %v", holderMembersIdx, err)
 	}
 	added := insertUntil(redTx, 400)
 	members, tokens := pendingPages(t, ctx, redTx, holderMembersIdx), pendingPages(t, ctx, redTx, holderTokensIdx)

@@ -373,7 +373,7 @@ import (
 // 364 plus the four of 339 to 342 plus the pair; the digest is this test's own
 // derivation on the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "d0facc72409f3238a189180c34472b87e40df55117e1bfe6245f07df82497bba"
+	goldenBootstrapDefinitionsDigest = "14687e0b41eee1b96e3db5c4628a6e44a14e4a5edb818ca131a65389d7c4bfd0"
 	goldenBootstrapDefinitionsCount  = 370
 )
 

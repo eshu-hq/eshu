@@ -12,14 +12,14 @@
 -- indexes of this set are 339 to 342, one per file. Measured cost and plans:
 -- docs/internal/evidence/11197-holder-reads-supports.md.
 --
--- fastupdate = off (arbiter-b2b-gin-covering, decision 1). A GIN with fastupdate on
--- batches inserts in a pending list that the planner prices into every scan of the
--- index: with the default 4 MB list more than about 165 pages full, the holder mass
--- probe's member arm costs more than a sequential scan of the supports table under
--- LIMIT, and at 8,000,000 supports a probe of five ids took 254 s instead of 291 ms
--- (docs/internal/evidence/11197-holder-reads-supports.md). With fastupdate off every
--- insert maintains the index in place, so there is no pending list to price and no
--- insert that stalls for the 12 to 15 s a full-list flush takes.
+-- No fastupdate option: this GIN keeps the default pending list (arbiter-b2b-w-a-return
+-- amendment). The writer harness found the S2 warm cells outside the +30 insert and +36
+-- replay stops with fastupdate off on both GINs (+39.0 and +54.2 points), and the tokens
+-- GIN carried 75% of the insert difference and 70% of the replay difference (members off
+-- alone: +22.6 and +31.9). The list is bounded at 4 MB, a flush of a full list took 0.5 to
+-- 0.8 s at 8,600,000 supports, and the key-range statements keep every arm on its index
+-- with a full list (docs/internal/evidence/11197-holder-reads-supports.md). The members
+-- GIN (341) is the one whose list the mass probe prices.
 --
 -- CONCURRENTLY, so the build does not block writers on the supports table.
 -- Single statement: a concurrent build cannot run inside a transaction block. A
@@ -29,5 +29,4 @@
 -- rolls out after the Job. The build waits for transactions older than its
 -- snapshot, so run it with no long transaction open.
 CREATE INDEX CONCURRENTLY IF NOT EXISTS supply_chain_impact_finding_supports_tokens_idx
-    ON supply_chain_impact_finding_supports USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload))
-    WITH (fastupdate = off);
+    ON supply_chain_impact_finding_supports USING GIN (eshu_sci_foreign_member_tokens_v4(fact_id, payload));

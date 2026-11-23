@@ -511,10 +511,10 @@ var migrationShippedChecksums = map[string]string{
 	"338_supply_chain_impact_finding_supports.sql": "9355b094248c1efc43b060e499f5931ae9bdd3932fcbba20fbac996faf79f5e6",
 	// #11197 (#10880 PR-B2b): the four holder-read indexes on the per-support
 	// table, one concurrent build per file (339 to 342; 338 is B1's).
-	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "ca7d0cc75eb00421a7363c5a9ad0bcbfd0689851207b2b017404431c78282dc1",
-	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "834713fcd42ac36c576484bb76d63ee6277988ca5050408f0f17353b2f448964",
-	"341_supply_chain_impact_finding_supports_members_idx.sql":  "e792a890ff8830ca224f9ab6ba1449963b105f8b4156b5a4c4aa816c1584fb7a",
-	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "f6e1a35f207258af5c065af9cd11eb726b60c12de6525894e6d418badf7eb559",
+	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "17697db84b367777ac82492ed39f4fd6e4798af724360f46301ad3943f0910ef",
+	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "2aadef166920a1007eeb9ead0cbccbe86e12cd3fc34a07ce61131b3027be25a4",
+	"341_supply_chain_impact_finding_supports_members_idx.sql":  "6a92e5011015a461a48fd333c6a0dfe031c0a59fd38484491144e7eab805ae99",
+	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "44a9ea8a5d8828eb51200a92ce34824f21ce69fc6da56d7b5aa404f2bd1a7a90",
 	// #10880 PR-B2a: the two partial indexes behind the unscoped existence-filter
 	// reads (numbered 343 and 344; 339 to 342 are reserved for PR-B2b).
 	"343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql": "26542615642bf2df191537b44df8a539e7d2b0db158fe8e53e6fcf83f9a0af2d",
