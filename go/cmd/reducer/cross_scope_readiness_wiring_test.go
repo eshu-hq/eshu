@@ -167,6 +167,12 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
+	// #11197: the registration must hand the handler a fan-out port with the
+	// supports gate, or the holder reads run against a table that may not be
+	// ready with every logic test green.
+	if !database.probedSupportsReadiness {
+		t.Fatal("the supports-readiness probe never ran: the handler-entry gate is not wired")
+	}
 	// The registration must hand the handler the Postgres fencing-token issuer
 	// (#7142); nothing else at this level pins that wiring.
 	// #11105: the registration must hand the handler the attachment
