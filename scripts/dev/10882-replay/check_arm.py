@@ -69,7 +69,8 @@ def check_final_state(arm: dict[str, Any], control: dict[str, Any]) -> list[Chec
   checks = []
   for path, label in (
       ("final.generations", "committed generation set"),
-      ("final.real_fact_sets", "real git fixture fact sets (fact id + payload hash)"),
+      ("final.real_fact_sets", "real git fixture fact sets (stable fact key + payload hash; "
+                                "fact_id, payload.indexed_at and payload.source_run_id are run-variant, normalised)"),
       ("final.graph_counts", "graph counts per label"),
       ("final.reducer_intents", "reducer intents for A and B (count + key set)"),
   ):

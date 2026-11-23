@@ -75,7 +75,8 @@ class CheckArmTest(unittest.TestCase):
     arm = _treatment()
     arm["final"]["real_fact_sets"]["repo-1"] = "other"
     failed = _failed(check_arm.run_checks("treatment", arm, [_control()]))
-    self.assertEqual(failed, ["real git fixture fact sets (fact id + payload hash)"])
+    self.assertEqual(len(failed), 1)
+    self.assertTrue(failed[0].startswith("real git fixture fact sets"))
 
   def test_red_latch_never_released_fails(self):
     arm = _treatment()

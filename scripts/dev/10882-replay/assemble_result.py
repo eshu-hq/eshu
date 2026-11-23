@@ -182,6 +182,42 @@ def census_classes(path: str) -> dict[str, int]:
   return classes
 
 
+# Fields that legitimately differ between two runs over identical content. Each
+# was observed to differ in a paired run and is minted per run in the collector:
+#   fact_id               facts.StableID over the run's source_run_id and generation id
+#   payload.source_run_id facts.StableID("GitCollectorSnapshotRun", {component,
+#                         observed_at: the batch's wall clock, selected paths})
+#                         (collector/repo/git/source_processing.go:151)
+#   payload.indexed_at    stamped at parse time (collector/repo/git/
+#                         phase0_pinned_ref_shim_test.go documents it as the one
+#                         wall-clock field of a git fact)
+# fact_id is compared through stable_fact_key, the run-invariant identity of the
+# same fact; the payload hash covers every other field.
+RUN_VARIANT_PAYLOAD_FIELDS = ("indexed_at", "source_run_id")
+
+
+def real_fact_sets(path: str) -> dict[str, str]:
+  """Per-scope hash over (stable_fact_key, payload hash minus run-variant fields)."""
+  import hashlib
+  by_scope: dict[str, list[str]] = defaultdict(list)
+  if not os.path.exists(path):
+    return {}
+  with open(path, encoding="utf-8") as handle:
+    for line in handle:
+      parts = line.rstrip("\n").split("\t", 3)
+      if len(parts) < 4:
+        continue
+      scope_id, _fact_id, stable_key, payload_text = parts
+      payload = json.loads(payload_text)
+      if isinstance(payload, dict):
+        for field in RUN_VARIANT_PAYLOAD_FIELDS:
+          payload.pop(field, None)
+      digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+      by_scope[scope_id].append("%s:%s" % (stable_key, digest))
+  return {scope_id: hashlib.sha256(",".join(sorted(items)).encode()).hexdigest()
+          for scope_id, items in sorted(by_scope.items())}
+
+
 def read_json(path: str, default: Any) -> Any:
   if not os.path.exists(path):
     return default
@@ -235,7 +271,9 @@ def main(run_dir: str) -> int:
       },
       "final": {
           "generations": read_json(os.path.join(export, "generations.json"), {}),
-          "real_fact_sets": read_json(os.path.join(export, "real_fact_sets.json"), {}),
+          "real_fact_sets": real_fact_sets(os.path.join(export, "real_facts.tsv")),
+          "normalized_fields": {"fact_id": "compared via stable_fact_key",
+                                "payload": list(RUN_VARIANT_PAYLOAD_FIELDS)},
           "graph_counts": graph_counts,
           "reducer_intents": {"A": intents.get("A", {}), "B": intents.get("B", {})},
           "content_rows": counters.get("content_rows"),

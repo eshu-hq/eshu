@@ -20,10 +20,14 @@ REPLAY_HOSTED_INSTANCE="synth-8877-cutover-instance-1"
 
 # replay_hosted_prepare installs the component registry and plants the items.
 replay_hosted_prepare() {
-  ESHU_REPLAY_DSN="$REPLAY_DSN" ESHU_REPLAY_COMPONENT_HOME="$REPLAY_RUN_DIR/component-home" \
-    ESHU_REPLAY_SYNTH_BIN="$REPLAY_BIN/eshu-collector-synth-zero" ESHU_REPLAY_HOSTED_ITEMS="$REPLAY_HOSTED_ITEMS" \
-    "$REPLAY_BIN/replayseed-synth.test" -test.run '^TestReplaySeedHostedFamily$' -test.v \
-    >"$REPLAY_RUN_DIR/seed-hosted.log" 2>&1
+  # The seeder reads manifest.yaml and trust-grant.json relative to its package
+  # directory, so it runs from there like `go test` would.
+  (
+    cd "$REPLAY_REPO_ROOT/go/cmd/collector-synth-zero"
+    ESHU_REPLAY_DSN="$REPLAY_DSN" ESHU_REPLAY_COMPONENT_HOME="$REPLAY_RUN_DIR/component-home" \
+      ESHU_REPLAY_SYNTH_BIN="$REPLAY_BIN/eshu-collector-synth-zero" ESHU_REPLAY_HOSTED_ITEMS="$REPLAY_HOSTED_ITEMS" \
+      "$REPLAY_BIN/replayseed-synth.test" -test.run '^TestReplaySeedHostedFamily$' -test.v
+  ) >"$REPLAY_RUN_DIR/seed-hosted.log" 2>&1
 }
 
 # replay_hosted_start starts the built collector-component-extension binary.

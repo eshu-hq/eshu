@@ -21,13 +21,12 @@ replay_export_state() {
   replay_psql -c "SELECT COALESCE(json_object_agg(s.scope_id, COALESCE(NULLIF(g.source_commit_sha, ''), g.generation_id) ORDER BY s.scope_id), '{}'::json)
     FROM ingestion_scopes s JOIN scope_generations g ON g.scope_id = s.scope_id AND g.generation_id = s.active_generation_id
     WHERE s.scope_id LIKE 'replay-%' OR s.scope_id LIKE 'git-repository-scope:%'" >"$out/generations.json"
-  # Real fixture fact sets of each repository's active generation. Seeded
-  # generations are excluded on purpose: their fact equality holds by
-  # construction and proves nothing (arbiter item 5).
-  replay_psql -c "SELECT COALESCE(json_object_agg(scope_id, h ORDER BY scope_id), '{}'::json) FROM (
-      SELECT f.scope_id, md5(string_agg(f.stable_fact_key || ':' || md5(f.payload::text), ',' ORDER BY f.stable_fact_key)) AS h
+  # The full real-fixture fact dump of the active generations (fact id, stable
+  # key, payload text), kept as evidence so the field-level normalisation in
+  # assemble_result.py can be audited against the raw rows.
+  replay_psql -F $'\t' -c "SELECT f.scope_id, f.fact_id, f.stable_fact_key, f.payload::text
       FROM fact_records f JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
-      WHERE f.scope_id LIKE 'git-repository-scope:%' GROUP BY f.scope_id) t" >"$out/real_fact_sets.json"
+      WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, f.fact_id" >"$out/real_facts.tsv"
   # Reducer intents enqueued for A and B by projection: the distinct (scope,
   # domain) pairs of the active generations. A generation superseded before it
   # was projected (a paced one overtaken by a newer commit) enqueues nothing, so

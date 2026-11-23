@@ -85,6 +85,20 @@ replay_repository_rules() {
   printf '%s]' "$out"
 }
 
+# replay_global_admission_env prints the global database-protection marks of the
+# reducer-intent admission gate, raised above the replay corpus in EVERY arm. The
+# corpus (8,713 mix rows plus A's 13,000) is past the ingester defaults (10,000
+# outstanding, 500 retrying), so the default global gate would defer all intents,
+# B's included, and time them out in the control arm too. That backstop is not
+# what this replay tests; the per-source leg is. Recorded in every manifest.
+replay_global_admission_env() {
+  cat <<ENV
+ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK=1000000
+ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK=1000000
+ESHU_REDUCER_ADMISSION_RETRYING_LOW_WATER_MARK=500000
+ENV
+}
+
 # replay_event appends one timestamped event to the run's events.tsv.
 replay_event() {
   printf '%s\t%s\t%s\t%s\n' "$(date +%s.%N)" "$1" "$2" "${3:-}" >>"$REPLAY_RUN_DIR/events.tsv"
@@ -129,7 +143,7 @@ replay_write_manifest() {
 import json, sys
 json.dump({
   "arm": "$arm", "rep": $rep, "ttl": "$ARM_TTL", "completion_step": bool($ARM_COMPLETE),
-  "thresholds": "$thresholds", "source_a": "$REPLAY_SRC_A", "source_b": "$REPLAY_SRC_B",
+  "thresholds": "$thresholds", "global_admission": "$(replay_global_admission_env | paste -sd, -)", "source_a": "$REPLAY_SRC_A", "source_b": "$REPLAY_SRC_B",
   "a_shape": "$ARM_A_SHAPE", "a_reducer_rows": $REPLAY_A_ROWS, "a_projector_generations": $REPLAY_A_GENERATIONS,
   "b_generations": $REPLAY_B_COUNT, "b_cadence": "$REPLAY_B_CADENCE",
   "workers": {"projector": $REPLAY_PROJECTOR_WORKERS, "ingester_projector": $REPLAY_INGESTER_PROJECTOR_WORKERS},
@@ -189,8 +203,8 @@ replay_run_arm() {
     replay_hosted_prepare || { echo "hosted prepare failed: $REPLAY_RUN_DIR/seed-hosted.log" >&2; return 1; }
   fi
   local -a ing_env proj_env
-  mapfile -t ing_env < <(replay_threshold_env ingester)
-  mapfile -t proj_env < <(replay_threshold_env projector)
+  mapfile -t ing_env < <(replay_threshold_env ingester; replay_global_admission_env)
+  mapfile -t proj_env < <(replay_threshold_env projector; replay_global_admission_env)
   replay_start ingester eshu-ingester 19501 "${ing_env[@]}" \
     ESHU_PROJECTOR_WORKERS="$REPLAY_INGESTER_PROJECTOR_WORKERS" ESHU_REPO_SOURCE_MODE=explicit \
     ESHU_REPOSITORY_RULES_JSON="$(replay_repository_rules)" ESHU_REPOS_DIR="$REPLAY_HOME/workspace" \

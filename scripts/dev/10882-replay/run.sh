@@ -38,7 +38,7 @@ while (($#)); do
   esac
 done
 
-export REPLAY_RESULTS="$results" REPLAY_FIXTURES="$REPLAY_HOME/fixtures" REPLAY_SEEDER="$REPLAY_BIN/replayseed.test"
+export REPLAY_REPO_ROOT="$repo_root" REPLAY_RESULTS="$results" REPLAY_FIXTURES="$REPLAY_HOME/fixtures" REPLAY_SEEDER="$REPLAY_BIN/replayseed.test"
 mkdir -p "$results" "$REPLAY_SCRATCH"
 started="$(date +%s)"
 echo "$started" >"$results/replay.started"
