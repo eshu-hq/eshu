@@ -574,9 +574,13 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 - Activation wake (#7597) → every statement that sets a
   `relationship_generations` row active runs through `activateWithConsumerWake`
   (`TestEveryRelationshipActivationWakesConsumers` enumerates the module): one
-  transaction of activation, `SET LOCAL lock_timeout`, a plain `FOR UPDATE` on
-  the in-flight own-gate consumers, then the wake UPDATE (dead letters locked
-  `SKIP LOCKED`). Lock order: claimant work row, relationship generation,
+  transaction of the advisory exclusive lock on the scope (#11256), activation,
+  `SET LOCAL lock_timeout`, a plain `FOR UPDATE` on the in-flight own-gate
+  consumers, then the wake UPDATE (dead letters locked `SKIP LOCKED`). Lock
+  order: advisory X(scope) (`activationRendezvousKey`, before any row lock, so a
+  parking wait can order itself against this transaction; a parker holds the
+  shared lock for one statement and waits on one key at a time), claimant work
+  row, relationship generation,
   in-flight consumers by `work_item_id COLLATE "C"` (the `AckBatch` order; `TestOwnGateLocksShareTheBatchAckOrder`), dead-lettered consumers. Keep both the
   in-flight lock and `wakeAfterProducerTerminalDeadLetter` in the Fail path:
   dropping either produced lost wakes in `TestActivationWakeInterleaveLive`

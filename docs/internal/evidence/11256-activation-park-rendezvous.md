@@ -127,7 +127,7 @@ with zero skips:
 | Live activation, refinalize, claim-fence, replay and contention-gate tests that take the activation path, all opt-ins set | 218 PASS, 0 FAIL, 17 SKIP (supply-chain attachment and fan-out proofs that need other fixtures, unrelated to the activation lock) |
 | `-race` contention package, `GOMAXPROCS=2` advisory round tests `-count=30` three times | ok; 60 of 60 PASS each |
 | Hermetic storage/postgres, reducer, workflow, telemetry | only the known environment failures above |
-| CI readiness shard 6 of 8 (the one holding the new tests), run through `scripts/run-live-postgres-readiness-tests.sh --shard 6/8` with every readiness DSN and opt-in variable set against a disposable postgres 18 | 153 of 153 PASS after the runner's own excuses (the Neo4j graph proof, and `TestRetirementDerivedStatementPlansLive`, which the workflow excuses with `LIVE_READINESS_EXTRA_SKIP`); the five new and touched tests are in it |
+| CI readiness shard 6 of 8 (the one holding the new tests), run through `scripts/run-live-postgres-readiness-tests.sh --shard 6/8` with every readiness DSN and opt-in variable set against a disposable postgres 18 | 153 of 153 PASS when run (the shard holds 158 enrolled tests after later main merges) after the runner's own excuses (the Neo4j graph proof, and `TestRetirementDerivedStatementPlansLive`, which the workflow excuses with `LIVE_READINESS_EXTRA_SKIP`); the five new and touched tests are in it |
 | Reducer contention gate, both storage/postgres halves, with the workflow's `-run` filters and DSNs (without `-race`, which CI adds) | half one 191 PASS, half two 247 PASS, 0 FAIL, 0 SKIP |
 | Contention runner contract (`reducer_contention_events.py`, its two self-tests, `verify-live-tests-ledger.sh`) and `TestReducerContentionPostgresProofsRunInTheReducerContentionGate` | pass (126 contention files verified) |
 | `go test ./internal/replay/...`, `go vet`, `check-changed-coverage-floors.sh` | ok (18 packages); vet clean; telemetry 77% >= 77, contention 81% >= 81, storage/postgres env_gated |
@@ -207,10 +207,11 @@ park holding 200 advisory locks while it waited, and passes with none. The
 first version's single statement took one lock per blocking scope, and stock
 postgres 18.6 failed with `out of shared memory` at about 20000 keys in one
 session (reviewer shim). Today the key itself bounds the blocking set: it is
-part of the primary key of `reducer_waiting_items`, so a set of a few hundred
-scope IDs already fails the insert with `index row size ... exceeds btree
-version 4 maximum 2704` (measured with 37-character IDs: 100 fail; with
-sequential IDs 500 fit and 1000 fail). That insert failure is older than this
+part of the primary key of `reducer_waiting_items`, so a set of more than 63
+random 36-character scope IDs already fails the insert with `index row size ...
+exceeds btree version 4 maximum 2704` (reproduced: 63 insert, 64 fail; with
+sequential IDs 500 fit and 1000 fail; real git scope IDs reach 220 and fail at
+230 in the arbiter's measurement). That insert failure is older than this
 change and is not fixed here; it is the next bound on a bootstrap-sized blocking
 set, and the rendezvous no longer adds one of its own.
 
@@ -242,8 +243,9 @@ Template-clone flake, not in scope: the first test of a fresh process can fail
 on `clone database ... still exists after cleanup`, because the shared
 template-clone helper cancels `DROP DATABASE ... WITH (FORCE)` at its 15 s
 client timeout while the server is in a checkpoint. It is the helper's timeout
-(`go/internal/testutil/postgresproof/template_clone.go`), already failing
-unrelated tests on `origin/main`, and is tracked separately.
+(`go/internal/testutil/postgresproof/template_clone.go`), observed in the dev
+environment on `origin/main` tests that do not touch the activation path, and
+is not part of this change.
 
 ## Pre-existing limit found here: the blocking set must fit a btree key
 

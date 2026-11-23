@@ -33,9 +33,13 @@ var (
 // random blocking set of B scopes. The conflict domain is one scope's
 // activation, so the time an activator waits for its lock must stay near the
 // work it queues behind (the 5 ms of one same-scope peer), never near the
-// park bound. A park that waits on one scope while holding another's lock
-// turns one slow activation into a convoy and fails the bound below. The run
-// logs the latency table the evidence note quotes.
+// park bound. This is a measurement with a coarse bound (half the park bound),
+// not the convoy guard: the first version of the rendezvous, which held another
+// scope's lock while it waited, still passes it (activation lock wait max 47 to
+// 55 ms against the 1.5 s bound in three runs). The RED guard for that convoy
+// is TestParkWaitingOnOneScopeDoesNotStallAnotherScopesActivationLive and
+// TestParkWithManyBlockingScopesTakesBoundedLocksLive, which read pg_locks. The
+// run logs the latency table the evidence note quotes.
 func TestRendezvousContendedLatencyLive(t *testing.T) {
 	ctx := context.Background()
 	database, _ := openNarrowFenceDB(t, ctx)

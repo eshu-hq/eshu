@@ -68,9 +68,11 @@ func TestParkWaitingOnOneScopeDoesNotStallAnotherScopesActivationLive(t *testing
 	if err := database.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_locks AS held
 WHERE held.locktype = 'advisory' AND held.granted
+  AND held.database = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND held.pid IN (
       SELECT waiting.pid FROM pg_locks AS waiting
-      WHERE waiting.locktype = 'advisory' AND NOT waiting.granted)`).Scan(&heldByWaiter); err != nil {
+      WHERE waiting.locktype = 'advisory' AND NOT waiting.granted
+        AND waiting.database = (SELECT oid FROM pg_database WHERE datname = current_database()))`).Scan(&heldByWaiter); err != nil {
 		t.Fatalf("read advisory locks held by the waiting park: %v", err)
 	}
 	if heldByWaiter != 0 {
@@ -151,9 +153,11 @@ func TestParkWithManyBlockingScopesTakesBoundedLocksLive(t *testing.T) {
 	if err := database.QueryRowContext(ctx, `
 SELECT count(*) FROM pg_locks AS held
 WHERE held.locktype = 'advisory' AND held.granted
+  AND held.database = (SELECT oid FROM pg_database WHERE datname = current_database())
   AND held.pid IN (
       SELECT waiting.pid FROM pg_locks AS waiting
-      WHERE waiting.locktype = 'advisory' AND NOT waiting.granted)`).Scan(&heldByWaiter); err != nil {
+      WHERE waiting.locktype = 'advisory' AND NOT waiting.granted
+        AND waiting.database = (SELECT oid FROM pg_database WHERE datname = current_database()))`).Scan(&heldByWaiter); err != nil {
 		t.Fatalf("read advisory locks held by the waiting park: %v", err)
 	}
 	if heldByWaiter != 0 {
