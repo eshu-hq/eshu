@@ -89,6 +89,14 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// truth. TestReducerQueueFailDefersSupplyChainImpactWriteSupersededPast
 	// AttemptBudget is the regression.
 	supplychaincore.SupplyChainImpactWriteSupersededFailureClass,
+	// #10880 PR-B2: a reducer-side read of the per-support table refused
+	// because the supports backfill has not completed at this contract version
+	// or the old-writer fence is not empty. The backfill takes hours on a large
+	// install; a counting class would dead-letter the intent after about three
+	// minutes and leave its scope's reconciliation, correlation or holder reopen
+	// undone until a manual replay. TestReducerQueueFailDefersSupplyChainImpact
+	// SupportsNotReadyPastAttemptBudget is the regression.
+	supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass,
 	// #10411: an advisory_group_projection intent deferred until the
 	// canonical winners watermark passes its enqueue time. The winners
 	// maintainer rebuilds on a 30 s cadence, so the wait is a routine race,

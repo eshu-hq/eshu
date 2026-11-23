@@ -71,6 +71,12 @@ const (
 		"spend an attempt, the awaited attachment depends on no maintenance-pass output and its terminal Ack " +
 		"reopens the pass, and the family writes only supply-chain impact findings, which no pre-maintenance cell asserts " +
 		"absent (#11105)"
+	toleratedSupplyChainSupportsNotReady = "returned by a reducer reader of the supply-chain impact supports table " +
+		"(security_alert_reconciliation, service_catalog_correlation, supply_chain_impact) before any write while the " +
+		"supports backfill has not completed or the old-writer fence is not empty; the retry does not spend an " +
+		"attempt, the backfill is reducer-owned and depends on no maintenance-pass output, and the families write only " +
+		"reconciliation rows, service-catalog correlations and impact findings, which no pre-maintenance cell asserts " +
+		"absent (#10880 PR-B2)"
 	toleratedServiceRuntimeFence = "returned by service catalog correlation before any write while a correlated " +
 		"repository's workload_materialization work is in flight; the family writes only service-catalog " +
 		"correlations and service evidence lineage, which no pre-maintenance cell asserts absent, and the " +
@@ -118,6 +124,9 @@ var preMaintenanceToleratedFailureClasses = map[string]string{
 	// a same-generation sibling wait that runs before any write, on work
 	// that will commit without the maintenance pass.
 	"supply_chain_impact_sbom_attachment_not_ready": toleratedSupplyChainAttachmentWait,
+	// #10880 PR-B2: a reducer read of the supports table refused while the
+	// backfill is incomplete; the post-maintenance strict drain re-checks it.
+	"supply_chain_impact_supports_not_ready": toleratedSupplyChainSupportsNotReady,
 	// #6759 and #7268: waiting on a graph target of an already-resolved write.
 	"workload_materialization_deployment_source_target_not_ready": toleratedResolvedTarget,
 	"shared_edge_target_not_ready":                                toleratedResolvedTarget,

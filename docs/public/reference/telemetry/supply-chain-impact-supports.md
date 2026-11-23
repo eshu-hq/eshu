@@ -5,12 +5,15 @@ live finding fact (#10880 PR-B1). The impact writer keeps it current in the same
 transaction that writes the finding facts, and a reducer-owned backfill fills it
 for facts written before the maintainer shipped. An old-writer fence marks any
 scope a writer without the maintainer touches, and the backfill drains those
-marks. No reader serves from it yet; these signals show whether it is complete
-and current before a reader does.
+marks. Two reducer loaders read it as input (the security-alert reconciliation
+evidence loader and the service-catalog vulnerability loader, #10880 PR-B2c);
+these signals show whether it is complete and current, and how those loaders
+used it.
 
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |
 | `eshu_dp_supply_chain_impact_supports_rows_total` | counter | `action`, `source` | Support rows written. `action` is `inserted`, `updated`, `unchanged` (the write-on-change guard left a replayed finding alone) or `deleted` (the row followed a retracted fact). `source` is `writer` (counted after the writer's transaction commits, so a rollback adds nothing) or `backfill`. The backfill reports one count for supports it inserted or changed, so `source=backfill` counts both under `inserted` and never emits `updated`. A `writer` series with `inserted` and `updated` flat while findings are written is a maintainer that stopped. |
+| `eshu_dp_supply_chain_impact_supports_reads_total` | counter | `source`, `outcome` | Reducer reads of the supports table, one series per reader. `source` is one of `security_alert_reconciliation`, `service_vulnerability_advisory`, `fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`, `repository_holders`, `scoped_packages`, `out_of_stamp` or `go_modules_fence`. `outcome` is `served` (the read ran), `not_ready` (the reader refused because the table was not ready) or `failed` (the readiness probe or a read failed; a probe failure keeps its own classification and never takes the not-ready class). A rising `not_ready` count means reducer work is waiting on the backfill; it stops when `eshu_dp_supply_chain_impact_supports_backfill_ready` reads 1. |
 | `eshu_dp_supply_chain_impact_supports_backfill_steps_total` | counter | `outcome` | Backfill steps: `chunk` (supports written or orphans removed for one scope and generation), `drain` (a scope the old-writer fence marked dirty was re-read), `verify_gap` (the verification found live findings without a support and restarted the sweep), `complete` (the step that set the readiness marker), `idle` (a step after completion with nothing to drain), `contended` (another reducer held the lock) and `failed`. A rising `verify_gap` means supports went missing after the sweep passed them. |
 | `eshu_dp_supply_chain_impact_supports_backfill_step_duration_seconds` | histogram | `outcome` | Wall time of one backfill step. A step holds one scope-and-generation advisory lock for at most one chunk of 500 supports, so the tail is the longest a writer can wait on the backfill. |
 | `eshu_dp_supply_chain_impact_supports_dirty_scopes` | gauge | none | Scopes the old-writer fence marked dirty that the backfill has not drained, capped at 1000. Non-zero holds the table not ready. A count that never falls means a writer without the maintainer is still running. |
@@ -18,6 +21,26 @@ and current before a reader does.
 | `eshu_dp_supply_chain_impact_supports_backfill_ready` | gauge | none | 1 once the backfill finished and verified at the current contract version and the fence is empty, else 0. A reader of the table refuses a grant-scoped call while it is 0. |
 
 No label carries a scope, repository, canonical key or CVE.
+
+## Not-ready refusals
+
+A reducer reader that finds the table not ready returns one typed refusal, failure class
+`supply_chain_impact_supports_not_ready`. The queue treats the class as non-counting: the
+intent is deferred about every 60 seconds, its attempt count stays where it was, and it never
+dead-letters because of it. It is not parked under a wait kind, so the retry timer is the only
+wake. Every reader checks readiness before it writes anything, so a refusal never leaves a
+partial write behind.
+
+An install that upgrades across migration 338 and these readers therefore pauses impact
+passes, security-alert reconciliation, service-catalog correlation and the Go-modules fence
+until the backfill completes. On QA the window is zero because the deploy waits for the
+supports marker.
+
+Alert on `eshu_dp_supply_chain_impact_supports_backfill_ready == 0` while
+`eshu_dp_supply_chain_impact_supports_backfill_last_success_timestamp_seconds` is more than 30
+minutes old: the backfill stopped, and every deferred intent is waiting on it. There is no
+elapsed bound and no dead letter on this class, so the alert is the only signal that the wait
+has become a fault.
 
 ## Reading them
 
