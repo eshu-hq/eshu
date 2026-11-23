@@ -360,9 +360,14 @@ import (
 // the rebased tree, derived again red-first when 336 gained the 1,024-byte
 // token bound before release (review F1, arbiter ruling 10643m; count
 // unchanged).
+// 338_supply_chain_impact_finding_supports.sql (#10880 PR-B1) adds the per-support
+// table, its dirty-scope fence and backfill marker; 333 to 337 are main's. Count 364
+// is main's 363 plus 338. The digest is this test's own derivation on the merged
+// tree, regenerated whenever 338 changes (338 is unshipped, so its checksum and
+// this digest move in place).
 const (
-	goldenBootstrapDefinitionsDigest = "d8c72bf67c1246c2d4c364e443d7cc03cadf5a502dfb45147e0df0a01930e4a6"
-	goldenBootstrapDefinitionsCount  = 363
+	goldenBootstrapDefinitionsDigest = "c827350ee2149a2aeb6863551409278e615a83fb7e044f3e3cc9ef33e672b7c6"
+	goldenBootstrapDefinitionsCount  = 364
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

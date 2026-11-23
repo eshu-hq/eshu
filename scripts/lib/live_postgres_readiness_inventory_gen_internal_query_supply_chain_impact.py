@@ -80,6 +80,12 @@ TABLE = {
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
             "TestRuntimeEnvironmentEvidenceManyPairsStayFactFirstLive",
         ),
+        "go/internal/query/supply/chain/impact/supports_equality_live_test.go": (
+            "TestSupportsCandidateListEqualsLegacyLive",
+        ),
+        "go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go": (
+            "TestSupportsCandidatePlanDrivesFromTheGrantLive",
+        ),
         "go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go": (
             "TestSupplyChainSuppressionPathsPerformanceLive",
         ),

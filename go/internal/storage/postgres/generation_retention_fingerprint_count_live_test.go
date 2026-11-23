@@ -6,9 +6,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/testfixtures"
 )
 
 // seedFingerprintCountFixture seeds one prunable superseded generation
@@ -158,5 +162,117 @@ ORDER BY 1`)
 		if !arms[child] {
 			t.Errorf("cascade child %s has no arm in generationRetentionRowCountsQuery", child)
 		}
+	}
+}
+
+// seedRetentionSupports seeds a scope with a prunable superseded generation
+// and a recent superseded one, a few content facts on the old generation so
+// the cycle selects it, and the per-support rows (#10880 PR-B1) the supports
+// arm must count: oldRows on the old generation, keptRows on the kept one.
+func seedRetentionSupports(t *testing.T, ctx context.Context, database *sql.DB, scope, oldGen, keptGen string, now time.Time, oldRows, keptRows int) {
+	t.Helper()
+	testfixtures.SeedScope(t, ctx, database, scope)
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scope, oldGen, now.Add(-10*24*time.Hour))
+	testfixtures.SeedSupersededGeneration(t, ctx, database, scope, keptGen, now.Add(-time.Hour))
+	if _, err := database.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system,
+    source_fact_key, observed_at, ingested_at, payload)
+SELECT md5($2 || '-' || n), $1, $2, 'content_entity', 'k-' || n, 'git', 'k-' || n, now(), now(), '{}'::jsonb
+FROM generate_series(1, 50) AS n`, scope, oldGen); err != nil {
+		t.Fatalf("seed facts: %v", err)
+	}
+	for generation, rows := range map[string]int{oldGen: oldRows, keptGen: keptRows} {
+		if _, err := database.ExecContext(ctx, `
+INSERT INTO supply_chain_impact_finding_supports (fact_id, canonical_key, scope_id, generation_id, finding_id,
+    has_payload_finding_id, priority_score, source_confidence, suppression_state, payload)
+SELECT $2 || '-support-' || n, 'key-' || n, $1, $2, 'finding-' || $2 || '-' || n, 1, 0, 'high', 'none', '{}'::jsonb
+FROM generate_series(1, $3::int) AS n`, scope, generation, rows); err != nil {
+			t.Fatalf("seed supports for %s: %v", generation, err)
+		}
+	}
+}
+
+// TestGenerationRetentionSupportsArmCountsExactlyTheCascadeEnvelopeLive proves
+// the supports arm (#10880 PR-B1) charges exactly the rows the generation
+// delete cascades away: a candidate with seven supports reports seven, the
+// kept generation's rows are not charged, and the prune removes the old rows
+// and leaves the kept ones.
+func TestGenerationRetentionSupportsArmCountsExactlyTheCascadeEnvelopeLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
+	database, ctx := openGenerationRetentionMigratedSchema(t)
+	now := time.Now().UTC()
+	const scope, oldGen, keptGen = "supports-count", "supports-count-old", "supports-count-kept"
+	seedRetentionSupports(t, ctx, database, scope, oldGen, keptGen, now, 7, 3)
+
+	tx, err := SQLDB{DB: database}.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	totals, _, _, err := GenerationRetentionStore{}.countRows(ctx, tx, []string{scope}, []string{oldGen})
+	_ = tx.Rollback()
+	if err != nil {
+		t.Fatalf("countRows() error = %v", err)
+	}
+	if got := totals["supply_chain_impact_finding_supports"]; got != 7 {
+		t.Fatalf("supports row count = %d, want 7 (the old generation's rows only)", got)
+	}
+
+	store := NewGenerationRetentionStore(SQLDB{DB: database})
+	store.Now = func() time.Time { return now }
+	result, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
+	if err != nil || result.GenerationsPruned != 1 {
+		t.Fatalf("PruneSupersededGenerations() = %d pruned, %v; want 1, nil", result.GenerationsPruned, err)
+	}
+	for generation, want := range map[string]int{oldGen: 0, keptGen: 3} {
+		var left int
+		if err := database.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports WHERE generation_id = $1`, generation).Scan(&left); err != nil {
+			t.Fatalf("count supports for %s: %v", generation, err)
+		}
+		if left != want {
+			t.Errorf("supports left for %s = %d, want %d", generation, left, want)
+		}
+	}
+}
+
+// TestGenerationRetentionRefusesWithoutValidSupportsGenerationIndexLive proves
+// a missing or partial-only supports generation index refuses the cycle, names
+// the index and prunes nothing, and that restoring it lets the next cycle run.
+func TestGenerationRetentionRefusesWithoutValidSupportsGenerationIndexLive(t *testing.T) {
+	bridgeRetentionFamilyDSN(t)
+	database, ctx := openGenerationRetentionMigratedSchema(t)
+	now := time.Now().UTC()
+	const scope, oldGen, keptGen = "supports-refuse", "supports-refuse-old", "supports-refuse-kept"
+	seedRetentionSupports(t, ctx, database, scope, oldGen, keptGen, now, 2, 1)
+	const index = "supply_chain_impact_finding_supports_generation_idx"
+	restore := `CREATE INDEX ` + index + ` ON supply_chain_impact_finding_supports (generation_id)`
+	store := NewGenerationRetentionStore(SQLDB{DB: database})
+	store.Now = func() time.Time { return now }
+	for name, setup := range map[string][]string{
+		"supports-dropped":      {"DROP INDEX " + index},
+		"supports-partial-only": {"DROP INDEX " + index, restore + ` WHERE suppression_state = 'none'`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, statement := range setup {
+				if _, err := database.ExecContext(ctx, statement); err != nil {
+					t.Fatalf("setup %q: %v", statement, err)
+				}
+			}
+			_, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
+			if !errors.Is(err, ErrGenerationRetentionKeyIndexUnavailable) || !strings.Contains(err.Error(), index) {
+				t.Fatalf("PruneSupersededGenerations() error = %v, want ErrGenerationRetentionKeyIndexUnavailable naming %s", err, index)
+			}
+			if remaining := remainingScopeGenerations(t, ctx, database, []string{oldGen}); !remaining[oldGen] {
+				t.Fatal("refused cycle pruned the superseded generation")
+			}
+			for _, statement := range []string{"DROP INDEX IF EXISTS " + index, restore} {
+				if _, err := database.ExecContext(ctx, statement); err != nil {
+					t.Fatalf("restore %s: %v", index, err)
+				}
+			}
+		})
+	}
+	result, err := store.PruneSupersededGenerations(ctx, chunkDrainPolicy())
+	if err != nil || result.GenerationsPruned != 1 {
+		t.Fatalf("PruneSupersededGenerations() after restoring the index = %d pruned, %v; want 1, nil", result.GenerationsPruned, err)
 	}
 }
