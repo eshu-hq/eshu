@@ -169,6 +169,11 @@ tests:
     class: postgres_ci
     reason: "#11000 cross-scope producer-terminal waits under -race: concurrent parks, a mid-flight producer reducer Ack, and a concurrent projector-Ack activation converge on exactly-once reopen with the attempt budget frozen; disposable database, about 45 s locally; enrolled in the live-postgres-readiness runner"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/reducer_waiting_key_bound_converge_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11256 bounded narrowed key under contention: many waiters with more than 16 blockers each, activations in sorted, reverse and random order concurrent with parks and re-parks through the production Service loop, converge on the wake path alone with no backstop, no 40P01 and no attempt burn"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/reducer_waiting_key_bound_live_test.go
     tag: ~
     class: postgres_ci

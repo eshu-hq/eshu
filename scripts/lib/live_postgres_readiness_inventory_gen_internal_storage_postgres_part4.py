@@ -128,9 +128,15 @@ TABLE = {
         "go/internal/storage/postgres/reducer_waiting_cross_scope_race_live_test.go": (
             "TestCrossScopeProducerConcurrentWakeRaceLive",
         ),
+        "go/internal/storage/postgres/reducer_waiting_key_bound_converge_live_test.go": (
+            "TestWideVerdictWaitersConvergeUnderContentionLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_key_bound_live_test.go": (
             "TestFailParksAWideVerdictSetLive",
             "TestServiceSurvivesAWideVerdictDeferralLive",
+            "TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive",
+            "TestUnnamedBlockerActivationDoesNotReopenAWideWaitLive",
+            "TestOldShapeWideWaitRowStillWakesAndAuditsLive",
         ),
         "go/internal/storage/postgres/reducer_waiting_live_test.go": (
             "TestWaitingSetAsideParksWithBackstopLive",

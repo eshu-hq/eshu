@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
@@ -206,4 +207,161 @@ func TestServiceSurvivesAWideVerdictDeferralLive(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("the normal item was not acknowledged within 15s")
+}
+
+// TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive pins the guard
+// constant (#11256): the largest row the guard admits, an incompressible key
+// at the byte cap beside the longest work_item_id the budget allows, inserts
+// into the real table with both btree indexes (the primary key and the wake
+// index). The uncompressed text is the guard's own measure, so the proof uses
+// random printable bytes that cannot compress.
+func TestWorstCaseAdmittedWaitRowInsertsOnBothIndexesLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11256 key-bound proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+
+	// A narrowed key at the byte cap: random 60-byte IDs fill it.
+	scope := string(incompressibleIDs(t, 1, 40)[0])
+	key, ok := narrowedWaitingKey(scope, "gen-"+incompressibleIDs(t, 1, 30)[0], incompressibleIDs(t, 200, 60))
+	if !ok || key.JSON == "" || len(key.JSON) < narrowedWaitKeyMaxBytes-80 {
+		t.Fatalf("test key = ok %v, %d bytes, want one near the %d byte cap", ok, len(key.JSON), narrowedWaitKeyMaxBytes)
+	}
+	kind := WaitingKindRelationshipGenerationActive
+	longest := waitingRowIndexBudgetBytes - len(kind) - len(key.JSON)
+	workItemID := incompressibleIDs(t, 1, longest)[0]
+	intent := reducercontract.Intent{
+		IntentID: workItemID, ScopeID: scope, GenerationID: "gen-worst", Domain: reducer.DomainWorkloadMaterialization,
+	}
+	entry := WaitingDeferral{WaitsForKind: kind, WakeSite: WaitingWakeSiteInTx, FailureClass: reducer.WorkloadMaterializationResolutionNotReadyFailureClass}
+	inserted, err := insertWaitingItem(ctx, SQLDB{DB: db}, nil, intent, entry, key.JSON, time.Now().UTC())
+	if err != nil || !inserted {
+		t.Fatalf("insertWaitingItem(%d byte work_item_id, %d byte key) = inserted %v, err %v, want a row on both indexes",
+			len(workItemID), len(key.JSON), inserted, err)
+	}
+	if got := countNarrowWaits(t, ctx, db, workItemID); got != 1 {
+		t.Fatalf("wait rows = %d, want 1", got)
+	}
+	// The wake index serves the activation wake's lookup; planting the row
+	// through it proves the second index took the entry too.
+	var viaWakeIdx int
+	if err := db.QueryRowContext(ctx, `
+SELECT count(*) FROM reducer_waiting_items
+WHERE waits_for_kind = 'relationship_generation_active' AND waits_for_key = $1::jsonb`, key.JSON).Scan(&viaWakeIdx); err != nil {
+		t.Fatalf("read via the wake index key: %v", err)
+	}
+	if viaWakeIdx != 1 {
+		t.Fatalf("rows by (kind, key) = %d, want 1", viaWakeIdx)
+	}
+}
+
+// TestUnnamedBlockerActivationDoesNotReopenAWideWaitLive pins the no-hot-loop
+// rule (#11256): a wide verdict parks naming a sorted prefix, and activations
+// of blockers outside that prefix do not touch the wait (the wake matches only
+// named scopes), while the activation of a named blocker reopens it.
+func TestUnnamedBlockerActivationDoesNotReopenAWideWaitLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11256 key-bound proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	store := NewRelationshipStore(SQLDB{DB: db})
+	ids := realShapeScopeIDs(t, 600)
+	named, unnamed := ids[0], []string{ids[100], ids[300], ids[599]}
+	for _, id := range append([]string{named}, unnamed...) {
+		seedNarrowWaitScope(t, ctx, db, id, "gen-"+id, "pending", at)
+	}
+	_, err := claimAndFailWide(t, ctx, db, "hot-1", wideWaitCause{blocking: ids})
+	if err != nil {
+		t.Fatalf("Fail: %v", err)
+	}
+	if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 1 {
+		t.Fatalf("wait rows after the park = %d, want 1", got)
+	}
+	_, _, parkedUntil := narrowQueueState(t, ctx, db, "hot-1")
+	for _, id := range unnamed {
+		if err := store.ActivateResolutionGeneration(ctx, "gen-"+id, id); err != nil {
+			t.Fatalf("activate un-named blocker %s: %v", id, err)
+		}
+		if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 1 {
+			t.Fatalf("wait rows after activating un-named %s = %d, want 1: only named blockers wake the item", id, got)
+		}
+	}
+	if _, _, visibleAt := narrowQueueState(t, ctx, db, "hot-1"); !visibleAt.Equal(parkedUntil) {
+		t.Fatalf("queue visible_at moved to %s from %s: an un-named activation touched the item", visibleAt, parkedUntil)
+	}
+	if err := store.ActivateResolutionGeneration(ctx, "gen-"+named, named); err != nil {
+		t.Fatalf("activate named blocker: %v", err)
+	}
+	if got := countNarrowWaits(t, ctx, db, "hot-1"); got != 0 {
+		t.Fatalf("wait rows after activating a named blocker = %d, want 0: the wake must reopen the item", got)
+	}
+	if _, _, visibleAt := narrowQueueState(t, ctx, db, "hot-1"); !visibleAt.Before(parkedUntil) {
+		t.Fatalf("queue visible_at = %s, want reopened before the parked horizon %s", visibleAt, parkedUntil)
+	}
+}
+
+// TestOldShapeWideWaitRowStillWakesAndAuditsLive pins compatibility (#11256):
+// rows parked before the key bound carry a wide blocking set and the read set
+// in repo_ids. Under the new code the activation wake still reopens one by a
+// named scope, and the audit still reopens one whose blockers are all active.
+func TestOldShapeWideWaitRowStillWakesAndAuditsLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11256 key-bound proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	at := time.Now().UTC().Truncate(time.Microsecond)
+	store := NewRelationshipStore(SQLDB{DB: db})
+	ids := realShapeScopeIDs(t, 40)
+	plant := func(itemID, scope string, blocking []string) {
+		seedNarrowWaitScope(t, ctx, db, scope, "gen-"+scope, "active", at)
+		seedNarrowRetryRow(t, ctx, db, itemID, scope, "gen-"+scope,
+			"workload_materialization", reducer.WorkloadMaterializationResolutionNotReadyFailureClass, at)
+		raw, err := json.Marshal(waitingKey{
+			ScopeID: scope, GenerationID: "gen-" + scope, BlockingScopeIDs: blocking, RepoIDs: realShapeScopeIDs(t, 5),
+		})
+		if err != nil {
+			t.Fatalf("marshal old-shape key: %v", err)
+		}
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO reducer_waiting_items (work_item_id, waits_for_kind, waits_for_key, scope_id, generation_id,
+    domain, failure_class, first_deferred_at, updated_at)
+VALUES ($1, 'relationship_generation_active', $2::jsonb, $3, $4, 'workload_materialization', $5, $6, $6)`,
+			itemID, string(raw), scope, "gen-"+scope, reducer.WorkloadMaterializationResolutionNotReadyFailureClass, at); err != nil {
+			t.Fatalf("plant old-shape wait %s: %v", itemID, err)
+		}
+	}
+	// Wake: the item names ids[10]; activating it reopens the item.
+	seedNarrowWaitScope(t, ctx, db, ids[10], "gen-"+ids[10], "pending", at)
+	plant("old-wake", "git-repository-scope:repository:r_oldwake", ids)
+	if err := store.ActivateResolutionGeneration(ctx, "gen-"+ids[10], ids[10]); err != nil {
+		t.Fatalf("activate named blocker: %v", err)
+	}
+	if got := countNarrowWaits(t, ctx, db, "old-wake"); got != 0 {
+		t.Fatalf("old-shape wait rows after a named activation = %d, want 0", got)
+	}
+	// Audit: the blockers are all complete (active generations), so the audit
+	// reopens the row with no activation firing.
+	for _, id := range ids[:3] {
+		if id != ids[10] {
+			seedNarrowWaitScope(t, ctx, db, id, "gen-"+id, "active", at)
+		}
+	}
+	plant("old-audit", "git-repository-scope:repository:r_oldaudit", ids[:3])
+	reopened, _, _, err := AuditWaitingItems(ctx, SQLDB{DB: db}, nil, time.Now().UTC(), DefaultWaitingAuditInterval, 100)
+	if err != nil {
+		t.Fatalf("AuditWaitingItems: %v", err)
+	}
+	if reopened < 1 {
+		t.Fatalf("audit reopened = %d, want the old-shape satisfied wait reopened", reopened)
+	}
+	if got := countNarrowWaits(t, ctx, db, "old-audit"); got != 0 {
+		t.Fatalf("old-shape wait rows after the audit = %d, want 0", got)
+	}
 }
