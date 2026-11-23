@@ -6,14 +6,12 @@ package core
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // The holder fan-out (#9695, item 1.5b) closes the convergence gap a source
@@ -178,6 +176,12 @@ type SupplyChainImpactFanOut interface {
 	// genuine pass, without the stamp, unless its failure class is unsafe to
 	// replay (#11147); the result names the dead letter's prior class.
 	ReopenHolderDetailed(ctx context.Context, holderScopeID string, origin FanOutOrigin) (FanOutReopen, error)
+	// FindQueuedHolderScopes returns, from holders, those whose supply_chain_impact
+	// item at the scope's active generation is pending or retrying and has no
+	// item in another reopen-relevant state: the holders a reopen would classify
+	// pending_noop and leave untouched (#10972). One set read at one snapshot.
+	// Same bounded timeout and error contract as FindHolderScopes.
+	FindQueuedHolderScopes(ctx context.Context, holders []string) ([]string, error)
 	// FindInFlightNonMarkerScopes returns the scopes, other than ownScopeID,
 	// whose findings item at the active generation is claimed or running; a
 	// manifest marker is left out (#10972: it loads no evidence, so flagging it
@@ -221,6 +225,9 @@ type fanOutResult struct {
 	replayFlagged int
 	pendingNoop   int
 	enqueued      int
+	// prefiltered counts holders the queued-holder prefilter dropped before
+	// the cap slice: their item was already pending or retrying (#10972).
+	prefiltered int
 	// deadLetterReopened, deadLetterSkipped, and noActiveGeneration count the
 	// #11147 holder outcomes for the summary line and sub-signals; their
 	// counter series are written per holder (recordHolderReopen) or with the
@@ -329,51 +336,25 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 
 	ctx, span := h.startFanOutSpan(ctx, intent)
 	defer span.End()
-	holders := make(map[string]struct{}, len(remaining))
-	for _, id := range remaining {
-		holders[id] = struct{}{}
+	ordered, split, err := h.collectFanOutHolders(ctx, span, cause, intent, lookupIDs, remaining)
+	if err != nil {
+		return fanOutResult{cause: cause}, err
 	}
-	// The in-flight read comes FIRST, then the row read. A holder still claimed or
-	// running at the in-flight read is flagged. One that acknowledged before it has
-	// committed its rows (a pass commits before it acknowledges), so the row read
-	// that follows sees them. The other order leaves a gap: a holder with no rows
-	// at the first read that commits and acknowledges before the second is missed
-	// by both. A pass claimed after the in-flight read loads its evidence after the
-	// source's facts became visible, so it needs no flag.
-	if len(lookupIDs) > 0 {
-		inFlight, err := h.FanOut.FindInFlightNonMarkerScopes(ctx, intent.ScopeID)
-		if err != nil {
-			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteInFlight)
-			span.RecordError(err)
-			return fanOutResult{cause: cause}, fanOutError{fmt.Errorf("find in-flight supply chain impact scopes: %w", err)}
-		}
-		for _, id := range inFlight {
-			holders[id] = struct{}{}
-		}
-	}
-	var split fanOutSplitStats
-	for _, chunk := range chunkStrings(lookupIDs, fanOutHolderReadChunk) {
-		found, stats, err := h.readHolderScopesSplit(ctx, cause, intent.ScopeID, chunk)
-		split.add(stats)
-		if err != nil {
-			span.RecordError(err)
-			return fanOutResult{cause: cause}, err
-		}
-		for id := range found {
-			holders[id] = struct{}{}
-		}
-	}
-	delete(holders, intent.ScopeID)
-	ordered := make([]string, 0, len(holders))
-	for id := range holders {
-		ordered = append(ordered, id)
-	}
-	sort.Strings(ordered)
 
+	// One set read drops the holders whose item is already pending or retrying
+	// BEFORE the cap slice, so the cap and the continuation list count only
+	// holders that still need a reopen statement (#10972).
+	holderTotal := len(ordered)
+	ordered, prefiltered, err := h.dropQueuedHolders(ctx, cause, ordered)
+	if err != nil {
+		span.RecordError(err)
+		return fanOutResult{cause: cause}, err
+	}
 	batch, rest := nextFanOutChunk(ordered, fanOutHolderCap)
 	result := fanOutResult{
 		cause:              cause,
-		holders:            len(ordered),
+		holders:            holderTotal,
+		prefiltered:        prefiltered,
 		deferred:           len(rest),
 		crashRecovery:      recoveryOnly,
 		holderStatements:   split.statements,
@@ -450,50 +431,4 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		attribute.Int("holder_key_range_statements", result.keyRangeStatements),
 	)
 	return result, nil
-}
-
-// fanOutOriginStamped reports whether the intent's item carries a fan-out
-// origin stamp.
-func fanOutOriginStamped(intent reducercontract.Intent) bool {
-	value, ok := intent.Payload[PayloadKeyFanOutOrigin]
-	return ok && value != nil
-}
-
-// fanOutOwed reports whether the intent's item carries the owed marker: a
-// commit of this item changed rows and its fan-out has not finished.
-func fanOutOwed(intent reducercontract.Intent) bool {
-	owed, _ := intent.Payload[PayloadKeyFanOutOwed].(bool)
-	return owed
-}
-
-// fanOutOneHop reports whether this pass is the single re-derivation a fan-out
-// asked for, which re-derives its copy and stops. That is the attempt the replay
-// created: a reopen of a succeeded item and the replay of a flagged one both
-// leave attempt_count at 0, so the claim is attempt 1. A stamp that reaches a
-// later attempt was written while a genuine pass was running and that pass then
-// failed or crashed, so the retry is a genuine pass again. An owed marker means
-// this item committed changes it has not finished fanning out, so it is genuine
-// too, whatever stamp it carries.
-func fanOutOneHop(intent reducercontract.Intent) bool {
-	return fanOutOriginStamped(intent) && intent.AttemptCount <= 1 && !fanOutOwed(intent)
-}
-
-// fanOutOriginOf returns the stamp map the intent carries, or nil.
-func fanOutOriginOf(intent reducercontract.Intent) map[string]any {
-	stamp, _ := intent.Payload[PayloadKeyFanOutOrigin].(map[string]any)
-	return stamp
-}
-
-// owedRecorder returns the recorder the writer runs inside its transaction,
-// or nil when there is no port. A one-hop re-derivation records too: it fans
-// out nothing of its own rewrite, but since #10411 it owes the advisory-group
-// enqueue that runs after the commit, and the marker is the only durable
-// record that the commit happened if the enqueue (or the process) fails
-// first. The fan-out's clear conditions mirror the writer's set condition,
-// so a completed one-hop pass leaves no marker behind.
-func (h SupplyChainImpactHandler) owedRecorder(intent reducercontract.Intent) FanOutOwedRecorder {
-	if h.FanOut == nil {
-		return nil
-	}
-	return h.FanOut.OwedRecorder(intent)
 }

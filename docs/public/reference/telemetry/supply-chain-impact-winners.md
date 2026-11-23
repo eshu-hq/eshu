@@ -211,6 +211,16 @@ any state other than `advisory_retracted`. Read the counter beside
 working fan-out from a stalled one: with a rejected record in flight, a flat
 counter means no pass has flipped a copy yet, not that the holders converged.
 
+Before the fan-out slices its holder list to the 256 cap, one set read drops the
+holders whose supply-chain impact item is already `pending` or `retrying`
+(#10972). `eshu_dp_supply_chain_impact_fanout_total{outcome="prefiltered_pending"}`
+counts them, so `pending_noop` and `deferred` now count only holders that still
+needed a statement. A failing prefilter read counts `read_error` or
+`read_timeout` with `site="holder_prefilter"`, and the pass retries. A rising
+`prefiltered_pending` with `deferred` falling is the prefilter working; a rising
+`deferred` with `prefiltered_pending` flat means the holders are not queued and
+the cap is doing real work.
+
 A manifest or lockfile change converges the same way (#9874): the git
 generation's marker pass reopens every scope holding advisory evidence for a
 changed package, counted under `cause="manifest_dependency"`. A marker item

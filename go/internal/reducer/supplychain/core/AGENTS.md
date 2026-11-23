@@ -41,6 +41,13 @@ changing anything here.
   reads too: nothing reopens or flags an in-flight marker, #10972). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
+- The holder fan-out drops holders whose item is already pending or retrying
+  with one set read (`FindQueuedHolderScopes`) BEFORE the 256-cap slice
+  (#10972, `fanout_prefilter.go`, `HOLDER_FANOUT_PREFILTER.md`). Keep it after
+  the in-flight and row reads, keep the cap and the continuation list on the
+  kept holders only, and never add an unfiltered fallback for a failed read:
+  the pass fails and retries. The Postgres prefilter and the reopen statement
+  share one matched-status constant; change them together.
 - A findings pass never loads evidence while its own scope generation's
   `sbom_attestation_attachment` work is in flight (#11105,
   `attachment_wait.go`): the probe runs in `beforeEvidenceLoad`, ahead of the

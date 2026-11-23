@@ -18,6 +18,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
+// reopenSupplyChainImpactMatchedStatuses is the status set the reopen reads for
+// a holder: every state it classifies. A row in any other state (failed,
+// superseded) is not matched, and a holder with no matched row is enqueued. The
+// queued-holder prefilter (findQueuedSupplyChainImpactHoldersQuery) reads the
+// same set, so the two cannot disagree on which rows exist.
+const reopenSupplyChainImpactMatchedStatuses = `('succeeded', 'claimed', 'running', 'pending', 'retrying', 'dead_letter')`
+
 // reopenSupplyChainImpactDeadLetter is true for a dead letter the fan-out may
 // reopen (#11147): its failure class is not in the admin unsafe-replay set
 // ($4, from recovery.UnsafeReplayFailureClasses, the one source of that set).
@@ -62,7 +69,7 @@ WITH target AS MATERIALIZED (
     WHERE work.scope_id = $1
       AND work.stage = 'reducer'
       AND work.domain = 'supply_chain_impact'
-      AND work.status IN ('succeeded', 'claimed', 'running', 'pending', 'retrying', 'dead_letter')
+      AND work.status IN ` + reopenSupplyChainImpactMatchedStatuses + `
     ORDER BY work.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF work
 ), moved AS (
