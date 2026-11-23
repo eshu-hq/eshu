@@ -80,6 +80,17 @@ for dir in "$results"/*-rep*; do
   python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --arm "$dir/result.json" --kind "$kind" ${cf[@]+"${cf[@]}"} ${ref[@]+"${ref[@]}"} || status=1
 done
 
+echo "== host load during the run (one sample a minute, loadavg.tsv)"
+python3 -I - "$results" <<'PY'
+import os, statistics, sys
+path = os.path.join(sys.argv[1], "loadavg.tsv")
+if os.path.exists(path):
+  loads = [float(line.split("\t")[1]) for line in open(path) if "\t" in line]
+  print("samples=%d min=%.1f median=%.1f max=%.1f" % (len(loads), min(loads), statistics.median(loads), max(loads)))
+else:
+  print("no loadavg.tsv")
+PY
+
 echo "== numbers (engaged-scrape consult p50/p95 and share within 100 ms, K, parked rows, superseded, A drain after catch-up)"
 python3 -I - "$results" <<'PY'
 import glob, json, os, sys
