@@ -114,10 +114,15 @@ func buildClaimedService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	committer.Instruments = instruments
+	// Assigns the process instruments so a later SourceBackpressure wiring on this
+	// leg records the eshu_dp_workflow_claim_pacing_* series. This leg sets no
+	// SourceBackpressure today, never consults, and records nothing (#10882).
+	controlStore := postgres.NewWorkflowControlStore(database)
+	controlStore.Instruments = instruments
 	claimStore, err := store.New(context.Background(), store.Options{
 		Service:     "collector-cicd-run",
 		Getenv:      getenv,
-		Postgres:    postgres.NewWorkflowControlStore(database),
+		Postgres:    controlStore,
 		Logger:      logger,
 		Instruments: instruments,
 	})
