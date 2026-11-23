@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -49,7 +50,10 @@ type stubFanOut struct {
 	inFlight      []string
 	inFlightErr   error
 	inFlightCalls int
-	owedRecorded  int
+	// inFlightMarkers names in-flight scopes whose claimed item is a manifest
+	// marker (#10972); FindInFlightNonMarkerScopes leaves them out.
+	inFlightMarkers []string
+	owedRecorded    int
 	// mu guards every recording append below: split holder reads run
 	// concurrently, so unguarded appends race under -race.
 	mu sync.Mutex
@@ -108,7 +112,7 @@ func (r stubOwed) RecordFanOutOwed(context.Context, factwrite.Execer) error {
 	return nil
 }
 
-func (s *stubFanOut) FindInFlightScopes(_ context.Context, _ string) ([]string, error) {
+func (s *stubFanOut) FindInFlightNonMarkerScopes(_ context.Context, _ string) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.inFlightCalls++
@@ -116,7 +120,13 @@ func (s *stubFanOut) FindInFlightScopes(_ context.Context, _ string) ([]string, 
 	if s.inFlightErr != nil {
 		return nil, s.inFlightErr
 	}
-	return append([]string(nil), s.inFlight...), nil
+	var out []string
+	for _, scope := range s.inFlight {
+		if !slices.Contains(s.inFlightMarkers, scope) {
+			out = append(out, scope)
+		}
+	}
+	return out, nil
 }
 
 func (s *stubFanOut) OwedRecorder(reducercontract.Intent) FanOutOwedRecorder {

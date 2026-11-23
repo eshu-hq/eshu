@@ -114,6 +114,7 @@
     "group": "ack_family",
     "package": "github.com/eshu-hq/eshu/go/internal/storage/postgres",
     "tests": [
+      "TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive",
       "TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive",
       "TestCrossScopeCompletionIdentityActivationRaceReopensConsumerLive",
       "TestCrossScopeCompletionIdentityThenCICDConvergesLive",

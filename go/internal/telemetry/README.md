@@ -96,6 +96,7 @@ not read the graph on the collection goroutine; `telemetry/snapshot` refreshes t
 | `QueueDeadLetters` | `eshu_dp_queue_dead_letters_total` |
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
+| `CrossScopeCompletionMarkersSkipped` | `eshu_dp_cross_scope_completion_markers_skipped_total` (`domain` = producer domain; #10972) |
 | `ReducerAdmissionDepthReads` | `eshu_dp_reducer_admission_depth_reads_total` (`operation`, `outcome`; #11233) |
 | `ReducerAdmissionReadBackoff` | `eshu_dp_reducer_admission_read_backoff_seconds` (Float64 gauge; #11233) |
 | `ReducerReadinessWaits` | `eshu_dp_reducer_readiness_waits_total` |
