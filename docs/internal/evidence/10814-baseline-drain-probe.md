@@ -9,8 +9,8 @@ identifiers are redacted per #7803.
 
 This note was re-created 2026-11-23 after #10990 (part of #9315) pruned the
 planner-slice note with 222 other unanchored evidence files. Its anchor is the
-`nvdBaselineDrainProbeTimeout` godoc on `NVDBaselineDrainProbeQuery`, which
-points at "the evidence note for #10814".
+`nvdBaselineDrainProbeTimeout` godoc beside `NVDBaselineDrainProbeQuery`,
+which points at "the evidence note for #10814".
 
 ## What was EXPLAINed
 
@@ -91,9 +91,9 @@ transaction-local 3 second statement timeout, so only an ACCESS EXCLUSIVE
 table lock can hold it up, and then it fails closed as
 `ErrNVDBaselineDrainTimeout`. Load is at most one probe per incomplete year
 with a checkpoint per planner tick (25 for a 2026 run). No index was added:
-every leg already had its keyed index, and the planner's choice of
-`scope_generations_scope_generation_idx` over the primary key for the named
-read is pinned by the same test.
+every leg already had its keyed index, and both the primary key and
+`scope_generations_scope_generation_idx` are in the test's allowed set for
+the named read, so either keyed choice passes the same test.
 
 ## Observability Evidence
 
