@@ -125,13 +125,14 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 			return nil, err
 		}
 		masses = read
+		// A read that ran is counted served; an all-blank lookup ran none.
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass, telemetry.SupplyChainImpactSupportsReadServed)
 	}
 	for _, id := range lookupIDs {
 		if _, ok := masses[id]; !ok {
 			masses[id] = 0
 		}
 	}
-	s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass, telemetry.SupplyChainImpactSupportsReadServed)
 	return masses, nil
 }
 
@@ -184,8 +185,10 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 		return nil, fmt.Errorf("begin supply chain impact holder mass read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, "SET TRANSACTION READ ONLY"); err != nil {
-		return nil, fmt.Errorf("set supply chain impact holder mass read read-only: %w", err)
+	// One repeatable-read snapshot: the readiness check below and the probe read
+	// the same table state, so a table that goes not-ready cannot be read half-way.
+	if _, err := tx.ExecContext(ctx, setHolderKeyRangeSnapshotQuery); err != nil {
+		return nil, fmt.Errorf("set supply chain impact holder mass read snapshot: %w", err)
 	}
 	if err := ApplyHolderMassProbeSettings(ctx, tx, timeout); err != nil {
 		return nil, err

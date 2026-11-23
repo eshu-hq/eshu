@@ -245,6 +245,29 @@ func TestSupplyChainImpactSupportsMassProbeSurvivesPendingListLive(t *testing.T)
 		_ = redTx.Rollback()
 		t.Fatalf("GREEN-2: the mass probe under the reader's settings: %s\n%s", v, greenPlan)
 	}
+	// The helper's setting lasts for the rest of the transaction, so the leg below
+	// would plan under it. Seeded RED: the guard detects the forced-off setting; then
+	// the setting is reset and the leg asserts it is on before it plans anything.
+	seqscan := func() string {
+		var v string
+		if err := redTx.QueryRowContext(ctx, `SELECT current_setting('enable_seqscan')`).Scan(&v); err != nil {
+			_ = redTx.Rollback()
+			t.Fatal(err)
+		}
+		return v
+	}
+	if seqscan() != "off" {
+		_ = redTx.Rollback()
+		t.Fatal("seeded RED not reproduced: the mass probe settings left enable_seqscan on, so the no-setting check below cannot tell the states apart")
+	}
+	if _, err := redTx.ExecContext(ctx, `RESET enable_seqscan`); err != nil {
+		_ = redTx.Rollback()
+		t.Fatal(err)
+	}
+	if got := seqscan(); got != "on" {
+		_ = redTx.Rollback()
+		t.Fatalf("enable_seqscan = %q before the no-setting leg, want on", got)
+	}
 	// The other statements in the RED state, no setting.
 	for _, st := range statements {
 		if st.query == postgres.HolderMassProbeQuery {

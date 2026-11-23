@@ -89,8 +89,12 @@ const (
 
 // SupportsReadiness checks, on the fence's own transaction, that the supports table
 // the holder read answers from is ready, and returns an error when it is not
-// (#11197). The composition root binds it to postgres.CheckSupplyChainImpactSupportsReady;
-// it is a function so this leaf package does not import the postgres root.
+// (#11197). The composition root binds it to postgres.RequireSupplyChainImpactSupportsReady;
+// it is a function so this leaf package does not import the postgres root. The fence
+// runs at READ COMMITTED, so the check and the holder read are not one snapshot: an
+// old-writer image marking a scope dirty between them can let a fence retract with a
+// holder missed. The race needs a mixed-version deploy during the backfill and is
+// bounded by the fence's own re-run and the backfill's dirty-scope drain.
 type SupportsReadiness func(ctx context.Context, tx db.Queryer) error
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's

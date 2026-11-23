@@ -144,7 +144,7 @@ WITH candidates AS MATERIALIZED (` + holderKeyRangeArm("cve_id", false) + `
 // HolderKeyRangePlanCacheMode is the plan_cache_mode every key-range read
 // runs under. A generic plan cannot see the fact_id bounds, so PostgreSQL
 // 18.6 prices the range at its default selectivity and reads it through
-// fact_records_pkey: a scan of a 1/16 slice of the whole table instead of a
+// the supports primary key: a scan of a 1/16 slice of the whole table instead of a
 // slice of one id's rows (TestSupplyChainImpactSupportsHolderPlanShapeLive). A custom
 // plan sees the bounds and reads each arm's own lookup index with its lookup
 // expression and both fact_id bounds in the Index Cond.

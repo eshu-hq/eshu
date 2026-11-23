@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -54,6 +56,11 @@ func TestMassProbeTransactionTurnsOffSeqScanBeforeItsStatement(t *testing.T) {
 	if seqScanAt < 0 || probeAt < 0 || seqScanAt > probeAt {
 		t.Fatalf("enable_seqscan at %d, probe at %d: the transaction-local setting must precede the probe (queries: %d)", seqScanAt, probeAt, len(fake.queries))
 	}
+	// The mass probe is one repeatable-read read-only snapshot, so its readiness check
+	// and its statement read the same table state.
+	if len(fake.execs) == 0 || fake.execs[0].query != setHolderKeyRangeSnapshotQuery {
+		t.Fatalf("first exec = %+v, want %q", fake.execs, setHolderKeyRangeSnapshotQuery)
+	}
 	if !strings.Contains(fake.queries[0].query, "statement_timeout") {
 		t.Fatalf("first statement = %q, want the statement timeout", fake.queries[0].query)
 	}
@@ -75,6 +82,34 @@ func TestHolderStatementsNeverSetEnableSeqscan(t *testing.T) {
 	} {
 		if strings.Contains(text, "enable_seqscan") {
 			t.Errorf("%s statement text mentions enable_seqscan", name)
+		}
+	}
+}
+
+// TestEstimateHolderMassesAllBlankRunsNoReadAndRecordsNothing pins that an
+// all-blank lookup runs no statement and is not counted as a served read.
+func TestEstimateHolderMassesAllBlankRunsNoReadAndRecordsNothing(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	fake := &fakeExecQueryer{}
+	store := SupplyChainImpactFanOutStore{Beginner: massProbeBeginner{massProbeTx{fake}}, DB: fake, Instruments: inst}
+	masses, err := store.EstimateHolderMasses(context.Background(), []string{"", ""})
+	if err != nil || masses[""] != 0 {
+		t.Fatalf("EstimateHolderMasses() = %v, %v, want mass 0 and no error", masses, err)
+	}
+	if len(fake.queries) != 0 || len(fake.execs) != 0 {
+		t.Fatalf("statements ran for an all-blank lookup: queries=%d execs=%d", len(fake.queries), len(fake.execs))
+	}
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatal(err)
+	}
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name == "eshu_dp_supply_chain_impact_supports_reads_total" {
+				t.Fatalf("an all-blank lookup recorded %s", m.Name)
+			}
 		}
 	}
 }

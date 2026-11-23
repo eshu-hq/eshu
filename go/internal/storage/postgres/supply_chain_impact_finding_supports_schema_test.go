@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -86,30 +87,42 @@ func migrationStatement(raw string) string {
 	return strings.Join(strings.Fields(strings.Join(code, " ")), " ")
 }
 
+// holderIndexStatementViolation returns why stmt (a migration's normalized
+// statement) is not the pinned statement of file, or "".
+func holderIndexStatementViolation(file, stmt string) string {
+	want, ok := holderIndexStatements[file]
+	if !ok {
+		return "no pinned statement for " + file
+	}
+	if stmt != want {
+		return fmt.Sprintf("%s statement = %q, want %q", file, stmt, want)
+	}
+	return ""
+}
+
 // TestSupplyChainImpactHolderIndexMigrationsShape pins migrations 339 to 342
 // (#11197): one concurrent build per file, the two btrees partial on a non-blank
 // id, the members GIN with fastupdate = off and the tokens GIN with no
 // fastupdate option. The check is exercised in both directions: a members GIN
-// without the option and a tokens GIN with it are each rejected.
+// without the option and a tokens GIN with it are each reported.
 func TestSupplyChainImpactHolderIndexMigrationsShape(t *testing.T) {
 	t.Parallel()
-	for file, want := range holderIndexStatements {
+	for file := range holderIndexStatements {
 		raw, err := os.ReadFile("migrations/" + file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}
-		if stmt := migrationStatement(string(raw)); stmt != want {
-			t.Errorf("%s statement = %q, want %q", file, stmt, want)
+		if v := holderIndexStatementViolation(file, migrationStatement(string(raw))); v != "" {
+			t.Error(v)
 		}
 	}
-	// Seeded violations: the same text with the option flipped must not equal the
-	// pinned statement.
-	members := holderIndexStatements["341_supply_chain_impact_finding_supports_members_idx.sql"]
-	if migrationStatement(strings.Replace(members, " WITH (fastupdate = off)", "", 1)) == members {
+	// Seeded violations: the same file text with the option flipped is reported.
+	members := "341_supply_chain_impact_finding_supports_members_idx.sql"
+	if holderIndexStatementViolation(members, strings.Replace(holderIndexStatements[members], " WITH (fastupdate = off)", "", 1)) == "" {
 		t.Error("a members GIN without fastupdate = off is accepted")
 	}
-	tokens := holderIndexStatements["342_supply_chain_impact_finding_supports_tokens_idx.sql"]
-	if migrationStatement(strings.Replace(tokens, ";", " WITH (fastupdate = off);", 1)) == tokens {
+	tokens := "342_supply_chain_impact_finding_supports_tokens_idx.sql"
+	if holderIndexStatementViolation(tokens, strings.Replace(holderIndexStatements[tokens], ";", " WITH (fastupdate = off);", 1)) == "" {
 		t.Error("a tokens GIN with fastupdate = off is accepted")
 	}
 }

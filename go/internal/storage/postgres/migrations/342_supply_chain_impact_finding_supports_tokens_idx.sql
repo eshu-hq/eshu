@@ -16,10 +16,11 @@
 -- amendment). The writer harness found the S2 warm cells outside the +30 insert and +36
 -- replay stops with fastupdate off on both GINs (+39.0 and +54.2 points), and the tokens
 -- GIN carried 75% of the insert difference and 70% of the replay difference (members off
--- alone: +22.6 and +31.9). The list is bounded at 4 MB, a flush of a full list took 0.5 to
--- 0.8 s at 8,600,000 supports, and the key-range statements keep every arm on its index
--- with a full list (docs/internal/evidence/11197-holder-reads-supports.md). The members
--- GIN (341) is the one whose list the mass probe prices.
+-- alone: +22.6 and +31.9). The list is bounded at 4 MB, a flush of a full list took at most
+-- 0.845 s warm and 2.545 s after a restart at 8,600,000 supports, and the key-range
+-- statements keep every arm on its index with a full list
+-- (docs/internal/evidence/11197-holder-reads-supports.md). The members GIN (341) is the
+-- one whose list the mass probe prices.
 --
 -- CONCURRENTLY, so the build does not block writers on the supports table.
 -- Single statement: a concurrent build cannot run inside a transaction block. A

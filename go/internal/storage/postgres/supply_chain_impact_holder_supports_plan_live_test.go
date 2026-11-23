@@ -45,28 +45,6 @@ func holderPlanViolation(plan string, indexes ...string) string {
 	return ""
 }
 
-// holderBoundViolation returns why a key-range plan does not push the fact_id
-// bound into its index conditions: the cve and advisory arms must each carry the
-// lower bound in an Index Cond line, and no Filter line may carry a lookup
-// column or the bound (a filter is a heap check after the index was read whole).
-func holderBoundViolation(plan string) string {
-	bounded := 0
-	for _, line := range strings.Split(plan, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "Index Cond:") && strings.Contains(trimmed, "fact_id >="):
-			bounded++
-		case strings.HasPrefix(trimmed, "Filter:") && (strings.Contains(trimmed, "cve_id") ||
-			strings.Contains(trimmed, "advisory_id") || strings.Contains(trimmed, "fact_id >=")):
-			return "the lookup column or fact_id bound is a Filter, not an Index Cond: " + trimmed
-		}
-	}
-	if bounded < 2 {
-		return fmt.Sprintf("%d Index Cond lines carry the fact_id bound, want the cve and advisory arms", bounded)
-	}
-	return ""
-}
-
 // holderPlanCorpus seeds finding facts with a hot CVE, a hot advisory, a
 // repeated foreign group member and a tail of rare ids, fills the supports through
 // the production backfill, and analyzes, so the planner has the statistics under
@@ -206,7 +184,7 @@ func TestSupplyChainImpactSupportsHolderPlanShapeLive(t *testing.T) {
 			t.Errorf("%s: %s\n%s", st.name, v, plan)
 		}
 		if strings.Contains(st.name, "key-range") {
-			if v := holderBoundViolation(plan); v != "" {
+			if v := holderKeyRangePlanViolation(plan, strings.Contains(st.name, "open")); v != "" {
 				t.Errorf("%s: %s\n%s", st.name, v, plan)
 			}
 		}

@@ -78,7 +78,7 @@ same-session B1-shipped median (stops: +30 insert, +36 replay):
 The worst cells are 1.1 and 4.1 points inside the stops. This is **above the epic's
 +25% impact-WAL rule**; the rule is not met or moved, and the QA window W1b decides
 before B3. It reproduces the earlier five-rep run of the same set (`mo`) to 0.00 points
-in every cell. Pass time against the default-fastupdate arm is 1.00 to 1.03 in every
+in every cell. Pass time against the default-fastupdate arm is 0.99 to 1.03 in every
 cell (return line 1.15).
 
 **Why `fastupdate` is off on one GIN only.** Ten-rep run of ten arms, no INCLUDE
@@ -97,18 +97,25 @@ index: S2 warm insert members 2,065,306 B (688 B per finding) and tokens 6,186,8
 (2,062 B), replay 2,477,852 B and 5,896,148 B, so the tokens GIN carries 75% of the
 insert gap and 70% of the replay gap. The members GIN is the one whose pending list
 flipped the mass probe, so it is the one that ships off. Shape split (S2 warm, `no`
-minus `nd`, insert / replay, points): S2 +27.0 / +29.4; one of 50 shared ids and no
-hot member (S2y) +41.2 / +0.7; own members only (S2x) -6.1 / -6.2; six unique members
-(S2z) -4.9 / -5.3. The cost needs a member shared by many findings; the one-of-50 ids
+minus `nd`, insert / replay, points; the split run puts S2 first in its session, so its
+S2 baseline differs from the W-A run's and only the differences inside one row compare):
+S2 +27.0 / +29.4; one of 50 shared ids and no hot member (S2y) +41.2 / +0.8; own members
+only (S2x) -6.0 / -6.1; six unique members (S2z) -4.9 / -5.3. The cost needs a member shared by many findings; the one-of-50 ids
 (60 rows per id per pass) carry the insert excess without the member on every row. QA's
 largest alias is on 0.6% of rows.
 
-**The B2c and B3 bars.** B2c reads the final set against `fn` minus `no`: S1 cold +4.7
+**The B2c and B3 bars.** B2c reads the final set against `fn` minus `no` (measured on the
+both-off base, with the btree deltas assumed independent of the GIN setting: not measured;
+B2c's own PR states its miss): S1 cold +4.7
 insert / +5.2 replay, S1 warm +5.0 / +4.7, S2 warm +4.0 / +3.9 (met), S2 cold +10.2 / +7.8
 (missed; 398 full-page images, 3.26 MB of the 4.21 MB insert difference, and 551 on replay). B3 (arm `f`, the shipped set plus 345, 343, 344 and the repository swap, below
-twice the writer without supports): measured `f` on the shipped set reads 1.46 to 2.06,
-missed in S2 cold retract (2.06); S2 warm replay reads 1.94. It returns to the arbiter
-before B3; PR-C's derived S2 warm replay is +31.9 + 3.9 = +35.8 against a break-even of
+twice the writer without supports): measured `f` on the shipped set reads 1.46 to 2.06
+on medians, with S2 warm replay at 1.94. Three S2 cold cells have no stable `f` value
+(bimodal, below), and the pre-declared rule judges them on the higher value: insert
+57,428,212 B on 8 of 10 reps (f/a 1.90, 1 more at 57,428,266) and 68,508,532 B on 1 (2.27);
+replay 66,454,472 B on 9 reps (1.86) and 77,533,752 B on 1 (2.17); retract 78.91 MB on 8
+reps (2.06) and 67,831,219 B on 2 (1.77). So the B3 miss is three cells (2.27, 2.17, 2.06),
+not one. It returns to the arbiter before B3; PR-C's derived S2 warm replay is +31.9 + 3.9 = +35.8 against a break-even of
 about +28.
 
 **Bimodal cells.** Eleven cells (S2 cold replay and retract) did not reach 5% spread in
@@ -130,8 +137,14 @@ Every read answers only from a ready supports table: the backfill marker for the
 binary's contract version complete, no marker for a newer version, and an empty
 old-writer fence (`supplyChainImpactSupportsReadySQL`, contract-pinned). The
 check is the shared B2c commit's `RequireSupplyChainImpactSupportsReady`; it runs
-as the first statement of every moved read's transaction, in the same snapshot as
-the read, so a table that goes not-ready cannot be read half-way. A table that is
+as the first statement of the transaction of each repeatable-read read (the key-range
+read, the mass probe, the holder statement and the repository holder read), in the
+snapshot of the read, so a table that goes not-ready cannot be read half-way. The
+go-modules fence is the exception: it runs at READ COMMITTED, so its check and its
+holder read are not one snapshot, and an old-writer image marking a scope dirty between
+them can let a fence retract with a holder missed. The race needs a mixed-version deploy
+during the backfill, and the fence's own re-run and the backfill's dirty-scope drain
+bound it; it is stated here and in the PR body, not closed. A table that is
 not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`; there is
 no fall back to the finding facts.
 
@@ -157,7 +170,7 @@ no fall back to the finding facts.
 Operators watch `eshu_dp_supply_chain_impact_supports_reads_total` (`source` label:
 `fanout_holders`, `fanout_holders_key_range`, `fanout_holder_mass`,
 `repository_holders`, `scoped_packages`, `out_of_stamp`, `go_modules_fence`;
-outcome `served` or `not_ready`). A sustained `not_ready` rate means the backfill
+outcome `served`, `not_ready` or, for a failed readiness probe only, `failed`). A sustained `not_ready` rate means the backfill
 is unfinished or an old-writer image is still running.
 
 ## Plans after the move (final indexes, VACUUM ANALYZE)
@@ -226,13 +239,21 @@ statements on every moved read, final indexes, `VACUUM (ANALYZE)`), the W-A tabl
 B1-shipped, inside the +30 and +36 stop lines; above the epic's +25% impact-WAL rule,
 which this note names), and the 8M plan and flush proofs below.
 
-No-Regression Evidence: no fan-out, queue, lease or lock path changes: the holder
-statements keep their shape and their chunking, the fence keeps the #11147 reopen
-order, and the readiness check is one read of the marker and dirty tables per
-transaction.
+No-Regression Evidence: the holder statements keep their shape and their chunking,
+the fence keeps the #11147 reopen order, no lease or lock path changes, and the
+readiness check is one read of the marker and dirty tables per transaction. The queue
+path does change, in the shared B2c commit this PR carries: the not-ready failure class
+`supply_chain_impact_supports_not_ready` is enrolled in `nonCountingReducerRetryFailureClasses`
+(`reducer_queue_readiness_sql.go`), which changes the claim SQL bytes and re-pins the two
+claim-gate digests (`reducer_claim_stale_gate_11234_guard_test.go`); a
+`WaitingDeferralMap` row names the class; and the handler-entry gate defers every impact
+pass, not only the holder reads, until the supports table is ready, which pauses impact
+passes during the backfill (the telemetry doc states it). The regression is
+`TestReducerQueueFailDefersSupplyChainImpactSupportsNotReadyPastAttemptBudget`: the class
+defers past the attempt budget without a dead letter.
 
 Observability Evidence: `eshu_dp_supply_chain_impact_supports_reads_total` (`source`
-carries the seven new readers; `outcome` `served` or `not_ready`), the existing
+carries the seven new readers; `outcome` `served`, `not_ready` or `failed`, where `failed` is a readiness-probe failure only; statement timeouts show on the fan-out read histogram and the dead-letter class), the existing
 `eshu_dp_supply_chain_impact_supports_backfill_ready` gauge and the shared
 not-ready failure class `supply_chain_impact_supports_not_ready`; the fence emits the
 same counter with `source=go_modules_fence`.
@@ -299,8 +320,8 @@ pages, a checkpoint, a container restart (cold `shared_buffers`), one flush: 2.5
 of WAL (399 MB read), then 0.755 s and 0.729 s on two repeats. The line is a quarter of the smaller of
 the work-item lease (`reducerClaimLeaseDuration` = 1 min, `cmd/reducer/main_helpers.go:49`)
 and the handler timeout (`ESHU_REDUCER_HANDLER_TIMEOUT` unset is unbounded,
-the `ESHU_REDUCER_HANDLER_TIMEOUT` entry in `go/internal/envregistry/entries.go`; the lab evidence sets `supply_chain_impact=30m`,
-`10643-holder-read-bound.md:96`): 15 s; the warm maximum is 0.845 s and the cold maximum 2.545 s. An earlier flush
+the `ESHU_REDUCER_HANDLER_TIMEOUT` entry in `go/internal/envregistry/entries.go`; `10643-holder-read-bound.md:96` records a `supply_chain_impact=30m` override read on the QA
+deployment, which this PR does not re-check; the line holds on the 1 min lease alone): 15 s; the warm maximum is 0.845 s and the cold maximum 2.545 s. An earlier flush
 figure of 12 to 15 s was taken with `fastupdate` on both GINs and no raw output was
 kept; it is not a measurement of this configuration.
 
@@ -388,3 +409,11 @@ and the oldest `backend_xmin` age. A replica census adds keys and rows per membe
 list-length bucket (under 30, 30 to 1,500, over 1,500), which tells whether the S2
 shared-member shape exists. H3 reads the first-touch range 1 and open range of the top id
 of each arm.
+
+### Gates not run
+
+`agent-canon` fails in this worktree because the installed role manifest
+(`.agents/roles.json`) is missing: the agent-kit installer was not run here.
+`golden-corpus-filter-exhaustive` fails because the host `yq` is the Python flavour
+and reads the PR inventory as an unsupported schema. Neither reads this diff.
+`make pre-push` and `make pre-pr` belong to the coordinator.

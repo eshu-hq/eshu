@@ -13,9 +13,9 @@
 --
 -- fastupdate = off (arbiter-b2b-gin-covering decision 1, narrowed by the W-A amendment to
 -- this GIN). A GIN with fastupdate on batches inserts in a pending list that the planner
--- prices into every scan of the index: with the default 4 MB list more than about 165
--- pages full, the holder mass probe's member arm costs more than a sequential scan of the
--- supports table under LIMIT, and at 8,000,000 supports a probe of five ids took 254 s
+-- prices into every scan of the index: with a near-full default 4 MB list the holder mass
+-- probe's member arm costs more than a sequential scan of the supports table under
+-- LIMIT, and at 8,000,000 supports a probe of five ids took 254 s
 -- instead of 291 ms (docs/internal/evidence/11197-holder-reads-supports.md). With
 -- fastupdate off every insert maintains the index in place, so there is no list to
 -- price. The tokens GIN (342) keeps the default: it carries most of the writer WAL cost
