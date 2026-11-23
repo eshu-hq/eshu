@@ -1,49 +1,54 @@
-# Keyed winners chunk bound 1000 (#10839)
+# Keyed winners chunk bound: 1000 tried and reverted, stays 200 (#10839)
 
-`defaultWinnersChunkMaxIdents` 200 -> 1000: the arbiter-ruled capacity value
-(2026-11-23) for the Decision-6 expiry shortfall. One default constant only;
-no SQL, lock, worker, batch, window, cadence, or clamp change (#11157 stays
-13,107; 1000 x 5 = 5000 params, 13x under it).
+`defaultWinnersChunkMaxIdents` stays at 200. A 1000-identifier default (#11295)
+was merged and then reverted after the first QA tick ran far slower than the
+model predicted. This note records the measurement; it does not recommend 1000.
 
-## Theory (proven before the edit)
+## Measured QA result
 
-Shim re-run on the pre-change tree (disposable PG18, this lane):
-`TestSupplyChainImpactWinnersResweepKeyedConvertSlowWindowPlanLive` +
-`TestSupplyChainImpactWinnersResweepKeyedScopeExpansionPlanLive` PASS —
-convert 10.835 ms / delete 39.178 ms ANALYZE at the 41,400-row slow window,
-zero `loops=41400`, max local buffers 867 (< 5M bound), `chunk_applied`
-MATERIALIZED present. Per-tick settle cost is linear in chunk/kept rows; the
-remaining ceiling is the by-design 200-identifier bound this change raises.
+One tick at chunk 1000, under the 338 supports backfill:
 
-## Performance Evidence (gated Decision-5 replay, Bar-2'):
+- Wall time: 710.8 s for 237,063 kept rows across 4,027 identifiers.
+- Model (4 s fixed + 1.63 ms per kept row): about 390 s. Measured is 1.8x that.
+- Chunk 200 control ticks: 65-72 s for 34-49k kept rows, so the per-kept-row
+  cost at 1000 was about 1.8x the cost at 200.
+- Rolled back at 2026-11-23T15:01Z (QA returned to 0772ee6913). The result is
+  posted as a comment on #10839.
 
-Identical 5000-row window (70 scope + 4930 fact pins), byte-identical TEMPLATE
-clones, knob override (not the constant): 200 control 235 ticks / 29.623s /
-max 638ms vs 1000 candidate 47 ticks / 12.869s / max 554ms; concurrency arm
-47 ticks / 15.067s under 133,110 re-marks, 0 errors, 0 deadlocks, identical
-hashes, parity clean, watermarks advanced. Gated legs: settled-identifiers/s
-3646.7 vs 1584.3 = 2.30x; dirty-rows-deleted/s 388.5 vs 168.8 = 2.30x.
-Diagnostics only: version-sums/s 0.86x (internal rework the 1000-arm avoids),
-kept/s 2.30x, keys/s 2.30x.
+This is one sample, taken while the 338 supports backfill ran. The cause is not
+shown and was not isolated.
 
-Headroom projection (QA-scale wall time NOT_CHECKED, confirmed by the Bounded
-segment + A'''): at the binding 1,420/min inflow leg the control gross was
-~1,770/min; 2.30x projects ~4,070/min gross, ~2,650/min headroom over inflow,
-draining a 1.25M-class backlog in under 8 hours at sustained inflow.
+## What the earlier replay did and did not show
 
-## No-Regression Evidence (accuracy invariants untouched):
+The pre-merge Decision-5 replay (disposable PG18, 5000-row window) drained 2.30x
+faster at 1000 than at 200. That replay did not predict the QA per-kept-row
+cost, and the reason is not shown here, so it is not evidence that 1000 is safe
+at QA scale. Chunk tuning is not the lever at QA depth (arbiter ruling of
+2026-11-23, recorded in the goal file): the next lever is the cost per kept row
+or the number of kept rows per identifier. Any future attempt to raise the bound
+needs a QA-shaped measurement (kept rows per tick in the 200k range) and a new
+ruling before it lands.
 
-Sound S/H horizon, oldest-first chunk order, exact-applied delete, and
-scope-remainder conversion ordering are unchanged: the diff touches no SQL
-and no settle predicate. Contract proof: `TestWinnersChunkDefaultBoundIsCapacityRuled`
-(failing-first: RED `{identifiers:200}` pre-change, GREEN post-change) pins
-the 1000 default, the 5000-param ceiling headroom, and a saturated
-default-bound tick (1000 admitted, truncated, one INSERT, oldest-first);
-the #10839 batch tests and the #11157 clamp tests still pass unmodified.
+## Performance Evidence (no regression):
 
-## Observability Evidence (no new telemetry):
+The revert restores the deployed 0772ee6913 behaviour: one default constant back
+to 200, no SQL, lock, worker, batch, window, cadence, or clamp change (#11157
+stays 13,107; 200 x 5 = 1000 INSERT params).
 
-No new spans/metrics: the existing `BuildActiveFacts` tick-phase histogram and
-per-tick statement count expose the change (fewer, larger ticks). Live bars
-ride with the rollout: p95 <= 40s, zero ticks >= 60s, else single-knob
-rollback to 200.
+## No-Regression Evidence:
+
+The diff touches no SQL and no settle predicate, so the sound S/H horizon,
+oldest-first chunk order, exact-applied delete, and scope-remainder conversion
+ordering are unchanged. Contract proof: `TestWinnersChunkDefaultBoundIs200`
+(failing-first: RED `{identifiers:1000}` before the revert, GREEN after) pins
+the 200 default, the parameter-ceiling headroom, and a saturated default-bound
+tick (200 admitted, truncated, one INSERT). The #10839 batch tests and the
+#11157 clamp tests, including the #11302 derived clamp assertion, pass
+unchanged.
+
+## Observability Evidence (revert adds no telemetry):
+
+No new spans or metrics. The existing `BuildActiveFacts` tick-phase histogram,
+the per-tick statement count, and
+`eshu_dp_supply_chain_impact_winners_chunked_ticks_total` show tick size and
+duration. The public telemetry page states the 200-identifier bound again.
