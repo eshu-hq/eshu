@@ -28,50 +28,66 @@ guard so a partial btree on the column can serve them.
 
 ## Measurements at 8,000,000 supports
 
-Disposable PostgreSQL 18.6 (`postgres:18.6`), host load average 13 to 40 from
-other lanes. Corpus (synthetic): 8,000,000 supports, heap 5,207 MB, 9,000 active
-scopes with one active generation each, 400,000 repositories, 60,000 packages,
-40,000 CVEs, 50,000 advisories, the migration-338 primary key and
-`(scope_id, generation_id)`, `repository_id`, `finding_id` and `generation_id`
-btrees, plus partial btrees `(cve_id, fact_id) WHERE cve_id <> ''` (404 MB) and
-`(advisory_id, fact_id) WHERE advisory_id <> ''` (416 MB). `LIMIT 500`. The first
-four reads were cold (650,000 buffers read from disk); the all-arms read after
-them was warm. The raw `EXPLAIN (ANALYZE, BUFFERS)` output is in
-[reader_plans_8m_raw.txt](reader_plans_8m_raw.txt); the statements use literal
-arrays, not bound parameters.
+Disposable PostgreSQL 18.6 (`postgres:18.6`), shared_buffers 2 GB, work_mem 64 MB,
+two parallel workers per gather, host load average 14 to 34 from other lanes.
+Corpus (synthetic): 8,000,000 supports, heap 5,207 MB, 9,000 active scopes with
+one active generation each, 400,000 repositories, 60,000 packages, 40,000 CVEs,
+50,000 advisories, the migration-338 primary key and `(scope_id, generation_id)`,
+`repository_id`, `finding_id` and `generation_id` btrees, plus partial btrees
+`(cve_id, fact_id) WHERE cve_id <> ''` (337 MB) and
+`(advisory_id, fact_id) WHERE advisory_id <> ''` (304 MB). The candidate index is
+`(package_id, fact_id) WHERE package_id <> ''`: 451 MB, built `CONCURRENTLY` in
+115 s. `LIMIT 500`; each shape is the supports arm of the loader statement with
+its other arms bound to empty arrays.
 
-| Read | Plan | Execution |
+Raw `EXPLAIN (ANALYZE, BUFFERS)` output: the rerun is
+[reader_plans_8m_raw_rerun.txt](reader_plans_8m_raw_rerun.txt) (every row below;
+block headers carry load and memory), and the first run, on a container that was
+later lost, is [reader_plans_8m_raw.txt](reader_plans_8m_raw.txt). "First run" is
+the first execution of the shape after a container restart: `shared_buffers` is
+empty, the OS page cache was not dropped. "Second run" repeats it at once.
+
+| Shape | With the package index, first / second | Without it, first / second |
 | --- | --- | --- |
-| Join form, repository only | nested loop, 9,000 probes of `(scope_id, generation_id)` | 158,921 ms, 7.25M buffer hits |
-| Raw-first, repository arm only, no `package_id` index | parallel sequential scan of the supports | 106,386 ms (cold) |
-| Raw-first, package arm only, no `package_id` index | same | 111,514 ms (cold) |
-| Raw-first, CVE arm only, no `package_id` index | same | 92,910 ms (cold) |
-| Raw-first, advisory arm only, no `package_id` index | same | 4,794 ms (partly cached) |
-| Raw-first, all four arms, no `package_id` index | same | 917 ms (warm) |
-| Raw-first, package arm only, with `(package_id, fact_id) WHERE package_id <> ''` (451 MB) | `BitmapOr` over four index scans | 86 ms, 1,141 buffers |
-| Raw-first, all four arms, with that index | `BitmapOr` over four index scans | 172 ms, 3,855 buffers |
+| all four arms (3 repos, 2 packages, 3 CVEs, 2 advisories; 1,022 rows) | 583.6 ms / 5.1 ms | 52,186 ms / 828.6 ms |
+| repository only (60 rows) | 1.47 ms / 1.22 ms | 769 ms / 729 ms |
+| package only (268 rows) | 2.44 ms / 1.94 ms | 749 ms / 693 ms |
+| CVE only (534 rows) | 3.50 ms / 2.88 ms | 753 ms / 705 ms |
+| advisory only (160 rows) | 1.95 ms / 1.55 ms | 719 ms / 703 ms |
+| prepared, `force_generic_plan`, bound parameters, all four | 5.61 ms | 968 ms |
+| prepared, generic: repository / package / CVE / advisory only | 1.44 / 2.42 / 3.91 / 2.26 ms | not run |
+
+Plans: with the index every shape is a `BitmapOr` over the four index scans
+(`s_repo`, `s_pkg`, `s_cve`, `s_adv`); unused arms are bound to empty arrays and
+cost 0 ms (`Index Searches: 0`), also under the generic plan. The all-arms read
+touches 3,869 buffers on its first run and 3,866 on the second. Without the index
+every shape is a parallel sequential scan of the 5.2 GB heap, including the
+repository-only and CVE-only shapes that have their own btrees.
+
+The earlier run on the lost container, same corpus shape, was colder: the
+sequential scan took 93 to 111 s for the repository, package and CVE shapes and
+4.8 s for the advisory shape, the join form 159 s with 7.25 million buffer hits,
+and the package index brought the package-only read to 86 ms and the all-arms
+read to 172 ms.
 
 What the numbers say:
 
 - The filter is an `OR`. An `OR` is only indexable when every arm is. Without a
-  `package_id` index the planner scans the whole table for every shape, including
-  the repository-only and CVE-only shapes that have their own btrees.
-- The sequential scan reads 5.2 GB of heap. It is fast only when that heap is in
-  cache (0.9 s); cold it is 90 to 110 s. A reducer worker does not keep 5 GB hot.
-- With a partial `package_id` btree the read is 0.09 to 0.17 s and touches under
-  4,000 buffers.
-- The join form is 159 s; the raw-first form is the faster of the two on every
-  shape measured.
+  `package_id` index the planner scans the whole table for every shape.
+- The sequential scan is fast (0.7 to 0.97 s) only while the 5.2 GB heap sits in
+  the OS cache, and 52 to 111 s when it does not. A reducer worker does not keep
+  5 GB hot.
+- With the partial `package_id` btree the read is 1.4 to 5.6 ms warm and 584 ms on
+  the first run after a restart (858 buffers read), bounded by the index.
 
 The same shapes at 600,000 supports (6,000 scopes, 419 MB with indexes): join form
 313 to 389 ms; raw-first 0.1 to 1.1 ms for the repository arm, 3.9 ms for all
 four arms with three new btrees, 51 ms for all four arms with none.
 
-This PR adds no index and no migration (the arbiter rules on the index).
-**The reconciliation read at QA scale depends on a partial
-`(package_id, fact_id) WHERE package_id <> ''` btree on the supports table.** Not
-measured here: the write cost (WAL) the extra index adds to every impact save;
-the arbiter's +25% impact-write WAL bar applies to it.
+**The reconciliation read at QA scale depends on the partial
+`(package_id, fact_id) WHERE package_id <> ''` btree on the supports table.**
+Not measured here yet: the hot-key page cost and the write cost (WAL) of the
+extra index.
 
 ## When the package array is non-empty
 
