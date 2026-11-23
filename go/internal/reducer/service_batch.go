@@ -349,14 +349,8 @@ func (s Service) ackReducerWork(
 		return nil
 	}
 
-	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
-		// The ack failed only because shutdown cancelled its context (the
-		// statement, or the wake that follows it). Either the ack did not
-		// commit and the claim expires for reclaim, or it committed and the
-		// audit bounds a lost wake: a stopping process, not a failed run,
-		// the same as a shutdown that interrupts the retry backoff above.
-		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
-		return nil
+	if stoppedByShutdown(ctx, err) {
+		return s.recordShutdownInterrupt(ctx, intent, duration, queueWait, ackStatusOutcomeUnknown, workerID, err)
 	}
 
 	s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "ack_failed", workerID, err)
@@ -477,6 +471,9 @@ func (s Service) executeAndReport(ctx context.Context, intent reducercontract.In
 			// (#7142).
 			s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "lease_lost_during_execution", workerID, failErr)
 			return batchAckItem{}, false, nil
+		}
+		if stoppedByShutdown(ctx, failErr) {
+			return batchAckItem{}, false, s.recordShutdownInterrupt(ctx, intent, duration, queueWait, failStatusInterruptedByShutdown, workerID, errors.Join(err, failErr))
 		}
 		s.recordReducerResult(ctx, intent, reducercontract.Result{}, duration, queueWait, "failed", workerID, err)
 		if failErr != nil {
