@@ -1946,12 +1946,13 @@ type Instruments struct {
 	// sizes, so answers come back truncated.
 	QueryImpactScopedPathsWithheld metric.Int64Counter
 	// SupplyChainImpactReadRoute counts every supply-chain impact list, count,
-	// inventory and grouped-inventory read by the read model its route function
-	// chose (#10880 PR-B2a): winners, winners_supplement (unscoped precise), supports_grant,
-	// supports_image, supports_finding_id (the public-id explain), or legacy (gate
-	// off, and the explain selector and identity reads that stay on the fact table).
-	// The label is bounded to those six values. An operator reads it to see which route a 503 or a slow read is on
-	// and, with the route span attribute, which statement shape ran.
+	// inventory, grouped-inventory and explain read statement by the read model its
+	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
+	// precise), supports_grant, supports_image, supports_finding_id (the public-id
+	// explain), or legacy (gate off, and the explain selector and identity reads that
+	// stay on the fact table). The label is bounded to those six values. An operator
+	// reads it to see which route a 503 or a slow read is on and, with the route span
+	// attribute, which statement shape ran.
 	SupplyChainImpactReadRoute metric.Int64Counter
 	// SupplyChainImpactReadDuration observes the wall time of one supply-chain
 	// impact read statement by the same route label, so a slow read is attributed

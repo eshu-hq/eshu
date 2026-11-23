@@ -144,7 +144,7 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	// precise call reads the winners table plus the supplement, and everything else
 	// reads the winners table.
 	route := filter.route(s.ReadFromWinners)
-	defer observeRoute(ctx, s.Instruments, route)()
+	countRoute(ctx, s.Instruments, route)
 	build := groupedInventoryQuery
 	switch route {
 	case RouteLegacy, RouteWinners, RouteSupportsFindingID:
@@ -189,6 +189,10 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 			return GroupedInventoryPage{}, err
 		}
 	}
+	// The duration sample is the read: it starts after the readiness and watermark
+	// probes, so a refused call records nothing and an accepted call does not
+	// include them.
+	defer timeRoute(ctx, s.Instruments, route)()
 
 	args := []any{
 		filter.CVEID,

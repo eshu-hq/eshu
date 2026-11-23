@@ -68,10 +68,12 @@ func (tx *routeFakeTx) event(query string) string {
 func (tx *routeFakeTx) Commit() error   { tx.fake.record("commit"); tx.ended = true; return nil }
 func (tx *routeFakeTx) Rollback() error { tx.fake.record("rollback"); tx.ended = true; return nil }
 
-// TestJITIsOffOnlyForTheSupplementAndImageReads pins the ruling's JIT rule: the
-// measured pair showed jit = off at least 20 percent faster for the supplement
-// and image reads, so those two routes (and no other) run their one statement
-// inside a short read transaction after a transaction-local jit = off. The setting
+// TestJITIsOffOnlyForTheSupplementAndImageReads pins the ruling's JIT rule: the two
+// routes (and no other) run their one statement inside a short read transaction
+// after a transaction-local jit = off. The supplement route's V reads were measured
+// per plan state (custom plan about 82 percent faster; generic plan 68 percent for
+// the list and neutral for the counts); the image route takes the wrapper by ruling
+// with no measured pair of its own (its QA median is a B3 return line). The setting
 // is transaction-local (set_config(..., true)), never session or pool wide, and the
 // transaction ends before the call returns.
 func TestJITIsOffOnlyForTheSupplementAndImageReads(t *testing.T) {

@@ -241,6 +241,10 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
 		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
 	}
+	// One exception to "the identity lookup stays legacy": a finding id that misses the
+	// public-id probe AND names an image reference falls back to the image read
+	// (filter, then identity, on the image candidates), which is the same answer the
+	// legacy identity read gives for that filter set; it counts as supports_image.
 	if filter.ImageRef != "" {
 		route.selector, route.selectorRoute = ExplainFindingFromImageQuery, RouteSupportsImage
 	}

@@ -49,8 +49,9 @@ func supportsSourceCTE(b supportsSourceBinds) string {
 	template = strings.Replace(template, "{from}", from, 1)
 	if b.protectedFlag == "" {
 		// A read with no caller-authorization binds (the grouped inventory) drops
-		// the protected-read guards; the supports table holds no derived-class
-		// row, so the guards only typed binds the read does not have.
+		// the protected-read guards. Those guards only type binds the read does not
+		// have: the derived-class and associated-finding exclusion is the
+		// static-authority predicate, which every supports read keeps.
 		template = strings.Replace(template, supportsSourceProtectedGuards, "", 1)
 	}
 	return strings.NewReplacer(

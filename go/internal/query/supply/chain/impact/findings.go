@@ -239,8 +239,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	route := filter.route(s.ReadFromWinners)
-	doneRoute := observeRoute(ctx, s.Instruments, route)
-	defer doneRoute()
+	countRoute(ctx, s.Instruments, route)
 	if route.readsSupports() {
 		// The per-support table answers a grant, an image reference, and the
 		// supplement of an unscoped precise call; it refuses, and never falls back
@@ -250,6 +249,9 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 			return nil, err
 		}
 	}
+	// The duration sample is the read: it starts after the readiness probe, so a
+	// refused call records nothing and an accepted call does not include the probe.
+	defer timeRoute(ctx, s.Instruments, route)()
 	query := ListFindingsQuery
 	switch route {
 	case RouteLegacy, RouteSupportsFindingID:

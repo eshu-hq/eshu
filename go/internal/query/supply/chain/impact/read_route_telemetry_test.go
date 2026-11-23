@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -262,6 +264,69 @@ func TestExplainCountsEachStatementByRoute(t *testing.T) {
 			}
 			if routeSpanAttribute(t, recorder) == "" {
 				t.Fatal("the explain recorded no route attribute on its span")
+			}
+		})
+	}
+}
+
+// TestRefusedReadCountsItsRouteAndRecordsNoDuration pins the meaning of the
+// read-duration histogram: a call the supports readiness predicate refuses counts
+// the route it tried (the counter shows which route 503s) but records no duration
+// sample, so a not-ready window does not pull the route's latency percentiles down
+// with fast 503 samples, and an accepted call's sample does not include the probe.
+func TestRefusedReadCountsItsRouteAndRecordsNoDuration(t *testing.T) {
+	t.Parallel()
+	notReady := func() *routeFake {
+		fake := routeQueryer()
+		inner := fake.onRows
+		fake.onRows = func(query string) (db.Rows, error) {
+			if strings.Contains(query, "supply_chain_impact_finding_supports_backfill") {
+				return &cov7StoreRows{rows: [][]any{{false}}}, nil
+			}
+			return inner(query)
+		}
+		return fake
+	}
+	for what, call := range map[string]func(ctx context.Context, instruments *telemetry.Instruments) error{
+		"list": func(ctx context.Context, instruments *telemetry.Instruments) error {
+			store := NewPostgresFindingStoreWithReadStore(notReady(), true)
+			store.Instruments = instruments
+			_, err := store.ListSupplyChainImpactFindings(ctx, FindingFilter{Limit: 10, Status: "affected_exact", DetectionProfile: ProfilePrecise})
+			return err
+		},
+		"count": func(ctx context.Context, instruments *telemetry.Instruments) error {
+			store := NewPostgresAggregateStoreWithReadStore(notReady(), true)
+			store.Instruments = instruments
+			_, err := store.CountSupplyChainImpactFindings(ctx, AggregateFilter{Status: "affected_exact", DetectionProfile: ProfilePrecise})
+			return err
+		},
+		"inventory": func(ctx context.Context, instruments *telemetry.Instruments) error {
+			store := NewPostgresAggregateStoreWithReadStore(notReady(), true)
+			store.Instruments = instruments
+			_, err := store.SupplyChainImpactInventory(ctx, AggregateFilter{Status: "affected_exact", DetectionProfile: ProfilePrecise}, InventoryByStatus, 10, 0)
+			return err
+		},
+		"grouped": func(ctx context.Context, instruments *telemetry.Instruments) error {
+			store := NewPostgresGroupedInventoryStoreWithReadStore(notReady(), true, nil)
+			store.Instruments = instruments
+			store.Now = func() time.Time { return time.Now().UTC() }
+			_, err := store.SupplyChainImpactGroupedInventory(ctx, AggregateFilter{DetectionProfile: ProfilePrecise}, GroupedInventoryByService, 10, 0)
+			return err
+		},
+	} {
+		t.Run(what, func(t *testing.T) {
+			t.Parallel()
+			instruments, reader, _, ctx, end := routeTelemetryHarness(t)
+			err := call(ctx, instruments)
+			end()
+			if err == nil || !strings.Contains(err.Error(), ErrFindingSupportsUnavailable.Error()) {
+				t.Fatalf("%s = %v, want the supports-unavailable refusal", what, err)
+			}
+			if counts := routeCounts(t, reader); len(counts) != 1 || counts[string(RouteWinnersSupplement)] != 1 {
+				t.Fatalf("route counter = %v, want one count for the route the refused call tried", counts)
+			}
+			if durations := routeDurationCounts(t, reader); len(durations) != 0 {
+				t.Fatalf("a refused %s recorded duration samples %v, want none", what, durations)
 			}
 		})
 	}
