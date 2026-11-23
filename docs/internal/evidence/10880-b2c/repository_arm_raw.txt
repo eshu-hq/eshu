@@ -1,0 +1,1837 @@
+# #10880 PR-B2c repository arm on a repository with 160,000 supports, raw output.
+# PostgreSQL 18.6, shared_buffers 2GB, work_mem 64MB. Database b2c_hot (2,600,000 supports; heap 2,502 MB); repository
+# repo:hotrepo seeded with 160,000 supports (UPDATE of pkg:hot3 rows, 250 s). Statement = supplyChainImpactSupportsPageQuery,
+# repository array only, bound parameters, N = 500; the candidate adds the literal repository_id <> '' to the arm.
+# Order: restart, CURRENT (existing repository_id btree only), build candidate, restart, CANDIDATE
+# (repository_id, fact_id) WHERE repository_id <> ''. Then the same candidate built on the 8M corpus and a 1.5M one.
+## seed, builds and sizes
+[12:45Z] seed load1=14.70 mem=15GB
+Timing is on.
+UPDATE 160000
+Time: 250855.370 ms (04:10.855)
+Timing is off.
+VACUUM
+ hotrepo_rows
+--------------
+       160000
+(1 row)
+
+ repo_idx_size
+---------------
+ 42 MB
+(1 row)
+
+[12:51Z] current load1=9.21 mem=16GB
+[13:00Z] build_hot load1=3.93 mem=14GB
+Timing is on.
+CREATE INDEX
+Time: 33422.327 ms (00:33.422)
+Timing is off.
+ANALYZE
+ s_repo_fact_size | repository_idx_size |  heap
+------------------+---------------------+---------
+ 261 MB           | 42 MB               | 2502 MB
+(1 row)
+
+[13:01Z] candidate load1=5.10 mem=16GB
+[13:01Z] build_8m load1=5.10 mem=16GB
+--- 8M corpus (b2c_scale) build
+Time: 82827.652 ms (01:22.828)
+ERROR:  relation "supply_chain_impact_finding_supports_repository_idx" does not exist
+LINE 1: ...s_repo_fact_size, pg_size_pretty(pg_relation_size('supply_ch...
+                                                             ^
+[13:02Z] build_1_5m load1=6.51 mem=16GB
+--- 1.5M corpus (b2c_scratch) build
+Time: 10338.551 ms (00:10.339)
+ s_repo_fact_size | repository_idx_size |  heap  |  rows
+------------------+---------------------+--------+---------
+ 151 MB           | 11 MB               | 689 MB | 1500000
+(1 row)
+
+
+## 8M corpus sizes (queried after the build)
+s_repo_fact 433 MB, repository btree 63 MB, heap 5207 MB
+
+## CURRENT
+Timing is off.
+######## CURRENT repository_idx only
+DEALLOCATE ALL
+PREPARE
+PREPARE
+SET
+===== CURRENT repository_idx only force_generic_plan page1 first-run
+                                                                                                               QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=352.157..797.387 rows=500.00 loops=1)
+   Buffers: shared hit=97267 read=11598
+   ->  Nested Loop Left Join (actual time=348.123..574.960 rows=500.00 loops=1)
+         Buffers: shared hit=95960 read=11405
+         ->  Nested Loop (actual time=343.833..346.562 rows=500.00 loops=1)
+               Buffers: shared hit=94665 read=11200
+               ->  Limit (actual time=342.486..342.640 rows=500.00 loops=1)
+                     Buffers: shared hit=92190 read=11175
+                     ->  Unique (actual time=342.485..342.613 rows=500.00 loops=1)
+                           Buffers: shared hit=92190 read=11175
+                           ->  Limit (actual time=342.483..342.540 rows=500.00 loops=1)
+                                 Buffers: shared hit=92190 read=11175
+                                 ->  Sort (actual time=342.483..342.509 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=92190 read=11175
+                                       ->  Append (actual time=342.258..342.395 rows=500.00 loops=1)
+                                             Buffers: shared hit=92187 read=11175
+                                             ->  Nested Loop (actual time=342.258..342.335 rows=500.00 loops=1)
+                                                   Buffers: shared hit=92187 read=11175
+                                                   ->  Function Scan on unnest k (actual time=0.006..0.008 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=342.249..342.293 rows=500.00 loops=1)
+                                                         Buffers: shared hit=92187 read=11175
+                                                         ->  Sort (actual time=342.248..342.266 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=92187 read=11175
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.024..326.929 rows=160000.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=92187 read=11175
+                                             ->  Nested Loop (actual time=0.007..0.008 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.007..0.007 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.003..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.012..0.013 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.012..0.012 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.008..0.008 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2475 read=25
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.457..0.457 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1295 read=205
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.445..0.445 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1307 read=193
+ Planning:
+   Buffers: shared hit=295 read=69 dirtied=4
+ Planning Time: 122.101 ms
+ Execution Time: 797.556 ms
+(70 rows)
+
+===== CURRENT repository_idx only force_generic_plan page1 second-run
+                                                                                                              QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=110.725..114.733 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=110.713..113.435 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=110.703..112.250 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=110.689..110.822 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=110.688..110.795 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=110.686..110.735 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=110.685..110.709 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=110.507..110.635 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=110.506..110.582 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.005..0.006 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=110.499..110.542 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=110.498..110.515 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.011..94.834 rows=160000.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.011..0.012 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.011..0.011 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning Time: 0.025 ms
+ Execution Time: 114.818 ms
+(68 rows)
+
+===== CURRENT repository_idx only force_generic_plan midpoint first-run
+                                                                                                              QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=103.144..108.291 rows=500.00 loops=1)
+   Buffers: shared hit=108859 read=3
+   ->  Nested Loop Left Join (actual time=103.133..107.013 rows=500.00 loops=1)
+         Buffers: shared hit=107359 read=3
+         ->  Nested Loop (actual time=103.122..104.700 rows=500.00 loops=1)
+               Buffers: shared hit=105860 read=2
+               ->  Limit (actual time=101.670..101.805 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=101.669..101.779 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=101.668..101.720 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=101.667..101.693 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=101.470..101.589 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=101.469..101.545 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.005..0.006 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=101.462..101.505 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=101.461..101.478 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.010..93.685 rows=79999.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > $5)
+                                                                     Rows Removed by Filter: 80001
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.005..0.006 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.004..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.004..0.004 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.005..0.005 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2498 read=2
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.004..0.004 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1499 read=1
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=60
+ Planning Time: 0.797 ms
+ Execution Time: 108.367 ms
+(72 rows)
+
+===== CURRENT repository_idx only force_generic_plan midpoint second-run
+                                                                                                              QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=99.992..103.912 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=99.984..102.655 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=99.977..101.511 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=99.966..100.098 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=99.966..100.071 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=99.965..100.012 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=99.965..99.986 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=99.793..99.913 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=99.793..99.875 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.004..0.005 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=99.787..99.837 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=99.786..99.803 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.009..92.067 rows=79999.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > $5)
+                                                                     Rows Removed by Filter: 80001
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.004..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning Time: 0.017 ms
+ Execution Time: 103.983 ms
+(70 rows)
+
+===== CURRENT repository_idx only force_generic_plan last page first-run
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=85.330..96.580 rows=249.00 loops=1)
+   Buffers: shared hit=106087 read=14
+   ->  Nested Loop Left Join (actual time=85.321..95.886 rows=249.00 loops=1)
+         Buffers: shared hit=105340 read=14
+         ->  Nested Loop (actual time=85.315..95.242 rows=249.00 loops=1)
+               Buffers: shared hit=104594 read=13
+               ->  Limit (actual time=83.301..83.373 rows=249.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=83.301..83.360 rows=249.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=83.300..83.327 rows=249.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=83.300..83.314 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=83.213..83.275 rows=249.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=83.212..83.251 rows=249.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=83.209..83.231 rows=249.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=83.209..83.217 rows=249.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: quicksort  Memory: 25kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.394..83.065 rows=249.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > $5)
+                                                                     Rows Removed by Filter: 159751
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.003..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.047..0.047 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1232 read=13
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=746 read=1
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.003..0.003 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning Time: 0.011 ms
+ Execution Time: 96.643 ms
+(70 rows)
+
+===== CURRENT repository_idx only force_generic_plan last page second-run
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=93.953..95.923 rows=249.00 loops=1)
+   Buffers: shared hit=106101
+   ->  Nested Loop Left Join (actual time=93.945..95.282 rows=249.00 loops=1)
+         Buffers: shared hit=105354
+         ->  Nested Loop (actual time=93.939..94.695 rows=249.00 loops=1)
+               Buffers: shared hit=104607
+               ->  Limit (actual time=93.928..93.995 rows=249.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=93.928..93.981 rows=249.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=93.927..93.952 rows=249.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=93.926..93.938 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=93.839..93.901 rows=249.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=93.839..93.878 rows=249.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=93.835..93.857 rows=249.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=93.834..93.843 rows=249.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: quicksort  Memory: 25kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.495..93.696 rows=249.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > $5)
+                                                                     Rows Removed by Filter: 159751
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.004..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.004..0.004 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning Time: 0.016 ms
+ Execution Time: 95.976 ms
+(70 rows)
+
+SET
+===== CURRENT repository_idx only force_custom_plan page1 first-run
+                                                                                                              QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=99.078..102.871 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=99.068..101.643 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=99.059..100.541 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=99.047..99.182 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=99.046..99.156 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=99.045..99.092 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=99.045..99.066 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=98.850..98.965 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=98.849..98.924 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=98.845..98.888 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=98.845..98.862 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.007..83.885 rows=160000.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.004..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.004..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.619 ms
+ Execution Time: 102.928 ms
+(70 rows)
+
+===== CURRENT repository_idx only force_custom_plan page1 second-run
+                                                                                                              QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=104.511..108.423 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=104.501..107.158 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=104.493..106.016 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=104.481..104.613 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=104.480..104.587 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=104.479..104.527 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=104.478..104.501 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=104.287..104.405 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=104.287..104.362 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.004..0.005 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=104.282..104.325 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=104.281..104.298 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.007..89.041 rows=160000.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.003..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.619 ms
+ Execution Time: 108.486 ms
+(70 rows)
+
+===== CURRENT repository_idx only force_custom_plan midpoint first-run
+                                                                                                              QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=106.385..110.312 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=106.366..109.069 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=106.353..107.936 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=106.336..106.469 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=106.335..106.442 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=106.334..106.383 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=106.334..106.357 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=106.147..106.270 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=106.146..106.222 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=106.141..106.184 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=106.140..106.157 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.008..98.392 rows=79999.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text)
+                                                                     Rows Removed by Filter: 80001
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.005..0.006 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.009..0.009 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.009..0.009 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.707 ms
+ Execution Time: 110.375 ms
+(72 rows)
+
+===== CURRENT repository_idx only force_custom_plan midpoint second-run
+                                                                                                              QUERY PLAN
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=113.162..117.046 rows=500.00 loops=1)
+   Buffers: shared hit=108862
+   ->  Nested Loop Left Join (actual time=113.151..115.813 rows=500.00 loops=1)
+         Buffers: shared hit=107362
+         ->  Nested Loop (actual time=113.135..114.677 rows=500.00 loops=1)
+               Buffers: shared hit=105862
+               ->  Limit (actual time=113.121..113.252 rows=500.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=113.120..113.225 rows=500.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=113.119..113.167 rows=500.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=113.119..113.141 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=112.929..113.056 rows=500.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=112.929..113.009 rows=500.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.004..0.005 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=112.923..112.966 rows=500.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=112.922..112.939 rows=500.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: still in progress  Memory: 0kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.008..105.063 rows=79999.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text)
+                                                                     Rows Removed by Filter: 80001
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.004..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.009..0.009 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.009..0.009 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.805 ms
+ Execution Time: 117.131 ms
+(72 rows)
+
+===== CURRENT repository_idx only force_custom_plan last page first-run
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=87.667..89.692 rows=249.00 loops=1)
+   Buffers: shared hit=106101
+   ->  Nested Loop Left Join (actual time=87.656..89.038 rows=249.00 loops=1)
+         Buffers: shared hit=105354
+         ->  Nested Loop (actual time=87.640..88.431 rows=249.00 loops=1)
+               Buffers: shared hit=104607
+               ->  Limit (actual time=87.626..87.696 rows=249.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=87.626..87.683 rows=249.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=87.624..87.651 rows=249.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=87.624..87.638 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=87.521..87.600 rows=249.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=87.520..87.559 rows=249.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=87.516..87.537 rows=249.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=87.515..87.524 rows=249.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: quicksort  Memory: 25kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.492..87.380 rows=249.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text)
+                                                                     Rows Removed by Filter: 159751
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.004..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.004..0.004 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.017..0.018 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.017..0.017 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.721 ms
+ Execution Time: 89.747 ms
+(72 rows)
+
+===== CURRENT repository_idx only force_custom_plan last page second-run
+                                                                                                             QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=89.758..91.795 rows=249.00 loops=1)
+   Buffers: shared hit=106101
+   ->  Nested Loop Left Join (actual time=89.746..91.126 rows=249.00 loops=1)
+         Buffers: shared hit=105354
+         ->  Nested Loop (actual time=89.723..90.507 rows=249.00 loops=1)
+               Buffers: shared hit=104607
+               ->  Limit (actual time=89.709..89.777 rows=249.00 loops=1)
+                     Buffers: shared hit=103362
+                     ->  Unique (actual time=89.709..89.764 rows=249.00 loops=1)
+                           Buffers: shared hit=103362
+                           ->  Limit (actual time=89.707..89.733 rows=249.00 loops=1)
+                                 Buffers: shared hit=103362
+                                 ->  Sort (actual time=89.707..89.720 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=103362
+                                       ->  Append (actual time=89.621..89.682 rows=249.00 loops=1)
+                                             Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=89.620..89.659 rows=249.00 loops=1)
+                                                   Buffers: shared hit=103362
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=89.616..89.638 rows=249.00 loops=1)
+                                                         Buffers: shared hit=103362
+                                                         ->  Sort (actual time=89.616..89.624 rows=249.00 loops=1)
+                                                               Sort Key: s_1.fact_id
+                                                               Sort Method: quicksort  Memory: 25kB
+                                                               Buffers: shared hit=103362
+                                                               ->  Index Scan using supply_chain_impact_finding_supports_repository_idx on supply_chain_impact_finding_supports s_1 (actual time=0.436..89.484 rows=249.00 loops=1)
+                                                                     Index Cond: (repository_id = k.v)
+                                                                     Filter: (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text)
+                                                                     Rows Removed by Filter: 159751
+                                                                     Index Searches: 1
+                                                                     Buffers: shared hit=103362
+                                             ->  Nested Loop (actual time=0.003..0.004 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.003..0.003 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.003..0.003 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.672 ms
+ Execution Time: 91.844 ms
+(72 rows)
+
+RESET
+
+## CANDIDATE
+Timing is off.
+######## CANDIDATE (repository_id, fact_id) WHERE repository_id <>
+DEALLOCATE ALL
+PREPARE
+PREPARE
+SET
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan page1 first-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=1.480..374.006 rows=500.00 loops=1)
+   Buffers: shared hit=4989 read=923
+   ->  Nested Loop Left Join (actual time=1.457..371.783 rows=500.00 loops=1)
+         Buffers: shared hit=3682 read=730
+         ->  Nested Loop (actual time=1.433..369.482 rows=500.00 loops=1)
+               Buffers: shared hit=2387 read=525
+               ->  Limit (actual time=0.269..0.427 rows=500.00 loops=1)
+                     Buffers: shared hit=412
+                     ->  Unique (actual time=0.269..0.399 rows=500.00 loops=1)
+                           Buffers: shared hit=412
+                           ->  Limit (actual time=0.268..0.325 rows=500.00 loops=1)
+                                 Buffers: shared hit=412
+                                 ->  Sort (actual time=0.268..0.297 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=412
+                                       ->  Append (actual time=0.019..0.194 rows=500.00 loops=1)
+                                             Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.019..0.159 rows=500.00 loops=1)
+                                                   Buffers: shared hit=409
+                                                   ->  Function Scan on unnest k (actual time=0.005..0.005 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.013..0.122 rows=500.00 loops=1)
+                                                         Buffers: shared hit=409
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.012..0.095 rows=500.00 loops=1)
+                                                               Index Cond: (repository_id = k.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.003 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.738..0.738 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=1975 read=525
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.004..0.004 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1295 read=205
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.004..0.004 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1307 read=193
+ Planning:
+   Buffers: shared hit=315 read=51 dirtied=3
+ Planning Time: 2.749 ms
+ Execution Time: 374.129 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan page1 second-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.257..3.695 rows=500.00 loops=1)
+   Buffers: shared hit=5909
+   ->  Nested Loop Left Join (actual time=0.252..2.563 rows=500.00 loops=1)
+         Buffers: shared hit=4409
+         ->  Nested Loop (actual time=0.246..1.547 rows=500.00 loops=1)
+               Buffers: shared hit=2909
+               ->  Limit (actual time=0.240..0.373 rows=500.00 loops=1)
+                     Buffers: shared hit=409
+                     ->  Unique (actual time=0.239..0.346 rows=500.00 loops=1)
+                           Buffers: shared hit=409
+                           ->  Limit (actual time=0.239..0.289 rows=500.00 loops=1)
+                                 Buffers: shared hit=409
+                                 ->  Sort (actual time=0.239..0.261 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=409
+                                       ->  Append (actual time=0.013..0.188 rows=500.00 loops=1)
+                                             Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.013..0.159 rows=500.00 loops=1)
+                                                   Buffers: shared hit=409
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.009..0.124 rows=500.00 loops=1)
+                                                         Buffers: shared hit=409
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.008..0.098 rows=500.00 loops=1)
+                                                               Index Cond: (repository_id = k.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning Time: 0.016 ms
+ Execution Time: 3.751 ms
+(65 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan midpoint first-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.312..152.924 rows=500.00 loops=1)
+   Buffers: shared hit=5371 read=526
+   ->  Nested Loop Left Join (actual time=0.306..151.552 rows=500.00 loops=1)
+         Buffers: shared hit=3871 read=526
+         ->  Nested Loop (actual time=0.300..150.179 rows=500.00 loops=1)
+               Buffers: shared hit=2372 read=525
+               ->  Limit (actual time=0.267..0.413 rows=500.00 loops=1)
+                     Buffers: shared hit=395 read=2
+                     ->  Unique (actual time=0.267..0.387 rows=500.00 loops=1)
+                           Buffers: shared hit=395 read=2
+                           ->  Limit (actual time=0.267..0.319 rows=500.00 loops=1)
+                                 Buffers: shared hit=395 read=2
+                                 ->  Sort (actual time=0.267..0.291 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=395 read=2
+                                       ->  Append (actual time=0.033..0.221 rows=500.00 loops=1)
+                                             Buffers: shared hit=395 read=2
+                                             ->  Nested Loop (actual time=0.032..0.170 rows=500.00 loops=1)
+                                                   Buffers: shared hit=395 read=2
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.029..0.136 rows=500.00 loops=1)
+                                                         Buffers: shared hit=395 read=2
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.029..0.109 rows=500.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=395 read=2
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.299..0.299 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=1977 read=523
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1499 read=1
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.003..0.003 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=60
+ Planning Time: 0.666 ms
+ Execution Time: 152.980 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan midpoint second-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.253..3.770 rows=500.00 loops=1)
+   Buffers: shared hit=5897
+   ->  Nested Loop Left Join (actual time=0.248..2.628 rows=500.00 loops=1)
+         Buffers: shared hit=4397
+         ->  Nested Loop (actual time=0.244..1.599 rows=500.00 loops=1)
+               Buffers: shared hit=2897
+               ->  Limit (actual time=0.239..0.373 rows=500.00 loops=1)
+                     Buffers: shared hit=397
+                     ->  Unique (actual time=0.238..0.347 rows=500.00 loops=1)
+                           Buffers: shared hit=397
+                           ->  Limit (actual time=0.238..0.289 rows=500.00 loops=1)
+                                 Buffers: shared hit=397
+                                 ->  Sort (actual time=0.238..0.261 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=397
+                                       ->  Append (actual time=0.017..0.191 rows=500.00 loops=1)
+                                             Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.017..0.160 rows=500.00 loops=1)
+                                                   Buffers: shared hit=397
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.013..0.125 rows=500.00 loops=1)
+                                                         Buffers: shared hit=397
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.012..0.099 rows=500.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning Time: 0.018 ms
+ Execution Time: 3.831 ms
+(65 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan last page first-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.220..98.504 rows=249.00 loops=1)
+   Buffers: shared hit=2690 read=268
+   ->  Nested Loop Left Join (actual time=0.217..97.821 rows=249.00 loops=1)
+         Buffers: shared hit=1943 read=268
+         ->  Nested Loop (actual time=0.213..97.130 rows=249.00 loops=1)
+               Buffers: shared hit=1197 read=267
+               ->  Limit (actual time=0.155..0.233 rows=249.00 loops=1)
+                     Buffers: shared hit=215 read=4
+                     ->  Unique (actual time=0.155..0.219 rows=249.00 loops=1)
+                           Buffers: shared hit=215 read=4
+                           ->  Limit (actual time=0.155..0.184 rows=249.00 loops=1)
+                                 Buffers: shared hit=215 read=4
+                                 ->  Sort (actual time=0.155..0.170 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=215 read=4
+                                       ->  Append (actual time=0.029..0.133 rows=249.00 loops=1)
+                                             Buffers: shared hit=215 read=4
+                                             ->  Nested Loop (actual time=0.029..0.115 rows=249.00 loops=1)
+                                                   Buffers: shared hit=215 read=4
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.002 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.026..0.097 rows=249.00 loops=1)
+                                                         Buffers: shared hit=215 read=4
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.026..0.083 rows=249.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=215 read=4
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.389..0.389 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=982 read=263
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.003..0.003 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=746 read=1
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.003..0.003 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning Time: 0.009 ms
+ Execution Time: 98.554 ms
+(65 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_generic_plan last page second-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.145..1.947 rows=249.00 loops=1)
+   Buffers: shared hit=2958
+   ->  Nested Loop Left Join (actual time=0.141..1.361 rows=249.00 loops=1)
+         Buffers: shared hit=2211
+         ->  Nested Loop (actual time=0.138..0.823 rows=249.00 loops=1)
+               Buffers: shared hit=1464
+               ->  Limit (actual time=0.134..0.200 rows=249.00 loops=1)
+                     Buffers: shared hit=219
+                     ->  Unique (actual time=0.134..0.187 rows=249.00 loops=1)
+                           Buffers: shared hit=219
+                           ->  Limit (actual time=0.133..0.158 rows=249.00 loops=1)
+                                 Buffers: shared hit=219
+                                 ->  Sort (actual time=0.133..0.144 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=219
+                                       ->  Append (actual time=0.019..0.107 rows=249.00 loops=1)
+                                             Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.019..0.092 rows=249.00 loops=1)
+                                                   Buffers: shared hit=219
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.004 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.015..0.072 rows=249.00 loops=1)
+                                                         Buffers: shared hit=219
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.015..0.059 rows=249.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > $5))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning Time: 0.016 ms
+ Execution Time: 1.991 ms
+(65 rows)
+
+SET
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan page1 first-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.262..3.705 rows=500.00 loops=1)
+   Buffers: shared hit=5909
+   ->  Nested Loop Left Join (actual time=0.257..2.584 rows=500.00 loops=1)
+         Buffers: shared hit=4409
+         ->  Nested Loop (actual time=0.251..1.557 rows=500.00 loops=1)
+               Buffers: shared hit=2909
+               ->  Limit (actual time=0.236..0.375 rows=500.00 loops=1)
+                     Buffers: shared hit=409
+                     ->  Unique (actual time=0.236..0.349 rows=500.00 loops=1)
+                           Buffers: shared hit=409
+                           ->  Limit (actual time=0.236..0.286 rows=500.00 loops=1)
+                                 Buffers: shared hit=409
+                                 ->  Sort (actual time=0.236..0.259 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=409
+                                       ->  Append (actual time=0.009..0.190 rows=500.00 loops=1)
+                                             Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.009..0.152 rows=500.00 loops=1)
+                                                   Buffers: shared hit=409
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.002 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.006..0.112 rows=500.00 loops=1)
+                                                         Buffers: shared hit=409
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.006..0.086 rows=500.00 loops=1)
+                                                               Index Cond: (repository_id = k.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.007..0.008 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.007..0.008 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.619 ms
+ Execution Time: 3.760 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan page1 second-run
+                                                                                        QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.280..3.655 rows=500.00 loops=1)
+   Buffers: shared hit=5909
+   ->  Nested Loop Left Join (actual time=0.275..2.549 rows=500.00 loops=1)
+         Buffers: shared hit=4409
+         ->  Nested Loop (actual time=0.269..1.557 rows=500.00 loops=1)
+               Buffers: shared hit=2909
+               ->  Limit (actual time=0.252..0.390 rows=500.00 loops=1)
+                     Buffers: shared hit=409
+                     ->  Unique (actual time=0.252..0.364 rows=500.00 loops=1)
+                           Buffers: shared hit=409
+                           ->  Limit (actual time=0.252..0.301 rows=500.00 loops=1)
+                                 Buffers: shared hit=409
+                                 ->  Sort (actual time=0.252..0.274 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=409
+                                       ->  Append (actual time=0.011..0.189 rows=500.00 loops=1)
+                                             Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.011..0.159 rows=500.00 loops=1)
+                                                   Buffers: shared hit=409
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.007..0.118 rows=500.00 loops=1)
+                                                         Buffers: shared hit=409
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.007..0.092 rows=500.00 loops=1)
+                                                               Index Cond: (repository_id = k.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=409
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: (package_id = k_1.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: (cve_id = k_2.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: (advisory_id = k_3.v)
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.626 ms
+ Execution Time: 3.706 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan midpoint first-run
+                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.257..3.675 rows=500.00 loops=1)
+   Buffers: shared hit=5897
+   ->  Nested Loop Left Join (actual time=0.251..2.561 rows=500.00 loops=1)
+         Buffers: shared hit=4397
+         ->  Nested Loop (actual time=0.246..1.568 rows=500.00 loops=1)
+               Buffers: shared hit=2897
+               ->  Limit (actual time=0.239..0.373 rows=500.00 loops=1)
+                     Buffers: shared hit=397
+                     ->  Unique (actual time=0.239..0.347 rows=500.00 loops=1)
+                           Buffers: shared hit=397
+                           ->  Limit (actual time=0.238..0.288 rows=500.00 loops=1)
+                                 Buffers: shared hit=397
+                                 ->  Sort (actual time=0.238..0.260 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=397
+                                       ->  Append (actual time=0.014..0.179 rows=500.00 loops=1)
+                                             Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.013..0.145 rows=500.00 loops=1)
+                                                   Buffers: shared hit=397
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.010..0.112 rows=500.00 loops=1)
+                                                         Buffers: shared hit=397
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.010..0.086 rows=500.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.627 ms
+ Execution Time: 3.722 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan midpoint second-run
+                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.273..3.661 rows=500.00 loops=1)
+   Buffers: shared hit=5897
+   ->  Nested Loop Left Join (actual time=0.267..2.576 rows=500.00 loops=1)
+         Buffers: shared hit=4397
+         ->  Nested Loop (actual time=0.262..1.580 rows=500.00 loops=1)
+               Buffers: shared hit=2897
+               ->  Limit (actual time=0.256..0.400 rows=500.00 loops=1)
+                     Buffers: shared hit=397
+                     ->  Unique (actual time=0.255..0.368 rows=500.00 loops=1)
+                           Buffers: shared hit=397
+                           ->  Limit (actual time=0.255..0.310 rows=500.00 loops=1)
+                                 Buffers: shared hit=397
+                                 ->  Sort (actual time=0.255..0.278 rows=500.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=397
+                                       ->  Append (actual time=0.032..0.201 rows=500.00 loops=1)
+                                             Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.032..0.167 rows=500.00 loops=1)
+                                                   Buffers: shared hit=397
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.002 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.029..0.134 rows=500.00 loops=1)
+                                                         Buffers: shared hit=397
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.028..0.108 rows=500.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=397
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.002..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.001..0.002 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '4483f4d1fc335b9ebd2b0407c8e47b82217b3fa04748ef222bb4c14f9c898690'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=500)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 500
+                     Buffers: shared hit=2500
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=500)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 500
+               Buffers: shared hit=1500
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=500)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 500
+         Buffers: shared hit=1500
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.574 ms
+ Execution Time: 3.709 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan last page first-run
+                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.165..1.943 rows=249.00 loops=1)
+   Buffers: shared hit=2958
+   ->  Nested Loop Left Join (actual time=0.159..1.374 rows=249.00 loops=1)
+         Buffers: shared hit=2211
+         ->  Nested Loop (actual time=0.154..0.859 rows=249.00 loops=1)
+               Buffers: shared hit=1464
+               ->  Limit (actual time=0.147..0.213 rows=249.00 loops=1)
+                     Buffers: shared hit=219
+                     ->  Unique (actual time=0.146..0.200 rows=249.00 loops=1)
+                           Buffers: shared hit=219
+                           ->  Limit (actual time=0.146..0.170 rows=249.00 loops=1)
+                                 Buffers: shared hit=219
+                                 ->  Sort (actual time=0.146..0.157 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=219
+                                       ->  Append (actual time=0.018..0.119 rows=249.00 loops=1)
+                                             Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.018..0.093 rows=249.00 loops=1)
+                                                   Buffers: shared hit=219
+                                                   ->  Function Scan on unnest k (actual time=0.003..0.003 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.014..0.075 rows=249.00 loops=1)
+                                                         Buffers: shared hit=219
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.014..0.061 rows=249.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.005..0.005 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.006..0.006 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.006..0.006 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.657 ms
+ Execution Time: 1.985 ms
+(67 rows)
+
+===== CANDIDATE (repository_id, fact_id) WHERE repository_id <>  force_custom_plan last page second-run
+                                                                                         QUERY PLAN
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop Left Join (actual time=0.148..1.804 rows=249.00 loops=1)
+   Buffers: shared hit=2958
+   ->  Nested Loop Left Join (actual time=0.144..1.275 rows=249.00 loops=1)
+         Buffers: shared hit=2211
+         ->  Nested Loop (actual time=0.139..0.784 rows=249.00 loops=1)
+               Buffers: shared hit=1464
+               ->  Limit (actual time=0.126..0.192 rows=249.00 loops=1)
+                     Buffers: shared hit=219
+                     ->  Unique (actual time=0.125..0.179 rows=249.00 loops=1)
+                           Buffers: shared hit=219
+                           ->  Limit (actual time=0.125..0.149 rows=249.00 loops=1)
+                                 Buffers: shared hit=219
+                                 ->  Sort (actual time=0.125..0.135 rows=249.00 loops=1)
+                                       Sort Key: s_1.fact_id
+                                       Sort Method: quicksort  Memory: 25kB
+                                       Buffers: shared hit=219
+                                       ->  Append (actual time=0.014..0.101 rows=249.00 loops=1)
+                                             Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.014..0.079 rows=249.00 loops=1)
+                                                   Buffers: shared hit=219
+                                                   ->  Function Scan on unnest k (actual time=0.002..0.002 rows=1.00 loops=1)
+                                                   ->  Limit (actual time=0.011..0.062 rows=249.00 loops=1)
+                                                         Buffers: shared hit=219
+                                                         ->  Index Only Scan using s_repo_fact on supply_chain_impact_finding_supports s_1 (actual time=0.011..0.049 rows=249.00 loops=1)
+                                                               Index Cond: ((repository_id = k.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 1
+                                                               Buffers: shared hit=219
+                                             ->  Nested Loop (actual time=0.001..0.001 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_1 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_pkg on supply_chain_impact_finding_supports s_2 (never executed)
+                                                               Index Cond: ((package_id = k_1.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_2 (actual time=0.000..0.000 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_cve on supply_chain_impact_finding_supports s_3 (never executed)
+                                                               Index Cond: ((cve_id = k_2.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+                                             ->  Nested Loop (actual time=0.007..0.007 rows=0.00 loops=1)
+                                                   ->  Function Scan on unnest k_3 (actual time=0.007..0.007 rows=0.00 loops=1)
+                                                   ->  Limit (never executed)
+                                                         ->  Index Only Scan using s_adv on supply_chain_impact_finding_supports s_4 (never executed)
+                                                               Index Cond: ((advisory_id = k_3.v) AND (fact_id > '58d2e065685e16060222f1aeec95c7eefa29b269ec50492851ff7d000edcf9d6'::text))
+                                                               Heap Fetches: 0
+                                                               Index Searches: 0
+               ->  Index Scan using supply_chain_impact_finding_supports_pkey on supply_chain_impact_finding_supports s (actual time=0.002..0.002 rows=1.00 loops=249)
+                     Index Cond: (fact_id = s_1.fact_id)
+                     Index Searches: 249
+                     Buffers: shared hit=1245
+         ->  Index Scan using ingestion_scopes_active_generation_idx on ingestion_scopes sc (actual time=0.002..0.002 rows=1.00 loops=249)
+               Index Cond: (active_generation_id = s.generation_id)
+               Filter: (scope_id = s.scope_id)
+               Index Searches: 249
+               Buffers: shared hit=747
+   ->  Index Scan using scope_generations_active_scope_idx on scope_generations g (actual time=0.002..0.002 rows=1.00 loops=249)
+         Index Cond: (scope_id = s.scope_id)
+         Filter: (generation_id = s.generation_id)
+         Index Searches: 249
+         Buffers: shared hit=747
+ Planning:
+   Buffers: shared hit=57
+ Planning Time: 0.552 ms
+ Execution Time: 1.836 ms
+(67 rows)
+
+RESET

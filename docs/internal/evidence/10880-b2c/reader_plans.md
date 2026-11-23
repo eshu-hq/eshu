@@ -179,6 +179,32 @@ All shapes are at or under 3,191 buffers and 6.4 ms warm, against the ruling's
 bounds of 7,738 buffers and 15 ms. The superseded OR statement read 3,869 buffers
 and took 5.1 ms warm for the all-arms shape.
 
+## The repository arm on a repository with 160,000 supports
+
+QA holds repositories of an estimated 120,000 to 150,000 findings, above the
+ruling's 20,000 line for the repository arm, so it was measured
+([repository_arm_raw.txt](repository_arm_raw.txt)) on `b2c_hot` with `repo:hotrepo`
+seeded to 160,000 supports, repository array only, both plan cache modes:
+
+| Index | Page | Buffers | Time warm | First after restart |
+| --- | --- | --- | --- | --- |
+| `(repository_id)` only (migration 338) | page 1 | 108,862 | 103 to 115 ms | 797 ms |
+| | midpoint | 108,862 | 104 to 117 ms | 108 ms |
+| | last page (250 left) | 106,101 | 90 to 96 ms | 97 ms |
+| `(repository_id, fact_id) WHERE repository_id <> ''` | page 1 | 5,909 | 3.7 ms | 374 ms |
+| | midpoint | 5,897 | 3.7 to 3.8 ms | 153 ms |
+| | last page (250 left) | 2,958 | 1.8 to 2.0 ms | 99 ms |
+
+With only the existing index each page reads every one of the repository's 160,000
+supports and keeps the first 500 by `fact_id` (a top-N sort, no temp): 108,862
+buffers per page, 320 pages to drain the repository, about 35 million buffers.
+With the candidate the page is an ordered Index Only Scan and costs what a hot
+package costs. Index size and build time: 261 MB and 33.4 s at 2,600,000 supports
+(the `(repository_id)` btree is 42 MB); 433 MB and 82.8 s at 8,000,000 (63 MB);
+151 MB and 10.3 s at 1,500,000 (11 MB). The candidate is about 6 times the size of
+the btree it would serve, so it is a candidate to replace `(repository_id)` rather
+than sit beside it; that, and its WAL, are not measured here (SLOT 3).
+
 ## When the package array is non-empty
 
 `securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
