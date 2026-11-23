@@ -148,10 +148,61 @@ func newSupplyChainImpactSupportsDrain(
 	}
 }
 
-// run drains every page and returns the active supports as impact-kind
-// envelopes in fact_id order. The cursor advances on the last raw id of each page
-// and the drain stops on a raw page shorter than the page size.
+// supplyChainImpactSupportsDrainStats is what one drain, or one call of several
+// drains, read: the page and row counts, the keys it filtered on and its wall time.
+type supplyChainImpactSupportsDrainStats struct {
+	pages, rawRows, activeRows, keys int
+	elapsed                          time.Duration
+}
+
+// add folds another drain's counts into the call total. Wall time is the caller's:
+// a call measures it once around all of its drains.
+func (s *supplyChainImpactSupportsDrainStats) add(other supplyChainImpactSupportsDrainStats) {
+	s.pages += other.pages
+	s.rawRows += other.rawRows
+	s.activeRows += other.activeRows
+	s.keys += other.keys
+}
+
+// recordSupplyChainImpactSupportsDrain records one sample of the drain signals for
+// reader: the raw-rows and duration histograms and, at 100,000 raw rows or more,
+// the large-drain log line. A sample is one drain for the reconciliation loader
+// and one whole GetSupplyChainAdvisoriesForRepos call (every repository it drains)
+// for the service-catalog loader, so the per-call return triggers of the ruling
+// (a call past 1,000,000 raw rows, a call near half the handler timeout) read
+// straight off these signals.
+func recordSupplyChainImpactSupportsDrain(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	reader string,
+	stats supplyChainImpactSupportsDrainStats,
+) {
+	instruments.RecordSupplyChainImpactSupportsDrainRawRows(ctx, reader, int64(stats.rawRows))
+	instruments.RecordSupplyChainImpactSupportsDrainDuration(ctx, reader, stats.elapsed)
+	if stats.rawRows >= supplyChainImpactSupportsDrainLogRows {
+		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
+			reader, stats.keys, stats.pages, stats.rawRows, stats.activeRows, stats.elapsed.Milliseconds())
+	}
+}
+
+// run drains every page, records one drain sample and returns the active supports
+// as impact-kind envelopes in fact_id order.
 func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Queryer) ([]facts.Envelope, error) {
+	loaded, stats, err := d.drain(ctx, queryer)
+	if err != nil {
+		return nil, err
+	}
+	recordSupplyChainImpactSupportsDrain(ctx, d.instruments, d.reader, stats)
+	return loaded, nil
+}
+
+// drain reads every page without recording a sample, for a caller that records
+// one sample over several drains. The cursor advances on the last raw id of each
+// page and the drain stops on a raw page shorter than the page size.
+func (d supplyChainImpactSupportsDrain) drain(
+	ctx context.Context,
+	queryer db.Queryer,
+) ([]facts.Envelope, supplyChainImpactSupportsDrainStats, error) {
 	started := time.Now()
 	var loaded []facts.Envelope
 	var cursorFactID string
@@ -163,7 +214,7 @@ func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Quer
 		}
 		pageRaw, lastRawID, active, err := d.page(ctx, queryer, query, args)
 		if err != nil {
-			return nil, err
+			return nil, supplyChainImpactSupportsDrainStats{}, err
 		}
 		loaded = append(loaded, active...)
 		pages++
@@ -176,14 +227,9 @@ func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Quer
 		}
 		cursorFactID = lastRawID
 	}
-	elapsed := time.Since(started)
-	d.instruments.RecordSupplyChainImpactSupportsDrainRawRows(ctx, d.reader, int64(rawRows))
-	d.instruments.RecordSupplyChainImpactSupportsDrainDuration(ctx, d.reader, elapsed)
-	if rawRows >= supplyChainImpactSupportsDrainLogRows {
-		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
-			d.reader, d.keyCount(), pages, rawRows, len(loaded), elapsed.Milliseconds())
-	}
-	return loaded, nil
+	return loaded, supplyChainImpactSupportsDrainStats{
+		pages: pages, rawRows: rawRows, activeRows: len(loaded), keys: d.keyCount(), elapsed: time.Since(started),
+	}, nil
 }
 
 // keyCount is the number of keys the drain filters on, summed over its arms.

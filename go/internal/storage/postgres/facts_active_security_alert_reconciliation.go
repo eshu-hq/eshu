@@ -97,7 +97,8 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	}
 	loaded, err := s.drainActiveSecurityAlertReconciliationFacts(ctx, filter)
 	if err != nil {
-		s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		// A fact-stream failure is not a supports read: only the supports drain
+		// below counts under outcome=failed.
 		return nil, err
 	}
 	impacts, err := newSupplyChainImpactSupportsDrain(s.instruments, reader, securityAlertReconciliationSupportsArms,

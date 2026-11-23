@@ -31,6 +31,13 @@ reads probe before each call, and how the reducer-side readers used it.
 
 No label carries a scope, repository, canonical key or CVE.
 
+One sample of the two drain histograms is one drain for the security-alert reconciliation
+loader and one whole `GetSupplyChainAdvisoriesForRepos` call for the service-catalog loader,
+which drains each repository id on its own cursor and records the total of the call (raw rows,
+pages, keys, wall time) once. So a sample is what one reducer intent read, and the return
+triggers of the hot-key ruling read straight off it: a call past 1,000,000 raw rows, or a
+duration approaching half the domain's handler timeout.
+
 A drain that reads 100,000 raw rows or more also logs one structured line,
 `event_name=supply_chain_impact_supports.large_drain`, with `reader`, `keys`, `pages`,
 `raw_rows`, `active_rows` and `duration_ms`, so a hot key is findable from logs

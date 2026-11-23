@@ -242,3 +242,34 @@ func TestSupportsDrainRecordsDurationPerReader(t *testing.T) {
 		t.Fatalf("drain duration points = %d, want 1 (one drain)", points)
 	}
 }
+
+// TestSupportsDrainRecordsOneSamplePerServiceCatalogCall pins that a service-catalog
+// call of several repositories, each its own drain, records ONE drain sample: the
+// raw rows and duration of the whole call, so the per-call return triggers of the
+// ruling read off the histograms and the large-drain log line.
+func TestSupportsDrainRecordsOneSamplePerServiceCatalogCall(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+		supportsReadyResponse(),
+		{rows: [][]any{
+			supportsPageRowForTest("fact-1", true, `{"repository_id":"repo-a"}`),
+			supportsPageRowForTest("fact-2", false, ""),
+		}},
+		{rows: [][]any{supportsPageRowForTest("fact-3", true, `{"repository_id":"repo-b"}`)}},
+		{rows: [][]any{
+			supportsPageRowForTest("fact-4", true, `{"repository_id":"repo-c"}`),
+			supportsPageRowForTest("fact-5", true, `{"repository_id":"repo-c"}`),
+			supportsPageRowForTest("fact-6", false, ""),
+		}},
+	}})
+	store.instruments = inst
+	if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a", "repo-b", "repo-c"}); err != nil {
+		t.Fatalf("GetSupplyChainAdvisoriesForRepos() error = %v, want nil", err)
+	}
+	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory)
+	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != 6 {
+		t.Fatalf("drain raw rows points = %+v, want one sample of one call summing 6 raw rows over its three repositories", points)
+	}
+}
