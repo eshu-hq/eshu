@@ -71,10 +71,6 @@ func (h *Handler) impactGroupedInventory(
 	page, err := h.ImpactGroupedInventory.SupplyChainImpactGroupedInventory(r.Context(), filter, dimension, limit+1, offset)
 	timer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
-		if errors.Is(err, impact.ErrGroupedInventoryFilterUnavailable) {
-			h.writeImpactGroupedInventoryFilterUnavailable(w, r)
-			return
-		}
 		if errors.Is(err, impact.ErrFindingSupportsUnavailable) {
 			// A granted call is answered from the supports table (#10880 PR-B2a).
 			h.writeImpactAggregateReadModelUnavailable(w, r, err)
@@ -121,23 +117,6 @@ func (h *Handler) writeImpactAggregateBackendUnavailable(w http.ResponseWriter, 
 		r,
 		http.StatusServiceUnavailable,
 		"supply-chain impact aggregates require the Postgres reducer read model",
-		querycontract.ErrorCodeBackendUnavailable,
-		ImpactAggregateCapability,
-		h.profile(),
-		querycontract.RequiredProfile(ImpactAggregateCapability),
-	)
-}
-
-// writeImpactGroupedInventoryFilterUnavailable answers the 503 for a grouped
-// call whose image_ref filter or precise profile the winners read model cannot
-// serve. The text names the filters so an operator can tell it from a deployment
-// where the grouped read model is off.
-func (h *Handler) writeImpactGroupedInventoryFilterUnavailable(w http.ResponseWriter, r *http.Request) {
-	querycontract.WriteContractError(
-		w,
-		r,
-		http.StatusServiceUnavailable,
-		"grouped impact inventory is unavailable for the image_ref filter and profile=precise; request profile=comprehensive without image_ref",
 		querycontract.ErrorCodeBackendUnavailable,
 		ImpactAggregateCapability,
 		h.profile(),

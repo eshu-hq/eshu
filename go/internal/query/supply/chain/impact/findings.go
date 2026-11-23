@@ -219,23 +219,28 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
 	}
 
-	query := ListFindingsQuery
-	if s.ReadFromWinners {
-		switch {
-		case filter.readsFromSupports():
-			// A grant applies to the support row: the winners row is one pick
-			// across scopes, so it cannot answer a grant (#10880 PR-B ruling,
-			// decision 1). The read refuses, and never falls back to winners or
-			// the fact read, while the supports table is not ready.
-			if err := s.requireSupportsReady(ctx); err != nil {
-				return nil, err
-			}
-			query = ListFindingsFromSupportsQuery
-		case filter.ImageRef == "" && filter.DetectionProfile == "":
-			query = ListFindingsFromWinnersQuery
+	route := filter.route(s.ReadFromWinners)
+	if route.readsSupports() {
+		// The per-support table answers a grant, an image reference, and the
+		// supplement of an unscoped precise call; it refuses, and never falls back
+		// to winners or the fact read, while the table is not ready (#10880 PR-B
+		// ruling, decision 1; ruling V).
+		if err := s.requireSupportsReady(ctx); err != nil {
+			return nil, err
 		}
-		// An unscoped existence-filter call (image_ref, profile) stays on the
-		// legacy read until its supports shape is ruled.
+	}
+	query := ListFindingsQuery
+	switch route {
+	case RouteLegacy:
+		// the legacy fact read stays the default statement (gate off)
+	case RouteSupportsGrant:
+		query = ListFindingsFromSupportsQuery
+	case RouteSupportsImage:
+		query = ListFindingsFromSupportsImageQuery
+	case RouteWinnersSupplement:
+		query = ListFindingsFromWinnersSupplementQuery
+	case RouteWinners:
+		query = ListFindingsFromWinnersQuery
 	}
 	args := []any{
 		FindingFactKind,

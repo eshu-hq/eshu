@@ -9,14 +9,15 @@ import "fmt"
 // supports table: the aggregate bind order ($1-$20, grants at $18/$19) without
 // the caller-authorization binds, because the grouped statement binds limit and
 // offset at $21/$22 and the supports table holds no derived-class row.
-var groupedSupportsSourceCTE = supportsSourceCTE(supportsSourceBinds{
+var groupedSupportsBinds = supportsSourceBinds{
 	columns: `fact.fact_id, fact.scope_id, fact.suppression_state, fact.priority_score,
          fact.has_payload_finding_id, fact.canonical_key, fact.impact_status,
          fact.priority_bucket, fact.severity_bucket, fact.repository_id, fact.ecosystem`,
 	cve: "$1", pkg: "$2", repo: "$3", digest: "$4", status: "$5", advisory: "$6", ecosystem: "$7",
 	service: "$8", workload: "$9", environment: "$10", profile: "$12", image: "$17",
 	repoGrant: "$18", scopeGrant: "$19",
-})
+}
+var groupedSupportsSourceCTE = supportsSourceCTE(groupedSupportsBinds)
 
 // groupedSupportsCanonicalFactsCTE is the canonical-facts CTE of a granted
 // grouped inventory call, the same derivation the granted aggregates use, so a

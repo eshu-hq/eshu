@@ -170,13 +170,18 @@ func TestGroupedInventorySupportsServesGrantsLive(t *testing.T) {
 		}
 	})
 
-	t.Run("unscoped existence filters still answer the typed error", func(t *testing.T) {
+	t.Run("unscoped image_ref and precise are served and agree with the count route", func(t *testing.T) {
+		// Route V (winners plus the supplement) and the image read replace the typed
+		// refusal an unscoped call with these filters used to get. The grouped seed
+		// has one support per key, so the legacy count is the exact oracle.
 		for name, filter := range map[string]AggregateFilter{
-			"precise profile": {DetectionProfile: ProfilePrecise},
-			"image_ref":       {ImageRef: "registry.example/app:1"},
+			"precise profile":   {DetectionProfile: ProfilePrecise},
+			"image_ref (none)":  {ImageRef: "registry.example/none:0"},
+			"precise and image": {DetectionProfile: ProfilePrecise, ImageRef: "registry.example/none:0"},
 		} {
-			if _, err := store.SupplyChainImpactGroupedInventory(ctx, filter, GroupedInventoryByService, 10, 0); !errors.Is(err, ErrGroupedInventoryFilterUnavailable) {
-				t.Fatalf("%s: err = %v, want ErrGroupedInventoryFilterUnavailable until the unscoped per-copy read lands", name, err)
+			page := read(t, filter, GroupedInventoryByService)
+			if want := total(t, filter); page.DistinctFindings != want {
+				t.Fatalf("%s: DistinctFindings = %d, legacy count route = %d", name, page.DistinctFindings, want)
 			}
 		}
 	})

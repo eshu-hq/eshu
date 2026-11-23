@@ -48,8 +48,8 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 
 	store := PostgresGroupedInventoryStore{DB: database, ReadFromWinners: true}
 	counts := PostgresAggregateStore{DB: database}
-	// base carries no profile filter: the precise profile answers
-	// ErrGroupedInventoryFilterUnavailable until the per-copy read model lands, and
+	// base carries no profile filter, which reads the winners table alone; the
+	// precise profile reads the winners table plus the supplement (route V), and
 	// every seeded finding is precise-eligible, so the set is the same.
 	base := AggregateFilter{}
 	read := func(t *testing.T, s PostgresGroupedInventoryStore, filter AggregateFilter, dimension GroupedInventoryDimension, limit int) GroupedInventoryPage {

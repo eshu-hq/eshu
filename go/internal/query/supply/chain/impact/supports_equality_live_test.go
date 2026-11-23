@@ -92,8 +92,18 @@ VALUES ('gen:operator:2', 'operator:vulnerability_suppressions', 'synthetic', no
 // fills the supports table with the real backfill, and rebuilds the winners.
 func openSupportsEqualityDatabase(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
+	return openSupportsEqualityDatabaseWith(t, nil)
+}
+
+// openSupportsEqualityDatabaseWith is openSupportsEqualityDatabase with extra
+// facts seeded before the backfill fills the supports table.
+func openSupportsEqualityDatabaseWith(t *testing.T, extra func(*testing.T, context.Context, *sql.DB)) (context.Context, *sql.DB) {
+	t.Helper()
 	ctx, database := openMultiSupportDatabase(t)
 	seedSupportsEqualityExtras(t, ctx, database)
+	if extra != nil {
+		extra(t, ctx, database)
+	}
 	backfill := storagepostgres.SupplyChainImpactSupportsBackfill{DB: storagepostgres.SQLDB{DB: database}, ChunkSize: 3}
 	for step := 0; ; step++ {
 		report, err := backfill.RunStep(ctx)

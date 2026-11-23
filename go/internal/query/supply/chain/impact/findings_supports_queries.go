@@ -14,7 +14,11 @@ import (
 // columns is the select list the read's later stages need from the granted
 // supports; guard is an extra always-true predicate the list uses to type $1.
 type supportsSourceBinds struct {
-	columns, guard                                      string
+	columns, guard string
+	// from is the source of the candidate rows, aliased fact. Empty means the
+	// grant-driven arms (supportsGrantArmsTemplate); the image read passes its
+	// materialized candidate fetch.
+	from                                                string
 	cve, pkg, repo, digest, status, advisory, ecosystem string
 	service, workload, environment, profile, image      string
 	repoGrant, scopeGrant                               string
@@ -38,6 +42,11 @@ func supportsSourceCTE(b supportsSourceBinds) string {
 		guard = "WHERE "
 	}
 	template := supportsSourceCTETemplate
+	from := b.from
+	if from == "" {
+		from = strings.NewReplacer("{scopeGrant}", b.scopeGrant, "{repoGrant}", b.repoGrant).Replace(supportsGrantArmsTemplate)
+	}
+	template = strings.Replace(template, "{from}", from, 1)
 	if b.protectedFlag == "" {
 		// A read with no caller-authorization binds (the grouped inventory) drops
 		// the protected-read guards; the supports table holds no derived-class
@@ -75,13 +84,17 @@ const supportsSourceProtectedGuards = `    AND {p1}::boolean IS NOT NULL AND {p2
     AND {p4}::text IS NOT NULL AND {p5}::text IS NOT NULL AND {p6}::text[] IS NOT NULL
 `
 
+// supportsGrantArmsTemplate is the grant-driven source of a granted supports read: the
+// scope arm, then the repository arm excluding the scopes the first covers.
+const supportsGrantArmsTemplate = `(SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY({scopeGrant}::text[])
+        UNION ALL
+        SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY({repoGrant}::text[])
+          AND NOT COALESCE(scope_id = ANY({scopeGrant}::text[]), FALSE)) AS fact`
+
 const supportsSourceCTETemplate = `
 source_candidates AS (
   SELECT {columns}
-  FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY({scopeGrant}::text[])
-        UNION ALL
-        SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY({repoGrant}::text[])
-          AND NOT COALESCE(scope_id = ANY({scopeGrant}::text[]), FALSE)) AS fact
+  FROM {from}
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
    AND scope.active_generation_id = fact.generation_id
@@ -125,7 +138,7 @@ source_candidates AS (
 
 // supportsListSourceCTE is the list read's source CTE. $22 and $23 are the
 // allowed repository and scope ids, as in the legacy bind order.
-var supportsListSourceCTE = supportsSourceCTE(supportsSourceBinds{
+var supportsListBinds = supportsSourceBinds{
 	columns: `fact.fact_id, fact.scope_id, fact.finding_id, fact.source_confidence,
          fact.suppression_state, fact.priority_score,
          fact.has_payload_finding_id, fact.canonical_key,
@@ -135,7 +148,8 @@ var supportsListSourceCTE = supportsSourceCTE(supportsSourceBinds{
 	service: "$9", workload: "$10", environment: "$11", profile: "$13", image: "$16",
 	repoGrant: "$22", scopeGrant: "$23",
 	protectedFlag: "$25", protected2: "$26", protected3: "$27", protected4: "$28", protected5: "$29", protectedList: "$30",
-})
+}
+var supportsListSourceCTE = supportsSourceCTE(supportsListBinds)
 
 // supportsListOverrideLateral replaces the legacy operator_overrides CTE
 // with an indexed probe over the partial operator index, one probe per surviving
@@ -200,6 +214,13 @@ func mustDeriveSupportsListQuery(legacy string) string {
 // for its supports equivalent. Each replaced block is located by an explicit
 // marker; a marker that no longer matches returns an error naming it.
 func deriveSupportsListQuery(legacy string) (string, error) {
+	return deriveSupportsListQueryFrom(legacy, supportsListSourceCTE)
+}
+
+// deriveSupportsListQueryFrom is deriveSupportsListQuery with the source CTE chosen
+// by the caller: the grant arms for a granted call, the materialized image fetch
+// for an unscoped image_ref call.
+func deriveSupportsListQueryFrom(legacy, sourceCTE string) (string, error) {
 	cut := func(text, from, to string) (before, after string, err error) {
 		start := strings.Index(text, from)
 		if start < 0 {
@@ -216,7 +237,7 @@ func deriveSupportsListQuery(legacy string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	query := head + supportsListSourceCTE + "," + rest
+	query := head + sourceCTE + "," + rest
 	// The legacy operator_overrides CTE and its join become the lateral probe.
 	head, rest, err = cut(query, "operator_overrides AS (", "joined_winners AS (")
 	if err != nil {

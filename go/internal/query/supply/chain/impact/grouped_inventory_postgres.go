@@ -126,19 +126,22 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if s.DB == nil && s.reader == nil {
 		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory database is required")
 	}
-	granted := len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0
-	// image_ref and the precise profile are existence filters: copies of one
-	// canonical key can differ on both, and the winners row holds only the
-	// picked copy's. A granted call is answered from the per-support table, which
-	// holds every copy (#10880 PR-B2a). An ungranted call has no per-copy read yet
-	// and no legacy grouped read to route to, so it answers unavailable instead of
-	// an under-count (#10880 PR-B ruling).
-	if !granted && (filter.ImageRef != "" || filter.DetectionProfile != "") {
-		return GroupedInventoryPage{}, ErrGroupedInventoryFilterUnavailable
-	}
+	// One route function decides the read model and the freshness (read_route.go):
+	// a grant and an image reference read the per-support table, an unscoped
+	// precise call reads the winners table plus the supplement, and everything else
+	// reads the winners table.
+	route := filter.route(s.ReadFromWinners)
 	build := groupedInventoryQuery
-	if granted {
+	switch route {
+	case RouteLegacy, RouteWinners:
+		// unreachable for the legacy route (a gate-off store refused above); the
+		// winners route uses the winners builder
+	case RouteSupportsGrant:
 		build = groupedInventorySupportsQuery
+	case RouteSupportsImage:
+		build = groupedInventoryImageQuery
+	case RouteWinnersSupplement:
+		build = groupedInventorySupplementQuery
 	}
 	query, err := build(dimension)
 	if err != nil {
@@ -153,16 +156,19 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 
 	readAt := SuppressionReadAt(s.Now)
 	freshness, available, probeFailed := GroupedInventoryFreshness{State: packet.FreshnessLabelFresh}, true, false
-	if granted {
-		// The supports table is current by construction (the maintainer writes it
-		// in the finding facts' transaction), so a supports-served page reports
+	if route.readsSupports() {
+		// The per-support table is current by construction (the maintainer writes
+		// it in the finding facts' transaction), so a supports-only route reports
 		// fresh with no winners watermark. A table that is not ready refuses.
 		probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
 		if err := probe.requireSupportsReady(ctx); err != nil {
 			s.logWatermarkProbeFailure(ctx, err)
 			return GroupedInventoryPage{}, fmt.Errorf("%w: %w", ErrGroupedInventoryReadModelUnavailable, err)
 		}
-	} else {
+	}
+	if route.servesWinners() {
+		// The winners table is read (plain, or with the supplement): the older
+		// source bounds the answer, so the winners watermark labels the page.
 		var err error
 		freshness, available, probeFailed, err = s.winnersFreshness(ctx, readAt)
 		if err != nil {

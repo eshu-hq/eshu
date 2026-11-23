@@ -134,6 +134,11 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL source-binding authorization and revocation proof"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/route_v_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the unscoped existence-filter reads on the multi-support corpus (arbiter ruling V): an unscoped profile=precise call (winners plus the supplement, one statement) and an unscoped image_ref call (supports through the image partial index) return the legacy filter-then-pick answer for list, count, the five inventory dimensions and grouped inventory, including key p2 whose winner fails precise and a key whose winner carries another image; rank filters follow the ruled pick-then-filter order and equal an independent oracle with every difference from legacy listed for B3; all three sorts and a cursor that starts on a supplement row page like legacy; a winners row whose support is gone and a support with no winners row behave as documented; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: ~
     class: postgres_ci
@@ -147,7 +152,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, and the public-id explain probes the finding index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, the public-id explain probes the finding index, and the advisory evidence read probes the repository index or walks the scope-and-generation index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~

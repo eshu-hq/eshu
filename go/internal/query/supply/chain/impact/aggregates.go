@@ -172,17 +172,10 @@ func NewPostgresAggregateStoreWithReadStore(reader db.ReadStore, readFromWinners
 	return PostgresAggregateStore{reader: reader, ReadFromWinners: readFromWinners}
 }
 
-// readFromWinnersFor reports whether one aggregate call serves from the
-// winners read model. Scoped-token calls and existence-filter calls
-// (image_ref, profile) stay on the legacy CTE even when the gate is on,
-// mirroring PostgresFindingStore: the winners row is one pick across scopes and
-// holds one support's image ref and profile.
+// readFromWinnersFor reports whether one aggregate call is bounded by the winners
+// watermark: its route reads the winners table, plain or with the supplement.
 func (s PostgresAggregateStore) readFromWinnersFor(filter AggregateFilter) bool {
-	return s.ReadFromWinners &&
-		len(filter.AllowedRepositoryIDs) == 0 &&
-		len(filter.AllowedScopeIDs) == 0 &&
-		filter.ImageRef == "" &&
-		filter.DetectionProfile == ""
+	return filter.route(s.ReadFromWinners).servesWinners()
 }
 
 type aggregateReadQueryer interface {
@@ -224,7 +217,7 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	// A winners-eligible call probes the maintainer watermark first and
 	// fails closed when the model cannot serve an exact answer; the legacy
 	// path reports plain freshness and issues no probe.
-	freshness, serveWinners, err := s.resolveAggregateFreshness(ctx, filter, readAt)
+	freshness, route, err := s.resolveAggregateFreshness(ctx, filter, readAt)
 	if err != nil {
 		return AggregateCount{}, err
 	}
@@ -252,10 +245,16 @@ func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
 	query := AggregateCombinedCountQuery
-	switch {
-	case s.readFromSupportsFor(filter):
+	switch route {
+	case RouteLegacy:
+		// the legacy fact read stays the default statement (gate off)
+	case RouteSupportsGrant:
 		query = AggregateSupportsCombinedCountQuery
-	case serveWinners:
+	case RouteSupportsImage:
+		query = AggregateSupportsImageCombinedCountQuery
+	case RouteWinnersSupplement:
+		query = AggregateSupplementCombinedCountQuery
+	case RouteWinners:
 		query = AggregateWinnersCombinedCountQuery
 	}
 	row := s.queryer().QueryRowContext(ctx, query, args...)
@@ -336,15 +335,21 @@ func (s PostgresAggregateStore) SupplyChainImpactInventory(
 		offset = 0
 	}
 	readAt := SuppressionReadAt(s.Now)
-	freshness, serveWinners, err := s.resolveAggregateFreshness(ctx, filter, readAt)
+	freshness, route, err := s.resolveAggregateFreshness(ctx, filter, readAt)
 	if err != nil {
 		return AggregateInventoryPage{}, err
 	}
 	q := InventoryQuery(groupExpr)
-	switch {
-	case s.readFromSupportsFor(filter):
+	switch route {
+	case RouteLegacy:
+		// the legacy fact read stays the default statement (gate off)
+	case RouteSupportsGrant:
 		q = InventorySupportsQuery(groupExpr)
-	case serveWinners:
+	case RouteSupportsImage:
+		q = inventoryImageQuery(groupExpr)
+	case RouteWinnersSupplement:
+		q = AggregateSupplementInventoryQuery(groupExpr)
+	case RouteWinners:
 		q = AggregateWinnersInventoryQuery(groupExpr)
 	}
 	args := []any{

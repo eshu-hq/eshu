@@ -24,14 +24,6 @@ var ErrFindingSupportsUnavailable = errors.New(
 	"supply chain impact findings supports read model is unavailable",
 )
 
-// readsFromSupports reports whether a gate-on list call is answered from the
-// per-support table. Today that is every granted call: a repository or scope
-// grant applies to the support row, which carries its own scope and repository,
-// and the winners row cannot answer it.
-func (f FindingFilter) readsFromSupports() bool {
-	return len(f.AllowedRepositoryIDs) > 0 || len(f.AllowedScopeIDs) > 0
-}
-
 // requireSupportsReady refuses a supports-served call while the table is not
 // ready. A probe failure refuses too: a readiness error must never read as ready.
 func (s PostgresFindingStore) requireSupportsReady(ctx context.Context) error {
@@ -52,7 +44,11 @@ func (s PostgresFindingStore) requireSupportsReady(ctx context.Context) error {
 // truth envelope fresh. Every other call reports the winners watermark exactly as
 // SupplyChainImpactWinnersWatermark does.
 func (s PostgresFindingStore) SupplyChainImpactFreshness(ctx context.Context, filter FindingFilter) (WinnersFreshness, error) {
-	if s.ReadFromWinners && filter.readsFromSupports() {
+	// A call answered from the per-support table alone is current by construction
+	// and carries no winners freshness. A winners-served call (plain or with the
+	// supplement) reports the winners watermark, so the older source bounds the
+	// answer; the supplement's own readiness is refused by the read itself.
+	if route := filter.route(s.ReadFromWinners); route == RouteSupportsGrant || route == RouteSupportsImage {
 		return WinnersFreshness{}, nil
 	}
 	return s.SupplyChainImpactWinnersWatermark(ctx)

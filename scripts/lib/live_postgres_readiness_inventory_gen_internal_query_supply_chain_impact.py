@@ -94,6 +94,13 @@ TABLE = {
         "go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go": (
             "TestReadinessScannerSourceBindingAuthorizationLive",
         ),
+        "go/internal/query/supply/chain/impact/route_v_live_test.go": (
+            "TestUnscopedExistenceFilterReadsEqualLegacyLive",
+            "TestPreciseRouteIncludesTheKeyWhoseWinnerFailsPrecise",
+            "TestUnscopedExistenceFilterPagesLikeLegacyLive",
+            "TestUnscopedGroupedInventoryEqualsTheCountRouteLive",
+            "TestPrecisePageStaysOnWinnersWhenTheSupportTableLagsLive",
+        ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",

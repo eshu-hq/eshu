@@ -13,7 +13,7 @@ import (
 // the aggregates' bind order ($1-$7 key filters, $8-$10 runtime filters, $12
 // profile, $17 image ref, $18/$19 allowed repository and scope ids, $21-$26 the
 // caller authorization arguments).
-var aggregateSupportsSourceCTE = supportsSourceCTE(supportsSourceBinds{
+var aggregateSupportsBinds = supportsSourceBinds{
 	columns: `fact.fact_id, fact.scope_id, fact.suppression_state, fact.priority_score,
          fact.has_payload_finding_id, fact.canonical_key, fact.impact_status,
          fact.priority_bucket, fact.severity_bucket, fact.repository_id, fact.ecosystem`,
@@ -21,7 +21,8 @@ var aggregateSupportsSourceCTE = supportsSourceCTE(supportsSourceBinds{
 	service: "$8", workload: "$9", environment: "$10", profile: "$12", image: "$17",
 	repoGrant: "$18", scopeGrant: "$19",
 	protectedFlag: "$21", protected2: "$22", protected3: "$23", protected4: "$24", protected5: "$25", protectedList: "$26",
-})
+}
+var aggregateSupportsSourceCTE = supportsSourceCTE(aggregateSupportsBinds)
 
 // aggregateSupportsRankFilter is the canonical_facts predicate of the supports
 // aggregates. The rank filters (severity $11, priority bucket $13, minimum
