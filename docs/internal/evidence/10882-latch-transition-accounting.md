@@ -130,3 +130,12 @@ unchanged. Wording updated in
 - A release won before the winning engage's process has recorded its raise
   (a window of microseconds inside one process) leaves a raise that the next
   read settles.
+- After a release followed by a re-engagement, the fleet-summed gauge can
+  read 2 until the earlier raising process next reads the row. The test
+  asserts the gauge only after every process has observed.
+- A domain gauge hold is settled only when that process consults the same
+  domain again. A process that raised a domain it never consults again keeps
+  its raise after another process releases the row. The counter and the row
+  stay exact; only the process-local gauge for that idle domain sticks.
+  Sweeping held domain keys would add a full latch read to the claim path,
+  so this is documented instead.

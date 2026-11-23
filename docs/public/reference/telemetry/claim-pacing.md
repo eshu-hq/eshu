@@ -48,8 +48,16 @@ status publication only.
   engagement over, whether it wrote the release or another process did, and
   a process that never raised it never lowers it. The sum across processes
   is therefore 1 while the latch is engaged and 0 once every raising
-  process has read the released row. The counter alone cannot answer
-  that: it holds the same value during an engagement and after it ends.
+  process has read the released row. Two windows differ from that. After a
+  release followed by a new engagement, the sum can read 2 until the
+  earlier raising process next reads the row. A process that raised the
+  gauge for a domain it never consults again keeps its raise after another
+  process releases the row, so that domain's sum can stay above 0 (the
+  reducer-source signal is swept on every consult and does not have this
+  gap). The latch row itself, and the coordinator `source_pacing` status,
+  stay the ground truth for whether pacing is on. The counter alone cannot
+  answer that: it holds the same value during an engagement and after it
+  ends.
 - `eshu_dp_workflow_claim_pacing_stuck_total` — counter of verdicts that
   stayed engaged past the engagement bound with depth still above the
   release watermark, labeled `pacing_signal` and, for the domain signal,
