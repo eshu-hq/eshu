@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -457,9 +458,11 @@ func NextImpactAggregateOffset(offset, limit int, truncated bool) any {
 // is absent, older than the freshness window, or its probe failed. The text
 // names the stale model (not the missing deployment the shared writer
 // describes) so an operator can tell a lagging maintainer from an unwired
-// route. It carries no Retry-After: the caller retries after the maintainer
-// resweeps, which the watermark age on the next fresh answer discloses.
+// route. It carries Retry-After for one freshness window (120 s): the caller
+// retries after the maintainer resweeps, which the watermark age on the next
+// fresh answer discloses.
 func (h *Handler) writeImpactAggregateReadModelUnavailable(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(supplyChainImpactWinnersFreshnessWindow/time.Second)))
 	querycontract.WriteContractError(
 		w,
 		r,

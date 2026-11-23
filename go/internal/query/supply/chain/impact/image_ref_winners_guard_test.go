@@ -110,6 +110,15 @@ func TestAggregateImageRefStaysOffWinners(t *testing.T) {
 			if got != wantWinners {
 				t.Fatalf("inventory reads winners = %v, want %v", got, wantWinners)
 			}
+			if wantWinners && len(probe.queries) != 2 {
+				t.Fatalf("plain inventory issued %d queries, want watermark probe plus one winners statement", len(probe.queries))
+			}
+			if wantWinners && probe.queries[0] != SelectWinnersWatermarkQuery {
+				t.Fatalf("plain inventory first query pins the watermark probe, got %.60s", probe.queries[0])
+			}
+			if !wantWinners && len(probe.queries) != 1 {
+				t.Fatalf("existence-filter inventory issued %d queries, want one legacy statement with no probe", len(probe.queries))
+			}
 		})
 	}
 }
