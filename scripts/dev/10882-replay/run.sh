@@ -8,7 +8,7 @@
 # against the control and writes the evidence summary.
 #
 # Arms: C (control), C0 (control without the completion step), T1 (TTL 0),
-# T1TTL (candidate TTL), T2 (hosted A), T3 (not-takeable A). Order: the control
+# T1TTL (candidate TTL), C2 (control for T2) and T2 (hosted A), T3 (not-takeable A). Order: the control
 # first, so every later arm has its reference.
 #
 # Usage: run.sh [--arms "C C0 T1 T1TTL T3"] [--reps 3] [--results DIR] [--no-build]
@@ -24,7 +24,7 @@ for lib in host proc sampler collect hosted arm; do
   source "$here/lib/$lib.sh"
 done
 
-arms="C C0 T1 T1TTL T2 T3"
+arms="C C0 T1 T1TTL C2 T2 T3"
 reps=3
 results="$REPLAY_SCRATCH/results"
 build=1

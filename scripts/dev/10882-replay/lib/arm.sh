@@ -30,16 +30,18 @@ REPLAY_ENGAGE_AGE_SECONDS=3600
 #   C0       control without the completion step (arbiter F1 compensating run)
 #   T1       treatment at signal cache TTL 0
 #   T1TTL    treatment at the candidate TTL
+#   C2       control for T2: thresholds unset, A hosted, B=git, hosted collector running
 #   T2       treatment, A hosted paced at the claim grant, B=git
 #   T3       treatment, A's aged rows all not takeable (#11187)
 replay_arm_config() {
-  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable
+  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable ARM_HOSTED=0
   case "$1" in
     C) ARM_THRESHOLDS=0 ;;
     C0) ARM_THRESHOLDS=0 ARM_COMPLETE=0 ;;
     T1) ;;
     T1TTL) ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
-    T2) ARM_A_KIND=hosted ;;
+    C2) ARM_THRESHOLDS=0 ARM_A_KIND=hosted ARM_HOSTED=1 ;;
+    T2) ARM_A_KIND=hosted ARM_HOSTED=1 ;;
     T3) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ;;
     *) echo "unknown arm $1" >&2; return 1 ;;
   esac
@@ -199,7 +201,7 @@ replay_run_arm() {
     { echo "seed backlog failed: $REPLAY_RUN_DIR/seed-backlog.log" >&2; return 1; }
   replay_seed TestReplaySeedProjector >"$REPLAY_RUN_DIR/seed-projector.log" 2>&1 ||
     { echo "seed projector failed: $REPLAY_RUN_DIR/seed-projector.log" >&2; return 1; }
-  if [[ "$arm" == T2 ]]; then
+  if [[ "$ARM_HOSTED" == 1 ]]; then
     replay_hosted_prepare || { echo "hosted prepare failed: $REPLAY_RUN_DIR/seed-hosted.log" >&2; return 1; }
   fi
   local -a ing_env proj_env
@@ -211,7 +213,7 @@ replay_run_arm() {
     GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.file://$REPLAY_FIXTURES/remotes/.insteadOf" \
     GIT_CONFIG_VALUE_0="https://github.com/"
   replay_start projector eshu-projector 19502 "${proj_env[@]}" ESHU_PROJECTOR_WORKERS="$REPLAY_PROJECTOR_WORKERS"
-  if [[ "$arm" == T2 ]]; then
+  if [[ "$ARM_HOSTED" == 1 ]]; then
     local -a hosted_env
     mapfile -t hosted_env < <(replay_threshold_env hosted)
     replay_hosted_start "${hosted_env[@]}"
@@ -226,7 +228,7 @@ replay_run_arm() {
   replay_census pre
   replay_scrape ingester engaged
   replay_scrape projector engaged
-  if [[ "$arm" == T2 ]]; then
+  if [[ "$ARM_HOSTED" == 1 ]]; then
     replay_scrape hosted engaged
     replay_hosted_export at_engagement_end
   fi
@@ -239,7 +241,7 @@ replay_run_arm() {
     replay_wait_until 180 "latch release" replay_latch_released || true
   fi
   replay_fixture_commit after_release 3
-  if [[ "$arm" == T2 ]]; then
+  if [[ "$ARM_HOSTED" == 1 ]]; then
     replay_wait_until 180 "hosted items to complete" replay_hosted_complete || true
   fi
   wait "$feeder" || true
@@ -249,7 +251,7 @@ replay_run_arm() {
   replay_census end
   replay_scrape ingester final
   replay_scrape projector final
-  if [[ "$arm" == T2 ]]; then
+  if [[ "$ARM_HOSTED" == 1 ]]; then
     replay_scrape hosted final
     replay_hosted_export final
   fi

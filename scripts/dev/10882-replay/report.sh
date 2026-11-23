@@ -21,18 +21,28 @@ if ((${#controls[@]} == 0)); then
   exit 2
 fi
 
+controls2=()
+for dir in "$results"/C2-rep*; do
+  [[ -f "$dir/result.json" ]] && controls2+=(--control "$dir/result.json")
+done
+
 for dir in "$results"/*-rep*; do
   name="$(basename "$dir")"
   [[ -f "$dir/result.json" ]] || continue
   kind=treatment
   case "$name" in
-    C-rep*) continue ;;
+    C-rep*|C2-rep*) continue ;;
     C0-rep*) kind=control ;;
     T3-rep*) kind=t3 ;;
     T2-rep*) kind=t2 ;;
   esac
   echo "== $name ($kind)"
-  python3 -I "$here/check_arm.py" --arm "$dir/result.json" --kind "$kind" "${controls[@]}" || status=1
+  if [[ "$kind" == t2 ]]; then
+    # T2's reference is C2 (same shapes: A hosted, B git), not C.
+    python3 -I "$here/check_arm.py" --arm "$dir/result.json" --kind t2 "${controls2[@]}" || status=1
+  else
+    python3 -I "$here/check_arm.py" --arm "$dir/result.json" --kind "$kind" "${controls[@]}" || status=1
+  fi
 done
 
 echo "== numbers for the enablement gate (consult p50/p95 per run, K, parked rows)"
