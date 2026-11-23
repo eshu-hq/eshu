@@ -21,6 +21,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
+// latchWrite is one latch write a spy saw: the engaged bit it asked for and
+// how many rows the statement changed.
+type latchWrite struct {
+	engaged  bool
+	affected int64
+}
+
 // latchWriteSpy wraps one process's database handle and records every
 // latch write the store issues together with the rows the statement
 // changed, so a proof can tell a statement that moved the latch from a
@@ -29,15 +36,16 @@ type latchWriteSpy struct {
 	db.ExecQueryer
 
 	mu     sync.Mutex
-	writes []int64
+	writes []latchWrite
 }
 
 func (s *latchWriteSpy) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	result, err := s.ExecQueryer.ExecContext(ctx, query, args...)
 	if err == nil && query == claimPacingLatchUpsert {
 		affected, _ := result.RowsAffected()
+		engaged, _ := args[2].(bool)
 		s.mu.Lock()
-		s.writes = append(s.writes, affected)
+		s.writes = append(s.writes, latchWrite{engaged: engaged, affected: affected})
 		s.mu.Unlock()
 	}
 	return result, err
@@ -45,11 +53,16 @@ func (s *latchWriteSpy) ExecContext(ctx context.Context, query string, args ...a
 
 // changed counts the latch writes that changed a row.
 func (s *latchWriteSpy) changed() int {
+	return s.wins(true) + s.wins(false)
+}
+
+// wins counts the latch writes toward one state that changed a row.
+func (s *latchWriteSpy) wins(engaged bool) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	count := 0
-	for _, affected := range s.writes {
-		if affected > 0 {
+	for _, w := range s.writes {
+		if w.engaged == engaged && w.affected > 0 {
 			count++
 		}
 	}

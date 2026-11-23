@@ -39,9 +39,14 @@ WHERE (signal = 'domain' AND domain = $1)
    OR (signal = 'global' AND domain = '')
 `
 
-// claimPacingLatchUpsert advances one latch row. Engagements and releases
-// converge on the same row, so coordinators racing a transition agree
-// instead of conflicting.
+// claimPacingLatchUpsert advances one latch row, and only when the stored
+// engaged bit differs from the desired one (#10882). Engagements and
+// releases converge on the same row, and a consult that raced a transition
+// it did not win changes nothing: the DO UPDATE ... WHERE is re-evaluated
+// against the locked, latest committed row, so exactly one racing statement
+// writes (one row version, one engaged_at, one updated_at) and its
+// RowsAffected of 1 is the proof that this statement made the transition.
+// Zero rows means another consult already did.
 const claimPacingLatchUpsert = `
 INSERT INTO workflow_claim_pacing AS latch (signal, domain, engaged, engaged_at, updated_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -49,6 +54,7 @@ ON CONFLICT (signal, domain)
 DO UPDATE SET engaged = EXCLUDED.engaged,
               engaged_at = EXCLUDED.engaged_at,
               updated_at = EXCLUDED.updated_at
+WHERE latch.engaged IS DISTINCT FROM EXCLUDED.engaged
 `
 
 // claimPacingDepthCache holds one depth observation shared by a store's
@@ -92,10 +98,17 @@ func (s *WorkflowControlStore) CheckClaimPacing(
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing depths: %w", err)
 	}
 	s.recordClaimPacingDepths(ctx, domainKey, depths)
+	latchReadAt := time.Now()
 	latch, err := s.claimPacingLatch(ctx, domainKey)
 	if err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing latch: %w", err)
 	}
+	s.observeClaimPacingLatch(ctx,
+		pacingLatchKey{signal: workflow.ClaimPacingSignalDomain, domain: domainKey},
+		latch.rows[workflow.ClaimPacingSignalDomain], latchReadAt)
+	s.observeClaimPacingLatch(ctx,
+		pacingLatchKey{signal: workflow.ClaimPacingSignalGlobal},
+		latch.rows[workflow.ClaimPacingSignalGlobal], latchReadAt)
 	var engagedFor time.Duration
 	if latch.verdict.Engaged && !latch.engagedAt.IsZero() && now.After(latch.engagedAt) {
 		engagedFor = now.Sub(latch.engagedAt)
@@ -105,7 +118,7 @@ func (s *WorkflowControlStore) CheckClaimPacing(
 	if err := s.advanceClaimPacingLatch(ctx, domainKey, latch, decision, now); err != nil {
 		return workflow.ClaimPacingDecision{}, fmt.Errorf("claim pacing latch advance: %w", err)
 	}
-	s.recordClaimPacing(ctx, domainKey, latch.verdict, decision)
+	s.recordClaimPacing(ctx, decision)
 	return decision, nil
 }
 
@@ -127,57 +140,20 @@ type claimPacingLatchState struct {
 	rows      map[workflow.ClaimPacingSignal]claimPacingLatchRow
 }
 
-// recordClaimPacing emits the operator signals for one pacing verdict: the
-// engagement counter and active gauge move only on latch transitions, the
-// stuck counter fires on every overdue verdict so a wedged throttle stays
-// loud, and the delay histogram records every paced grant. Nil instruments
-// are a no-op, so binaries without a wired meter provider are unaffected.
+// recordClaimPacing emits the per-verdict operator signals: the stuck
+// counter fires on every overdue verdict so a wedged throttle stays loud,
+// and the delay histogram records every paced grant. The engaged counter and
+// the active gauge are not here: they move only on a latch transition this
+// process made, in writeClaimPacingLatch. Nil instruments are a no-op, so
+// binaries without a wired meter provider are unaffected.
 func (s *WorkflowControlStore) recordClaimPacing(
 	ctx context.Context,
-	domainKey string,
-	prior workflow.ClaimPacingLatch,
 	decision workflow.ClaimPacingDecision,
 ) {
-	if s.Instruments == nil {
+	if s.Instruments == nil || !decision.Paced {
 		return
 	}
 	inst := s.Instruments
-	priorOn := map[workflow.ClaimPacingSignal]bool{}
-	if prior.Engaged {
-		priorOn[prior.Signal] = true
-	}
-	nowOn := map[workflow.ClaimPacingSignal]bool{}
-	if decision.Paced {
-		nowOn[decision.Signal] = true
-	}
-	for _, signal := range []workflow.ClaimPacingSignal{workflow.ClaimPacingSignalDomain, workflow.ClaimPacingSignalGlobal} {
-		if nowOn[signal] == priorOn[signal] {
-			continue
-		}
-		// The global ceiling carries no domain label; the domain signal
-		// names the saturated family so its engage and release deltas land
-		// on one series.
-		domain := ""
-		if signal == workflow.ClaimPacingSignalDomain {
-			domain = domainKey
-		}
-		attrs := claimPacingMetricAttrs(signal, domain)
-		if nowOn[signal] {
-			if inst.WorkflowClaimPacingEngagedTotal != nil {
-				inst.WorkflowClaimPacingEngagedTotal.Add(ctx, 1, attrs)
-			}
-			if inst.WorkflowClaimPacingActive != nil {
-				inst.WorkflowClaimPacingActive.Add(ctx, 1, attrs)
-			}
-			continue
-		}
-		if inst.WorkflowClaimPacingActive != nil {
-			inst.WorkflowClaimPacingActive.Add(ctx, -1, attrs)
-		}
-	}
-	if !decision.Paced {
-		return
-	}
 	attrs := claimPacingMetricAttrs(decision.Signal, decision.Domain)
 	if decision.Stuck && inst.WorkflowClaimPacingStuckTotal != nil {
 		inst.WorkflowClaimPacingStuckTotal.Add(ctx, 1, attrs)
@@ -354,17 +330,14 @@ func (s *WorkflowControlStore) advanceClaimPacingLatch(
 		if signal == workflow.ClaimPacingSignalDomain {
 			domain = domainKey
 		}
-		// Writes happen only on transitions, so an engagement always
-		// starts its stuck bound here, and steady-state consults leave
-		// engaged_at alone. A re-engagement after release restarts it.
-		// A switch onto an already-engaged row is not a transition: the
-		// desired state matches storage, so no write restarts its bound.
-		var engagedAt any
-		if desired[signal] {
-			engagedAt = now.UTC()
-		}
-		if _, err := s.database.ExecContext(ctx, claimPacingLatchUpsert,
-			string(signal), domain, desired[signal], engagedAt, now.UTC()); err != nil {
+		// Only a consult whose desired state differs from storage writes,
+		// and the write itself re-checks that against the latest committed
+		// row (claimPacingLatchUpsert), so a racing consult that lost the
+		// transition matches nothing and neither counts it nor restarts the
+		// stuck bound. A switch onto an already-engaged row is not a
+		// transition: the desired state matches storage, so no write.
+		if err := s.writeClaimPacingLatch(ctx,
+			pacingLatchKey{signal: signal, domain: domain}, desired[signal], now); err != nil {
 			return err
 		}
 	}
