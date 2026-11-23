@@ -7,10 +7,15 @@ import "strings"
 
 // supplyChainImpactPreciseMatchReasons are the match reasons that make a finding
 // without a stamped detection profile precise. The shipped reads spell the same
-// list inline today. A reader that wants the partial index of migration 343 must
-// build its WHERE from supplyChainImpactPrecisePredicateSQL, or the planner cannot
-// prove the index predicate; the test in this package pins only this constant
-// against migration 343, not the reads.
+// list inline today, and a reader that wants the partial index of migration 343
+// must carry the same list, or the planner cannot prove the index predicate. Two
+// tests hold that: TestPreciseIndexMigrationCarriesThePredicate pins migration 343
+// against this file's predicate text, and TestShippedReadsSpellThePreciseMatchReasonList
+// pins every shipped read that applies the precise filter to this list, in order.
+// Migration 343's header says the constant "builds both"; that sentence cannot be
+// edited after the migration shipped (verify-migration-immutability refuses any
+// edit of a shipped migration and no exception covers 343), and the two tests
+// above are its exact meaning.
 var supplyChainImpactPreciseMatchReasons = []string{
 	"npm_semver_affected_range", "npm_semver_known_fixed",
 	"nuget_semver_affected_range", "nuget_semver_known_fixed",
@@ -47,8 +52,11 @@ var SupportsPreciseIndexPredicateSQL = supplyChainImpactPrecisePredicateSQL("")
 // supplyChainImpactPreciseStatusPruneSQL keeps only the winners that can have a
 // precise support: precise needs one of two statuses and a non-empty observed
 // version, and both are parts of the canonical key, so every support of a key
-// shares them with its winner. The writer invariant test
-// (TestPreciseImpliesStatusAndObservedVersion) pins that precision implies both.
+// shares them with its winner. Two tests pin that: the reducer's
+// TestPreciseImpliesStatusAndObservedVersion (a finding the classifier calls
+// precise has one of the two statuses and a non-empty observed version) and the
+// storage package's TestCanonicalKeyCarriesStatusAndObservedVersion (the
+// canonical key text carries both columns).
 func supplyChainImpactPreciseStatusPruneSQL(alias string) string {
 	return alias + ".impact_status IN ('affected_exact', 'not_affected_known_fixed') AND " + alias + ".observed_version <> ''"
 }

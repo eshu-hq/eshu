@@ -62,3 +62,22 @@ indexes and constraints are the shipped ones.
 
 The real-writer harness (`zz_b2a_wal_scratch_live_test.go`) is not committed; it is the B1 m6
 harness shape with the index variants of this proof.
+
+## What each guard pins
+
+Migration 343's header says the Go constant `impact.SupportsPreciseIndexPredicateSQL`
+"builds both" the index and the reads. That sentence overstated the guard, and it
+cannot be corrected in place: the migration shipped, and
+`scripts/verify-migration-immutability.sh` refuses any edit of a shipped migration; its
+only standing exception is the #7002 restore of migration 093, and no exception covers
+343. The exact guards are:
+
+| Claim | Test |
+| --- | --- |
+| Migration 343 indexes the predicate the constant builds | `TestPreciseIndexMigrationCarriesThePredicate` |
+| Every shipped read that applies the precise filter spells the constant's match reason list, in order | `TestShippedReadsSpellThePreciseMatchReasonList` |
+| A finding the classifier calls precise has status `affected_exact` or `not_affected_known_fixed` and a non-empty observed version | `TestPreciseImpliesStatusAndObservedVersion` (reducer core) |
+| `impact_status` and `observed_version` are parts of the canonical key, so every support of a key shares them with its winner | `TestCanonicalKeyCarriesStatusAndObservedVersion` (storage) |
+
+The last two together are the premise of the status prune of the unscoped precise
+read. A change to the precise filter needs a new index migration, not an edit of 343.
