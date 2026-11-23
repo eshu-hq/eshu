@@ -41,10 +41,13 @@ type CrossScopeCompletionResult struct {
 	EventsProcessed        int
 	ProducerItemsProcessed int64
 	IntentsEnqueued        int
-	// ManifestMarkersSkipped counts the manifest-marker consumers
-	// (supply_chain_impact items with payload trigger=manifest_dependency)
-	// this fan-out left alone: they read no producer output, so scheduling
-	// or flagging one only re-runs a pass that changes no finding (#10972).
+	// ManifestMarkersSkipped is a census of the manifest-marker consumers
+	// (supply_chain_impact items with payload trigger=manifest_dependency) in
+	// an eligible state at an active generation when this fan-out committed;
+	// the fan-out neither schedules nor flags them: they read no producer
+	// output, so doing either only re-runs a pass that changes no finding
+	// (#10972). It is taken even when the fan-out scheduled nothing, so it is
+	// an upper bound on the re-pends avoided, not a measured saving.
 	// The store reads it with a separate statement after the fan-out
 	// committed, only for a producer with a supply_chain_impact consumer
 	// edge. It is zero for any other producer and when that read failed, so

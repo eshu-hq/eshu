@@ -50,12 +50,12 @@ caller's transaction or wiring, so tracing and metrics are the caller's
 responsibility, not this package's. `Fanout` reports the number of manifest
 markers in an eligible state (claimed, running or succeeded) at an active
 generation in `ManifestMarkersSkipped`; the reducer's completion runner logs it
-per event and adds it to
+per fan-out call and adds it to
 `eshu_dp_cross_scope_completion_markers_skipped_total` (#10972). It is a census
 taken after a fan-out for a producer that feeds `supply_chain_impact`
 committed: before the exclusion the same fan-out would have locked and
 re-pended or flagged each of those markers, so it is an upper bound on the
-re-pends avoided per event, not a measured saving, and a fan-out that scheduled
+re-pends avoided per fan-out call, not a measured saving, and a fan-out that scheduled
 nothing still reports it. The count is observability only. It is a separate read-only statement `Fanout` runs after
 the fan-out statement returned and committed, only for a producer with a
 `supply_chain_impact` consumer edge, under its own bounded context
@@ -123,7 +123,7 @@ lock-order live probes EXPLAIN the shipped fanout constant (see the PR for the
 lab run).
 
 Observability Evidence (#10972): `CrossScopeCompletionResult.ManifestMarkersSkipped`
-is logged per event as `manifest_markers_skipped` and added to
+is logged per fan-out call as `manifest_markers_skipped` and added to
 `eshu_dp_cross_scope_completion_markers_skipped_total{domain}`; with the
 existing `manifest_trigger` marker signal an operator sees executions per hour
 fall, and the skipped count bounds what the exclusion could have spared per

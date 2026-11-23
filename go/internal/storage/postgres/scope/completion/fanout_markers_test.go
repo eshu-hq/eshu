@@ -17,7 +17,11 @@ var (
 
 	// workItemRefPattern matches every mention of the work-item table, under any
 	// alias or clause (FROM, JOIN, a subselect, a CTE body, the UPDATE target).
-	workItemRefPattern = regexp.MustCompile(`\bfact_work_items\b`)
+	// Postgres folds unquoted identifiers, so the match is case-insensitive.
+	workItemRefPattern = regexp.MustCompile(`(?i)\bfact_work_items\b`)
+	// updateTargetPattern matches the one UPDATE of the work-item table the
+	// scheduling statement is allowed.
+	updateTargetPattern = regexp.MustCompile(`(?i)\bUPDATE\s+fact_work_items\s+AS\s+consumer\b`)
 	// countCallPattern matches every count aggregate; allowedCountPattern the
 	// only shape the fan-out may carry: a count over one of its own CTEs.
 	countCallPattern    = regexp.MustCompile(`(?i)\bcount\(`)
@@ -49,8 +53,8 @@ func manifestMarkerFanoutShapeError(query string) string {
 	case !strings.Contains(consumers, "AND NOT ("+manifestMarkerPredicate+")"):
 		return "current_consumers does not exclude manifest markers"
 	case len(workItemRefPattern.FindAllStringIndex(query, -1)) != fanoutWorkItemRefs ||
-		strings.Count(consumers, "fact_work_items") != 1 ||
-		strings.Count(query, "UPDATE fact_work_items AS consumer") != 1:
+		len(workItemRefPattern.FindAllStringIndex(consumers, -1)) != 1 ||
+		len(updateTargetPattern.FindAllStringIndex(query, -1)) != 1:
 		return "fan-out statement must name fact_work_items exactly twice (the current_consumers read and the UPDATE target): any other mention is a second pass over the rows"
 	case strings.Count(query, manifestMarkerPredicate) != 1 ||
 		strings.Count(query, "NOT ("+manifestMarkerPredicate+")") != 1 ||
@@ -132,6 +136,9 @@ func TestFanoutQueryExcludesManifestMarkers(t *testing.T) {
 		"second read through a join": strings.Replace(FanoutCrossScopeCompletionQuery,
 			"FROM fact_work_items AS source",
 			"FROM fact_work_items AS source\n    JOIN fact_work_items x ON x.scope_id = source.scope_id", 1),
+		"second read under an upper-case table name": strings.Replace(FanoutCrossScopeCompletionQuery,
+			"FROM fact_work_items AS source",
+			"FROM fact_work_items AS source\n    JOIN FACT_WORK_ITEMS y ON y.scope_id = source.scope_id", 1),
 		"second read in a subselect": strings.Replace(FanoutCrossScopeCompletionQuery,
 			"AND (SELECT count(*) FROM current_consumers) >= 0",
 			"AND (SELECT count(*) FROM fact_work_items AS m WHERE m.domain = 'x') >= 0", 1),
