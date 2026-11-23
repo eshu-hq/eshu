@@ -40,6 +40,8 @@ path the lag head is the feed horizon, not the server clock.
 - `eshu_dp_vulnerability_nvd_window_cursor_advance_total` (`transport`,
   `outcome=advanced|held`): held means the facts committed and the verdict
   held the cursor.
+- `eshu_dp_vulnerability_nvd_window_claim_duration_seconds` (`transport`,
+  `outcome`): wall time of one window claim, claim start to final outcome.
 - `eshu_dp_vulnerability_nvd_cursor_lag_seconds` (`source`, `transport`):
   stored head minus cursor; on the feed path a growing lag means the planner
   or claims are behind the feed horizon.
