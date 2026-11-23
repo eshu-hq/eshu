@@ -83,8 +83,8 @@ lanes never exercise.
    restarts the core with `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ=true` and —
    after proving byte-identical findings pages and 503-to-200 grouped
    inventory dimensions (the 200 asks `profile=comprehensive`, and the winners
-   leg pins one default-profile 503 until the supports table serves the precise
-   profile) — sweeps the winners leg into separate `-winners`
+   leg pins one default-profile 503, which holds while the stack's supports
+   backfill has not completed and turns red once it does) — sweeps the winners leg into separate `-winners`
    reports (each report's identity block carries the `-winners-read` marker).
 5. Derives every no-arg GET route from the generated surface inventory
    (`capabilitycatalog.LoadSurfaceInventory`, filtered to

@@ -41,10 +41,13 @@ type CrossScopeCompletionResult struct {
 	EventsProcessed        int
 	ProducerItemsProcessed int64
 	IntentsEnqueued        int
-	// ManifestMarkersSkipped counts the manifest-marker consumers
-	// (supply_chain_impact items with payload trigger=manifest_dependency)
-	// this fan-out left alone: they read no producer output, so scheduling
-	// or flagging one only re-runs a pass that changes no finding (#10972).
+	// ManifestMarkersSkipped is a census of the manifest-marker consumers
+	// (supply_chain_impact items with payload trigger=manifest_dependency) in
+	// an eligible state at an active generation when this fan-out committed;
+	// the fan-out neither schedules nor flags them: they read no producer
+	// output, so doing either only re-runs a pass that changes no finding
+	// (#10972). It is taken even when the fan-out scheduled nothing, so it is
+	// an upper bound on the re-pends avoided, not a measured saving.
 	// The store reads it with a separate statement after the fan-out
 	// committed, only for a producer with a supply_chain_impact consumer
 	// edge. It is zero for any other producer and when that read failed, so
@@ -274,9 +277,15 @@ func (r CrossScopeCompletionRunner) wait(ctx context.Context, delay time.Duratio
 }
 
 // recordManifestMarkersSkipped advances the skipped-marker counter by this
-// fan-out's count. One add per committed fan-out, labelled by the producer
-// domain (a closed set), so executions per hour stay on the existing
-// manifest_trigger signal and this one shows what the exclusion spared.
+// fan-out's count. The count is a census, not a saving: it is the number of
+// manifest markers in an eligible state at an active generation when a
+// fan-out for a producer that feeds supply_chain_impact committed. Before the
+// exclusion the same fan-out would have locked and re-pended or flagged each of
+// them, so the sum is an upper bound on the re-pends avoided, never a measured
+// count of them. It carries no gate on IntentsEnqueued, so a fan-out that
+// scheduled nothing still adds the census. One add per committed fan-out,
+// labelled by the producer domain (a closed set); executions per hour stay on
+// the existing manifest_trigger signal.
 func (r CrossScopeCompletionRunner) recordManifestMarkersSkipped(ctx context.Context, result CrossScopeCompletionResult) {
 	if r.Instruments == nil || r.Instruments.CrossScopeCompletionMarkersSkipped == nil || result.ManifestMarkersSkipped <= 0 {
 		return

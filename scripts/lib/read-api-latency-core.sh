@@ -118,10 +118,10 @@ require_findings_nonempty() {
 # inventory dimension answers want_code on the current leg: 503 while the
 # winners flag is off (the read model is empty by contract), 200 once the
 # winners leg serves the seeded dimensions. A 200 call asks for
-# profile=comprehensive: the API default profile is precise, and the grouped read
-# model answers a precise profile 503 until the supports table serves existence
-# filters (#10880 PR-B2). A 503 call sends no profile, so on the winners leg it
-# pins that default-profile 503.
+# profile=comprehensive. A 503 call sends no profile (the API default is precise),
+# so on the winners leg it pins the default-profile 503 that a stack answers while
+# its supports backfill has not completed (the supports read model is not ready).
+# That pin goes red once the backfill completes; it is not a PR-B2 pin anymore.
 require_grouped_inventory() {
 	local want_code="$1" dimension="$2" code body="${work_dir}/grouped-${2}.json"
 	local query="group_by=${dimension}"

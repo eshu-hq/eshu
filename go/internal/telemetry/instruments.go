@@ -3871,10 +3871,12 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
-	// CrossScopeCompletionMarkersSkipped counts manifest-marker
-	// supply_chain_impact consumers a cross-scope completion fan-out left
-	// unscheduled and unflagged (#10972), by producer domain. Registered by
-	// registerCrossScopeCompletionInstruments.
+	// CrossScopeCompletionMarkersSkipped is a census: the manifest markers in
+	// an eligible state at an active generation when a cross-scope completion
+	// fan-out for a producer that feeds supply_chain_impact committed (#10972),
+	// added once per fan-out, by producer domain. It is an upper bound on the
+	// re-pends avoided, not a measured saving, and a fan-out that scheduled
+	// nothing still adds it. Registered by registerCrossScopeCompletionInstruments.
 	CrossScopeCompletionMarkersSkipped metric.Int64Counter
 	// ReducerAdmissionDepthReads counts #11233 ingester reducer admission
 	// depth lookups per decision by operation (the depth signal) and outcome

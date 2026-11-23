@@ -35,10 +35,14 @@ SUSE vendor advisory correlation remains unsupported and fails closed with
 an empty vendor source and a warning. A package receives a vendor advisory
 source only with a matching package-level repository-origin binding.
 QA scanner-worker deployment and live RPM coverage are tracked by #9296 and
-#9300; this code support does not establish deployed coverage. Claim
-dependency: this RPM wording tracks the R4 landing (#9300, closed), and the
-runtime instance counts on the deployment story track R10 (#9307, open) —
-re-check both rows when those PRs move.
+#9300 (both closed); this code support does not establish deployed coverage. Claim
+dependency: this RPM wording tracks the R4 landing (#9300, closed). Runtime
+instance counts on the deployment story track R10 (#9307, closed): Kubernetes
+live counts stand where measured; the ECS count path is truth-tiered and still
+ships for declaration-bound services, but the live bound count is NOT_PROVEN
+on the measured corpus — workload-to-ECS binding came back unbindable-by-design
+(#9661 funnel: 0/93 binds with zero ambiguity), so no live ECS running-task
+count is currently returned.
 
 ## The Differentiated Claims
 

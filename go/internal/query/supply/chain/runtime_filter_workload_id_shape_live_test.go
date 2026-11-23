@@ -120,6 +120,14 @@ UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2`,
 			"repository_id":     workloadIDShapeLiveRepository,
 		})
 
+	assertGrantReadRefusedWhileSupportsUnfilled(t, ctx, tx, impact.FindingFilter{
+		CVEID:            workloadIDShapeLiveCVE,
+		DetectionProfile: "comprehensive",
+		Limit:            10,
+		AllowedScopeIDs:  []string{workloadIDShapeLiveScope},
+	})
+	fillSupplyChainImpactSupports(t, ctx, tx)
+
 	findingStore := impact.NewPostgresFindingStore(tx)
 	aggregateStore := impact.NewPostgresAggregateStore(tx)
 	allowedScopes := []string{workloadIDShapeLiveScope}

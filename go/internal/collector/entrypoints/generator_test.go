@@ -99,6 +99,13 @@ func TestGenerateClaimedCollectorEntrypoint(t *testing.T) {
 		`MaxAttempts:         workflow.DefaultClaimMaxAttempts(),`,
 		`return "pagerduty-claim-" + hex.EncodeToString(raw[:])`,
 		`SourceBackpressure:  sourceBackpressure,`,
+		// The claim-grant leg's control store carries the process instruments so its
+		// latch transitions reach eshu_dp_workflow_claim_pacing_* when source
+		// backpressure is enabled (#10882). Like every pin in this list these are
+		// substring checks on the rendered text; the generated source is not
+		// compiled or run here.
+		`controlStore.Instruments = instruments`,
+		`Postgres:    controlStore,`,
 		`claimStore.Store.(collector.SourceBackpressureChecker)`,
 		`refusing startup rather than claiming unpaced`,
 	} {
