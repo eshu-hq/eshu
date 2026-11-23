@@ -127,6 +127,10 @@ with zero skips:
 | Live activation, refinalize, claim-fence, replay and contention-gate tests that take the activation path, all opt-ins set | 218 PASS, 0 FAIL, 17 SKIP (supply-chain attachment and fan-out proofs that need other fixtures, unrelated to the activation lock) |
 | `-race` contention package, `GOMAXPROCS=2` advisory round tests `-count=30` three times | ok; 60 of 60 PASS each |
 | Hermetic storage/postgres, reducer, workflow, telemetry | only the known environment failures above |
+| CI readiness shard 6 of 8 (the one holding the new tests), run through `scripts/run-live-postgres-readiness-tests.sh --shard 6/8` with every readiness DSN and opt-in variable set against a disposable postgres 18 | 153 of 153 PASS after the runner's own excuses (the Neo4j graph proof, and `TestRetirementDerivedStatementPlansLive`, which the workflow excuses with `LIVE_READINESS_EXTRA_SKIP`); the five new and touched tests are in it |
+| Reducer contention gate, both storage/postgres halves, with the workflow's `-run` filters and DSNs (without `-race`, which CI adds) | half one 191 PASS, half two 247 PASS, 0 FAIL, 0 SKIP |
+| Contention runner contract (`reducer_contention_events.py`, its two self-tests, `verify-live-tests-ledger.sh`) and `TestReducerContentionPostgresProofsRunInTheReducerContentionGate` | pass (126 contention files verified) |
+| `go test ./internal/replay/...`, `go vet`, `check-changed-coverage-floors.sh` | ok (18 packages); vet clean; telemetry 77% >= 77, contention 81% >= 81, storage/postgres env_gated |
 | golangci-lint and `go vet` on the touched packages | 0 issues, clean |
 
 The first hermetic run found ten `TestRelationshipStore*` tests failing: their
@@ -240,6 +244,57 @@ template-clone helper cancels `DROP DATABASE ... WITH (FORCE)` at its 15 s
 client timeout while the server is in a checkpoint. It is the helper's timeout
 (`go/internal/testutil/postgresproof/template_clone.go`), already failing
 unrelated tests on `origin/main`, and is tracked separately.
+
+## Pre-existing limit found here: the blocking set must fit a btree key
+
+Not caused by this change and not fixed in it. It bounds how large a narrowed
+wait's blocking set can be, so it is recorded here exactly.
+
+- **Where the key is built:** `narrowedWaitingKey`
+  (`go/internal/storage/postgres/reducer_waiting_narrow.go`) renders the whole
+  sorted blocking set, the read set, the scope and the generation into the
+  `waits_for_key` JSONB. `insertWaitingItem`
+  (`reducer_waiting_producer_terminal.go`) inserts it.
+- **Why it fails:** `waits_for_key` is part of the primary key,
+  `reducer_waiting_items_pkey (work_item_id, waits_for_kind, waits_for_key)`
+  (`migrations/316_reducer_waiting_items.sql`). A btree entry may not exceed
+  2704 bytes after compression.
+- **Error text** (through the production park path, 600 sequential scope IDs):
+  `park waiting reducer work: ERROR: index row size 2864 exceeds btree version 4
+  maximum 2704 for index "reducer_waiting_items_pkey" (SQLSTATE 54000)`. Past
+  about 8191 bytes the text is `index row requires N bytes, maximum size is 8191`.
+- **Repro** (postgres 18.6, no application code, same primary key shape; run with
+  `docker exec -i <container> psql -U <user> -d postgres`):
+
+  ```sql
+  CREATE TEMP TABLE t(work_item_id text NOT NULL, waits_for_kind text NOT NULL,
+    waits_for_key jsonb NOT NULL,
+    PRIMARY KEY (work_item_id, waits_for_kind, waits_for_key));
+  -- N random 36-character IDs in the blocking set; raise N until the INSERT fails
+  INSERT INTO t SELECT 'wi', 'relationship_generation_active',
+    jsonb_build_object('scope_id','scope-waiter','generation_id','gen-waiter',
+      'repo_ids', jsonb_build_array('repo-1'),
+      'blocking_scope_ids', (SELECT jsonb_agg(gen_random_uuid()::text)
+                             FROM generate_series(1, 64)));
+  ```
+
+- **Measured maximum safe blocking-set size:** 63 random 36-character IDs
+  (the 64th fails: `index row size 2744 exceeds btree version 4 maximum 2704`).
+  Compressible IDs go further: 400 sequential 27-character IDs insert, and on the
+  JSONB key alone 500 fit and 1000 do not. Real scope IDs carry a prefix such as
+  `git-repository-scope:` (`internal/scope/scope.go`), so expect the random-ID
+  bound, in the tens, not the hundreds.
+- **Effect:** the insert error is returned from the park. The wait row is not
+  written, and the Fail path returns it as `park waiting reducer work`; the
+  reviewer traced that error to the service cancelling every worker
+  (`internal/reducer/service.go:540-551`). A restricted-fence verdict with more
+  blocking scopes than the bound cannot park at all. The first rendezvous
+  version's lock count was never the first limit for that reason.
+- **Options for the design question:** hash or shorten the key (a digest of the
+  sorted set in `waits_for_key`, the set itself in a non-key column, which the
+  narrowed wake would then match through a containment index), or bound the set
+  at the verdict (fall back to the coarse wait above N scopes). Neither is in
+  this change.
 
 ## #11074: the advisory round's own workers terminalize its targets
 
