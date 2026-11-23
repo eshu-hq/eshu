@@ -107,8 +107,10 @@ def mount_index(root: str | Path) -> dict[RouteKey, list[str]]:
     Returns:
         Mapping of route keys to sorted mount file lists.
     """
+    # Post-#10890 the relay/compat serving tree (go/cmd/api) is deleted;
+    # mounts resolve via the remaining go/internal/query registrations.
     return _literal_hits(root, r'"(GET|POST|PATCH|PUT|DELETE) /[a-z0-9][^"]*"',
-                         "go/cmd/api", "go/internal")
+                         "go/internal")
 
 
 def fragment_index(root: str | Path) -> dict[str, list[str]]:

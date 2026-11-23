@@ -25,7 +25,7 @@
 #   G2_SATELLITE_REPO.
 set -euo pipefail
 
-CUTOVER="go/cmd/api/CUTOVER_OWNERSHIP.md"
+CUTOVER="docs/internal/g2-route-inventory.md"
 SNAPSHOT="${G2_SNAPSHOT:-docs/internal/g2-served-snapshot.md}"
 
 EXPECT_ROWS="${G2_EXPECT_ROWS:-282}"
@@ -166,7 +166,7 @@ fi
 while IFS= read -r cell; do
   route=$(printf '%s' "${cell}" | rg -o '`[^`]+`' | tr -d '`')
   [ -n "${route}" ] || fail "unparseable snapshot row: ${cell}"
-  if ! rg -q -F --glob '!*_test.go' --glob '*.go' "\"${route}\"" go/cmd/api go/internal; then
+  if ! rg -q -F --glob '!*_test.go' --glob '*.go' "\"${route}\"" go/internal; then
     fail "not Mount-registered in-tree: ${route}"
   fi
 done <"${snap_routes}"

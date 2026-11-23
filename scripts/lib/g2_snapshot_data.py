@@ -23,16 +23,25 @@ INVENTORY_SCOPE = "full"
 # Core side of the base pair: the tree the snapshot was derived from.
 # A generation record, not ambient HEAD (no committed file can name its
 # own commit). On re-base, update this const, regenerate, run the checker.
-CORE_SHA = "c16ddfa3a3f0474e60b2a12477c5ac89602354e2"
+# Frozen D13 removal base (owner GO, recorded on eshu-hq/eshu#9669
+# 2026-11-23T14:12:12Z): post-#10890, so go/cmd/api is deleted and the
+# row universe is the vendored removal inventory below.
+CORE_SHA = "138ee30a3ce14673e7726ffae05951524947dc65"
 
-# Satellite base pair side: 33 native api/*_terminate fragments plus the
-# d9 direct-termination files and setup dispatch, verified via local git
-# objects only. Full hash asserted (a mistranscribed literal fails the
-# satellite half of the checker instead of silently covering less).
-SATELLITE_SHA = "c041d7ec95e41cba1c9874c8dc098af6a2f994f8"
+# Satellite base pair side: wave terminate fragments plus the direct
+# dispatch files, verified via local git objects only. Full hash asserted
+# (a mistranscribed literal fails the satellite half of the checker
+# instead of silently covering less). Frozen D13 removal base (owner GO,
+# recorded on eshu-hq/eshu#9669 2026-11-23T14:12:12Z).
+SATELLITE_SHA = "b13efcf9da969336fce19963d1ab3dbdd6afbfb8"
 
 # In-tree sources (paths relative to the core worktree root).
-CUTOVER = "go/cmd/api/CUTOVER_OWNERSHIP.md"
+# The removal inventory is byte-identical to the deleted
+# go/cmd/api/CUTOVER_OWNERSHIP.md at its final revision (parent of the
+# #10890 removal); the relay/compat serving tree is gone, but every row
+# stays Mount-registered via go/internal/query so the drift gate keeps
+# measuring the full disposition at the frozen pair.
+CUTOVER = "docs/internal/g2-route-inventory.md"
 W8_CENSUS = "docs/internal/w8-port-census.md"
 
 # Classification vocabulary for 9669-G2 (arbiter G2/G8/G9 scope ruling,

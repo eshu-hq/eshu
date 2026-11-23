@@ -61,7 +61,7 @@ from g2_snapshot_derive import (  # noqa: E402
 def find_root() -> Path:
     """Locate the worktree root without hard-coded absolute paths."""
     for cand in Path(__file__).resolve().parents:
-        if (cand / "go" / "cmd" / "api" / "CUTOVER_OWNERSHIP.md").is_file():
+        if (cand / "docs" / "internal" / "g2-route-inventory.md").is_file():
             return cand
     p = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                        capture_output=True, text=True)
@@ -87,7 +87,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-JUDGMENT_FILES = ("go/cmd/api/CUTOVER_OWNERSHIP.md",
+JUDGMENT_FILES = ("docs/internal/g2-route-inventory.md",
                   "docs/internal/w8-port-census.md",
                   "scripts/lib/g2_snapshot_data.py")
 
