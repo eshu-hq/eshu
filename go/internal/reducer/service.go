@@ -341,6 +341,12 @@ func (s Service) runSequential(ctx context.Context) error {
 			))
 		}
 		if err != nil {
+			// A shutdown that lands while the claim query is in flight is the
+			// operator's stop, not a claim failure: end the run cleanly, as
+			// the idle wait and the batch loop do.
+			if ctx.Err() != nil {
+				return nil
+			}
 			return fmt.Errorf("claim reducer work: %w", err)
 		}
 		if !ok {
@@ -407,6 +413,9 @@ func (s Service) runPerItemConcurrent(ctx context.Context) error {
 					))
 				}
 				if err != nil {
+					if ctx.Err() != nil {
+						return // shutdown during the claim: a clean stop, not a failure
+					}
 					mu.Lock()
 					errs = append(errs, fmt.Errorf("claim reducer work (worker %d): %w", workerID, err))
 					mu.Unlock()
