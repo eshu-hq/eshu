@@ -4,11 +4,11 @@
 #
 # Shared settings for the #10882 replay driver. Source this file; it sets only
 # variables and defines no behavior, so every lib file agrees on one venue.
-# Venue: containers named replay-*, scratch under /tmp/claude-1000/replay,
+# Venue: containers named replay-*, scratch under ~/.cache/replay/scratch (never /tmp, a RAM-backed tmpfs),
 # large artifacts under ~/.cache/replay. Override any value from the caller.
 
 REPLAY_HOME="${REPLAY_HOME:-$HOME/.cache/replay}"
-REPLAY_SCRATCH="${REPLAY_SCRATCH:-/tmp/claude-1000/replay}"
+REPLAY_SCRATCH="${REPLAY_SCRATCH:-$REPLAY_HOME/scratch}"
 REPLAY_BIN="${REPLAY_BIN:-$REPLAY_HOME/bin}"
 REPLAY_PG_NAME="${REPLAY_PG_NAME:-replay-pg}"
 REPLAY_PG_PORT="${REPLAY_PG_PORT:-15882}"
