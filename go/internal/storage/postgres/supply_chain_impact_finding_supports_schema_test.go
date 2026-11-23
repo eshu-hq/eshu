@@ -116,7 +116,7 @@ func TestSupplyChainImpactHolderIndexMigrationsShape(t *testing.T) {
 			t.Error(v)
 		}
 	}
-	// Seeded violations: the same file text with the option flipped is reported.
+	// Seeded violations: the pinned text with the option flipped is reported.
 	members := "341_supply_chain_impact_finding_supports_members_idx.sql"
 	if holderIndexStatementViolation(members, strings.Replace(holderIndexStatements[members], " WITH (fastupdate = off)", "", 1)) == "" {
 		t.Error("a members GIN without fastupdate = off is accepted")

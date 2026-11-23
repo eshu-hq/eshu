@@ -92,9 +92,13 @@ const (
 // (#11197). The composition root binds it to postgres.RequireSupplyChainImpactSupportsReady;
 // it is a function so this leaf package does not import the postgres root. The fence
 // runs at READ COMMITTED, so the check and the holder read are not one snapshot: an
-// old-writer image marking a scope dirty between them can let a fence retract with a
-// holder missed. The race needs a mixed-version deploy during the backfill and is
-// bounded by the fence's own re-run and the backfill's dirty-scope drain.
+// old-writer image marking a scope dirty between them could let a fence retract with
+// a holder missed. The fence therefore runs the check twice, before the detach and
+// again after the holder read, and rolls back when either says not ready. A dirty
+// mark commits atomically with the old writer's finding, so a finding the holder read
+// missed is seen by the second check unless it commits after that check's own
+// snapshot, a window of the reopen statements only. A committed fence does not re-run
+// for that generation, so that last window is stated, not closed.
 type SupportsReadiness func(ctx context.Context, tx db.Queryer) error
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's
@@ -213,6 +217,12 @@ func (s Store) fenceOne(
 	holders, err := readHolderScopes(ctx, tx, repositoryID, fence.ScopeID)
 	if err != nil {
 		return false, 0, fmt.Errorf("read holders: %w", err)
+	}
+	// The holder read above is a separate READ COMMITTED snapshot from the first
+	// check, so check again before any reopen or the commit: a table that went not
+	// ready in between rolls the whole fence back and the coordinator retries it.
+	if err := s.supportsReady(ctx, tx); err != nil {
+		return false, 0, fmt.Errorf("recheck supports readiness after the holder read: %w", err)
 	}
 	for _, holder := range holders {
 		if err := s.reopenHolder(ctx, tx, holder, fence.ScopeID, fence.GenerationID, observedAt); err != nil {

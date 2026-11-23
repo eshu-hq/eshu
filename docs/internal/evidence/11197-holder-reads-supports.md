@@ -24,8 +24,10 @@ Equality details the tests pin: the supports `ecosystem` column is lowercased fo
 filtering, so the seed read takes `ecosystem`, `purl` and `package_name` from the
 verbatim support payload; supports store `''` for a finding without a CVE,
 advisory or repository id, so every holder read excludes the blank id (the fact
-read's `->>` equality never matched a missing key) and the store drops blank
-lookup ids before any statement.
+read's `->>` equality never matched a missing key) and the holder, key-range and mass
+reads drop blank lookup ids before any statement. `FindRepositoryFindingHolders` passes
+its ids through; its caller derives non-blank repository ids, and its statement carries
+`repository_id <> ''` anyway.
 
 ## Theory proof: the plans (before any code)
 
@@ -113,8 +115,8 @@ twice the writer without supports): measured `f` on the shipped set reads 1.46 t
 on medians, with S2 warm replay at 1.94. Three S2 cold cells have no stable `f` value
 (bimodal, below), and the pre-declared rule judges them on the higher value: insert
 57,428,212 B on 8 of 10 reps (f/a 1.90, 1 more at 57,428,266) and 68,508,532 B on 1 (2.27);
-replay 66,454,472 B on 9 reps (1.86) and 77,533,752 B on 1 (2.17); retract 78.91 MB on 8
-reps (2.06) and 67,831,219 B on 2 (1.77). So the B3 miss is three cells (2.27, 2.17, 2.06),
+replay 66,454,472 B on 9 reps (1.86) and 77,533,752 B on 1 (2.17); retract 78,910,019 to 78,912,819 B on 8
+reps (2.06) and 67,831,219 B plus 67,831,273 B on 2 (1.77). So the B3 miss is three cells (2.27, 2.17, 2.06),
 not one. It returns to the arbiter before B3; PR-C's derived S2 warm replay is +31.9 + 3.9 = +35.8 against a break-even of
 about +28.
 
@@ -141,10 +143,14 @@ as the first statement of the transaction of each repeatable-read read (the key-
 read, the mass probe, the holder statement and the repository holder read), in the
 snapshot of the read, so a table that goes not-ready cannot be read half-way. The
 go-modules fence is the exception: it runs at READ COMMITTED, so its check and its
-holder read are not one snapshot, and an old-writer image marking a scope dirty between
-them can let a fence retract with a holder missed. The race needs a mixed-version deploy
-during the backfill, and the fence's own re-run and the backfill's dirty-scope drain
-bound it; it is stated here and in the PR body, not closed. A table that is
+holder read are not one snapshot. It runs the check twice, before the detach and again
+after the holder read and before any reopen, and rolls back when either says not ready.
+The trigger's dirty mark commits atomically with the old writer's finding, so a finding
+the holder read missed is seen by the second check unless it commits after that check's
+own snapshot (a window of the reopen statements only). A committed fence does not re-run
+for that generation, so that last window is stated, not closed; the unit test
+`TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack` pins the order of the two
+checks around the read. A table that is
 not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`; there is
 no fall back to the finding facts.
 

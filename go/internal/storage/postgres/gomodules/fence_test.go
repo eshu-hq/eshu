@@ -46,19 +46,23 @@ func (r *fakeRows) Scan(dest ...any) error {
 // fakeFenceDB records every transaction's statements in order. detach and supersede
 // answer those statements per fence in order; failOn makes the named statement fail.
 type fakeFenceDB struct {
-	detach       []int64
-	supersede    []int64
-	holders      []string
-	failOn       string
-	statements   []string
-	args         [][]any
-	commits      int
-	rollbacks    int
-	rowsClosed   bool
-	reopened     []string
-	reopenErr    error
-	notReadyErr  error
-	openOnReopen bool
+	detach      []int64
+	supersede   []int64
+	holders     []string
+	failOn      string
+	statements  []string
+	args        [][]any
+	commits     int
+	rollbacks   int
+	rowsClosed  bool
+	reopened    []string
+	reopenErr   error
+	notReadyErr error
+	// notReadyOnCheck, when positive, limits notReadyErr to that 1-based call of the
+	// readiness check; zero fails every call.
+	notReadyOnCheck int
+	readyChecks     int
+	openOnReopen    bool
 }
 
 func (f *fakeFenceDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
@@ -146,6 +150,10 @@ const fenceSupportsReadyStatement = "supports ready"
 func (f *fakeFenceDB) supportsReady(context.Context, db.Queryer) error {
 	f.statements = append(f.statements, fenceSupportsReadyStatement)
 	f.args = append(f.args, nil) // statements and args stay index-aligned
+	f.readyChecks++
+	if f.notReadyOnCheck > 0 && f.readyChecks != f.notReadyOnCheck {
+		return nil
+	}
 	return f.notReadyErr
 }
 
@@ -171,7 +179,8 @@ func TestFenceOrderIsScopeThenGenerationThenHolders(t *testing.T) {
 		t.Fatalf("result = %+v, err = %v, want 1 fenced and 2 holders", result, err)
 	}
 	want := []string{
-		fenceTimeoutsQuery, fenceSupportsReadyStatement, fenceDetachPointerQuery, fenceSupersedeGeneration, fenceFindHoldersQuery, "reopen", "reopen",
+		fenceTimeoutsQuery, fenceSupportsReadyStatement, fenceDetachPointerQuery, fenceSupersedeGeneration, fenceFindHoldersQuery,
+		fenceSupportsReadyStatement, "reopen", "reopen",
 	}
 	if !slices.Equal(database.statements, want) {
 		t.Fatalf("statements = %q, want %q", database.statements, want)
@@ -262,6 +271,32 @@ func TestFenceStopsBeforeDetachingWhenSupportsAreNotReady(t *testing.T) {
 	want := []string{fenceTimeoutsQuery, fenceSupportsReadyStatement}
 	if !slices.Equal(database.statements, want) {
 		t.Fatalf("statements = %q, want %q (the check runs before the detach)", database.statements, want)
+	}
+}
+
+// TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack proves the order of the two
+// readiness checks around the holder read (#11197): the second runs after the holder
+// read and before any reopen or the commit, so a table that went not ready between
+// the first check and the read rolls the fence back with nothing reopened.
+func TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack(t *testing.T) {
+	t.Parallel()
+
+	notReady := errors.New("supports went not ready")
+	database := &fakeFenceDB{holders: []string{"holder-a"}, notReadyErr: notReady, notReadyOnCheck: 2}
+	result, err := database.store().FenceStaleGoEvidence(t.Context(), testFences, fenceTestNow)
+	if !errors.Is(err, notReady) {
+		t.Fatalf("err = %v, want the second check's error", err)
+	}
+	if result.Fenced != 0 || result.HoldersReopened != 0 || database.commits != 0 || database.rollbacks != 1 || len(database.reopened) != 0 {
+		t.Fatalf("result = %+v, commits = %d, rollbacks = %d, reopened = %q, want nothing committed or reopened",
+			result, database.commits, database.rollbacks, database.reopened)
+	}
+	want := []string{
+		fenceTimeoutsQuery, fenceSupportsReadyStatement, fenceDetachPointerQuery, fenceSupersedeGeneration,
+		fenceFindHoldersQuery, fenceSupportsReadyStatement,
+	}
+	if !slices.Equal(database.statements, want) {
+		t.Fatalf("statements = %q, want %q (the second check runs after the holder read, before any reopen)", database.statements, want)
 	}
 }
 
