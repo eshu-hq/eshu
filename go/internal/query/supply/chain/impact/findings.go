@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // WinnersReadEnv is the operator gate (#3389 Phase 2) that
@@ -89,9 +90,22 @@ type PostgresFindingStore struct {
 	// false (the default) the read deduplicates at query time with the legacy
 	// ROW_NUMBER query. The wiring sets this from an operator env gate so the
 	// cutover is reversible and is only enabled once the reducer maintainer has
-	// populated the winners table. Output is byte-identical either way; the
-	// winners read is bounded O(page) instead of an O(filtered set) dedup sort.
+	// populated the winners table. The plain winners route (an unscoped call
+	// whose filters are all key-determined) returns the same pages as the
+	// legacy read on the parity corpus; the winners read replaces the
+	// O(filtered set) dedup sort with a read over the winners table. The routes
+	// that read the per-support table (scoped-token grants and unscoped
+	// image_ref calls) and the unscoped precise supplement are not
+	// byte-identical to legacy in every case: the PR-B2a "Behavior to know"
+	// list (a blank repository id, a cve_id filter that is not key-determined,
+	// rank filters that test the canonical pick) names the intentional
+	// differences. The unscoped precise route is not O(page) (see
+	// ListFindingsFromWinnersSupplementQuery).
 	ReadFromWinners bool
+	// Instruments receives the per-route read counter
+	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter; the
+	// route attribute is still set on the active span.
+	Instruments *telemetry.Instruments
 }
 
 // NewPostgresFindingStore creates the Postgres-backed impact
@@ -124,6 +138,18 @@ type legacyFindingQueryer struct{ database FindingQueryer }
 
 func (q legacyFindingQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return q.database.QueryContext(ctx, query, args...)
+}
+
+// readScope returns the queryer that runs a route's one read statement and the
+// function that ends its scope. A route that wants jit off runs inside a short
+// read transaction with a transaction-local jit = off (jit_off.go); every other
+// route reads on the plain queryer and end does nothing.
+func (s PostgresFindingStore) readScope(ctx context.Context, route ReadRoute) (db.Queryer, func(), error) {
+	if !route.wantsJITOff() {
+		return s.queryer(), func() {}, nil
+	}
+	queryer, _, end, err := withJITOff(ctx, s.reader, s.DB, s.queryer(), nil)
+	return queryer, end, err
 }
 
 func (s PostgresFindingStore) queryer() db.Queryer {
@@ -219,17 +245,32 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
 	}
 
+	route := filter.route(s.ReadFromWinners)
+	countRoute(ctx, s.Instruments, route)
+	if route.readsSupports() {
+		// The per-support table answers a grant, an image reference, and the
+		// supplement of an unscoped precise call; it refuses, and never falls back
+		// to winners or the fact read, while the table is not ready (#10880 PR-B
+		// ruling, decision 1; ruling V).
+		if err := s.requireSupportsReady(ctx); err != nil {
+			return nil, err
+		}
+	}
+	// The duration sample is the read: it starts after the readiness probe, so a
+	// refused call records nothing and an accepted call does not include the probe.
+	defer timeRoute(ctx, s.Instruments, route)()
 	query := ListFindingsQuery
-	// Granted calls and existence-filter calls (image_ref, profile) stay on the
-	// legacy read: the winners row is one pick across scopes, so it cannot
-	// answer a grant or an any-support filter from every support (#10880 PR-B
-	// ruling). The precise profile is the API default, so until the supports
-	// table serves these filters only profile=comprehensive reads winners.
-	if s.ReadFromWinners &&
-		len(filter.AllowedRepositoryIDs) == 0 &&
-		len(filter.AllowedScopeIDs) == 0 &&
-		filter.ImageRef == "" &&
-		filter.DetectionProfile == "" {
+	switch route {
+	case RouteLegacy, RouteSupportsFindingID:
+		// the legacy fact read stays the default statement (gate off); the
+		// finding-id route is an explain label no list or aggregate takes
+	case RouteSupportsGrant:
+		query = ListFindingsFromSupportsQuery
+	case RouteSupportsImage:
+		query = ListFindingsFromSupportsImageQuery
+	case RouteWinnersSupplement:
+		query = ListFindingsFromWinnersSupplementQuery
+	case RouteWinners:
 		query = ListFindingsFromWinnersQuery
 	}
 	args := []any{
@@ -259,7 +300,12 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 		SuppressionReadAt(s.Now),
 	}
 	args = append(args, supplyChainImpactCallerAuthorizationArgs(ctx)...)
-	rows, err := s.queryer().QueryContext(ctx, query, args...)
+	queryer, endRead, err := s.readScope(ctx, route)
+	if err != nil {
+		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
+	}
+	defer endRead()
+	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
 	}

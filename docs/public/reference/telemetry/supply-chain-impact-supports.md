@@ -6,9 +6,14 @@ transaction that writes the finding facts, and a reducer-owned backfill fills it
 for facts written before the maintainer shipped. An old-writer fence marks any
 scope a writer without the maintainer touches, and the backfill drains those
 marks. Two reducer loaders read it as input (the security-alert reconciliation
-evidence loader and the service-catalog vulnerability loader, #10880 PR-B2c);
-these signals show whether it is complete and current, and how those loaders
-used it.
+evidence loader and the service-catalog vulnerability loader, #10880 PR-B2c), and
+the impact holder reads (fan-out, repository holders, scoped seed, out-of-stamp
+probe and the Go-modules fence, #11197). With `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, the
+scoped-token list, count, inventory, grouped inventory, explain, and the repository,
+service, and workload anchored advisory evidence reads serve from it (#10880 PR-B2a) and
+answer `503 backend_unavailable` with `Retry-After: 30` while it is not ready. These
+signals show whether it is complete and current, which is the same predicate those
+reads probe before each call, and how the reducer-side readers used it.
 
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |

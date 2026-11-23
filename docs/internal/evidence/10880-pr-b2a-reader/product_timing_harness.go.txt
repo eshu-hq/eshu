@@ -1,0 +1,165 @@
+
+package impact
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
+// timeIt runs fn once to warm and n more times and logs median and max in ms.
+func timeIt(t *testing.T, name string, n int, fn func() error) {
+	t.Helper()
+	if only := os.Getenv("ESHU_ZZ_ONLY"); only != "" {
+		keep := false
+		for _, part := range strings.Split(only, "|") {
+			keep = keep || strings.Contains(name, part)
+		}
+		if !keep {
+			return
+		}
+	}
+	if err := fn(); err != nil {
+		t.Logf("RESULT %-58s ERROR %v", name, err)
+		return
+	}
+	durations := make([]float64, 0, n)
+	for i := 0; i < n; i++ {
+		start := time.Now()
+		if err := fn(); err != nil {
+			t.Logf("RESULT %-58s ERROR %v", name, err)
+			return
+		}
+		durations = append(durations, float64(time.Since(start).Microseconds())/1000)
+	}
+	sort.Float64s(durations)
+	t.Logf("RESULT %-58s median %8.1f ms  max %8.1f ms", name, durations[len(durations)/2], durations[len(durations)-1])
+}
+
+// TestZZVProductScratchLive times the product statements (not the theory-proof
+// statements) on the 8M-support scratch corpus through the real stores.
+func TestZZVProductScratchLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_ZZ_DSN")
+	if dsn == "" {
+		t.Skip("ESHU_ZZ_DSN not set")
+	}
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	database.SetMaxOpenConns(4)
+	ctx := context.Background()
+	for _, stmt := range []string{
+		`INSERT INTO supply_chain_impact_finding_supports_backfill (marker_name, contract_version, completed_at)
+		 VALUES ('supply_chain_impact_finding_supports_v1', 1, now())
+		 ON CONFLICT (marker_name) DO UPDATE SET completed_at = now(), contract_version = 1`,
+		`INSERT INTO supply_chain_impact_winners_materialization (singleton, materialized_at, contract_version)
+		 VALUES (1, now(), 1) ON CONFLICT (singleton) DO UPDATE SET materialized_at = now()`,
+	} {
+		if _, err := database.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("prepare: %v\n%s", err, stmt)
+		}
+	}
+	var seeded int
+	_ = database.QueryRowContext(ctx, `SELECT count(*) FROM fact_records WHERE fact_id = 'fact:zz:svc:0'`).Scan(&seeded)
+	if seeded == 0 {
+		for r := 0; r < 3000; r++ {
+			repo := fmt.Sprintf("repo:%d", r)
+			groupedLiveFact(t, ctx, database, fmt.Sprintf("fact:zz:svc:%d", r), "scope:b2a:1", "gen:b2a:1", serviceCatalogCorrelationFactKind,
+				map[string]any{"service_id": fmt.Sprintf("service:%d", r%300), "repository_id": repo, "outcome": "exact"})
+			groupedLiveFact(t, ctx, database, fmt.Sprintf("fact:zz:wl:%d", r), "scope:b2a:1", "gen:b2a:1", "reducer_workload_identity",
+				map[string]any{"workload_id": fmt.Sprintf("workload:%d", r%500), "repository_id": repo})
+			groupedLiveFact(t, ctx, database, fmt.Sprintf("fact:zz:env:%d", r), "scope:b2a:1", "gen:b2a:1", cicdRunCorrelationFactKind,
+				map[string]any{"environment": []string{"prod", "stage", "dev"}[r%3], "repository_id": repo, "outcome": "exact"})
+		}
+		if _, err := database.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	list := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	agg := PostgresAggregateStore{DB: database, ReadFromWinners: true}
+	grouped := PostgresGroupedInventoryStore{DB: database, ReadFromWinners: true}
+	const reps = 5
+
+	listCases := map[string]FindingFilter{
+		"list precise status page201":               {DetectionProfile: ProfilePrecise, Status: "affected_exact", Limit: 201},
+		"list precise status sort asc":              {DetectionProfile: ProfilePrecise, Status: "affected_exact", Limit: 201, Sort: "priority_score_asc"},
+		"list precise status+min60+severity":        {DetectionProfile: ProfilePrecise, Status: "affected_exact", MinPriorityScore: 60, Severity: "high", Limit: 201},
+		"list precise bucket critical":              {DetectionProfile: ProfilePrecise, Status: "affected_exact", PriorityBucket: "critical", Limit: 201},
+		"list precise one cve":                      {DetectionProfile: ProfilePrecise, CVEID: "CVE-2026-777", Limit: 201},
+		"list precise axios":                        {DetectionProfile: ProfilePrecise, PackageID: "pkg:npm/axios", Limit: 201},
+		"list precise axios status":                 {DetectionProfile: ProfilePrecise, PackageID: "pkg:npm/axios", Status: "affected_exact", Limit: 201},
+		"list precise repository":                   {DetectionProfile: ProfilePrecise, RepositoryID: "repo:12", Limit: 201},
+		"list precise suppression accepted_risk":    {DetectionProfile: ProfilePrecise, Status: "affected_exact", SuppressionState: "accepted_risk", IncludeSuppressed: true, Limit: 201},
+		"list precise cursor":                       {DetectionProfile: ProfilePrecise, Status: "affected_exact", AfterFindingID: "finding:40000", Limit: 201},
+		"list image typical":                        {ImageRef: "registry.example/img7:1", Status: "affected_exact", Limit: 201},
+		"list image typical no status":              {ImageRef: "registry.example/img7:1", CVEID: "CVE-2026-777", Limit: 201},
+		"list precise service filter (runtime CTE)": {DetectionProfile: ProfilePrecise, Status: "affected_exact", ServiceID: "service:7", Limit: 201},
+	}
+	names := make([]string, 0, len(listCases))
+	for name := range listCases {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		filter := listCases[name]
+		timeIt(t, name, reps, func() error { _, err := list.ListSupplyChainImpactFindings(ctx, filter); return err })
+	}
+
+	aggCases := map[string]AggregateFilter{
+		"count precise none":          {DetectionProfile: ProfilePrecise},
+		"count precise status":        {DetectionProfile: ProfilePrecise, Status: "affected_exact"},
+		"count precise axios":         {DetectionProfile: ProfilePrecise, PackageID: "pkg:npm/axios"},
+		"count precise one cve":       {DetectionProfile: ProfilePrecise, CVEID: "CVE-2026-777"},
+		"count precise severity":      {DetectionProfile: ProfilePrecise, Severity: "high"},
+		"count precise min60 service": {DetectionProfile: ProfilePrecise, MinPriorityScore: 60, ServiceID: "service:7"},
+		"count image typical":         {ImageRef: "registry.example/img7:1"},
+	}
+	names = names[:0]
+	for name := range aggCases {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		filter := aggCases[name]
+		timeIt(t, name, reps, func() error { _, err := agg.CountSupplyChainImpactFindings(ctx, filter); return err })
+	}
+	for _, dim := range []InventoryDimension{InventoryByStatus, InventoryByPriorityBucket, InventoryBySeverity, InventoryByRepository, InventoryByEcosystem} {
+		for label, filter := range map[string]AggregateFilter{
+			"inventory precise none":  {DetectionProfile: ProfilePrecise},
+			"inventory image typical": {ImageRef: "registry.example/img7:1"},
+		} {
+			timeIt(t, label+" "+string(dim), reps, func() error { _, err := agg.SupplyChainImpactInventory(ctx, filter, dim, 50, 0); return err })
+		}
+	}
+	for _, dim := range []GroupedInventoryDimension{GroupedInventoryByService, GroupedInventoryByWorkload, GroupedInventoryByEnvironment} {
+		for label, filter := range map[string]AggregateFilter{
+			"grouped precise none":  {DetectionProfile: ProfilePrecise},
+			"grouped precise axios": {DetectionProfile: ProfilePrecise, PackageID: "pkg:npm/axios"},
+			"grouped image typical": {ImageRef: "registry.example/img7:1"},
+		} {
+			timeIt(t, label+" "+string(dim), reps, func() error { _, err := grouped.SupplyChainImpactGroupedInventory(ctx, filter, dim, 50, 0); return err })
+		}
+	}
+
+	// Transaction overhead of the jit-off scope: BEGIN, set_config, COMMIT.
+	timeIt(t, "jit-off scope open+close x100 (ms per 100)", 3, func() error {
+		for i := 0; i < 100; i++ {
+			_, row, end, err := withJITOff(ctx, nil, database, nil, nil)
+			if err != nil {
+				return err
+			}
+			var one int
+			_ = row.QueryRowContext(ctx, `SELECT 1`).Scan(&one)
+			end()
+		}
+		return nil
+	})
+}

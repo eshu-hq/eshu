@@ -315,21 +315,41 @@ func mountCoreCLISupport(mux *http.ServeMux, _ *query.APIRouter) {
 	(&support.Handlers{}).Mount(mux)
 }
 
+// serviceIntelligenceAggregates builds the aggregate store the service
+// intelligence report reads supply-chain impact counts through. With the winners
+// gate on the report's precise-profile calls read route V under the transaction-local
+// jit switch, so the store carries the instruments: every read is counted and timed
+// by route like the API's own aggregate routes, and the probe-failure WARN names the
+// deployment the 503 blames.
+func serviceIntelligenceAggregates(
+	reader db.ReadStore,
+	readImpactFromWinners bool,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+) impact.PostgresAggregateStore {
+	store := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+	store.Logger = logger
+	store.Instruments = instruments
+	return store
+}
+
 // mountCoreServiceIntelligence registers the service intelligence report
 // route over durable Postgres evidence sources. It lives here because the
 // handler package imports query. readImpactFromWinners carries the #10880
 // slice 2b aggregate read gate so the report route follows the same
 // cutover as the count and inventory routes.
-func mountCoreServiceIntelligence(rawDB *sql.DB, logger *slog.Logger, readImpactFromWinners bool) func(*http.ServeMux, *query.APIRouter) {
+func mountCoreServiceIntelligence(
+	rawDB *sql.DB,
+	logger *slog.Logger,
+	readImpactFromWinners bool,
+	instruments *telemetry.Instruments,
+) func(*http.ServeMux, *query.APIRouter) {
 	return func(mux *http.ServeMux, router *query.APIRouter) {
 		if router == nil {
 			return
 		}
 		reader := pgstatus.NewSQLReadStore(rawDB)
-		supplyChainAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
-		// The probe-failure WARN names the deployment the 503 blames, so a
-		// lagging maintainer is distinguishable from an unwired route.
-		supplyChainAggregates.Logger = logger
+		supplyChainAggregates := serviceIntelligenceAggregates(reader, readImpactFromWinners, logger, instruments)
 		(&serviceintelhttp.ReportHandler{
 			Entities: router.Entities,
 			Incidents: serviceintelhttp.NewDurableIncidentEvidenceSource(

@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -48,6 +49,15 @@ func seedSupportsEqualityExtras(t *testing.T, ctx context.Context, database *sql
 	}
 	collision("fact:c1:a", "c1", "ADV-C1")
 	collision("fact:c2:a", "c2", "")
+	// Runtime facts the service and environment filters resolve through: m1 runs
+	// service:m1 (scope A), m2 runs in prod (scope B). The filters constrain the
+	// support's own repository, so they must reach the supports read.
+	groupedLiveFact(t, ctx, database, "fact:runtime:svc-m1", multiSupportScopeA, "gen:a", serviceCatalogCorrelationFactKind,
+		map[string]any{"service_id": "service:m1", "repository_id": "repository:m1", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:env-m2", multiSupportScopeB, "gen:b", cicdRunCorrelationFactKind,
+		map[string]any{"environment": "prod", "repository_id": "repository:m2", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:wl-m1", multiSupportScopeA, "gen:a", "reducer_workload_identity",
+		map[string]any{"workload_id": "workload:m1", "repository_id": "repository:m1"})
 	overlay := func(factID, id, state, expires, generationID string, score int) {
 		payload := groupedLiveFindingPayload(id, id, score, 5.0)
 		payload["suppression_state"] = state
@@ -82,8 +92,18 @@ VALUES ('gen:operator:2', 'operator:vulnerability_suppressions', 'synthetic', no
 // fills the supports table with the real backfill, and rebuilds the winners.
 func openSupportsEqualityDatabase(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
+	return openSupportsEqualityDatabaseWith(t, nil)
+}
+
+// openSupportsEqualityDatabaseWith is openSupportsEqualityDatabase with extra
+// facts seeded before the backfill fills the supports table.
+func openSupportsEqualityDatabaseWith(t *testing.T, extra func(*testing.T, context.Context, *sql.DB)) (context.Context, *sql.DB) {
+	t.Helper()
 	ctx, database := openMultiSupportDatabase(t)
 	seedSupportsEqualityExtras(t, ctx, database)
+	if extra != nil {
+		extra(t, ctx, database)
+	}
 	backfill := storagepostgres.SupplyChainImpactSupportsBackfill{DB: storagepostgres.SQLDB{DB: database}, ChunkSize: 3}
 	for step := 0; ; step++ {
 		report, err := backfill.RunStep(ctx)
@@ -192,46 +212,7 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 	candidate := supportsCandidateListQuery(t)
 	legacyStore := PostgresFindingStore{DB: database, ReadFromWinners: false}
 
-	grants := []struct {
-		name                 string
-		repositories, scopes []string
-	}{
-		{"scope SA", nil, []string{multiSupportScopeA}},
-		{"scope SB", nil, []string{multiSupportScopeB}},
-		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
-		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
-		{"scope SA plus repository s2", []string{"repository:s2"}, []string{multiSupportScopeA}},
-		{"scope SA plus repository m1 (arms overlap)", []string{"repository:m1"}, []string{multiSupportScopeA}},
-		{"derived scope", nil, []string{multiSupportDerivedScope}},
-		{"derived scope and SA", nil, []string{multiSupportDerivedScope, multiSupportScopeA}},
-		{"operator scope", nil, []string{supportsOperatorScope}},
-		{"operator scope and SA", nil, []string{supportsOperatorScope, multiSupportScopeA}},
-		{"repository without findings", []string{"repository:none"}, nil},
-	}
-	filters := []struct {
-		name   string
-		filter FindingFilter
-		rank   bool
-	}{
-		{"status", FindingFilter{Status: "affected_exact"}, false},
-		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}, false},
-		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}, false},
-		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
-		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
-		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
-		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
-		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
-		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},
-		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}, false},
-		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}, false},
-		{"severity critical", FindingFilter{Severity: "critical"}, true},
-		{"severity medium", FindingFilter{Severity: "medium"}, true},
-		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}, true},
-		{"priority bucket low", FindingFilter{PriorityBucket: "low"}, true},
-		{"min priority 60", FindingFilter{MinPriorityScore: 60}, true},
-		{"priority bucket low with image_ref b", FindingFilter{PriorityBucket: "low", ImageRef: "registry.example/b:2"}, true},
-		{"severity medium with profile precise", FindingFilter{Severity: "medium", DetectionProfile: ProfilePrecise}, true},
-	}
+	grants, filters := supportsEqualityGrants(), supportsEqualityFilters()
 	compared, nonEmpty := 0, 0
 	differences := map[string]string{}
 	for _, grant := range grants {
@@ -304,5 +285,158 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 		if supportsRankDifferences[name] != diff {
 			t.Errorf("rank difference %q = %q, pinned %q", name, diff, supportsRankDifferences[name])
 		}
+	}
+}
+
+// TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive proves the
+// store routing of #10880 PR-B2a on the committed multi-support corpus: with the
+// winners gate on, a granted call returns the supports read's page (the same
+// statement and argument order the equality gate above compares with legacy),
+// and the call refuses with ErrFindingSupportsUnavailable, never a winners or
+// legacy page, whenever the supports readiness predicate is false: the marker
+// incomplete, a marker for a higher contract version, or a non-empty
+// old-writer fence.
+func TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive(t *testing.T) {
+	ctx, database := openSupportsEqualityDatabase(t)
+	candidate := supportsCandidateListQuery(t)
+	store := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
+
+	grants := []struct {
+		name                 string
+		repositories, scopes []string
+	}{
+		{"scope SA", nil, []string{multiSupportScopeA}},
+		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
+		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
+	}
+	for _, grant := range grants {
+		for name, filter := range map[string]FindingFilter{
+			"profile precise": {Status: "affected_exact", DetectionProfile: ProfilePrecise},
+			"image ref":       {Status: "affected_exact", ImageRef: "registry.example/a:1"},
+			"rank filter":     {Status: "affected_exact", Severity: "medium"},
+			"plain":           {Status: "affected_exact"},
+		} {
+			t.Run(grant.name+"/"+name, func(t *testing.T) {
+				filter.Limit = 100
+				filter.AllowedRepositoryIDs, filter.AllowedScopeIDs = grant.repositories, grant.scopes
+				got, err := store.ListSupplyChainImpactFindings(ctx, filter)
+				if err != nil {
+					t.Fatalf("store list: %v", err)
+				}
+				want, err := supportsCandidateList(ctx, database, candidate, filter)
+				if err != nil {
+					t.Fatalf("supports read: %v", err)
+				}
+				gotJSON, _ := json.Marshal(got)
+				wantJSON, _ := json.Marshal(want)
+				if string(gotJSON) != string(wantJSON) {
+					t.Fatalf("store page differs from the supports read\nstore:    %s\nsupports: %s", multiSupportDescribe(got), multiSupportDescribe(want))
+				}
+				if filter.Severity == "" { // non-rank cases equal the legacy page too
+					legacyRows, err := legacy.ListSupplyChainImpactFindings(ctx, filter)
+					if err != nil {
+						t.Fatalf("legacy list: %v", err)
+					}
+					legacyJSON, _ := json.Marshal(legacyRows)
+					if string(gotJSON) != string(legacyJSON) {
+						t.Fatalf("store page differs from legacy\nstore:  %s\nlegacy: %s", multiSupportDescribe(got), multiSupportDescribe(legacyRows))
+					}
+				}
+			})
+		}
+	}
+
+	granted := FindingFilter{Status: "affected_exact", Limit: 100, AllowedScopeIDs: []string{multiSupportScopeA}}
+	for _, tc := range []struct {
+		name, breakSQL, restoreSQL string
+	}{
+		{
+			name:       "marker incomplete",
+			breakSQL:   `UPDATE supply_chain_impact_finding_supports_backfill SET completed_at = NULL`,
+			restoreSQL: `UPDATE supply_chain_impact_finding_supports_backfill SET completed_at = now()`,
+		},
+		{
+			name:       "marker for a higher contract version",
+			breakSQL:   `INSERT INTO supply_chain_impact_finding_supports_backfill (marker_name, contract_version, completed_at) VALUES ('supply_chain_impact_finding_supports_v99', 99, now())`,
+			restoreSQL: `DELETE FROM supply_chain_impact_finding_supports_backfill WHERE contract_version = 99`,
+		},
+		{
+			name:       "old-writer fence not empty",
+			breakSQL:   `INSERT INTO supply_chain_impact_finding_supports_dirty (scope_id) VALUES ('scope:dirty')`,
+			restoreSQL: `DELETE FROM supply_chain_impact_finding_supports_dirty`,
+		},
+	} {
+		t.Run("refuses: "+tc.name, func(t *testing.T) {
+			if _, err := database.ExecContext(ctx, tc.breakSQL); err != nil {
+				t.Fatalf("break readiness: %v", err)
+			}
+			rows, err := store.ListSupplyChainImpactFindings(ctx, granted)
+			if _, restoreErr := database.ExecContext(ctx, tc.restoreSQL); restoreErr != nil {
+				t.Fatalf("restore readiness: %v", restoreErr)
+			}
+			if !errors.Is(err, ErrFindingSupportsUnavailable) || len(rows) != 0 {
+				t.Fatalf("not-ready list = %d rows, %v; want ErrFindingSupportsUnavailable and no rows", len(rows), err)
+			}
+			if _, err := store.ListSupplyChainImpactFindings(ctx, granted); err != nil {
+				t.Fatalf("list after restoring readiness: %v", err)
+			}
+		})
+	}
+}
+
+type supportsEqualityGrant struct {
+	name                 string
+	repositories, scopes []string
+}
+
+// supportsEqualityGrants is the grant shapes both equality gates run: scope and
+// repository grants, overlapping arms, the derived and operator scopes.
+func supportsEqualityGrants() []supportsEqualityGrant {
+	return []supportsEqualityGrant{
+		{"scope SA", nil, []string{multiSupportScopeA}},
+		{"scope SB", nil, []string{multiSupportScopeB}},
+		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
+		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
+		{"scope SA plus repository s2", []string{"repository:s2"}, []string{multiSupportScopeA}},
+		{"scope SA plus repository m1 (arms overlap)", []string{"repository:m1"}, []string{multiSupportScopeA}},
+		{"derived scope", nil, []string{multiSupportDerivedScope}},
+		{"derived scope and SA", nil, []string{multiSupportDerivedScope, multiSupportScopeA}},
+		{"operator scope", nil, []string{supportsOperatorScope}},
+		{"operator scope and SA", nil, []string{supportsOperatorScope, multiSupportScopeA}},
+		{"repository without findings", []string{"repository:none"}, nil},
+	}
+}
+
+type supportsEqualityFilter struct {
+	name   string
+	filter FindingFilter
+	rank   bool
+}
+
+// supportsEqualityFilters is the filter shapes both equality gates run; rank
+// marks the filters that follow the ruled pick-then-filter order.
+func supportsEqualityFilters() []supportsEqualityFilter {
+	return []supportsEqualityFilter{
+		{"status", FindingFilter{Status: "affected_exact"}, false},
+		{"image_ref a", FindingFilter{ImageRef: "registry.example/a:1"}, false},
+		{"image_ref b", FindingFilter{ImageRef: "registry.example/b:2"}, false},
+		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
+		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
+		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
+		{"service m1", FindingFilter{ServiceID: "service:m1"}, false},
+		{"environment prod", FindingFilter{Environment: "prod"}, false},
+		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
+		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
+		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},
+		{"suppression state", FindingFilter{SuppressionState: "accepted_risk"}, false},
+		{"paged", FindingFilter{Limit: 3, Sort: "priority_score_desc"}, false},
+		{"severity critical", FindingFilter{Severity: "critical"}, true},
+		{"severity medium", FindingFilter{Severity: "medium"}, true},
+		{"priority bucket critical", FindingFilter{PriorityBucket: "critical"}, true},
+		{"priority bucket low", FindingFilter{PriorityBucket: "low"}, true},
+		{"min priority 60", FindingFilter{MinPriorityScore: 60}, true},
+		{"priority bucket low with image_ref b", FindingFilter{PriorityBucket: "low", ImageRef: "registry.example/b:2"}, true},
+		{"severity medium with profile precise", FindingFilter{Severity: "medium", DetectionProfile: ProfilePrecise}, true},
 	}
 }

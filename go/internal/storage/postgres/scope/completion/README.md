@@ -47,7 +47,21 @@ See `doc.go` for the godoc contract.
 
 None of its own. Claiming, fanout, and the readiness probe run inside the
 caller's transaction or wiring, so tracing and metrics are the caller's
-responsibility, not this package's.
+responsibility, not this package's. `Fanout` reports the manifest markers it
+left alone in `ManifestMarkersSkipped`; the reducer's completion runner logs it
+per event and adds it to
+`eshu_dp_cross_scope_completion_markers_skipped_total` (#10972). The count is
+observability only. It is a separate read-only statement `Fanout` runs after
+the fan-out statement returned and committed, only for a producer with a
+`supply_chain_impact` consumer edge, under its own bounded context
+(`defaultManifestMarkerCountTimeout`, 10 s, about ten times the measured
+1,082 ms). It is the one place this package tolerates a failure: the fan-out
+already committed and the count only feeds a counter, so a query error, scan
+error, or timeout logs the WARN `cross-scope completion manifest marker count
+failed` (fields `error`, `timeout`; the store's `Logger`, wired from the
+reducer's service logger, with `slog.Default` as the fallback), leaves
+`ManifestMarkersSkipped` at zero, and returns the committed result. A gap in the
+counter is therefore not proof of zero markers: look for the WARN.
 
 No-Observability-Change: this extraction moves only the completion queue,
 the producer-readiness store, the quiescence probe, and their SQL
@@ -62,8 +76,62 @@ including the moved quiescence live proof and the staying concurrency,
 snapshot, and plan proofs against the exported surface; the completion SQL
 text is unchanged so no plan or lifecycle proof is re-owed.
 
+No-Regression Evidence (#10972): the fanout statement's `current_consumers` set
+carries one residual `payload->>'trigger'` predicate, evaluated below the row
+lock, so the manifest markers are never locked, re-pended, or flagged. The
+statement has no second pass over the marker rows and returns four counts; the
+skipped-marker count is a separate statement that runs after the fanout
+committed, so it adds nothing to the lock hold of the fanout or to a producer
+ack waiting on the event row. Measured on the QA replica at 2026-11-23 17:35Z
+with real payloads (read-only; no lock clause, which a replica cannot take),
+on the two statements that now ship:
+
+- Candidate selection of the fanout statement for the `supply_chain_impact`
+  consumer domain: the base statement selects 602 rows (claimed, running or
+  succeeded at an active generation) in 1,035 ms; with the predicate it selects
+  41 in 1,078 ms (+4%; both plans read about 231k shared buffers, almost all
+  hits). The exclusion removes exactly the 561 markers (556 of them
+  succeeded) and leaves the 41 findings rows unchanged. The set that is locked
+  and updated falls from 602 rows to 41.
+- The marker count, `manifestMarkerCountQuery`: 1,082 ms, no lock, no write.
+  It is a separate unlocked read after the fanout committed, not part of the
+  locking statement. It runs only for producers that feed `supply_chain_impact`.
+  QA showed at least four such fanouts in 8 h (the bulk re-pend statements at
+  13:14:12, 13:14:40, 14:52:43 and 16:29:34Z on 2026-11-23, seen through
+  `reopened_at`; a fanout that scheduled nothing leaves no such trace, so the
+  total is not measured). The runner's `fanout_duration_ms` includes this
+  count, about 1 s on QA.
+
+The UPDATE saving from 561 fewer rows is not measured. Lock order, lease
+fencing, and the event horizon are unchanged. The 603-of-1,318 figure in the
+diagnosis is a QA baseline from four bulk statements between 13:14Z and 16:29Z
+on 2026-11-23, not a number derived from this repository. Unit proof:
+`TestFanoutQueryExcludesManifestMarkers` (shape of the fanout statement, with
+seeded violations), `TestManifestMarkerCountQueryIsAPlainRead` (no FOR clause,
+no DML, shared predicate and active-generation text),
+`TestFanoutCountsSkippedMarkersAfterTheFanoutCommits`,
+`TestFanoutSkipsTheMarkerCountForAProducerWithoutASupplyChainEdge` and
+`TestFanoutMarkerCountFailureDoesNotFailTheCommittedFanout`. The live proof is
+`TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive`, which
+asserts the count through the separate read, and the plan, ACK-overlap and
+lock-order live probes EXPLAIN the shipped fanout constant (see the PR for the
+lab run).
+
+Observability Evidence (#10972): `CrossScopeCompletionResult.ManifestMarkersSkipped`
+is logged per event as `manifest_markers_skipped` and added to
+`eshu_dp_cross_scope_completion_markers_skipped_total{domain}`; with the
+existing `manifest_trigger` marker signal an operator sees executions per hour
+fall while the skipped count shows the exclusion firing. A failed count logs the
+WARN `cross-scope completion manifest marker count failed` (fields `error` and
+`timeout`) and adds nothing to the counter.
+
 ## Gotchas / invariants
 
+- The fanout never locks, re-pends, or flags a manifest marker
+  (`supply_chain_impact` payload `trigger=manifest_dependency`): the marker
+  reads no producer output and writes no finding. `manifestMarkerPredicate` is
+  the one spelling, shared by the exclusion and the post-commit skipped count,
+  which also share the active-generation and consumer-state SQL constants.
 - Never let two copies of a lock predicate, lease fence, or claim
   transition drift: shared production logic is exported, not duplicated.
   Only test-only seed helpers exist as twin copies (Go test-only symbols

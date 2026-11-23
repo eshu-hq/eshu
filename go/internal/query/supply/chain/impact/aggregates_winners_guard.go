@@ -6,6 +6,7 @@ package impact
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -53,39 +54,50 @@ const aggregateWinnersProbeFailedEvent = "supply_chain_impact.aggregate_winners_
 // aggregateWinnersProbeErrorMaxBytes bounds the error text on that WARN line.
 const aggregateWinnersProbeErrorMaxBytes = 256
 
-// resolveAggregateFreshness decides how one aggregate call is served. It
-// reports serveWinners=true with the watermark freshness when the filter is
-// winners-eligible and the model is present and fresh. It returns
-// ErrAggregateReadModelUnavailable when the filter is winners-eligible but
-// the watermark is absent, stale, or unprobed. Otherwise (the legacy path:
-// gate off, scoped-token grants, or existence filters) it reports
-// serveWinners=false with a fresh, unwatermarked freshness and issues no
-// probe, so the legacy read costs exactly one statement as before.
+// resolveAggregateFreshness decides how one aggregate call is served, from the one
+// route function every read and freshness method shares (read_route.go). A route
+// that reads the per-support table probes its readiness predicate first and
+// refuses with ErrAggregateReadModelUnavailable (also matching
+// ErrFindingSupportsUnavailable) while the table cannot serve an exact answer.
+// A route that reads the winners table (plain, or with the supplement) probes the
+// maintainer watermark and refuses with ErrAggregateReadModelUnavailable when it
+// is absent, stale or unprobed; the supplement route needs both, and the older
+// source bounds the answer, so its freshness is the winners watermark's. A route
+// that reads only the supports table is current by construction and reports fresh
+// with no watermark. The legacy route reports fresh and issues no probe, so the
+// legacy read costs exactly one statement as before.
 func (s PostgresAggregateStore) resolveAggregateFreshness(
 	ctx context.Context,
 	filter AggregateFilter,
 	readAt time.Time,
-) (freshness AggregateFreshness, serveWinners bool, err error) {
-	if !s.readFromWinnersFor(filter) {
-		return AggregateFreshness{State: packet.FreshnessLabelFresh}, false, nil
+) (freshness AggregateFreshness, route ReadRoute, err error) {
+	route = filter.route(s.ReadFromWinners)
+	countRoute(ctx, s.Instruments, route)
+	if route.readsSupports() {
+		if err := s.requireAggregateSupportsReady(ctx); err != nil {
+			return AggregateFreshness{}, route, err
+		}
+	}
+	if !route.servesWinners() {
+		return AggregateFreshness{State: packet.FreshnessLabelFresh}, route, nil
 	}
 	probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
 	watermark, probeErr := probe.SupplyChainImpactWinnersWatermark(ctx)
 	if probeErr != nil {
 		s.logAggregateWinnersProbeFailure(ctx, probeErr)
-		return AggregateFreshness{}, false, ErrAggregateReadModelUnavailable
+		return AggregateFreshness{}, route, ErrAggregateReadModelUnavailable
 	}
 	if !watermark.Present {
-		return AggregateFreshness{}, false, ErrAggregateReadModelUnavailable
+		return AggregateFreshness{}, route, ErrAggregateReadModelUnavailable
 	}
 	freshness = AggregateFreshness{
 		State:            packet.FreshnessLabelFresh,
 		LatestObservedAt: watermark.MaterializedAt.UTC().Format(time.RFC3339Nano),
 	}
 	if readAt.Sub(watermark.MaterializedAt.UTC()) > WinnersFreshnessWindow {
-		return AggregateFreshness{}, false, ErrAggregateReadModelUnavailable
+		return AggregateFreshness{}, route, ErrAggregateReadModelUnavailable
 	}
-	return freshness, true, nil
+	return freshness, route, nil
 }
 
 func (s PostgresAggregateStore) logAggregateWinnersProbeFailure(ctx context.Context, err error) {
@@ -101,4 +113,16 @@ func (s PostgresAggregateStore) logAggregateWinnersProbeFailure(ctx context.Cont
 		telemetry.EventAttr(aggregateWinnersProbeFailedEvent),
 		slog.String("error", text),
 	)
+}
+
+// requireAggregateSupportsReady refuses a supports-served aggregate while the
+// table is not ready, wrapping both the aggregate and the supports sentinels so
+// the handler can name the model that refused. A probe failure refuses too.
+func (s PostgresAggregateStore) requireAggregateSupportsReady(ctx context.Context) error {
+	probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
+	if err := probe.requireSupportsReady(ctx); err != nil {
+		s.logAggregateWinnersProbeFailure(ctx, err)
+		return fmt.Errorf("%w: %w", ErrAggregateReadModelUnavailable, err)
+	}
+	return nil
 }

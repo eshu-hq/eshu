@@ -37,7 +37,8 @@ changing anything here.
   must also implement `FindPackageHolderCandidates`, and the production port
   must implement `ManifestDependencyGenerationReader` (generation read plus the
   lease-fenced `RecordManifestTriggerCompleted` stamp, plus the marker-free
-  `FindInFlightNonMarkerScopes` in-flight read). Stamp only when no
+  `FindInFlightNonMarkerScopes` in-flight read, which the findings fan-out
+  reads too: nothing reopens or flags an in-flight marker, #10972). Stamp only when no
   holder is left on the continuation list or nothing changed; the next marker
   pass of the scope diffs from the newest stamped generation.
 - A findings pass never loads evidence while its own scope generation's
@@ -262,6 +263,25 @@ the lease was not claimed or the tick stood down; the meaning is stated in
 docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
 the existing closed `result="denied"` label on the alias-group counter. No new
 metric, label, span, or setting.
+
+No-Regression Evidence (#10972 markers out of the CVE fan-out): the findings
+fan-out's in-flight read now runs `findInFlightNonMarkerScopesQuery`, the
+shipped in-flight statement plus one residual `payload->>'trigger'` predicate on
+the rows the same `(stage, domain, status)` index scan already returns; the
+set is bounded by the passes in flight, and it is one read per fan-out as before.
+Fewer in-flight scopes reach the reopen loop, so a marker costs no reopen
+statement and sets no replay bit. No lock, lease, claim, or ordering change.
+`TestFanOutNeverReopensAnInFlightManifestMarker` was red on the base sources
+(reopened an in-flight marker) and is green now; the live twins
+(`TestFindInFlightScopesExcludesManifestMarkersLive`,
+`TestManifestMarkerFlagsNeverComeFromACVEFanOutLive`) run in the
+coordinator's slot.
+
+Observability Evidence (#10972): no new signal on this path. The existing
+fan-out holder counters and `fanout_holders` log field now exclude in-flight
+markers; marker executions per hour stay on the `manifest_trigger` signal. The
+completion fan-out's skipped-marker counter is described in
+`go/internal/storage/postgres/scope/completion/README.md`.
 
 ## Holder reads answer from supports (#11197)
 

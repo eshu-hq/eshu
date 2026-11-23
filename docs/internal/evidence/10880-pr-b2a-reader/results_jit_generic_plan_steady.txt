@@ -1,0 +1,7 @@
+PLANSTATE V list status          raw connection max(generic_plans) of the V statement (b_candidates) = 3
+RESULT V list status          generic-plan steady state, separate connections: no wrapper median    736.8 ms | wrapper median    233.2 ms | net saving  68.3 % [n=25 interleaved, 8 warm-ups, generic_plans=3]
+PLANSTATE V count status         raw connection max(generic_plans) of the V statement (b_candidates) = 28
+RESULT V count status         generic-plan steady state, separate connections: no wrapper median    229.8 ms | wrapper median    231.2 ms | net saving  -0.6 % [n=25 interleaved, 8 warm-ups, generic_plans=28]
+PLANSTATE V count no selector    raw connection max(generic_plans) of the V statement (b_candidates) = 36
+RESULT V count no selector    generic-plan steady state, separate connections: no wrapper median    234.9 ms | wrapper median    231.9 ms | net saving   1.3 % [n=25 interleaved, 8 warm-ups, generic_plans=36]
+ok  	github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact	74.231s

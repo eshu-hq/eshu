@@ -86,6 +86,12 @@ var relationAliases = map[string]string{
 	// unavailable, so it is the winners store, not a separate one.
 	"supply_chain_impact_winners_materialization": ReadTablePrefix + "supply_chain_impact_canonical_winners",
 
+	// The supports readiness predicate reads the backfill marker and the old-writer
+	// fence before every supports-served call; both gate the per-support table, so
+	// they are that store and not separate ones.
+	"supply_chain_impact_finding_supports_backfill": ReadTablePrefix + "supply_chain_impact_finding_supports",
+	"supply_chain_impact_finding_supports_dirty":    ReadTablePrefix + "supply_chain_impact_finding_supports",
+
 	"container_image_identity_current_supports":          ReadTablePrefix + "container_image_identity_supports",
 	"container_image_identity_current_support_facts_for": ReadTablePrefix + "container_image_identity_supports",
 }

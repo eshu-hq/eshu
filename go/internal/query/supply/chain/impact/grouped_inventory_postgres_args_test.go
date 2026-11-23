@@ -19,18 +19,17 @@ func TestGroupedInventoryStoreBindsAggregateArgumentsInOrder(t *testing.T) {
 		Status: "affected_exact", AdvisoryID: "GHSA-1", Ecosystem: "npm", ServiceID: "service:a",
 		WorkloadID: "workload:w", Environment: "prod", Severity: "high", DetectionProfile: "",
 		PriorityBucket: "high", MinPriorityScore: 7, SuppressionState: "active", IncludeSuppressed: true,
-		// ImageRef and DetectionProfile stay empty: a non-empty image_ref or the
-		// precise profile answers unavailable before any query
-		// (TestGroupedInventoryImageRefAnswersUnavailable and
-		// TestGroupedInventoryPreciseProfileAnswersUnavailable), so the served
-		// call binds the empty $12 and $17.
+		// ImageRef and DetectionProfile stay empty here; a granted call serves
+		// both from the supports table (TestGroupedInventoryStoreSelectsScopedQueryForGrants).
 		AllowedRepositoryIDs: []string{"repository:r"}, AllowedScopeIDs: []string{"scope:s"},
 	}
 	if _, err := groupedTestStore(q).SupplyChainImpactGroupedInventory(context.Background(), filter, GroupedInventoryByService, 11, 20); err != nil {
 		t.Fatalf("SupplyChainImpactGroupedInventory() error = %v", err)
 	}
-	if len(q.calls) != 2 || q.calls[0].query != SelectWinnersWatermarkQuery {
-		t.Fatalf("calls = %d, want the watermark probe then the grouped query", len(q.calls))
+	// The filter carries a grant, so the call is answered from the supports table:
+	// the readiness probe, then the grouped statement.
+	if len(q.calls) != 2 || !strings.Contains(q.calls[0].query, "supply_chain_impact_finding_supports_backfill") {
+		t.Fatalf("calls = %d, want the supports readiness probe then the grouped query", len(q.calls))
 	}
 	args := q.calls[1].args
 	want := []any{

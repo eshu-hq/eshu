@@ -178,13 +178,13 @@ type SupplyChainImpactFanOut interface {
 	// genuine pass, without the stamp, unless its failure class is unsafe to
 	// replay (#11147); the result names the dead letter's prior class.
 	ReopenHolderDetailed(ctx context.Context, holderScopeID string, origin FanOutOrigin) (FanOutReopen, error)
-	// FindInFlightScopes returns the scopes, other than ownScopeID, whose
-	// supply_chain_impact item at the scope's active generation is claimed or
-	// running. Such a pass may have loaded its evidence before the asking pass's
-	// source facts were visible, and a scope whose new generation has no finding
-	// rows yet is invisible to FindHolderScopes. Same bounded timeout and error
-	// contract as FindHolderScopes.
-	FindInFlightScopes(ctx context.Context, ownScopeID string) ([]string, error)
+	// FindInFlightNonMarkerScopes returns the scopes, other than ownScopeID,
+	// whose findings item at the active generation is claimed or running; a
+	// manifest marker is left out (#10972: it loads no evidence, so flagging it
+	// only re-pends it). Such a pass may have loaded its evidence before the
+	// asking pass's source facts were visible, and a scope whose new generation
+	// has no finding rows yet is invisible to FindHolderScopes. Same timeout contract.
+	FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error)
 	// FindPackageHolderCandidates returns active package-holder identities outside
 	// ownScopeID for query (#9874, #10061; see manifest_trigger.go).
 	FindPackageHolderCandidates(ctx context.Context, ownScopeID string, query PackageHolderQuery) ([]PackageHolderCandidate, error)
@@ -341,7 +341,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// by both. A pass claimed after the in-flight read loads its evidence after the
 	// source's facts became visible, so it needs no flag.
 	if len(lookupIDs) > 0 {
-		inFlight, err := h.FanOut.FindInFlightScopes(ctx, intent.ScopeID)
+		inFlight, err := h.FanOut.FindInFlightNonMarkerScopes(ctx, intent.ScopeID)
 		if err != nil {
 			h.countFanOutRead(ctx, cause, err, telemetry.FanOutReadSiteInFlight)
 			span.RecordError(err)

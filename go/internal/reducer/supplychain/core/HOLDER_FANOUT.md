@@ -271,12 +271,11 @@ flagged each other on every round, forever
 never drained). What a marker does reopen is advisory or other non-marker
 scopes, stamped with its origin: a reopened succeeded item and a flagged
 running item both rerun once as a one-hop pass, which re-derives its findings
-and fans out nothing. A marker can be flagged by a CVE fan-out (that path's
-in-flight read is unchanged and still includes markers), but the marker's
-rerun only reopens non-markers one hop, so the chain is CVE pass, marker
-rerun, one-hop holder reruns, and it stops. An in-flight non-marker holder
-pass still gets exactly what the CVE path gives it: one replay of its pass
-after it acknowledges.
+and fans out nothing. A CVE fan-out reads the same marker-free in-flight
+set (#10972): it never reopens or flags a marker, which would turn the replay
+bit into a pending re-run at the marker's ack. The completion fan-out leaves
+markers out too (`scope/completion`). An in-flight non-marker holder pass
+still gets exactly what the CVE path gives it: one replay after it acknowledges.
 
 Security alert scopes are reopened since #10061. They build findings from
 manifest consumptions too (`appendSecurityAlertImpactFindings`), keyed by

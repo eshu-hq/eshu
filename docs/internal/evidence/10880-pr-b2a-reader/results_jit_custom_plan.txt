@@ -1,0 +1,3 @@
+RESULT V list status          jit on (no wrapper) median   1663.5 ms | wrapper (jit off) median    287.6 ms | net saving  82.7 %  [n=12 each, interleaved, jitcold]
+RESULT V count status         jit on (no wrapper) median   1607.6 ms | wrapper (jit off) median    293.0 ms | net saving  81.8 %  [n=12 each, interleaved, jitcold]
+RESULT V count no selector    jit on (no wrapper) median   1610.3 ms | wrapper (jit off) median    290.0 ms | net saving  82.0 %  [n=12 each, interleaved, jitcold]

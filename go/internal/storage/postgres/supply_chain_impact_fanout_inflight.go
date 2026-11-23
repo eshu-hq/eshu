@@ -22,7 +22,9 @@ import (
 // excluded by the join; a pending or retrying item has not loaded evidence yet.
 // The set is bounded by the number of passes in flight at once and uses
 // fact_work_items_stage_domain_status_idx (stage, domain, status). Argument: $1
-// the asking scope id.
+// the asking scope id. This is the base statement: the shipped read
+// (findInFlightNonMarkerScopesQuery) derives from it and leaves out manifest
+// markers, so no caller reads the unfiltered set.
 const findInFlightSupplyChainImpactScopesQuery = `
 SELECT DISTINCT work.scope_id
 FROM fact_work_items AS work
@@ -52,12 +54,6 @@ WHERE work_item_id = $1
   AND claim_until > clock_timestamp()
   AND last_attempt_at = $3
 `
-
-// FindInFlightScopes returns the scopes other than ownScopeID whose
-// supply_chain_impact item at the active generation is claimed or running.
-func (s SupplyChainImpactFanOutStore) FindInFlightScopes(ctx context.Context, ownScopeID string) ([]string, error) {
-	return s.readScopeIDs(ctx, findInFlightSupplyChainImpactScopesQuery, ownScopeID)
-}
 
 // OwedRecorder returns the recorder the writer runs inside its transaction for
 // the calling pass's own item.

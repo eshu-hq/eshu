@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the candidate list read drives from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, the public-id explain probes the finding index, and the advisory evidence read probes the repository index or walks the scope-and-generation index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -17,7 +17,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/array"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
 
@@ -187,13 +189,14 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	const arms = `FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($23::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($22::text[])
+          AND repository_id <> ''
           AND NOT COALESCE(scope_id = ANY($23::text[]), FALSE)) AS fact`
 	if !strings.Contains(candidate, arms) {
 		t.Fatal("candidate lost its grant arms: update the seeded violation")
 	}
 	natural := strings.Replace(candidate, arms, "FROM supply_chain_impact_finding_supports AS fact", 1)
-	natural = strings.Replace(natural, "    AND ($16 = '' OR fact.image_ref = $16)\n)",
-		"    AND ($16 = '' OR fact.image_ref = $16)\n    AND (fact.scope_id = ANY($23::text[]) OR fact.repository_id = ANY($22::text[]))\n)", 1)
+	natural = strings.Replace(natural, "    AND ($16 = '' OR fact.image_ref = $16)\n",
+		"    AND ($16 = '' OR fact.image_ref = $16)\n    AND (fact.scope_id = ANY($23::text[]) OR fact.repository_id = ANY($22::text[]))\n", 1)
 	if !strings.Contains(natural, "OR fact.repository_id = ANY($22::text[]))") {
 		t.Fatal("the seeded violation did not apply")
 	}
@@ -204,6 +207,113 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	t.Logf("natural form scans of the supports table: %v", naturalScans)
 	if ok, _ := supportsPlanIsGrantDriven(naturalScans); ok {
 		t.Fatalf("the checker accepted the natural single-WHERE form (scans %v): it would not catch a rewrite", naturalScans)
+	}
+
+	// The granted aggregates and the grouped inventory read the supports table
+	// through the same grant arms, and the grouped hidden-bucket probe reaches
+	// it through the repository index. Each must be grant-driven at the same
+	// grant shape, and the checker must reject the natural single-WHERE form of
+	// the aggregate.
+	aggregateArgs := []any{
+		"", "", "", "", "affected_exact", "", "", "", "", "", "", "", "", 0, "", false, "",
+		array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs), time.Now().UTC(),
+	}
+	countArgs := append(append([]any{}, aggregateArgs...), supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	inventoryQuery := InventorySupportsQuery("COALESCE(NULLIF(fact.impact_status, ''), 'unknown')")
+	groupedQuery, err := groupedInventorySupportsQuery(GroupedInventoryByService)
+	if err != nil {
+		t.Fatalf("build the grouped supports query: %v", err)
+	}
+	for name, read := range map[string]struct {
+		query string
+		args  []any
+	}{
+		"count":     {AggregateSupportsCombinedCountQuery, countArgs},
+		"inventory": {inventoryQuery, append(append([]any{}, countArgs...), 50, 0)},
+		"grouped":   {groupedQuery, append(append([]any{}, aggregateArgs...), 50, 0)},
+	} {
+		readScans, err := explainSupportsScans(ctx, database, read.query, read.args)
+		if err != nil {
+			t.Fatalf("explain the granted %s read: %v", name, err)
+		}
+		t.Logf("granted %s scans of the supports table: %v", name, readScans)
+		if ok, reason := supportsPlanIsGrantDriven(readScans); !ok {
+			t.Fatalf("granted %s plan is not grant-driven: %s (scans %v)", name, reason, readScans)
+		}
+	}
+	const aggregateArms = `FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($19::text[])
+        UNION ALL
+        SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($18::text[])
+          AND repository_id <> ''
+          AND NOT COALESCE(scope_id = ANY($19::text[]), FALSE)) AS fact`
+	if !strings.Contains(AggregateSupportsCombinedCountQuery, aggregateArms) {
+		t.Fatal("the aggregate lost its grant arms: update the seeded violation")
+	}
+	naturalCount := strings.Replace(AggregateSupportsCombinedCountQuery, aggregateArms, "FROM supply_chain_impact_finding_supports AS fact", 1)
+	naturalCount = strings.Replace(naturalCount, "    AND ($17 = '' OR fact.image_ref = $17)\n",
+		"    AND ($17 = '' OR fact.image_ref = $17)\n    AND (fact.scope_id = ANY($19::text[]) OR fact.repository_id = ANY($18::text[]))\n", 1)
+	if !strings.Contains(naturalCount, "OR fact.repository_id = ANY($18::text[]))") {
+		t.Fatal("the aggregate seeded violation did not apply")
+	}
+	naturalCountScans, err := explainSupportsScans(ctx, database, naturalCount, countArgs)
+	if err != nil {
+		t.Fatalf("explain the natural aggregate form: %v", err)
+	}
+	t.Logf("natural aggregate form scans of the supports table: %v", naturalCountScans)
+	if ok, _ := supportsPlanIsGrantDriven(naturalCountScans); ok {
+		t.Fatalf("the checker accepted the natural single-WHERE aggregate (scans %v)", naturalCountScans)
+	}
+
+	// The explain reads: a public finding id probes the finding index (no
+	// sequential scan, the grant applies to the few rows it names), and a granted
+	// selector lookup drives from the grant arms.
+	explainArgs := []any{
+		FindingFactKind, "finding:plan:7:7", "", "", "", "", "", "", "", "",
+		array.Of(filter.AllowedRepositoryIDs), array.Of(filter.AllowedScopeIDs), time.Now().UTC(),
+	}
+	explainArgs = append(explainArgs, supplyChainImpactCallerAuthorizationArgs(ctx)...)
+	idScans, err := explainSupportsScans(ctx, database, ExplainFindingByPublicIDFromSupportsQuery, explainArgs)
+	if err != nil {
+		t.Fatalf("explain the public-id read: %v", err)
+	}
+	t.Logf("public-id explain scans of the supports table: %v", idScans)
+	if joined := strings.Join(idScans, " | "); strings.Contains(joined, "Seq Scan") ||
+		!strings.Contains(joined, "supply_chain_impact_finding_supports_finding_idx") {
+		t.Fatalf("the public-id explain does not probe the finding index (scans %v)", idScans)
+	}
+	selectorArgs := append([]any{}, explainArgs...)
+	selectorArgs[1], selectorArgs[3] = "", "CVE-2026-7"
+	selectorScans, err := explainSupportsScans(ctx, database, ExplainFindingFromSupportsQuery, selectorArgs)
+	if err != nil {
+		t.Fatalf("explain the granted selector read: %v", err)
+	}
+	t.Logf("granted selector explain scans of the supports table: %v", selectorScans)
+	if ok, reason := supportsPlanIsGrantDriven(selectorScans); !ok {
+		t.Fatalf("granted selector explain plan is not grant-driven: %s (scans %v)", reason, selectorScans)
+	}
+
+	// The advisory evidence read derives its anchors from the supports of one
+	// selector: a repository anchor probes the repository index, and a
+	// service-only anchor walks the active scopes through the scope-and-generation
+	// index. Neither may read the table sequentially.
+	for name, tc := range map[string]struct {
+		repository, service, index string
+	}{
+		"repository anchor":   {"repository:plan:7", "", "supply_chain_impact_finding_supports_repository_idx"},
+		"service-only anchor": {"", "service:plan", "supply_chain_impact_finding_supports_scope_generation_idx"},
+	} {
+		evidenceArgs := []any{
+			array.Of([]string{"vulnerability.cve"}), array.Of([]string{}), array.Of([]string{}), "", 50,
+			tc.repository, tc.service, "", array.Of([]string{}),
+		}
+		evidenceScans, err := explainSupportsScans(ctx, database, advisory.ListEvidenceFromSupportsQuery, evidenceArgs)
+		if err != nil {
+			t.Fatalf("explain the advisory evidence %s: %v", name, err)
+		}
+		t.Logf("advisory evidence %s scans of the supports table: %v", name, evidenceScans)
+		if joined := strings.Join(evidenceScans, " | "); strings.Contains(joined, "Seq Scan") || !strings.Contains(joined, tc.index) {
+			t.Fatalf("advisory evidence %s does not read the supports table through %s (scans %v)", name, tc.index, evidenceScans)
+		}
 	}
 
 	// The generation foreign key cascades. The trigger runs

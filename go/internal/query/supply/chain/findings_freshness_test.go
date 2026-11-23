@@ -146,7 +146,7 @@ func TestImpactAggregateReadModelUnavailableCarriesRetryAfter(t *testing.T) {
 
 	handler := &Handler{}
 	recorder := httptest.NewRecorder()
-	handler.writeImpactAggregateReadModelUnavailable(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.writeImpactAggregateReadModelUnavailable(recorder, httptest.NewRequest(http.MethodGet, "/", nil), impact.ErrAggregateReadModelUnavailable)
 	res := recorder.Result()
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusServiceUnavailable {

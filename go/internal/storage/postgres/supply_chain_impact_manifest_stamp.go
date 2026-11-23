@@ -66,17 +66,20 @@ func (s SupplyChainImpactFanOutStore) RecordManifestTriggerCompleted(
 // constant so the two cannot drift
 // (TestFindInFlightNonMarkerScopesQueryDerivesFromTheInFlightQuery). A marker
 // item carries payload trigger=manifest_dependency; it loads no evidence and
-// writes no findings, so it is never a holder, and flagging it would let two
-// markers in flight flag each other forever. The CVE fan-out keeps the
-// unfiltered query. The predicate is a residual filter on the in-flight rows
-// the same index scan already returns.
+// writes no findings, so it is never a holder, and flagging it would re-pend it
+// at its ack: two markers in flight would flag each other forever, and a
+// findings fan-out would keep every marker running between bulk events
+// (#10972). Both fan-outs, the marker's and the findings pass's, read this
+// query. The predicate is a residual filter on the in-flight rows the same
+// index scan already returns.
 var findInFlightNonMarkerScopesQuery = strings.Replace(findInFlightSupplyChainImpactScopesQuery,
 	"ORDER BY work.scope_id",
 	"  AND COALESCE(work.payload->>'"+supplychaincore.PayloadKeyTrigger+"', '') <> '"+supplychaincore.TriggerManifestDependency+"'\nORDER BY work.scope_id", 1)
 
 // FindInFlightNonMarkerScopes implements the marker-free in-flight read of
-// supplychaincore.ManifestDependencyGenerationReader, under the same bounded
-// read-only transaction and timeout as FindInFlightScopes.
+// supplychaincore.SupplyChainImpactFanOut and
+// supplychaincore.ManifestDependencyGenerationReader, under one bounded
+// read-only transaction and timeout like the holder read.
 func (s SupplyChainImpactFanOutStore) FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error) {
 	return s.readScopeIDs(ctx, findInFlightNonMarkerScopesQuery, ownScopeID)
 }

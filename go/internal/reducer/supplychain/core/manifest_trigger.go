@@ -138,12 +138,12 @@ type ManifestDependencyGenerationReader interface {
 	// PayloadKeyManifestTriggerCompleted, fenced on its lease like an
 	// acknowledgement. It fails when the lease is no longer held.
 	RecordManifestTriggerCompleted(ctx context.Context, intent reducercontract.Intent, baselineGenerationID string) error
-	// FindInFlightNonMarkerScopes is FindInFlightScopes without the scopes
-	// whose claimed or running item is itself a manifest marker. A marker
+	// FindInFlightNonMarkerScopes is the fan-out port's marker-free in-flight
+	// read, declared here too because the marker path calls it: a marker
 	// loads no evidence and writes no findings, so it is never a holder, and
 	// flagging it would rerun a marker that flags this one back: a
-	// marker-to-marker replay with no end. Same bounded timeout and error
-	// contract as FindInFlightScopes.
+	// marker-to-marker replay with no end. The findings fan-out reads it too
+	// (#10972). Same bounded timeout and error contract as FindHolderScopes.
 	FindInFlightNonMarkerScopes(ctx context.Context, ownScopeID string) ([]string, error)
 }
 
