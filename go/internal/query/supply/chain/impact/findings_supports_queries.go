@@ -89,6 +89,7 @@ const supportsSourceProtectedGuards = `    AND {p1}::boolean IS NOT NULL AND {p2
 const supportsGrantArmsTemplate = `(SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY({scopeGrant}::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY({repoGrant}::text[])
+          AND repository_id <> ''
           AND NOT COALESCE(scope_id = ANY({scopeGrant}::text[]), FALSE)) AS fact`
 
 const supportsSourceCTETemplate = `

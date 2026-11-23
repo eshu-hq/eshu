@@ -51,6 +51,7 @@ const supportsExplainOverrideLateral = `LEFT JOIN LATERAL (
 const supportsExplainGrantArms = `(SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($12::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($11::text[])
+          AND repository_id <> ''
           AND NOT COALESCE(scope_id = ANY($12::text[]), FALSE))`
 
 // supportsExplainPublicIDPredicate pins a lookup to the exact public finding id

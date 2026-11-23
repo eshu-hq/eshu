@@ -62,6 +62,7 @@ func deriveEvidenceSupportsQuery(legacy string) (string, error) {
 	}
 	query := strings.Replace(legacy, repositoryProbe, `    JOIN supply_chain_impact_finding_supports AS fact
       ON fact.repository_id = selector.repository_id
+     AND fact.repository_id <> ''
 `, 1)
 	return strings.Replace(query, scopeScan, `        JOIN supply_chain_impact_finding_supports AS fact
           ON fact.scope_id = scope.scope_id

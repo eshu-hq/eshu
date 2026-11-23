@@ -61,6 +61,7 @@ const groupedSupportsHiddenSQL = `grouped_hidden AS MATERIALIZED (
           LEFT JOIN scanner_image_result_fact_associations AS hidden_association
             ON hidden_association.finding_fact_id = hidden_support.fact_id
           WHERE hidden_support.repository_id = hidden_map.repository_id
+            AND hidden_support.repository_id <> ''
             AND hidden_generation.status = 'active'
             AND hidden_support.scope_id <> 'operator:vulnerability_suppressions'
             AND hidden_association.finding_fact_id IS NULL

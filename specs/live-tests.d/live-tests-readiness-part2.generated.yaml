@@ -39,6 +39,11 @@ tests:
     class: postgres_ci
     reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which are served from the per-support table with it filled by the backfill, and return the same envelopes on this single-support seed); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/blank_repository_grant_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the literal repository_id <> '' on every supports read driven by a repository: a finding with a blank repository id is seeded, and for grants that name a blank repository id (alone, beside a real repository, beside a scope) the granted list, count, grouped inventory and explain on supports equal the legacy read, which matches no blank-repository finding through the repository grant; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/explain_supports_live_test.go
     tag: ~
     class: postgres_ci

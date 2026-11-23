@@ -189,6 +189,7 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	const arms = `FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($23::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($22::text[])
+          AND repository_id <> ''
           AND NOT COALESCE(scope_id = ANY($23::text[]), FALSE)) AS fact`
 	if !strings.Contains(candidate, arms) {
 		t.Fatal("candidate lost its grant arms: update the seeded violation")
@@ -243,6 +244,7 @@ func TestSupportsCandidatePlanDrivesFromTheGrantLive(t *testing.T) {
 	const aggregateArms = `FROM (SELECT * FROM supply_chain_impact_finding_supports WHERE scope_id = ANY($19::text[])
         UNION ALL
         SELECT * FROM supply_chain_impact_finding_supports WHERE repository_id = ANY($18::text[])
+          AND repository_id <> ''
           AND NOT COALESCE(scope_id = ANY($19::text[]), FALSE)) AS fact`
 	if !strings.Contains(AggregateSupportsCombinedCountQuery, aggregateArms) {
 		t.Fatal("the aggregate lost its grant arms: update the seeded violation")
