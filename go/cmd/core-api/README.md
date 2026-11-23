@@ -99,8 +99,9 @@ serves on `/metrics` (public, behind the same auth chain).
   last-known-good running pin through the normal pin PR and ArgoCD sync;
   unsetting `ESHU_COMMIT_LISTEN` keeps the lane dark by default.
 - No state to migrate: the listener is stateless intake, and the claim
-  plane retries through `FailClaimRetryable` while the endpoint is down,
-  so claims queue instead of dropping.
+  plane requeues through `FailClaimRetryable` within the claim attempt
+  budget while the endpoint is down (budget-exhausted or
+  terminal-classified failures still go `FailClaimTerminal`).
 
 ## No-regression proof (Wave-6 review findings)
 
