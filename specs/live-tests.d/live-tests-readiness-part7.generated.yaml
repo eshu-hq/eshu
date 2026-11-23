@@ -54,6 +54,11 @@ tests:
     class: postgres_ci
     reason: "#11198 and #11199 hot-key page contract on real PostgreSQL: the supports drain returns exactly the rows the frozen finding-fact read returns, in the database's fact_id order, on adversarial seeds (two full pages of superseded-generation rows in the middle of a key and at its end, raw counts of exactly one page and one page plus one row, rows that match two, three and four arms, more than one page of rows that each match all four arms, ids that sort differently under the C collation), and two seeded-wrong readers (stopping on a short active page, advancing on the last active id) fail the same seeds"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_many_repositories_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11199 many-small-repository call cost on real PostgreSQL: GetSupplyChainAdvisoriesForRepos over 200 repositories with five supports each drains one repository at a time, runs exactly one readiness statement and one page statement per repository, returns every repository's records grouped by repository, and its wall time and statement count are logged as the measured cost of that call shape"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_supports_page_plan_live_test.go
     tag: ~
     class: postgres_ci

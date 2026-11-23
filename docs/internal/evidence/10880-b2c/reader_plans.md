@@ -280,6 +280,12 @@ time, as the ruling authorized: the largest page of any repository in the three 
 (201 drains for the third shape). Equality and concurrency tests pass with the
 per-repository drain and migration 346 present.
 
+A call of 200 repositories with five supports each, through the loader on a fresh
+database ([many_small_repositories_raw.txt](many_small_repositories_raw.txt)): 201
+statements (one readiness probe and one page per repository id), 56 to 98 ms wall time over
+two runs (0.28 to 0.49 ms a repository; the raw file holds the second). A call costs at least one statement per repository id, plus a page for every
+500 supports of a repository.
+
 The 200-repository single-drain shape failed (92,259 buffers a page, against a bound
 of 15,000); the per-repository-id drain is the shipped form.
 

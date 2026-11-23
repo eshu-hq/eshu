@@ -100,15 +100,22 @@ func planGuardIndexName(t *testing.T, ctx context.Context, db *sql.DB, col strin
 	return ""
 }
 
-// planGuardPlan returns the EXPLAIN (ANALYZE, BUFFERS) text of one page statement
-// prepared and executed under the given plan_cache_mode. cursor is "" for the
-// first-page text.
+// planGuardPlan returns the EXPLAIN (ANALYZE, BUFFERS) text of one reconciliation
+// page statement (four key arrays) prepared and executed under the given
+// plan_cache_mode. cursor is "" for the first-page text.
 func planGuardPlan(t *testing.T, ctx context.Context, conn *sql.Conn, mode, query, cursor string) string {
+	t.Helper()
+	return planGuardPlanFor(t, ctx, conn, mode, query, planGuardKeys, 4, cursor)
+}
+
+// planGuardPlanFor is planGuardPlan for a statement with nkeys key arrays, whose
+// bound values are the SQL literal list keys.
+func planGuardPlanFor(t *testing.T, ctx context.Context, conn *sql.Conn, mode, query, keys string, nkeys int, cursor string) string {
 	t.Helper()
 	if _, err := conn.ExecContext(ctx, "SET plan_cache_mode = "+mode); err != nil {
 		t.Fatalf("set plan_cache_mode: %v", err)
 	}
-	types, args := "text[],text[],text[],text[]", planGuardKeys
+	types, args := strings.TrimSuffix(strings.Repeat("text[],", nkeys), ","), keys
 	if cursor != "" {
 		types, args = types+",text", args+",'"+cursor+"'"
 	}
@@ -135,6 +142,37 @@ func planGuardPlan(t *testing.T, ctx context.Context, conn *sql.Conn, mode, quer
 	return strings.Join(plan, "\n")
 }
 
+// planGuardColumns maps an arm name to the supports column its key is matched on.
+var planGuardColumns = map[string]string{
+	"package": "package_id", "repository": "repository_id", "cve": "cve_id", "advisory": "advisory_id",
+}
+
+// planNodeIndexCond returns the Index Cond line of the first plan node that scans
+// index, bounded to that node: its own attribute lines run until the next line
+// that is not indented deeper than the node's own "->" line, so a later node's
+// condition is never taken for it. found is false when no node scans the index.
+func planNodeIndexCond(plan, index string) (cond string, found bool) {
+	scan := regexp.MustCompile(`Index (?:Only )?Scan using ` + regexp.QuoteMeta(index) + ` on `)
+	lines := strings.Split(plan, "\n")
+	for i, line := range lines {
+		if !scan.MatchString(line) {
+			continue
+		}
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		for _, attr := range lines[i+1:] {
+			attrIndent := len(attr) - len(strings.TrimLeft(attr, " "))
+			if attrIndent <= indent {
+				break
+			}
+			if strings.HasPrefix(strings.TrimSpace(attr), "Index Cond:") {
+				return strings.TrimSpace(attr), true
+			}
+		}
+		return "", true
+	}
+	return "", false
+}
+
 // planGuardViolation returns "" when plan meets the guard and the reason it does
 // not otherwise. The guard: every arm runs as an index scan on its own index
 // under a Limit; the partial-index arms carry the key and, on a next page, the
@@ -151,14 +189,17 @@ func planGuardViolation(plan string, indexes map[string]string, nextPage bool) s
 	case strings.Contains(plan, "CTE Scan") || strings.Contains(plan, "Storage: Disk"):
 		return "the match set is materialized or spilled"
 	}
-	for col, index := range indexes {
-		scan := regexp.MustCompile(`Index (?:Only )?Scan using ` + regexp.QuoteMeta(index) + ` .*\n(?:.*\n)*?\s+Index Cond: ([^\n]*)`)
-		m := scan.FindStringSubmatch(plan)
-		if m == nil {
-			return "the " + col + " arm does not use its index " + index
+	for arm, index := range indexes {
+		cond, found := planNodeIndexCond(plan, index)
+		if !found {
+			return "the " + arm + " arm does not use its index " + index
 		}
-		if nextPage && !strings.Contains(m[1], "fact_id > ") {
-			return "the cursor is not in the Index Cond of the " + col + " arm: " + m[1]
+		key := regexp.MustCompile(`\b` + planGuardColumns[arm] + ` = k(?:_\d+)?\.v\b`)
+		if !key.MatchString(cond) {
+			return "the key is not in the Index Cond of the " + arm + " arm: " + cond
+		}
+		if nextPage && !strings.Contains(cond, "fact_id > ") {
+			return "the cursor is not in the Index Cond of the " + arm + " arm: " + cond
 		}
 	}
 	return ""
@@ -226,6 +267,26 @@ OFFSET (SELECT count(*) / 2 FROM supply_chain_impact_finding_supports WHERE pack
 				plan := planGuardPlan(t, ctx, conn, mode, query, cur)
 				if why := planGuardViolation(plan, indexes, page == "next"); why != "" {
 					t.Fatalf("plan violates the guard: %s\n%s", why, plan)
+				}
+			})
+		}
+	}
+
+	// The service-catalog loader's one-arm statement: the same guard on the
+	// repository index alone, both modes, both pages.
+	repoKey := "'{" + envOr("B2C_PLAN_GUARD_REPOSITORY", "repo:hot-r1") + "}'"
+	scFirst := supplyChainImpactSupportsPageQuery(supplyChainAdvisoriesForReposArms, 0)
+	scNext := supplyChainImpactSupportsPageQuery(supplyChainAdvisoriesForReposArms, 2)
+	for _, mode := range modes {
+		for _, page := range pages {
+			t.Run("service catalog/"+mode+"/"+page+" page is green", func(t *testing.T) {
+				query, cur := scFirst, ""
+				if page == "next" {
+					query, cur = scNext, cursor
+				}
+				plan := planGuardPlanFor(t, ctx, conn, mode, query, repoKey, 1, cur)
+				if why := planGuardViolation(plan, map[string]string{"repository": indexes["repository"]}, page == "next"); why != "" {
+					t.Fatalf("service-catalog plan violates the guard: %s\n%s", why, plan)
 				}
 			})
 		}
