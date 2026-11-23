@@ -104,6 +104,37 @@ WHERE scope_id='other-domain'`); err != nil {
 	}
 }
 
+// TestFindInFlightScopesExcludesManifestMarkersLive pins the in-flight read the
+// CVE fan-out uses (#10972): a claimed or running manifest marker
+// (payload trigger=manifest_dependency) is not returned, because a marker
+// loads no evidence and writes no finding, so flagging it only reruns a pass
+// that cannot change any finding. A claimed findings pass beside it still is.
+func TestFindInFlightScopesExcludesManifestMarkersLive(t *testing.T) {
+	ctx, db := fanOutLiveDB(t)
+	for _, scope := range []string{"own", "marker-claimed", "marker-running", "findings-claimed"} {
+		fanOutSeedScope(t, ctx, db, scope, "g2")
+		fanOutSeedItem(t, ctx, db, scope, "g2")
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items
+SET payload = payload || jsonb_build_object('trigger', 'manifest_dependency')
+WHERE scope_id IN ('marker-claimed', 'marker-running')`); err != nil {
+		t.Fatal(err)
+	}
+	for scope, status := range map[string]string{"marker-claimed": "claimed", "marker-running": "running", "findings-claimed": "claimed"} {
+		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status = $2, lease_owner = 'w',
+claim_until = now() + interval '1 hour', last_attempt_at = now() WHERE scope_id = $1`, scope, status); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := fanOutLiveStore(db).FindInFlightNonMarkerScopes(ctx, "own")
+	if err != nil {
+		t.Fatalf("FindInFlightNonMarkerScopes() error = %v", err)
+	}
+	if want := []string{"findings-claimed"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("in-flight = %v, want %v: a manifest marker is never in flight for the fan-out", got, want)
+	}
+}
+
 // TestFindInFlightScopesTimesOutUnderALockedTableLive: the read has the same
 // bounded timeout and typed error as the holder read.
 func TestFindInFlightScopesTimesOutUnderALockedTableLive(t *testing.T) {

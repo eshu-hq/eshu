@@ -187,6 +187,13 @@ WHERE work_item_id = $1
 	}
 }
 
+// TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive pins
+// the state table of the completion contract: A completion event for producer
+// P schedules exactly the active-generation items of P's consumer domains
+// whose handler reads P's output; a manifest marker is never scheduled or
+// flagged (see TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive
+// for the marker half). Every seeded consumer here is a findings pass, so the
+// states below are the findings states.
 func TestCrossScopeCompletionFanoutSchedulesOnlyEligibleConsumerStatesLive(t *testing.T) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
