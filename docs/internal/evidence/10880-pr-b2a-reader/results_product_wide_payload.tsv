@@ -1,0 +1,40 @@
+count image typical|7.3|17.1
+count precise axios|62.7|75.6
+count precise min60 service|46.4|47.6
+count precise none|237.0|238.0
+count precise one cve|24.3|25.7
+count precise severity|212.6|223.3
+count precise status|234.8|236.8
+grouped image typical environment|227.3|458.5
+grouped image typical service_id|231.9|265.6
+grouped image typical workload_id|241.8|400.9
+grouped precise axios environment|225.9|255.0
+grouped precise axios service_id|235.8|238.1
+grouped precise axios workload_id|248.2|251.1
+grouped precise none environment|403.8|407.9
+grouped precise none service_id|399.3|424.9
+grouped precise none workload_id|406.0|444.6
+inventory image typical ecosystem|7.3|61.8
+inventory image typical impact_status|6.7|17.9
+inventory image typical priority_bucket|7.1|17.0
+inventory image typical repository_id|7.8|19.3
+inventory image typical severity|7.2|23.5
+inventory precise none ecosystem|215.5|247.1
+inventory precise none impact_status|207.6|231.7
+inventory precise none priority_bucket|210.4|234.3
+inventory precise none repository_id|221.6|250.8
+inventory precise none severity|212.0|237.0
+jit-off scope open+close x100 (ms per 100)|5.7|5.9
+list image typical no status|5.1|5.4
+list image typical|12.9|78.8
+list precise axios status|77.0|79.0
+list precise axios|67.7|172.7
+list precise bucket critical|237.4|332.7
+list precise cursor|220.2|221.5
+list precise one cve|23.9|24.5
+list precise repository|27.7|28.1
+list precise service filter (runtime CTE)|53.1|54.4
+list precise status page201|238.1|244.8
+list precise status sort asc|238.3|242.8
+list precise status+min60+severity|195.5|198.7
+list precise suppression accepted_risk|205.3|210.0
