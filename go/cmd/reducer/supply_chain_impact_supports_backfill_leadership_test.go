@@ -219,17 +219,34 @@ func TestRunSupplyChainImpactSupportsBackfillStaysAliveAndStopsOnCancel(t *testi
 			case <-ctx.Done():
 				t.Fatal("backfill never tried the election")
 			}
+			// The probe signals from inside the lock statement, before the loop has
+			// seen the failure, so a test that cancels at once can stop the loop
+			// before it logs. Wait for the effect itself, bounded, before stopping.
+			if tc.wantLog != "" {
+				waitForSupportsBackfillLog(t, &logs, tc.wantLog, 5*time.Second)
+			}
 			cancel()
 			if err := <-done; !errors.Is(err, context.Canceled) {
 				t.Fatalf("backfill exit = %v, want context canceled", err)
-			}
-			if tc.wantLog != "" && !strings.Contains(logs.String(), tc.wantLog) {
-				t.Fatalf("log = %q, want it to contain %q", logs.String(), tc.wantLog)
 			}
 			if tc.wantLog == "" && strings.Contains(logs.String(), "level=ERROR") {
 				t.Fatalf("a contended election must not log an error: %q", logs.String())
 			}
 		})
+	}
+}
+
+// waitForSupportsBackfillLog polls logs until it contains want or the deadline
+// passes, so a test asserts on an effect that has happened and not on the
+// moment something upstream of it was signalled.
+func waitForSupportsBackfillLog(t *testing.T, logs *syncBuffer, want string, within time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for !strings.Contains(logs.String(), want) {
+		if time.Now().After(deadline) {
+			t.Fatalf("log = %q, want it to contain %q within %s", logs.String(), want, within)
+		}
+		time.Sleep(2 * time.Millisecond)
 	}
 }
 
