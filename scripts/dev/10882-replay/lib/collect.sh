@@ -28,6 +28,16 @@ replay_export_state() {
   replay_psql -F $'\t' -c "SELECT f.scope_id, f.fact_id, f.stable_fact_key, f.payload::text
       FROM fact_records f JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
       WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, f.fact_id" >"$out/real_facts.tsv"
+  # Every fact of every generation of the real git scopes, in ingest order. The
+  # active generation alone is not comparable between arms: a paced first
+  # generation is superseded unprojected, so the next one is a full re-observation
+  # in the treatment arm and a delta in the control. The effective fact set (the
+  # latest version of each stable fact key across the chain) is.
+  replay_psql -F $'\t' -c "SELECT f.scope_id, extract(epoch FROM g.ingested_at)::numeric(16,3), f.is_tombstone,
+      f.stable_fact_key, f.payload::text
+      FROM fact_records f JOIN scope_generations g ON g.generation_id = f.generation_id AND g.scope_id = f.scope_id
+      WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, g.ingested_at, f.stable_fact_key" \
+    >"$out/real_facts_chain.tsv"
   # Reducer intents and projector items of EVERY generation, not only the active
   # ones: a paced generation overtaken by a newer commit is superseded before it
   # is projected and enqueues nothing, so the active-generation set and the union

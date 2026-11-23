@@ -53,10 +53,13 @@ def engagement(samples: list[dict[str, Any]]) -> dict[str, Any]:
         s["latch_engaged_at"] is not None or s["latch_updated_at"] is not None for s in samples)}
   first, last = samples[engaged_idx[0]], samples[engaged_idx[-1]]
   release = next((s for s in samples[engaged_idx[-1] + 1:] if not s["engaged"]), None)
+  # The latch row's engaged_at identifies one engagement: a new value while
+  # engaged is a new engagement even if no sample caught the gap between them.
+  distinct = {s["latch_engaged_at"] for s in samples if s["engaged"] and s["latch_engaged_at"] is not None}
   return {
-      "engage_at": first["latch_engaged_at"] or first["ts"],
+      "engage_at": first["latch_engaged_at"] or first["ts"], "distinct_engagements": max(len(distinct), 1),
       "release_at": None if release is None else (release["latch_updated_at"] or release["ts"]),
-      "reengaged": intervals > 1, "latch_row_seen": True,
+      "reengaged": intervals > 1 or len(distinct) > 1, "latch_row_seen": True,
       "first_engaged_ts": first["ts"], "last_engaged_ts": last["ts"],
   }
 

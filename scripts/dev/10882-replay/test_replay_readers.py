@@ -74,6 +74,10 @@ class EngagementTest(unittest.TestCase):
                  + _sample(4, False, "NA", "4"))
     self.assertTrue(replay_state.engagement(replay_state.read_samples(path))["reengaged"])
 
+  def test_a_new_latch_engaged_at_between_samples_is_reengagement(self):
+    path = _file(SAMPLE_HEADER + _sample(1, True, "1.0", "1.0") + _sample(2, True, "1.9", "1.9") + _sample(3, False, "NA", "3"))
+    self.assertTrue(replay_state.engagement(replay_state.read_samples(path))["reengaged"])
+
   def test_red_a_missing_graph_reading_stays_none_never_zero(self):
     samples = replay_state.read_samples(_file(SAMPLE_HEADER + _sample(1, False, graph="NA")))
     self.assertIsNone(samples[0]["graph"])
@@ -127,6 +131,29 @@ class FactsTest(unittest.TestCase):
     a, b = self._dump("a"), self._dump("b", language="rust")
     self.assertNotEqual(replay_facts.real_fact_sets(a), replay_facts.real_fact_sets(b))
     self.assertIn("language", replay_facts.differing_top_level_keys(a, b))
+
+
+class EffectiveFactsTest(unittest.TestCase):
+
+  def _chain(self, rows):
+    return _file("".join("%s\t%s\t%s\t%s\t%s\n" % (s, ts, tomb, k, json.dumps(p)) for s, ts, tomb, k, p in rows))
+
+  def test_full_plus_delta_chain_equals_full_plus_full_chain(self):
+    base = {"language": "go", "indexed_at": "t1", "source_run_id": "r1"}
+    control = [("s1", "1", "f", "file:a", dict(base)), ("s1", "1", "f", "file:b", dict(base)),
+               ("s1", "3", "f", "file:a", {"language": "go", "indexed_at": "t3", "source_run_id": "r3"})]  # delta of a
+    treatment = [("s1", "5", "f", "file:a", {"language": "go", "indexed_at": "t5", "source_run_id": "r5"}),
+                 ("s1", "5", "f", "file:b", {"language": "go", "indexed_at": "t5", "source_run_id": "r5"})]  # two full ones
+    self.assertEqual(replay_facts.effective_fact_sets(self._chain(control)),
+                     replay_facts.effective_fact_sets(self._chain(treatment)))
+
+  def test_red_a_dropped_fact_a_changed_payload_and_a_tombstone_change_the_set(self):
+    base = {"language": "go"}
+    control = [("s1", "1", "f", "file:a", dict(base)), ("s1", "1", "f", "file:b", dict(base))]
+    want = replay_facts.effective_fact_sets(self._chain(control))
+    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain(control[:1])))
+    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain([control[0], ("s1", "1", "f", "file:b", {"language": "rust"})])))
+    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain(control + [("s1", "2", "t", "file:b", dict(base))])))
 
 
 class PromTest(unittest.TestCase):

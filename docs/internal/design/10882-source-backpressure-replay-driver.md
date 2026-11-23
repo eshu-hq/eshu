@@ -162,6 +162,12 @@ the git fixtures.
   engaged: `projector/service.go` releases a paced item before any write, so a
   zero on `source_behind` admission deferrals with non-zero pre-write releases is
   expected, not a gap.
+- The active generation of a fixture repository is not comparable between arms:
+  a paced first generation is superseded unprojected, so the treatment arm's later
+  generations are full re-observations while the control's are deltas. The record
+  judges the effective fact set (the latest version of each stable fact key across
+  the generation chain) and the intents of every generation, and reports the
+  active-generation sets with each active generation's kind.
 - Fact sets of the real fixtures compare stable fact key plus payload hash.
   `fact_id`, `payload.indexed_at` and `payload.source_run_id` are minted from the
   run's wall clock and are normalised; the checker output names them.

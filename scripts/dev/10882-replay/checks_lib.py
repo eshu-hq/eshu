@@ -106,14 +106,22 @@ def check_hygiene(arm: dict[str, Any]) -> list[Check]:
 
 
 def check_final_state(arm: dict[str, Any], control: dict[str, Any]) -> list[Check]:
-  """Final committed state equals the control's (AC4 no-loss)."""
+  """Final committed state equals the control's (AC4 no-loss).
+
+  The active generation alone is not comparable: a paced first generation is
+  superseded unprojected, so the treatment arm's later generations are full
+  re-observations and the control's are deltas. The effective sets (latest
+  version of each fact key across the chain, and every (scope, domain) intent over
+  every generation) are judged; the active-generation sets are printed with each
+  active generation's kind.
+  """
   checks = []
   for path, label in (
       ("final.generations", "committed generation set (source commit sha)"),
-      ("final.real_fact_sets", "real git fixture fact sets (stable fact key + payload hash; fact_id, "
-                               "payload.indexed_at and payload.source_run_id are run-variant, normalised)"),
+      ("final.effective_fact_sets", "effective real git fixture fact sets across the generation chain (stable fact key + "
+                                    "payload hash; fact_id, payload.indexed_at and payload.source_run_id are run-variant, "
+                                    "normalised)"),
       ("final.graph_counts", "graph counts per label"),
-      ("final.intent_active", "reducer intents of the active generations, per source"),
       ("final.intent_union", "reducer intents (scope, domain) over every generation, per source"),
   ):
     want, got = get(control, path, {}), get(arm, path, {})
@@ -123,6 +131,12 @@ def check_final_state(arm: dict[str, Any], control: dict[str, Any]) -> list[Chec
     checks.append(Check(label, want == got, diff_maps(want, got)))
   want, got = get(control, "final.content_rows"), get(arm, "final.content_rows")
   checks.append(Check("content rows", want is not None and want == got, "control=%s arm=%s" % (want, got)))
+  for path, label in (("final.real_fact_sets", "real fact sets of the ACTIVE generations"),
+                      ("final.intent_active", "reducer intents of the ACTIVE generations")):
+    kinds = lambda r: sorted(set(get(r, "final.active_is_delta", {}).values()))  # noqa: E731
+    equal = get(control, path, {}) == get(arm, path, {})
+    checks.append(Check("%s (reported, not judged)" % label, True,
+                        "%s; active is_delta control=%s arm=%s" % ("equal" if equal else "differ", kinds(control), kinds(arm))))
   return checks
 
 
@@ -160,9 +174,12 @@ def check_engagement(arm: dict[str, Any]) -> list[Check]:
       Check("latch engaged and released (latch row times)",
             bool(engaged.get("engage_at")) and bool(engaged.get("release_at")),
             "engage=%s release=%s" % (engaged.get("engage_at"), engaged.get("release_at"))),
-      Check("no re-engagement (engaged counter 1, one engaged interval)",
-            float(engaged.get("engaged_counter", -1)) == 1.0 and not engaged.get("reengaged"),
-            "engaged_counter=%s reengaged=%s" % (engaged.get("engaged_counter"), engaged.get("reengaged"))),
+      # The counter is reported, not judged: several workers can each see the same
+      # transition and each record it (smoke: 3 for one engagement). Re-engagement
+      # is read from the latch row: one engaged interval, one distinct engaged_at.
+      Check("no re-engagement (one engaged interval, one latch engaged_at)", not engaged.get("reengaged"),
+            "reengaged=%s distinct engagements=%s (engaged counter %s, reported)" % (
+                engaged.get("reengaged"), engaged.get("distinct_engagements"), engaged.get("engaged_counter"))),
   ]
 
 

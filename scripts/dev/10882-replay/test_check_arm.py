@@ -40,7 +40,8 @@ def _base(arm: str = "C") -> dict:
                  "end": {"graph": 1400, "content": 144, "succeeded": 54}, "at_t120": {"graph": 900, "content": 90, "succeeded": 40}},
       "final": {
           "generations": {"scope-a-1": "g1", "scope-b-1": "g3", "git-1": "sha-1"},
-          "real_fact_sets": {"git-1": "h1", "git-2": "h2"}, "graph_counts": {"File": 36, "Repository": 3},
+          "real_fact_sets": {"git-1": "h1", "git-2": "h2"}, "effective_fact_sets": {"git-1": "e1", "git-2": "e2"},
+          "active_is_delta": {"git-1": True, "git-2": True}, "graph_counts": {"File": 36, "Repository": 3},
           "intent_active": {"A": ["git-1:d1", "git-1:d2"]}, "intent_union": {"A": ["git-1:d1", "git-1:d2", "git-1:d3"]},
           "content_rows": 36, "projector_unsettled": 0, "fixture_scopes": 6, "active_sha_is_last_push": True,
       },
@@ -99,10 +100,23 @@ class TreatmentTest(unittest.TestCase):
 
   def test_red_changed_real_fact_hash_fails(self):
     arm = _treatment()
-    arm["final"]["real_fact_sets"]["git-1"] = "other"
+    arm["final"]["effective_fact_sets"]["git-1"] = "other"
     failed = _run("treatment", arm, _controls())
     self.assertEqual(len(failed), 1)
-    self.assertTrue(failed[0].startswith("real git fixture fact sets"))
+    self.assertTrue(failed[0].startswith("effective real git fixture fact sets"))
+
+  def test_active_generation_differences_are_reported_not_judged(self):
+    # The smoke case: the control's active generation is a delta (11 facts), the
+    # treatment arm's is a full re-observation (50 facts), the effective sets equal.
+    arm = _treatment()
+    arm["final"]["real_fact_sets"] = {"git-1": "full-1", "git-2": "full-2"}
+    arm["final"]["intent_active"] = {"A": ["git-1:d1", "git-1:d2", "git-1:d4"]}
+    arm["final"]["active_is_delta"] = {"git-1": False, "git-2": False}
+    checks = check_arm.run_checks("treatment", arm, _controls())
+    self.assertEqual(_failed(checks), [])
+    row = next(c for c in checks if c.name.startswith("real fact sets of the ACTIVE"))
+    self.assertIn("differ", row.detail)
+    self.assertIn("arm=[False]", row.detail)
 
   def test_red_empty_graph_reading_fails(self):
     arm = _treatment()
@@ -122,8 +136,11 @@ class TreatmentTest(unittest.TestCase):
     arm["engaged"]["release_at"] = None
     self.assertEqual(_run("treatment", arm, _controls()), ["latch engaged and released (latch row times)"])
     arm = _treatment()
-    arm["engaged"]["engaged_counter"] = 2.0
-    self.assertEqual(_run("treatment", arm, _controls()), ["no re-engagement (engaged counter 1, one engaged interval)"])
+    arm["engaged"]["reengaged"] = True
+    self.assertEqual(_run("treatment", arm, _controls()), ["no re-engagement (one engaged interval, one latch engaged_at)"])
+    arm = _treatment()
+    arm["engaged"]["engaged_counter"] = 3.0  # several workers record one transition: reported, not judged
+    self.assertEqual(_run("treatment", arm, _controls()), [])
 
   def test_red_selection_not_stretched_and_late_commit_not_restored_fail(self):
     arm = _treatment()
@@ -163,9 +180,6 @@ class TreatmentTest(unittest.TestCase):
     arm = _treatment()
     arm["final"]["intent_union"] = {"A": ["git-1:d1", "git-1:d2"]}  # d3 only ever came from a paced generation
     self.assertEqual(_run("treatment", arm, _controls()), ["reducer intents (scope, domain) over every generation, per source"])
-    arm = _treatment()
-    arm["final"]["intent_active"] = {"A": ["git-1:d1"]}
-    self.assertEqual(_run("treatment", arm, _controls()), ["reducer intents of the active generations, per source"])
 
   def test_red_build_identity_fails(self):
     for mutate in (lambda a: a["manifest"].update(commit=""),

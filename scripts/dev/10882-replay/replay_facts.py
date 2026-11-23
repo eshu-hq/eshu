@@ -56,6 +56,40 @@ def real_fact_sets(path: str) -> dict[str, str]:
           for scope_id, items in sorted(by_scope.items())}
 
 
+def effective_fact_sets(path: str) -> dict[str, str]:
+  """Per scope: the effective fact set across the generation chain.
+
+  The latest non-tombstone version of each stable_fact_key, taken from the newest
+  generation (by ingest time) that carries the key, hashed with the same
+  normalisation as real_fact_sets. A control whose later generations are deltas and
+  a treatment arm whose later generations are full re-observations (a paced
+  generation was superseded unprojected, so there was no projected baseline) end
+  with the same effective set when nothing was lost.
+  """
+  latest: dict[tuple[str, str], tuple[float, bool, Any]] = {}
+  if os.path.exists(path):
+    with open(path, encoding="utf-8") as handle:
+      for line in handle:
+        parts = line.rstrip("\n").split("\t", 4)
+        if len(parts) < 5:
+          continue
+        scope_id, ingested, tombstone, key, payload_text = parts
+        entry = (float(ingested), tombstone == "t", json.loads(payload_text))
+        current = latest.get((scope_id, key))
+        if current is None or entry[0] >= current[0]:
+          latest[(scope_id, key)] = entry
+  by_scope: dict[str, list[str]] = defaultdict(list)
+  for (scope_id, key), (_ts, tombstone, payload) in latest.items():
+    if tombstone:
+      continue
+    if isinstance(payload, dict):
+      payload = {k: v for k, v in payload.items() if k not in RUN_VARIANT_PAYLOAD_FIELDS}
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    by_scope[scope_id].append("%s:%s" % (key, digest))
+  return {scope_id: hashlib.sha256(",".join(sorted(items)).encode()).hexdigest()
+          for scope_id, items in sorted(by_scope.items())}
+
+
 def fact_counts(path: str) -> dict[str, dict[str, int]]:
   """Per scope: fact count and distinct stable-key count (they must be equal)."""
   facts: dict[str, int] = defaultdict(int)

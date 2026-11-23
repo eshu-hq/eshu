@@ -72,6 +72,15 @@ def latch_rows(path: str) -> list[dict[str, Any]]:
   return rows
 
 
+def active_is_delta(path: str) -> dict[str, bool]:
+  """Per git scope: whether its active generation is a delta generation."""
+  out: dict[str, bool] = {}
+  for row in replay_state.read_tsv(path):
+    if len(row) >= 7 and row[6] == "t":
+      out[row[0]] = row[4] == "t"
+  return out
+
+
 def a_drain(export: str, events: list[list[str]]) -> dict[str, Any]:
   """A's last projector completion, relative to the end of the catch-up step."""
   drain = read_json(os.path.join(export, "a_drain.json"), {})
@@ -140,6 +149,8 @@ def main(run_dir: str) -> int:
       "final": {
           "generations": read_json(os.path.join(export, "generations.json"), {}),
           "real_fact_sets": replay_facts.real_fact_sets(facts_path),
+          "effective_fact_sets": replay_facts.effective_fact_sets(os.path.join(export, "real_facts_chain.tsv")),
+          "active_is_delta": active_is_delta(os.path.join(export, "generations_all.tsv")),
           "real_fact_counts": replay_facts.fact_counts(facts_path),
           "normalized_fields": {"fact_id": "compared via stable_fact_key",
                                 "payload": list(replay_facts.RUN_VARIANT_PAYLOAD_FIELDS)},
