@@ -37,6 +37,9 @@ type nvdVerdictVector struct {
 	SnapshotFactKind string                  `json:"snapshot_fact_kind"`
 	Window           nvdVerdictVectorSection `json:"window"`
 	Baseline         nvdVerdictVectorSection `json:"baseline"`
+	// Position is the shared baseline resume-position block, replayed by
+	// TestNVDBaselinePositionMatchesSharedVector.
+	Position nvdPositionVector `json:"position"`
 }
 
 type nvdVerdictVectorSection struct {
