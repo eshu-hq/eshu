@@ -39,21 +39,31 @@ manifest records them.
 
 ## Arms
 
-Each arm runs three repetitions.
+Each arm runs three repetitions. A and B swap between git and a hosted family.
 
 | Arm | Thresholds | A is | B is | What it covers |
 | --- | --- | --- | --- | --- |
 | C | unset | git | hosted | control |
-| T1 | set | git | hosted | ingester admission, projector pre-write consult, selection stretch. Run at signal cache TTL 0 and at one candidate TTL. |
+| C0 | unset, no catch-up step | git | hosted | the catch-up step hides nothing: B and the final sets equal C |
+| T1 | set, signal cache TTL 0 | git | hosted | ingester admission, projector pre-write consult, selection stretch |
+| T1TTL | set, candidate TTL | git | hosted | the same at one candidate TTL |
+| C2 | unset | hosted | git | control for T2 |
 | T2 | set | hosted, paced at the coordinator claim grant | git | the claim-grant leg |
-| T3 | set | git; every aged A row is a parked wait on its own producer, fenced, or readiness-blocked | hosted | #11187: the latch never engages, or releases with no claimable A row |
+| T3 | set | git; every aged A row is not takeable (parked wait or readiness-gated) | hosted | #11187: the latch never engages |
 
-T2 needs a hosted collector that runs offline. `collector-component-extension`
-with the zero-fact `collector-synth-zero` emitter is one: the extension's
-config is env-only and its work items carry the component id as source system.
-Whether the built binary starts standalone against local PostgreSQL on the
-in-tree claim path is the first thing the driver build verifies. If it does
-not, the smallest stand-in goes to the arbiter before anything is built.
+T2's hosted collector is the built `collector-component-extension` running the
+offline `collector-synth-zero` emitter on the in-tree claim path: a tagged
+seeder installs the component registry and plants pending workflow items through
+the real planner, whose `source_system` is the component id. The emitter commits
+no facts, so T2 proves claim pacing only.
+
+The ingester runs in `explicit` mode against local bare remotes (a git
+`url.insteadOf` rewrite), the production path. The global reducer-admission
+marks are raised above the corpus in every arm and recorded in each manifest:
+the corpus (8,713 mix rows plus A's 13,000) is past the ingester defaults
+(10,000 outstanding, 500 retrying), so the default gate would defer all intents,
+B's included, and time them out in the control arm too. That backstop is not what
+this replay tests.
 
 ## Arm manifest
 
@@ -116,18 +126,32 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 | `compare.sh` | Final-state equality against arm C. |
 | `report.sh` | Turns the manifests and signals into the evidence record. |
 
-## Forks waiting on the arbiter
+## Rulings that shaped the driver
 
-- **F1, reducer.** The #10862 mix is synthetic (fake fact ids), so a real
-  reducer binary would dead-letter it. Proposed: no reducer binary; the
-  harness completes A's aged reducer rows at a fixed time in every arm,
-  control included.
-- **F2, seeding.** A and B projector work is seeded into PostgreSQL directly.
-  Real binaries are the projector (pre-write consult, release, admission
-  writer), the ingester for its admission leg and selection stretch, and the
-  hosted collector for T2.
-- **F3, seeder shape.** A build-tagged Go test program that reuses the #10862
-  mix, not a new `cmd` directory.
+The arbiter accepted the three forks with conditions (reducer binary, seeding,
+seeder shape): no reducer binary runs; the catch-up step goes through
+`ReducerQueue.ClaimBatch` and `AckBatch`, never a hand UPDATE, restricted to a
+domain only A uses; seeded generations go through the exported
+`IngestionStore.CommitScopeGeneration`; the seeder is a build-tagged test
+compiled at the same commit. Real collected facts come from the real ingester on
+the git fixtures.
+
+## What the replay does not exercise
+
+- No reducer ran. Release is driven by completing seeded rows, and B's freshness
+  is measured to the reducer-queue enqueue, not through reducer handlers.
+- K and the parked counts come from the seed.
+- T2 commits no hosted facts, and pacing acts before the claim, so no partial
+  commit exists to lose.
+- Seeded `fact_records` equality holds by construction and is not a no-loss
+  proof; the no-loss checks use projection outputs and the real fixture facts.
+- The admission-writer leg is reached only by an item claimed before the latch
+  engaged: `projector/service.go` releases a paced item before any write, so a
+  zero on `source_behind` admission deferrals with non-zero pre-write releases is
+  expected, not a gap.
+- Fact sets of the real fixtures compare stable fact key plus payload hash.
+  `fact_id`, `payload.indexed_at` and `payload.source_run_id` are minted from the
+  run's wall clock and are normalised; the checker output names them.
 
 ## Filesystem mode and the git selection stretch
 
