@@ -27,6 +27,10 @@ const (
 	// partial index: an unscoped call with an image reference. Current by
 	// construction once the readiness predicate holds.
 	RouteSupportsImage ReadRoute = "supports_image"
+	// RouteSupportsFindingID is the explain by public finding id of an ungranted
+	// caller: the per-support table probed by its finding id index. Only explain
+	// calls take it.
+	RouteSupportsFindingID ReadRoute = "supports_finding_id"
 )
 
 // routeFor decides the read model of one call. With the winners gate on, no call

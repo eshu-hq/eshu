@@ -72,7 +72,7 @@ func (s PostgresAggregateStore) resolveAggregateFreshness(
 	readAt time.Time,
 ) (freshness AggregateFreshness, route ReadRoute, err error) {
 	route = filter.route(s.ReadFromWinners)
-	observeRoute(ctx, s.Instruments, route)
+	countRoute(ctx, s.Instruments, route)
 	if route.readsSupports() {
 		if err := s.requireAggregateSupportsReady(ctx); err != nil {
 			return AggregateFreshness{}, route, err

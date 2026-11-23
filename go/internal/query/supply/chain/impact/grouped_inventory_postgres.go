@@ -144,10 +144,10 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	// precise call reads the winners table plus the supplement, and everything else
 	// reads the winners table.
 	route := filter.route(s.ReadFromWinners)
-	observeRoute(ctx, s.Instruments, route)
+	defer observeRoute(ctx, s.Instruments, route)()
 	build := groupedInventoryQuery
 	switch route {
-	case RouteLegacy, RouteWinners:
+	case RouteLegacy, RouteWinners, RouteSupportsFindingID:
 		// unreachable for the legacy route (a gate-off store refused above); the
 		// winners route uses the winners builder
 	case RouteSupportsGrant:

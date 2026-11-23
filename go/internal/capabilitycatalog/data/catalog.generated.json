@@ -11979,8 +11979,7 @@
         "read_table:vulnerability_source_state_packages",
         "read_table:vulnerability_source_states",
         "read_table:workflow_runs",
-        "read_table:scanner_image_targets",
-        "read_table:supply_chain_impact_canonical_winners"
+        "read_table:scanner_image_targets"
       ],
       "display_name": "Supply Chain Impact Explanation Read",
       "maturity": "general_availability",

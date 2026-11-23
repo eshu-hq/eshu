@@ -133,26 +133,6 @@ func imageReadUsesTheImageIndex(accesses []planAccess) (bool, string) {
 	return true, ""
 }
 
-// explainWinnersUsesThePrimaryKey reports whether the ungranted selector explain
-// reaches the supports table only by point lookups (the winning picks by fact id
-// and the operator override by canonical key), never by a sequential scan: the
-// winners table names the candidates, the supports table is read by primary key.
-func explainWinnersUsesThePrimaryKey(accesses []planAccess) (bool, string) {
-	byKey := false
-	for _, access := range accesses {
-		if access.nodeType == "Seq Scan" {
-			return false, "sequential scan of the supports table"
-		}
-		if access.index == "supply_chain_impact_finding_supports_pkey" && strings.Contains(access.cond, "fact_id") {
-			byKey = true
-		}
-	}
-	if !byKey {
-		return false, fmt.Sprintf("no Index Scan on the primary key by fact_id (accesses %v)", accesses)
-	}
-	return true, ""
-}
-
 // seedRouteVPlanCorpus writes 4,000 keys of 12 supports each: a third of each
 // key's supports are precise, the best-priority support is often not, and every
 // key carries one image reference per support (500 distinct). The winners table is
@@ -239,16 +219,8 @@ func TestRouteVReadsKeepTheirIndexedPlanShapeLive(t *testing.T) {
 		{"supplement probe", ListFindingsFromWinnersSupplementQuery, multiSupportWinnersListArgs(ctx, supplementFilter), preciseOrderedIndex, supplementProbeUsesTheOrderedIndex},
 		{"image read", ListFindingsFromSupportsImageQuery, multiSupportWinnersListArgs(ctx, imageFilter), imageRefIndex, imageReadUsesTheImageIndex},
 	}
-	explainWinners := supplyChainImpactExplanationQueryArgs(ctx, packet.ExplanationFilter{CVEID: "CVE-2026-77", PackageID: "pkg:npm/p77"}, nil)
 	explainImage := supplyChainImpactExplanationQueryArgs(ctx, packet.ExplanationFilter{CVEID: "CVE-2026-77", ImageRef: "registry.example/img7:1"}, nil)
 	cases = append(cases,
-		struct {
-			name  string
-			query string
-			args  []any
-			index string
-			check func([]planAccess) (bool, string)
-		}{"explain by winners picks", ExplainFindingFromWinnersQuery, explainWinners, "supply_chain_impact_finding_supports_pkey", explainWinnersUsesThePrimaryKey},
 		struct {
 			name  string
 			query string
@@ -275,9 +247,6 @@ func TestRouteVReadsKeepTheirIndexedPlanShapeLive(t *testing.T) {
 			}
 			defer func() { _ = tx.Rollback() }()
 			drop := "DROP INDEX " + tc.index
-			if strings.HasSuffix(tc.index, "_pkey") {
-				drop = "ALTER TABLE " + supportsPlanTable + " DROP CONSTRAINT " + tc.index
-			}
 			if _, err := tx.ExecContext(ctx, drop); err != nil {
 				t.Fatalf("drop %s: %v", tc.index, err)
 			}

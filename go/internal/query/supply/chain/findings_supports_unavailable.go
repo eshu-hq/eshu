@@ -89,25 +89,6 @@ func (h *Handler) writeImpactExplanationSupportsUnavailable(w http.ResponseWrite
 	)
 }
 
-// writeImpactExplanationWinnersUnavailable answers the 503 backend_unavailable
-// envelope for an ungranted selector explain while the winners table, which names
-// the candidate keys, is not materialized, is older than the freshness window, or
-// its probe failed (#10880 PR-B2a). Answering would read a key the table has not
-// caught up to as not found.
-func (h *Handler) writeImpactExplanationWinnersUnavailable(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Retry-After", strconv.Itoa(supplyChainImpactSupportsRetryAfterSeconds))
-	querycontract.WriteContractError(
-		w,
-		r,
-		http.StatusServiceUnavailable,
-		"supply-chain impact explanations are unavailable: the canonical winners read model is not fresh enough; retry after the winners resweep completes",
-		querycontract.ErrorCodeBackendUnavailable,
-		ImpactExplanationCapability,
-		h.profile(),
-		querycontract.RequiredProfile(ImpactExplanationCapability),
-	)
-}
-
 // writeAdvisoryEvidenceSupportsUnavailable answers the 503 backend_unavailable
 // envelope for a repository, service, or workload anchored advisory evidence call
 // the supports table cannot serve exactly (#10880 PR-B2a).

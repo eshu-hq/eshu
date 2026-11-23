@@ -237,7 +237,8 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	route := filter.route(s.ReadFromWinners)
-	observeRoute(ctx, s.Instruments, route)
+	doneRoute := observeRoute(ctx, s.Instruments, route)
+	defer doneRoute()
 	if route.readsSupports() {
 		// The per-support table answers a grant, an image reference, and the
 		// supplement of an unscoped precise call; it refuses, and never falls back
@@ -249,8 +250,9 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 	query := ListFindingsQuery
 	switch route {
-	case RouteLegacy:
-		// the legacy fact read stays the default statement (gate off)
+	case RouteLegacy, RouteSupportsFindingID:
+		// the legacy fact read stays the default statement (gate off); the
+		// finding-id route is an explain label no list or aggregate takes
 	case RouteSupportsGrant:
 		query = ListFindingsFromSupportsQuery
 	case RouteSupportsImage:

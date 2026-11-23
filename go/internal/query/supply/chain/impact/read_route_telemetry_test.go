@@ -5,6 +5,7 @@ package impact
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -41,6 +43,37 @@ func routeCounts(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 
 				}
 				route, _ := point.Attributes.Value("route")
 				out[route.AsString()] += point.Value
+			}
+		}
+	}
+	return out
+}
+
+// routeDurationCounts reads the sample count of
+// eshu_dp_supply_chain_impact_read_duration_seconds by route and asserts each
+// datapoint carries only the route label.
+func routeDurationCounts(t *testing.T, reader *sdkmetric.ManualReader) map[string]uint64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	out := map[string]uint64{}
+	for _, scope := range rm.ScopeMetrics {
+		for _, record := range scope.Metrics {
+			if record.Name != "eshu_dp_supply_chain_impact_read_duration_seconds" {
+				continue
+			}
+			histogram, ok := record.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("histogram data = %T, want Histogram[float64]", record.Data)
+			}
+			for _, point := range histogram.DataPoints {
+				if point.Attributes.Len() != 1 {
+					t.Fatalf("datapoint attributes = %d, want 1 (route)", point.Attributes.Len())
+				}
+				route, _ := point.Attributes.Value("route")
+				out[route.AsString()] += point.Count
 			}
 		}
 	}
@@ -137,6 +170,9 @@ func TestEveryReadCountsItsRoute(t *testing.T) {
 				if len(counts) != 1 || counts[string(tc.want)] != 1 {
 					t.Fatalf("route counter = %v, want exactly one count for %q", counts, tc.want)
 				}
+				if durations := routeDurationCounts(t, reader); len(durations) != 1 || durations[string(tc.want)] != 1 {
+					t.Fatalf("read-duration samples = %v, want exactly one sample for %q", durations, tc.want)
+				}
 				if got := routeSpanAttribute(t, recorder); got != string(tc.want) {
 					t.Fatalf("span route attribute = %q, want %q", got, tc.want)
 				}
@@ -170,5 +206,63 @@ func TestNilInstrumentsDoNotPanic(t *testing.T) {
 	store := NewPostgresFindingStoreWithReadStore(routeQueryer(), true)
 	if _, err := store.ListSupplyChainImpactFindings(context.Background(), FindingFilter{Limit: 10, Status: "affected_exact"}); err != nil {
 		t.Fatalf("list = %v", err)
+	}
+}
+
+// TestExplainCountsEachStatementByRoute pins ruling decision 10: explain
+// statements are counted and timed by route, and the reads that stay on the fact
+// table (the ungranted selector without an image, the identity fallback of a
+// public-id miss, and everything with the gate off) show up as legacy, so the
+// metric reports how much explain traffic still takes the legacy read.
+func TestExplainCountsEachStatementByRoute(t *testing.T) {
+	t.Parallel()
+	granted := []string{"scope:a"}
+	for name, tc := range map[string]struct {
+		gate   bool
+		filter packet.ExplanationFilter
+		want   map[string]int64
+	}{
+		"gate off public id miss": {false, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"legacy": 2}},
+		"ungranted public id miss then identity fallback": {
+			true, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
+		},
+		"ungranted selector": {
+			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, map[string]int64{"legacy": 1},
+		},
+		"ungranted image selector": {
+			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"}, map[string]int64{"supports_image": 1},
+		},
+		"granted selector": {
+			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p", AllowedScopeIDs: granted}, map[string]int64{"supports_grant": 1},
+		},
+		"granted public id miss": {
+			true, packet.ExplanationFilter{FindingID: "finding:a", AllowedScopeIDs: granted}, map[string]int64{"supports_grant": 2},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			instruments, reader, recorder, ctx, end := routeTelemetryHarness(t)
+			store := NewPostgresFindingStoreWithReadStore(&explainRouteQueryer{ready: true}, tc.gate)
+			store.Instruments = instruments
+			if _, err := store.ExplainSupplyChainImpact(ctx, tc.filter); !errors.Is(err, ErrExplanationNotFound) {
+				t.Fatalf("explain = %v, want ErrExplanationNotFound for an empty store", err)
+			}
+			end()
+			counts := routeCounts(t, reader)
+			if len(counts) != len(tc.want) {
+				t.Fatalf("route counter = %v, want %v", counts, tc.want)
+			}
+			for route, n := range tc.want {
+				if counts[route] != n {
+					t.Fatalf("route counter = %v, want %v", counts, tc.want)
+				}
+				if got := routeDurationCounts(t, reader)[route]; got != uint64(n) {
+					t.Fatalf("read-duration samples for %q = %d, want %d", route, got, n)
+				}
+			}
+			if routeSpanAttribute(t, recorder) == "" {
+				t.Fatal("the explain recorded no route attribute on its span")
+			}
+		})
 	}
 }

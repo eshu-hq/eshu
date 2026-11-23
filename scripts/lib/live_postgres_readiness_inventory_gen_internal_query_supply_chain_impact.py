@@ -28,7 +28,6 @@ TABLE = {
         "go/internal/query/supply/chain/impact/explain_unscoped_live_test.go": (
             "TestExplainUnscopedEqualsLegacyLive",
             "TestExplainRoundTripFromAnUnscopedPreciseListLive",
-            "TestExplainSelectorRefusesWhenWinnersAreStaleLive",
             "TestCollapsedKeyCVEFilterLive",
         ),
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
@@ -41,6 +40,9 @@ TABLE = {
         "go/internal/query/supply/chain/impact/grouped_inventory_supports_live_test.go": (
             "TestGroupedInventorySupportsServesGrantsLive",
             "TestGroupedInventorySupportsEqualsTheCountRouteLive",
+        ),
+        "go/internal/query/supply/chain/impact/jit_scope_live_test.go": (
+            "TestJITOffScopeIsTransactionLocalLive",
         ),
         "go/internal/query/supply/chain/impact/multi_support_parity_live_test.go": (
             "TestMultiSupportWinnersRecordsEverySupport",
@@ -106,7 +108,6 @@ TABLE = {
             "TestUnscopedExistenceFilterPagesLikeLegacyLive",
             "TestUnscopedGroupedInventoryEqualsTheCountRouteLive",
             "TestPrecisePageStaysOnWinnersWhenTheSupportTableLagsLive",
-            "TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive",
             "TestWinnersEligibilityEqualsTheSupportsProbeLive",
         ),
         "go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go": (

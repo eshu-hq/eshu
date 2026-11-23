@@ -65,7 +65,8 @@ func supportsReady(recorder *audit.Recorder) {
 }
 
 // explainReady answers the supports readiness predicate and a fresh winners
-// watermark, so an ungranted selector explain drives its read statement.
+// watermark, so the supplement route of the count, inventory and grouped reads
+// reaches its read statement.
 func explainReady(recorder *audit.Recorder) {
 	recorder.Rows = func(sql string) db.Rows {
 		switch {
@@ -213,18 +214,13 @@ func coreProbes() []probe {
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
 				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", RepositoryID: "repository:r", AllowedScopeIDs: []string{"scope:a"}})
 		}},
-		{"supply_chain.impact_explanation.read", "ungranted selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
-			explainReady(recorder)
-			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
-				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", RepositoryID: "repository:r"})
-		}},
 		{"supply_chain.impact_explanation.read", "ungranted image selector, gate on", func(ctx context.Context, recorder *audit.Recorder) {
-			explainReady(recorder)
+			supportsReady(recorder)
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
 				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-1", ImageRef: "registry.example/a:1"})
 		}},
 		{"supply_chain.impact_explanation.read", "by public finding id, gate on", func(ctx context.Context, recorder *audit.Recorder) {
-			explainReady(recorder)
+			supportsReady(recorder)
 			_, _ = impact.NewPostgresFindingStoreWithReadStore(recorder, true).
 				ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{FindingID: "finding:x"})
 		}},

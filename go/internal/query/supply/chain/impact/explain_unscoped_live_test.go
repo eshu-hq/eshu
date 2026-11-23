@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B2a disposable PostgreSQL 18 proof of the unscoped explain on the multi-support corpus (arbiter ruling V): an ungranted selector lookup reads the winners table's winning supports, an ungranted image selector reads the image partial index, and an identity fallback (canonical key, winner or non-winner fact id) resolves through the winners table; every outcome equals the legacy explain, the case list of differences is recorded, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and a stale winners table refuses; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors) equals the gate-off legacy explain, the selector and identity reads stay on legacy, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -15,12 +15,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 )
 
-// TestExplainUnscopedEqualsLegacyLive holds every ungranted lookup the unscoped
-// explain serves from the winners table, the image index and the identity
-// fallback to the legacy explain: selector pairs of every seeded finding, image
-// selectors, and the identity forms (canonical key, finding id, and the fact id of
-// both the winner and a lower copy). Each outcome (payload, not found, or
-// ambiguous) must match. The count of compared lookups and of non-trivial
+// TestExplainUnscopedEqualsLegacyLive holds every ungranted explain lookup of the
+// gate-on store to the gate-off legacy explain: selector pairs of every seeded
+// finding (which stay on the legacy read), image selectors (which read the image
+// index), public ids, and the identity forms (canonical key, finding id, and the
+// fact id of both the winner and a lower copy; the identity read stays legacy).
+// Each outcome (payload, not found, or ambiguous) must match. The count of compared lookups and of non-trivial
 // outcomes guards the matrix against going vacuous.
 func TestExplainUnscopedEqualsLegacyLive(t *testing.T) {
 	ctx, database := openRouteVDatabase(t)
@@ -47,8 +47,7 @@ func TestExplainUnscopedEqualsLegacyLive(t *testing.T) {
 	requests = append(requests,
 		packet.ExplanationFilter{CVEID: "CVE-2026-m1", RepositoryID: "repository:nowhere"},
 		packet.ExplanationFilter{CVEID: "CVE-2026-none", PackageID: "pkg:npm/none"},
-		// The collapsed key: a selector that only a lower copy carries.
-		packet.ExplanationFilter{CVEID: "ADV-C1", PackageID: "pkg:npm/example-c@1.0.0"},
+		// The collapsed key (c1, c3): an advisory selector every copy shares.
 		packet.ExplanationFilter{AdvisoryID: "ADV-C1", PackageID: "pkg:npm/example-c@1.0.0"},
 		packet.ExplanationFilter{CVEID: "CVE-2026-amb", PackageID: "pkg:npm/example-amb@1.0.0"},
 		packet.ExplanationFilter{CVEID: "CVE-2026-amb", PackageID: "pkg:npm/example-amb@1.0.0", ImageRef: "registry.example/a:1"},
@@ -99,19 +98,8 @@ WHERE s.scope_id <> 'operator:vulnerability_suppressions'`)
 			differences[string(encoded)] = "legacy: " + wantOutcome + " | gate-on: " + gotOutcome
 		}
 	}
-	// The one known difference (listed for B3, see TestCollapsedKeyCVEFilterLive):
-	// the key collapses the CVE and advisory ids, so a CVE selector that only a
-	// lower copy carries misses on the winners row.
-	const collapsedCVESelector = `{"cve_id":"ADV-C1","package_id":"pkg:npm/example-c@1.0.0"}`
 	for request, diff := range differences {
-		if request == collapsedCVESelector {
-			t.Logf("B3 difference: explain %s: %.300s", request, diff)
-			continue
-		}
 		t.Errorf("explain %s differs\n%.600s", request, diff)
-	}
-	if _, ok := differences[collapsedCVESelector]; !ok {
-		t.Errorf("the collapsed-key CVE selector no longer differs from legacy: the fix landed, so remove the known difference")
 	}
 	t.Logf("compared %d lookups: %d payloads, %d ambiguous, %d not found", compared, payloads, ambiguous, notFound)
 	if payloads == 0 || ambiguous == 0 || notFound == 0 {
@@ -164,28 +152,6 @@ func TestExplainRoundTripFromAnUnscopedPreciseListLive(t *testing.T) {
 	}
 }
 
-// TestExplainSelectorRefusesWhenWinnersAreStaleLive pins the fail-closed rule on
-// a real table: aging the winners watermark past the window turns an ungranted
-// selector explain into the typed refusal, while a public-id lookup (supports
-// only) and an image selector keep answering.
-func TestExplainSelectorRefusesWhenWinnersAreStaleLive(t *testing.T) {
-	ctx, database := openRouteVDatabase(t)
-	gated := PostgresFindingStore{DB: database, ReadFromWinners: true}
-	if _, err := database.ExecContext(ctx, `UPDATE supply_chain_impact_winners_materialization SET materialized_at = NOW() - INTERVAL '1 hour'`); err != nil {
-		t.Fatalf("age the winners: %v", err)
-	}
-	_, err := gated.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-2026-m1", PackageID: "pkg:npm/example-m1@1.0.0"})
-	if !errors.Is(err, ErrExplanationWinnersUnavailable) {
-		t.Fatalf("selector explain with stale winners = %v, want ErrExplanationWinnersUnavailable", err)
-	}
-	if _, err := gated.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{FindingID: "finding:m1"}); err != nil {
-		t.Fatalf("public-id explain must not need the winners table: %v", err)
-	}
-	if _, err := gated.ExplainSupplyChainImpact(ctx, packet.ExplanationFilter{CVEID: "CVE-2026-i1", ImageRef: "registry.example/a:1"}); err != nil {
-		t.Fatalf("image selector explain must not need the winners table: %v", err)
-	}
-}
-
 // TestCollapsedKeyCVEFilterLive characterizes the one divergence the winners-row
 // selector shares with the shipped winners list: the canonical key collapses the
 // CVE and advisory ids, so a finding's copies can disagree on cve_id (c1 carries
@@ -194,6 +160,8 @@ func TestExplainSelectorRefusesWhenWinnersAreStaleLive(t *testing.T) {
 // the precise route miss c while legacy returns it. An advisory_id filter agrees
 // (the pick carries the advisory). Listed for B3 with the rank-filter differences;
 // the day a winners-row cve_id is made key-determined this test changes on purpose.
+// Explain by selector is not affected: it stays on the legacy read, which tests
+// every copy (contract S on supports replaces it after PR-B2b).
 func TestCollapsedKeyCVEFilterLive(t *testing.T) {
 	ctx, database := openRouteVDatabase(t)
 	gated := PostgresFindingStore{DB: database, ReadFromWinners: true}

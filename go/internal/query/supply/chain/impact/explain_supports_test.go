@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -22,9 +21,6 @@ type explainRouteQueryer struct {
 	queries  []string
 	ready    bool
 	probeErr error
-	// winnersAt is the winners watermark the fake answers; the zero value answers
-	// no row (a winners table that was never materialized).
-	winnersAt time.Time
 }
 
 func (q *explainRouteQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
@@ -34,12 +30,6 @@ func (q *explainRouteQueryer) QueryContext(_ context.Context, query string, _ ..
 			return nil, q.probeErr
 		}
 		return &cov7StoreRows{rows: [][]any{{q.ready}}}, nil
-	}
-	if query == SelectWinnersWatermarkQuery {
-		if q.winnersAt.IsZero() {
-			return &cov7StoreRows{}, nil
-		}
-		return &cov7StoreRows{rows: [][]any{{q.winnersAt}}}, nil
 	}
 	return &cov7StoreRows{}, nil
 }
@@ -59,13 +49,9 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 	}
 	legacy := func(q string) bool { return strings.Contains(q, "FROM fact_records AS fact") }
 	probe := func(q string) bool { return strings.Contains(q, "supply_chain_impact_finding_supports_backfill") }
-	watermark := func(q string) bool { return q == SelectWinnersWatermarkQuery }
-	winnersPicks := func(q string) bool {
-		return strings.Contains(q, "FROM supply_chain_impact_canonical_winners AS w") &&
-			strings.Contains(q, "FROM supply_chain_impact_finding_supports AS s") && !strings.Contains(q, "FROM fact_records AS fact")
-	}
 	imageSource := func(q string) bool {
-		return strings.Contains(q, "image_ref = $10 AND image_ref <> ''") && !strings.Contains(q, "FROM fact_records AS fact")
+		return strings.Contains(q, "image_supports AS MATERIALIZED") && strings.Contains(q, "image_ref = $10 AND image_ref <> ''") &&
+			!strings.Contains(q, "FROM fact_records AS fact")
 	}
 
 	for name, tc := range map[string]struct {
@@ -83,20 +69,25 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 			packet.ExplanationFilter{FindingID: "finding:a", AllowedScopeIDs: granted},
 			[]func(string) bool{probe, supportsPublicID, supportsGrantArms},
 		},
-		"ungranted public id then winners identity fallback": {
+		"ungranted public id then legacy identity fallback": {
 			true,
 			packet.ExplanationFilter{FindingID: "finding:a"},
-			[]func(string) bool{probe, supportsPublicID, watermark, winnersPicks},
+			[]func(string) bool{probe, supportsPublicID, legacy},
 		},
-		"ungranted selector reads the winners picks": {
+		"ungranted selector stays legacy": {
 			true,
 			packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"},
-			[]func(string) bool{probe, watermark, winnersPicks},
+			[]func(string) bool{legacy},
 		},
 		"ungranted image selector reads the image index": {
 			true,
 			packet.ExplanationFilter{CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"},
 			[]func(string) bool{probe, imageSource},
+		},
+		"ungranted public id with an image then image identity fallback": {
+			true,
+			packet.ExplanationFilter{FindingID: "finding:a", ImageRef: "registry.example/a:1"},
+			[]func(string) bool{probe, supportsPublicID, imageSource},
 		},
 		"gate off keeps legacy for a granted public id": {
 			false,
@@ -106,7 +97,7 @@ func TestExplainRoutesByGrantAndLookup(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			reader := &explainRouteQueryer{ready: true, winnersAt: time.Now()}
+			reader := &explainRouteQueryer{ready: true}
 			store := NewPostgresFindingStoreWithReadStore(reader, tc.gate)
 			if _, err := store.ExplainSupplyChainImpact(t.Context(), tc.filter); !errors.Is(err, ErrExplanationNotFound) {
 				t.Fatalf("explain = %v, want ErrExplanationNotFound for an empty store", err)
@@ -149,40 +140,6 @@ func TestExplainRefusesWhenSupportsAreNotReady(t *testing.T) {
 	}
 }
 
-// TestExplainWinnersSelectorRefusesWhenTheWinnersModelIsNotFresh pins the
-// fail-closed rule of the unscoped selector explain: a key with supports but no
-// winners row yet would read as "not found", so the winners watermark must be
-// present and inside the freshness window, or the call answers the typed 503
-// instead of a wrong not-found. The image selector reads supports only and does
-// not need the winners table.
-func TestExplainWinnersSelectorRefusesWhenTheWinnersModelIsNotFresh(t *testing.T) {
-	t.Parallel()
-	filter := packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}
-	for name, at := range map[string]time.Time{
-		"never materialized":    {},
-		"older than the window": time.Now().Add(-2 * WinnersFreshnessWindow),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			reader := &explainRouteQueryer{ready: true, winnersAt: at}
-			_, err := NewPostgresFindingStoreWithReadStore(reader, true).ExplainSupplyChainImpact(t.Context(), filter)
-			if !errors.Is(err, ErrExplanationWinnersUnavailable) {
-				t.Fatalf("explain = %v, want ErrExplanationWinnersUnavailable", err)
-			}
-			for _, query := range reader.queries {
-				if strings.Contains(query, "FROM supply_chain_impact_canonical_winners AS w") {
-					t.Fatal("a refused explain read the winners table")
-				}
-			}
-		})
-	}
-	reader := &explainRouteQueryer{ready: true}
-	image := packet.ExplanationFilter{CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"}
-	if _, err := NewPostgresFindingStoreWithReadStore(reader, true).ExplainSupplyChainImpact(t.Context(), image); !errors.Is(err, ErrExplanationNotFound) {
-		t.Fatalf("image explain = %v, want not found: it must not need the winners watermark", err)
-	}
-}
-
 func TestExplainSupportsDerivationFailsOnALostMarker(t *testing.T) {
 	t.Parallel()
 	legacy := supplyChainImpactSplitCanonicalWinnerCTEs("$13::timestamptz")
@@ -217,7 +174,6 @@ func TestExplainSupportsReadsReferenceEveryBindAndOnlySupports(t *testing.T) {
 	for name, query := range map[string]string{
 		"public id": ExplainFindingByPublicIDFromSupportsQuery,
 		"selector":  ExplainFindingFromSupportsQuery,
-		"winners":   ExplainFindingFromWinnersQuery,
 		"image":     ExplainFindingFromImageQuery,
 	} {
 		for n := 1; n <= 19; n++ {

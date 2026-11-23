@@ -4,8 +4,6 @@
 package impact
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -174,46 +172,6 @@ var ExplainFindingByPublicIDFromSupportsQuery = mustBuildExplainFromSupportsQuer
 var ExplainFindingFromSupportsQuery = mustBuildExplainFromSupportsQuery(
 	supportsExplainGrantArms, "", "", supportsExplainIdentityPredicate)
 
-// supportsExplainWinnersSource is the ungranted selector lookup without an
-// image reference: the supports rows that are the winning pick of the keys whose
-// winners row matches the key-determined selectors (cve, advisory, package,
-// repository, subject digest, and the runtime filters, which resolve through the
-// repository) and the identity lookup. The picks are the whole candidate set of
-// their keys, so the legacy pick over every copy lands on the same row. The
-// winners table has no selector index; the measured scan over 80,000 rows is
-// 10 ms (docs/internal/evidence/10880-pr-b2a/RESULTS.md). The winning
-// supports are fetched by primary key inside a MATERIALIZED CTE, fed by an
-// ARRAY(subselect) InitPlan: left inline, the planner pulls the fetch up into a
-// join and drives from the scope tables (the join-form trap of the list read),
-// which the plan-shape guard rejects.
-//
-// The identity arm mirrors supportsExplainIdentityPredicate over every copy: the
-// id may be the key, the winner's finding id or fact id, or the fact id of any
-// copy of the key (resolved through the fact id primary key).
-var supportsExplainWinnersFence = `winner_picks AS MATERIALIZED (
-  SELECT s.*
-  FROM supply_chain_impact_finding_supports AS s
-  WHERE s.fact_id = ANY(ARRAY(
-          SELECT w.winner_fact_id
-          FROM supply_chain_impact_canonical_winners AS w
-          WHERE ($3 = '' OR w.advisory_id = $3 OR w.cve_id = $3)
-            AND ($4 = '' OR w.cve_id = $4)
-            AND ($5 = '' OR w.package_id = $5)
-            AND ($6 = '' OR w.repository_id = $6)
-            AND ($7 = '' OR w.subject_digest = $7)
-` + supplyChainImpactRuntimeFilterPredicate("w.repository_id", "$9", "$8", "''") + `
-            AND ($2 = ''
-                 OR w.winner_fact_id = $2
-                 OR w.finding_id = $2
-                 OR w.canonical_key = $2
-                 OR w.canonical_key IN (
-                      SELECT identity.canonical_key
-                      FROM supply_chain_impact_finding_supports AS identity
-                      WHERE identity.fact_id = $2
-` + supportsEligibleCopySQL("identity") + `))
-  ))
-)`
-
 // supportsExplainImageFence is the ungranted selector lookup with an image
 // reference: the candidates come from the image partial index through a
 // MATERIALIZED fetch, the same fence the list read pins, so the planner cannot
@@ -223,32 +181,26 @@ const supportsExplainImageFence = `image_supports AS MATERIALIZED (
   WHERE image_ref = $10 AND image_ref <> ''
 )`
 
-// ExplainFindingFromWinnersQuery is the ungranted selector and identity explain
-// without an image reference, picked from the winners table's winning supports.
-var ExplainFindingFromWinnersQuery = mustBuildExplainFromSupportsQuery("winner_picks", supportsExplainWinnersFence, "", "")
-
-// ExplainFindingFromImageQuery is the ungranted selector and identity explain
-// with an image reference, driven from the image partial index.
+// ExplainFindingFromImageQuery is the ungranted selector explain with an image
+// reference: filter, then pick, from the image partial index. The identity
+// predicate applies to the image candidates exactly as the legacy read applies it
+// to its authorized candidates, so an identity lookup that names an image keeps its
+// legacy answer.
 var ExplainFindingFromImageQuery = mustBuildExplainFromSupportsQuery(
 	"image_supports", supportsExplainImageFence, "", supportsExplainIdentityPredicate)
-
-// ErrExplanationWinnersUnavailable means an ungranted selector explain was
-// refused because the winners table, which names the candidate keys, is not
-// materialized or is older than the freshness window. Answering from it would
-// read a key with supports but no winners row as not found.
-var ErrExplanationWinnersUnavailable = errors.New("supply chain impact winners read model is not fresh enough to explain")
 
 // explainRoute names the query each lookup of one explain call runs.
 type explainRoute struct {
 	// supports reports that the call reads the per-support table and must pass
 	// the readiness probe first.
 	supports bool
-	// winners reports that the selector lookup names its candidate keys from the
-	// winners table, so it needs a fresh winners watermark before it reads.
-	winners bool
 	// publicID is the query for a call that names a finding_id; selector is the
 	// query for every other lookup, and the identity fallback of a public-id miss.
 	publicID, selector string
+	// publicIDRoute and selectorRoute label the statements for the route counter
+	// and the read-duration histogram: legacy for the reads that stay on the fact
+	// table, so the metric shows how many explain statements still take them.
+	publicIDRoute, selectorRoute ReadRoute
 }
 
 // explainRoute decides where one explain call reads. With the winners gate off
@@ -259,40 +211,40 @@ type explainRoute struct {
 //     list returned must explain with the same payload;
 //   - an ungranted public-id lookup probes supports by finding id, and a miss
 //     falls back to the legacy identity read, because supports has no index for
-//     an ungranted fact-id or canonical-key lookup;
-//   - an ungranted selector lookup keeps the legacy read: the supports table has
-//     no selector index, and the canonical (winners) read it is ruled to take
-//     needs its own measured shape.
+//     an ungranted fact-id or canonical-key lookup (the identity read moves to
+//     supports in PR-C on its own measured index);
+//   - an ungranted selector lookup with an image reference reads supports through
+//     the image partial index, filter then pick;
+//   - an ungranted selector lookup without one keeps the legacy read. The
+//     arbiter's contract S reads it from supports through the cve and advisory
+//     indexes of PR-B2b, so it lands after those migrations; the winners table
+//     cannot name its candidates (a mixed cve_id key, a second key that matches
+//     only on a lower copy, and a replaced winning support each give a wrong
+//     answer).
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
-	legacy := explainRoute{publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery}
+	legacy := explainRoute{
+		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,
+		publicIDRoute: RouteLegacy, selectorRoute: RouteLegacy,
+	}
 	if !s.ReadFromWinners {
 		return legacy
 	}
 	if len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0 {
-		return explainRoute{supports: true, publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingFromSupportsQuery}
+		return explainRoute{
+			supports: true, publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingFromSupportsQuery,
+			publicIDRoute: RouteSupportsGrant, selectorRoute: RouteSupportsGrant,
+		}
 	}
-	// An ungranted call reads supports for the public id, the image index for an
-	// image selector, and the winners table's picks for every other selector or
-	// identity lookup. No gate-on call keeps the legacy fact read.
-	route := explainRoute{supports: true, publicID: ExplainFindingByPublicIDFromSupportsQuery}
+	route := explainRoute{
+		supports: filter.FindingID != "" || filter.ImageRef != "",
+		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
+		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
+	}
 	if filter.ImageRef != "" {
-		route.selector = ExplainFindingFromImageQuery
-		return route
+		route.selector, route.selectorRoute = ExplainFindingFromImageQuery, RouteSupportsImage
 	}
-	route.winners = true
-	route.selector = ExplainFindingFromWinnersQuery
+	if filter.FindingID == "" && filter.ImageRef == "" {
+		return legacy
+	}
 	return route
-}
-
-// requireWinnersFresh refuses an explain that names its candidate keys from the
-// winners table while that table is absent, stale, or its probe failed.
-func (s PostgresFindingStore) requireWinnersFresh(ctx context.Context) error {
-	watermark, err := s.SupplyChainImpactWinnersWatermark(ctx)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrExplanationWinnersUnavailable, err)
-	}
-	if !watermark.Present || SuppressionReadAt(s.Now).Sub(watermark.MaterializedAt.UTC()) > WinnersFreshnessWindow {
-		return ErrExplanationWinnersUnavailable
-	}
-	return nil
 }

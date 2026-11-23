@@ -400,56 +400,6 @@ WHERE w.finding_id = 'finding:m1'`).Scan(&winnerFact, &key); err != nil {
 	}
 }
 
-// TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive proves the ruling's JIT
-// test on a real server. Inside the scope withJITOff opens, the statement sees
-// jit = off; after end() the same pool answers jit = on again, so the setting
-// reaches neither the session nor the pooled connection. The pool is pinned to one
-// connection so the "after" read provably lands on the connection that ran the
-// scope.
-func TestJITOffIsActiveForTheStatementAndGoneAfterCommitLive(t *testing.T) {
-	_, database := openRouteVDatabase(t)
-	database.SetMaxOpenConns(1)
-	ctx := t.Context()
-	show := func(queryer interface {
-		QueryRowContext(context.Context, string, ...any) *sql.Row
-	},
-	) string {
-		var setting string
-		if err := queryer.QueryRowContext(ctx, `SHOW jit`).Scan(&setting); err != nil {
-			t.Fatalf("SHOW jit: %v", err)
-		}
-		return setting
-	}
-	if before := show(database); before != "on" {
-		t.Skipf("server jit = %q: the proof needs the default (on) to show the switch", before)
-	}
-	for _, route := range []ReadRoute{RouteWinnersSupplement, RouteSupportsImage} {
-		if !route.wantsJITOff() {
-			t.Fatalf("route %q must want jit off", route)
-		}
-	}
-	queryer, rowQueryer, end, err := withJITOff(ctx, nil, database, nil, nil)
-	if err != nil {
-		t.Fatalf("withJITOff: %v", err)
-	}
-	var inside string
-	if err := rowQueryer.QueryRowContext(ctx, `SHOW jit`).Scan(&inside); err != nil {
-		t.Fatalf("SHOW jit inside the scope: %v", err)
-	}
-	if inside != "off" {
-		t.Fatalf("jit inside the scope = %q, want off", inside)
-	}
-	rows, err := queryer.QueryContext(ctx, `SELECT 1`)
-	if err != nil {
-		t.Fatalf("statement in the scope: %v", err)
-	}
-	_ = rows.Close()
-	end()
-	if after := show(database); after != "on" {
-		t.Fatalf("jit after the scope = %q, want on: the setting leaked past the transaction", after)
-	}
-}
-
 // shortcutDifferences returns the canonical keys whose winners row differs from
 // the best support the supplement probe would pick for the same key when the
 // precise filter is removed. It is the shortcut invariant of ruling V: a winner

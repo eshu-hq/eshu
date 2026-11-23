@@ -87,29 +87,16 @@ func (s PostgresFindingStore) ExplainSupplyChainImpact(
 			return ExplanationRow{}, err
 		}
 	}
-	query := route.selector
+	query, queryRoute := route.selector, route.selectorRoute
 	if filter.FindingID != "" {
-		query = route.publicID
-	} else if route.winners {
-		if err := readStore.requireWinnersFresh(ctx); err != nil {
-			return ExplanationRow{}, err
-		}
+		query, queryRoute = route.publicID, route.publicIDRoute
 	}
-	findings, err := readStore.loadSupplyChainImpactExplanationFindings(ctx, query, args)
+	findings, err := readStore.loadExplanationFindingsByRoute(ctx, queryRoute, query, args)
 	if err != nil {
 		return ExplanationRow{}, err
 	}
 	if filter.FindingID != "" && len(findings) == 0 {
-		if route.winners {
-			if err := readStore.requireWinnersFresh(ctx); err != nil {
-				return ExplanationRow{}, err
-			}
-		}
-		findings, err = readStore.loadSupplyChainImpactExplanationFindings(
-			ctx,
-			route.selector,
-			args,
-		)
+		findings, err = readStore.loadExplanationFindingsByRoute(ctx, route.selectorRoute, route.selector, args)
 		if err != nil {
 			return ExplanationRow{}, err
 		}
@@ -175,6 +162,18 @@ func (s PostgresFindingStore) explanationSnapshot(
 	// Legacy test doubles expose only QueryContext; derived candidates remain
 	// closed until the protected publication writer is available.
 	return s, nil, nil
+}
+
+// loadExplanationFindingsByRoute counts one explain statement under its route and
+// times it, then runs it.
+func (s PostgresFindingStore) loadExplanationFindingsByRoute(
+	ctx context.Context,
+	route ReadRoute,
+	query string,
+	args []any,
+) ([]supplyChainImpactExplanationCandidate, error) {
+	defer observeRoute(ctx, s.Instruments, route)()
+	return s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 }
 
 func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(

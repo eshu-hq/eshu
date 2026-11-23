@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
@@ -132,5 +133,30 @@ func TestJITIsOffOnlyForTheSupplementAndImageReads(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestExplainNeverSwitchesJITOff pins that the transaction-local jit switch is
+// confined to the list, count, inventory and grouped reads of the supplement and
+// image routes: no explain lookup (granted, public id, image selector, legacy
+// selector) sets it, even though an explain opens its own snapshot transaction.
+func TestExplainNeverSwitchesJITOff(t *testing.T) {
+	t.Parallel()
+	granted := []string{"scope:a"}
+	for name, filter := range map[string]packet.ExplanationFilter{
+		"granted selector":       {CVEID: "CVE-2026-1", PackageID: "pkg:npm/p", AllowedScopeIDs: granted},
+		"ungranted public id":    {FindingID: "finding:a"},
+		"ungranted image":        {CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"},
+		"ungranted selector":     {CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"},
+		"ungranted public + img": {FindingID: "finding:a", ImageRef: "registry.example/a:1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			fake := routeQueryer()
+			_, _ = NewPostgresFindingStoreWithReadStore(fake, true).ExplainSupplyChainImpact(t.Context(), filter)
+			if events := strings.Join(fake.events, ","); strings.Contains(events, "jit_off") {
+				t.Fatalf("an explain switched jit off: %s", events)
+			}
+		})
 	}
 }
