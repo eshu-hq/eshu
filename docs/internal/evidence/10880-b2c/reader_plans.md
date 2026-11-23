@@ -89,6 +89,33 @@ four arms with three new btrees, 51 ms for all four arms with none.
 Not measured here yet: the hot-key page cost and the write cost (WAL) of the
 extra index.
 
+## Hot key: a package with 1,600,000 supports
+
+Raw output: [hot_key_raw_noindex.txt](hot_key_raw_noindex.txt),
+[hot_key_raw_index.txt](hot_key_raw_index.txt) and
+[hot_key_raw_variants.txt](hot_key_raw_variants.txt). Corpus: 3,005,000 facts, of
+which the hot package has 1,600,000 impact findings, 150,000 consumption
+correlations and 5,000 alerts; 2,600,000 supports, 1,600,000 for the hot package;
+9,000 active scopes; the full bootstrap schema (fact_records 6.4 GB, supports
+3.0 GB). The statements are the legacy six-arm fact read of `bccdb88982` and the
+merged `UNION ALL` statement of this branch, bound parameters, filter = the hot
+package, `LIMIT 500`; the midpoint page starts at the fact id at offset 877,500 of
+the 1,755,000 matches. With `s_pkg`, `s_cve` and `s_adv` present, after a restart:
+
+| Page | Legacy fact read, first / second | Merged statement, first / second | Buffers, legacy / merged | Temp blocks written |
+| --- | --- | --- | --- | --- |
+| page 1 | 62,186 / 20,696 ms | 20,142 / 6,349 ms | 3.03M / 5.52M | 0 / 120,463 |
+| midpoint | 11,489 / 2,584 ms | 3,526 / 3,523 ms | 3.03M / 3.13M | 0 / 60,238 |
+
+Legacy wall time swung 10x between two passes on identical buffer counts; the
+buffer counts are the stable figure. With a package that covers 61% of the table
+the planner scans the supports sequentially even with `s_pkg` and materializes
+the whole match set in the CTE, which spills to temp. `NOT MATERIALIZED` and
+per-arm lateral variants avoid the temp but drive from the 9,000 active scopes
+(2.4M to 2.6M buffers). An ordered scan of `s_pkg` with `LIMIT 500` and no
+active-generation predicate takes 2.9 ms and 510 buffers; any formulation that
+states the active-generation check makes the planner leave it.
+
 ## When the package array is non-empty
 
 `securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
