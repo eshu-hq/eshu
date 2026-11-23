@@ -34,8 +34,8 @@ import (
 // 13107-row clamp (#11157). QA-scale wall time at 1.5M+ depth stays
 // NOT_CHECKED here: the live p95 <= 40s / zero >= 60s bars and the
 // single-knob rollback to 200 ride with the Bounded segment and the
-// A-triple-prime run. The
-// deleted node (identifier Semi Join over a stored-winners Seq Scan,
+// A-triple-prime run. The deleted node (identifier Semi Join over a
+// stored-winners Seq Scan,
 // 295 buffers at 5k stored) extrapolates to tens of milliseconds at the QA
 // stored count, far below the narrow (B)-trigger's 1.5s, so no winners-table
 // index is added.
