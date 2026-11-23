@@ -3,7 +3,13 @@
 
 package completionstore
 
-import "time"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+)
 
 // activeGenerationsCTE names the scope-to-active-generation set. The fan-out
 // statement and the skipped-marker count both splice this one text, so the
@@ -52,3 +58,52 @@ WHERE ` + consumerStatePredicate + `
 // the measured cost: long enough that a loaded database still reports, short
 // enough that the runner's per-event Fanout call is not held for a counter.
 const defaultManifestMarkerCountTimeout = 10 * time.Second
+
+// countSkippedManifestMarkers runs manifestMarkerCountQuery after a committed
+// fan-out. It never returns an error: the fan-out already committed and the
+// count only feeds a counter, so a failure (query error, scan error, missing
+// row, or the bounded context expiring) logs a warning and returns zero, which
+// the runner does not add to the counter. This is the one place the package
+// tolerates a failure; do not copy the pattern to a statement that gates data.
+func (s *CrossScopeCompletionStore) countSkippedManifestMarkers(ctx context.Context) int {
+	timeout := s.markerCountTimeout
+	if timeout <= 0 {
+		timeout = defaultManifestMarkerCountTimeout
+	}
+	countCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	skipped, err := s.queryManifestMarkerCount(countCtx)
+	if err != nil {
+		logger := s.Logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn(
+			"cross-scope completion manifest marker count failed; fan-out already committed, counter not advanced",
+			"error", err,
+			"timeout", timeout.String(),
+		)
+		return 0
+	}
+	return skipped
+}
+
+func (s *CrossScopeCompletionStore) queryManifestMarkerCount(ctx context.Context) (int, error) {
+	rows, err := s.database.QueryContext(ctx, manifestMarkerCountQuery)
+	if err != nil {
+		return 0, fmt.Errorf("count skipped manifest markers: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return 0, fmt.Errorf("count skipped manifest markers: %w", err)
+		}
+		return 0, errors.New("count skipped manifest markers: no row returned")
+	}
+	var skipped int
+	if err := rows.Scan(&skipped); err != nil {
+		return 0, fmt.Errorf("scan skipped manifest markers: %w", err)
+	}
+	return skipped, nil
+}

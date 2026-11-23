@@ -35,7 +35,6 @@ import (
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	producerreadiness "github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/producer"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scope/completion"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -575,7 +574,7 @@ func buildReducerService(
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
 		CrossScopeCompletionRunner: &reducer.CrossScopeCompletionRunner{
-			Queue:       completionstore.NewCrossScopeCompletionStore(database),
+			Queue:       newCrossScopeCompletionStore(database, logger),
 			LeaseOwner:  defaultCrossScopeCompletionLeaseOwner(),
 			Logger:      logger,
 			Instruments: instruments,

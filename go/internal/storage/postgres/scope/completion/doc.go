@@ -11,8 +11,12 @@
 // NewCrossScopeCompletionStore; FanoutCrossScopeCompletionQuery is exported
 // for the staying root plan tests, which EXPLAIN the shipped query rather
 // than a copy). Fanout schedules the active-generation consumers whose
-// handler reads the producer's output and never a manifest marker, which it
-// counts in ManifestMarkersSkipped (#10972). CrossScopeProducerReadinessStore answers per-producer-domain
+// handler reads the producer's output and never a manifest marker (#10972).
+// For a producer that feeds supply_chain_impact it then counts the markers it
+// left alone into ManifestMarkersSkipped with a separate read-only statement
+// run after the fan-out committed, under its own bounded context; a failed
+// count logs a warning and leaves the field zero without failing the committed
+// fan-out. CrossScopeProducerReadinessStore answers per-producer-domain
 // readiness through ProducerScopeQuiescence, which reports every registered
 // ingestion scope under a set of collector kinds alongside the
 // quiescent-active subset: a kind with no registered scope at all is ready,

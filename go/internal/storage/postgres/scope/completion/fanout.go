@@ -58,18 +58,6 @@ WITH lease AS MATERIALIZED (
       AND NOT (` + manifestMarkerPredicate + `)
     ORDER BY source.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF source
-), skipped_markers AS MATERIALIZED (
-    -- Manifest markers are left unlocked and unscheduled (#10972); count them
-    -- so an operator sees how many consumers the exclusion spared.
-    SELECT count(*) AS skipped
-    FROM fact_work_items AS source
-    JOIN dependencies AS dependency
-      ON dependency.consumer_domain = source.domain
-    JOIN lease
-      ON lease.producer_domain = dependency.producer_domain
-    ` + activeGenerationJoin + `
-    WHERE ` + consumerStatePredicate + `
-      AND (` + manifestMarkerPredicate + `)
 ), captured AS MATERIALIZED (
     SELECT event.event_id, event.producer_item_count
     FROM cross_scope_completion_events AS event
@@ -155,14 +143,23 @@ WITH lease AS MATERIALIZED (
 SELECT (SELECT count(*) FROM captured),
        (SELECT COALESCE(sum(producer_item_count), 0) FROM captured),
        (SELECT count(*) FROM scheduled),
-       (SELECT count(*) FROM deleted),
-       (SELECT skipped FROM skipped_markers)
+       (SELECT count(*) FROM deleted)
 `
 
 // Fanout coalesces an exact pending event set for the leased producer, schedules
 // each current-generation canonical consumer at most once (never a manifest
-// marker, which it counts in ManifestMarkersSkipped), and deletes only
-// that captured event set in one statement.
+// marker), and deletes only that captured event set in one statement.
+//
+// When the producer has a supply_chain_impact consumer edge, Fanout then counts
+// the markers it left alone into ManifestMarkersSkipped with a separate
+// read-only statement (manifestMarkerCountQuery). That count runs only after
+// the fan-out statement returned and committed (autocommit, no lock held), under
+// its own bounded context, so it adds nothing to the lock hold of the fan-out
+// or to a producer ack waiting on the event row. A count failure is the one
+// failure Fanout tolerates: the fan-out already committed and the count only
+// feeds eshu_dp_cross_scope_completion_markers_skipped_total, so an error or
+// timeout logs a warning, leaves ManifestMarkersSkipped at zero, and returns
+// the committed result.
 func (s *CrossScopeCompletionStore) Fanout(
 	ctx context.Context,
 	lease reducer.CrossScopeCompletionLease,
@@ -177,10 +174,34 @@ func (s *CrossScopeCompletionStore) Fanout(
 	edges := crossscope.CompletionEdges()
 	producerDomains := make([]string, 0, len(edges))
 	consumerDomains := make([]string, 0, len(edges))
+	feedsSupplyChainImpact := false
 	for _, edge := range edges {
 		producerDomains = append(producerDomains, string(edge.Producer))
 		consumerDomains = append(consumerDomains, string(edge.Consumer))
+		if string(edge.Producer) == string(lease.ProducerDomain) && edge.Consumer == reducer.DomainSupplyChainImpact {
+			feedsSupplyChainImpact = true
+		}
 	}
+	result, err := s.runFanoutStatement(ctx, lease, batchSize, producerDomains, consumerDomains)
+	if err != nil {
+		return reducer.CrossScopeCompletionResult{}, err
+	}
+	if feedsSupplyChainImpact {
+		result.ManifestMarkersSkipped = s.countSkippedManifestMarkers(ctx)
+	}
+	return result, nil
+}
+
+// runFanoutStatement runs the fan-out statement and returns its four counts. It
+// closes the cursor before returning so the caller's next statement never
+// overlaps an open one on the same connection.
+func (s *CrossScopeCompletionStore) runFanoutStatement(
+	ctx context.Context,
+	lease reducer.CrossScopeCompletionLease,
+	batchSize int,
+	producerDomains []string,
+	consumerDomains []string,
+) (reducer.CrossScopeCompletionResult, error) {
 	rows, err := s.database.QueryContext(
 		ctx,
 		FanoutCrossScopeCompletionQuery,
@@ -210,7 +231,6 @@ func (s *CrossScopeCompletionStore) Fanout(
 		&result.ProducerItemsProcessed,
 		&result.IntentsEnqueued,
 		&deleted,
-		&result.ManifestMarkersSkipped,
 	); err != nil {
 		return reducer.CrossScopeCompletionResult{}, fmt.Errorf("scan cross-scope completion fanout: %w", err)
 	}

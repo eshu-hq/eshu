@@ -45,6 +45,11 @@ type CrossScopeCompletionResult struct {
 	// (supply_chain_impact items with payload trigger=manifest_dependency)
 	// this fan-out left alone: they read no producer output, so scheduling
 	// or flagging one only re-runs a pass that changes no finding (#10972).
+	// The store reads it with a separate statement after the fan-out
+	// committed, only for a producer with a supply_chain_impact consumer
+	// edge. It is zero for any other producer and when that read failed, so
+	// zero is not proof that no marker was skipped; the store logs a warning
+	// for a failed read.
 	ManifestMarkersSkipped int
 	FanoutDuration         time.Duration
 }

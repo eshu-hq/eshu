@@ -832,7 +832,10 @@ FROM fact_work_items WHERE work_item_id = $1
 // reads P's output; a manifest marker is never scheduled or flagged. A marker
 // (payload trigger=manifest_dependency) reads no CI/CD or identity evidence
 // and writes no finding, so re-pending a succeeded one or flagging a claimed
-// one only re-runs a pass that cannot change any finding.
+// one only re-runs a pass that cannot change any finding. ManifestMarkersSkipped
+// is read through the separate post-commit count (manifestMarkerCountQuery),
+// so the assertions on it prove that read against real rows: both markers are
+// counted, the findings item is not, and the count leaves every row as it was.
 func TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive(t *testing.T) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)

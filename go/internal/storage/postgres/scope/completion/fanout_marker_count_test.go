@@ -56,7 +56,7 @@ func (s *fanoutStatementStub) ExecContext(context.Context, string, ...any) (sql.
 	return nil, errors.New("fanout must not exec")
 }
 
-func committedFanoutRows() [][]any { return [][]any{{1, 4, 3, 1}} }
+func committedFanoutRows() [][]any { return [][]any{{1, int64(4), 3, 1}} }
 
 func fanoutLease(producer reducercontract.Domain) reducer.CrossScopeCompletionLease {
 	return reducer.CrossScopeCompletionLease{EventID: 7, ProducerDomain: producer, LeaseOwner: "owner", ClaimEpoch: 1}
