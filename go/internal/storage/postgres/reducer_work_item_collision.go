@@ -110,6 +110,17 @@ func heldIsDifferentIntent(stored ReducerWorkItemCollisionSample, incoming runti
 	return reproduces
 }
 
+// firstDifferingIntent returns the first incoming intent of a held row's id that
+// is a different intent from the held row (heldIsDifferentIntent).
+func firstDifferingIntent(stored ReducerWorkItemCollisionSample, incoming []runtime.ReducerIntent) (runtime.ReducerIntent, bool) {
+	for _, intent := range incoming {
+		if heldIsDifferentIntent(stored, intent) {
+			return intent, true
+		}
+	}
+	return runtime.ReducerIntent{}, false
+}
+
 // resolveEnqueueShortfall returns the rows an enqueue inserted, after refusing a
 // collision a shortfall hides: fewer rows than attempted is normally a benign
 // duplicate, but reducerWorkItemID is not injective (#11215), so a held id can
@@ -131,10 +142,13 @@ func resolveEnqueueShortfall(ctx context.Context, database db.Queryer, batch []r
 // is a collision. It runs one primary-key probe, and only on a shortfall.
 func refuseWorkItemCollisions(ctx context.Context, database db.Queryer, batch []runtime.ReducerIntent) error {
 	ids := make([]string, len(batch))
-	byID := make(map[string]runtime.ReducerIntent, len(batch))
+	// A batch can hold several intents with one id (a duplicate, or an alias of
+	// another intent), so every incoming intent per id is kept: a map of one
+	// intent per id would compare the held row with only the last of them.
+	byID := make(map[string][]runtime.ReducerIntent, len(batch))
 	for i, intent := range batch {
 		ids[i] = reducerWorkItemID(intent)
-		byID[ids[i]] = intent
+		byID[ids[i]] = append(byID[ids[i]], intent)
 	}
 	rows, err := database.QueryContext(ctx, heldWorkItemsQuery, array.StringArray(ids))
 	if err != nil {
@@ -148,8 +162,10 @@ func refuseWorkItemCollisions(ctx context.Context, database db.Queryer, batch []
 		if err := rows.Scan(&sample.WorkItemID, &sample.StoredScopeID, &sample.StoredGenerationID, &sample.StoredDomain, &sample.StoredEntityKey); err != nil {
 			return fmt.Errorf("scan held reducer work item: %w", err)
 		}
-		incoming := byID[sample.WorkItemID]
-		if !heldIsDifferentIntent(sample, incoming) {
+		// One held row is one collision, however many incoming intents share its
+		// id; the sample names the first incoming intent that differs from it.
+		incoming, differs := firstDifferingIntent(sample, byID[sample.WorkItemID])
+		if !differs {
 			continue
 		}
 		collision.Count++

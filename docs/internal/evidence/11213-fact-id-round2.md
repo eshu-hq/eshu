@@ -143,7 +143,11 @@ The first version of the enqueue shortfall probe also failed a healthy duplicate
 `WHERE work_item_id = ANY($1)` on the primary key, returning every held row of
 the batch, with Go deciding which are a different intent. It runs only when an
 enqueue inserts fewer rows than it attempted, and it reads at most one batch
-(500 ids).
+(500 ids). A batch can hold several intents with one id, so Go keeps every
+incoming intent per id and flags a held row when any of them is a different
+intent: one collision per held row, with the first differing intent as the
+sample, in whatever order the batch lists them (keeping one intent per id would
+miss `[Y, X]`, where X is the queued intent and Y an alias of its id).
 
 No-Regression Evidence: measured with `EXPLAIN (ANALYZE, BUFFERS)` on a
 disposable `postgres:18` with the bootstrap schema, 200,001 `fact_work_items`

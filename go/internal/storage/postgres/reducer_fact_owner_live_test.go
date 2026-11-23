@@ -260,3 +260,40 @@ func TestEnqueueRefusesAnEntityKeyAliasLive(t *testing.T) {
 		t.Fatalf("duplicate enqueue = %+v, %v, want a benign zero-count coalesce", result, err)
 	}
 }
+
+// TestEnqueueRefusesAnAliasingIntentInEitherBatchOrderLive is the live proof for
+// a batch holding both the queued intent X and a different intent Y that shares
+// its id: the collision is refused for [X, Y] and for [Y, X], and the queued row
+// is untouched. The probe once kept only the last intent per id, so [Y, X] read
+// as a benign duplicate and Y was dropped without an error.
+func TestEnqueueRefusesAnAliasingIntentInEitherBatchOrderLive(t *testing.T) {
+	p := openReprojectProof(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	x := runtime.ReducerIntent{
+		ScopeID: "git-repository-scope:grp/order", GenerationID: "gen-o1", Domain: reducer.DomainWorkloadMaterialization,
+		EntityKey: "workload_materialization:git-repository-scope:grp/order", Reason: "proof", SourceSystem: "git",
+	}
+	y := x
+	y.ScopeID = "git-repository-scope:grp_order"
+	y.EntityKey = "workload_materialization:git-repository-scope:grp_order"
+	if reducerWorkItemID(x) != reducerWorkItemID(y) {
+		t.Fatalf("test bug: the intents must share a work item id")
+	}
+	seedUnchangedSkipScope(t, ctx, p.db, x.ScopeID, x.GenerationID, now)
+	queue := NewReducerQueue(SQLDB{DB: p.db}, "owner-proof", time.Minute)
+	if result, err := queue.Enqueue(ctx, []runtime.ReducerIntent{x}); err != nil || result.Count != 1 {
+		t.Fatalf("first enqueue = %+v, %v, want one inserted", result, err)
+	}
+	before := p.queryString(`SELECT row_to_json(w)::text FROM fact_work_items w WHERE work_item_id = $1`, reducerWorkItemID(x))
+	for name, batch := range map[string][]runtime.ReducerIntent{"X then Y": {x, y}, "Y then X": {y, x}} {
+		_, err := queue.Enqueue(ctx, batch)
+		var collision *ReducerWorkItemCollisionError
+		if !errors.As(err, &collision) || collision.Count != 1 || collision.Samples[0].IncomingScopeID != y.ScopeID || collision.Retryable() {
+			t.Fatalf("%s: enqueue error = %v, want one non-retryable collision flagged by Y", name, err)
+		}
+	}
+	if got := p.queryString(`SELECT row_to_json(w)::text FROM fact_work_items w WHERE work_item_id = $1`, reducerWorkItemID(x)); got != before {
+		t.Fatalf("the queued row changed:\n before %s\n after  %s", before, got)
+	}
+}

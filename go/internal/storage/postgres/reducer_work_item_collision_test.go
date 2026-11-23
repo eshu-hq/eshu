@@ -88,3 +88,71 @@ func TestEnqueueRefusesAnIntentWhoseWorkItemIDAnotherIntentHolds(t *testing.T) {
 		})
 	}
 }
+
+// TestEnqueueComparesEveryIncomingIntentSharingAWorkItemID is the regression for
+// a batch that holds two intents with one work item id. The probe used to keep
+// only the last intent per id, so [Y, X] (X the intent already queued, Y a
+// different intent aliasing its id) compared the held row with X alone and
+// missed the collision that [X, Y] caught. A held row is a collision when ANY
+// incoming intent that shares its id is a different intent, and it is counted
+// once per held row, with the first differing intent as the sample.
+func TestEnqueueComparesEveryIncomingIntentSharingAWorkItemID(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.November, 23, 3, 0, 0, 0, time.UTC)
+	same := runtime.ReducerIntent{
+		ScopeID: "git-repository-scope:grp/sub_proj", GenerationID: "gen-1",
+		Domain: reducer.DomainWorkloadMaterialization, EntityKey: "workload_materialization:git-repository-scope:grp/sub_proj",
+	}
+	otherA := runtime.ReducerIntent{
+		ScopeID: "git-repository-scope:grp_sub/proj", GenerationID: "gen-1",
+		Domain: reducer.DomainWorkloadMaterialization, EntityKey: "workload_materialization:git-repository-scope:grp_sub/proj",
+	}
+	otherB := runtime.ReducerIntent{
+		ScopeID: "git-repository-scope:grp_sub_proj", GenerationID: "gen-1",
+		Domain: reducer.DomainWorkloadMaterialization, EntityKey: "workload_materialization:git-repository-scope:grp_sub_proj",
+	}
+	spaced := same
+	spaced.EntityKey = "  " + same.EntityKey + " "
+	for _, other := range []runtime.ReducerIntent{otherA, otherB} {
+		if reducerWorkItemID(same) != reducerWorkItemID(other) {
+			t.Fatalf("test bug: the intents must share a work item id: %q vs %q", reducerWorkItemID(same), reducerWorkItemID(other))
+		}
+	}
+	held := []any{reducerWorkItemID(same), same.ScopeID, same.GenerationID, string(same.Domain), same.EntityKey}
+
+	for _, tc := range []struct {
+		name      string
+		batch     []runtime.ReducerIntent
+		wantFirst string // the first differing incoming intent's scope, empty when benign
+	}{
+		{"queued intent first, aliasing intent second", []runtime.ReducerIntent{same, otherA}, otherA.ScopeID},
+		{"aliasing intent first, queued intent second", []runtime.ReducerIntent{otherA, same}, otherA.ScopeID},
+		{"two aliasing intents: one collision per held row", []runtime.ReducerIntent{otherA, otherB}, otherA.ScopeID},
+		{"queued intent between two aliasing intents", []runtime.ReducerIntent{same, otherB, otherA}, otherB.ScopeID},
+		{"the queued intent twice is a benign duplicate", []runtime.ReducerIntent{same, same}, ""},
+		{"the queued intent and its whitespace spelling are benign", []runtime.ReducerIntent{spaced, same}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			database := &fakeExecQueryer{
+				execResults:      []sql.Result{rowsAffectedResult{rowsAffected: 0}},
+				heldWorkItemRows: [][]any{held},
+			}
+			queue := ReducerQueue{database: database, LeaseOwner: "reducer-1", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+			result, err := queue.Enqueue(context.Background(), tc.batch)
+			if tc.wantFirst == "" {
+				if err != nil || result.Count != 0 {
+					t.Fatalf("Enqueue() = %+v, %v, want a benign zero-count coalesce", result, err)
+				}
+				return
+			}
+			var collision *ReducerWorkItemCollisionError
+			if !errors.As(err, &collision) {
+				t.Fatalf("Enqueue() error = %v, want *ReducerWorkItemCollisionError", err)
+			}
+			if collision.Count != 1 || len(collision.Samples) != 1 || collision.Samples[0].IncomingScopeID != tc.wantFirst || collision.Retryable() {
+				t.Fatalf("collision = %+v, want one held row flagged by the first differing intent %q", collision, tc.wantFirst)
+			}
+		})
+	}
+}
