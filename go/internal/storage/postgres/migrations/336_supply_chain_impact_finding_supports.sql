@@ -97,20 +97,35 @@ CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_backfill (
 -- 'supports_v1' for its transaction, so its rows skip the trigger entirely (the
 -- WHEN clause is the only cost on every other insert); the same setting pattern
 -- as migration 139. Readers treat a non-empty table as not ready.
+--
+-- The trigger function runs as its owner, the migration role that also owns the
+-- dirty table: a least-privilege login that writes finding facts needs no
+-- privilege on the dirty table, and this migration creates the table and arms
+-- the trigger in one transaction, so no grant could exist in time. The function
+-- pins its search_path to pg_catalog, this schema and pg_temp last (the form of
+-- migration 307), so a caller's temp table or search_path cannot divert the
+-- mark, and PUBLIC may not execute it. The search_path is set only after every
+-- CREATE TABLE and CREATE INDEX above, which must still target this schema, and
+-- restored before the triggers are created.
 CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty (
     scope_id      TEXT PRIMARY KEY,
     dirty_version BIGINT NOT NULL DEFAULT 1,
     marked_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE OR REPLACE FUNCTION supply_chain_impact_finding_supports_mark_dirty() RETURNS trigger AS $$
+SELECT set_config('eshu.prev_search_path', current_setting('search_path'), true);
+CREATE OR REPLACE FUNCTION supply_chain_impact_finding_supports_mark_dirty() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
     INSERT INTO supply_chain_impact_finding_supports_dirty AS dirty (scope_id)
     VALUES (NEW.scope_id)
     ON CONFLICT (scope_id) DO UPDATE
     SET dirty_version = dirty.dirty_version + 1, marked_at = now();
     RETURN NULL;
-END $$ LANGUAGE plpgsql;
+END $$;
+SELECT set_config('search_path', 'pg_catalog, ' || quote_ident(current_schema()) || ', pg_temp', true);
+ALTER FUNCTION supply_chain_impact_finding_supports_mark_dirty() SET search_path FROM CURRENT;
+REVOKE ALL ON FUNCTION supply_chain_impact_finding_supports_mark_dirty() FROM PUBLIC;
+SELECT set_config('search_path', current_setting('eshu.prev_search_path'), true);
 
 DROP TRIGGER IF EXISTS supply_chain_impact_finding_supports_dirty_insert ON fact_records;
 CREATE TRIGGER supply_chain_impact_finding_supports_dirty_insert

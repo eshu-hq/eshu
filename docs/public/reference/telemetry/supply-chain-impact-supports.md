@@ -42,23 +42,29 @@ No label carries a scope, repository, canonical key or CVE.
 
 ## Least-privilege logins
 
-Migration 336 creates the tables, and it grants nothing. A database that uses
-least-privilege writer logins must grant, before the roll that carries it:
+Migration 336 creates the tables and grants nothing. A database that uses
+least-privilege writer logins must grant the reducer login, after the schema
+migration that creates the tables and before the new reducer writes impact
+findings:
 
-- the login that runs the impact writer and the backfill (the reducer):
-  `SELECT`, `INSERT`, `UPDATE` and `DELETE` on
-  `supply_chain_impact_finding_supports`; `SELECT`, `INSERT` and `UPDATE` on
-  `supply_chain_impact_finding_supports_backfill`; and `SELECT` and `DELETE` on
-  `supply_chain_impact_finding_supports_dirty`, which the drain reads and clears.
-- the same login, during a rolling upgrade, `INSERT`, `UPDATE` and `SELECT` on
-  `supply_chain_impact_finding_supports_dirty` as well. A reducer of the
-  previous release writes finding facts without the maintainer, and the fence
-  trigger then runs as that login, not as the table owner. Drop those three
-  grants after the old reducers are gone.
+- `SELECT`, `INSERT`, `UPDATE` and `DELETE` on
+  `supply_chain_impact_finding_supports`, which the impact writer upserts and
+  retracts and the backfill fills.
+- `SELECT`, `INSERT` and `UPDATE` on
+  `supply_chain_impact_finding_supports_backfill`, the marker and cursor table.
+- `SELECT` and `DELETE` on `supply_chain_impact_finding_supports_dirty`, which
+  the backfill drain reads and clears.
 
-None of the three tables has a sequence. Without the first grant the impact
-writer fails with `permission denied for table
-supply_chain_impact_finding_supports` (SQLSTATE 42501) and its pass rolls back.
-The writer-path grant is proven by the live tests that write impact findings
-through a role-bound login. The rolling-upgrade grants come from reading
-migration 336, not from a live run.
+None of the three tables has a sequence. Until the first grant exists, the new
+reducer's impact writes fail with `permission denied for table
+supply_chain_impact_finding_supports` (SQLSTATE 42501), and each pass rolls back
+and retries.
+
+The old-writer fence trigger needs no grant for any login. Its function runs as
+its owner (`SECURITY DEFINER`, with a search_path pinned to `pg_catalog`, its own
+schema and `pg_temp`, and PUBLIC execute revoked), the same form as the winners
+capture functions. A reducer of the previous release that writes finding facts
+through a least-privilege login still marks its scope dirty during a rolling
+upgrade, with no privilege on the dirty table. This is proven by live tests
+against a login that holds `INSERT` and `UPDATE` on `fact_records` and nothing on
+the dirty table. It is not proven on a deployed least-privilege database.

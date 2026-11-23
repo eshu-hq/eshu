@@ -38,6 +38,12 @@ func TestSupplyChainImpactFindingSupportsMigrationShape(t *testing.T) {
 		// The old-writer fence: a dirty-scope table and triggers that skip rows
 		// written under the maintainer's transaction setting.
 		"CREATE TABLE IF NOT EXISTS supply_chain_impact_finding_supports_dirty ( scope_id TEXT PRIMARY KEY",
+		// The fence function runs as its owner with a pinned search_path and no
+		// PUBLIC execute (the form of migration 307); the live proofs pin the
+		// posture and the behavior per schema.
+		"RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$",
+		"ALTER FUNCTION supply_chain_impact_finding_supports_mark_dirty() SET search_path FROM CURRENT",
+		"REVOKE ALL ON FUNCTION supply_chain_impact_finding_supports_mark_dirty() FROM PUBLIC",
 		"CREATE TRIGGER supply_chain_impact_finding_supports_dirty_insert AFTER INSERT ON fact_records FOR EACH ROW",
 		"CREATE TRIGGER supply_chain_impact_finding_supports_dirty_update AFTER UPDATE ON fact_records FOR EACH ROW",
 		"NEW.fact_kind = 'reducer_supply_chain_impact_finding'",

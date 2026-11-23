@@ -500,7 +500,7 @@ var migrationShippedChecksums = map[string]string{
 	"335_supply_chain_impact_winners_audit_sweep.sql": "f142f55f705b74f370d0515a51ea5c5768d5e088278722c201a91453a0400ea6",
 	// #10880 PR-B1: the per-support table behind the grant-scoped reads
 	// (numbered 336 after main took 333 to 335).
-	"336_supply_chain_impact_finding_supports.sql": "feecbc510c1d849fdc14ccefb41a5487d73dc76743be530590102201f32fe3cb",
+	"336_supply_chain_impact_finding_supports.sql": "04d6d5da843a4e080bb38f31966e3416fcba864549038eb43d599a8cabb40b2d",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

@@ -361,10 +361,12 @@ import (
 // Count 362 is main's 361 (333 to 335 included) plus 336 (#10880 PR-B1). The
 // digest was recomputed on the merged tree by this test's own derivation, and
 // again when 336 gained its (generation_id) index and the header comment that
-// explains it, and once more when that header stopped crediting a PostgreSQL 17
-// measurement that was never taken.
+// explains it, once more when that header stopped crediting a PostgreSQL 17
+// measurement that was never taken, and once more when 336's fence function
+// became SECURITY DEFINER with a pinned search_path (336 is unshipped, so its
+// checksum and this digest move in place).
 const (
-	goldenBootstrapDefinitionsDigest = "80d3b2cf548efb29d3e03521758a8adaefda55c290fdc38f43439cbb219073bf"
+	goldenBootstrapDefinitionsDigest = "210060a7db81771238b4e4ec865319675cb22741a99a6e9cbf8e400629329d60"
 	goldenBootstrapDefinitionsCount  = 362
 )
 

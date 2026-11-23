@@ -207,4 +207,5 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 	if result.FactsWritten != 1 || revisions != 1 {
 		t.Fatalf("FactsWritten=%d revisions=%d, want 1/1", result.FactsWritten, revisions)
 	}
+	requireNoSupportsFenceMarks(t, ctx, admin)
 }

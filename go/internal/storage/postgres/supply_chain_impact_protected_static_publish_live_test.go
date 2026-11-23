@@ -223,6 +223,7 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	if revisionCount != 1 {
 		t.Fatalf("authority revisions after retry = %d, want exactly one", revisionCount)
 	}
+	requireNoSupportsFenceMarks(t, ctx, admin)
 
 	// A revoked writer authority fail-closes the next pass: with the
 	// worker contract disabled, authorization refuses before any fact write.
@@ -231,6 +232,20 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 		t.Fatal("WriteSupplyChainImpactFindings() after contract revoke = nil, want the authority refusal")
 	} else if !strings.Contains(err.Error(), "principal denied") {
 		t.Fatalf("WriteSupplyChainImpactFindings() after contract revoke = %v, want the principal refusal", err)
+	}
+}
+
+// requireNoSupportsFenceMarks proves the real impact writer, running through a
+// role-bound login, carries the maintainer's transaction setting and so marks no
+// scope dirty: the fence is for writers without the maintainer only.
+func requireNoSupportsFenceMarks(t *testing.T, ctx context.Context, admin *sql.DB) {
+	t.Helper()
+	var marks int
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports_dirty`).Scan(&marks); err != nil {
+		t.Fatalf("count fence marks: %v", err)
+	}
+	if marks != 0 {
+		t.Fatalf("the role-bound impact writer left %d scopes marked dirty, want 0: it must carry the maintainer setting", marks)
 	}
 }
 
@@ -265,9 +280,10 @@ func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB
 		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
 		// The impact writer keeps the per-support table current in the same
 		// transaction (#10880 PR-B1): upsert and retraction delete. An ordinary base
-		// table, so a DBA pregrant like the admission table above; the fence
-		// trigger needs nothing because this writer's transaction sets the
-		// supports_v1 setting and skips it.
+		// table, so a DBA pregrant like the admission table above. The old-writer
+		// fence trigger needs no grant for any login: its function runs as the
+		// owner (migration 336), and this writer's transaction sets the
+		// supports_v1 setting so the trigger skips its rows anyway.
 		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
 		// The change set behind the holder fan-out (#9695) reads scope_generations
 		// inside the write transaction to find the previous generation. The
