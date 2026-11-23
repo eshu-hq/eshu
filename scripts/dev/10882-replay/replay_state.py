@@ -176,3 +176,41 @@ def projector_accounting(path: str, sources: dict[str, str]) -> dict[str, Any]:
   return {"paced_items": dict(paced_items), "paced_wait_sum": dict(paced_wait_sum),
           "attempt_count_changes": attempt_changes, "unsettled": unsettled,
           "superseded_scopes": len(superseded), "superseded_without_succeeded_active": not_succeeded}
+
+
+def item_timing(path: str, sources: dict[str, str], release_epoch: float | None) -> dict[str, Any]:
+  """Completion time of every succeeded source-A projector item relative to the
+  latch release: created, last claim and completion come from the queue rows."""
+  inverse = {v: k for k, v in sources.items()}
+  after: list[float] = []
+  paced_after: list[float] = []
+  for row in read_tsv(path):
+    if len(row) < 13 or inverse.get(row[7], "other") != "A" or row[4] != "succeeded":
+      continue
+    done = float(row[12])
+    if release_epoch is not None:
+      after.append(round(done - release_epoch, 1))
+      if int(row[6]) > 0:
+        paced_after.append(round(done - release_epoch, 1))
+  return {"items": len(after), "max_after_release_s": max(after, default=None),
+          "paced_items": len(paced_after), "paced_max_after_release_s": max(paced_after, default=None),
+          "paced_min_after_release_s": min(paced_after, default=None)}
+
+
+def shapes(generations_path: str) -> dict[str, dict[str, Any]]:
+  """Per git scope: the shape of its active generation, (is_delta, sha of the
+  projected full base), plus the commit chain in ingest order."""
+  chain: dict[str, list[str]] = defaultdict(list)
+  out: dict[str, dict[str, Any]] = {}
+  for row in read_tsv(generations_path):
+    if len(row) < 9:
+      continue
+    scope_id, _gen, sha, _ingested, is_delta, _status, active, baseline, union_base = row[:9]
+    if sha:
+      chain[scope_id].append(sha)
+    if active == "t":
+      delta = is_delta == "t"
+      out[scope_id] = {"is_delta": delta, "active_sha": sha, "base_sha": (union_base or baseline) if delta else sha}
+  for scope_id, info in out.items():
+    info["sha_chain"] = chain[scope_id]
+  return out

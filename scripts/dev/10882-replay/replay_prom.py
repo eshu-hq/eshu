@@ -110,3 +110,10 @@ def engaged_counter(rows: list, source_a: str) -> float:
         and labels.get("domain") == source_a):
       total += value
   return total
+
+
+def active_gauge(rows: list, source_a: str) -> float:
+  """The claim-pacing active gauge for source A in one scrape (0 after release)."""
+  return sum(value for name, labels, value in rows
+             if name == "eshu_dp_workflow_claim_pacing_active" and labels.get("pacing_signal") == "reducer_source"
+             and labels.get("domain") == source_a)

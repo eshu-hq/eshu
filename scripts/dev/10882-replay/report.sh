@@ -14,6 +14,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export REPLAY_SCRIPT_DIR="$here"
 results="${1:?usage: report.sh <results-root>}"
 status=0
+# Which final-state comparison is judged: REPLAY_JUDGE=active (default, the literal
+# ruling) or effective (the chain comparison). Both are always printed.
+judge=()
+[[ "${REPLAY_JUDGE:-active}" == effective ]] && judge=(--judge-effective)
 
 collect() { # <arm> -> --control args for every repetition with a result
   local dir
@@ -23,16 +27,18 @@ collect() { # <arm> -> --control args for every repetition with a result
 }
 mapfile -t controls < <(collect C)
 mapfile -t controls2 < <(collect C2)
+cf=()
+[[ -f "$results/CF-rep1/result.json" ]] && cf=(--cf "$results/CF-rep1/result.json")
 if ((${#controls[@]} == 0)); then
   echo "report: no control (C) results under $results" >&2
   exit 2
 fi
 
 echo "== control set C (count and equality of the repetitions)"
-python3 -I "$here/check_arm.py" --kind controlset "${controls[@]}" || status=1
+python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --kind controlset "${controls[@]}" || status=1
 if ((${#controls2[@]} > 0)); then
   echo "== control set C2"
-  python3 -I "$here/check_arm.py" --kind controlset "${controls2[@]}" || status=1
+  python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --kind controlset "${controls2[@]}" || status=1
 fi
 
 echo "== run-variant fields: top-level payload keys that differ between control runs C-rep1 and each later C-rep"
@@ -63,6 +69,7 @@ for dir in "$results"/*-rep*; do
   [[ -f "$dir/result.json" ]] || continue
   case "$name" in
     C-rep*|C2-rep*) continue ;;
+    CF-rep*) kind=cfref; ref=("${controls[@]:0:2}") ;;
     C0-rep*) kind=control; ref=("${controls[@]}") ;;
     T3-rep*|T3TTL-rep*) kind=t3; ref=("${controls[@]}") ;;
     T2-rep*) kind=t2; ref=("${controls2[@]}") ;;
@@ -70,7 +77,7 @@ for dir in "$results"/*-rep*; do
     *) kind=treatment; ref=("${controls[@]}") ;;
   esac
   echo "== $name ($kind)"
-  python3 -I "$here/check_arm.py" --arm "$dir/result.json" --kind "$kind" ${ref[@]+"${ref[@]}"} || status=1
+  python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --arm "$dir/result.json" --kind "$kind" ${cf[@]+"${cf[@]}"} ${ref[@]+"${ref[@]}"} || status=1
 done
 
 echo "== numbers (engaged-scrape consult p50/p95 and share within 100 ms, K, parked rows, superseded, A drain after catch-up)"

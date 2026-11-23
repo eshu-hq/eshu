@@ -35,8 +35,13 @@ func TestReplaySeedBacklog(t *testing.T) {
 		t.Fatalf("open replay connection: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
-	if n := seedReducerQueue10862Replay(t, ctx, conn, "public", now); n != 8713 {
-		t.Fatalf("seeded mix rows = %d, want 8713", n)
+	// ESHU_REPLAY_SKIP_MIX=1 seeds only source A's rows: the in-flight arm plants
+	// the #10862 mix at the start and A's aged rows later, while a real fixture
+	// item is already claimed.
+	if os.Getenv("ESHU_REPLAY_SKIP_MIX") != "1" {
+		if n := seedReducerQueue10862Replay(t, ctx, conn, "public", now); n != 8713 {
+			t.Fatalf("seeded mix rows = %d, want 8713", n)
+		}
 	}
 
 	const scopeCount = 100
@@ -46,14 +51,16 @@ INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, p
   partition_key, status, active_generation_id, payload, observed_at, ingested_at)
 SELECT 'replay-areduce-' || s, 'repository', $1, 'replay-areduce-' || s, NULL, $2, 'replay', 'active',
   'replay-areduce-g-' || s, '{}'::jsonb, $3::timestamptz, $3::timestamptz
-FROM generate_series(1, $4::int) AS s`, src.System, string(src.Collector), oldest, scopeCount); err != nil {
+FROM generate_series(1, $4::int) AS s
+ON CONFLICT (scope_id) DO NOTHING`, src.System, string(src.Collector), oldest, scopeCount); err != nil {
 		t.Fatalf("insert source A reducer scopes: %v", err)
 	}
 	if _, err := conn.ExecContext(ctx, `
 INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
 SELECT 'replay-areduce-g-' || s, 'replay-areduce-' || s, 'snapshot', $1::timestamptz, $1::timestamptz, 'active',
   $1::timestamptz, '{}'::jsonb
-FROM generate_series(1, $2::int) AS s`, oldest, scopeCount); err != nil {
+FROM generate_series(1, $2::int) AS s
+ON CONFLICT (generation_id) DO NOTHING`, oldest, scopeCount); err != nil {
 		t.Fatalf("insert source A reducer generations: %v", err)
 	}
 	// Row i of n is created at engage+10m .. engage+2h ago, evenly spread.

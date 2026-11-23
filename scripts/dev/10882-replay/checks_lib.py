@@ -105,41 +105,6 @@ def check_hygiene(arm: dict[str, Any]) -> list[Check]:
   ]
 
 
-def check_final_state(arm: dict[str, Any], control: dict[str, Any]) -> list[Check]:
-  """Final committed state equals the control's (AC4 no-loss).
-
-  The active generation alone is not comparable: a paced first generation is
-  superseded unprojected, so the treatment arm's later generations are full
-  re-observations and the control's are deltas. The effective sets (latest
-  version of each fact key across the chain, and every (scope, domain) intent over
-  every generation) are judged; the active-generation sets are printed with each
-  active generation's kind.
-  """
-  checks = []
-  for path, label in (
-      ("final.generations", "committed generation set (source commit sha)"),
-      ("final.effective_fact_sets", "effective real git fixture fact sets across the generation chain (stable fact key + "
-                                    "payload hash; fact_id, payload.indexed_at and payload.source_run_id are run-variant, "
-                                    "normalised)"),
-      ("final.graph_counts", "graph counts per label"),
-      ("final.intent_union", "reducer intents (scope, domain) over every generation, per source"),
-  ):
-    want, got = get(control, path, {}), get(arm, path, {})
-    if not want:
-      checks.append(Check(label, False, "control has no %s" % path))
-      continue
-    checks.append(Check(label, want == got, diff_maps(want, got)))
-  want, got = get(control, "final.content_rows"), get(arm, "final.content_rows")
-  checks.append(Check("content rows", want is not None and want == got, "control=%s arm=%s" % (want, got)))
-  for path, label in (("final.real_fact_sets", "real fact sets of the ACTIVE generations"),
-                      ("final.intent_active", "reducer intents of the ACTIVE generations")):
-    kinds = lambda r: sorted(set(get(r, "final.active_is_delta", {}).values()))  # noqa: E731
-    equal = get(control, path, {}) == get(arm, path, {})
-    checks.append(Check("%s (reported, not judged)" % label, True,
-                        "%s; active is_delta control=%s arm=%s" % ("equal" if equal else "differ", kinds(control), kinds(arm))))
-  return checks
-
-
 def check_ac5(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]:
   """AC5: source B is not degraded. One-sided, with the tolerance printed."""
   checks = [
@@ -167,20 +132,53 @@ def check_ac5(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check
   return checks
 
 
+# Product defaults the per-item completion bound is built from (not tuned here):
+# the replay ReleaseAge (ESHU_SOURCE_BACKPRESSURE_RELEASE_AGE=15m in lib/arm.sh), the
+# queue retry cap default (1 h, so min(cap, ReleaseAge) is the release age), the
+# retry jitter fraction default 0.1 (runtime/retry_policy.go defaultRetryJitterFraction)
+# and the projector claim poll interval (1 s, cmd/projector/runtime_wiring.go).
+RELEASE_AGE_S = 900.0
+RETRY_CAP_S = 3600.0
+JITTER_FRACTION = 0.1
+CLAIM_POLL_S = 1.0
+
+
 def check_engagement(arm: dict[str, Any]) -> list[Check]:
-  """The latch engaged once and released, read from the latch row."""
+  """The latch engaged once and released, read from the latch row and the binaries.
+
+  One engaged interval, one distinct engaged_at, the row untouched after the
+  release, the fleet-summed engaged counter exactly 1 and every process's active
+  gauge 0 after release. The counter and gauge need the latch-write fix
+  (drive/10882-latch-counter): before it every racing consult counts.
+  """
   engaged = arm.get("engaged", {})
+  gauges = engaged.get("gauge_final", [])
   return [
       Check("latch engaged and released (latch row times)",
             bool(engaged.get("engage_at")) and bool(engaged.get("release_at")),
             "engage=%s release=%s" % (engaged.get("engage_at"), engaged.get("release_at"))),
-      # The counter is reported, not judged: several workers can each see the same
-      # transition and each record it (smoke: 3 for one engagement). Re-engagement
-      # is read from the latch row: one engaged interval, one distinct engaged_at.
-      Check("no re-engagement (one engaged interval, one latch engaged_at)", not engaged.get("reengaged"),
-            "reengaged=%s distinct engagements=%s (engaged counter %s, reported)" % (
-                engaged.get("reengaged"), engaged.get("distinct_engagements"), engaged.get("engaged_counter"))),
+      Check("one engaged interval and one distinct engaged_at", not engaged.get("reengaged")
+            and int(engaged.get("distinct_engagements", 0)) == 1,
+            "reengaged=%s distinct engagements=%s" % (engaged.get("reengaged"), engaged.get("distinct_engagements"))),
+      Check("latch row untouched after the release (updated_at at the second released sample == final dump)",
+            engaged.get("updated_at_stable") is True, "stable=%s" % engaged.get("updated_at_stable")),
+      Check("fleet-summed engaged counter == 1", float(engaged.get("engaged_counter", -1)) == 1.0,
+            "engaged counter=%s" % engaged.get("engaged_counter")),
+      Check("active gauge 0 in every final scrape", bool(gauges) and all(g == 0 for g in gauges), "gauges=%s" % gauges),
   ]
+
+
+def check_item_timing(arm: dict[str, Any]) -> list[Check]:
+  """No A item completes later than release + min(retry cap, ReleaseAge) x (1 + jitter
+  fraction) + one claim poll interval; the numbers are reported per run."""
+  items = arm.get("a_items", {})
+  bound = min(RETRY_CAP_S, RELEASE_AGE_S) * (1 + JITTER_FRACTION) + CLAIM_POLL_S
+  worst = items.get("max_after_release_s")
+  return [Check("every A item completes within release + min(retry cap, ReleaseAge) x (1 + jitter) + one poll",
+                worst is not None and worst <= bound,
+                "bound=%.0f s; A items=%s max after release=%s s; paced items=%s between %s and %s s" % (
+                    bound, items.get("items"), worst, items.get("paced_items"), items.get("paced_min_after_release_s"),
+                    items.get("paced_max_after_release_s")))]
 
 
 def check_zero_writes(arm: dict[str, Any]) -> list[Check]:
@@ -226,19 +224,6 @@ def check_consult(arm: dict[str, Any], gate: bool) -> list[Check]:
                         float(a.get("within_100ms", 0)) >= CONSULT_WITHIN_100MS_SHARE,
                         "share within 100 ms=%.2f p50=%.1f ms p95=%.1f ms (interpolated, reported)" % (
                             a.get("within_100ms", 0), 1000 * a.get("p50_s", 0), 1000 * a.get("p95_s", 0))))
-  return checks
-
-
-def check_control_set(controls: list[dict[str, Any]]) -> list[Check]:
-  """At least three control repetitions, equal to each other in final state."""
-  checks = [Check("at least %d control repetitions" % MIN_CONTROL_REPS, len(controls) >= MIN_CONTROL_REPS,
-                  "have %d" % len(controls))]
-  for index, control in enumerate(controls, start=1):
-    for check in check_hygiene(control) + check_control_positive(control):
-      checks.append(Check("control rep %d: %s" % (index, check.name), check.passed, check.detail))
-  for index, other in enumerate(controls[1:], start=2):
-    for check in check_final_state(other, controls[0]):
-      checks.append(Check("control rep %d vs rep 1: %s" % (index, check.name), check.passed, check.detail))
   return checks
 
 

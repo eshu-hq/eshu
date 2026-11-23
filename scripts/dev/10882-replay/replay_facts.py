@@ -56,40 +56,6 @@ def real_fact_sets(path: str) -> dict[str, str]:
           for scope_id, items in sorted(by_scope.items())}
 
 
-def effective_fact_sets(path: str) -> dict[str, str]:
-  """Per scope: the effective fact set across the generation chain.
-
-  The latest non-tombstone version of each stable_fact_key, taken from the newest
-  generation (by ingest time) that carries the key, hashed with the same
-  normalisation as real_fact_sets. A control whose later generations are deltas and
-  a treatment arm whose later generations are full re-observations (a paced
-  generation was superseded unprojected, so there was no projected baseline) end
-  with the same effective set when nothing was lost.
-  """
-  latest: dict[tuple[str, str], tuple[float, bool, Any]] = {}
-  if os.path.exists(path):
-    with open(path, encoding="utf-8") as handle:
-      for line in handle:
-        parts = line.rstrip("\n").split("\t", 4)
-        if len(parts) < 5:
-          continue
-        scope_id, ingested, tombstone, key, payload_text = parts
-        entry = (float(ingested), tombstone == "t", json.loads(payload_text))
-        current = latest.get((scope_id, key))
-        if current is None or entry[0] >= current[0]:
-          latest[(scope_id, key)] = entry
-  by_scope: dict[str, list[str]] = defaultdict(list)
-  for (scope_id, key), (_ts, tombstone, payload) in latest.items():
-    if tombstone:
-      continue
-    if isinstance(payload, dict):
-      payload = {k: v for k, v in payload.items() if k not in RUN_VARIANT_PAYLOAD_FIELDS}
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    by_scope[scope_id].append("%s:%s" % (key, digest))
-  return {scope_id: hashlib.sha256(",".join(sorted(items)).encode()).hexdigest()
-          for scope_id, items in sorted(by_scope.items())}
-
-
 def fact_counts(path: str) -> dict[str, dict[str, int]]:
   """Per scope: fact count and distinct stable-key count (they must be equal)."""
   facts: dict[str, int] = defaultdict(int)
@@ -115,3 +81,52 @@ def differing_top_level_keys(path_a: str, path_b: str) -> list[str]:
         if a.get(field) != b.get(field):
           differing.add(field)
   return sorted(differing)
+
+
+# The repository fact legitimately differs between a delta generation and a full
+# one in these keys (collector/repo/git/content/envelopes.go): they describe the
+# delta itself. Printed wherever a delta is compared with a full generation.
+DELTA_REPOSITORY_KEYS = ("delta_generation", "delta_relative_paths", "delta_deleted_relative_paths", "parsed_file_count")
+
+
+def normalise(payload: Any) -> Any:
+  """Drops the run-variant top-level payload fields (see the module docstring)."""
+  if isinstance(payload, dict):
+    return {k: v for k, v in payload.items() if k not in RUN_VARIANT_PAYLOAD_FIELDS}
+  return payload
+
+
+def payload_hash(payload: Any) -> str:
+  return hashlib.sha256(json.dumps(normalise(payload), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def generation_facts(path: str) -> dict[str, dict[str, dict[str, str]]]:
+  """{scope: {commit sha: {stable_fact_key: normalised payload hash}}} for every
+  generation of the real git scopes (export/real_facts_chain.tsv)."""
+  out: dict[str, dict[str, dict[str, str]]] = defaultdict(lambda: defaultdict(dict))
+  if not os.path.exists(path):
+    return {}
+  with open(path, encoding="utf-8") as handle:
+    for line in handle:
+      parts = line.rstrip("\n").split("\t", 7)
+      if len(parts) < 8:
+        continue
+      scope_id, _gen, sha, _delta, _ingested, tombstone, key, payload_text = parts
+      if tombstone == "t":
+        continue
+      out[scope_id][sha][key] = payload_hash(json.loads(payload_text))
+  return {s: {sha: dict(keys) for sha, keys in shas.items()} for s, shas in out.items()}
+
+
+def repository_payloads(path: str) -> dict[str, dict[str, Any]]:
+  """{scope: {sha: normalised repository-fact payload}}, to print the delta keys."""
+  out: dict[str, dict[str, Any]] = defaultdict(dict)
+  if not os.path.exists(path):
+    return {}
+  with open(path, encoding="utf-8") as handle:
+    for line in handle:
+      parts = line.rstrip("\n").split("\t", 7)
+      if len(parts) < 8 or not parts[6].startswith("repository:"):
+        continue
+      out[parts[0]][parts[2]] = normalise(json.loads(parts[7]))
+  return {s: dict(v) for s, v in out.items()}

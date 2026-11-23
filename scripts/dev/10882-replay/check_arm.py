@@ -11,7 +11,7 @@ engagement, a missing generation, an empty graph reading, a missed commit, ...).
 Usage:
   check_arm.py --arm RESULT [--control RESULT ...] [--kind KIND]
 
-KIND is treatment (T1, T1TTL), control (C0), t2, t3 (T3, T3TTL), controlset (only
+KIND is treatment (T1, T1TTL), control (C0), t2, t3 (T3, T3TTL), inflight (IF), controlset (only
 the --control files: count and equality of the control repetitions) or cg (C at the
 default global marks: reported, not judged). --control is repeated once per control
 repetition; the first is the reference for final-state equality and all of them set
@@ -27,11 +27,12 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from checks_lib import (  # noqa: E402  pylint: disable=wrong-import-position
-    Check, check_ac5, check_consult, check_control_positive, check_control_set, check_engagement, check_final_state,
-    check_hygiene, check_selection, check_zero_writes, get)
+    Check, check_ac5, check_consult, check_control_positive, check_engagement, check_hygiene,
+    check_item_timing, check_selection, check_zero_writes, get)
+from checks_final import check_cf_reference, check_control_set, check_final_state  # noqa: E402  pylint: disable=wrong-import-position
 
 
-def check_ac4(arm: dict[str, Any], control: dict[str, Any]) -> list[Check]:
+def check_ac4(arm: dict[str, Any], control: dict[str, Any], cf: dict[str, Any] | None) -> list[Check]:
   """AC4: a slowed source loses no work and resumes."""
   deferrals = get(arm, "deferrals.source_behind", {})
   released = get(arm, "released_pre_write", 0)
@@ -58,10 +59,10 @@ def check_ac4(arm: dict[str, Any], control: dict[str, Any]) -> list[Check]:
             "superseded scopes=%s without a succeeded active item=%s" % (
                 get(arm, "paced.superseded_scopes"), get(arm, "paced.superseded_without_succeeded_active"))),
   ]
-  return checks + check_final_state(arm, control)
+  return checks + check_final_state(arm, control, cf)
 
 
-def check_t2(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]:
+def check_t2(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
   """T2: claim accounting for the hosted family paced at the claim grant.
 
   The synthetic hosted collector commits no facts, and pacing acts before the
@@ -87,10 +88,10 @@ def check_t2(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]
             "completed=%s of %s" % (final.get("completed"), planted)),
   ]
   checks += check_engagement(arm) + check_zero_writes(arm)
-  return checks + check_final_state(arm, controls[0]) + check_ac5(arm, controls)
+  return checks + check_final_state(arm, controls[0], cf) + check_ac5(arm, controls)
 
 
-def check_t3(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]:
+def check_t3(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
   """T3 (#11187): aged rows that are not takeable never hold the latch."""
   census = arm.get("census", {}).get("classes", {})
   seeded = int(get(arm, "manifest.a_reducer_rows", -1))
@@ -109,10 +110,38 @@ def check_t3(arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]
             "census=%s seeded=%s classes=%s" % (not_takeable, seeded, sorted(census))),
   ]
   checks += check_consult(arm, gate=False)
-  return checks + check_final_state(arm, controls[0]) + check_ac5(arm, controls)
+  return checks + check_final_state(arm, controls[0], cf) + check_ac5(arm, controls)
 
 
-def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]]) -> list[Check]:
+def check_inflight(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
+  """The in-flight arm (decision (g)): the admission-writer leg defers an item that is
+  already past the pre-write consult, and that item finishes after the release.
+
+  The aged A rows are inserted while a real-fixture projector item is claimed and
+  blocked at its graph write, so the item's intent enqueue consults an engaged
+  latch. Pass: at least one source_behind deferral for A, intents enqueued after the
+  release by those items, every item settled, zero dead letters and admission
+  timeouts, and the final state equals the control's (IFC).
+  """
+  inflight = arm.get("inflight", {})
+  after = inflight.get("scopes_after_release") or []
+  checks = [
+      Check("admission-writer leg deferred A (source_behind deferrals >= 1)",
+            int(get(arm, "deferrals.source_behind", {}).get("A", 0)) >= 1,
+            "A deferrals=%s" % get(arm, "deferrals.source_behind", {}).get("A", 0)),
+      Check("the deferred items enqueued their intents after the release",
+            len(after) >= 1 and int(inflight.get("rows_after_release", 0)) >= 1,
+            "scopes with intents enqueued after release=%d rows=%s" % (len(after), inflight.get("rows_after_release"))),
+      Check("zero dead letters", int(get(arm, "deferrals.dead_letters", 0)) == 0,
+            "dead letters=%s" % get(arm, "deferrals.dead_letters")),
+      Check("zero admission_timeout", int(get(arm, "deferrals.admission_timeouts", 0)) == 0,
+            "timeouts=%s" % get(arm, "deferrals.admission_timeouts")),
+  ]
+  checks += check_engagement(arm)
+  return checks + check_final_state(arm, controls[0], cf)
+
+
+def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
   """Selects and runs the checks for one arm kind."""
   if kind == "controlset":
     return check_control_set(controls)
@@ -120,16 +149,20 @@ def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]]) -
     return [Check("CG reported, not judged", True, "A deferrals=%s dead letters=%s admission timeouts=%s unsettled=%s B=%s" % (
         get(arm, "deferrals.source_behind"), get(arm, "deferrals.dead_letters"), get(arm, "deferrals.admission_timeouts"),
         get(arm, "final.projector_unsettled"), arm.get("b")))]
+  if kind == "cfref":
+    return check_cf_reference(controls[0], arm)
   checks = check_hygiene(arm)
+  if kind == "inflight":
+    return checks + check_inflight(arm, controls, cf)
   if kind == "t3":
-    return checks + check_t3(arm, controls)
+    return checks + check_t3(arm, controls, cf)
   if kind == "t2":
-    return checks + check_t2(arm, controls)
+    return checks + check_t2(arm, controls, cf)
   if kind == "control":
     # The no-completion control: unpaced like C, so B and the final sets equal C.
-    return checks + check_control_positive(arm) + check_ac5(arm, controls) + check_final_state(arm, controls[0])
+    return checks + check_control_positive(arm) + check_ac5(arm, controls) + check_final_state(arm, controls[0], cf)
   gate = get(arm, "manifest.ttl") == "0s"
-  return checks + check_ac4(arm, controls[0]) + check_consult(arm, gate=gate) + check_ac5(arm, controls)
+  return checks + check_ac4(arm, controls[0], cf) + check_item_timing(arm) + check_consult(arm, gate=gate) + check_ac5(arm, controls)
 
 
 def _load(path: str) -> dict[str, Any]:
@@ -141,10 +174,12 @@ def main(argv: list[str]) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   parser.add_argument("--arm", help="result.json of the arm under test")
   parser.add_argument("--control", action="append", default=[], help="result.json of a control repetition")
-  parser.add_argument("--kind", choices=("treatment", "control", "t2", "t3", "controlset", "cg"), default="treatment")
+  parser.add_argument("--cf", help="result.json of the CF reference arm (a full active generation at the final sha)")
+  parser.add_argument("--kind", choices=("treatment", "control", "t2", "t3", "inflight", "controlset", "cg", "cfref"), default="treatment")
   args = parser.parse_args(argv)
   try:
     arm = _load(args.arm) if args.arm else {}
+    cf = _load(args.cf) if args.cf else None
     controls = [_load(path) for path in args.control]
   except (OSError, json.JSONDecodeError) as err:
     print("check_arm: %s" % err, file=sys.stderr)
@@ -155,7 +190,7 @@ def main(argv: list[str]) -> int:
   if args.kind not in ("cg",) and not controls:
     print("check_arm: --control is required for %s" % args.kind, file=sys.stderr)
     return 2
-  checks = run_checks(args.kind, arm, controls)
+  checks = run_checks(args.kind, arm, controls, cf)
   for check in checks:
     print(check)
   return 0 if all(c.passed for c in checks) else 1

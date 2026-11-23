@@ -28,13 +28,12 @@ replay_export_state() {
   replay_psql -F $'\t' -c "SELECT f.scope_id, f.fact_id, f.stable_fact_key, f.payload::text
       FROM fact_records f JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
       WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, f.fact_id" >"$out/real_facts.tsv"
-  # Every fact of every generation of the real git scopes, in ingest order. The
-  # active generation alone is not comparable between arms: a paced first
-  # generation is superseded unprojected, so the next one is a full re-observation
-  # in the treatment arm and a delta in the control. The effective fact set (the
-  # latest version of each stable fact key across the chain) is.
-  replay_psql -F $'\t' -c "SELECT f.scope_id, extract(epoch FROM g.ingested_at)::numeric(16,3), f.is_tombstone,
-      f.stable_fact_key, f.payload::text
+  # Every fact of every generation of the real git scopes, with the generation's
+  # commit and kind. Compared per (scope, commit) generation and against the
+  # reference arm CF; never merged into a synthetic "effective" set (the product's
+  # own delta overlay is facts.OverlayDeltaBase, and this harness keeps no copy).
+  replay_psql -F $'\t' -c "SELECT f.scope_id, f.generation_id, COALESCE(g.source_commit_sha, ''), g.is_delta,
+      extract(epoch FROM g.ingested_at)::numeric(16,3), f.is_tombstone, f.stable_fact_key, f.payload::text
       FROM fact_records f JOIN scope_generations g ON g.generation_id = f.generation_id AND g.scope_id = f.scope_id
       WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, g.ingested_at, f.stable_fact_key" \
     >"$out/real_facts_chain.tsv"
@@ -50,7 +49,9 @@ replay_export_state() {
       WHERE w.stage = 'reducer' AND w.work_item_id NOT LIKE 'replay-%' ORDER BY 1, 2, 3, 5" >"$out/reducer_rows.tsv"
   replay_psql -F $'\t' -c "SELECT w.scope_id, w.generation_id, COALESCE(NULLIF(g.source_commit_sha, ''), ''),
       (w.generation_id = s.active_generation_id), w.status, w.attempt_count, w.source_paced_waits, s.source_system,
-      w.admission_wait_attempts, COALESCE(w.failure_class, '')
+      w.admission_wait_attempts, COALESCE(w.failure_class, ''),
+      extract(epoch FROM w.created_at)::numeric(16,3), COALESCE(extract(epoch FROM w.last_attempt_at)::numeric(16,3)::text, ''),
+      extract(epoch FROM w.updated_at)::numeric(16,3)
       FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
       LEFT JOIN scope_generations g ON g.generation_id = w.generation_id AND g.scope_id = w.scope_id
       WHERE w.stage = 'projector' ORDER BY 1, 2" >"$out/projector_items.tsv"
@@ -58,7 +59,8 @@ replay_export_state() {
   # selection delay of a pushed commit is its generation's ingested_at minus the
   # push time, matched by source commit sha.
   replay_psql -F $'\t' -c "SELECT g.scope_id, g.generation_id, COALESCE(g.source_commit_sha, ''),
-      extract(epoch FROM g.ingested_at)::numeric(16,3), g.is_delta, g.status, (g.generation_id = s.active_generation_id)
+      extract(epoch FROM g.ingested_at)::numeric(16,3), g.is_delta, g.status, (g.generation_id = s.active_generation_id),
+      COALESCE(g.delta_baseline_commit_sha, ''), COALESCE(g.delta_union_base_commit_sha, '')
       FROM scope_generations g JOIN ingestion_scopes s ON s.scope_id = g.scope_id
       WHERE g.scope_id LIKE 'git-repository-scope:%' ORDER BY 1, 4" >"$out/generations_all.tsv"
   # The latch rows themselves, for the engage and release times and for the
@@ -91,6 +93,12 @@ replay_export_state() {
     FROM (SELECT extract(epoch FROM w.last_attempt_at - w.created_at) AS wait, w.last_attempt_at AS claimed
           FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
           WHERE w.stage = 'projector' AND w.status = 'succeeded' AND s.source_system = '$REPLAY_SRC_B') t" >"$out/b_stats.json"
+  # Content identity: (repo, path, content hash) per content file and the entity id
+  # of every content entity. Equal counts can hide a swapped row; identity cannot.
+  replay_psql -F $'\t' -c "SELECT 'f', repo_id, relative_path, content_hash FROM content_files
+      UNION ALL SELECT 'e', entity_id, '', '' FROM content_entities ORDER BY 1, 2, 3" >"$out/content_ids.tsv"
+  replay_cypher "MATCH ()-[r]->() RETURN type(r), count(*) ORDER BY type(r)" 2>"$out/relationship_counts.err" |
+    tail -n +2 | tr -d '"' >"$out/relationship_counts.tsv" || true
   # A failed read leaves graph_counts.tsv empty and the assembler fails the run
   # on it; it must not look like an empty graph.
   replay_cypher "MATCH (n) UNWIND labels(n) AS l RETURN l, count(*) ORDER BY l" 2>"$out/graph_counts.err" |

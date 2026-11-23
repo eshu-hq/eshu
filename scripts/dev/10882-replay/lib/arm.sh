@@ -34,9 +34,13 @@ REPLAY_ENGAGE_AGE_SECONDS=3600
 #   T2       treatment, A hosted paced at the claim grant, B=git
 #   T3       treatment, A's aged rows all not takeable (#11187), TTL 0
 #   T3TTL    T3 at the candidate TTL (consult cost with parked rows present)
+#   CF       reference for T1 shapes: thresholds unset, both fixture commits pushed BEFORE
+#            the binaries start, so every fixture scope ends with a FULL active generation
+#            at the final sha (no latch row); one repetition, judged reference
 #   CG       one repetition of C at the DEFAULT global admission marks, reported, not judged
+#   IF, IFC  the in-flight arm and its control (lib/inflight.sh), run by run_inflight.sh
 replay_arm_config() {
-  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable ARM_HOSTED=0 ARM_GLOBAL_MARKS=raised
+  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable ARM_HOSTED=0 ARM_GLOBAL_MARKS=raised ARM_PREPUSH=0
   case "$1" in
     C) ARM_THRESHOLDS=0 ;;
     C0) ARM_THRESHOLDS=0 ARM_COMPLETE=0 ;;
@@ -47,6 +51,9 @@ replay_arm_config() {
     T3) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ;;
     T3TTL) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
     CG) ARM_THRESHOLDS=0 ARM_GLOBAL_MARKS=default ;;
+    CF) ARM_THRESHOLDS=0 ARM_PREPUSH=1 ;;
+    IF) ;; # in-flight arm, see lib/inflight.sh
+    IFC) ARM_THRESHOLDS=0 ;;
     *) echo "unknown arm $1" >&2; return 1 ;;
   esac
   if [[ "$ARM_A_KIND" == git ]]; then
@@ -207,6 +214,10 @@ replay_run_arm() {
   "$here/lib/reset.sh" >/dev/null
   rm -rf "$REPLAY_HOME/workspace"
   "$here/make_fixtures.sh" "$REPLAY_FIXTURES" 6 >/dev/null
+  if [[ "$ARM_PREPUSH" == 1 ]]; then
+    replay_fixture_commit engaged 2
+    replay_fixture_commit after_release 3
+  fi
   replay_write_manifest "$arm" "$rep"
   replay_sampler_start
   trap 'replay_stop ingester; replay_stop projector; replay_stop hosted; replay_sampler_stop' RETURN
@@ -237,7 +248,7 @@ replay_run_arm() {
   local feeder=$!
 
   sleep 30
-  replay_fixture_commit engaged 2
+  [[ "$ARM_PREPUSH" == 1 ]] || replay_fixture_commit engaged 2
   sleep $((REPLAY_ENGAGED_WINDOW - 30))
   replay_census pre
   replay_scrape ingester engaged
@@ -254,7 +265,7 @@ replay_run_arm() {
   if [[ "$ARM_THRESHOLDS" == 1 && "$ARM_COMPLETE" == 1 ]]; then
     replay_wait_until 180 "latch release" replay_latch_released || true
   fi
-  replay_fixture_commit after_release 3
+  [[ "$ARM_PREPUSH" == 1 ]] || replay_fixture_commit after_release 3
   if [[ "$ARM_HOSTED" == 1 ]]; then
     replay_wait_until 180 "hosted items to complete" replay_hosted_complete || true
   fi

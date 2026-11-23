@@ -12,6 +12,7 @@ Nothing here times anything itself.
 Usage: assemble_result.py RUN_DIR
 """
 
+import glob
 import json
 import os
 import sys
@@ -72,13 +73,50 @@ def latch_rows(path: str) -> list[dict[str, Any]]:
   return rows
 
 
-def active_is_delta(path: str) -> dict[str, bool]:
-  """Per git scope: whether its active generation is a delta generation."""
-  out: dict[str, bool] = {}
+def content_identity(path: str) -> dict[str, Any]:
+  """Count and digest of the content identity sets: (repo, path, content hash) of
+  every content file and the entity id of every content entity."""
+  import hashlib
+  files, entities = [], []
   for row in replay_state.read_tsv(path):
-    if len(row) >= 7 and row[6] == "t":
-      out[row[0]] = row[4] == "t"
-  return out
+    if row[0] == "f":
+      files.append("\t".join(row[1:4]))
+    elif row[0] == "e":
+      entities.append(row[1])
+  digest = lambda rows: hashlib.sha256("\n".join(sorted(rows)).encode()).hexdigest()  # noqa: E731
+  return {"files": len(files), "files_digest": digest(files), "entities": len(entities), "entities_digest": digest(entities)}
+
+
+def updated_stable(samples: list[dict[str, Any]], rows: list[dict[str, Any]], source_a: str) -> bool | None:
+  """The latch row's updated_at at the second released sample equals the final dump:
+  nothing rewrote the row after the release (a stale consult would)."""
+  released = [s for s in samples if not s["engaged"] and s["latch_updated_at"] is not None]
+  final = next((float(r["updated_at"]) for r in rows if r["domain"] == source_a), None)
+  if len(released) < 2 or final is None:
+    return None
+  return abs(released[1]["latch_updated_at"] - final) < 0.002
+
+
+def final_state(export: str, sources: dict[str, str]) -> dict[str, Any]:
+  """The committed end state of one run, from its exports alone (so it can be rebuilt
+  from saved raw data, and tested on real exported rows)."""
+  facts_path = os.path.join(export, "real_facts.tsv")
+  chain_path = os.path.join(export, "real_facts_chain.tsv")
+  intents = replay_state.intents(os.path.join(export, "reducer_rows.tsv"), sources)
+  identity = content_identity(os.path.join(export, "content_ids.tsv"))
+  return {
+      "generations": read_json(os.path.join(export, "generations.json"), {}),
+      "real_fact_sets": replay_facts.real_fact_sets(facts_path),
+      "real_fact_counts": replay_facts.fact_counts(facts_path),
+      "generation_facts": replay_facts.generation_facts(chain_path),
+      "repository_payloads": replay_facts.repository_payloads(chain_path),
+      "shapes": replay_state.shapes(os.path.join(export, "generations_all.tsv")),
+      "relationship_counts": graph_counts(os.path.join(export, "relationship_counts.tsv")),
+      "graph_counts": graph_counts(os.path.join(export, "graph_counts.tsv")),
+      "content_identity": identity, "content_rows": identity["files"] + identity["entities"],
+      "normalized_fields": {"fact_id": "compared via stable_fact_key", "payload": list(replay_facts.RUN_VARIANT_PAYLOAD_FIELDS)},
+      "intent_active": intents["active"], "intent_union": intents["union"],
+  }
 
 
 def a_drain(export: str, events: list[list[str]]) -> dict[str, Any]:
@@ -106,6 +144,9 @@ def main(run_dir: str) -> int:
   engaged["engaged_counter"] = replay_prom.engaged_counter(final_rows, sources["A"])
   rows = latch_rows(os.path.join(export, "latch.tsv"))
   engaged["latch_row_for_a"] = any(r["domain"] == sources["A"] for r in rows)
+  engaged["gauge_final"] = [replay_prom.active_gauge(replay_prom.parse_prom(p), sources["A"])
+                            for p in sorted(glob.glob(os.path.join(run_dir, "metrics", "*-final.prom")))]
+  engaged["updated_at_stable"] = updated_stable(samples, rows, sources["A"])
   writes = replay_state.write_points(samples, engaged, None if started is None else started + window)
   by_side, released = replay_prom.deferrals(final_rows, sources)
   intents = replay_state.intents(os.path.join(export, "reducer_rows.tsv"), sources)
@@ -117,6 +158,7 @@ def main(run_dir: str) -> int:
   final_sel = sel.pop("_final", {})
   gcounts = graph_counts(os.path.join(export, "graph_counts.tsv"))
   loads = [s["load1"] for s in samples if s["load1"] is not None]
+  release_epoch = engaged.get("release_at")
   result = {
       "arm": manifest.get("arm"), "rep": manifest.get("rep"), "ttl": manifest.get("ttl"),
       "manifest": manifest, "build": build, "engaged": {k: (iso(v) if k in ("engage_at", "release_at") else v)
@@ -146,19 +188,11 @@ def main(run_dir: str) -> int:
       "timeouts": [{"what": e[2], "limit_s": e[3]} for e in events if len(e) > 3 and e[1] == "wait_timeout"],
       "latch_rows": rows,
       "a_drain": a_drain(export, events),
-      "final": {
-          "generations": read_json(os.path.join(export, "generations.json"), {}),
-          "real_fact_sets": replay_facts.real_fact_sets(facts_path),
-          "effective_fact_sets": replay_facts.effective_fact_sets(os.path.join(export, "real_facts_chain.tsv")),
-          "active_is_delta": active_is_delta(os.path.join(export, "generations_all.tsv")),
-          "real_fact_counts": replay_facts.fact_counts(facts_path),
-          "normalized_fields": {"fact_id": "compared via stable_fact_key",
-                                "payload": list(replay_facts.RUN_VARIANT_PAYLOAD_FIELDS)},
-          "graph_counts": gcounts, "content_rows": counters.get("content_rows"),
-          "projector_unsettled": projector["unsettled"], "projector_superseded": counters.get("projector_superseded", 0),
-          "intent_active": intents["active"], "intent_union": intents["union"],
-          "active_sha_is_last_push": final_sel.get("active_sha_is_last_push"), "fixture_scopes": final_sel.get("scopes", 0),
-      },
+      "a_items": replay_state.item_timing(os.path.join(export, "projector_items.tsv"), sources, release_epoch),
+      "final": dict(final_state(export, sources), projector_unsettled=projector["unsettled"],
+                    projector_superseded=counters.get("projector_superseded", 0),
+                    active_sha_is_last_push=final_sel.get("active_sha_is_last_push"),
+                    fixture_scopes=final_sel.get("scopes", 0)),
   }
   with open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8") as handle:
     json.dump(result, handle, indent=2, sort_keys=True)

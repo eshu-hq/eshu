@@ -133,29 +133,6 @@ class FactsTest(unittest.TestCase):
     self.assertIn("language", replay_facts.differing_top_level_keys(a, b))
 
 
-class EffectiveFactsTest(unittest.TestCase):
-
-  def _chain(self, rows):
-    return _file("".join("%s\t%s\t%s\t%s\t%s\n" % (s, ts, tomb, k, json.dumps(p)) for s, ts, tomb, k, p in rows))
-
-  def test_full_plus_delta_chain_equals_full_plus_full_chain(self):
-    base = {"language": "go", "indexed_at": "t1", "source_run_id": "r1"}
-    control = [("s1", "1", "f", "file:a", dict(base)), ("s1", "1", "f", "file:b", dict(base)),
-               ("s1", "3", "f", "file:a", {"language": "go", "indexed_at": "t3", "source_run_id": "r3"})]  # delta of a
-    treatment = [("s1", "5", "f", "file:a", {"language": "go", "indexed_at": "t5", "source_run_id": "r5"}),
-                 ("s1", "5", "f", "file:b", {"language": "go", "indexed_at": "t5", "source_run_id": "r5"})]  # two full ones
-    self.assertEqual(replay_facts.effective_fact_sets(self._chain(control)),
-                     replay_facts.effective_fact_sets(self._chain(treatment)))
-
-  def test_red_a_dropped_fact_a_changed_payload_and_a_tombstone_change_the_set(self):
-    base = {"language": "go"}
-    control = [("s1", "1", "f", "file:a", dict(base)), ("s1", "1", "f", "file:b", dict(base))]
-    want = replay_facts.effective_fact_sets(self._chain(control))
-    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain(control[:1])))
-    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain([control[0], ("s1", "1", "f", "file:b", {"language": "rust"})])))
-    self.assertNotEqual(want, replay_facts.effective_fact_sets(self._chain(control + [("s1", "2", "t", "file:b", dict(base))])))
-
-
 class PromTest(unittest.TestCase):
 
   def test_consult_share_within_100ms_comes_from_the_bucket_and_engaged_counter_sums(self):
