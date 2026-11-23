@@ -117,6 +117,9 @@ type supplyChainImpactSupportsDrain struct {
 	nextQuery   string
 	keyArgs     []any
 	instruments *telemetry.Instruments
+	// afterPage, when set, runs after each page is read and before the next one
+	// starts. It is a test seam for the concurrency proof; production leaves it nil.
+	afterPage func(page int)
 }
 
 // newSupplyChainImpactSupportsDrain prepares a drain whose arms bind keyArgs, one
@@ -157,6 +160,9 @@ func (d supplyChainImpactSupportsDrain) run(ctx context.Context, queryer db.Quer
 		loaded = append(loaded, active...)
 		pages++
 		rawRows += pageRaw
+		if d.afterPage != nil {
+			d.afterPage(pages)
+		}
 		if pageRaw < listFactsByKindPageSize {
 			break
 		}

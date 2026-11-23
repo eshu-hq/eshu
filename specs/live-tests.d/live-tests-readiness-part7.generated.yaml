@@ -44,6 +44,11 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that a complete protected static impact write commits its finding fact and authority revision instead of dead-lettering on the missing publication transaction"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_drain_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 hot-key drain concurrency on real PostgreSQL: while a supports drain runs page by page, writers insert rows below and above its cursor, retract and rewrite rows, supersede a generation and delete a generation by cascade; every row present and active for the whole drain is returned exactly once, no row that was absent or inactive for the whole drain is returned, a row locked by an open writer transaction does not make a page wait, and no transaction stays open between pages"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_supports_drain_live_test.go
     tag: ~
     class: postgres_ci
