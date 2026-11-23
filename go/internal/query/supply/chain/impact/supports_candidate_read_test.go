@@ -64,3 +64,18 @@ func TestSupportsListQueryReadsOnlyTheSupportsTable(t *testing.T) {
 		}
 	}
 }
+
+// TestSupportsListQueryCarriesTheRuntimeFilters proves the supports read keeps
+// the service, workload and environment filters of the legacy read: each one
+// constrains the support's own repository to the repositories the runtime facts
+// currently map (an existence-style filter, ruling Q2 default). A read that drops
+// them would answer a granted service_id call with every finding in the grant.
+func TestSupportsListQueryCarriesTheRuntimeFilters(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"service", "workload", "environment"} {
+		want := "runtime_filter.filter_kind = '" + kind + "'\n               AND runtime_filter.repository_id = fact.repository_id"
+		if !strings.Contains(ListFindingsFromSupportsQuery, want) {
+			t.Fatalf("supports list read lost the %s runtime filter predicate over the support's repository", kind)
+		}
+	}
+}

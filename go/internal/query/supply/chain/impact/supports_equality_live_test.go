@@ -49,6 +49,13 @@ func seedSupportsEqualityExtras(t *testing.T, ctx context.Context, database *sql
 	}
 	collision("fact:c1:a", "c1", "ADV-C1")
 	collision("fact:c2:a", "c2", "")
+	// Runtime facts the service and environment filters resolve through: m1 runs
+	// service:m1 (scope A), m2 runs in prod (scope B). The filters constrain the
+	// support's own repository, so they must reach the supports read.
+	groupedLiveFact(t, ctx, database, "fact:runtime:svc-m1", multiSupportScopeA, "gen:a", serviceCatalogCorrelationFactKind,
+		map[string]any{"service_id": "service:m1", "repository_id": "repository:m1", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:env-m2", multiSupportScopeB, "gen:b", cicdRunCorrelationFactKind,
+		map[string]any{"environment": "prod", "repository_id": "repository:m2", "outcome": "exact"})
 	overlay := func(factID, id, state, expires, generationID string, score int) {
 		payload := groupedLiveFindingPayload(id, id, score, 5.0)
 		payload["suppression_state"] = state
@@ -220,6 +227,8 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 		{"image_ref absent", FindingFilter{ImageRef: "registry.example/none:0"}, false},
 		{"profile precise", FindingFilter{DetectionProfile: ProfilePrecise}, false},
 		{"profile comprehensive", FindingFilter{DetectionProfile: ProfileComprehensive}, false},
+		{"service m1", FindingFilter{ServiceID: "service:m1"}, false},
+		{"environment prod", FindingFilter{Environment: "prod"}, false},
 		{"cve", FindingFilter{CVEID: "CVE-2026-m1"}, false},
 		{"advisory collision key", FindingFilter{AdvisoryID: "ADV-C1"}, false},
 		{"include suppressed", FindingFilter{IncludeSuppressed: true}, false},

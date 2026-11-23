@@ -16,7 +16,7 @@ import (
 // guard stays: the supports table mirrors every live finding fact, and the
 // scanner classification rows decide which are source truth. $22 and $23 are the
 // allowed repository and scope ids, as in the legacy bind order.
-const supportsListSourceCTE = `
+var supportsListSourceCTE = `
 source_candidates AS (
   SELECT fact.fact_id, fact.scope_id, fact.finding_id, fact.source_confidence,
          fact.suppression_state, fact.priority_score,
@@ -72,6 +72,7 @@ source_candidates AS (
              )
         )
     AND ($16 = '' OR fact.image_ref = $16)
+` + supplyChainImpactRuntimeFilterPredicate("fact.repository_id", "$9", "$10", "$11") + `
 )`
 
 // supportsListOverrideLateral replaces the legacy operator_overrides CTE
