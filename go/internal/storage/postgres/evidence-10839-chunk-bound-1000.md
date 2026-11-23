@@ -43,7 +43,7 @@ tick (200 admitted, truncated, one INSERT). The #10839 batch tests and the
 #11157 clamp tests, including the #11302 derived clamp assertion, pass
 unchanged.
 
-## Observability Evidence (no new telemetry):
+## Observability Evidence (revert adds no telemetry):
 
 No new spans or metrics. The existing `BuildActiveFacts` tick-phase histogram,
 the per-tick statement count, and
