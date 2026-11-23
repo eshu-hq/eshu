@@ -212,5 +212,46 @@ else
   record_fail "snapshot cites a pin const missing in-tree"
 fi
 
+# Case 13 (RED): a tier-C digest flip must FAIL the checker (fail-closed).
+red_tierc="${tmp_root}/red-tierc.md"
+cp "${committed}" "${red_tierc}"
+python3 - "${red_tierc}" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "| `DELETE /api/v0/auth/browser-session` | tier-C-dispatch | tier-C | tree:sha256:"
+assert old in s, "tier-C row shape changed"
+i = s.index(old) + len(old)
+new = ("b" if s[i] == "a" else "a") + s[i+1:i+64]
+open(p, "w").write(s[:i] + new + s[i+64:])
+EOF
+if (cd "${repo_root}" && G2_SNAPSHOT="${red_tierc}" bash "${checker}" >"${tmp_root}/check-red4.txt" 2>&1); then
+  record_fail "checker PASS on a tier-C-flipped snapshot (fail-open)"
+else
+  record_pass "checker FAILs on a tier-C digest flip"
+fi
+
+# Case 14 (RED): a satellite digest flip must FAIL the checker (fail-closed).
+# Needs the pinned satellite objects, same requirement as case 7.
+red_sat="${tmp_root}/red-sat.md"
+cp "${committed}" "${red_sat}"
+python3 - "${red_sat}" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "| `GET /api/v0/admin/delta-union/completeness` | native-served | satellite-native | sat:sha256:"
+assert old in s, "native row shape changed"
+i = s.index(old) + len(old)
+new = ("b" if s[i] == "a" else "a") + s[i+1:i+64]
+open(p, "w").write(s[:i] + new + s[i+64:])
+EOF
+if [ -z "${G2_SATELLITE_REPO:-}" ]; then
+  record_fail "satellite RED seed needs G2_SATELLITE_REPO (same requirement as case 7)"
+elif (cd "${repo_root}" && G2_SNAPSHOT="${red_sat}" G2_SATELLITE_REPO="${G2_SATELLITE_REPO}" bash "${checker}" >"${tmp_root}/check-red5.txt" 2>&1); then
+  record_fail "checker PASS on a satellite-flipped snapshot (fail-open)"
+else
+  record_pass "checker FAILs on a satellite digest flip"
+fi
+
 printf 'tests passed: %s/%s\n' "${PASS}" "$((PASS + FAIL))"
 [ "${FAIL}" -eq 0 ]

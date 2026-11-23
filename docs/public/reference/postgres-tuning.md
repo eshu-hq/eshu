@@ -103,9 +103,9 @@ reads through the session API — so it is not listed. All five take the shared
 The ceiling is `len()` of that list, so adding a holder raises it in the same
 edit; a new local process that opens a pool must be added there.
 
-If that inequality fails, reduce per-runtime pools or add a measured pooling
-layer outside Eshu. Do not raise every runtime to the same number just because
-one phase is slow.
+If that inequality fails, reduce per-runtime pools or add a measured pooling layer
+outside Eshu; do not raise every runtime just because one phase is slow. Deployed
+servers add a restart-burst term: see [Connection Budget](postgres-connection-budget.md).
 
 **Read 170 as a floor, not as the embedded server's fixed ceiling.** That figure
 is what the formula yields at the *default* per-process pool. `eshulocal` derives
