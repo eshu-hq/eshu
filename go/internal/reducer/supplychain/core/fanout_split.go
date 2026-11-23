@@ -90,8 +90,9 @@ type fanOutSplitStats struct {
 	hotIDs      int
 	maxMass     int64
 	// keyRangedIDs counts hot singleton ids read as key ranges (#10643) and
-	// keyRangeStatements the key-range statements they ran (the member-arm
-	// statement of each is counted in statements, not here).
+	// keyRangeStatements the key-range statements they ran. Each key-range
+	// statement carries the member arm as its foreign-member token arm
+	// (#10643 PR 2), so there is no separate member statement to count.
 	keyRangedIDs       int
 	keyRangeStatements int
 }
@@ -192,7 +193,7 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 			stmt.ranged = true
 			stats.keyRangedIDs++
 			stats.keyRangeStatements += len(ranges)
-			stats.statements += len(ranges) + 1
+			stats.statements += len(ranges)
 		} else {
 			stats.statements++
 		}
@@ -236,8 +237,21 @@ func (h SupplyChainImpactHandler) readHolderScopesSplit(
 				start := time.Now()
 				read, err = rangeReader.FindHolderScopesByKeyRange(ctx, ownScopeID, stmt.ids, ranges)
 				h.observeFanOutRead(ctx, telemetry.FanOutReadKindHoldersKeyRangeRead, time.Since(start), err)
+				nonCVE := lookupHoldsNonCVEID(stmt.ids)
+				count := len(ranges)
+				if read.Fallback {
+					// One shipped statement ran instead of the key ranges
+					// (a lookup id over 1,024 bytes, arbiter ruling 10643m).
+					count = 1
+					mu.Lock()
+					stats.keyRangedIDs--
+					stats.keyRangeStatements -= len(ranges)
+					stats.statements -= len(ranges) - 1
+					mu.Unlock()
+				}
 				for _, done := range read.Statements {
 					h.observeFanOutRead(ctx, done.Kind, done.Duration, done.Err)
+					h.noteKeyRangeStatement(ctx, done, count, nonCVE, read.Fallback)
 				}
 				found = read.Scopes
 			} else {

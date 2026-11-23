@@ -350,6 +350,21 @@ tests:
     class: dedicated_ci
     reason: "#10643: reducer-contention enrolled TestHolderKeyRange[A-Za-z]*Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local runs against disposable PostgreSQL 18.6 passed (key-range read equals the shipped read with every edge holder; dropped-last-range and flip REDs caught; pinned custom plan reads fact_records_supply_chain_impact_lookup_idx for the cve arm and ..._advisory_lookup_idx for the advisory arm, each with its lookup expression and both fact_id bounds in one Index Cond and no Filter carrying either, no sequential scan or primary-key range; generic plan reads fact_records_pkey)"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_key_range_token_diff_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10643 PR 2: reducer-contention enrolled TestHolderKeyRange[A-Za-z]*Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (16 three-arm key-range statements equal the shipped holder read for an alias and a colon id across object, scalar, NULL-key, missing, empty, nested, prefix, tombstone and superseded seeds; drop-bucket-0, drop-token-arm and array-only-function REDs each lose holders)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_key_range_token_length_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10643 PR 2 (review F1, arbiter ruling 10643m): reducer-contention enrolled TestHolderKeyRange[A-Za-z]*Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (a finding with a 3,200-byte incompressible foreign member inserts with the token index present as an array element, object key and string scalar; members of 1,024 bytes are tokenized and 1,025 or 1,026 bytes are not, ASCII and multibyte; a long lookup id, and a set mixing it with an alias, fall back to one shipped holder statement and equal FindHolderScopes, a short member of the same row is found by the token arm, and the token statements alone lose the long-id holder)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_key_range_token_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10643 PR 2: reducer-contention enrolled TestHolderKeyRange[A-Za-z]*Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (token function stored as frozen v4 and GIN array_ops token index valid after the migration path; F1 matrix 1,944 cells (18 shapes, 9 ids) all agree with jsonb ? for ids of at most 1,024 bytes, 172 true, longer ids never tokenized, array-only RED disagrees; Go lookup tokens and SQL stored tokens agree for 20 fact-id last characters)"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_inflight_live_test.go
     tag: ~
     class: dedicated_ci
