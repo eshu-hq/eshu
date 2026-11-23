@@ -376,9 +376,11 @@ import (
 // decision 6) adds the verification cursor columns to the backfill marker
 // (345 to 347 are reserved for PR-B2c); count 371 is 370 plus 348, and the digest
 // is this test's own derivation.
+// 345_supply_chain_impact_supports_package_idx.sql (#10880 PR-B2c) adds the partial
+// package_id btree on the supports table, built CONCURRENTLY. 
 const (
-	goldenBootstrapDefinitionsDigest = "8f42c86572b15bd6f7863543e5bf84c7b779c3a5afd89606de1a8593a43e16aa"
-	goldenBootstrapDefinitionsCount  = 371
+	goldenBootstrapDefinitionsDigest = "7b2a70824ccd7ecca082bbcb5104c0a3fbdfff2fb9dccd59ead063f135a59d45"
+	goldenBootstrapDefinitionsCount  = 372
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

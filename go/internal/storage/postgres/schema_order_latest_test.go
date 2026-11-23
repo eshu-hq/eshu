@@ -180,6 +180,9 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// unscoped existence-filter reads of that table.
 	"supply_chain_impact_finding_supports_precise_key_ordered_idx",
 	"supply_chain_impact_finding_supports_image_ref_idx",
+	// Migration 345 (#10880 PR-B2c) adds the partial package_id btree on the
+	// supports table (339 to 342 are PR-B2b's, 343 and 344 PR-B2a's).
+	"supply_chain_impact_supports_package_idx",
 	// Migration 348 (#10880 decision 6) adds the resumable verification cursor
 	// to the supports backfill marker.
 	"supply_chain_impact_finding_supports_backfill_verify_cursor",
