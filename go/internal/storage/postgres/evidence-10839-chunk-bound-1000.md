@@ -21,10 +21,13 @@ shown and was not isolated.
 ## What the earlier replay did and did not show
 
 The pre-merge Decision-5 replay (disposable PG18, 5000-row window) drained 2.30x
-faster at 1000 than at 200. That replay used a small kept-row count per
-identifier. It did not predict the QA per-kept-row cost, so it is not evidence
-that 1000 is safe at QA scale. Any future attempt to raise the bound needs a
-QA-shaped measurement (kept rows per tick in the 200k range) before it lands.
+faster at 1000 than at 200. That replay did not predict the QA per-kept-row
+cost, and the reason is not shown here, so it is not evidence that 1000 is safe
+at QA scale. Chunk tuning is not the lever at QA depth (arbiter ruling of
+2026-11-23, recorded in the goal file): the next lever is the cost per kept row
+or the number of kept rows per identifier. Any future attempt to raise the bound
+needs a QA-shaped measurement (kept rows per tick in the 200k range) and a new
+ruling before it lands.
 
 ## Performance Evidence (no regression):
 
