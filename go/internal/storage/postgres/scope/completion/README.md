@@ -131,6 +131,19 @@ event (a census, not a measured saving; divide by the fan-out count). A failed c
 WARN `cross-scope completion manifest marker count failed` (fields `error` and
 `timeout`) and adds nothing to the counter.
 
+No-Regression Evidence (#10972 wording follow-up): the counter's meaning is
+restated as a census, an upper bound on the re-pends avoided; the SQL, the
+runner code path, the instrument name and labels, and the instrument
+registration code are unchanged (comments and the metric description string
+only, plus a stronger unit-test guard on the statement text). No new queue,
+lock, claim or query cost, so the baseline and after measurements of the
+fan-out statement are the ones recorded above.
+
+No-Observability-Change: the signal, its labels and the log field keep their
+names; only the documented meaning changed, in this README, `doc.go`, the
+reducer runner comment, the metric description, `metrics.md` and the telemetry
+coverage row.
+
 ## Gotchas / invariants
 
 - The fanout never locks, re-pends, or flags a manifest marker
