@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -304,5 +305,102 @@ func TestSupportsCandidateListEqualsLegacyLive(t *testing.T) {
 		if supportsRankDifferences[name] != diff {
 			t.Errorf("rank difference %q = %q, pinned %q", name, diff, supportsRankDifferences[name])
 		}
+	}
+}
+
+// TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive proves the
+// store routing of #10880 PR-B2a on the committed multi-support corpus: with the
+// winners gate on, a granted call returns the supports read's page (the same
+// statement and argument order the equality gate above compares with legacy),
+// and the call refuses with ErrFindingSupportsUnavailable, never a winners or
+// legacy page, whenever the supports readiness predicate is false: the marker
+// incomplete, a marker for a higher contract version, or a non-empty
+// old-writer fence.
+func TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive(t *testing.T) {
+	ctx, database := openSupportsEqualityDatabase(t)
+	candidate := supportsCandidateListQuery(t)
+	store := PostgresFindingStore{DB: database, ReadFromWinners: true}
+	legacy := PostgresFindingStore{DB: database, ReadFromWinners: false}
+
+	grants := []struct {
+		name                 string
+		repositories, scopes []string
+	}{
+		{"scope SA", nil, []string{multiSupportScopeA}},
+		{"scope SA and SB", nil, []string{multiSupportScopeA, multiSupportScopeB}},
+		{"repositories m1 and m2", []string{"repository:m1", "repository:m2"}, nil},
+	}
+	for _, grant := range grants {
+		for name, filter := range map[string]FindingFilter{
+			"profile precise": {Status: "affected_exact", DetectionProfile: ProfilePrecise},
+			"image ref":       {Status: "affected_exact", ImageRef: "registry.example/a:1"},
+			"rank filter":     {Status: "affected_exact", Severity: "medium"},
+			"plain":           {Status: "affected_exact"},
+		} {
+			t.Run(grant.name+"/"+name, func(t *testing.T) {
+				filter.Limit = 100
+				filter.AllowedRepositoryIDs, filter.AllowedScopeIDs = grant.repositories, grant.scopes
+				got, err := store.ListSupplyChainImpactFindings(ctx, filter)
+				if err != nil {
+					t.Fatalf("store list: %v", err)
+				}
+				want, err := supportsCandidateList(ctx, database, candidate, filter)
+				if err != nil {
+					t.Fatalf("supports read: %v", err)
+				}
+				gotJSON, _ := json.Marshal(got)
+				wantJSON, _ := json.Marshal(want)
+				if string(gotJSON) != string(wantJSON) {
+					t.Fatalf("store page differs from the supports read\nstore:    %s\nsupports: %s", multiSupportDescribe(got), multiSupportDescribe(want))
+				}
+				if filter.Severity == "" { // non-rank cases equal the legacy page too
+					legacyRows, err := legacy.ListSupplyChainImpactFindings(ctx, filter)
+					if err != nil {
+						t.Fatalf("legacy list: %v", err)
+					}
+					legacyJSON, _ := json.Marshal(legacyRows)
+					if string(gotJSON) != string(legacyJSON) {
+						t.Fatalf("store page differs from legacy\nstore:  %s\nlegacy: %s", multiSupportDescribe(got), multiSupportDescribe(legacyRows))
+					}
+				}
+			})
+		}
+	}
+
+	granted := FindingFilter{Status: "affected_exact", Limit: 100, AllowedScopeIDs: []string{multiSupportScopeA}}
+	for _, tc := range []struct {
+		name, breakSQL, restoreSQL string
+	}{
+		{
+			name:       "marker incomplete",
+			breakSQL:   `UPDATE supply_chain_impact_finding_supports_backfill SET completed_at = NULL`,
+			restoreSQL: `UPDATE supply_chain_impact_finding_supports_backfill SET completed_at = now()`,
+		},
+		{
+			name:       "marker for a higher contract version",
+			breakSQL:   `INSERT INTO supply_chain_impact_finding_supports_backfill (marker_name, contract_version, completed_at) VALUES ('supply_chain_impact_finding_supports_v99', 99, now())`,
+			restoreSQL: `DELETE FROM supply_chain_impact_finding_supports_backfill WHERE contract_version = 99`,
+		},
+		{
+			name:       "old-writer fence not empty",
+			breakSQL:   `INSERT INTO supply_chain_impact_finding_supports_dirty (scope_id) VALUES ('scope:dirty')`,
+			restoreSQL: `DELETE FROM supply_chain_impact_finding_supports_dirty`,
+		},
+	} {
+		t.Run("refuses: "+tc.name, func(t *testing.T) {
+			if _, err := database.ExecContext(ctx, tc.breakSQL); err != nil {
+				t.Fatalf("break readiness: %v", err)
+			}
+			rows, err := store.ListSupplyChainImpactFindings(ctx, granted)
+			if _, restoreErr := database.ExecContext(ctx, tc.restoreSQL); restoreErr != nil {
+				t.Fatalf("restore readiness: %v", restoreErr)
+			}
+			if !errors.Is(err, ErrFindingSupportsUnavailable) || len(rows) != 0 {
+				t.Fatalf("not-ready list = %d rows, %v; want ErrFindingSupportsUnavailable and no rows", len(rows), err)
+			}
+			if _, err := store.ListSupplyChainImpactFindings(ctx, granted); err != nil {
+				t.Fatalf("list after restoring readiness: %v", err)
+			}
+		})
 	}
 }

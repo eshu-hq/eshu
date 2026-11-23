@@ -220,17 +220,22 @@ func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	}
 
 	query := ListFindingsQuery
-	// Granted calls and existence-filter calls (image_ref, profile) stay on the
-	// legacy read: the winners row is one pick across scopes, so it cannot
-	// answer a grant or an any-support filter from every support (#10880 PR-B
-	// ruling). The precise profile is the API default, so until the supports
-	// table serves these filters only profile=comprehensive reads winners.
-	if s.ReadFromWinners &&
-		len(filter.AllowedRepositoryIDs) == 0 &&
-		len(filter.AllowedScopeIDs) == 0 &&
-		filter.ImageRef == "" &&
-		filter.DetectionProfile == "" {
-		query = ListFindingsFromWinnersQuery
+	if s.ReadFromWinners {
+		switch {
+		case filter.readsFromSupports():
+			// A grant applies to the support row: the winners row is one pick
+			// across scopes, so it cannot answer a grant (#10880 PR-B ruling,
+			// decision 1). The read refuses, and never falls back to winners or
+			// the fact read, while the supports table is not ready.
+			if err := s.requireSupportsReady(ctx); err != nil {
+				return nil, err
+			}
+			query = ListFindingsFromSupportsQuery
+		case filter.ImageRef == "" && filter.DetectionProfile == "":
+			query = ListFindingsFromWinnersQuery
+		}
+		// An unscoped existence-filter call (image_ref, profile) stays on the
+		// legacy read until its supports shape is ruled.
 	}
 	args := []any{
 		FindingFactKind,
