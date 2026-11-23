@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 504 lines (base 498): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe.
+package postgres //nolint:filelength // 556 lines (base 555): the #10565 funnel gate column and its scan wiring stay next to the claim statement they describe; #11228 adds one line for the backstop-exit probe hook.
 
 import (
 	"context"
@@ -363,8 +363,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 	if err != nil {
 		return 0, fmt.Errorf("enqueue reducer batch (%d intents): rows affected: %w", len(batch), err)
 	}
-
-	return inserted, nil
+	return resolveEnqueueShortfall(ctx, q.database, batch, inserted)
 }
 
 // Claim implements reducer.WorkSource over fact_work_items.
@@ -418,7 +417,8 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducercontract.Intent, bool, 
 		}
 		return reducercontract.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
-	return intent, true, nil
+	_ = rows.Close() // #11228: free the connection for the backstop-exit probe
+	return q.noteBackstopClaim(ctx, intent), true, nil
 }
 
 // Heartbeat extends the claim on one reducer work item owned by this queue.

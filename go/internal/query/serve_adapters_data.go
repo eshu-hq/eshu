@@ -166,6 +166,10 @@ func newCoreSupplyChainHandler(
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,
 ) *SupplyChainHandler {
+	// The probe-failure WARN names the deployment the 503 blames, so a
+	// lagging maintainer is distinguishable from an unwired route.
+	impactAggregates := impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners)
+	impactAggregates.Logger = logger
 	return &SupplyChainHandler{
 		Neo4j:                        neo4jReader,
 		Logger:                       logger,
@@ -175,7 +179,7 @@ func newCoreSupplyChainHandler(
 		AdvisoryEvidence:             advisory.NewPostgresEvidenceStoreWithReadStore(reader),
 		AdvisoryCatalog:              advisory.NewPostgresCatalogStoreWithReadStore(reader),
 		ImpactFindings:               impact.NewPostgresFindingStoreWithReadStore(reader, readImpactFromWinners),
-		ImpactAggregates:             impact.NewPostgresAggregateStoreWithReadStore(reader, readImpactFromWinners),
+		ImpactAggregates:             impactAggregates,
 		ImpactGroupedInventory:       impact.NewPostgresGroupedInventoryStoreWithReadStore(reader, readImpactFromWinners, logger),
 		ImpactExplanations:           impact.NewPostgresFindingStoreWithReadStore(reader, false),
 		ContainerImageIdentities:     NewPostgresContainerImageIdentityStoreWithReadStore(reader),

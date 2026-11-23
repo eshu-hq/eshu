@@ -506,6 +506,9 @@ var migrationShippedChecksums = map[string]string{
 	// shipped.
 	"336_eshu_sci_foreign_member_tokens_v4.sql":             "0e9bd61512fbaa996b3b14794029bc629f5b77acc0ce81e527feb4d3230fcb58",
 	"337_fact_records_sci_foreign_member_tokens_v4_idx.sql": "7dfba4e2f18c8c4a24b591eba32be31d938ebd6af415055e79ba65f830f370c3",
+	// #10880 PR-B1: the per-support table behind the grant-scoped reads
+	// (numbered 338: 333 to 337 are main's).
+	"338_supply_chain_impact_finding_supports.sql": "9355b094248c1efc43b060e499f5931ae9bdd3932fcbba20fbac996faf79f5e6",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

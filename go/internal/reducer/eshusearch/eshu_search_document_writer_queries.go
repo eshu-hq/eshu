@@ -33,6 +33,13 @@ WHERE scope_id = $1
 // intentionally separate from canonicalReducerFactInsertQuery (which is a
 // single-row parameterised statement shared by many writers) so we do not
 // disturb those callers.
+//
+// Its ON CONFLICT clause has no owner check on purpose (#11214). The fact id is
+// eshuSearchDocumentFactID, a SHA-256 over scope, generation and document, so two
+// writes share an id only when all three are equal and the conflicting row is
+// the writer's own. TestEshuSearchDocumentFactIDHashesScopeGenerationAndDocument
+// pins that, and the fact id producer guard (go/internal/facts) fails if the
+// helper stops naming the scope and the generation.
 const eshuSearchDocumentBatchFactInsertQuery = `
 INSERT INTO fact_records (
     fact_id,

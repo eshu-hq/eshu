@@ -366,6 +366,7 @@ nav:
       - Deferred Backfill Block Timing: reference/telemetry/deferred-backfill-blocks.md
       - Generation Outcome Telemetry: reference/telemetry/generation-outcomes.md
       - Supply-Chain Impact Winners Resweep: reference/telemetry/supply-chain-impact-winners.md
+      - Supply-Chain Impact Supports: reference/telemetry/supply-chain-impact-supports.md
       - Advisory Group Projection: reference/telemetry/advisory-group-projection.md
       - Package Manifest Backfill Page Timing: reference/telemetry/package-manifest-backfill.md
       - Generation Retention Search Index Pre-Delete: reference/telemetry/generation-retention-search-index.md
@@ -488,6 +489,7 @@ nav:
     - Troubleshooting: operate/troubleshooting.md
     - Park-Holder Runbook: operate/park-holder-runbook.md
     - Vulnerability Source Held Stale: operate/vulnerability-source-held-stale.md
+    - NVD Feed Transport Govern and Trip: operate/nvd-feed-transport.md
     - "3 AM Operator Runbook": operate/3am-operator-runbook.md
     - Hosted Operations Runbook: operate/hosted-operations-runbook.md
     - Hosted Project Onboarding: deployment/hosted-onboarding.md

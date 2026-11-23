@@ -150,6 +150,9 @@ func run(parent context.Context) error {
 	waitPackageManifestBackfill := startPackageManifestConsumptionKeyBackfill(ctx, func(runCtx context.Context) error {
 		return runPackageManifestConsumptionKeyBackfill(runCtx, db, instruments, logger)
 	}, logger)
+	waitSupportsBackfill := startSupplyChainImpactSupportsBackfill(ctx, func(runCtx context.Context) error {
+		return runSupplyChainImpactSupportsBackfill(runCtx, db, instruments, logger)
+	}, logger)
 	// The id-anchor census (#7212) reads the graph, so it stops before the
 	// deferred graph-driver close like the gauge refreshers above.
 	waitIDAnchorCensus := startIDAnchorCensus(ctx, loadIDAnchorCensusConfig(os.Getenv), graphBackend, idAnchorCensusReader(neo4jReader, graphReader), instruments, logger)
@@ -170,6 +173,7 @@ func run(parent context.Context) error {
 		closeSecretLinesLockPool(secretLinesLockPool)
 		waitIDAnchorCensus()
 		waitPackageManifestBackfill()
+		waitSupportsBackfill()
 		waitGraphRefresher()
 		waitPostgresRefresher()
 	}()

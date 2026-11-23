@@ -216,10 +216,12 @@ func (s *WorkflowControlStore) SourcePacingStates(
 	if err != nil {
 		return nil, fmt.Errorf("source pacing signals: %w", err)
 	}
+	latchReadAt := time.Now()
 	latches, err := s.sourceBackpressureLatches(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("source pacing latches: %w", err)
 	}
+	s.observeSourcePacingLatches(ctx, latches, latchReadAt)
 	bySource := make(map[string]workflow.SourceQueueSignal, len(signals))
 	for _, signal := range signals {
 		bySource[signal.SourceSystem] = signal
@@ -292,10 +294,12 @@ func (s *WorkflowControlStore) evaluateSources(
 	if err != nil {
 		return nil, fmt.Errorf("source backpressure signals: %w", err)
 	}
+	latchReadAt := time.Now()
 	latches, err := s.sourceBackpressureLatches(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("source backpressure latches: %w", err)
 	}
+	s.observeSourcePacingLatches(ctx, latches, latchReadAt)
 	verdicts := make(map[string]workflow.SourceBackpressureDecision, len(sources))
 	for _, source := range sources {
 		signal := bySource[source]
@@ -310,15 +314,11 @@ func (s *WorkflowControlStore) evaluateSources(
 			}
 			continue
 		}
-		var engagedAt any
-		if verdict.Slowed {
-			engagedAt = now.UTC()
-		}
-		if _, err := s.database.ExecContext(ctx, claimPacingLatchUpsert,
-			string(workflow.ClaimPacingSignalReducerSource), source, verdict.Slowed, engagedAt, now.UTC()); err != nil {
+		if err := s.writeClaimPacingLatch(ctx,
+			pacingLatchKey{signal: workflow.ClaimPacingSignalReducerSource, domain: source},
+			verdict.Slowed, now); err != nil {
 			return nil, fmt.Errorf("source backpressure latch advance: %w", err)
 		}
-		s.recordSourceBackpressureTransition(ctx, verdict)
 	}
 	return verdicts, nil
 }
@@ -418,36 +418,6 @@ func (s *WorkflowControlStore) sourceBackpressureLatches(
 	ctx context.Context,
 ) (map[string]sourceLatchState, error) {
 	return readSourceBackpressureLatches(ctx, s.database)
-}
-
-// recordSourceBackpressureTransition emits the engagement telemetry for one
-// latch transition on the existing claim-pacing metric family with
-// pacing_signal="reducer_source" and domain=<source_system>, so an
-// operator sees slowed engagements and releases beside the depth pacing
-// series. Nil instruments are a no-op.
-func (s *WorkflowControlStore) recordSourceBackpressureTransition(
-	ctx context.Context,
-	verdict workflow.SourceBackpressureDecision,
-) {
-	if s.Instruments == nil {
-		return
-	}
-	attrs := metric.WithAttributes(
-		telemetry.AttrPacingSignal(string(workflow.ClaimPacingSignalReducerSource)),
-		telemetry.AttrDomain(verdict.SourceSystem),
-	)
-	if verdict.Slowed {
-		if s.Instruments.WorkflowClaimPacingEngagedTotal != nil {
-			s.Instruments.WorkflowClaimPacingEngagedTotal.Add(ctx, 1, attrs)
-		}
-		if s.Instruments.WorkflowClaimPacingActive != nil {
-			s.Instruments.WorkflowClaimPacingActive.Add(ctx, 1, attrs)
-		}
-		return
-	}
-	if s.Instruments.WorkflowClaimPacingActive != nil {
-		s.Instruments.WorkflowClaimPacingActive.Add(ctx, -1, attrs)
-	}
 }
 
 // recordSourceBackpressureStuck keeps an overdue engagement loud: the stuck

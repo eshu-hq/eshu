@@ -257,13 +257,14 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	if count.TotalFindings != want {
 		t.Fatalf("normalized runtime count = %d, want %d", count.TotalFindings, want)
 	}
-	inventory, err := aggregateStore.SupplyChainImpactInventory(
+	inventoryPage, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
 		impact.InventoryByStatus,
 		10,
 		0,
 	)
+	inventory := inventoryPage.Rows
 	if err != nil {
 		t.Fatalf("inventory normalized runtime filter: %v", err)
 	}

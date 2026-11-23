@@ -39,7 +39,7 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 		return CloudAssetResolutionWriteResult{}, fmt.Errorf("marshal cloud asset resolution payload: %w", err)
 	}
 
-	if _, err := w.DB.ExecContext(
+	result, err := w.DB.ExecContext(
 		ctx,
 		factwrite.SingleInsertQuery,
 		write.IntentID,
@@ -57,8 +57,12 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 		now,
 		false,
 		payloadJSON,
-	); err != nil {
+	)
+	if err != nil {
 		return CloudAssetResolutionWriteResult{}, fmt.Errorf("write cloud asset resolution fact: %w", err)
+	}
+	if err := factwrite.CheckOwned(ctx, w.DB, result, factwrite.WriterSingle, write.IntentID, write.ScopeID, write.GenerationID, "reducer_cloud_asset_resolution"); err != nil {
+		return CloudAssetResolutionWriteResult{}, err
 	}
 
 	return CloudAssetResolutionWriteResult{

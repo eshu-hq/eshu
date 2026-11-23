@@ -1526,6 +1526,14 @@ type Instruments struct {
 	SupplyChainImpactWinnersFullResweeps        metric.Int64Counter
 	SupplyChainImpactWinnersStandDowns          metric.Int64Counter
 	supplyChainImpactWinnersContract            *winnersContractState
+	// The per-support table signals of #10880 PR-B1, registered by
+	// registerSupplyChainImpactSupportsInstruments.
+	SupplyChainImpactSupportsRows                 metric.Int64Counter
+	SupplyChainImpactSupportsBackfillSteps        metric.Int64Counter
+	SupplyChainImpactSupportsBackfillReady        metric.Int64Gauge
+	SupplyChainImpactSupportsDirtyScopes          metric.Int64Gauge
+	SupplyChainImpactSupportsBackfillLastSuccess  metric.Int64Gauge
+	SupplyChainImpactSupportsBackfillStepDuration metric.Float64Histogram
 	// The keyed-resweep signals of #9805, registered by
 	// registerSupplyChainImpactWinnersKeyedInstruments: keys recomputed per
 	// keyed tick, dirty-log identifiers consumed, consumed rows by capture
@@ -3802,6 +3810,14 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingFallbackResolved counts parked waits a fallback
+	// resolved instead of a wake (#11228): the #10876 slow audit (outcome
+	// reopened or reconciled) or the reducer claim at the 10-minute
+	// backstop (outcome backstop), by reason (failure_class) and the
+	// reason's registered wake site (wake_site). A reopened or backstop
+	// wait whose wake site is not audit means its wake was lost.
+	// Registered by registerReducerWaitingInstruments.
+	ReducerWaitingFallbackResolved metric.Int64Counter
 	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
 	// recorded by the waiting audit each cycle. Registered by
 	// registerReducerWaitingInstruments.
@@ -7436,6 +7452,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerSupplyChainImpactWinnersKeyedInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerSupplyChainImpactSupportsInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerAdvisoryGroupProjectionInstruments(meter, inst); err != nil {

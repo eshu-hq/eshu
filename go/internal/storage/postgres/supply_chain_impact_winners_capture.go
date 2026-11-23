@@ -162,8 +162,10 @@ func (t *supplyChainImpactTx) Commit() error {
 	err := t.tx.Commit()
 	if err == nil {
 		t.flushCapture()
+		t.flushSupports()
 	} else {
 		t.pendingCapture = nil
+		t.pendingSupports = nil
 		t.recordWinnersWriteConflict(telemetry.SupplyChainImpactWinnersConflictSiteWriterCommit, err)
 	}
 	return err
@@ -187,6 +189,7 @@ func (t *supplyChainImpactTx) recordWinnersWriteConflict(site string, err error)
 // Rollback rolls the transaction back and discards the capture rows it held.
 func (t *supplyChainImpactTx) Rollback() error {
 	t.pendingCapture = nil
+	t.pendingSupports = nil
 	return t.tx.Rollback()
 }
 

@@ -145,13 +145,14 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			if count.TotalFindings != 0 {
 				t.Fatalf("count conflicting anchor = %d, want 0", count.TotalFindings)
 			}
-			inventory, err := aggregateStore.SupplyChainImpactInventory(
+			inventoryPage, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
 				impact.InventoryByStatus,
 				10,
 				0,
 			)
+			inventory := inventoryPage.Rows
 			if err != nil {
 				t.Fatalf("inventory conflicting anchor: %v", err)
 			}
@@ -224,13 +225,14 @@ func assertSupplyChainStaleBakedFiltersLive(
 			if count.TotalFindings != 0 {
 				t.Fatalf("count stale baked selector = %d, want 0", count.TotalFindings)
 			}
-			inventory, err := aggregateStore.SupplyChainImpactInventory(
+			inventoryPage, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
 				impact.InventoryByStatus,
 				10,
 				0,
 			)
+			inventory := inventoryPage.Rows
 			if err != nil {
 				t.Fatalf("inventory stale baked selector: %v", err)
 			}

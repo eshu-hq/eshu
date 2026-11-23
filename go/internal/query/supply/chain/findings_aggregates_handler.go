@@ -4,9 +4,11 @@
 package chain
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
@@ -105,6 +107,12 @@ func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
 			return
 		}
+		// #11169: a winners-eligible call the maintainer cannot serve
+		// exactly answers 503, never an approximate total.
+		if errors.Is(err, impact.ErrAggregateReadModelUnavailable) {
+			h.writeImpactAggregateReadModelUnavailable(w, r)
+			return
+		}
 		writeStageFailure(w, r, countTimer, err, impactCountReadFailedMessage)
 		return
 	}
@@ -119,6 +127,7 @@ func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 		"by_severity":        count.BySeverity,
 		"detection_profile":  profile,
 		"scope":              supplyChainImpactAggregateScope(filter),
+		"freshness":          impactAggregateFreshnessBody(count.Freshness),
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ImpactAggregateCapability,
@@ -197,7 +206,7 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 	profile := requestedSupplyChainImpactAggregateProfile(filter)
 
 	inventoryTimer := startSupplyChainQueryStage(r.Context(), h.Logger, supplyChainImpactAggregateOperation, filter.RepositoryID, "impact_aggregate_inventory")
-	rows, err := h.ImpactAggregates.SupplyChainImpactInventory(r.Context(), filter, dimension, limit+1, offset)
+	page, err := h.ImpactAggregates.SupplyChainImpactInventory(r.Context(), filter, dimension, limit+1, offset)
 	inventoryTimer.Done(r.Context(), slog.Bool("error", err != nil))
 	if err != nil {
 		// #7549: a stale or timed-out guarded PostgreSQL reader answers the
@@ -206,9 +215,16 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		if querycontract.WriteGraphReadError(w, r, err, ImpactAggregateCapability) {
 			return
 		}
+		// #11169: a winners-eligible call the maintainer cannot serve
+		// exactly answers 503, never approximate buckets.
+		if errors.Is(err, impact.ErrAggregateReadModelUnavailable) {
+			h.writeImpactAggregateReadModelUnavailable(w, r)
+			return
+		}
 		writeStageFailure(w, r, inventoryTimer, err, impactInventoryReadFailedMessage)
 		return
 	}
+	rows := page.Rows
 	truncated := len(rows) > limit
 	if truncated {
 		rows = rows[:limit]
@@ -223,6 +239,7 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		"truncated":         truncated,
 		"next_offset":       NextImpactAggregateOffset(offset, limit, truncated),
 		"scope":             supplyChainImpactAggregateScope(filter),
+		"freshness":         impactAggregateFreshnessBody(page.Freshness),
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -433,4 +450,39 @@ func NextImpactAggregateOffset(offset, limit int, truncated bool) any {
 		return nil
 	}
 	return next
+}
+
+// writeImpactAggregateReadModelUnavailable answers the 503
+// backend_unavailable envelope for a winners-eligible count or inventory
+// call the maintainer cannot serve exactly (#11169): the winners watermark
+// is absent, older than the freshness window, or its probe failed. The text
+// names the stale model (not the missing deployment the shared writer
+// describes) so an operator can tell a lagging maintainer from an unwired
+// route. It carries Retry-After for one freshness window (120 s): the caller
+// retries after the maintainer resweeps, which the watermark age on the next
+// fresh answer discloses.
+func (h *Handler) writeImpactAggregateReadModelUnavailable(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(supplyChainImpactWinnersFreshnessWindow/time.Second)))
+	querycontract.WriteContractError(
+		w,
+		r,
+		http.StatusServiceUnavailable,
+		"supply-chain impact aggregates are unavailable: the winners read model is not fresh; retry after the maintainer resweeps",
+		querycontract.ErrorCodeBackendUnavailable,
+		ImpactAggregateCapability,
+		h.profile(),
+		querycontract.RequiredProfile(ImpactAggregateCapability),
+	)
+}
+
+// impactAggregateFreshnessBody renders the store freshness for the count and
+// inventory envelopes. The store always sets the state: the legacy
+// live-facts read reports fresh with no watermark, a winners-served answer
+// fresh with the maintainer watermark.
+func impactAggregateFreshnessBody(freshness impact.AggregateFreshness) map[string]any {
+	body := map[string]any{"state": freshness.State}
+	if freshness.LatestObservedAt != "" {
+		body["latest_observed_at"] = freshness.LatestObservedAt
+	}
+	return body
 }

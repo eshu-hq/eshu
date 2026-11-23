@@ -43,4 +43,5 @@ ON CONFLICT (fact_id) DO UPDATE SET
     ingested_at = EXCLUDED.ingested_at,
     is_tombstone = EXCLUDED.is_tombstone,
     payload = EXCLUDED.payload
+WHERE fact_records.scope_id = EXCLUDED.scope_id
 `

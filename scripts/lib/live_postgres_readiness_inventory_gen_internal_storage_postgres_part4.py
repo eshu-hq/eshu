@@ -22,6 +22,15 @@ TABLE = {
             "TestReducerClaimSweepKeepsActiveGenerationRowsLive",
             "TestReducerClaimSweepDropsRowClaimedBeforeItsLockLive",
         ),
+        "go/internal/storage/postgres/reducer_fact_owner_live_test.go": (
+            "TestReducerFactStatementsRefuseAForeignScopeRowLive",
+            "TestReducerFactOwnerRaceTwoScopesLive",
+            "TestEnqueueRefusesAForeignIntentWorkItemIDLive",
+        ),
+        "go/internal/storage/postgres/reducer_fact_owner_plan_live_test.go": (
+            "TestReducerOwnerLegPreStatementsAreDerived",
+            "TestReducerOwnerLegCostLive",
+        ),
         "go/internal/storage/postgres/reducer_heartbeat_startup_window_live_test.go": (
             "TestReducerServiceClosesLeaseExpiryStartupWindowAgainstPostgres",
         ),
@@ -92,6 +101,20 @@ TABLE = {
         "go/internal/storage/postgres/reducer_queue_service_catalog_runtime_retrigger_window_live_test.go": (
             "TestReducerContentionGateServiceCatalogRetriggerFlagsRunThatNewlyNamesRepo",
         ),
+        "go/internal/storage/postgres/reducer_waiting_ack_contention_live_test.go": (
+            "TestWaitingAckParkContentionLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_ack_park_race_live_test.go": (
+            "TestWaitingAckParkInterleaveLive",
+            "TestWaitingAckParkOrdersLive",
+            "TestWaitingAckCrashResidualAuditLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_audit_resolved_live_test.go": (
+            "TestWaitingAuditResolvedCounterLive",
+        ),
+        "go/internal/storage/postgres/reducer_waiting_backstop_claim_live_test.go": (
+            "TestWaitingBackstopClaimCounterLive",
+        ),
         "go/internal/storage/postgres/reducer_waiting_backward_evidence_contention_live_test.go": (
             "TestBackwardEvidenceWakeContentionLive",
         ),
@@ -150,6 +173,7 @@ TABLE = {
             "TestWinnersAuditReopenedWaitConvergesOnNextTickLive",
         ),
         "go/internal/storage/postgres/relationship_activation_wake_live_test.go": (
+            "TestReplayOfDeadLetteredProductionItemIsNotACollisionLive",
             "TestActivationWakesOwnGateConsumersLive",
         ),
         "go/internal/storage/postgres/relationship_activation_wake_race_live_test.go": (

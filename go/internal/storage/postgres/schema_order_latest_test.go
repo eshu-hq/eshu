@@ -167,4 +167,7 @@ var orderedBootstrapDefinitionNamesLatest = []string{
 	// (numbered 336/337, the next free numbers after main's 333-335).
 	"eshu_sci_foreign_member_tokens_v4",
 	"fact_records_sci_foreign_member_tokens_v4_idx",
+	// Migration 338 (#10880 PR-B1) adds the per-support table behind the
+	// grant-scoped impact reads (333 to 337 are main's).
+	"supply_chain_impact_finding_supports",
 }
