@@ -340,7 +340,7 @@ def render(core_sha: str, rows: list[dict[str, object]], n: int, buckets: dict[s
              "above); served_by (derived from class); spec_digest "
              "(`sat:sha256:<hex>` of the covering satellite terminate "
              "fragment for native rows, `tree:sha256:<hex>` of the row's "
-             "in-tree fragment for relay rows); pin (covering admission "
+             "in-tree fragment for relay and tier-C rows); pin (covering admission "
              "contract or `none`); mount (serving-side registration cite); "
              "evidence (tracker/wave/pin cites). G2 passes only when "
              "relay-nonsurvivor + absent = 0: the 19 #9669-named core-owned "

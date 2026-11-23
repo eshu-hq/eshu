@@ -37,7 +37,7 @@ Every in-tree route carries exactly one class; class counts must sum to the re-m
 | relay-disclosed | core-relay | still riding the relay catch-all, disclosed |
 | absent-disclosed | none-absent | in inventory, served by neither side, disclosed |
 
-Column rules: route (`METHOD path`); class (one of the four above); served_by (derived from class); spec_digest (`sat:sha256:<hex>` of the covering satellite terminate fragment for native rows, `tree:sha256:<hex>` of the row's in-tree fragment for relay rows); pin (covering admission contract or `none`); mount (serving-side registration cite); evidence (tracker/wave/pin cites). G2 passes only when relay-nonsurvivor + absent = 0: the 19 #9669-named core-owned survivors are exempt, every other relay row blocks until the arbiter dispositions it.
+Column rules: route (`METHOD path`); class (one of the four above); served_by (derived from class); spec_digest (`sat:sha256:<hex>` of the covering satellite terminate fragment for native rows, `tree:sha256:<hex>` of the row's in-tree fragment for relay and tier-C rows); pin (covering admission contract or `none`); mount (serving-side registration cite); evidence (tracker/wave/pin cites). G2 passes only when relay-nonsurvivor + absent = 0: the 19 #9669-named core-owned survivors are exempt, every other relay row blocks until the arbiter dispositions it.
 
 ## Survivor exemption list (19, committed judgment)
 
