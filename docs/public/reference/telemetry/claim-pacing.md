@@ -37,11 +37,18 @@ status publication only.
 
 - `eshu_dp_workflow_claim_pacing_engaged_total` — counter of latch
   engagements, labeled `pacing_signal` and, for the domain signal,
-  `domain`. Transitions
-  matter: a gauge sampled between engagements reads as "fine".
+  `domain`. One latch transition adds exactly 1 to the sum across
+  processes: only the consult whose write moved the shared row counts it,
+  and a consult that raced it and matched nothing counts nothing.
+  Transitions matter: a gauge sampled between engagements reads as "fine".
 - `eshu_dp_workflow_claim_pacing_active` — up/down gauge of whether pacing
   is on right now, labeled `pacing_signal` and, for the domain signal,
-  `domain`. The counter alone cannot answer
+  `domain`. The process that engaged the latch raises it. Each process that
+  raised it takes the raise back when it next reads the row and finds that
+  engagement over, whether it wrote the release or another process did, and
+  a process that never raised it never lowers it. The sum across processes
+  is therefore 1 while the latch is engaged and 0 once every raising
+  process has read the released row. The counter alone cannot answer
   that: it holds the same value during an engagement and after it ends.
 - `eshu_dp_workflow_claim_pacing_stuck_total` — counter of verdicts that
   stayed engaged past the engagement bound with depth still above the
@@ -64,11 +71,12 @@ convert a metrics outage into an intake outage. The fail-open consult emits
 only a debug record (`pacing consult failed open`, naming the error), so a
 dead depth signal stays diagnosable without paging.
 
-The active gauge is process-local: after a restart it starts at 0, so a
-release with no matching engagement in this process reads -1 until the next
-transition. Latch truth stays correct in the shared row; only the gauge
-needs one transition to converge.
-
+The active gauge is process-local, and a process reads the row on every
+consult and on every status publication, so a released latch reaches a
+raising process's gauge on its next consult or publication. A process that
+raised the gauge and restarts while the latch stays engaged loses its raise;
+the gauge reads 0 for that engagement until the next one. Latch truth stays
+correct in the shared row and in the coordinator `source_pacing` rows.
 Per-component quota throttle signals (`quota_exceeded`, floor-rate
 fallback) are not pacing signals: they belong to #8471, merged in #8557
 and documented in [Claim Quota Signals](claim-quotas.md). They share the
