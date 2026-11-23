@@ -21,6 +21,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/backfill"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // supportsDeferWriter records every reconciliation write.
@@ -39,6 +40,41 @@ func (w *supportsDeferWriter) WriteSecurityAlertReconciliations(
 	w.calls++
 	w.decisions = append([]securityalert.SecurityAlertReconciliationDecision(nil), write.Decisions...)
 	return securityalert.SecurityAlertReconciliationWriteResult{CanonicalWrites: len(write.Decisions)}, nil
+}
+
+// countingExecQueryer counts the statements a deferral cycle sends, so the
+// proof can report the poll cost (statements, wall time, WAL bytes) per cycle.
+type countingExecQueryer struct {
+	SQLDB
+	statements int
+}
+
+func (c *countingExecQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	c.statements++
+	return c.SQLDB.QueryContext(ctx, query, args...)
+}
+
+func (c *countingExecQueryer) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	c.statements++
+	return c.SQLDB.ExecContext(ctx, query, args...)
+}
+
+func walLSN(t *testing.T, ctx context.Context, database *sql.DB) string {
+	t.Helper()
+	var lsn string
+	if err := database.QueryRowContext(ctx, `SELECT pg_current_wal_lsn()::text`).Scan(&lsn); err != nil {
+		t.Fatalf("read WAL lsn: %v", err)
+	}
+	return lsn
+}
+
+func walBytesBetween(t *testing.T, ctx context.Context, database *sql.DB, from, to string) int64 {
+	t.Helper()
+	var bytes int64
+	if err := database.QueryRowContext(ctx, `SELECT pg_wal_lsn_diff($1::pg_lsn, $2::pg_lsn)::bigint`, to, from).Scan(&bytes); err != nil {
+		t.Fatalf("diff WAL lsn: %v", err)
+	}
+	return bytes
 }
 
 // supportsControlLoader is the control: the same store, but the active evidence
@@ -94,7 +130,8 @@ func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 		workflowControlIntegrationDSNEnv+" is not set; skipping Postgres integration test")
 	b2cSeed(t, ctx, db)
 	now, _ := time.Parse(time.RFC3339, b2cNow)
-	store := NewFactStore(SQLDB{DB: db})
+	counting := &countingExecQueryer{SQLDB: SQLDB{DB: db}}
+	store := NewFactStore(counting)
 	if err := store.UpsertFacts(ctx, []facts.Envelope{{
 		FactID: "alert-b2c", ScopeID: b2cScopeA, GenerationID: b2cGenA, FactKind: facts.SecurityAlertRepositoryAlertFactKind,
 		StableFactKey: "alert:b2c", SchemaVersion: facts.SecurityAlertSchemaVersionV1, CollectorKind: "synthetic",
@@ -116,7 +153,7 @@ func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 
 	clock := time.Now().UTC()
 	queue := ReducerQueue{
-		database: SQLDB{DB: db}, LeaseOwner: "recon-worker", LeaseDuration: time.Minute, RetryDelay: time.Minute,
+		database: counting, LeaseOwner: "recon-worker", LeaseDuration: time.Minute, RetryDelay: time.Minute,
 		MaxAttempts: 3, ClaimDomains: []reducercontract.Domain{reducer.DomainSecurityAlertReconciliation},
 		Now: func() time.Time { return clock },
 	}
@@ -127,6 +164,7 @@ func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 	}
 
 	for cycle := 1; cycle <= 4; cycle++ {
+		statementsBefore, started, walBefore := counting.statements, time.Now(), walLSN(t, ctx, db)
 		intent, claimed, err := queue.Claim(ctx)
 		if err != nil || !claimed {
 			t.Fatalf("cycle %d: Claim() claimed=%v err=%v, want the deferred row", cycle, claimed, err)
@@ -148,6 +186,11 @@ func TestSupplyChainImpactSupportsNotReadyDefersNonCountingLive(t *testing.T) {
 		if status != "retrying" || class != supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass || attempts != 1 {
 			t.Fatalf("cycle %d: row = %s/%s/attempt %d, want retrying/%s/1", cycle, status, class, attempts, supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass)
 		}
+		// Poll cost of one deferral cycle: the claim, the handler's alert fact load
+		// and readiness probe, and the retry update. Logged, not gated.
+		t.Logf("deferral cycle %d: %d statements, %s wall, %d WAL bytes", cycle,
+			counting.statements-statementsBefore, time.Since(started).Round(time.Millisecond),
+			walBytesBetween(t, ctx, db, walBefore, walLSN(t, ctx, db)))
 		clock = clock.Add(2 * time.Minute)
 	}
 	if writer.calls != 0 {
