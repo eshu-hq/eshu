@@ -34,6 +34,10 @@ type faults struct {
 	// where a late advisory goroutine reaches its guard after the first
 	// winner's targets went terminal (#11074).
 	drainAdmitted bool
+	// admitDelay makes every guarded admission take this long before it
+	// reads or writes, the way a loaded database or runner stretches a guard
+	// call past the round's hold (#11074).
+	admitDelay time.Duration
 }
 
 type fakeItem struct {
@@ -111,6 +115,9 @@ func (l *fakeLeg) EnqueueWorkItems(_ context.Context, items []workflow.WorkItem)
 }
 
 func (l *fakeLeg) AdmitGuarded(_ context.Context, _ workflow.Run, items []workflow.WorkItem) (workflow.RunAdmission, error) {
+	if l.f.admitDelay > 0 {
+		time.Sleep(l.f.admitDelay)
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, it := range items {

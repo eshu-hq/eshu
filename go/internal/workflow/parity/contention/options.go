@@ -112,9 +112,13 @@ type Options struct {
 	// (default CallTimeout). The guard admits a run only while its targets
 	// have no open item, and the harness's own workers would otherwise
 	// complete the first winner's items before a late goroutine's guard call,
-	// admitting a second winner the guard is right to admit (#11074). A guard
-	// call is cancelled after CallTimeout, so no goroutine can still be
-	// waiting when the hold ends.
+	// admitting a second winner the guard is right to admit (#11074). The hold
+	// is a window, not a guarantee: a goroutine delayed past it (a stalled
+	// runner) may reach the guard after the workers drained the items. The
+	// round therefore judges its verdict only when every guard call returned
+	// before the hold ended, and voids (counts, logs, does not judge) the
+	// rounds that did not. Keep the hold at or above CallTimeout so a slow
+	// but bounded guard call still fits.
 	AdvisoryHold  time.Duration
 	ReplayTimeout time.Duration // injected first-call timeout, default 1ms
 	MaxSamples    int           // samples kept in the report, default 600

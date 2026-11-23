@@ -105,7 +105,7 @@ See `AGENTS.md`. The ones that bite:
 | §5 steps 1-4, 7-9 | `worker.go` (claim, heartbeat hold, 60/15/15/10 endings, heartbeat skip, pin, replay, stale writes) |
 | §5 step 4 reaper | `loops.go` `reapLoop` (local legs only; live uses the deployed reaper) |
 | §5 step 5 quota | `seed.go` `seedQuota`: "at" scope gets budget+extra items, "below" gets budget-1 |
-| §5 step 6 advisory | `loops.go` `advisoryRound` (25 goroutines, barrier start; items hidden for `Options.AdvisoryHold`, default `CallTimeout`, so workers cannot terminalize the targets mid-round, #11074) |
+| §5 step 6 advisory | `loops.go` `advisoryRound` (25 goroutines, barrier start; items hidden for `Options.AdvisoryHold`, default `CallTimeout`, so workers cannot terminalize the targets mid-round; a round whose guard calls did not all return before the hold ended is voided and counted in `voided_rounds`, never judged, #11074) |
 | §6 sampler | `loops.go` `sample` (1 s; census and fencing every 10 ticks) |
 | §6 criteria | `analysis.go` `finish` |
 | §7 triggers | `tracker.go` (client) and `loops.go` (database); `run.go` `abort` |

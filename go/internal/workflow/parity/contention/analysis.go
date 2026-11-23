@@ -35,7 +35,7 @@ func (r *runner) analyze(ctx context.Context, report *Report) {
 	report.StaleWrites = r.staleTally()
 	r.advisory.mu.Lock()
 	report.Advisory = map[string]any{
-		"rounds": r.advisory.rounds, "clean_rounds": r.advisory.cleanRound,
+		"rounds": r.advisory.rounds, "clean_rounds": r.advisory.cleanRound, "voided_rounds": r.advisory.voided,
 		"duplicates": r.advisory.duplicates, "errors": r.advisory.errors, "goroutines": r.opt.AdvisoryGoroutines,
 	}
 	r.advisory.mu.Unlock()
@@ -216,7 +216,8 @@ func (r *runner) finish(report *Report) {
 	if r.leg.Advisory {
 		rounds, _ := report.Advisory["rounds"].(int)
 		set("advisory_admission", rounds > 0 && len(r.advisory.duplicates) == 0 && len(r.advisory.errors) == 0,
-			"%d rounds of %d goroutines; duplicates %v", rounds, r.opt.AdvisoryGoroutines, r.advisory.duplicates)
+			"%d rounds of %d goroutines (%d voided: hold ended before every guard returned); duplicates %v",
+			rounds, r.opt.AdvisoryGoroutines, r.advisory.voided, r.advisory.duplicates)
 	} else {
 		c["advisory_admission"] = Criterion{Status: StatusNotApplicable, Detail: report.NotApplicable["step6_advisory"]}
 	}
