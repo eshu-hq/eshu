@@ -145,8 +145,9 @@ func (s SupplyChainImpactFanOutStore) RequireSupportsReady(ctx context.Context) 
 }
 
 // The store carries the handler-entry gate. The handler finds the gate by an
-// optional type assertion, so a signature drift or a wrapping decorator would turn
-// the gate off without an error; this pin fails the build instead.
+// optional type assertion, so a signature drift would turn the gate off without an
+// error; this pin fails the build on a signature drift. It does not catch a wrapper
+// that hides the method.
 var _ supplychaincore.SupplyChainImpactSupportsGate = SupplyChainImpactFanOutStore{}
 
 func (s SupplyChainImpactFanOutStore) now() time.Time {
