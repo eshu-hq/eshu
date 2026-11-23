@@ -3,7 +3,11 @@
 Source: `go/cmd/eshu/` (package main; `root.go`, `main.go`, `ecosystem.go`,
 `client.go`, `contract.go`, `output.go` plus family files), generated from the
 live cobra tree (`eshu --help` per command) on the `drive/8874-cli-cutover`
-base. Destination: `eshu-hq/eshu-cli` (README-only at `67b92b6`).
+base. Destination: `eshu-hq/eshu-cli` (populated: Tier-1 `#23`, Tier-2
+repoint `#25`, Tier-3 `#26`; releases `v0.1.0`/`v0.1.1`; parity pin
+`960206d657`). Cutover serving proof: `drive/8874-cutover-proof` lane
+(satellite `v0.1.1` against QA `eshu:sha-0772ee6913`, byte-identical
+Tier-1 reads).
 Plan: `docs/internal/design/eshu-ecosystem-repository-migration.md`.
 
 Classes: **EXTRACT** (user-facing command or supported API/MCP client moves to
