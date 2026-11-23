@@ -38,10 +38,11 @@ QA scanner-worker deployment and live RPM coverage are tracked by #9296 and
 #9300 (both closed); this code support does not establish deployed coverage. Claim
 dependency: this RPM wording tracks the R4 landing (#9300, closed). Runtime
 instance counts on the deployment story track R10 (#9307, closed): Kubernetes
-live counts stand where measured; the ECS live count closed as NOT_PROVEN —
-workload-to-ECS binding is unbindable-by-design on the measured corpus
-(#9661, 0/93 binds with zero ambiguity), so no running-task count is claimed
-for ECS services.
+live counts stand where measured; the ECS count path is truth-tiered and still
+ships for declaration-bound services, but the live bound count is NOT_PROVEN
+on the measured corpus — workload-to-ECS binding came back unbindable-by-design
+(#9661 funnel: 0/93 binds with zero ambiguity), so no live ECS running-task
+count is currently returned.
 
 ## The Differentiated Claims
 
