@@ -100,6 +100,12 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingMissedWake counter: %w", err)
 	}
+	if inst.ReducerWaitingKeyBounded, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_key_bounded_total",
+		metric.WithDescription("Narrowed corpus waits parked with their blocking or read scope set cut to the bounded key budget, so the waits_for_key fits the reducer_waiting_items primary-key btree row limit. A bounded wait still parks and wakes on the retained scopes; the 10-minute backstop and the audit cover the rest (#11297)"),
+	); err != nil {
+		return fmt.Errorf("register ReducerWaitingKeyBounded counter: %w", err)
+	}
 	if inst.ReducerWaitingFallbackResolved, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_fallback_resolved_total",
 		metric.WithDescription("Parked reducer waits a fallback resolved instead of a wake, by reason (failure_class), the reason's registered wake site (wake_site: in_tx, completion_event, audit, or unregistered) and outcome (reopened: the slow audit reopened a satisfied wait; backstop: the reducer claimed the row at its 10-minute backstop with its wait row still present; reconciled: the queue row had already left the parked state and the audit dropped its wait row). A reopened or backstop count on a reason whose wake_site is not audit is a lost wake (#11228)"),

@@ -51,12 +51,12 @@ func narrowUnitEntry() WaitingDeferral {
 
 func TestNarrowedWaitingKeyRendersDeterministically(t *testing.T) {
 	t.Parallel()
-	first, ok := narrowedWaitingKey("scope-unit", "gen-unit",
+	first, _, ok := narrowedWaitingKey("scope-unit", "gen-unit",
 		[]string{"scope-b", "scope-a", "scope-a", " "}, []string{"repo-b", "repo-a"})
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key")
 	}
-	second, ok := narrowedWaitingKey("scope-unit", "gen-unit",
+	second, _, ok := narrowedWaitingKey("scope-unit", "gen-unit",
 		[]string{"scope-a", "scope-b"}, []string{"repo-a", "repo-b"})
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key")
@@ -64,10 +64,10 @@ func TestNarrowedWaitingKeyRendersDeterministically(t *testing.T) {
 	if first != second {
 		t.Fatalf("narrowed keys differ:\n%s\n%s", first, second)
 	}
-	if _, ok := narrowedWaitingKey("scope-unit", "gen-unit", nil, []string{"repo-a"}); ok {
+	if _, _, ok := narrowedWaitingKey("scope-unit", "gen-unit", nil, []string{"repo-a"}); ok {
 		t.Fatal("narrowedWaitingKey() with empty blocking = true, want false (fall back to coarse)")
 	}
-	if _, ok := narrowedWaitingKey("", "gen-unit", []string{"scope-a"}, nil); ok {
+	if _, _, ok := narrowedWaitingKey("", "gen-unit", []string{"scope-a"}, nil); ok {
 		t.Fatal("narrowedWaitingKey() with empty scope = true, want false")
 	}
 }
@@ -76,7 +76,7 @@ func TestNarrowedWaitingKeyForCauseUnwraps(t *testing.T) {
 	t.Parallel()
 	cause := narrowUnitTestCause{repos: []string{"repo-a"}, blocking: []string{"scope-b"}}
 	wrapped := fmt.Errorf("load resolved relationships: %w", cause)
-	keyJSON, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), wrapped)
+	keyJSON, _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), wrapped)
 	if !ok {
 		t.Fatal("narrowedWaitingKeyForCause() = false for a wrapped narrowing cause, want a key")
 	}
@@ -98,15 +98,15 @@ func TestNarrowedWaitingKeyForCauseUnwraps(t *testing.T) {
 func TestNarrowedWaitingKeyForCauseRejects(t *testing.T) {
 	t.Parallel()
 	cause := narrowUnitTestCause{repos: []string{"repo-a"}, blocking: []string{"scope-b"}}
-	if _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), nil); ok {
+	if _, _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), nil); ok {
 		t.Fatal("nil cause parks narrowed, want the coarse wait")
 	}
-	if _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), fmt.Errorf("plain")); ok {
+	if _, _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), narrowUnitEntry(), fmt.Errorf("plain")); ok {
 		t.Fatal("non-narrowing cause parks narrowed, want the coarse wait")
 	}
 	other := narrowUnitEntry()
 	other.WaitsForKind = WaitingKindFenceClear
-	if _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), other, cause); ok {
+	if _, _, ok := narrowedWaitingKeyForCause(narrowUnitIntent(), other, cause); ok {
 		t.Fatal("non-corpus kind parks narrowed, want the coarse wait")
 	}
 }

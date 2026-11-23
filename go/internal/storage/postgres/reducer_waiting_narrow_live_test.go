@@ -200,7 +200,7 @@ func TestNarrowedWaitAuditReopensSatisfiedLive(t *testing.T) {
 	seedNarrowWaitScope(t, ctx, db, "scope-quiet", "gen-quiet", "active", at)
 	seedNarrowRetryRow(t, ctx, db, "wait-quiet", "scope-quiet", "gen-quiet",
 		"workload_materialization", "workload_materialization_resolution_not_ready", at)
-	keyJSON, ok := narrowedWaitingKey("scope-quiet", "gen-quiet", []string{"scope-quiet"}, []string{"repo-q"})
+	keyJSON, _, ok := narrowedWaitingKey("scope-quiet", "gen-quiet", []string{"scope-quiet"}, []string{"repo-q"})
 	if !ok {
 		t.Fatal("narrowedWaitingKey() = false, want a key for a non-empty blocking set")
 	}

@@ -3805,6 +3805,11 @@ type Instruments struct {
 	// audit interval after they parked. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingMissedWake metric.Int64Counter
+	// ReducerWaitingKeyBounded counts #11297 narrowed corpus waits parked
+	// with a blocking or read set cut to the bounded key budget, so the
+	// waits_for_key stays inside the btree row limit. Registered by
+	// registerReducerWaitingInstruments.
+	ReducerWaitingKeyBounded metric.Int64Counter
 	// ReducerWaitingFallbackResolved counts parked waits a fallback
 	// resolved instead of a wake (#11228): the #10876 slow audit (outcome
 	// reopened or reconciled) or the reducer claim at the 10-minute

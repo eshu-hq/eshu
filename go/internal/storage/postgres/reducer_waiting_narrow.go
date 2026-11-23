@@ -56,27 +56,32 @@ type corpusWaitNarrowing interface {
 
 // narrowedWaitingKey renders the narrowed corpus waits_for key for one parked
 // intent: the waiter's own scope and generation plus the verdict-time
-// blocking scope set and read set the activation wake matches on.
-func narrowedWaitingKey(scopeID, generationID string, blockingScopeIDs, repoIDs []string) (string, bool) {
+// blocking scope set and read set the activation wake matches on. Both sets
+// are cut to a bounded sorted prefix (#11297) so the key fits the primary-key
+// btree row limit; truncated reports that a set was cut.
+func narrowedWaitingKey(scopeID, generationID string, blockingScopeIDs, repoIDs []string) (key string, truncated bool, ok bool) {
 	scope := strings.TrimSpace(scopeID)
 	gen := strings.TrimSpace(generationID)
 	if scope == "" || gen == "" {
-		return "", false
+		return "", false, false
 	}
-	blocking := normalizeWaitingScopeIDs(blockingScopeIDs)
+	blocking, blockingCut := boundWaitingScopeIDs(
+		normalizeWaitingScopeIDs(blockingScopeIDs), narrowedWaitingBlockingBudgetBytes)
 	if len(blocking) == 0 {
-		return "", false
+		return "", false, false
 	}
+	repos, reposCut := boundWaitingScopeIDs(
+		normalizeWaitingScopeIDs(repoIDs), narrowedWaitingRepoBudgetBytes)
 	raw, err := json.Marshal(waitingKey{
 		ScopeID:          scope,
 		GenerationID:     gen,
 		BlockingScopeIDs: blocking,
-		RepoIDs:          normalizeWaitingScopeIDs(repoIDs),
+		RepoIDs:          repos,
 	})
 	if err != nil {
-		return "", false
+		return "", false, false
 	}
-	return string(raw), true
+	return string(raw), blockingCut || reposCut, true
 }
 
 // normalizeWaitingScopeIDs trims, drops empties and duplicates, and sorts,
@@ -106,13 +111,13 @@ func narrowedWaitingKeyForCause(
 	intent contract.Intent,
 	entry WaitingDeferral,
 	cause error,
-) (string, bool) {
+) (key string, truncated bool, ok bool) {
 	if entry.WaitsForKind != WaitingKindRelationshipGenerationActive {
-		return "", false
+		return "", false, false
 	}
 	var narrowing corpusWaitNarrowing
 	if cause == nil || !errors.As(cause, &narrowing) {
-		return "", false
+		return "", false, false
 	}
 	return narrowedWaitingKey(intent.ScopeID, intent.GenerationID,
 		narrowing.CorpusWaitBlockingScopeIDs(), narrowing.CorpusWaitRepoIDs())
@@ -138,7 +143,10 @@ func setAsideWaitingForCause(
 	if entry.WakeSite == WaitingWakeSiteCounting || entry.WakeSite == WaitingWakeSiteNotAWait {
 		return false, nil
 	}
-	if keyJSON, ok := narrowedWaitingKeyForCause(intent, entry, cause); ok {
+	if keyJSON, truncated, ok := narrowedWaitingKeyForCause(intent, entry, cause); ok {
+		if truncated {
+			recordWaitingKeyBounded(ctx, instruments)
+		}
 		return setAsideWaitingForKey(ctx, database, instruments, intent, entry, keyJSON, now)
 	}
 	return setAsideWaiting(ctx, database, instruments, intent, entry, producerDomains, now)
