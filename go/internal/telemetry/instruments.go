@@ -1950,9 +1950,11 @@ type Instruments struct {
 	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
 	// precise), supports_grant, supports_image, supports_finding_id (the public-id
 	// explain), or legacy (gate off, and the explain selector and identity reads that
-	// stay on the fact table). The label is bounded to those six values. An operator
-	// reads it to see which route a 503 or a slow read is on and, with the route span
-	// attribute, which statement shape ran.
+	// stay on the fact table). The label is bounded to those six values. A refused
+	// list, count, inventory or grouped call still counts the route it tried, so an
+	// operator reads which route 503s; an explain counts only the statements it runs
+	// (a refused explain counts nothing). With the route span attribute it also names
+	// which statement shape ran.
 	SupplyChainImpactReadRoute metric.Int64Counter
 	// SupplyChainImpactReadDuration observes the wall time of one supply-chain
 	// impact read statement by the same route label, so a slow read is attributed

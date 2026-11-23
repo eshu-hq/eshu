@@ -19,7 +19,7 @@ const jitOffSQL = `SELECT set_config('jit', 'off', true)`
 // wantsJITOff reports whether the route's one statement runs under a
 // transaction-local jit = off. The measured pair (docs/internal/evidence/10880-pr-b2a,
 // jit_pair.sh) showed jit = off at least 20 percent faster for the supplement
-// reads and the image reads, in both corpus states: the planner estimates a large
+// reads, in both corpus states: the planner estimates a large
 // probe count, JIT compiles the statement, and the compile costs more than the
 // probes it speeds up. That pair measured the V statements only; the image route
 // takes the wrapper by arbiter ruling with no measured pair of its own (its QA

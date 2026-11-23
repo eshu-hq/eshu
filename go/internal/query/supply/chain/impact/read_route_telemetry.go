@@ -20,11 +20,12 @@ const RouteSpanAttribute = "eshu.supply_chain.impact.read_route"
 
 // countRoute records the route a read statement took: one increment of
 // eshu_dp_supply_chain_impact_read_route_total and the route attribute on the
-// active span. It runs once per statement, after the route function and before the
-// supports readiness probe, so a call the probe refuses still counts the route it
-// tried. A list, count, inventory or grouped call is one statement; an explain by
-// public id that misses falls back to a second statement and counts that route too,
-// which is how a legacy fallback shows up. instruments is nil in tests and callers
+// active span. A list, count, inventory or grouped call runs it once, after the
+// route function and before the supports readiness probe, so a call the probe
+// refuses still counts the route it tried. An explain counts only the statements
+// it runs: its readiness check runs first and a refused explain counts nothing,
+// and an explain by public id that misses counts its fallback statement too, which
+// is how a legacy fallback shows up. instruments is nil in tests and callers
 // without the telemetry stack; the counter is then skipped and the span attribute
 // alone is set.
 func countRoute(ctx context.Context, instruments *telemetry.Instruments, route ReadRoute) {

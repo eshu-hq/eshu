@@ -293,15 +293,15 @@ func explainGenericAccesses(ctx context.Context, database *sql.DB, query string,
 	var accesses []planAccess
 	err = conn.Raw(func(driverConn any) error {
 		pgConn := driverConn.(*stdlib.Conn).Conn().PgConn()
-		sql := strings.Join(before, "; ")
-		if sql != "" {
-			sql += "; "
+		text := strings.Join(before, "; ")
+		if text != "" {
+			text += "; "
 		}
-		sql += "EXPLAIN (GENERIC_PLAN, FORMAT JSON) " + query
+		text += "EXPLAIN (GENERIC_PLAN, FORMAT JSON) " + query
 		for _, statement := range after {
-			sql += "; " + statement
+			text += "; " + statement
 		}
-		results, err := pgConn.Exec(ctx, sql).ReadAll()
+		results, err := pgConn.Exec(ctx, text).ReadAll()
 		if err != nil {
 			return err
 		}

@@ -13,8 +13,9 @@ import (
 
 // ErrFindingSupportsUnavailable is the sentinel an impact read served from the
 // per-support table (a granted call, an image reference, the supplement of an
-// unscoped precise call, and the explain reads on supports) answers when the winners gate is on and the per-support table cannot serve it
-// exactly: the readiness predicate (marker complete at this binary's contract
+// unscoped precise call, and the explain reads on supports) answers when the
+// winners gate is on and the per-support table cannot serve it exactly: the
+// readiness predicate (marker complete at this binary's contract
 // version, no marker for a higher version, empty old-writer fence) is false, or
 // the probe failed, including a table that does not exist yet. The handler
 // answers the 503 backend_unavailable envelope. There is no fallback: the winners
