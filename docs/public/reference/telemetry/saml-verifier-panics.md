@@ -11,7 +11,7 @@ that gets through, so a login fails closed instead of dropping the connection.
 
 | Metric | Type | Labels | Reading it |
 | --- | --- | --- | --- |
-| `eshu_dp_query_saml_verifier_panics_total` | counter | none | Panics recovered while verifying a SAML response. The recover covers the whole verify path (response decoding, metadata parsing, `crewjam/saml`, and Eshu's claim extraction), so the metric does not say which part failed; the logged `stack` does. The expected value is 0. A panic inside `crewjam/saml` usually means the identity provider sent an assertion the fork still dereferences badly: a defect to report, not an attack signature on its own. |
+| `eshu_dp_query_saml_verifier_panics_total` | counter | none | Panics recovered while verifying a SAML response. The recover covers the whole verify path (response decoding, metadata parsing, `crewjam/saml`, and Eshu's claim extraction), so the metric does not say which part failed; the logged `stack` does. The expected value is 0. A panic inside `crewjam/saml` usually means the identity provider sent an assertion the library still dereferences badly: a defect to report, not an attack signature on its own. |
 
 ## What an operator sees when it fires
 
