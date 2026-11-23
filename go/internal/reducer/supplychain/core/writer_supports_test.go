@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // supportsRecordingBeginner wraps the fake impact transaction with the supports
@@ -128,4 +130,40 @@ func TestWriteMaintainsSupportsInTheFactTransaction(t *testing.T) {
 			t.Fatalf("error = %v, want it to wrap the supports failure", err)
 		}
 	})
+}
+
+// TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep pins
+// the seam #11201 uses: the exported step writes the fact rows and then the
+// supports of those fact ids in the caller's transaction, and is the very step
+// the writer runs (a writer pass records the same facts-then-supports events).
+func TestWriteSupplyChainImpactFindingRowsIsTheWritersOwnFactsAndSupportsStep(t *testing.T) {
+	t.Parallel()
+
+	writer, events, factIDs := supportsWriter(nil)
+	tx, err := writer.DB.BeginSupplyChainImpactTx(context.Background())
+	if err != nil {
+		t.Fatalf("BeginSupplyChainImpactTx() error = %v, want nil", err)
+	}
+	rows := []factwrite.VersionedRow{
+		{FactID: "fact-1", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind},
+		{FactID: "fact-2", ScopeID: "s", GenerationID: "g", FactKind: supplyChainImpactFactKind},
+	}
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, rows); err != nil {
+		t.Fatalf("WriteSupplyChainImpactFindingRows() error = %v, want nil", err)
+	}
+	if want := []string{"facts", "supports-upsert"}; !reflect.DeepEqual(*events, want) {
+		t.Fatalf("events = %v, want %v", *events, want)
+	}
+	if len(*factIDs) != 1 || !reflect.DeepEqual((*factIDs)[0], []string{"fact-1", "fact-2"}) {
+		t.Fatalf("supports upsert fact ids = %v, want fact-1 and fact-2", *factIDs)
+	}
+
+	// No rows: nothing is written, supports included.
+	*events = nil
+	if err := WriteSupplyChainImpactFindingRows(context.Background(), tx, nil); err != nil {
+		t.Fatalf("WriteSupplyChainImpactFindingRows(nil) error = %v, want nil", err)
+	}
+	if len(*events) != 0 {
+		t.Fatalf("events for no rows = %v, want none", *events)
+	}
 }

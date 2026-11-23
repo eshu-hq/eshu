@@ -61,7 +61,8 @@
 // the mid-drive step of the advisory_group live cells (#10466). The
 // drive holds the cassette's finding facts back from ingestion
 // (re-projecting them would retract them as superseded); this verb
-// admits them through the production writer fact-store port, then runs
+// admits them through the production impact writer transaction (facts plus
+// their supports, #11201), then runs
 // one full winners resweep through the production winners store (the
 // rebuild the maintainer runs on its cadence), one
 // advisory_group_projection enqueue per group through the production

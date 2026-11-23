@@ -125,8 +125,11 @@ session.
   drive holds the cassette's finding facts back from ingestion:
   re-projecting a generation that holds them would retract them as
   superseded, so this verb admits them itself through the production
-  writer fact-store port (the statement every governed reducer writer
-  uses), with the fact ids cassette replay would have minted. It then
+  impact writer's transaction shape (#11201): the facts through the
+  statement every governed reducer writer uses, with the fact ids
+  cassette replay would have minted, and the supports of the live facts
+  in the same transaction under the supports writer setting, so the
+  per-support table stays current and the old-writer fence stays empty. It then
   runs the production winners rebuild, enqueues one
   advisory_group_projection intent per group through the production
   enqueuer over the real reducer queue, and rebuilds again so the
