@@ -29,6 +29,13 @@ import sys
 
 
 def _lib_on_path() -> None:
+    """Put this directory on sys.path so sibling imports resolve.
+
+    The checker invokes this module as `python3 scripts/lib/...` from the
+    worktree root; the absolute directory is strictly more robust than the
+    old relative `sys.path.insert(0, "scripts/lib")` under the same CWD
+    precondition.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     if here not in sys.path:
         sys.path.insert(0, here)
@@ -46,6 +53,12 @@ from g2_snapshot_derive import fragment_index  # noqa: E402
 
 
 def cmd_derive_nonsurvivor(snapshot: str) -> int:
+    """Print `export G2_EXPECT_NONSURVIVOR=<n>` for the snapshot.
+
+    Counts relay-disclosed rows minus Survivor-exemption-list rows.
+    Informational only: the committed PASS line carries the binding
+    expectation, never this output.
+    """
     sn = open(snapshot).read()
     relay = set(
         re.findall(
@@ -63,6 +76,12 @@ def cmd_derive_nonsurvivor(snapshot: str) -> int:
 
 
 def cmd_survivor_check(snapshot: str) -> int:
+    """Fail closed unless the survivor set and tier-C set match pins.
+
+    Prints non-survivor relay rows (the gate's block list). Exit 1 on
+    survivor outside relay, tier-C drift, or (implicitly, via the caller)
+    any row at all when the bar is zero.
+    """
     sn = open(snapshot).read()
     rowclass = {}
     for m in re.finditer(
@@ -88,6 +107,11 @@ def cmd_survivor_check(snapshot: str) -> int:
 
 
 def cmd_digest_check(snapshot: str) -> int:
+    """Fail closed on any in-tree fragment digest drift.
+
+    Recomputes every relay-disclosed and tier-C-dispatch row's fragment
+    digest and compares against the pinned value. Prints drifts.
+    """
     sn = open(snapshot).read()
     frags = fragment_index(".")
     bad = []
@@ -113,6 +137,14 @@ def cmd_digest_check(snapshot: str) -> int:
 
 
 def cmd_satellite_check(snapshot: str, repo: str, sha: str) -> int:
+    """Fail closed on any satellite-side drift, offline.
+
+    Reads satellite blobs only via `git -C REPO show SHA:path` (no fetch).
+    Verifies each native row's terminate-fragment digest, table coverage,
+    and verbatim router registration. Matches the sat evidence cell only
+    (never the mount cell).
+    """
+
     def show(path: str) -> bytes:
         p = subprocess.run(
             ["git", "-C", repo, "show", f"{sha}:{path}"],
@@ -185,6 +217,7 @@ _COMMANDS = {
 
 
 def main(argv: list[str]) -> int:
+    """Dispatch one gate subcommand; exit 2 on usage error."""
     if len(argv) < 2 or argv[1] not in _COMMANDS:
         print(
             "usage: g2_snapshot_gate.py "

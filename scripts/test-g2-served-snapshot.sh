@@ -183,6 +183,7 @@ if rg -n --no-filename -e 'curl' -e 'wget' -e 'git fetch' -e 'git pull' \
   -e 'git clone' -e 'urllib' -e 'http\.client' -e 'socket\.' \
   "${generator}" "${checker}" "${repo_root}/scripts/lib/g2_snapshot_data.py" \
   "${repo_root}/scripts/lib/g2_snapshot_derive.py" \
+  "${repo_root}/scripts/lib/g2_snapshot_gate.py" \
   >"${tmp_root}/fetch-hits.txt" 2>&1; then
   record_fail "tooling contains a live-fetch mechanism"
   cat "${tmp_root}/fetch-hits.txt" >&2 || true
