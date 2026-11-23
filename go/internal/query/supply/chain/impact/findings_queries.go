@@ -129,11 +129,18 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // read model instead of deduplicating at read time. The winners table already
 // holds one row per canonical_key (the same winner the ROW_NUMBER dedup picks),
 // denormalized with every filterable column, so this query runs the filters +
-// keyset cursor + LIMIT on the winners table alone (index-served, O(page), no
-// window, no sort spill) and re-joins the winners table by canonical_key only
+// keyset cursor + LIMIT on the winners table alone (no window and no read-time
+// dedup sort) and re-joins the winners table by canonical_key only
 // for the page payloads (#10880 slice 2: the payload and source_confidence
 // live on the winners row since migration 331, with the operator suppression
 // object baked in at resweep time, so no fact_records read remains here).
+//
+// This statement is the plain winners route. The unscoped profile=precise route
+// (ListFindingsFromWinnersSupplementQuery) is derived from it and is NOT O(page):
+// it scans every stored winners row and probes one supports index entry per
+// candidate key, so its cost grows with the winners table and with the number of
+// matching keys (docs/internal/evidence/10880-pr-b2a-reader/RESULTS.md names the
+// measured envelope: 80,001 keys, not above it).
 //
 // It takes the SAME 30-parameter slice as ListFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a

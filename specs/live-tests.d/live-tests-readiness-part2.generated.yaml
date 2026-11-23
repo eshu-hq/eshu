@@ -19,6 +19,16 @@ tests:
     class: postgres_ci
     reason: "#7009 disposable PostgreSQL 18 proof that every Terraform-free status route returns byte-identical responses with and without the Terraform-state serial and warning reads over seeded tfstate and git warnings, that pipeline and index status keep the seeded terraform_state rows, and that forcing the skip onto them changes the response"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/advisory_evidence_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced advisory evidence on the multi-support corpus: for every repository anchor and grant shape, the evidence derived from the per-support table equals the legacy fact read, including a repository whose supports sit in two scopes and an operator-scope row; a mutation that ignores the active generation or the repository anchor fails; a supports table that is not ready refuses; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/aggregates_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 equality proof: the granted count and the five inventory dimensions served from the per-support table (filled by the marker-gated backfill from the multi-support corpus) equal the legacy aggregates for every granted shape and non-rank filter, and equal the totals and buckets of the granted list for every rank filter (pick then filter), so a count never disagrees with the list it summarizes; a supports table that is not ready refuses with ErrAggregateReadModelUnavailable; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/aggregates_winners_failclosed_live_test.go
     tag: ~
     class: postgres_ci
@@ -27,7 +37,22 @@ tests:
   - file: go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which stay on the legacy CTE, mirroring the list read); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which are served from the per-support table with it filled by the backfill, and return the same envelopes on this single-support seed); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/blank_repository_grant_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the literal repository_id <> '' on every supports read driven by a repository: a finding with a blank repository id is seeded, and for grants that name a blank repository id (alone, beside a real repository, beside a scope) the granted list, count, grouped inventory and explain on supports equal the legacy read, which matches no blank-repository finding through the repository grant; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/explain_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced explain on the multi-support corpus: for every grant shape and non-rank filter, each finding id the granted list returns explains for the same caller with the same payload (the list-then-explain round trip), the granted explain equals the legacy explain for each of those ids, an ungranted public-id lookup equals the legacy read, a granted selector lookup equals the legacy read, and a supports table that is not ready refuses instead of answering from the facts; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/explain_unscoped_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors, and every identity form crossed with an image reference) equals the gate-off legacy explain, the selector and identity reads stay on legacy except with an image reference, which reads the image index, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
     tag: ~
@@ -39,10 +64,20 @@ tests:
     class: postgres_ci
     reason: "#9873 disposable PostgreSQL 18 proof of the winners-sourced grouped inventory (service_id, workload_id, environment): a two-service finding counts in both buckets, unmapped findings land in the unattributed bucket, each bucket equals the count route for filter=X (including the workload entity_keys leg and a BTRIM-ed environment), a repository grant and a scope-id-only grant each hide an ungranted-only service and mark a partly hidden service partial, a central catalog scope grant keeps count parity, operator suppression expiry is evaluated at read time, ordering and truncation keep the whole-set distinct count, and an absent watermark or an off gate answers the typed unavailable error; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/grouped_inventory_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced grouped inventory (service_id, workload_id, environment) for granted calls: repository and scope grants, a central-catalog scope grant with a finding-level hide, filter-independent partial completeness, image_ref and the precise profile served from every copy, bucket counts and distinct findings equal to the legacy count route for each grant shape on the multi-support corpus, and a not-ready supports table refused; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/jit_scope_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the transaction-local jit switch of the supplement and image routes: inside the scope current_setting('jit') is off, and after commit, after rollback, and after a statement that errors midway the pinned pooled connection reads the server default, through the plain connection and through the guarded read port (BeginReadOnlySnapshot) the production adapter hands the stores; a precise list read through the guarded port opens the scope and leaves the default behind; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/multi_support_parity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped stores keep granted calls on the legacy read; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped gate-on stores serve granted calls from the supports table and return the legacy answers; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
     tag: ~
@@ -114,6 +149,16 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL source-binding authorization and revocation proof"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/route_v_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the unscoped existence-filter reads on the multi-support corpus (arbiter ruling V): an unscoped profile=precise call (winners plus the supplement, one statement) and an unscoped image_ref call (supports through the image partial index) return the legacy filter-then-pick answer for list, count, the five inventory dimensions and grouped inventory, including key p2 whose winner fails precise and a key whose winner carries another image; rank filters follow the ruled pick-then-filter order and equal an independent oracle with every difference from legacy listed for B3; all three sorts and a cursor that starts on a supplement row page like legacy; a winners row whose support is gone and a support with no winners row behave as documented; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 plan-shape guard for the two partial indexes of ruling V: the supplement probe of an unscoped precise read reaches the supports table by an Index Scan on the ordered precise partial index with canonical_key in its Index Cond, the image read fetches its candidates through the image partial index inside a MATERIALIZED CTE, neither by a sequential or bitmap scan of the probe; each guard rejects its seeded violation (the index dropped in a rolled-back transaction); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go
     tag: ~
     class: postgres_ci
@@ -127,7 +172,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the candidate list read drives from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory, grouped-inventory and explain reads (#10880 PR-B2a) drive from the grant, the public-id explain probes the finding index, and the advisory evidence read probes the repository index or walks the scope-and-generation index (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~

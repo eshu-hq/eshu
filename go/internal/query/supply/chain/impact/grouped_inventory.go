@@ -6,7 +6,6 @@ package impact
 import (
 	"context"
 	"errors"
-	"fmt"
 )
 
 // GroupedInventoryStore reads the service, workload, and environment grouped
@@ -57,19 +56,6 @@ type GroupedInventoryStore interface {
 // to a different read shape.
 var ErrGroupedInventoryReadModelUnavailable = errors.New(
 	"supply chain impact grouped inventory read model unavailable",
-)
-
-// ErrGroupedInventoryFilterUnavailable is the sentinel a GroupedInventoryStore
-// returns when the request carries a filter the winners read model cannot answer
-// from every copy of a finding: image_ref, or the precise profile (the API
-// default). Copies of one canonical finding can differ on both, and the winners
-// row holds one copy. It wraps ErrGroupedInventoryReadModelUnavailable, so the
-// handler answers the same 503 backend_unavailable envelope, with text that
-// names the filters. The per-copy read model that serves them is #10880 PR-B2;
-// until then there is no legacy grouped read to route to.
-var ErrGroupedInventoryFilterUnavailable = fmt.Errorf(
-	"%w: the image_ref filter and profile=precise are not served by the grouped read model yet",
-	ErrGroupedInventoryReadModelUnavailable,
 )
 
 // GroupedInventoryDimension names one grouped-inventory dimension served by

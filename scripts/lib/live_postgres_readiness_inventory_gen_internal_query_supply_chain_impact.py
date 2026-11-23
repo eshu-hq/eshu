@@ -7,6 +7,13 @@ Do not edit by hand; regenerate with
 
 TABLE = {
     "./internal/query/supply/chain/impact": {
+        "go/internal/query/supply/chain/impact/advisory_evidence_supports_live_test.go": (
+            "TestAdvisoryEvidenceFromSupportsLive",
+        ),
+        "go/internal/query/supply/chain/impact/aggregates_supports_live_test.go": (
+            "TestSupportsAggregatesEqualTheListAndLegacyLive",
+            "TestSupportsAggregatesRefuseWhenNotReadyLive",
+        ),
         "go/internal/query/supply/chain/impact/aggregates_winners_failclosed_live_test.go": (
             "TestAggregatesWinnersFailClosedLive",
             "TestAggregatesWinnersConcurrentResweepReadLive",
@@ -14,12 +21,31 @@ TABLE = {
         "go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go": (
             "TestAggregatesWinnersParityLive",
         ),
+        "go/internal/query/supply/chain/impact/blank_repository_grant_live_test.go": (
+            "TestBlankRepositoryGrantMatchesLegacyLive",
+        ),
+        "go/internal/query/supply/chain/impact/explain_supports_live_test.go": (
+            "TestExplainFromSupportsLive",
+            "TestExplainFromSupportsSelectorAndPublicIDLive",
+        ),
+        "go/internal/query/supply/chain/impact/explain_unscoped_live_test.go": (
+            "TestExplainUnscopedEqualsLegacyLive",
+            "TestExplainRoundTripFromAnUnscopedPreciseListLive",
+            "TestCollapsedKeyCVEFilterLive",
+        ),
         "go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go": (
             "TestFindingsWinnersPayloadParityLive",
             "TestFindingsWinnersPayloadBackfillServesWithoutResweepLive",
         ),
         "go/internal/query/supply/chain/impact/grouped_inventory_postgres_live_test.go": (
             "TestGroupedInventoryStoreWinnersLive",
+        ),
+        "go/internal/query/supply/chain/impact/grouped_inventory_supports_live_test.go": (
+            "TestGroupedInventorySupportsServesGrantsLive",
+            "TestGroupedInventorySupportsEqualsTheCountRouteLive",
+        ),
+        "go/internal/query/supply/chain/impact/jit_scope_live_test.go": (
+            "TestJITOffScopeIsTransactionLocalLive",
         ),
         "go/internal/query/supply/chain/impact/multi_support_parity_live_test.go": (
             "TestMultiSupportWinnersRecordsEverySupport",
@@ -79,6 +105,18 @@ TABLE = {
         "go/internal/query/supply/chain/impact/readiness_scanner_authorization_live_test.go": (
             "TestReadinessScannerSourceBindingAuthorizationLive",
         ),
+        "go/internal/query/supply/chain/impact/route_v_live_test.go": (
+            "TestUnscopedExistenceFilterReadsEqualLegacyLive",
+            "TestPreciseRouteIncludesTheKeyWhoseWinnerFailsPrecise",
+            "TestUnscopedExistenceFilterPagesLikeLegacyLive",
+            "TestUnscopedGroupedInventoryEqualsTheCountRouteLive",
+            "TestPrecisePageStaysOnWinnersWhenTheSupportTableLagsLive",
+            "TestWinnersEligibilityEqualsTheSupportsProbeLive",
+        ),
+        "go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go": (
+            "TestRouteVReadsKeepTheirIndexedPlanShapeLive",
+            "TestImageExplainKeepsItsIndexUnderAGenericPlanLive",
+        ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
             "TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive",
@@ -86,6 +124,7 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/supports_equality_live_test.go": (
             "TestSupportsCandidateListEqualsLegacyLive",
+            "TestSupportsStoreServesGrantedListAndRefusesWhenNotReadyLive",
         ),
         "go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go": (
             "TestSupportsCandidatePlanDrivesFromTheGrantLive",

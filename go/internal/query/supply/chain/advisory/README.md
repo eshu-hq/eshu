@@ -142,3 +142,13 @@ their package qualifier changed).
 
 - [HTTP API Reference](../../../../../docs/public/reference/http-api.md)
 - [Telemetry](../../../../../docs/public/reference/telemetry/index.md)
+
+## Supports-served impact anchors
+
+With `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, `PostgresEvidenceStore` (built by
+`NewPostgresEvidenceStoreWithReadModel`) derives the advisory anchors of a
+repository, service, or workload anchored call from
+`supply_chain_impact_finding_supports` (`evidence_supports.go`) rather than from
+the impact finding facts. The advisory facts themselves still read from
+`fact_records`. While the supports table is not ready the call answers
+`ErrEvidenceSupportsUnavailable`, which the evidence handler maps to a 503.

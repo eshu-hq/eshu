@@ -1945,6 +1945,23 @@ type Instruments struct {
 	// that pages are larger than the ownership budget at the callers' grant
 	// sizes, so answers come back truncated.
 	QueryImpactScopedPathsWithheld metric.Int64Counter
+	// SupplyChainImpactReadRoute counts every supply-chain impact list, count,
+	// inventory, grouped-inventory and explain read statement by the read model its
+	// route function chose (#10880 PR-B2a): winners, winners_supplement (unscoped
+	// precise), supports_grant, supports_image, supports_finding_id (the public-id
+	// explain), or legacy (gate off, and the explain selector and identity reads that
+	// stay on the fact table). The label is bounded to those six values. A refused
+	// list, count, inventory or grouped call still counts the route it tried, so an
+	// operator reads which route 503s; an explain counts only the statements it runs
+	// (a refused explain counts nothing). With the route span attribute it also names
+	// which statement shape ran.
+	SupplyChainImpactReadRoute metric.Int64Counter
+	// SupplyChainImpactReadDuration observes the wall time of one supply-chain
+	// impact read statement by the same route label, so a slow read is attributed
+	// to the read model that ran it and the QA reading (candidate counts and skew)
+	// can be tied to a route (#10880 PR-B2a). The duration covers the statement and
+	// the scan of its rows, plus the jit-off transaction on the routes that open one.
+	SupplyChainImpactReadDuration metric.Float64Histogram
 	// QueryImpactOwnershipCheckDuration observes one impact ownership
 	// statement's wall time (one chunk of at most ownership.ChunkSize = 50
 	// keys), labelled by route, node_label (WorkloadInstance, CloudResource,
@@ -6294,6 +6311,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryImpactScopedPathsWithheld counter: %w", err)
+	}
+
+	inst.SupplyChainImpactReadRoute, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_impact_read_route_total",
+		metric.WithDescription(
+			"Total supply-chain impact list, count, inventory, grouped-inventory and explain read statements by the read model the route function chose "+
+				"(route: winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactReadRoute counter: %w", err)
+	}
+
+	inst.SupplyChainImpactReadDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_read_duration_seconds",
+		metric.WithDescription("Wall time of one supply-chain impact list, count, inventory, grouped-inventory or explain read statement, by route (winners, winners_supplement, supports_grant, supports_image, supports_finding_id, legacy)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 1.5, 2.5, 5, 10),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainImpactReadDuration histogram: %w", err)
 	}
 
 	inst.QueryImpactOwnershipCheckDuration, err = meter.Float64Histogram(

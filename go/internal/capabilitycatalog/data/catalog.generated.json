@@ -11724,6 +11724,7 @@
     {
       "capability": "supply_chain.advisory_evidence.list",
       "answering_stores": [
+        "read_table:supply_chain_impact_finding_supports",
         "fact_records_collector",
         "fact_records_reducer"
       ],
@@ -11966,6 +11967,7 @@
     {
       "capability": "supply_chain.impact_explanation.read",
       "answering_stores": [
+        "read_table:supply_chain_impact_finding_supports",
         "fact_records_reducer",
         "fact_records_collector",
         "read_table:collector_instances",
@@ -12058,6 +12060,7 @@
     {
       "capability": "supply_chain.impact_findings.aggregate",
       "answering_stores": [
+        "read_table:supply_chain_impact_finding_supports",
         "read_table:supply_chain_impact_canonical_winners",
         "fact_records_reducer"
       ],
@@ -12140,6 +12143,7 @@
     {
       "capability": "supply_chain.impact_findings.list",
       "answering_stores": [
+        "read_table:supply_chain_impact_finding_supports",
         "read_table:supply_chain_impact_canonical_winners",
         "fact_records_reducer",
         "fact_records_collector",

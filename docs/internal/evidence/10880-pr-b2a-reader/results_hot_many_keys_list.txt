@@ -1,0 +1,15 @@
+RESULT cve CVE-HOT (20% of the table)           V list                   median    1936.9 p95    6055.9 max    6055.9 ms (n=20)
+RESULT cve CVE-HOT (20% of the table)           V count                  ERROR supply chain impact aggregate winners read model is unavailable
+RESULT cve CVE-HOT (20% of the table)           V inventory status       ERROR supply chain impact aggregate winners read model is unavailable
+RESULT cve CVE-HOT + package pkg:hot            V list                   median    1614.3 p95    1629.4 max    1629.4 ms (n=20)
+RESULT cve CVE-HOT + package pkg:hot            V count                  ERROR supply chain impact aggregate winners read model is unavailable
+RESULT cve CVE-HOT + package pkg:hot            V inventory status       ERROR supply chain impact aggregate winners read model is unavailable
+RESULT no selector (precise)                    V list                   median    5170.9 p95    5206.0 max    5206.0 ms (n=20)
+RESULT no selector (precise)                    V count                  ERROR supply chain impact aggregate winners read model is unavailable
+RESULT no selector (precise)                    V inventory status       ERROR supply chain impact aggregate winners read model is unavailable
+RESULT package pkg:hot (1.6M supports)          V list                   median    3637.0 p95    3690.9 max    3690.9 ms (n=20)
+RESULT package pkg:hot (1.6M supports)          V count                  ERROR supply chain impact aggregate winners read model is unavailable
+RESULT package pkg:hot (1.6M supports)          V inventory status       ERROR supply chain impact aggregate winners read model is unavailable
+RESULT package pkg:hot, status                  V list                   median    3651.4 p95    3690.8 max    3690.8 ms (n=20)
+RESULT package pkg:hot, status                  V count                  ERROR supply chain impact aggregate winners read model is unavailable
+RESULT package pkg:hot, status                  V inventory status       ERROR supply chain impact aggregate winners read model is unavailable
