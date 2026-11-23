@@ -41,7 +41,7 @@ triggers of the hot-key ruling read straight off it: a call past 1,000,000 raw r
 duration approaching half the domain's handler timeout.
 
 A drain that reads 100,000 raw rows or more, or that fails after reading any (the handler timeout case), also logs one structured line,
-`event_name=supply_chain_impact_supports.large_drain`, with `reader`, `scope` (`drain`, or `call` for a whole service-catalog call), `outcome` (`served` or `failed`), `keys`, `pages`,
+`event_name=supply_chain_impact_supports.large_drain`, with `reader`, `sample` (`drain`, or `call` for a whole service-catalog call), `outcome` (`served` or `failed`), `keys`, `pages`,
 `raw_rows`, `active_rows` and `duration_ms`, so a hot key is findable from logs
 without a dashboard.
 

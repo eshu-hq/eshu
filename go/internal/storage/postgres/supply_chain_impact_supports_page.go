@@ -167,7 +167,7 @@ func (s *supplyChainImpactSupportsDrainStats) add(other supplyChainImpactSupport
 	s.keys += other.keys
 }
 
-// Scopes of one drain sample, the scope field of the large-drain log line.
+// Kinds of one drain sample, the sample field of the large-drain log line.
 const (
 	// supplyChainImpactSupportsSampleDrain is a sample of one drain: the
 	// reconciliation loader's supports stream.
@@ -180,7 +180,7 @@ const (
 // recordSupplyChainImpactSupportsDrain records one sample of the drain signals for
 // reader: the raw-rows and duration histograms and, at 100,000 raw rows or more
 // (or on a failed drain that read any), the large-drain log line. scope says what
-// the sample covers (supplyChainImpactSupportsSample*). A sample is one drain for
+// the sample covers (the sample field of the line) (supplyChainImpactSupportsSample*). A sample is one drain for
 // the reconciliation loader and one whole GetSupplyChainAdvisoriesForRepos call
 // (every repository it drains) for the service-catalog loader, so the per-call
 // return triggers of the ruling (a call past 1,000,000 raw rows, a call near half
@@ -200,7 +200,7 @@ func recordSupplyChainImpactSupportsDrain(
 		if stats.failed {
 			outcome = "failed"
 		}
-		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s scope=%s outcome=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
+		log.Printf("event_name=supply_chain_impact_supports.large_drain reader=%s sample=%s outcome=%s keys=%d pages=%d raw_rows=%d active_rows=%d duration_ms=%d",
 			reader, scope, outcome, stats.keys, stats.pages, stats.rawRows, stats.activeRows, stats.elapsed.Milliseconds())
 	}
 }

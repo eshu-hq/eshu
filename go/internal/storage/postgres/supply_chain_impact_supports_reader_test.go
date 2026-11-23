@@ -281,6 +281,10 @@ func TestSupportsDrainRecordsOneSamplePerServiceCatalogCall(t *testing.T) {
 func TestSupportsDrainRecordsPartialSampleWhenAServiceCallFails(t *testing.T) {
 	t.Parallel()
 
+	var fullPage [][]any
+	for i := 0; i < listFactsByKindPageSize; i++ {
+		fullPage = append(fullPage, supportsPageRowForTest(fmt.Sprintf("fact-b-%04d", i), false, ""))
+	}
 	inst, reader := supportsReaderMetrics(t)
 	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
 		supportsReadyResponse(),
@@ -288,15 +292,19 @@ func TestSupportsDrainRecordsPartialSampleWhenAServiceCallFails(t *testing.T) {
 			supportsPageRowForTest("fact-1", true, `{"repository_id":"repo-a"}`),
 			supportsPageRowForTest("fact-2", false, ""),
 		}},
+		{rows: fullPage}, // repository b: a full raw page, so its drain continues
 		{err: errors.New("deadline exceeded")},
 	}})
 	store.instruments = inst
 	if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a", "repo-b"}); err == nil {
 		t.Fatal("GetSupplyChainAdvisoriesForRepos() error = nil, want the page failure")
 	}
+	// 2 raw rows of repository a plus the 500 of repository b's first page, read
+	// before its second page failed.
+	want := int64(2 + listFactsByKindPageSize)
 	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory)
-	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != 2 {
-		t.Fatalf("drain raw rows points = %+v, want one sample summing the 2 raw rows read before the failure", points)
+	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != want {
+		t.Fatalf("drain raw rows points = %+v, want one sample summing the %d raw rows read before the failure", points, want)
 	}
 	if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory, telemetry.SupplyChainImpactSupportsReadFailed); got != 1 {
 		t.Fatalf("failed = %d, want 1", got)
@@ -330,6 +338,9 @@ func TestReconciliationDrainRecordsPartialSampleWhenASupportsPageFails(t *testin
 	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation)
 	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != int64(listFactsByKindPageSize) {
 		t.Fatalf("drain raw rows points = %+v, want one sample of the %d raw rows read before the failure", points, listFactsByKindPageSize)
+	}
+	if got := supportsReadSeries(t, reader, telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation, telemetry.SupplyChainImpactSupportsReadFailed); got != 1 {
+		t.Fatalf("failed = %d after the supports page failure, want 1", got)
 	}
 }
 
