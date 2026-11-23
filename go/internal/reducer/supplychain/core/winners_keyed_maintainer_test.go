@@ -513,3 +513,48 @@ func TestWinnersMaintainerBoundedTickSpanAndLogFields(t *testing.T) {
 		}
 	}
 }
+
+// TestWinnersMaintainerScannedCopiesSpanAndLogFields pins #11308: the resweep
+// span and the commit log line carry the pre-filter copies the chunk's probe
+// scanned, so the tick log alone attributes cost-per-copy against
+// kept-rows-per-identifier.
+func TestWinnersMaintainerScannedCopiesSpanAndLogFields(t *testing.T) {
+	t.Parallel()
+
+	inst, _ := winnersSignalsHarness(t)
+	var logs bytes.Buffer
+	spans := tracetest.NewSpanRecorder()
+	rebuilder := &fakeKeyedRebuilder{result: SupplyChainImpactWinnersResweep{
+		Path: telemetry.SupplyChainImpactWinnersPathKeyed, Identifiers: 10, Keys: 12,
+		Bounded: true, Remaining: 7, ChunkIdentifiers: 10, ChunkKeptRows: 130, ChunkScannedCopies: 1870,
+	}}
+	m := SupplyChainImpactWinnersMaintainer{
+		Rebuilder: rebuilder, Contract: &fakeFullContract{full: rebuilder}, KeyedRebuilder: rebuilder, LeaseManager: &fakeWinnersLeaseManager{claim: true},
+		Instruments: inst,
+		Tracer:      sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
+		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
+	}
+	if _, err := m.runKeyedTick(context.Background()); err != nil {
+		t.Fatalf("runKeyedTick() error = %v", err)
+	}
+
+	ended := spans.Ended()
+	if len(ended) != 1 {
+		t.Fatalf("spans = %d, want one bounded resweep span", len(ended))
+	}
+	var found bool
+	for _, kv := range ended[0].Attributes() {
+		if string(kv.Key) == "chunk_scanned_copies" {
+			found = true
+			if got := kv.Value.AsInt64(); got != 1870 {
+				t.Errorf("span attribute chunk_scanned_copies = %d, want 1870", got)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("span attributes = %v, want chunk_scanned_copies", ended[0].Attributes())
+	}
+	if line := logs.String(); !strings.Contains(line, `"chunk_scanned_copies":1870`) {
+		t.Errorf("log line %q is missing \"chunk_scanned_copies\":1870", line)
+	}
+}

@@ -318,7 +318,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		return true, nil
 	}
 	var chunk winnersChunkOutcome
-	var kept int64
+	var kept, scanned int64
 	if err := s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseBuildActiveFacts, func() error {
 		var err error
 		if chunk, err = buildWinnersKeyedChunk(ctx, tx, bounds); err != nil {
@@ -334,6 +334,12 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		if kept, err = countWinnersKeyedKeptFacts(ctx, tx); err != nil {
 			return err
 		}
+		// The pre-filter scan count (#11308) rides the same phase: it
+		// revisits the probe's index and heap tuples without detoasting,
+		// so the build's phase sample keeps covering both reads.
+		if scanned, err = countWinnersKeyedScannedCopies(ctx, tx); err != nil {
+			return err
+		}
 		for _, stmt := range []string{addWinnersKeyedOperatorFactsSQL, analyzeWinnersKeyedActiveFactsSQL} {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("build supply chain impact winners keyed active facts: %w", err)
@@ -345,6 +351,7 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 	}
 	result.ChunkIdentifiers = chunk.identifiers
 	result.ChunkKeptRows = kept
+	result.ChunkScannedCopies = scanned
 	return false, s.timePhase(ctx, telemetry.SupplyChainImpactWinnersPhaseApply, func() error {
 		tally, remaining, remainingMin, upperBound, err := settleWinnersKeyedDirtyLog(ctx, tx, false, &result.ScopeRemainderConverted)
 		if err != nil {
@@ -377,6 +384,13 @@ func (s SupplyChainImpactWinnersStore) runKeyedOrFull(
 		result.Watermark = watermark
 		return nil
 	})
+}
+
+// countWinnersKeyedScannedCopies counts the pre-filter copies the identifier
+// probe scanned, before the active-generation join discards the retired and
+// superseded ones (#11308).
+func countWinnersKeyedScannedCopies(ctx context.Context, tx db.Transaction) (int64, error) {
+	return scanWinnersInt64(ctx, tx, countWinnersKeyedScannedCopiesSQL, "count scanned winner copies")
 }
 
 // applyWinnersKeyed runs the keyed apply statement with the stamp candidate
