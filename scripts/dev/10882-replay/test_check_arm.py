@@ -115,7 +115,7 @@ class TreatmentTest(unittest.TestCase):
   def test_red_no_positive_control_after_release_fails(self):
     arm = _treatment()
     arm["writes"]["end"]["graph"] = 0
-    self.assertEqual(_run("treatment", arm, _controls()), ["positive control: A graph writes after release are above 0"])
+    self.assertEqual(_run("treatment", arm, _controls()), ["positive control: A writes after release are above 0"])
 
   def test_red_latch_checks_fail_each_on_its_own_reading(self):
     for mutate, name in (
@@ -356,6 +356,39 @@ class InflightTest(unittest.TestCase):
     arm["deferrals"]["dead_letters"] = 1
     self.assertEqual(sorted(_run("inflight", arm, _controls())),
                      sorted(["the deferred items enqueued their intents after the release", "zero dead letters"]))
+
+
+class WarmTest(unittest.TestCase):
+
+  def _arm(self) -> dict:
+    arm = _treatment()
+    arm["final"]["shapes"]["git-1"] = {"is_delta": True, "active_sha": SHA3, "base_sha": SHA1, "sha_chain": [SHA1, SHA3]}
+    arm["final"]["repository_payloads"] = {"git-1": {SHA3: {"delta_relative_paths": ["src/mod1.go", "src/mod2.go"]}}}
+    arm["writes"]["first_engaged"] = {"graph": 1400, "content": 144, "succeeded": 54}  # projected before the latch engaged
+    arm["writes"]["first"] = {"graph": 0, "content": 0, "succeeded": 0}
+    arm["writes"]["last_engaged"] = {"graph": 1400, "content": 144, "succeeded": 54}
+    arm["writes"]["end"] = {"graph": 1400, "content": 144, "succeeded": 60}  # the post-release delta only moves the projection count
+    return arm
+
+  def test_green_warm(self):
+    self.assertEqual(_run("warm", self._arm(), _controls()), [])
+
+  def test_red_a_write_while_engaged_fails_and_no_write_after_release_fails(self):
+    arm = self._arm()
+    arm["writes"]["last_engaged"]["content"] = 150
+    self.assertEqual(_run("warm", arm, _controls()), ["zero A graph, content and projection writes while engaged"])
+    arm = self._arm()
+    arm["writes"]["end"] = dict(arm["writes"]["last_engaged"])
+    self.assertEqual(_run("warm", arm, _controls()), ["positive control: A writes after release are above 0"])
+
+  def test_red_final_delta_missing_a_path_or_not_a_delta_or_nothing_paced(self):
+    arm = self._arm()
+    arm["final"]["repository_payloads"]["git-1"][SHA3]["delta_relative_paths"] = ["src/mod2.go"]
+    self.assertEqual(_run("warm", arm, _controls()),
+                     ["the final delta of every scope names both changed paths (X while engaged, Y after release)"])
+    arm = self._arm()
+    arm["paced"]["superseded_scopes"] = 0
+    self.assertEqual(_run("warm", arm, _controls()), ["a delta was paced and superseded unprojected while engaged"])
 
 
 if __name__ == "__main__":

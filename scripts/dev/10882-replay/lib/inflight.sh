@@ -12,6 +12,8 @@
 #   1. seed the #10862 mix and source A's seeded generations, but NO aged A rows;
 #   2. install a hold: a BEFORE UPDATE trigger on scope_generations that waits while
 #      replay_hold.hold is true, for the update that stamps projection_write_started_at
+#      of a REAL fixture scope only (seeded and B items flow, so they cannot occupy
+#      every worker and starve the real items)
 #      (the projector's write marker, which runs after the pre-write consult and
 #      before the first graph or content write);
 #   3. start the binaries; the real ingester collects the fixtures; items are
@@ -43,7 +45,8 @@ BEGIN
 END
 $fn$;
 CREATE TRIGGER replay_hold_marker BEFORE UPDATE OF projection_write_started_at ON scope_generations
-  FOR EACH ROW WHEN (NEW.projection_write_started_at IS NOT NULL) EXECUTE FUNCTION replay_hold_marker();
+  FOR EACH ROW WHEN (NEW.projection_write_started_at IS NOT NULL AND NEW.scope_id LIKE 'git-repository-scope:%')
+  EXECUTE FUNCTION replay_hold_marker();
 SQL
 }
 
@@ -157,5 +160,77 @@ replay_run_inflight() {
   replay_event run_done "$(replay_load1)"
   python3 -I "$here/assemble_result.py" "$REPLAY_RUN_DIR"
   python3 -I "$here/assemble_inflight.py" "$REPLAY_RUN_DIR"
+  echo "run $arm rep $rep done: $REPLAY_RUN_DIR/result.json"
+}
+
+# replay_warm_projected reports whether every real fixture has a projected generation.
+replay_warm_projected() {
+  [[ "$(replay_psql -c "SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status = 'succeeded'
+        AND scope_id LIKE 'git-repository-scope:%'")" -ge 6 ]]
+}
+
+# replay_run_warm <IW|IWC> <rep>: the warm-source paced-delta case (arbiter ruling replay-go
+# (c)): a source whose first full generation is already projected, then a commit that
+# changes file X while the latch is engaged (its delta is paced and superseded
+# unprojected), then a commit that changes file Y after the release. The final delta
+# must name both paths and the final state must equal the control's (IWC: thresholds
+# unset, same pushes at the same offsets from the warm moment).
+replay_run_warm() {
+  local arm="$1" rep="$2" here
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  replay_arm_config "$arm" || return 1
+  REPLAY_RUN_DIR="$REPLAY_RESULTS/$arm-rep$rep"
+  rm -rf "$REPLAY_RUN_DIR"
+  mkdir -p "$REPLAY_RUN_DIR"
+  export REPLAY_RUN_DIR
+
+  "$here/lib/reset.sh" >/dev/null
+  rm -rf "$REPLAY_HOME/workspace"
+  "$here/make_fixtures.sh" "$REPLAY_FIXTURES" 6 >/dev/null
+  replay_write_manifest "$arm" "$rep"
+  replay_sampler_start
+  trap 'replay_stop ingester; replay_stop projector; replay_sampler_stop' RETURN
+
+  REPLAY_A_ROWS=0 replay_seed TestReplaySeedBacklog >"$REPLAY_RUN_DIR/seed-backlog.log" 2>&1 ||
+    { echo "seed backlog failed" >&2; return 1; }
+  local -a ing_env proj_env
+  mapfile -t ing_env < <(replay_threshold_env ingester; replay_global_admission_env)
+  mapfile -t proj_env < <(replay_threshold_env projector)
+  replay_start ingester eshu-ingester 19501 "${ing_env[@]}" \
+    ESHU_PROJECTOR_WORKERS="$REPLAY_INGESTER_PROJECTOR_WORKERS" ESHU_REPO_SOURCE_MODE=explicit \
+    ESHU_REPOSITORY_RULES_JSON="$(replay_repository_rules)" ESHU_REPOS_DIR="$REPLAY_HOME/workspace" \
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.file://$REPLAY_FIXTURES/remotes/.insteadOf" \
+    GIT_CONFIG_VALUE_0="https://github.com/"
+  replay_start projector eshu-projector 19502 "${proj_env[@]}" ESHU_PROJECTOR_WORKERS="$REPLAY_PROJECTOR_WORKERS"
+  replay_event processes_started 0
+  replay_wait_until 120 "every fixture to be projected (warm source)" replay_warm_projected || return 1
+  replay_event warm 0
+  # Engage: insert A's aged rows; the next selection consult engages the latch.
+  ESHU_REPLAY_SKIP_MIX=1 replay_seed_with "$REPLAY_SEEDER_IF" TestReplaySeedBacklog \
+    >"$REPLAY_RUN_DIR/seed-aged-a.log" 2>&1 || { echo "aged A seed failed" >&2; return 1; }
+  replay_event rows_seeded 0
+  sleep 10
+  replay_fixture_commit engaged 2 mod1.go # file X, pushed while engaged
+  sleep 110
+  replay_census pre
+  replay_scrape ingester engaged
+  replay_scrape projector engaged
+  replay_event catchup_start 0
+  replay_seed TestReplayCompleteA >"$REPLAY_RUN_DIR/catchup.log" 2>&1
+  replay_event catchup_done 0
+  if [[ "$ARM_THRESHOLDS" == 1 ]]; then
+    replay_wait_until 180 "latch release" replay_latch_released || true
+  fi
+  replay_fixture_commit after_release 3 mod2.go # file Y, pushed after the release
+  replay_wait_until 240 "projector queue to settle" replay_projector_settled || true
+  sleep 60
+  replay_wait_until 120 "projector queue to settle again" replay_projector_settled || true
+  replay_census end
+  replay_scrape ingester final
+  replay_scrape projector final
+  replay_sampler_stop
+  replay_export_state
+  replay_event run_done "$(replay_load1)"
+  python3 -I "$here/assemble_result.py" "$REPLAY_RUN_DIR"
   echo "run $arm rep $rep done: $REPLAY_RUN_DIR/result.json"
 }

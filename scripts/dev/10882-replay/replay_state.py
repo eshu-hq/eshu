@@ -70,11 +70,13 @@ def write_points(samples: list[dict[str, Any]], engaged: dict[str, Any], t120: f
   def point(s: dict[str, Any] | None) -> dict[str, Any] | None:
     return None if s is None else {"graph": s["graph"], "content": s["content"], "succeeded": s["succeeded"], "ts": s["ts"]}
   first = samples[0] if samples else None
-  last_engaged = None
+  last_engaged = first_engaged = None
+  if "first_engaged_ts" in engaged:
+    first_engaged = next((s for s in samples if s["ts"] == engaged["first_engaged_ts"]), None)
   if "last_engaged_ts" in engaged:
     last_engaged = next((s for s in samples if s["ts"] == engaged["last_engaged_ts"]), None)
   at120 = None if t120 is None else next((s for s in samples if s["ts"] >= t120), None)
-  return {"first": point(first), "last_engaged": point(last_engaged),
+  return {"first": point(first), "first_engaged": point(first_engaged), "last_engaged": point(last_engaged),
           "end": point(samples[-1] if samples else None), "at_t120": point(at120)}
 
 

@@ -181,20 +181,32 @@ def check_item_timing(arm: dict[str, Any]) -> list[Check]:
                     items.get("paced_max_after_release_s")))]
 
 
-def check_zero_writes(arm: dict[str, Any]) -> list[Check]:
-  """Absolute zero A writes while engaged, with the positive control after release."""
+def check_zero_writes(arm: dict[str, Any], warm: bool = False) -> list[Check]:
+  """Absolute zero A writes while engaged, with the positive control after release.
+
+  The baseline is the run's first sample. The warm-source arm projects its first
+  full generation BEFORE the latch engages, so its baseline is the first engaged
+  sample and its positive control is any A write (graph, content or projection)
+  after the release.
+  """
   writes = arm.get("writes", {})
-  first, last, end = writes.get("first"), writes.get("last_engaged"), writes.get("end")
+  first = writes.get("first_engaged") if warm else writes.get("first")
+  last, end = writes.get("last_engaged"), writes.get("end")
   if not first or not last or first["graph"] is None or last["graph"] is None:
     return [Check("zero A graph, content and projection writes while engaged", False,
                   "missing sampler rows (first=%s last_engaged=%s)" % (first, last))]
   delta = (last["graph"] - first["graph"], last["content"] - first["content"], last["succeeded"] - first["succeeded"])
-  after = None if not end or end["graph"] is None else end["graph"] - last["graph"]
+  if warm:
+    after = None if not end or end["graph"] is None else max(
+        end["graph"] - last["graph"], end["content"] - last["content"], end["succeeded"] - last["succeeded"])
+    control = "A writes (graph, content or projection) after release=%s"
+  else:
+    after = None if not end or end["graph"] is None else end["graph"] - last["graph"]
+    control = "graph nodes after release=%s"
   return [
       Check("zero A graph, content and projection writes while engaged", delta == (0, 0, 0),
-            "graph=%d content=%d succeeded=%d against the run's first sample" % delta),
-      Check("positive control: A graph writes after release are above 0", after is not None and after > 0,
-            "graph nodes after release=%s" % after),
+            "graph=%d content=%d succeeded=%d against the %s" % (delta + ("first engaged sample" if warm else "run's first sample",))),
+      Check("positive control: A writes after release are above 0", after is not None and after > 0, control % after),
   ]
 
 

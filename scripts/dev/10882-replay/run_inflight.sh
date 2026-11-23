@@ -3,7 +3,7 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # Entry point of the in-flight arms (decision (g) of the replay ruling): IFC (the
-# control) and IF, three repetitions each, then the checker. A separate script so
+# control) and IF, plus the warm-source paced-delta pair IWC and IW, three repetitions each, then the checker. A separate script so
 # it can land beside a running matrix without editing run.sh. The product binaries
 # must come from the matrix build (same commit); only the seeder is rebuilt, from
 # this checkout, as replayseed-if.test (it adds ESHU_REPLAY_SKIP_MIX).
@@ -38,10 +38,13 @@ fi
 started="$(date +%s)"
 replay_require_venue
 for rep in $(seq 1 "$reps"); do
-  for arm in IFC IF; do
+  for arm in IFC IF IWC IW; do
     replay_check_wall_cap "$started" || break 2
     replay_wait_for_load "$started" || break 2
-    replay_run_inflight "$arm" "$rep"
+    case "$arm" in
+      IW|IWC) replay_run_warm "$arm" "$rep" ;;
+      *) replay_run_inflight "$arm" "$rep" ;;
+    esac
   done
 done
 
@@ -55,5 +58,13 @@ for d in "$results"/IF-rep*; do
   [[ -f "$d/result.json" ]] || continue
   echo "== $(basename "$d") (inflight)"
   python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --arm "$d/result.json" --kind inflight "${refs[@]}" || status=1
+done
+mapfile -t refs_w < <(for d in "$results"/IWC-rep*; do [[ -f "$d/result.json" ]] && printf -- '--control\n%s\n' "$d/result.json"; done)
+echo "== control set IWC"
+python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --kind controlset "${refs_w[@]}" || status=1
+for d in "$results"/IW-rep*; do
+  [[ -f "$d/result.json" ]] || continue
+  echo "== $(basename "$d") (warm)"
+  python3 -I "$here/check_arm.py" ${judge[@]+"${judge[@]}"} --arm "$d/result.json" --kind warm "${refs_w[@]}" || status=1
 done
 exit "$status"

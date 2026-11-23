@@ -141,6 +141,34 @@ def check_inflight(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict
   return checks + check_final_state(arm, controls[0], cf)
 
 
+def check_warm(arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
+  """The warm-source paced-delta case (replay ruling (c)): a source with a projected
+  full base, a commit changing file X pushed while engaged (its delta is paced and
+  superseded unprojected), a commit changing file Y pushed after the release. The
+  final delta names both paths and the final state, content identity included,
+  equals the control's."""
+  bad, notes = [], []
+  for scope, info in sorted(get(arm, "final.shapes", {}).items()):
+    payload = get(arm, "final.repository_payloads", {}).get(scope, {}).get(info["active_sha"], {})
+    paths = set(payload.get("delta_relative_paths") or [])
+    notes.append("%s delta=%s paths=%s" % (scope[-8:], info["is_delta"], sorted(paths)))
+    if not info["is_delta"] or not {"src/mod1.go", "src/mod2.go"} <= paths:
+      bad.append(scope)
+  checks = [
+      Check("the final delta of every scope names both changed paths (X while engaged, Y after release)", not bad and bool(notes),
+            "; ".join(notes[:3]) + ("; failing=%s" % bad if bad else "")),
+      Check("a delta was paced and superseded unprojected while engaged",
+            int(get(arm, "paced.superseded_scopes", 0)) >= 1 and float(arm.get("released_pre_write", 0)) >= 1,
+            "superseded scopes=%s pre-write releases=%s" % (get(arm, "paced.superseded_scopes"), arm.get("released_pre_write"))),
+  ]
+  checks += check_engagement(arm) + check_zero_writes(arm, warm=True)
+  checks += [Check("zero dead letters", int(get(arm, "deferrals.dead_letters", 0)) == 0,
+                   "dead letters=%s" % get(arm, "deferrals.dead_letters")),
+             Check("zero admission_timeout", int(get(arm, "deferrals.admission_timeouts", 0)) == 0,
+                   "timeouts=%s" % get(arm, "deferrals.admission_timeouts"))]
+  return checks + check_final_state(arm, controls[0], cf)
+
+
 def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]], cf: dict[str, Any] | None = None) -> list[Check]:
   """Selects and runs the checks for one arm kind."""
   if kind == "controlset":
@@ -154,6 +182,8 @@ def run_checks(kind: str, arm: dict[str, Any], controls: list[dict[str, Any]], c
   checks = check_hygiene(arm)
   if kind == "inflight":
     return checks + check_inflight(arm, controls, cf)
+  if kind == "warm":
+    return checks + check_warm(arm, controls, cf)
   if kind == "t3":
     return checks + check_t3(arm, controls, cf)
   if kind == "t2":
@@ -175,7 +205,7 @@ def main(argv: list[str]) -> int:
   parser.add_argument("--arm", help="result.json of the arm under test")
   parser.add_argument("--control", action="append", default=[], help="result.json of a control repetition")
   parser.add_argument("--cf", help="result.json of the CF reference arm (a full active generation at the final sha)")
-  parser.add_argument("--kind", choices=("treatment", "control", "t2", "t3", "inflight", "controlset", "cg", "cfref"), default="treatment")
+  parser.add_argument("--kind", choices=("treatment", "control", "t2", "t3", "inflight", "warm", "controlset", "cg", "cfref"), default="treatment")
   args = parser.parse_args(argv)
   try:
     arm = _load(args.arm) if args.arm else {}

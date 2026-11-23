@@ -54,6 +54,8 @@ replay_arm_config() {
     CF) ARM_THRESHOLDS=0 ARM_PREPUSH=1 ;;
     IF) ;; # in-flight arm, see lib/inflight.sh
     IFC) ARM_THRESHOLDS=0 ;;
+    IW) ;; # warm-source paced delta, see lib/inflight.sh
+    IWC) ARM_THRESHOLDS=0 ;;
     *) echo "unknown arm $1" >&2; return 1 ;;
   esac
   if [[ "$ARM_A_KIND" == git ]]; then
@@ -124,9 +126,9 @@ replay_event() {
 # replay_fixture_commit <label> <day> adds one fixed-content commit, at a fixed
 # date, to every fixture repository. Identical in every arm.
 replay_fixture_commit() {
-  local label="$1" day="$2" repo
+  local label="$1" day="$2" file="${3:-mod1.go}" repo
   for repo in "$REPLAY_FIXTURES"/work/replay-fixture-*; do
-    printf '// change %s\n' "$label" >>"$repo/src/mod1.go"
+    printf '// change %s\n' "$label" >>"$repo/src/$file"
     GIT_AUTHOR_NAME=replay GIT_AUTHOR_EMAIL=replay@example.invalid GIT_COMMITTER_NAME=replay \
       GIT_COMMITTER_EMAIL=replay@example.invalid GIT_AUTHOR_DATE="2026-01-0${day}T00:00:00Z" \
       GIT_COMMITTER_DATE="2026-01-0${day}T00:00:00Z" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
