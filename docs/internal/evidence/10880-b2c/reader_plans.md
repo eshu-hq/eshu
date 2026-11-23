@@ -205,6 +205,40 @@ package costs. Index size and build time: 261 MB and 33.4 s at 2,600,000 support
 the btree it would serve, so it is a candidate to replace `(repository_id)` rather
 than sit beside it; that, and its WAL, are not measured here (SLOT 3).
 
+## Write cost of the new indexes (WAL)
+
+Harness, settings and every figure: [supports_index_wal_raw.txt](supports_index_wal_raw.txt)
+and [supports_index_wal_points.txt](supports_index_wal_points.txt). The impact writer's
+real transaction, 3,000 findings per pass, shapes S1 (no group members) and S2 (six
+group members), cold (CHECKPOINT before every pass) and warm, three interleaved
+reps per cell, PostgreSQL 18.6 with `wal_compression=off`, `full_page_writes=on`,
+`checkpoint_timeout=5min`, `max_wal_size=6GB`, `shared_buffers=2GB`,
+`wal_level=replica`. Percentage points over the B1-shipped median, S2 cold (the
+shape and mode of the ruling's stop values):
+
+| Variant | Insert | Replay |
+| --- | --- | --- |
+| `+cve` (B2b) | +2.2 | +3.0 |
+| `+advisory` (B2b, on `+cve`) | +5.1 | +5.4 |
+| `+members` (B2b) | +15.2 | +11.4 |
+| `+tokens` (B2b) | +27.1 | +5.4 (min -0.4, max +18.2: noisy) |
+| `+package` (migration 345, added last) | +29.4 | +21.3 |
+| `pkg-only` (345 alone on B1-shipped) | +2.3 | +3.1 |
+| `repofact-only` | +3.1 | +2.5 |
+| `package+repofact` | +5.3 | +5.6 |
+| `swap-repobtree-for-repofact` | +2.1 | +1.4 |
+| ten-index total (`+package`, plus repofact) | +32.4 | +23.8 |
+
+Reading: migration 345 alone costs +2.3 points on S2 cold insert and +3.1 on replay,
+above the ruling's 2-point line on both; as the last of the cumulative chain it adds
+2.3 points to insert. The nine-index total (`+package` row) is +29.4 insert and +21.3
+replay against the +30 and +36 stops. Adding the `(repository_id, fact_id)` btree as a
+tenth index takes the insert total to +32.4, past +30; replacing the `(repository_id)`
+btree with it costs +2.1 on insert and +1.4 on replay. Replay on the cumulative
+variants is noisy (spreads up to 28% inside one cell, from full-page images), so the
+isolated variants are the cleaner figures; S1 shows the same ordering at about half
+the size. Retract is not part of the stops and is in the raw file.
+
 ## When the package array is non-empty
 
 `securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
