@@ -11,15 +11,17 @@ landing: false
 
 Use this page to choose your first Eshu doc without reading the whole site.
 
-If you are brand new, start with
-[First Successful Run](getting-started/first-successful-run.md). It gets you
-from zero to one indexed repository, a status check, and a first useful answer.
+If you are brand new and want to try Eshu with zero credentials, start with
+[Demo Mode](getting-started/demo-mode.md) (`eshu demo up`). When you are ready
+to index one of your own repositories, follow
+[First Successful Run](getting-started/first-successful-run.md).
 
 ## Pick your goal
 
 | Goal | First page |
 | --- | --- |
-| Get one complete local run | [First Successful Run](getting-started/first-successful-run.md) |
+| Try Eshu in minutes with zero credentials (synthetic org) | [Demo Mode](getting-started/demo-mode.md) |
+| Get one complete local run against your own repo | [First Successful Run](getting-started/first-successful-run.md) |
 | Go from `docker compose up` to a logged-in dashboard with SSO | [Console First Five Minutes](getting-started/console-first-five-minutes.md) |
 | Run Eshu on your laptop | [Run locally](run-locally/index.md) |
 | Connect Codex, Claude, Cursor, VS Code, or another MCP client | [Connect MCP](mcp/index.md) |

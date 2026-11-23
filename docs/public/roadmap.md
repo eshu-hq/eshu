@@ -84,7 +84,7 @@ release should only happen after these gates agree:
 
 | Gate | What must be true before stable v0.0.3 |
 | --- | --- |
-| Runtime parity | Docker Compose and Kubernetes use the same service contracts for API, MCP, ingester, reducer, workflow coordinator, claim-driven collectors, bootstrap, Postgres, and NornicDB. |
+| Runtime parity | Docker Compose and Kubernetes use the same service contracts for API, MCP, ingester, reducer, workflow coordinator, claim-driven collectors, bootstrap, Postgres, and Neo4j (the canonical deployment graph backend per decision #7331). |
 | Full E2E proof | A clean-volume run and a preserved-volume restart complete without dead letters, stale terminal state, or hidden recovery work. |
 | Query truth | API and MCP reads return bounded, explainable results from indexed evidence instead of whole-graph scans or inferred shortcuts. |
 | Collector readiness | Enabled collectors prove source collection, reducer projection, API/MCP read visibility, retries, and operator telemetry before becoming default deployment paths. |
