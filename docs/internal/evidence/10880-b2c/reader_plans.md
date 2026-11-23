@@ -253,6 +253,17 @@ cell plus the 346 swap, S2 cold insert) it is 36,391,136 bytes, +31.5 points ove
 B1-shipped: a DERIVED figure, not a measurement. The binding totals come from the
 W-A run owned by the B2b lane, not from this harness.
 
+On the index migration 346 builds (`CREATE INDEX CONCURRENTLY` of the migration
+file on `b2c_hot`, 261 MB, 106 s on a loaded host), the shipped statements of both
+loaders on the 160,000-support repository, both plan cache modes
+([repository_arm_bounds_raw.txt](repository_arm_bounds_raw.txt)): page 1 5,909,
+midpoint 5,897, last page 2,958 buffers after a vacuum (midpoint 1.0 times page 1);
+5,978, 5,965 and 2,989 with every twentieth row of the repository rewritten and
+nothing vacuumed. Temp 0, no sequential scan and at most 50 ms warm are asserted by
+the test. On a fresh single-scope database the same pages read 2,017, 2,016 and
+1,009 buffers (2,296, 2,282 and 1,143 rewritten): with 9,000 scopes the per-row
+scope probes no longer memoize, which is the figure to quote.
+
 ## When the package array is non-empty
 
 `securityAlertReconciliationFilter` (`reconciliation_handler.go`) builds the four
