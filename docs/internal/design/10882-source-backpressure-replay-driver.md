@@ -49,6 +49,7 @@ Each arm runs three repetitions. A and B swap between git and a hosted family.
 | T1TTL | set, candidate TTL | git | hosted | the same at one candidate TTL |
 | C2 | unset | hosted | git | control for T2 |
 | T2 | set | hosted, paced at the coordinator claim grant | git | the claim-grant leg |
+| T2TTL | set, candidate TTL on every process | as T2 | git | the claim-grant leg at the enabled TTL; judged by the same checks against C2 |
 | T3 | set | git; every aged A row is not takeable (parked wait or readiness-gated) | hosted | #11187: the latch never engages |
 | T3TTL | set, candidate TTL | as T3 | hosted | consult p50 and p95 with parked rows present at the candidate TTL |
 | CG | unset, default global marks | git | hosted | one repetition, reported not judged: what the default global gate does to the corpus |
@@ -135,7 +136,8 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 | `lib/collect.sh` | End-of-run exports (generations, facts, reducer rows, projector items, latch rows). |
 | `census_not_takeable.sql`, `census.sh` | The #11187 census. |
 | `assemble_result.py`, `replay_state.py`, `replay_facts.py`, `replay_prom.py` | Turn a run directory into `result.json`. |
-| `check_arm.py`, `checks_lib.py` | The pass/fail gate. |
+| `check_arm.py`, `checks_lib.py` | The pass/fail gate. An absent claim-pacing series fails; T2 needs a claim-grant consult count above 0 (the `collector_kind` series). |
+| `b_item_table.py`, `test_b_item_table.py` | Per-item queue wait of the healthy source, per arm and pooled, plus the burst waits of the git-B arms. Reports, judges nothing. |
 | `report.sh` | Runs the gate over every run and prints the numbers. |
 | `test_check_arm.py`, `test_replay_readers.py`, `test_census.sh` | Seeded RED/GREEN proofs. |
 
