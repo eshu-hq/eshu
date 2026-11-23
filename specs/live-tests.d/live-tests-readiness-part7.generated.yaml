@@ -64,6 +64,11 @@ tests:
     class: postgres_ci
     reason: "#11198 and #11199 reducer input moved off finding facts, on real PostgreSQL: on a multi-scope seed written through the production impact writer (active and superseded generations, a retracted finding, a CVE-less advisory finding, one finding per repository and package shape) the security-alert reconciliation loader and the service-catalog vulnerability loader return exactly the rows and payloads the frozen finding-fact reads return, and both refuse with a retryable not-ready error before the supports backfill is ready"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_repository_arm_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 and #11199 repository-arm bounds on real PostgreSQL, on the index migration 346 builds: for a repository of 160,000 supports the shipped supports page statement (the reconciliation repository arm and the service-catalog loader's one arm) reads page 1, a midpoint page and the last page in at most 6,000 buffers with no temp under force_generic_plan and force_custom_plan, the midpoint costs at most 1.5 times page 1, and the same pages stay within 7,000 buffers after every twentieth row of the repository was rewritten and nothing was vacuumed"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go
     tag: ~
     class: postgres_ci

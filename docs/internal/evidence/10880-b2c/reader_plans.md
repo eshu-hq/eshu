@@ -229,6 +229,12 @@ shape and mode of the ruling's stop values):
 | `swap-repobtree-for-repofact` | +2.1 | +1.4 |
 | ten-index total (`+package`, plus repofact) | +32.4 | +23.8 |
 
+The two GIN indexes (`+members`, `+tokens`) in the harness were created with default
+reloptions (`fastupdate` on, the default `gin_pending_list_limit`), and the pending
+list was flushed with `gin_clean_pending_list` after each pass; PR-B2b ships them with
+`fastupdate = off`, so their rows here are not B2b's final figures. The harness has no
+arm for migrations 343 and 344.
+
 Reading: migration 345 alone costs +2.3 points on S2 cold insert and +3.1 on replay,
 above the ruling's 2-point line on both; as the last of the cumulative chain it adds
 2.3 points to insert. The nine-index total (`+package` row) is +29.4 insert and +21.3
@@ -238,6 +244,14 @@ btree with it costs +2.1 on insert and +1.4 on replay. Replay on the cumulative
 variants is noisy (spreads up to 28% inside one cell, from full-page images), so the
 isolated variants are the cleaner figures; S1 shows the same ordering at about half
 the size. Retract is not part of the stops and is in the raw file.
+
+The worst replay cell of the set is S2 warm: the `+package` chain cell is +27.7 over
+the B1-shipped median (max +64.8) and the ten-index total +30.2 (max +71.2), with
+spreads of 26 to 28% inside the cell; the cold replay cells are the readable ones.
+Chain plus the repository swap was not measured. By addition (the `+package` chain
+cell plus the 346 swap, S2 cold insert) it is 36,391,136 bytes, +31.5 points over
+B1-shipped: a DERIVED figure, not a measurement. The binding totals come from the
+W-A run owned by the B2b lane, not from this harness.
 
 ## When the package array is non-empty
 
