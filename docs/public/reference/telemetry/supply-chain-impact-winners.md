@@ -408,7 +408,7 @@ No label carries a canonical key, scope, repository, or CVE.
 - A rising `eshu_dp_supply_chain_impact_winners_chunked_ticks_total` with a
   falling `dirty_log_depth` is a backlog draining in bounded ticks: healthy. A
   rising chunked-ticks counter with a flat or climbing depth means arrivals
-  outpace the 200-identifier bound; admit fewer changes per tick or raise the
+  outpace the 1000-identifier bound; admit fewer changes per tick or raise the
   bound, do not chase a faster tick. A bounded tick stamps the horizon over the
   rows it leaves queued (#10706), so the watermark age stays bounded by the
   tick cadence while the drain runs; if the watermark age keeps climbing while

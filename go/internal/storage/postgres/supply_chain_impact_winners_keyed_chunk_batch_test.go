@@ -194,7 +194,8 @@ func TestBuildWinnersKeyedChunkBatchClampAboveParameterCeiling(t *testing.T) {
 // the 1000-identifier default, the default batch stays one INSERT far under
 // the Postgres parameter ceiling (1000 x 5 = 5000 params vs the 13107-row
 // clamp), and a saturated default-bound tick admits exactly the bound in one
-// statement with truncation, oldest-first.
+// statement with truncation (oldest-first order is pinned element-wise by
+// TestBuildWinnersKeyedChunkBatchesIdentifierInserts).
 func TestWinnersChunkDefaultBoundIsCapacityRuled(t *testing.T) {
 	var empty SupplyChainImpactWinnersStore
 	if got := empty.chunkBounds(); got.identifiers != 1000 || got.dirtyRows != 5000 {
