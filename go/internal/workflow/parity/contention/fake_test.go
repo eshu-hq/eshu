@@ -29,6 +29,15 @@ type faults struct {
 	reapRealAt     int  // the n-th reap call also returns a non-synthetic claim
 	loseInSeedAt   int  // after the n-th enqueue call one item row vanishes (fault during the seed)
 	loseInStats    bool // one item row vanishes on the first AnalyzedAt call (fault during the stats wait)
+	// drainAdmitted models a worker that claims and completes every visible
+	// item the moment guarded admission inserts it: the loaded-runner ordering
+	// where a late advisory goroutine reaches its guard after the first
+	// winner's targets went terminal (#11074).
+	drainAdmitted bool
+	// admitDelay makes every guarded admission take this long before it
+	// reads or writes, the way a loaded database or runner stretches a guard
+	// call past the round's hold (#11074).
+	admitDelay time.Duration
 }
 
 type fakeItem struct {
@@ -106,6 +115,9 @@ func (l *fakeLeg) EnqueueWorkItems(_ context.Context, items []workflow.WorkItem)
 }
 
 func (l *fakeLeg) AdmitGuarded(_ context.Context, _ workflow.Run, items []workflow.WorkItem) (workflow.RunAdmission, error) {
+	if l.f.admitDelay > 0 {
+		time.Sleep(l.f.admitDelay)
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, it := range items {
@@ -118,8 +130,15 @@ func (l *fakeLeg) AdmitGuarded(_ context.Context, _ workflow.Run, items []workfl
 			}
 		}
 	}
+	now := time.Now()
 	for _, it := range items {
-		l.items[it.WorkItemID] = &fakeItem{item: it}
+		// The real insert stores the item's visible_at and claims skip an
+		// item until it is visible, so the fake honors it the same way.
+		cur := &fakeItem{item: it, visibleAt: it.VisibleAt}
+		if l.f.drainAdmitted && !cur.visibleAt.After(now) {
+			cur.item.Status = workflow.WorkItemStatusCompleted
+		}
+		l.items[it.WorkItemID] = cur
 		l.order = append(l.order, it.WorkItemID)
 	}
 	scopes := make([]string, 0, len(items))

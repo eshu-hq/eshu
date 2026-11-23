@@ -506,20 +506,22 @@ func TestNextSupplyChainImpactAggregateOffsetBound(t *testing.T) {
 func TestSupplyChainImpactAggregateRoutesReturn503WhenReadModelUnavailable(t *testing.T) {
 	t.Parallel()
 
-	store := &stubSupplyChainImpactAggregateStore{
-		countErr:     impact.ErrAggregateReadModelUnavailable,
-		inventoryErr: impact.ErrAggregateReadModelUnavailable,
-	}
-	handler := &SupplyChainHandler{ImpactAggregates: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
 	for _, target := range []string{
 		"/api/v0/supply-chain/impact/findings/count",
 		"/api/v0/supply-chain/impact/inventory",
 	} {
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
+			// Each parallel subtest owns its store, handler and mux: the stub
+			// records its calls in plain fields, so sharing one store across
+			// parallel subtests is a data race under -race.
+			store := &stubSupplyChainImpactAggregateStore{
+				countErr:     impact.ErrAggregateReadModelUnavailable,
+				inventoryErr: impact.ErrAggregateReadModelUnavailable,
+			}
+			handler := &SupplyChainHandler{ImpactAggregates: store}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
 			req := httptest.NewRequest(http.MethodGet, target, nil)
 			w := httptest.NewRecorder()
 			mux.ServeHTTP(w, req)

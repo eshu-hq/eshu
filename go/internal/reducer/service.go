@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:filelength // 563 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam and #11239 the outcomeBuffered seam, which must live on Service.
+package reducer //nolint:filelength // 572 lines: Service struct plus side-runner wiring; the #6626 value-flow lane's two leaf imports tipped it over the cap and the #8826 retry-budget field is the one exported knob the deferred status needs; #11193 added the newBoundTimer test seam and #11239 the outcomeBuffered seam, which must live on Service; #11256 added two clean-shutdown guards (claim and ack) to the claim loops.
 
 import (
 	"context"
@@ -341,6 +341,12 @@ func (s Service) runSequential(ctx context.Context) error {
 			))
 		}
 		if err != nil {
+			// A shutdown that lands while the claim query is in flight is the
+			// operator's stop, not a claim failure: end the run cleanly, as
+			// the idle wait and the batch loop do.
+			if ctx.Err() != nil {
+				return nil
+			}
 			return fmt.Errorf("claim reducer work: %w", err)
 		}
 		if !ok {
@@ -407,6 +413,9 @@ func (s Service) runPerItemConcurrent(ctx context.Context) error {
 					))
 				}
 				if err != nil {
+					if ctx.Err() != nil {
+						return // shutdown during the claim: a clean stop, not a failure
+					}
 					mu.Lock()
 					errs = append(errs, fmt.Errorf("claim reducer work (worker %d): %w", workerID, err))
 					mu.Unlock()

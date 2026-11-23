@@ -108,9 +108,21 @@ type Options struct {
 	AdvisoryGoroutines int           // default 25, spec §5 step 6
 	AdvisoryItems      int           // default 4 targets per round
 	AdvisoryInterval   time.Duration // default window/6
-	ReplayTimeout      time.Duration // injected first-call timeout, default 1ms
-	MaxSamples         int           // samples kept in the report, default 600
-	Mix                Mix
+	// AdvisoryHold is how long a round's items stay invisible to claims
+	// (default CallTimeout). The guard admits a run only while its targets
+	// have no open item, and the harness's own workers would otherwise
+	// complete the first winner's items before a late goroutine's guard call,
+	// admitting a second winner the guard is right to admit (#11074). The hold
+	// is a window, not a guarantee: a goroutine delayed past it (a stalled
+	// runner) may reach the guard after the workers drained the items. The
+	// round therefore judges its verdict only when every guard call returned
+	// before the hold ended, and voids (counts, logs, does not judge) the
+	// rounds that did not. Keep the hold at or above CallTimeout so a slow
+	// but bounded guard call still fits.
+	AdvisoryHold  time.Duration
+	ReplayTimeout time.Duration // injected first-call timeout, default 1ms
+	MaxSamples    int           // samples kept in the report, default 600
+	Mix           Mix
 	// CoreResidue counts core rows carrying the prefix (third zero). Nil
 	// records NOT_CHECKED on live and NOT_APPLICABLE on local.
 	CoreResidue func(context.Context) (int, error)
@@ -143,6 +155,7 @@ func (o Options) withDefaults(spec Spec) Options {
 	setInt(&o.AdvisoryGoroutines, 25)
 	setInt(&o.AdvisoryItems, 4)
 	setDuration(&o.AdvisoryInterval, spec.Window/6)
+	setDuration(&o.AdvisoryHold, o.CallTimeout)
 	setDuration(&o.ReplayTimeout, time.Millisecond)
 	setInt(&o.MaxSamples, 600)
 	if o.Mix == (Mix{}) {

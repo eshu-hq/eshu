@@ -100,7 +100,8 @@ flowchart TB
 7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
 8. The search-document, config-state-drift, package-consumption, secret-lines repair, supports backfill (#10880), and (Neo4j only) id-anchor census loops start (see [Background maintenance](background-maintenance.md)).
 9. `service.Run(ctx)` — blocks until the context is canceled; hosted
-   runtime drains in-flight work before returning.
+   runtime drains in-flight work before returning. A cancel during a claim or an ack is a
+   clean stop (exit 0); a claim failure with a live context is fatal (#11256).
 
 ### Background maintenance
 
