@@ -179,3 +179,24 @@ deferral and claim-pacing series are unchanged.
 
 Enabling the thresholds on QA. The ruling records that as a comment on #10860
 and does not do it in this goal.
+
+## Evidence markers for the code changes in this branch
+
+Performance Evidence: the replay is the measurement for the schedule-leg and
+consult-instrument changes; its record is written when the arms are accepted.
+The code the branch adds to hot paths is two monotonic clock reads and one
+histogram record per enabled per-source consult (nanoseconds against the 12 to
+100 ms consult measured in the driver smoke), and one string comparison per
+selection cycle for the source-mode predicate.
+
+No-Regression Evidence: a disabled per-source leg records no sample and reads no
+clock (`TestCheckSourceBackpressureDisabledRecordsNoConsultDuration`); a git
+source mode other than filesystem takes the same path as before
+(`TestSelectionBackpressureSupportsOnlyPerRepositorySyncModes`, the existing
+selection backpressure tests).
+
+Observability Evidence: `eshu_dp_reducer_admission_source_consult_duration_seconds`
+is the new operator signal (coverage row in
+`telemetry-coverage-reducer-core.md`, metric reference in
+`docs/public/reference/telemetry/metrics.md`); the filesystem-mode refusal is a
+startup error naming both variables.
