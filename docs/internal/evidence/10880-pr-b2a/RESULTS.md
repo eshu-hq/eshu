@@ -72,16 +72,21 @@ bytes removed (checkpoint timing makes them the noise):
 | plain + image (ruled) | +3.8 / +3.5 % | +2.6 / +1.6 % | +2.6 % (S2; S1 sample FPI-spiked) |
 | ordered + image | +6.2 / +5.0 % | +3.8 / +3.3 % | +4.1 / +3.2 % |
 
-Retract is within -0.5 to +2.4% for every variant. The share of replay updates that are HOT is
+Retract adds +0.5 to +2.9 % (bytes without full-page images) for every index variant in the cells whose
+baseline carries no full-page-image artifact; ordered + image is +2.9 % in S1 cold (+3.6 % with full-page
+image bytes), +2.0 % and +2.4 % in the other two cells. The share of replay updates that are HOT is
 0% for every variant, including the shipped table. Index size at 8,000,481 supports: ordered 199 MB
 (a btree cannot deduplicate it), image 54 MB; the plain index was 29 MB on the earlier corpus
 (heavy deduplication, 100 equal keys per key). After 3,000 inserts and 3,000 replays: plain
 0.47 to 0.84 MB, ordered 0.90 to 1.61 MB, trim 0.50 to 0.87 MB, image 0.32 MB.
 
-Against the arbiter's bar (the two indexes together add more than 3 points on insert or 6 on replay,
+Against the arbiter's first bar (the two indexes together add more than 3 points on insert or 6 on replay,
 return to the arbiter): replay is inside 6 for every variant. Insert for the ruled plain + image is
 +1.6 to +3.8; for ordered + image it is +3.3 to +6.2, so the ordered index adds about +1.0 to +2.4
-insert points over the plain one. The trimmed index costs about what the plain one does.
+insert points over the plain one. The trimmed index costs about what the plain one does. The arbiter's
+index ruling (`.claude/arbiter-b2a-index.md`, decision 5) replaced that bar for these two indexes with the
+measured envelope: return if a re-measure of ordered + image exceeds +7 points on insert in any cell or +6
+on replay. +6.2 insert and +4.1 replay are inside it.
 
 ## Arbiter index ruling and the measurements it required (08:05Z on)
 

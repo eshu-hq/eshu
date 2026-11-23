@@ -57,6 +57,7 @@ indexes and constraints are the shipped ones.
 | `candidate_profile.sql`, `.out` | Branch B candidate counts. |
 | `worst_case_all_winners_fail.sql`, `restore_winners.sql` | The every-winner-fails case and its undo. |
 | `wal_raw.txt`, `wal_summary.py`, `wal_summary.txt` | Real-writer WAL results and their summary. |
+| `bootstrap_index_check.txt` | A full `ApplyBootstrap` on a throwaway PostgreSQL 18.6: both indexes are `indisvalid`, `indisready` and `indislive`, with their definitions. |
 | `explain_ordered_probe_v_list_status.txt`, `results_*.tsv` | Raw plan and timing rows. |
 
 The real-writer harness (`zz_b2a_wal_scratch_live_test.go`) is not committed; it is the B1 m6

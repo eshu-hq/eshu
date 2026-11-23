@@ -7,9 +7,10 @@ import "strings"
 
 // supplyChainImpactPreciseMatchReasons are the match reasons that make a finding
 // without a stamped detection profile precise. The shipped reads spell the same
-// list inline (ListFindingsQuery, ListFindingsFromWinnersQuery, the aggregate and
-// grouped winners reads, the supports reads); a test pins that every one of those
-// texts contains this list in this order.
+// list inline today. A reader that wants the partial index of migration 343 must
+// build its WHERE from supplyChainImpactPrecisePredicateSQL, or the planner cannot
+// prove the index predicate; the test in this package pins only this constant
+// against migration 343, not the reads.
 var supplyChainImpactPreciseMatchReasons = []string{
 	"npm_semver_affected_range", "npm_semver_known_fixed",
 	"nuget_semver_affected_range", "nuget_semver_known_fixed",
