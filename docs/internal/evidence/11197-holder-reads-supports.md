@@ -269,3 +269,42 @@ A key-range statement fetches about one heap page per matching row. At 8M suppor
 guard on the host's storage times out three times and dead-letters. The token and
 members arms are heap-bound by construction (GIN cannot return columns), and so are
 the cve and advisory arms unless the covering shape is adopted (below).
+
+### Covering `INCLUDE (scope_id, generation_id)`: measured, not adopted
+
+The cve and advisory arms select only `scope_id` and `generation_id`
+(`supply_chain_impact_fanout_key_range.go:25-36`), so a covering btree can serve them
+index-only. Same 8M table, shipped indexes against `(cve_id, fact_id) INCLUDE (scope_id,
+generation_id) WHERE cve_id <> ''` and the advisory twin (arbiter-b2b-gin-covering
+decision 9). Raw: `c1-cov-cold.txt`, `c2-ranges.txt`, `c3-*.txt`, `c4-*.txt`.
+
+| Bar | Result | Verdict |
+| --- | --- | --- |
+| C1 plan, 16 hot-CVE statements | Index Only Scan on both covering indexes, id and both bounds in the Index Cond (lower only on the open range), no Seq Scan, temp 0 | pass |
+| C2 after VACUUM: Heap Fetches 0, <= 9,000 buffers per statement | Heap Fetches 0; 96,800 to 97,900 hit plus about 1,950 read per statement | **buffers fail**: an index-only scan pins a visibility-map page for each heap block it checks, about 100,000 pins over about 35 distinct pages; physical reads are about 1,950 cold and 0 warm |
+| C2 store read after a restart, 10 s guard | pass 1: 1.756 s total, max statement 195 ms, 0 timeouts; pass 2: 0.684 s, max 43 ms (no-INCLUDE: statement 1 times out) | pass |
+| C3 churn: every 20th row rewritten (399,064 rows), no VACUUM | no-INCLUDE 90,900 to 91,400 buffers per range; covering 124,100 to 125,000 (+36%), Heap Fetches 30,088 to 30,284 per range; cold reads 28.9k, 23.1k, 18.8k pages vs 74.5k, 58.2k, 44.0k, but cold time 15.3, 12.8, 10.9 s vs 11.6, 11.7, 7.7 s | **fail** (not 40% fewer buffers) |
+| C4 5-id statement, mass probe, hot foreign member range | 149 buffers both; probe 336 and 319 ms vs 340 and 296 ms; token range 50,270 vs 50,304 buffers, 3,974 vs 4,171 ms | pass |
+| C6 size and build | cve 1,342,865,408 B vs 897,933,312 (+49.6%), advisory 1,062,502,400 vs 720,158,720 (+47.5%); concurrent builds 85.9 s and 72.4 s vs 57.9 s and 54.0 s (host load 5 to 12; the loaded run took 387 s and 201 s) | reported |
+
+C2's buffer bar and C3 fail, so 339 and 340 stay without `INCLUDE`. The cost of that
+choice is the capacity limit above. For the record, covering turned the cold 16-range
+read of the hot CVE from 351 s to 1.76 s when the visibility map is set; with 5% churn
+and no vacuum it needs about 30,000 heap fetches per range and is no faster cold.
+
+### W-B: default `fastupdate` against off, 100,000-row windows (8M table)
+
+Each window after `CHECKPOINT` with no checkpoint inside (`pg_stat_checkpointer`
+unchanged), default and off interleaved three times, the default window ending with
+`gin_clean_pending_list` on both GINs:
+
+| | Bytes per window | Records | Full-page images | Seconds |
+| --- | --- | --- | --- | --- |
+| Default, 3 windows | 2,927,735,615 / 2,799,385,896 / 2,242,879,049 | median 1,803,734 | median 291,276 | median 74.5 |
+| `fastupdate = off`, 3 windows | 2,705,492,259 / 2,750,007,457 / 2,431,355,465 | median 1,641,979 | median 290,370 | median 74.9 |
+
+Medians differ by -3.4% (27.99 KB against 27.05 KB per row) and the ranges overlap, so
+off is not above default. By resource manager (pg_walinspect): `Gin/INSERT` 779,418
+records and 699 MB (default) against 800,000 and 708 MB (off); the default window alone
+carries `Gin/UPDATE_META_PAGE` (200,000 records, 65.3 MB) and `Gin/INSERT_LISTPAGE`
+(5,136 records, 1.25 MB).
