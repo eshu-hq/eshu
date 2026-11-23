@@ -100,6 +100,12 @@ func registerReducerWaitingInstruments(meter metric.Meter, inst *Instruments) er
 	); err != nil {
 		return fmt.Errorf("register ReducerWaitingMissedWake counter: %w", err)
 	}
+	if inst.ReducerWaitingKeyBounded, err = meter.Int64Counter(
+		"eshu_dp_reducer_waiting_key_bounded_total",
+		metric.WithDescription("Narrowed corpus waits whose key could not carry the full blocking or read scope set inside the reducer_waiting_items primary-key btree row limit, by reason (cut: parked with a sorted prefix; unrepresentable: nothing parked and the queue's 10-minute backstop retries; index_row_rejected: Postgres still rejected the park INSERT with SQLSTATE 54000 and Fail logged it and returned nil). A parked wait still wakes on its retained scopes and the retried handler re-checks the full fence (#11297)"),
+	); err != nil {
+		return fmt.Errorf("register ReducerWaitingKeyBounded counter: %w", err)
+	}
 	if inst.ReducerWaitingFallbackResolved, err = meter.Int64Counter(
 		"eshu_dp_reducer_waiting_fallback_resolved_total",
 		metric.WithDescription("Parked reducer waits a fallback resolved instead of a wake, by reason (failure_class), the reason's registered wake site (wake_site: in_tx, completion_event, audit, or unregistered) and outcome (reopened: the slow audit reopened a satisfied wait; backstop: the reducer claimed the row at its 10-minute backstop with its wait row still present; reconciled: the queue row had already left the parked state and the audit dropped its wait row). A reopened or backstop count on a reason whose wake_site is not audit is a lost wake (#11228)"),

@@ -213,6 +213,16 @@ func (q ReducerQueue) failIntent(
 			// #10877/#11000: the narrowed corpus wait keys on the cause,
 			// else the per-domain producer wait.
 			if _, err := setAsideWaitingForCause(ctx, q.database, q.Instruments, intent, waitEntry, cause, parkDomains, now); err != nil {
+				var rejected *waitingIndexRowRejectedError
+				if errors.As(err, &rejected) {
+					// #11297: the retry UPDATE already committed and the
+					// 10-minute backstop bounds the wait, so a park the
+					// btree rejects costs latency, never accuracy. Ending the
+					// process would crash-loop on the same deterministic
+					// key. Only SQLSTATE 54000 gets this treatment.
+					q.logWaitingIndexRowRejected(ctx, intent, rejected)
+					return nil
+				}
 				return fmt.Errorf("park waiting reducer work: %w", err)
 			}
 		}
