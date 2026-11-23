@@ -21,7 +21,7 @@ import (
 
 // openGraphReader builds the API query layer's graph reader from an open
 // driver, decorating the read seam with differential capture when a session
-// is open, and runs the startup backfills on graph-enabled profiles.
+// is open, and runs the startup owner-ledger seed on graph-enabled profiles.
 // Undriven readers stay undecorated so lightweight profiles keep their
 // graph-free responses. It is split out of wiring.go to keep that file
 // under the 500-line cap.
