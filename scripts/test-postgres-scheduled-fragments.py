@@ -36,7 +36,7 @@ class InventoryFragmentTest(unittest.TestCase):
         self.assertEqual(len(index["fragments"]), 19)
         inventory = runner.load_inventory()
         self.assertEqual(len(inventory), 145)
-        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 300)
+        self.assertEqual(sum(len(row["tests"]) for row in inventory.values()), 301)
         for group, files, tests in (
             ("admin", 6, 8), ("secret_lines", 10, 30),
             ("reachability", 1, 6), ("completion", 1, 1),
