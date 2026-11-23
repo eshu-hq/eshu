@@ -35,7 +35,7 @@ ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	104.819s
 SERVICE_LOADER repo=repo:hotrepo records=0 seconds=6.97
 2026/11/23 15:51:56 event_name=supply_chain_impact_supports.large_drain reader=security_alert_reconciliation keys=1 pages=321 raw_rows=160000 active_rows=160000 duration_ms=1886
 RECONCILIATION_LOADER repo=repo:hotrepo envelopes=160000 seconds=13.02
-	Command being timed: "./drain2 -dsn postgres://postgres:latch@127.0.0.1:15934/b2c_hot?sslmode=disable -repo repo:hotrepo"
+	Command being timed: "./drain2 -dsn postgres://postgres:REDACTED@127.0.0.1:15934/b2c_hot?sslmode=disable -repo repo:hotrepo"
 	User time (seconds): 2.24
 	System time (seconds): 0.46
 	Percent of CPU this job got: 13%

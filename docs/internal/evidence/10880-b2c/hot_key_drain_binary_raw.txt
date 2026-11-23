@@ -6,7 +6,7 @@
 ## run 1: loader only
 2026/11/23 12:21:15 event_name=supply_chain_impact_supports.large_drain reader=security_alert_reconciliation pages=3201 raw_rows=1600000 active_rows=1600000 duration_ms=468510
 LOADER envelopes=1755000 impact=1600000 seconds=554.92
-	Command being timed: "./drain -dsn postgres://postgres:latch@127.0.0.1:15934/b2c_hot?sslmode=disable -package pkg:hot"
+	Command being timed: "./drain -dsn postgres://postgres:REDACTED@127.0.0.1:15934/b2c_hot?sslmode=disable -package pkg:hot"
 	User time (seconds): 11.78
 	System time (seconds): 2.22
 	Percent of CPU this job got: 2%
@@ -35,7 +35,7 @@ LOADER envelopes=1755000 impact=1600000 seconds=554.92
 LOADER envelopes=1755000 impact=1600000 seconds=269.12
 2026/11/23 12:34:27 event_name=supply_chain_impact_supports.large_drain reader=security_alert_reconciliation pages=3201 raw_rows=1600175 active_rows=1600175 duration_ms=416363
 HANDLER seconds=723.50 status=succeeded summary="security alert reconciliations evaluated=5009 matched=5009 unmatched=0 stale=0 dismissed=0 fixed=0 provider_only=0 canonical_writes=5009" err=<nil>
-	Command being timed: "./drain -dsn postgres://postgres:latch@127.0.0.1:15934/b2c_hot?sslmode=disable -package pkg:hot -scope scope-2 -generation gen-2"
+	Command being timed: "./drain -dsn postgres://postgres:REDACTED@127.0.0.1:15934/b2c_hot?sslmode=disable -package pkg:hot -scope scope-2 -generation gen-2"
 	User time (seconds): 235.75
 	System time (seconds): 5.16
 	Percent of CPU this job got: 24%

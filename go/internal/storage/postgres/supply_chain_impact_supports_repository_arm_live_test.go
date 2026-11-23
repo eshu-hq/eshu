@@ -259,6 +259,11 @@ func TestSupplyChainImpactSupportsRepositoryArmBoundsLive(t *testing.T) {
 
 	// Every twentieth row of the repository is rewritten and nothing is
 	// vacuumed: the index-only scan now fetches heap pages for the rewritten rows.
+	// On an existing lab corpus (B2C_REPO_ARM_DSN) this rewrite is permanent: it sets
+	// priority_score = 51 on the same rows every run and leaves dead tuples behind,
+	// so vacuum the lab database after a run (a fresh seed is dropped with its
+	// database). The test cannot roll it back: the page reads run on other
+	// connections and must see the rewritten rows.
 	if _, err := db.ExecContext(ctx, `
 UPDATE supply_chain_impact_finding_supports SET priority_score = 51
 WHERE fact_id IN (SELECT fact_id FROM (SELECT fact_id, row_number() OVER (ORDER BY fact_id) AS n

@@ -1,8 +1,10 @@
 # #10880 PR-B2c reader plans: security-alert reconciliation and service-catalog vulnerability loaders
 
-Refs #11198, #11199, #11200, #11201, #10880. Ruling:
-[arbiter-10880-prb-ruling.md decision 5](../../../.claude/arbiter-10880-prb-ruling.md)
-and the B2c ruling `arbiter-b2c.md`.
+Refs #11198, #11199, #11200, #11201, #10880. Decided by the arbiter rulings of the
+epic's reader PR split (decision 5: the reducer readers move off finding facts) and of
+B2c itself (the non-counting deferral, the package and repository btrees, the fenced
+page contract and the per-repository drain). The ruling files are working papers and
+are not tracked, so the decisions are quoted where they bind.
 
 Two reducer loaders read supply-chain impact finding facts as input. They now
 read `supply_chain_impact_finding_supports` (migration 338), whose payload is the
