@@ -65,17 +65,27 @@ including the moved quiescence live proof and the staying concurrency,
 snapshot, and plan proofs against the exported surface; the completion SQL
 text is unchanged so no plan or lifecycle proof is re-owed.
 
-No-Regression Evidence (#10972): the fanout's locked `current_consumers` set
-now carries one residual `payload->>'trigger'` predicate, applied only to
-`supply_chain_impact` rows already read and locked by the same index scan, and
-it drops the manifest markers (about 46% of the rows re-pended in the QA bulk
-events, 603 of 1,318) from the row locks and the UPDATE. A read-only
-`skipped_markers` count repeats the same join to report how many it spared; it
-takes no lock and writes nothing. Lock order, lease fencing, and the event
-horizon are unchanged. The plan tests that EXPLAIN the shipped constant
+No-Regression Evidence (#10972): the fanout's `current_consumers` set carries
+one residual `payload->>'trigger'` predicate, evaluated below the row lock, so
+the manifest markers are never locked, re-pended, or flagged. Measured on the QA
+replica at 2026-11-23 17:35Z with real payloads (read-only; the candidate
+selection of the shipped statement for the `supply_chain_impact` consumer
+domain, without the lock clause a replica cannot take): the base statement
+selects 602 rows (claimed, running or succeeded at an active generation) and the
+statement with the predicate selects 41, so the exclusion removes exactly the
+561 markers (556 of them succeeded) and leaves the 41 findings rows unchanged;
+execution time is 1,035 ms at base, 1,078 ms with the predicate (+4%, the
+predicate adds no measurable cost: both plans read about 231k shared
+buffers, almost all hits) and 1,082 ms for the extra
+read-only `skipped_markers` count, which takes no lock and writes nothing. The
+set that is locked and updated falls from 602 rows to 41. The raw output is in
+the PR discussion. Lock order, lease fencing, and the event horizon are
+unchanged. The 603-of-1,318 figure in the diagnosis is a baseline from four QA
+bulk statements between 13:14Z and 16:29Z on 2026-11-23, not a number derived
+from this repository. The plan tests that EXPLAIN the shipped constant
 (`reducer_queue_ack_fanout_plan_test.go`, `reducer_queue_ack_scale_plan_test.go`)
-and the live completion suite run in the coordinator's slot; the unit shape
-check is `TestFanoutQueryExcludesManifestMarkers`.
+need their own environment switches and were not run for this change; the unit
+shape check is `TestFanoutQueryExcludesManifestMarkers`.
 
 Observability Evidence (#10972): `CrossScopeCompletionResult.ManifestMarkersSkipped`
 is logged per event as `manifest_markers_skipped` and added to
