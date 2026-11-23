@@ -9,9 +9,22 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
+
+// manifestMarkerPredicate is true for a supply_chain_impact work item that is a
+// manifest marker (payload trigger=manifest_dependency, #9874). A marker
+// reads no CI/CD, identity, or finding evidence and writes no finding, so a
+// completion event can change nothing it derives: re-pending a succeeded one
+// or flagging a claimed one only re-runs a pass that cannot change a finding,
+// and flagging one at its ack re-pends it (the migration 093 trigger). Only
+// supply_chain_impact items carry the marker, so the domain test keeps the
+// JSONB read off every other consumer domain. The spelling comes from the
+// supply-chain core constants the projector and the handler share.
+const manifestMarkerPredicate = `source.domain = '` + string(reducer.DomainSupplyChainImpact) + `'
+      AND COALESCE(source.payload->>'` + supplychaincore.PayloadKeyTrigger + `', '') = '` + supplychaincore.TriggerManifestDependency + `'`
 
 // FanoutCrossScopeCompletionQuery claims one cross-scope completion event
 // and fans it out to eligible consumers. Exported for the staying root plan
@@ -52,8 +65,24 @@ WITH lease AS MATERIALIZED (
      AND generation.generation_id = source.generation_id
     WHERE source.stage = 'reducer'
       AND source.status IN ('claimed', 'running', 'succeeded')
+      AND NOT (` + manifestMarkerPredicate + `)
     ORDER BY source.work_item_id COLLATE "C"
     FOR NO KEY UPDATE OF source
+), skipped_markers AS MATERIALIZED (
+    -- Manifest markers are left unlocked and unscheduled (#10972); count them
+    -- so an operator sees how many consumers the exclusion spared.
+    SELECT count(*) AS skipped
+    FROM fact_work_items AS source
+    JOIN dependencies AS dependency
+      ON dependency.consumer_domain = source.domain
+    JOIN lease
+      ON lease.producer_domain = dependency.producer_domain
+    JOIN active_generations AS generation
+      ON generation.scope_id = source.scope_id
+     AND generation.generation_id = source.generation_id
+    WHERE source.stage = 'reducer'
+      AND source.status IN ('claimed', 'running', 'succeeded')
+      AND (` + manifestMarkerPredicate + `)
 ), captured AS MATERIALIZED (
     SELECT event.event_id, event.producer_item_count
     FROM cross_scope_completion_events AS event
@@ -139,11 +168,13 @@ WITH lease AS MATERIALIZED (
 SELECT (SELECT count(*) FROM captured),
        (SELECT COALESCE(sum(producer_item_count), 0) FROM captured),
        (SELECT count(*) FROM scheduled),
-       (SELECT count(*) FROM deleted)
+       (SELECT count(*) FROM deleted),
+       (SELECT skipped FROM skipped_markers)
 `
 
 // Fanout coalesces an exact pending event set for the leased producer, schedules
-// each current-generation canonical consumer at most once, and deletes only
+// each current-generation canonical consumer at most once (never a manifest
+// marker, which it counts in ManifestMarkersSkipped), and deletes only
 // that captured event set in one statement.
 func (s *CrossScopeCompletionStore) Fanout(
 	ctx context.Context,
@@ -192,6 +223,7 @@ func (s *CrossScopeCompletionStore) Fanout(
 		&result.ProducerItemsProcessed,
 		&result.IntentsEnqueued,
 		&deleted,
+		&result.ManifestMarkersSkipped,
 	); err != nil {
 		return reducer.CrossScopeCompletionResult{}, fmt.Errorf("scan cross-scope completion fanout: %w", err)
 	}

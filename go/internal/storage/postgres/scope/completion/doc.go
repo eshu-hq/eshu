@@ -10,7 +10,9 @@
 // cross_scope_completion_events table (Claim, Heartbeat, Retry, Fanout,
 // NewCrossScopeCompletionStore; FanoutCrossScopeCompletionQuery is exported
 // for the staying root plan tests, which EXPLAIN the shipped query rather
-// than a copy). CrossScopeProducerReadinessStore answers per-producer-domain
+// than a copy). Fanout schedules the active-generation consumers whose
+// handler reads the producer's output and never a manifest marker, which it
+// counts in ManifestMarkersSkipped (#10972). CrossScopeProducerReadinessStore answers per-producer-domain
 // readiness through ProducerScopeQuiescence, which reports every registered
 // ingestion scope under a set of collector kinds alongside the
 // quiescent-active subset: a kind with no registered scope at all is ready,

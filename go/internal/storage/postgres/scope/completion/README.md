@@ -47,7 +47,10 @@ See `doc.go` for the godoc contract.
 
 None of its own. Claiming, fanout, and the readiness probe run inside the
 caller's transaction or wiring, so tracing and metrics are the caller's
-responsibility, not this package's.
+responsibility, not this package's. `Fanout` reports the manifest markers it
+left alone in `ManifestMarkersSkipped`; the reducer's completion runner logs it
+per event and adds it to
+`eshu_dp_cross_scope_completion_markers_skipped_total` (#10972).
 
 No-Observability-Change: this extraction moves only the completion queue,
 the producer-readiness store, the quiescence probe, and their SQL
@@ -62,8 +65,30 @@ including the moved quiescence live proof and the staying concurrency,
 snapshot, and plan proofs against the exported surface; the completion SQL
 text is unchanged so no plan or lifecycle proof is re-owed.
 
+No-Regression Evidence (#10972): the fanout's locked `current_consumers` set
+now carries one residual `payload->>'trigger'` predicate, applied only to
+`supply_chain_impact` rows already read and locked by the same index scan, and
+it drops the manifest markers (about 46% of the rows re-pended in the QA bulk
+events, 603 of 1,318) from the row locks and the UPDATE. A read-only
+`skipped_markers` count repeats the same join to report how many it spared; it
+takes no lock and writes nothing. Lock order, lease fencing, and the event
+horizon are unchanged. The plan tests that EXPLAIN the shipped constant
+(`reducer_queue_ack_fanout_plan_test.go`, `reducer_queue_ack_scale_plan_test.go`)
+and the live completion suite run in the coordinator's slot; the unit shape
+check is `TestFanoutQueryExcludesManifestMarkers`.
+
+Observability Evidence (#10972): `CrossScopeCompletionResult.ManifestMarkersSkipped`
+is logged per event as `manifest_markers_skipped` and added to
+`eshu_dp_cross_scope_completion_markers_skipped_total{domain}`; with the
+existing `manifest_trigger` marker signal an operator sees executions per hour
+fall while the skipped count shows the exclusion firing.
+
 ## Gotchas / invariants
 
+- The fanout never locks, re-pends, or flags a manifest marker
+  (`supply_chain_impact` payload `trigger=manifest_dependency`): the marker
+  reads no producer output and writes no finding. `manifestMarkerPredicate` is
+  the one spelling, shared by the exclusion and the skipped count.
 - Never let two copies of a lock predicate, lease fence, or claim
   transition drift: shared production logic is exported, not duplicated.
   Only test-only seed helpers exist as twin copies (Go test-only symbols

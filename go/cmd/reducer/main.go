@@ -575,9 +575,10 @@ func buildReducerService(
 		CodeValueFlowStaleCleanupRunner: codeValueFlowStaleCleanupRunner,
 		SearchVectorBuildRunner:         searchVectorBuildRunner,
 		CrossScopeCompletionRunner: &reducer.CrossScopeCompletionRunner{
-			Queue:      completionstore.NewCrossScopeCompletionStore(database),
-			LeaseOwner: defaultCrossScopeCompletionLeaseOwner(),
-			Logger:     logger,
+			Queue:       completionstore.NewCrossScopeCompletionStore(database),
+			LeaseOwner:  defaultCrossScopeCompletionLeaseOwner(),
+			Logger:      logger,
+			Instruments: instruments,
 		},
 		QuarantineWriter:       postgres.NewReducerInputInvalidFactStore(database),
 		IsDeferredFailureClass: postgres.IsNonCountingReducerRetryFailureClass,

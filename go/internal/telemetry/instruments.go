@@ -3853,6 +3853,11 @@ type Instruments struct {
 	// noop, error), once per transaction. Registered by
 	// registerCompletionWakeInstruments.
 	ReducerCompletionWake metric.Int64Counter
+	// CrossScopeCompletionMarkersSkipped counts manifest-marker
+	// supply_chain_impact consumers a cross-scope completion fan-out left
+	// unscheduled and unflagged (#10972), by producer domain. Registered by
+	// registerCrossScopeCompletionInstruments.
+	CrossScopeCompletionMarkersSkipped metric.Int64Counter
 	// ReducerAdmissionDepthReads counts #11233 ingester reducer admission
 	// depth lookups per decision by operation (the depth signal) and outcome
 	// (read, shared, held, error, cancelled). Registered by
@@ -7300,6 +7305,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, err
 	}
 	if err := registerCompletionWakeInstruments(meter, inst); err != nil {
+		return nil, err
+	}
+	if err := registerCrossScopeCompletionInstruments(meter, inst); err != nil {
 		return nil, err
 	}
 	if err := registerReducerAdmissionDepthInstruments(meter, inst); err != nil {
