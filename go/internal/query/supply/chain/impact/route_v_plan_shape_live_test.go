@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+	"github.com/jackc/pgx/v5/stdlib"
+
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -228,6 +230,20 @@ func TestRouteVReadsKeepTheirIndexedPlanShapeLive(t *testing.T) {
 			index string
 			check func([]planAccess) (bool, string)
 		}{"explain by image", ExplainFindingFromImageQuery, explainImage, imageRefIndex, imageReadUsesTheImageIndex},
+		// The identity arm on the image statement: $2 is the fact id of a lower copy
+		// (fact:rv:100:2 carries registry.example/img302:1), so the identity predicate
+		// is non-empty and the image fence must still drive the read.
+		struct {
+			name  string
+			query string
+			args  []any
+			index string
+			check func([]planAccess) (bool, string)
+		}{
+			"explain by image with a lower-copy fact id", ExplainFindingFromImageQuery,
+			supplyChainImpactExplanationQueryArgs(ctx, packet.ExplanationFilter{FindingID: "fact:rv:100:2", ImageRef: "registry.example/img302:1"}, nil),
+			imageRefIndex, imageReadUsesTheImageIndex,
+		},
 	)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -259,5 +275,87 @@ func TestRouteVReadsKeepTheirIndexedPlanShapeLive(t *testing.T) {
 				t.Fatalf("the checker accepted the plan without %s (accesses %v): it would not catch a lost index", tc.index, dropped)
 			}
 		})
+	}
+}
+
+// explainGenericAccesses plans a statement as a generic plan (EXPLAIN (GENERIC_PLAN),
+// no bound values), the plan a connection reuses after a statement's fifth
+// execution. It sends the text over the simple protocol on one connection, so the
+// $n placeholders are not bound, and runs prefix statements first on that same
+// connection (the dropped-index check puts BEGIN and DROP INDEX there and ROLLBACK
+// after).
+func explainGenericAccesses(ctx context.Context, database *sql.DB, query string, before, after []string) ([]planAccess, error) {
+	conn, err := database.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = conn.Close() }()
+	var accesses []planAccess
+	err = conn.Raw(func(driverConn any) error {
+		pgConn := driverConn.(*stdlib.Conn).Conn().PgConn()
+		sql := strings.Join(before, "; ")
+		if sql != "" {
+			sql += "; "
+		}
+		sql += "EXPLAIN (GENERIC_PLAN, FORMAT JSON) " + query
+		for _, statement := range after {
+			sql += "; " + statement
+		}
+		results, err := pgConn.Exec(ctx, sql).ReadAll()
+		if err != nil {
+			return err
+		}
+		for _, result := range results {
+			if len(result.Rows) == 1 && len(result.Rows[0]) == 1 && strings.HasPrefix(string(result.Rows[0][0]), "[") {
+				var plan []struct {
+					Plan planWithCond `json:"Plan"`
+				}
+				if err := json.Unmarshal(result.Rows[0][0], &plan); err != nil {
+					return err
+				}
+				if len(plan) != 1 {
+					return fmt.Errorf("explain returned %d plans", len(plan))
+				}
+				accesses = supportsAccesses(plan[0].Plan)
+				return nil
+			}
+		}
+		return fmt.Errorf("no plan in the simple-protocol result")
+	})
+	return accesses, err
+}
+
+// TestImageExplainKeepsItsIndexUnderAGenericPlanLive pins that the image statement,
+// which a public-id miss with an image reference now runs with a non-empty identity
+// predicate, still drives from the image partial index under the generic plan a
+// connection reuses (the bound identity is unknown to a generic plan), and that the
+// checker rejects the generic plan once the index is dropped in a rolled-back
+// transaction.
+func TestImageExplainKeepsItsIndexUnderAGenericPlanLive(t *testing.T) {
+	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(
+		t,
+		os.Getenv("ESHU_GROUPED_INVENTORY_PROOF_DSN"),
+		os.Getenv("ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE"),
+		10*time.Minute,
+		func(ctx context.Context, db *sql.DB) error {
+			return storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db})
+		},
+	)
+	seedRouteVPlanCorpus(t, ctx, database)
+	accesses, err := explainGenericAccesses(ctx, database, ExplainFindingFromImageQuery, nil, nil)
+	if err != nil {
+		t.Fatalf("generic plan: %v", err)
+	}
+	t.Logf("generic-plan accesses of the supports table: %v", accesses)
+	if ok, reason := imageReadUsesTheImageIndex(accesses); !ok {
+		t.Fatalf("the generic plan lost the image index: %s", reason)
+	}
+	dropped, err := explainGenericAccesses(ctx, database, ExplainFindingFromImageQuery,
+		[]string{"BEGIN", "DROP INDEX " + imageRefIndex}, []string{"ROLLBACK"})
+	if err != nil {
+		t.Fatalf("generic plan without the index: %v", err)
+	}
+	if ok, _ := imageReadUsesTheImageIndex(dropped); ok {
+		t.Fatalf("the checker accepted the generic plan without %s (accesses %v)", imageRefIndex, dropped)
 	}
 }

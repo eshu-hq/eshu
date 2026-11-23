@@ -228,6 +228,11 @@ func TestExplainCountsEachStatementByRoute(t *testing.T) {
 		"ungranted public id miss then identity fallback": {
 			true, packet.ExplanationFilter{FindingID: "finding:a"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
 		},
+		"ungranted public id miss with an image reference": {
+			true,
+			packet.ExplanationFilter{FindingID: "finding:a", ImageRef: "registry.example/a:1"},
+			map[string]int64{"supports_finding_id": 1, "supports_image": 1},
+		},
 		"ungranted selector": {
 			true, packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, map[string]int64{"legacy": 1},
 		},

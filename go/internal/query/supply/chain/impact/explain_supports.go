@@ -25,8 +25,8 @@ import (
 //   - Any other granted lookup drives from the grant, as two index arms, so a
 //     selector over a large grant never scans the table.
 //
-// An ungranted selector or identity lookup has no supports read yet (the table
-// has no selector index) and stays on the legacy read.
+// An ungranted selector or identity lookup without an image reference has no
+// supports read yet (the table has no selector index) and stays on the legacy read.
 
 // supportsExplainOverrideLateral is the operator override probe of the explain
 // reads. Unlike the list's, it returns the override payload, which the explain
@@ -210,10 +210,11 @@ type explainRoute struct {
 //   - a granted call reads supports for both lookups: the winners row is one
 //     pick across scopes and cannot answer a grant, and a finding id a granted
 //     list returned must explain with the same payload;
-//   - an ungranted public-id lookup probes supports by finding id, and a miss
-//     falls back to the legacy identity read, because supports has no index for
-//     an ungranted fact-id or canonical-key lookup (the identity read moves to
-//     supports in PR-C on its own measured index);
+//   - an ungranted public-id lookup probes supports by finding id; a miss
+//     falls back to the legacy identity read, or to the image read when the call
+//     names an image reference, because supports has no index for an ungranted
+//     fact-id or canonical-key lookup (the identity read moves to supports in
+//     PR-C on its own measured index);
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
 //   - an ungranted selector lookup without one keeps the legacy read. The
@@ -241,10 +242,12 @@ func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) expl
 		publicID: ExplainFindingByPublicIDFromSupportsQuery, selector: ExplainFindingQuery,
 		publicIDRoute: RouteSupportsFindingID, selectorRoute: RouteLegacy,
 	}
-	// One exception to "the identity lookup stays legacy": a finding id that misses the
-	// public-id probe AND names an image reference falls back to the image read
-	// (filter, then identity, on the image candidates), which is the same answer the
-	// legacy identity read gives for that filter set; it counts as supports_image.
+	// One exception to "the identity lookup stays legacy": a finding id that misses
+	// the public-id probe on a call that also names an image reference runs the image
+	// read. That read applies the image filter, then the identity predicate, to the
+	// image candidates, as the legacy identity read does for the same filter, so the
+	// answer is the same and the call reads one model. The statement counts as
+	// supports_image; legacy counts only statements that read the fact table.
 	if filter.ImageRef != "" {
 		route.selector, route.selectorRoute = ExplainFindingFromImageQuery, RouteSupportsImage
 	}

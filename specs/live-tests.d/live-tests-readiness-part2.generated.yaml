@@ -52,7 +52,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/explain_unscoped_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors) equals the gate-off legacy explain, the selector and identity reads stay on legacy, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors, and every identity form crossed with an image reference) equals the gate-off legacy explain, the selector and identity reads stay on legacy except with an image reference, which reads the image index, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
     tag: ~

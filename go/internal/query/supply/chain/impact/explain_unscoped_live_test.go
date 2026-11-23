@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors) equals the gate-off legacy explain, the selector and identity reads stay on legacy, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B2a disposable PostgreSQL 18 proof of the ungranted explain on the multi-support corpus: an image selector reads the image partial index and every ungranted lookup (selector pairs, image selectors, public ids, canonical keys and fact ids, ambiguous and unknown selectors, and every identity form crossed with an image reference) equals the gate-off legacy explain, the selector and identity reads stay on legacy except with an image reference, which reads the image index, a list-then-explain round trip on one branch A row and one supplement row returns equal findings, and the collapsed-key cve_id filter is pinned on the list and supplement routes; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -19,7 +19,10 @@ import (
 // gate-on store to the gate-off legacy explain: selector pairs of every seeded
 // finding (which stay on the legacy read), image selectors (which read the image
 // index), public ids, and the identity forms (canonical key, finding id, and the
-// fact id of both the winner and a lower copy; the identity read stays legacy).
+// fact id of both the winner and a lower copy; the identity read stays legacy,
+// except with an image reference, which reads the image index) and every identity
+// form crossed with an image reference (two images a support carries and one no
+// support carries).
 // Each outcome (payload, not found, or ambiguous) must match. The count of compared lookups and of non-trivial
 // outcomes guards the matrix against going vacuous.
 func TestExplainUnscopedEqualsLegacyLive(t *testing.T) {
@@ -32,6 +35,8 @@ func TestExplainUnscopedEqualsLegacyLive(t *testing.T) {
 		t.Fatalf("seed list = %d rows, %v", len(all), err)
 	}
 	var requests []packet.ExplanationFilter
+	identityWinners, identityLowerCopies := 0, 0
+	var identityImage []packet.ExplanationFilter
 	for _, row := range all {
 		requests = append(requests,
 			packet.ExplanationFilter{CVEID: row.CVEID, PackageID: row.PackageID},
@@ -73,6 +78,22 @@ WHERE s.scope_id <> 'operator:vulnerability_suppressions'`)
 			packet.ExplanationFilter{FindingID: key},
 			packet.ExplanationFilter{FindingID: findingID, CVEID: "CVE-2026-m1"},
 		)
+		// The identity forms crossed with an image reference: the fact id (of the
+		// winner or of a lower copy) and the canonical key, with the two images the
+		// seeded supports carry and an image no support carries.
+		for _, image := range []string{"registry.example/a:1", "registry.example/b:2", "registry.example/none:0"} {
+			pair := []packet.ExplanationFilter{
+				{FindingID: factID, ImageRef: image},
+				{FindingID: key, ImageRef: image},
+			}
+			requests = append(requests, pair...)
+			identityImage = append(identityImage, pair...)
+		}
+		if winner {
+			identityWinners++
+		} else {
+			identityLowerCopies++
+		}
 	}
 	if err := keyRows.Err(); err != nil {
 		t.Fatalf("identities: %v", err)
@@ -98,10 +119,27 @@ WHERE s.scope_id <> 'operator:vulnerability_suppressions'`)
 			differences[string(encoded)] = "legacy: " + wantOutcome + " | gate-on: " + gotOutcome
 		}
 	}
+	imagePayloads, imageNotFound := 0, 0
+	for _, request := range identityImage {
+		_, wantErr := legacy.ExplainSupplyChainImpact(ctx, request)
+		switch {
+		case wantErr == nil:
+			imagePayloads++
+		case errors.Is(wantErr, ErrExplanationNotFound):
+			imageNotFound++
+		}
+	}
+	if imagePayloads == 0 || imageNotFound == 0 {
+		t.Fatalf("the identity x image matrix is vacuous: payloads=%d notFound=%d of %d requests", imagePayloads, imageNotFound, len(identityImage))
+	}
+	t.Logf("identity x image: %d requests, %d payloads, %d not found", len(identityImage), imagePayloads, imageNotFound)
 	for request, diff := range differences {
 		t.Errorf("explain %s differs\n%.600s", request, diff)
 	}
 	t.Logf("compared %d lookups: %d payloads, %d ambiguous, %d not found", compared, payloads, ambiguous, notFound)
+	if identityWinners == 0 || identityLowerCopies == 0 {
+		t.Fatalf("the identity matrix lost a row kind: winners=%d lower copies=%d", identityWinners, identityLowerCopies)
+	}
 	if payloads == 0 || ambiguous == 0 || notFound == 0 {
 		t.Fatalf("the matrix lost its signal: payloads=%d ambiguous=%d notFound=%d", payloads, ambiguous, notFound)
 	}

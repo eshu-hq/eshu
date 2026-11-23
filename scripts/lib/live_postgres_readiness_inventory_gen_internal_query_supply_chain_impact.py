@@ -115,6 +115,7 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/route_v_plan_shape_live_test.go": (
             "TestRouteVReadsKeepTheirIndexedPlanShapeLive",
+            "TestImageExplainKeepsItsIndexUnderAGenericPlanLive",
         ),
         "go/internal/query/supply/chain/impact/runtime_environment_store_live_test.go": (
             "TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive",
