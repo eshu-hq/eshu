@@ -150,12 +150,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/workspaces v1.68.3
 	github.com/aws/aws-sdk-go-v2/service/xray v1.36.25
 	github.com/aws/smithy-go v1.26.0
-	github.com/beevik/etree v1.6.0
+	github.com/beevik/etree v1.8.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/coreos/go-oidc/v3 v3.19.0
-	github.com/crewjam/saml v0.5.1
+	github.com/crewjam/saml v0.5.2
 	github.com/dekobon/tree-sitter-groovy v0.2.2
 	github.com/eshu-hq/eshu-sdk/apicontract v0.1.0-rc.1
 	github.com/eshu-hq/eshu-sdk/collector v0.2.0-rc.4
@@ -174,7 +174,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/prometheus/common v0.72.0
-	github.com/russellhaering/goxmldsig v1.6.0
+	github.com/russellhaering/goxmldsig v1.6.1
 	github.com/scip-code/scip/bindings/go/scip v0.7.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
@@ -385,5 +385,3 @@ require (
 replace github.com/tree-sitter/tree-sitter-elixir => github.com/elixir-lang/tree-sitter-elixir v0.3.5
 
 replace github.com/fergusstrange/embedded-postgres => github.com/eshu-hq/embedded-postgres v1.34.0-eshu.1
-
-replace github.com/crewjam/saml => github.com/eshu-hq/saml v0.5.1-eshu.1

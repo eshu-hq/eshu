@@ -318,7 +318,7 @@ func initSAMLVerifierInstruments() {
 // assertion material Eshu needs for replay, claim mapping, and session creation.
 //
 // crewjam/saml has panicked on signed but incomplete assertions (GO-2026-6909).
-// The Eshu fork fixes the known cases; this recover is the backstop for any
+// Upstream v0.5.2 fixes the known cases; this recover is the backstop for any
 // dereference the audit missed. A panic fails the login closed: the caller gets
 // ErrSAMLVerifierPanic, the stack is logged, and the panic counter increments.
 // net/http would also recover the panic, but only by dropping the connection
