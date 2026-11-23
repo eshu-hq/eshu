@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// matchReasonList is the precise match reason list as the reads spell it, with
+// readerMatchReasonList is the precise match reason list as the reads spell it, with
 // every space removed so line breaks and indentation do not matter.
-func matchReasonList() string {
+func readerMatchReasonList() string {
 	quoted := make([]string, len(supplyChainImpactPreciseMatchReasons))
 	for i, reason := range supplyChainImpactPreciseMatchReasons {
 		quoted[i] = "'" + reason + "'"
@@ -18,24 +18,20 @@ func matchReasonList() string {
 	return "IN(" + strings.Join(quoted, ",") + ")"
 }
 
-func squeeze(text string) string { return strings.Join(strings.Fields(text), "") }
+func readerSqueeze(text string) string { return strings.Join(strings.Fields(text), "") }
 
-// TestShippedReadsSpellThePreciseMatchReasonList pins what the comment on
-// supplyChainImpactPreciseMatchReasons promises: every shipped read that applies
-// the precise filter spells the same match reason list, in the same order, as the
-// constant the partial index of migration 343 and the supplement probe are built
-// from. A reader that drifts from the list stops matching the index predicate, so
-// a drift fails here instead of in a plan. The grouped inventory query is checked
-// in each dimension it is built for.
-func TestShippedReadsSpellThePreciseMatchReasonList(t *testing.T) {
+// TestSupportsAndSupplementReadsSpellThePreciseMatchReasonList is the reader side
+// of TestShippedReadsSpellThePreciseMatchReasonList (which pins the reads that
+// shipped before): every supports and supplement read that applies the precise
+// filter spells the same match reason list, in the same order, as the constant
+// migration 343's index predicate and the supplement probe are built from. A read
+// that drifts stops matching the index predicate, so a drift fails here instead of
+// in a plan. The grouped queries are checked in each dimension they are built for.
+func TestSupportsAndSupplementReadsSpellThePreciseMatchReasonList(t *testing.T) {
 	t.Parallel()
-	want := matchReasonList()
+	want := readerMatchReasonList()
 	reads := map[string]string{
-		"legacy list":                 ListFindingsQuery,
-		"winners list":                ListFindingsFromWinnersQuery,
 		"supports list":               ListFindingsFromSupportsQuery,
-		"legacy count":                AggregateCombinedCountQuery,
-		"winners count":               AggregateWinnersCombinedCountQuery,
 		"supports count":              AggregateSupportsCombinedCountQuery,
 		"supplement list":             ListFindingsFromWinnersSupplementQuery,
 		"supplement count":            AggregateSupplementCombinedCountQuery,
@@ -55,13 +51,13 @@ func TestShippedReadsSpellThePreciseMatchReasonList(t *testing.T) {
 		}
 	}
 	for name, query := range reads {
-		if !strings.Contains(squeeze(query), want) {
+		if !strings.Contains(readerSqueeze(query), want) {
 			t.Errorf("%s does not spell the precise match reason list of supplyChainImpactPreciseMatchReasons in order", name)
 		}
 	}
 	// Seeded violation: the same check rejects a read whose list lost one reason.
-	broken := strings.Replace(squeeze(ListFindingsFromWinnersQuery), "'maven_known_fixed',", "", 1)
-	if strings.Contains(broken, want) || broken == squeeze(ListFindingsFromWinnersQuery) {
+	broken := strings.Replace(readerSqueeze(ListFindingsFromSupportsQuery), "'maven_known_fixed',", "", 1)
+	if strings.Contains(broken, want) || broken == readerSqueeze(ListFindingsFromSupportsQuery) {
 		t.Fatal("the check accepted a read whose match reason list lost an entry")
 	}
 }
