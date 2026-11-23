@@ -138,7 +138,7 @@ func TestSupportsReadersCountServedOnce(t *testing.T) {
 	})
 	t.Run("security alert reconciliation loader", func(t *testing.T) {
 		inst, reader := supportsReaderMetrics(t)
-		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{supportsReadyResponse(), {rows: [][]any{{false}}}, {}}})
+		store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{supportsReadyResponse(), {rows: [][]any{{false}}}, {}, {}}})
 		store.instruments = inst
 		if _, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(),
 			securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}}); err != nil {
@@ -148,4 +148,56 @@ func TestSupportsReadersCountServedOnce(t *testing.T) {
 			t.Fatalf("served = %d, want 1", got)
 		}
 	})
+}
+
+// supportsDrainRawRowPoints returns the data points of the drain raw-rows
+// histogram for one reader.
+func supportsDrainRawRowPoints(t *testing.T, reader *sdkmetric.ManualReader, source string) []metricdata.HistogramDataPoint[int64] {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	var points []metricdata.HistogramDataPoint[int64]
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_supply_chain_impact_supports_drain_raw_rows" {
+				continue
+			}
+			hist, ok := m.Data.(metricdata.Histogram[int64])
+			if !ok {
+				t.Fatalf("drain_raw_rows data = %T, want Histogram[int64]", m.Data)
+			}
+			for _, p := range hist.DataPoints {
+				if got, _ := p.Attributes.Value(attribute.Key("source")); got.AsString() == source {
+					points = append(points, p)
+				}
+			}
+		}
+	}
+	return points
+}
+
+// TestSupportsDrainRecordsRawRowsPerReader pins the hot-key telemetry (ruling
+// arbiter-hotkey-page.md decision 9): one drain records one histogram point under
+// its reader, carrying the RAW rows it read (here 2 raw rows, 1 active).
+func TestSupportsDrainRecordsRawRowsPerReader(t *testing.T) {
+	t.Parallel()
+
+	inst, reader := supportsReaderMetrics(t)
+	store := NewFactStore(&fakeExecQueryer{queryResponses: []queueFakeRows{
+		supportsReadyResponse(),
+		{rows: [][]any{
+			supportsPageRowForTest("fact-1", false, ""),
+			supportsPageRowForTest("fact-2", true, `{"repository_id":"repo-a"}`),
+		}},
+	}})
+	store.instruments = inst
+	if _, err := store.GetSupplyChainAdvisoriesForRepos(context.Background(), []string{"repo-a"}); err != nil {
+		t.Fatalf("GetSupplyChainAdvisoriesForRepos() error = %v, want nil", err)
+	}
+	points := supportsDrainRawRowPoints(t, reader, telemetry.SupplyChainImpactSupportsReaderServiceVulnerabilityAdvisory)
+	if len(points) != 1 || points[0].Count != 1 || points[0].Sum != 2 {
+		t.Fatalf("drain raw rows points = %+v, want one point of one drain summing 2 raw rows", points)
+	}
 }

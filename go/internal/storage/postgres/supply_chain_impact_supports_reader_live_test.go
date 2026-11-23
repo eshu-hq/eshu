@@ -49,10 +49,10 @@ func legacyReconciliationOracleQuery(t *testing.T) string {
 	t.Helper()
 	const without = "    'reducer_package_consumption_correlation'\n)"
 	const with = "    'reducer_package_consumption_correlation',\n    'reducer_supply_chain_impact_finding'\n)"
-	if !strings.Contains(listActiveSecurityAlertReconciliationFactsArm, without) {
+	if !strings.Contains(listActiveSecurityAlertReconciliationFactsQuery, without) {
 		t.Fatal("the shipped reconciliation fact arm no longer ends its kind list as the oracle derivation expects")
 	}
-	return strings.Replace(listActiveSecurityAlertReconciliationFactsArm, without, with, 1)
+	return strings.Replace(listActiveSecurityAlertReconciliationFactsQuery, without, with, 1)
 }
 
 const (
@@ -416,15 +416,25 @@ func TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive(t *test
 					if err != nil {
 						t.Fatalf("ListActiveSecurityAlertReconciliationFacts() error = %v, want nil", err)
 					}
-					var gotRows, wantRows []string
+					// The loader drains the fact stream and the supports stream
+					// separately, so the equality is per kind, in fact_id order
+					// within each kind (the order the handler reads); the fact
+					// rows come before the impact rows.
+					gotRows, wantRows := map[string][]string{}, map[string][]string{}
+					seenImpact := false
 					for _, envelope := range got {
-						gotRows = append(gotRows, envelope.FactID+"|"+envelope.FactKind+"|"+b2cNormalize(t, envelope.Payload))
+						if envelope.FactKind == facts.ReducerSupplyChainImpactFindingFactKind {
+							seenImpact = true
+						} else if seenImpact {
+							t.Fatalf("fact-stream row %s after an impact row: the loader must return the fact stream first", envelope.FactID)
+						}
+						gotRows[envelope.FactKind] = append(gotRows[envelope.FactKind], envelope.FactID+"|"+b2cNormalize(t, envelope.Payload))
 					}
 					for _, row := range want {
-						wantRows = append(wantRows, row.FactID+"|"+row.Kind+"|"+b2cPayloadText(t, row.Payload))
+						wantRows[row.Kind] = append(wantRows[row.Kind], row.FactID+"|"+b2cPayloadText(t, row.Payload))
 					}
 					if !reflect.DeepEqual(gotRows, wantRows) {
-						t.Fatalf("rows differ from the finding-fact read:\n got: %v\nwant: %v", gotRows, wantRows)
+						t.Fatalf("rows differ from the finding-fact read (per kind, fact_id order):\n got: %v\nwant: %v", gotRows, wantRows)
 					}
 				})
 			}

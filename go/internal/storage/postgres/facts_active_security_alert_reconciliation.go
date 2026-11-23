@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -15,7 +14,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const listActiveSecurityAlertReconciliationFactsArm = `
+// listActiveSecurityAlertReconciliationFactsQuery is the legacy fact statement: the
+// alert and consumption facts of the filter, ordered and paged by fact id. The
+// supply-chain impact findings are read separately from the supports table
+// (#11198); this statement no longer selects the impact kind (#11200).
+const listActiveSecurityAlertReconciliationFactsQuery = `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -61,13 +64,14 @@ LIMIT $6
 
 // ListActiveSecurityAlertReconciliationFacts loads active owned dependency and
 // reducer impact evidence used to compare provider-reported repository alerts.
-// Alert and consumption facts come from fact_records; the supply-chain impact
-// findings come from the per-support table (#11198) as impact-kind envelopes
-// carrying the verbatim payload. Both arms are one UNION ALL statement with one
-// keyset on the fact id, so the order and the paging are the database's own
-// ordering of the ids, exactly the single fact read's. The supports arm refuses
-// first, with the retryable non-counting
-// *supplychaincore.SupplyChainImpactSupportsNotReadyError, until the supports
+// Alert and consumption facts come from fact_records on their own cursor; the
+// supply-chain impact findings come from the per-support table (#11198) as
+// impact-kind envelopes carrying the verbatim payload, drained on their own raw
+// cursor (supplyChainImpactSupportsDrain). The result is the fact rows in fact_id
+// order followed by the supports rows in fact_id order: the handler reads each
+// kind in its own order and never the interleave between kinds. The supports
+// readiness check comes first and refuses with the retryable non-counting
+// *supplychaincore.SupplyChainImpactSupportsNotReadyError until the supports
 // backfill is ready: an unready table must not read as "no impact finding",
 // which the handler turns into a durable provider_only decision. Every read of
 // the handler precedes its one write, so the loader-level refusal defers the
@@ -87,23 +91,61 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 		len(filter.CVEIDs) == 0 && len(filter.GHSAIDs) == 0 {
 		return nil, nil
 	}
-	if err := requireSupplyChainImpactSupportsReady(ctx, s.database, s.instruments,
-		telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation); err != nil {
+	reader := telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation
+	if err := requireSupplyChainImpactSupportsReady(ctx, s.database, s.instruments, reader); err != nil {
 		return nil, fmt.Errorf("list active security alert reconciliation facts: %w", err)
 	}
+	loaded, err := s.drainActiveSecurityAlertReconciliationFacts(ctx, filter)
+	if err != nil {
+		s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		return nil, err
+	}
+	impacts, err := newSupplyChainImpactSupportsDrain(s.instruments, reader, securityAlertReconciliationSupportsArms,
+		filter.RepositoryIDs, filter.PackageIDs, filter.CVEIDs, filter.GHSAIDs).run(ctx, s.database)
+	if err != nil {
+		s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
+		return nil, fmt.Errorf("list active security alert reconciliation facts: %w", err)
+	}
+	s.instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadServed)
+	return append(loaded, impacts...), nil
+}
+
+// securityAlertReconciliationSupportsArms are the four filter arms of the
+// reconciliation read of the supports table, one per key array of the filter in
+// the order the statement binds them: repository, package, CVE, advisory. A
+// support row holds the fact payload verbatim, so each arm is the fact arm over
+// the same value: the repository, package, cve and advisory columns hold
+// payload->>'repository_id', 'package_id', 'cve_id' and 'advisory_id'. The
+// package, cve and advisory arms carry the literal <> ” guard of their partial
+// btrees (the package one from supplyChainImpactSupportsPackageIndexPredicate);
+// the repository arm uses migration 338's repository_id btree. The legacy
+// payload array arms (payload->'cve_ids' and 'ghsa_ids') are not reproduced: the
+// typed finding payload has no such field, so they never matched a finding fact
+// (TestSupplyChainImpactFindingPayloadCarriesNoIDArrays pins it). The
+// reconciliation handler reads only the fact id and the payload of an impact
+// envelope (extractSecurityAlertImpacts).
+var securityAlertReconciliationSupportsArms = []supplyChainImpactSupportsArm{
+	{column: "repository_id", param: 1},
+	{column: "package_id", guard: supplyChainImpactSupportsPackageIndexPredicate, param: 2},
+	{column: "cve_id", guard: "cve_id <> ''", param: 3},
+	{column: "advisory_id", guard: "advisory_id <> ''", param: 4},
+}
+
+// drainActiveSecurityAlertReconciliationFacts pages the alert and consumption
+// fact statement on its own fact-id cursor until a short page.
+func (s FactStore) drainActiveSecurityAlertReconciliationFacts(
+	ctx context.Context,
+	filter securityalert.SecurityAlertReconciliationFactFilter,
+) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
 	var cursorFactID string
 	for {
 		page, err := s.listActiveSecurityAlertReconciliationFactsPage(ctx, filter, cursorFactID)
 		if err != nil {
-			s.instruments.RecordSupplyChainImpactSupportsRead(ctx,
-				telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation, telemetry.SupplyChainImpactSupportsReadFailed)
 			return nil, err
 		}
 		loaded = append(loaded, page...)
 		if len(page) < listFactsByKindPageSize {
-			s.instruments.RecordSupplyChainImpactSupportsRead(ctx,
-				telemetry.SupplyChainImpactSupportsReaderSecurityAlertReconciliation, telemetry.SupplyChainImpactSupportsReadServed)
 			return loaded, nil
 		}
 		cursorFactID = page[len(page)-1].FactID
@@ -159,96 +201,3 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	}
 	return loaded, nil
 }
-
-// securityAlertReconciliationSupportsArm is the supports half of the loader
-// statement (#11198, #10880 PR-B2c). It reads the per-support table in the
-// raw-first shape: the supports are selected by their filter first, in the
-// statement's MATERIALIZED CTE, and only then joined to the active generation
-// (the natural single-WHERE form plans one probe per active scope: 313 to 389 ms
-// at 600,000 supports over 6,000 scopes). A support row holds the fact payload
-// verbatim, so each arm is the fact arm over the same value: the repository,
-// package, cve and advisory columns hold payload->>'repository_id',
-// 'package_id', 'cve_id' and 'advisory_id'. The package, cve and advisory arms
-// carry the literal <> ” guard so they can use a partial btree on those
-// columns. The OR is only indexable when every arm is: with no package_id
-// index the planner scans the whole table for every shape (8,000,000 supports:
-// 0.9 s warm, about 100 s cold; with a partial package_id btree 0.09 to 0.17 s,
-// docs/internal/evidence/10880-b2c/reader_plans.md). The
-// legacy payload array arms (payload->'cve_ids' and 'ghsa_ids') are not
-// reproduced: the typed finding payload has no such field, so they never matched
-// a finding fact (TestSupplyChainImpactFindingPayloadCarriesNoIDArrays pins it),
-// and keeping them would make the OR unindexable. The projection pads the fact
-// envelope columns a support row does not carry; the reconciliation handler
-// reads only the fact id and the payload of an impact envelope
-// (extractSecurityAlertImpacts), and the carrier kind is the impact kind.
-// supplyChainImpactSupportsPackageIndexPredicate is the partial-index predicate
-// of the supports table's package_id btree ((package_id, fact_id) WHERE
-// package_id <> ”, migration 345, #10880 PR-B2c). The package arm of the
-// reconciliation read repeats it as a literal guard so the planner can prove
-// the partial index usable; TestSupplyChainImpactSupportsPackageIndexMatchesTheArm
-// derives the arm and the migration from this one constant.
-const supplyChainImpactSupportsPackageIndexPredicate = `package_id <> ''`
-
-const securityAlertReconciliationSupportsCTE = `matched AS MATERIALIZED (
-    SELECT support.fact_id, support.scope_id, support.generation_id, support.source_confidence, support.payload
-    FROM supply_chain_impact_finding_supports AS support
-    WHERE (
-          support.repository_id = ANY($1::text[])
-          OR (support.` + supplyChainImpactSupportsPackageIndexPredicate + ` AND support.package_id = ANY($2::text[]))
-          OR (support.cve_id <> '' AND support.cve_id = ANY($3::text[]))
-          OR (support.advisory_id <> '' AND support.advisory_id = ANY($4::text[]))
-      )
-      AND ($5 = '' OR support.fact_id > $5)
-)`
-
-const securityAlertReconciliationSupportsArm = `
-SELECT
-    matched.fact_id,
-    matched.scope_id,
-    matched.generation_id,
-    'reducer_supply_chain_impact_finding'::text AS fact_kind,
-    ''::text AS stable_fact_key,
-    ''::text AS schema_version,
-    ''::text AS collector_kind,
-    0::bigint AS fencing_token,
-    matched.source_confidence,
-    ''::text AS source_system,
-    ''::text AS source_fact_key,
-    ''::text AS source_uri,
-    ''::text AS source_record_id,
-    to_timestamp(0) AS observed_at,
-    FALSE AS is_tombstone,
-    matched.payload
-FROM matched
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = matched.scope_id
- AND scope.active_generation_id = matched.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = matched.scope_id
- AND generation.generation_id = matched.generation_id
-WHERE generation.status = 'active'
-ORDER BY matched.fact_id ASC
-LIMIT $6
-`
-
-// securityAlertReconciliationMergedQuery merges one fact arm (the legacy or the
-// keyed fact statement, each ending in its own ORDER BY fact_id and LIMIT $6) with
-// the supports arm into one statement: both arms are bounded by the page limit on
-// their own, and the outer ORDER BY ... LIMIT takes the page of the union in the
-// database's ordering of the ids, the ordering the single fact read returned.
-func securityAlertReconciliationMergedQuery(factArm string) string {
-	return "WITH " + securityAlertReconciliationSupportsCTE + `
-SELECT * FROM (
-(` + strings.TrimSpace(factArm) + `)
-UNION ALL
-(` + strings.TrimSpace(securityAlertReconciliationSupportsArm) + `)
-) AS merged
-ORDER BY merged.fact_id ASC
-LIMIT $6
-`
-}
-
-// listActiveSecurityAlertReconciliationFactsQuery is the loader statement over
-// the legacy six-arm fact arm; the keyed form is
-// listActiveSecurityAlertReconciliationFactsKeyedQuery.
-var listActiveSecurityAlertReconciliationFactsQuery = securityAlertReconciliationMergedQuery(listActiveSecurityAlertReconciliationFactsArm)

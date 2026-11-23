@@ -273,7 +273,7 @@ ON CONFLICT (fact_id, key_kind, key_value) DO UPDATE SET
 // the ORDER BY fact_id ASC / LIMIT cursor paging the caller relies on. The
 // kind surface, tombstone and generation-status gates, empty-filter early
 // return, and ($5, $6) cursor paging are unchanged from the legacy query.
-const listActiveSecurityAlertReconciliationFactsKeyedArm = `
+const listActiveSecurityAlertReconciliationFactsKeyedQuery = `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -338,7 +338,3 @@ WHERE fact.fact_kind IN (
 ORDER BY fact.fact_id ASC
 LIMIT $6
 `
-
-// listActiveSecurityAlertReconciliationFactsKeyedQuery is the loader statement
-// over the keyed fact arm, merged with the supports arm like the legacy one.
-var listActiveSecurityAlertReconciliationFactsKeyedQuery = securityAlertReconciliationMergedQuery(listActiveSecurityAlertReconciliationFactsKeyedArm)

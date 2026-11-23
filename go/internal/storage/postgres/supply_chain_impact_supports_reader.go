@@ -6,10 +6,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-	payloadstore "github.com/eshu-hq/eshu/go/internal/storage/postgres/facts/payload"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -60,58 +58,4 @@ func RequireSupplyChainImpactSupportsReady(
 	reader string,
 ) error {
 	return requireSupplyChainImpactSupportsReady(ctx, queryer, instruments, reader)
-}
-
-// supplyChainImpactSupportRawFirstCTE wraps one support predicate in the
-// raw-first read shape both reducer readers use: the supports are selected by
-// their filter first, in a MATERIALIZED CTE, and only the matching rows are
-// joined to the active-generation check. The natural single-WHERE form lets the
-// planner drive the join from the active scopes instead, a nested loop of one
-// (scope, generation) index probe per active scope: 313 ms to 389 ms on a
-// 600,000-support corpus over 6,000 active scopes, against 0.1 ms to 4 ms for
-// this form (docs/internal/evidence/10880-b2c/reader_plans.md). predicate must
-// bind its filter arms and the keyset cursor; the outer query orders and pages.
-func supplyChainImpactSupportRawFirstCTE(predicate string) string {
-	return `
-WITH matched AS MATERIALIZED (
-    SELECT support.fact_id, support.scope_id, support.generation_id, support.source_confidence, support.payload
-    FROM supply_chain_impact_finding_supports AS support
-    WHERE ` + predicate + `
-)
-SELECT matched.fact_id, matched.scope_id, matched.generation_id, matched.source_confidence, matched.payload
-FROM matched
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = matched.scope_id
- AND scope.active_generation_id = matched.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = matched.scope_id
- AND generation.generation_id = matched.generation_id
-WHERE generation.status = 'active'
-ORDER BY matched.fact_id ASC
-`
-}
-
-// scanSupplyChainImpactSupportEnvelope scans one support row (fact id, scope,
-// generation, source confidence, payload: the identity a reducer decision keys
-// on and the verbatim payload; the columns the fact envelope also carries are
-// not on a support row and no reducer reader of this path consults them) into the fact envelope shape the
-// reducer builders consume, carrying the impact finding fact kind.
-func scanSupplyChainImpactSupportEnvelope(rows db.Rows) (facts.Envelope, error) {
-	var factID, scopeID, generationID, sourceConfidence string
-	var rawPayload []byte
-	if err := rows.Scan(&factID, &scopeID, &generationID, &sourceConfidence, &rawPayload); err != nil {
-		return facts.Envelope{}, err
-	}
-	payload, err := payloadstore.UnmarshalPayload(rawPayload)
-	if err != nil {
-		return facts.Envelope{}, err
-	}
-	return facts.Envelope{
-		FactID:           factID,
-		ScopeID:          scopeID,
-		GenerationID:     generationID,
-		FactKind:         facts.ReducerSupplyChainImpactFindingFactKind,
-		SourceConfidence: sourceConfidence,
-		Payload:          payload,
-	}, nil
 }

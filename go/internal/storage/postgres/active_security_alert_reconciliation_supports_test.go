@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -25,22 +26,36 @@ func reconciliationFactRow(factID, kind, payloadJSON string) []any {
 	return supplyChainImpactFindingFactRowForTest(factID, kind, payloadJSON)
 }
 
+// supportsPageRowForTest is one supports page row in the page statement's select
+// list: fact id, scope, generation, source confidence, is_active, payload (nil
+// when the row is not active).
+func supportsPageRowForTest(factID string, active bool, payloadJSON string) []any {
+	var payload []byte
+	if active {
+		payload = []byte(payloadJSON)
+	}
+	return []any{factID, "scope-1", "gen-1", "exact", active, payload}
+}
+
 // TestListActiveSecurityAlertReconciliationFactsReadsImpactFromSupports pins
-// #11198: the impact finding rows come from the per-support table in the same
-// statement as the alert and consumption facts (one UNION ALL, one keyset), and
-// the loader returns the rows in the order the statement returned them, which is
-// the database's ordering of the fact ids.
+// #11198 and the hot-key ruling: the alert and consumption facts come from their
+// own statement and cursor, the impact findings from the supports page statement
+// on its own raw cursor, and the loader returns the fact rows then the supports
+// rows, each in the statement's order. An inactive raw row is read and dropped.
 func TestListActiveSecurityAlertReconciliationFactsReadsImpactFromSupports(t *testing.T) {
 	t.Parallel()
 
 	impactPayload := `{"repository_id":"acme/app","package_id":"pkg:npm/x","cve_id":"CVE-1","impact_status":"affected_exact"}`
 	database := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{{true}}},  // supports readiness
-		{rows: [][]any{{false}}}, // keyed sidecar not ready: the legacy fact arm
+		{rows: [][]any{{false}}}, // keyed sidecar not ready: the legacy fact statement
 		{rows: [][]any{
 			reconciliationFactRow("fact-a", "security_alert.repository_alert", `{"repository_id":"acme/app"}`),
-			reconciliationFactRow("fact-c", "reducer_supply_chain_impact_finding", impactPayload),
 			reconciliationFactRow("fact-m", "reducer_package_consumption_correlation", `{"repository_id":"acme/app","package_id":"pkg:npm/x"}`),
+		}},
+		{rows: [][]any{
+			supportsPageRowForTest("fact-b", false, ""),
+			supportsPageRowForTest("fact-c", true, impactPayload),
 		}},
 	}}
 	store := NewFactStore(database)
@@ -54,21 +69,67 @@ func TestListActiveSecurityAlertReconciliationFactsReadsImpactFromSupports(t *te
 	for _, envelope := range got {
 		order = append(order, envelope.FactID)
 	}
-	if want := "fact-a,fact-c,fact-m"; strings.Join(order, ",") != want {
-		t.Fatalf("fact order = %v, want %s (the statement's order)", order, want)
+	if want := "fact-a,fact-m,fact-c"; strings.Join(order, ",") != want {
+		t.Fatalf("fact order = %v, want %s (fact rows, then the active supports rows)", order, want)
 	}
-	if got[1].FactKind != facts.ReducerSupplyChainImpactFindingFactKind || got[1].Payload["impact_status"] != "affected_exact" {
-		t.Fatalf("impact envelope = %+v, want the impact kind with the verbatim payload", got[1])
+	if got[2].FactKind != facts.ReducerSupplyChainImpactFindingFactKind || got[2].Payload["impact_status"] != "affected_exact" {
+		t.Fatalf("impact envelope = %+v, want the impact kind with the verbatim payload", got[2])
 	}
-	// One data statement, the merged one: no separate supports statement.
+	// Two data statements, one per stream: the legacy fact statement and the
+	// first-page supports statement.
 	var data []string
 	for _, q := range database.queries {
-		if strings.Contains(q.query, "UNION ALL") {
+		if strings.Contains(q.query, "fact_records") || strings.Contains(q.query, "supply_chain_impact_finding_supports AS s") {
 			data = append(data, q.query)
 		}
 	}
-	if len(data) != 1 || data[0] != listActiveSecurityAlertReconciliationFactsQuery {
-		t.Fatalf("data statements = %d, want exactly the merged legacy statement", len(data))
+	supportsFirst := supplyChainImpactSupportsPageQuery(securityAlertReconciliationSupportsArms, 0)
+	if len(data) != 2 || data[0] != listActiveSecurityAlertReconciliationFactsQuery || data[1] != supportsFirst {
+		t.Fatalf("data statements = %d, want the legacy fact statement then the first supports page", len(data))
+	}
+}
+
+// TestSecurityAlertReconciliationSupportsDrainsOnTheRawCursor pins the reader
+// contract of the hot-key ruling: the cursor advances on the last RAW fact id,
+// and the drain stops only on a raw page shorter than the page size. A full raw
+// page of inactive rows (superseded generations) must not end the drain, and a
+// page of active rows below the page size must not either when the raw page is
+// full.
+func TestSecurityAlertReconciliationSupportsDrainsOnTheRawCursor(t *testing.T) {
+	t.Parallel()
+
+	var inactive [][]any
+	for i := 0; i < listFactsByKindPageSize; i++ {
+		inactive = append(inactive, supportsPageRowForTest(fmt.Sprintf("fact-%04d", i), false, ""))
+	}
+	database := &fakeExecQueryer{queryResponses: []queueFakeRows{
+		{rows: [][]any{{true}}},
+		{rows: [][]any{{false}}},
+		{rows: nil}, // the fact stream: empty
+		{rows: inactive},
+		{rows: [][]any{supportsPageRowForTest("fact-9999", true, `{"repository_id":"acme/app"}`)}},
+	}}
+	store := NewFactStore(database)
+
+	got, err := store.ListActiveSecurityAlertReconciliationFacts(context.Background(),
+		securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}})
+	if err != nil {
+		t.Fatalf("ListActiveSecurityAlertReconciliationFacts() error = %v, want nil", err)
+	}
+	if len(got) != 1 || got[0].FactID != "fact-9999" {
+		t.Fatalf("loaded = %+v, want the one active row of the second page", got)
+	}
+	var pages []fakeQueryCall
+	for _, q := range database.queries {
+		if strings.Contains(q.query, "supply_chain_impact_finding_supports AS s") {
+			pages = append(pages, q)
+		}
+	}
+	if len(pages) != 2 {
+		t.Fatalf("supports pages = %d, want 2: a full raw page of inactive rows must continue the drain", len(pages))
+	}
+	if last := pages[1].args[len(pages[1].args)-1]; last != fmt.Sprintf("fact-%04d", listFactsByKindPageSize-1) {
+		t.Fatalf("second page cursor = %v, want the last RAW fact id of page 1", last)
 	}
 }
 
@@ -137,10 +198,10 @@ func TestSupplyChainImpactFindingPayloadCarriesNoIDArrays(t *testing.T) {
 func TestSupplyChainImpactSupportsPackageIndexMatchesTheArm(t *testing.T) {
 	t.Parallel()
 
-	want := "(support." + supplyChainImpactSupportsPackageIndexPredicate + " AND support.package_id = ANY($2::text[]))"
+	want := "WHERE s.package_id = k.v AND s." + supplyChainImpactSupportsPackageIndexPredicate
 	for name, statement := range map[string]string{
-		"legacy": listActiveSecurityAlertReconciliationFactsQuery,
-		"keyed":  listActiveSecurityAlertReconciliationFactsKeyedQuery,
+		"first page": supplyChainImpactSupportsPageQuery(securityAlertReconciliationSupportsArms, 0),
+		"next page":  supplyChainImpactSupportsPageQuery(securityAlertReconciliationSupportsArms, 5),
 	} {
 		if !strings.Contains(statement, want) {
 			t.Errorf("%s statement missing the guarded package arm %q", name, want)

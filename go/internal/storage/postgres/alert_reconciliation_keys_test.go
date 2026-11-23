@@ -241,23 +241,17 @@ func TestSecurityAlertReconciliationPathsReadNoFindingFacts(t *testing.T) {
 			t.Errorf("%s names reducer_supply_chain_impact_finding; the path must not read or key finding facts", name)
 		}
 	}
-	// The one place the kind string appears in a loader statement is the supports
-	// arm's constant carrier column; no WHERE clause on fact_records may name it.
+	// The fact statements read facts only: the impact findings come from the
+	// supports statement, drained on its own cursor.
 	for name, statement := range map[string]string{
-		"legacy fact arm": listActiveSecurityAlertReconciliationFactsArm,
-		"keyed fact arm":  listActiveSecurityAlertReconciliationFactsKeyedArm,
+		"legacy fact statement": listActiveSecurityAlertReconciliationFactsQuery,
+		"keyed fact statement":  listActiveSecurityAlertReconciliationFactsKeyedQuery,
 	} {
 		if strings.Contains(statement, "reducer_supply_chain_impact_finding") {
 			t.Errorf("%s names reducer_supply_chain_impact_finding", name)
 		}
-	}
-	for name, statement := range map[string]string{
-		"legacy loader": listActiveSecurityAlertReconciliationFactsQuery,
-		"keyed loader":  listActiveSecurityAlertReconciliationFactsKeyedQuery,
-	} {
-		if !strings.Contains(statement, "FROM supply_chain_impact_finding_supports AS support") ||
-			!strings.Contains(statement, "UNION ALL") {
-			t.Errorf("%s does not merge the supports arm with UNION ALL in one statement", name)
+		if strings.Contains(statement, "supply_chain_impact_finding_supports") || strings.Contains(statement, "UNION ALL") {
+			t.Errorf("%s reads the supports table or merges a second stream; the streams drain separately", name)
 		}
 	}
 }
