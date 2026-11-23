@@ -103,7 +103,9 @@ func NewSource(config Config) (*Source, error) {
 		maxPages:              config.MaxResultPages,
 		outcomeRecorder:       config.ClaimOutcomeRecorder,
 		commitPolicy:          config.ClaimCommitPolicy,
+		instruments:           config.Instruments,
 		pendingOutcomes:       newPendingClaimOutcomes(),
+		pendingNVD:            newPendingNVDWindowClaims(),
 		scopeQueryResolver:    config.ScopeQueryResolver,
 		derivedTargetResolver: config.DerivedTargetResolver,
 	}, nil
@@ -127,9 +129,11 @@ func (s *Source) NextClaimed(
 		settler.DiscardClaimSettlement(item)
 	}
 	var relay claimRelay
+	s.pendingNVD.drop(item)
 	collected, ok, result, origin, err := s.nextClaimed(ctx, item, &relay)
 	collected, ok, origin, err = s.recordClaimOutcome(ctx, item, attemptedAt, collected, ok, result, origin, err)
 	s.recordResult(ctx, item, result, origin, err, relay.inputLimit)
+	s.observeNVDWindowClaim(ctx, item, attemptedAt, collected, result, ok, err)
 	return collected, ok, err
 }
 

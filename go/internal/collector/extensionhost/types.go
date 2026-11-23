@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Request is the bounded JSON document passed to an extension process.
@@ -178,6 +179,10 @@ type Config struct {
 	// state; nil costs one nil check per claim, and a GHSA window claim
 	// then fails retryable unarmed rather than committing cursorless.
 	ClaimCommitPolicy ClaimCommitPolicy
+	// Instruments, when set, receives the NVD window transport-labeled
+	// claim signals (eshu-hq/eshu#11287). Nil disables the seam and costs
+	// one nil check per NVD window claim.
+	Instruments *telemetry.Instruments
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -217,4 +222,10 @@ type Source struct {
 	commitPolicy ClaimCommitPolicy
 	// pendingOutcomes holds completed outcomes until the commit hook fires.
 	pendingOutcomes *pendingClaimOutcomes
+	// instruments receives NVD window transport-labeled claim signals;
+	// nil disables the seam.
+	instruments *telemetry.Instruments
+	// pendingNVD holds completed NVD window observations until the commit
+	// hook fires.
+	pendingNVD *pendingNVDWindowClaims
 }

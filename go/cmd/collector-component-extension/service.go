@@ -210,6 +210,9 @@ func buildClaimedService(
 		// write-once for the vulnerability_intelligence kind only
 		// (#10037); it is nil for every other kind.
 		ClaimCommitPolicy: commitPolicy,
+		// Instruments counts NVD window claims by stamped transport
+		// (eshu-hq/eshu#11287); nil disables the seam.
+		Instruments: instruments,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err
