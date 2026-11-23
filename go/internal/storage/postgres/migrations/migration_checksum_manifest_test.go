@@ -509,6 +509,12 @@ var migrationShippedChecksums = map[string]string{
 	// #10880 PR-B1: the per-support table behind the grant-scoped reads
 	// (numbered 338: 333 to 337 are main's).
 	"338_supply_chain_impact_finding_supports.sql": "9355b094248c1efc43b060e499f5931ae9bdd3932fcbba20fbac996faf79f5e6",
+	// #11197 (#10880 PR-B2b): the four holder-read indexes on the per-support
+	// table, one concurrent build per file (339 to 342; 338 is B1's).
+	"339_supply_chain_impact_finding_supports_cve_idx.sql":      "17697db84b367777ac82492ed39f4fd6e4798af724360f46301ad3943f0910ef",
+	"340_supply_chain_impact_finding_supports_advisory_idx.sql": "2aadef166920a1007eeb9ead0cbccbe86e12cd3fc34a07ce61131b3027be25a4",
+	"341_supply_chain_impact_finding_supports_members_idx.sql":  "8f0a45ea6cfbc204b1a9e337d6d1b771dbdceee3d23e6d974f2f18575890d150",
+	"342_supply_chain_impact_finding_supports_tokens_idx.sql":   "14f149b6185ae738d9a6cfb05944a9e658f74ffd662ecf48fdafb3ae2270c60f",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

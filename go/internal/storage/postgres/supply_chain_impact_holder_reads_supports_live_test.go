@@ -90,8 +90,8 @@ VALUES ($1, $2, $3, $4, $1, '1.0.0', 'synthetic', $1, now(), now(), $5, $6::json
 // fence reads passes (#11197). It is a no-op when nothing is missing.
 func settleSupplyChainImpactSupports(t *testing.T, ctx context.Context, db *sql.DB) {
 	t.Helper()
-	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 100}
-	for step := 0; step < 500; step++ {
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 2000}
+	for step := 0; step < 5000; step++ {
 		report, err := backfill.RunStep(ctx)
 		if err != nil {
 			t.Fatalf("supports backfill step %d: %v", step, err)
@@ -100,7 +100,7 @@ func settleSupplyChainImpactSupports(t *testing.T, ctx context.Context, db *sql.
 			return
 		}
 	}
-	t.Fatal("supports backfill did not settle in 500 steps")
+	t.Fatal("supports backfill did not settle in 5000 steps")
 }
 
 func holderReadsOracleStrings(t *testing.T, ctx context.Context, db *sql.DB, query string, args ...any) []string {
@@ -236,6 +236,12 @@ func TestSupplyChainImpactSupportsHolderReadsEqualFactReadsLive(t *testing.T) {
 	}
 }
 
+// isSupportsNotReady reports whether err is the shared typed refusal.
+func isSupportsNotReady(err error) bool {
+	var notReady *supplychaincore.SupplyChainImpactSupportsNotReadyError
+	return errors.As(err, &notReady)
+}
+
 func sameStrings(a, b []string) bool {
 	x, y := append([]string(nil), a...), append([]string(nil), b...)
 	sort.Strings(x)
@@ -259,28 +265,30 @@ func sameScopedPackages(a, b []supplychaincore.ScopedFindingPackage) bool {
 
 // TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive proves the
 // reads never serve a partial table: with no backfill marker, or with the
-// old-writer fence holding a dirty scope, each returns ErrSupportsNotReady.
+// old-writer fence holding a dirty scope, each returns the shared typed refusal (SupplyChainImpactSupportsNotReadyError).
 func TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	holderReadsSeed(t, ctx, db)
 	store := postgres.SQLDB{DB: db}
 	assertRefused := func(label string) {
 		t.Helper()
-		fanOut := fanOutLiveStore(db)
-		if _, err := fanOut.FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); !errors.Is(err, supplychaincore.ErrSupportsNotReady) {
-			t.Errorf("%s: repository holders error = %v, want ErrSupportsNotReady", label, err)
+		// A store that does not settle the supports first: the readiness check
+		// must see the table as the backfill left it.
+		fanOut := postgres.SupplyChainImpactFanOutStore{Beginner: store, DB: store, LeaseOwner: fanOutLiveOwner}
+		if _, err := fanOut.FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); !isSupportsNotReady(err) {
+			t.Errorf("%s: repository holders error = %v, want the supports-not-ready refusal", label, err)
 		}
 		facts := postgres.NewFactStore(store)
-		if _, err := facts.ListScopedSupplyChainImpactFindingPackages(ctx, "scope-a", fanOutGen("scope-a", "gen-2"), []string{"CVE-X"}); !errors.Is(err, supplychaincore.ErrSupportsNotReady) {
-			t.Errorf("%s: scoped packages error = %v, want ErrSupportsNotReady", label, err)
+		if _, err := facts.ListScopedSupplyChainImpactFindingPackages(ctx, "scope-a", fanOutGen("scope-a", "gen-2"), []string{"CVE-X"}); !isSupportsNotReady(err) {
+			t.Errorf("%s: scoped packages error = %v, want the supports-not-ready refusal", label, err)
 		}
-		if _, err := facts.HasOutOfStampActiveSupplyChainImpactRows(ctx, "scope-a", fanOutGen("scope-a", "gen-2"), []string{"CVE-X"}); !errors.Is(err, supplychaincore.ErrSupportsNotReady) {
-			t.Errorf("%s: out-of-stamp error = %v, want ErrSupportsNotReady", label, err)
+		if _, err := facts.HasOutOfStampActiveSupplyChainImpactRows(ctx, "scope-a", fanOutGen("scope-a", "gen-2"), []string{"CVE-X"}); !isSupportsNotReady(err) {
+			t.Errorf("%s: out-of-stamp error = %v, want the supports-not-ready refusal", label, err)
 		}
 	}
 	assertRefused("no backfill marker")
 
-	supportsBackfillRunToCompletion(t, ctx, postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 100})
+	supportsBackfillRunToCompletion(t, ctx, postgres.SupplyChainImpactSupportsBackfill{DB: store, ChunkSize: 2000})
 	if _, err := db.ExecContext(ctx, `INSERT INTO supply_chain_impact_finding_supports_dirty (scope_id) VALUES ('scope-a')`); err != nil {
 		t.Fatalf("mark the fence dirty: %v", err)
 	}
@@ -289,7 +297,7 @@ func TestSupplyChainImpactSupportsHolderReadsRefuseNotReadyLive(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `DELETE FROM supply_chain_impact_finding_supports_dirty`); err != nil {
 		t.Fatalf("clear the fence: %v", err)
 	}
-	if got, err := fanOutLiveStore(db).FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); err != nil || len(got) == 0 {
+	if got, err := (postgres.SupplyChainImpactFanOutStore{Beginner: store, DB: store, LeaseOwner: fanOutLiveOwner}).FindRepositoryFindingHolders(ctx, "scope-a", []string{"R1"}); err != nil || len(got) == 0 {
 		t.Fatalf("ready again: repository holders = %v, %v, want the holders", got, err)
 	}
 }

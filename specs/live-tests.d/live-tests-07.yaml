@@ -335,11 +335,6 @@ tests:
     class: dedicated_ci
     reason: "#10564: reducer-contention enrolled TestHolderH3DiffSetsLive + TestHolderH3StatementP95Live in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed (H3 vs frozen H0 sets identical under custom and generic plans, statement p95 ~8.5ms)"
     runner: reducer-contention
-  - file: go/internal/storage/postgres/supply_chain_impact_fanout_holder_covering_live_test.go
-    tag: ~
-    class: dedicated_ci
-    reason: "#10643: reducer-contention enrolled TestHolderCoveringExpressionBlocksIndexOnlyLive in the -run filter of .github/workflows/reducer-contention-gate.yml; local run against disposable PostgreSQL 18.6 passed in 9.43s -race (covering shape serves both arms as Bitmap Heap Scan with heap blocks, no Index Only Scan; shipped/H0 scope sets identical)"
-    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_fanout_adaptive_split_live_test.go
     tag: ~
     class: dedicated_ci
@@ -534,6 +529,16 @@ tests:
     tag: ~
     class: dedicated_ci
     reason: "#11197: every named Go test in the file passes under reducer-contention (the enrolled names are in scripts/lib/reducer_contention_inventory.json; disposable PostgreSQL 18): the repository holder read, the scoped seed read and the out-of-stamp probe equal the retired finding-fact reads on a multi-support corpus and refuse with ErrSupportsNotReady"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_family_oracle_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: the moved fan-out holder family (5-id statement, 16-range key-range read with the open range and foreign-member token arm, over-length fallback, exact mass) equals the retired finding-fact statements kept as the oracle and keeps answering after every finding fact is deleted (disposable PostgreSQL 18)"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_holder_supports_plan_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#11197: every holder statement reads the supports table through its four indexes with no sequential or primary-key scan, and the checker rejects each of four seeded index drops (disposable PostgreSQL 18)"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_replace_set_concurrency_live_test.go
     tag: ~

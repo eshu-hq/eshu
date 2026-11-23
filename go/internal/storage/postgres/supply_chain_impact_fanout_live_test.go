@@ -17,6 +17,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	dbpkg "github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -43,8 +44,34 @@ func fanOutLiveDB(t *testing.T) (context.Context, *sql.DB) {
 
 func fanOutLiveStore(db *sql.DB) postgres.SupplyChainImpactFanOutStore {
 	return postgres.SupplyChainImpactFanOutStore{
-		Beginner: postgres.SQLDB{DB: db}, DB: postgres.SQLDB{DB: db}, LeaseOwner: fanOutLiveOwner,
+		Beginner: supportsSettledBeginner{db: db}, DB: postgres.SQLDB{DB: db}, LeaseOwner: fanOutLiveOwner,
 	}
+}
+
+// supportsSettledBeginner opens the holder-read transaction after settling the
+// supports table (#11197). The holder reads answer from the supports table, and
+// these proofs write finding facts directly, which no maintainer mirrors; the
+// settle runs the production backfill (RunStep) until it is complete and the
+// old-writer fence is drained, so the table holds exactly what a real writer
+// would have maintained. It writes nothing a reader depends on beyond that.
+type supportsSettledBeginner struct{ db *sql.DB }
+
+// Begin settles the supports, then opens the transaction.
+func (b supportsSettledBeginner) Begin(ctx context.Context) (dbpkg.Transaction, error) {
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: b.db}, ChunkSize: 200}
+	for step := 0; ; step++ {
+		report, err := backfill.RunStep(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("settle supports: %w", err)
+		}
+		if report.Complete && report.DirtyScopes == 0 {
+			break
+		}
+		if step > 5000 {
+			return nil, fmt.Errorf("settle supports: no convergence in %d steps", step)
+		}
+	}
+	return postgres.SQLDB{DB: b.db}.Begin(ctx)
 }
 
 func fanOutLiveQueue(db *sql.DB) postgres.ReducerQueue {

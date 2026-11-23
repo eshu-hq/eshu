@@ -137,7 +137,7 @@ func (h SupplyChainImpactHandler) scopeSupplyChainImpactPass(
 				h.Logger.WarnContext(ctx, "supply chain impact scoped seed read failed; running the pass full",
 					slog.String("scope_id", intent.ScopeID),
 					slog.String("generation_id", intent.GenerationID),
-					slog.Bool("supports_not_ready", errors.Is(err, ErrSupportsNotReady)),
+					slog.Bool("supports_not_ready", errors.As(err, new(*SupplyChainImpactSupportsNotReadyError))),
 					slog.String("error", err.Error()),
 				)
 			}

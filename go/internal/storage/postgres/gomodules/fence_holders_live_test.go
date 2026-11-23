@@ -180,7 +180,7 @@ func TestFenceRollsBackWhenAHolderReopenFailsLive(t *testing.T) {
 	repository, fence := seedFenceable(t, database, 1)
 	seedFindingHolder(t, database, "holder-a", repository, "succeeded")
 	boom := errors.New("reopen failed")
-	failing := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady).WithHolderReopener(
+	failing := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(testSupportsReadiness).WithHolderReopener(
 		func(context.Context, db.ExecQueryer, string, string, string, time.Time) error { return boom })
 
 	result, err := failing.FenceStaleGoEvidence(t.Context(), []scannercomponent.StaleEvidenceFence{fence}, time.Now().UTC())
@@ -337,7 +337,7 @@ func TestFenceReopensHoldersInDeadLetterLockOrderLive(t *testing.T) {
 	t.Logf("fence holder read plan:\n%s", strings.Join(plan, "\n"))
 
 	var order []string
-	store := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady).WithHolderReopener(func(
+	store := NewStore(postgres.SQLDB{DB: database}).WithSupportsReadiness(testSupportsReadiness).WithHolderReopener(func(
 		ctx context.Context, tx db.ExecQueryer, holder, sourceScopeID, sourceGenerationID string, now time.Time,
 	) error {
 		order = append(order, holder)

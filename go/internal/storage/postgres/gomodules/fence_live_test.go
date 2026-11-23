@@ -8,12 +8,15 @@ package gomodules
 //eshu:readiness:env ESHU_POSTGRES_DISPOSABLE ESHU_POSTGRES_DSN
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannercomponent"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/reachability"
@@ -26,13 +29,19 @@ const fenceLiveInterval = time.Hour
 
 var fenceLiveEvidenceCommit = strings.Repeat("e", 40)
 
+// testSupportsReadiness is the readiness check the live proofs bind: the shared
+// helper and typed refusal, no instruments (#11197).
+func testSupportsReadiness(ctx context.Context, tx db.Queryer) error {
+	return postgres.RequireSupplyChainImpactSupportsReady(ctx, tx, nil, "go_modules_fence")
+}
+
 // fenceStore returns the store the live proofs fence with. It first settles the
 // supports table: the proofs write finding facts directly, so no maintainer
 // filled it, and the fence refuses to read an unready table (#11197).
 func fenceStore(t *testing.T, database *sql.DB) Store {
 	t.Helper()
 	settleSupports(t, database)
-	return NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(postgres.CheckSupplyChainImpactSupportsReady)
+	return NewStore(postgres.SQLDB{DB: database}).WithHolderReopener(postgres.ReopenSupplyChainImpactHolderInTransaction).WithSupportsReadiness(testSupportsReadiness)
 }
 
 // seedStampedEvidence writes a repository's go-reachability scope holding kinds, with

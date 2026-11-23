@@ -68,7 +68,7 @@ func TestHolderMemberTokensPartitionTheBuckets(t *testing.T) {
 // keyRangeTokenArm returns the token arm predicate the shipped statement must
 // carry, with its parameter.
 func keyRangeTokenArm(param string) string {
-	return postgres.SupplyChainImpactForeignMemberTokensFunction + "(finding.fact_id, finding.payload) && " + param + "::text[]"
+	return postgres.SupplyChainImpactForeignMemberTokensFunction + "(support.fact_id, support.payload) && " + param + "::text[]"
 }
 
 // TestHolderKeyRangeStatementsCarryTheTokenArm derives the arm structure
@@ -84,7 +84,7 @@ func TestHolderKeyRangeStatementsCarryTheTokenArm(t *testing.T) {
 		{"bounded", postgres.FindSupplyChainImpactHolderKeyRangeQuery, "$5"},
 		{"open", postgres.FindSupplyChainImpactHolderOpenKeyRangeQuery, "$4"},
 	} {
-		arms := strings.Split(tc.query, "FROM fact_records AS finding")
+		arms := strings.Split(tc.query, "FROM supply_chain_impact_finding_supports AS support")
 		if len(arms) != 4 {
 			t.Fatalf("%s statement has %d arms, want 3 (cve_id, advisory_id, token):\n%s", tc.name, len(arms)-1, tc.query)
 		}
@@ -92,7 +92,7 @@ func TestHolderKeyRangeStatementsCarryTheTokenArm(t *testing.T) {
 		if !strings.Contains(token, keyRangeTokenArm(tc.param)) {
 			t.Fatalf("%s statement token arm lacks %q:\n%s", tc.name, keyRangeTokenArm(tc.param), token)
 		}
-		if strings.Contains(token, "finding.fact_id >=") || strings.Contains(token, "finding.fact_id <") {
+		if strings.Contains(token, "support.fact_id >=") || strings.Contains(token, "support.fact_id <") {
 			t.Fatalf("%s statement token arm carries a fact_id bound:\n%s", tc.name, token)
 		}
 		for _, arm := range arms[1:3] {

@@ -13,6 +13,7 @@ import (
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func fanOutStoredPayload(t *testing.T, db *sql.DB, id string) map[string]any {
@@ -144,15 +145,20 @@ func TestFindHolderScopesTimesOutUnderALockedTableLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	fanOutSeedScope(t, ctx, db, "holder-a", "g1")
 	fanOutSeedFinding(t, ctx, db, "holder-a", "g1", "CVE-2026-0001", false)
+	// The read answers from the supports table (#11197): settle it before the
+	// lock, and read through a store that does not settle (the settle would wait
+	// on the lock this test holds).
+	settleSupplyChainImpactSupports(t, ctx, db)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = tx.Rollback() })
-	if _, err := tx.ExecContext(ctx, `LOCK TABLE fact_records IN ACCESS EXCLUSIVE MODE`); err != nil {
-		t.Fatalf("lock fact_records: %v", err)
+	if _, err := tx.ExecContext(ctx, `LOCK TABLE supply_chain_impact_finding_supports IN ACCESS EXCLUSIVE MODE`); err != nil {
+		t.Fatalf("lock supports: %v", err)
 	}
 	store := fanOutLiveStore(db)
+	store.Beginner = postgres.SQLDB{DB: db}
 	store.ReadTimeout = 150 * time.Millisecond
 	started := time.Now()
 	_, err = store.FindHolderScopes(ctx, "own", []string{"CVE-2026-0001"})

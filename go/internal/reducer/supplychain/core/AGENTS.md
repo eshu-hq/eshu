@@ -262,3 +262,17 @@ the lease was not claimed or the tick stood down; the meaning is stated in
 docs/public/reference/telemetry/supply-chain-impact-winners.md. #11111 reuses
 the existing closed `result="denied"` label on the alias-group counter. No new
 metric, label, span, or setting.
+
+## Holder reads answer from supports (#11197)
+
+Every holder read answers from
+`supply_chain_impact_finding_supports`, not the finding facts: the 5-id holder
+statement, the 16 key-range statements with the foreign-member token arm, the
+mass probe, `FindRepositoryFindingHolders`, the scoped seed read, the out-of-stamp
+probe and the Go-modules fence read. Migrations 339 to 342 add the `cve_id` and
+`advisory_id` btrees and the group-member and token GINs; they serve these reads
+in place of the `fact_records` lookup indexes of 283/289/290, which stay until
+the finding facts stop being written. A supports table that
+is not ready refuses the read with `SupplyChainImpactSupportsNotReadyError`, which
+`fanOutReadFailure` returns unwrapped so the queue defers the item without counting
+an attempt. Evidence: `docs/internal/evidence/11197-holder-reads-supports.md`.

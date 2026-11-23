@@ -8,7 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
@@ -50,10 +51,9 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload->>'cve_id' = ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.cve_id <> ''
+          AND support.cve_id = ids.id
         LIMIT %d
     ) AS limited
 ) AS cve ON TRUE
@@ -61,10 +61,9 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload->>'advisory_id' = ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.advisory_id <> ''
+          AND support.advisory_id = ids.id
         LIMIT %d
     ) AS limited
 ) AS adv ON TRUE
@@ -72,10 +71,8 @@ LEFT JOIN LATERAL (
     SELECT CASE WHEN COUNT(*) > %d THEN %d ELSE COUNT(*) END AS mass
     FROM (
         SELECT 1
-        FROM fact_records AS finding
-        WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-          AND finding.is_tombstone = FALSE
-          AND finding.payload #> '{provenance,advisory_group_members}' ? ids.id
+        FROM supply_chain_impact_finding_supports AS support
+        WHERE support.payload #> '{provenance,advisory_group_members}' ? ids.id
         LIMIT %d
     ) AS limited
 ) AS m3 ON (COALESCE(cve.mass, 0) + COALESCE(adv.mass, 0)) < %d
@@ -113,10 +110,27 @@ func (s SupplyChainImpactFanOutStore) EstimateHolderMasses(
 	ctx context.Context,
 	lookupIDs []string,
 ) (map[string]int64, error) {
+	// A blank id names no finding; it keeps mass 0 (readIDMasses fills every
+	// requested id), and sending it would defeat the partial indexes.
+	probed := nonBlankLookupIDs(lookupIDs)
 	if len(lookupIDs) == 0 {
 		return map[string]int64{}, nil
 	}
-	return s.readIDMasses(ctx, HolderMassProbeQuery, lookupIDs)
+	masses := make(map[string]int64, len(lookupIDs))
+	if len(probed) > 0 {
+		read, err := s.readIDMasses(ctx, HolderMassProbeQuery, probed)
+		if err != nil {
+			return nil, err
+		}
+		masses = read
+	}
+	for _, id := range lookupIDs {
+		if _, ok := masses[id]; !ok {
+			masses[id] = 0
+		}
+	}
+	s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass, telemetry.SupplyChainImpactSupportsReadServed)
+	return masses, nil
 }
 
 // readIDMasses runs one mass-probe statement as a short read-only transaction
@@ -144,6 +158,9 @@ func (s SupplyChainImpactFanOutStore) readIDMasses(ctx context.Context, query st
 		return nil, fmt.Errorf("set supply chain impact holder mass read timeout: %w", err)
 	}
 	_ = rows.Close()
+	if err := requireSupplyChainImpactSupportsReady(ctx, tx, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHolderMass); err != nil {
+		return nil, err
+	}
 	rows, err = tx.QueryContext(ctx, query, lookupIDs)
 	if err != nil {
 		return nil, classifyFanOutReadError(err)

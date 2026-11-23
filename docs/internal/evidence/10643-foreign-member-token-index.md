@@ -137,7 +137,7 @@ postgres:18.6.
 | `TestHolderLookupExceedsTokenBytesCountsBytes` | the fallback decision counts bytes: 1,024 and 1,025 ASCII, 512 and 513 two-byte, 256 four-byte, a mixed set |
 | `TestHolderKeyRangeTokenAgreementLive` | Go lookup tokens against SQL stored tokens for 20 last characters (16 hex digits, `A`, `Z`, `é`, `日`), colon members, object keys, a scalar, prefix look-alikes and own keys |
 | `TestHolderKeyRangeTokenReadMatchesShippedLive` | the differential against `FindHolderScopes`, through the store and through the shipped constants, and three REDs (below) |
-| `TestHolderKeyRangeStatementPlanLive` | the pinned custom plan, for the mid-range bounded statement and for the open statement (last range, tokens on `$4`): the token arm is a Bitmap Index Scan on the token index with `&&` in the Index Cond and no fact_id bound; the open statement's btree arms carry the lower bound only |
+| `TestSupplyChainImpactSupportsHolderPlanShapeLive` (#11197; it replaced `TestHolderKeyRangeStatementPlanLive` when the reads moved to the supports table) | the pinned custom plan, for the mid-range bounded statement and for the open statement (last range, tokens on `$4`): the token arm is a Bitmap Index Scan on the token index with `&&` in the Index Cond and no fact_id bound; the open statement's btree arms carry the lower bound only |
 | `TestKeyRangePlanViolationShapes` | the plan checker refuses a missing token arm, the lossy members index, a token heap filter, and a token fact_id bound |
 
 The differential seeds cover the object, scalar, NULL `cve_id`, NULL
@@ -204,7 +204,7 @@ lookup id to the shipped statement.
   902.336 ms, ratio 1.035; net of the members-extraction baseline (125.534
   ms), 14.93 against 15.54 us per row, ratio 1.040. The bar is 1.10. The
   host load average was 31 to 71 during the run.
-- Carried: T3 (plans rerun by `TestHolderKeyRangeStatementPlanLive`), T4r
+- Carried: T3 (plans rerun by `TestSupplyChainImpactSupportsHolderPlanShapeLive`), T4r
   and the K1 acceptance. One length test per string does not move a cost
   accepted at about 1 percent of QA's write time.
 - Not in this change: a length bound on advisory identifiers and aliases at

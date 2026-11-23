@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // hasOutOfStampActiveSupplyChainImpactRowsQuery is the #10415 fallback
@@ -33,7 +34,7 @@ LIMIT 1
 // generation) holds an active finding row outside a stamped CVE set. An empty
 // stamp reads nothing: the caller runs full without it. A retracted copy has
 // no support, so it never triggers. The read refuses with
-// supplychaincore.ErrSupportsNotReady while the supports table is not ready
+// supplychaincore.SupplyChainImpactSupportsNotReadyError while the supports table is not ready
 // (#11197).
 func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 	ctx context.Context,
@@ -49,7 +50,7 @@ func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 	}
 	var has bool
 	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
-		if err := requireSupplyChainImpactSupportsReady(ctx, queryer); err != nil {
+		if err := requireSupplyChainImpactSupportsReady(ctx, queryer, s.instruments, telemetry.SupplyChainImpactSupportsReaderOutOfStamp); err != nil {
 			return err
 		}
 		rows, err := queryer.QueryContext(ctx, hasOutOfStampActiveSupplyChainImpactRowsQuery, scopeID, generationID, cveIDs)
@@ -65,5 +66,6 @@ func (s FactStore) HasOutOfStampActiveSupplyChainImpactRows(
 	if err != nil {
 		return false, err
 	}
+	s.instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderOutOfStamp, telemetry.SupplyChainImpactSupportsReadServed)
 	return has, nil
 }

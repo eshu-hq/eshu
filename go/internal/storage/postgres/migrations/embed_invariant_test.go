@@ -365,9 +365,12 @@ import (
 // is main's 363 plus 338. The digest is this test's own derivation on the merged
 // tree, regenerated whenever 338 changes (338 is unshipped, so its checksum and
 // this digest move in place).
+// 339 to 342 (#11197, #10880 PR-B2b) add the four holder-read indexes on the
+// per-support table, one concurrent build per file. Count 368 is 364 plus the
+// four; the digest is this test's own derivation, derived again red-first.
 const (
-	goldenBootstrapDefinitionsDigest = "c827350ee2149a2aeb6863551409278e615a83fb7e044f3e3cc9ef33e672b7c6"
-	goldenBootstrapDefinitionsCount  = 364
+	goldenBootstrapDefinitionsDigest = "42e111e6517ec3bc18f5de23d3d328c5e17ad3571db18af6fffed0a1689d9b5f"
+	goldenBootstrapDefinitionsCount  = 368
 )
 
 func TestBootstrapDefinitionsMatchesPreRefactorGolden(t *testing.T) {

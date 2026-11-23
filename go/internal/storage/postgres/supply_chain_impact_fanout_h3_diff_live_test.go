@@ -312,6 +312,9 @@ func TestHolderH3DiffSetsLive(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	db.SetMaxOpenConns(1)
 	h3diffSeedFixture(t, ctx, db)
+	// The statement under test answers from the supports table (#11197); the
+	// fixture wrote finding facts directly, so settle the supports first.
+	settleSupplyChainImpactSupports(t, ctx, db)
 	holders := []string{h3diffHoldB, h3diffHoldC}
 	sets := []struct {
 		name string
@@ -426,6 +429,9 @@ func TestHolderH3StatementP95Live(t *testing.T) {
 	ctx, db := fanOutLiveDB(t)
 	db.SetMaxOpenConns(1)
 	h3diffSeedFixture(t, ctx, db)
+	// The statement under test answers from the supports table (#11197); the
+	// fixture wrote finding facts directly, so settle the supports first.
+	settleSupplyChainImpactSupports(t, ctx, db)
 	ids := h3diffCombinedIDs()
 	conn, err := db.Conn(ctx)
 	if err != nil {

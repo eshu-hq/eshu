@@ -3,27 +3,36 @@
 
 package core
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrFanOutReadTimeout marks a holder read that exceeded its bounded statement
 // timeout. The pass fails with it so the queue retries; the counter reports it
 // as read_timeout rather than read_error.
 var ErrFanOutReadTimeout = errors.New("supply chain impact holder read timed out")
 
-// ErrSupportsNotReady marks a holder, seed or fence read that refused to run
-// because the supports table it reads is not ready: the backfill marker for the
-// binary's contract version is not complete, a newer contract's marker exists, or
-// the old-writer fence still holds a dirty scope (#11197). The reads no longer
-// fall back to the finding facts, so a partial table must never answer; the pass
-// fails with it, the queue retries, and the counter reports it as
-// supports_not_ready rather than read_error.
-var ErrSupportsNotReady = errors.New("supply chain impact supports are not ready")
-
 // SupplyChainImpactFanOutFailureClass classifies a pass that failed in its holder
 // fan-out. It is a counting class on purpose: the queue retries the pass up to
 // its attempt budget and then dead-letters it, which is loud and replayable,
 // whereas a non-counting class would retry a persistent failure forever.
 const SupplyChainImpactFanOutFailureClass = "supply_chain_impact_fanout_failed"
+
+// fanOutReadFailure wraps a failed holder read as a retryable, counting fan-out
+// error, except the supports-not-ready refusal (#11197). That refusal carries its
+// own non-counting class (arbiter-b2c decision 3): wrapping it in fanOutError would
+// make the queue count the attempt and dead-letter the intent after the third
+// refusal, against a backfill that takes hours. It reaches the queue with its own
+// classification, annotated with the failing read.
+func fanOutReadFailure(err error, format string, args ...any) error {
+	wrapped := fmt.Errorf(format+": %w", append(args, err)...)
+	var notReady *SupplyChainImpactSupportsNotReadyError
+	if errors.As(err, &notReady) {
+		return wrapped
+	}
+	return fanOutError{wrapped}
+}
 
 // RetryableFanOutError marks err retryable and self-classified like the
 // handler's own fan-out failures. The store returns it for a lost lease inside the

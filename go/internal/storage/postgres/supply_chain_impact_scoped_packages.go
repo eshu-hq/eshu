@@ -9,6 +9,7 @@ import (
 
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // listScopedSupplyChainImpactFindingPackagesQuery returns the distinct CVE,
@@ -38,7 +39,7 @@ WHERE support.scope_id = $1
 // ListScopedSupplyChainImpactFindingPackages loads the finding-row package
 // and advisory seeds of one (scope, generation) for stamped CVEs. An empty
 // stamp reads nothing; a retracted copy has no support, so it never seeds a
-// load. The read refuses with supplychaincore.ErrSupportsNotReady while the
+// load. The read refuses with supplychaincore.SupplyChainImpactSupportsNotReadyError while the
 // supports table is not ready (#11197).
 func (s FactStore) ListScopedSupplyChainImpactFindingPackages(
 	ctx context.Context,
@@ -54,7 +55,7 @@ func (s FactStore) ListScopedSupplyChainImpactFindingPackages(
 	}
 	var out []supplychaincore.ScopedFindingPackage
 	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
-		if err := requireSupplyChainImpactSupportsReady(ctx, queryer); err != nil {
+		if err := requireSupplyChainImpactSupportsReady(ctx, queryer, s.instruments, telemetry.SupplyChainImpactSupportsReaderScopedPackages); err != nil {
 			return err
 		}
 		rows, err := queryer.QueryContext(ctx, listScopedSupplyChainImpactFindingPackagesQuery, scopeID, generationID, cveIDs)
@@ -77,5 +78,6 @@ func (s FactStore) ListScopedSupplyChainImpactFindingPackages(
 	if err != nil {
 		return nil, err
 	}
+	s.instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderScopedPackages, telemetry.SupplyChainImpactSupportsReadServed)
 	return out, nil
 }

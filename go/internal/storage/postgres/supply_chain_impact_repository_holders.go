@@ -3,7 +3,11 @@
 
 package postgres
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
 
 // findRepositoryFindingHoldersQuery returns the scopes that hold an active
 // finding support for any of the given repository ids, other than the asking
@@ -49,5 +53,5 @@ func (s SupplyChainImpactFanOutStore) FindRepositoryFindingHolders(
 	if len(repositoryIDs) == 0 {
 		return nil, nil
 	}
-	return s.readScopeIDsFromSupports(ctx, findRepositoryFindingHoldersQuery, repositoryIDs, ownScopeID)
+	return s.readScopeIDsFromSupports(ctx, telemetry.SupplyChainImpactSupportsReaderRepositoryHolders, findRepositoryFindingHoldersQuery, repositoryIDs, ownScopeID)
 }

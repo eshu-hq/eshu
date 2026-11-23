@@ -11,49 +11,43 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/facts"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// holderKeyRangeArm is one btree arm of the shipped holder read
-// (FindSupplyChainImpactHoldersQuery) limited to a fact_id key range: the same
-// literal fact kind, tombstone predicate, and payload expression, so it reads
-// through the same partial indexes, plus the range on fact_id, the
-// index's next key column after impact_status (PostgreSQL 18 serves it with a
-// skip scan over the few impact_status values). $1 lookup ids, $3 lower
+// holderKeyRangeArm is one btree arm of the holder read
+// (FindSupplyChainImpactHoldersQuery) limited to a fact_id key range, on the
+// supports table (#11197): the cve_id or advisory_id column with the literal
+// non-empty predicate that proves the partial index under a generic plan, plus
+// the range on fact_id, the index's second key column. $1 lookup ids, $3 lower
 // bound, $4 upper bound when bounded.
-func holderKeyRangeArm(expr string, bounded bool) string {
+func holderKeyRangeArm(column string, bounded bool) string {
 	upper := ""
 	if bounded {
-		upper = "\n      AND finding.fact_id < $4"
+		upper = "\n      AND support.fact_id < $4"
 	}
 	return `
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND finding.payload->>'` + expr + `' = ANY($1::text[])
-      AND finding.fact_id >= $3` + upper
+    SELECT support.scope_id, support.generation_id
+    FROM supply_chain_impact_finding_supports AS support
+    WHERE support.` + column + ` <> ''
+      AND support.` + column + ` = ANY($1::text[])
+      AND support.fact_id >= $3` + upper
 }
 
-// holderMemberTokenArm is the member arm of the shipped holder read as a
-// foreign-member token arm (#10643 PR 2): the finding rows whose token
-// function output overlaps the statement's lookup tokens, through
-// SupplyChainImpactForeignMemberTokensIndex. It has no fact_id bound: the
-// token's bucket, not the key range, splits the foreign rows over the
-// statements (HolderMemberTokens), and the union over all statements on one
-// snapshot is what makes the read exact. Own-key rows never carry a token;
-// the cve_id and advisory_id arms return them. param is the tokens
-// parameter.
+// holderMemberTokenArm is the member arm of the holder read as a
+// foreign-member token arm (#10643 PR 2), now over the supports table: the
+// supports whose token function output overlaps the statement's lookup tokens,
+// through supply_chain_impact_finding_supports_tokens_idx. It has no fact_id
+// bound: the token's bucket, not the key range, splits the foreign rows over
+// the statements (HolderMemberTokens), and the union over all statements on one
+// snapshot is what makes the read exact. Own-key rows never carry a token; the
+// cve_id and advisory_id arms return them. param is the tokens parameter.
 func holderMemberTokenArm(param string) string {
 	return `
-    SELECT finding.scope_id, finding.generation_id
-    FROM fact_records AS finding
-    WHERE finding.fact_kind = '` + facts.ReducerSupplyChainImpactFindingFactKind + `'
-      AND finding.is_tombstone = FALSE
-      AND ` + SupplyChainImpactForeignMemberTokensFunction + `(finding.fact_id, finding.payload) && ` + param + `::text[]`
+    SELECT support.scope_id, support.generation_id
+    FROM supply_chain_impact_finding_supports AS support
+    WHERE ` + SupplyChainImpactForeignMemberTokensFunction + `(support.fact_id, support.payload) && ` + param + `::text[]`
 }
 
 // holderMemberTokenAlphabet is the bucket alphabet of the token function:
@@ -151,7 +145,7 @@ WITH candidates AS MATERIALIZED (` + holderKeyRangeArm("cve_id", false) + `
 // runs under. A generic plan cannot see the fact_id bounds, so PostgreSQL
 // 18.6 prices the range at its default selectivity and reads it through
 // fact_records_pkey: a scan of a 1/16 slice of the whole table instead of a
-// slice of one id's rows (TestHolderKeyRangeStatementPlanLive). A custom
+// slice of one id's rows (TestSupplyChainImpactSupportsHolderPlanShapeLive). A custom
 // plan sees the bounds and reads each arm's own lookup index with its lookup
 // expression and both fact_id bounds in the Index Cond.
 const HolderKeyRangePlanCacheMode = "force_custom_plan"
@@ -190,6 +184,7 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 	ranges []supplychaincore.HolderKeyRange,
 ) (supplychaincore.HolderKeyRangeRead, error) {
 	var read supplychaincore.HolderKeyRangeRead
+	lookupIDs = nonBlankLookupIDs(lookupIDs)
 	if len(lookupIDs) == 0 {
 		return read, nil
 	}
@@ -216,6 +211,9 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		return read, fmt.Errorf("set supply chain impact holder key-range timeout: %w", err)
 	}
 	_ = rows.Close()
+	if err := requireSupplyChainImpactSupportsReady(ctx, tx, s.Instruments, telemetry.SupplyChainImpactSupportsReaderFanoutHoldersKeyRange); err != nil {
+		return read, err
+	}
 	seen := make(map[string]struct{})
 	run := func(rangeIndex int, kind, query string, args ...any) error {
 		start := time.Now()
@@ -235,6 +233,7 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 			return read, fmt.Errorf("%s fallback statement for a lookup id over %d bytes: %w", telemetry.FanOutReadKindHolders, HolderMemberTokenMaxBytes, err)
 		}
 		read.Scopes = sortedScopes(seen)
+		s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHoldersKeyRange, telemetry.SupplyChainImpactSupportsReadServed)
 		return read, nil
 	}
 	rows, err = tx.QueryContext(ctx, setHolderKeyRangePlanModeQuery, HolderKeyRangePlanCacheMode)
@@ -257,6 +256,7 @@ func (s SupplyChainImpactFanOutStore) FindHolderScopesByKeyRange(
 		}
 	}
 	read.Scopes = sortedScopes(seen)
+	s.Instruments.RecordSupplyChainImpactSupportsRead(ctx, telemetry.SupplyChainImpactSupportsReaderFanoutHoldersKeyRange, telemetry.SupplyChainImpactSupportsReadServed)
 	return read, nil
 }
 

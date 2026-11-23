@@ -71,9 +71,10 @@ count the fence returns.
   for a skewed row, `evidence_left_at`: the newest `superseded_at` among the repository's own
   generations at that commit. `reachability.StaleEvidence` applies the rule, and
   `FenceStaleGoEvidence` writes the verdict.
-- A fence takes the scope row, supersedes the generation, finds the holders on
-  `fact_records_supply_chain_impact_repository_lookup_idx`, and reopens each, in one
-  transaction with a 2s `lock_timeout`. A successor's ack in either order ends on the
+- A fence takes the scope row, supersedes the generation, checks that the supports table is ready, finds the holders on
+  `supply_chain_impact_finding_supports_repository_idx` (#11197), and reopens each, in one
+  transaction with a 2s `lock_timeout`. A table that is not ready rolls the fence back before the
+  pointer detach, with nothing retracted, and the coordinator retries the page. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
   (#10055). It reopens the holders in the `work_item_id COLLATE "C"` order of their
   `supply_chain_impact` items, the order the admin replay, the recovery drain, and
