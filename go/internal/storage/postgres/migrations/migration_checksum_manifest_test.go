@@ -509,6 +509,10 @@ var migrationShippedChecksums = map[string]string{
 	// #10880 PR-B1: the per-support table behind the grant-scoped reads
 	// (numbered 338: 333 to 337 are main's).
 	"338_supply_chain_impact_finding_supports.sql": "9355b094248c1efc43b060e499f5931ae9bdd3932fcbba20fbac996faf79f5e6",
+	// #10880 PR-B2a: the two partial indexes behind the unscoped existence-filter
+	// reads (numbered 343 and 344; 339 to 342 are reserved for PR-B2b).
+	"343_supply_chain_impact_finding_supports_precise_key_ordered_idx.sql": "26542615642bf2df191537b44df8a539e7d2b0db158fe8e53e6fcf83f9a0af2d",
+	"344_supply_chain_impact_finding_supports_image_ref_idx.sql":           "66f8c261f923edcd0ee8988beeab6406f92bbed90ac21fb7c674ced430c3c21f",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition
