@@ -40,9 +40,7 @@ committed while the client saw the cancel and the item is already dead-lettered.
 | `go test -race -count=1 ./internal/reducer` | ok |
 | `go test -count=1 ./cmd/reducer` | ok |
 
-## No-Regression Evidence
-
-Baseline is `origin/main` at `f6a3d9e052`; after is this branch. The change runs
+No-Regression Evidence: baseline is `origin/main` at `f6a3d9e052`; after is this branch. The change runs
 only on error paths: `stoppedByShutdown` is evaluated only after
 `WorkSink.Fail` (in `executeWithTelemetry` and `executeAndReport`),
 `ackSingleRetryingTransient` (in `ackReducerWork`) or `WorkSource.Claim` returned
@@ -70,9 +68,7 @@ left to expire, or dead-lettered). The statement is safe because only errors tha
 wrap the cancelled run context are converted; every other `Fail` error, and every
 `Fail` error under a live context, is returned and ends the run exactly as before.
 
-## Observability Evidence
-
-An interrupted `Fail` is counted on the existing
+Observability Evidence: an interrupted `Fail` is counted on the existing
 `eshu_dp_reducer_executions_total{status="fail_interrupted_by_shutdown"}` (one
 new value of the closed `status` label, documented in
 `docs/public/reference/telemetry/metrics-reducer-storage.md` next to
