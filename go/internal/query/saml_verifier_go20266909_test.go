@@ -100,7 +100,10 @@ type go20266909Case struct {
 	omitCond    bool
 	// omitAudience keeps Conditions but drops its AudienceRestriction.
 	omitAudience bool
-	nameIDs      string
+	// omitConfirmation keeps Subject and its NameID but drops every
+	// SubjectConfirmation.
+	omitConfirmation bool
+	nameIDs          string
 	// wantRejected means VerifySAMLResponse must return an ordinary error. A
 	// recovered panic (ErrSAMLVerifierPanic) does not count: the library must
 	// reject these assertions itself.
@@ -124,6 +127,11 @@ func go20266909Cases() []go20266909Case {
 		// AudienceRestriction; v0.5.1 and the eshu-hq fork accepted it. The row
 		// pins the stricter behavior so a later crewjam change cannot loosen it.
 		{name: "no_audience_restriction", nameIDs: go20266909GoodNameID, omitAudience: true, wantRejected: true},
+		// upstream v0.5.2 also rejects an assertion with no bearer
+		// SubjectConfirmation (hasBearerSubjectConfirmation in
+		// service_provider.go); v0.5.1 and the fork skipped the check when the
+		// confirmation list was empty.
+		{name: "no_bearer_subject_confirmation", nameIDs: go20266909GoodNameID, omitConfirmation: true, wantRejected: true},
 		{name: "foreign_namespace_nameid_only", nameIDs: go20266909EvilNameID, wantNameID: ""},
 		{name: "saml_nameid_then_foreign_nameid", nameIDs: go20266909GoodNameID + go20266909EvilNameID, wantNameID: "alice"},
 		{name: "foreign_nameid_then_saml_nameid", nameIDs: go20266909EvilNameID + go20266909GoodNameID, wantNameID: "alice"},
@@ -146,11 +154,14 @@ func (c go20266909Case) assertionXML(now time.Time) string {
 	}
 	if !c.omitSubject {
 		b.WriteString(`<saml:Subject>` + c.nameIDs)
-		b.WriteString(`<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">`)
-		if !c.omitSCData {
-			b.WriteString(`<saml:SubjectConfirmationData InResponseTo="` + samlFixtureRequestID + `" NotOnOrAfter="` + later + `" Recipient="` + samlFixtureACS + `"/>`)
+		if !c.omitConfirmation {
+			b.WriteString(`<saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">`)
+			if !c.omitSCData {
+				b.WriteString(`<saml:SubjectConfirmationData InResponseTo="` + samlFixtureRequestID + `" NotOnOrAfter="` + later + `" Recipient="` + samlFixtureACS + `"/>`)
+			}
+			b.WriteString(`</saml:SubjectConfirmation>`)
 		}
-		b.WriteString(`</saml:SubjectConfirmation></saml:Subject>`)
+		b.WriteString(`</saml:Subject>`)
 	}
 	if !c.omitCond {
 		b.WriteString(`<saml:Conditions NotBefore="` + ts + `" NotOnOrAfter="` + later + `">`)
