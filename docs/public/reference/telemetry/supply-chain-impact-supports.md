@@ -5,8 +5,12 @@ live finding fact (#10880 PR-B1). The impact writer keeps it current in the same
 transaction that writes the finding facts, and a reducer-owned backfill fills it
 for facts written before the maintainer shipped. An old-writer fence marks any
 scope a writer without the maintainer touches, and the backfill drains those
-marks. No reader serves from it yet; these signals show whether it is complete
-and current before a reader does.
+marks. With `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ` on, the scoped-token list,
+count, inventory, grouped inventory, explain, and the repository, service, and
+workload anchored advisory evidence reads serve from it (#10880 PR-B2a) and answer
+`503 backend_unavailable` with `Retry-After: 30` while it is not ready. These
+signals show whether it is complete and current, which is the same predicate those
+reads probe before each call.
 
 | Signal | Type | Labels | What it tells you |
 | --- | --- | --- | --- |

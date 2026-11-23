@@ -52,7 +52,7 @@ implementations with their constructors
 (`NewPostgresFindingStore` with its
 `WithReadModel` and `WithReadStore` variants, `NewPostgresAggregateStore`
 with its `WithReadStore` variant,
-`NewPostgresGroupedInventoryStoreWithReadStore` (winners-sourced, gated by
+`NewPostgresGroupedInventoryStoreWithReadStore` (winners-sourced for unscoped calls, supports-sourced for scoped-token calls, gated by
 `ESHU_SUPPLY_CHAIN_IMPACT_WINNERS_READ`),
 `NewPostgresReadinessStore`,
 `NewPostgresReadinessStoreWithReadStore` (guarded read-only snapshots),
@@ -65,7 +65,7 @@ provenance), the builder entry points
 (`BuildExplanation` and its no-evidence/ambiguous
 variants, `BuildReadiness` and its unavailable
 variant, `BuildFindingResult`), the SQL texts
-(`ListFindingsQuery` and its winners variant,
+(`ListFindingsQuery` and its winners and supports variants,
 `ExplainFindingQuery`, the aggregates/readiness/
 runtime/suppression texts), the request helpers the staying handlers
 call (`RequestedProfile`, `FilterProfile`,

@@ -104,3 +104,11 @@ its doubles; never redeclare them.
   struct-completeness note in `factschema_decode.go` first —
   if the sdk struct does not declare the field, the read stays raw with a
   struct-gap comment, same as the existing ones.
+- The impact-anchored evidence read (`evidence_supports.go`, #10880 PR-B2a): with
+  the winners gate on, a repository, service, or workload anchored call derives
+  its anchors from `supply_chain_impact_finding_supports` through
+  `ListEvidenceFromSupportsQuery`, which is derived from `ListEvidenceQuery` by
+  marker surgery. Keep it derived (a lost marker fails package initialization),
+  probe `SupplyChainImpactSupportsReady` before the read, and answer
+  `ErrEvidenceSupportsUnavailable` instead of reading impact finding facts. A
+  bare cve, advisory, or package call reads no impact finding and never probes.
