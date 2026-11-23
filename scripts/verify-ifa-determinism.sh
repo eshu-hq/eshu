@@ -379,8 +379,7 @@ for n in "${worker_counts[@]}"; do
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
 		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
-		tail -30 "${log_dir}/reducer-n${n}.log" || true
-		tail -30 "${log_dir}/projector-n${n}.log" || true
+		ifa_det_dump_drain_failure "N=${n}" "${DETERMINISM_COMPOSE_PROJECT}" "${use_compose}" "${ESHU_POSTGRES_DSN}" "${compose_file}" "${log_dir}" "reducer-n${n}" "projector-n${n}"
 		die "N=${n}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
 	fi
 	# Assert every registered shared_cell family, same order as the drive loop

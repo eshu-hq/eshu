@@ -102,7 +102,8 @@ type ProjectorQueue struct {
 	// ackSkipLog samples the Ack's gate-skip log line. Nil uses
 	// processAckSkipLog, shared by every queue in the process; only tests set
 	// it, to own the clock.
-	ackSkipLog *logSampler
+	ackSkipLog            *logSampler
+	skipAckPostCommitWake bool // tests only: skip the #11228 re-wake, as a crash after the commit would
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's

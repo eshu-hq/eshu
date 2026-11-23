@@ -3816,6 +3816,14 @@ type Instruments struct {
 	// kind. The queue row keeps its timer path. Registered by
 	// registerReducerWaitingInstruments.
 	ReducerWaitingKeyOversize metric.Int64Counter
+	// ReducerWaitingFallbackResolved counts parked waits a fallback
+	// resolved instead of a wake (#11228): the #10876 slow audit (outcome
+	// reopened or reconciled) or the reducer claim at the 10-minute
+	// backstop (outcome backstop), by reason (failure_class) and the
+	// reason's registered wake site (wake_site). A reopened or backstop
+	// wait whose wake site is not audit means its wake was lost.
+	// Registered by registerReducerWaitingInstruments.
+	ReducerWaitingFallbackResolved metric.Int64Counter
 	// ReducerWaitingCount is the parked-wait count by reason (failure_class),
 	// recorded by the waiting audit each cycle. Registered by
 	// registerReducerWaitingInstruments.
