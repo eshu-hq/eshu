@@ -47,8 +47,11 @@ nothing at all).
 - `eshu_dp_vulnerability_nvd_window_claims_total` (`transport`, `outcome`):
   which transport served each counted window and how it ended. Never counted:
   pre-satellite host failures, `invalid_claim`, `identity_mismatch`,
-  `invalid_result`, `launch_failure`, and `status_record` verdicts, plus
-  commits lost when a newer generation takes the stash slot first.
+  `invalid_result`, `launch_failure`, and `status_record` verdicts, commits
+  lost when a newer generation takes the stash slot first, and windows
+  dropped when the 256-entry pending stash overflows (the oldest-attempt
+  entry is evicted silently, so an evicted window is uncounted and
+  invisible).
 - `eshu_dp_vulnerability_nvd_window_cursor_advance_total` (`transport`,
   `outcome=advanced|held`): held means the facts committed and the verdict
   held the cursor.
