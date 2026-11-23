@@ -30,7 +30,7 @@ fact epoch cache counters (`eshu_dp_identity_cache_*`) and the
 carrying its work item id); a successor whose ACK committed in such a batch is
 recorded as `succeeded` with its result. `ack_outcome_unknown` marks a batch
 whose ACK may have committed only some of its surviving items, or an ACK cut
-short by shutdown. `fail_interrupted_by_shutdown` marks a `Fail` (its retry UPDATE or its wait-park statements) cut short by shutdown (#11256): the item is retrying on its backstop or its claim expires for reclaim, the run stops cleanly, and the WARN log carries the handler error and the cancelled `Fail` error. `ack_abandoned_to_lease_expiry` marks an ACK, single-item or batch, that kept failing with a Postgres deadlock
+short by shutdown. `fail_interrupted_by_shutdown` marks a `Fail` (its retry UPDATE or its wait-park statements) cut short by shutdown (#11256): the item retries on its backstop, its claim expires for reclaim, or it is already dead-lettered (the terminal update committed), the run stops cleanly, and the WARN log carries the handler error and the cancelled `Fail` error. `ack_abandoned_to_lease_expiry` marks an ACK, single-item or batch, that kept failing with a Postgres deadlock
 (40P01) or serialization failure (40001) through its five attempts: the claim
 stays leased and is reclaimed when the lease expires, and the run keeps
 draining. A steady rate of it points at lock contention on the queue rows, not

@@ -135,11 +135,11 @@ func (s Service) recordReducerResult(ctx context.Context, intent reducercontract
 			// The ACK path emits a separate warning with the stale-claim context.
 		case failStatusInterruptedByShutdown:
 			// Shutdown cut Fail short: the handler error and the cancelled Fail
-			// error are both on the line, since the retry UPDATE may or may not
-			// have committed (the item is retrying on its backstop, or the
-			// claim expires for reclaim).
+			// error are both on the line, since the terminal update may or may
+			// not have committed (the item retries on its backstop, its claim
+			// expires, or it is already dead-lettered).
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr(failStatusInterruptedByShutdown), log.Err(execErr))
-			s.Logger.WarnContext(ctx, "reducer fail interrupted by shutdown; the item retries on its backstop or its claim expires", logAttrs...)
+			s.Logger.WarnContext(ctx, "reducer fail interrupted by shutdown; the item retries on its backstop, its claim expires, or it is already dead-lettered (the terminal update committed)", logAttrs...)
 		case ackStatusOutcomeUnknown:
 			logAttrs = append(logAttrs, telemetry.FailureClassAttr(ackStatusOutcomeUnknown), log.Err(execErr))
 			s.Logger.WarnContext(ctx, "reducer batch ack outcome unknown", logAttrs...)
@@ -450,9 +450,10 @@ func (s Service) logAckTransient(ctx context.Context, message, failureClass stri
 
 // failStatusInterruptedByShutdown is the result status recorded for an intent
 // whose WorkSink.Fail was cut short by shutdown. Fail's retry UPDATE commits
-// before its wait-park statements run, so the item is already retrying on its
-// backstop; only the park (or the retry UPDATE itself, in which case the claim
-// expires for reclaim) did not finish.
+// before its wait-park statements run, so a cut park leaves the item retrying on
+// its backstop. A cut retry UPDATE leaves the claim to expire for reclaim, and a
+// dead-letter UPDATE that committed while the client saw the cancel leaves the
+// item already dead-lettered; the log line carries both errors for that case.
 const failStatusInterruptedByShutdown = "fail_interrupted_by_shutdown"
 
 // stoppedByShutdown reports whether err is the run context's own cancellation:
@@ -464,8 +465,8 @@ func stoppedByShutdown(ctx context.Context, err error) bool {
 
 // recordShutdownInterrupt records an intent whose claim-side work shutdown cut
 // short (its Fail, or its ack, ended on the cancelled run context) and returns
-// nil so the run stops cleanly: the retry UPDATE already committed and the item
-// is on its backstop, or the claim expires for reclaim.
+// nil so the run stops cleanly: the item is on its backstop, its claim expires for
+// reclaim, or (for a Fail) its terminal update committed and it is dead-lettered.
 func (s Service) recordShutdownInterrupt(
 	ctx context.Context,
 	intent reducercontract.Intent,
