@@ -1,0 +1,337 @@
+##### generations=5000 supports=300000
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_load.sql:4: NOTICE:  schema "shim" does not exist, skipping
+  heap  | scope_generation_idx | supports
+--------+----------------------+----------
+ 146 MB | 2144 kB              |   300000
+(1 row)
+
+===== variant=without generation index
+    k    |    v
+---------+---------
+ variant | without
+(1 row)
+
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_probe.sql:4: NOTICE:  index "shim_generation_idx" does not exist, skipping
+ scope_generation_idx | generation_idx
+----------------------+----------------
+ 2144 kB              | none
+(1 row)
+
+--- cascade probe, three generations (first, middle, last), buffers and Index Searches
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=1.420..1.420 rows=0.00 loops=1)
+   Buffers: shared hit=182 read=266
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.042..1.387 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=62 read=266
+ Planning:
+   Buffers: shared hit=27
+ Planning Time: 0.097 ms
+ Execution Time: 2.267 ms
+(10 rows)
+
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.367..0.367 rows=0.00 loops=1)
+   Buffers: shared hit=446
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.111..0.326 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=326
+ Planning:
+   Buffers: shared hit=58
+ Planning Time: 0.123 ms
+ Execution Time: 0.378 ms
+(10 rows)
+
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.292..0.292 rows=0.00 loops=1)
+   Buffers: shared hit=416
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.191..0.269 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=326
+ Planning Time: 0.018 ms
+ Execution Time: 0.299 ms
+(8 rows)
+
+--- real cascade, 50 generations in one DELETE FROM the parent table
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_generations (actual time=0.809..0.810 rows=0.00 loops=1)
+   Buffers: shared hit=136
+   ->  Hash Semi Join (actual time=0.320..0.763 rows=50.00 loops=1)
+         Hash Cond: (shim_generations.generation_id = ('gen:'::text || (g.g)::text))
+         Buffers: shared hit=32
+         ->  Seq Scan on shim_generations (actual time=0.004..0.316 rows=5000.00 loops=1)
+               Buffers: shared hit=32
+         ->  Hash (actual time=0.197..0.198 rows=50.00 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 12kB
+               ->  Function Scan on generate_series g (actual time=0.186..0.190 rows=50.00 loops=1)
+ Planning:
+   Buffers: shared hit=62
+ Planning Time: 0.188 ms
+ Trigger for constraint shim_supports_generation_id_fkey: time=10.838 calls=50
+ Execution Time: 11.694 ms
+(15 rows)
+
+===== variant=with generation index
+    k    |  v
+---------+------
+ variant | with
+(1 row)
+
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_probe.sql:4: NOTICE:  index "shim_generation_idx" does not exist, skipping
+ scope_generation_idx | generation_idx
+----------------------+----------------
+ 2144 kB              | 2128 kB
+(1 row)
+
+--- cascade probe, three generations (first, middle, last), buffers and Index Searches
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.127..0.127 rows=0.00 loops=1)
+   Buffers: shared hit=180 read=3
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.040..0.097 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=60 read=3
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.033..0.033 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared read=3
+ Planning:
+   Buffers: shared hit=28
+ Planning Time: 0.105 ms
+ Execution Time: 0.172 ms
+(14 rows)
+
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.112..0.112 rows=0.00 loops=1)
+   Buffers: shared hit=182 read=1
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.024..0.077 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=62 read=1
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.016..0.016 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared hit=2 read=1
+ Planning:
+   Buffers: shared hit=58
+ Planning Time: 0.101 ms
+ Execution Time: 0.119 ms
+(14 rows)
+
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.103..0.103 rows=0.00 loops=1)
+   Buffers: shared hit=151 read=2
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.027..0.081 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=61 read=2
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.019..0.019 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared hit=1 read=2
+ Planning Time: 0.025 ms
+ Execution Time: 0.109 ms
+(12 rows)
+
+--- real cascade, 50 generations in one DELETE FROM the parent table
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_generations (actual time=0.863..0.864 rows=0.00 loops=1)
+   Buffers: shared hit=135
+   ->  Hash Semi Join (actual time=0.372..0.822 rows=50.00 loops=1)
+         Hash Cond: (shim_generations.generation_id = ('gen:'::text || (g.g)::text))
+         Buffers: shared hit=32
+         ->  Seq Scan on shim_generations (actual time=0.004..0.305 rows=5000.00 loops=1)
+               Buffers: shared hit=32
+         ->  Hash (actual time=0.247..0.247 rows=50.00 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 12kB
+               ->  Function Scan on generate_series g (actual time=0.235..0.239 rows=50.00 loops=1)
+ Planning:
+   Buffers: shared hit=62
+ Planning Time: 0.168 ms
+ Trigger for constraint shim_supports_generation_id_fkey: time=2.149 calls=50
+ Execution Time: 3.034 ms
+(15 rows)
+
+##### generations=20000 supports=1200000
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_load.sql:4: NOTICE:  drop cascades to 2 other objects
+DETAIL:  drop cascades to table shim.shim_generations
+drop cascades to table shim.shim_supports
+  heap  | scope_generation_idx | supports
+--------+----------------------+----------
+ 603 MB | 8488 kB              |  1200000
+(1 row)
+
+===== variant=without generation index
+    k    |    v
+---------+---------
+ variant | without
+(1 row)
+
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_probe.sql:4: NOTICE:  index "shim_generation_idx" does not exist, skipping
+ scope_generation_idx | generation_idx
+----------------------+----------------
+ 8488 kB              | none
+(1 row)
+
+--- cascade probe, three generations (first, middle, last), buffers and Index Searches
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=5.553..5.553 rows=0.00 loops=1)
+   Buffers: shared hit=182 read=1055 dirtied=18
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.062..5.512 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=62 read=1055
+ Planning:
+   Buffers: shared hit=47
+ Planning Time: 0.131 ms
+ Execution Time: 5.586 ms
+(10 rows)
+
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=1.120..1.120 rows=0.00 loops=1)
+   Buffers: shared hit=1234 dirtied=19
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.019..1.085 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=1115
+ Planning:
+   Buffers: shared hit=58
+ Planning Time: 0.135 ms
+ Execution Time: 1.136 ms
+(10 rows)
+
+                                                   QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.922..0.922 rows=0.00 loops=1)
+   Buffers: shared hit=1186 dirtied=1
+   ->  Index Scan using shim_scope_generation_idx on shim_supports (actual time=0.478..0.891 rows=60.00 loops=1)
+         Index Cond: (generation_id = $1)
+         Index Searches: 1
+         Buffers: shared hit=1115
+ Planning Time: 0.025 ms
+ Execution Time: 0.932 ms
+(8 rows)
+
+--- real cascade, 50 generations in one DELETE FROM the parent table
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Delete on shim_generations (actual time=0.490..0.490 rows=0.00 loops=1)
+   Buffers: shared hit=254
+   ->  Nested Loop (actual time=0.324..0.427 rows=50.00 loops=1)
+         Buffers: shared hit=150
+         ->  HashAggregate (actual time=0.301..0.306 rows=50.00 loops=1)
+               Group Key: ('gen:'::text || (g.g)::text)
+               Batches: 1  Memory Usage: 32kB
+               ->  Function Scan on generate_series g (actual time=0.267..0.274 rows=50.00 loops=1)
+         ->  Index Scan using shim_generations_pkey on shim_generations (actual time=0.002..0.002 rows=1.00 loops=50)
+               Index Cond: (generation_id = ('gen:'::text || (g.g)::text))
+               Index Searches: 50
+               Buffers: shared hit=150
+ Planning:
+   Buffers: shared hit=62
+ Planning Time: 0.247 ms
+ Trigger for constraint shim_supports_generation_id_fkey: time=39.325 calls=50
+ Execution Time: 39.879 ms
+(17 rows)
+
+===== variant=with generation index
+    k    |  v
+---------+------
+ variant | with
+(1 row)
+
+psql:/home/ubuntu/personal-repos/eshu-worktrees/drive/10880-pr-b1/docs/internal/evidence/10880-pr-b1/cascade_scale_probe.sql:4: NOTICE:  index "shim_generation_idx" does not exist, skipping
+ scope_generation_idx | generation_idx
+----------------------+----------------
+ 8488 kB              | 8488 kB
+(1 row)
+
+--- cascade probe, three generations (first, middle, last), buffers and Index Searches
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.150..0.151 rows=0.00 loops=1)
+   Buffers: shared hit=180 read=3
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.044..0.114 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=60 read=3
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.036..0.036 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared read=3
+ Planning:
+   Buffers: shared hit=48
+ Planning Time: 0.143 ms
+ Execution Time: 0.181 ms
+(14 rows)
+
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.100..0.100 rows=0.00 loops=1)
+   Buffers: shared hit=182
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.010..0.073 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=63
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.005..0.005 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=58
+ Planning Time: 0.095 ms
+ Execution Time: 0.105 ms
+(14 rows)
+
+                                             QUERY PLAN
+----------------------------------------------------------------------------------------------------
+ Delete on shim_supports (actual time=0.099..0.099 rows=0.00 loops=1)
+   Buffers: shared hit=132 read=2
+   ->  Bitmap Heap Scan on shim_supports (actual time=0.026..0.081 rows=60.00 loops=1)
+         Recheck Cond: (generation_id = $1)
+         Heap Blocks: exact=60
+         Buffers: shared hit=61 read=2
+         ->  Bitmap Index Scan on shim_generation_idx (actual time=0.020..0.020 rows=60.00 loops=1)
+               Index Cond: (generation_id = $1)
+               Index Searches: 1
+               Buffers: shared hit=1 read=2
+ Planning Time: 0.011 ms
+ Execution Time: 0.103 ms
+(12 rows)
+
+--- real cascade, 50 generations in one DELETE FROM the parent table
+                                                      QUERY PLAN
+----------------------------------------------------------------------------------------------------------------------
+ Delete on shim_generations (actual time=0.393..0.394 rows=0.00 loops=1)
+   Buffers: shared hit=253
+   ->  Nested Loop (actual time=0.257..0.355 rows=50.00 loops=1)
+         Buffers: shared hit=150
+         ->  HashAggregate (actual time=0.238..0.242 rows=50.00 loops=1)
+               Group Key: ('gen:'::text || (g.g)::text)
+               Batches: 1  Memory Usage: 32kB
+               ->  Function Scan on generate_series g (actual time=0.222..0.228 rows=50.00 loops=1)
+         ->  Index Scan using shim_generations_pkey on shim_generations (actual time=0.002..0.002 rows=1.00 loops=50)
+               Index Cond: (generation_id = ('gen:'::text || (g.g)::text))
+               Index Searches: 50
+               Buffers: shared hit=150
+ Planning:
+   Buffers: shared hit=62
+ Planning Time: 0.159 ms
+ Trigger for constraint shim_supports_generation_id_fkey: time=2.640 calls=50
+ Execution Time: 3.060 ms
+(17 rows)
+
+exit=0

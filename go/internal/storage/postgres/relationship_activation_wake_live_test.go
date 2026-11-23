@@ -100,12 +100,57 @@ func seedWakeFixture(t *testing.T, ctx context.Context, db *sql.DB, at time.Time
 			reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass,
 		},
 	} {
-		addOwnGateItem(t, ctx, db, row.id, row.scope, row.gen, row.domain, at)
+		if row.id == f.wmID {
+			// Production enqueue writes payload.entity_key as the intent's entity
+			// key; addOwnGateItem writes the work item id there instead, which
+			// the #11270 collision guard rightly reads as a different intent.
+			enqueueWakeWorkloadItem(t, ctx, db, f, at)
+		} else {
+			addOwnGateItem(t, ctx, db, row.id, row.scope, row.gen, row.domain, at)
+		}
 		if row.status != "pending" {
 			setWakeRow(t, ctx, db, row.id, row.status, row.class, 3)
 		}
 	}
 	return f
+}
+
+// enqueueWakeWorkloadItem queues the workload_materialization item through the
+// production enqueue path so its stored identity (scope, generation, domain,
+// payload.entity_key) is what a replay of the same intent later compares against.
+func enqueueWakeWorkloadItem(t *testing.T, ctx context.Context, db *sql.DB, f wakeFixture, at time.Time) {
+	t.Helper()
+	clock := at
+	result, err := newOwnGateQueue(db, &clock).Enqueue(ctx, []runtime.ReducerIntent{{
+		ScopeID: f.scope, GenerationID: f.gen, Domain: reducer.DomainWorkloadMaterialization,
+		EntityKey: f.wmEntity, Reason: "wake-fixture", SourceSystem: "git",
+	}})
+	if err != nil || result.Count != 1 {
+		t.Fatalf("enqueue workload item = %+v, %v, want one inserted", result, err)
+	}
+}
+
+// TestReplayOfDeadLetteredProductionItemIsNotACollisionLive pins that replaying
+// the same workload intent the queue already holds, here dead-lettered, is the
+// benign NotScheduled coalesce and not a work item id collision (#11288). The
+// row is written by production enqueue, so payload.entity_key is the real key.
+func TestReplayOfDeadLetteredProductionItemIsNotACollisionLive(t *testing.T) {
+	dsn := reducerDomainFairnessDSN()
+	if dsn == "" {
+		t.Skip("set ESHU_REDUCER_FAIRNESS_PROOF_DSN or ESHU_POSTGRES_DSN to run the #11288 replay proof")
+	}
+	ctx := context.Background()
+	db, _ := openReducerFairnessDBWithSchema(t, ctx, dsn)
+	clock := time.Now().UTC()
+	f := seedWakeFixture(t, ctx, db, clock.Add(-2*time.Hour))
+	var stored string
+	if err := db.QueryRowContext(ctx, `SELECT payload ->> 'entity_key' FROM fact_work_items WHERE work_item_id = $1`, f.wmID).Scan(&stored); err != nil || stored != f.wmEntity {
+		t.Fatalf("stored payload.entity_key = %q, %v, want %q", stored, err, f.wmEntity)
+	}
+	got, err := newOwnGateQueue(db, &clock).ReplayWorkloadMaterializationOutcome(ctx, f.scope, f.gen, f.wmEntity)
+	if err != nil || got != reducer.WorkloadMaterializationReplayNotScheduled {
+		t.Fatalf("replay of the same dead-lettered intent = %v, %v; want NotScheduled with no collision", got, err)
+	}
 }
 
 // activationPath runs one of the three production activation writers.

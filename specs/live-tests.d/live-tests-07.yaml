@@ -564,6 +564,26 @@ tests:
     class: dedicated_ci
     reason: "#11131: reducer-contention covers 4 named Go test(s) via the WinnersResweep pattern; local run (no -race, loaded host) against disposable PostgreSQL 18.6 passed; seeded stale, missing and orphan winners are repaired within one sweep, a roll resumes from the persisted cursor, the NULL and pipe guards defer, and two instances advance each range once with the loser's repairs rolled back"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_backfill_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof that the supports backfill fills, verifies, restarts on a gap, and waits for the writer's conflict-domain lock"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_fence_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof of the old-writer fence (a writer without the maintainer marks its scope dirty, the backfill drains it, the marker waits for an empty fence), a fresh install, a resume after a kill with a replayed sweep that rewrites nothing, a marker above the binary's version, and the operator-scope pass writing supports through the same writer"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_fence_privilege_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof that the old-writer fence trigger runs as its owner: a login with INSERT and UPDATE on fact_records and no privilege on the dirty table marks its scope on an insert and an update, the writer setting and another fact kind mark nothing, a caller's temp table named like the dirty table does not divert the mark, and the function holds the definer posture (SECURITY DEFINER, PUBLIC execute revoked, pinned search_path) in public and in an isolated schema"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-B1: reducer-contention proof that the per-support table follows the real writer and survives racing writers"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~
     class: dedicated_ci

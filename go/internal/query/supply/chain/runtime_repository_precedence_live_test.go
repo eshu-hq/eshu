@@ -203,13 +203,14 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	if count.TotalFindings != want {
 		t.Fatalf("count %s for %s = %d, want %d", tc.name, repositoryID, count.TotalFindings, want)
 	}
-	inventory, err := aggregateStore.SupplyChainImpactInventory(
+	inventoryPage, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
 		impact.InventoryByStatus,
 		10,
 		0,
 	)
+	inventory := inventoryPage.Rows
 	if err != nil {
 		t.Fatalf("inventory %s for %s: %v", tc.name, repositoryID, err)
 	}

@@ -1,0 +1,227 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package postgres_test
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"sort"
+	"testing"
+	"time"
+
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+)
+
+// hideSupportsBeginner forwards the whole tx surface except the supports maintainer.
+type hideSupportsBeginner struct {
+	inner supplychaincore.SupplyChainImpactBeginner
+}
+
+func (b hideSupportsBeginner) BeginSupplyChainImpactTx(ctx context.Context) (supplychaincore.SupplyChainImpactTx, error) {
+	tx, err := b.inner.BeginSupplyChainImpactTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &hideSupportsTx{tx: tx}, nil
+}
+
+type hideSupportsTx struct {
+	tx supplychaincore.SupplyChainImpactTx
+}
+
+func (t *hideSupportsTx) ExecContext(ctx context.Context, q string, a ...any) (sql.Result, error) {
+	return t.tx.ExecContext(ctx, q, a...)
+}
+func (t *hideSupportsTx) QueryContext(ctx context.Context, q string, a ...any) (supplychaincore.SupplyChainImpactRows, error) {
+	return t.tx.QueryContext(ctx, q, a...)
+}
+func (t *hideSupportsTx) Commit() error   { return t.tx.Commit() }
+func (t *hideSupportsTx) Rollback() error { return t.tx.Rollback() }
+func (t *hideSupportsTx) CaptureWinnersDirtyFacts(ctx context.Context, ids []supplychaincore.WinnersDirtyIdentifier) (int64, error) {
+	return t.tx.(supplychaincore.SupplyChainImpactWinnersCapturer).CaptureWinnersDirtyFacts(ctx, ids)
+}
+func (t *hideSupportsTx) RecordWinnersCapture(ctx context.Context, s string, r int64) {
+	t.tx.(supplychaincore.SupplyChainImpactWinnersCapturer).RecordWinnersCapture(ctx, s, r)
+}
+
+func walBytes(t *testing.T, ctx context.Context, db *sql.DB, from string) (string, int64) {
+	t.Helper()
+	var now string
+	var diff sql.NullInt64
+	if err := db.QueryRowContext(ctx, `SELECT pg_current_wal_lsn()::text, CASE WHEN $1 = '' THEN 0 ELSE pg_wal_lsn_diff(pg_current_wal_lsn(), $1::pg_lsn)::bigint END`, from).Scan(&now, &diff); err != nil {
+		t.Fatalf("wal: %v", err)
+	}
+	return now, diff.Int64
+}
+
+// TestZZB1WriteCostScratch measures the writer's WAL for three passes (insert,
+// replay under a new intent id, retract) in three variants: without the supports
+// maintainer, with it and the generation_id index dropped (the shape before the
+// arbiter's cascade ruling), and with it and the shipped migration 338 (the
+// generation_id index present).
+func TestZZB1WriteCostScratch(t *testing.T) {
+	const n = 3000
+	type result struct {
+		wal [3]int64
+		dur [3]time.Duration
+	}
+	run := func(withSupports, dropGenerationIndex bool) result {
+		ctx, db := openReplaceSetLiveDB(t)
+		if dropGenerationIndex {
+			if _, err := db.ExecContext(ctx, `DROP INDEX supply_chain_impact_finding_supports_generation_idx`); err != nil {
+				t.Fatalf("drop generation index: %v", err)
+			}
+		}
+		var beginner supplychaincore.SupplyChainImpactBeginner = postgres.SupplyChainImpactBeginner{Beginner: postgres.SQLDB{DB: db}}
+		if !withSupports {
+			beginner = hideSupportsBeginner{inner: beginner}
+		}
+		writer := supplychaincore.PostgresSupplyChainImpactWriter{DB: beginner, Now: func() time.Time { return replaceSetLiveNow }}
+		set := func(count int) []supplychaincore.SupplyChainImpactFinding {
+			out := make([]supplychaincore.SupplyChainImpactFinding, 0, count)
+			for i := 0; i < count; i++ {
+				out = append(out, replaceSetFinding(fmt.Sprintf("repository:r_wc_%d", i)))
+			}
+			return out
+		}
+		var res result
+		steps := []struct {
+			name  string
+			count int
+		}{{"insert", n}, {"replay", n}, {"retract", n / 2}}
+		for i, step := range steps {
+			lsn, _ := walBytes(t, ctx, db, "")
+			start := time.Now()
+			if _, err := writer.WriteSupplyChainImpactFindings(ctx, replaceSetWrite(fmt.Sprintf("intent:wc:%s", step.name), set(step.count)...)); err != nil {
+				t.Fatalf("%s: %v", step.name, err)
+			}
+			res.dur[i] = time.Since(start)
+			_, res.wal[i] = walBytes(t, ctx, db, lsn)
+		}
+		return res
+	}
+	for rep := 0; rep < 3; rep++ {
+		without, noIdx, withIdx := run(false, false), run(true, true), run(true, false)
+		for i, name := range []string{"insert", "replay", "retract"} {
+			t.Logf("rep %d %-7s WAL without=%9d supports-no-genidx=%9d (+%5.1f%%) supports+genidx=%9d (+%5.1f%%) | genidx adds %5.1f pts, %d bytes",
+				rep, name, without.wal[i],
+				noIdx.wal[i], 100*float64(noIdx.wal[i]-without.wal[i])/float64(without.wal[i]),
+				withIdx.wal[i], 100*float64(withIdx.wal[i]-without.wal[i])/float64(without.wal[i]),
+				100*float64(withIdx.wal[i]-noIdx.wal[i])/float64(without.wal[i]), withIdx.wal[i]-noIdx.wal[i])
+		}
+	}
+}
+
+func TestZZB1BackfillDurationScratch(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	const scopes, per = 2000, 50
+	stmts := []string{
+		`INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind, partition_key, observed_at, ingested_at, status, active_generation_id, payload)
+SELECT 'scope:bf:' || n, 'synthetic', 'synthetic', 'k' || n, 'synthetic', 'k' || n, NOW(), NOW(), 'active', 'gen:bf:' || n, '{}'::jsonb FROM generate_series(1, $1) AS n`,
+		`INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at, payload)
+SELECT 'gen:bf:' || n, 'scope:bf:' || n, 'synthetic', NOW(), NOW(), 'active', NOW(), '{}'::jsonb FROM generate_series(1, $1) AS n`,
+	}
+	for _, s := range stmts {
+		if _, err := db.ExecContext(ctx, s, scopes); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, schema_version, collector_kind, fencing_token, source_confidence, source_system, source_fact_key, observed_at, ingested_at, payload)
+SELECT 'reducer_supply_chain_impact_finding:bf:' || n || ':' || k, 'scope:bf:' || n, 'gen:bf:' || n, 'reducer_supply_chain_impact_finding',
+       'k' || n || ':' || k, '1.0.0', 'synthetic', 1, 'observed', 'synthetic', 'k' || n || ':' || k, NOW(), NOW(),
+       jsonb_build_object('finding_id', 'finding:bf:' || n || ':' || k, 'cve_id', 'CVE-2026-' || k, 'package_id', 'pkg:npm/p' || k,
+         'repository_id', 'repository:bf:' || n, 'impact_status', 'affected_exact', 'priority_score', (k * 7) % 100,
+         'priority_bucket', 'high', 'cvss_score', 7.5, 'observed_version', '1.0.0', 'detection_profile', 'precise',
+         'match_reason', 'npm_semver_affected_range', 'padding', repeat('x', 600))
+FROM generate_series(1, $1) AS n, generate_series(1, $2) AS k`, scopes, per); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `ANALYZE fact_records`); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`EXPLAIN (ANALYZE, BUFFERS) SELECT scope_id, generation_id FROM fact_records WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE AND (scope_id, generation_id) > ('', '') ORDER BY scope_id, generation_id LIMIT 1`,
+		`EXPLAIN (ANALYZE, BUFFERS) SELECT scope_id, generation_id FROM fact_records WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND is_tombstone = FALSE AND (scope_id, generation_id) > ('scope:bf:1000', 'gen:bf:1000') ORDER BY scope_id, generation_id LIMIT 1`,
+	} {
+		rows, err := db.QueryContext(ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rows.Next() {
+			var line string
+			_ = rows.Scan(&line)
+			t.Log(line)
+		}
+		_ = rows.Close()
+	}
+	b := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}}
+	start := time.Now()
+	var maxStep time.Duration
+	steps := 0
+	for {
+		s := time.Now()
+		report, err := b.RunStep(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d := time.Since(s); d > maxStep {
+			maxStep = d
+		}
+		steps++
+		if report.Complete {
+			break
+		}
+	}
+	var n int
+	_ = db.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports`).Scan(&n)
+	t.Logf("backfill %d facts: %d steps, total %v (%.0f supports/s), max step %v, supports=%d", scopes*per, steps, time.Since(start).Round(time.Millisecond), float64(n)/time.Since(start).Seconds(), maxStep.Round(time.Millisecond), n)
+}
+
+func TestZZB1TriggerCostScratch(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	const rows = 8000
+	insert := func(kind string, withSetting bool, disabled bool, tag string) (int64, time.Duration) {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback() }()
+		if disabled {
+			if _, err := tx.ExecContext(ctx, `ALTER TABLE fact_records DISABLE TRIGGER supply_chain_impact_finding_supports_dirty_insert`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if withSetting {
+			if _, err := tx.ExecContext(ctx, `SELECT set_config('eshu.supply_chain_impact_supports_writer', 'supports_v1', true)`); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lsn, _ := walBytes(t, ctx, db, "")
+		start := time.Now()
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload, fencing_token)
+SELECT $2 || ':' || n, $3, $4, $1, $2 || ':' || n, 'synthetic', $2 || ':' || n, now(), now(), FALSE,
+       jsonb_build_object('cve_id', 'CVE-' || n, 'padding', repeat('x', 400)), 1
+FROM generate_series(1, $5) AS n`, kind, tag, replaceSetLiveScope, replaceSetLiveGeneration, rows); err != nil {
+			t.Fatal(err)
+		}
+		d := time.Since(start)
+		_, w := walBytes(t, ctx, db, lsn)
+		_ = tx.Rollback()
+		return w, d
+	}
+	const impact, other = "reducer_supply_chain_impact_finding", "vulnerability.cve"
+	for rep := 0; rep < 3; rep++ {
+		wa, da := insert(impact, false, true, fmt.Sprintf("a%d", rep))
+		wb, db_ := insert(impact, true, false, fmt.Sprintf("b%d", rep))
+		wc, dc := insert(impact, false, false, fmt.Sprintf("c%d", rep))
+		wo, do := insert(other, false, true, fmt.Sprintf("o%d", rep))
+		wp, dp := insert(other, false, false, fmt.Sprintf("p%d", rep))
+		t.Logf("rep %d impact x%d: trigger off WAL %d %v | setting present (WHEN false) WAL %d %v | old writer (fires) WAL %d %v || other kind: trigger off WAL %d %v | trigger on WAL %d %v", rep, rows,
+			wa, da.Round(time.Millisecond), wb, db_.Round(time.Millisecond), wc, dc.Round(time.Millisecond), wo, do.Round(time.Millisecond), wp, dp.Round(time.Millisecond))
+	}
+}

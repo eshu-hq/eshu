@@ -15,12 +15,12 @@ HELPER_PROOFS = {
         "consumer_sha256": "88bad0a2482c8301fe320e8ca562820e5734299e4a67eead8f8fac4819f551cd",
     },
     "go/internal/query/supply/chain/runtime_context_scope_live_test.go": {
-        "helper_sha256": "6ab6730caa6267a77dad04f6ad588e4e69f1f9965313240f2a1959b521a880cf",
+        "helper_sha256": "d56740654d06f91d6c796d795e18587dfd07e21d05ddef42b64e9ec5b82c68c9",
         "consumers": [
             {
                 "consumer_file": "go/internal/query/supply/chain/runtime_filter_live_test.go",
                 "consumer_test": "TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive",
-                "consumer_sha256": "17cee4f2b4af8756d470661cdd001b10e25d0a6358e1c5a95e76c8479654d4ca",
+                "consumer_sha256": "e7a071fa924132088ba330b16b4d03fcf0f8eacb5060e2da80f33251b4fe6cc6",
             },
             {
                 "consumer_file": "go/internal/query/supply/chain/runtime_filter_plan_live_test.go",
@@ -37,14 +37,14 @@ HELPER_PROOFS = {
     "go/internal/query/supply/chain/runtime_normalization_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/runtime_filter_live_test.go",
         "consumer_test": "TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive",
-        "helper_sha256": "55c539a5a68756531528779d3d78ed9006ad42a844622018adc76de77aa2b8bc",
-        "consumer_sha256": "17cee4f2b4af8756d470661cdd001b10e25d0a6358e1c5a95e76c8479654d4ca",
+        "helper_sha256": "df9f855be621c120fc77611606100fc7e3db077bb81462855308367c2e53fc07",
+        "consumer_sha256": "e7a071fa924132088ba330b16b4d03fcf0f8eacb5060e2da80f33251b4fe6cc6",
     },
     "go/internal/query/supply/chain/runtime_repository_precedence_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/runtime_filter_live_test.go",
         "consumer_test": "TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive",
-        "helper_sha256": "1eff22510927a16f8a498b416ff64f2b461aeab1c2614e57d4f0f8320af9e130",
-        "consumer_sha256": "17cee4f2b4af8756d470661cdd001b10e25d0a6358e1c5a95e76c8479654d4ca",
+        "helper_sha256": "6b2ed7ab4ede3d4a274c57aeff9b10efc59075eb94ac66ddb7aef707e19aa395",
+        "consumer_sha256": "e7a071fa924132088ba330b16b4d03fcf0f8eacb5060e2da80f33251b4fe6cc6",
     },
     "go/internal/query/supply/chain/suppression_authority_adversarial_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
@@ -55,7 +55,7 @@ HELPER_PROOFS = {
     "go/internal/query/supply/chain/suppression_authority_assertions_live_test.go": {
         "consumer_file": "go/internal/query/supply/chain/suppression_authority_live_test.go",
         "consumer_test": "TestSupplyChainSuppressionAuthorityDirectAndMaterializedParityLive",
-        "helper_sha256": "a67ca8ce4d45cf56bb3400ec4336b80048e96dd7e8ba0c2e379deb79e884a19c",
+        "helper_sha256": "7b5bfe8e62cf5ecceb720257b1bf54d587d379d4677b981d14e8ffd385bfb8f2",
         "consumer_sha256": "fb8c9421e34c682ad561149acc6d8de44bdc42e4490582ff405cc7118078543f",
     },
     "go/internal/query/supply/chain/suppression_authority_scoped_live_test.go": {

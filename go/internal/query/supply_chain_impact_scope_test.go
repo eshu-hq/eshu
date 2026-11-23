@@ -52,9 +52,9 @@ func (s *failingSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	impact.InventoryDimension,
 	int,
 	int,
-) ([]impact.InventoryRow, error) {
+) (impact.AggregateInventoryPage, error) {
 	s.inventoryCalled = true
-	return nil, errors.New("broad supply-chain impact inventory read")
+	return impact.AggregateInventoryPage{}, errors.New("broad supply-chain impact inventory read")
 }
 
 // failingSupplyChainImpactExplanationStore (defined in

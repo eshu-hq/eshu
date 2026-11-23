@@ -166,6 +166,20 @@ func commitSupplyChainImpactRows(
 	if err := factwrite.BatchInsertVersionedFacts(ctx, tx, rows); err != nil {
 		return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact fact: %w", err)
 	}
+	// Keep the per-support table current in the same transaction, under the
+	// conflict-domain lock taken above, after the facts it derives from (#10880
+	// PR-B1). The supports are read back from the stored fact rows, so a row a
+	// fresher writer's fencing token kept is mirrored as stored, not as offered.
+	supports, hasSupports := tx.(SupplyChainImpactSupportsMaintainer)
+	if hasSupports && len(rows) > 0 {
+		factIDs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			factIDs = append(factIDs, row.FactID)
+		}
+		if _, err := supports.UpsertImpactSupports(ctx, factIDs); err != nil {
+			return supplyChainImpactTxOutcome{}, fmt.Errorf("write supply chain impact supports: %w", err)
+		}
+	}
 	// Name the keys this pass changed for the winners keyed resweep (#9805), in
 	// the transaction that changes them. A rewrite to an identical digest names
 	// nothing, so an unchanged rerun issues no extra statement.
@@ -235,6 +249,11 @@ func commitSupplyChainImpactRows(
 			return supplyChainImpactTxOutcome{}, err
 		}
 		outcome.retracted = tombstoned
+		if hasSupports {
+			if _, err := supports.DeleteRetractedImpactSupports(ctx, write.ScopeID, write.GenerationID); err != nil {
+				return supplyChainImpactTxOutcome{}, fmt.Errorf("remove retracted supply chain impact supports: %w", err)
+			}
+		}
 		// The capture count is the marked keys, not the tombstoned rows:
 		// twin findings that share one key collapse to one staged mark.
 		if capturer, ok := tx.(SupplyChainImpactWinnersCapturer); ok {
@@ -292,6 +311,18 @@ const lockSupplyChainImpactConflictDomainQuery = `SELECT pg_advisory_xact_lock(h
 // brief extra wait, never a wrong result.
 func supplyChainImpactConflictDomainKey(scopeID, generationID string) string {
 	return supplyChainImpactFactKind + "\x1f" + scopeID + "\x1f" + generationID
+}
+
+// SupplyChainImpactConflictDomainLockQuery is the transaction-scoped advisory
+// lock statement the impact writer takes for one (scope, generation). The
+// per-support backfill takes the same lock with the same key, so it cannot
+// interleave with a writer's fact and support writes or its retraction.
+const SupplyChainImpactConflictDomainLockQuery = lockSupplyChainImpactConflictDomainQuery
+
+// SupplyChainImpactConflictDomainKey returns the lock key text of one (scope,
+// generation) finding set, the argument of SupplyChainImpactConflictDomainLockQuery.
+func SupplyChainImpactConflictDomainKey(scopeID, generationID string) string {
+	return supplyChainImpactConflictDomainKey(scopeID, generationID)
 }
 
 // retractSupersededSupplyChainImpactFindingsQuery tombstones every active

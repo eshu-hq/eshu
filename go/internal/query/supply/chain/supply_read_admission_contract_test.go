@@ -51,7 +51,7 @@ var frozenSupplyChainReadAdmission = []string{
 	"SecurityAlertReconciliationQueueStates func(context.Context, []string) ([]chain.SecurityAlertReconciliationQueueState, error)",
 	"SecurityAlertTargetStates func(context.Context, []string, []string) ([]chain.SecurityAlertTargetState, error)",
 	"SupplyChainImpactGroupedInventory func(context.Context, impact.AggregateFilter, impact.GroupedInventoryDimension, int, int) (impact.GroupedInventoryPage, error)",
-	"SupplyChainImpactInventory func(context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int) ([]impact.InventoryRow, error)",
+	"SupplyChainImpactInventory func(context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int) (impact.AggregateInventoryPage, error)",
 }
 
 // supplyChainReadAdmissionMethodSet reflects the live
@@ -78,8 +78,8 @@ func supplyChainReadAdmissionMethodSet(t *testing.T, iface any) []string {
 func TestSupplyChainReadAdmissionContractIsVersioned(t *testing.T) {
 	t.Parallel()
 
-	if SupplyChainReadAdmissionContractVersion != "v0" {
-		t.Errorf("SupplyChainReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", SupplyChainReadAdmissionContractVersion, "v0")
+	if SupplyChainReadAdmissionContractVersion != "v1" {
+		t.Errorf("SupplyChainReadAdmissionContractVersion = %q, want %q: bump it deliberately with the shape change", SupplyChainReadAdmissionContractVersion, "v1")
 	}
 	got := supplyChainReadAdmissionMethodSet(t, (*SupplyChainReadAdmission)(nil))
 	if len(got) != len(frozenSupplyChainReadAdmission) {
@@ -186,8 +186,8 @@ func (supplyChainReadAdmissionWitness) SupplyChainImpactGroupedInventory(context
 	return impact.GroupedInventoryPage{}, nil
 }
 
-func (supplyChainReadAdmissionWitness) SupplyChainImpactInventory(context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int) ([]impact.InventoryRow, error) {
-	return nil, nil
+func (supplyChainReadAdmissionWitness) SupplyChainImpactInventory(context.Context, impact.AggregateFilter, impact.InventoryDimension, int, int) (impact.AggregateInventoryPage, error) {
+	return impact.AggregateInventoryPage{}, nil
 }
 
 var _ SupplyChainReadAdmission = supplyChainReadAdmissionWitness{}

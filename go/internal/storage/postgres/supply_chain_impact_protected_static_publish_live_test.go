@@ -111,41 +111,7 @@ func openProtectedPublishProof(t *testing.T) *protectedPublishProof {
 	// fail-closes on any required grant the worker lacks, so every required
 	// runtime-writer row is granted from the inventory itself.
 	grantInventoryRequired(t, ctx, admin, roleName, "runtime-writer")
-	for _, statement := range []string{
-		`GRANT CONNECT ON DATABASE "` + dbName + `" TO "` + roleName + `"`,
-		// Ordinary fact and admission DML the writer path issues outside
-		// any DEFINER body. Base-table privileges are a DBA pregrant outside
-		// the migration set (243a); the proof grants them explicitly.
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
-		// The impact writer records per-scope pass state in the same
-		// transaction (#10389): an ordinary base table, so a DBA pregrant
-		// like the admission table above.
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
-		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
-		// The change set behind the holder fan-out (#9695) reads scope_generations
-		// inside the write transaction to find the previous generation. The
-		// runtime-writer login already needs this SELECT on main, for every
-		// reducer claim (storage/postgres/reducer_generation_filter_sql.go:121-123)
-		// and for the impact load (storage/postgres/facts/impact/branches.go:82).
-		// It is an ordinary base table, not a protected object; the inventory
-		// above is unchanged.
-		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
-		// The writer stages the identifiers of the findings it wrote in the
-		// same transaction (#9805, #10837 direction C). Like fact_records,
-		// the staging queue is an ordinary base table whose privileges are a
-		// DBA pregrant: INSERT plus the ordering sequence (the collapsed
-		// version math runs as the maintainer, not the writer, so the writer
-		// needs no UPDATE and no log grant for the capture itself; the log
-		// grants below stay for the pre-existing paths that share this role).
-		`GRANT INSERT ON supply_chain_impact_winners_dirty_staging TO "` + roleName + `"`,
-		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_staging_seq TO "` + roleName + `"`,
-		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
-		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
-	} {
-		if _, err := admin.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("grant proof privilege: %v", err)
-		}
-	}
+	grantImpactWriterPregrants(t, ctx, admin, dbName, roleName)
 	workerDSN, err := proofWorkerDSN(adminDSN, dbName, roleName, rolePassword)
 	if err != nil {
 		t.Fatal(err)
@@ -257,6 +223,7 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	if revisionCount != 1 {
 		t.Fatalf("authority revisions after retry = %d, want exactly one", revisionCount)
 	}
+	requireNoSupportsFenceMarks(t, ctx, admin)
 
 	// A revoked writer authority fail-closes the next pass: with the
 	// worker contract disabled, authorization refuses before any fact write.
@@ -268,10 +235,79 @@ func TestSupplyChainImpactProtectedStaticPublishLive(t *testing.T) {
 	}
 }
 
+// requireNoSupportsFenceMarks proves the real impact writer, running through a
+// role-bound login, carries the maintainer's transaction setting and so marks no
+// scope dirty: the fence is for writers without the maintainer only.
+func requireNoSupportsFenceMarks(t *testing.T, ctx context.Context, admin *sql.DB) {
+	t.Helper()
+	var marks int
+	if err := admin.QueryRowContext(ctx, `SELECT count(*) FROM supply_chain_impact_finding_supports_dirty`).Scan(&marks); err != nil {
+		t.Fatalf("count fence marks: %v", err)
+	}
+	if marks != 0 {
+		t.Fatalf("the role-bound impact writer left %d scopes marked dirty, want 0: it must carry the maintainer setting", marks)
+	}
+}
+
 func mustExecProofRow(t *testing.T, ctx context.Context, admin *sql.DB, query string, args ...any) {
 	t.Helper()
 	if _, err := admin.ExecContext(ctx, query, args...); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// grantImpactWriterPregrants issues the DBA pregrant list a least-privilege
+// runtime-writer login needs to run the supply-chain impact writer: the base
+// tables the writer touches outside any SECURITY DEFINER body, which the
+// role ACL inventory (migration 243a) does not list. Every restricted-role
+// impact proof calls it after grantInventoryRequired, so a table the writer
+// starts to touch is added here once, not per test. It documents the same
+// requirement a database with least-privilege logins must meet in production
+// (docs/public/reference/telemetry/supply-chain-impact-supports.md and
+// supply-chain-impact-winners.md).
+func grantImpactWriterPregrants(t *testing.T, ctx context.Context, admin *sql.DB, dbName, roleName string) {
+	t.Helper()
+	for _, statement := range []string{
+		`GRANT CONNECT ON DATABASE "` + dbName + `" TO "` + roleName + `"`,
+		// Ordinary fact and admission DML the writer path issues outside
+		// any DEFINER body. Base-table privileges are a DBA pregrant outside
+		// the migration set (243a); the proof grants them explicitly.
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_write_admission TO "` + roleName + `"`,
+		// The impact writer records per-scope pass state in the same
+		// transaction (#10389): an ordinary base table, so a DBA pregrant
+		// like the admission table above.
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_scope_pass_state TO "` + roleName + `"`,
+		`GRANT SELECT, INSERT, UPDATE ON fact_records TO "` + roleName + `"`,
+		// The impact writer keeps the per-support table current in the same
+		// transaction (#10880 PR-B1): upsert and retraction delete. An ordinary base
+		// table, so a DBA pregrant like the admission table above. The old-writer
+		// fence trigger needs no grant for any login: its function runs as the
+		// owner (migration 338), and this writer's transaction sets the
+		// supports_v1 setting so the trigger skips its rows anyway.
+		`GRANT SELECT, INSERT, UPDATE, DELETE ON supply_chain_impact_finding_supports TO "` + roleName + `"`,
+		// The change set behind the holder fan-out (#9695) reads scope_generations
+		// inside the write transaction to find the previous generation. The
+		// runtime-writer login already needs this SELECT on main, for every
+		// reducer claim (storage/postgres/reducer_generation_filter_sql.go:121-123)
+		// and for the impact load (storage/postgres/facts/impact/branches.go:82).
+		// It is an ordinary base table, not a protected object; the inventory
+		// above is unchanged.
+		`GRANT SELECT ON scope_generations TO "` + roleName + `"`,
+		// The writer stages the identifiers of the findings it wrote in the
+		// same transaction (#9805, #10837 direction C). Like fact_records,
+		// the staging queue is an ordinary base table whose privileges are a
+		// DBA pregrant: INSERT plus the ordering sequence (the collapsed
+		// version math runs as the maintainer, not the writer, so the writer
+		// needs no UPDATE and no log grant for the capture itself; the log
+		// grants below stay for the pre-existing paths that share this role).
+		`GRANT INSERT ON supply_chain_impact_winners_dirty_staging TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_staging_seq TO "` + roleName + `"`,
+		`GRANT SELECT, INSERT, UPDATE ON supply_chain_impact_winners_dirty_log TO "` + roleName + `"`,
+		`GRANT USAGE ON SEQUENCE supply_chain_impact_winners_dirty_log_seq_seq TO "` + roleName + `"`,
+	} {
+		if _, err := admin.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("grant proof privilege: %v", err)
+		}
 	}
 }
 

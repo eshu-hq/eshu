@@ -18,7 +18,14 @@ import (
 // deliberately updated; bump this version alongside (manually — the bump
 // is convention, the frozen list is the enforcement) so dest consumers
 // can pin the shape.
-const SupplyChainReadAdmissionContractVersion = "v0"
+//
+// v1 (#11169): SupplyChainImpactInventory returns
+// impact.AggregateInventoryPage so winners-served answers carry the
+// maintainer watermark freshness the count and inventory envelopes
+// disclose; winners-eligible calls fail closed with
+// impact.ErrAggregateReadModelUnavailable instead of an approximate
+// answer.
+const SupplyChainReadAdmissionContractVersion = "v1"
 
 // SupplyChainReadAdmission is the versioned admission-contract port the API
 // handler depends on instead of direct store handles. It embeds the

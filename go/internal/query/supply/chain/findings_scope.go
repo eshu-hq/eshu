@@ -93,6 +93,7 @@ func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request, 
 		"by_severity":        map[string]int{},
 		"detection_profile":  profile,
 		"scope":              map[string]string{},
+		"freshness":          map[string]any{"state": packet.FreshnessLabelFresh},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ImpactAggregateCapability,
@@ -122,6 +123,7 @@ func (h *Handler) writeEmptyImpactInventory(
 		"truncated":         false,
 		"next_offset":       nil,
 		"scope":             map[string]string{},
+		"freshness":         map[string]any{"state": packet.FreshnessLabelFresh},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ImpactAggregateCapability,
