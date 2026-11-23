@@ -280,7 +280,7 @@ What this PR proves on top of main's bound:
 
 | Proof | Result |
 | --- | --- |
-| `TestNarrowedWaitCutKeyRacesActivationLive`, a cut-key park racing the activation of every scope in its prefix (the test #11297 shipped and removed because it lost a wake about 3 runs in 8) | restored here: see the run counts in the PR body |
+| `TestNarrowedWaitCutKeyRacesActivationLive`, a cut-key park racing the activation of every scope in its prefix (the test #11297 shipped and removed because it lost a wake about 3 runs in 8) | 40 of 40 pass here at `GOMAXPROCS=2`. On `main` it lost a wake 2 of 40 in one run under heavy host load (53 s run); a reviewer did not reproduce that (0 of 340), so the deterministic interleaving test above is the proof and this one is a regression guard |
 | `TestFailParksAWideVerdictSetLive`: 600 real-shape blockers, and one blocker beside 600 read-set repositories, through the real `ReducerQueue.Fail` | one wait row, `retrying` in the non-counting class, attempt count unchanged |
 | `TestServiceSurvivesAWideVerdictDeferralLive`: one wide and one normal item through `Service.Run` | the normal item is acknowledged and Run returns nil on shutdown |
 | `TestWideVerdictWaitersConvergeUnderContentionLive`: 12 waiters with 20 to 40 blockers through `Service.Run`, activations in sorted, reverse and random order, `-race`, `GOMAXPROCS=2` | every waiter converges on the wake path with `attempt_count` 1, no wait row left, audit reopened 0 |

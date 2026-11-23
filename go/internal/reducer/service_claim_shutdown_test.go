@@ -182,15 +182,20 @@ func TestServiceRunTreatsShutdownDuringAckAsCleanStop(t *testing.T) {
 
 func TestServiceRunStillReturnsAnAckFailure(t *testing.T) {
 	t.Parallel()
-	boom := errors.New("ack statement failed")
-	service := Service{
-		PollInterval: time.Millisecond, WorkSource: &oneIntentSource{},
-		WorkSink: &shutdownAckSink{started: make(chan struct{}, 1), liveErr: boom}, Executor: succeedingShutdownExecutor{},
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := service.Run(ctx); !errors.Is(err, boom) {
-		t.Fatalf("Service.Run = %v, want the ack failure %v", err, boom)
+	for _, workers := range []int{0, 3} {
+		t.Run(fmt.Sprintf("workers=%d", workers), func(t *testing.T) {
+			t.Parallel()
+			boom := errors.New("ack statement failed")
+			service := Service{
+				PollInterval: time.Millisecond, Workers: workers, WorkSource: &oneIntentSource{},
+				WorkSink: &shutdownAckSink{started: make(chan struct{}, 1), liveErr: boom}, Executor: succeedingShutdownExecutor{},
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := service.Run(ctx); !errors.Is(err, boom) {
+				t.Fatalf("Service.Run = %v, want the ack failure %v", err, boom)
+			}
+		})
 	}
 }
 
