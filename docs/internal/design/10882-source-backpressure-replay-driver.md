@@ -50,6 +50,8 @@ Each arm runs three repetitions. A and B swap between git and a hosted family.
 | C2 | unset | hosted | git | control for T2 |
 | T2 | set | hosted, paced at the coordinator claim grant | git | the claim-grant leg |
 | T3 | set | git; every aged A row is not takeable (parked wait or readiness-gated) | hosted | #11187: the latch never engages |
+| T3TTL | set, candidate TTL | as T3 | hosted | consult p50 and p95 with parked rows present at the candidate TTL |
+| CG | unset, default global marks | git | hosted | one repetition, reported not judged: what the default global gate does to the corpus |
 
 T2's hosted collector is the built `collector-component-extension` running the
 offline `collector-synth-zero` emitter on the in-tree claim path: a tagged
@@ -58,22 +60,29 @@ the real planner, whose `source_system` is the component id. The emitter commits
 no facts, so T2 proves claim pacing only.
 
 The ingester runs in `explicit` mode against local bare remotes (a git
-`url.insteadOf` rewrite), the production path. The global reducer-admission
-marks are raised above the corpus in every arm and recorded in each manifest:
-the corpus (8,713 mix rows plus A's 13,000) is past the ingester defaults
-(10,000 outstanding, 500 retrying), so the default gate would defer all intents,
-B's included, and time them out in the control arm too. That backstop is not what
-this replay tests.
+`url.insteadOf` rewrite), the production path. The global reducer-admission marks
+are raised above the corpus on the ingester in every arm except CG, and recorded
+in each manifest; the standalone projector keeps its product default (no global
+gate). The corpus (8,713 mix rows plus A's 13,000) is past the ingester defaults
+(10,000 outstanding, 500 retrying), and the global gates run before the source
+leg, so at the defaults the ingester would defer all intents, B's included, with
+or without this feature. That backstop is not what this replay tests; CG reports
+what it does. The admission-writer leg and AC5 therefore hold only while total
+reducer outstanding is below the ingester's high-water mark. The pre-write,
+claim-grant and selection legs do not depend on it.
 
 ## Arm manifest
 
-One JSON file per arm and repetition, written before the arm starts:
-
-- commit, binary digests, arm, repetition, TTL;
-- every `ESHU_SOURCE_BACKPRESSURE_*` value (absent for C);
-- projector, ingester and reducer worker counts, batch sizes, claim limits;
-- PostgreSQL and Neo4j versions, seed digest, host load at start;
-- start and end timestamps of each phase.
+One `manifest.json` per run, written before the arm starts. Its fields:
+`arm`, `rep`, `ttl`, `completion_step`, `thresholds`, `global_admission` and
+`global_marks`, `source_a`, `source_b`, `a_shape`, `a_reducer_rows`,
+`a_projector_generations`, `b_generations`, `b_cadence`, `workers` (projector and
+ingester-projector), `engaged_window_s`, `selection_base_s`, `load1_at_start`,
+`postgres`, `neo4j`, `commit` and `binaries` (sha256 of every product binary at
+arm start). `build.json` in the results root pins the build commit and the sha256
+of each binary; the checker fails an empty commit or a binary whose sha256 differs
+from the build. `go build` stamps no `vcs.revision` in this worktree layout, so the
+identity rests on the clean-tree check in `build.sh` plus the sha256 pins.
 
 ## Phases of one run
 
@@ -117,14 +126,18 @@ Everything lives under `scripts/dev/10882-replay/`, each file under 500 lines:
 
 | File | Role |
 | --- | --- |
-| `run.sh` | Entry point: loads the `lib/` files, walks arms and repetitions. |
-| `lib/host.sh` | Load gate, wall-time cap, container start and cleanup. |
-| `lib/build.sh` | One-commit binary build and digest record. |
-| `lib/arm.sh` | Per-arm manifest, process start and stop, phases. |
-| `lib/collect.sh` | Signal collection and snapshot. |
-| `census_not_takeable.sql` | The #11187 census, one row per class. |
-| `compare.sh` | Final-state equality against arm C. |
-| `report.sh` | Turns the manifests and signals into the evidence record. |
+| `run.sh` | Entry point: builds, then walks arms and repetitions with the load gate and the 4 hour cap. |
+| `lib/env.sh`, `lib/host.sh` | Venue settings, load gate, wall cap, container checks. |
+| `lib/build.sh` | One-commit binary build, `build.txt` and `build.json`. |
+| `lib/proc.sh`, `lib/hosted.sh` | Start and stop the product binaries; the T2 hosted collector. |
+| `lib/arm.sh` | One run: arm switches, manifest, schedule, events. |
+| `lib/sampler.sh` | Latch row, A writes (real Neo4j), K, load1 per sample. |
+| `lib/collect.sh` | End-of-run exports (generations, facts, reducer rows, projector items, latch rows). |
+| `census_not_takeable.sql`, `census.sh` | The #11187 census. |
+| `assemble_result.py`, `replay_state.py`, `replay_facts.py`, `replay_prom.py` | Turn a run directory into `result.json`. |
+| `check_arm.py`, `checks_lib.py` | The pass/fail gate. |
+| `report.sh` | Runs the gate over every run and prints the numbers. |
+| `test_check_arm.py`, `test_replay_readers.py`, `test_census.sh` | Seeded RED/GREEN proofs. |
 
 ## Rulings that shaped the driver
 

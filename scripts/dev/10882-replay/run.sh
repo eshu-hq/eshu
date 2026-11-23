@@ -8,7 +8,8 @@
 # against the control and writes the evidence summary.
 #
 # Arms: C (control), C0 (control without the completion step), T1 (TTL 0),
-# T1TTL (candidate TTL), C2 (control for T2) and T2 (hosted A), T3 (not-takeable A). Order: the control
+# T1TTL (candidate TTL), C2 (control for T2) and T2 (hosted A), T3 and T3TTL
+# (not-takeable A at TTL 0 and the candidate TTL), CG (C at the default global marks). Order: the control
 # first, so every later arm has its reference.
 #
 # Usage: run.sh [--arms "C C0 T1 T1TTL T3"] [--reps 3] [--results DIR] [--no-build]
@@ -24,7 +25,7 @@ for lib in host proc sampler collect hosted arm; do
   source "$here/lib/$lib.sh"
 done
 
-arms="C C0 T1 T1TTL C2 T2 T3"
+arms="C C0 T1 T1TTL C2 T2 T3 T3TTL CG"
 reps=3
 results="$REPLAY_SCRATCH/results"
 build=1
@@ -50,6 +51,8 @@ fi
 
 for rep in $(seq 1 "$reps"); do
   for arm in $arms; do
+    # CG (C at the default global marks) is one repetition, reported not judged.
+    if [[ "$arm" == CG && "$rep" != 1 ]]; then continue; fi
     replay_check_wall_cap "$started" || break 2
     replay_wait_for_load "$started" || break 2
     replay_run_arm "$arm" "$rep"

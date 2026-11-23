@@ -3,219 +3,29 @@
 """Turns one replay run directory into result.json for check_arm.py.
 
 Inputs (written by the driver libs under the run directory): manifest.json,
-samples.tsv, metrics/*.prom (final scrapes of the real binaries), export/*,
-census-*.txt and events.tsv. Instrument readings (consult duration, deferrals)
-come only from the binaries' /metrics scrapes; database and graph state come
-from the sampler and the exports. Nothing here times anything itself.
+samples.tsv, events.tsv, metrics/*.prom (engaged and final scrapes of the real
+binaries), export/*, census-*.txt, and ../build.json. Instrument readings
+(consult duration, deferrals, the engaged counter) come only from the binaries'
+/metrics scrapes; database and graph state come from the sampler and the exports.
+Nothing here times anything itself.
 
 Usage: assemble_result.py RUN_DIR
 """
 
-import csv
-import glob
 import json
-import math
 import os
-import re
 import sys
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
-_SERIES = re.compile(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(?:\{(.*)\})?\s+([-+0-9.eE]+|NaN|\+Inf)$")
-_LABEL = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:[^"\\]|\\.)*)"')
-
-
-def parse_prom(path: str) -> list[tuple[str, dict[str, str], float]]:
-  """Parses Prometheus text exposition into (name, labels, value) rows."""
-  rows = []
-  with open(path, encoding="utf-8") as handle:
-    for line in handle:
-      if line.startswith("#") or not line.strip():
-        continue
-      match = _SERIES.match(line.strip())
-      if not match:
-        continue
-      labels = dict(_LABEL.findall(match.group(2) or ""))
-      value = float("inf") if match.group(3) == "+Inf" else float(match.group(3))
-      rows.append((match.group(1), labels, value))
-  return rows
-
-
-def quantile(buckets: list[tuple[float, float]], q: float) -> float:
-  """Linear-interpolated quantile from cumulative (le, count) buckets."""
-  buckets = sorted(buckets)
-  if not buckets or buckets[-1][1] == 0:
-    return 0.0
-  target = q * buckets[-1][1]
-  prev_le, prev_count = 0.0, 0.0
-  for le, count in buckets:
-    if count >= target:
-      if math.isinf(le) or count == prev_count:
-        return prev_le
-      return prev_le + (le - prev_le) * (target - prev_count) / (count - prev_count)
-    prev_le, prev_count = le, count
-  return prev_le
-
-
-def load_metrics(run_dir: str) -> list[tuple[str, dict[str, str], float]]:
-  """Reads the final scrape of every process."""
-  rows = []
-  for path in sorted(glob.glob(os.path.join(run_dir, "metrics", "*-final.prom"))):
-    rows.extend(parse_prom(path))
-  return rows
-
-
-def consult_stats(rows: list, sources: dict[str, str]) -> dict[str, Any]:
-  """Consult p50 and p95 per source (A, B) from the duration histogram."""
-  hist: dict[str, dict[float, float]] = defaultdict(lambda: defaultdict(float))
-  counts: dict[str, float] = defaultdict(float)
-  for name, labels, value in rows:
-    if labels.get("outcome") != "ok" or "source_system" not in labels:
-      continue
-    side = {v: k for k, v in sources.items()}.get(labels["source_system"], "other")
-    if name.endswith("source_consult_duration_seconds_bucket"):
-      le = float("inf") if labels["le"] == "+Inf" else float(labels["le"])
-      hist[side][le] += value
-    elif name.endswith("source_consult_duration_seconds_count"):
-      counts[side] += value
-  out = {}
-  for side, buckets in hist.items():
-    pairs = list(buckets.items())
-    out[side] = {"count": counts[side], "p50_s": quantile(pairs, 0.5), "p95_s": quantile(pairs, 0.95)}
-  return out
-
-
-def deferrals(rows: list, sources: dict[str, str]) -> tuple[dict[str, float], float]:
-  """source_behind deferral counts by side, and pre-write release total."""
-  by_side: dict[str, float] = defaultdict(float)
-  released = 0.0
-  inverse = {v: k for k, v in sources.items()}
-  for name, labels, value in rows:
-    if name == "eshu_dp_reducer_admission_deferrals_total" and labels.get("reason") == "source_behind":
-      by_side[inverse.get(labels.get("source_system", ""), "other")] += value
-    elif name == "eshu_dp_projector_source_paced_retries_total":
-      released += value
-  return dict(by_side), released
-
-
-def read_samples(path: str) -> list[dict[str, Any]]:
-  """Reads samples.tsv rows, with numeric fields converted."""
-  out = []
-  with open(path, encoding="utf-8") as handle:
-    for row in csv.DictReader(handle, delimiter="\t"):
-      try:
-        out.append({
-            "ts": float(row["ts"]), "engaged": row["latch_engaged"] == "t",
-            "content": int(row["content_files_a"]) + int(row["content_entities_a"]),
-            "succeeded": int(row["projector_succeeded_a"]), "k": int(row["k_visible_retrying_a"]),
-            "waits": int(row["wait_rows"]), "real_gen": int(row["real_generations"]),
-            "graph": int(row["graph_nodes_a"] or 0),
-        })
-      except (KeyError, ValueError):
-        continue
-  return out
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import replay_facts  # noqa: E402  pylint: disable=wrong-import-position
+import replay_prom  # noqa: E402  pylint: disable=wrong-import-position
+import replay_state  # noqa: E402  pylint: disable=wrong-import-position
 
 
 def iso(ts: float | None) -> str | None:
   return None if ts is None else datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def engagement(samples: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, int]]:
-  """Engage and release times, and A's writes while the latch was engaged."""
-  first = next((s for s in samples if s["engaged"]), None)
-  if first is None:
-    return {"engage_at": None, "release_at": None}, {"graph_nodes": 0, "content_rows": 0, "projector_succeeded": 0}
-  engaged_rows = []
-  release = None
-  for s in samples:
-    if s["ts"] < first["ts"]:
-      continue
-    if s["engaged"]:
-      engaged_rows.append(s)
-    else:
-      release = s["ts"]
-      break
-  last = engaged_rows[-1]
-  writes = {
-      "graph_nodes": last["graph"] - first["graph"],
-      "content_rows": last["content"] - first["content"],
-      "projector_succeeded": last["succeeded"] - first["succeeded"],
-  }
-  return {"engage_at": iso(first["ts"]), "release_at": iso(release)}, writes
-
-
-def selection(samples: list[dict[str, Any]], run_dir: str) -> list[dict[str, Any]]:
-  """Per fixture-commit event: seconds until the new generations show up."""
-  path = os.path.join(run_dir, "events.tsv")
-  if not os.path.exists(path):
-    return []
-  out = []
-  with open(path, encoding="utf-8") as handle:
-    for line in handle:
-      parts = line.rstrip("\n").split("\t")
-      if len(parts) < 3 or parts[1] != "fixture_commit":
-        continue
-      at, repos = float(parts[0]), int(parts[2])
-      base = max((s["real_gen"] for s in samples if s["ts"] <= at), default=0)
-      first = next((s["ts"] for s in samples if s["ts"] > at and s["real_gen"] > base), None)
-      done = next((s["ts"] for s in samples if s["ts"] > at and s["real_gen"] >= base + repos), None)
-      out.append({"event": parts[3] if len(parts) > 3 else "", "commit_at": iso(at),
-                  "delay_first_s": None if first is None else round(first - at, 1),
-                  "delay_all_s": None if done is None else round(done - at, 1)})
-  return out
-
-
-def census_classes(path: str) -> dict[str, int]:
-  """Parses a census.sh table into {class: rows}."""
-  classes: dict[str, int] = {}
-  if not os.path.exists(path):
-    return classes
-  with open(path, encoding="utf-8") as handle:
-    for line in handle:
-      parts = [p.strip() for p in line.split("|")]
-      if len(parts) >= 5 and parts[0] and parts[0] not in ("class",) and not set(parts[0]) <= {"-", "+"}:
-        try:
-          classes[parts[0]] = int(parts[1])
-        except ValueError:
-          continue
-  return classes
-
-
-# Fields that legitimately differ between two runs over identical content. Each
-# was observed to differ in a paired run and is minted per run in the collector:
-#   fact_id               facts.StableID over the run's source_run_id and generation id
-#   payload.source_run_id facts.StableID("GitCollectorSnapshotRun", {component,
-#                         observed_at: the batch's wall clock, selected paths})
-#                         (collector/repo/git/source_processing.go:151)
-#   payload.indexed_at    stamped at parse time (collector/repo/git/
-#                         phase0_pinned_ref_shim_test.go documents it as the one
-#                         wall-clock field of a git fact)
-# fact_id is compared through stable_fact_key, the run-invariant identity of the
-# same fact; the payload hash covers every other field.
-RUN_VARIANT_PAYLOAD_FIELDS = ("indexed_at", "source_run_id")
-
-
-def real_fact_sets(path: str) -> dict[str, str]:
-  """Per-scope hash over (stable_fact_key, payload hash minus run-variant fields)."""
-  import hashlib
-  by_scope: dict[str, list[str]] = defaultdict(list)
-  if not os.path.exists(path):
-    return {}
-  with open(path, encoding="utf-8") as handle:
-    for line in handle:
-      parts = line.rstrip("\n").split("\t", 3)
-      if len(parts) < 4:
-        continue
-      scope_id, _fact_id, stable_key, payload_text = parts
-      payload = json.loads(payload_text)
-      if isinstance(payload, dict):
-        for field in RUN_VARIANT_PAYLOAD_FIELDS:
-          payload.pop(field, None)
-      digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-      by_scope[scope_id].append("%s:%s" % (stable_key, digest))
-  return {scope_id: hashlib.sha256(",".join(sorted(items)).encode()).hexdigest()
-          for scope_id, items in sorted(by_scope.items())}
 
 
 def read_json(path: str, default: Any) -> Any:
@@ -226,64 +36,126 @@ def read_json(path: str, default: Any) -> Any:
   return json.loads(text) if text else default
 
 
+def census_classes(path: str) -> dict[str, int]:
+  """Parses a census.sh table into {class: rows}."""
+  classes: dict[str, int] = {}
+  if not os.path.exists(path):
+    return classes
+  with open(path, encoding="utf-8") as handle:
+    for line in handle:
+      parts = [p.strip() for p in line.split("|")]
+      if len(parts) >= 5 and parts[0] and parts[0] != "class" and not set(parts[0]) <= {"-", "+"}:
+        try:
+          classes[parts[0]] = int(parts[1])
+        except ValueError:
+          continue
+  return classes
+
+
+def graph_counts(path: str) -> dict[str, int]:
+  counts: dict[str, int] = {}
+  if not os.path.exists(path):
+    return counts
+  with open(path, encoding="utf-8") as handle:
+    for line in handle:
+      parts = [p.strip() for p in (line.split(",") if "," in line else line.split())]
+      if len(parts) == 2 and parts[1].isdigit():
+        counts[parts[0]] = int(parts[1])
+  return counts
+
+
+def latch_rows(path: str) -> list[dict[str, Any]]:
+  rows = []
+  for row in replay_state.read_tsv(path):
+    if len(row) >= 5:
+      rows.append({"signal": row[0], "domain": row[1], "engaged": row[2] == "t", "engaged_at": row[3], "updated_at": row[4]})
+  return rows
+
+
+def a_drain(export: str, events: list[list[str]]) -> dict[str, Any]:
+  """A's last projector completion, relative to the end of the catch-up step."""
+  drain = read_json(os.path.join(export, "a_drain.json"), {})
+  done = float(drain.get("done_ts", 0)) or None
+  caught = next((float(e[0]) for e in events if len(e) > 1 and e[1] == "catchup_done"), None)
+  return {"items": drain.get("items", 0), "after_catchup_s": None if done is None or caught is None else round(done - caught, 1)}
+
+
 def main(run_dir: str) -> int:
   manifest = read_json(os.path.join(run_dir, "manifest.json"), {})
+  build = read_json(os.path.join(os.path.dirname(os.path.abspath(run_dir)), "build.json"), {})
   sources = {"A": manifest.get("source_a", "A"), "B": manifest.get("source_b", "B")}
-  rows = load_metrics(run_dir)
-  samples = read_samples(os.path.join(run_dir, "samples.tsv"))
-  engaged, writes = engagement(samples)
-  by_side, released = deferrals(rows, sources)
+  engaged_rows = replay_prom.load_metrics(run_dir, "engaged")
+  final_rows = replay_prom.load_metrics(run_dir, "final")
+  samples = replay_state.read_samples(os.path.join(run_dir, "samples.tsv"))
+  events = replay_state.read_events(os.path.join(run_dir, "events.tsv"))
   export = os.path.join(run_dir, "export")
   counters = read_json(os.path.join(export, "counters.json"), {})
-  intents = read_json(os.path.join(export, "reducer_intents.json"), {})
-  graph_counts = {}
-  gc_path = os.path.join(export, "graph_counts.tsv")
-  if os.path.exists(gc_path):
-    with open(gc_path, encoding="utf-8") as handle:
-      for line in handle:
-        parts = [p.strip() for p in (line.split(",") if "," in line else line.split())]
-        if len(parts) == 2 and parts[1].isdigit():
-          graph_counts[parts[0].strip()] = int(parts[1])
+  started = next((float(e[0]) for e in events if len(e) > 1 and e[1] == "processes_started"), None)
+  window = float(manifest.get("engaged_window_s") or 0)
+
+  engaged = engagement(samples)
+  engaged["engaged_counter"] = replay_prom.engaged_counter(final_rows, sources["A"])
+  rows = latch_rows(os.path.join(export, "latch.tsv"))
+  engaged["latch_row_for_a"] = any(r["domain"] == sources["A"] for r in rows)
+  writes = replay_state.write_points(samples, engaged, None if started is None else started + window)
+  by_side, released = replay_prom.deferrals(final_rows, sources)
+  intents = replay_state.intents(os.path.join(export, "reducer_rows.tsv"), sources)
+  projector = replay_state.projector_accounting(os.path.join(export, "projector_items.tsv"), sources)
+  facts_path = os.path.join(export, "real_facts.tsv")
+  census_pre = census_classes(os.path.join(run_dir, "census-pre.txt"))
   census_end = census_classes(os.path.join(run_dir, "census-end.txt"))
+  sel = replay_state.selection(events, os.path.join(export, "generations_all.tsv"))
+  final_sel = sel.pop("_final", {})
+  gcounts = graph_counts(os.path.join(export, "graph_counts.tsv"))
+  loads = [s["load1"] for s in samples if s["load1"] is not None]
   result = {
       "arm": manifest.get("arm"), "rep": manifest.get("rep"), "ttl": manifest.get("ttl"),
-      "manifest": manifest, "engaged": engaged, "a_writes_during_engagement": writes,
-      "released_pre_write": released,
-      "deferrals": {
-          "source_behind": by_side, "attempt_count_changes": counters.get("attempt_count_changes", 0),
-          "dead_letters": counters.get("dead_letters", 0), "admission_timeouts": counters.get("admission_timeouts", 0),
-      },
+      "manifest": manifest, "build": build, "engaged": {k: (iso(v) if k in ("engage_at", "release_at") else v)
+                                                          for k, v in engaged.items()},
+      "writes": writes,
+      "graph_reading": {"missing_samples": sum(1 for s in samples if s["graph"] is None), "samples": len(samples),
+                        "final_counts_present": bool(gcounts)},
+      "released_pre_write": released, "paced": projector,
+      "deferrals": {"source_behind": by_side, "attempt_count_changes": projector["attempt_count_changes"],
+                    "dead_letters": counters.get("dead_letters", 0),
+                    "admission_timeouts": counters.get("admission_timeouts", 0)},
       "b": read_json(os.path.join(export, "b_stats.json"), {}),
-      "consult": consult_stats(rows, sources),
-      "report": {
-          "k_peak": max((s["k"] for s in samples), default=0),
-          "parked_rows_peak": max((s["waits"] for s in samples), default=0),
-          "woken_holding_wait": census_classes(os.path.join(run_dir, "census-pre.txt")).get("woken_holding_wait", 0),
-          "wait_table_rows_final": samples[-1]["waits"] if samples else 0,
-      },
-      "census": {"classes": census_classes(os.path.join(run_dir, "census-pre.txt")),
-                 "classes_end": census_end, "claimable_a_at_release": census_end.get("takeable", 0)},
-      "selection": selection(samples, run_dir),
-      "hosted": {
-          "planted": read_json(os.path.join(export, "hosted-final.json"), {}).get("planted", 0),
-          "at_engagement_end": read_json(os.path.join(export, "hosted-at_engagement_end.json"), {}),
-          "final": read_json(os.path.join(export, "hosted-final.json"), {}),
-      },
+      "consult": replay_prom.consult_stats(engaged_rows, sources),
+      "consult_final": replay_prom.consult_stats(final_rows, sources),
+      "report": {"k_peak": max((s["k"] for s in samples), default=0),
+                 "parked_rows_peak": max((s["waits"] for s in samples), default=0),
+                 "woken_holding_wait": census_pre.get("woken_holding_wait", 0),
+                 "wait_table_rows_final": samples[-1]["waits"] if samples else 0,
+                 "load1_max": max(loads, default=None), "load1_end": next(
+                     (float(e[2]) for e in reversed(events) if len(e) > 2 and e[1] == "run_done" and e[2]), None)},
+      "census": {"classes": census_pre, "classes_end": census_end, "total": sum(census_pre.values()),
+                 "claimable_a_at_release": census_end.get("takeable", 0)},
+      "selection": sel,
+      "hosted": {"planted": read_json(os.path.join(export, "hosted-final.json"), {}).get("planted", 0),
+                 "at_engagement_end": read_json(os.path.join(export, "hosted-at_engagement_end.json"), {}),
+                 "final": read_json(os.path.join(export, "hosted-final.json"), {})},
+      "timeouts": [{"what": e[2], "limit_s": e[3]} for e in events if len(e) > 3 and e[1] == "wait_timeout"],
+      "latch_rows": rows,
+      "a_drain": a_drain(export, events),
       "final": {
           "generations": read_json(os.path.join(export, "generations.json"), {}),
-          "real_fact_sets": real_fact_sets(os.path.join(export, "real_facts.tsv")),
+          "real_fact_sets": replay_facts.real_fact_sets(facts_path),
+          "real_fact_counts": replay_facts.fact_counts(facts_path),
           "normalized_fields": {"fact_id": "compared via stable_fact_key",
-                                "payload": list(RUN_VARIANT_PAYLOAD_FIELDS)},
-          "graph_counts": graph_counts,
-          "reducer_intents": {"A": intents.get("A", {}), "B": intents.get("B", {})},
-          "content_rows": counters.get("content_rows"),
-          "projector_unsettled": counters.get("projector_unsettled"),
+                                "payload": list(replay_facts.RUN_VARIANT_PAYLOAD_FIELDS)},
+          "graph_counts": gcounts, "content_rows": counters.get("content_rows"),
+          "projector_unsettled": projector["unsettled"], "projector_superseded": counters.get("projector_superseded", 0),
+          "intent_active": intents["active"], "intent_union": intents["union"],
+          "active_sha_is_last_push": final_sel.get("active_sha_is_last_push"), "fixture_scopes": final_sel.get("scopes", 0),
       },
-      "projector_superseded": counters.get("projector_superseded", 0),
   }
   with open(os.path.join(run_dir, "result.json"), "w", encoding="utf-8") as handle:
     json.dump(result, handle, indent=2, sort_keys=True)
   return 0
+
+
+def engagement(samples: list[dict[str, Any]]) -> dict[str, Any]:
+  return replay_state.engagement(samples)
 
 
 if __name__ == "__main__":

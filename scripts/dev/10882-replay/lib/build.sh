@@ -40,4 +40,27 @@ mkdir -p "$GOTMPDIR"
     go version -m "$bin" | rg "^\s+(path|mod|build\s+(vcs\.revision|vcs\.modified|-trimpath|CGO_ENABLED))" || true
   done
 } >"$results/build.txt"
+# Machine-readable build identity, checked by check_arm.py: every product binary
+# must carry vcs.revision equal to the commit and vcs.modified=false.
+python3 -I - "$results/build.json" "$commit" "$REPLAY_BIN" <<'PY'
+import hashlib, json, os, subprocess, sys
+out, commit, bindir = sys.argv[1:4]
+binaries = {}
+for name in sorted(os.listdir(bindir)):
+  path = os.path.join(bindir, name)
+  if not name.startswith("eshu-"):
+    continue
+  info = subprocess.run(["go", "version", "-m", path], capture_output=True, text=True, check=True).stdout
+  settings = {}
+  for line in info.splitlines():
+    parts = line.split()
+    if len(parts) >= 2 and parts[0] == "build" and "=" in parts[1]:
+      key, _, value = parts[1].partition("=")
+      settings[key] = value
+  with open(path, "rb") as handle:
+    digest = hashlib.sha256(handle.read()).hexdigest()
+  binaries[name] = {"sha256": digest, "vcs_revision": settings.get("vcs.revision", ""),
+                    "vcs_modified": settings.get("vcs.modified", "")}
+json.dump({"commit": commit, "binaries": binaries}, open(out, "w"), indent=2, sort_keys=True)
+PY
 echo "built replay binaries at $commit"

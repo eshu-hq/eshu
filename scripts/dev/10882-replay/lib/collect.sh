@@ -3,7 +3,8 @@
 # Copyright (c) 2025-2026 eshu-hq
 #
 # End-of-arm exports for one run: the final committed state (generations, real
-# fixture fact sets, graph counts, reducer intents, content rows), source B's
+# fixture fact sets, graph counts, reducer rows of every generation, projector
+# items, content rows, the latch rows), source B's
 # queue wait and claim rate, and the not-takeable census. Each export is one
 # small file in the run directory; assemble_result.py turns them into
 # result.json. Needs env.sh and host.sh, and these arm variables: REPLAY_SRC_A,
@@ -27,20 +28,33 @@ replay_export_state() {
   replay_psql -F $'\t' -c "SELECT f.scope_id, f.fact_id, f.stable_fact_key, f.payload::text
       FROM fact_records f JOIN ingestion_scopes s ON s.scope_id = f.scope_id AND s.active_generation_id = f.generation_id
       WHERE f.scope_id LIKE 'git-repository-scope:%' ORDER BY f.scope_id, f.fact_id" >"$out/real_facts.tsv"
-  # Reducer intents enqueued for A and B by projection: the distinct (scope,
-  # domain) pairs of the active generations. A generation superseded before it
-  # was projected (a paced one overtaken by a newer commit) enqueues nothing, so
-  # intents of non-active generations are not compared.
-  replay_psql -c "SELECT json_build_object(
-      'A', json_build_object('count', count(*) FILTER (WHERE src = '$REPLAY_SRC_A'),
-           'keys_hash', COALESCE(md5(string_agg(k, ',' ORDER BY k) FILTER (WHERE src = '$REPLAY_SRC_A')), '')),
-      'B', json_build_object('count', count(*) FILTER (WHERE src = '$REPLAY_SRC_B'),
-           'keys_hash', COALESCE(md5(string_agg(k, ',' ORDER BY k) FILTER (WHERE src = '$REPLAY_SRC_B')), '')))
-    FROM (SELECT DISTINCT w.scope_id || ':' || w.domain AS k,
-                 COALESCE(NULLIF(BTRIM(w.payload->>'source_system'), ''), s.source_system) AS src
-          FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
-          WHERE w.stage = 'reducer' AND w.work_item_id NOT LIKE 'replay-%'
-            AND w.generation_id = s.active_generation_id) t" >"$out/reducer_intents.json"
+  # Reducer intents and projector items of EVERY generation, not only the active
+  # ones: a paced generation overtaken by a newer commit is superseded before it
+  # is projected and enqueues nothing, so the active-generation set and the union
+  # over all generations are compared separately (assemble_result.py). One row per
+  # real reducer row (seeded replay-% rows excluded): scope, domain, generation,
+  # whether the generation is the active one, status and source.
+  replay_psql -F $'\t' -c "SELECT w.scope_id, w.domain, w.generation_id, (w.generation_id = s.active_generation_id),
+      w.status, COALESCE(NULLIF(BTRIM(w.payload->>'source_system'), ''), s.source_system)
+      FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
+      WHERE w.stage = 'reducer' AND w.work_item_id NOT LIKE 'replay-%' ORDER BY 1, 2, 3, 5" >"$out/reducer_rows.tsv"
+  replay_psql -F $'\t' -c "SELECT w.scope_id, w.generation_id, COALESCE(NULLIF(g.source_commit_sha, ''), ''),
+      (w.generation_id = s.active_generation_id), w.status, w.attempt_count, w.source_paced_waits, s.source_system,
+      w.admission_wait_attempts, COALESCE(w.failure_class, '')
+      FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
+      LEFT JOIN scope_generations g ON g.generation_id = w.generation_id AND g.scope_id = w.scope_id
+      WHERE w.stage = 'projector' ORDER BY 1, 2" >"$out/projector_items.tsv"
+  # Every generation of the real git scopes, with the time it was ingested: the
+  # selection delay of a pushed commit is its generation's ingested_at minus the
+  # push time, matched by source commit sha.
+  replay_psql -F $'\t' -c "SELECT g.scope_id, g.generation_id, COALESCE(g.source_commit_sha, ''),
+      extract(epoch FROM g.ingested_at)::numeric(16,3), g.is_delta, g.status, (g.generation_id = s.active_generation_id)
+      FROM scope_generations g JOIN ingestion_scopes s ON s.scope_id = g.scope_id
+      WHERE g.scope_id LIKE 'git-repository-scope:%' ORDER BY 1, 4" >"$out/generations_all.tsv"
+  # The latch rows themselves, for the engage and release times and for the
+  # "no latch row for A" reading of the T3 arms.
+  replay_psql -F $'\t' -c "SELECT signal, domain, engaged, COALESCE(extract(epoch FROM engaged_at)::numeric(16,3)::text, ''),
+      extract(epoch FROM updated_at)::numeric(16,3) FROM workflow_claim_pacing ORDER BY 1, 2" >"$out/latch.tsv"
   replay_psql -c "SELECT json_build_object(
       'content_rows', (SELECT count(*) FROM content_files) + (SELECT count(*) FROM content_entities),
       'projector_unsettled', (SELECT count(*) FROM fact_work_items WHERE stage = 'projector' AND status NOT IN ('succeeded', 'superseded')),
@@ -51,6 +65,12 @@ replay_export_state() {
                                   AND attempt_count - source_paced_waits <> 1),
       'paced_waits_total', (SELECT COALESCE(sum(source_paced_waits), 0) FROM fact_work_items WHERE stage = 'projector'))" \
     >"$out/counters.json"
+  # When source A's projector work finished: the arbiter's section 6 finding
+  # (a paced release sets PreviousGenerationExists) is read as A's post-catch-up
+  # drain time against C's.
+  replay_psql -c "SELECT json_build_object('items', count(*), 'done_ts', COALESCE(extract(epoch FROM max(w.updated_at)), 0))
+    FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
+    WHERE w.stage = 'projector' AND w.status = 'succeeded' AND s.source_system = '$REPLAY_SRC_A'" >"$out/a_drain.json"
   # Source B: queue wait is claim time minus enqueue time of its projector
   # items, read from the queue's own timestamps.
   replay_psql -c "SELECT json_build_object(
@@ -61,7 +81,9 @@ replay_export_state() {
     FROM (SELECT extract(epoch FROM w.last_attempt_at - w.created_at) AS wait, w.last_attempt_at AS claimed
           FROM fact_work_items w JOIN ingestion_scopes s USING (scope_id)
           WHERE w.stage = 'projector' AND w.status = 'succeeded' AND s.source_system = '$REPLAY_SRC_B') t" >"$out/b_stats.json"
-  replay_cypher "MATCH (n) UNWIND labels(n) AS l RETURN l, count(*) ORDER BY l" 2>/dev/null |
+  # A failed read leaves graph_counts.tsv empty and the assembler fails the run
+  # on it; it must not look like an empty graph.
+  replay_cypher "MATCH (n) UNWIND labels(n) AS l RETURN l, count(*) ORDER BY l" 2>"$out/graph_counts.err" |
     tail -n +2 | tr -d '"' >"$out/graph_counts.tsv" || true
 }
 

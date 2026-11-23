@@ -32,9 +32,11 @@ REPLAY_ENGAGE_AGE_SECONDS=3600
 #   T1TTL    treatment at the candidate TTL
 #   C2       control for T2: thresholds unset, A hosted, B=git, hosted collector running
 #   T2       treatment, A hosted paced at the claim grant, B=git
-#   T3       treatment, A's aged rows all not takeable (#11187)
+#   T3       treatment, A's aged rows all not takeable (#11187), TTL 0
+#   T3TTL    T3 at the candidate TTL (consult cost with parked rows present)
+#   CG       one repetition of C at the DEFAULT global admission marks, reported, not judged
 replay_arm_config() {
-  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable ARM_HOSTED=0
+  ARM_THRESHOLDS=1 ARM_TTL=0s ARM_COMPLETE=1 ARM_A_KIND=git ARM_A_SHAPE=takeable ARM_HOSTED=0 ARM_GLOBAL_MARKS=raised
   case "$1" in
     C) ARM_THRESHOLDS=0 ;;
     C0) ARM_THRESHOLDS=0 ARM_COMPLETE=0 ;;
@@ -43,6 +45,8 @@ replay_arm_config() {
     C2) ARM_THRESHOLDS=0 ARM_A_KIND=hosted ARM_HOSTED=1 ;;
     T2) ARM_A_KIND=hosted ARM_HOSTED=1 ;;
     T3) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ;;
+    T3TTL) ARM_COMPLETE=0 ARM_A_SHAPE=notakeable ARM_TTL="$REPLAY_CANDIDATE_TTL" ;;
+    CG) ARM_THRESHOLDS=0 ARM_GLOBAL_MARKS=default ;;
     *) echo "unknown arm $1" >&2; return 1 ;;
   esac
   if [[ "$ARM_A_KIND" == git ]]; then
@@ -92,8 +96,12 @@ replay_repository_rules() {
 # corpus (8,713 mix rows plus A's 13,000) is past the ingester defaults (10,000
 # outstanding, 500 retrying), so the default global gate would defer all intents,
 # B's included, and time them out in the control arm too. That backstop is not
-# what this replay tests; the per-source leg is. Recorded in every manifest.
+# what this replay tests; the per-source leg is. Recorded in every manifest. Only
+# the ingester gets them: the standalone projector runs no global gate at its
+# product default (reduceradmission/reducer_admission.go), so a mark there would
+# turn one on. Arm CG runs C at the default marks, reported and not judged.
 replay_global_admission_env() {
+  [[ "$ARM_GLOBAL_MARKS" == raised ]] || return 0
   cat <<ENV
 ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK=1000000
 ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK=1000000
@@ -103,7 +111,7 @@ ENV
 
 # replay_event appends one timestamped event to the run's events.tsv.
 replay_event() {
-  printf '%s\t%s\t%s\t%s\n' "$(date +%s.%N)" "$1" "$2" "${3:-}" >>"$REPLAY_RUN_DIR/events.tsv"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%s.%N)" "$1" "${2:-}" "${3:-}" "${4:-}" >>"$REPLAY_RUN_DIR/events.tsv"
 }
 
 # replay_fixture_commit <label> <day> adds one fixed-content commit, at a fixed
@@ -117,6 +125,9 @@ replay_fixture_commit() {
       GIT_COMMITTER_DATE="2026-01-0${day}T00:00:00Z" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
       git -C "$repo" commit -q -am "replay $label"
     git -C "$repo" push -q "$REPLAY_FIXTURES/remotes/replay/fixture-${repo##*-}.git" HEAD:main
+    # One push event per repository: the pushed HEAD sha is what the selection
+    # delay is measured against (a generation is matched to its commit by sha).
+    replay_event fixture_push "replay/fixture-${repo##*-}" "$label" "$(git -C "$repo" rev-parse HEAD)"
   done
   replay_event fixture_commit "$(ls -d "$REPLAY_FIXTURES"/work/replay-fixture-* | wc -l)" "$label"
 }
@@ -142,10 +153,12 @@ replay_write_manifest() {
     sel_base=20 # ESHU_GIT_SELECTION_MIN_RESYNC_INTERVAL seconds, see replay_threshold_env
   fi
   python3 -I - "$REPLAY_RUN_DIR/manifest.json" <<PY
-import json, sys
-json.dump({
+import hashlib, json, os, sys
+bins = {n: hashlib.sha256(open(os.path.join("$REPLAY_BIN", n), "rb").read()).hexdigest()
+        for n in sorted(os.listdir("$REPLAY_BIN")) if n.startswith("eshu-")}
+json.dump({"binaries": bins,
   "arm": "$arm", "rep": $rep, "ttl": "$ARM_TTL", "completion_step": bool($ARM_COMPLETE),
-  "thresholds": "$thresholds", "global_admission": "$(replay_global_admission_env | paste -sd, -)", "source_a": "$REPLAY_SRC_A", "source_b": "$REPLAY_SRC_B",
+  "thresholds": "$thresholds", "global_admission": "$(replay_global_admission_env | paste -sd, -)", "global_marks": "$ARM_GLOBAL_MARKS", "source_a": "$REPLAY_SRC_A", "source_b": "$REPLAY_SRC_B",
   "a_shape": "$ARM_A_SHAPE", "a_reducer_rows": $REPLAY_A_ROWS, "a_projector_generations": $REPLAY_A_GENERATIONS,
   "b_generations": $REPLAY_B_COUNT, "b_cadence": "$REPLAY_B_CADENCE",
   "workers": {"projector": $REPLAY_PROJECTOR_WORKERS, "ingester_projector": $REPLAY_INGESTER_PROJECTOR_WORKERS},
@@ -167,6 +180,7 @@ replay_wait_until() {
     sleep 1
   done
   echo "timeout after ${limit}s waiting for $what" >&2
+  replay_event wait_timeout "$what" "$limit"
   return 1
 }
 
@@ -206,7 +220,7 @@ replay_run_arm() {
   fi
   local -a ing_env proj_env
   mapfile -t ing_env < <(replay_threshold_env ingester; replay_global_admission_env)
-  mapfile -t proj_env < <(replay_threshold_env projector; replay_global_admission_env)
+  mapfile -t proj_env < <(replay_threshold_env projector)
   replay_start ingester eshu-ingester 19501 "${ing_env[@]}" \
     ESHU_PROJECTOR_WORKERS="$REPLAY_INGESTER_PROJECTOR_WORKERS" ESHU_REPO_SOURCE_MODE=explicit \
     ESHU_REPOSITORY_RULES_JSON="$(replay_repository_rules)" ESHU_REPOS_DIR="$REPLAY_HOME/workspace" \
@@ -257,7 +271,7 @@ replay_run_arm() {
   fi
   replay_sampler_stop
   replay_export_state
-  replay_event run_done 0
+  replay_event run_done "$(replay_load1)"
   python3 -I "$here/assemble_result.py" "$REPLAY_RUN_DIR"
   echo "run $arm rep $rep done: $REPLAY_RUN_DIR/result.json"
 }
