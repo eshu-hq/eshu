@@ -54,6 +54,12 @@ type stubFanOut struct {
 	// marker (#10972); FindInFlightNonMarkerScopes leaves them out.
 	inFlightMarkers []string
 	owedRecorded    int
+	// queued names the holders whose active-generation item is already pending
+	// or retrying; queuedErr fails the prefilter read; queuedCalls records the
+	// holder list of every FindQueuedHolderScopes call (#10972 PR-2).
+	queued      map[string]bool
+	queuedErr   error
+	queuedCalls [][]string
 	// mu guards every recording append below: split holder reads run
 	// concurrently, so unguarded appends race under -race.
 	mu sync.Mutex
@@ -124,6 +130,25 @@ func (s *stubFanOut) FindInFlightNonMarkerScopes(_ context.Context, _ string) ([
 	for _, scope := range s.inFlight {
 		if !slices.Contains(s.inFlightMarkers, scope) {
 			out = append(out, scope)
+		}
+	}
+	return out, nil
+}
+
+// FindQueuedHolderScopes serves the #10972 prefilter: it reports, in input
+// order, the holders the test marked queued.
+func (s *stubFanOut) FindQueuedHolderScopes(_ context.Context, holders []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reads = append(s.reads, "prefilter")
+	s.queuedCalls = append(s.queuedCalls, append([]string(nil), holders...))
+	if s.queuedErr != nil {
+		return nil, s.queuedErr
+	}
+	var out []string
+	for _, id := range holders {
+		if s.queued[id] {
+			out = append(out, id)
 		}
 	}
 	return out, nil
