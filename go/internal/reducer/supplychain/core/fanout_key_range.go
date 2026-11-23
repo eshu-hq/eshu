@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -51,13 +52,38 @@ func HolderKeyRanges() []HolderKeyRange {
 }
 
 // HolderReadStatement is one statement of a key-range holder read: its read
-// kind (telemetry.FanOutReadKindHoldersKeyRange or
-// telemetry.FanOutReadKindHoldersMembers), how long it ran, and its error, if
-// any. The handler records each into the fan-out read-duration histogram.
+// kind (telemetry.FanOutReadKindHoldersKeyRange, or
+// telemetry.FanOutReadKindHolders for the one fallback statement of
+// HolderKeyRangeRead.Fallback), how long it ran, and its error, if any. The
+// handler records each into the fan-out read-duration histogram.
 type HolderReadStatement struct {
-	Kind     string
+	Kind string
+	// Range is the statement's 1-based index in its HolderKeyRanges read.
+	Range    int
 	Duration time.Duration
 	Err      error
+}
+
+// keyRangeStatementLogMessage is the warn log line of a slow or failed
+// key-range statement (noteKeyRangeStatement).
+const keyRangeStatementLogMessage = "supply chain impact holder key-range statement slow or failed"
+
+// fanOutHolderSlowStatement is the per-statement bar of the holder read
+// (p95 under 2 s, #10643): a key-range statement at or over it is reported
+// by noteKeyRangeStatement, which also reports every failed or fallback
+// statement.
+const fanOutHolderSlowStatement = 2 * time.Second
+
+// lookupHoldsNonCVEID reports whether ids hold any id without the CVE- prefix,
+// such as a GHSA alias. Only then can the foreign-member token arm of a
+// key-range statement match rows: a hot CVE id has no foreign rows on QA.
+func lookupHoldsNonCVEID(ids []string) bool {
+	for _, id := range ids {
+		if !strings.HasPrefix(strings.ToUpper(id), "CVE-") {
+			return true
+		}
+	}
+	return false
 }
 
 // HolderKeyRangeRead is the result of one key-range holder read: the holder
@@ -65,22 +91,29 @@ type HolderReadStatement struct {
 type HolderKeyRangeRead struct {
 	Scopes     []string
 	Statements []HolderReadStatement
+	// Fallback is true when a lookup id was too long to be tokenized, so the
+	// read ran as one shipped holder statement instead of the key ranges.
+	Fallback bool
 }
 
 // HolderKeyRangeReader is the optional seam behind bounded hot-id holder reads
 // (#10643). A hot singleton id, one whose measured mass is over
-// fanOutHolderHotMassRows, reads its cve_id and advisory_id arms as one
-// statement per HolderKeyRanges range and its advisory-group member arm as
-// one more statement. All of them run in one read-only REPEATABLE READ
+// fanOutHolderHotMassRows, reads as one statement per HolderKeyRanges range.
+// Each statement carries the cve_id and advisory_id arms over its fact_id
+// range and the advisory-group member arm as a foreign-member token arm over
+// its share of the token buckets (#10643 PR 2), so no statement reads all of
+// the id's rows from any arm. All of them run in one read-only REPEATABLE READ
 // transaction, so they share one snapshot and their union equals
 // FindHolderScopes for that id on that snapshot, a generation flip mid-read
 // included. Each statement keeps the 10 s holder-read guard and the typed
-// timeout error. A port without the seam keeps the shipped singleton
-// statement.
+// timeout error. A lookup id over 1,024 bytes has no foreign-member token,
+// so such a read runs the shipped singleton statement on the same snapshot
+// and reports HolderKeyRangeRead.Fallback (#10643 PR 2, ruling 10643m). A
+// port without the seam keeps the shipped singleton statement.
 type HolderKeyRangeReader interface {
 	// FindHolderScopesByKeyRange returns the scopes, other than ownScopeID,
 	// holding an active finding row for lookupIDs, read as one statement per
-	// range plus one member-arm statement on one snapshot. On error the
+	// range on one snapshot. On error the
 	// returned read still lists the statements that ran.
 	FindHolderScopesByKeyRange(ctx context.Context, ownScopeID string, lookupIDs []string, ranges []HolderKeyRange) (HolderKeyRangeRead, error)
 }

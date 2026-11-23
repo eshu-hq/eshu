@@ -319,11 +319,13 @@ func TestClaimBatchFunnelQueryIsReadOnly(t *testing.T) {
 			t.Fatalf("funnel counts query contains data-modifying %q: it must stay a pure SELECT census", banned)
 		}
 	}
-	// MATERIALIZED is load-bearing on both gate CTEs (see their comment):
-	// without it the planner inlines the stale set under base's NOT EXISTS.
+	// MATERIALIZED is load-bearing on the gate CTEs (see their comment):
+	// without it the planner inlines the stale set under base's NOT EXISTS,
+	// and (#11234) the prefiltered rows must stay a fence ahead of the
+	// active-generation lookup.
 	for _, want := range []string{
 		reducerClaimStaleGateCTEs(),
-		"claim_active_generations AS MATERIALIZED (",
+		"stale_gate_rows AS MATERIALIZED (",
 		"stale_reducer_candidates AS MATERIALIZED (",
 	} {
 		if !strings.Contains(reducerClaimBatchFunnelQuery, want) {

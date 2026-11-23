@@ -8,7 +8,13 @@
 -- Machine-derived, never hand-copied: a temporary dump test ran the
 -- derivation in a clean base worktree and wrote these bytes verbatim.
 -- The "new" side of the differential always derives from the shipped
--- query at test time, so this file only moves if history is rewritten.
+-- query at test time, so only the part before the candidate CTE moves, when
+-- the stale gate does.
+-- #11234 re-derivation: the text before the candidate CTE (the stale-gate
+-- CTEs) follows the shipped E2 gate (stale_gate_rows and the lateral scope
+-- join), written by a temporary dump test that ran the derivation in this
+-- tree; the candidate CTE and everything after it are still the frozen
+-- pre-#10916 bytes with the rejoin intact.
 
 
 WITH reducer_claim_readiness_requirements(domain, keyspace, phase, acceptance_unit_source, acceptance_unit_prefix) AS (
@@ -37,19 +43,35 @@ WITH reducer_claim_readiness_requirements(domain, keyspace, phase, acceptance_un
         ('ec2_block_device_kms_posture_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'scope_prefix', 'ec2_instance_node_materialization:'),
         ('ec2_block_device_kms_posture_materialization', 'cloud_resource_uid', 'canonical_nodes_committed', 'scope_prefix', 'aws_resource_materialization:')
 ),
-claim_active_generations AS MATERIALIZED (
-    SELECT scope.scope_id,
-           scope.active_generation_id,
-           active_generation.ingested_at AS active_ingested_at
-    FROM ingestion_scopes AS scope
-    JOIN scope_generations AS active_generation
-      ON active_generation.generation_id = scope.active_generation_id
-     AND active_generation.scope_id = scope.scope_id
+stale_gate_rows AS MATERIALIZED (
+    SELECT work.work_item_id,
+           work.scope_id,
+           work.generation_id,
+           work.stage,
+           work.domain,
+           work.status,
+           work.payload
+    FROM fact_work_items AS work
+    JOIN ingestion_scopes AS work_scope ON work_scope.scope_id = work.scope_id
+    WHERE work.stage = 'reducer'
+      AND work.status IN ('pending', 'retrying')
+      AND ($2::text[] IS NULL OR work.domain = ANY($2::text[]))
+      AND work.generation_id <> work_scope.active_generation_id
 ),
 stale_reducer_candidates AS MATERIALIZED (
     SELECT stale.work_item_id
-    FROM fact_work_items AS stale
-    JOIN claim_active_generations AS scope ON scope.scope_id = stale.scope_id
+    FROM stale_gate_rows AS stale
+    CROSS JOIN LATERAL (
+        SELECT scope.scope_id,
+               scope.active_generation_id,
+               active_generation.ingested_at AS active_ingested_at
+        FROM ingestion_scopes AS scope
+        JOIN scope_generations AS active_generation
+          ON active_generation.generation_id = scope.active_generation_id
+         AND active_generation.scope_id = scope.scope_id
+        WHERE scope.scope_id = stale.scope_id
+        OFFSET 0
+    ) AS scope
     JOIN scope_generations AS stale_generation
       ON stale_generation.scope_id = stale.scope_id
      AND stale_generation.generation_id = stale.generation_id

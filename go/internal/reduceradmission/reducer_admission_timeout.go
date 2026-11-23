@@ -89,7 +89,7 @@ func (w reducerAdmissionWriter) admissionTimeoutExceeded(ctx context.Context, wa
 	if maxWait <= 0 {
 		return nil
 	}
-	waited := time.Since(waitStart)
+	waited := w.clock()().Sub(waitStart)
 	if waited < maxWait {
 		return nil
 	}
@@ -161,3 +161,11 @@ func (reducerSourcePacedError) IsSourcePaced() bool {
 // while the batch's source was paced. It is not an admission timeout and
 // never matches ErrReducerAdmissionTimeout.
 var ErrReducerSourcePaced = errors.New("reducer source paced")
+
+// clock returns the gate clock, time.Now unless a test injected one.
+func (w reducerAdmissionWriter) clock() func() time.Time {
+	if w.now != nil {
+		return w.now
+	}
+	return time.Now
+}

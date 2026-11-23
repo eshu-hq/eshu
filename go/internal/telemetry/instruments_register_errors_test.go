@@ -100,6 +100,7 @@ func TestRegisterInstrumentsFailLoud(t *testing.T) {
 		{"cicd_webhook", func(m metric.Meter) error { return registerCICDRunWebhookInstruments(m, &Instruments{}) }},
 		{"collector_terminal_failure", func(m metric.Meter) error { return registerCollectorTerminalFailureAcknowledgements(m, &Instruments{}) }},
 		{"completion_wake", func(m metric.Meter) error { return registerCompletionWakeInstruments(m, &Instruments{}) }},
+		{"reducer_admission_depth", func(m metric.Meter) error { return registerReducerAdmissionDepthInstruments(m, &Instruments{}) }},
 		{"component_extension", func(m metric.Meter) error { return registerComponentExtensionInstruments(m, &Instruments{}) }},
 		{"config_artifact_candidates", func(m metric.Meter) error { return registerConfigArtifactCandidates(m, &Instruments{}) }},
 		{"config_artifact_derive", func(m metric.Meter) error { return registerConfigArtifactDeriveInstruments(m, &Instruments{}) }},

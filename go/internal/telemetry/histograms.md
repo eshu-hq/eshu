@@ -41,6 +41,7 @@ that file under the 500-line cap; the counters and gauges stay there.
 | `ReducerAdmissionSourceConsultDuration` | `eshu_dp_reducer_admission_source_consult_duration_seconds` (`outcome`, `source_system` or `collector_kind`; #10882) | 0.001–5 s, edge at 0.1 s |
 | `ProjectorWriteMarkerWaitDuration` | `eshu_dp_projector_write_marker_wait_seconds` | 1–600 s |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | 0.05–900 s |
+| `ReducerAdmissionDepthAge` | `eshu_dp_reducer_admission_depth_age_seconds` (#11233) | 0.01–30 s |
 | `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
 | `GCPMaterializationDuration` | `eshu_dp_gcp_materialization_duration_seconds` | 0.001–21600 s |
