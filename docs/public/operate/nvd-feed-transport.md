@@ -40,7 +40,7 @@ Satellite-to-host contract (#11287): the satellite stamps `nvd_window_transport`
 closed set and an absent or non-string stamp reads as `unknown`, never `feed`.
 A `feed` series therefore proves a satellite-stamped feed window. Verify with
 `sum by (transport) (rate(eshu_dp_vulnerability_nvd_window_claims_total[5m]))`:
-after seed-served windows a `transport="feed"` series appears; before the
+after feed-served windows a `transport="feed"` series appears; before the
 satellite pin every window reads `unknown`.
 
 - `eshu_dp_vulnerability_nvd_window_claims_total` (`transport`, `outcome`):

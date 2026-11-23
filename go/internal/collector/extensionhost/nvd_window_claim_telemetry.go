@@ -79,6 +79,14 @@ type nvdWindowPending struct {
 	generationID string
 }
 
+// maxPendingNVDWindowClaims bounds how many completed NVD window
+// observations may wait for their commit hook, mirroring
+// maxPendingClaimOutcomes. An entry is consumed by take and dropped on every
+// NextClaimed exit for its work item, so it only stays when a commit never
+// succeeds. On overflow the entry with the oldest attempt time is evicted,
+// which leaves that window uncounted, never wrong.
+const maxPendingNVDWindowClaims = 256
+
 // pendingNVDWindowClaims stashes completed NVD window observations between
 // NextClaimed and the commit hook, keyed by work item id. It mirrors
 // pendingClaimOutcomes: one mutex-guarded map behind a pointer shared by
@@ -99,6 +107,16 @@ func (p *pendingNVDWindowClaims) stash(item workflow.WorkItem, pending nvdWindow
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if _, exists := p.rows[item.WorkItemID]; !exists && len(p.rows) >= maxPendingNVDWindowClaims {
+		oldestKey := ""
+		var oldest time.Time
+		for candidate, row := range p.rows {
+			if oldestKey == "" || row.attemptedAt.Before(oldest) {
+				oldestKey, oldest = candidate, row.attemptedAt
+			}
+		}
+		delete(p.rows, oldestKey)
+	}
 	p.rows[item.WorkItemID] = pending
 }
 
@@ -226,7 +244,13 @@ func (s *Source) emitNVDWindowRefused(ctx context.Context, item workflow.WorkIte
 // nothing. Host failures before the satellite runs carry an empty result and
 // are never counted, as are identity mismatches, per the instrument
 // contract. A completed claim whose attempt-row write fails (source_state
-// record) emits failed_retryable with its stamped transport.
+// record) emits failed_retryable with its stamped transport: the satellite
+// ran and stamped, only host bookkeeping failed. Post-satellite
+// invalid_result, launch_failure, and status_record verdicts stay uncounted
+// for the mirror reason: the host rejected the result (invalid_result), the
+// satellite never ran (launch_failure), or host bookkeeping failed
+// (status_record), so no transport in the stamp can be trusted to have
+// served the window.
 func (s *Source) observeNVDWindowClaim(ctx context.Context, item workflow.WorkItem, attemptedAt time.Time, collected collector.CollectedGeneration, result sdkcollector.Result, ok bool, err error) {
 	if !vulnsource.IsNVDWindowScope(item.ScopeID) || s.instruments == nil {
 		return

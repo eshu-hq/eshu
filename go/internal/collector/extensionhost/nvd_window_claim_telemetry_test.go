@@ -5,7 +5,9 @@ package extensionhost
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -13,6 +15,48 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// TestPendingNVDWindowClaimsEvictsOldestAtCap pins the stash bound
+// (eshu-hq/eshu#11287 review): at maxPendingNVDWindowClaims entries the
+// stash evicts the entry with the oldest attempt time, so the map never
+// grows without bound and the evicted window is left uncounted, never
+// miscounted.
+func TestPendingNVDWindowClaimsEvictsOldestAtCap(t *testing.T) {
+	t.Parallel()
+
+	base := testObservedAt()
+	stash := func(p *pendingNVDWindowClaims, i int, at time.Time) {
+		item := testWorkItem()
+		item.WorkItemID = fmt.Sprintf("work-nvd-cap-%d", i)
+		item.GenerationID = "generation-cap"
+		p.stash(item, nvdWindowPending{generationID: "generation-cap", attemptedAt: at})
+	}
+
+	p := newPendingNVDWindowClaims()
+	for i := 0; i < maxPendingNVDWindowClaims; i++ {
+		stash(p, i, base.Add(time.Duration(i)*time.Second))
+	}
+	if got := len(p.rows); got != maxPendingNVDWindowClaims {
+		t.Fatalf("len(rows) after fill = %d, want %d", got, maxPendingNVDWindowClaims)
+	}
+
+	stash(p, maxPendingNVDWindowClaims, base.Add(time.Duration(maxPendingNVDWindowClaims)*time.Second))
+	if got := len(p.rows); got != maxPendingNVDWindowClaims {
+		t.Fatalf("len(rows) after overflow = %d, want cap %d", got, maxPendingNVDWindowClaims)
+	}
+	oldest := testWorkItem()
+	oldest.WorkItemID = "work-nvd-cap-0"
+	oldest.GenerationID = "generation-cap"
+	if _, ok := p.take(oldest); ok {
+		t.Fatalf("oldest entry survived the cap eviction")
+	}
+	newest := testWorkItem()
+	newest.WorkItemID = fmt.Sprintf("work-nvd-cap-%d", maxPendingNVDWindowClaims)
+	newest.GenerationID = "generation-cap"
+	if _, ok := p.take(newest); !ok {
+		t.Fatalf("newest entry missing after the cap eviction")
+	}
+}
 
 // TestNVDWindowTransportReadsStampedPayload pins the satellite-to-host
 // transport contract (eshu-hq/eshu#11287): the satellite stamps
