@@ -38,7 +38,9 @@ const (
 	// moves with the feature instead of against it. The #11228 post-commit
 	// re-wake adds two statements per committed Ack (the generation_active
 	// wake and the terminal-wait probe, run again on the pool after Commit),
-	// so the count is 13 with the journal on or off.
+	// so the count is 13 with the journal on or off. The 13 assumes the fixture's
+	// collector kind maps to no producer domains; one added producer mapping
+	// adds a wake statement per Ack and moves the pin again.
 	ajCostStatementsOnAck = 13
 )
 
