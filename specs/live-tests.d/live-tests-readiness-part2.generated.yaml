@@ -32,7 +32,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/aggregates_winners_parity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which stay on the legacy CTE, mirroring the list read); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 slice 2b disposable PostgreSQL 18 proof that the winners-sourced aggregate read (count, priority/severity buckets, grouped inventory) returns byte-identical envelopes to the legacy fact read across the grouped-inventory seed: unfiltered, precise profile, priority floor, suppressed inclusion with live and expired operator suppressions, all five inventory dimensions, and scoped-token repository and scope grants (which are served from the per-support table with it filled by the backfill, and return the same envelopes on this single-support seed); reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/findings_winners_parity_live_test.go
     tag: ~
@@ -44,10 +44,15 @@ tests:
     class: postgres_ci
     reason: "#9873 disposable PostgreSQL 18 proof of the winners-sourced grouped inventory (service_id, workload_id, environment): a two-service finding counts in both buckets, unmapped findings land in the unattributed bucket, each bucket equals the count route for filter=X (including the workload entity_keys leg and a BTRIM-ed environment), a repository grant and a scope-id-only grant each hide an ungranted-only service and mark a partly hidden service partial, a central catalog scope grant keeps count parity, operator suppression expiry is evaluated at read time, ordering and truncation keep the whole-set distinct count, and an absent watermark or an off gate answers the typed unavailable error; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
+  - file: go/internal/query/supply/chain/impact/grouped_inventory_supports_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#10880 PR-B2a disposable PostgreSQL 18 proof of the supports-sourced grouped inventory (service_id, workload_id, environment) for granted calls: repository and scope grants, a central-catalog scope grant with a finding-level hide, filter-independent partial completeness, image_ref and the precise profile served from every copy, bucket counts and distinct findings equal to the legacy count route for each grant shape on the multi-support corpus, and a not-ready supports table refused; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/multi_support_parity_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped stores keep granted calls on the legacy read; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped gate-on stores serve granted calls from the supports table and return the legacy answers; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/readiness_central_pin_live_test.go
     tag: ~
@@ -132,7 +137,7 @@ tests:
   - file: go/internal/query/supply/chain/impact/supports_plan_shape_live_test.go
     tag: ~
     class: postgres_ci
-    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the candidate list read drives from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
+    reason: "#10880 PR-B1 disposable PostgreSQL 18 plan-shape guard: at the 400-scope grant shape over 144,000 supports in 2,400 scopes the granted list, count, inventory and grouped-inventory reads (#10880 PR-B2a) drive from the grant (index arms over the per-support table, no sequential scan of it), and the natural single-WHERE form of the same read is rejected by the same checker; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in"
     runner: live-postgres-readiness
   - file: go/internal/query/supply/chain/impact/suppression_paths_performance_live_test.go
     tag: ~

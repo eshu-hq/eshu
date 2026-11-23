@@ -63,6 +63,13 @@ func mustDeriveAggregateSupportsCTE(legacy string) string {
 // canonical-facts CTE for its supports equivalent, returning an error that names
 // a marker the legacy text no longer carries.
 func deriveAggregateSupportsCTE(legacy string) (string, error) {
+	return deriveSupportsCanonicalFactsCTE(legacy, aggregateSupportsSourceCTE)
+}
+
+// deriveSupportsCanonicalFactsCTE is deriveAggregateSupportsCTE with the source
+// CTE chosen by the caller, so the grouped inventory, which binds no caller
+// authorization arguments, shares the derivation without those guards.
+func deriveSupportsCanonicalFactsCTE(legacy, sourceCTE string) (string, error) {
 	cut := func(text, from, to string) (before, after string, err error) {
 		start := strings.Index(text, from)
 		if start < 0 {
@@ -79,7 +86,7 @@ func deriveAggregateSupportsCTE(legacy string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	query := head + aggregateSupportsSourceCTE + "," + rest
+	query := head + sourceCTE + "," + rest
 	// The legacy operator_overrides CTE and its join become the lateral probe.
 	head, rest, err = cut(query, "operator_overrides AS (", "joined_winners AS (")
 	if err != nil {

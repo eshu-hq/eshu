@@ -75,6 +75,11 @@ func (h *Handler) impactGroupedInventory(
 			h.writeImpactGroupedInventoryFilterUnavailable(w, r)
 			return
 		}
+		if errors.Is(err, impact.ErrFindingSupportsUnavailable) {
+			// A granted call is answered from the supports table (#10880 PR-B2a).
+			h.writeImpactAggregateReadModelUnavailable(w, r, err)
+			return
+		}
 		if errors.Is(err, impact.ErrGroupedInventoryReadModelUnavailable) {
 			h.writeImpactAggregateBackendUnavailable(w, r)
 			return

@@ -56,6 +56,8 @@ func seedSupportsEqualityExtras(t *testing.T, ctx context.Context, database *sql
 		map[string]any{"service_id": "service:m1", "repository_id": "repository:m1", "outcome": "exact"})
 	groupedLiveFact(t, ctx, database, "fact:runtime:env-m2", multiSupportScopeB, "gen:b", cicdRunCorrelationFactKind,
 		map[string]any{"environment": "prod", "repository_id": "repository:m2", "outcome": "exact"})
+	groupedLiveFact(t, ctx, database, "fact:runtime:wl-m1", multiSupportScopeA, "gen:a", "reducer_workload_identity",
+		map[string]any{"workload_id": "workload:m1", "repository_id": "repository:m1"})
 	overlay := func(factID, id, state, expires, generationID string, score int) {
 		payload := groupedLiveFindingPayload(id, id, score, 5.0)
 		payload["suppression_state"] = state

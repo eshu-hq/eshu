@@ -27,7 +27,9 @@ var groupedLiveOperatorExpiry = time.Now().UTC().Add(time.Hour)
 
 // TestGroupedInventoryStoreWinnersLive drives PostgresGroupedInventoryStore and
 // the existing PostgresAggregateStore count route against one seeded
-// production-schema database with real materialized winners.
+// production-schema database with real materialized winners. It covers the
+// ungranted read; granted calls are answered from the supports table and proven
+// in grouped_inventory_supports_live_test.go.
 func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 	ctx, database := postgresproof.OpenDisposableBootstrapDatabase(
 		t,
@@ -124,27 +126,6 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			map[string]int{"prod": 2, "qa": 1})
 	})
 
-	t.Run("repository grant hides ungranted services and marks partial", func(t *testing.T) {
-		scoped := base
-		scoped.AllowedRepositoryIDs = []string{"repository:r1", "repository:r2"}
-		page := read(t, store, scoped, GroupedInventoryByService, 50)
-		assertGroupedLiveCounts(t, groupedLiveCounts(page), map[string]int{"service:a": 3, "service:b": 2})
-		if got := groupedLiveRow(t, page, "service:a").Completeness; got != GroupCompletenessPartial {
-			t.Fatalf("service:a completeness = %q, want partial (repository:r6 is outside the grant)", got)
-		}
-		if got := groupedLiveRow(t, page, "service:b").Completeness; got != GroupCompletenessComplete {
-			t.Fatalf("service:b completeness = %q, want complete", got)
-		}
-		if page.DistinctFindings != total(t, scoped) {
-			t.Fatalf("scoped DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
-		}
-		filter := scoped
-		filter.ServiceID = "service:a"
-		if want := total(t, filter); want != 3 {
-			t.Fatalf("scoped count route service_id=service:a = %d, want 3", want)
-		}
-	})
-
 	t.Run("operator suppression expiry is evaluated at read time", func(t *testing.T) {
 		withSuppressed := base
 		withSuppressed.IncludeSuppressed = true
@@ -192,81 +173,6 @@ func TestGroupedInventoryStoreWinnersLive(t *testing.T) {
 			if order[i] != want[i] {
 				t.Fatalf("order = %q, want %q", order, want)
 			}
-		}
-	})
-
-	t.Run("scope-id grant hides ungranted services and marks spanning buckets partial", func(t *testing.T) {
-		scoped := base
-		scoped.AllowedScopeIDs = []string{"git-repository-scope:repository:r1", "git-repository-scope:repository:r2"}
-		page := read(t, store, scoped, GroupedInventoryByService, 50)
-		assertGroupedLiveCounts(t, groupedLiveCounts(page), map[string]int{"service:a": 3, "service:b": 2})
-		if got := groupedLiveRow(t, page, "service:a").Completeness; got != GroupCompletenessPartial {
-			t.Fatalf("service:a completeness = %q, want partial (repository:r6's scope is outside the grant)", got)
-		}
-		if got := groupedLiveRow(t, page, "service:b").Completeness; got != GroupCompletenessComplete {
-			t.Fatalf("service:b completeness = %q, want complete", got)
-		}
-		if page.DistinctFindings != total(t, scoped) {
-			t.Fatalf("scope-granted DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
-		}
-		for _, row := range page.Rows {
-			filter := scoped
-			filter.ServiceID = row.Value
-			if want := total(t, filter); row.Count != want {
-				t.Fatalf("scope-granted bucket %s = %d, count route = %d", row.Value, row.Count, want)
-			}
-		}
-	})
-
-	t.Run("central catalog scope grant marks finding-level hides partial", func(t *testing.T) {
-		seedGroupedInventoryCentralCatalogLive(t, ctx, database)
-		if err := storagepostgres.NewSupplyChainImpactWinnersStore(storagepostgres.SQLDB{DB: database}).
-			RebuildAllWinners(ctx); err != nil {
-			t.Fatalf("RebuildAllWinners: %v", err)
-		}
-		scoped := base
-		scoped.AllowedScopeIDs = []string{"catalog:central", "git-repository-scope:repository:r7"}
-		page := read(t, store, scoped, GroupedInventoryByService, 50)
-		e := groupedLiveRow(t, page, "service:e")
-		filter := scoped
-		filter.ServiceID = "service:e"
-		if e.Count != 1 || e.Count != total(t, filter) {
-			t.Fatalf("service:e = %d, count route = %d, want 1 (repository:r8's finding scope is not granted)", e.Count, total(t, filter))
-		}
-		// Both repositories are granted through the catalog scope, so no map
-		// row is hidden; repository:r8's finding is hidden by its own scope,
-		// and that finding-level hide must still read partial.
-		if e.Completeness != GroupCompletenessPartial {
-			t.Fatalf("service:e completeness = %q, want partial: the grant hides repository:r8's finding", e.Completeness)
-		}
-		if e.MaxPriorityScore != 65 || e.ByImpactStatus["affected_exact"] != 1 {
-			t.Fatalf("service:e = %#v, want only the granted finding f8 in its breakdowns", e)
-		}
-		if page.DistinctFindings != total(t, scoped) {
-			t.Fatalf("central catalog DistinctFindings = %d, count route = %d", page.DistinctFindings, total(t, scoped))
-		}
-		// Completeness must not depend on the request filters: a scoped caller
-		// varying cve_id or min_priority_score must not watch service:e flip
-		// between complete and partial (a filter-dependent oracle on the
-		// hidden finding f9, priority 64).
-		for name, vary := range map[string]func(*AggregateFilter){
-			"cve_id of the granted finding":               func(f *AggregateFilter) { f.CVEID = "CVE-2026-f8" },
-			"min_priority_score above the hidden finding": func(f *AggregateFilter) { f.MinPriorityScore = 65 },
-			"severity of the granted finding":             func(f *AggregateFilter) { f.Severity = "medium" },
-		} {
-			variant := scoped
-			vary(&variant)
-			row := groupedLiveRow(t, read(t, store, variant, GroupedInventoryByService, 50), "service:e")
-			if row.Completeness != GroupCompletenessPartial || row.Count != 1 {
-				t.Fatalf("%s: service:e = %q count %d, want partial count 1 regardless of the filter", name, row.Completeness, row.Count)
-			}
-		}
-		onlyHidden := base
-		onlyHidden.AllowedScopeIDs = []string{"catalog:central"}
-		hiddenPage := read(t, store, onlyHidden, GroupedInventoryByService, 50)
-		if len(hiddenPage.Rows) != 0 || hiddenPage.DistinctFindings != 0 {
-			t.Fatalf("catalog-only grant page = %v (distinct %d), want no bucket: no granted finding maps to service:e",
-				groupedLiveCounts(hiddenPage), hiddenPage.DistinctFindings)
 		}
 	})
 

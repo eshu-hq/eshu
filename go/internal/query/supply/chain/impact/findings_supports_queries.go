@@ -37,6 +37,13 @@ func supportsSourceCTE(b supportsSourceBinds) string {
 	} else {
 		guard = "WHERE "
 	}
+	template := supportsSourceCTETemplate
+	if b.protectedFlag == "" {
+		// A read with no caller-authorization binds (the grouped inventory) drops
+		// the protected-read guards; the supports table holds no derived-class
+		// row, so the guards only typed binds the read does not have.
+		template = strings.Replace(template, supportsSourceProtectedGuards, "", 1)
+	}
 	return strings.NewReplacer(
 		"{columns}", b.columns, "{guard}", guard,
 		"{cve}", b.cve, "{pkg}", b.pkg, "{repo}", b.repo, "{digest}", b.digest,
@@ -45,10 +52,17 @@ func supportsSourceCTE(b supportsSourceBinds) string {
 		"{repoGrant}", b.repoGrant, "{scopeGrant}", b.scopeGrant,
 		"{p1}", b.protectedFlag, "{p2}", b.protected2, "{p3}", b.protected3,
 		"{p4}", b.protected4, "{p5}", b.protected5, "{p6}", b.protectedList,
-	).Replace(supportsSourceCTETemplate) +
+	).Replace(template) +
 		supplyChainImpactRuntimeFilterPredicate("fact.repository_id", b.service, b.workload, b.environment) + `
 )`
 }
+
+// supportsSourceProtectedGuards types the six caller-authorization binds the
+// legacy reads carry. It is its own constant so a read without those binds can
+// drop it from the template.
+const supportsSourceProtectedGuards = `    AND {p1}::boolean IS NOT NULL AND {p2}::text IS NOT NULL AND {p3}::text IS NOT NULL
+    AND {p4}::text IS NOT NULL AND {p5}::text IS NOT NULL AND {p6}::text[] IS NOT NULL
+`
 
 const supportsSourceCTETemplate = `
 source_candidates AS (
@@ -69,9 +83,7 @@ source_candidates AS (
     ON finding_association.finding_fact_id = fact.fact_id
   {guard}generation.status = 'active'
     AND fact.scope_id <> 'operator:vulnerability_suppressions'
-    AND {p1}::boolean IS NOT NULL AND {p2}::text IS NOT NULL AND {p3}::text IS NOT NULL
-    AND {p4}::text IS NOT NULL AND {p5}::text IS NOT NULL AND {p6}::text[] IS NOT NULL
-    AND finding_association.finding_fact_id IS NULL
+` + supportsSourceProtectedGuards + `    AND finding_association.finding_fact_id IS NULL
     AND fact.scope_id NOT LIKE 'image://derived/%'
     AND (finding_class.finding_fact_id IS NULL
          OR (finding_class.source_class = 'static' AND finding_class.lifecycle = 'active'))

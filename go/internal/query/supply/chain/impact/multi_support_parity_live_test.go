@@ -4,7 +4,7 @@
 package impact
 
 //eshu:readiness live-postgres-readiness
-//eshu:readiness:reason #10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped stores keep granted calls on the legacy read; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
+//eshu:readiness:reason #10880 PR-B0 disposable PostgreSQL 18 characterization of the multi-support divergence between the legacy fact read and the winners read (one canonical finding with supports in two scopes, plus a derived-class row): scope-only grants and rank filters on non-key fields return different findings and counts, repository grants and the union grant agree, and the shipped gate-on stores serve granted calls from the supports table and return the legacy answers; reads ESHU_GROUPED_INVENTORY_PROOF_DSN with its disposable opt-in
 //eshu:readiness:env ESHU_GROUPED_INVENTORY_PROOF_DISPOSABLE ESHU_GROUPED_INVENTORY_PROOF_DSN
 
 import (
@@ -86,11 +86,14 @@ ORDER BY winner_fact_id`)
 // grant shape. Legacy applies the grant to the supports, then picks; the
 // winners query applies it to the already-picked row. Legacy is the contract
 // for granted calls (the arbiter ruling for #10880 PR-B: a granted call is
-// never served from winners as-is), so these expectations change only when
-// the supports table lands and the granted route moves to it. The derived
-// row (m2 at p=99) appears in no answer.
+// never served from winners as-is). Since #10880 PR-B2a the gate-on stores serve
+// a granted call from the supports table, which applies the grant to the support
+// row like legacy, so the gate-on list and count equal legacy here while the
+// winners read keeps the divergence this test pins. The derived row (m2 at p=99)
+// appears in no answer.
 func TestMultiSupportScopedGrantDivergenceLive(t *testing.T) {
 	ctx, database := openMultiSupportDatabase(t)
+	runSupportsBackfillToCompletion(t, ctx, database)
 	at := time.Now().UTC()
 	legacyList := PostgresFindingStore{DB: database, ReadFromWinners: false}
 	gatedList := PostgresFindingStore{DB: database, ReadFromWinners: true}
@@ -152,7 +155,8 @@ func TestMultiSupportScopedGrantDivergenceLive(t *testing.T) {
 			if got := multiSupportDescribe(legacy); got != tc.legacy {
 				t.Errorf("legacy list = %q, want %q", got, tc.legacy)
 			}
-			// The shipped gate-on store must keep a granted call on the legacy read.
+			// The shipped gate-on store serves a granted call from the supports table,
+			// which must return the legacy page.
 			gated, err := gatedList.ListSupplyChainImpactFindings(ctx, listFilter)
 			if err != nil {
 				t.Fatalf("gate-on list: %v", err)

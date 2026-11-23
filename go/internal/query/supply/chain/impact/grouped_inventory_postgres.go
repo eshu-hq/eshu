@@ -126,16 +126,19 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	if s.DB == nil && s.reader == nil {
 		return GroupedInventoryPage{}, fmt.Errorf("supply chain impact grouped inventory database is required")
 	}
+	granted := len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0
 	// image_ref and the precise profile are existence filters: copies of one
 	// canonical key can differ on both, and the winners row holds only the
-	// picked copy's. This store has no legacy read to route to, so it answers
-	// unavailable instead of an under-count (#10880 PR-B ruling).
-	if filter.ImageRef != "" || filter.DetectionProfile != "" {
+	// picked copy's. A granted call is answered from the per-support table, which
+	// holds every copy (#10880 PR-B2a). An ungranted call has no per-copy read yet
+	// and no legacy grouped read to route to, so it answers unavailable instead of
+	// an under-count (#10880 PR-B ruling).
+	if !granted && (filter.ImageRef != "" || filter.DetectionProfile != "") {
 		return GroupedInventoryPage{}, ErrGroupedInventoryFilterUnavailable
 	}
 	build := groupedInventoryQuery
-	if len(filter.AllowedRepositoryIDs) > 0 || len(filter.AllowedScopeIDs) > 0 {
-		build = groupedInventoryScopedQuery
+	if granted {
+		build = groupedInventorySupportsQuery
 	}
 	query, err := build(dimension)
 	if err != nil {
@@ -149,9 +152,22 @@ func (s PostgresGroupedInventoryStore) SupplyChainImpactGroupedInventory(
 	}
 
 	readAt := SuppressionReadAt(s.Now)
-	freshness, available, probeFailed, err := s.winnersFreshness(ctx, readAt)
-	if err != nil {
-		return GroupedInventoryPage{}, err
+	freshness, available, probeFailed := GroupedInventoryFreshness{State: packet.FreshnessLabelFresh}, true, false
+	if granted {
+		// The supports table is current by construction (the maintainer writes it
+		// in the finding facts' transaction), so a supports-served page reports
+		// fresh with no winners watermark. A table that is not ready refuses.
+		probe := PostgresFindingStore{DB: s.DB, reader: s.reader, ReadFromWinners: true}
+		if err := probe.requireSupportsReady(ctx); err != nil {
+			s.logWatermarkProbeFailure(ctx, err)
+			return GroupedInventoryPage{}, fmt.Errorf("%w: %w", ErrGroupedInventoryReadModelUnavailable, err)
+		}
+	} else {
+		var err error
+		freshness, available, probeFailed, err = s.winnersFreshness(ctx, readAt)
+		if err != nil {
+			return GroupedInventoryPage{}, err
+		}
 	}
 
 	args := []any{
