@@ -521,10 +521,10 @@ var migrationShippedChecksums = map[string]string{
 	"344_supply_chain_impact_finding_supports_image_ref_idx.sql":           "66f8c261f923edcd0ee8988beeab6406f92bbed90ac21fb7c674ced430c3c21f",
 	// #10880 PR-B2c: the partial package_id btree behind the package arm of the
 	// supports read (numbered 345: 339 to 342 are PR-B2b's, 343 and 344 PR-B2a's).
-	"345_supply_chain_impact_supports_package_idx.sql": "d96de7460730d85f286dee9d05c1d3eeb14d04d10af2cad8ead7073aeaab51e0",
+	"345_supply_chain_impact_supports_package_idx.sql": "b008ae9199747f610fa7959ae38efb9cdb4f7e254eab28a36ab4df3152fe7457",
 	// #10880 PR-B2c: the partial (repository_id, fact_id) btree behind the repository
 	// arm of the supports reads (numbered 346 beside 345).
-	"346_supply_chain_impact_supports_repository_fact_idx.sql": "d0dd4ae13fb3908d8e2aedeace5f551abeb7f5a268f2076f1671e644818b64ae",
+	"346_supply_chain_impact_supports_repository_fact_idx.sql": "6e4de5e73cb32e932cd7b7b7ce7ad63063f2f8684f590bdc33ebd4975dafc484",
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql":  "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
 }
 

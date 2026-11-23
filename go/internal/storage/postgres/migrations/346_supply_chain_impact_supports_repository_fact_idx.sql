@@ -7,7 +7,8 @@
 -- (repository_id) btree has no fact_id suffix, so every page of a repository's
 -- supports read all of them and kept the first 500 by fact_id: 108,862 buffers
 -- and about 110 ms a page for a repository of 160,000 supports, 320 pages to
--- drain it. QA holds repositories of an estimated 120,000 to 150,000 findings.
+-- drain it. QA holds repositories of about 152,000, 126,000 and 123,000 findings (a
+-- 1/256 sample of live findings, read-only on the replica).
 -- With (repository_id, fact_id) the page is an ordered index scan: 5,909 buffers
 -- and 3.7 ms. Measured in docs/internal/evidence/10880-b2c/reader_plans.md.
 --

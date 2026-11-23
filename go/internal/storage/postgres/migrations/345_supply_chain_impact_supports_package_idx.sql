@@ -2,15 +2,16 @@
 -- Copyright (c) 2025-2026 eshu-hq
 
 -- #10880 PR-B2c: the partial btree that serves the package arm of the
--- security-alert reconciliation read of the supports table (#11198). That read
--- filters supports by an OR of four arms (repository_id, package_id, cve_id,
--- advisory_id); an OR is only indexable when every arm is, so without a
--- package_id index the planner scans the whole table for every shape
--- (8,000,000 supports, 5.2 GB heap: 0.7 to 0.97 s warm, 52 to 111 s cold; with
--- the index every shape is a BitmapOr over four index scans, 1.4 to 5.6 ms warm).
--- Measured in docs/internal/evidence/10880-b2c/reader_plans.md. The cve_id and
--- advisory_id btrees are PR-B2b's migrations; repository_id has its index from
--- migration 338.
+-- security-alert reconciliation read of the supports table (#11198). The read
+-- pages the supports by key: each arm (repository_id, package_id, cve_id,
+-- advisory_id) is a per-key ordered LIMIT scan, so a key's page can only stop
+-- early on an index that ends in fact_id. Without a package_id index the arm
+-- scans the whole table (8,000,000 supports, 5.2 GB heap: 0.7 to 0.97 s warm, 52
+-- to 111 s cold, and 5.5 million buffers and 0.94 GB of temp a page for a package
+-- of 1,600,000 supports); with it a page of that package reads 5,958 buffers in
+-- 3.9 ms. Measured in docs/internal/evidence/10880-b2c/reader_plans.md. The
+-- cve_id and advisory_id btrees are PR-B2b's migrations; the repository_id arm
+-- is served by migration 346's (repository_id, fact_id) btree.
 --
 -- The predicate is the literal the read repeats on its package arm
 -- (supplyChainImpactSupportsPackageIndexPredicate in the Go code), so the
