@@ -11,22 +11,30 @@ and 8,000,000 supports, and what the shape needs from the schema.
 
 ## The read shape
 
-Both reads use a raw-first shape (`supplyChainImpactSupportRawFirstCTE`): the
-supports are selected by their filter in a `MATERIALIZED` CTE, then only those
-rows are joined to the active-generation check. The natural single-`WHERE` form
-lets the planner drive the join from the active scopes (one
-`(scope_id, generation_id)` index probe per active scope), so its cost scales
-with the scope count, not the rows kept.
+Both reads page the supports table with the statement of the hot-key ruling
+(`supplyChainImpactSupportsPageQuery`, one builder, two texts: first page and next
+page). Each filter arm is a per-key ordered `LIMIT 500` index scan:
+`unnest($n) AS k(v) CROSS JOIN LATERAL (SELECT s.fact_id FROM supports s WHERE
+s.col = k.v [AND s.fact_id > $cursor] ORDER BY s.fact_id LIMIT 500)`. Nothing about
+the scope tables sits inside the `LIMIT`, so it fences the planner: the page
+stops after 500 index entries per key and cannot flip to one probe per active
+scope. The arms are `UNION ALL`, cut to the first 2,000 ids, made distinct and cut
+to 500: the raw page. The outer query joins the raw ids to the supports by primary
+key, `LEFT JOIN`s the two scope tables on their keys, and returns every raw row
+with `is_active` and the payload only when active.
 
-The security-alert reconciliation read is one statement: an alert-and-consumption
-fact arm (legacy fact scan, or the keyed sidecar once its marker is ready)
-`UNION ALL` the supports arm, each arm ordered and limited by the page size, the
-outer query ordered by `fact_id` with the same limit, one keyset cursor. The
-supports arm has four filter arms: `repository_id`, `package_id`, `cve_id`,
-`advisory_id`. The package, cve and advisory arms carry the literal `<> ''`
-guard so a partial btree on the column can serve them.
+The reader appends the active rows, advances its cursor on the last raw id and
+stops only when the raw page holds fewer than 500 rows. Each page is its own
+autocommit statement. The security-alert loader drains its alert and consumption
+facts on their own cursor and then the supports, so order equality is per kind.
+The package, CVE and advisory arms repeat the literal `<> ''` of their partial
+btrees; the package one comes from the same constant as migration 345's predicate.
 
-## Measurements at 8,000,000 supports
+The statement it replaced, one `OR` over the four arms in a `MATERIALIZED` CTE,
+and the earlier measurements below are kept as the record of why: an `OR` is only
+indexable when every arm is, and on a hot key the CTE materializes every match.
+
+## Measurements at 8,000,000 supports (the superseded OR statement)
 
 Disposable PostgreSQL 18.6 (`postgres:18.6`), shared_buffers 2 GB, work_mem 64 MB,
 two parallel workers per gather, host load average 14 to 34 from other lanes.
@@ -93,28 +101,83 @@ extra index.
 
 Raw output: [hot_key_raw_noindex.txt](hot_key_raw_noindex.txt),
 [hot_key_raw_index.txt](hot_key_raw_index.txt) and
-[hot_key_raw_variants.txt](hot_key_raw_variants.txt). Corpus: 3,005,000 facts, of
-which the hot package has 1,600,000 impact findings, 150,000 consumption
-correlations and 5,000 alerts; 2,600,000 supports, 1,600,000 for the hot package;
-9,000 active scopes; the full bootstrap schema (fact_records 6.4 GB, supports
-3.0 GB). The statements are the legacy six-arm fact read of `bccdb88982` and the
-merged `UNION ALL` statement of this branch, bound parameters, filter = the hot
-package, `LIMIT 500`; the midpoint page starts at the fact id at offset 877,500 of
-the 1,755,000 matches. With `s_pkg`, `s_cve` and `s_adv` present, after a restart:
+[hot_key_raw_variants.txt](hot_key_raw_variants.txt) for the superseded OR
+statement and the variants tried, and
+[hot_key_ruled_statement_raw.txt](hot_key_ruled_statement_raw.txt),
+[hot_key_bounds_raw.txt](hot_key_bounds_raw.txt),
+[plan_guard_hot_corpus_raw.txt](plan_guard_hot_corpus_raw.txt) and
+[hot_key_drain_binary_raw.txt](hot_key_drain_binary_raw.txt) for the ruled
+statement. Corpus: 3,005,000 facts, of which the hot package has 1,600,000 impact
+findings, 150,000 consumption correlations and 5,000 alerts; 2,600,000 supports,
+1,600,000 for the hot package; 9,000 active scopes; the full bootstrap schema
+(fact_records 6.4 GB, supports 3.0 GB). Bound parameters, `LIMIT 500`.
+
+The OR statement (merged with the fact arm) against the legacy fact read of
+`bccdb88982`, with `s_pkg`, `s_cve` and `s_adv` present, after a restart:
 
 | Page | Legacy fact read, first / second | Merged statement, first / second | Buffers, legacy / merged | Temp blocks written |
 | --- | --- | --- | --- | --- |
 | page 1 | 62,186 / 20,696 ms | 20,142 / 6,349 ms | 3.03M / 5.52M | 0 / 120,463 |
 | midpoint | 11,489 / 2,584 ms | 3,526 / 3,523 ms | 3.03M / 3.13M | 0 / 60,238 |
 
-Legacy wall time swung 10x between two passes on identical buffer counts; the
-buffer counts are the stable figure. With a package that covers 61% of the table
-the planner scans the supports sequentially even with `s_pkg` and materializes
-the whole match set in the CTE, which spills to temp. `NOT MATERIALIZED` and
-per-arm lateral variants avoid the temp but drive from the 9,000 active scopes
-(2.4M to 2.6M buffers). An ordered scan of `s_pkg` with `LIMIT 500` and no
-active-generation predicate takes 2.9 ms and 510 buffers; any formulation that
-states the active-generation check makes the planner leave it.
+Legacy wall time swung 10x between two passes on identical buffer counts. With a
+package that covers 61% of the table the planner scanned the supports
+sequentially and materialized the whole match set in the CTE, which spilled to
+temp. `NOT MATERIALIZED` and per-arm lateral variants with the active check inside
+avoided the temp but drove from the 9,000 active scopes (2.4M to 2.6M buffers). An
+ordered scan of `s_pkg` with `LIMIT 500` and no active-generation predicate took
+2.9 ms and 510 buffers; any formulation that states the active check makes the
+planner leave it. That is why the ruled statement keeps the active check outside
+the fence.
+
+The ruled statement, single hot key (`pkg:hot`, 1,600,000 supports), warm second
+run, both plan cache modes (`force_generic_plan`, `force_custom_plan`), temp 0,
+no sequential scan:
+
+| Page | Buffers | Time |
+| --- | --- | --- |
+| page 1 | 5,958 | 3.8 to 3.9 ms |
+| midpoint (cursor at the 800,000th id) | 5,944 | 3.9 to 4.2 ms |
+| last page (250 rows left) | 2,959 | 1.9 to 2.2 ms |
+| 200-key filter, three hot keys (1.6M, 188k, 188k), page 1 | 9,130 | 7.3 to 7.7 ms |
+| 200-key filter, three hot keys, next page | 9,128 | 7.9 to 8.1 ms |
+
+The first execution after a container start is cold: 763 ms for page 1, 407 ms for
+the midpoint. The bounds of the ruling (at most 6,000 buffers, temp 0, at most 50
+ms warm, midpoint at most 1.5x page 1) hold for the single hot key, with page 1 at
+5,958 of 6,000. The plan guard (`TestSupplyChainImpactSupportsPagePlanGuardLive`)
+is green on this corpus for both modes and both page texts, and the package-index
+and cursor-as-OR violations fail it. On this corpus the planner keeps the ordered
+scans even with the active join inside the lateral, so that violation fails the
+statement-text test, not the plan guard; on the 400,000-row seed with 300 scopes
+it fails the plan guard too.
+
+Drain of the hot key on a built binary (`ListActiveSecurityAlertReconciliationFacts`,
+package filter only): 3,201 supports pages, 1,600,000 raw rows, all active.
+Cold first run: supports 468.5 s, whole loader 554.9 s, peak RSS 3.8 GB. Second run
+in a fresh process: supports 186.3 s, loader 269.1 s. With the real
+`SecurityAlertReconciliationHandler` on top (a discarding writer, scope-2, 5,009
+alerts evaluated): handler 723.5 s, supports drain 416.4 s inside it, peak RSS
+5.26 GB. A page is 3.9 ms in the database; the remaining 58 to 146 ms per page is
+the client reading 500 payloads of about 540 bytes and decoding them, plus cold
+buffers. The legacy drain of the same key was estimated, not run, at 2.5 hours or
+more (1.06e10 buffer touches).
+
+The same statement on the 8,000,000-support corpus, five selective shapes
+([selective_8m_ruled_raw.txt](selective_8m_ruled_raw.txt)), first page, both plan
+cache modes, `s_pkg` built in 75 s:
+
+| Shape | Buffers | Warm | First execution after a restart |
+| --- | --- | --- | --- |
+| repository only (3 keys) | 494 | 2.5 to 2.6 ms | 260 ms |
+| package only (2 keys) | 1,631 | 4.0 to 4.1 ms | 835 ms |
+| CVE only (3 keys) | 2,870 | 5.5 to 5.6 ms | 669 ms |
+| advisory only (2 keys) | 1,011 | 3.1 to 3.3 ms | 387 ms |
+| all four arms | 3,191 | 6.3 to 6.4 ms | 6.3 ms (cached by the other shapes) |
+
+All shapes are at or under 3,191 buffers and 6.4 ms warm, against the ruling's
+bounds of 7,738 buffers and 15 ms. The superseded OR statement read 3,869 buffers
+and took 5.1 ms warm for the all-arms shape.
 
 ## When the package array is non-empty
 
