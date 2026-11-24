@@ -525,7 +525,9 @@ var migrationShippedChecksums = map[string]string{
 	// #10880 PR-B2c: the partial (repository_id, fact_id) btree behind the repository
 	// arm of the supports reads (numbered 346 beside 345).
 	"346_supply_chain_impact_supports_repository_fact_idx.sql":            "6e4de5e73cb32e932cd7b7b7ce7ad63063f2f8684f590bdc33ebd4975dafc484",
+	"347_fact_records_vuln_pkg_eco_scope_gen_active_idx.sql":              "8b8699d0e2ee0154c9705498bc42012099f2a6010ffde4fb107277e5d0640814",
 	"348_supply_chain_impact_finding_supports_backfill_verify_cursor.sql": "b329d635afe998a087c2faef1295156935583d95b5002b6ca7b3328e0e2d8edf",
+	"349_fact_records_vuln_pkg_eco_stats.sql":                             "9b739659bcd23e5efb2cb390b4722ca16ced88c04878ef18e5bf9dbf54756d26",
 }
 
 // validateMigrationManifest checks defs against manifest: every definition

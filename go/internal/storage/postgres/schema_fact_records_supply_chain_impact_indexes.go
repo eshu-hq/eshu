@@ -51,6 +51,22 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_winners_keyed_idx
     )
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
+
+-- #11376: the ecosystem arm of the package-keyed holder read
+-- (FindPackageHolderCandidatesQuery). The folded ecosystem expression leads
+-- so the requested spellings ride as an Index Cond instead of a heap
+-- filter; scope_id and generation_id ride along for the active-generation
+-- join. Migration 347 builds it concurrently on existing deployments; the
+-- expressions must stay byte-identical to the query predicate or the
+-- planner cannot use it.
+CREATE INDEX IF NOT EXISTS fact_records_vuln_pkg_eco_scope_gen_active_idx
+    ON fact_records (
+        ((LOWER(BTRIM(payload->>'ecosystem') COLLATE "C")) COLLATE "default"),
+        scope_id,
+        generation_id
+    )
+    WHERE fact_kind = 'vulnerability.affected_package'
+      AND is_tombstone = FALSE;
 ` + supplyChainImpactForeignMemberTokensFunctionSQL + supplyChainImpactForeignMemberTokensIndexSQL
 
 // SupplyChainImpactForeignMemberTokensFunction is the versioned name of the
