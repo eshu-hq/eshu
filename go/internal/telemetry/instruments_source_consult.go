@@ -10,9 +10,11 @@ import (
 )
 
 // sourceConsultBuckets are second-scale boundaries for one per-source
-// backpressure consult (#10882). The bounded probe reads about 92 to 101 ms at
-// 10x replay scale, so the 0.05 to 0.15 edges resolve the enablement gate
-// (consult p50 at most 100 ms) and the 0.1 edge is the p95 alert threshold.
+// backpressure consult (#10882). The bounded probe reads about 100 ms over the
+// 13k-row replay backlog of one source and 160 to 300 ms with 6,500 parked rows
+// added, so the 0.05 to 0.15 edges resolve the enablement gate (consult p50 at
+// most 100 ms) and the 0.1 edge is the gate edge. No p95 alert threshold is set;
+// an alert belongs on cache-miss probe time, set from production histograms.
 // The range ends at 5 s so a stalled consult lands in a finite bucket.
 var sourceConsultBuckets = []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.25, 0.5, 1, 2.5, 5}
 

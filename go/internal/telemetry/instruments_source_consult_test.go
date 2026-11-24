@@ -14,9 +14,9 @@ import (
 
 // TestSourceConsultDurationRegistersWithAlertEdgeBuckets pins the #10882
 // consult-duration histogram: NewInstruments registers it, and its second-scale
-// boundaries put a bucket edge exactly on the 100 ms p95 alert so the alert
-// threshold is readable from the exported buckets, and run to seconds so a
-// stuck consult does not land in +Inf.
+// boundaries put a bucket edge exactly on the 100 ms enablement gate so the
+// gate is readable from the exported buckets, and run to seconds so a stuck
+// consult does not land in +Inf.
 func TestSourceConsultDurationRegistersWithAlertEdgeBuckets(t *testing.T) {
 	t.Parallel()
 	reader := sdkmetric.NewManualReader()
@@ -52,7 +52,7 @@ func TestSourceConsultDurationRegistersWithAlertEdgeBuckets(t *testing.T) {
 				}
 			}
 			if !hasAlertEdge {
-				t.Fatalf("bounds = %v, want a bucket edge at 0.1 (the p95 alert)", bounds)
+				t.Fatalf("bounds = %v, want a bucket edge at 0.1 (the enablement gate)", bounds)
 			}
 			if bounds[0] > 0.005 || bounds[len(bounds)-1] < 5 {
 				t.Fatalf("bounds = %v, want from <=5ms to >=5s", bounds)
