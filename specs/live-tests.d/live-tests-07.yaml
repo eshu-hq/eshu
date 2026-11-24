@@ -698,6 +698,16 @@ tests:
     class: dedicated_ci
     reason: "#10880 PR-C2 h: reducer-contention proof that the supports the writer's in-memory upsert leaves for 60 planted findings equal, column for column, the supports the fact-derived upsert leaves for the same facts, and that a changed payload shows as a difference"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_family_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 impact family: reducer-contention proof that the committed supply-chain-demo cassettes, driven through the replay driver, the projector queue's claim and ack, the projector's impact intent builder, the real reducer queue and the real impact handler in process at 1, 2 and 4 workers, leave the same supports-and-winners digest, zero dead letters and one handler execution per impact work item; logs the digest for the PR-C1 head comparison"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_family_faults_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10880 PR-C2 impact family faults: reducer-contention proof, on an armed database and a short real lease, that a really claimed row dropped by a killed worker is reclaimed with the baseline digest, that a pass parked after its fencing token whose lease expired is rejected by admission and changes zero rows (by row version) while the faulted intent runs exactly twice, that redelivering a succeeded intent writes no row version, and that a dropped support changes the digest and a planted finding-fact write fails with 55000"
+    runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_stable_key_fill_live_test.go
     tag: ~
     class: dedicated_ci
