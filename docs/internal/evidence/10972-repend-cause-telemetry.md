@@ -17,17 +17,17 @@ signature change is a `loaded` parameter on the write wrapper.
 
 ## Measurement
 
-Baseline: `b3085189ad`, the branch's original base. The branch now sits on
-`71781e83de`; `git diff b3085189ad 71781e83de` touches nothing under
-`internal/reducer/supplychain/core` or `internal/telemetry`, so the baseline
-still matches the code the branch changes. Backend: none. The handler runs over an
-in-memory loader and a recording writer that reports one changed CVE, with the
-registered instruments and a JSON logger writing to `io.Discard`, so this
-measures the handler's own work and not Postgres. Input shape: a stamped
-one-hop pass (`BenchmarkHandleStampedPassWithSignals`, the same file copied
-into the baseline tree). Host: shared Linux box with other agents running, so
-every run is noisy; the two trees ran in alternating rounds of 15 runs each,
-two rounds per tree.
+Baseline: `origin/main` at `9fa8f6049a`, a throwaway detached worktree with
+only `repend_cause_bench_test.go` copied in. After: this branch at its tip on
+the same base. Backend: none. The handler runs over an in-memory loader and a
+recording writer that reports one changed CVE, with the registered instruments
+and a JSON logger writing to `io.Discard`, so this measures the handler's own
+work and not Postgres. Input shape: a stamped one-hop pass
+(`BenchmarkHandleStampedPassWithSignals`). The benchmark passes no fan-out
+port, so it measures the pass-outcome signals and not the fan-out site timers.
+Host: shared Linux box with other agents running, so every run is noisy; the
+two trees ran in alternating rounds of 15 runs each, two rounds per tree, with
+`nice -n 19` and `GOMAXPROCS=2`.
 
 ```text
 go test ./internal/reducer/supplychain/core/ -run '^$' -bench BenchmarkHandleStampedPassWithSignals -benchtime=3000x -count=15
@@ -35,15 +35,26 @@ go test ./internal/reducer/supplychain/core/ -run '^$' -bench BenchmarkHandleSta
 
 | | baseline | after |
 | --- | --- | --- |
-| ns/op, minimum of 15 (round 1 / round 2) | 13,455 / 13,787 | 16,914 / 16,557 |
-| ns/op, median of 15 (round 1 / round 2) | 13,722 / 13,951 | 17,357 / 16,712 |
-| B/op | 13,769 | 15,270 |
-| allocs/op | 97 | 112 |
+| ns/op, minimum of 15 (round 1 / round 2) | 14,357 / 16,649 | 21,479 / 17,320 |
+| ns/op, median of 15 (round 1 / round 2) | 14,708 / 18,519 | 24,131 / 19,131 |
+| B/op | 14,170 | 15,977 |
+| allocs/op | 102 | 120 (119 in one round) |
 
-The cost is about 3 microseconds (0.003 ms) per pass, and 15 allocations, most
-of it the INFO line's attributes. A real pass spends its time in Postgres reads
-and writes that take 62 to 206 seconds on the QA environment, so the added
-work is under one part in 10 million of a pass, and it adds no read.
+The time numbers moved by more between rounds of the same tree (14,357 to
+16,649 on the baseline) than the signals add, so read the stable columns: the
+signals add about 1.8 KB and 17 to 18 allocations per pass, and on the
+best-case minimum across both rounds about 3 microseconds (14,357 to 17,320
+ns). A real pass spends its time in Postgres reads and writes that take 62 to
+206 seconds on the QA environment, so the added work is under one part in 10
+million of a pass, and it adds no read.
+
+The fan-out site timers are not in that benchmark, so their cost is argued from
+construction: each site entry takes two `time.Now` calls and one map add, the
+timer is a map of at most six keys allocated once per fan-out, and `finish`
+makes at most six histogram records and span attributes. The fan-out pass
+holds at most 256 holder reopens, so the worst case is a few hundred `time.Now`
+calls, tens of microseconds, against a fan-out whose every site is a database
+round trip. This is reasoned, not measured.
 
 Terminal counts: the pass's writer input, result and fan-out are unchanged.
 `TestPassOutcomeCounterIsBoundedAcrossManyScopesAndCVEs` runs 60 passes with 60
@@ -65,18 +76,14 @@ core package suites.
 
 ## Pass reason and fan-out site timing
 
-`pass_reason` reads the loaded evidence, the stamp and two handler fields; it
-adds no read. The fan-out site timing credits the D4b load-end read's own measured duration and wraps five existing calls (the in-flight
-read, each holder-read chunk, the queued-holder prefilter, each holder reopen, and the state writes) with
-two `time.Now` calls each, and adds one histogram sample and one span
-attribute per site entered. The fan-out pass holds at most 256 holder reopens,
-so the worst case is a few hundred `time.Now` calls, which is tens of
-microseconds against a fan-out whose every site is a database round trip. This
-cost is reasoned, not benchmarked: the benchmark above covers the handler
-without a fan-out port, and the host load made a second paired run poor
-evidence. `TestFanOutReportsTimeBySite` and `TestFanOutSkipsSitesItDoesNotEnter`
-pin what is reported, and the existing fan-out suites pass unchanged
-(`go test ./internal/reducer/supplychain/core/ ./internal/reducer/`).
+`pass_reason` reads the loaded evidence and the stamp; it adds no read. The
+fan-out site timing credits the D4b load-end read's own measured duration and
+wraps five existing calls (the in-flight read, each holder-read chunk, the
+queued-holder prefilter, each holder reopen, and the state writes), with its
+cost argued from construction in the measurement section above.
+`TestFanOutReportsTimeBySite` and `TestFanOutSkipsSitesItDoesNotEnter` pin what
+is reported, and the existing fan-out suites pass unchanged
+(`go test ./internal/reducer/supplychain/core/`).
 
 Observability Evidence (additions): `pass_reason` on the counter, the
 pass-complete log line and the pass span
