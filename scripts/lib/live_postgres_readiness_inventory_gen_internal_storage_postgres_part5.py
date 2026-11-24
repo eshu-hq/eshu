@@ -63,7 +63,6 @@ TABLE = {
             "TestSecurityAlertReconciliationAndAdvisoryLoadersEqualFactReadsLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_supports_repository_arm_live_test.go": (
-            "TestServiceCatalogSupportsShapesLive",
             "TestRepositoryArmBoundsLive",
         ),
         "go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go": (

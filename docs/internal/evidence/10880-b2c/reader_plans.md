@@ -286,8 +286,8 @@ scope probes no longer memoize, which is the figure to quote.
 Where these two proofs run. The raw files above name the tests as
 `TestSupplyChainImpactSupportsRepositoryArmBoundsLive` and
 `TestSupplyChainImpactSupportsServiceCatalogShapesLive`; they are now
-`TestRepositoryArmBoundsLive` and `TestServiceCatalogSupportsShapesLive`. The old
-prefix is selected by the reducer contention gate's supply-chain `-run` filter. Two
+`TestRepositoryArmBoundsLive` and `TestServiceCatalogSupportsShapesOnLabCorpus` (the
+second also moved to its own file, see below). The old prefix is selected by the reducer contention gate's supply-chain `-run` filter. Two
 runs of the first test exist and they took different paths. The 182.9 s run
 ([repository_arm_bounds_raw.txt](repository_arm_bounds_raw.txt)) used
 `B2C_REPO_ARM_DSN` against the existing `b2c_hot` database (9,000 scopes), where the
@@ -295,17 +295,19 @@ test skips its seed; the subtests took 0.55 s and 55.9 s, and the rest is the
 8,000-row rewrite on the large table (about 126 s). The 15.0 s run
 ([contention_tests_seconds_raw.txt](contention_tests_seconds_raw.txt)) used the
 fresh-seed path on a fresh 2 GB container, which is the path CI always takes (CI sets
-no `B2C_REPO_ARM_DSN`). Neither new name matches either contention
-filter (checked against both `-run` patterns in
-`.github/workflows/reducer-contention-gate.yml`), and both files keep their
-`live-postgres-readiness` header, so the proofs run in the readiness shards. The
-shard model weighs an unmeasured test at its 3.8 s default, so the first CI run of
-the first test is its real weight.
+no `B2C_REPO_ARM_DSN`). In the readiness shards of the PR's first CI run
+(run 45315639317, shard 7 of 8) it took 29.97 s. Neither new name matches either
+contention filter (checked against both `-run` patterns in
+`.github/workflows/reducer-contention-gate.yml`), and the first test keeps the
+`live-postgres-readiness` header, so it runs in the readiness shards.
 
-`TestServiceCatalogSupportsShapesLive` is a lab-corpus proof: it skips unless
+`TestServiceCatalogSupportsShapesOnLabCorpus` is a lab-corpus proof: it skips unless
 `B2C_REPO_ARM_DSN` points at a database holding `repo:hotrepo` and the other
-repositories of its three call shapes, and the shards never set it. It does not run
-in CI. Its figures above come from the lab run in
+repositories of its three call shapes. The readiness runner fails a shard on any
+skip, and the first CI run failed shard 7 on this test's skip, so the test now lives
+in `supply_chain_impact_supports_service_catalog_lab_test.go`: not named
+`*_live_test.go`, no `live-postgres-readiness` header, and so outside the live-test
+ledger and the shards. It does not run in CI. Its figures above come from the lab run in
 [service_catalog_shapes_and_drain_raw.txt](service_catalog_shapes_and_drain_raw.txt);
 the many-small-repositories proof is the one that covers the loader's call shape in
 CI.
