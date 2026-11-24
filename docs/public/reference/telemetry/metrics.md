@@ -409,6 +409,9 @@ children are the `neo4j.execute` spans of each read.
 
 ## Focused Catalogs
 
+- `eshu_dp_cross_scope_completion_suppressed_total` (label `domain`) counts
+  producer passes whose acknowledgement adds no cross-scope completion event
+  because the pass changed nothing a consumer reads (#10972; ci_cd_run_correlation).
 - The supply-chain impact holder fan-out's in-flight narrowing (#10972 D4b)
   adds `kind=in_flight_early` to
   `eshu_dp_supply_chain_impact_fanout_read_duration_seconds` and the outcomes

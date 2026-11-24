@@ -231,3 +231,23 @@ or Postgres operation, runtime setting, metric instrument, or metric label.
 Every metric name, emission site, and structured-log message listed under
 Telemetry above is unchanged; only the package that owns the code moved. No
 instrument name, metric label, span name, or structured-log field changed.
+
+## Completion change gate (#10972 PR-4)
+
+A ci_cd success emits the cross-scope completion event, which re-pends every
+settled supply_chain_impact item, only when the pass changed something that
+supply_chain_impact reads.
+
+- **Verdict.** The writer reads the rows it overwrites inside its own
+  transaction and compares a digest of the consumer-read fields:
+  `artifact_digest`, `image_ref`, `repository_id`, `environment`,
+  `environment_evidence`, `outcome` and `provenance_only`. The handler puts the
+  verdict on the result as `cicd_completion_changed`.
+- **Owed marker.** A changed write records `cicd_completion_owed` on the pass's
+  item. The ack that emits clears it.
+- **Ack rule.** The ack emits on a changed verdict, on a missing verdict, or on
+  a pending marker.
+- **Signal.** `eshu_dp_cross_scope_completion_suppressed_total{domain}` counts
+  the unchanged passes.
+
+Evidence: `docs/internal/evidence/10972-pr4-cicd-completion-gate.md`.
