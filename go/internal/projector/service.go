@@ -106,11 +106,13 @@ type Service struct {
 	// its lease while projection is still running. Zero means no heartbeats.
 	HeartbeatInterval time.Duration
 	Wait              func(context.Context, time.Duration) error
-	Tracer            trace.Tracer           // optional
-	Instruments       *telemetry.Instruments // optional
-	Logger            *slog.Logger           // optional
-	Workers           int                    // concurrent worker count; 0 or 1 means sequential
-	SourcePacer       SourcePacer            // optional; releases a slowed source's claim before any write (#10882 F8)
+	// Now is the clock the idle backoff reads; nil means time.Now. Tests inject one.
+	Now         func() time.Time
+	Tracer      trace.Tracer           // optional
+	Instruments *telemetry.Instruments // optional
+	Logger      *slog.Logger           // optional
+	Workers     int                    // concurrent worker count; 0 or 1 means sequential
+	SourcePacer SourcePacer            // optional; releases a slowed source's claim before any write (#10882 F8)
 
 	// Large-generation semaphore: limits how many large repos can be
 	// projected concurrently while letting small/medium repos proceed
@@ -192,6 +194,10 @@ func (s Service) runConcurrent(ctx context.Context) error {
 		errs []error
 		wg   sync.WaitGroup
 	)
+	// The first claim after the whole process was idle wakes its sleeping workers, and
+	// while any worker is claiming every worker keeps polling at the base interval (#11186).
+	wake := newIdleWake(s.pollInterval(), s.now)
+	activity := newProcessActivity(s.now)
 
 	for i := 0; i < s.Workers; i++ {
 		workerID := i
@@ -204,6 +210,9 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					return
 				}
 
+				// Read before the claim: a wake that lands between the claim and
+				// the sleep must still end that sleep.
+				woken := wake.channel()
 				claimStart := time.Now()
 				work, ok, err := s.WorkSource.Claim(ctx)
 				if s.Instruments != nil {
@@ -226,7 +235,10 @@ func (s Service) runConcurrent(ctx context.Context) error {
 				}
 				if !ok {
 					consecutiveEmpty++
-					if err := s.wait(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty)); err != nil {
+					if activity.active() {
+						consecutiveEmpty = 1 // pool is active: poll at the base interval; the sequence restarts when it goes quiet
+					}
+					if err := s.waitIdle(ctx, projectorPollBackoff(s.pollInterval(), consecutiveEmpty), woken); err != nil {
 						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 							return
 						}
@@ -239,6 +251,9 @@ func (s Service) runConcurrent(ctx context.Context) error {
 					continue
 				}
 
+				if activity.noteClaim() && wake.broadcast() {
+					s.recordIdleWake(ctx, workerID)
+				}
 				consecutiveEmpty = 0
 				if err := s.processWork(ctx, work, workerID); err != nil {
 					mu.Lock()
@@ -472,28 +487,4 @@ func (s Service) validate() error {
 		return errWriteMarkerMissing
 	}
 	return nil
-}
-
-func (s Service) pollInterval() time.Duration {
-	if s.PollInterval <= 0 {
-		return defaultPollInterval
-	}
-
-	return s.PollInterval
-}
-
-func (s Service) wait(ctx context.Context, interval time.Duration) error {
-	if s.Wait != nil {
-		return s.Wait(ctx, interval)
-	}
-
-	timer := time.NewTimer(interval)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }

@@ -60,7 +60,7 @@ flowchart LR
 flowchart TB
   A["Service.Run\npoll projector queue"] --> B["ProjectorWorkSource.Claim"]
   B --> C{"work available?"}
-  C -- no --> D["wait idle backoff\n1s,2s,4s,cap 5s\nthen loop"]
+  C -- no --> D["wait idle backoff\n1s,2s,4s,cap 5s, or 1s while a\nsibling claimed within 5s,\nor until woken, then loop"]
   C -- yes --> E["FactStore.LoadProjectionFacts"]
   E --> F["Runtime.Project"]
   F --> G["buildProjection\nbuild CanonicalMaterialization\nbuild content.Materialization\nbuild ReducerIntents"]
@@ -78,7 +78,7 @@ flowchart TB
 `Service.Run` starts one or more worker goroutines (sequential when `Workers`
 ≤ 1, concurrent otherwise). Each worker calls `ProjectorWorkSource.Claim` to
 pull one `ScopeGenerationWork` from the Postgres projector queue. Empty polls
-back off from `PollInterval` (1 s): base, 2x, 4x, cap 5 s, reset on work (#10869).
+back off from `PollInterval` (1 s) to a 5 s cap and reset on work (#10869), unless a worker claimed within 5 s: then all poll at the base interval (#11186).
 
 Once a claim is held, the worker loads all fact envelopes for that scope
 generation via `FactStore.LoadProjectionFacts` (a delta loads over its #7797 union base, and `ProjectionFacts.ProjectionGeneration` names that base on the generation so the fact boundary accepts it, #8779), then hands them to `Runtime.Project`. A chained delta (diffed over a prior delta, #8780) loads with `ProjectionFacts.UnionChained`, which reaches the `build_projection` stage log as `chained`; a base-missing refusal names both the fence commit and the union-base commit (`DeltaBaseMissingError.UnionBaseCommitSHA`). The

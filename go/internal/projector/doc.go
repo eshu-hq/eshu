@@ -127,4 +127,11 @@
 // EntityTypeLabel keeps parser/content entity labels, including Terraform
 // backend/import/refactor/check and lockfile-provider labels, aligned with graph
 // schema support.
+//
+// An idle process backs off its queue polls (1, 2, 4, then 5 s). While any worker
+// has claimed within the last 5 s, every worker polls at the base interval
+// instead (idle_wait.go, #11186), so a burst that arrives while one worker is
+// busy is picked up by its siblings within a poll; the first claim after the whole
+// process was idle also wakes the sleeping workers. The wake is a hint: the queue
+// stays the source of truth and the claim SQL is unchanged.
 package projector

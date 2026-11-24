@@ -6,16 +6,14 @@
    surface, and operational notes
 2. `go/internal/projector/service.go` — `Service.Run`, the poll-and-dispatch
    loop; understand `processWork` before touching concurrency
-3. `go/internal/projector/runtime/projection.go` — `Runtime.Project`; the four write
-   stages and their ordering
-4. `go/internal/projector/runtime/phase.go` — canonical phase publication and
-   repair enqueue behavior
+3. `go/internal/projector/runtime/projection.go` — `Runtime.Project`; the four
+   write stages and their ordering
+4. `go/internal/projector/runtime/phase.go` — phase publication and repair enqueue
 5. `go/internal/projector/canonical/materialization.go` and `canonical/builder.go` — the
    `CanonicalMaterialization` shape and how it is built from facts. Read
    `canonical/terraform_state.go` when touching Terraform-state projection and
    `canonical/oci_registry.go` when touching OCI registry projection.
-6. `go/internal/projector/runtime/logging.go` — stage log attributes and
-   operator-facing runtime stage messages
+6. `go/internal/projector/runtime/logging.go` — stage log attributes and messages
 7. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
 
@@ -377,6 +375,11 @@ editing inside it. Three rules that are easy to get wrong from here:
   interval; every other Claim error still stops the service. The conflict wait
   is always exactly one base `PollInterval` and never advances the idle
   backoff counter (#10869): contention is not emptiness.
+- **Idle backoff is gated by pool activity (#11186)** — `processActivity`
+  (idle_wait.go) is one atomic claim timestamp shared by a process's workers:
+  while any worker claimed within 5 s all poll at the base interval; after 5 s
+  with no claim #10869's 1, 2, 4, 5 s sequence returns. A backward clock counts
+  as idle; `Workers <= 1` is ungated.
 - **Ack waits for a busy scope without stopping the service (#6738)** —
   `ErrWorkAckDeferred` means Ack hit its store lock timeout behind a same-scope
   ingestion commit and changed nothing. `AckWhenScopeFree` renews the lease with
@@ -404,9 +407,8 @@ editing inside it. Three rules that are easy to get wrong from here:
   `service_superseded.go`, and the large-generation semaphore; run
   `service_test.go` and `service_shutdown_test.go`; read
   `docs/public/reference/telemetry/index.md` for
-  `eshu_dp_large_repo_semaphore_wait_seconds` guidance. Why: worker goroutines
-  share a cancel context; wrong cancellation propagation causes silent dropped
-  work or stale-generation graph writes.
+  `eshu_dp_large_repo_semaphore_wait_seconds` guidance. Why: workers share a
+  cancel context; wrong cancellation causes silent dropped work or stale graph writes.
 
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
@@ -417,12 +419,10 @@ editing inside it. Three rules that are easy to get wrong from here:
 
 - **Add a new typed canonical family** → besides wiring it into
   `buildCanonicalMaterialization`, add its fact-kind prefix to
-  `quarantinedFactStagePrefixes` in `decode/quarantine.go`. Why: a family
-  with no matching prefix falls through to the `unknown_canonical` stage label,
-  so its dead letters are reported under a placeholder instead of the owning
-  stage and an operator cannot see that family's input_invalid rate at all. The
-  table is ordered longest-prefix-first; the reasoning behind both the ordering
-  and the distinct fallback label is on the symbols themselves.
+  `quarantinedFactStagePrefixes` in `decode/quarantine.go`. Why: a family with
+  no matching prefix falls through to the `unknown_canonical` stage label: its
+  dead letters land there and the family's input_invalid rate is invisible. The
+  table is ordered longest-prefix-first; the reasoning is on the symbols themselves.
 
 ## Failure modes and how to debug
 
