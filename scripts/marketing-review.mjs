@@ -34,7 +34,7 @@ import { chromium } from "playwright";
 import {
   closeMarketingPreview,
   loadMarketingReviewEvaluator,
-  startMarketingPreview
+  startMarketingPreview,
 } from "./marketing-review-runtime.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,27 +52,27 @@ const keepBuild = args.has("--keep-build");
 // proves the rendered page actually exposes them.
 const contract = {
   anchors: [
-    { id: "product", label: "Product" },
-    { id: "whats-new", label: "What's new" },
-    { id: "how-it-works", label: "How it works" },
-    { id: "personas", label: "Personas" },
+    { id: "roles", label: "By role" },
+    { id: "capabilities", label: "Capabilities" },
+    { id: "collectors", label: "Collectors" },
+    { id: "deploy", label: "Deploy" },
+    { id: "workbench", label: "Workbench" },
     { id: "try-it", label: "Try it" },
-    { id: "use-cases", label: "Use cases" }
   ],
   ctas: [
     { label: "Try it locally", href: "#try-it" },
     {
       label: "Read the docs",
-      href: "https://github.com/eshu-hq/eshu/tree/main/docs/public"
-    }
+      href: "https://github.com/eshu-hq/eshu/tree/main/docs/public",
+    },
   ],
-  askEshuPositioning: ["Ask Eshu", "evidence packets", "One Graph"],
-  maxDomContentLoadedMs: 4000
+  askEshuPositioning: ["organizational knowledge base", "eshu demo up", "173"],
+  maxDomContentLoadedMs: 4000,
 };
 
 const viewports = [
   { viewport: "desktop", width: 1440, height: 900 },
-  { viewport: "mobile", width: 390, height: 844 }
+  { viewport: "mobile", width: 390, height: 844 },
 ];
 
 /** Spawn a process in the repo root, optionally detached. */
@@ -80,7 +80,7 @@ function spawnProcess(command, commandArgs, { detached = false } = {}) {
   return spawn(command, commandArgs, {
     cwd: repoRoot,
     stdio: detached ? ["ignore", "pipe", "pipe"] : "inherit",
-    detached
+    detached,
   });
 }
 
@@ -114,13 +114,50 @@ async function waitForServer(url, timeoutMs) {
   throw new Error(`preview server did not become ready at ${url}`);
 }
 
+const externalReachabilityCache = new Map();
+
+async function checkExternalLink(href) {
+  if (externalReachabilityCache.has(href)) {
+    return externalReachabilityCache.get(href);
+  }
+  const attempts = ["HEAD", "GET"];
+  let lastDetail = `${href} (unreachable)`;
+  for (const method of attempts) {
+    try {
+      const response = await fetch(href, {
+        method,
+        redirect: "follow",
+        // A hung connection must not block the gate forever; a timeout aborts
+        // the fetch and lands deterministically in the unreachable branch.
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (response.ok || (method === "HEAD" && response.status === 405)) {
+        const result = { ok: true, detail: href };
+        externalReachabilityCache.set(href, result);
+        return result;
+      }
+      lastDetail = `${href} (${response.status})`;
+      if (response.status === 429 || response.status === 503) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        continue;
+      }
+      break;
+    } catch (error) {
+      lastDetail = `${href} (${error.message})`;
+    }
+  }
+  const result = { ok: false, detail: lastDetail };
+  externalReachabilityCache.set(href, result);
+  return result;
+}
+
 /** Collect the observed facts for one viewport. */
 async function observeViewport(browser, spec, baseUrl) {
   const context = await browser.newContext({
     viewport: { width: spec.width, height: spec.height },
     deviceScaleFactor: spec.viewport === "mobile" ? 2 : 1,
     isMobile: spec.viewport === "mobile",
-    hasTouch: spec.viewport === "mobile"
+    hasTouch: spec.viewport === "mobile",
   });
   const page = await context.newPage();
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -136,8 +173,8 @@ async function observeViewport(browser, spec, baseUrl) {
   const ctaLinks = await page.$$eval("a", (anchorEls) =>
     anchorEls.map((el) => ({
       text: (el.textContent ?? "").replace(/\s+/g, " ").trim(),
-      href: el.getAttribute("href") ?? ""
-    }))
+      href: el.getAttribute("href") ?? "",
+    })),
   );
 
   // Use textContent (not innerText) for positioning checks: it reflects the
@@ -149,17 +186,18 @@ async function observeViewport(browser, spec, baseUrl) {
   // an empty alt is the correct accessibility pattern and is NOT a violation.
   // Only count images that expose neither real alt text nor a decorative
   // marker.
-  const imagesMissingAlt = await page.$$eval("img", (imgs) =>
-    imgs.filter((img) => {
-      const alt = (img.getAttribute("alt") ?? "").trim();
-      if (alt.length > 0) {
-        return false;
-      }
-      const decorative =
-        img.getAttribute("aria-hidden") === "true" ||
-        img.getAttribute("role") === "presentation";
-      return !decorative;
-    }).length
+  const imagesMissingAlt = await page.$$eval(
+    "img",
+    (imgs) =>
+      imgs.filter((img) => {
+        const alt = (img.getAttribute("alt") ?? "").trim();
+        if (alt.length > 0) {
+          return false;
+        }
+        const decorative =
+          img.getAttribute("aria-hidden") === "true" || img.getAttribute("role") === "presentation";
+        return !decorative;
+      }).length,
   );
 
   const h1Count = await page.locator("h1").count();
@@ -181,33 +219,23 @@ async function observeViewport(browser, spec, baseUrl) {
     ...new Set(
       ctaLinks
         .map((link) => link.href)
-        .filter((href) => href.startsWith("http://") || href.startsWith("https://"))
-    )
+        .filter((href) => href.startsWith("http://") || href.startsWith("https://")),
+    ),
   ];
   const reachableExternalLinks = [];
   const unreachableExternalLinks = [];
   for (const href of externalHrefs) {
-    try {
-      const response = await fetch(href, {
-        method: "HEAD",
-        redirect: "follow",
-        // A hung connection must not block the gate forever; a timeout aborts
-        // the fetch and lands deterministically in the unreachable branch.
-        signal: AbortSignal.timeout(10_000)
-      });
-      if (response.ok || response.status === 405) {
-        reachableExternalLinks.push(href);
-      } else {
-        unreachableExternalLinks.push(`${href} (${response.status})`);
-      }
-    } catch (error) {
-      unreachableExternalLinks.push(`${href} (${error.message})`);
+    const verdict = await checkExternalLink(href);
+    if (verdict.ok) {
+      reachableExternalLinks.push(href);
+    } else {
+      unreachableExternalLinks.push(verdict.detail);
     }
   }
 
   await page.screenshot({
     path: join(artifactsDir, `marketing-${spec.viewport}.png`),
-    fullPage: true
+    fullPage: true,
   });
 
   await context.close();
@@ -221,7 +249,7 @@ async function observeViewport(browser, spec, baseUrl) {
     h1Count,
     reachableExternalLinks,
     unreachableExternalLinks,
-    domContentLoadedMs
+    domContentLoadedMs,
   };
 }
 
@@ -275,16 +303,16 @@ async function main() {
       generatedAt: new Date().toISOString(),
       baseUrl,
       passed: result.passed,
-      findings: result.findings
+      findings: result.findings,
     };
     await writeFile(
       join(artifactsDir, "marketing-review.json"),
       `${JSON.stringify(summary, null, 2)}\n`,
-      "utf8"
+      "utf8",
     );
 
     console.log(
-      `\n> artifacts written to site-review-artifacts/ (screenshots + marketing-review.json)`
+      `\n> artifacts written to site-review-artifacts/ (screenshots + marketing-review.json)`,
     );
 
     if (!result.passed) {

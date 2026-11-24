@@ -5,6 +5,8 @@ import { App } from "./App";
 import "./styles.css";
 import "./heroGraph.css";
 import "./contentSections.css";
+import "./workbenchFooter.css";
+import "./footer.css";
 import "./responsive.css";
 
 const rootElement = document.getElementById("root");
@@ -16,5 +18,5 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <App />
-  </StrictMode>
+  </StrictMode>,
 );

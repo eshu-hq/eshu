@@ -185,6 +185,12 @@ Two rules the split had to obey, and both will apply to the next family move:
   use `NewMetrics` in production wiring to get all three.
 - **Store is required** — `Service.Run` returns an error immediately if
   `s.Store == nil`. Do not add fallback behavior here.
+- **Out-of-rotation plans stay one-shot** (`operator_go_modules.go`) —
+  `PlanGoReachabilityScopeNow` never starts the reconciler, reaper, or any
+  loop; the plan key always carries the `go-modules-operator-` prefix under
+  the `operator_recovery` trigger, and business outcomes are values, not
+  errors. Do not add scheduled-key reuse, multi-repo firing, or a
+  `schedule`-stamped manual run (ruling 3a-c in the B.3 arbiter ruling).
 - **Work item retention is on by default and non-fatal** (#8829) —
   `LoadConfig` sets `WorkItemRetentionConfig.Enabled` unless the retention age
   is explicitly 0 (default 720h, floor 48h), and it runs only in active mode;

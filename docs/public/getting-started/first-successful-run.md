@@ -21,11 +21,14 @@ mode was requested.
 
 ## Before you begin
 
+Want to try Eshu first with zero credentials on a seeded synthetic organization?
+Run `eshu demo up` using [Demo Mode](demo-mode.md) instead.
+
 Choose the path that matches the service you will use:
 
 | Path | Choose it when |
 | --- | --- |
-| [Local Compose](#run-with-local-compose) | You want the full API and MCP stack in containers. |
+| [Local Compose](#run-with-local-compose) | You want the full API, Console, and MCP stack in containers via `eshu-deploy`. |
 | [Local binaries](#run-with-local-binaries) | You are developing from a checkout and want to query its workspace-local owner through MCP. |
 | [Hosted service](#connect-to-a-hosted-service) | An operator already runs Eshu for you. |
 
@@ -35,8 +38,9 @@ for the distinction between `/healthz`, `/readyz`, and indexing readiness.
 
 ## Run with local Compose
 
-1. From the Eshu checkout, expose the host directory that contains the
-   repository and select the repository by name:
+1. From an [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) checkout (which
+   holds the Docker Compose and Helm assets), expose the host directory that
+   contains your repository and select it by name:
 
    ```bash
    export ESHU_FILESYSTEM_HOST_ROOT="$HOME/src"
@@ -83,20 +87,21 @@ Install the local commands and put them on `PATH`:
 export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-Generate a Codex configuration for the local stdio MCP process:
+Generate an MCP client configuration for the local stdio process (pass
+`claude`, `cursor`, `vscode`, or `codex` to `--platform`):
 
 ```bash
-eshu mcp setup --platform codex
+eshu mcp setup --platform claude   # or cursor, vscode, codex
 ```
 
-Apply the printed configuration. Open the target repository as the Codex
-workspace before you restart Codex; the generated `eshu mcp start` command uses
-the client process's working directory to select the workspace. It starts or
-attaches to that workspace's local owner. The owner provides embedded Postgres,
-embedded NornicDB, ingestion, and reduction without a separate HTTP API
-process.
+Apply the printed configuration. Open the target repository as your client
+workspace before restarting; the generated `eshu mcp start` command uses the
+client process's working directory to select the workspace. It starts or
+attaches to that workspace's local owner, which provides embedded storage,
+ingestion, and reduction for single-workspace development without a separate
+HTTP API process.
 
-Ask Codex to use Eshu and list the indexed repositories for the current
+Ask your assistant to use Eshu and list the indexed repositories for the current
 workspace. The API-backed `eshu first-run`, `eshu list`, and `eshu stats`
 commands do not attach to this owner. Use the [Local Compose](#run-with-local-compose)
 path when you need the exact `first-run` workflow or other HTTP API commands.

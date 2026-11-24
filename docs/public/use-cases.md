@@ -1,3 +1,12 @@
+<!-- docs-catalog
+title: Use Cases
+description: Maps common engineering, security, platform, and incident questions to the Eshu CLI and MCP tools that answer them.
+type: concept
+audience: new-user, practitioner, evaluator
+entrypoint: false
+landing: false
+-->
+
 # Use Cases
 
 Eshu is useful when the answer crosses repositories, dependencies, supply chain,
@@ -6,7 +15,7 @@ the MCP tools that lead the workflow.
 
 ## Triage A Vulnerability
 
-The launch beachhead. Ask:
+Start from an advisory and follow owned evidence to running workloads. Ask:
 
 - "Which deployed images and workloads are affected by this advisory?"
 - "Is the vulnerable symbol actually reachable, or only present?"

@@ -47,7 +47,7 @@ SUITE_HALVES = {
 # its worst case is 1 min setup + 13 min cold build + the step cap + the other
 # steps' caps (the 240 s stress cap or a 6 min tail), so a cap above 20 min
 # breaks that arithmetic even before the next growth step; the workflow comment
-# derives the real caps (800 s and 900 s) from measured halves.
+# derives the real caps (800 s and 1200 s) from measured halves.
 MAX_STEP_TIMEOUT_SECONDS = 1200
 CONTRACT_STEP = "Verify contention runner contract"
 GO_CAPTURE = re.compile(

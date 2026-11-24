@@ -54,8 +54,10 @@ details.
 
 ## Compose service
 
+From an [eshu-deploy](https://github.com/eshu-hq/eshu-deploy) checkout:
+
 ```bash
-docker compose up --build
+docker compose up -d
 ```
 
 The Compose API listens on `http://localhost:8080` by default. The Compose MCP
@@ -67,12 +69,16 @@ MCP service, not the API service.
 Print the local stdio client snippet with:
 
 ```bash
-eshu mcp setup
+eshu mcp setup --platform claude   # or cursor, vscode, codex
 ```
 
 The command prints a config snippet; it does not edit client files for you.
 After updating your MCP client config, restart the client so it reloads the
 server entry.
+
+To reduce client tool-list context size, you can set `ESHU_MCP_TOOL_SURFACE=router`
+(advertises `find_tool` and `call_tool` only) or `core_router` (10 core tools plus
+the router). See [Tool Surface](../reference/mcp-reference.md#tool-surface).
 
 For Claude Code and Codex the snippet asks for the one-copy `structured` result
 shape: `?shape=structured` on a hosted URL, or an `ESHU_MCP_RESULT_SHAPE`

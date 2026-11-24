@@ -20,6 +20,14 @@
   together and keep the live rotation test green.
 - Any change to `pageQuery` needs a fresh `EXPLAIN (ANALYZE, BUFFERS)` on
   representative data, per `eshu-postgres-rigor`.
+- `GetGoModuleRepository` is the only single-repository read, for the
+  out-of-rotation operator path (eshu-hq/eshu#10002). It narrows the page's
+  candidate predicates to `source_key = $1` with the same go.mod and
+  Go-evidence filters, and counts total candidates over the page's candidate
+  set so the fencer's slot count matches the rotation. Its scope-prefix
+  literal must match `scannercomponent.GoReachabilityScopeID` like the page's
+  does; `single_repository_test.go` pins the shared predicates. Any change to
+  `singleRepositoryQuery` needs the same fresh EXPLAIN treatment.
 - `FenceStaleGoEvidence` is the only write. Do not add another or a schema change here.
   Both updates name the scope and the generation the page read, so a successor activated
   after that read makes the fence a no-op.

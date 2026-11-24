@@ -19,6 +19,10 @@ and telemetry. `go/internal/storage/postgres/gomodules` owns the read.
 - `Derivation`, `GoModulesSection`, `DerivationFromConfig`, `DefaultScanInterval`
   decode the config block and its cadence.
 - `PlanRequest`, `Plan`, `RunID` plan one page and name its run.
+- `TriggerKind` on `PlanRequest`, `RequestTriggerKind`, `RunIDWithTrigger` carry
+  the out-of-rotation override (eshu-hq/eshu#10002): zero derives today's
+  bootstrap/schedule, explicit accepts only `operator_recovery`, and the
+  scheduled call site passes its derived kind explicitly. See `doc.go`.
 - `SkipInvalidRepositoryID`, `SkipDuplicateRepository`, `SkipUnsupportedRemote`,
   `SkipUnsupportedRemoteWithEvidence`, `SkipMissingCommit` are the closed skip
   reasons.

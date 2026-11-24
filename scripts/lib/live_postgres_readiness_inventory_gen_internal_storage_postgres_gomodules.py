@@ -35,6 +35,9 @@ TABLE = {
             "TestFenceHolderStatementReadsReadinessAndHoldersInOneSnapshotLive",
             "TestFenceUnderAFreeInterleavingWithTheDrainReopensEveryCommittedHolderLive",
         ),
+        "go/internal/storage/postgres/gomodules/single_repository_live_test.go": (
+            "TestGetGoModuleRepositoryMatchesPageRowLive",
+        ),
         "go/internal/storage/postgres/gomodules/store_live_test.go": (
             "TestListGoModuleRepositoriesRotatesEveryRepositoryLive",
             "TestListGoModuleRepositoriesSkipsInactiveScopesLive",

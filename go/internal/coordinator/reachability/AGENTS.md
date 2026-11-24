@@ -23,3 +23,7 @@
   configurable.
 - A zero `EvidenceLeftAt` with skew means retention pruned the history: fence and count it.
   Never fence a generation with no commit: count it instead.
+- `TriggerKind` zero value is byte-identical to today: an explicit value must be
+  `operator_recovery`, and any other explicit kind (including the derived value
+  of the other mode) is refused. The scheduled call site passes its derived kind
+  explicitly; `TestPlanZeroTriggerKindIsByteIdentical` pins the invariant.
