@@ -286,8 +286,11 @@ FROM generate_series(1, 3000) AS g`)
 		if rows != 50 {
 			t.Errorf("%s: the keyed winners index scan returned %v rows, want 50 kept facts (one per identifier, not the hot triple's 3,000 candidates):\n%s", state, rows, analyzed)
 		}
-		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE ident_facts"`) {
+		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE narrow"`) {
 			t.Errorf("%s: the probe is not a materialized CTE node:\n%s", state, analyzed)
+		}
+		if !strings.Contains(string(analyzed), `"Subplan Name": "CTE live_gens"`) {
+			t.Errorf("%s: the live generation set is not a materialized CTE node (it would recompute per row):\n%s", state, analyzed)
 		}
 	}
 }

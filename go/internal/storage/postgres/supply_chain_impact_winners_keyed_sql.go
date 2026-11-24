@@ -229,15 +229,12 @@ var winnersKeyedBuildIdentsStmts = []string{
 // the candidates the expansion reads, and the truncation decision is made on
 // identifiers.
 //
-// The chunk is the oldest-first prefix of the post-expansion identifier
-// set (#10706). The active_facts build is the shipped per-identifier probe
-// over the 291
-// five-tuple keyed index (buildWinnersKeyedActiveFactsSQL, unchanged): with
-// all five equalities as index conditions the heap fetches only the facts a
-// dirty key keeps, so no candidate-row budget is needed. The lane this file
-// replaced probed per package triple over the triple-only package-lookup
-// index; migration 293 retired that index, so per-triple probing has no
-// access path anymore.
+// The chunk is the oldest-first prefix of the post-expansion identifier set
+// (#10706). The active_facts build probes per identifier over the 291
+// five-tuple keyed index (all five equalities are index conditions), and the
+// once-per-tick live_gens set keeps only live-generation copies (#10839),
+// so no candidate-row budget is needed. Per-triple probing has no access
+// path anymore: migration 293 retired that index.
 
 // buildWinnersKeyedActiveFactsSQL builds the keyed active_facts: the active
 // findings of exactly the identifiers in the identifier table.
@@ -245,9 +242,8 @@ var winnersKeyedBuildIdentsStmts = []string{
 // The probe runs once per identifier against the keyed winners index
 // (fact_records_supply_chain_impact_winners_keyed_idx, migration 291), whose
 // key is the package triple plus the coalesced c0 and advisory expressions
-// below, so all five equalities are index conditions and the heap fetches only
-// the facts a dirty key keeps (about 13 kept facts per identifier on QA). The
-// identifier table holds distinct five-tuples (it is built with GROUP BY over UNION ALL), and a
+// below, so all five equalities are index conditions. The identifier table
+// holds distinct five-tuples (it is built with GROUP BY over UNION ALL), and a
 // fact carries exactly one c0 and advisory_id, so no fact can match two
 // identifiers and the probe cannot duplicate a row. The previous per-triple
 // probe used the package-lookup index, keyed on the triple only: it fetched
@@ -261,23 +257,39 @@ var winnersKeyedBuildIdentsStmts = []string{
 // package-lookup index: at rows=1 the planner costed the two indexes
 // within 0.01 on a correlated triple and kept choosing the triple-only
 // one on QA, so the keyed index above is now the only triple-leading
-// index. This statement is unchanged. The probe sits in a MATERIALIZED CTE so a join
-// order picked from default statistics on ingestion_scopes cannot put it
-// inside a scope loop; a measured run with that plan took 28 million buffer
-// hits for a 2,000-row result. OFFSET 0 keeps the lateral subquery from being
-// flattened into a scan. The writer serializes package_id, repository_id and
-// subject_digest on every finding, so the equality probe cannot miss a row on
-// a NULL key.
+// index.
+//
+// Liveness is checked once per distinct live generation (#10839), not once
+// per candidate copy: one identifier fans out to hundreds of active copies
+// (QA replica 2026-11-24: 50,123 copies over 200 identifiers collapse to
+// 236 live pairs), and the shipped per-row liveness join cost ~10x the fact
+// fetch plus a 73 MB tuplestore spill. The narrow lateral below selects only
+// (fact_id, scope_id, generation_id) per copy, live_gens resolves each pair
+// once, and the final fetch reads wide rows only for live copies by
+// fact_id. Row-set equivalence holds by construction and is proven by QA
+// differential (see docs/internal/evidence/10839-live-gens-liveness-dedup.md).
+// The probe sits in MATERIALIZED CTEs so a join order picked from default
+// statistics on ingestion_scopes cannot put it inside a scope loop (a
+// measured run with that plan took 28 million buffer hits for a 2,000-row
+// result). Single-reference CTEs inline by default on PostgreSQL 12+, so
+// the MATERIALIZED markers are load-bearing. OFFSET 0 keeps the lateral
+// subquery from being flattened into a scan. The writer serializes
+// package_id, repository_id and subject_digest on every finding, so the
+// equality probe cannot miss a row on a NULL key.
 //
 // The remaining floor is one index descent plus the kept facts' heap rows per
-// identifier, held in the CTE's tuplestore.
+// identifier, held in narrow tuplestore until the final fetch, plus the
+// tick-invariant live_gens build over all live scopes (~150 ms cold on the
+// QA replica, ~1% of the 15 s bar; buffer-resident warm expected). Re-open
+// tick-scoping if the warm floor intercept ever exceeds 500 ms p95 or live
+// scopes pass 100k (#10839 keeps the post-deploy intercept).
 const buildWinnersKeyedActiveFactsSQL = `
 CREATE TEMP TABLE winners_keyed_active_facts ON COMMIT DROP AS
-WITH ident_facts AS MATERIALIZED (
-    SELECT fact.*
+WITH narrow AS MATERIALIZED (
+    SELECT fact.fact_id, fact.scope_id, fact.generation_id
     FROM ` + winnersKeyedIdentsTable + ` AS ident
     CROSS JOIN LATERAL (
-        SELECT f.*
+        SELECT f.fact_id, f.scope_id, f.generation_id
         FROM fact_records AS f
         WHERE (f.payload->>'package_id') = ident.package_id
           AND (f.payload->>'repository_id') = ident.repository_id
@@ -288,16 +300,21 @@ WITH ident_facts AS MATERIALIZED (
           AND f.is_tombstone = FALSE
         OFFSET 0
     ) AS fact
+),
+live_gens AS MATERIALIZED (
+    SELECT s.scope_id, s.active_generation_id AS generation_id
+    FROM ingestion_scopes AS s
+    JOIN scope_generations AS generation
+      ON generation.scope_id = s.scope_id
+     AND generation.generation_id = s.active_generation_id
+    WHERE generation.status = 'active'
 )
 SELECT fact.*
-FROM ident_facts AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE generation.status = 'active'
+FROM fact_records AS fact
+JOIN narrow AS n ON n.fact_id = fact.fact_id
+JOIN live_gens AS g
+  ON g.scope_id = n.scope_id
+ AND g.generation_id = n.generation_id
 `
 
 // addWinnersKeyedOperatorFactsSQL adds every active operator-suppression fact to
@@ -334,9 +351,9 @@ SELECT count(*) FROM ` + winnersKeyedActiveFactsTable
 
 // countWinnersKeyedScannedCopiesSQL counts the pre-filter copies the
 // identifier probe scans: every finding the five-tuple probe matches, before
-// the active-generation join discards the retired and superseded ones
-// (#11308). It mirrors the ident_facts probe of
-// buildWinnersKeyedActiveFactsSQL without the scope join, and stays narrow
+// the live-generation semi-join keeps the live ones (#11308). It mirrors the
+// narrow probe of
+// buildWinnersKeyedActiveFactsSQL without the live_gens join, and stays narrow
 // (SELECT 1) so it avoids materializing wide rows: it is index-only-scan
 // eligible and detoasts only on heap visits. The build already paid the
 // TOAST reads, and this count only revisits the index and heap tuples. It runs
