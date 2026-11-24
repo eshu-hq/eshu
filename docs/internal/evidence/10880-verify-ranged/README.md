@@ -97,7 +97,10 @@ Projection at QA scale, from the shipped statement (run 5): ceil(11,633,317 /
 upper figure is the forced generic plan, which the reducer's pgx statement cache
 can reach after five executions on one connection. The two statements it
 replaces took 22.9 + 45.2 = 68.1 min. A fleet 1.3 times QA projects to 58.3 to
-75.8 min in 757 slices; every statement stays bounded by N, not by the table.
+75.8 min in 757 slices. This is a pair-boundary projection: it uses slices that
+start at a pair boundary, and a cold slice that starts inside a large pair is
+slower (20.34 s measured below). Every statement stays bounded by N, or by the
+largest pair when a pair exceeds N; none does on QA.
 
 ## Largest group and a mid-pair slice (run 9, after review)
 
@@ -130,8 +133,9 @@ marker set with 0 sweeps. After: the shipped slice statement, prepared, 20,000
 rows per side, 4.62 s and 4.64 s cold (custom plan) and 6.01 s (forced generic
 plan), result rows 20,000 / 20,000 with 0 missing and no orphan; 20.34 s cold for
 a slice that starts inside the largest group. The whole verification projects
-to 582 slices, 44.8 to 58.3 min, with every statement
-bounded by the slice size instead of the table. Safe because both predicates
+to 582 slices, 44.8 to 58.3 min (pair-boundary slices), with every statement
+bounded by the slice size, or by the largest pair while one exceeds it, instead
+of the table. Safe because both predicates
 are the unsliced ones, the cursor is guarded by the sweep it belongs to, and the
 completion statement keeps the fence recheck.
 

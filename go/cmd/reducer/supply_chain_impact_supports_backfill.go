@@ -101,8 +101,9 @@ func runSupportsBackfillPass(
 		report, err := step(ctx)
 		if err != nil {
 			// A failed verification slice still reports its duration, so a
-			// statement timeout shows on the slice histogram.
-			if report.VerifySlice != "" {
+			// statement timeout shows on the slice histogram. A slice cut short by
+			// shutdown is not a failure and records nothing, like the step itself.
+			if report.VerifySlice != "" && ctx.Err() == nil {
 				instruments.RecordSupplyChainImpactSupportsVerifySlice(ctx, report.VerifySlice, report.VerifySliceDuration)
 			}
 			return false, err

@@ -16,9 +16,10 @@ import (
 )
 
 // supplyChainImpactSupportsBackfillDefaultVerifySlice bounds the supports and
-// the live findings one verification slice reads. On QA (11.6M live findings) a
-// 20,000-row slice took 4.45 s cold and a 50,000-row slice 10.0 to 10.6 s, both
-// on index range scans (docs/internal/evidence/10880-verify-ranged/README.md).
+// the live findings one verification slice reads. On QA (11.6M live findings)
+// the shipped statement took 4.6 to 6.0 s cold for a 20,000-row slice starting at
+// a pair boundary, and 20.3 s for one starting inside the largest pair, all on
+// index range scans (docs/internal/evidence/10880-verify-ranged/README.md).
 const supplyChainImpactSupportsBackfillDefaultVerifySlice = 20000
 
 // supplyChainImpactSupportsBackfillVerifySliceSQL checks one bounded key
@@ -170,10 +171,11 @@ type verifySliceResult struct {
 }
 
 // verify runs one verification slice when the sweep has passed the last
-// finding fact. A failed step reports the slice as failed with its duration. A live finding without a support restarts the sweep; a support
-// of a tombstoned fact has that pair's orphans removed under its conflict-domain
-// lock and the cursor stays, so the slice runs again; a clean slice moves the
-// cursor to its end; and the clean last slice runs the completion statement,
+// finding fact. A failed step reports the slice as failed with its duration. A
+// live finding without a support restarts the sweep; a support of a tombstoned
+// fact has that pair's orphans removed under its conflict-domain lock and the
+// cursor stays, so the slice runs again; a clean slice moves the cursor to its
+// end; and the clean last slice runs the completion statement,
 // whose fence recheck keeps the marker unset while an old writer's scope waits.
 func (b SupplyChainImpactSupportsBackfill) verify(
 	ctx context.Context,
