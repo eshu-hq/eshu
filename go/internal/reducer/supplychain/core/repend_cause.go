@@ -112,3 +112,8 @@ func (h SupplyChainImpactHandler) emitPassOutcome(
 		slog.String(telemetry.MetricDimensionChangeClass, class),
 	)
 }
+
+// passReasonOf is a placeholder the #10972 reason tests drive red.
+func (h SupplyChainImpactHandler) passReasonOf(reducercontract.Intent, supplyChainImpactLoadedEvidence) string {
+	return ""
+}

@@ -99,7 +99,7 @@ func TestPassChangeOfClassifiesTheWriteResult(t *testing.T) {
 }
 
 type passOutcomeSeries struct {
-	mode, cause, changed, class string
+	mode, cause, changed, class, reason string
 }
 
 // passOutcomeSeriesOf reads every eshu_dp_supply_chain_impact_pass_outcome_total
@@ -122,7 +122,7 @@ func passOutcomeSeriesOf(t *testing.T, reader *sdkmetric.ManualReader) (map[pass
 					v, _ := dp.Attributes.Value(attribute.Key(key))
 					return v.AsString()
 				}
-				out[passOutcomeSeries{get("mode"), get("repend_cause"), get("changed"), get("change_class")}] += dp.Value
+				out[passOutcomeSeries{get("mode"), get("repend_cause"), get("changed"), get("change_class"), get("pass_reason")}] += dp.Value
 				var keys []string
 				for _, kv := range dp.Attributes.ToSlice() {
 					keys = append(keys, string(kv.Key))
@@ -198,6 +198,9 @@ func TestPassOutcomeCounterIsBoundedAcrossManyScopesAndCVEs(t *testing.T) {
 		if !slices.Contains(telemetry.SupplyChainImpactChangeClasses(), key.class) {
 			t.Fatalf("change_class %q outside the closed set", key.class)
 		}
+		if !slices.Contains(telemetry.SupplyChainImpactPassReasons(), key.reason) {
+			t.Fatalf("pass_reason %q outside the closed set", key.reason)
+		}
 		if !slices.Contains([]string{passModeFull, passModeScoped, passModeScopedFallbackSentinel, passModeScopedFallbackOutOfStamp}, key.mode) {
 			t.Fatalf("mode %q outside the closed set", key.mode)
 		}
@@ -205,11 +208,11 @@ func TestPassOutcomeCounterIsBoundedAcrossManyScopesAndCVEs(t *testing.T) {
 	if total != passes {
 		t.Fatalf("recorded %d passes, want %d (one per completed pass)", total, passes)
 	}
-	bound := len(telemetry.SupplyChainImpactRependCauses()) * len(telemetry.SupplyChainImpactPassChanges()) * 4
+	bound := len(telemetry.SupplyChainImpactRependCauses()) * len(telemetry.SupplyChainImpactPassChanges()) * len(telemetry.SupplyChainImpactPassReasons()) * 4
 	if len(series) > bound {
 		t.Fatalf("series = %d, want at most %d", len(series), bound)
 	}
-	want := []string{"change_class", "changed", "domain", "mode", "repend_cause"}
+	want := []string{"change_class", "changed", "domain", "mode", "pass_reason", "repend_cause"}
 	for _, keys := range keySets {
 		if !slices.Equal(keys, want) {
 			t.Fatalf("label keys = %v, want %v", keys, want)
@@ -249,8 +252,8 @@ func TestPassOutcomeSignalsCarryCauseChangedAndClassOnEverySurface(t *testing.T)
 	for key := range series {
 		got = key
 	}
-	if len(series) != 1 || got.cause != "fanout_rerun" || got.changed != "changed" || got.class != "unknown" {
-		t.Fatalf("series = %v, want one fanout_rerun/changed/unknown point", series)
+	if len(series) != 1 || got.cause != "fanout_rerun" || got.changed != "changed" || got.class != "unknown" || got.reason != "no_seed" {
+		t.Fatalf("series = %v, want one fanout_rerun/changed/unknown/no_seed point", series)
 	}
 
 	var line map[string]any
@@ -263,7 +266,7 @@ func TestPassOutcomeSignalsCarryCauseChangedAndClassOnEverySurface(t *testing.T)
 	if line == nil {
 		t.Fatalf("no pass-complete log line in %s", logs.String())
 	}
-	for key, want := range map[string]string{"repend_cause": "fanout_rerun", "changed": "changed", "change_class": "unknown", "mode": got.mode} {
+	for key, want := range map[string]string{"repend_cause": "fanout_rerun", "changed": "changed", "change_class": "unknown", "mode": got.mode, "pass_reason": got.reason} {
 		if line[key] != want {
 			t.Fatalf("log %s = %v, want %q", key, line[key], want)
 		}
@@ -277,7 +280,7 @@ func TestPassOutcomeSignalsCarryCauseChangedAndClassOnEverySurface(t *testing.T)
 	for _, kv := range ended[0].Attributes() {
 		attrs[string(kv.Key)] = kv.Value.AsString()
 	}
-	for key, want := range map[string]string{"repend_cause": "fanout_rerun", "changed": "changed", "change_class": "unknown"} {
+	for key, want := range map[string]string{"repend_cause": "fanout_rerun", "changed": "changed", "change_class": "unknown", "pass_reason": "no_seed"} {
 		if attrs[key] != want {
 			t.Fatalf("span %s = %q, want %q", key, attrs[key], want)
 		}
