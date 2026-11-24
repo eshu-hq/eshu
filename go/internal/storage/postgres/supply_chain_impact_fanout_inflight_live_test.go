@@ -6,6 +6,7 @@ package postgres_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -482,5 +483,89 @@ claim_until = now() + interval '1 hour', last_attempt_at = now() WHERE work_item
 	}
 	if st := fanOutItem(t, c.ctx, c.db, ids[findings]); st.status != "claimed" || !st.flag {
 		t.Fatalf("in-flight findings pass = %+v, want claimed with the replay bit", st)
+	}
+}
+
+// TestManifestMarkerFlagsNeverRequeueOnACVEFanOutDrainLive is the TEST2
+// requeue-count proof for eshu-hq/eshu#11350: the CVE fan-out runs while a
+// manifest marker and a genuine findings pass are both claimed, then every
+// parked pass runs and the queue drains to quiescence. The marker must run
+// exactly once (its own pass, never requeued by the fan-out); the flagged
+// findings pass runs twice (its parked run plus the one rerun the flag buys).
+// A regression that lets a marker into either in-flight read shows up here as
+// a second marker execution, where the single-shot flag-bit proof
+// (TestManifestMarkerFlagsNeverComeFromACVEFanOutLive) only sees the bit. The
+// completion half of the same escape is pinned by
+// TestCrossScopeCompletionFanoutLeavesManifestMarkersSucceededLive.
+func TestManifestMarkerFlagsNeverRequeueOnACVEFanOutDrainLive(t *testing.T) {
+	c := newConvergence(t, false)
+	c.drain()
+	const marker = "scope:9695:manifest"
+	// Park the production interleaving: the holder's genuine pass and the
+	// marker are both claimed while the source fans out. Claims go through
+	// the real queue one pending item at a time so each raceClaim is
+	// deterministic.
+	c.rerun(convergenceHolder)
+	holderIntent := c.raceClaim(convergenceHolder)
+	fanOutSeedScope(t, c.ctx, c.db, marker, "g1")
+	markerID := fanOutSeedItem(t, c.ctx, c.db, marker, "g1")
+	// The trigger key and value name the production constants, so a rename
+	// breaks the seed at compile time instead of silently unmarking the
+	// marker (which would read as a fan-out requeue).
+	if _, err := c.db.ExecContext(c.ctx, fmt.Sprintf(`UPDATE fact_work_items
+SET payload = payload || jsonb_build_object('%s', '%s') WHERE work_item_id = $1`,
+		supplychaincore.PayloadKeyTrigger, supplychaincore.TriggerManifestDependency), markerID); err != nil {
+		t.Fatal(err)
+	}
+	markerIntent := c.raceClaim(marker)
+	c.setSourceStatus("Rejected")
+	c.rerun(convergenceSource)
+	sourceIntent := c.raceClaim(convergenceSource)
+	c.handled = nil
+	// The source fans out while both holder passes are in flight; the marker
+	// must not gain the replay bit, the findings pass must.
+	sourceResult, err := c.handler.Handle(c.ctx, sourceIntent)
+	if err != nil {
+		t.Fatalf("source handle: %v", err)
+	}
+	if err := c.queue.Ack(c.ctx, sourceIntent, sourceResult); err != nil {
+		t.Fatalf("source ack: %v", err)
+	}
+	c.handled = append(c.handled, fmt.Sprintf("%s#%d", convergenceSource, sourceIntent.AttemptCount))
+	// Run the parked passes to completion like the worker would, then drain
+	// whatever the fan-out requeued.
+	for _, intent := range []reducercontract.Intent{holderIntent, markerIntent} {
+		result, err := c.handler.Handle(c.ctx, intent)
+		if err != nil {
+			t.Fatalf("parked %s handle: %v", intent.ScopeID, err)
+		}
+		if err := c.queue.Ack(c.ctx, intent, result); err != nil {
+			t.Fatalf("parked %s ack: %v", intent.ScopeID, err)
+		}
+		c.handled = append(c.handled, fmt.Sprintf("%s#%d", intent.ScopeID, intent.AttemptCount))
+	}
+	c.drain()
+	counts := map[string]int{}
+	for _, entry := range c.handled {
+		scope, _, _ := strings.Cut(entry, "#")
+		counts[scope]++
+	}
+	if counts[marker] != 1 {
+		t.Fatalf("marker executions = %d, want exactly 1 (handled %v): the fan-out requeued a manifest marker", counts[marker], c.handled)
+	}
+	if counts[convergenceHolder] != 2 {
+		t.Fatalf("holder executions = %d, want 2 (handled %v): the flagged findings pass must rerun exactly once", counts[convergenceHolder], c.handled)
+	}
+	// The source may run again after its own change: the holder's parked run
+	// re-derives its copy and its fan-out reopens the succeeded source (the
+	// mutual fan-out TestMutualFanOut* pins). What must not happen is a third
+	// execution: once every copy converges the drain ends.
+	if counts[convergenceSource] < 1 || counts[convergenceSource] > 2 {
+		t.Fatalf("source executions = %d, want 1 or 2 (handled %v)", counts[convergenceSource], c.handled)
+	}
+	for id, want := range map[string]string{markerID: marker, holderIntent.IntentID: convergenceHolder, sourceIntent.IntentID: convergenceSource} {
+		if st := fanOutItem(t, c.ctx, c.db, id); st.status != "succeeded" || st.flag {
+			t.Fatalf("%s item = %+v, want succeeded with the replay bit clear", want, st)
+		}
 	}
 }
