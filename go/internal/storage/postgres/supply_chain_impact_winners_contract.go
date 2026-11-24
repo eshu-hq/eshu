@@ -54,7 +54,16 @@ var supplyChainImpactWinnersContractPins = map[int64]string{
 	// carry payload and source_confidence, so winners a resweep produces
 	// change for the same facts. Every instance runs one full after
 	// the roll; migration 332 backfills at migration time.
-	2: "8e761819b7b0f43d77ea3d46d8fd7395f5308ad945e542bc3b5c7ce3677d292e",
+	// Re-pinned under the same version for #10839: the keyed active_facts
+	// build precomputes the live generation set once per tick instead of
+	// probing liveness per copy. Winner output is byte-identical for the
+	// same facts: the hermetic fan-out parity test
+	// (TestWinnersKeyedFanoutMatchesRecomputeLive) passes, and the QA
+	// replica differential shows zero row differences both ways on two
+	// pinned sets (13,260 and 24,936 rows); see
+	// docs/internal/evidence/10839-live-gens-liveness-dedup.md. No full
+	// resweep is triggered by this re-pin.
+	2: "df97e2298306bf0bc8068acef44ca20753622d06f49ec473fd3c8762268c418e",
 }
 
 // supplyChainImpactWinnersContractStatements returns, in a fixed order, the
