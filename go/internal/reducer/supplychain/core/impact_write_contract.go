@@ -146,6 +146,10 @@ type SupplyChainImpactWriteResult struct {
 	// generation, so the per-scope pass-state row was left untouched. The
 	// pass itself still committed under its own generation.
 	PassStateSkipped bool
+	// fullPassMarker is the marker the handler computed for this pass
+	// (nextFullPassMarker, #10972 D2), carried to the fan-out state update.
+	// Writers never set it.
+	fullPassMarker map[string]any
 }
 
 // SupplyChainImpactWriter persists reducer-owned impact findings.

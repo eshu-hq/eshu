@@ -161,6 +161,9 @@ type FanOutState struct {
 	// ClearOwed removes the owed marker: every holder this commit owes has been
 	// reopened, or the owed work moved to the continuation list.
 	ClearOwed bool
+	// FullPassMarker, when non-nil, replaces the item's full-pass marker
+	// (PayloadKeyFullPassMarker, #10972 D2) under the same lease fence.
+	FullPassMarker map[string]any
 }
 
 // SupplyChainImpactFanOut is the queue-side port of the holder fan-out. The
@@ -318,10 +321,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// plus the change that caused this pass, so a continuation drain keeps
 	// scoping the original change instead of widening to a full pass.
 	stampOut := CapFanOutStampCVEIDs(unionSortedStrings(lookupIDs, stampCVEs))
-	state := FanOutState{ConsumeOrigin: stamped}
-	if stamped {
-		state.ExpectedOrigin = fanOutOriginOf(intent)
-	}
+	state := newFanOutState(intent, write)
 	if len(lookupIDs) == 0 && len(remaining) == 0 {
 		result := fanOutResult{cause: cause}
 		if stamped || owed || len(write.ChangedCVEIDs) > 0 || len(write.TouchedGroupIDs) > 0 {

@@ -84,18 +84,21 @@ ORDER BY candidates.scope_id
 // attempt it claimed. $1 now, $2 work item id, $3 lease owner, $4 last attempt,
 // $5 the new holder list as JSON (NULL with $6 set deletes the list), $6 whether
 // to touch the list at all, $7 whether to consume the origin stamp, $8 the stamp
-// the pass saw, $9 whether to clear the owed marker. The list is rewritten only when $6 is true, so an empty list is
+// the pass saw, $9 whether to clear the owed marker, $10 the full-pass marker
+// to store (#10972 D2; NULL leaves the stored marker alone). The list is rewritten only when $6 is true, so an empty list is
 // never "clear" by accident; a non-empty list also sets the durable replay bit so
 // the item's success acknowledgement returns it to pending and the next claim
 // drains the list. The stamp is deleted only while it still equals $8, so a newer
 // stamp written since the claim survives.
 const recordSupplyChainImpactFanOutStateQuery = `
 UPDATE fact_work_items
-SET payload = (CASE
+SET payload = ((CASE
                    WHEN NOT $6 THEN payload
                    WHEN $5::jsonb IS NULL THEN payload - '` + supplychaincore.PayloadKeyFanOutRemaining + `'
                    ELSE payload || jsonb_build_object('` + supplychaincore.PayloadKeyFanOutRemaining + `', $5::jsonb)
                END)
+               || CASE WHEN $10::jsonb IS NULL THEN '{}'::jsonb
+                       ELSE jsonb_build_object('` + supplychaincore.PayloadKeyFullPassMarker + `', $10::jsonb) END)
                - CASE WHEN $7 AND payload->'` + supplychaincore.PayloadKeyFanOutOrigin + `' = $8::jsonb
                       THEN '` + supplychaincore.PayloadKeyFanOutOrigin + `' ELSE '' END
                - CASE WHEN $9 THEN '` + supplychaincore.PayloadKeyFanOutOwed + `' ELSE '' END,
@@ -301,8 +304,16 @@ func (s SupplyChainImpactFanOutStore) UpdateFanOutState(
 		}
 		expected = string(encoded)
 	}
+	var marker any
+	if state.FullPassMarker != nil {
+		encoded, err := json.Marshal(state.FullPassMarker)
+		if err != nil {
+			return fmt.Errorf("marshal supply chain impact full-pass marker: %w", err)
+		}
+		marker = string(encoded)
+	}
 	result, err := s.DB.ExecContext(ctx, recordSupplyChainImpactFanOutStateQuery,
-		s.now(), intent.IntentID, s.LeaseOwner, claimedAtValue(intent), remaining, state.ReplaceRemaining, state.ConsumeOrigin, expected, state.ClearOwed)
+		s.now(), intent.IntentID, s.LeaseOwner, claimedAtValue(intent), remaining, state.ReplaceRemaining, state.ConsumeOrigin, expected, state.ClearOwed, marker)
 	if err != nil {
 		return fmt.Errorf("record supply chain impact fan-out state: %w", err)
 	}

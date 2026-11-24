@@ -105,16 +105,16 @@ rules, the outcomes, and the open residual are in
   re-derives that set only. Its evidence filters derive from the stamped
   envelopes plus the finding-row package seeds (the scope's own advisories and
   its active finding rows for the stamped CVEs); the until-stable follow-up
-  intersects every round with the scope, so the loop converges on the stamped
-  subgraph instead of re-widening. The writer upserts findings for stamped
-  CVEs only and retracts inside the set only; rows outside it stay
-  byte-identical. If a finding for a stamped CVE depended on evidence the
-  scope leaves out, the scoped-vs-full differential goes red and scoping is
+  intersects every round with the scope, so it converges on the stamped
+  subgraph. The writer upserts and retracts inside the set only; rows outside
+  it stay byte-identical. A red scoped-vs-full differential means scoping is
   the wrong fix. The sentinel, a set-less stamp, and an owed retry run full.
-  Passes count `mode` (`full`, `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp`) in
-  `eshu_dp_supply_chain_impact_pass_total`, and the success log carries
-  `scope_id` plus the `scoped_cve_count`, `scoped_evidence_envelopes`, and
-  `fanout_replay_cleared` sub-signals.
+  Rows outside the stamp send it full only when `full_pass_marker` says a reap
+  is due (#10972 D2: no marker, 16 scoped reruns, 24 h), or when a row's advisory
+  id or group members name a stamped id (a rekey, #10408). Passes count `mode` (`full`,
+  `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp`) in
+  `eshu_dp_supply_chain_impact_pass_total`; the success log carries `scope_id`
+  and the `scoped_cve_count`, `scoped_evidence_envelopes`, `fanout_replay_cleared` sub-signals.
 - A claim reopens at most 256 holders; the rest is stored as `fanout_remaining`
   on the committing item and drained by its next claims.
 - A continuation survives its scope's next generation (#10060): the claim-time
