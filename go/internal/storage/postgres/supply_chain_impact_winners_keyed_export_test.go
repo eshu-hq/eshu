@@ -7,6 +7,12 @@ package postgres
 // test package, so a guard can read the payload fields it depends on.
 var WinnerSelectSQLForTest = supplyChainImpactWinnerSelectSQL
 
+// WinnerBodySQLForTest exposes the shipped winner select body to the
+// external test package, so the M6 narrow-store proof can compose it over a
+// shape-built active-facts table. The body is byte-identical to the shipped
+// select's tail: a digest match proves the shape preserves winner truth.
+var WinnerBodySQLForTest = supplyChainImpactWinnerBodySQL
+
 // WinnersKeyedActiveFactsSQLForTest exposes the statement that builds the keyed
 // active_facts temp table from the analyzed identifier temp table, so a plan
 // test can assert the once-per-identifier probe on the keyed winners index.

@@ -40,10 +40,13 @@ import (
 // drift: supplyChainImpactWinnerSelectSQL is exactly prefix + body.
 var supplyChainImpactWinnerSelectSQL = supplyChainImpactWinnerActiveFactsSQL + supplyChainImpactWinnerBodySQL
 
-// supplyChainImpactWinnerActiveFactsSQL opens the full select with the active
-// impact facts of every active scope generation.
-const supplyChainImpactWinnerActiveFactsSQL = `
-WITH active_facts AS NOT MATERIALIZED (
+// supplyChainImpactWinnerActiveFactsInnerSQL is the live-findings candidate
+// set of the full select: every non-tombstoned impact finding of every
+// active scope generation. The M6 narrow-store populate statements select
+// from it, so a narrow table holds exactly the rows the shipped winners rank
+// over. Splitting the wrapper from the inner select keeps the shipped
+// statement byte-identical (the contract pin below covers it).
+const supplyChainImpactWinnerActiveFactsInnerSQL = `
     SELECT fact.*
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
@@ -55,7 +58,12 @@ WITH active_facts AS NOT MATERIALIZED (
     WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
-)`
+`
+
+// supplyChainImpactWinnerActiveFactsSQL opens the full select with the active
+// impact facts of every active scope generation.
+const supplyChainImpactWinnerActiveFactsSQL = `
+WITH active_facts AS NOT MATERIALIZED (` + supplyChainImpactWinnerActiveFactsInnerSQL + `)`
 
 // supplyChainImpactOperatorScopeID is the scope whose facts carry the
 // authoritative operator suppression overrides. Source evidence remains the
