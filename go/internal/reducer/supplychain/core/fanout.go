@@ -248,7 +248,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 	// at claim time. A stamp without the key predates the set, and a corrupt
 	// one parses as no set: both fail closed to a full pass and a rerun.
 	stampCVEs := fanOutStampCVEIDs(intent)
-	var lookupIDs []string
+	lookupIDs, gated := []string(nil), 0
 	recoveryOnly := false
 	if !oneHop {
 		// A continuation drain does not add the pass's own changes: they were
@@ -256,7 +256,7 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		// the member-expanded changed set (#10408): a merge or split retires
 		// group ids and member ids no replacement row names, and only the
 		// touched set still names them, so the holders of those rows reopen.
-		lookupIDs = unionSortedStrings(write.ChangedCVEIDs, write.TouchedGroupIDs)
+		lookupIDs, gated = fanOutOriginIDs(write)
 		if owed && len(remaining) == 0 && len(write.RecoveryCVEIDs) > 0 {
 			// An earlier attempt committed and died before it finished the
 			// fan-out, so this rerun's own rewrite shows no change. Fan out for
@@ -270,6 +270,9 @@ func (h SupplyChainImpactHandler) fanOutHolders(
 		// a stamped first pass of an operator generation would otherwise
 		// admit without fanning out (#10019).
 		lookupIDs = write.SuppressionCVEIDs
+	}
+	if gated > 0 {
+		h.countFanOut(ctx, cause, fanOutOutcomeIdentityGated, gated)
 	}
 	// The stamp the reopened holders carry names what this pass fanned out
 	// plus the change that caused this pass, so a continuation drain keeps

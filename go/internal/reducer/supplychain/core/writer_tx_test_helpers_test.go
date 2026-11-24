@@ -174,7 +174,7 @@ func (t fakeImpactTx) QueryContext(_ context.Context, query string, args ...any)
 	case listStoredSupplyChainImpactFindingsQuery:
 		rows := make([][]any, 0, len(t.state.stored))
 		for _, row := range t.state.stored {
-			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs)})
+			rows = append(rows, []any{row.factID, row.generationID, row.stableKey, row.digest, "", row.cveID, row.advisoryID, row.fencingToken, fakeImpactMembersJSON(row.members), fakeImpactSuppressionState(row.suppressionState), fakeImpactMembersJSON(row.evidenceFactIDs)})
 		}
 		return &fakeImpactRows{rows: rows}, nil
 	case listSupplyChainImpactCVEIDsQuery:

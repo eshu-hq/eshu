@@ -416,6 +416,12 @@ children are the `neo4j.execute` spans of each read.
   `in_flight_early_read_skipped` (one point per in-flight claim the fan-out
   read) plus the read site `in_flight_early` to
   `eshu_dp_supply_chain_impact_fanout_total`.
+- The supply-chain impact identity gate (#10972 D7) adds the outcome
+  `identity_gated` to `eshu_dp_supply_chain_impact_fanout_total`, labelled by
+  the committing generation's `cause`: one point per lookup id a
+  non-enrichment pass did not fan out for because only that row's EPSS or KEV
+  fields changed. A rising rate is echoes that no longer re-pend holders; read
+  it beside `reopened` and `replay_flagged` with the same `cause`.
 - [CI/CD Run Metrics](metrics-cicd-run.md) covers provider reads, Actions
   delivery handoffs and reaps, and scheduled fallback.
 - [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) covers

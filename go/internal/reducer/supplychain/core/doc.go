@@ -33,7 +33,10 @@
 // and suppression_walk.go and wired in suppression_fanout_wire.go (#10019);
 // the holder fan-out drops holders whose queued pass already covers the
 // change with one set read before its 256 cap, and the reopen widens the stamp
-// of an uncovered one (fanout_prefilter.go, #10972);
+// of an uncovered one (fanout_prefilter.go, #10972); a pass whose own
+// generation holds no EPSS or KEV fact originates its fan-out only for rows
+// whose identity digest changed, the full digest minus the EPSS and KEV
+// fields (fanout_identity_gate.go, #10972 D7);
 // and the Go reachability classifier in go_reachability*.go.
 //
 // The exported surface is the join contract other families program against:

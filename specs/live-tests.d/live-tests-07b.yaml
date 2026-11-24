@@ -140,3 +140,13 @@ tests:
     class: dedicated_ci
     reason: "#10972 write-amplification pin: an unchanged full rerun keeps every row's content digest, stages 0 winners dirty marks, and rewrites every row (new xmin), because the finding upsert has no content-equality guard; reducer-contention selects TestSupplyChainImpactWriterRewritesEveryRowOfAnUnchangedFullRerunLive through the TestSupplyChainImpact(Writer...)[A-Za-z]*Live alternative of the supply-chain filter"
     runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_epss_echo_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D7 EPSS echo pair: a non-enrichment scope's EPSS-date-only rerun reopens nobody yet rewrites its own row and stages its dirty mark, and the EPSS scope's own pass still reopens every holder; reducer-contention selects both tests through the supply-chain filter"
+    runner: reducer-contention
+  - file: go/internal/storage/postgres/supply_chain_impact_fanout_identity_gate_live_test.go
+    tag: ~
+    class: dedicated_ci
+    reason: "#10972 D7 identity gate: the KEV echo pair, a mixed EPSS plus advisory change that still fans out, and a scope holding EPSS facts that fans out on the full digest; reducer-contention selects the TestFanOutIdentityGate*Live tests through the supply-chain filter"
+    runner: reducer-contention
