@@ -97,6 +97,13 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// undone until a manual replay. TestReducerQueueFailDefersSupplyChainImpact
 	// SupportsNotReadyPastAttemptBudget is the regression.
 	supplychaincore.SupplyChainImpactSupportsNotReadyFailureClass,
+	// #10880 PR-C0: a finding-fact write the PR-C reject trigger refused
+	// (SQLSTATE 55000, constraint fact_records_reject_supply_chain_impact_finding).
+	// The pod runs an image older than the schema; a rollout clears it, and a
+	// counting class would dead-letter every impact intent such a pod claims during
+	// the roll. Nothing raises it until the trigger exists (PR-C2).
+	// TestSupplyChainImpactFactWriteStoppedIsNonCounting is the regression.
+	SupplyChainImpactFactWriteStoppedFailureClass,
 	// #10411: an advisory_group_projection intent deferred until the
 	// canonical winners watermark passes its enqueue time. The winners
 	// maintainer rebuilds on a 30 s cadence, so the wait is a routine race,
