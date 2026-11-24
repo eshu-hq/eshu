@@ -647,7 +647,7 @@ tests:
   - file: go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go
     tag: ~
     class: dedicated_ci
-    reason: "#10880 decision 6: reducer-contention proof of the ranged supports verification against the real slice statement: a planted orphan and a planted missing support in a late slice are each caught (control runs see neither) while a real writer retracts and inserts between slices, a restart resumes from the stored cursor, and an old writer between slices keeps the marker unset until its scope is drained"
+    reason: "#10880 decision 6: reducer-contention proof of the ranged supports verification against the real slice statement: a planted orphan and a planted missing support in a late slice are each caught (control runs see neither) while a real writer retracts and inserts between slices, a restart resumes from the stored cursor, a marker reset without a sweep bump re-verifies from the first key, and an old writer between slices behind the cursor keeps the marker unset with no gap until its scope is drained"
     runner: reducer-contention
   - file: go/internal/storage/postgres/supply_chain_impact_winners_audit_verify_scale_live_test.go
     tag: ~

@@ -32,7 +32,8 @@ Catalog read (2026-11-23 23:04Z):
 
 The marker `supply_chain_impact_finding_supports_v1` was complete with 0 sweeps.
 `pg_stats` puts the most common (scope, generation) at a frequency of 0.0017
-(about 20,000 supports). That bounds the per-pair sort group of the supports side.
+(about 20,000 supports). That is a sample estimate, not a bound; the exact
+largest group is measured below (16,858 supports).
 
 ## Today's statements (plain EXPLAIN)
 
@@ -89,12 +90,36 @@ The run 5 cost split at 20,000 rows was the live index walk 3.05 s, the supports
 walk 0.18 s, and the missing probes 0.12 s. The live index is 33 GB for 11.6M
 entries, so the walk reads about 0.36 pages per entry. That walk dominates, and
 the total grows linearly with live findings. The pass time does not depend on N;
-N sets only the snapshot length. The default is N = 20,000 (about 4.5 s).
+N sets only the snapshot length. The default is N = 20,000 (4.6 to 6.0 s).
 
-Projection at QA scale: ceil(11,633,317 / 20,000) = 582 slices x 4.45 s = 43.2 min for both
-halves. The two statements it replaces took 22.9 + 45.2 = 68.1 min. A fleet 1.3
-times QA projects to about 56 min in 757 slices of about 4.5 s. No single
-statement grows with the table.
+Projection at QA scale, from the shipped statement (run 5): ceil(11,633,317 /
+20,000) = 582 slices x 4.62 to 6.01 s = 44.8 to 58.3 min for both halves. The
+upper figure is the forced generic plan, which the reducer's pgx statement cache
+can reach after five executions on one connection. The two statements it
+replaces took 22.9 + 45.2 = 68.1 min. A fleet 1.3 times QA projects to 58.3 to
+75.8 min in 757 slices; every statement stays bounded by N, not by the table.
+
+## Largest group and a mid-pair slice (run 9, after review)
+
+The supports side walks the (scope_id, generation_id) index, which has no
+fact_id, so a slice whose cursor is inside a pair re-reads and sorts that pair's
+supports from its start. A pair of G supports costs about G squared over N rows
+across its slices once G exceeds N; below N, a slice re-reads at most one group.
+
+- Exact census, read-only on the replica (`GROUP BY scope_id, generation_id`
+  split into scope ranges: the 101 `pg_stats` histogram buckets, and the one
+  bucket that timed out split again into index-walked ranges of about 100,000
+  rows): 11,645,720 supports in 6,972 pairs. The largest group is 16,858
+  supports, then 15,531 and 11,686. Every group is under N = 20,000.
+- The shipped slice with N = 20,000 and the cursor at the 8,430th fact of the
+  largest group: 20.34 s cold under the custom plan. The supports walk, with the
+  whole group re-read, cost 0.49 s of reads; the live index walk 6.12 s; the
+  missing-support primary-key anti-join 12.32 s, from 9,655 heap fetches on
+  supports pages that were not yet all-visible. An immediate rerun under the
+  forced generic plan took 1.07 s warm.
+- So the mid-pair re-read is not the cost; heap fetches after recent supports
+  writes are, and they shrink once autovacuum sets the visibility map. The worst
+  cold slice measured (20.3 s) is inside the 30 s bar.
 
 ## Performance and observability markers
 
@@ -103,8 +128,9 @@ replica, 11,633,317 live findings): the orphan probe up to 22.9 min and the
 missing count 45.2 min, one statement and one snapshot each, terminal state
 marker set with 0 sweeps. After: the shipped slice statement, prepared, 20,000
 rows per side, 4.62 s and 4.64 s cold (custom plan) and 6.01 s (forced generic
-plan), result rows 20,000 / 20,000 with 0 missing and no orphan. The whole
-verification projects to 582 slices, about 43.2 min, with every statement
+plan), result rows 20,000 / 20,000 with 0 missing and no orphan; 20.34 s cold for
+a slice that starts inside the largest group. The whole verification projects
+to 582 slices, 44.8 to 58.3 min, with every statement
 bounded by the slice size instead of the table. Safe because both predicates
 are the unsliced ones, the cursor is guarded by the sweep it belongs to, and the
 completion statement keeps the fence recheck.
@@ -112,7 +138,8 @@ completion statement keeps the fence recheck.
 Observability Evidence: each slice is counted by
 `eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total{outcome}` and
 timed by `eshu_dp_supply_chain_impact_supports_backfill_verify_slice_duration_seconds{outcome}`
-(`advance`, `orphan`, `gap`, `last`); an intermediate slice is the step outcome
+(`advance`, `orphan`, `gap`, `last`, `failed`, a failed slice keeping its
+duration); a slice that neither restarted the sweep nor set the marker is the step outcome
 `verify` on `eshu_dp_supply_chain_impact_supports_backfill_steps_total`; the
 `verify_gap` warn log now carries `slice_duration_seconds`; the cursor is readable
 in the marker row (`verify_cursor_*`, `verify_sweep`).
@@ -134,6 +161,11 @@ completion statement. Slicing keeps that basis:
 - The cursor counts only while `verify_sweep = sweeps` (migration 348). An older
   binary's restart bumps `sweeps` without clearing the cursor, which voids it.
   The advance is guarded by the sweep the step read.
+- Completion runs in one transaction: a statement drops the cursor, guarded by
+  the sweep the step read, then the pinned completion statement rechecks the
+  fence. A marker whose `completed_at` is reset later without a sweep bump
+  verifies from the start, and a runner whose sweep was restarted meanwhile
+  cannot set the marker. A dirty fence rolls back and keeps the cursor.
 
 ## Rejected and not done
 
@@ -145,8 +177,8 @@ completion statement. Slicing keeps that basis:
 ## Not checked here
 
 - Warm-cache and primary timings. These runs used a cold replica cache.
-- A pair larger than the `pg_stats` estimate. Its supports are sorted in one
-  group.
+- A pair larger than N on another fleet. Its slices re-read it, about G squared
+  over N rows in all; none exists on QA (largest 16,858).
 - The live proofs (writer between slices, old writer, restart, seeded RED/GREEN
   against the real statement) live in
   `go/internal/storage/postgres/supply_chain_impact_supports_verify_live_test.go`

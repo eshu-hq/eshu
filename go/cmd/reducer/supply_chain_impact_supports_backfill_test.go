@@ -28,7 +28,11 @@ func TestSupportsBackfillOutcomeClassifiesEveryStep(t *testing.T) {
 		"verify orphan": {postgres.SupplyChainImpactSupportsBackfillReport{
 			Verified: true, Removed: 1,
 			VerifySlice: telemetry.SupplyChainImpactSupportsVerifySliceOrphan,
-		}, telemetry.SupplyChainImpactSupportsBackfillStepChunk},
+		}, telemetry.SupplyChainImpactSupportsBackfillStepVerify},
+		"fence-blocked last slice": {postgres.SupplyChainImpactSupportsBackfillReport{
+			Verified:    true,
+			VerifySlice: telemetry.SupplyChainImpactSupportsVerifySliceLast,
+		}, telemetry.SupplyChainImpactSupportsBackfillStepVerify},
 		"verify complete": {postgres.SupplyChainImpactSupportsBackfillReport{Verified: true, Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepComplete},
 		"drain":           {postgres.SupplyChainImpactSupportsBackfillReport{Drained: 1, Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepDrain},
 		"already done":    {postgres.SupplyChainImpactSupportsBackfillReport{Complete: true}, telemetry.SupplyChainImpactSupportsBackfillStepIdle},

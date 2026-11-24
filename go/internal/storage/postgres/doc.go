@@ -454,5 +454,6 @@
 // of the last clean interval in the marker row with the sweep it belongs to. A
 // missing support restarts the sweep, an orphan is removed under its pair's
 // conflict-domain lock and its slice runs again, and the last clean slice runs
-// the completion statement with its old-writer fence recheck.
+// the completion statement with its old-writer fence recheck, in one
+// transaction that first drops the cursor, guarded by the sweep it read.
 package postgres

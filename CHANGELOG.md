@@ -21,6 +21,7 @@ recent shipped work grouped by feature area.
   fork: it rejects an assertion with no `AudienceRestriction` or with no bearer
   `SubjectConfirmation`. An identity provider that omits one now gets a `401` and
   an `assertion_invalid` audit event.
+
 ### The supports backfill verifies in short, resumable slices
 
 - **The verification no longer holds one snapshot for most of an hour**
@@ -30,10 +31,11 @@ recent shipped work grouped by feature area.
   and neither could resume. Each step now checks one key interval of at most
   20,000 supports and live findings in one statement. The interval's end is
   stored in the marker row (migration 348, four nullable columns), so a restarted
-  reducer continues from it. On the QA replica a slice took 4.5 s cold, and the
-  whole verification projects to about 43 min for both halves. A missing support
+  reducer continues from it. On the QA replica the shipped slice took 4.6 to 6.0 s
+  cold, and the whole verification projects to 45 to 58 min for both halves. A missing support
   still restarts the sweep, an orphan is still removed under its pair's lock, and
-  the completion statement still rechecks the old-writer fence. New signals:
+  the completion statement still rechecks the old-writer fence. Completion also
+  drops the cursor, so a marker reset later starts over. New signals:
   `eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total{outcome}`,
   `..._verify_slice_duration_seconds{outcome}`, and the step outcome `verify`.
 

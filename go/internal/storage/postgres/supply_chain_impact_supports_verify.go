@@ -113,6 +113,19 @@ SET verify_cursor_scope_id = $2, verify_cursor_generation_id = $3, verify_cursor
     verify_sweep = sweeps, updated_at = now()
 WHERE marker_name = $1 AND completed_at IS NULL AND sweeps = $5`
 
+// supplyChainImpactSupportsBackfillVerifyClearSQL drops the verification cursor
+// in the completion transaction, before the completion statement, and locks the
+// marker row. It is guarded by the sweep the step read: zero rows means another
+// runner restarted the sweep (or set the marker), and the step does not complete.
+// Clearing it means a marker whose completed_at is later reset without a sweep
+// bump verifies from the start of the key space, never from a stale cursor. The
+// completion statement itself stays as pinned by the supports contract.
+const supplyChainImpactSupportsBackfillVerifyClearSQL = `
+UPDATE supply_chain_impact_finding_supports_backfill
+SET verify_cursor_scope_id = NULL, verify_cursor_generation_id = NULL,
+    verify_cursor_fact_id = NULL, verify_sweep = NULL, updated_at = now()
+WHERE marker_name = $1 AND completed_at IS NULL AND sweeps = $2`
+
 // supportsBackfillMarker is the marker row one step acts on.
 type supportsBackfillMarker struct {
 	scope, generation, fact string
@@ -157,7 +170,7 @@ type verifySliceResult struct {
 }
 
 // verify runs one verification slice when the sweep has passed the last
-// finding fact. A live finding without a support restarts the sweep; a support
+// finding fact. A failed step reports the slice as failed with its duration. A live finding without a support restarts the sweep; a support
 // of a tombstoned fact has that pair's orphans removed under its conflict-domain
 // lock and the cursor stays, so the slice runs again; a clean slice moves the
 // cursor to its end; and the clean last slice runs the completion statement,
@@ -167,7 +180,14 @@ func (b SupplyChainImpactSupportsBackfill) verify(
 	beginner db.Beginner,
 	marker supportsBackfillMarker,
 	report SupplyChainImpactSupportsBackfillReport,
-) (SupplyChainImpactSupportsBackfillReport, error) {
+) (out SupplyChainImpactSupportsBackfillReport, err error) {
+	// Any failure after the slice started is a failed slice, so its duration
+	// (a statement timeout among them) still reaches the slice histogram.
+	defer func() {
+		if err != nil {
+			out.VerifySlice = telemetry.SupplyChainImpactSupportsVerifySliceFailed
+		}
+	}()
 	size := b.VerifySliceSize
 	if size <= 0 {
 		size = supplyChainImpactSupportsBackfillDefaultVerifySlice
@@ -194,18 +214,9 @@ func (b SupplyChainImpactSupportsBackfill) verify(
 		return report, err
 	case slice.last:
 		report.VerifySlice = telemetry.SupplyChainImpactSupportsVerifySliceLast
-		result, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillCompleteSQL, SupplyChainImpactSupportsBackfillMarker)
-		if err != nil {
-			return report, fmt.Errorf("complete supply chain impact supports backfill: %w", err)
-		}
-		// Zero rows means the fence was not empty at the recheck (or another runner
-		// set the marker): the next step drains it, then reruns this last slice.
-		marked, err := result.RowsAffected()
-		if err != nil {
-			return report, fmt.Errorf("count supply chain impact supports marker update: %w", err)
-		}
-		report.Complete = marked > 0
-		return report, nil
+		complete, err := b.complete(ctx, beginner, marker.sweeps)
+		report.Complete = complete
+		return report, err
 	default:
 		report.VerifySlice = telemetry.SupplyChainImpactSupportsVerifySliceAdvance
 		if _, err := b.DB.ExecContext(ctx, supplyChainImpactSupportsBackfillVerifyAdvanceSQL,
@@ -214,6 +225,44 @@ func (b SupplyChainImpactSupportsBackfill) verify(
 		}
 		return report, nil
 	}
+}
+
+// complete sets the readiness marker after the clean last slice. One
+// transaction first drops the verification cursor, guarded by the sweep the step
+// read (which also locks the marker row), then runs the pinned completion
+// statement with its old-writer fence recheck. Zero rows from either statement
+// rolls the transaction back: a restarted sweep keeps its own state, and a dirty
+// fence keeps the cursor so the next step drains it and reruns this last slice.
+func (b SupplyChainImpactSupportsBackfill) complete(ctx context.Context, beginner db.Beginner, sweeps int64) (bool, error) {
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("begin supply chain impact supports completion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, stmt := range []struct {
+		query string
+		args  []any
+		what  string
+	}{
+		{supplyChainImpactSupportsBackfillVerifyClearSQL, []any{SupplyChainImpactSupportsBackfillMarker, sweeps}, "clear supply chain impact supports verification cursor"},
+		{supplyChainImpactSupportsBackfillCompleteSQL, []any{SupplyChainImpactSupportsBackfillMarker}, "complete supply chain impact supports backfill"},
+	} {
+		result, err := tx.ExecContext(ctx, stmt.query, stmt.args...)
+		if err != nil {
+			return false, fmt.Errorf("%s: %w", stmt.what, err)
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return false, fmt.Errorf("count rows of %s: %w", stmt.what, err)
+		}
+		if n == 0 {
+			return false, nil
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit supply chain impact supports completion: %w", err)
+	}
+	return true, nil
 }
 
 func (b SupplyChainImpactSupportsBackfill) verifySlice(ctx context.Context, cursor [3]string, size int) (verifySliceResult, error) {

@@ -312,15 +312,20 @@ func TestSupplyChainImpactSupportsVerifyWaitsForAnOldWriterLive(t *testing.T) {
 	replaceSetSeedSecondScope(t, ctx, db)
 	supportsBackfillSeed(t, ctx, db)
 	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}
-	supportsVerifySteps(t, ctx, backfill, func(r postgres.SupplyChainImpactSupportsBackfillReport) bool {
+	before := supportsVerifySteps(t, ctx, backfill, func(r postgres.SupplyChainImpactSupportsBackfillReport) bool {
 		return r.VerifySlice == telemetry.SupplyChainImpactSupportsVerifySliceAdvance
 	})
 	supportsOldWriterInsert(t, ctx, db, "fact:verify:old-writer", "reducer_supply_chain_impact_finding", false)
+	cursor, current, _ := supportsVerifyCursor(t, ctx, db)
+	oldKey := [3]string{replaceSetLiveScope, replaceSetLiveGeneration, "fact:verify:old-writer"}
+	if !current || supportsVerifyKeyAfter(t, ctx, db, oldKey, cursor) {
+		t.Fatalf("the old writer's key %v is not behind the verification cursor %v (current %v): the slices have not passed it", oldKey, cursor, current)
+	}
 	if n := supportsDirtyScopes(t, ctx, db); n != 1 {
 		t.Fatalf("dirty scopes after the old writer = %d, want 1", n)
 	}
 	drains := 0
-	supportsVerifySteps(t, ctx, backfill, func(r postgres.SupplyChainImpactSupportsBackfillReport) bool {
+	after := supportsVerifySteps(t, ctx, backfill, func(r postgres.SupplyChainImpactSupportsBackfillReport) bool {
 		drains += r.Drained
 		if r.Complete && r.DirtyScopes != 0 {
 			t.Fatalf("marker set with %d dirty scopes", r.DirtyScopes)
@@ -330,5 +335,55 @@ func TestSupplyChainImpactSupportsVerifyWaitsForAnOldWriterLive(t *testing.T) {
 	if drains != 1 {
 		t.Fatalf("drains = %d, want 1", drains)
 	}
+	if gaps := supportsVerifyOutcomes(append(before, after...))[telemetry.SupplyChainImpactSupportsVerifySliceGap]; gaps != 0 {
+		t.Fatalf("gap slices = %d, want 0: the drain, not a restart, must repair the old writer's scope", gaps)
+	}
 	supportsVerifyAssertClean(t, ctx, db, "after the old writer drained")
+}
+
+// TestSupplyChainImpactSupportsVerifyResetMarkerStartsOverLive proves a
+// completed verification leaves no cursor behind. With the marker's completed_at
+// reset and no sweep bump (the reset the fence and fleet-gate live tests use),
+// the next verification starts at the first key of the key space and checks
+// every interval again before the marker is set.
+func TestSupplyChainImpactSupportsVerifyResetMarkerStartsOverLive(t *testing.T) {
+	ctx, db := openReplaceSetLiveDB(t)
+	replaceSetSeedSecondScope(t, ctx, db)
+	supportsBackfillSeed(t, ctx, db)
+	backfill := postgres.SupplyChainImpactSupportsBackfill{DB: postgres.SQLDB{DB: db}, ChunkSize: 1000, VerifySliceSize: 1}
+	supportsVerifySteps(t, ctx, backfill, supportsVerifyIsComplete)
+	var anyVerify bool
+	if err := db.QueryRowContext(ctx, `
+SELECT verify_cursor_scope_id IS NOT NULL OR verify_cursor_generation_id IS NOT NULL
+    OR verify_cursor_fact_id IS NOT NULL OR verify_sweep IS NOT NULL
+FROM supply_chain_impact_finding_supports_backfill`).Scan(&anyVerify); err != nil || anyVerify {
+		t.Fatalf("verification columns after completion: set %v (err %v), want all NULL", anyVerify, err)
+	}
+	_, _, sweeps := supportsVerifyCursor(t, ctx, db)
+	if _, err := db.ExecContext(ctx, `UPDATE supply_chain_impact_finding_supports_backfill
+SET completed_at = NULL, cursor_scope_id = '', cursor_generation_id = '', cursor_fact_id = ''`); err != nil {
+		t.Fatalf("reset marker: %v", err)
+	}
+	reports := supportsVerifySteps(t, ctx, backfill, func(r postgres.SupplyChainImpactSupportsBackfillReport) bool {
+		return r.VerifySlice != "" || r.Complete
+	})
+	if last := reports[len(reports)-1]; last.Complete || last.VerifySlice != telemetry.SupplyChainImpactSupportsVerifySliceAdvance {
+		t.Fatalf("first slice after the reset = %+v, want an advance (not the last slice of the old cursor)", last)
+	}
+	var first [3]string
+	if err := db.QueryRowContext(ctx, `
+SELECT scope_id, generation_id, fact_id FROM (
+    SELECT scope_id, generation_id, fact_id FROM fact_records
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding' AND NOT is_tombstone
+    UNION ALL
+    SELECT scope_id, generation_id, fact_id FROM supply_chain_impact_finding_supports
+) AS k ORDER BY scope_id, generation_id, fact_id LIMIT 1`).Scan(&first[0], &first[1], &first[2]); err != nil {
+		t.Fatalf("first key: %v", err)
+	}
+	cursor, current, sweepsAfter := supportsVerifyCursor(t, ctx, db)
+	if !current || cursor != first || sweepsAfter != sweeps {
+		t.Fatalf("cursor after the first slice = %v (current %v, sweeps %d), want the first key %v in sweep %d", cursor, current, sweepsAfter, first, sweeps)
+	}
+	supportsVerifySteps(t, ctx, backfill, supportsVerifyIsComplete)
+	supportsVerifyAssertClean(t, ctx, db, "after the reset verification")
 }

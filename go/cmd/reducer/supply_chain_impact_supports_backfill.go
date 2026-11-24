@@ -100,6 +100,11 @@ func runSupportsBackfillPass(
 		stepStarted := time.Now()
 		report, err := step(ctx)
 		if err != nil {
+			// A failed verification slice still reports its duration, so a
+			// statement timeout shows on the slice histogram.
+			if report.VerifySlice != "" {
+				instruments.RecordSupplyChainImpactSupportsVerifySlice(ctx, report.VerifySlice, report.VerifySliceDuration)
+			}
 			return false, err
 		}
 		outcome := supportsBackfillOutcome(report)
@@ -144,7 +149,8 @@ func supportsBackfillOutcome(report postgres.SupplyChainImpactSupportsBackfillRe
 		return telemetry.SupplyChainImpactSupportsBackfillStepComplete
 	case report.Complete:
 		return telemetry.SupplyChainImpactSupportsBackfillStepIdle
-	case report.VerifySlice == telemetry.SupplyChainImpactSupportsVerifySliceAdvance:
+	case report.VerifySlice != "":
+		// An advance, an orphan cleanup, or a last slice the fence held back.
 		return telemetry.SupplyChainImpactSupportsBackfillStepVerify
 	default:
 		return telemetry.SupplyChainImpactSupportsBackfillStepChunk

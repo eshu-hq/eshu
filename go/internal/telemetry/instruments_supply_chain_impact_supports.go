@@ -60,7 +60,9 @@ const (
 	// SupplyChainImpactSupportsBackfillStepFailed is a step that returned an error.
 	SupplyChainImpactSupportsBackfillStepFailed = "failed"
 	// SupplyChainImpactSupportsBackfillStepVerify is a verification slice that
-	// found nothing and moved the verification cursor forward.
+	// neither restarted the sweep nor set the marker: it moved the cursor, removed
+	// an orphan pair, or was a last slice the fence recheck held back. The slice
+	// counter's outcome label says which.
 	SupplyChainImpactSupportsBackfillStepVerify = "verify"
 )
 
@@ -81,6 +83,10 @@ const (
 	// SupplyChainImpactSupportsVerifySliceLast is the clean slice that reached the
 	// end of the key space and ran the completion statement.
 	SupplyChainImpactSupportsVerifySliceLast = "last"
+	// SupplyChainImpactSupportsVerifySliceFailed is a slice whose statement, or
+	// the restart, cleanup, advance or completion after it, returned an error (a
+	// statement timeout among them); the step fails and the slice runs again.
+	SupplyChainImpactSupportsVerifySliceFailed = "failed"
 )
 
 // Reducer reads of the per-support table (#10880 PR-B2) for the reader
@@ -215,7 +221,7 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 	}
 	if inst.SupplyChainImpactSupportsVerifySlices, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_verify_slices_total",
-		metric.WithDescription("Per-support backfill verification slices by outcome (advance, orphan, gap, last). Each slice checks one bounded key interval of supports and live findings in one snapshot."),
+		metric.WithDescription("Per-support backfill verification slices by outcome (advance, orphan, gap, last, failed). Each slice checks one bounded key interval of supports and live findings in one snapshot."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsVerifySlices counter: %w", err)
 	}

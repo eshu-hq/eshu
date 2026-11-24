@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -43,6 +44,13 @@ type verifyFakeDB struct {
 	verifyCursorSet  bool
 	complete         bool
 	fenceDirtyAtDone bool
+	// bumpBeforeComplete models another runner restarting the sweep between
+	// this step's marker read and its completion.
+	bumpBeforeComplete bool
+	// sliceErr fails the next slice statement (a statement timeout).
+	sliceErr error
+	// staged holds the completion transaction's writes until Commit.
+	stagedClear, stagedComplete bool
 
 	slices    []verifyFakeSlice
 	sliceArgs [][]any
@@ -72,11 +80,21 @@ func (f *verifyFakeDB) ExecContext(_ context.Context, query string, args ...any)
 		f.sweeps++
 		f.verifyCursorSet = false
 		return verifyFakeResult(1), nil
+	case supplyChainImpactSupportsBackfillVerifyClearSQL:
+		if f.bumpBeforeComplete {
+			f.sweeps++
+			f.bumpBeforeComplete = false
+		}
+		if f.complete || args[1] != f.sweeps {
+			return verifyFakeResult(0), nil
+		}
+		f.stagedClear = true
+		return verifyFakeResult(1), nil
 	case supplyChainImpactSupportsBackfillCompleteSQL:
 		if f.fenceDirtyAtDone {
 			return verifyFakeResult(0), nil
 		}
-		f.complete = true
+		f.stagedComplete = true
 		return verifyFakeResult(1), nil
 	case supplychaincore.SupplyChainImpactConflictDomainLockQuery, deleteRetractedSupplyChainImpactSupportsSQL:
 		return verifyFakeResult(1), nil
@@ -101,6 +119,9 @@ func (f *verifyFakeDB) QueryContext(_ context.Context, query string, args ...any
 		return &fakeRows{rows: [][]any{{int64(0)}}}, nil
 	case supplyChainImpactSupportsBackfillVerifySliceSQL:
 		f.sliceArgs = append(f.sliceArgs, args)
+		if f.sliceErr != nil {
+			return nil, f.sliceErr
+		}
 		if len(f.slices) == 0 {
 			f.t.Fatal("verification slice run with no scripted answer")
 		}
@@ -133,8 +154,21 @@ func (tx verifyFakeTx) QueryContext(ctx context.Context, query string, args ...a
 	return tx.f.QueryContext(ctx, query, args...)
 }
 
-func (verifyFakeTx) Commit() error   { return nil }
-func (verifyFakeTx) Rollback() error { return nil }
+func (tx verifyFakeTx) Commit() error {
+	if tx.f.stagedClear {
+		tx.f.verifyCursor, tx.f.verifyCursorSet = [3]string{}, false
+	}
+	if tx.f.stagedComplete {
+		tx.f.complete = true
+	}
+	tx.f.stagedClear, tx.f.stagedComplete = false, false
+	return nil
+}
+
+func (tx verifyFakeTx) Rollback() error {
+	tx.f.stagedClear, tx.f.stagedComplete = false, false
+	return nil
+}
 
 type verifyFakeResult int64
 
@@ -271,5 +305,71 @@ func TestSupportsVerifyLastSliceKeepsTheFenceRecheck(t *testing.T) {
 	}
 	if got := len(f.execsOf(supplyChainImpactSupportsBackfillCompleteSQL)); got != 1 {
 		t.Fatalf("completion statements = %d, want 1", got)
+	}
+}
+
+// TestSupportsVerifyCompletionDropsTheCursor proves completion clears the
+// verification cursor in the same transaction: a marker whose completed_at is
+// reset without a sweep bump (as the fence and fleet-gate live tests do) starts
+// its next verification at the start of the key space, never at the old cursor.
+func TestSupportsVerifyCompletionDropsTheCursor(t *testing.T) {
+	t.Parallel()
+	f := &verifyFakeDB{
+		t: t, sweeps: 4, verifySweep: 4, verifyCursorSet: true,
+		verifyCursor: [3]string{"m", "g5", "f9"}, slices: []verifyFakeSlice{{last: true}, {bound: [3]string{"a", "g1", "f1"}}},
+	}
+	if report := verifyStep(t, f); !report.Complete {
+		t.Fatalf("last slice = %+v, want the marker set", report)
+	}
+	if f.verifyCursorSet {
+		t.Fatalf("cursor %v survived completion", f.verifyCursor)
+	}
+	clears := f.execsOf(supplyChainImpactSupportsBackfillVerifyClearSQL)
+	if len(clears) != 1 || fmt.Sprint(clears[0].args) != fmt.Sprint([]any{SupplyChainImpactSupportsBackfillMarker, int64(4)}) {
+		t.Fatalf("cursor clears = %+v, want one guarded by the sweep read", clears)
+	}
+	f.complete = false // completed_at reset with no sweep bump
+	verifyStep(t, f)
+	wantSliceCursor(t, f, 1, [3]string{"", "", ""})
+}
+
+// TestSupportsVerifyCompletionIsSweepGuarded proves the last slice cannot set
+// the marker when the sweep changed after the step read the marker (a second
+// runner restarted it), and that a fence-blocked completion keeps the cursor.
+func TestSupportsVerifyCompletionIsSweepGuarded(t *testing.T) {
+	t.Parallel()
+	raced := &verifyFakeDB{t: t, sweeps: 1, bumpBeforeComplete: true, slices: []verifyFakeSlice{{last: true}}}
+	if report := verifyStep(t, raced); report.Complete || raced.complete {
+		t.Fatalf("last slice after a concurrent restart = %+v, want no marker", report)
+	}
+	if got := len(raced.execsOf(supplyChainImpactSupportsBackfillCompleteSQL)); got != 0 {
+		t.Fatalf("completion statements after a lost sweep guard = %d, want 0", got)
+	}
+
+	fenced := &verifyFakeDB{
+		t: t, sweeps: 2, verifySweep: 2, verifyCursorSet: true, fenceDirtyAtDone: true,
+		verifyCursor: [3]string{"m", "g5", "f9"}, slices: []verifyFakeSlice{{last: true}},
+	}
+	if report := verifyStep(t, fenced); report.Complete {
+		t.Fatalf("fence-blocked last slice = %+v, want no marker", report)
+	}
+	if !fenced.verifyCursorSet || fenced.verifyCursor != [3]string{"m", "g5", "f9"} {
+		t.Fatalf("fence-blocked completion dropped the cursor (%v, set %v)", fenced.verifyCursor, fenced.verifyCursorSet)
+	}
+}
+
+// TestSupportsVerifyReportsAFailedSlice proves a slice statement that fails (a
+// statement timeout) returns the error with the slice reported as failed and its
+// duration measured, so the slice histogram sees the slow tail.
+func TestSupportsVerifyReportsAFailedSlice(t *testing.T) {
+	t.Parallel()
+	timeout := errors.New("canceling statement due to statement timeout")
+	f := &verifyFakeDB{t: t, sliceErr: timeout}
+	report, err := SupplyChainImpactSupportsBackfill{DB: f, VerifySliceSize: 2}.RunStep(context.Background())
+	if !errors.Is(err, timeout) {
+		t.Fatalf("error = %v, want the slice statement's error", err)
+	}
+	if report.VerifySlice != telemetry.SupplyChainImpactSupportsVerifySliceFailed || report.VerifySliceDuration <= 0 || report.Complete {
+		t.Fatalf("failed slice report = %+v, want outcome failed with a duration and no marker", report)
 	}
 }
