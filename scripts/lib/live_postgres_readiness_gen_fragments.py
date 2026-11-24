@@ -127,11 +127,15 @@ FRAGMENT_NAMES = (
 # Moved again for #11203 follow-up: the refusal and race live proofs add two
 # more rows to part4, so the fourth cut moves two more entries earlier into
 # part5 (part4 492 lines, part5 272 lines); eight fragments pinned.
+# Moved again for #11197 (the fence one-snapshot proofs): the two
+# fence_snapshot live enrollments push part4 to 502 lines, so the fourth cut moves
+# one entry earlier into part5 (part4 497 lines, part5 about 297 lines); eight
+# fragments pinned.
 FRAGMENT_BOUNDARIES = (
     "go/internal/query/security_alert_target_set_postgres_live_test.go",
     "go/internal/storage/postgres/activation/producer_obligation_contract_live_test.go",
     "go/internal/storage/postgres/content_writer_metadata_only_redarm_live_test.go",
-    "go/internal/storage/postgres/membership/observations_live_test.go",
+    "go/internal/storage/postgres/membership/observations_classification_live_test.go",
     "go/internal/storage/postgres/pruned_generation_lock_order_live_test.go",
     "go/internal/storage/postgres/retention/relationships/classify_race_live_test.go",
     "go/internal/storage/postgres/supply_chain_impact_authorized_loader_engaged_live_test.go",

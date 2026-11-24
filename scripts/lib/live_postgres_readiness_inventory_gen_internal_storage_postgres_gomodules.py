@@ -31,6 +31,10 @@ TABLE = {
             "TestTerminalFailureReleasesTheNextPlanLive",
             "TestFencePurgeInterplayLedgerLive",
         ),
+        "go/internal/storage/postgres/gomodules/fence_snapshot_live_test.go": (
+            "TestFenceHolderStatementReadsReadinessAndHoldersInOneSnapshotLive",
+            "TestFenceUnderAFreeInterleavingWithTheDrainReopensEveryCommittedHolderLive",
+        ),
         "go/internal/storage/postgres/gomodules/single_repository_live_test.go": (
             "TestGetGoModuleRepositoryMatchesPageRowLive",
         ),

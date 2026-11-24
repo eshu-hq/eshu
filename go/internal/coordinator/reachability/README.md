@@ -63,8 +63,8 @@ results, and none holds a repository id or URL:
   run is not yet `complete` or `failed`. This is not handled: one terminal item sets
   the whole run `failed` while its siblings stay claimable, and the guard stops counting
   them as open, so a later plan can add a second item for such a scope
-  (eshu-hq/eshu#10091). The activation stays at replicas 0 until the commit-skew fence
-  (eshu-hq/eshu#10055), eshu-hq/eshu#10054, eshu-hq/eshu#10077 and #10091 merge.
+  (eshu-hq/eshu#10091). The commit-skew fence (eshu-hq/eshu#10055), eshu-hq/eshu#10054,
+  eshu-hq/eshu#10077 and #10091 are closed.
 - The repository id and scope id are the only repository values in any identity.
   The clone URL lives only in `requested_scope_set`.
 - One unplannable repository skips with a reason. It never fails the page, or one
@@ -84,9 +84,10 @@ results, and none holds a repository id or URL:
   `scan_interval`, so a bound in intervals would retract healthy repositories on a large
   fleet. The age is measured from the repository's own history, so a quiet repository is
   never retracted by age.
-- A retraction changes which facts are active, not any finding. The store reopens each holder in
-  the same transaction, which changes no verdict until eshu-hq/eshu#10095 lets passes read Go
-  evidence across scopes. See
+- A retraction changes which facts are active, not any finding. Passes read Go evidence across
+  scopes (eshu-hq/eshu#10095), so a holder keeps the retracted generation's verdict until it
+  re-derives. The store reopens each holder in the same transaction, in one statement that also
+  reads the supports readiness. See
   `docs/public/reference/standalone-vulnerability-scanner-boundary.md`.
 
 ## Related docs

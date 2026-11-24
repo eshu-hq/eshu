@@ -47,11 +47,12 @@
 - Keep the CASE guard on `evidence_left_at`: the subquery must run only for a skewed row.
   The EXPLAIN in (#10055) holds its loop count.
 - The holder read answers from `supply_chain_impact_finding_supports`, never the finding facts
-  (#11197). `Store.WithSupportsReadiness` is required by `FenceStaleGoEvidence`; the check runs
-  twice: after the timeouts and before the pointer detach, and again after the holder read and
-  before any reopen, so a not-ready table rolls back with nothing retracted. Keep the second
-  check: the holder read is a separate READ COMMITTED snapshot, and the order of the two checks
-  is pinned by `TestFenceRechecksSupportsAfterTheHolderReadAndRollsBack`. Keep the `ORDER BY ... COLLATE "C"` lock order of the holder reopen.
+  (#11197). `Store.WithSupportsReadiness` is required by `FenceStaleGoEvidence` and fails closed
+  on an empty binding. Check 1 runs after the timeouts and before the pointer detach. The holder
+  statement (`HolderStatement`) embeds the same predicate text byte-for-byte as its first FROM item,
+  so the verdict and the holders are one snapshot: keep it one statement, never add a readiness
+  statement after it, never edit the injected text, and never pass its NULL `scope_id` row to the
+  reopener. A not-ready verdict rolls the fence back even when holder rows came back. Keep the `ORDER BY ... COLLATE "C"` lock order of the holder reopen.
 - `HolderReopener` is injected because no subpackage imports the postgres root. A store with
   no reopener refuses to fence.
 

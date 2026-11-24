@@ -35,52 +35,27 @@ import (
 //
 // The pointer change fires ingestion_scopes_winners_dirty_capture, which logs the
 // retracted generation for the keyed winners tick, which re-picks among stored findings and
-// re-derives nothing. Each holder must re-derive its own copy, so holders are reopened here.
-// No pass reads Go evidence across scopes until eshu-hq/eshu#10095 lands, so today the reopen
-// changes no verdict. It is here so the verdict cannot go stale once that loader merges. The
-// reopen is not free before then: since #10972 it widens a pending or retrying holder whose
-// stamp names a bounded CVE set to the fence's set-less stamp, so that holder's next pass runs
-// full instead of scoped, which costs extra full passes and changes no verdict until #10095.
+// re-derives nothing. Each holder must re-derive its own copy: the supply-chain impact pass
+// loads Go evidence across scopes (eshu-hq/eshu#10095, loader ListActiveGoReachabilityFacts),
+// so a holder keeps the retracted generation's Go verdict until its own pass re-derives it,
+// and holders are reopened here for that reason. The reopen is not free: since #10972 it widens
+// a pending or retrying holder whose stamp names a bounded CVE set to the fence's set-less stamp,
+// so that holder's next pass runs full instead of scoped, which costs extra full passes.
+//
+// The holder statement reads the supports readiness predicate and the holders in one snapshot
+// (#11197), so a backfill drain between a holder read and a separate recheck can no longer hide
+// a holder (with one drain runner). A finding that commits after that snapshot is not seen,
+// including an old-writer finding that commits between that snapshot and where the removed
+// recheck ran, which the recheck used to roll back: a scope with no support for the repository
+// at its active generation whose pass loaded Go evidence before the fence commit keeps the
+// retracted verdict until that scope's next supply_chain_impact pass, and nothing schedules one
+// (tracked in eshu-hq/eshu#11327). The same race exists in the fact read this statement replaced.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot
 	// hold the fence's locks. Both values are transaction-local. The lock value matches
 	// the projector ack's default.
 	fenceTimeoutsQuery = `SELECT set_config('lock_timeout', '2000ms', true), set_config('statement_timeout', '10000ms', true)`
-	// fenceFindHoldersQuery finds the scopes holding an active finding support for
-	// the repository (#11197), on supply_chain_impact_finding_supports_repository_idx.
-	// The table holds live finding facts only, so no tombstone predicate applies, and
-	// the empty repository id it stores for a finding without one never matches a
-	// repository id. Holders are found by repository, not by CVE, so no osv-to-CVE
-	// alias mapping is needed here. Over-reopening is safe: a pass re-derives its own
-	// findings from active supports.
-	//
-	// The holders come back in the lock order of their supply_chain_impact work item at
-	// the active generation, work_item_id COLLATE "C" (#11147). The fence reopens every
-	// holder in this one transaction, and a reopen now locks a holder's dead-letter row,
-	// which the admin replay, the recovery drain, and poison recovery lock in that same
-	// order. Scope-id order is not the same order: the work item id replaces ':' and '/'
-	// with '_'. A holder with no item takes no row lock (it is enqueued), so it sorts last.
-	fenceFindHoldersQuery = `SELECT holder.scope_id
-		FROM (
-		    SELECT DISTINCT support.scope_id, scope.active_generation_id
-		    FROM supply_chain_impact_finding_supports AS support
-		    JOIN ingestion_scopes AS scope
-		      ON scope.scope_id = support.scope_id
-		     AND scope.active_generation_id = support.generation_id
-		    WHERE support.repository_id = $1
-		      AND support.repository_id <> ''
-		      AND support.scope_id <> $2
-		) AS holder
-		LEFT JOIN LATERAL (
-		    SELECT min(work.work_item_id COLLATE "C") AS lock_key
-		    FROM fact_work_items AS work
-		    WHERE work.scope_id = holder.scope_id
-		      AND work.generation_id = holder.active_generation_id
-		      AND work.stage = 'reducer'
-		      AND work.domain = 'supply_chain_impact'
-		) AS item ON TRUE
-		ORDER BY item.lock_key COLLATE "C" NULLS LAST, holder.scope_id COLLATE "C"`
 	// fenceDetachPointerQuery takes the scope row, conditional on the generation read.
 	fenceDetachPointerQuery = `UPDATE ingestion_scopes SET active_generation_id = NULL
 		WHERE scope_id = $1 AND active_generation_id = $2`
@@ -89,24 +64,6 @@ const (
 	fenceSupersedeGeneration = `UPDATE scope_generations SET status = 'superseded', superseded_at = $3
 		WHERE scope_id = $1 AND generation_id = $2 AND status = 'active'`
 )
-
-// SupportsReadiness checks, on the fence's own transaction, that the supports table
-// the holder read answers from is ready, and returns an error when it is not
-// (#11197). The composition root binds it to postgres.RequireSupplyChainImpactSupportsReady;
-// it is a function so this leaf package does not import the postgres root. The fence
-// runs at READ COMMITTED, so the check and the holder read are not one snapshot: an
-// old-writer image marking a scope dirty between them could let a fence retract with
-// a holder missed. The fence therefore runs the check twice, before the detach and
-// again after the holder read, and rolls back when either says not ready. An old
-// writer's finding writes no support row, only a dirty mark that commits with it, and
-// the backfill drain writes the support and then clears the mark. A finding the holder
-// read missed is therefore seen by the second check unless it commits after that
-// check's snapshot, or the backfill drains its scope (writes the support and clears the
-// mark) between the holder read and the check. A committed fence does not re-run for
-// that generation, so that window is stated, not closed. Closing option, not taken
-// here: evaluate the readiness predicate inside the holder-read statement so both
-// share one snapshot.
-type SupportsReadiness func(ctx context.Context, tx db.Queryer) error
 
 // HolderReopener reopens one holder scope's supply_chain_impact work on the caller's
 // transaction, stamped with the generation that changed. The composition root binds it
@@ -126,10 +83,10 @@ func (s Store) WithHolderReopener(reopen HolderReopener) Store {
 	return s
 }
 
-// WithSupportsReadiness returns the store with the supports readiness check the
+// WithSupportsReadiness returns the store with the supports readiness binding the
 // fence needs. It leaves the receiver unchanged.
-func (s Store) WithSupportsReadiness(check SupportsReadiness) Store {
-	s.supportsReady = check
+func (s Store) WithSupportsReadiness(readiness SupportsReadiness) Store {
+	s.supportsReady = readiness
 	return s
 }
 
@@ -161,8 +118,8 @@ func (s Store) FenceStaleGoEvidence(
 	if s.reopenHolder == nil {
 		return result, errors.New("go module repository store needs a holder reopener to fence evidence")
 	}
-	if s.supportsReady == nil {
-		return result, errors.New("go module repository store needs a supports readiness check to fence evidence")
+	if err := s.supportsReady.validate(); err != nil {
+		return result, fmt.Errorf("go module repository store needs a supports readiness binding to fence evidence: %w", err)
 	}
 	for _, fence := range fences {
 		retracted, holders, err := s.fenceOne(ctx, beginner, fence, observedAt)
@@ -204,7 +161,7 @@ func (s Store) fenceOne(
 	// must stop the fence before it detaches anything: the transaction rolls back
 	// with nothing retracted, and the coordinator retries the page (#11197). A fence
 	// that retracted without reopening its holders would leave them stale.
-	if err := s.supportsReady(ctx, tx); err != nil {
+	if err := s.supportsReady.check(ctx, tx); err != nil {
 		return false, 0, fmt.Errorf("check supports readiness: %w", err)
 	}
 	affected, err := execAffected(ctx, tx, fenceDetachPointerQuery, fence.ScopeID, fence.GenerationID)
@@ -221,15 +178,12 @@ func (s Store) fenceOne(
 	if affected == 0 {
 		return false, 0, errors.New("active pointer named a generation that is not active")
 	}
-	holders, err := readHolderScopes(ctx, tx, repositoryID, fence.ScopeID)
+	// The holder statement reads the readiness predicate and the holders in one
+	// snapshot, so a table that is not ready in that snapshot rolls the whole fence
+	// back and the coordinator retries it, with no reopen and no commit.
+	holders, err := readHolderScopes(ctx, tx, s.supportsReady, repositoryID, fence.ScopeID)
 	if err != nil {
 		return false, 0, fmt.Errorf("read holders: %w", err)
-	}
-	// The holder read above is a separate READ COMMITTED snapshot from the first
-	// check, so check again before any reopen or the commit: a table that went not
-	// ready in between rolls the whole fence back and the coordinator retries it.
-	if err := s.supportsReady(ctx, tx); err != nil {
-		return false, 0, fmt.Errorf("recheck supports readiness after the holder read: %w", err)
 	}
 	for _, holder := range holders {
 		if err := s.reopenHolder(ctx, tx, holder, fence.ScopeID, fence.GenerationID, observedAt); err != nil {
@@ -248,29 +202,4 @@ func execAffected(ctx context.Context, tx db.Transaction, query string, args ...
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-// readHolderScopes reads the holders and closes the rows before returning, because the
-// reopen runs on the same transaction.
-func readHolderScopes(ctx context.Context, tx db.Transaction, repositoryID, scopeID string) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, fenceFindHoldersQuery, repositoryID, scopeID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var holders []string
-	for rows.Next() {
-		var holder string
-		if err := rows.Scan(&holder); err != nil {
-			return nil, err
-		}
-		holders = append(holders, holder)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	return holders, nil
 }

@@ -17,8 +17,8 @@ migration.
 ## Exported surface
 
 - `Store`, `NewStore`, `Store.ListGoModuleRepositories`, `Store.WithHolderReopener`,
-  `Store.WithSupportsReadiness`, `Store.FenceStaleGoEvidence`, `HolderReopener`, and
-  `SupportsReadiness`.
+  `Store.WithSupportsReadiness`, `Store.FenceStaleGoEvidence`, `HolderReopener`,
+  `SupportsReadiness` and `HolderStatement`.
 - `Store.GetGoModuleRepository`, `GoModuleRepositoryRead`,
   `ErrGoModuleRepositoryNotFound`, `ErrGoModuleRepositoryNoActiveGeneration` —
   the single-repository read for the out-of-rotation operator path
@@ -79,18 +79,19 @@ count the fence returns.
   `FenceStaleGoEvidence` writes the verdict.
 - A fence takes the scope row, checks that the supports table is ready (check 1, before the
   pointer detach), detaches the pointer, supersedes the generation, finds the holders on
-  `supply_chain_impact_finding_supports_repository_idx` (#11197), checks readiness again (check 2,
-  after the holder read and before any reopen), and reopens each holder, in one
-  transaction with a 2s `lock_timeout`. A table that is not ready at either check rolls the fence
-  back, with nothing retracted, and the coordinator retries the page. A successor's ack in either order ends on the
+  `supply_chain_impact_finding_supports_repository_idx` with one statement that also carries the
+  readiness predicate (#11197, one snapshot), and reopens each holder, in one
+  transaction with a 2s `lock_timeout`. A table that is not ready at check 1 or in the holder
+  statement's snapshot rolls the fence back, with nothing retracted, and the coordinator retries
+  the page. A successor's ack in either order ends on the
   successor. A fence that loses the race changes nothing and counts nothing. Evidence:
   (#10055). It reopens the holders in the `work_item_id COLLATE "C"` order of their
   `supply_chain_impact` items, the order the admin replay, the recovery drain, and
   poison recovery lock dead letters in, because a reopen also locks a holder's dead
   letter (#11147). Scope-id order differs, since the item id maps `:` and `/` to `_`.
   Since #10972 the fence's set-less reopen also widens a pending or retrying holder with a
-  bounded stamp to a set-less one, so its next pass runs full; until eshu-hq/eshu#10095 that
-  is extra full passes and no verdict change.
+  bounded stamp to a set-less one, so its next pass runs full: extra full passes, and the
+  holder re-derives its Go verdict (passes read Go evidence since eshu-hq/eshu#10095).
 - A repository scope that retires leaves its go-reachability scope active, because
   candidates are active repository scopes only. Core lifecycle owns that, not this
   query (eshu-hq/eshu#10054).

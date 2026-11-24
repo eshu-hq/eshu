@@ -36,6 +36,21 @@ func requireSupplyChainImpactSupportsReady(
 	reader string,
 ) error {
 	ready, err := SupplyChainImpactSupportsReady(ctx, queryer)
+	return observeSupplyChainImpactSupportsReadiness(ctx, instruments, reader, ready, err)
+}
+
+// observeSupplyChainImpactSupportsReadiness classifies one readiness outcome: a
+// probe error is recorded as failed and returned under its own class, a table that
+// is not ready is recorded as not_ready and returns the typed non-counting refusal,
+// and a ready table records nothing. It is the one classification both the
+// stand-alone readers and the Go-modules fence's one-statement read share.
+func observeSupplyChainImpactSupportsReadiness(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	reader string,
+	ready bool,
+	err error,
+) error {
 	if err != nil {
 		instruments.RecordSupplyChainImpactSupportsRead(ctx, reader, telemetry.SupplyChainImpactSupportsReadFailed)
 		return err
@@ -47,10 +62,41 @@ func requireSupplyChainImpactSupportsReady(
 	return nil
 }
 
+// SupplyChainImpactSupportsReadyBinding is the readiness predicate as plain values
+// for a reader whose package cannot import this one (the Go-modules fence, whose
+// holder statement embeds the predicate so both are read in one snapshot, #11197).
+// SQL is supplyChainImpactSupportsReadySQL itself, Args are its parameters in order
+// (the backfill marker name, then the contract version), and Observe is the shared
+// classification above under the reader's label. The fence's SupportsReadiness has
+// the same fields; the composition root converts one to the other.
+type SupplyChainImpactSupportsReadyBinding struct {
+	SQL     string
+	Args    []any
+	Observe func(ctx context.Context, ready bool, err error) error
+}
+
+// NewSupplyChainImpactSupportsReadyBinding returns the binding for one reader. A nil
+// instruments records nothing.
+func NewSupplyChainImpactSupportsReadyBinding(
+	instruments *telemetry.Instruments,
+	reader string,
+) SupplyChainImpactSupportsReadyBinding {
+	return SupplyChainImpactSupportsReadyBinding{
+		SQL:  supplyChainImpactSupportsReadySQL,
+		Args: []any{SupplyChainImpactSupportsBackfillMarker, SupplyChainImpactSupportsContractVersion},
+		Observe: func(ctx context.Context, ready bool, err error) error {
+			return observeSupplyChainImpactSupportsReadiness(ctx, instruments, reader, ready, err)
+		},
+	}
+}
+
 // RequireSupplyChainImpactSupportsReady is the exported form of the helper for
-// readers outside this package that hold only a queryer (the coordinator's
-// Go-modules fence): the same predicate, the same typed refusal, the same
-// counter.
+// callers outside this package that already hold a repeatable-read snapshot and
+// only a queryer: the same predicate, the same typed refusal, the same counter.
+// A READ COMMITTED reader must not call it before a separate read, because the
+// check and the read would be two snapshots: it embeds the predicate in its own
+// statement through NewSupplyChainImpactSupportsReadyBinding, as the coordinator's
+// Go-modules fence does.
 func RequireSupplyChainImpactSupportsReady(
 	ctx context.Context,
 	queryer db.Queryer,
