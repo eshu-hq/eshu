@@ -134,6 +134,9 @@ func TestSupportsReadinessFailsClosedWhenUnbound(t *testing.T) {
 		"empty":       {},
 		"no sql":      {Observe: observe},
 		"no observer": {SQL: fenceTestReadySQL, Args: []any{"marker", 1}},
+		"no args":     {SQL: fenceTestReadySQL, Observe: observe},
+		"one arg":     {SQL: fenceTestReadySQL, Args: []any{"marker"}, Observe: observe},
+		"three args":  {SQL: fenceTestReadySQL, Args: []any{"marker", 1, 2}, Observe: observe},
 	} {
 		database := &fakeFenceDB{}
 		store := NewStore(database).WithHolderReopener(database.reopen).WithSupportsReadiness(binding)

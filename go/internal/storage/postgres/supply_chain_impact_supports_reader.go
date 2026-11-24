@@ -91,9 +91,12 @@ func NewSupplyChainImpactSupportsReadyBinding(
 }
 
 // RequireSupplyChainImpactSupportsReady is the exported form of the helper for
-// readers outside this package that hold only a queryer (the coordinator's
-// Go-modules fence): the same predicate, the same typed refusal, the same
-// counter.
+// callers outside this package that already hold a repeatable-read snapshot and
+// only a queryer: the same predicate, the same typed refusal, the same counter.
+// A READ COMMITTED reader must not call it before a separate read, because the
+// check and the read would be two snapshots: it embeds the predicate in its own
+// statement through NewSupplyChainImpactSupportsReadyBinding, as the coordinator's
+// Go-modules fence does.
 func RequireSupplyChainImpactSupportsReady(
 	ctx context.Context,
 	queryer db.Queryer,

@@ -23,12 +23,15 @@ import (
 // item (HolderStatement), so the predicate and the holders are read in one snapshot:
 // the backfill drain commits a scope's supports before it clears that scope's dirty
 // mark, so a snapshot that sees the mark cleared also sees the supports, and a
-// snapshot that sees the mark reports not ready.
+// snapshot that sees the mark reports not ready. That argument holds with one drain
+// runner; two overlapping runners are a separate, unproven concern outside this
+// binding.
 type SupportsReadiness struct {
-	// SQL is the readiness predicate: one scalar boolean SELECT taking the first
-	// len(Args) parameters.
+	// SQL is the readiness predicate: one scalar boolean SELECT taking exactly two
+	// parameters, $1 and $2. The holder statement binds its own parameters as $3 and
+	// $4, after them.
 	SQL string
-	// Args are the predicate's parameters, bound as $1 to $len(Args).
+	// Args are the predicate's two parameters, bound as $1 and $2.
 	Args []any
 	// Observe classifies one readiness outcome and returns the error the fence
 	// returns: nil when ready, the typed not-ready refusal when not, and the probe
@@ -41,6 +44,9 @@ type SupportsReadiness struct {
 func (r SupportsReadiness) validate() error {
 	if r.SQL == "" {
 		return errors.New("readiness SQL is empty")
+	}
+	if len(r.Args) != 2 {
+		return fmt.Errorf("readiness SQL takes exactly 2 parameters, got %d", len(r.Args))
 	}
 	if r.Observe == nil {
 		return errors.New("readiness observer is nil")

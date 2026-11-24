@@ -41,11 +41,13 @@ import (
 // and holders are reopened here for that reason.
 //
 // The holder statement reads the supports readiness predicate and the holders in one snapshot
-// (#11197), so the old-writer sliver a separate recheck left is closed. A finding that commits
-// after that snapshot is not seen: a scope with no support for the repository at its active
-// generation whose pass loaded Go evidence before the fence commit keeps the retracted verdict
-// until that scope's next supply_chain_impact pass, and nothing schedules one (tracked in
-// eshu-hq/eshu#11327). The same race exists in the fact read this statement replaced.
+// (#11197), so a backfill drain between a holder read and a separate recheck can no longer hide
+// a holder (with one drain runner). A finding that commits after that snapshot is not seen,
+// including an old-writer finding that commits between that snapshot and where the removed
+// recheck ran, which the recheck used to roll back: a scope with no support for the repository
+// at its active generation whose pass loaded Go evidence before the fence commit keeps the
+// retracted verdict until that scope's next supply_chain_impact pass, and nothing schedules one
+// (tracked in eshu-hq/eshu#11327). The same race exists in the fact read this statement replaced.
 const (
 	// fenceTimeoutsQuery bounds the waits, so a scope or work item held by another
 	// transaction cannot stall the reconcile loop, and a regressed holder read cannot
