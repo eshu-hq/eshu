@@ -401,8 +401,9 @@ func (t winnersCaptureTally) triggerSources() supplychaincore.WinnersTriggerCapt
 	}
 }
 
-// admitWinnersDirtyWindow copies the oldest limit dirty-log rows into the
-// consumed temp table and returns how many it admitted. The rows stay in the
+// admitWinnersDirtyWindow copies the limit dirty-log rows with the oldest
+// captures (captured_at, then seq; #11075) into the consumed temp table and
+// returns how many it admitted. The rows stay in the
 // log until settleWinnersKeyedDirtyLog deletes the applied ones. The copy
 // carries each row's dirty_version for the drain's version recheck.
 func admitWinnersDirtyWindow(ctx context.Context, tx db.Transaction, limit int64) (int64, error) {

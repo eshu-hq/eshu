@@ -27,8 +27,20 @@ const (
 
 // createWinnersKeyedConsumedSQL and admitWinnersKeyedWindowSQL admit one
 // bounded candidate window of the dirty log (#9805 chunked consume, #10827
-// versioned): the oldest $1 rows by seq are copied into a temp table under
-// the resweep's single-flight lock, so no other tick can admit the same rows.
+// versioned): the oldest $1 rows by (captured_at, seq) are copied into a temp
+// table under the resweep's single-flight lock, so no other tick can admit the
+// same rows. The order is by capture, not by seq (#11075): the watermark
+// horizon is min(captured_at) of the remainder, and the scope-remainder
+// convert writes its debt at a new tail seq that keeps the old captured_at (or
+// LEASTs it into a queued row that keeps its seq). FIFO by seq left that debt
+// behind every newer row, so the horizon froze until the window reached it
+// (about 34k rows on the QA environment). Admitting the oldest capture first
+// lets every tick consume the row that holds the horizon down; seq is the
+// unique tie-break. No index serves the order: at QA depth (56,698 rows) the
+// planner runs a parallel seq scan and an in-memory top-N heapsort in about
+// 21 ms, against about 4 ms for the seq primary-key scan (#11075 replica shim,
+// docs/internal/evidence/11075-winners-admission-order.md), well under 1% of
+// a keyed tick.
 // Admission copies instead of deleting: which rows the chunk actually applies
 // is known only after the identifier expansion and the identifier chunk bound,
 // so the lock-then-delete drain (deleteWinnersKeyedAppliedDirtySQL, in the
@@ -36,9 +48,9 @@ const (
 // stays queued. The copy carries each row's dirty_version: the drain rechecks
 // the locked log row against this admitted version, so a mark committed for
 // an admitted key after admission bumps the log past the snapshot and stays
-// queued for the next tick. A row committed after admission has a higher seq,
-// is never in the window, and stays for the next tick; a rollback changes
-// nothing.
+// queued for the next tick. A row committed after admission is not in the
+// admission statement's snapshot, so it is never in the window whatever its
+// captured_at, and stays for the next tick; a rollback changes nothing.
 const createWinnersKeyedConsumedSQL = `
 CREATE TEMP TABLE winners_keyed_consumed (
     seq bigint, kind text, source text, package_id text, repository_id text, subject_digest text,
@@ -50,7 +62,7 @@ const admitWinnersKeyedWindowSQL = `
 INSERT INTO ` + winnersKeyedConsumedTable + `
 SELECT seq, kind, source, package_id, repository_id, subject_digest, c0, advisory_id, scope_id, generation_id, captured_at, dirty_version
 FROM supply_chain_impact_winners_dirty_log
-ORDER BY seq
+ORDER BY captured_at, seq
 LIMIT $1
 `
 

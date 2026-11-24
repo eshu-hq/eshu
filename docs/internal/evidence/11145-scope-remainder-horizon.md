@@ -145,7 +145,8 @@ total inserted and updated rows are identical (chunk 2: 14 ticks, 7 inserted,
 21 updated). The per-tick order differs: converted rows now keep their age, so
 within the admitted window the oldest-first identifier chunk takes the
 remainder before newer fact marks. Window admission itself is by seq, and a
-converted row takes a fresh seq.
+converted row takes a fresh seq. (#11075 later changed window admission to
+`(captured_at, seq)`, so a converted row is also admitted by its carried age.)
 
 ## Performance
 
