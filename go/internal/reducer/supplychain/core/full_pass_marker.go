@@ -4,6 +4,8 @@
 package core
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -155,4 +157,43 @@ func newFanOutState(intent reducercontract.Intent, write SupplyChainImpactWriteR
 		state.ExpectedOrigin = fanOutOriginOf(intent)
 	}
 	return state
+}
+
+// linkedOutOfStampRowsSource reports whether one (scope, generation) holds an
+// active finding row outside a stamp that the stamp still names through the
+// row's deciding advisory id or its advisory group members. The handler
+// asserts it at runtime; a loader without it never forces the reap.
+type linkedOutOfStampRowsSource interface {
+	HasLinkedOutOfStampActiveSupplyChainImpactRows(ctx context.Context, scopeID, generationID string, ids []string) (bool, error)
+}
+
+// outOfStampReapRequired decides the #10415 fallback under the D2 bound. When
+// the marker says a reap is due, any active row outside the stamp sends the
+// pass full, as before. When it is fresh, only a linked row does: a row the
+// stamp's own group change can re-key (a late alias merge, a split, a retired
+// member; #10408), whose old key a scoped pass would leave behind
+// (TestRekeyLateAliasReopensAdvisoryKeyedHolderLive). Unlinked rows outside the
+// stamp are ordinary multi-CVE holdings and wait for the bounded reap.
+func (h SupplyChainImpactHandler) outOfStampReapRequired(ctx context.Context, intent reducercontract.Intent, ids []string) bool {
+	if fullPassReapDue(intent, time.Now()) {
+		return h.hasOutOfStampActiveSupplyChainImpactRows(ctx, intent, ids)
+	}
+	source, ok := h.FactLoader.(linkedOutOfStampRowsSource)
+	if !ok || source == nil {
+		return false
+	}
+	linked, err := source.HasLinkedOutOfStampActiveSupplyChainImpactRows(ctx, intent.ScopeID, intent.GenerationID, ids)
+	if err != nil {
+		// Fail closed to full: an unreadable store must not keep a scoped
+		// pass that could leave a re-keyed row behind.
+		if h.Logger != nil {
+			h.Logger.WarnContext(ctx, "supply chain impact linked out-of-stamp probe failed; falling back to full",
+				slog.String("scope_id", intent.ScopeID),
+				slog.String("generation_id", intent.GenerationID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return true
+	}
+	return linked
 }

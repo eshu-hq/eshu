@@ -24,7 +24,40 @@ import (
 type storeShapedOutOfStampLoader struct {
 	*scopedSeedLoader
 	rows   []ScopedFindingPackage
+	linked []linkedOutOfStampRow
 	probes int
+}
+
+// linkedOutOfStampRow is a stored finding row with the advisory identity the
+// linked probe reads: its CVE id, its deciding advisory id, and its advisory
+// group members.
+type linkedOutOfStampRow struct {
+	cveID, advisoryID string
+	members           []string
+}
+
+// HasLinkedOutOfStampActiveSupplyChainImpactRows answers the linked probe the
+// way the production statement does: a row whose CVE id the stamp does not
+// name, but whose advisory id or group members it does.
+func (l *storeShapedOutOfStampLoader) HasLinkedOutOfStampActiveSupplyChainImpactRows(_ context.Context, _, _ string, ids []string) (bool, error) {
+	stamp := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		stamp[id] = struct{}{}
+	}
+	for _, row := range l.linked {
+		if _, in := stamp[row.cveID]; in {
+			continue
+		}
+		if _, ok := stamp[row.advisoryID]; ok {
+			return true, nil
+		}
+		for _, member := range row.members {
+			if _, ok := stamp[member]; ok {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (l *storeShapedOutOfStampLoader) HasOutOfStampActiveSupplyChainImpactRows(_ context.Context, _, _ string, cveIDs []string) (bool, error) {
@@ -84,7 +117,7 @@ func (r markerPassResult) lastMarker(t *testing.T) map[string]any {
 
 // runMarkerPass runs one stamped one-hop pass of the multi-CVE holder through
 // the store-shaped loader with the given payload.
-func runMarkerPass(t *testing.T, payload map[string]any) markerPassResult {
+func runMarkerPass(t *testing.T, payload map[string]any, linked ...linkedOutOfStampRow) markerPassResult {
 	t.Helper()
 	scopeFacts, active := differentialFixture()
 	rows := multiCVEHolderRows()
@@ -105,7 +138,8 @@ func runMarkerPass(t *testing.T, payload map[string]any) markerPassResult {
 			},
 			seeds: rows,
 		},
-		rows: rows,
+		rows:   rows,
+		linked: linked,
 	}
 	reader := sdkmetric.NewManualReader()
 	inst, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
@@ -289,4 +323,21 @@ func withoutFullPassMarkers(states []FanOutState) []FanOutState {
 		out[i] = state
 	}
 	return out
+}
+
+// TestStampedRerunReapsARowItsStampRekeysEvenWithAFreshMarker pins the D2
+// exception a late alias merge needs (TestRekeyLateAliasReopensAdvisoryKeyedHolderLive).
+// The holder's row outside the stamp is not unrelated drift: its advisory
+// group names a stamped id, so the group change that stamped this rerun can
+// re-key that row. A fresh marker must not keep the rerun scoped then: the
+// pass runs full and reaps the old group key.
+func TestStampedRerunReapsARowItsStampRekeysEvenWithAFreshMarker(t *testing.T) {
+	t.Parallel()
+
+	linked := []linkedOutOfStampRow{
+		{cveID: "CVE-2026-9001", advisoryID: "CVE-2026-9001"},
+		{cveID: "CVE-2026-9002", advisoryID: "GHSA-2026-0002", members: []string{"GHSA-2026-0002", "GHSA-2026-link"}},
+	}
+	r := runMarkerPass(t, markerPayload("generation-fanout", 0, time.Now(), "CVE-2026-9001", "GHSA-2026-link"), linked...)
+	wantFullReap(t, r, "a row outside the stamp whose advisory group names a stamped id is re-keyed by the stamp's group change")
 }

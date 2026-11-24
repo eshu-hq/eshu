@@ -109,9 +109,9 @@ rules, the outcomes, and the open residual are in
   subgraph. The writer upserts and retracts inside the set only; rows outside
   it stay byte-identical. A red scoped-vs-full differential means scoping is
   the wrong fix. The sentinel, a set-less stamp, and an owed retry run full.
-  Rows outside the stamp send it full only when the item's `full_pass_marker`
-  says a reap is due (#10972 D2, `full_pass_marker.go`: no marker, 16 scoped
-  reruns, or 24 h since the last full pass). Passes count `mode` (`full`,
+  Rows outside the stamp send it full only when `full_pass_marker` says a reap
+  is due (#10972 D2: no marker, 16 scoped reruns, 24 h), or when a row's advisory
+  id or group members name a stamped id (a rekey, #10408). Passes count `mode` (`full`,
   `scoped`, `scoped_fallback_sentinel`, `scoped_fallback_out_of_stamp`) in
   `eshu_dp_supply_chain_impact_pass_total`; the success log carries `scope_id`
   and the `scoped_cve_count`, `scoped_evidence_envelopes`, `fanout_replay_cleared` sub-signals.

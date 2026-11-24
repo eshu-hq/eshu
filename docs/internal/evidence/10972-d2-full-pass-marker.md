@@ -16,6 +16,18 @@ rerun. Now the out-of-stamp probe runs only when the item's
 - 16 scoped reruns since the last full pass (N);
 - the last full pass is 24 hours old or older (T).
 
+One exception holds whatever the marker says: a row outside the stamp that
+the stamp still names through the row's advisory id or advisory group
+members runs the pass full. Such a row is re-keyed by the stamp's own group
+change (a late alias merge, a split, a retired member, #10408), and a scoped
+pass would leave its old key behind. CI caught this on the first D2 head:
+`TestRekeyLateAliasReopensAdvisoryKeyedHolderLive` failed with "holder keys =
+[CVE-2026-0401 GHSA-0401-aaaa], want the merged CVE group [CVE-2026-0401]".
+The linked probe (`hasLinkedOutOfStampActiveSupplyChainImpactRowsQuery`) runs
+on the same `(scope_id, generation_id)` access path as the out-of-stamp probe,
+with the advisory and group-member arms the holder read already uses as
+residual filters, and LIMIT 1.
+
 A complete full pass resets the marker, and a scoped pass adds one to its
 count. A partial full pass leaves the marker alone because it retracted
 nothing. The marker is written by the pass's existing lease-fenced fan-out
@@ -38,10 +50,12 @@ worker's wall clock in UTC.
 
 ## No-Regression Evidence:
 
-- Statement count per pass: unchanged or lower. A stamped rerun with a fresh
-  marker skips the out-of-stamp probe statement, and the core test
-  `TestStampedRerunOfAHolderWithOtherRowsStaysScoped` asserts zero probes.
-  Every other pass runs the same statements as before. The state update
+- Statement count per pass: unchanged. A stamped rerun with a fresh marker
+  runs the linked probe in place of the out-of-stamp probe (one bounded
+  LIMIT 1 read either way; `TestStampedRerunOfAHolderWithOtherRowsStaysScoped`
+  asserts the out-of-stamp probe is not called). Every other pass runs the
+  same statements as before. The linked probe's plan is NOT_CHECKED here (no
+  Postgres in this lane). The state update
   carries one more bound jsonb parameter on a row it already locks and
   rewrites.
 - Lock behavior: unchanged. The marker rides the existing UPDATE, with the

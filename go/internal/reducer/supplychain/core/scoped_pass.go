@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
@@ -70,8 +69,9 @@ type outOfStampActiveRowsSource interface {
 // their authorization witnesses cover the whole static input set.
 //
 // The boolean reports the #10415 bounded full-pass fallback: the pass
-// qualified for a scoped re-derivation but the holder carries active finding
-// rows outside the stamp, so the pass runs full and reaps them instead of
+// qualified for a scoped re-derivation but must reap rows outside the stamp
+// (outOfStampReapRequired: a reap is due under the full-pass marker, or a row
+// is re-keyed by the stamp's group change), so the pass runs full instead of
 // leaving them to linger.
 func (h SupplyChainImpactHandler) scopedSupplyChainImpactFilterEnvelopes(
 	ctx context.Context,
@@ -80,7 +80,7 @@ func (h SupplyChainImpactHandler) scopedSupplyChainImpactFilterEnvelopes(
 ) (*scopedSupplyChainImpactScope, []facts.Envelope, bool) {
 	if cves := scopedPassCVEIDs(intent); len(cves) > 0 && h.AuthorizedEvidenceLoader == nil && !h.authorizedStaticOnly {
 		if scoped := h.scopeSupplyChainImpactPass(ctx, intent, envelopes, cves); scoped != nil {
-			if fullPassReapDue(intent, time.Now()) && h.hasOutOfStampActiveSupplyChainImpactRows(ctx, intent, cves) {
+			if h.outOfStampReapRequired(ctx, intent, cves) {
 				return nil, envelopes, true
 			}
 			return scoped, scopeSupplyChainImpactEnvelopes(envelopes, scoped), false
