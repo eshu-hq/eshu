@@ -376,7 +376,7 @@ at a measured cost.
 
 `pass_reason` is read the same way: from `loaded`, the stamp and the handler's
 protection wiring, never from a read. `fanOutSiteTimes` (`fanout_signals.go`)
-times four fan-out sites for the `fanout_site` histogram and the fan-out span;
+times five fan-out sites for the `fanout_site` histogram and the fan-out span;
 it only observes, and `writeFanOutState` exists so `fanOutHolders` stays under
 the funlen cap. The `fanout_site` values are the closed
 `telemetry.SupplyChainImpactFanOutSites` set: add a site there first.
