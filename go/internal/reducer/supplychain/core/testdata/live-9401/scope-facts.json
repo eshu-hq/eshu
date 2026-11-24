@@ -1,0 +1,469 @@
+[
+ {
+  "collector_kind": "scanner_worker",
+  "fact_id": "7deccfd7705ad2294f2fd4e2ad0fcfa64ed02a6c70ee360bb0f8106af5e54623",
+  "fact_kind": "scanner_worker.warning",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "analysis_status": "not_scanned",
+   "analyzer": "go_reachability",
+   "collector_instance_id": "collector-vulnintel-orders",
+   "coverage_status": "unsupported",
+   "detail": "a go or toolchain requirement is above the pinned toolchain; this module is not analyzed for reachability",
+   "reason": "toolchain_unsupported",
+   "relative_path": "legacy/go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "target_kind": "repository",
+   "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776",
+   "warning_class": "scanner_worker_warning"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "19e989de259e264a9929fcf8895760018bb364394bba3e541389b62529c3eff5",
+  "source_record_id": "19e989de259e264a9929fcf8895760018bb364394bba3e541389b62529c3eff5",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "19e989de259e264a9929fcf8895760018bb364394bba3e541389b62529c3eff5"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "0ac6edde5de57b6fe83e8aa48002d823b4cab0569c014a0c3c3a2aef49e18b57",
+  "fact_kind": "vulnerability.affected_package",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9229",
+   "affected_ranges": [
+    {
+     "events": [
+      {
+       "introduced": "0"
+      },
+      {
+       "fixed": "1.0.1"
+      }
+     ],
+     "type": "SEMVER"
+    }
+   ],
+   "affected_versions": [],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "CVE-2026-9229",
+    "GO-2026-9229",
+    "gomod://proxy.golang.org/github.com/acme/lib-common"
+   ],
+   "cve_id": "CVE-2026-9229",
+   "ecosystem": "gomod",
+   "fixed_versions": [
+    "1.0.1"
+   ],
+   "package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+   "package_name": "github.com/acme/lib-common",
+   "purl": "pkg:golang/github.com/acme/lib-common",
+   "source": "osv"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:affected_package:lib-common-go-alias",
+  "source_record_id": "vulnerability_intelligence:orders-api:affected_package:lib-common-go-alias",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:affected_package:lib-common-go-alias"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "50447a35a7f390f7eabd314eceead3c9215e0f0ce336ab7108a92544b6277d91",
+  "fact_kind": "vulnerability.affected_package",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9301",
+   "affected_ranges": [
+    {
+     "events": [
+      {
+       "introduced": "0"
+      },
+      {
+       "fixed": "1.0.1"
+      }
+     ],
+     "type": "SEMVER"
+    }
+   ],
+   "affected_versions": [],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "CVE-2026-9301",
+    "GO-2026-9301",
+    "gomod://proxy.golang.org/github.com/acme/lib-common"
+   ],
+   "cve_id": "CVE-2026-9301",
+   "ecosystem": "gomod",
+   "fixed_versions": [
+    "1.0.1"
+   ],
+   "package_id": "gomod://proxy.golang.org/github.com/acme/lib-common",
+   "package_name": "github.com/acme/lib-common",
+   "purl": "pkg:golang/github.com/acme/lib-common",
+   "source": "osv"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:affected_package:lib-common-uncalled",
+  "source_record_id": "vulnerability_intelligence:orders-api:affected_package:lib-common-uncalled",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:affected_package:lib-common-uncalled"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "a8dc361a7dc1fc04ecde1a9e52c7d43e21be5726828eb5f805137397cc610d5c",
+  "fact_kind": "vulnerability.affected_package",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9401",
+   "affected_ranges": [
+    {
+     "events": [
+      {
+       "introduced": "0"
+      },
+      {
+       "fixed": "0.1.1"
+      }
+     ],
+     "type": "SEMVER"
+    }
+   ],
+   "affected_versions": [],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "CVE-2026-9401",
+    "GO-2026-9401",
+    "gomod://proxy.golang.org/github.com/acme/legacy-lib"
+   ],
+   "cve_id": "CVE-2026-9401",
+   "ecosystem": "gomod",
+   "fixed_versions": [
+    "0.1.1"
+   ],
+   "package_id": "gomod://proxy.golang.org/github.com/acme/legacy-lib",
+   "package_name": "github.com/acme/legacy-lib",
+   "purl": "pkg:golang/github.com/acme/legacy-lib",
+   "source": "osv"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:affected_package:legacy-lib-toolchain",
+  "source_record_id": "vulnerability_intelligence:orders-api:affected_package:legacy-lib-toolchain",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:affected_package:legacy-lib-toolchain"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "0bf360c8715754c7290dbd3953a98e073b97f743267eb904c057263c739a34c6",
+  "fact_kind": "vulnerability.cve",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9229",
+   "aliases": [
+    "GO-2026-9229",
+    "CVE-2026-9229"
+   ],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "GO-2026-9229",
+    "CVE-2026-9229"
+   ],
+   "cve_id": "CVE-2026-9229",
+   "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+   "database_specific": {
+    "severity": "HIGH"
+   },
+   "details": "Synthetic call-path proof for a distinct GO and CVE identity.",
+   "ecosystem_specific": {},
+   "modified_at": "2026-06-24T00:00:00Z",
+   "published_at": "2026-06-20T00:00:00Z",
+   "related": [],
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+     "type": "CVSS_V3"
+    }
+   ],
+   "severity_label": "high",
+   "source": "osv",
+   "source_schema_version": "1.4.0",
+   "summary": "Synthetic Go advisory alias for orders-api",
+   "withdrawn_at": ""
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9229",
+  "source_record_id": "vulnerability_intelligence:orders-api:cve:CVE-2026-9229",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9229"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "1d470326f65e798eb06ed22ba5894a82afc050d409cdf5b038251e21895b9aaa",
+  "fact_kind": "vulnerability.cve",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9301",
+   "aliases": [
+    "GO-2026-9301",
+    "CVE-2026-9301"
+   ],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "GO-2026-9301",
+    "CVE-2026-9301"
+   ],
+   "cve_id": "CVE-2026-9301",
+   "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "database_specific": {
+    "severity": "MEDIUM"
+   },
+   "details": "The vulnerable symbol is exported by the required module but nothing calls it, so a symbol-level scan reports not_called.",
+   "ecosystem_specific": {},
+   "modified_at": "2026-06-24T00:00:00Z",
+   "published_at": "2026-06-20T00:00:00Z",
+   "related": [],
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+     "type": "CVSS_V3"
+    }
+   ],
+   "severity_label": "medium",
+   "source": "osv",
+   "source_schema_version": "1.4.0",
+   "summary": "Synthetic Go advisory for an uncalled orders-api symbol",
+   "withdrawn_at": ""
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9301",
+  "source_record_id": "vulnerability_intelligence:orders-api:cve:CVE-2026-9301",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9301"
+ },
+ {
+  "collector_kind": "vulnerability_intelligence",
+  "fact_id": "263074d65cc28e7fbd2f663b407b3ea73bacf5db80b9e2b10c7f6f70f225a8a9",
+  "fact_kind": "vulnerability.cve",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "advisory_id": "GO-2026-9401",
+   "aliases": [
+    "GO-2026-9401",
+    "CVE-2026-9401"
+   ],
+   "collector_instance_id": "collector-vulnintel-orders",
+   "correlation_anchors": [
+    "GO-2026-9401",
+    "CVE-2026-9401"
+   ],
+   "cve_id": "CVE-2026-9401",
+   "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+   "database_specific": {
+    "severity": "MEDIUM"
+   },
+   "details": "The vulnerable symbol is exported by the legacy module, whose go 1.99 root exceeds the scanner toolchain: the scan never finishes, so the finding reads missing_evidence, never a reachability verdict.",
+   "ecosystem_specific": {},
+   "modified_at": "2026-06-24T00:00:00Z",
+   "published_at": "2026-06-20T00:00:00Z",
+   "related": [],
+   "severity": [
+    {
+     "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+     "type": "CVSS_V3"
+    }
+   ],
+   "severity_label": "medium",
+   "source": "osv",
+   "source_schema_version": "1.4.0",
+   "summary": "Reference Go advisory for the legacy orders-api submodule",
+   "withdrawn_at": ""
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9401",
+  "source_record_id": "vulnerability_intelligence:orders-api:cve:CVE-2026-9401",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "vulnerability_intelligence:orders-api:cve:CVE-2026-9401"
+ },
+ {
+  "collector_kind": "scanner_worker",
+  "fact_id": "02c39b7da0fe8e1385538a6a818c8ac62736a89f249dc7a49c80cf530ee62aed",
+  "fact_kind": "vulnerability.go_call_reachability",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "deepest_module": "github.com/acme/lib-common",
+   "deepest_package": "github.com/acme/lib-common",
+   "osv_id": "GO-2026-9301",
+   "reachability_level": "not_called",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "scan_level": "symbol",
+   "scan_mode": "source",
+   "scanner_version": "v1.9.0",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "trace": [],
+   "trace_count": 0
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "100908b9b4bd5ea38e15eca12c944a8bdcd0d374e08c1674bc325ccf4309d2fe",
+  "source_record_id": "100908b9b4bd5ea38e15eca12c944a8bdcd0d374e08c1674bc325ccf4309d2fe",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "100908b9b4bd5ea38e15eca12c944a8bdcd0d374e08c1674bc325ccf4309d2fe"
+ },
+ {
+  "collector_kind": "scanner_worker",
+  "fact_id": "6ef9d4c06a7e99d48babd347e12ddab7a8a25ed4fe9f0777c1c21184cc908075",
+  "fact_kind": "vulnerability.go_call_reachability",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "deepest_module": "github.com/acme/lib-common",
+   "deepest_package": "github.com/acme/lib-common",
+   "deepest_symbol": "Identity[string]",
+   "osv_id": "GO-2026-9229",
+   "reachability_level": "symbol",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "scan_level": "symbol",
+   "scan_mode": "source",
+   "scanner_version": "v1.9.0",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb",
+   "trace": [
+    {
+     "function": "main",
+     "module": "github.com/acme/orders-api",
+     "package": "github.com/acme/orders-api",
+     "position": "main.go:11:18"
+    },
+    {
+     "function": "Identity[string]",
+     "module": "github.com/acme/lib-common",
+     "package": "github.com/acme/lib-common",
+     "position": "common.go:9:6",
+     "version": "v1.0.0"
+    }
+   ],
+   "trace_count": 1
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "e25104f394aec5f286bd5befe4842f99a4851f71b46c271fd5d1324a97d255e2",
+  "source_record_id": "e25104f394aec5f286bd5befe4842f99a4851f71b46c271fd5d1324a97d255e2",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "e25104f394aec5f286bd5befe4842f99a4851f71b46c271fd5d1324a97d255e2"
+ },
+ {
+  "collector_kind": "scanner_worker",
+  "fact_id": "280b5d8e15739ad5f8e81bc6197755b829f0bd0500c85235de56d703ec492a12",
+  "fact_kind": "vulnerability.go_module_evidence",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "indirect": false,
+   "line_number": 5,
+   "module_path": "github.com/acme/legacy-lib",
+   "relative_path": "legacy/go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "required_version": "v0.1.0",
+   "root_go_version": "1.99",
+   "root_module_path": "github.com/acme/orders-legacy",
+   "source": "go_module_manifest",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "abdb7e4c2b76a0e13026980bb9cf06dbc1749236612dce7e4acea764f2707b20",
+  "source_record_id": "abdb7e4c2b76a0e13026980bb9cf06dbc1749236612dce7e4acea764f2707b20",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "abdb7e4c2b76a0e13026980bb9cf06dbc1749236612dce7e4acea764f2707b20"
+ },
+ {
+  "collector_kind": "scanner_worker",
+  "fact_id": "8ef7733f05b7d0d1261f13eeb7c34b508654fd407470789808f334b9a0df171a",
+  "fact_kind": "vulnerability.go_module_evidence",
+  "fencing_token": 1,
+  "generation_id": "cassette-vulnintel-orders-go-alias-gen1",
+  "is_tombstone": false,
+  "observed_at": "2026-06-25T00:00:00+00:00",
+  "payload": {
+   "collector_instance_id": "collector-vulnintel-orders",
+   "indirect": false,
+   "line_number": 5,
+   "module_path": "github.com/acme/lib-common",
+   "relative_path": "go.mod",
+   "repository_id": "repository:r_ea78e8bb",
+   "required_version": "v1.0.0",
+   "root_go_version": "1.21",
+   "root_module_path": "github.com/acme/orders-api",
+   "source": "go_module_manifest",
+   "source_commit_sha": "bbca297156091bebc27cd79940f9f9b6017914bb"
+  },
+  "schema_version": "1.0.0",
+  "scope_id": "vulnerability_intelligence:orders-api:go-alias",
+  "source_confidence": "reported",
+  "source_fact_key": "3a9fadb0a167bfe7061e6a8bbe7be5f02539ecf1b0759ae8efa25d4d4f367bd7",
+  "source_record_id": "3a9fadb0a167bfe7061e6a8bbe7be5f02539ecf1b0759ae8efa25d4d4f367bd7",
+  "source_system": "vulnerability_intelligence",
+  "source_uri": null,
+  "stable_fact_key": "3a9fadb0a167bfe7061e6a8bbe7be5f02539ecf1b0759ae8efa25d4d4f367bd7"
+ }
+]

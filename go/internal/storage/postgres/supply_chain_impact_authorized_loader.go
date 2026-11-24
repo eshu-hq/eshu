@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts/supply/chain"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -75,6 +76,12 @@ func isAuthorityLayoutAbsent(err error) bool {
 
 // AuthorizedSupplyChainImpactEvidenceLoader reads static and target-local
 // evidence in one authority-filtered read-only repeatable-read snapshot.
+//
+// A live engaged-verdict test with seeded public-advisory authority is required
+// before engaged protection is enabled on any store. Today the engaged verdict
+// is proven through a fake authorized loader (core) and a live engaged load of
+// the Go warning (this package); no live test builds an engaged finding from
+// registered public advisory authority.
 type AuthorizedSupplyChainImpactEvidenceLoader struct {
 	database    db.ExecQueryer
 	instruments *telemetry.Instruments
@@ -201,7 +208,7 @@ func (l AuthorizedSupplyChainImpactEvidenceLoader) ListAuthorizedSupplyChainImpa
 			if _, trustedPublic := advisoryFacts[envelope.FactID]; trustedPublic {
 				continue
 			}
-			if authorizedImpactAdvisoryKind(envelope.FactKind) || targetOnlyImpactFactKind(envelope.FactKind) {
+			if authorizedImpactAdvisoryKind(envelope.FactKind) || staticEnvelopeNeedsScanReceipt(envelope) {
 				loaded.CoverageReason = "policy_unavailable"
 				return nil
 			}
@@ -267,4 +274,49 @@ func targetOnlyImpactFactKind(kind string) bool {
 	default:
 		return false
 	}
+}
+
+// goReachabilityWarningAnalyzer is the analyzer value of a scanner warning that
+// speaks for a govulncheck scan (core.goReachabilityWarningAnalyzer). The warning
+// kind is shared with the image analyzers, whose output is target-only.
+const goReachabilityWarningAnalyzer = "go_reachability"
+
+// staticEnvelopeNeedsScanReceipt reports whether a fact the static impact load
+// returned is target-only evidence: the engaged loader fails the pass closed on
+// it, because only a scan result receipt can authenticate it. The caller has
+// already trusted the public advisory facts.
+//
+// A go_reachability warning in a go-reachability scope is the exception: it comes
+// from the same scanner as the module evidence and call reachability that pass as
+// static non-advisory evidence, and it says that scan did not finish. Failing the
+// pass on it while accepting the scan's call verdicts is incoherent, and dropping
+// it would let a not_called verdict stand for a failed scan. The scope and
+// analyzer decide, not the kind alone, so an image-analyzer warning, or a Go
+// warning outside a go-reachability scope, still fails closed.
+func staticEnvelopeNeedsScanReceipt(envelope facts.Envelope) bool {
+	if !targetOnlyImpactFactKind(envelope.FactKind) {
+		return false
+	}
+	return !goReachabilityScanWarning(envelope)
+}
+
+// goReachabilityScanWarning reports whether envelope is a live go_reachability
+// scanner warning stored in a go-reachability scope with a canonical repository
+// id. A tombstoned warning is not: the static reads never return one, and a
+// retracted warning must not be accepted as evidence.
+func goReachabilityScanWarning(envelope facts.Envelope) bool {
+	if envelope.FactKind != facts.ScannerWorkerWarningFactKind || envelope.IsTombstone {
+		return false
+	}
+	repositoryID, ok := strings.CutPrefix(envelope.ScopeID, goReachabilityScopePrefix)
+	if !ok || !canonicalGoRepositoryIDPattern.MatchString(repositoryID) {
+		return false
+	}
+	// A warning that does not decode (a missing required field) is not trusted
+	// evidence: it fails closed and needs a scan receipt like any other.
+	warning, err := schemadecode.DecodeScannerWorkerWarning(envelope)
+	if err != nil {
+		return false
+	}
+	return warning.Analyzer == goReachabilityWarningAnalyzer
 }

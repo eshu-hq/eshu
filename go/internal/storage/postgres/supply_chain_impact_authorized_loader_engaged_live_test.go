@@ -209,3 +209,231 @@ func TestAuthorizedLoaderEngagedFoldPublishesFoldedEvidenceLive(t *testing.T) {
 	}
 	requireNoSupportsFenceMarks(t, ctx, admin)
 }
+
+// engagedLoaderProof opens a disposable PostgreSQL clone with the role policy
+// installed (protection engaged) and returns its admin handle.
+func engagedLoaderProof(t *testing.T) (context.Context, *sql.DB) {
+	t.Helper()
+
+	adminDSN := strings.TrimSpace(os.Getenv("ESHU_POSTGRES_DSN"))
+	optIn := os.Getenv("ESHU_POSTGRES_DISPOSABLE")
+	if adminDSN == "" {
+		t.Skip("needs ESHU_POSTGRES_DSN")
+	}
+	template := postgresproof.OpenBootstrapTemplate(t, adminDSN, optIn, 5*time.Minute,
+		postgresproof.FlavourPublicBootstrap,
+		func(ctx context.Context, database *sql.DB) error {
+			return ApplyBootstrap(ctx, SQLDB{DB: database})
+		})
+	ctx, admin := postgresproof.OpenBootstrapTemplateClone(t, adminDSN, optIn, 5*time.Minute, template)
+
+	const roleName = "go_warning_engaged_worker"
+	mustExecProofRow(t, ctx, admin, `DROP ROLE IF EXISTS "`+roleName+`"`)
+	mustExecProofRow(t, ctx, admin, `CREATE ROLE "`+roleName+`" LOGIN PASSWORD 'local-proof-only'`)
+	t.Cleanup(func() {
+		_, _ = admin.ExecContext(context.Background(), `DROP OWNED BY "`+roleName+`"; DROP ROLE IF EXISTS "`+roleName+`"`)
+	})
+	var roleOID int64
+	if err := admin.QueryRowContext(ctx, `SELECT oid::bigint FROM pg_roles WHERE rolname=$1`, roleName).Scan(&roleOID); err != nil {
+		t.Fatal(err)
+	}
+	const policyRevision = 1003001
+	mustExecProofRow(t, ctx, admin, `INSERT INTO eshu_security.role_policy_state
+		(policy_revision, database_oid, database_identity, system_identifier,
+		 inventory_version, owner_role_oid, authority_epoch, active)
+		SELECT $1, (SELECT oid FROM pg_database WHERE datname=current_database()), '11111111-2222-4333-8444-555555555555',
+		 (SELECT system_identifier FROM pg_control_system()), 1,
+		 (SELECT oid FROM pg_roles WHERE rolname=current_user), 1, TRUE`, policyRevision)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO eshu_security.role_contracts
+		(contract_id, policy_revision, workload_class, connection_route, profile,
+		 session_role_oid, effective_role_oid, enabled)
+		VALUES ('go-warning-engaged-writer',$1,'scanner-worker','writer','runtime-writer',$2,$2,TRUE)`, policyRevision, roleOID)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO scanner_advisory_desired_policy (desired_revision, desired_sha256) VALUES (1,$1)`, strings.Repeat("0", 64))
+	return ctx, admin
+}
+
+// loadEngagedWithStaticFacts runs the engaged authorized loader for one impact
+// scope with a static expansion that returns exactly envelopes.
+func loadEngagedWithStaticFacts(t *testing.T, ctx context.Context, admin *sql.DB, envelopes []facts.Envelope) supplychaincore.AuthorizedSupplyChainImpactLoad {
+	t.Helper()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	const scopeID, generationID = "vulnerability_intelligence:orders-api:go-alias", "go-warning-engaged-gen"
+	mustExecProofRow(t, ctx, admin, `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
+		partition_key, observed_at, ingested_at, status, payload)
+		VALUES ($1,'vulnerability_intelligence','synthetic',$1,'synthetic',$1,$2,$2,'active','{}'::jsonb)`, scopeID, now)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+		status, activated_at, payload) VALUES ($1,$2,'synthetic',$3,$3,'active',$3,'{}'::jsonb)`, generationID, scopeID, now)
+	mustExecProofRow(t, ctx, admin, `UPDATE ingestion_scopes SET active_generation_id=$1 WHERE scope_id=$2`, generationID, scopeID)
+
+	loader := NewAuthorizedSupplyChainImpactEvidenceLoader(SQLDB{DB: admin})
+	loaded, err := loader.ListAuthorizedSupplyChainImpactEvidence(ctx,
+		reducercontract.Intent{ScopeID: scopeID, GenerationID: generationID, Domain: reducercontract.DomainSupplyChainImpact},
+		func(_ context.Context, _ factload.FactLoader, public []facts.Envelope) (supplychaincore.AuthorizedStaticSupplyChainImpactLoad, error) {
+			if public == nil {
+				t.Fatal("static expansion got nil public advisories: the loader took the DISENGAGED branch")
+			}
+			return supplychaincore.AuthorizedStaticSupplyChainImpactLoad{Envelopes: envelopes, SuppressionEnvelopes: envelopes, Complete: true}, nil
+		})
+	if err != nil {
+		t.Fatalf("engaged load: %v", err)
+	}
+	return loaded
+}
+
+// TestAuthorizedLoaderEngagedKeepsAGoReachabilityWarningStaticLive proves, on an
+// engaged store, that the unfinished-scan warning the cross-scope Go stage loads
+// from a go-reachability scope does not fail the pass closed: it passes as static
+// non-advisory evidence beside the module evidence of the same scan, so the
+// finding can read analysis_failed. Expected on main before the screen change
+// (#10030): CoverageReason "policy_unavailable", because the warning kind is
+// target-only by kind collision with the image analyzers.
+func TestAuthorizedLoaderEngagedKeepsAGoReachabilityWarningStaticLive(t *testing.T) {
+	ctx, admin := engagedLoaderProof(t)
+	const goScope = "go-reachability://repository:r_ea78e8bb"
+	envelopes := []facts.Envelope{
+		{
+			FactID: "go-module-evidence", ScopeID: goScope, FactKind: "vulnerability.go_module_evidence",
+			Payload: map[string]any{"repository_id": "repository:r_ea78e8bb", "relative_path": "legacy/go.mod", "module_path": "github.com/acme/legacy-lib"},
+		},
+		{
+			FactID: "go-toolchain-warning", ScopeID: goScope, FactKind: facts.ScannerWorkerWarningFactKind,
+			Payload: map[string]any{
+				"analyzer": "go_reachability", "analysis_status": "not_scanned", "reason": "toolchain_unsupported",
+				"repository_id": "repository:r_ea78e8bb", "relative_path": "legacy/go.mod",
+				"target_kind": "repository", "target_locator_hash": "sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776",
+				"warning_class": "scanner_worker_warning", "coverage_status": "unsupported",
+			},
+		},
+	}
+	loaded := loadEngagedWithStaticFacts(t, ctx, admin, envelopes)
+	t.Logf("engaged=%v complete=%v reason=%q ids=%v", loaded.ProtectionEngaged, loaded.Complete, loaded.CoverageReason, loaded.StaticNonAdvisoryEvidenceFactIDs)
+	if !loaded.ProtectionEngaged {
+		t.Fatalf("want an engaged load, got engaged=%v", loaded.ProtectionEngaged)
+	}
+	if loaded.CoverageReason != "" || !loaded.Complete {
+		t.Fatalf("complete=%v reason=%q, want a complete load: a go_reachability warning in a go-reachability scope is static Go evidence", loaded.Complete, loaded.CoverageReason)
+	}
+	for _, id := range []string{"go-module-evidence", "go-toolchain-warning"} {
+		if !slices.Contains(loaded.StaticNonAdvisoryEvidenceFactIDs, id) {
+			t.Fatalf("StaticNonAdvisoryEvidenceFactIDs = %v, want %s listed", loaded.StaticNonAdvisoryEvidenceFactIDs, id)
+		}
+	}
+}
+
+// TestAuthorizedLoaderEngagedRefusesAnImageAnalyzerWarningWithoutReceiptLive is
+// the twin: an image-analyzer warning on the static path with no scan receipt
+// still fails the pass closed with policy_unavailable. Expected on main and after
+// the screen change.
+func TestAuthorizedLoaderEngagedRefusesAnImageAnalyzerWarningWithoutReceiptLive(t *testing.T) {
+	ctx, admin := engagedLoaderProof(t)
+	envelopes := []facts.Envelope{
+		{
+			FactID: "image-warning", ScopeID: "scanner-worker://repository/repo-123", FactKind: facts.ScannerWorkerWarningFactKind,
+			Payload: map[string]any{"analyzer": "trivy", "analysis_status": "not_scanned", "reason": "scan_failed"},
+		},
+	}
+	loaded := loadEngagedWithStaticFacts(t, ctx, admin, envelopes)
+	t.Logf("engaged=%v complete=%v reason=%q", loaded.ProtectionEngaged, loaded.Complete, loaded.CoverageReason)
+	if loaded.Complete || loaded.CoverageReason != "policy_unavailable" {
+		t.Fatalf("complete=%v reason=%q, want an incomplete load with policy_unavailable for a receipt-less image-analyzer warning", loaded.Complete, loaded.CoverageReason)
+	}
+}
+
+// seedActiveScope inserts one scope with an active generation.
+func seedActiveScope(t *testing.T, ctx context.Context, admin *sql.DB, scopeID, generationID, scopeKind, system string) {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Second)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO ingestion_scopes (scope_id, scope_kind, source_system, source_key, collector_kind,
+		partition_key, observed_at, ingested_at, status, payload)
+		VALUES ($1,$2,$3,$1,$3,$1,$4,$4,'active','{}'::jsonb)`, scopeID, scopeKind, system, now)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO scope_generations (generation_id, scope_id, trigger_kind, observed_at, ingested_at,
+		status, activated_at, payload) VALUES ($1,$2,'synthetic',$3,$3,'active',$3,'{}'::jsonb)`, generationID, scopeID, now)
+	mustExecProofRow(t, ctx, admin, `UPDATE ingestion_scopes SET active_generation_id=$1 WHERE scope_id=$2`, generationID, scopeID)
+}
+
+// seedActiveFact inserts one live fact into an active scope generation.
+func seedActiveFact(t *testing.T, ctx context.Context, admin *sql.DB, scopeID, generationID, factID, kind, payload string) {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Second)
+	mustExecProofRow(t, ctx, admin, `INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
+		source_system, source_fact_key, observed_at, ingested_at, is_tombstone, payload, fencing_token)
+		VALUES ($1,$2,$3,$4,$1,'synthetic',$1,$5,$5,FALSE,$6::jsonb,0)`, factID, scopeID, generationID, kind, now, payload)
+}
+
+// captureOnlyImpactWriter records the write the handler hands it. The test
+// needs the handler's verdict, not the protected publication machinery.
+type captureOnlyImpactWriter struct {
+	write supplychaincore.SupplyChainImpactWrite
+	calls int
+}
+
+func (w *captureOnlyImpactWriter) WriteSupplyChainImpactFindings(
+	_ context.Context, write supplychaincore.SupplyChainImpactWrite,
+) (supplychaincore.SupplyChainImpactWriteResult, error) {
+	w.calls++
+	w.write = write
+	return supplychaincore.SupplyChainImpactWriteResult{}, nil
+}
+
+// TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive
+// runs the real handler over an ENGAGED store: the real authorized loader, the
+// real static snapshot reads (protectedImpactStaticFactSQL), and the real
+// cross-scope Go stage reading a go-reachability://repository:r_ea78e8bb scope
+// that holds module evidence and an unfinished-scan warning. The pass must
+// complete and the Go stage must return both Go facts. Expected on main before
+// the screen change (#10030): Handle returns the authorized impact coverage
+// incomplete error, because the warning trips policy_unavailable.
+//
+// The finding verdict (analysis_failed) is not asserted here: an engaged store
+// builds findings only from registered public advisory authority (registrations,
+// an active approved generation, a published receipt pinned to the role policy
+// and database identity, and per-fact payload hashes), which this proof does not
+// seed. The verdict for the same facts is pinned hermetically in
+// TestGoScanFactsFromTheGoReachabilityScopeJoinThroughTheGoStage.
+func TestAuthorizedHandleEngagedLoadsAGoReachabilityWarningThroughTheGoStageLive(t *testing.T) {
+	ctx, admin := engagedLoaderProof(t)
+	const (
+		orders      = "vulnerability_intelligence:orders-api:go-alias"
+		ordersGen   = "go-warning-handle-gen"
+		goScope     = "go-reachability://repository:r_ea78e8bb"
+		goGen       = "go-warning-handle-go-gen"
+		repository  = "repository:r_ea78e8bb"
+		modulePath  = "github.com/acme/legacy-lib"
+		relativeMod = "legacy/go.mod"
+	)
+	seedActiveScope(t, ctx, admin, orders, ordersGen, "vulnerability_intelligence", "synthetic")
+	seedActiveFact(t, ctx, admin, orders, ordersGen, "orders-consumption", "reducer_package_consumption_correlation",
+		`{"package_id":"gomod://proxy.golang.org/`+modulePath+`","relationship_kind":"consumption","repository_id":"`+repository+`",
+		  "dependency_range":"v0.1.0","canonical_writes":1,"evidence_fact_ids":["manifest-lock-1"]}`)
+	seedActiveScope(t, ctx, admin, goScope, goGen, "scanner_worker", "scanner_worker")
+	seedActiveFact(t, ctx, admin, goScope, goGen, "go-module-evidence", "vulnerability.go_module_evidence",
+		`{"repository_id":"`+repository+`","module_path":"`+modulePath+`","relative_path":"`+relativeMod+`","required_version":"v0.1.0",
+		  "root_go_version":"1.99","root_module_path":"github.com/acme/orders-legacy","source":"go_module_manifest","indirect":false,"line_number":5}`)
+	seedActiveFact(t, ctx, admin, goScope, goGen, "go-toolchain-warning", "scanner_worker.warning",
+		`{"analyzer":"go_reachability","analysis_status":"not_scanned","coverage_status":"unsupported","reason":"toolchain_unsupported",
+		  "repository_id":"`+repository+`","relative_path":"`+relativeMod+`","target_kind":"repository","target_locator_hash":"sha256:510d18e9994bab03f03457cb59d2cc94b0bb2084d1ae8f8aedb69b6425b5b776","warning_class":"scanner_worker_warning"}`)
+
+	writer := &captureOnlyImpactWriter{}
+	handler := supplychaincore.SupplyChainImpactHandler{
+		FencingTokenIssuer:              PostgresSupplyChainImpactFencingTokenIssuer{DB: SQLDB{DB: admin}},
+		FactLoader:                      NewFactStore(SQLDB{DB: admin}),
+		AuthorizedEvidenceLoader:        NewAuthorizedSupplyChainImpactEvidenceLoader(SQLDB{DB: admin}),
+		RequireAuthorizedEvidenceLoader: true,
+		Writer:                          writer,
+	}
+	result, err := handler.Handle(ctx, reducercontract.Intent{
+		IntentID: "intent:go-warning-engaged", ScopeID: orders, GenerationID: ordersGen,
+		SourceSystem: "vulnerability_intelligence", Domain: reducercontract.DomainSupplyChainImpact,
+		Cause: "synthetic #10030 engaged Go warning proof",
+	})
+	if err != nil {
+		t.Fatalf("Handle() over an engaged store: %v (a go_reachability warning from a go-reachability scope must not fail the pass closed)", err)
+	}
+	if got := result.SubSignals["go_reachability_facts"]; got != 2 {
+		t.Fatalf("go_reachability_facts = %v, want 2 (module evidence and the warning from the go-reachability scope)", got)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("writer calls = %d, want the pass to reach its write", writer.calls)
+	}
+}
