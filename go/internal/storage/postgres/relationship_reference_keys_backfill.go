@@ -116,7 +116,7 @@ const securityAlertKeyablePredicateSQL = `
 const lookupKeyBackfillScopesSQL = `
 SELECT DISTINCT fact.scope_id
 FROM fact_records AS fact
-WHERE fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_alert.repository_alert', 'reducer_package_consumption_correlation', 'reducer_supply_chain_impact_finding')
+WHERE fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_alert.repository_alert', 'reducer_package_consumption_correlation')
   AND fact.is_tombstone = FALSE
   AND (
     (
@@ -130,7 +130,7 @@ WHERE fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_
       )
     )
     OR (
-      fact.fact_kind IN ('security_alert.repository_alert', 'reducer_package_consumption_correlation', 'reducer_supply_chain_impact_finding')
+      fact.fact_kind IN ('security_alert.repository_alert', 'reducer_package_consumption_correlation')
       AND NOT EXISTS (
         SELECT 1 FROM security_alert_reconciliation_keys AS keys
         WHERE keys.fact_id = fact.fact_id
@@ -182,7 +182,7 @@ SELECT
 FROM fact_records AS fact
 WHERE fact.scope_id = $1
   AND fact.fact_id > $2
-  AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_alert.repository_alert', 'reducer_package_consumption_correlation', 'reducer_supply_chain_impact_finding')
+  AND fact.fact_kind IN ('content', 'file', 'gcp_cloud_relationship', 'security_alert.repository_alert', 'reducer_package_consumption_correlation')
   AND fact.is_tombstone = FALSE
 ORDER BY fact.fact_id ASC
 LIMIT $3
@@ -211,7 +211,7 @@ WHERE fact.scope_id = $1
           AND ref.keys_version >= 1
       )
     ) OR (
-      fact.fact_kind IN ('security_alert.repository_alert', 'reducer_package_consumption_correlation', 'reducer_supply_chain_impact_finding')
+      fact.fact_kind IN ('security_alert.repository_alert', 'reducer_package_consumption_correlation')
       AND NOT EXISTS (
         SELECT 1 FROM security_alert_reconciliation_keys AS keys
         WHERE keys.fact_id = fact.fact_id

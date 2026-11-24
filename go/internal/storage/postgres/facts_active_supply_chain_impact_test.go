@@ -211,7 +211,6 @@ func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *test
 		"fact.fact_kind IN (",
 		"'security_alert.repository_alert'",
 		"'reducer_package_consumption_correlation'",
-		"'reducer_supply_chain_impact_finding'",
 		"fact.payload->>'repository_id' = ANY($1::text[])",
 		"fact.payload->>'package_id' = ANY($2::text[])",
 		"fact.payload->'cve_ids' ?| $3::text[]",

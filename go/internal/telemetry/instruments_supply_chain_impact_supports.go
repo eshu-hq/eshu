@@ -141,6 +141,14 @@ const (
 // may wait on the backfill's advisory lock.
 var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 
+// supplyChainImpactSupportsDrainRowBuckets spans a drain from a handful of rows to
+// the millions a hot package could hold.
+var supplyChainImpactSupportsDrainRowBuckets = []float64{0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000}
+
+// supplyChainImpactSupportsDrainDurationBuckets spans a drain from a few
+// milliseconds (one page) to the hour a drain of a very hot key could take.
+var supplyChainImpactSupportsDrainDurationBuckets = []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 15, 30, 60, 120, 300, 600, 1200, 3600}
+
 // registerSupplyChainImpactSupportsInstruments registers the per-support table
 // signals of #10880 PR-B1 on inst.
 //
@@ -161,6 +169,17 @@ var supplyChainImpactSupportsBackfillStepBuckets = []float64{0.005, 0.01, 0.025,
 //     reads of the supports table by reader (carried as source) and outcome
 //     (served, not_ready, failed). A rising not_ready count means a reducer
 //     intent is waiting on the backfill; it clears when the ready gauge reads 1.
+//
+//   - eshu_dp_supply_chain_impact_supports_drain_raw_rows{source}: raw supports
+//     rows one drain read (one whole call for the service-catalog reader; every
+//     row the ordered key scans returned, active or not, including the rows a failed
+//     drain read before it stopped), by reader. A drain whose raw rows run far above its active
+//     rows is reading superseded generations; a drain in the hundred thousands is
+//     a hot key.
+//
+//   - eshu_dp_supply_chain_impact_supports_drain_duration_seconds{source}: wall time
+//     of one drain (one whole call for the service-catalog reader), by reader. A drain near half the domain's handler
+//     timeout is the signal to return the hot-key page contract to its owner.
 //
 //   - eshu_dp_supply_chain_impact_supports_backfill_ready: 1 once the readiness
 //     marker is set at the current contract version and the fence is empty, else 0.
@@ -185,6 +204,21 @@ func registerSupplyChainImpactSupportsInstruments(meter metric.Meter, inst *Inst
 		metric.WithDescription("Reducer reads of the per-support table by reader (source label) and outcome (served, not_ready, failed). A rising not_ready count means a reducer intent is waiting on the supports backfill."),
 	); err != nil {
 		return fmt.Errorf("register SupplyChainImpactSupportsReads counter: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsDrainRawRows, err = meter.Int64Histogram(
+		"eshu_dp_supply_chain_impact_supports_drain_raw_rows",
+		metric.WithDescription("Raw per-support rows one drain read (one whole call for the service-catalog reader; active or not, and the rows a failed drain read before it stopped), by reader (source label). Raw rows far above the active rows mean the key's supports sit mostly in superseded generations; a drain in the hundred thousands is a hot key."),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainRowBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsDrainRawRows histogram: %w", err)
+	}
+	if inst.SupplyChainImpactSupportsDrainDuration, err = meter.Float64Histogram(
+		"eshu_dp_supply_chain_impact_supports_drain_duration_seconds",
+		metric.WithDescription("Wall time of one drain of the per-support table (one whole call for the service-catalog reader), by reader (source label). A drain near half the domain's handler timeout means a hot key is paging too slowly."),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(supplyChainImpactSupportsDrainDurationBuckets...),
+	); err != nil {
+		return fmt.Errorf("register SupplyChainImpactSupportsDrainDuration histogram: %w", err)
 	}
 	if inst.SupplyChainImpactSupportsBackfillSteps, err = meter.Int64Counter(
 		"eshu_dp_supply_chain_impact_supports_backfill_steps_total",
@@ -270,6 +304,27 @@ func (i *Instruments) RecordSupplyChainImpactSupportsRead(ctx context.Context, r
 		return
 	}
 	i.SupplyChainImpactSupportsReads.Add(ctx, 1, metric.WithAttributes(AttrSource(reader), AttrOutcome(outcome)))
+}
+
+// RecordSupplyChainImpactSupportsDrainRawRows records the raw supports rows one
+// drain read (one whole call for the service-catalog reader, including the rows a
+// failed drain read before it stopped), by reader (one of the SupplyChainImpactSupportsReader*
+// constants). It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsDrainRawRows(ctx context.Context, reader string, rawRows int64) {
+	if i == nil || i.SupplyChainImpactSupportsDrainRawRows == nil || rawRows < 0 {
+		return
+	}
+	i.SupplyChainImpactSupportsDrainRawRows.Record(ctx, rawRows, metric.WithAttributes(AttrSource(reader)))
+}
+
+// RecordSupplyChainImpactSupportsDrainDuration records the wall time of one
+// drain of the supports table (one whole call for the service-catalog reader), by
+// reader. It is safe on a nil receiver.
+func (i *Instruments) RecordSupplyChainImpactSupportsDrainDuration(ctx context.Context, reader string, d time.Duration) {
+	if i == nil || i.SupplyChainImpactSupportsDrainDuration == nil {
+		return
+	}
+	i.SupplyChainImpactSupportsDrainDuration.Record(ctx, d.Seconds(), metric.WithAttributes(AttrSource(reader)))
 }
 
 // RecordSupplyChainImpactSupportsBackfillStep counts one backfill step under

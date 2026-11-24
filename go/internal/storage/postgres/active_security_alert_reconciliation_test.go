@@ -29,6 +29,25 @@ func (q errReadinessQueryer) ExecContext(context.Context, string, ...any) (sql.R
 	return nil, q.err
 }
 
+// readyThenErrQueryer answers the first query (the supports readiness probe)
+// with ready=true and fails every query after it.
+type readyThenErrQueryer struct {
+	err   error
+	calls int
+}
+
+func (q *readyThenErrQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	q.calls++
+	if q.calls == 1 {
+		return &queueFakeRows{rows: [][]any{{true}}}, nil
+	}
+	return nil, q.err
+}
+
+func (q *readyThenErrQueryer) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	return nil, q.err
+}
+
 // TestSecurityAlertReadinessProbeFailureIsLogged is the #10875 review
 // regression: a failing readiness probe must emit its signal line instead
 // of silently falling back to the legacy query.
@@ -37,7 +56,9 @@ func TestSecurityAlertReadinessProbeFailureIsLogged(t *testing.T) {
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 
-	store := FactStore{database: errReadinessQueryer{err: errors.New("probe boom")}}
+	// The supports readiness probe (first query) succeeds; every later query,
+	// the keys readiness probe and the page load, fails.
+	store := FactStore{database: &readyThenErrQueryer{err: errors.New("probe boom")}}
 	_, err := store.ListActiveSecurityAlertReconciliationFacts(
 		context.Background(),
 		securityalert.SecurityAlertReconciliationFactFilter{RepositoryIDs: []string{"acme/app"}},

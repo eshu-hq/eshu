@@ -197,9 +197,11 @@ func TestSecurityAlertReconciliationKeyRowsSkipIneligible(t *testing.T) {
 }
 
 // TestSecurityAlertReconciliationKindFilterMatchesQuery proves the Go kind
-// filter and the SQL IN list name the same three kinds: a kind the query
+// filter and the SQL IN list name the same two kinds: a kind the query
 // reads but the writer skips (or vice versa) is a wrong answer in one
-// direction (#10875).
+// direction (#10875). The supply-chain impact finding kind is gone from both
+// (#11198, #11200): the reconciliation loader reads those rows from the
+// per-support table.
 func TestSecurityAlertReconciliationKindFilterMatchesQuery(t *testing.T) {
 	t.Parallel()
 
@@ -211,10 +213,45 @@ func TestSecurityAlertReconciliationKindFilterMatchesQuery(t *testing.T) {
 	for _, kind := range []string{
 		"security_alert.repository_alert",
 		"reducer_package_consumption_correlation",
-		"reducer_supply_chain_impact_finding",
 	} {
 		if !isSecurityAlertReconciliationFactKind(kind) {
 			t.Errorf("writer filter lacks kind %q read by the query", kind)
+		}
+	}
+	if got := len(securityAlertReconciliationFactKinds); got != 2 {
+		t.Errorf("writer filter names %d kinds, want 2", got)
+	}
+}
+
+// TestSecurityAlertReconciliationPathsReadNoFindingFacts is the #11198 and
+// #11200 census: none of the facts-side statements of the reconciliation path,
+// the legacy and keyed loaders and the three sidecar backfill statements, names
+// the supply-chain impact finding kind, so the path keeps working once those
+// facts are no longer written and the backfill no longer builds keys for them.
+func TestSecurityAlertReconciliationPathsReadNoFindingFacts(t *testing.T) {
+	t.Parallel()
+
+	statements := map[string]string{
+		"backfill scopes":  lookupKeyBackfillScopesSQL,
+		"backfill page":    lookupKeyBackfillPageSQL,
+		"backfill missing": lookupKeyBackfillMissingSQL,
+	}
+	for name, statement := range statements {
+		if strings.Contains(statement, "reducer_supply_chain_impact_finding") {
+			t.Errorf("%s names reducer_supply_chain_impact_finding; the path must not read or key finding facts", name)
+		}
+	}
+	// The fact statements read facts only: the impact findings come from the
+	// supports statement, drained on its own cursor.
+	for name, statement := range map[string]string{
+		"legacy fact statement": listActiveSecurityAlertReconciliationFactsQuery,
+		"keyed fact statement":  listActiveSecurityAlertReconciliationFactsKeyedQuery,
+	} {
+		if strings.Contains(statement, "reducer_supply_chain_impact_finding") {
+			t.Errorf("%s names reducer_supply_chain_impact_finding", name)
+		}
+		if strings.Contains(statement, "supply_chain_impact_finding_supports") || strings.Contains(statement, "UNION ALL") {
+			t.Errorf("%s reads the supports table or merges a second stream; the streams drain separately", name)
 		}
 	}
 }

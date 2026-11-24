@@ -1,0 +1,60 @@
+# #10880 PR-B2c service-catalog call shapes and built-binary repository drains, raw output.
+# Lab: b2c_hot (9,000 scopes), repo:hotrepo / hotrepo2 / hotrepo3 = 160,000 supports each, repo:mid-1..200 = 1,250 each, index
+# built by migration 346. Taken AFTER the host volume's I/O change (about 15:37Z): timings here are after the change; buffer counts are unaffected.
+## 1. Shapes with ONE drain over all ids (the first design of the loader): the 200-id shape fails the 15,000-buffer bound
+    supply_chain_impact_supports_repository_arm_live_test.go:194: one repository of 160,000, force_generic_plan: page 1 5908, midpoint 5899, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:194: one repository of 160,000, force_custom_plan: page 1 5908, midpoint 5899, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:194: three repositories of 160,000, force_generic_plan: page 1 6719, midpoint 6303, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:194: three repositories of 160,000, force_custom_plan: page 1 6719, midpoint 6303, last page 2958 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:194: 200 repositories plus one of 160,000, force_generic_plan: page 1 92259, midpoint 66872, last page 3758 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:197: 200 repositories plus one of 160,000 force_generic_plan page 1 read 92259 buffers, want at most 15,000
+    supply_chain_impact_supports_repository_arm_live_test.go:197: 200 repositories plus one of 160,000 force_generic_plan midpoint read 66872 buffers, want at most 15,000
+    supply_chain_impact_supports_repository_arm_live_test.go:194: 200 repositories plus one of 160,000, force_custom_plan: page 1 92259, midpoint 66872, last page 3758 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:197: 200 repositories plus one of 160,000 force_custom_plan page 1 read 92259 buffers, want at most 15,000
+    supply_chain_impact_supports_repository_arm_live_test.go:197: 200 repositories plus one of 160,000 force_custom_plan midpoint read 66872 buffers, want at most 15,000
+--- FAIL: TestSupplyChainImpactSupportsServiceCatalogShapesLive (267.21s)
+    --- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive/one_repository_of_160,000 (1.80s)
+    --- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive/three_repositories_of_160,000 (4.59s)
+    --- FAIL: TestSupplyChainImpactSupportsServiceCatalogShapesLive/200_repositories_plus_one_of_160,000 (260.81s)
+FAIL
+FAIL	github.com/eshu-hq/eshu/go/internal/storage/postgres	267.428s
+FAIL
+
+## 2. Shapes with one drain per repository id (the shipped loader): largest page of any repository
+    supply_chain_impact_supports_repository_arm_live_test.go:210: one repository of 160,000: 1 drains, largest page 5908 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:210: three repositories of 160,000: 3 drains, largest page 5912 buffers
+    supply_chain_impact_supports_repository_arm_live_test.go:210: 200 repositories plus one of 160,000: 201 drains, largest page 5954 buffers
+--- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive (104.67s)
+    --- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive/one_repository_of_160,000 (0.81s)
+    --- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive/three_repositories_of_160,000 (37.18s)
+    --- PASS: TestSupplyChainImpactSupportsServiceCatalogShapesLive/200_repositories_plus_one_of_160,000 (66.65s)
+ok  	github.com/eshu-hq/eshu/go/internal/storage/postgres	104.819s
+
+## 3. Built binary: repo:hotrepo through GetSupplyChainAdvisoriesForRepos and ListActiveSecurityAlertReconciliationFacts (the corpus payloads carry the original repository_id, so the service loader groups its 160,000 rows under another key: records=0 is the seed, not a read problem). /usr/bin/time -v follows.
+2026/11/23 15:51:43 event_name=supply_chain_impact_supports.large_drain reader=service_vulnerability_advisory keys=1 pages=321 raw_rows=160000 active_rows=160000 duration_ms=6827
+SERVICE_LOADER repo=repo:hotrepo records=0 seconds=6.97
+2026/11/23 15:51:56 event_name=supply_chain_impact_supports.large_drain reader=security_alert_reconciliation keys=1 pages=321 raw_rows=160000 active_rows=160000 duration_ms=1886
+RECONCILIATION_LOADER repo=repo:hotrepo envelopes=160000 seconds=13.02
+	Command being timed: "./drain2 -dsn postgres://postgres:REDACTED@127.0.0.1:15934/b2c_hot?sslmode=disable -repo repo:hotrepo"
+	User time (seconds): 2.24
+	System time (seconds): 0.46
+	Percent of CPU this job got: 13%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.03
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 430728
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 170157
+	Voluntary context switches: 64263
+	Involuntary context switches: 5396
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 16
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

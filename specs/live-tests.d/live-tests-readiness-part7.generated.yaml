@@ -44,6 +44,36 @@ tests:
     class: postgres_ci
     reason: "#9299 disposable PostgreSQL proof that a complete protected static impact write commits its finding fact and authority revision instead of dead-lettering on the missing publication transaction"
     runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_drain_concurrency_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 hot-key drain concurrency on real PostgreSQL: while a supports drain runs page by page, writers insert rows below and above its cursor, retract and rewrite rows, supersede a generation and delete a generation by cascade; every row present and active for the whole drain is returned exactly once, no row that was absent or inactive for the whole drain is returned, a row locked by an open writer transaction does not make a page wait, and no transaction stays open between pages"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_drain_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 and #11199 hot-key page contract on real PostgreSQL: the supports drain returns exactly the rows the frozen finding-fact read returns, in the database's fact_id order, on adversarial seeds (two full pages of superseded-generation rows in the middle of a key and at its end, raw counts of exactly one page and one page plus one row, rows that match two, three and four arms, more than one page of rows that each match all four arms, ids that sort differently under the C collation), and two seeded-wrong readers (stopping on a short active page, advancing on the last active id) fail the same seeds"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_many_repositories_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11199 many-small-repository call cost on real PostgreSQL: GetSupplyChainAdvisoriesForRepos over 200 repositories with five supports each drains one repository at a time, runs exactly one readiness statement and one page statement per repository, returns every repository's records grouped by repository, and its wall time and statement count are logged as the measured cost of that call shape"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_page_plan_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 hot-key plan guard on real PostgreSQL: the supports page statement plans as per-key ordered index scans (the package, CVE, advisory and repository arms each on their own partial btree with the key and the cursor in the Index Cond) with no sequential scan of the supports, no scope-generation index probe, no temp, under both force_generic_plan and force_custom_plan, first page and next page; and seeded violations (the package or repository index dropped, a package or repository guard literal removed, an active join inside the lateral, the cursor written as an OR filter) each fail the guard"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_reader_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 and #11199 reducer input moved off finding facts, on real PostgreSQL: on a multi-scope seed written through the production impact writer (active and superseded generations, a retracted finding, a CVE-less advisory finding, one finding per repository and package shape) the security-alert reconciliation loader and the service-catalog vulnerability loader return exactly the rows and payloads the frozen finding-fact reads return, and both refuse with a retryable not-ready error before the supports backfill is ready"
+    runner: live-postgres-readiness
+  - file: go/internal/storage/postgres/supply_chain_impact_supports_repository_arm_live_test.go
+    tag: ~
+    class: postgres_ci
+    reason: "#11198 and #11199 repository-arm bounds on real PostgreSQL, on the index migration 346 builds: for a repository of 160,000 supports the shipped supports page statement (the reconciliation repository arm and the service-catalog loader's one arm) reads page 1, a midpoint page and the last page in at most 6,000 buffers with no temp under force_generic_plan and force_custom_plan, the midpoint costs at most 1.5 times page 1, and the same pages stay within 7,000 buffers after every twentieth row of the repository was rewritten and nothing was vacuumed"
+    runner: live-postgres-readiness
   - file: go/internal/storage/postgres/supply_chain_impact_upstream_nvd_widen_live_test.go
     tag: ~
     class: postgres_ci
