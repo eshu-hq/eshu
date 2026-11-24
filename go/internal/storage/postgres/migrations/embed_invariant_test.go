@@ -388,7 +388,7 @@ import (
 // is main's 373 plus the pair; the digest is this test's own derivation on
 // the merged tree.
 const (
-	goldenBootstrapDefinitionsDigest = "e5d9e7b5105894441fec864675f7454c34c27e15765297bf2cd72de2a1913884"
+	goldenBootstrapDefinitionsDigest = "0bb3ef75e7f3cf83a4a3d79073212ce1dcb89ab46d4fc6862daee5d64feb1b93"
 	goldenBootstrapDefinitionsCount  = 380
 )
 

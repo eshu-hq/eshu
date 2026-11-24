@@ -37,8 +37,8 @@ does not claim the gate is met. The QA replica plan measurements of 2026-11-24
 (read-only, the QA replica only, PG 18.6, hot_standby_feedback off,
 max_standby_streaming_delay 30s; supports table about 10.69M estimated rows, 96 GB;
 `fact_records` about 96.9M, 551 GB), recorded in
-`.claude/qa-prc-plans-2026-11-24.md` with raw plans under
-`~/.cache/qa-prc/T-20261124T085425Z/`. Statements rendered from this branch at
+`docs/internal/evidence/10880-prc-c1-replica-plans.md` (the plan record, committed with this
+note; the raw plans stay outside the repository). Statements rendered from this branch at
 8898e4657c. Execution ms, first run then second run, supports versus legacy twin:
 
 - Stored read (b), one scope of 14,123 rows: supports 11,608 then 878; legacy 807
@@ -208,7 +208,7 @@ dedicated supports index. That lookup, and the explain plans at the QA shape, ar
 the ruling's T2 and belong to the C1 index set (g), which waits for a coordinator
 Postgres slot. Until then the new statement is correct and its plan is unmeasured.
 
-## C1 g (DRAFT): the keyed probe index on supports
+## C1 g: the keyed probe index on supports
 
 The keyed active_facts plan above is the measured gap. Migration
 `354_supply_chain_impact_supports_keyed_probe_idx.sql` is one
@@ -227,10 +227,10 @@ from migration 291; `TestKeyedProbeCoverageRejectsSeededViolations` fails the ru
 on a reordered pair, a dropped expression, a plain column in place of the c0
 expression, and a sixth probe equality.
 
-This is a DRAFT. The final set is decided after the post-roll QA measurement (an
-axios-size package may need a different composite than 345 plus this one), and it
-must not be applied inside W1b: the build on the 96 GB table takes hours and adds
-WAL. Not measured: the index's size, build time or the plan it gives.
+The set is final only after the post-roll QA measurement (an axios-size package may
+need a different composite than 345 plus this one), and it must not be applied inside
+W1b. Not measured: the index's size, its build time on the QA table (a lab build at
+8M rows precedes the roll that applies it) or the plan it gives.
 
 ## C1 R2: the winners maintainer waits for the supports table
 

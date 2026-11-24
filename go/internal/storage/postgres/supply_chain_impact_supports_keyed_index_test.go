@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// DRAFT index set g (#10880 PR-C1): the keyed active_facts probe over the supports
+// Index set g (#10880 PR-C1): the keyed active_facts probe over the supports
 // table. The QA replica plan (qa-prc-plans-2026-11-24) shows the probe as a
 // Parallel Seq Scan on supports at estimated cost 3.05M against a 1.3 s index
 // lookup on fact_records, because the supports table has no btree on the five
@@ -20,7 +20,7 @@ import (
 // unchanged by this: it stays the legacy statement with the row source swapped, so
 // the index is usable only while its expressions are byte-equivalent to the probe's.
 // The final set is decided after the post-roll QA measurement and must not be
-// applied inside W1b.
+// applied inside W1b; a lab build at 8M rows precedes the roll.
 
 const (
 	keyedSupportsIndexMigration = "migrations/354_supply_chain_impact_supports_keyed_probe_idx.sql"
