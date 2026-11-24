@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract/packet"
+	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 const (
@@ -152,7 +153,7 @@ func decideOutcome(row ExplanationRow, err error) string {
 
 // decideRequests are the ungranted explain requests the matrix runs: every selector a bounded
 // scope allows, over every fixture CVE, plus the identity lookups.
-func decideRequests(all []FindingRow) []packet.ExplanationFilter {
+func decideRequests(all []FindingRow, canonicalKeys map[string]string) []packet.ExplanationFilter {
 	requests := []packet.ExplanationFilter{}
 	for _, cve := range []string{"d1", "d2", "d3", "d4", "d5", "d6"} {
 		requests = append(requests,
@@ -176,6 +177,19 @@ func decideRequests(all []FindingRow) []packet.ExplanationFilter {
 		{"d6", "k13"},
 	} {
 		requests = append(requests, packet.ExplanationFilter{CVEID: "CVE-2026-" + fixture.cve, PackageID: "pkg:npm/" + fixture.pkg + "@1.0.0"})
+	}
+	// A finding id with a package or a repository and no CVE or advisory keeps the legacy selector read
+	// (ruling item-f-identity 2.1): hit by fact id, hit by canonical key, and a miss, all equal to legacy.
+	for _, copy := range []struct{ fact, pkg string }{
+		{"fact:d1:k1:a", "pkg:npm/k1@1.0.0"}, {"fact:d2:k7:b", "pkg:npm/k7@1.0.0"}, {"fact:d6:k13:b", "pkg:npm/k13@1.0.0"},
+	} {
+		for _, identity := range []string{copy.fact, canonicalKeys[copy.fact], "finding:decide:no-such-identity"} {
+			requests = append(requests,
+				packet.ExplanationFilter{FindingID: identity, PackageID: copy.pkg},
+				packet.ExplanationFilter{FindingID: identity, RepositoryID: decideRepository},
+				packet.ExplanationFilter{FindingID: identity, SubjectDigest: "sha256:decide-1"},
+			)
+		}
 	}
 	// Runtime filters, digests, advisory ids and rank ties: every selector the route takes.
 	requests = append(requests,
@@ -258,7 +272,15 @@ func TestExplainUngrantedDecideFirstEqualsLegacyLive(t *testing.T) {
 	if err != nil || len(all) == 0 {
 		t.Fatalf("seed list = %d rows, %v", len(all), err)
 	}
-	requests := decideRequests(all)
+	canonicalKeys := map[string]string{}
+	for _, fact := range []string{"fact:d1:k1:a", "fact:d2:k7:b", "fact:d6:k13:b"} {
+		var key string
+		if err := database.QueryRowContext(ctx, `SELECT canonical_key FROM supply_chain_impact_finding_supports WHERE fact_id = $1`, fact).Scan(&key); err != nil {
+			t.Fatalf("canonical key of %s: %v", fact, err)
+		}
+		canonicalKeys[fact] = key
+	}
+	requests := decideRequests(all, canonicalKeys)
 
 	t.Run("equals legacy", func(t *testing.T) {
 		mismatches, found, ambiguous, notFound := decideCompare(ctx, requests, candidate, legacy)
@@ -346,4 +368,35 @@ func TestExplainUngrantedDecideFirstEqualsLegacyLive(t *testing.T) {
 		})
 		diverges(t)
 	})
+}
+
+// TestExplainSelectorJITOffRevertsAfterTheExplainLive is ruling item-f-identity 4.1 and its live proof: the
+// keyed selector read runs under a transaction-local jit = off inside the explain snapshot, and the one
+// pooled connection (pinned so the check lands on it) reads the server default after the explain returns,
+// through the plain connection and through the guarded read port, for a found, an ambiguous and a
+// not-found answer.
+func TestExplainSelectorJITOffRevertsAfterTheExplainLive(t *testing.T) {
+	ctx, database := openSupportsEqualityDatabaseWith(t, seedDecideFirstFixtures)
+	database.SetMaxOpenConns(1)
+	pool := sqlRowQueryer{database: database}
+	def := jitSetting(ctx, t, pool)
+	if def != "on" {
+		t.Skipf("server jit = %q: the proof needs the default (on) to show the switch", def)
+	}
+	stores := map[string]PostgresFindingStore{
+		"plain connection":  {DB: database, ReadFromWinners: true},
+		"guarded read port": NewPostgresFindingStoreWithReadStore(storagepostgres.NewSQLReadStore(database), true),
+	}
+	for name, store := range stores {
+		for answer, request := range map[string]packet.ExplanationFilter{
+			"found":     {CVEID: "CVE-2026-d4", RepositoryID: decideRepository},
+			"ambiguous": {CVEID: "CVE-2026-d2", RepositoryID: decideRepository},
+			"not found": {CVEID: "CVE-2026-d5", RepositoryID: decideRepository},
+		} {
+			_, _ = store.ExplainSupplyChainImpact(ctx, request)
+			if got := jitSetting(ctx, t, pool); got != def {
+				t.Fatalf("%s, %s: jit after the explain = %q, want the server default %q", name, answer, got, def)
+			}
+		}
+	}
 }

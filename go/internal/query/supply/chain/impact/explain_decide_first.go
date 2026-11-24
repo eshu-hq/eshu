@@ -107,10 +107,8 @@ func explainCandidateColumnPredicates() string {
 // `<> ”` literal repeats the partial index predicate so a generic plan can prove the index applies.
 // The advisory-or-CVE argument ($3) is two arms, the second excluding the rows the first covers.
 var explainKeyLegs = map[explainDrivingKey][]string{
-	explainKeyCVE:        {"fact.cve_id = $4 AND fact.cve_id <> ''"},
-	explainKeyAdvisory:   {"fact.advisory_id = $3 AND fact.advisory_id <> ''", "fact.cve_id = $3 AND fact.cve_id <> '' AND fact.advisory_id <> $3"},
-	explainKeyRepository: {"fact.repository_id = $6 AND fact.repository_id <> ''"},
-	explainKeyPackage:    {"fact.package_id = $5 AND fact.package_id <> ''"},
+	explainKeyCVE:      {"fact.cve_id = $4 AND fact.cve_id <> ''"},
+	explainKeyAdvisory: {"fact.advisory_id = $3 AND fact.advisory_id <> ''", "fact.cve_id = $3 AND fact.cve_id <> '' AND fact.advisory_id <> $3"},
 }
 
 // best_copy takes the first authorized row of ranked_copies and carries no ORDER BY of its

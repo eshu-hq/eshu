@@ -155,8 +155,6 @@ func TestKeyFirstPlansOnTheQAReplicaPassTheShapeCheck(t *testing.T) {
 	}{
 		"cve":                    {explainKeyCVE, []string{"cve_id"}},
 		"advisory":               {explainKeyAdvisory, []string{"advisory_id", "cve_id"}},
-		"package":                {explainKeyPackage, []string{"package_id"}},
-		"repository":             {explainKeyRepository, []string{"repository_id"}},
 		"cve_package":            {explainKeyCVE, []string{"cve_id"}},
 		"identity_fact_id":       {explainKeyCVE, []string{"cve_id"}},
 		"identity_finding_id":    {explainKeyCVE, []string{"cve_id"}},
@@ -321,8 +319,13 @@ func explainStatementViolations(key explainDrivingKey, query string, arms []stri
 
 func TestUngrantedExplainStatementsDriveFromTheirKey(t *testing.T) {
 	t.Parallel()
-	if len(ExplainFindingUngrantedByKeyQuery) != len(explainKeyLegs) || len(explainKeyLegs) != 4 {
-		t.Fatalf("%d decide-first statements for %d key legs, want one per indexed selector (4)", len(ExplainFindingUngrantedByKeyQuery), len(explainKeyLegs))
+	if len(ExplainFindingUngrantedByKeyQuery) != len(explainKeyLegs) || len(explainKeyLegs) != 2 {
+		t.Fatalf("%d decide-first statements for %d key legs, want one per driving key (CVE and advisory only)", len(ExplainFindingUngrantedByKeyQuery), len(explainKeyLegs))
+	}
+	for _, refused := range []explainDrivingKey{"repository", "package"} {
+		if _, ok := explainKeyLegs[refused]; ok {
+			t.Fatalf("a %s-driven statement is back: it is reachable only as the identity fallback, which stays legacy", refused)
+		}
 	}
 	for key, arms := range explainKeyLegs {
 		if violations := explainStatementViolations(key, ExplainFindingUngrantedByKeyQuery[key], arms); len(violations) != 0 {
@@ -377,12 +380,9 @@ func TestUngrantedExplainRoutePicksTheDrivingKey(t *testing.T) {
 	}{
 		"cve":                    {packet.ExplanationFilter{CVEID: "CVE-1"}, explainKeyCVE},
 		"advisory":               {packet.ExplanationFilter{AdvisoryID: "GHSA-1"}, explainKeyAdvisory},
-		"repository":             {packet.ExplanationFilter{RepositoryID: "repository:a"}, explainKeyRepository},
-		"package":                {packet.ExplanationFilter{PackageID: "pkg:npm/a"}, explainKeyPackage},
 		"cve beats package":      {packet.ExplanationFilter{CVEID: "CVE-1", PackageID: "pkg:npm/a"}, explainKeyCVE},
 		"advisory beats package": {packet.ExplanationFilter{AdvisoryID: "GHSA-1", PackageID: "pkg:npm/a", SubjectDigest: "sha256:x"}, explainKeyAdvisory},
 		"identity with a cve":    {packet.ExplanationFilter{FindingID: "fact:x", CVEID: "CVE-1", PackageID: "pkg:npm/a"}, explainKeyCVE},
-		"repository beats pkg":   {packet.ExplanationFilter{RepositoryID: "repository:a", PackageID: "pkg:npm/a"}, explainKeyRepository},
 	} {
 		got := store.explainRoute(tc.filter)
 		if got.selector != ExplainFindingUngrantedByKeyQuery[tc.key] || got.selectorRoute != RouteSupportsSelector {
@@ -395,6 +395,11 @@ func TestUngrantedExplainRoutePicksTheDrivingKey(t *testing.T) {
 	// No indexed selector: the lookup keeps the legacy read until its own migration exists.
 	for name, filter := range map[string]packet.ExplanationFilter{
 		"subject digest only":        {SubjectDigest: "sha256:x"},
+		"finding id and a package":   {FindingID: "finding:x", PackageID: "pkg:npm/a"},
+		"finding id and repository":  {FindingID: "finding:x", RepositoryID: "repository:a"},
+		"finding id and digest":      {FindingID: "finding:x", SubjectDigest: "sha256:x"},
+		"package alone":              {PackageID: "pkg:npm/a"},
+		"repository alone":           {RepositoryID: "repository:a"},
 		"bare identity, fact id":     {FindingID: "fact:x"},
 		"bare identity, finding id":  {FindingID: "finding:x"},
 		"workload and service only":  {WorkloadID: "workload:a", ServiceID: "service:a"},

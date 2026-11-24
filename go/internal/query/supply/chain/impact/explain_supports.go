@@ -178,11 +178,9 @@ var ExplainFindingFromSupportsQuery = mustBuildExplainFromSupportsQuery(
 type explainDrivingKey string
 
 const (
-	explainKeyNone       explainDrivingKey = ""
-	explainKeyCVE        explainDrivingKey = "cve"
-	explainKeyAdvisory   explainDrivingKey = "advisory"
-	explainKeyRepository explainDrivingKey = "repository"
-	explainKeyPackage    explainDrivingKey = "package"
+	explainKeyNone     explainDrivingKey = ""
+	explainKeyCVE      explainDrivingKey = "cve"
+	explainKeyAdvisory explainDrivingKey = "advisory"
 )
 
 // ExplainFindingUngrantedByKeyQuery is the ungranted selector or identity explain, one
@@ -199,21 +197,19 @@ var ExplainFindingUngrantedByKeyQuery = func() map[explainDrivingKey]string {
 	return queries
 }()
 
-// ungrantedExplainDrivingKey picks the selector an ungranted explain drives from, in
-// a fixed order (CVE, advisory-or-CVE, repository, package). It returns
-// explainKeyNone for a call with no indexed selector: a subject digest or an
-// identity (fact id, finding id, canonical key) alone has no supports index to drive
-// from, so that call keeps the legacy read until its own migration exists.
+// ungrantedExplainDrivingKey picks the selector an ungranted explain drives from, in a fixed
+// order (CVE, advisory-or-CVE). It returns explainKeyNone for every other call, which keeps the
+// legacy selector read: a call with a finding id and a package, repository or subject digest but no
+// CVE or advisory, a bare finding id, and a subject digest alone. The handler needs a CVE or an
+// advisory unless it is given a finding id, so a repository- or package-driven statement would be
+// reachable only as the identity fallback; that fallback reads its whole fence and stays on the
+// legacy read until the identity-first statement and its canonical-key index land (separate PR).
 func ungrantedExplainDrivingKey(filter packet.ExplanationFilter) explainDrivingKey {
 	switch {
 	case filter.CVEID != "":
 		return explainKeyCVE
 	case filter.AdvisoryID != "":
 		return explainKeyAdvisory
-	case filter.RepositoryID != "":
-		return explainKeyRepository
-	case filter.PackageID != "":
-		return explainKeyPackage
 	}
 	return explainKeyNone
 }
@@ -256,23 +252,20 @@ type explainRoute struct {
 //     pick across scopes and cannot answer a grant, and a finding id a granted
 //     list returned must explain with the same payload;
 //   - an ungranted public-id lookup probes supports by finding id; a miss
-//     falls back to the supports identity read, or to the image read when the call
-//     names an image reference (the identity read of an ungranted fact id or
-//     canonical key has no dedicated index yet; it is measured with the C1 index
-//     set, #10880 PR-C1 f);
+//     falls back to the selector read below, or to the image read when the call
+//     names an image reference;
 //   - an ungranted selector lookup with an image reference reads supports through
 //     the image partial index, filter then pick;
-//   - an ungranted selector lookup without one drives from its own key: the first of
-//     CVE, advisory-or-CVE, repository and package it names streams the narrow support
-//     tuples matching that key and decides none, one or ambiguous before any winner is
-//     computed (explain_decide_first.go); every other selector, the identity filter and the
-//     per-candidate authority probe apply to those candidates (the winners table cannot
-//     name its candidates: a mixed cve_id key, a second key that matches only on a lower
-//     copy, and a replaced winning support each give a wrong answer). A call with none of
-//     them (a subject digest alone, or an identity lookup by fact id, finding id or
-//     canonical key that names no CVE, advisory, repository or package) has no supports
-//     index to drive from and keeps the legacy read. With the gate on, such a bare
-//     public-id miss or a finding id with a subject digest still counts the legacy route.
+//   - an ungranted selector lookup without one that names a CVE or an advisory drives from
+//     that key: it streams the narrow support tuples matching the key and decides none, one or
+//     ambiguous before any winner is computed (explain_decide_first.go); every other selector,
+//     the identity filter and the per-candidate authority probe apply to those candidates (the
+//     winners table cannot name its candidates: a mixed cve_id key, a second key that matches only
+//     on a lower copy, and a replaced winning support each give a wrong answer). It runs under a
+//     transaction-local jit = off inside the snapshot already open. Every other ungranted selector
+//     or identity call keeps the legacy read: a finding id with a package, repository or subject
+//     digest and no CVE or advisory, a bare finding id, a subject digest alone. With the gate on,
+//     such a call counts the legacy route.
 func (s PostgresFindingStore) explainRoute(filter packet.ExplanationFilter) explainRoute {
 	legacy := explainRoute{
 		publicID: ExplainFindingByPublicIDQuery, selector: ExplainFindingQuery,

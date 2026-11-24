@@ -36,19 +36,19 @@ type explainShape struct {
 func explainShapes() []explainShape {
 	publicID := ExplainFindingByPublicIDFromSupportsQuery
 	byKey := ExplainFindingUngrantedByKeyQuery
-	// The key-first statements (#10880 PR-C1 f): each selector drives from its own index. A subject
-	// digest alone and a bare identity (fact id, finding id, canonical key without a CVE, advisory,
-	// package or repository) have no supports index to drive from, so they keep the legacy read and
-	// have no shape here until their own migrations exist.
+	// The decide-first statements (#10880 PR-C1 f): a CVE or an advisory drives from its own index. A
+	// finding id with a package, repository or digest and no CVE or advisory, a bare identity and a
+	// subject digest alone keep the legacy selector read (arbiter ruling item-f-identity 2.1); the two
+	// legacy_* shapes time that read for the before row of the claims table.
 	return []explainShape{
 		{"cve", byKey[explainKeyCVE], "ungranted selector by CVE id", map[int]string{4: ":'cve'"}},
 		{"advisory", byKey[explainKeyAdvisory], "ungranted selector by advisory id (two index arms)", map[int]string{3: ":'advisory'"}},
-		{"package", byKey[explainKeyPackage], "ungranted selector by package id", map[int]string{5: ":'package'"}},
-		{"repository", byKey[explainKeyRepository], "ungranted selector by repository id", map[int]string{6: ":'repository'"}},
 		{"cve_package", byKey[explainKeyCVE], "ungranted selector by CVE id plus package id (drives from the CVE)", map[int]string{4: ":'cve'", 5: ":'package'"}},
 		{"identity_fact_id", byKey[explainKeyCVE], "identity lookup by fact id with a CVE and package selector", map[int]string{2: ":'fact_id'", 4: ":'cve'", 5: ":'package'"}},
 		{"identity_finding_id", byKey[explainKeyCVE], "identity lookup by finding id (the fallback of a public-id miss) with a CVE and package selector", map[int]string{2: ":'finding_id'", 4: ":'cve'", 5: ":'package'"}},
 		{"identity_canonical_key", byKey[explainKeyCVE], "identity lookup by canonical key with a CVE and package selector", map[int]string{2: ":'canonical_key'", 4: ":'cve'", 5: ":'package'"}},
+		{"legacy_identity_miss_package", ExplainFindingQuery, "legacy selector read: a finding id that misses with a package (the shape that stays on legacy)", map[int]string{2: "'finding:no-such-finding'", 5: ":'package'"}},
+		{"legacy_identity_hit_package", ExplainFindingQuery, "legacy selector read: a fact id that hits with a package (the shape that stays on legacy)", map[int]string{2: ":'fact_id'", 5: ":'package'"}},
 		{"public_id_hit", publicID, "public finding id probe, an id that exists", map[int]string{2: ":'finding_id'"}},
 		{"public_id_miss", publicID, "public finding id probe, an id that does not exist", map[int]string{2: "'finding:no-such-finding'"}},
 	}
@@ -115,7 +115,9 @@ func TestRenderUngrantedExplainShapes(t *testing.T) {
 			if !strings.Contains(text, "PREPARE q AS") || strings.Count(text, "EXECUTE q(") != 1 {
 				t.Fatalf("shape %s did not render a PREPARE and one EXECUTE", shape.name)
 			}
-			if strings.Contains(text, "fact_records AS fact\n  JOIN ingestion_scopes") {
+			// The legacy_* shapes time the fact-table read that stays on legacy; every other shape
+			// reads the supports table.
+			if !strings.HasPrefix(shape.name, "legacy_") && strings.Contains(text, "fact_records AS fact\n  JOIN ingestion_scopes") {
 				t.Fatalf("shape %s still reads the finding facts as its candidate source", shape.name)
 			}
 			if generic != strings.Contains(text, "force_generic_plan;") {

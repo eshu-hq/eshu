@@ -26,6 +26,7 @@ TABLE = {
         ),
         "go/internal/query/supply/chain/impact/explain_decide_first_live_test.go": (
             "TestExplainUngrantedDecideFirstEqualsLegacyLive",
+            "TestExplainSelectorJITOffRevertsAfterTheExplainLive",
         ),
         "go/internal/query/supply/chain/impact/explain_supports_live_test.go": (
             "TestExplainFromSupportsLive",

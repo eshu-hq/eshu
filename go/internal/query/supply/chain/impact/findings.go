@@ -106,6 +106,9 @@ type PostgresFindingStore struct {
 	// (eshu_dp_supply_chain_impact_read_route_total). Nil skips the counter; the
 	// route attribute is still set on the active span.
 	Instruments *telemetry.Instruments
+	// inSnapshot is set on the copy an explain call reads through when the call holds its own
+	// read transaction: the explain selector read switches JIT off for that transaction only.
+	inSnapshot bool
 }
 
 // NewPostgresFindingStore creates the Postgres-backed impact

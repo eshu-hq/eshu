@@ -216,9 +216,9 @@ func TestNilInstrumentsDoNotPanic(t *testing.T) {
 // table (the ungranted selector without an image, the identity fallback of a
 // public-id miss, and everything with the gate off) show up as legacy, so the
 // metric reports how much explain traffic still takes the legacy read. With the
-// gate on, an ungranted selector lookup that names a CVE, advisory, repository or
-// package counts supports_selector (#10880 PR-C1 f); one with no indexed selector
-// counts legacy.
+// gate on, an ungranted selector lookup that names a CVE or an advisory counts
+// supports_selector (#10880 PR-C1 f); every other one (a finding id with a package,
+// repository or digest and no CVE or advisory, a bare finding id) counts legacy.
 func TestExplainCountsEachStatementByRoute(t *testing.T) {
 	t.Parallel()
 	granted := []string{"scope:a"}
@@ -236,6 +236,15 @@ func TestExplainCountsEachStatementByRoute(t *testing.T) {
 		},
 		"ungranted public id miss with a subject digest only stays legacy": {
 			true, packet.ExplanationFilter{FindingID: "finding:a", SubjectDigest: "sha256:x"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
+		},
+		"ungranted public id miss with a package stays legacy": {
+			true, packet.ExplanationFilter{FindingID: "finding:a", PackageID: "pkg:npm/p"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
+		},
+		"ungranted public id miss with a repository stays legacy": {
+			true, packet.ExplanationFilter{FindingID: "finding:a", RepositoryID: "repository:a"}, map[string]int64{"supports_finding_id": 1, "legacy": 1},
+		},
+		"ungranted public id miss with a CVE and a package takes the keyed read": {
+			true, packet.ExplanationFilter{FindingID: "finding:a", CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, map[string]int64{"supports_finding_id": 1, "supports_selector": 1},
 		},
 		"ungranted public id miss with an image reference": {
 			true,

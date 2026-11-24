@@ -138,26 +138,40 @@ func TestJITIsOffOnlyForTheSupplementAndImageReads(t *testing.T) {
 	}
 }
 
-// TestExplainNeverSwitchesJITOff pins that the transaction-local jit switch is
-// confined to the list, count, inventory and grouped reads of the supplement and
-// image routes: no explain lookup (granted, public id, image selector, legacy
-// selector) sets it, even though an explain opens its own snapshot transaction.
-func TestExplainNeverSwitchesJITOff(t *testing.T) {
+// TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead pins ruling item-f-identity 4.1: the
+// transaction-local jit switch is confined to the list, count, inventory and grouped reads of the
+// supplement and image routes AND the decide-first explain selector read, which runs it inside the
+// snapshot already open, immediately before that statement. No other explain lookup (granted, public
+// id, image selector, legacy selector, a finding id with a package) sets it.
+func TestExplainSwitchesJITOffOnlyBeforeTheKeyedSelectorRead(t *testing.T) {
 	t.Parallel()
 	granted := []string{"scope:a"}
-	for name, filter := range map[string]packet.ExplanationFilter{
-		"granted selector":       {CVEID: "CVE-2026-1", PackageID: "pkg:npm/p", AllowedScopeIDs: granted},
-		"ungranted public id":    {FindingID: "finding:a"},
-		"ungranted image":        {CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"},
-		"ungranted selector":     {CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"},
-		"ungranted public + img": {FindingID: "finding:a", ImageRef: "registry.example/a:1"},
+	for name, tc := range map[string]struct {
+		filter  packet.ExplanationFilter
+		wantJIT bool
+	}{
+		"granted selector":                          {packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p", AllowedScopeIDs: granted}, false},
+		"ungranted public id":                       {packet.ExplanationFilter{FindingID: "finding:a"}, false},
+		"ungranted image":                           {packet.ExplanationFilter{CVEID: "CVE-2026-1", ImageRef: "registry.example/a:1"}, false},
+		"ungranted public + img":                    {packet.ExplanationFilter{FindingID: "finding:a", ImageRef: "registry.example/a:1"}, false},
+		"finding id with a package stays legacy":    {packet.ExplanationFilter{FindingID: "finding:a", PackageID: "pkg:npm/p"}, false},
+		"finding id with a repository stays legacy": {packet.ExplanationFilter{FindingID: "finding:a", RepositoryID: "repository:a"}, false},
+		"ungranted CVE selector":                    {packet.ExplanationFilter{CVEID: "CVE-2026-1", PackageID: "pkg:npm/p"}, true},
+		"ungranted advisory selector":               {packet.ExplanationFilter{AdvisoryID: "GHSA-1", RepositoryID: "repository:a"}, true},
+		"finding id miss then a CVE selector":       {packet.ExplanationFilter{FindingID: "finding:a", CVEID: "CVE-2026-1"}, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			fake := routeQueryer()
-			_, _ = NewPostgresFindingStoreWithReadStore(fake, true).ExplainSupplyChainImpact(t.Context(), filter)
-			if events := strings.Join(fake.events, ","); strings.Contains(events, "jit_off") {
-				t.Fatalf("an explain switched jit off: %s", events)
+			_, _ = NewPostgresFindingStoreWithReadStore(fake, true).ExplainSupplyChainImpact(t.Context(), tc.filter)
+			events := strings.Join(fake.events, ",")
+			switch {
+			case tc.wantJIT && !strings.Contains(events, "jit_off,read:supports_selector"):
+				t.Fatalf("the keyed selector read did not run right after the jit switch: %s", events)
+			case !tc.wantJIT && strings.Contains(events, "jit_off"):
+				t.Fatalf("an explain that is not the keyed selector read switched jit off: %s", events)
+			case strings.Contains(events, "USED AFTER END"):
+				t.Fatalf("the snapshot was used after it ended: %s", events)
 			}
 		})
 	}
